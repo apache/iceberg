@@ -107,6 +107,34 @@ public class TestMigrateTableProcedure extends SparkExtensionsTestBase {
   }
 
   @Test
+  public void testMigrateWithParallelism() throws IOException {
+    Assume.assumeTrue(catalogName.equals("spark_catalog"));
+    String location = temp.newFolder().toString();
+    sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'", tableName, location);
+    sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
+    sql("INSERT INTO TABLE %s VALUES (2, 'b')", tableName);
+    sql("INSERT INTO TABLE %s VALUES (3, 'c')", tableName);
+
+    Object result =
+        scalarSql("CALL %s.system.migrate(table => '%s', max_concurrent_read_datafiles => 3)",
+            catalogName, tableName);
+
+    Assert.assertEquals("Should have added three files", 3L, result);
+
+    Table createdTable = validationCatalog.loadTable(tableIdent);
+
+    String tableLocation = createdTable.location().replace("file:", "");
+    Assert.assertEquals("Table should have original location", location, tableLocation);
+
+    assertEquals(
+        "Should have expected rows",
+        ImmutableList.of(row(1L, "a"), row(2L, "b"), row(3L, "c")),
+        sql("SELECT * FROM %s ORDER BY id", tableName));
+
+    sql("DROP TABLE %s", tableName + "_BACKUP_");
+  }
+
+  @Test
   public void testMigrateWithDropBackup() throws IOException {
     Assume.assumeTrue(catalogName.equals("spark_catalog"));
     String location = temp.newFolder().toString();

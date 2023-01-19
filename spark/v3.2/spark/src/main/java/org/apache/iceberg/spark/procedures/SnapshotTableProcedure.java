@@ -38,7 +38,8 @@ class SnapshotTableProcedure extends BaseProcedure {
         ProcedureParameter.required("source_table", DataTypes.StringType),
         ProcedureParameter.required("table", DataTypes.StringType),
         ProcedureParameter.optional("location", DataTypes.StringType),
-        ProcedureParameter.optional("properties", STRING_MAP)
+        ProcedureParameter.optional("properties", STRING_MAP),
+        ProcedureParameter.optional("max_concurrent_read_datafiles", DataTypes.IntegerType)
       };
 
   private static final StructType OUTPUT_TYPE =
@@ -93,10 +94,20 @@ class SnapshotTableProcedure extends BaseProcedure {
               });
     }
 
+    int parallelism;
+    if (!args.isNullAt(4)) {
+      parallelism = args.getInt(4);
+    } else {
+      parallelism = 1;
+    }
+
     Preconditions.checkArgument(
         !source.equals(dest),
         "Cannot create a snapshot with the same name as the source of the snapshot.");
-    SnapshotTable action = SparkActions.get().snapshotTable(source).as(dest);
+    SnapshotTable action = SparkActions.get()
+        .snapshotTable(source)
+        .withParallelReads(parallelism)
+        .as(dest);
 
     if (snapshotLocation != null) {
       action.tableLocation(snapshotLocation);

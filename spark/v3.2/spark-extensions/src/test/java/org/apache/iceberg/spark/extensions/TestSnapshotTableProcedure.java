@@ -104,6 +104,30 @@ public class TestSnapshotTableProcedure extends SparkExtensionsTestBase {
   }
 
   @Test
+  public void testSnapshotWithParallelism() throws IOException {
+    String location = temp.newFolder().toString();
+    sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'", sourceName, location);
+    sql("INSERT INTO TABLE %s VALUES (1, 'a')", sourceName);
+    sql("INSERT INTO TABLE %s VALUES (2, 'b')", sourceName);
+    sql("INSERT INTO TABLE %s VALUES (3, 'c')", sourceName);
+    Object result = scalarSql(
+        "CALL %s.system.snapshot(source_table => '%s', table => '%s', max_concurrent_read_datafiles => 4)",
+        catalogName, sourceName, tableName);
+
+    Assert.assertEquals("Should have added three file", 3L, result);
+
+    Table createdTable = validationCatalog.loadTable(tableIdent);
+
+    String tableLocation = createdTable.location();
+    Assert.assertNotEquals("Table should not have the original location", location, tableLocation);
+
+    assertEquals(
+        "Should have expected rows",
+        ImmutableList.of(row(1L, "a"), row(2L, "b"), row(3L, "c")),
+        sql("SELECT * FROM %s ORDER BY id", tableName));
+  }
+
+  @Test
   public void testSnapshotWithAlternateLocation() throws IOException {
     Assume.assumeTrue(
         "No Snapshoting with Alternate locations with Hadoop Catalogs",

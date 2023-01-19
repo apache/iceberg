@@ -39,7 +39,8 @@ class MigrateTableProcedure extends BaseProcedure {
       new ProcedureParameter[] {
         ProcedureParameter.required("table", DataTypes.StringType),
         ProcedureParameter.optional("properties", STRING_MAP),
-        ProcedureParameter.optional("drop_backup", DataTypes.BooleanType)
+        ProcedureParameter.optional("drop_backup", DataTypes.BooleanType),
+        ProcedureParameter.optional("max_concurrent_read_datafiles", DataTypes.IntegerType)
       };
 
   private static final StructType OUTPUT_TYPE =
@@ -99,7 +100,13 @@ class MigrateTableProcedure extends BaseProcedure {
     if (dropBackup) {
       result = migrateTableSparkAction.dropBackup().execute();
     } else {
-      result = migrateTableSparkAction.execute();
+      int parallelism;
+      if (!args.isNullAt(3)) {
+        parallelism = args.getInt(3);
+      } else {
+        parallelism = 1;
+      }
+      result = migrateTableSparkAction.withParallelReads(parallelism).execute();
     }
 
     return new InternalRow[] {newInternalRow(result.migratedDataFilesCount())};

@@ -50,6 +50,14 @@ public interface MigrateTable extends Action<MigrateTable, MigrateTable.Result> 
     throw new UnsupportedOperationException("Dropping a backup is not supported");
   }
 
+  /**
+   * @param numReaders the number of concurrent file read operations to use per partition
+   * @return this for method chaining
+   **/
+  default MigrateTable withParallelReads(int numReaders) {
+    throw new UnsupportedOperationException(this.getClass().getName() + " does not implement withParallelReads");
+  }
+
   /** The action result that contains a summary of the execution. */
   interface Result {
     /** Returns the number of migrated data files. */

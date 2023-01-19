@@ -373,6 +373,52 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
   }
 
   @Test
+  public void addDataPartitionedHiveInParallel() {
+    createPartitionedHiveTable();
+
+    String createIceberg =
+        "CREATE TABLE %s (id Integer, name String, dept String, subdept String) USING iceberg PARTITIONED BY (id)";
+
+    sql(createIceberg, tableName);
+
+    Object result = scalarSql("CALL %s.system.add_files(" +
+            "table => '%s', " +
+            "source_table => '%s', " +
+            "max_concurrent_read_datafiles => 3)",
+        catalogName, tableName, sourceTableName);
+
+    Assert.assertEquals(8L, result);
+
+    assertEquals(
+        "Iceberg table contains correct data",
+        sql("SELECT id, name, dept, subdept FROM %s ORDER BY id", sourceTableName),
+        sql("SELECT id, name, dept, subdept FROM %s ORDER BY id", tableName));
+  }
+
+  @Test
+  public void addDataUnpartitionedHiveInParallel() {
+    createUnpartitionedHiveTable();
+
+    String createIceberg =
+        "CREATE TABLE %s (id Integer, name String, dept String, subdept String) USING iceberg";
+
+    sql(createIceberg, tableName);
+
+    Object result = scalarSql("CALL %s.system.add_files(" +
+            "table => '%s', " +
+            "source_table => '%s', " +
+            "max_concurrent_read_datafiles => 3)",
+        catalogName, tableName, sourceTableName);
+
+    Assert.assertEquals(2L, result);
+
+    assertEquals(
+        "Iceberg table contains correct data",
+        sql("SELECT * FROM %s ORDER BY id", sourceTableName),
+        sql("SELECT * FROM %s ORDER BY id", tableName));
+  }
+
+  @Test
   public void addPartitionToPartitioned() {
     createPartitionedFileTable("parquet");
 

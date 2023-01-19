@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.spark.actions;
 
+import java.util.Collections;
 import java.util.Map;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotSummary;
@@ -54,6 +55,8 @@ public class SnapshotTableSparkAction extends BaseTableCreationSparkAction<Snaps
   private StagingTableCatalog destCatalog;
   private Identifier destTableIdent;
   private String destTableLocation = null;
+  // Max number of concurrent files to read per partition while indexing table
+  private int readDatafileParallelism = 1;
 
   SnapshotTableSparkAction(
       SparkSession spark, CatalogPlugin sourceCatalog, Identifier sourceTableIdent) {
@@ -99,6 +102,12 @@ public class SnapshotTableSparkAction extends BaseTableCreationSparkAction<Snaps
   }
 
   @Override
+  public MigrateTable withParallelReads(int numReaders) {
+    this.readDatafileParallelism = numReaders;
+    return this;
+  }
+
+  @Override
   public SnapshotTable.Result execute() {
     String desc = String.format("Snapshotting table %s as %s", sourceTableIdent(), destTableIdent);
     JobGroupInfo info = newJobGroupInfo("SNAPSHOT-TABLE", desc);
@@ -126,7 +135,14 @@ public class SnapshotTableSparkAction extends BaseTableCreationSparkAction<Snaps
       TableIdentifier v1TableIdent = v1SourceTable().identifier();
       String stagingLocation = getMetadataLocation(icebergTable);
       LOG.info("Generating Iceberg metadata for {} in {}", destTableIdent(), stagingLocation);
-      SparkTableUtil.importSparkTable(spark(), v1TableIdent, icebergTable, stagingLocation);
+      SparkTableUtil.importSparkTable(
+          spark(),
+          v1TableIdent,
+          icebergTable,
+          stagingLocation,
+          Collections.emptyMap(),
+          false,
+          readDatafileParallelism);
 
       LOG.info("Committing staged changes to {}", destTableIdent());
       stagedTable.commitStagedChanges();

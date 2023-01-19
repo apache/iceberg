@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.spark.actions;
 
+import java.util.Collections;
 import java.util.Map;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotSummary;
@@ -57,6 +58,8 @@ public class MigrateTableSparkAction extends BaseTableCreationSparkAction<Migrat
   private final StagingTableCatalog destCatalog;
   private final Identifier destTableIdent;
   private final Identifier backupIdent;
+  // Max number of concurrent files to read per partition while indexing table
+  private int readDatafileParallelism = 1;
 
   private boolean dropBackup = false;
 
@@ -97,6 +100,12 @@ public class MigrateTableSparkAction extends BaseTableCreationSparkAction<Migrat
   }
 
   @Override
+  public MigrateTable withParallelReads(int numReaders) {
+    this.readDatafileParallelism = numReaders;
+    return this;
+  }
+
+  @Override
   public MigrateTableSparkAction dropBackup() {
     this.dropBackup = true;
     return this;
@@ -131,7 +140,14 @@ public class MigrateTableSparkAction extends BaseTableCreationSparkAction<Migrat
       TableIdentifier v1BackupIdent = new TableIdentifier(backupIdent.name(), backupNamespace);
       String stagingLocation = getMetadataLocation(icebergTable);
       LOG.info("Generating Iceberg metadata for {} in {}", destTableIdent(), stagingLocation);
-      SparkTableUtil.importSparkTable(spark(), v1BackupIdent, icebergTable, stagingLocation);
+      SparkTableUtil.importSparkTable(
+          spark(),
+          v1BackupIdent,
+          icebergTable,
+          stagingLocation,
+          Collections.emptyMap(),
+          false,
+          readDatafileParallelism);
 
       LOG.info("Committing staged changes to {}", destTableIdent());
       stagedTable.commitStagedChanges();
