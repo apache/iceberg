@@ -18,18 +18,33 @@
  */
 package org.apache.iceberg.spark.source;
 
+import java.io.IOException;
+import java.math.BigDecimal;
+import java.nio.ByteBuffer;
+import java.nio.CharBuffer;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.BatchScan;
+import org.apache.iceberg.DataFile;
 import org.apache.iceberg.IncrementalAppendScan;
 import org.apache.iceberg.IncrementalChangelogScan;
+import org.apache.iceberg.ManifestFile;
+import org.apache.iceberg.ManifestFiles;
+import org.apache.iceberg.ManifestReader;
 import org.apache.iceberg.MetadataColumns;
+import org.apache.iceberg.MetricsConfig;
+import org.apache.iceberg.MetricsModes;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.expressions.AggregateEvaluator;
 import org.apache.iceberg.expressions.Binder;
+import org.apache.iceberg.expressions.BoundAggregate;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ExpressionUtil;
 import org.apache.iceberg.expressions.Expressions;
@@ -40,31 +55,40 @@ import org.apache.iceberg.spark.SparkFilters;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkSchemaUtil;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.catalyst.InternalRow;
+import org.apache.spark.sql.connector.expressions.aggregate.Aggregation;
 import org.apache.spark.sql.connector.read.Scan;
 import org.apache.spark.sql.connector.read.ScanBuilder;
 import org.apache.spark.sql.connector.read.Statistics;
+import org.apache.spark.sql.connector.read.SupportsPushDownAggregates;
 import org.apache.spark.sql.connector.read.SupportsPushDownFilters;
 import org.apache.spark.sql.connector.read.SupportsPushDownRequiredColumns;
 import org.apache.spark.sql.connector.read.SupportsReportStatistics;
 import org.apache.spark.sql.sources.Filter;
+import org.apache.spark.sql.types.Decimal;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import scala.collection.JavaConverters;
 
 public class SparkScanBuilder
     implements ScanBuilder,
+        SupportsPushDownAggregates,
         SupportsPushDownFilters,
         SupportsPushDownRequiredColumns,
         SupportsReportStatistics {
 
   private static final Logger LOG = LoggerFactory.getLogger(SparkScanBuilder.class);
   private static final Filter[] NO_FILTERS = new Filter[0];
+  private StructType pushedAggregateSchema;
+  private InternalRow[] pushedAggregateRows;
 
   private final SparkSession spark;
   private final Table table;
@@ -154,6 +178,128 @@ public class SparkScanBuilder
   }
 
   @Override
+  public boolean pushAggregation(Aggregation aggregation) {
+    if (!pushDownAggregate(aggregation)) {
+      return false;
+    }
+
+    AggregateEvaluator aggregateEvaluator;
+    try {
+      List<Expression> aggregates =
+          Arrays.stream(aggregation.aggregateExpressions())
+              .map(agg -> SparkAggregates.convert(agg))
+              .collect(Collectors.toList());
+      aggregateEvaluator = AggregateEvaluator.create(schema, aggregates);
+    } catch (Exception e) {
+      LOG.info("Can't push down aggregates: " + e.getMessage());
+      return false;
+    }
+
+    if (!metricsModeSupportsAggregatePushDown(aggregateEvaluator.aggregates())) {
+      LOG.info("The MetricsMode doesn't support aggregate push down.");
+      return false;
+    }
+
+    List<ManifestFile> manifests = table.currentSnapshot().allManifests(table.io());
+
+    for (ManifestFile manifest : manifests) {
+      try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, table.io())) {
+        for (DataFile dataFile : reader) {
+          aggregateEvaluator.update(dataFile.copy());
+        }
+      } catch (IOException e) {
+        LOG.info("Can't push down aggregates: " + e.getMessage());
+        return false;
+      }
+    }
+
+    Object[] res = aggregateEvaluator.result();
+    applyDataTypeConversionIfNecessary(res);
+
+    List<Object> valuesInSparkInternalRow = java.util.Arrays.asList(res);
+    this.pushedAggregateRows = new InternalRow[1];
+    pushedAggregateRows[0] =
+        InternalRow.fromSeq(JavaConverters.asScalaBuffer(valuesInSparkInternalRow).toSeq());
+    pushedAggregateSchema =
+        SparkSchemaUtil.convert(new Schema(aggregateEvaluator.resultType().fields()));
+    return true;
+  }
+
+  private boolean pushDownAggregate(Aggregation aggregation) {
+    if (!(table instanceof BaseTable)) {
+      return false;
+    }
+
+    if (!readConf.aggregatePushDown()) {
+      return false;
+    }
+
+    Snapshot currentSnapshot = table.currentSnapshot();
+    if (currentSnapshot != null) {
+      Map<String, String> map = currentSnapshot.summary();
+      // if there are row-level deletes in current snapshot, the statics
+      // maybe changed, so disable push down aggregate.
+      if (Integer.parseInt(map.getOrDefault("total-position-deletes", "0")) > 0
+          || Integer.parseInt(map.getOrDefault("total-equality-deletes", "0")) > 0) {
+        LOG.info("Cannot push down aggregate (row-level deletes might change the statistics.)");
+        return false;
+      }
+    }
+
+    // If group by expression is the same as the partition, the statistics information can still
+    // be used to calculate min/max/count, will enable aggregate push down in next phase.
+    // TODO: enable aggregate push down for partition col group by expression
+    if (aggregation.groupByExpressions().length > 0) {
+      LOG.info("Cannot push down aggregate (group by is not supported yet).");
+      return false;
+    }
+
+    return true;
+  }
+
+  private void applyDataTypeConversionIfNecessary(Object[] result) {
+    for (int i = 0; i < result.length; i++) {
+      if (result[i] instanceof java.math.BigDecimal) {
+        result[i] = Decimal.apply(new scala.math.BigDecimal((BigDecimal) result[i]));
+      } else if (result[i] instanceof ByteBuffer) {
+        byte[] arr = new byte[((ByteBuffer) result[i]).remaining()];
+        ((ByteBuffer) result[i]).get(arr);
+        result[i] = arr;
+      } else if (result[i] instanceof CharBuffer) {
+        result[i] = org.apache.spark.unsafe.types.UTF8String.fromString(result[i].toString());
+      }
+    }
+  }
+
+  private boolean metricsModeSupportsAggregatePushDown(List<BoundAggregate<?, ?>> aggregates) {
+    MetricsConfig config = MetricsConfig.forTable(table);
+    for (BoundAggregate aggregate : aggregates) {
+      String colName = aggregate.columnName();
+      if (!colName.equals("*")) {
+        MetricsModes.MetricsMode mode = config.columnMode(colName);
+        if (mode.toString().equals("none")) {
+          return false;
+        } else if (mode.toString().equals("counts")) {
+          if (aggregate.op() == Expression.Operation.MAX
+              || aggregate.op() == Expression.Operation.MIN) {
+            return false;
+          }
+        } else if (mode.toString().contains("truncate")) {
+          // lower_bounds and upper_bounds may be truncated, so disable push down
+          if (aggregate.type().typeId() == Type.TypeID.STRING) {
+            if (aggregate.op() == Expression.Operation.MAX
+                || aggregate.op() == Expression.Operation.MIN) {
+              return false;
+            }
+          }
+        }
+      }
+    }
+
+    return true;
+  }
+
+  @Override
   public void pruneColumns(StructType requestedSchema) {
     StructType requestedProjection =
         new StructType(
@@ -188,6 +334,19 @@ public class SparkScanBuilder
 
   @Override
   public Scan build() {
+    // if aggregates are pushed down, instead of constructing a SparkBatchQueryScan, creating file
+    // read tasks and sending over the tasks to Spark executors, a SparkLocalScan will be created
+    // and the scan is done locally on the Spark driver instead of the executors. The statistics
+    // info will be retrieved from manifest file and used to build a Spark internal row, which
+    // contains the pushed down aggregate values.
+    if (pushedAggregateRows != null) {
+      return new SparkLocalScan(table, pushedAggregateSchema, pushedAggregateRows);
+    } else {
+      return buildBatchScan();
+    }
+  }
+
+  private Scan buildBatchScan() {
     Long snapshotId = readConf.snapshotId();
     Long asOfTimestamp = readConf.asOfTimestamp();
     String branch = readConf.branch();

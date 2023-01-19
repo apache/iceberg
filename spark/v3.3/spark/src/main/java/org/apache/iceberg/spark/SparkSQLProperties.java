@@ -48,6 +48,10 @@ public class SparkSQLProperties {
       "spark.sql.iceberg.planning.preserve-data-grouping";
   public static final boolean PRESERVE_DATA_GROUPING_DEFAULT = false;
 
+  // Controls whether to push down aggregate (MAX/MIN/COUNT) to Iceberg
+  public static final String AGGREGATE_PUSH_DOWN_ENABLED = "spark.sql.iceberg.aggregate_pushdown";
+  public static final boolean AGGREGATE_PUSH_DOWN_ENABLED_DEFAULT = true;
+
   // Controls write distribution mode
   public static final String DISTRIBUTION_MODE = "spark.sql.iceberg.distribution-mode";
 }
