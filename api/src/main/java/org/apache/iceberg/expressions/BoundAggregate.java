@@ -117,11 +117,7 @@ public class BoundAggregate<T, C> extends Aggregate<BoundTerm<T>> implements Bou
     public void update(StructLike struct) {
       if (!isNull) {
         R value = aggregate.eval(struct);
-        if (value == null) {
-          this.isNull = true;
-        } else {
-          update(value);
-        }
+        update(value);
       }
     }
 

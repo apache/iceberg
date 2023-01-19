@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.expressions;
 
-import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 import org.apache.iceberg.DataFile;
@@ -29,9 +28,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 
 public class AggregateEvaluator {
-  public static AggregateEvaluator create(Schema schema, Expression... aggregates) {
-    return create(schema, Arrays.stream(aggregates).collect(Collectors.toList()));
-  }
 
   public static AggregateEvaluator create(Schema schema, List<Expression> aggregates) {
     return create(schema.asStruct(), aggregates);
