@@ -47,7 +47,7 @@ public class BaseTable implements Table, HasTableOperations, Serializable {
   }
 
   public BaseTable(TableOperations ops, String name, MetricsReporter reporter) {
-    Preconditions.checkNotNull(reporter, "reporter cannot be null");
+    Preconditions.checkNotNull(reporter, "Invalid metrics reporter: null");
     this.ops = ops;
     this.name = name;
     this.reporter = reporter;
