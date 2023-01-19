@@ -37,7 +37,6 @@ import org.apache.spark.sql.SparkSession;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.BeforeClass;
-import org.junit.Ignore;
 import org.junit.Test;
 
 public class TestAggregatePushDown extends SparkCatalogTestBase {
