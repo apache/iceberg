@@ -34,6 +34,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Pattern;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Splitter;
@@ -350,6 +351,7 @@ public class OAuth2Util {
 
   /** Class to handle authorization headers and token refresh. */
   public static class AuthSession {
+    private static int tokenRefreshNumRetries = 5;
     private static final long MAX_REFRESH_WINDOW_MILLIS = 300_000; // 5 minutes
     private static final long MIN_REFRESH_WAIT_MILLIS = 10;
     private Map<String, String> headers;
@@ -359,6 +361,11 @@ public class OAuth2Util {
     private final String credential;
     private volatile boolean keepRefreshed = true;
 
+    /**
+     * @deprecated will be removed in 1.3.0; use {@link AuthSession#AuthSession(Map, String, String,
+     *     String)} instead.
+     */
+    @Deprecated
     public AuthSession(Map<String, String> baseHeaders, String token, String tokenType) {
       this(baseHeaders, token, tokenType, null);
     }
@@ -396,6 +403,11 @@ public class OAuth2Util {
       return credential;
     }
 
+    @VisibleForTesting
+    static void setTokenRefreshNumRetries(int retries) {
+      tokenRefreshNumRetries = retries;
+    }
+
     /**
      * A new {@link AuthSession} with empty headers.
      *
@@ -417,7 +429,7 @@ public class OAuth2Util {
         boolean isSuccessful =
             Tasks.foreach(ref)
                 .suppressFailureWhenFinished()
-                .retry(5)
+                .retry(tokenRefreshNumRetries)
                 .onFailure(
                     (holder, err) -> {
                       // attempt to refresh using the client credential instead of the parent token
