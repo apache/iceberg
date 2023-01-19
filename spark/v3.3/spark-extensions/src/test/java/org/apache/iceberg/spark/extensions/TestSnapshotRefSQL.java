@@ -65,8 +65,8 @@ public class TestSnapshotRefSQL extends SparkExtensionsTestBase {
     long maxSnapshotAge = 2L;
     long maxRefAge = 10L;
     sql(
-        "ALTER TABLE %s CREATE BRANCH %s AS OF VERSION %d WITH SNAPSHOT RETENTION %d SNAPSHOTS %d DAYS RETAIN %d DAYS",
-        tableName, branchName, snapshotId, minSnapshotsToKeep, maxSnapshotAge, maxRefAge);
+        "ALTER TABLE %s CREATE BRANCH %s AS OF VERSION %d RETAIN %d DAYS WITH SNAPSHOT RETENTION %d SNAPSHOTS %d DAYS",
+        tableName, branchName, snapshotId, maxRefAge, minSnapshotsToKeep, maxSnapshotAge);
     table.refresh();
     SnapshotRef ref = table.refs().get(branchName);
     Assert.assertNotNull(ref);

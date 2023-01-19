@@ -73,7 +73,7 @@ statement
     | ALTER TABLE multipartIdentifier WRITE writeSpec                                       #setWriteDistributionAndOrdering
     | ALTER TABLE multipartIdentifier SET IDENTIFIER_KW FIELDS fieldList                    #setIdentifierFields
     | ALTER TABLE multipartIdentifier DROP IDENTIFIER_KW FIELDS fieldList                   #dropIdentifierFields
-    | ALTER TABLE multipartIdentifier CREATE BRANCH identifier (AS OF VERSION snapshotId)?  (snapshotRetentionClause)? (RETAIN snapshotRefRetain snapshotRefRetainTimeUnit)?   #createBranch
+    | ALTER TABLE multipartIdentifier CREATE BRANCH identifier (AS OF VERSION snapshotId)? (RETAIN snapshotRefRetain snapshotRefRetainTimeUnit)? (snapshotRetentionClause)?    #createBranch
     ;
 
 snapshotRetentionClause
