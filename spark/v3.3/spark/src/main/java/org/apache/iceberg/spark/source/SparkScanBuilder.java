@@ -235,7 +235,9 @@ public class SparkScanBuilder
     }
 
     Snapshot currentSnapshot = table.currentSnapshot();
-    if (currentSnapshot != null) {
+    if (currentSnapshot == null) {
+      return false;
+    } else {
       Map<String, String> map = currentSnapshot.summary();
       // if there are row-level deletes in current snapshot, the statics
       // maybe changed, so disable push down aggregate.
