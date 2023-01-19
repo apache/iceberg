@@ -149,13 +149,11 @@ public class TestGlueCatalogTable extends GlueTestBase {
     String tableName = getRandomName();
     TableIdentifier identifier = TableIdentifier.of(namespace, tableName);
     try {
-      glueCatalog.createTable(
-          identifier, schema, partitionSpec, tableLocationProperties);
+      glueCatalog.createTable(identifier, schema, partitionSpec, tableLocationProperties);
       glueCatalog.loadTable(identifier);
     } catch (RuntimeException e) {
       fail("Create and load table without warehouse location should succeed");
     }
-
   }
 
   @Test
