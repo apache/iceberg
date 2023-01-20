@@ -180,7 +180,8 @@ public class GlueCatalog extends BaseMetastoreCatalog
       FileIO io) {
     this.catalogName = name;
     this.awsProperties = properties;
-    this.warehousePath = path != null ? LocationUtil.stripTrailingSlash(path) : null;
+    this.warehousePath =
+        (path != null && path.length() > 0) ? LocationUtil.stripTrailingSlash(path) : null;
     this.glue = client;
     this.lockManager = lock;
     this.fileIO = io;

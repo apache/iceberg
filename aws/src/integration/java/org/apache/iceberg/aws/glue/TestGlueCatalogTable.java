@@ -19,7 +19,6 @@
 package org.apache.iceberg.aws.glue;
 
 import static org.apache.iceberg.expressions.Expressions.truncate;
-import static org.junit.Assert.fail;
 
 import java.util.List;
 import java.util.Locale;
@@ -152,7 +151,8 @@ public class TestGlueCatalogTable extends GlueTestBase {
       glueCatalog.createTable(identifier, schema, partitionSpec, tableLocationProperties);
       glueCatalog.loadTable(identifier);
     } catch (RuntimeException e) {
-      fail("Create and load table without warehouse location should succeed");
+      throw new RuntimeException(
+          "Create and load table without warehouse location should succeed", e);
     }
   }
 
