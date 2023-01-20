@@ -200,7 +200,7 @@ public class SparkScanBuilder
       return false;
     }
 
-    List<ManifestFile> manifests = table.currentSnapshot().allManifests(table.io());
+    List<ManifestFile> manifests = getSnapshot().allManifests(table.io());
 
     for (ManifestFile manifest : manifests) {
       try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, table.io())) {
@@ -234,11 +234,11 @@ public class SparkScanBuilder
       return false;
     }
 
-    Snapshot currentSnapshot = table.currentSnapshot();
-    if (currentSnapshot == null) {
+    Snapshot snapshot = getSnapshot();
+    if (snapshot == null) {
       return false;
     } else {
-      Map<String, String> map = currentSnapshot.summary();
+      Map<String, String> map = snapshot.summary();
       // if there are row-level deletes in current snapshot, the statics
       // maybe changed, so disable push down aggregate.
       if (Integer.parseInt(map.getOrDefault("total-position-deletes", "0")) > 0
@@ -257,6 +257,17 @@ public class SparkScanBuilder
     }
 
     return true;
+  }
+
+  private Snapshot getSnapshot() {
+    Snapshot snapshot = null;
+    if (readConf.snapshotId() != null) {
+      snapshot = table.snapshot(readConf.snapshotId());
+    } else {
+      snapshot = table.currentSnapshot();
+    }
+
+    return snapshot;
   }
 
   private void applyDataTypeConversionIfNecessary(Object[] result) {

@@ -444,4 +444,42 @@ public class TestAggregatePushDown extends SparkCatalogTestBase {
     expected.add(new Object[] {6666, 2222, 5L});
     assertEquals("min/max/count push down", expected, actual);
   }
+
+  @Test
+  public void testAggregatePushDownForTimeTravel() {
+    sql("CREATE TABLE %s (id LONG, data INT) USING iceberg", tableName);
+    sql(
+        "INSERT INTO TABLE %s VALUES (1, 1111), (1, 2222), (2, 3333), (2, 4444), (3, 5555), (3, 6666) ",
+        tableName);
+
+    long snapshotId = validationCatalog.loadTable(tableIdent).currentSnapshot().snapshotId();
+    List<Object[]> expected1 = sql("SELECT count(id) FROM %s", tableName);
+
+    sql("INSERT INTO %s VALUES (4, 7777), (5, 8888)", tableName);
+    List<Object[]> expected2 = sql("SELECT count(id) FROM %s", tableName);
+
+    List<Object[]> explain1 =
+        sql("EXPLAIN SELECT count(id) FROM %s VERSION AS OF %s", tableName, snapshotId);
+    String explainString1 = explain1.get(0)[0].toString();
+    boolean explainContainsPushDownAggregates1 = false;
+    if (explainString1.contains("count(id)")) {
+      explainContainsPushDownAggregates1 = true;
+    }
+    Assert.assertTrue("count pushed down", explainContainsPushDownAggregates1);
+
+    List<Object[]> actual1 =
+        sql("SELECT count(id) FROM %s VERSION AS OF %s", tableName, snapshotId);
+    assertEquals("count push down", expected1, actual1);
+
+    List<Object[]> explain2 = sql("EXPLAIN SELECT count(id) FROM %s", tableName);
+    String explainString2 = explain2.get(0)[0].toString();
+    boolean explainContainsPushDownAggregates2 = false;
+    if (explainString2.contains("count(id)")) {
+      explainContainsPushDownAggregates2 = true;
+    }
+    Assert.assertTrue("count pushed down", explainContainsPushDownAggregates2);
+
+    List<Object[]> actual2 = sql("SELECT count(id) FROM %s", tableName);
+    assertEquals("count push down", expected2, actual2);
+  }
 }
