@@ -153,7 +153,8 @@ public class GlueCatalog extends BaseMetastoreCatalog
     } else if (SET_VERSION_ID.isNoop()) {
       LOG.warn(
           "Optimistic locking is not available in the environment. Using in-memory lock manager."
-              + " To ensure atomic transaction, you need to setup a DynamoDB lock manager.");
+              + " To ensure atomic transaction, please configure a distributed lock manager"
+              + " such as the DynamoDB lock manager.");
       return LockManagers.defaultLockManager();
     } else {
       LOG.debug("Using optimistic locking for Glue Data Catalog tables.");
