@@ -270,15 +270,19 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
   private DataFile buildDataFileFromAction(Action action, Table table) {
     PartitionSpec spec = table.spec();
     String path;
+    long fileSize;
+    Long nullableFileSize;
     Map<String, String> partitionValues;
 
     if (action instanceof AddFile) {
       AddFile addFile = (AddFile) action;
       path = addFile.getPath();
+      nullableFileSize = addFile.getSize();
       partitionValues = addFile.getPartitionValues();
     } else if (action instanceof RemoveFile) {
       RemoveFile removeFile = (RemoveFile) action;
       path = removeFile.getPath();
+      nullableFileSize = removeFile.getSize().orElse(null);
       partitionValues = removeFile.getPartitionValues();
     } else {
       throw new ValidationException(
@@ -293,6 +297,15 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
 
     FileFormat format = determineFileFormatFromPath(fullFilePath);
     InputFile file = deltaLakeFileIO.newInputFile(fullFilePath);
+
+    // If the file size is not specified, we need to read the file to get the file size
+    if (nullableFileSize != null) {
+      fileSize = nullableFileSize;
+    } else {
+      fileSize = file.getLength();
+    }
+
+    // get metrics from the file
     MetricsConfig metricsConfig = MetricsConfig.forTable(table);
     String nameMappingString = table.properties().get(TableProperties.DEFAULT_NAME_MAPPING);
     NameMapping nameMapping =
@@ -308,7 +321,7 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
     return DataFiles.builder(spec)
         .withPath(fullFilePath)
         .withFormat(format)
-        .withFileSizeInBytes(file.getLength())
+        .withFileSizeInBytes(fileSize)
         .withMetrics(metrics)
         .withPartitionPath(partition)
         .build();
