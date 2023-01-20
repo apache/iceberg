@@ -41,6 +41,7 @@ import org.apache.spark.sql.catalyst.plans.logical.BranchOptions
 import org.apache.spark.sql.catalyst.plans.logical.CallArgument
 import org.apache.spark.sql.catalyst.plans.logical.CallStatement
 import org.apache.spark.sql.catalyst.plans.logical.CreateOrReplaceBranch
+import org.apache.spark.sql.catalyst.plans.logical.CreateTag
 import org.apache.spark.sql.catalyst.plans.logical.DropIdentifierFields
 import org.apache.spark.sql.catalyst.plans.logical.DropPartitionField
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
@@ -49,6 +50,7 @@ import org.apache.spark.sql.catalyst.plans.logical.PositionalArgument
 import org.apache.spark.sql.catalyst.plans.logical.ReplacePartitionField
 import org.apache.spark.sql.catalyst.plans.logical.SetIdentifierFields
 import org.apache.spark.sql.catalyst.plans.logical.SetWriteDistributionAndOrdering
+import org.apache.spark.sql.catalyst.plans.logical.TagOptions
 import org.apache.spark.sql.catalyst.trees.CurrentOrigin
 import org.apache.spark.sql.catalyst.trees.Origin
 import org.apache.spark.sql.connector.expressions
@@ -127,6 +129,34 @@ class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface) extends IcebergS
       branchName.getText,
       branchOptions,
       replace,
+      ifNotExists)
+
+  }
+
+  /**
+   * Create an CREATE TAG logical command.
+   */
+  override def visitCreateTag(ctx: CreateTagContext): CreateTag = withOrigin(ctx) {
+    val createTagClause = ctx.createTagClause()
+
+    val tagName = createTagClause.identifier().getText
+
+    val tagOptionsContext = Option(createTagClause.tagOptions())
+    val snapshotId = tagOptionsContext.flatMap(tagOptions => Option(tagOptions.snapshotId()))
+      .map(_.getText.toLong)
+    val tagRetain = tagOptionsContext.flatMap(tagOptions => Option(tagOptions.refRetain()))
+    val tagRefAgeMs = tagRetain.map(retain =>
+      TimeUnit.valueOf(retain.timeUnit().getText.toUpperCase(Locale.ENGLISH)).toMillis(retain.number().getText.toLong))
+    val tagOptions = TagOptions(
+      snapshotId,
+      tagRefAgeMs
+    )
+
+    val ifNotExists = createTagClause.EXISTS() != null
+
+    CreateTag(typedVisit[Seq[String]](ctx.multipartIdentifier),
+      tagName,
+      tagOptions,
       ifNotExists)
   }
 
