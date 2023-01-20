@@ -20,6 +20,7 @@
 package org.apache.spark.sql.catalyst.parser.extensions
 
 import java.util.Locale
+import java.util.concurrent.TimeUnit
 import org.antlr.v4.runtime._
 import org.antlr.v4.runtime.misc.Interval
 import org.antlr.v4.runtime.tree.ParseTree
@@ -27,8 +28,6 @@ import org.antlr.v4.runtime.tree.TerminalNode
 import org.apache.iceberg.DistributionMode
 import org.apache.iceberg.NullOrder
 import org.apache.iceberg.SortDirection
-import org.apache.iceberg.SortOrder
-import org.apache.iceberg.UnboundSortOrder
 import org.apache.iceberg.expressions.Term
 import org.apache.iceberg.spark.Spark3Util
 import org.apache.spark.sql.AnalysisException
@@ -103,10 +102,12 @@ class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface) extends IcebergS
       ctx.identifier().getText,
       Option(ctx.snapshotId()).map(_.getText.toLong),
       snapshotRetention.flatMap(s => Option(s.numSnapshots())).map(_.getText.toLong),
-      snapshotRetention.flatMap(s => Option(s.snapshotRetain())).map(
-        _.getText.toLong * timeUnit(ctx.snapshotRetentionClause().snapshotRetainTimeUnit().getText)),
-      Option(ctx.snapshotRefRetain()).map(_.getText.toLong *
-        timeUnit(ctx.snapshotRefRetainTimeUnit().getText)))
+      snapshotRetention.flatMap(s => Option(s.snapshotRetain())).map(retain => {
+        timeRetain(ctx.snapshotRetentionClause().snapshotRetainTimeUnit().getText, retain.getText.toLong)
+      }),
+      Option(ctx.snapshotRefRetain()).map(retain => {
+        timeRetain(ctx.snapshotRefRetainTimeUnit().getText, retain.getText.toLong)
+      }))
   }
 
   /**
@@ -286,14 +287,10 @@ class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface) extends IcebergS
     ctx.accept(this).asInstanceOf[T]
   }
 
-  private val timeUnit = (unit: String) => {
-    unit.toUpperCase(Locale.ENGLISH) match {
-      case "MONTHS" => 30 * 24 * 60 * 60 * 1000L
-      case "DAYS" => 24 * 60 * 60 * 1000L
-      case "HOURS" => 60 * 60 * 1000L
-      case "MINUTES" => 60 * 1000L
-      case _ => throw new IllegalArgumentException("Invalid time unit: " + unit)
-    }
+  private def timeRetain(unit: String, duration: Long): Long = unit.toUpperCase(Locale.ENGLISH) match {
+    case "MONTHS" => 30 * TimeUnit.DAYS.toMillis(duration)
+    case "DAYS" | "HOURS" | "MINUTES" => TimeUnit.valueOf(unit.toUpperCase(Locale.ENGLISH)).toMillis(duration)
+    case _ => throw new IllegalArgumentException("Invalid time unit: " + unit)
   }
 }
 
