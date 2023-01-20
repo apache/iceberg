@@ -105,7 +105,6 @@ class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface) extends IcebergS
       snapshotRetention.flatMap(s => Option(s.snapshotRetain())).map(retain => {
         TimeUnit.valueOf(ctx.snapshotRetentionClause().snapshotRetainTimeUnit().getText.toUpperCase(Locale.ENGLISH))
           .toMillis(retain.getText.toLong)
-
       }),
       Option(ctx.snapshotRefRetain()).map(retain => {
         TimeUnit.valueOf(ctx.snapshotRefRetainTimeUnit().getText.toUpperCase(Locale.ENGLISH))
