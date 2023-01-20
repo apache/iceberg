@@ -59,6 +59,7 @@ class ReadConf<T> {
   private final boolean reuseContainers;
   private final Integer batchSize;
   private final long[] startRowPositions;
+  private final Set<Integer> constantFieldIds;
 
   // List of column chunk metadata for each row group
   private final List<Map<ColumnPath, ColumnChunkMetaData>> columnChunkMetaDataForRowGroups;
@@ -74,7 +75,8 @@ class ReadConf<T> {
       NameMapping nameMapping,
       boolean reuseContainers,
       boolean caseSensitive,
-      Integer bSize) {
+      Integer bSize,
+      Set<Integer> constantFieldIds) {
     this.file = file;
     this.options = options;
     this.reader = newReader(file, options);
@@ -103,7 +105,8 @@ class ReadConf<T> {
     ParquetDictionaryRowGroupFilter dictFilter = null;
     ParquetBloomRowGroupFilter bloomFilter = null;
     if (filter != null) {
-      statsFilter = new ParquetMetricsRowGroupFilter(expectedSchema, filter, caseSensitive);
+      statsFilter =
+          new ParquetMetricsRowGroupFilter(expectedSchema, filter, caseSensitive, constantFieldIds);
       dictFilter = new ParquetDictionaryRowGroupFilter(expectedSchema, filter, caseSensitive);
       bloomFilter = new ParquetBloomRowGroupFilter(expectedSchema, filter, caseSensitive);
     }
@@ -139,6 +142,7 @@ class ReadConf<T> {
 
     this.reuseContainers = reuseContainers;
     this.batchSize = bSize;
+    this.constantFieldIds = constantFieldIds;
   }
 
   private ReadConf(ReadConf<T> toCopy) {
@@ -155,6 +159,7 @@ class ReadConf<T> {
     this.vectorizedModel = toCopy.vectorizedModel;
     this.columnChunkMetaDataForRowGroups = toCopy.columnChunkMetaDataForRowGroups;
     this.startRowPositions = toCopy.startRowPositions;
+    this.constantFieldIds = toCopy.constantFieldIds;
   }
 
   ParquetFileReader reader() {

@@ -19,6 +19,7 @@
 package org.apache.iceberg.parquet;
 
 import java.io.IOException;
+import java.util.Set;
 import java.util.function.Function;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.exceptions.RuntimeIOException;
@@ -29,6 +30,7 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.mapping.NameMapping;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.parquet.ParquetReadOptions;
 import org.apache.parquet.column.page.PageReadStore;
 import org.apache.parquet.hadoop.ParquetFileReader;
@@ -43,6 +45,29 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
   private final boolean reuseContainers;
   private final boolean caseSensitive;
   private final NameMapping nameMapping;
+  private final Set<Integer> constantFieldIds;
+
+  public ParquetReader(
+      InputFile input,
+      Schema expectedSchema,
+      ParquetReadOptions options,
+      Function<MessageType, ParquetValueReader<?>> readerFunc,
+      NameMapping nameMapping,
+      Expression filter,
+      boolean reuseContainers,
+      boolean caseSensitive,
+      Set<Integer> constantFieldIds) {
+    this.input = input;
+    this.expectedSchema = expectedSchema;
+    this.options = options;
+    this.readerFunc = readerFunc;
+    // replace alwaysTrue with null to avoid extra work evaluating a trivial filter
+    this.filter = filter == Expressions.alwaysTrue() ? null : filter;
+    this.reuseContainers = reuseContainers;
+    this.caseSensitive = caseSensitive;
+    this.nameMapping = nameMapping;
+    this.constantFieldIds = constantFieldIds;
+  }
 
   public ParquetReader(
       InputFile input,
@@ -53,15 +78,16 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
       Expression filter,
       boolean reuseContainers,
       boolean caseSensitive) {
-    this.input = input;
-    this.expectedSchema = expectedSchema;
-    this.options = options;
-    this.readerFunc = readerFunc;
-    // replace alwaysTrue with null to avoid extra work evaluating a trivial filter
-    this.filter = filter == Expressions.alwaysTrue() ? null : filter;
-    this.reuseContainers = reuseContainers;
-    this.caseSensitive = caseSensitive;
-    this.nameMapping = nameMapping;
+    this(
+        input,
+        expectedSchema,
+        options,
+        readerFunc,
+        nameMapping,
+        filter,
+        reuseContainers,
+        caseSensitive,
+        Sets.newHashSet());
   }
 
   private ReadConf<T> conf = null;
@@ -79,7 +105,8 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
               nameMapping,
               reuseContainers,
               caseSensitive,
-              null);
+              null,
+              constantFieldIds);
       this.conf = readConf.copy();
       return readConf;
     }

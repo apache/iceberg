@@ -45,6 +45,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -76,6 +77,7 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.ArrayUtil;
 import org.apache.iceberg.util.PropertyUtil;
@@ -673,6 +675,7 @@ public class ORC {
     private Function<TypeDescription, OrcRowReader<?>> readerFunc;
     private Function<TypeDescription, OrcBatchReader<?>> batchedReaderFunc;
     private int recordsPerBatch = VectorizedRowBatch.DEFAULT_SIZE;
+    private Set<Integer> constantFieldIds = ImmutableSet.of();
 
     private ReadBuilder(InputFile file) {
       Preconditions.checkNotNull(file, "Input file cannot be null");
@@ -749,6 +752,11 @@ public class ORC {
       return this;
     }
 
+    public ReadBuilder withConstantFields(Set<Integer> newConstantFieldIds) {
+      this.constantFieldIds = newConstantFieldIds;
+      return this;
+    }
+
     public <D> CloseableIterable<D> build() {
       Preconditions.checkNotNull(schema, "Schema is required");
       return new OrcIterable<>(
@@ -762,7 +770,8 @@ public class ORC {
           caseSensitive,
           filter,
           batchedReaderFunc,
-          recordsPerBatch);
+          recordsPerBatch,
+          constantFieldIds);
     }
   }
 
