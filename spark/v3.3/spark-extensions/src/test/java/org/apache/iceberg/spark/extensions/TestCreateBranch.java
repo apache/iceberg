@@ -18,8 +18,10 @@
  */
 package org.apache.iceberg.spark.extensions;
 
+import java.util.IllegalFormatConversionException;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
@@ -29,6 +31,7 @@ import org.apache.iceberg.spark.source.SimpleRecord;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
+import org.apache.spark.sql.catalyst.parser.extensions.IcebergParseException;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Test;
@@ -71,8 +74,8 @@ public class TestCreateBranch extends SparkExtensionsTestBase {
     SnapshotRef ref = table.refs().get(branchName);
     Assert.assertNotNull(ref);
     Assert.assertEquals(minSnapshotsToKeep, ref.minSnapshotsToKeep());
-    Assert.assertEquals(maxSnapshotAge * 24 * 60 * 60 * 1000L, ref.maxSnapshotAgeMs().longValue());
-    Assert.assertEquals(maxRefAge * 24 * 60 * 60 * 1000L, ref.maxRefAgeMs().longValue());
+    Assert.assertEquals(TimeUnit.DAYS.toMillis(maxSnapshotAge), ref.maxSnapshotAgeMs().longValue());
+    Assert.assertEquals(TimeUnit.DAYS.toMillis(maxRefAge), ref.maxRefAgeMs().longValue());
 
     AssertHelpers.assertThrows(
         "Cannot create an existing branch",
@@ -122,8 +125,33 @@ public class TestCreateBranch extends SparkExtensionsTestBase {
     SnapshotRef ref = table.refs().get(branchName);
     Assert.assertNotNull(ref);
     Assert.assertNull(ref.minSnapshotsToKeep());
-    Assert.assertEquals(maxSnapshotAge * 24 * 60 * 60 * 1000L, ref.maxSnapshotAgeMs().longValue());
+    Assert.assertEquals(TimeUnit.DAYS.toMillis(maxSnapshotAge), ref.maxSnapshotAgeMs().longValue());
     Assert.assertNull(ref.maxRefAgeMs());
+  }
+
+  @Test
+  public void testCreateBranchUseCustomMinSnapshotsToKeepAndMaxSnapshotAge()
+      throws NoSuchTableException {
+    Integer minSnapshotsToKeep = 2;
+    long maxSnapshotAge = 2L;
+    Table table = createDefaultTableAndInsert2Row();
+    String branchName = "b1";
+    sql(
+        "ALTER TABLE %s CREATE BRANCH %s WITH SNAPSHOT RETENTION %d SNAPSHOTS %d DAYS",
+        tableName, branchName, minSnapshotsToKeep, maxSnapshotAge);
+    table.refresh();
+    SnapshotRef ref = table.refs().get(branchName);
+    Assert.assertNotNull(ref);
+    Assert.assertEquals(minSnapshotsToKeep, ref.minSnapshotsToKeep());
+    Assert.assertEquals(TimeUnit.DAYS.toMillis(maxSnapshotAge), ref.maxSnapshotAgeMs().longValue());
+    Assert.assertNull(ref.maxRefAgeMs());
+
+    AssertHelpers.assertThrows(
+        "Illegal statement",
+        IcebergParseException.class,
+        "no viable alternative at input 'WITH SNAPSHOT RETENTION'",
+        () ->
+            sql("ALTER TABLE %s CREATE BRANCH %s WITH SNAPSHOT RETENTION", tableName, branchName));
   }
 
   @Test
@@ -137,7 +165,28 @@ public class TestCreateBranch extends SparkExtensionsTestBase {
     Assert.assertNotNull(ref);
     Assert.assertNull(ref.minSnapshotsToKeep());
     Assert.assertNull(ref.maxSnapshotAgeMs());
-    Assert.assertEquals(maxRefAge * 24 * 60 * 60 * 1000L, ref.maxRefAgeMs().longValue());
+    Assert.assertEquals(TimeUnit.DAYS.toMillis(maxRefAge), ref.maxRefAgeMs().longValue());
+
+    AssertHelpers.assertThrows(
+        "Illegal statement",
+        IcebergParseException.class,
+        "mismatched input",
+        () -> sql("ALTER TABLE %s CREATE BRANCH %s RETAIN", tableName, branchName));
+
+    AssertHelpers.assertThrows(
+        "Illegal statement",
+        IllegalFormatConversionException.class,
+        "d != java.lang.String",
+        () -> sql("ALTER TABLE %s CREATE BRANCH %s RETAIN %d DAYS", tableName, branchName, "abc"));
+
+    AssertHelpers.assertThrows(
+        "Illegal statement",
+        IcebergParseException.class,
+        "mismatched input 'SECONDS' expecting {'DAYS', 'HOURS', 'MINUTES', 'MONTHS'}",
+        () ->
+            sql(
+                "ALTER TABLE %s CREATE BRANCH %s RETAIN %d SECONDS",
+                tableName, branchName, maxRefAge));
   }
 
   private Table createDefaultTableAndInsert2Row() throws NoSuchTableException {
