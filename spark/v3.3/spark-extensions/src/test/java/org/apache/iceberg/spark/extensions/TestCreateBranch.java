@@ -68,7 +68,7 @@ public class TestCreateBranch extends SparkExtensionsTestBase {
     long maxSnapshotAge = 2L;
     long maxRefAge = 10L;
     sql(
-        "ALTER TABLE %s CREATE BRANCH %s AS OF VERSION %d RETAIN %d DAYS WITH SNAPSHOT RETENTION %d SNAPSHOTS %d DAYS",
+        "ALTER TABLE %s CREATE BRANCH %s AS OF VERSION %d RETAIN %d DAYS WITH SNAPSHOT RETENTION %d SNAPSHOTS %d days",
         tableName, branchName, snapshotId, maxRefAge, minSnapshotsToKeep, maxSnapshotAge);
     table.refresh();
     SnapshotRef ref = table.refs().get(branchName);
@@ -182,7 +182,7 @@ public class TestCreateBranch extends SparkExtensionsTestBase {
     AssertHelpers.assertThrows(
         "Illegal statement",
         IcebergParseException.class,
-        "mismatched input 'SECONDS' expecting {'DAYS', 'HOURS', 'MINUTES', 'MONTHS'}",
+        "mismatched input 'SECONDS' expecting {'DAYS', 'HOURS', 'MINUTES'}",
         () ->
             sql(
                 "ALTER TABLE %s CREATE BRANCH %s RETAIN %d SECONDS",

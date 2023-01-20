@@ -206,8 +206,7 @@ snapshotRetainTimeUnit
     ;
 
 timeUnit
-    : MONTHS
-    | DAYS
+    : DAYS
     | HOURS
     | MINUTES
     ;

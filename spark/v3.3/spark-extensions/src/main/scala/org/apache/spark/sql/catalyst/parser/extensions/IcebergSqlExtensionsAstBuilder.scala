@@ -103,10 +103,13 @@ class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface) extends IcebergS
       Option(ctx.snapshotId()).map(_.getText.toLong),
       snapshotRetention.flatMap(s => Option(s.numSnapshots())).map(_.getText.toLong),
       snapshotRetention.flatMap(s => Option(s.snapshotRetain())).map(retain => {
-        timeRetain(ctx.snapshotRetentionClause().snapshotRetainTimeUnit().getText, retain.getText.toLong)
+        TimeUnit.valueOf(ctx.snapshotRetentionClause().snapshotRetainTimeUnit().getText.toUpperCase(Locale.ENGLISH))
+          .toMillis(retain.getText.toLong)
+
       }),
       Option(ctx.snapshotRefRetain()).map(retain => {
-        timeRetain(ctx.snapshotRefRetainTimeUnit().getText, retain.getText.toLong)
+        TimeUnit.valueOf(ctx.snapshotRefRetainTimeUnit().getText.toUpperCase(Locale.ENGLISH))
+          .toMillis(retain.getText.toLong)
       }))
   }
 
@@ -285,12 +288,6 @@ class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface) extends IcebergS
 
   private def typedVisit[T](ctx: ParseTree): T = {
     ctx.accept(this).asInstanceOf[T]
-  }
-
-  private def timeRetain(unit: String, duration: Long): Long = unit.toUpperCase(Locale.ENGLISH) match {
-    case "MONTHS" => 30 * TimeUnit.DAYS.toMillis(duration)
-    case "DAYS" | "HOURS" | "MINUTES" => TimeUnit.valueOf(unit.toUpperCase(Locale.ENGLISH)).toMillis(duration)
-    case _ => throw new IllegalArgumentException("Invalid time unit: " + unit)
   }
 }
 
