@@ -235,7 +235,7 @@ public class TestRowDelta extends V2TableTestBase {
         latestSnapshot(table, branch).deleteManifests(table.io()).size());
   }
 
-  // @Test
+  @Test
   public void testValidateDataFilesExistFromSnapshot() {
     commit(table, table.newAppend().appendFile(FILE_A).appendFile(FILE_B), branch);
 
