@@ -461,9 +461,8 @@ public class SparkTableUtil {
   /**
    * Import files from an existing Spark table to an Iceberg table.
    *
-   * The import uses the Spark session to get table metadata. It assumes no
-   * operation is going on the original and target table and thus is not
-   * thread-safe.
+   * <p>The import uses the Spark session to get table metadata. It assumes no operation is going on
+   * the original and target table and thus is not thread-safe.
    *
    * @param spark a Spark session
    * @param sourceTableIdent an identifier of the source Spark table
@@ -481,13 +480,13 @@ public class SparkTableUtil {
       Map<String, String> partitionFilter,
       boolean checkDuplicateFiles) {
     importSparkTable(
-          spark,
-          sourceTableIdent,
-          targetTable,
-          stagingDir,
-          Collections.emptyMap(),
-          checkDuplicateFiles,
-          1);
+        spark,
+        sourceTableIdent,
+        targetTable,
+        stagingDir,
+        Collections.emptyMap(),
+        checkDuplicateFiles,
+        1);
   }
 
   /**
@@ -605,7 +604,7 @@ public class SparkTableUtil {
    * @param spec a partition spec
    * @param stagingDir a staging directory to store temporary manifest files
    * @param checkDuplicateFiles if true, throw exception if import results in a duplicate data file
-   * @param listPartitionParallelism Max number of concurrent files to read per partition while 
+   * @param listPartitionParallelism Max number of concurrent files to read per partition while
    *     indexing table
    */
   public static void importSparkPartitions(
@@ -638,15 +637,15 @@ public class SparkTableUtil {
             (FlatMapFunction<SparkPartition, DataFile>)
                 sparkPartition ->
                     TableMigrationUtil.listPartition(
-                      sparkPartition.values,
-                      sparkPartition.uri,
-                      sparkPartition.format,
-                      spec,
-                      serializableConf.get(),
-                      metricsConfig,
-                      nameMapping,
-                      listPartitionParallelism).iterator(),
-
+                            sparkPartition.values,
+                            sparkPartition.uri,
+                            sparkPartition.format,
+                            spec,
+                            serializableConf.get(),
+                            metricsConfig,
+                            nameMapping,
+                            listPartitionParallelism)
+                        .iterator(),
             Encoders.javaSerialization(DataFile.class));
 
     if (checkDuplicateFiles) {

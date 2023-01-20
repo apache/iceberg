@@ -104,10 +104,8 @@ class SnapshotTableProcedure extends BaseProcedure {
     Preconditions.checkArgument(
         !source.equals(dest),
         "Cannot create a snapshot with the same name as the source of the snapshot.");
-    SnapshotTable action = SparkActions.get()
-        .snapshotTable(source)
-        .withParallelReads(parallelism)
-        .as(dest);
+    SnapshotTable action =
+        SparkActions.get().snapshotTable(source).withParallelReads(parallelism).as(dest);
 
     if (snapshotLocation != null) {
       action.tableLocation(snapshotLocation);

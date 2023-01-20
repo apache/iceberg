@@ -106,13 +106,16 @@ public class TestSnapshotTableProcedure extends SparkExtensionsTestBase {
   @Test
   public void testSnapshotWithParallelism() throws IOException {
     String location = temp.newFolder().toString();
-    sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'", sourceName, location);
+    sql(
+        "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'",
+        sourceName, location);
     sql("INSERT INTO TABLE %s VALUES (1, 'a')", sourceName);
     sql("INSERT INTO TABLE %s VALUES (2, 'b')", sourceName);
     sql("INSERT INTO TABLE %s VALUES (3, 'c')", sourceName);
-    Object result = scalarSql(
-        "CALL %s.system.snapshot(source_table => '%s', table => '%s', max_concurrent_read_datafiles => 4)",
-        catalogName, sourceName, tableName);
+    Object result =
+        scalarSql(
+            "CALL %s.system.snapshot(source_table => '%s', table => '%s', max_concurrent_read_datafiles => 4)",
+            catalogName, sourceName, tableName);
 
     Assert.assertEquals("Should have added three file", 3L, result);
 

@@ -381,11 +381,13 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
 
     sql(createIceberg, tableName);
 
-    Object result = scalarSql("CALL %s.system.add_files(" +
-            "table => '%s', " +
-            "source_table => '%s', " +
-            "max_concurrent_read_datafiles => 3)",
-        catalogName, tableName, sourceTableName);
+    Object result =
+        scalarSql(
+            "CALL %s.system.add_files("
+                + "table => '%s', "
+                + "source_table => '%s', "
+                + "max_concurrent_read_datafiles => 3)",
+            catalogName, tableName, sourceTableName);
 
     Assert.assertEquals(8L, result);
 
@@ -404,11 +406,13 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
 
     sql(createIceberg, tableName);
 
-    Object result = scalarSql("CALL %s.system.add_files(" +
-            "table => '%s', " +
-            "source_table => '%s', " +
-            "max_concurrent_read_datafiles => 3)",
-        catalogName, tableName, sourceTableName);
+    Object result =
+        scalarSql(
+            "CALL %s.system.add_files("
+                + "table => '%s', "
+                + "source_table => '%s', "
+                + "max_concurrent_read_datafiles => 3)",
+            catalogName, tableName, sourceTableName);
 
     Assert.assertEquals(2L, result);
 

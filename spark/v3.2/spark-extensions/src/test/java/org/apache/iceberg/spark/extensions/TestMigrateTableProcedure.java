@@ -110,13 +110,16 @@ public class TestMigrateTableProcedure extends SparkExtensionsTestBase {
   public void testMigrateWithParallelism() throws IOException {
     Assume.assumeTrue(catalogName.equals("spark_catalog"));
     String location = temp.newFolder().toString();
-    sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'", tableName, location);
+    sql(
+        "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'",
+        tableName, location);
     sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
     sql("INSERT INTO TABLE %s VALUES (2, 'b')", tableName);
     sql("INSERT INTO TABLE %s VALUES (3, 'c')", tableName);
 
     Object result =
-        scalarSql("CALL %s.system.migrate(table => '%s', max_concurrent_read_datafiles => 3)",
+        scalarSql(
+            "CALL %s.system.migrate(table => '%s', max_concurrent_read_datafiles => 3)",
             catalogName, tableName);
 
     Assert.assertEquals("Should have added three files", 3L, result);

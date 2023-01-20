@@ -102,7 +102,7 @@ public class SnapshotTableSparkAction extends BaseTableCreationSparkAction<Snaps
   }
 
   @Override
-  public MigrateTable withParallelReads(int numReaders) {
+  public SnapshotTableSparkAction withParallelReads(int numReaders) {
     this.readDatafileParallelism = numReaders;
     return this;
   }

@@ -60,9 +60,10 @@ public interface SnapshotTable extends Action<SnapshotTable, SnapshotTable.Resul
   /**
    * @param numReaders the number of concurrent file read operations to use per partition
    * @return this for method chaining
-   **/
+   */
   default SnapshotTable withParallelReads(int numReaders) {
-    throw new UnsupportedOperationException(this.getClass().getName() + " does not implement withParallelReads");
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " does not implement withParallelReads");
   }
 
   /** The action result that contains a summary of the execution. */

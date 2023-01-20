@@ -128,12 +128,7 @@ class AddFilesProcedure extends BaseProcedure {
     }
 
     long addedFilesCount =
-        importToIceberg(
-            tableIdent,
-            sourceIdent,
-            partitionFilter,
-            checkDuplicateFiles,
-            parallelism);
+        importToIceberg(tableIdent, sourceIdent, partitionFilter, checkDuplicateFiles, parallelism);
     return new InternalRow[] {newInternalRow(addedFilesCount)};
   }
 
@@ -161,19 +156,10 @@ class AddFilesProcedure extends BaseProcedure {
             Path sourcePath = new Path(sourceIdent.name());
             String format = sourceIdent.namespace()[0];
             importFileTable(
-                table,
-                sourcePath,
-                format,
-                partitionFilter,
-                checkDuplicateFiles,
-                parallelism);
+                table, sourcePath, format, partitionFilter, checkDuplicateFiles, parallelism);
           } else {
             importCatalogTable(
-                table,
-                sourceIdent,
-                partitionFilter,
-                checkDuplicateFiles,
-                parallelism);
+                table, sourceIdent, partitionFilter, checkDuplicateFiles, parallelism);
           }
 
           Snapshot snapshot = table.currentSnapshot();
