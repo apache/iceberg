@@ -49,6 +49,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.NestedField;
+import org.apache.iceberg.util.LockManagers;
 import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
@@ -130,6 +131,29 @@ public class TestGlueCatalogTable extends GlueTestBase {
         () ->
             glueCatalog.createTable(
                 TableIdentifier.of(namespace, "table-1"), schema, partitionSpec));
+  }
+
+  @Test
+  public void testCreateAndLoadTableWithoutWarehouseLocation() {
+    GlueCatalog glueCatalogWithoutWarehouse = new GlueCatalog();
+    glueCatalogWithoutWarehouse.initialize(
+        catalogName,
+        null,
+        new AwsProperties(),
+        glue,
+        LockManagers.defaultLockManager(),
+        new S3FileIO(clientFactory::s3),
+        ImmutableMap.of());
+    String namespace = createNamespace();
+    String tableName = getRandomName();
+    TableIdentifier identifier = TableIdentifier.of(namespace, tableName);
+    try {
+      glueCatalog.createTable(identifier, schema, partitionSpec, tableLocationProperties);
+      glueCatalog.loadTable(identifier);
+    } catch (RuntimeException e) {
+      throw new RuntimeException(
+          "Create and load table without warehouse location should succeed", e);
+    }
   }
 
   @Test
