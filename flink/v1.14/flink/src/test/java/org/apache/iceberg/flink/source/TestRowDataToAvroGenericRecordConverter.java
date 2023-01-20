@@ -16,10 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.flink;
+package org.apache.iceberg.flink.source;
 
 import org.apache.avro.generic.GenericRecord;
-import org.apache.iceberg.flink.source.RowDataToAvroGenericRecordConverter;
+import org.apache.iceberg.flink.AvroGenericRecordConverterBase;
+import org.apache.iceberg.flink.DataGenerator;
 import org.junit.Assert;
 
 public class TestRowDataToAvroGenericRecordConverter extends AvroGenericRecordConverterBase {
