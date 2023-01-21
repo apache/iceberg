@@ -100,12 +100,7 @@ class MigrateTableProcedure extends BaseProcedure {
     if (dropBackup) {
       result = migrateTableSparkAction.dropBackup().execute();
     } else {
-      int parallelism;
-      if (!args.isNullAt(3)) {
-        parallelism = args.getInt(3);
-      } else {
-        parallelism = 1;
-      }
+      int parallelism = (args.isNullAt(3)) ? 1 : args.getInt(3);
       result = migrateTableSparkAction.withParallelReads(parallelism).execute();
     }
 

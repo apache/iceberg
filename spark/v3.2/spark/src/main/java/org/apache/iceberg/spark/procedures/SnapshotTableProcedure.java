@@ -94,12 +94,7 @@ class SnapshotTableProcedure extends BaseProcedure {
               });
     }
 
-    int parallelism;
-    if (!args.isNullAt(4)) {
-      parallelism = args.getInt(4);
-    } else {
-      parallelism = 1;
-    }
+    int parallelism = (args.isNullAt(4)) ? 1 : args.getInt(4);
 
     Preconditions.checkArgument(
         !source.equals(dest),
