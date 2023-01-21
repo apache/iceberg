@@ -19,6 +19,8 @@
 
 package org.apache.spark.sql.catalyst.parser.extensions
 
+import java.util.Locale
+import java.util.concurrent.TimeUnit
 import org.antlr.v4.runtime._
 import org.antlr.v4.runtime.misc.Interval
 import org.antlr.v4.runtime.tree.ParseTree
@@ -26,8 +28,6 @@ import org.antlr.v4.runtime.tree.TerminalNode
 import org.apache.iceberg.DistributionMode
 import org.apache.iceberg.NullOrder
 import org.apache.iceberg.SortDirection
-import org.apache.iceberg.SortOrder
-import org.apache.iceberg.UnboundSortOrder
 import org.apache.iceberg.expressions.Term
 import org.apache.iceberg.spark.Spark3Util
 import org.apache.spark.sql.AnalysisException
@@ -39,6 +39,7 @@ import org.apache.spark.sql.catalyst.parser.extensions.IcebergSqlExtensionsParse
 import org.apache.spark.sql.catalyst.plans.logical.AddPartitionField
 import org.apache.spark.sql.catalyst.plans.logical.CallArgument
 import org.apache.spark.sql.catalyst.plans.logical.CallStatement
+import org.apache.spark.sql.catalyst.plans.logical.CreateBranch
 import org.apache.spark.sql.catalyst.plans.logical.DropIdentifierFields
 import org.apache.spark.sql.catalyst.plans.logical.DropPartitionField
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
@@ -90,6 +91,26 @@ class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface) extends IcebergS
       typedVisit[Transform](ctx.transform))
   }
 
+  /**
+   * Create an ADD BRANCH logical command.
+   */
+  override def visitCreateBranch(ctx: CreateBranchContext): CreateBranch = withOrigin(ctx) {
+    val snapshotRetention = Option(ctx.snapshotRetentionClause())
+
+    CreateBranch(
+      typedVisit[Seq[String]](ctx.multipartIdentifier),
+      ctx.identifier().getText,
+      Option(ctx.snapshotId()).map(_.getText.toLong),
+      snapshotRetention.flatMap(s => Option(s.numSnapshots())).map(_.getText.toLong),
+      snapshotRetention.flatMap(s => Option(s.snapshotRetain())).map(retain => {
+        TimeUnit.valueOf(ctx.snapshotRetentionClause().snapshotRetainTimeUnit().getText.toUpperCase(Locale.ENGLISH))
+          .toMillis(retain.getText.toLong)
+      }),
+      Option(ctx.snapshotRefRetain()).map(retain => {
+        TimeUnit.valueOf(ctx.snapshotRefRetainTimeUnit().getText.toUpperCase(Locale.ENGLISH))
+          .toMillis(retain.getText.toLong)
+      }))
+  }
 
   /**
    * Create an REPLACE PARTITION FIELD logical command.
