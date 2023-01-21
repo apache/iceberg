@@ -65,7 +65,7 @@ public class BaseSnapshotHudiTableAction implements SnapshotHudiTable {
     InternalSchema hudiSchema = getHudiSchema();
     LOG.info("Alpha test: hoodie table schema: {}", hudiSchema);
     LOG.info("Alpha test: get record type: {}", hudiSchema.getRecord());
-    Schema icebergSchema = getIcebergSchema(hudiSchema);
+    Schema icebergSchema = convertToIcebergSchema(hudiSchema);
     LOG.info("Alpha test: get converted schema: {}", icebergSchema);
     return null;
   }
@@ -81,7 +81,6 @@ public class BaseSnapshotHudiTableAction implements SnapshotHudiTable {
     LOG.info(
         "Alpha test: active timeline commit timeline instants: {}",
         hoodieTableMetaClient.getActiveTimeline().getCommitsTimeline().filterCompletedInstants());
-    // TODO: need to add support for parquet format table
     return hudiSchema.orElseGet(
         () -> {
           try {
@@ -92,7 +91,7 @@ public class BaseSnapshotHudiTableAction implements SnapshotHudiTable {
         });
   }
 
-  private Schema getIcebergSchema(InternalSchema hudiSchema) {
+  private Schema convertToIcebergSchema(InternalSchema hudiSchema) {
     Type converted =
         HudiDataTypeVisitor.visit(
             hudiSchema.getRecord(), new HudiDataTypeToType(hudiSchema.getRecord()));
