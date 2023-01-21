@@ -18,12 +18,25 @@
  */
 package org.apache.iceberg.hudi;
 
+import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.spark.Spark3Util;
 import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.connector.catalog.CatalogPlugin;
 
 public class HudiToIcebergMigrationSparkIntegration {
   private HudiToIcebergMigrationSparkIntegration() {}
 
-  static SnapshotHudiTable snapshotHudiTable(SparkSession spark, String hudiTablePath) {
-    return new BaseSnapshotHudiTableAction(spark.sessionState().newHadoopConf(), hudiTablePath);
+  static SnapshotHudiTable snapshotHudiTable(
+      SparkSession spark, String hudiTablePath, String newTableIdentifier) {
+    String ctx = "hudi snapshot target";
+    CatalogPlugin defaultCatalog = spark.sessionState().catalogManager().currentCatalog();
+    Spark3Util.CatalogAndIdentifier catalogAndIdentifier =
+        Spark3Util.catalogAndIdentifier(ctx, spark, newTableIdentifier, defaultCatalog);
+
+    return new BaseSnapshotHudiTableAction(
+        spark.sessionState().newHadoopConf(),
+        hudiTablePath,
+        Spark3Util.loadIcebergCatalog(spark, catalogAndIdentifier.catalog().name()),
+        TableIdentifier.parse(catalogAndIdentifier.identifier().toString()));
   }
 }
