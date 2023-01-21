@@ -41,6 +41,7 @@ import org.apache.iceberg.OverwriteFiles;
 import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
@@ -172,13 +173,11 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
       VersionLog versionLog = versionLogIterator.next();
       commitDeltaVersionLogToIcebergTransaction(versionLog, icebergTransaction);
     }
+    Snapshot icebergSnapshot = icebergTransaction.table().currentSnapshot();
     long totalDataFiles =
-        Long.parseLong(
-            icebergTransaction
-                .table()
-                .currentSnapshot()
-                .summary()
-                .get(SnapshotSummary.TOTAL_DATA_FILES_PROP));
+        icebergSnapshot != null
+            ? Long.parseLong(icebergSnapshot.summary().get(SnapshotSummary.TOTAL_DATA_FILES_PROP))
+            : 0;
 
     icebergTransaction.commitTransaction();
     LOG.info(
