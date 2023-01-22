@@ -458,6 +458,9 @@ project(':iceberg-hudi') {
     implementation project(':iceberg-orc')
     implementation "com.fasterxml.jackson.core:jackson-databind"
 
+    // TODO: we only need hudi-common here, however, hudi-common has some dependency conflicts with hudi-spark-bundle
+    // which is currently used by the integration test. We should fix this in the future.
+    // Also, hudi uses java8, may need to assess if we can use hudi in java11.
     compileOnly("org.apache.hudi:hudi-spark3.3-bundle_2.12:0.12.2")
     implementation("org.apache.avro:avro") {
       exclude group: 'org.tukaani' // xz compression is not supported

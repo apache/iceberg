@@ -219,21 +219,21 @@ public class TestSnapshotHudiTable extends SparkHudiMigrationTestBase {
   }
 
   @Test
-  public void TestHudiUnpartitionedTableWrite() {
+  public void testHudiUnpartitionedTableWrite() {
     Dataset<Row> df = spark.read().format("hudi").load(unpartitionedLocation);
     LOG.info("Generated unpartitioned dataframe shcema: {}", df.schema().treeString());
     LOG.info("Generated unpartitioned dataframe: {}", df.showString(10, 20, false));
   }
 
   @Test
-  public void TestHudiPartitionedTableWrite() {
+  public void testHudiPartitionedTableWrite() {
     Dataset<Row> df = spark.read().format("hudi").load(partitionedLocation);
     LOG.info("Generated partitioned dataframe shcema: {}", df.schema().treeString());
     LOG.info("Generated partitioned dataframe: {}", df.showString(10, 20, false));
   }
 
   @Test
-  public void TestHudiMetaClientExploration() {
+  public void testHudiMetaClientExploration() {
     HoodieTableMetaClient hoodieTableMetaClient =
         HoodieTableMetaClient.builder()
             .setConf(spark.sessionState().newHadoopConf())
@@ -285,7 +285,7 @@ public class TestSnapshotHudiTable extends SparkHudiMigrationTestBase {
   }
 
   @Test
-  public void TestHudiMetaClientAlpha() {
+  public void testHudiMetaClientAlpha() {
     LOG.info("Alpha test reference: hoodie table path: {}", partitionedLocation);
     String newTableIdentifier = destName(icebergCatalogName, "alpha_iceberg_table");
     SnapshotHudiTable.Result result =

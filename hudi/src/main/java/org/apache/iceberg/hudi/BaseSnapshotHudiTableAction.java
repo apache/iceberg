@@ -52,6 +52,7 @@ import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.OverwriteFiles;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
@@ -128,6 +129,8 @@ public class BaseSnapshotHudiTableAction implements SnapshotHudiTable {
     LOG.info(
         "Alpha test: hoodie getBootStrapIndexByPartitionPath: {}",
         hoodieTableMetaClient.getBootstrapIndexByPartitionFolderPath());
+
+    // Convert Hoodie table schema to Iceberg schema and extract the partition spec
     InternalSchema hudiSchema = getHudiSchema();
     LOG.info("Alpha test: hoodie table schema: {}", hudiSchema);
     LOG.info("Alpha test: get record type: {}", hudiSchema.getRecord());
@@ -135,10 +138,15 @@ public class BaseSnapshotHudiTableAction implements SnapshotHudiTable {
     LOG.info("Alpha test: get converted schema: {}", icebergSchema);
     PartitionSpec partitionSpec = getPartitionSpecFromHoodieMetadataData(icebergSchema);
     LOG.info("Alpha test: get partition spec: {}", partitionSpec);
+
     // TODO: add support for newTableLocation
     Transaction icebergTransaction =
         icebergCatalog.newCreateTableTransaction(
             newTableIdentifier, icebergSchema, partitionSpec, destTableProperties());
+    // We need name mapping to ensure we can read data files correctly as iceberg table has its own
+    // rule to assign field id
+    // Although the field id rule seems to be the same as hudi, but the rule is not guaranteed by
+    // any API
     icebergTransaction
         .table()
         .updateProperties()
@@ -147,15 +155,21 @@ public class BaseSnapshotHudiTableAction implements SnapshotHudiTable {
             NameMappingParser.toJson(MappingUtil.create(icebergTransaction.table().schema())))
         .commit();
 
+    // Pre-process the timeline, we only need to process all COMPLETED commit for COW table
+    // Commit that has been rollbacked will not be in either REQUESTED or INFLIGHT state
     HoodieTimeline timeline =
         hoodieTableMetaClient.getActiveTimeline().getCommitsTimeline().filterCompletedInstants();
     LOG.info("Alpha test: hoodie timeline: {}", timeline);
+    // Initialize the FileSystemView for querying table data files
+    // TODO: need to choose the correct implementation of the FileSystemView
     HoodieTableFileSystemView hoodieTableFileSystemView =
         FileSystemViewManager.createInMemoryFileSystemViewWithTimeline(
             hoodieEngineContext, hoodieTableMetaClient, hoodieMetadataConfig, timeline);
+    // get all instants on the timeline
     Stream<HoodieInstant> completedInstants = timeline.getInstants();
     LOG.info("Alpha test: get completed instants: {}", completedInstants);
     // file group id -> Map<timestamp, HoodieBaseFile>
+    // This pre-process aims to make a timestamp to HoodieBaseFile map for each file group
     Map<HoodieFileGroupId, Map<String, HoodieBaseFile>> allStampedDataFiles =
         hoodieTableFileSystemView
             .getAllFileGroups()
@@ -168,17 +182,24 @@ public class BaseSnapshotHudiTableAction implements SnapshotHudiTable {
                             .collect(
                                 ImmutableMap.toImmutableMap(
                                     HoodieBaseFile::getCommitTime, baseFile -> baseFile))));
+    // BEGIN TEST ONLY CODE
     List<HoodieFileGroup> testGroups =
         hoodieTableFileSystemView.getAllFileGroups().collect(Collectors.toList());
     LOG.info("Alpha test: get all stamped data files: {}", allStampedDataFiles);
     LOG.info("Alpha test: get all file groups: {}", testGroups);
+    // END TEST ONLY CODE
+
+    // Help tracked if a previous version of the data file has been added to the iceberg table
     Map<HoodieFileGroupId, DataFile> convertedDataFiles = Maps.newHashMap();
+    // Replay the timeline from beginning to the end
     completedInstants.forEachOrdered(
         instant -> {
           LOG.info("Alpha test: get completed instant: {}", instant);
           // copyInstants to iceberg table
           // TODO: need to verify the order of the instants, make sure it is from the oldest to the
           // newest
+
+          // commit each instant as a transaction to the iceberg table
           commitHoodieInstantToIcebergTransaction(
               instant,
               hoodieTableFileSystemView.getAllFileGroups(),
@@ -186,14 +207,11 @@ public class BaseSnapshotHudiTableAction implements SnapshotHudiTable {
               convertedDataFiles,
               icebergTransaction);
         });
-
+    Snapshot icebergSnapshot = icebergTransaction.table().currentSnapshot();
     long totalDataFiles =
-        Long.parseLong(
-            icebergTransaction
-                .table()
-                .currentSnapshot()
-                .summary()
-                .get(SnapshotSummary.TOTAL_DATA_FILES_PROP));
+        icebergSnapshot != null
+            ? Long.parseLong(icebergSnapshot.summary().get(SnapshotSummary.TOTAL_DATA_FILES_PROP))
+            : 0;
     icebergTransaction.commitTransaction();
     LOG.info(
         "Successfully created Iceberg table {} from hudi table at {}, total data file count: {}",
@@ -203,6 +221,17 @@ public class BaseSnapshotHudiTableAction implements SnapshotHudiTable {
     return new BaseSnapshotHudiTableActionResult(totalDataFiles);
   }
 
+  /**
+   * In COW Hoodie table, each file group is a combination of different versions of the same data
+   * file.
+   *
+   * <p>During each write, a new version of the file will be copied and modified to be a new version
+   * in the file group. Therefore, when committing the datafile to the iceberg table, we need to
+   * make sure that the older version of the data file is deleted before adding the newer version of
+   * the data file.
+   *
+   * <p>In other words, the COW behavior can be mapped to the overwrite operation in the iceberg.
+   */
   public void commitHoodieInstantToIcebergTransaction(
       HoodieInstant instant,
       Stream<HoodieFileGroup> fileGroups,
@@ -212,7 +241,7 @@ public class BaseSnapshotHudiTableAction implements SnapshotHudiTable {
     List<DataFile> filesToAdd = Lists.newArrayList();
     List<DataFile> filesToRemove = Lists.newArrayList();
 
-    // TODO: need to add synchronization if want to rely on parallelism here
+    // TODO: may need to add synchronization lock for parallelism
     fileGroups
         .sequential()
         .forEach(
@@ -225,13 +254,17 @@ public class BaseSnapshotHudiTableAction implements SnapshotHudiTable {
                       fileGroup,
                       allStampedDataFiles.get(fileGroupId),
                       transaction.table());
+
               if (currentDataFile != null) {
                 filesToAdd.add(currentDataFile);
+
                 DataFile previousDataFile = convertedDataFiles.get(fileGroupId);
                 if (previousDataFile != null) {
                   // need to delete the previous data file since a new version will be added
                   filesToRemove.add(previousDataFile);
                 }
+
+                // update the converted data file map
                 convertedDataFiles.put(fileGroupId, currentDataFile);
               }
             });
@@ -271,7 +304,7 @@ public class BaseSnapshotHudiTableAction implements SnapshotHudiTable {
     }
 
     PartitionSpec spec = table.spec();
-    // TODO: need to verify the path is absolute
+    // TODO: need to verify the path is absolute (the field's name is fullPath)
     String path = baseFile.getPath();
     long fileSize = baseFile.getFileSize();
     String partitionPath = fileGroup.getPartitionPath();
@@ -294,6 +327,11 @@ public class BaseSnapshotHudiTableAction implements SnapshotHudiTable {
         .build();
   }
 
+  /**
+   * Taken from <a
+   * href="https://github.com/apache/hudi/blob/a70355f44571036d7f99b3ca3cb240674bd1cf91/hudi-client/hudi-client-common/src/main/java/org/apache/hudi/client/BaseHoodieWriteClient.java#L1405-L1414">getInternalSchema</a>
+   * in HoodieWriteClient.
+   */
   private InternalSchema getHudiSchema() {
     TableSchemaResolver schemaUtil = new TableSchemaResolver(hoodieTableMetaClient);
     Option<InternalSchema> hudiSchema = schemaUtil.getTableInternalSchemaFromCommitMetadata();
@@ -315,6 +353,11 @@ public class BaseSnapshotHudiTableAction implements SnapshotHudiTable {
         });
   }
 
+  /**
+   * Use nested type visitor to convert the internal schema to iceberg schema.
+   *
+   * <p>just like what we did with spark table's schema and delta lake table's schema.
+   */
   private Schema convertToIcebergSchema(InternalSchema hudiSchema) {
     Type converted =
         HudiDataTypeVisitor.visit(
