@@ -156,24 +156,29 @@ First write data to the data file, then submit the data file, the data you write
 For example, add 1000 pieces of data to the table.
 
 ```java
-GenericAppenderFactory appenderFactory = new GenericAppenderFactory(table.schema());
+/**
+ * The structure of this table is the same as the demo table in java-api-quickstart
+ *
+ * Schema schema = new Schema(
+ *       Types.NestedField.required(1, "level", Types.StringType.get()),
+ *       Types.NestedField.required(2, "event_time", Types.TimestampType.withZone()),
+ *       Types.NestedField.required(3, "message", Types.StringType.get()),
+ *       Types.NestedField.optional(4, "call_stack", Types.ListType.ofRequired(5, Types.StringType.get()))
+ *   );
+ * PartitionSpec spec = PartitionSpec.builderFor(schema)
+ *       .hour("event_time")
+ *       .identity("level")
+ *       .build();
+ */
 
+GenericAppenderFactory appenderFactory = new GenericAppenderFactory(table.schema(), table.spec());
 int partitionId = 1, taskId = 1;
-OutputFileFactory outputFileFactory = OutputFileFactory.builderFor(table, partitionId, taskId).format(FileFormat.PARQUET).build();
-final PartitionKey partitionKey = new PartitionKey(table.spec(), table.spec().schema());
-final InternalRecordWrapper recordWrapper = new InternalRecordWrapper(table.schema().asStruct());
-
-// partitionedFanoutWriter will auto partitioned record and create the partitioned writer
-PartitionedFanoutWriter<Record> partitionedFanoutWriter = new PartitionedFanoutWriter<Record>(table.spec(), FileFormat.PARQUET, appenderFactory, outputFileFactory, table.io(), TARGET_FILE_SIZE_IN_BYTES) {
-    @Override
-    protected PartitionKey partition(Record record) {
-        partitionKey.partition(recordWrapper.wrap(record));
-        return partitionKey;
-    }
-};
+FileFormat fileFormat = FileFormat.valueOf(table.properties().getOrDefault("write.format.default", "parquet").toUpperCase());
+OutputFileFactory outputFileFactory = OutputFileFactory.builderFor(table, partitionId, taskId).format(fileFormat).build();
+// TaskWriter write records into files. (the same is ok for unpartiton table)
+GenericTaskWriter<Record> genericTaskWriter = new GenericTaskWriter(table.spec(), fileFormat, appenderFactory, outputFileFactory, table.io(), 50L * 1024 * 1024);
 
 GenericRecord genericRecord = GenericRecord.create(table.schema());
-
 // assume write 1000 records
 for (int i = 0; i < 1000; i++) {
     GenericRecord record = genericRecord.copy();
@@ -181,16 +186,16 @@ for (int i = 0; i < 1000; i++) {
     record.setField("event_time", OffsetDateTime.now());
     record.setField("message", "Iceberg is a great table format");
     record.setField("call_stack", Collections.singletonList("NullPointerException"));
-    partitionedFanoutWriter.write(record);
+    genericTaskWriter.write(record);
 }
-// after the data file is written above, 
+// after the data file is written above,
 // the written data file is submitted to the metadata of the table through Table's Api.
 AppendFiles appendFiles = table.newAppend();
-for (DataFile dataFile : partitionedFanoutWriter.dataFiles()) {
+for (DataFile dataFile : genericTaskWriter.dataFiles()) {
     appendFiles.appendFile(dataFile);
 }
-// the submitted file generates a snapshot and submit it.
-Snapshot res = appendFiles.apply();
+// The submitted file generates a snapshot and submit it.
+Snapshot res = appendFiles.apply(); // Of course, you can skip apply to commit directly.
 appendFiles.commit();
 ```
 
