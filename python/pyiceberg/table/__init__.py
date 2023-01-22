@@ -37,6 +37,7 @@ from typing import (
 
 from pydantic import Field
 
+from pyiceberg.exceptions import StaticTableImmutableError
 from pyiceberg.expressions import (
     AlwaysTrue,
     And,
@@ -45,7 +46,7 @@ from pyiceberg.expressions import (
     visitors,
 )
 from pyiceberg.expressions.visitors import inclusive_projection
-from pyiceberg.io import FileIO
+from pyiceberg.io import FileIO, load_file_io
 from pyiceberg.io.pyarrow import project_table
 from pyiceberg.manifest import (
     DataFile,
@@ -55,6 +56,7 @@ from pyiceberg.manifest import (
 )
 from pyiceberg.partitioning import PartitionSpec
 from pyiceberg.schema import Schema
+from pyiceberg.serializers import FromInputFile
 from pyiceberg.table.metadata import TableMetadata
 from pyiceberg.table.snapshots import Snapshot, SnapshotLogEntry
 from pyiceberg.table.sorting import SortOrder
@@ -172,6 +174,32 @@ class Table:
             if isinstance(other, Table)
             else False
         )
+
+
+class StaticTable(Table):
+    """Load a table directly from a metadata file (i.e., without using a catalog)."""
+
+    def refresh(self) -> Table:
+        """StaticTable metadata cannot be refreshed."""
+        raise StaticTableImmutableError("StaticTable metadata cannot be refreshed.")
+
+    @classmethod
+    def from_metadata(cls, metadata_location: str, properties: Properties = EMPTY_DICT) -> StaticTable:
+
+        metadata = cls._load_metadata(metadata_location, properties)
+
+        return cls(
+            identifier=("static-table", metadata_location),
+            metadata_location=metadata_location,
+            metadata=metadata,
+            io=load_file_io({**properties, **metadata.properties}),
+        )
+
+    @staticmethod
+    def _load_metadata(metadata_location: str, properties: Properties) -> TableMetadata:
+        io = load_file_io(properties=properties, location=metadata_location)
+        file = io.new_input(metadata_location)
+        return FromInputFile.table_metadata(file)
 
 
 S = TypeVar("S", bound="TableScan", covariant=True)  # type: ignore
