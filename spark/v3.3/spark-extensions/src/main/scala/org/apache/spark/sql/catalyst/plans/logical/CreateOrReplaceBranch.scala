@@ -21,14 +21,15 @@ package org.apache.spark.sql.catalyst.plans.logical
 
 import org.apache.spark.sql.catalyst.expressions.Attribute
 
-case class CreateBranch(table: Seq[String], branch: String, snapshotId: Option[Long], numSnapshots: Option[Long],
-                        snapshotRetain: Option[Long], snapshotRefRetain: Option[Long]) extends LeafCommand {
+case class CreateOrReplaceBranch(table: Seq[String], branch: String,
+                                 branchOptions: BranchOptions, replace: Boolean, ifNotExists: Boolean)
+  extends LeafCommand {
 
   import org.apache.spark.sql.connector.catalog.CatalogV2Implicits._
 
   override lazy val output: Seq[Attribute] = Nil
 
   override def simpleString(maxFields: Int): String = {
-    s"Create branch: ${branch} for table: ${table.quoted} "
+    s"CreateOrReplaceBranch branch: ${branch} for table: ${table.quoted}"
   }
 }
