@@ -307,7 +307,7 @@ public class SparkWriteConf {
   }
 
   public String branch() {
-    return confParser.stringConf().option(SparkWriteOptions.BRANCH).defaultValue(SnapshotRef.MAIN_BRANCH).parseOptional();
+    return confParser.stringConf().option(SparkWriteOptions.BRANCH).defaultValue(SnapshotRef.MAIN_BRANCH).parse();
   }
 
 }
