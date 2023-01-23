@@ -27,6 +27,7 @@ import java.util.Map;
 import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.IsolationLevel;
+import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
@@ -306,7 +307,7 @@ public class SparkWriteConf {
   }
 
   public String branch() {
-    return confParser.stringConf().option(SparkWriteOptions.BRANCH).parseOptional();
+    return confParser.stringConf().option(SparkWriteOptions.BRANCH).defaultValue(SnapshotRef.MAIN_BRANCH).parseOptional();
   }
 
 }
