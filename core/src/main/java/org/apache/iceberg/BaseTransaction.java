@@ -31,8 +31,8 @@ import java.io.Serializable;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
@@ -65,7 +65,6 @@ public class BaseTransaction implements Transaction {
   private final TransactionTable transactionTable;
   private final TableOperations transactionOps;
   private final List<PendingUpdate> updates;
-  private final Set<Long> intermediateSnapshotIds;
   private final Set<String> deletedFiles =
       Sets.newHashSet(); // keep track of files deleted in the most recent commit
   private final Consumer<String> enqueueDelete = deletedFiles::add;
@@ -92,7 +91,6 @@ public class BaseTransaction implements Transaction {
     this.current = start;
     this.transactionOps = new TransactionTableOperations();
     this.updates = Lists.newArrayList();
-    this.intermediateSnapshotIds = Sets.newHashSet();
     this.base = ops.current();
     this.type = type;
     this.hasLastOpCommitted = true;
@@ -406,9 +404,8 @@ public class BaseTransaction implements Transaction {
       return;
     }
 
-    // this is always set to the latest commit attempt's snapshot id.
-    AtomicLong currentSnapshotId = new AtomicLong(-1L);
-
+    Set<Long> startingSnapshots =
+        base.snapshots().stream().map(Snapshot::snapshotId).collect(Collectors.toSet());
     try {
       Tasks.foreach(ops)
           .retry(base.propertyAsInt(COMMIT_NUM_RETRIES, COMMIT_NUM_RETRIES_DEFAULT))
@@ -422,11 +419,6 @@ public class BaseTransaction implements Transaction {
               underlyingOps -> {
                 applyUpdates(underlyingOps);
 
-                if (current.currentSnapshot() != null) {
-                  currentSnapshotId.set(current.currentSnapshot().snapshotId());
-                }
-
-                // fix up the snapshot log, which should not contain intermediate snapshots
                 underlyingOps.commit(base, current);
               });
 
@@ -444,17 +436,18 @@ public class BaseTransaction implements Transaction {
     // the commit succeeded
 
     try {
-      if (currentSnapshotId.get() != -1) {
-        intermediateSnapshotIds.add(currentSnapshotId.get());
+      // clean up the data files that were deleted by each operation. first, get the list of
+      // committed manifests to ensure that no committed manifest is deleted.
+      // A manifest could be deleted in one successful operation commit, but reused in another
+      // successful commit of that operation if the whole transaction is retried.
+      Set<Long> newSnapshots = Sets.newHashSet();
+      for (Snapshot snapshot : current.snapshots()) {
+        if (!startingSnapshots.contains(snapshot.snapshotId())) {
+          newSnapshots.add(snapshot.snapshotId());
+        }
       }
 
-      // clean up the data files that were deleted by each operation. first, get the list of
-      // committed manifests to
-      // ensure that no committed manifest is deleted. a manifest could be deleted in one successful
-      // operation
-      // commit, but reused in another successful commit of that operation if the whole transaction
-      // is retried.
-      Set<String> committedFiles = committedFiles(ops, intermediateSnapshotIds);
+      Set<String> committedFiles = committedFiles(ops, newSnapshots);
       if (committedFiles != null) {
         // delete all of the files that were deleted in the most recent set of operation commits
         Tasks.foreach(deletedFiles)
@@ -531,15 +524,6 @@ public class BaseTransaction implements Transaction {
     return committedFiles;
   }
 
-  private static Long currentId(TableMetadata meta) {
-    if (meta != null) {
-      if (meta.currentSnapshot() != null) {
-        return meta.currentSnapshot().snapshotId();
-      }
-    }
-    return null;
-  }
-
   public class TransactionTableOperations implements TableOperations {
     private TableOperations tempOps = ops.temp(current);
 
@@ -559,13 +543,6 @@ public class BaseTransaction implements Transaction {
       if (underlyingBase != current) {
         // trigger a refresh and retry
         throw new CommitFailedException("Table metadata refresh is required");
-      }
-
-      // track the intermediate snapshot ids for rewriting the snapshot log
-      // an id is intermediate if it isn't the base snapshot id and it is replaced by a new current
-      Long oldId = currentId(current);
-      if (oldId != null && !oldId.equals(currentId(metadata)) && !oldId.equals(currentId(base))) {
-        intermediateSnapshotIds.add(oldId);
       }
 
       BaseTransaction.this.current = metadata;
