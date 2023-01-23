@@ -134,14 +134,12 @@ public class RESTSessionCatalog extends BaseSessionCatalog
     ConfigResponse config;
     OAuthTokenResponse authResponse;
     String credential = props.get(OAuth2Properties.CREDENTIAL);
-    // TODO: if scope can be overridden, it should be done consistently
+    String scope = props.getOrDefault(OAuth2Properties.SCOPE, OAuth2Properties.CATALOG_SCOPE);
     try (RESTClient initClient = clientBuilder.apply(props)) {
       Map<String, String> initHeaders =
           RESTUtil.merge(configHeaders(props), OAuth2Util.authHeaders(initToken));
       if (credential != null && !credential.isEmpty()) {
-        authResponse =
-            OAuth2Util.fetchToken(
-                initClient, initHeaders, credential, OAuth2Properties.CATALOG_SCOPE);
+        authResponse = OAuth2Util.fetchToken(initClient, initHeaders, credential, scope);
         Map<String, String> authHeaders =
             RESTUtil.merge(initHeaders, OAuth2Util.authHeaders(authResponse.token()));
         config = fetchConfig(initClient, authHeaders, props);
@@ -166,7 +164,7 @@ public class RESTSessionCatalog extends BaseSessionCatalog
     this.client = clientBuilder.apply(mergedProps);
     this.paths = ResourcePaths.forCatalogProperties(mergedProps);
 
-    this.catalogAuth = new AuthSession(baseHeaders, null, null, credential);
+    this.catalogAuth = new AuthSession(baseHeaders, null, null, credential, scope);
     if (authResponse != null) {
       this.catalogAuth =
           AuthSession.fromTokenResponse(
@@ -774,23 +772,14 @@ public class RESTSessionCatalog extends BaseSessionCatalog
       if (credentials.containsKey(OAuth2Properties.CREDENTIAL)) {
         // fetch a token using the client credentials flow
         return AuthSession.fromCredential(
-            client,
-            tokenRefreshExecutor(),
-            credentials.get(OAuth2Properties.CREDENTIAL),
-            parent,
-            OAuth2Properties.CATALOG_SCOPE);
+            client, tokenRefreshExecutor(), credentials.get(OAuth2Properties.CREDENTIAL), parent);
       }
 
       for (String tokenType : TOKEN_PREFERENCE_ORDER) {
         if (credentials.containsKey(tokenType)) {
           // exchange the token for an access token using the token exchange flow
           return AuthSession.fromTokenExchange(
-              client,
-              tokenRefreshExecutor(),
-              credentials.get(tokenType),
-              tokenType,
-              parent,
-              OAuth2Properties.CATALOG_SCOPE);
+              client, tokenRefreshExecutor(), credentials.get(tokenType), tokenType, parent);
         }
       }
     }
