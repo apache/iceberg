@@ -77,4 +77,6 @@ public class SparkWriteOptions {
 
   // Isolation Level for DataFrame calls. Currently supported by overwritePartitions
   public static final String ISOLATION_LEVEL = "isolation-level";
+  // Branch to write to
+  public static final String BRANCH = "branch";
 }

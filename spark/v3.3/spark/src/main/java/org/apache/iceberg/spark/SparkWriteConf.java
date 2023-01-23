@@ -304,4 +304,9 @@ public class SparkWriteConf {
         .defaultValue(SQLConf.CASE_SENSITIVE().defaultValueString())
         .parse();
   }
+
+  public String branch() {
+    return confParser.stringConf().option(SparkWriteOptions.BRANCH).parseOptional();
+  }
+
 }

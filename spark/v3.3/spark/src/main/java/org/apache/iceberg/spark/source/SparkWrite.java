@@ -114,6 +114,8 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
   private final SortOrder[] requiredOrdering;
 
   private boolean cleanupOnAbort = true;
+  private String branch = null;
+
 
   SparkWrite(
       SparkSession spark,
@@ -140,6 +142,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
     this.partitionedFanoutEnabled = writeConf.fanoutWriterEnabled();
     this.requiredDistribution = requiredDistribution;
     this.requiredOrdering = requiredOrdering;
+    this.branch = writeConf.branch();
   }
 
   @Override
@@ -290,7 +293,12 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
   private class BatchAppend extends BaseBatchWrite {
     @Override
     public void commit(WriterCommitMessage[] messages) {
-      AppendFiles append = table.newAppend();
+      AppendFiles append;
+      if (branch != null) {
+        append = table.newAppend().toBranch(branch);
+      } else {
+        append = table.newAppend();
+      }
 
       int numFiles = 0;
       for (DataFile file : files(messages)) {
@@ -312,7 +320,13 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
         return;
       }
 
-      ReplacePartitions dynamicOverwrite = table.newReplacePartitions();
+      ReplacePartitions dynamicOverwrite;
+      if (branch != null) {
+        dynamicOverwrite = table.newReplacePartitions().toBranch(branch);
+      } else {
+        dynamicOverwrite = table.newReplacePartitions();
+      }
+
       IsolationLevel isolationLevel = writeConf.isolationLevel();
       Long validateFromSnapshotId = writeConf.validateFromSnapshotId();
 
@@ -349,8 +363,12 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
 
     @Override
     public void commit(WriterCommitMessage[] messages) {
-      OverwriteFiles overwriteFiles = table.newOverwrite();
-      overwriteFiles.overwriteByRowFilter(overwriteExpr);
+      OverwriteFiles overwriteFiles;
+      if (branch != null) {
+        overwriteFiles = table.newOverwrite().toBranch(branch).overwriteByRowFilter(overwriteExpr);
+      } else {
+        overwriteFiles = table.newOverwrite().overwriteByRowFilter(overwriteExpr);
+      }
 
       int numFiles = 0;
       for (DataFile file : files(messages)) {
@@ -411,7 +429,12 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
 
     @Override
     public void commit(WriterCommitMessage[] messages) {
-      OverwriteFiles overwriteFiles = table.newOverwrite();
+      OverwriteFiles overwriteFiles;
+      if (branch != null) {
+        overwriteFiles = table.newOverwrite().toBranch(branch);
+      } else {
+        overwriteFiles = table.newOverwrite();
+      }
 
       List<DataFile> overwrittenFiles = overwrittenFiles();
       int numOverwrittenFiles = overwrittenFiles.size();
