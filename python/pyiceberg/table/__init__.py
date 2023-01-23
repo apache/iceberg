@@ -37,7 +37,6 @@ from typing import (
 
 from pydantic import Field
 
-from pyiceberg.exceptions import StaticTableImmutableError
 from pyiceberg.expressions import (
     AlwaysTrue,
     And,
@@ -180,13 +179,15 @@ class StaticTable(Table):
     """Load a table directly from a metadata file (i.e., without using a catalog)."""
 
     def refresh(self) -> Table:
-        """StaticTable metadata cannot be refreshed."""
-        raise StaticTableImmutableError("StaticTable metadata cannot be refreshed.")
+        """Refresh the current table metadata"""
+        raise NotImplementedError("To be implemented")
 
     @classmethod
     def from_metadata(cls, metadata_location: str, properties: Properties = EMPTY_DICT) -> StaticTable:
 
-        metadata = cls._load_metadata(metadata_location, properties)
+        io = load_file_io(properties=properties, location=metadata_location)
+        file = io.new_input(metadata_location)
+        metadata = FromInputFile.table_metadata(file)
 
         return cls(
             identifier=("static-table", metadata_location),
@@ -194,12 +195,6 @@ class StaticTable(Table):
             metadata=metadata,
             io=load_file_io({**properties, **metadata.properties}),
         )
-
-    @staticmethod
-    def _load_metadata(metadata_location: str, properties: Properties) -> TableMetadata:
-        io = load_file_io(properties=properties, location=metadata_location)
-        file = io.new_input(metadata_location)
-        return FromInputFile.table_metadata(file)
 
 
 S = TypeVar("S", bound="TableScan", covariant=True)  # type: ignore

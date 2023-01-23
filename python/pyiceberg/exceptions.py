@@ -90,7 +90,3 @@ class SignError(Exception):
 
 class ResolveError(Exception):
     pass
-
-
-class StaticTableImmutableError(Exception):
-    """StaticTable is immutable."""

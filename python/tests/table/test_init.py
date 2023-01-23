@@ -19,7 +19,6 @@ from typing import Any, Dict
 
 import pytest
 
-from pyiceberg.exceptions import StaticTableImmutableError
 from pyiceberg.expressions import (
     AlwaysTrue,
     And,
@@ -276,11 +275,6 @@ def test_check_content_missing_attr() -> None:
 def test_static_table_same_as_table(table: Table, static_table: StaticTable) -> None:
     assert isinstance(static_table, Table)
     assert static_table.metadata == table.metadata
-
-
-def test_static_table_refresh(static_table: StaticTable) -> None:
-    with pytest.raises(StaticTableImmutableError):
-        static_table.refresh()
 
 
 def test_static_table_io_does_not_exist(metadata_location: str) -> None:
