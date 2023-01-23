@@ -458,13 +458,25 @@ public class TableTestBase {
     Assert.assertEquals("Files should match", expectedFilePaths, actualFilePaths);
   }
 
-  void validateTableDeleteFiles(Table tbl, DeleteFile... expectedFiles) {
+  void validateBranchFiles(Table tbl, String ref, DataFile... expectedFiles) {
+    Set<CharSequence> expectedFilePaths = Sets.newHashSet();
+    for (DataFile file : expectedFiles) {
+      expectedFilePaths.add(file.path());
+    }
+    Set<CharSequence> actualFilePaths = Sets.newHashSet();
+    for (FileScanTask task : tbl.newScan().useRef(ref).planFiles()) {
+      actualFilePaths.add(task.file().path());
+    }
+    Assert.assertEquals("Files should match", expectedFilePaths, actualFilePaths);
+  }
+
+  void validateBranchDeleteFiles(Table tbl, String branch, DeleteFile... expectedFiles) {
     Set<CharSequence> expectedFilePaths = Sets.newHashSet();
     for (DeleteFile file : expectedFiles) {
       expectedFilePaths.add(file.path());
     }
     Set<CharSequence> actualFilePaths = Sets.newHashSet();
-    for (FileScanTask task : tbl.newScan().planFiles()) {
+    for (FileScanTask task : tbl.newScan().useRef(branch).planFiles()) {
       for (DeleteFile file : task.deletes()) {
         actualFilePaths.add(file.path());
       }
