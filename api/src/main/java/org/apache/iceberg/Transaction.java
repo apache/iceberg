@@ -156,6 +156,16 @@ public interface Transaction {
   ExpireSnapshots expireSnapshots();
 
   /**
+   * Create a new {@link ManageSnapshots manage snapshot API} to manage snapshots in this table.
+   *
+   * @return a new {@link ManageSnapshots}
+   */
+  default ManageSnapshots manageSnapshots() {
+    throw new UnsupportedOperationException(
+        "Managing snapshots is not supported by " + getClass().getName());
+  }
+
+  /**
    * Apply the pending changes from all actions and commit.
    *
    * @throws ValidationException If any update cannot be applied to the current table metadata.
