@@ -241,34 +241,32 @@ public class MetastoreLock implements HiveLock {
       }
     }
 
-    if (lockInfo.lockState.equals(LockState.ACQUIRED)) {
+    if (!lockInfo.lockState.equals(LockState.ACQUIRED)) {
+      // timeout and do not have lock acquired
+      if (timeout) {
+        throw new LockException(
+            "Timed out after %s ms waiting for lock on %s.%s", duration, databaseName, tableName);
+      }
+
+      // On thrift error and do not have lock acquired
+      if (error != null) {
+        throw new LockException(
+            error, "Metastore operation failed for %s.%s", databaseName, tableName);
+      }
+
+      // Just for safety. We should not get here.
+      throw new LockException(
+          "Could not acquire the lock on %s.%s, lock request ended in state %s",
+          databaseName, tableName, lockInfo.lockState);
+    } else {
       return lockInfo.lockId;
     }
-
-    // timeout and do not have lock acquired
-    if (timeout) {
-      throw new LockException(
-          "Timed out after %s ms waiting for lock on %s.%s", duration, databaseName, tableName);
-    }
-
-    // On thrift error and do not have lock acquired
-    if (error != null) {
-      throw new LockException(
-          error, "Metastore operation failed for %s.%s", databaseName, tableName);
-    }
-
-    // Just for safety. We should not get here.
-    throw new LockException(
-        "Could not acquire the lock on %s.%s, lock request ended in state %s",
-        databaseName, tableName, lockInfo.lockState);
   }
 
   /**
-   * Tries to create a lock. If the lock creation fails, and it is possible then retries the lock
-   * creation a few times. If the lock creation is successful then a {@link LockInfo} is returned,
-   * otherwise an appropriate exception is thrown.
+   * Creates a lock, retrying if possible on failure.
    *
-   * @return The created lock
+   * @return The {@link LockInfo} object for the successfully created lock
    * @throws LockException When we are not able to fill the hostname for lock creation, or there is
    *     an error during lock creation
    */
@@ -283,7 +281,7 @@ public class MetastoreLock implements HiveLock {
       throw new LockException(uhe, "Error generating host name");
     }
 
-    final LockComponent lockComponent =
+    LockComponent lockComponent =
         new LockComponent(LockType.EXCLUSIVE, LockLevel.TABLE, databaseName);
     lockComponent.setTablename(tableName);
     final LockRequest lockRequest =
