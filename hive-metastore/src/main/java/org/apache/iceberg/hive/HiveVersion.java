@@ -18,7 +18,9 @@
  */
 package org.apache.iceberg.hive;
 
+import java.util.List;
 import org.apache.hive.common.util.HiveVersionInfo;
+import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 
 public enum HiveVersion {
   HIVE_4(4),
@@ -44,8 +46,8 @@ public enum HiveVersion {
 
   private static HiveVersion calculate() {
     String version = HiveVersionInfo.getShortVersion();
-    String[] versions = version.split("\\.");
-    switch (versions[0]) {
+    List<String> versions = Splitter.on('.').splitToList(version);
+    switch (versions.get(0)) {
       case "4":
         return HIVE_4;
       case "3":
@@ -53,7 +55,7 @@ public enum HiveVersion {
       case "2":
         return HIVE_2;
       case "1":
-        if (versions[1].equals("2")) {
+        if (versions.get(1).equals("2")) {
           return HIVE_1_2;
         } else {
           return NOT_SUPPORTED;

@@ -329,14 +329,14 @@ public class OAuth2Util {
       return null;
     }
 
-    String[] parts = token.split("\\.");
-    if (parts.length != 3) {
+    List<String> parts = Splitter.on('.').splitToList(token);
+    if (parts.size() != 3) {
       return null;
     }
 
     JsonNode node;
     try {
-      node = JsonUtil.mapper().readTree(Base64.getUrlDecoder().decode(parts[1]));
+      node = JsonUtil.mapper().readTree(Base64.getUrlDecoder().decode(parts.get(1)));
     } catch (IOException e) {
       return null;
     }
