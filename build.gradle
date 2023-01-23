@@ -668,6 +668,8 @@ project(':iceberg-nessie') {
     implementation "com.fasterxml.jackson.core:jackson-core"
 
     testImplementation "org.projectnessie:nessie-jaxrs-testextension"
+    testImplementation "org.projectnessie:nessie-versioned-persist-in-memory"
+    testImplementation "org.projectnessie:nessie-versioned-persist-in-memory-test"
     // Need to "pull in" el-api explicitly :(
     testImplementation "jakarta.el:jakarta.el-api"
 
