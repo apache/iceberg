@@ -116,7 +116,6 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
   private boolean cleanupOnAbort = true;
   private String branch;
 
-
   SparkWrite(
       SparkSession spark,
       Table table,
@@ -295,7 +294,6 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
     public void commit(WriterCommitMessage[] messages) {
       AppendFiles append = table.newAppend().toBranch(branch);
 
-
       int numFiles = 0;
       for (DataFile file : files(messages)) {
         numFiles += 1;
@@ -354,7 +352,8 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
 
     @Override
     public void commit(WriterCommitMessage[] messages) {
-      OverwriteFiles overwriteFiles = table.newOverwrite().toBranch(branch).overwriteByRowFilter(overwriteExpr);
+      OverwriteFiles overwriteFiles =
+          table.newOverwrite().toBranch(branch).overwriteByRowFilter(overwriteExpr);
 
       int numFiles = 0;
       for (DataFile file : files(messages)) {
