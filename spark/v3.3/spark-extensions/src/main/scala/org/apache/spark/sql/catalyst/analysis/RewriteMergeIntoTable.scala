@@ -187,14 +187,12 @@ object RewriteMergeIntoTable extends RewriteRowLevelIcebergCommand with Predicat
     val readRelation = buildRelationWithAttrs(relation, operationTable, metadataAttrs)
     val readAttrs = readRelation.output
 
-    val (targetCond, joinCond) = splitMergeCond(cond, readRelation)
-
     // project an extra column to check if a target row exists after the join
     // project a synthetic row ID to perform the cardinality check
     val rowFromTarget = Alias(TrueLiteral, ROW_FROM_TARGET)()
     val rowId = Alias(MonotonicallyIncreasingID(), ROW_ID)()
     val targetTableProjExprs = readAttrs ++ Seq(rowFromTarget, rowId)
-    val targetTableProj = Project(targetTableProjExprs, Filter(targetCond, readRelation))
+    val targetTableProj = Project(targetTableProjExprs, readRelation)
 
     // project an extra column to check if a source row exists after the join
     val rowFromSource = Alias(TrueLiteral, ROW_FROM_SOURCE)()
@@ -206,7 +204,7 @@ object RewriteMergeIntoTable extends RewriteRowLevelIcebergCommand with Predicat
     // disable broadcasts for the target table to perform the cardinality check
     val joinType = if (notMatchedActions.isEmpty) LeftOuter else FullOuter
     val joinHint = JoinHint(leftHint = Some(HintInfo(Some(NO_BROADCAST_HASH))), rightHint = None)
-    val joinPlan = Join(NoStatsUnaryNode(targetTableProj), sourceTableProj, joinType, Some(joinCond), joinHint)
+    val joinPlan = Join(NoStatsUnaryNode(targetTableProj), sourceTableProj, joinType, Some(cond), joinHint)
 
     // add an extra matched action to output the original row if none of the actual actions matched
     // this is needed to keep target rows that should be copied over
