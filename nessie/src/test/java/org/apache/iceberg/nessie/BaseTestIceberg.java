@@ -48,15 +48,14 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.RegisterExtension;
 import org.junit.jupiter.api.io.TempDir;
 import org.projectnessie.client.api.NessieApiV1;
+import org.projectnessie.client.ext.NessieClientUri;
 import org.projectnessie.client.http.HttpClientBuilder;
 import org.projectnessie.error.NessieConflictException;
 import org.projectnessie.error.NessieNotFoundException;
 import org.projectnessie.jaxrs.ext.NessieJaxRsExtension;
-import org.projectnessie.jaxrs.ext.NessieUri;
 import org.projectnessie.model.Branch;
 import org.projectnessie.model.Reference;
 import org.projectnessie.model.Tag;
-import org.projectnessie.server.store.TableCommitMetaStoreWorker;
 import org.projectnessie.versioned.persist.adapter.DatabaseAdapter;
 import org.projectnessie.versioned.persist.inmem.InmemoryDatabaseAdapterFactory;
 import org.projectnessie.versioned.persist.inmem.InmemoryTestConnectionProviderSource;
@@ -72,11 +71,11 @@ import org.slf4j.LoggerFactory;
 @NessieExternalDatabase(InmemoryTestConnectionProviderSource.class)
 public abstract class BaseTestIceberg {
 
-  @NessieDbAdapter(storeWorker = TableCommitMetaStoreWorker.class)
-  static DatabaseAdapter databaseAdapter;
+  @NessieDbAdapter static DatabaseAdapter databaseAdapter;
 
   @RegisterExtension
-  static NessieJaxRsExtension server = new NessieJaxRsExtension(() -> databaseAdapter);
+  static NessieJaxRsExtension server =
+      NessieJaxRsExtension.jaxRsExtensionForDatabaseAdapter(() -> databaseAdapter);
 
   private static final Logger LOG = LoggerFactory.getLogger(BaseTestIceberg.class);
 
@@ -114,8 +113,8 @@ public abstract class BaseTestIceberg {
   }
 
   @BeforeEach
-  public void beforeEach(@NessieUri URI nessieUri) throws IOException {
-    this.uri = nessieUri.toString();
+  public void beforeEach(@NessieClientUri URI nessieUri) throws IOException {
+    this.uri = nessieUri.resolve("v1").toASCIIString();
     this.api = HttpClientBuilder.builder().withUri(this.uri).build(NessieApiV1.class);
 
     Branch defaultBranch = api.getDefaultBranch();
