@@ -19,6 +19,7 @@
 package org.apache.iceberg.delta;
 
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.connector.catalog.CatalogPlugin;
@@ -40,6 +41,15 @@ class DeltaLakeToIcebergMigrationSparkIntegration {
    */
   static SnapshotDeltaLakeTable snapshotDeltaLakeTable(
       SparkSession spark, String newTableIdentifier, String deltaTableLocation) {
+    Preconditions.checkArgument(
+        spark != null, "The SparkSession cannot be null, please provide a valid SparkSession");
+    Preconditions.checkArgument(
+        newTableIdentifier != null,
+        "The table identifier cannot be null, please provide a valid table identifier for the new iceberg table");
+    Preconditions.checkArgument(
+        deltaTableLocation != null,
+        "The delta lake table location cannot be null, please provide a valid location of the delta lake table to be snapshot");
+
     String ctx = "delta lake snapshot target";
     CatalogPlugin defaultCatalog = spark.sessionState().catalogManager().currentCatalog();
     Spark3Util.CatalogAndIdentifier catalogAndIdent =

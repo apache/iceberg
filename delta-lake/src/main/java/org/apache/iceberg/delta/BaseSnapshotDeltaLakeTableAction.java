@@ -29,6 +29,8 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import org.apache.commons.codec.DecoderException;
+import org.apache.commons.codec.net.URLCodec;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.DataFile;
@@ -373,10 +375,15 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
    */
   private static String getFullFilePath(String path, String tableRoot) {
     URI dataFileUri = URI.create(path);
-    if (dataFileUri.isAbsolute()) {
-      return path;
-    } else {
-      return tableRoot + File.separator + path;
+    try {
+      String decodedPath = new URLCodec().decode(path);
+      if (dataFileUri.isAbsolute()) {
+        return decodedPath;
+      } else {
+        return tableRoot + File.separator + decodedPath;
+      }
+    } catch (DecoderException e) {
+      throw new IllegalArgumentException(String.format("Cannot decode path %s", path), e);
     }
   }
 }

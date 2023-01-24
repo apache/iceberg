@@ -24,9 +24,11 @@ import io.delta.standalone.types.BooleanType;
 import io.delta.standalone.types.DoubleType;
 import io.delta.standalone.types.LongType;
 import io.delta.standalone.types.MapType;
+import io.delta.standalone.types.NullType;
 import io.delta.standalone.types.StringType;
 import io.delta.standalone.types.StructType;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.assertj.core.api.Assertions;
@@ -35,18 +37,15 @@ import org.junit.Test;
 
 public class TestDeltaLakeTypeToType {
   private static final String optionalBooleanType = "testNullableBoolType";
-
   private static final String requiredBinaryType = "testRequiredBinaryType";
-
   private static final String doubleArrayType = "testNullableArrayType";
-
   private static final String innerAtomicSchema = "testInnerAtomicSchema";
-
   private static final String stringLongMapType = "testStringLongMap";
-
+  private static final String nullType = "testNullType";
   private StructType deltaAtomicSchema;
-
   private StructType deltaNestedSchema;
+  private StructType deltaShallowNullTypeSchema;
+  private StructType deltaNullTypeSchema;
 
   @Before
   public void constructDeltaLakeSchema() {
@@ -59,6 +58,12 @@ public class TestDeltaLakeTypeToType {
             .add(innerAtomicSchema, deltaAtomicSchema)
             .add(doubleArrayType, new ArrayType(new DoubleType(), true), false)
             .add(stringLongMapType, new MapType(new StringType(), new LongType(), false), false);
+    deltaNullTypeSchema =
+        new StructType()
+            .add(innerAtomicSchema, deltaAtomicSchema)
+            .add(doubleArrayType, new ArrayType(new DoubleType(), true), false)
+            .add(stringLongMapType, new MapType(new NullType(), new LongType(), false), false);
+    deltaShallowNullTypeSchema = new StructType().add(nullType, new NullType(), false);
   }
 
   @Test
@@ -117,5 +122,22 @@ public class TestDeltaLakeTypeToType {
     Assertions.assertThat(
             convertedSchema.findType(doubleArrayType).asListType().isElementOptional())
         .isTrue();
+  }
+
+  @Test
+  public void testNullTypeConversion() {
+    Assertions.assertThatThrownBy(
+            () ->
+                DeltaLakeDataTypeVisitor.visit(
+                    deltaNullTypeSchema, new DeltaLakeTypeToType(deltaNullTypeSchema)))
+        .isInstanceOf(ValidationException.class)
+        .hasMessage(String.format("Not a supported type: %s", new NullType().getCatalogString()));
+    Assertions.assertThatThrownBy(
+            () ->
+                DeltaLakeDataTypeVisitor.visit(
+                    deltaShallowNullTypeSchema,
+                    new DeltaLakeTypeToType(deltaShallowNullTypeSchema)))
+        .isInstanceOf(ValidationException.class)
+        .hasMessage(String.format("Not a supported type: %s", new NullType().getCatalogString()));
   }
 }
