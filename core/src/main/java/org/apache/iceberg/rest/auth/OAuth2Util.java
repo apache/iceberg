@@ -329,14 +329,14 @@ public class OAuth2Util {
       return null;
     }
 
-    String[] parts = token.split("\\.");
-    if (parts.length != 3) {
+    List<String> parts = Splitter.on('.').splitToList(token);
+    if (parts.size() != 3) {
       return null;
     }
 
     JsonNode node;
     try {
-      node = JsonUtil.mapper().readTree(Base64.getUrlDecoder().decode(parts[1]));
+      node = JsonUtil.mapper().readTree(Base64.getUrlDecoder().decode(parts.get(1)));
     } catch (IOException e) {
       return null;
     }
@@ -359,24 +359,30 @@ public class OAuth2Util {
     private String tokenType;
     private Long expiresAtMillis;
     private final String credential;
+    private final String scope;
     private volatile boolean keepRefreshed = true;
 
     /**
      * @deprecated will be removed in 1.3.0; use {@link AuthSession#AuthSession(Map, String, String,
-     *     String)} instead.
+     *     String, String)} instead.
      */
     @Deprecated
     public AuthSession(Map<String, String> baseHeaders, String token, String tokenType) {
-      this(baseHeaders, token, tokenType, null);
+      this(baseHeaders, token, tokenType, null, OAuth2Properties.CATALOG_SCOPE);
     }
 
     public AuthSession(
-        Map<String, String> baseHeaders, String token, String tokenType, String credential) {
+        Map<String, String> baseHeaders,
+        String token,
+        String tokenType,
+        String credential,
+        String scope) {
       this.headers = RESTUtil.merge(baseHeaders, authHeaders(token));
       this.token = token;
       this.tokenType = tokenType;
       this.expiresAtMillis = OAuth2Util.expiresAtMillis(token);
       this.credential = credential;
+      this.scope = scope;
     }
 
     public Map<String, String> headers() {
@@ -393,6 +399,10 @@ public class OAuth2Util {
 
     public Long expiresAtMillis() {
       return expiresAtMillis;
+    }
+
+    public String scope() {
+      return scope;
     }
 
     public void stopRefreshing() {
@@ -414,7 +424,7 @@ public class OAuth2Util {
      * @return A new {@link AuthSession} with empty headers.
      */
     public static AuthSession empty() {
-      return new AuthSession(ImmutableMap.of(), null, null, null);
+      return new AuthSession(ImmutableMap.of(), null, null, null, OAuth2Properties.CATALOG_SCOPE);
     }
 
     /**
@@ -464,51 +474,22 @@ public class OAuth2Util {
     }
 
     private OAuthTokenResponse refreshCurrentToken(RESTClient client) {
-      if (isExpired(expiresAtMillis, System.currentTimeMillis())) {
+      if (null != expiresAtMillis && expiresAtMillis <= System.currentTimeMillis()) {
         // the token has already expired, attempt to refresh using the credential
         return refreshExpiredToken(client);
       } else {
         // attempt a normal refresh
-        return refreshToken(client, headers(), token, tokenType, OAuth2Properties.CATALOG_SCOPE);
+        return refreshToken(client, headers(), token, tokenType, scope);
       }
-    }
-
-    static boolean isExpired(Long expiresAtMillis, long now) {
-      return expiresAtMillis != null && expiresAtMillis < now;
     }
 
     private OAuthTokenResponse refreshExpiredToken(RESTClient client) {
       if (credential != null) {
         Map<String, String> basicHeaders = RESTUtil.merge(headers(), basicAuthHeaders(credential));
-        return refreshToken(client, basicHeaders, token, tokenType, OAuth2Properties.CATALOG_SCOPE);
+        return refreshToken(client, basicHeaders, token, tokenType, scope);
       }
 
       return null;
-    }
-
-    /**
-     * Schedule refresh for a token with a known expiration timestamp.
-     *
-     * @param client a RESTClient
-     * @param executor a ScheduledExecutorService in which to run the refresh
-     * @param session AuthSession to refresh
-     * @param expiresAt known expiration timestamp
-     * @param unit the time unit for expiresAt
-     */
-    private static void scheduleTokenRefresh(
-        RESTClient client,
-        ScheduledExecutorService executor,
-        AuthSession session,
-        long expiresAt,
-        TimeUnit unit) {
-      long nowMillis = System.currentTimeMillis();
-      scheduleTokenRefresh(
-          client,
-          executor,
-          session,
-          nowMillis,
-          unit.toMillis(expiresAt) - nowMillis,
-          TimeUnit.MILLISECONDS);
     }
 
     /**
@@ -517,28 +498,21 @@ public class OAuth2Util {
      * @param client a RESTClient
      * @param executor a ScheduledExecutorService in which to run the refresh
      * @param session AuthSession to refresh
-     * @param startTimeMillis when the operation that produced the token started, in milliseconds
-     * @param expiresIn a time interval after which the token will expire
-     * @param unit the time unit for expiresIn
+     * @param expiresAtMillis The epoch millis at which the token expires at
      */
     @SuppressWarnings("FutureReturnValueIgnored")
     private static void scheduleTokenRefresh(
         RESTClient client,
         ScheduledExecutorService executor,
         AuthSession session,
-        long startTimeMillis,
-        long expiresIn,
-        TimeUnit unit) {
-      // convert expiration interval to milliseconds
-      long expiresInMillis = unit.toMillis(expiresIn);
+        long expiresAtMillis) {
+      long expiresInMillis = expiresAtMillis - System.currentTimeMillis();
       // how much ahead of time to start the request to allow it to complete
       long refreshWindowMillis = Math.min(expiresInMillis / 10, MAX_REFRESH_WINDOW_MILLIS);
       // how much time to wait before expiration
       long waitIntervalMillis = expiresInMillis - refreshWindowMillis;
-      // how much time has already elapsed since the new token was issued
-      long elapsedMillis = System.currentTimeMillis() - startTimeMillis;
       // how much time to actually wait
-      long timeToWait = Math.max(waitIntervalMillis - elapsedMillis, MIN_REFRESH_WAIT_MILLIS);
+      long timeToWait = Math.max(waitIntervalMillis, MIN_REFRESH_WAIT_MILLIS);
 
       executor.schedule(
           () -> {
@@ -549,9 +523,7 @@ public class OAuth2Util {
                   client,
                   executor,
                   session,
-                  refreshStartTime,
-                  expiration.first(),
-                  expiration.second());
+                  refreshStartTime + expiration.second().toMillis(expiration.first()));
             }
           },
           timeToWait,
@@ -562,31 +534,40 @@ public class OAuth2Util {
         RESTClient client,
         ScheduledExecutorService executor,
         String token,
-        Long defaultExpiresInMillis,
+        Long defaultExpiresAtMillis,
         AuthSession parent) {
       AuthSession session =
           new AuthSession(
-              parent.headers(), token, OAuth2Properties.ACCESS_TOKEN_TYPE, parent.credential());
+              parent.headers(),
+              token,
+              OAuth2Properties.ACCESS_TOKEN_TYPE,
+              parent.credential(),
+              parent.scope());
 
       long startTimeMillis = System.currentTimeMillis();
       Long expiresAtMillis = session.expiresAtMillis();
 
-      if (isExpired(expiresAtMillis, startTimeMillis)) {
+      if (null != expiresAtMillis && expiresAtMillis <= startTimeMillis) {
         Pair<Integer, TimeUnit> expiration = session.refresh(client);
+        // if expiration is non-null, then token refresh was successful
         if (expiration != null) {
-          scheduleTokenRefresh(
-              client, executor, session, startTimeMillis, expiration.first(), expiration.second());
+          if (null != session.expiresAtMillis()) {
+            // use the new expiration time from the refreshed token
+            expiresAtMillis = session.expiresAtMillis();
+          } else {
+            // otherwise use the expiration time from the token response
+            expiresAtMillis = startTimeMillis + expiration.second().toMillis(expiration.first());
+          }
+        } else {
+          // token refresh failed, don't reattempt with the original expiration
+          expiresAtMillis = null;
         }
-      } else if (null != expiresAtMillis) {
-        scheduleTokenRefresh(client, executor, session, expiresAtMillis, TimeUnit.MILLISECONDS);
-      } else if (defaultExpiresInMillis != null) {
-        scheduleTokenRefresh(
-            client,
-            executor,
-            session,
-            System.currentTimeMillis(),
-            defaultExpiresInMillis,
-            TimeUnit.MILLISECONDS);
+      } else if (null == expiresAtMillis && defaultExpiresAtMillis != null) {
+        expiresAtMillis = defaultExpiresAtMillis;
+      }
+
+      if (null != expiresAtMillis) {
+        scheduleTokenRefresh(client, executor, session, expiresAtMillis);
       }
 
       return session;
@@ -596,10 +577,10 @@ public class OAuth2Util {
         RESTClient client,
         ScheduledExecutorService executor,
         String credential,
-        AuthSession parent,
-        String scope) {
+        AuthSession parent) {
       long startTimeMillis = System.currentTimeMillis();
-      OAuthTokenResponse response = fetchToken(client, parent.headers(), credential, scope);
+      OAuthTokenResponse response =
+          fetchToken(client, parent.headers(), credential, parent.scope());
       return fromTokenResponse(client, executor, response, startTimeMillis, parent, credential);
     }
 
@@ -622,18 +603,19 @@ public class OAuth2Util {
         String credential) {
       AuthSession session =
           new AuthSession(
-              parent.headers(), response.token(), response.issuedTokenType(), credential);
-      if (response.expiresInSeconds() != null) {
-        scheduleTokenRefresh(
-            client,
-            executor,
-            session,
-            startTimeMillis,
-            response.expiresInSeconds(),
-            TimeUnit.SECONDS);
-      } else if (session.expiresAtMillis() != null) {
-        scheduleTokenRefresh(
-            client, executor, session, session.expiresAtMillis(), TimeUnit.MILLISECONDS);
+              parent.headers(),
+              response.token(),
+              response.issuedTokenType(),
+              credential,
+              parent.scope());
+
+      Long expiresAtMillis = session.expiresAtMillis();
+      if (null == expiresAtMillis && response.expiresInSeconds() != null) {
+        expiresAtMillis = startTimeMillis + TimeUnit.SECONDS.toMillis(response.expiresInSeconds());
+      }
+
+      if (null != expiresAtMillis) {
+        scheduleTokenRefresh(client, executor, session, expiresAtMillis);
       }
 
       return session;
@@ -644,8 +626,7 @@ public class OAuth2Util {
         ScheduledExecutorService executor,
         String token,
         String tokenType,
-        AuthSession parent,
-        String scope) {
+        AuthSession parent) {
       long startTimeMillis = System.currentTimeMillis();
       OAuthTokenResponse response =
           exchangeToken(
@@ -655,7 +636,7 @@ public class OAuth2Util {
               tokenType,
               parent.token(),
               parent.tokenType(),
-              scope);
+              parent.scope());
       return fromTokenResponse(client, executor, response, startTimeMillis, parent);
     }
   }
