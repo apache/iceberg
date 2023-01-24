@@ -53,11 +53,10 @@ repos:
       - id: pyupgrade
         args: [ --py38-plus, --keep-runtime-typing ]
   - repo: https://github.com/pycqa/pylint
-    rev: v2.15.9
+    rev: v2.15.10
     hooks:
       - id: pylint
         args: [ --rcfile=python/pylintrc ]
-        additional_dependencies: [ typing-extensions==4.4.0 ]
   - repo: https://github.com/pycqa/flake8
     rev: '6.0.0'
     hooks:
