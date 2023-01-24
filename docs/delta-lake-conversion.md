@@ -37,6 +37,9 @@ The module is built and tested with `Delta Standalone:0.6.0` and supports Delta 
 
 Please refer to [Delta Lake Table Protocol Versioning](https://docs.delta.io/latest/versioning.html) for more details about Delta Lake protocol versions.
 
+For delta lake table contains `TimestampType` columns, please make sure to set table property `read.parquet.vectorization.enabled` to `false` since the vectorized reader doesn't support `INT96` yet.
+Such support is under development in according to this [issue](https://github.com/apache/iceberg/issues/4200)
+
 ## API
 The `iceberg-delta-lake` module provides an interface named `DeltaLakeToIcebergMigrationActionsProvider`, which contains actions that helps converting from Delta Lake to Iceberg.
 The supported actions are:
