@@ -30,6 +30,7 @@ from typing import (
     Optional,
     Tuple,
     TypeVar,
+    Union,
 )
 
 from pydantic import Field
@@ -38,6 +39,7 @@ from pyiceberg.expressions import (
     AlwaysTrue,
     And,
     BooleanExpression,
+    parser,
     visitors,
 )
 from pyiceberg.expressions.visitors import inclusive_projection
@@ -89,7 +91,7 @@ class Table:
 
     def scan(
         self,
-        row_filter: Optional[BooleanExpression] = None,
+        row_filter: Optional[Union[str, BooleanExpression]] = None,
         selected_fields: Tuple[str] = ("*",),
         case_sensitive: bool = True,
         snapshot_id: Optional[int] = None,
@@ -181,14 +183,17 @@ class TableScan(Generic[S], ABC):
     def __init__(
         self,
         table: Table,
-        row_filter: Optional[BooleanExpression] = None,
+        row_filter: Optional[Union[str, BooleanExpression]] = None,
         selected_fields: Tuple[str] = ("*",),
         case_sensitive: bool = True,
         snapshot_id: Optional[int] = None,
         options: Properties = EMPTY_DICT,
     ):
         self.table = table
-        self.row_filter = row_filter or AlwaysTrue()
+        if row_filter is None:
+            self.row_filter = AlwaysTrue()
+        else:
+            self.row_filter = parser.parse(row_filter)
         self.selected_fields = selected_fields
         self.case_sensitive = case_sensitive
         self.snapshot_id = snapshot_id
@@ -239,8 +244,8 @@ class TableScan(Generic[S], ABC):
             return self.update(selected_fields=field_names)
         return self.update(selected_fields=tuple(set(self.selected_fields).intersection(set(field_names))))
 
-    def filter(self, new_row_filter: BooleanExpression) -> S:
-        return self.update(row_filter=And(self.row_filter, new_row_filter))
+    def filter(self, expr: Union[str, BooleanExpression]) -> S:
+        return self.update(row_filter=And(self.row_filter, parser.parse(expr)))
 
     def with_case_sensitive(self, case_sensitive: bool = True) -> S:
         return self.update(case_sensitive=case_sensitive)
