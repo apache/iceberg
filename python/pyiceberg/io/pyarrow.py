@@ -505,8 +505,14 @@ def _file_to_table(
     # Prune the stuff that we don't need anyway
     file_project_schema_arrow = schema_to_pyarrow(file_project_schema)
 
+    read_options = {
+        "pre_buffer": True,
+        "use_buffered_stream": True,
+        "buffer_size": 8388608,
+    }
+
     arrow_table = ds.dataset(
-        source=[path], schema=file_project_schema_arrow, format=ds.ParquetFileFormat(), filesystem=fs
+        source=[path], schema=file_project_schema_arrow, format=ds.ParquetFileFormat(**read_options), filesystem=fs
     ).to_table(filter=pyarrow_filter)
 
     return to_requested_schema(projected_schema, file_project_schema, arrow_table)
