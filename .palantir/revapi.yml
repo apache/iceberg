@@ -321,6 +321,38 @@ acceptedBreaks:
         \ java.lang.Object, java.lang.Object>)"
       justification: "Removing deprecations for 1.2.0"
     - code: "java.method.removed"
+      old: "method org.apache.iceberg.metrics.ScanMetrics org.apache.iceberg.BaseTableScan::scanMetrics()\
+        \ @ org.apache.iceberg.AllDataFilesTable.AllDataFilesTableScan"
+      justification: "Method is still there but moved to parent class"
+    - code: "java.method.removed"
+      old: "method org.apache.iceberg.metrics.ScanMetrics org.apache.iceberg.BaseTableScan::scanMetrics()\
+        \ @ org.apache.iceberg.AllDeleteFilesTable.AllDeleteFilesTableScan"
+      justification: "Method is still there but moved to parent class"
+    - code: "java.method.removed"
+      old: "method org.apache.iceberg.metrics.ScanMetrics org.apache.iceberg.BaseTableScan::scanMetrics()\
+        \ @ org.apache.iceberg.AllFilesTable.AllFilesTableScan"
+      justification: "Method is still there but moved to parent class"
+    - code: "java.method.removed"
+      old: "method org.apache.iceberg.metrics.ScanMetrics org.apache.iceberg.BaseTableScan::scanMetrics()\
+        \ @ org.apache.iceberg.AllManifestsTable.AllManifestsTableScan"
+      justification: "Method is still there but moved to parent class"
+    - code: "java.method.removed"
+      old: "method org.apache.iceberg.metrics.ScanMetrics org.apache.iceberg.BaseTableScan::scanMetrics()\
+        \ @ org.apache.iceberg.DataFilesTable.DataFilesTableScan"
+      justification: "Method is still there but moved to parent class"
+    - code: "java.method.removed"
+      old: "method org.apache.iceberg.metrics.ScanMetrics org.apache.iceberg.BaseTableScan::scanMetrics()\
+        \ @ org.apache.iceberg.DataTableScan"
+      justification: "Method is still there but moved to parent class"
+    - code: "java.method.removed"
+      old: "method org.apache.iceberg.metrics.ScanMetrics org.apache.iceberg.BaseTableScan::scanMetrics()\
+        \ @ org.apache.iceberg.DeleteFilesTable.DeleteFilesTableScan"
+      justification: "Method is still there but moved to parent class"
+    - code: "java.method.removed"
+      old: "method org.apache.iceberg.metrics.ScanMetrics org.apache.iceberg.BaseTableScan::scanMetrics()\
+        \ @ org.apache.iceberg.FilesTable.FilesTableScan"
+      justification: "Method is still there but moved to parent class"
+    - code: "java.method.removed"
       old: "method void org.apache.iceberg.BaseReplacePartitions::validate(org.apache.iceberg.TableMetadata)"
       justification: "Removing deprecations for 1.2.0"
     - code: "java.method.removed"
