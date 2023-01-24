@@ -505,7 +505,9 @@ def project_table(
         # Get the schema
         with fs.open_input_file(path) as fout:
             parquet_schema = pq.read_schema(fout)
-            schema_raw = parquet_schema.metadata.get(ICEBERG_SCHEMA)
+            schema_raw = None
+            if metadata := parquet_schema.metadata:
+                schema_raw = metadata.get(ICEBERG_SCHEMA)
             if schema_raw is None:
                 raise ValueError(
                     "Iceberg schema is not embedded into the Parquet file, see https://github.com/apache/iceberg/issues/6505"
