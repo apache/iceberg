@@ -28,6 +28,7 @@ import static org.apache.iceberg.TableProperties.DEFAULT_PARTITION_SPEC;
 import static org.apache.iceberg.TableProperties.DEFAULT_SORT_ORDER;
 import static org.apache.iceberg.expressions.Expressions.bucket;
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -49,6 +50,7 @@ import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.PartitionSpecParser;
 import org.apache.iceberg.Schema;
@@ -60,6 +62,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.UpdateSchema;
 import org.apache.iceberg.catalog.Catalog;
@@ -1175,5 +1178,36 @@ public class TestHiveCatalog extends HiveMetastoreTest {
     Database database = catalog.convertToDatabase(Namespace.of("database"), ImmutableMap.of());
 
     Assert.assertEquals("s3://bucket/database.db", database.getLocationUri());
+  }
+
+  @Test
+  public void testRegisterTable() {
+    TableIdentifier identifier = TableIdentifier.of(DB_NAME, "t1");
+    catalog.createTable(identifier, getTestSchema());
+    Table registeringTable = catalog.loadTable(identifier);
+    catalog.dropTable(identifier, false);
+    TableOperations ops = ((HasTableOperations) registeringTable).operations();
+    String metadataLocation = ((HiveTableOperations) ops).currentMetadataLocation();
+    Table registeredTable = catalog.registerTable(identifier, metadataLocation);
+    assertThat(registeredTable).isNotNull();
+    TestHelpers.assertSerializedAndLoadedMetadata(registeringTable, registeredTable);
+    String expectedMetadataLocation =
+        ((HasTableOperations) registeredTable).operations().current().metadataFileLocation();
+    assertThat(metadataLocation).isEqualTo(expectedMetadataLocation);
+    assertThat(catalog.loadTable(identifier)).isNotNull();
+    assertThat(catalog.dropTable(identifier)).isTrue();
+  }
+
+  @Test
+  public void testRegisterExistingTable() {
+    TableIdentifier identifier = TableIdentifier.of(DB_NAME, "t1");
+    catalog.createTable(identifier, getTestSchema());
+    Table registeringTable = catalog.loadTable(identifier);
+    TableOperations ops = ((HasTableOperations) registeringTable).operations();
+    String metadataLocation = ((HiveTableOperations) ops).currentMetadataLocation();
+    assertThatThrownBy(() -> catalog.registerTable(identifier, metadataLocation))
+        .isInstanceOf(AlreadyExistsException.class)
+        .hasMessage("Table already exists: hivedb.t1");
+    assertThat(catalog.dropTable(identifier, true)).isTrue();
   }
 }
