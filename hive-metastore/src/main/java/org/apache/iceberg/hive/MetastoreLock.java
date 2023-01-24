@@ -76,6 +76,7 @@ public class MetastoreLock implements HiveLock {
   private static final long HIVE_LOCK_CREATION_MAX_WAIT_MS_DEFAULT = 5 * 1000; // 5 seconds
   private static final long HIVE_LOCK_HEARTBEAT_INTERVAL_MS_DEFAULT = 4 * 60 * 1000; // 4 minutes
   private static final long HIVE_TABLE_LEVEL_LOCK_EVICT_MS_DEFAULT = TimeUnit.MINUTES.toMillis(10);
+  private static Cache<String, ReentrantLock> commitLockCache;
 
   private final ClientPool<IMetaStoreClient, TException> metaClients;
   private final String databaseName;
@@ -89,13 +90,10 @@ public class MetastoreLock implements HiveLock {
   private final long lockCreationMaxWaitTime;
   private final long lockHeartbeatIntervalTime;
   private final ScheduledExecutorService exitingScheduledExecutorService;
-
   private final String agentInfo;
 
-  private static Cache<String, ReentrantLock> commitLockCache;
-
   private Optional<Long> hmsLockId = Optional.empty();
-  private Optional<ReentrantLock> jvmLock = Optional.empty();
+  private ReentrantLock jvmLock = null;
   private HiveLockHeartbeat hiveLockHeartbeat = null;
 
   public MetastoreLock(
@@ -141,8 +139,7 @@ public class MetastoreLock implements HiveLock {
   @Override
   public void lock() throws LockException {
     // getting a process-level lock per table to avoid concurrent commit attempts to the same table
-    // from the same
-    // JVM process, which would result in unnecessary and costly HMS lock acquisition requests
+    // from the same JVM process, which would result in unnecessary HMS lock acquisition requests
     acquireJvmLock();
 
     // Getting HMS lock
@@ -284,9 +281,8 @@ public class MetastoreLock implements HiveLock {
     LockComponent lockComponent =
         new LockComponent(LockType.EXCLUSIVE, LockLevel.TABLE, databaseName);
     lockComponent.setTablename(tableName);
-    final LockRequest lockRequest =
-        new LockRequest(
-            Lists.newArrayList(lockComponent), System.getProperty("user.name"), hostName);
+    LockRequest lockRequest =
+        new LockRequest(Lists.newArrayList(lockComponent), HiveHadoopUtil.currentUser(), hostName);
 
     // Only works in Hive 2 or later.
     if (HiveVersion.min(HiveVersion.HIVE_2)) {
@@ -436,26 +432,27 @@ public class MetastoreLock implements HiveLock {
         });
   }
 
+  private void acquireJvmLock() {
+    if (jvmLock != null) {
+      throw new IllegalStateException(
+          String.format("Cannot call acquireLock twice for %s", fullName));
+    }
+
+    jvmLock = commitLockCache.get(fullName, t -> new ReentrantLock(true));
+    jvmLock.lock();
+  }
+
+  private void releaseJvmLock() {
+    if (jvmLock != null) {
+      jvmLock.unlock();
+      jvmLock = null;
+    }
+  }
+
   private static synchronized void initTableLevelLockCache(long evictionTimeout) {
     if (commitLockCache == null) {
       commitLockCache =
           Caffeine.newBuilder().expireAfterAccess(evictionTimeout, TimeUnit.MILLISECONDS).build();
-    }
-  }
-
-  private void acquireJvmLock() {
-    if (jvmLock.isPresent()) {
-      throw new IllegalStateException(
-          String.format("JVM lock already acquired for table %s", fullName));
-    }
-    jvmLock = Optional.of(commitLockCache.get(fullName, t -> new ReentrantLock(true)));
-    jvmLock.get().lock();
-  }
-
-  private void releaseJvmLock() {
-    if (jvmLock.isPresent()) {
-      jvmLock.get().unlock();
-      jvmLock = Optional.empty();
     }
   }
 
