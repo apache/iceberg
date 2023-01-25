@@ -33,8 +33,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.RegisterExtension;
 import org.junit.jupiter.api.io.TempDir;
 import org.projectnessie.client.api.NessieApiV1;
+import org.projectnessie.client.ext.NessieApiVersion;
+import org.projectnessie.client.ext.NessieApiVersions;
+import org.projectnessie.client.ext.NessieClientFactory;
 import org.projectnessie.client.ext.NessieClientUri;
-import org.projectnessie.client.http.HttpClientBuilder;
 import org.projectnessie.error.NessieConflictException;
 import org.projectnessie.error.NessieNotFoundException;
 import org.projectnessie.jaxrs.ext.NessieJaxRsExtension;
@@ -52,6 +54,7 @@ import org.projectnessie.versioned.persist.tests.extension.NessieExternalDatabas
 @ExtendWith(DatabaseAdapterExtension.class)
 @NessieDbAdapterName(InmemoryDatabaseAdapterFactory.NAME)
 @NessieExternalDatabase(InmemoryTestConnectionProviderSource.class)
+@NessieApiVersions(versions = NessieApiVersion.V1)
 public class TestNessieCatalog extends CatalogTests<NessieCatalog> {
 
   @NessieDbAdapter static DatabaseAdapter databaseAdapter;
@@ -69,12 +72,11 @@ public class TestNessieCatalog extends CatalogTests<NessieCatalog> {
   private String uri;
 
   @BeforeEach
-  public void beforeEach(@NessieClientUri URI nessieUri) throws IOException {
-    this.uri = nessieUri.resolve("v1").toASCIIString();
-    this.api = HttpClientBuilder.builder().withUri(this.uri).build(NessieApiV1.class);
-
+  public void setUp(NessieClientFactory clientFactory, @NessieClientUri URI nessieUri)
+      throws NessieNotFoundException {
+    api = clientFactory.make();
     initialHashOfDefaultBranch = api.getDefaultBranch().getHash();
-
+    uri = nessieUri.toASCIIString();
     hadoopConfig = new Configuration();
     catalog = initNessieCatalog("main");
   }

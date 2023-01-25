@@ -52,6 +52,7 @@ import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.projectnessie.client.ext.NessieClientFactory;
 import org.projectnessie.client.ext.NessieClientUri;
 import org.projectnessie.error.NessieConflictException;
 import org.projectnessie.error.NessieNotFoundException;
@@ -89,8 +90,9 @@ public class TestNessieTable extends BaseTestIceberg {
 
   @Override
   @BeforeEach
-  public void beforeEach(@NessieClientUri URI uri) throws IOException {
-    super.beforeEach(uri);
+  public void beforeEach(NessieClientFactory clientFactory, @NessieClientUri URI nessieUri)
+      throws IOException {
+    super.beforeEach(clientFactory, nessieUri);
     this.tableLocation =
         catalog.createTable(TABLE_IDENTIFIER, schema).location().replaceFirst("file:", "");
   }
