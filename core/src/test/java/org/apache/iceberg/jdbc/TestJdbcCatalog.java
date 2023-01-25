@@ -782,6 +782,9 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
     Table registeredTable = catalog.registerTable(identifier, metadataLocation);
     Assertions.assertThat(registeredTable).isNotNull();
     TestHelpers.assertSerializedAndLoadedMetadata(registeringTable, registeredTable);
+    String expectedMetadataLocation =
+        ((HasTableOperations) registeredTable).operations().current().metadataFileLocation();
+    Assertions.assertThat(metadataLocation).isEqualTo(expectedMetadataLocation);
     Assertions.assertThat(catalog.loadTable(identifier)).isNotNull();
     Assertions.assertThat(catalog.dropTable(identifier)).isTrue();
   }
