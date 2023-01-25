@@ -18,31 +18,25 @@
  */
 package org.apache.iceberg;
 
-import java.util.Locale;
+import org.apache.iceberg.expressions.ResidualEvaluator;
 
-public enum MetadataTableType {
-  ENTRIES,
-  FILES,
-  DATA_FILES,
-  DELETE_FILES,
-  HISTORY,
-  METADATA_LOG_ENTRIES,
-  SNAPSHOTS,
-  REFS,
-  MANIFESTS,
-  PARTITIONS,
-  ALL_DATA_FILES,
-  ALL_DELETE_FILES,
-  ALL_FILES,
-  ALL_MANIFESTS,
-  ALL_ENTRIES,
-  POSITION_DELETES;
+/** Base implementation of {@link PositionDeletesScanTask} */
+class BasePositionDeletesScanTask extends BaseContentScanTask<PositionDeletesScanTask, DeleteFile>
+    implements PositionDeletesScanTask, SplittableScanTask<PositionDeletesScanTask> {
 
-  public static MetadataTableType from(String name) {
-    try {
-      return MetadataTableType.valueOf(name.toUpperCase(Locale.ROOT));
-    } catch (IllegalArgumentException ignored) {
-      return null;
-    }
+  BasePositionDeletesScanTask(
+      DeleteFile file, String schemaString, String specString, ResidualEvaluator evaluator) {
+    super(file, schemaString, specString, evaluator);
+  }
+
+  @Override
+  protected BasePositionDeletesScanTask self() {
+    return this;
+  }
+
+  @Override
+  protected PositionDeletesScanTask newSplitTask(
+      PositionDeletesScanTask parentTask, long offset, long length) {
+    return new SplitPositionDeletesScanTask(parentTask, offset, length);
   }
 }

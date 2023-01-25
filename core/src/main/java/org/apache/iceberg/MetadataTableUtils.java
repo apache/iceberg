@@ -77,6 +77,8 @@ public class MetadataTableUtils {
         return new AllManifestsTable(baseTable, metadataTableName);
       case ALL_ENTRIES:
         return new AllEntriesTable(baseTable, metadataTableName);
+      case POSITION_DELETES:
+        return new PositionDeletesTable(baseTable, metadataTableName);
       default:
         throw new NoSuchTableException(
             "Unknown metadata table type: %s for %s", type, metadataTableName);

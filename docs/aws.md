@@ -678,6 +678,13 @@ install_dependencies $LIB_PATH $ICEBERG_MAVEN_URL $ICEBERG_VERSION "${ICEBERG_PA
 install_dependencies $LIB_PATH $AWS_MAVEN_URL $AWS_SDK_VERSION "${AWS_PACKAGES[@]}"
 ```
 
+### AWS Glue
+
+[AWS Glue](https://aws.amazon.com/glue/) provides a serverless data integration service
+that could be used to perform read, write, update tasks against Iceberg tables.
+More details could be found [here](https://docs.aws.amazon.com/glue/latest/dg/aws-glue-programming-etl-format-iceberg.html).
+
+
 ### AWS EKS
 
 [AWS Elastic Kubernetes Service (EKS)](https://aws.amazon.com/eks/) can be used to start any Spark, Flink, Hive, Presto or Trino clusters to work with Iceberg.

@@ -72,12 +72,15 @@ public abstract class BaseMetadataTable extends BaseReadOnlyTable
    *     inclusive projection
    */
   static PartitionSpec transformSpec(Schema metadataTableSchema, PartitionSpec spec) {
-    PartitionSpec.Builder identitySpecBuilder =
-        PartitionSpec.builderFor(metadataTableSchema).checkConflicts(false);
+    PartitionSpec.Builder builder =
+        PartitionSpec.builderFor(metadataTableSchema)
+            .withSpecId(spec.specId())
+            .checkConflicts(false);
+
     for (PartitionField field : spec.fields()) {
-      identitySpecBuilder.add(field.fieldId(), field.name(), Transforms.identity());
+      builder.add(field.fieldId(), field.fieldId(), field.name(), Transforms.identity());
     }
-    return identitySpecBuilder.build();
+    return builder.build();
   }
 
   abstract MetadataTableType metadataTableType();

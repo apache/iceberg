@@ -420,6 +420,10 @@ class TimestampLiteral(Literal[int]):
     def _(self, _: TimestampType) -> Literal[int]:
         return self
 
+    @to.register(TimestamptzType)
+    def _(self, _: TimestamptzType) -> Literal[int]:
+        return self
+
     @to.register(DateType)
     def _(self, _: DateType) -> Literal[int]:
         return DateLiteral(micros_to_days(self.value))

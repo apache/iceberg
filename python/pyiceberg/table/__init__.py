@@ -19,6 +19,8 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from functools import cached_property
+from itertools import chain
+from multiprocessing.pool import ThreadPool
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -272,6 +274,13 @@ def _check_content(file: DataFile) -> DataFile:
         return file
 
 
+def _open_manifest(io: FileIO, manifest: ManifestFile, partition_filter: Callable[[DataFile], bool]) -> List[FileScanTask]:
+    all_files = files(io.new_input(manifest.manifest_path))
+    matching_partition_files = filter(partition_filter, all_files)
+    matching_partition_data_files = map(_check_content, matching_partition_files)
+    return [FileScanTask(file) for file in matching_partition_data_files]
+
+
 class DataScan(TableScan["DataScan"]):
     def __init__(
         self,
@@ -308,7 +317,7 @@ class DataScan(TableScan["DataScan"]):
     def plan_files(self) -> Iterator[FileScanTask]:
         snapshot = self.snapshot()
         if not snapshot:
-            return
+            return iter([])
 
         io = self.table.io
 
@@ -328,14 +337,13 @@ class DataScan(TableScan["DataScan"]):
 
         partition_evaluators: Dict[int, Callable[[DataFile], bool]] = KeyDefaultDict(self._build_partition_evaluator)
 
-        for manifest in manifests:
-            partition_filter = partition_evaluators[manifest.partition_spec_id]
-            all_files = files(io.new_input(manifest.manifest_path))
-            matching_partition_files = filter(partition_filter, all_files)
-
-            matching_partition_data_files = map(_check_content, matching_partition_files)
-
-            yield from (FileScanTask(file) for file in matching_partition_data_files)
+        with ThreadPool() as pool:
+            return chain(
+                *pool.starmap(
+                    func=_open_manifest,
+                    iterable=[(io, manifest, partition_evaluators[manifest.partition_spec_id]) for manifest in manifests],
+                )
+            )
 
     def to_arrow(self) -> pa.Table:
         return project_table(
