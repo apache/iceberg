@@ -84,6 +84,8 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
   private String newIcebergTableLocation;
   private String externalDataFilesTableLocation;
   private String typeTestTableLocation;
+  private Dataset<Row> typeTestDataFrame;
+  private Dataset<Row> nestedDataFrame;
 
   @Parameterized.Parameters(name = "Catalog Name {0} - Options {2}")
   public static Object[][] parameters() {
@@ -143,15 +145,12 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
     spark.sql(String.format("DROP TABLE IF EXISTS %s", typeTestIdentifier));
 
     // generate the dataframe
-    Dataset<Row> nestedDataFrame = nestedDataFrame();
-    Dataset<Row> typeTestDataFrame = typeTestDataFrame();
+    nestedDataFrame = nestedDataFrame();
+    typeTestDataFrame = typeTestDataFrame();
 
     // write to delta tables
     writeDeltaTable(nestedDataFrame, partitionedIdentifier, partitionedLocation, "id");
     writeDeltaTable(nestedDataFrame, unpartitionedIdentifier, unpartitionedLocation, null);
-    writeDeltaTable(
-        nestedDataFrame, externalDataFilesIdentifier, externalDataFilesTableLocation, null);
-    writeDeltaTable(typeTestDataFrame, typeTestIdentifier, typeTestTableLocation, "stringCol");
 
     // Delete a record from the table
     spark.sql("DELETE FROM " + partitionedIdentifier + " WHERE id=3");
@@ -273,6 +272,8 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
 
   @Test
   public void testSnapshotTableWithExternalDataFiles() {
+    writeDeltaTable(
+        nestedDataFrame, externalDataFilesIdentifier, externalDataFilesTableLocation, null);
     // Add parquet files to default.external_data_files_table. The newly added parquet files
     // are not at the same location as the table.
     addExternalDatafiles(externalDataFilesTableLocation, unpartitionedLocation);
@@ -290,6 +291,7 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
 
   @Test
   public void testSnapshotSupportedTypes() {
+    writeDeltaTable(typeTestDataFrame, typeTestIdentifier, typeTestTableLocation, "stringCol");
     String newTableIdentifier = destName(icebergCatalogName, snapshotTypeTestTableName);
     SnapshotDeltaLakeTable.Result result =
         DeltaLakeToIcebergMigrationSparkIntegration.snapshotDeltaLakeTable(

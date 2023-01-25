@@ -61,7 +61,6 @@ import org.apache.iceberg.orc.OrcMetrics;
 import org.apache.iceberg.parquet.ParquetUtil;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
 import org.slf4j.Logger;
@@ -90,6 +89,7 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
   private TableIdentifier newTableIdentifier;
   private String newTableLocation;
   private HadoopFileIO deltaLakeFileIO;
+  private long deltaStartVersion;
 
   /**
    * Snapshot a delta lake table to be an iceberg table. The action will read the delta lake table's
@@ -139,6 +139,8 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
   public SnapshotDeltaLakeTable deltaLakeConfiguration(Configuration conf) {
     this.deltaLog = DeltaLog.forTable(conf, deltaTableLocation);
     this.deltaLakeFileIO = new HadoopFileIO(conf);
+    // get the earliest version available in the delta lake table
+    this.deltaStartVersion = deltaLog.getVersionAtOrAfterTimestamp(0L);
     return this;
   }
 
@@ -150,6 +152,10 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
     Preconditions.checkArgument(
         deltaLog != null && deltaLakeFileIO != null,
         "Make sure to configure the action with a valid deltaLakeConfiguration");
+    Preconditions.checkArgument(
+        deltaLog.tableExists(),
+        "Delta lake table does not exist at the given location: %s",
+        deltaTableLocation);
     io.delta.standalone.Snapshot updatedSnapshot = deltaLog.update();
     Schema schema = convertDeltaLakeSchema(updatedSnapshot.getMetadata().getSchema());
     PartitionSpec partitionSpec = getPartitionSpecFromDeltaSnapshot(schema);
@@ -169,8 +175,8 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
         .commit();
     Iterator<VersionLog> versionLogIterator =
         deltaLog.getChanges(
-            0, // retrieve actions starting from the initial version
-            false); // not throw exception when data loss detected
+            deltaStartVersion, false // not throw exception when data loss detected
+            );
     while (versionLogIterator.hasNext()) {
       VersionLog versionLog = versionLogIterator.next();
       commitDeltaVersionLogToIcebergTransaction(versionLog, icebergTransaction);
@@ -227,17 +233,25 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
    */
   private void commitDeltaVersionLogToIcebergTransaction(
       VersionLog versionLog, Transaction transaction) {
-    List<Action> actions = versionLog.getActions();
-
-    // Create a map of Delta Lake Action (AddFile, RemoveFile, etc.) --> List<Action>
-    Map<String, List<Action>> deltaLakeActionMap =
-        actions.stream()
-            .filter(action -> action instanceof AddFile || action instanceof RemoveFile)
-            .collect(Collectors.groupingBy(a -> a.getClass().getSimpleName()));
+    List<Action> dataFileActions;
+    if (versionLog.getVersion() == deltaStartVersion) {
+      // The first version log is a special case, since it contains the initial table state.
+      // we need to get all dataFiles from the corresponding delta snapshot to construct the table.
+      dataFileActions =
+          deltaLog.getSnapshotForVersionAsOf(deltaStartVersion).getAllFiles().stream()
+              .map(addFile -> (Action) addFile)
+              .collect(Collectors.toList());
+    } else {
+      // Only need actions related to data change: AddFile and RemoveFile
+      dataFileActions =
+          versionLog.getActions().stream()
+              .filter(action -> action instanceof AddFile || action instanceof RemoveFile)
+              .collect(Collectors.toList());
+    }
 
     List<DataFile> filesToAdd = Lists.newArrayList();
     List<DataFile> filesToRemove = Lists.newArrayList();
-    for (Action action : Iterables.concat(deltaLakeActionMap.values())) {
+    for (Action action : dataFileActions) {
       DataFile dataFile = buildDataFileFromAction(action, transaction.table());
       if (action instanceof AddFile) {
         filesToAdd.add(dataFile);

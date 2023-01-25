@@ -87,6 +87,20 @@ public class TestBaseSnapshotDeltaLakeTableAction {
         .hasMessage("Make sure to configure the action with a valid deltaLakeConfiguration");
   }
 
+  @Test
+  public void testDeltaTableNotExist() {
+    SnapshotDeltaLakeTable testAction =
+        new BaseSnapshotDeltaLakeTableAction(sourceTableLocation)
+            .as(TableIdentifier.of("test", "test"))
+            .deltaLakeConfiguration(testHadoopConf)
+            .icebergCatalog(testCatalog)
+            .tableLocation(newTableLocation);
+    Assertions.assertThatThrownBy(testAction::execute)
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "Delta lake table does not exist at the given location: %s", sourceTableLocation);
+  }
+
   private static class TestCatalog extends BaseMetastoreCatalog {
     TestCatalog() {}
 
