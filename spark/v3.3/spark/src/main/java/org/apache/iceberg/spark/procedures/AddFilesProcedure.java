@@ -63,7 +63,7 @@ class AddFilesProcedure extends BaseProcedure {
         ProcedureParameter.optional("partition_filter", STRING_MAP),
         ProcedureParameter.optional("check_duplicate_files", DataTypes.BooleanType),
         ProcedureParameter.optional("max_concurrent_adds", DataTypes.IntegerType),
-  };
+      };
 
   private static final StructType OUTPUT_TYPE =
       new StructType(
@@ -123,12 +123,13 @@ class AddFilesProcedure extends BaseProcedure {
 
     int maxConcurrentAdds = args.isNullAt(4) ? 1 : args.getInt(4);
     Preconditions.checkArgument(
-            maxConcurrentAdds > 0,
-            "max_concurrent_adds should have value > 0, value: %s",
-            maxConcurrentAdds);
+        maxConcurrentAdds > 0,
+        "max_concurrent_adds should have value > 0, value: %s",
+        maxConcurrentAdds);
 
     long addedFilesCount =
-        importToIceberg(tableIdent, sourceIdent, partitionFilter, checkDuplicateFiles, maxConcurrentAdds);
+        importToIceberg(
+            tableIdent, sourceIdent, partitionFilter, checkDuplicateFiles, maxConcurrentAdds);
     return new InternalRow[] {newInternalRow(addedFilesCount)};
   }
 
@@ -141,11 +142,11 @@ class AddFilesProcedure extends BaseProcedure {
   }
 
   private long importToIceberg(
-          Identifier destIdent,
-          Identifier sourceIdent,
-          Map<String, String> partitionFilter,
-          boolean checkDuplicateFiles,
-          Integer maxConcurrentAdds) {
+      Identifier destIdent,
+      Identifier sourceIdent,
+      Map<String, String> partitionFilter,
+      boolean checkDuplicateFiles,
+      Integer maxConcurrentAdds) {
     return modifyIcebergTable(
         destIdent,
         table -> {
@@ -155,9 +156,11 @@ class AddFilesProcedure extends BaseProcedure {
           if (isFileIdentifier(sourceIdent)) {
             Path sourcePath = new Path(sourceIdent.name());
             String format = sourceIdent.namespace()[0];
-            importFileTable(table, sourcePath, format, partitionFilter, checkDuplicateFiles, maxConcurrentAdds);
+            importFileTable(
+                table, sourcePath, format, partitionFilter, checkDuplicateFiles, maxConcurrentAdds);
           } else {
-            importCatalogTable(table, sourceIdent, partitionFilter, checkDuplicateFiles, maxConcurrentAdds);
+            importCatalogTable(
+                table, sourceIdent, partitionFilter, checkDuplicateFiles, maxConcurrentAdds);
           }
 
           Snapshot snapshot = table.currentSnapshot();
@@ -176,12 +179,12 @@ class AddFilesProcedure extends BaseProcedure {
   }
 
   private void importFileTable(
-          Table table,
-          Path tableLocation,
-          String format,
-          Map<String, String> partitionFilter,
-          boolean checkDuplicateFiles,
-          Integer maxConcurrentAdds) {
+      Table table,
+      Path tableLocation,
+      String format,
+      Map<String, String> partitionFilter,
+      boolean checkDuplicateFiles,
+      Integer maxConcurrentAdds) {
     // List Partitions via Spark InMemory file search interface
     List<SparkPartition> partitions =
         Spark3Util.getPartitions(spark(), tableLocation, format, partitionFilter);
@@ -205,11 +208,11 @@ class AddFilesProcedure extends BaseProcedure {
   }
 
   private void importCatalogTable(
-          Table table,
-          Identifier sourceIdent,
-          Map<String, String> partitionFilter,
-          boolean checkDuplicateFiles,
-          Integer maxConcurrentAdds) {
+      Table table,
+      Identifier sourceIdent,
+      Map<String, String> partitionFilter,
+      boolean checkDuplicateFiles,
+      Integer maxConcurrentAdds) {
     String stagingLocation = getMetadataLocation(table);
     TableIdentifier sourceTableIdentifier = Spark3Util.toV1TableIdentifier(sourceIdent);
     SparkTableUtil.importSparkTable(
@@ -223,10 +226,19 @@ class AddFilesProcedure extends BaseProcedure {
   }
 
   private void importPartitions(
-          Table table, List<SparkPartition> partitions, boolean checkDuplicateFiles, Integer maxConcurrentAdds) {
+      Table table,
+      List<SparkPartition> partitions,
+      boolean checkDuplicateFiles,
+      Integer maxConcurrentAdds) {
     String stagingLocation = getMetadataLocation(table);
     SparkTableUtil.importSparkPartitions(
-        spark(), partitions, table, table.spec(), stagingLocation, checkDuplicateFiles, maxConcurrentAdds);
+        spark(),
+        partitions,
+        table,
+        table.spec(),
+        stagingLocation,
+        checkDuplicateFiles,
+        maxConcurrentAdds);
   }
 
   private String getMetadataLocation(Table table) {

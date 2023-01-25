@@ -19,7 +19,6 @@
 package org.apache.iceberg.spark;
 
 import static org.apache.spark.sql.functions.col;
-import static org.apache.spark.sql.functions.max;
 
 import java.io.IOException;
 import java.io.Serializable;
@@ -394,21 +393,14 @@ public class SparkTableUtil {
   }
 
   public static void importSparkTable(
-          SparkSession spark,
-          TableIdentifier sourceTableIdent,
-          Table targetTable,
-          String stagingDir,
-          Map<String, String> partitionFilter,
-          boolean checkDuplicateFiles) {
+      SparkSession spark,
+      TableIdentifier sourceTableIdent,
+      Table targetTable,
+      String stagingDir,
+      Map<String, String> partitionFilter,
+      boolean checkDuplicateFiles) {
     importSparkTable(
-            spark,
-            sourceTableIdent,
-            targetTable,
-            stagingDir,
-            partitionFilter,
-            checkDuplicateFiles,
-            1);
-
+        spark, sourceTableIdent, targetTable, stagingDir, partitionFilter, checkDuplicateFiles, 1);
   }
   /**
    * Import files from an existing Spark table to an Iceberg table.
@@ -462,7 +454,13 @@ public class SparkTableUtil {
             "Cannot find any partitions in table %s",
             sourceTableIdent);
         importSparkPartitions(
-            spark, sourceTablePartitions, targetTable, spec, stagingDir, checkDuplicateFiles, maxConcurrentAdds);
+            spark,
+            sourceTablePartitions,
+            targetTable,
+            spec,
+            stagingDir,
+            checkDuplicateFiles,
+            maxConcurrentAdds);
       }
     } catch (AnalysisException e) {
       throw SparkExceptionUtil.toUncheckedException(
@@ -515,11 +513,11 @@ public class SparkTableUtil {
   }
 
   private static void importUnpartitionedSparkTable(
-          SparkSession spark,
-          TableIdentifier sourceTableIdent,
-          Table targetTable,
-          boolean checkDuplicateFiles,
-          int maxConcurrentAdds) {
+      SparkSession spark,
+      TableIdentifier sourceTableIdent,
+      Table targetTable,
+      boolean checkDuplicateFiles,
+      int maxConcurrentAdds) {
     try {
       CatalogTable sourceTable = spark.sessionState().catalog().getTableMetadata(sourceTableIdent);
       Option<String> format =
@@ -577,20 +575,13 @@ public class SparkTableUtil {
   }
 
   public static void importSparkPartitions(
-          SparkSession spark,
-          List<SparkPartition> partitions,
-          Table targetTable,
-          PartitionSpec spec,
-          String stagingDir,
-          boolean checkDuplicateFiles) {
-    importSparkPartitions(
-            spark,
-            partitions,
-            targetTable,
-            spec,
-            stagingDir,
-            checkDuplicateFiles,
-            1);
+      SparkSession spark,
+      List<SparkPartition> partitions,
+      Table targetTable,
+      PartitionSpec spec,
+      String stagingDir,
+      boolean checkDuplicateFiles) {
+    importSparkPartitions(spark, partitions, targetTable, spec, stagingDir, checkDuplicateFiles, 1);
   }
   /**
    * Import files from given partitions to an Iceberg table.
@@ -628,20 +619,20 @@ public class SparkTableUtil {
         spark.createDataset(partitionRDD.rdd(), Encoders.javaSerialization(SparkPartition.class));
 
     Dataset<DataFile> filesToImport =
-            partitionDS.flatMap(
-                    (FlatMapFunction<SparkPartition, DataFile>)
-                            sparkPartition ->
-                                    TableMigrationUtil.listPartition(
-                                                    sparkPartition.values,
-                                                    sparkPartition.uri,
-                                                    sparkPartition.format,
-                                                    spec,
-                                                    serializableConf.get(),
-                                                    metricsConfig,
-                                                    nameMapping,
-                                                    maxConcurrentAdds)
-                                            .iterator(),
-                    Encoders.javaSerialization(DataFile.class));
+        partitionDS.flatMap(
+            (FlatMapFunction<SparkPartition, DataFile>)
+                sparkPartition ->
+                    TableMigrationUtil.listPartition(
+                            sparkPartition.values,
+                            sparkPartition.uri,
+                            sparkPartition.format,
+                            spec,
+                            serializableConf.get(),
+                            metricsConfig,
+                            nameMapping,
+                            maxConcurrentAdds)
+                        .iterator(),
+            Encoders.javaSerialization(DataFile.class));
 
     if (checkDuplicateFiles) {
       Dataset<Row> importedFiles =

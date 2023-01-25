@@ -195,7 +195,6 @@ public class TableMigrationUtil {
     return MoreExecutors.getExitingExecutorService(
         (ThreadPoolExecutor)
             Executors.newFixedThreadPool(
-                nThreads,
-                new ThreadFactoryBuilder().setNameFormat("table-migration-%d").build()));
+                nThreads, new ThreadFactoryBuilder().setNameFormat("table-migration-%d").build()));
   }
 }
