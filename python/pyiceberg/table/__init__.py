@@ -281,7 +281,7 @@ class DataScan(TableScan["DataScan"]):
     def __init__(
         self,
         table: Table,
-        row_filter: Optional[BooleanExpression] = None,
+        row_filter: Optional[Union[str, BooleanExpression]] = None,
         selected_fields: Tuple[str] = ("*",),
         case_sensitive: bool = True,
         snapshot_id: Optional[int] = None,

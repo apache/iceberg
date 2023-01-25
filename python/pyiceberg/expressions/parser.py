@@ -15,6 +15,7 @@
 #  specific language governing permissions and limitations
 #  under the License.
 from decimal import Decimal
+from typing import Union
 
 from pyparsing import (
     CaselessKeyword,
@@ -232,6 +233,9 @@ boolean_expression = infix_notation(
 ).set_name("expr")
 
 
-def parse(expr: str) -> BooleanExpression:
+def parse(expr: Union[str, BooleanExpression]) -> BooleanExpression:
     """Parses a boolean expression"""
-    return boolean_expression.parse_string(expr)[0]
+    if isinstance(expr, str):
+        return boolean_expression.parse_string(expr)[0]
+    else:
+        return expr
