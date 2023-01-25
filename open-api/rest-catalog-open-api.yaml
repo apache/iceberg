@@ -69,6 +69,13 @@ paths:
         - Configuration API
       summary: List all catalog configuration settings
       operationId: getConfig
+      parameters:
+        - name: warehouse
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Warehouse location or identifier to request from the service
       description:
         "
         All REST clients should first call this route to get catalog configuration
