@@ -33,6 +33,8 @@ import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * A procedure that expires snapshots in a table.
@@ -40,6 +42,8 @@ import org.apache.spark.sql.types.StructType;
  * @see SparkActions#expireSnapshots(Table)
  */
 public class ExpireSnapshotsProcedure extends BaseProcedure {
+
+  private static final Logger LOG = LoggerFactory.getLogger(ExpireSnapshotsProcedure.class);
 
   private static final ProcedureParameter[] PARAMETERS =
       new ProcedureParameter[] {
@@ -93,6 +97,12 @@ public class ExpireSnapshotsProcedure extends BaseProcedure {
     Long olderThanMillis = args.isNullAt(1) ? null : DateTimeUtil.microsToMillis(args.getLong(1));
     Integer retainLastNum = args.isNullAt(2) ? null : args.getInt(2);
     Integer maxConcurrentDeletes = args.isNullAt(3) ? null : args.getInt(3);
+    if (maxConcurrentDeletes != null) {
+      LOG.warn(
+          "{} is now deprecated, parallelism should now be configured in the FileIO bulk operations. Check the"
+              + "configured FileIO for more information",
+          PARAMETERS[3].name());
+    }
     Boolean streamResult = args.isNullAt(4) ? null : args.getBoolean(4);
 
     Preconditions.checkArgument(

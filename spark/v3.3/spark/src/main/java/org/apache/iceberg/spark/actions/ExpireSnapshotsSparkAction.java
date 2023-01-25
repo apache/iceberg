@@ -35,6 +35,7 @@ import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.actions.BaseExpireSnapshotsActionResult;
 import org.apache.iceberg.actions.ExpireSnapshots;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.io.SupportsBulkOperations;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -86,6 +87,19 @@ public class ExpireSnapshotsSparkAction extends BaseSparkAction<ExpireSnapshotsS
   private Long expireOlderThanValue = null;
   private Integer retainLastValue = null;
   private Consumer<String> deleteFunc = defaultDelete;
+  private final Consumer<Iterable<String>> defaultBulkDelete =
+      new Consumer<Iterable<String>>() {
+        @Override
+        public void accept(Iterable<String> paths) {
+          Preconditions.checkArgument(
+              ops.io() instanceof SupportsBulkOperations,
+              "FileIO {} does not support bulk deletes",
+              ops.io());
+          ((SupportsBulkOperations) ops.io()).deleteFiles(paths);
+        }
+      };
+
+  private Consumer<Iterable<String>> bulkDeleteFunc = defaultBulkDelete;
   private ExecutorService deleteExecutorService = null;
   private Dataset<FileInfo> expiredFileDS = null;
 
@@ -107,6 +121,12 @@ public class ExpireSnapshotsSparkAction extends BaseSparkAction<ExpireSnapshotsS
   @Override
   public ExpireSnapshotsSparkAction executeDeleteWith(ExecutorService executorService) {
     this.deleteExecutorService = executorService;
+    return this;
+  }
+
+  @Override
+  public ExpireSnapshots deleteBulkWith(Consumer<Iterable<String>> newBulkDeleteFunc) {
+    this.bulkDeleteFunc = newBulkDeleteFunc;
     return this;
   }
 
@@ -265,7 +285,15 @@ public class ExpireSnapshotsSparkAction extends BaseSparkAction<ExpireSnapshotsS
   }
 
   private ExpireSnapshots.Result deleteFiles(Iterator<FileInfo> files) {
-    DeleteSummary summary = deleteFiles(deleteExecutorService, deleteFunc, files);
+    DeleteSummary summary;
+    if (ops.io() instanceof SupportsBulkOperations) {
+      LOG.info("Triggering Bulk Delete Operations");
+      summary = deleteFiles(bulkDeleteFunc, files);
+    } else {
+      LOG.warn("Warning falling back to non-bulk deletes");
+      summary = deleteFiles(deleteExecutorService, deleteFunc, files);
+    }
+
     LOG.info("Deleted {} total files", summary.totalFilesCount());
 
     return new BaseExpireSnapshotsActionResult(

@@ -39,6 +39,8 @@ import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.unsafe.types.UTF8String;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import scala.runtime.BoxedUnit;
 
 /**
@@ -47,6 +49,7 @@ import scala.runtime.BoxedUnit;
  * @see SparkActions#deleteOrphanFiles(Table)
  */
 public class RemoveOrphanFilesProcedure extends BaseProcedure {
+  private static final Logger LOG = LoggerFactory.getLogger(RemoveOrphanFilesProcedure.class);
 
   private static final ProcedureParameter[] PARAMETERS =
       new ProcedureParameter[] {
@@ -98,6 +101,12 @@ public class RemoveOrphanFilesProcedure extends BaseProcedure {
     String location = args.isNullAt(2) ? null : args.getString(2);
     boolean dryRun = args.isNullAt(3) ? false : args.getBoolean(3);
     Integer maxConcurrentDeletes = args.isNullAt(4) ? null : args.getInt(4);
+    if (maxConcurrentDeletes != null) {
+      LOG.warn(
+          "{} is now deprecated, parallelism should now be configured in the FileIO bulk operations. Check the"
+              + "configured FileIO for more information",
+          PARAMETERS[4].name());
+    }
     String fileListView = args.isNullAt(5) ? null : args.getString(5);
 
     Preconditions.checkArgument(

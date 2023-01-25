@@ -67,7 +67,11 @@ public interface DeleteOrphanFiles extends Action<DeleteOrphanFiles, DeleteOrpha
    *
    * @param deleteFunc a function that will be called to delete files
    * @return this for method chaining
+   * @deprecated Deletes are now performed in bulk see {@link #deleteBulkWith(Consumer)}. This
+   *     method will only be used if the FileIO does not implement {@link
+   *     org.apache.iceberg.io.SupportsBulkOperations}
    */
+  @Deprecated
   DeleteOrphanFiles deleteWith(Consumer<String> deleteFunc);
 
   /**
@@ -80,8 +84,13 @@ public interface DeleteOrphanFiles extends Action<DeleteOrphanFiles, DeleteOrpha
    *
    * @param executorService the service to use
    * @return this for method chaining
+   * @deprecated All deletes should be performed using the bulk delete api if available. Use FileIO
+   *     specific parallelism controls to adjust bulk delete concurrency within that api.
    */
+  @Deprecated
   DeleteOrphanFiles executeDeleteWith(ExecutorService executorService);
+
+  DeleteOrphanFiles deleteBulkWith(Consumer<Iterable<String>> deleteFunc);
 
   /**
    * Passes a prefix mismatch mode that determines how this action should handle situations when the

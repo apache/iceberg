@@ -62,8 +62,7 @@ public interface DeleteReachableFiles
    * @param executorService the service to use
    * @return this for method chaining
    * @deprecated All deletes should be performed using the bulk delete api if available. Use FileIO
-   *     specific parallelism controls to adjust bulk delete concurrency within that api. If this
-   *     method is not called, files will be deleted in the current thread.
+   *     specific parallelism controls to adjust bulk delete concurrency within that api.
    */
   @Deprecated
   DeleteReachableFiles executeDeleteWith(ExecutorService executorService);

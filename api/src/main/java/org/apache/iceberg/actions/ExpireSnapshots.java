@@ -76,7 +76,11 @@ public interface ExpireSnapshots extends Action<ExpireSnapshots, ExpireSnapshots
    *
    * @param deleteFunc a function that will be called to delete manifests and data files
    * @return this for method chaining
+   * @deprecated Deletes are now performed in bulk see {@link #deleteBulkWith(Consumer)}. This
+   *     method will only be used if the FileIO does not implement {@link
+   *     org.apache.iceberg.io.SupportsBulkOperations}
    */
+  @Deprecated
   ExpireSnapshots deleteWith(Consumer<String> deleteFunc);
 
   /**
@@ -90,8 +94,13 @@ public interface ExpireSnapshots extends Action<ExpireSnapshots, ExpireSnapshots
    *
    * @param executorService the service to use
    * @return this for method chaining
+   * @deprecated All deletes should be performed using the bulk delete api if available. Use FileIO
+   *     specific parallelism controls to adjust bulk delete concurrency within that api.
    */
+  @Deprecated
   ExpireSnapshots executeDeleteWith(ExecutorService executorService);
+
+  ExpireSnapshots deleteBulkWith(Consumer<Iterable<String>> deleteFunc);
 
   /** The action result that contains a summary of the execution. */
   interface Result {

@@ -68,8 +68,14 @@ acceptedBreaks:
   "1.1.0":
     org.apache.iceberg:iceberg-api:
     - code: "java.method.addedToInterface"
+      new: "method org.apache.iceberg.actions.DeleteOrphanFiles org.apache.iceberg.actions.DeleteOrphanFiles::deleteBulkWith(java.util.function.Consumer<java.lang.Iterable<java.lang.String>>)"
+      justification: "New Apis to allow for Bulk Deletion"
+    - code: "java.method.addedToInterface"
       new: "method org.apache.iceberg.actions.DeleteReachableFiles org.apache.iceberg.actions.DeleteReachableFiles::deleteBulkWith(java.util.function.Consumer<java.lang.Iterable<java.lang.String>>)"
       justification: "Adds new API for bulk deletes, no old apis are broken."
+    - code: "java.method.addedToInterface"
+      new: "method org.apache.iceberg.actions.ExpireSnapshots org.apache.iceberg.actions.ExpireSnapshots::deleteBulkWith(java.util.function.Consumer<java.lang.Iterable<java.lang.String>>)"
+      justification: "New Apis to allow for Bulk Deletion"
     org.apache.iceberg:iceberg-core:
     - code: "java.class.removed"
       old: "class org.apache.iceberg.rest.HTTPClientFactory"

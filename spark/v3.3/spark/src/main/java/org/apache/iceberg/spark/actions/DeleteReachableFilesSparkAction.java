@@ -65,7 +65,7 @@ public class DeleteReachableFilesSparkAction
         }
       };
 
-  @Deprecated private Consumer<String> deleteFunc = defaultDelete;
+  private Consumer<String> deleteFunc = defaultDelete;
 
   private final Consumer<Iterable<String>> defaultBulkDelete =
       new Consumer<Iterable<String>>() {
@@ -156,7 +156,6 @@ public class DeleteReachableFilesSparkAction
     DeleteSummary summary;
     if (io instanceof SupportsBulkOperations) {
       LOG.info("Triggering Bulk Delete Operations");
-
       summary = deleteFiles(bulkDeleteFunc, files);
     } else {
       LOG.warn("Warning falling back to non-bulk deletes");
