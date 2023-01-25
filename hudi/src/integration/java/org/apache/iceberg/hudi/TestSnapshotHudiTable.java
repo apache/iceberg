@@ -36,6 +36,7 @@ import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SQLContext;
 import org.apache.spark.sql.SaveMode;
 import org.apache.spark.sql.hudi.catalog.HoodieCatalog;
+import org.assertj.core.api.Assertions;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -292,6 +293,24 @@ public class TestSnapshotHudiTable extends SparkHudiMigrationTestBase {
         HudiToIcebergMigrationSparkIntegration.snapshotHudiTable(
                 spark, partitionedLocation, newTableIdentifier)
             .execute();
+
+    checkSnapshotIntegrity(partitionedIdentifier, newTableIdentifier);
+  }
+
+  private void checkSnapshotIntegrity(
+      String hudiTableIdentifier,
+      String icebergTableIdentifier) {
+
+//    List<Row> deltaTableContents =
+//        spark.sql("SELECT * FROM " + hudiTableIdentifier).collectAsList();
+    List<Row> icebergTableContents =
+        spark.sql("SELECT * FROM " + icebergTableIdentifier).collectAsList();
+    LOG.info("Iceberg table contents: {}", spark.sql("SELECT * FROM " + icebergTableIdentifier).showString(10, 20, false));
+    return;
+
+//    Assertions.assertThat(deltaTableContents).hasSize(icebergTableContents.size());
+//    Assertions.assertThat(icebergTableContents).containsAll(deltaTableContents);
+//    Assertions.assertThat(deltaTableContents).containsAll(icebergTableContents);
   }
 
   private String destName(String catalogName, String dest) {

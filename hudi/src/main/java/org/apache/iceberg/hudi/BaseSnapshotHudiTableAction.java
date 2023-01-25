@@ -55,6 +55,7 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Metrics;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.OverwriteFiles;
+import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
@@ -311,7 +312,7 @@ public class BaseSnapshotHudiTableAction implements SnapshotHudiTable {
     // TODO: need to verify the path is absolute (the field's name is fullPath)
     String path = baseFile.getPath();
     long fileSize = baseFile.getFileSize();
-    String partitionPath = FSUtils.getPartitionPath(hoodieTableMetaClient.getBasePathV2(), fileGroup.getPartitionPath()).toString();
+    String partitionValue = fileGroup.getPartitionPath();
 
     MetricsConfig metricsConfig = MetricsConfig.forTable(table);
     String nameMappingString = table.properties().get(TableProperties.DEFAULT_NAME_MAPPING);
@@ -322,11 +323,19 @@ public class BaseSnapshotHudiTableAction implements SnapshotHudiTable {
     FileFormat format = determineFileFormatFromPath(path);
     Metrics metrics = getMetricsForFile(file, format, metricsConfig, nameMapping);
 
+    List<PartitionField> testFields = spec.fields();
+
+    String partition =
+        spec.fields().stream()
+            .map(PartitionField::name)
+            .map(name -> String.format("%s=%s", name, partitionValue))
+            .collect(Collectors.joining("/"));
+
     return DataFiles.builder(spec)
         .withPath(path)
         .withFormat(format)
         .withFileSizeInBytes(fileSize)
-        .withPartitionPath(partitionPath) // TODO: need to verify the partition path is correct
+        .withPartitionPath(partition) // TODO: need to handle multiple partition fields
         .withMetrics(metrics)
         .build();
   }
