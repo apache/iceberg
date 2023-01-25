@@ -31,6 +31,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import org.apache.iceberg.AllManifestsTable;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.ContentFile;
@@ -46,12 +47,14 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.io.BulkDeletionFailureException;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.ClosingIterator;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.JobGroupInfo;
@@ -85,6 +88,7 @@ abstract class BaseSparkAction<ThisT> {
   private static final Logger LOG = LoggerFactory.getLogger(BaseSparkAction.class);
   private static final AtomicInteger JOB_COUNTER = new AtomicInteger();
   private static final int DELETE_NUM_RETRIES = 3;
+  private static final int DELETE_GROUP_SIZE = 100000;
 
   private final SparkSession spark;
   private final JavaSparkContext sparkContext;
@@ -253,6 +257,39 @@ abstract class BaseSparkAction<ThisT> {
     return summary;
   }
 
+  protected DeleteSummary deleteFiles(
+      Consumer<Iterable<String>> bulkDeleteFunc, Iterator<FileInfo> files) {
+    DeleteSummary summary = new DeleteSummary();
+    Iterator<List<FileInfo>> groupedIterator = Iterators.partition(files, DELETE_GROUP_SIZE);
+
+    Tasks.foreach(groupedIterator)
+        .suppressFailureWhenFinished()
+        .run(
+            fileList -> {
+              Map<String, List<FileInfo>> filesByType =
+                  fileList.stream().collect(Collectors.groupingBy(FileInfo::getType));
+              filesByType.entrySet().stream()
+                  .forEach(
+                      entry -> {
+                        List<String> pathsToDelete =
+                            entry.getValue().stream()
+                                .map(FileInfo::getPath)
+                                .collect(Collectors.toList());
+                        int failures = 0;
+                        try {
+                          bulkDeleteFunc.accept(pathsToDelete);
+                        } catch (BulkDeletionFailureException bulkDeletionFailureException) {
+                          failures = bulkDeletionFailureException.numberFailedObjects();
+                        }
+                        summary.deletedFiles(entry.getKey(), pathsToDelete.size() - failures);
+                      });
+            });
+
+    LOG.info("Deleted {} total files with bulk deletes", summary.totalFilesCount());
+
+    return summary;
+  }
+
   static class DeleteSummary {
     private final AtomicLong dataFilesCount = new AtomicLong(0L);
     private final AtomicLong positionDeleteFilesCount = new AtomicLong(0L);
@@ -260,6 +297,24 @@ abstract class BaseSparkAction<ThisT> {
     private final AtomicLong manifestsCount = new AtomicLong(0L);
     private final AtomicLong manifestListsCount = new AtomicLong(0L);
     private final AtomicLong otherFilesCount = new AtomicLong(0L);
+
+    public void deletedFiles(String type, int numFiles) {
+      if (FileContent.DATA.name().equalsIgnoreCase(type)) {
+        dataFilesCount.addAndGet(numFiles);
+      } else if (FileContent.POSITION_DELETES.name().equalsIgnoreCase(type)) {
+        positionDeleteFilesCount.addAndGet(numFiles);
+      } else if (FileContent.EQUALITY_DELETES.name().equalsIgnoreCase(type)) {
+        equalityDeleteFilesCount.addAndGet(numFiles);
+      } else if (MANIFEST.equalsIgnoreCase(type)) {
+        manifestsCount.addAndGet(numFiles);
+      } else if (MANIFEST_LIST.equalsIgnoreCase(type)) {
+        manifestListsCount.addAndGet(numFiles);
+      } else if (OTHERS.equalsIgnoreCase(type)) {
+        otherFilesCount.addAndGet(numFiles);
+      } else {
+        throw new ValidationException("Illegal file type: %s", type);
+      }
+    }
 
     public void deletedFile(String path, String type) {
       if (FileContent.DATA.name().equalsIgnoreCase(type)) {

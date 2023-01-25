@@ -18,27 +18,42 @@
  */
 package org.apache.iceberg.hadoop;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.RemoteIterator;
 import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.io.BulkDeletionFailureException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.FileInfo;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.io.SupportsBulkOperations;
 import org.apache.iceberg.io.SupportsPrefixOperations;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.util.SerializableMap;
 import org.apache.iceberg.util.SerializableSupplier;
+import org.apache.iceberg.util.Tasks;
+import org.apache.iceberg.util.ThreadPools;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-public class HadoopFileIO implements FileIO, HadoopConfigurable, SupportsPrefixOperations {
+public class HadoopFileIO
+    implements FileIO, HadoopConfigurable, SupportsPrefixOperations, SupportsBulkOperations {
+
+  private static final Logger LOG = LoggerFactory.getLogger(HadoopFileIO.class);
+  private static final String DELETE_FILE_PARALLELISM = "iceberg.hadoop.delete_file_parallelism";
+  private static final int DEFAULT_DELETE_CORE_MULTIPLE = 4;
+  private static volatile ExecutorService executorService;
 
   private SerializableSupplier<Configuration> hadoopConf;
   private SerializableMap<String, String> properties = SerializableMap.copyOf(ImmutableMap.of());
@@ -147,6 +162,45 @@ public class HadoopFileIO implements FileIO, HadoopConfigurable, SupportsPrefixO
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }
+  }
+
+  @Override
+  public void deleteFiles(Iterable<String> pathsToDelete) throws BulkDeletionFailureException {
+    AtomicInteger failureCount = new AtomicInteger(0);
+    Tasks.foreach(pathsToDelete)
+        .executeWith(executorService())
+        .retry(3)
+        .stopRetryOn(FileNotFoundException.class)
+        .onFailure(
+            (f, e) -> {
+              LOG.error("Failure during bulk delete on file: {} ", f, e);
+              failureCount.incrementAndGet();
+            })
+        .run(this::deleteFile);
+
+    if (failureCount.get() != 0) {
+      throw new BulkDeletionFailureException(failureCount.get());
+    }
+  }
+
+  private int deleteThreads() {
+    return conf()
+        .getInt(
+            DELETE_FILE_PARALLELISM,
+            Runtime.getRuntime().availableProcessors() * DEFAULT_DELETE_CORE_MULTIPLE);
+  }
+
+  private ExecutorService executorService() {
+    if (executorService == null) {
+      synchronized (HadoopFileIO.class) {
+        if (executorService == null) {
+          executorService =
+              ThreadPools.newWorkerPool("iceberg-hadoopfileio-delete", deleteThreads());
+        }
+      }
+    }
+
+    return executorService;
   }
 
   /**

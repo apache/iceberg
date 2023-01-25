@@ -21,10 +21,6 @@ package org.apache.iceberg.spark.actions;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 
 import java.io.File;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Executors;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.StreamSupport;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.AssertHelpers;
@@ -44,11 +40,8 @@ import org.apache.iceberg.actions.DeleteReachableFiles;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.SparkTestBase;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
@@ -157,55 +150,6 @@ public class TestDeleteReachableFilesAction extends SparkTestBase {
         "Incorrect number of other lists deleted",
         expectedOtherFilesDeleted,
         results.deletedOtherFilesCount());
-  }
-
-  @Test
-  public void dataFilesCleanupWithParallelTasks() {
-    table.newFastAppend().appendFile(FILE_A).commit();
-
-    table.newFastAppend().appendFile(FILE_B).commit();
-
-    table.newRewrite().rewriteFiles(ImmutableSet.of(FILE_B), ImmutableSet.of(FILE_D)).commit();
-
-    table.newRewrite().rewriteFiles(ImmutableSet.of(FILE_A), ImmutableSet.of(FILE_C)).commit();
-
-    Set<String> deletedFiles = ConcurrentHashMap.newKeySet();
-    Set<String> deleteThreads = ConcurrentHashMap.newKeySet();
-    AtomicInteger deleteThreadsIndex = new AtomicInteger(0);
-
-    DeleteReachableFiles.Result result =
-        sparkActions()
-            .deleteReachableFiles(metadataLocation(table))
-            .io(table.io())
-            .executeDeleteWith(
-                Executors.newFixedThreadPool(
-                    4,
-                    runnable -> {
-                      Thread thread = new Thread(runnable);
-                      thread.setName("remove-files-" + deleteThreadsIndex.getAndIncrement());
-                      thread.setDaemon(
-                          true); // daemon threads will be terminated abruptly when the JVM exits
-                      return thread;
-                    }))
-            .deleteWith(
-                s -> {
-                  deleteThreads.add(Thread.currentThread().getName());
-                  deletedFiles.add(s);
-                })
-            .execute();
-
-    // Verifies that the delete methods ran in the threads created by the provided ExecutorService
-    // ThreadFactory
-    Assert.assertEquals(
-        deleteThreads,
-        Sets.newHashSet("remove-files-0", "remove-files-1", "remove-files-2", "remove-files-3"));
-
-    Lists.newArrayList(FILE_A, FILE_B, FILE_C, FILE_D)
-        .forEach(
-            file ->
-                Assert.assertTrue(
-                    "FILE_A should be deleted", deletedFiles.contains(FILE_A.path().toString())));
-    checkRemoveFilesResults(4L, 0, 0, 6L, 4L, 6, result);
   }
 
   @Test
