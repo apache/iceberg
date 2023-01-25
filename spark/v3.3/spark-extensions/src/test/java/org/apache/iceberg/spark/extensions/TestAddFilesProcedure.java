@@ -100,6 +100,64 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
         sql("SELECT * FROM %s ORDER BY id", tableName));
   }
 
+  @Test
+  public void addDataUnpartitionedConcurrently() {
+    createUnpartitionedFileTable("parquet");
+
+    String createIceberg =
+            "CREATE TABLE %s (id Integer, name String, dept String, subdept String) USING iceberg";
+
+    sql(createIceberg, tableName);
+
+    Object result =
+            scalarSql(
+                    "CALL %s.system.add_files("
+                            + "table => '%s', "
+                            + "source_table => '`parquet`.`%s`',"
+                            + "max_concurrent_adds => 5)",
+                    catalogName, tableName, fileTableDir.getAbsolutePath());
+
+    Assert.assertEquals(2L, result);
+
+    assertEquals(
+            "Iceberg table contains correct data after concurrent unpartitioned data add",
+            sql("SELECT * FROM %s ORDER BY id", sourceTableName),
+            sql("SELECT * FROM %s ORDER BY id", tableName));
+  }
+
+  @Test
+  public void testConcurrentAddDataWithInvalidInput() {
+
+    String createIceberg =
+            "CREATE TABLE %s (id Integer, name String, dept String, subdept String) USING iceberg";
+
+    sql(createIceberg, tableName);
+
+    AssertHelpers.assertThrows(
+            "Should throw an error when max_concurrent_adds=0",
+            IllegalArgumentException.class,
+            "max_concurrent_adds should have value > 0, value:",
+            () ->
+                    scalarSql(
+                            "CALL %s.system.add_files("
+                                    + "table => '%s', "
+                                    + "source_table => '`parquet`.`%s`',"
+                                    + "max_concurrent_adds => 0)",
+                            catalogName, tableName, fileTableDir.getAbsolutePath()));
+
+    AssertHelpers.assertThrows(
+            "Should throw an error when max_concurrent_adds less than 0",
+            IllegalArgumentException.class,
+            "max_concurrent_adds should have value > 0, value:",
+            () ->
+                    scalarSql(
+                            "CALL %s.system.add_files("
+                                    + "table => '%s', "
+                                    + "source_table => '`parquet`.`%s`',"
+                                    + "max_concurrent_adds => -1)",
+                            catalogName, tableName, fileTableDir.getAbsolutePath()));
+  }
+
   @Ignore // TODO Classpath issues prevent us from actually writing to a Spark ORC table
   public void addDataUnpartitionedOrc() {
     createUnpartitionedFileTable("orc");
@@ -305,6 +363,31 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
         "Iceberg table contains correct data",
         sql("SELECT id, name, dept, subdept FROM %s ORDER BY id", sourceTableName),
         sql("SELECT id, name, dept, subdept FROM %s ORDER BY id", tableName));
+  }
+
+  @Test
+  public void addDataPartitionedConcurrently() {
+    createPartitionedFileTable("parquet");
+
+    String createIceberg =
+            "CREATE TABLE %s (id Integer, name String, dept String, subdept String) USING iceberg PARTITIONED BY (id)";
+
+    sql(createIceberg, tableName);
+
+    Object result =
+            scalarSql(
+                    "CALL %s.system.add_files("
+                            + "table => '%s', "
+                            + "source_table => '`parquet`.`%s`',"
+                            + "max_concurrent_adds => 5)",
+                    catalogName, tableName, fileTableDir.getAbsolutePath());
+
+    Assert.assertEquals(8L, result);
+
+    assertEquals(
+            "Iceberg table contains correct data after concurrent partitioned data was added",
+            sql("SELECT id, name, dept, subdept FROM %s ORDER BY id", sourceTableName),
+            sql("SELECT id, name, dept, subdept FROM %s ORDER BY id", tableName));
   }
 
   @Ignore // TODO Classpath issues prevent us from actually writing to a Spark ORC table
