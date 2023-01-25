@@ -156,13 +156,14 @@ public class SimpleDataUtil {
   public static DeleteFile writeEqDeleteFile(
       Table table,
       FileFormat format,
-      String tablePath,
       String filename,
       FileAppenderFactory<RowData> appenderFactory,
       List<RowData> deletes)
       throws IOException {
     EncryptedOutputFile outputFile =
-        table.encryption().encrypt(fromPath(new Path(tablePath, filename), new Configuration()));
+        table
+            .encryption()
+            .encrypt(fromPath(new Path(table.location(), filename), new Configuration()));
 
     EqualityDeleteWriter<RowData> eqWriter =
         appenderFactory.newEqDeleteWriter(outputFile, format, null);
@@ -175,13 +176,14 @@ public class SimpleDataUtil {
   public static DeleteFile writePosDeleteFile(
       Table table,
       FileFormat format,
-      String tablePath,
       String filename,
       FileAppenderFactory<RowData> appenderFactory,
       List<Pair<CharSequence, Long>> positions)
       throws IOException {
     EncryptedOutputFile outputFile =
-        table.encryption().encrypt(fromPath(new Path(tablePath, filename), new Configuration()));
+        table
+            .encryption()
+            .encrypt(fromPath(new Path(table.location(), filename), new Configuration()));
 
     PositionDeleteWriter<RowData> posWriter =
         appenderFactory.newPosDeleteWriter(outputFile, format, null);

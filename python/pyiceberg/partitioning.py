@@ -27,8 +27,8 @@ from pydantic import Field
 
 from pyiceberg.schema import Schema
 from pyiceberg.transforms import Transform
+from pyiceberg.typedef import IcebergBaseModel
 from pyiceberg.types import NestedField, StructType
-from pyiceberg.utils.iceberg_base_model import IcebergBaseModel
 
 INITIAL_PARTITION_SPEC_ID = 0
 _PARTITION_DATA_ID_START: int = 1000

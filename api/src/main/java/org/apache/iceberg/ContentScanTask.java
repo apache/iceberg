@@ -38,6 +38,11 @@ public interface ContentScanTask<F extends ContentFile<F>> extends ScanTask, Par
     return file().partition();
   }
 
+  @Override
+  default long sizeBytes() {
+    return length();
+  }
+
   /**
    * The starting position of this scan range in the file.
    *

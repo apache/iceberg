@@ -143,10 +143,8 @@ public class NessieTableOperations extends BaseMetastoreTableOperations {
 
   @Override
   protected void doCommit(TableMetadata base, TableMetadata metadata) {
-    String newMetadataLocation =
-        (base == null) && (metadata.metadataFileLocation() != null)
-            ? metadata.metadataFileLocation()
-            : writeNewMetadata(metadata, currentVersion() + 1);
+    boolean newTable = base == null;
+    String newMetadataLocation = writeNewMetadataIfRequired(newTable, metadata);
 
     String refName = client.refName();
     boolean delete = true;

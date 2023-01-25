@@ -145,7 +145,7 @@ public class SparkTable
 
   @Override
   public String name() {
-    return icebergTable.toString();
+    return String.format("Iceberg %s", icebergTable.name());
   }
 
   public Long snapshotId() {

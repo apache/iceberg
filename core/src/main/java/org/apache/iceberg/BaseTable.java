@@ -26,6 +26,7 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.metrics.LoggingMetricsReporter;
 import org.apache.iceberg.metrics.MetricsReporter;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
  * Base {@link Table} implementation.
@@ -46,6 +47,7 @@ public class BaseTable implements Table, HasTableOperations, Serializable {
   }
 
   public BaseTable(TableOperations ops, String name, MetricsReporter reporter) {
+    Preconditions.checkNotNull(reporter, "reporter cannot be null");
     this.ops = ops;
     this.name = name;
     this.reporter = reporter;
@@ -68,18 +70,18 @@ public class BaseTable implements Table, HasTableOperations, Serializable {
 
   @Override
   public TableScan newScan() {
-    return new DataTableScan(ops, this, schema(), new TableScanContext().reportWith(reporter));
+    return new DataTableScan(this, schema(), new TableScanContext().reportWith(reporter));
   }
 
   @Override
   public IncrementalAppendScan newIncrementalAppendScan() {
     return new BaseIncrementalAppendScan(
-        ops, this, schema(), new TableScanContext().reportWith(reporter));
+        this, schema(), new TableScanContext().reportWith(reporter));
   }
 
   @Override
   public IncrementalChangelogScan newIncrementalChangelogScan() {
-    return new BaseIncrementalChangelogScan(ops, this);
+    return new BaseIncrementalChangelogScan(this);
   }
 
   @Override
@@ -229,17 +231,17 @@ public class BaseTable implements Table, HasTableOperations, Serializable {
 
   @Override
   public FileIO io() {
-    return operations().io();
+    return ops.io();
   }
 
   @Override
   public EncryptionManager encryption() {
-    return operations().encryption();
+    return ops.encryption();
   }
 
   @Override
   public LocationProvider locationProvider() {
-    return operations().locationProvider();
+    return ops.locationProvider();
   }
 
   @Override

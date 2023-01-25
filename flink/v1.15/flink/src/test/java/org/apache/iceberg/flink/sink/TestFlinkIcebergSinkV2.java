@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.flink.sink;
 
-import java.io.File;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
@@ -36,12 +35,13 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
-import org.apache.iceberg.TableTestBase;
 import org.apache.iceberg.data.IcebergGenerics;
 import org.apache.iceberg.data.Record;
+import org.apache.iceberg.flink.HadoopCatalogResource;
 import org.apache.iceberg.flink.MiniClusterResource;
 import org.apache.iceberg.flink.SimpleDataUtil;
-import org.apache.iceberg.flink.TestTableLoader;
+import org.apache.iceberg.flink.TableLoader;
+import org.apache.iceberg.flink.TestFixtures;
 import org.apache.iceberg.flink.source.BoundedTestSource;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -53,19 +53,24 @@ import org.apache.iceberg.util.StructLikeSet;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.ClassRule;
+import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
 @RunWith(Parameterized.class)
-public class TestFlinkIcebergSinkV2 extends TableTestBase {
+public class TestFlinkIcebergSinkV2 {
 
   @ClassRule
   public static final MiniClusterWithClientResource MINI_CLUSTER_RESOURCE =
       MiniClusterResource.createWithClassloaderCheckDisabled();
 
   @ClassRule public static final TemporaryFolder TEMPORARY_FOLDER = new TemporaryFolder();
+
+  @Rule
+  public final HadoopCatalogResource catalogResource =
+      new HadoopCatalogResource(TEMPORARY_FOLDER, TestFixtures.DATABASE, TestFixtures.TABLE);
 
   private static final int FORMAT_V2 = 2;
   private static final TypeInformation<Row> ROW_TYPE_INFO =
@@ -86,8 +91,9 @@ public class TestFlinkIcebergSinkV2 extends TableTestBase {
   private final boolean partitioned;
   private final String writeDistributionMode;
 
+  private Table table;
   private StreamExecutionEnvironment env;
-  private TestTableLoader tableLoader;
+  private TableLoader tableLoader;
 
   @Parameterized.Parameters(
       name = "FileFormat = {0}, Parallelism = {1}, Partitioned={2}, WriteDistributionMode ={3}")
@@ -110,7 +116,6 @@ public class TestFlinkIcebergSinkV2 extends TableTestBase {
 
   public TestFlinkIcebergSinkV2(
       String format, int parallelism, boolean partitioned, String writeDistributionMode) {
-    super(FORMAT_V2);
     this.format = FileFormat.fromString(format);
     this.parallelism = parallelism;
     this.partitioned = partitioned;
@@ -118,19 +123,21 @@ public class TestFlinkIcebergSinkV2 extends TableTestBase {
   }
 
   @Before
-  public void setupTable() throws IOException {
-    this.tableDir = temp.newFolder();
-    this.metadataDir = new File(tableDir, "metadata");
-    Assert.assertTrue(tableDir.delete());
-
-    if (!partitioned) {
-      table = create(SimpleDataUtil.SCHEMA, PartitionSpec.unpartitioned());
-    } else {
-      table =
-          create(
-              SimpleDataUtil.SCHEMA,
-              PartitionSpec.builderFor(SimpleDataUtil.SCHEMA).identity("data").build());
-    }
+  public void setupTable() {
+    table =
+        catalogResource
+            .catalog()
+            .createTable(
+                TestFixtures.TABLE_IDENTIFIER,
+                SimpleDataUtil.SCHEMA,
+                partitioned
+                    ? PartitionSpec.builderFor(SimpleDataUtil.SCHEMA).identity("data").build()
+                    : PartitionSpec.unpartitioned(),
+                ImmutableMap.of(
+                    TableProperties.DEFAULT_FILE_FORMAT,
+                    format.name(),
+                    TableProperties.FORMAT_VERSION,
+                    String.valueOf(FORMAT_V2)));
 
     table
         .updateProperties()
@@ -145,10 +152,10 @@ public class TestFlinkIcebergSinkV2 extends TableTestBase {
             .setParallelism(parallelism)
             .setMaxParallelism(parallelism);
 
-    tableLoader = new TestTableLoader(tableDir.getAbsolutePath());
+    tableLoader = catalogResource.tableLoader();
   }
 
-  private List<Snapshot> findValidSnapshots(Table table) {
+  private List<Snapshot> findValidSnapshots() {
     List<Snapshot> validSnapshots = Lists.newArrayList();
     for (Snapshot snapshot : table.snapshots()) {
       if (snapshot.allManifests(table.io()).stream()
@@ -181,7 +188,7 @@ public class TestFlinkIcebergSinkV2 extends TableTestBase {
     env.execute("Test Iceberg Change-Log DataStream.");
 
     table.refresh();
-    List<Snapshot> snapshots = findValidSnapshots(table);
+    List<Snapshot> snapshots = findValidSnapshots();
     int expectedSnapshotNum = expectedRecordsPerCheckpoint.size();
     Assert.assertEquals(
         "Should have the expected snapshot number", expectedSnapshotNum, snapshots.size());

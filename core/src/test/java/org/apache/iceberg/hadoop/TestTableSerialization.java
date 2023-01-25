@@ -29,6 +29,9 @@ import java.util.Set;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.MetadataTableType;
+import org.apache.iceberg.PositionDeletesScanTask;
+import org.apache.iceberg.PositionDeletesTable;
+import org.apache.iceberg.ScanTask;
 import org.apache.iceberg.SerializableTable;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
@@ -157,12 +160,23 @@ public class TestTableSerialization extends HadoopTableTestBase {
 
   private static Set<CharSequence> getFiles(Table table) throws IOException {
     Set<CharSequence> files = Sets.newHashSet();
-    try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
-      for (FileScanTask task : tasks) {
-        files.add(task.file().path());
+    if (table instanceof PositionDeletesTable
+        || (table instanceof SerializableTable.SerializableMetadataTable
+            && ((SerializableTable.SerializableMetadataTable) table)
+                .type()
+                .equals(MetadataTableType.POSITION_DELETES))) {
+      try (CloseableIterable<ScanTask> tasks = table.newBatchScan().planFiles()) {
+        for (ScanTask task : tasks) {
+          files.add(((PositionDeletesScanTask) task).file().path());
+        }
+      }
+    } else {
+      try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
+        for (FileScanTask task : tasks) {
+          files.add(task.file().path());
+        }
       }
     }
-
     return files;
   }
 

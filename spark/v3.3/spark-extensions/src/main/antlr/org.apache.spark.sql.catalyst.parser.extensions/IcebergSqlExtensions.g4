@@ -73,6 +73,13 @@ statement
     | ALTER TABLE multipartIdentifier WRITE writeSpec                                       #setWriteDistributionAndOrdering
     | ALTER TABLE multipartIdentifier SET IDENTIFIER_KW FIELDS fieldList                    #setIdentifierFields
     | ALTER TABLE multipartIdentifier DROP IDENTIFIER_KW FIELDS fieldList                   #dropIdentifierFields
+    | ALTER TABLE multipartIdentifier CREATE BRANCH identifier (AS OF VERSION snapshotId)? (RETAIN snapshotRefRetain snapshotRefRetainTimeUnit)? (snapshotRetentionClause)?    #createBranch
+    ;
+
+snapshotRetentionClause
+    : WITH SNAPSHOT RETENTION numSnapshots SNAPSHOTS
+    | WITH SNAPSHOT RETENTION snapshotRetain snapshotRetainTimeUnit
+    | WITH SNAPSHOT RETENTION numSnapshots SNAPSHOTS snapshotRetain snapshotRetainTimeUnit
     ;
 
 writeSpec
@@ -168,34 +175,76 @@ fieldList
     ;
 
 nonReserved
-    : ADD | ALTER | AS | ASC | BY | CALL | DESC | DROP | FIELD | FIRST | LAST | NULLS | ORDERED | PARTITION | TABLE | WRITE
-    | DISTRIBUTED | LOCALLY | UNORDERED | REPLACE | WITH | IDENTIFIER_KW | FIELDS | SET
+    : ADD | ALTER | AS | ASC | BRANCH | BY | CALL | CREATE | DAYS | DESC | DROP | FIELD | FIRST | HOURS | LAST | NULLS | OF | ORDERED | PARTITION | TABLE | WRITE
+    | DISTRIBUTED | LOCALLY | MINUTES | MONTHS | UNORDERED | REPLACE | RETAIN | VERSION | WITH | IDENTIFIER_KW | FIELDS | SET | SNAPSHOT | SNAPSHOTS
     | TRUE | FALSE
     | MAP
+    ;
+
+snapshotId
+    : number
+    ;
+
+numSnapshots
+    : number
+    ;
+
+snapshotRetain
+    : number
+    ;
+
+snapshotRefRetain
+    : number
+    ;
+
+snapshotRefRetainTimeUnit
+    : timeUnit
+    ;
+
+snapshotRetainTimeUnit
+    : timeUnit
+    ;
+
+timeUnit
+    : DAYS
+    | HOURS
+    | MINUTES
     ;
 
 ADD: 'ADD';
 ALTER: 'ALTER';
 AS: 'AS';
 ASC: 'ASC';
+BRANCH: 'BRANCH';
 BY: 'BY';
 CALL: 'CALL';
+DAYS: 'DAYS';
 DESC: 'DESC';
 DISTRIBUTED: 'DISTRIBUTED';
 DROP: 'DROP';
 FIELD: 'FIELD';
 FIELDS: 'FIELDS';
 FIRST: 'FIRST';
+HOURS: 'HOURS';
 LAST: 'LAST';
 LOCALLY: 'LOCALLY';
+MINUTES: 'MINUTES';
+MONTHS: 'MONTHS';
+CREATE: 'CREATE';
 NULLS: 'NULLS';
+OF: 'OF';
 ORDERED: 'ORDERED';
 PARTITION: 'PARTITION';
 REPLACE: 'REPLACE';
+RETAIN: 'RETAIN';
+RETENTION: 'RETENTION';
 IDENTIFIER_KW: 'IDENTIFIER';
 SET: 'SET';
+SNAPSHOT: 'SNAPSHOT';
+SNAPSHOTS: 'SNAPSHOTS';
 TABLE: 'TABLE';
 UNORDERED: 'UNORDERED';
+VERSION: 'VERSION';
 WITH: 'WITH';
 WRITE: 'WRITE';
 

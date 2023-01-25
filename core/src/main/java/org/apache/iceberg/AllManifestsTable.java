@@ -77,17 +77,17 @@ public class AllManifestsTable extends BaseMetadataTable {
                       Types.NestedField.optional(13, "upper_bound", Types.StringType.get())))),
           REF_SNAPSHOT_ID);
 
-  AllManifestsTable(TableOperations ops, Table table) {
-    this(ops, table, table.name() + ".all_manifests");
+  AllManifestsTable(Table table) {
+    this(table, table.name() + ".all_manifests");
   }
 
-  AllManifestsTable(TableOperations ops, Table table, String name) {
-    super(ops, table, name);
+  AllManifestsTable(Table table, String name) {
+    super(table, name);
   }
 
   @Override
   public TableScan newScan() {
-    return new AllManifestsTableScan(operations(), table(), MANIFEST_FILE_SCHEMA);
+    return new AllManifestsTableScan(table(), MANIFEST_FILE_SCHEMA);
   }
 
   @Override
@@ -102,19 +102,17 @@ public class AllManifestsTable extends BaseMetadataTable {
 
   public static class AllManifestsTableScan extends BaseAllMetadataTableScan {
 
-    AllManifestsTableScan(TableOperations ops, Table table, Schema fileSchema) {
-      super(ops, table, fileSchema, MetadataTableType.ALL_MANIFESTS);
+    AllManifestsTableScan(Table table, Schema fileSchema) {
+      super(table, fileSchema, MetadataTableType.ALL_MANIFESTS);
     }
 
-    private AllManifestsTableScan(
-        TableOperations ops, Table table, Schema schema, TableScanContext context) {
-      super(ops, table, schema, MetadataTableType.ALL_MANIFESTS, context);
+    private AllManifestsTableScan(Table table, Schema schema, TableScanContext context) {
+      super(table, schema, MetadataTableType.ALL_MANIFESTS, context);
     }
 
     @Override
-    protected TableScan newRefinedScan(
-        TableOperations ops, Table table, Schema schema, TableScanContext context) {
-      return new AllManifestsTableScan(ops, table, schema, context);
+    protected TableScan newRefinedScan(Table table, Schema schema, TableScanContext context) {
+      return new AllManifestsTableScan(table, schema, context);
     }
 
     @Override
@@ -137,7 +135,8 @@ public class AllManifestsTable extends BaseMetadataTable {
                       io, schema(), specs, snap.manifestListLocation(), filter, snap.snapshotId());
                 } else {
                   return StaticDataTask.of(
-                      io.newInputFile(tableOps().current().metadataFileLocation()),
+                      io.newInputFile(
+                          ((BaseTable) table()).operations().current().metadataFileLocation()),
                       MANIFEST_FILE_SCHEMA,
                       schema(),
                       snap.allManifests(io),

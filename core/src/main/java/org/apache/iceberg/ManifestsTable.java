@@ -20,6 +20,7 @@ package org.apache.iceberg;
 
 import java.util.List;
 import java.util.Map;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Conversions;
@@ -51,17 +52,17 @@ public class ManifestsTable extends BaseMetadataTable {
                       Types.NestedField.optional(12, "lower_bound", Types.StringType.get()),
                       Types.NestedField.optional(13, "upper_bound", Types.StringType.get())))));
 
-  ManifestsTable(TableOperations ops, Table table) {
-    this(ops, table, table.name() + ".manifests");
+  ManifestsTable(Table table) {
+    this(table, table.name() + ".manifests");
   }
 
-  ManifestsTable(TableOperations ops, Table table, String name) {
-    super(ops, table, name);
+  ManifestsTable(Table table, String name) {
+    super(table, name);
   }
 
   @Override
   public TableScan newScan() {
-    return new ManifestsTableScan(operations(), table());
+    return new ManifestsTableScan(table());
   }
 
   @Override
@@ -75,15 +76,16 @@ public class ManifestsTable extends BaseMetadataTable {
   }
 
   protected DataTask task(TableScan scan) {
-    TableOperations ops = operations();
+    FileIO io = table().io();
     String location = scan.snapshot().manifestListLocation();
     Map<Integer, PartitionSpec> specs = Maps.newHashMap(table().specs());
 
     return StaticDataTask.of(
-        ops.io().newInputFile(location != null ? location : ops.current().metadataFileLocation()),
+        io.newInputFile(
+            location != null ? location : table().operations().current().metadataFileLocation()),
         schema(),
         scan.schema(),
-        scan.snapshot().allManifests(ops.io()),
+        scan.snapshot().allManifests(io),
         manifest -> {
           PartitionSpec spec = specs.get(manifest.partitionSpecId());
           return ManifestsTable.manifestFileToRow(spec, manifest);
@@ -91,8 +93,8 @@ public class ManifestsTable extends BaseMetadataTable {
   }
 
   private class ManifestsTableScan extends StaticTableScan {
-    ManifestsTableScan(TableOperations ops, Table table) {
-      super(ops, table, SNAPSHOT_SCHEMA, MetadataTableType.MANIFESTS, ManifestsTable.this::task);
+    ManifestsTableScan(Table table) {
+      super(table, SNAPSHOT_SCHEMA, MetadataTableType.MANIFESTS, ManifestsTable.this::task);
     }
   }
 

@@ -14,6 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+from typing import Optional
+
 from pyiceberg.expressions import (
     AlwaysFalse,
     AlwaysTrue,
@@ -50,6 +52,20 @@ SIMPLE_SCHEMA = Schema(
 FLOAT_SCHEMA = Schema(
     NestedField(id=1, name="id", field_type=LongType()), NestedField(id=2, name="f", field_type=DoubleType(), required=False)
 )
+
+
+def _record_simple(id: int, data: Optional[str]) -> Record:  # pylint: disable=redefined-builtin
+    r = Record(struct=SIMPLE_SCHEMA.as_struct())
+    r[0] = id
+    r[1] = data
+    return r
+
+
+def _record_float(id: float, f: float) -> Record:  # pylint: disable=redefined-builtin
+    r = Record(struct=FLOAT_SCHEMA.as_struct())
+    r[0] = id
+    r[1] = f
+    return r
 
 
 def test_true() -> None:
@@ -131,16 +147,16 @@ def test_not_null() -> None:
 
 def test_is_nan() -> None:
     evaluate = expression_evaluator(FLOAT_SCHEMA, IsNaN("f"), case_sensitive=True)
-    assert not evaluate(Record(2, 0.0))
-    assert not evaluate(Record(3, float("infinity")))
-    assert evaluate(Record(4, float("nan")))
+    assert not evaluate(_record_float(2, f=0.0))
+    assert not evaluate(_record_float(3, f=float("infinity")))
+    assert evaluate(_record_float(4, f=float("nan")))
 
 
 def test_not_nan() -> None:
     evaluate = expression_evaluator(FLOAT_SCHEMA, NotNaN("f"), case_sensitive=True)
-    assert evaluate(Record(2, 0.0))
-    assert evaluate(Record(3, float("infinity")))
-    assert not evaluate(Record(4, float("nan")))
+    assert evaluate(_record_float(2, f=0.0))
+    assert evaluate(_record_float(3, f=float("infinity")))
+    assert not evaluate(_record_float(4, f=float("nan")))
 
 
 def test_not() -> None:
