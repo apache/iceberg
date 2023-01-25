@@ -903,10 +903,14 @@ components:
       properties:
         overrides:
           type: object
+          additionalProperties:
+            type: string
           description:
             Properties that should be used to override client configuration; applied after defaults and client configuration.
         defaults:
           type: object
+          additionalProperties:
+            type: string
           description:
             Properties that should be used as default configuration; applied before client configuration.
 
