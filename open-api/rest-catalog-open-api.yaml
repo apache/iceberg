@@ -937,9 +937,9 @@ components:
         updates:
           uniqueItems: true
           type: object
-          items:
-            type: string
           example: { "owner": "Hank Bendickson" }
+          additionalProperties:
+            type: string
 
     RenameTableRequest:
       type: object
@@ -2157,12 +2157,12 @@ components:
                 $ref: '#/components/schemas/Namespace'
               properties:
                 type: object
-                additionalProperties:
-                  type: string
                 description:
                   Properties stored on the namespace, if supported by the server.
                   If the server does not support namespace properties, it should return null for this field.
                   If namespace properties are supported, but none are set, it should return an empty object.
+                additionalProperties:
+                  type: string
                 example: { "owner": "Ralph", 'transient_lastDdlTime': '1452120468' }
                 default: { }
                 nullable: true
