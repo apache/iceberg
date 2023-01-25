@@ -70,8 +70,8 @@ paths:
       summary: List all catalog configuration settings
       operationId: getConfig
       parameters:
-        - in: query
-          name: warehouse
+        - name: warehouse
+          in: query
           required: false
           schema:
             type: string
