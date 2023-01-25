@@ -940,7 +940,7 @@ class _to_dask_format(BoundBooleanExpressionVisitor[List[Tuple[str, str, Any]]])
         raise ValueError(f"Not allowed: {left_result} || {right_result}")
 
 
-def dnf_to_dask(expressions: Tuple[BooleanExpression, ...]) -> List[List[Tuple[str, str, Any]]]:
+def expr_to_dnf(expressions: Tuple[BooleanExpression, ...]) -> List[List[Tuple[str, str, Any]]]:
     """Formats a Disjunctive Normal Form expression into the format that can be fed into:
 
     - https://arrow.apache.org/docs/python/generated/pyarrow.parquet.read_table.html

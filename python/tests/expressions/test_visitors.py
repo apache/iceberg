@@ -64,7 +64,7 @@ from pyiceberg.expressions.visitors import (
     BooleanExpressionVisitor,
     BoundBooleanExpressionVisitor,
     _ManifestEvalVisitor,
-    dnf_to_dask,
+    expr_to_dnf,
     rewrite_not,
     rewrite_to_dnf,
     visit,
@@ -1471,4 +1471,4 @@ def test_dnf_to_dask(table_schema_simple: Schema) -> None:
             ),
         ),
     )
-    assert dnf_to_dask(expr) == [[("foo", ">", "hello")], [("bar", "in", {1, 2, 3}), ("baz", "==", True)]]
+    assert expr_to_dnf(expr) == [[("foo", ">", "hello")], [("bar", "in", {1, 2, 3}), ("baz", "==", True)]]
