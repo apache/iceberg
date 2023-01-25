@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.hudi;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -27,6 +28,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hudi.common.config.HoodieMetadataConfig;
 import org.apache.hudi.common.engine.HoodieEngineContext;
 import org.apache.hudi.common.engine.HoodieLocalEngineContext;
+import org.apache.hudi.common.fs.FSUtils;
 import org.apache.hudi.common.model.HoodieBaseFile;
 import org.apache.hudi.common.model.HoodieFileGroup;
 import org.apache.hudi.common.model.HoodieFileGroupId;
@@ -42,6 +44,9 @@ import org.apache.hudi.exception.HoodieException;
 import org.apache.hudi.hadoop.utils.HoodieInputFormatUtils;
 import org.apache.hudi.internal.schema.InternalSchema;
 import org.apache.hudi.internal.schema.convert.AvroInternalSchemaConverter;
+import org.apache.hudi.metadata.HoodieTableMetadata;
+
+import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
@@ -122,22 +127,11 @@ public class BaseSnapshotHudiTableAction implements SnapshotHudiTable {
 
   @Override
   public Result execute() {
-    LOG.info("Alpha test: hoodie table base path: {}", hoodieTableMetaClient.getBasePathV2());
-    LOG.info(
-        "Alpha test: hoodie getBootStrapIndexByFileId: {}",
-        hoodieTableMetaClient.getBootstrapIndexByFileIdFolderNameFolderPath());
-    LOG.info(
-        "Alpha test: hoodie getBootStrapIndexByPartitionPath: {}",
-        hoodieTableMetaClient.getBootstrapIndexByPartitionFolderPath());
 
     // Convert Hoodie table schema to Iceberg schema and extract the partition spec
     InternalSchema hudiSchema = getHudiSchema();
-    LOG.info("Alpha test: hoodie table schema: {}", hudiSchema);
-    LOG.info("Alpha test: get record type: {}", hudiSchema.getRecord());
     Schema icebergSchema = convertToIcebergSchema(hudiSchema);
-    LOG.info("Alpha test: get converted schema: {}", icebergSchema);
     PartitionSpec partitionSpec = getPartitionSpecFromHoodieMetadataData(icebergSchema);
-    LOG.info("Alpha test: get partition spec: {}", partitionSpec);
 
     // TODO: add support for newTableLocation
     Transaction icebergTransaction =
@@ -159,20 +153,29 @@ public class BaseSnapshotHudiTableAction implements SnapshotHudiTable {
     // Commit that has been rollbacked will not be in either REQUESTED or INFLIGHT state
     HoodieTimeline timeline =
         hoodieTableMetaClient.getActiveTimeline().getCommitsTimeline().filterCompletedInstants();
-    LOG.info("Alpha test: hoodie timeline: {}", timeline);
     // Initialize the FileSystemView for querying table data files
     // TODO: need to choose the correct implementation of the FileSystemView
-    HoodieTableFileSystemView hoodieTableFileSystemView =
-        FileSystemViewManager.createInMemoryFileSystemViewWithTimeline(
-            hoodieEngineContext, hoodieTableMetaClient, hoodieMetadataConfig, timeline);
+//    HoodieTableFileSystemView hoodieTableFileSystemView =
+//        FileSystemViewManager.createInMemoryFileSystemViewWithTimeline(
+//            hoodieEngineContext, hoodieTableMetaClient, hoodieMetadataConfig, timeline);
+    HoodieTableFileSystemView hoodieTableFileSystemView = new HoodieTableFileSystemView(
+        hoodieTableMetaClient, timeline);
     // get all instants on the timeline
     Stream<HoodieInstant> completedInstants = timeline.getInstants();
-    LOG.info("Alpha test: get completed instants: {}", completedInstants);
+    List<String> partitionPaths = FSUtils.getAllPartitionPaths(hoodieEngineContext, hoodieMetadataConfig, hoodieTableMetaClient.getBasePathV2().toString());
+    try {
+      for (String partitionPath : partitionPaths) {
+        Path fullPartitionPath = FSUtils.getPartitionPath(hoodieTableMetaClient.getBasePathV2(), partitionPath);
+        hoodieTableFileSystemView.addFilesToView(FSUtils.getAllDataFilesInPartition(hoodieTableMetaClient.getFs(), fullPartitionPath));
+      }
+    } catch (IOException e) {
+      throw new RuntimeException("Failed to get all data files in partition", e);
+    }
     // file group id -> Map<timestamp, HoodieBaseFile>
     // This pre-process aims to make a timestamp to HoodieBaseFile map for each file group
     Map<HoodieFileGroupId, Map<String, HoodieBaseFile>> allStampedDataFiles =
         hoodieTableFileSystemView
-            .getAllFileGroups()
+            .fetchAllStoredFileGroups()
             .collect(
                 ImmutableMap.toImmutableMap(
                     HoodieFileGroup::getFileGroupId,
@@ -182,9 +185,10 @@ public class BaseSnapshotHudiTableAction implements SnapshotHudiTable {
                             .collect(
                                 ImmutableMap.toImmutableMap(
                                     HoodieBaseFile::getCommitTime, baseFile -> baseFile))));
+
     // BEGIN TEST ONLY CODE
-    List<HoodieFileGroup> testGroups =
-        hoodieTableFileSystemView.getAllFileGroups().collect(Collectors.toList());
+    List<HoodieBaseFile> testGroups =
+        hoodieTableFileSystemView.getLatestBaseFiles().collect(Collectors.toList());
     LOG.info("Alpha test: get all stamped data files: {}", allStampedDataFiles);
     LOG.info("Alpha test: get all file groups: {}", testGroups);
     // END TEST ONLY CODE
@@ -307,7 +311,7 @@ public class BaseSnapshotHudiTableAction implements SnapshotHudiTable {
     // TODO: need to verify the path is absolute (the field's name is fullPath)
     String path = baseFile.getPath();
     long fileSize = baseFile.getFileSize();
-    String partitionPath = fileGroup.getPartitionPath();
+    String partitionPath = FSUtils.getPartitionPath(hoodieTableMetaClient.getBasePathV2(), fileGroup.getPartitionPath()).toString();
 
     MetricsConfig metricsConfig = MetricsConfig.forTable(table);
     String nameMappingString = table.properties().get(TableProperties.DEFAULT_NAME_MAPPING);
