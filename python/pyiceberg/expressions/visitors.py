@@ -924,7 +924,7 @@ class _to_dask_format(BoundBooleanExpressionVisitor[List[Tuple[str, str, Any]]])
         return []  # Not supported
 
     def visit_false(self) -> List[Tuple[str, str, Any]]:
-        return []  # Not supported
+        raise ValueError("Not supported: AlwaysFalse")
 
     def visit_not(self, child_result: List[Tuple[str, str, Any]]) -> List[Tuple[str, str, Any]]:
         raise ValueError(f"Not allowed: {child_result}")
