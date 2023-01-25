@@ -922,6 +922,8 @@ components:
           description: Configured string to string map of properties for the namespace
           example: { "owner": "Hank Bendickson" }
           default: { }
+          additionalProperties:
+            type: string
 
     UpdateNamespacePropertiesRequest:
       type: object
@@ -2155,6 +2157,8 @@ components:
                 $ref: '#/components/schemas/Namespace'
               properties:
                 type: object
+                additionalProperties:
+                  type: string
                 description:
                   Properties stored on the namespace, if supported by the server.
                   If the server does not support namespace properties, it should return null for this field.
