@@ -274,6 +274,37 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
   }
 
   @Test
+  public void testMergeWithOnlyUpdateClauseAndNullValues() {
+    createAndInitTable(
+        "id INT, dep STRING",
+        "{ \"id\": null, \"dep\": \"emp-id-one\" }\n"
+            + "{ \"id\": 1, \"dep\": \"emp-id-one\" }\n"
+            + "{ \"id\": 6, \"dep\": \"emp-id-six\" }");
+
+    createOrReplaceView(
+        "source",
+        "id INT, dep STRING",
+        "{ \"id\": 2, \"dep\": \"emp-id-2\" }\n"
+            + "{ \"id\": 1, \"dep\": \"emp-id-1\" }\n"
+            + "{ \"id\": 6, \"dep\": \"emp-id-6\" }");
+
+    sql(
+        "MERGE INTO %s AS t USING source AS s "
+            + "ON t.id == s.id AND t.id < 3 "
+            + "WHEN MATCHED THEN "
+            + "  UPDATE SET *",
+        tableName);
+
+    ImmutableList<Object[]> expectedRows =
+        ImmutableList.of(
+            row(null, "emp-id-one"), // kept
+            row(1, "emp-id-1"), // updated
+            row(6, "emp-id-six")); // kept
+    assertEquals(
+        "Should have expected rows", expectedRows, sql("SELECT * FROM %s ORDER BY id", tableName));
+  }
+
+  @Test
   public void testMergeWithOnlyDeleteClause() {
     createAndInitTable(
         "id INT, dep STRING",

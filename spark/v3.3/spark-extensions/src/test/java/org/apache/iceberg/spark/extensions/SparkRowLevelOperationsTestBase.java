@@ -180,7 +180,7 @@ public abstract class SparkRowLevelOperationsTestBase extends SparkExtensionsTes
     if (jsonData != null) {
       try {
         Dataset<Row> ds = toDS(schema, jsonData);
-        ds.writeTo(tableName).append();
+        ds.coalesce(1).writeTo(tableName).append();
       } catch (NoSuchTableException e) {
         throw new RuntimeException("Failed to write data", e);
       }

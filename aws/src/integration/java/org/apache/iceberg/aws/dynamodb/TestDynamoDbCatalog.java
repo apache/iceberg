@@ -369,7 +369,11 @@ public class TestDynamoDbCatalog {
     Assertions.assertThat(catalog.dropTable(identifier, false)).isTrue();
     TableOperations ops = ((HasTableOperations) registeringTable).operations();
     String metadataLocation = ((DynamoDbTableOperations) ops).currentMetadataLocation();
-    Assertions.assertThat(catalog.registerTable(identifier, metadataLocation)).isNotNull();
+    Table registeredTable = catalog.registerTable(identifier, metadataLocation);
+    Assertions.assertThat(registeredTable).isNotNull();
+    String expectedMetadataLocation =
+        ((HasTableOperations) registeredTable).operations().current().metadataFileLocation();
+    Assertions.assertThat(metadataLocation).isEqualTo(expectedMetadataLocation);
     Assertions.assertThat(catalog.loadTable(identifier)).isNotNull();
     Assertions.assertThat(catalog.dropTable(identifier, true)).isTrue();
     Assertions.assertThat(catalog.dropNamespace(namespace)).isTrue();

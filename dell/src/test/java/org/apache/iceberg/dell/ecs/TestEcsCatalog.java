@@ -190,7 +190,11 @@ public class TestEcsCatalog {
     ecsCatalog.dropTable(identifier, false);
     TableOperations ops = ((HasTableOperations) registeringTable).operations();
     String metadataLocation = ((EcsTableOperations) ops).currentMetadataLocation();
-    Assertions.assertThat(ecsCatalog.registerTable(identifier, metadataLocation)).isNotNull();
+    Table registeredTable = ecsCatalog.registerTable(identifier, metadataLocation);
+    Assertions.assertThat(registeredTable).isNotNull();
+    String expectedMetadataLocation =
+        ((HasTableOperations) registeredTable).operations().current().metadataFileLocation();
+    Assertions.assertThat(metadataLocation).isEqualTo(expectedMetadataLocation);
     Assertions.assertThat(ecsCatalog.loadTable(identifier)).isNotNull();
     Assertions.assertThat(ecsCatalog.dropTable(identifier, true)).isTrue();
   }

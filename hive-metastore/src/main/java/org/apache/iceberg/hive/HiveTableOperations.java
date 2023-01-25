@@ -268,10 +268,8 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
   @Override
   protected void doCommit(TableMetadata base, TableMetadata metadata) {
-    String newMetadataLocation =
-        base == null && metadata.metadataFileLocation() != null
-            ? metadata.metadataFileLocation()
-            : writeNewMetadata(metadata, currentVersion() + 1);
+    boolean newTable = base == null;
+    String newMetadataLocation = writeNewMetadataIfRequired(newTable, metadata);
     boolean hiveEngineEnabled = hiveEngineEnabled(metadata, conf);
     boolean keepHiveStats = conf.getBoolean(ConfigProperties.KEEP_HIVE_STATS, false);
 
@@ -296,7 +294,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
       if (tbl != null) {
         // If we try to create the table but the metadata location is already set, then we had a
         // concurrent commit
-        if (base == null
+        if (newTable
             && tbl.getParameters().get(BaseMetastoreTableOperations.METADATA_LOCATION_PROP)
                 != null) {
           throw new AlreadyExistsException("Table already exists: %s.%s", database, tableName);

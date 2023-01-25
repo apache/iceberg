@@ -154,6 +154,12 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
     this.shouldRefresh = false;
   }
 
+  protected String writeNewMetadataIfRequired(boolean newTable, TableMetadata metadata) {
+    return newTable && metadata.metadataFileLocation() != null
+        ? metadata.metadataFileLocation()
+        : writeNewMetadata(metadata, currentVersion() + 1);
+  }
+
   protected String writeNewMetadata(TableMetadata metadata, int newVersion) {
     String newTableMetadataFilePath = newTableMetadataFilePath(metadata, newVersion);
     OutputFile newMetadataLocation = io().newOutputFile(newTableMetadataFilePath);
