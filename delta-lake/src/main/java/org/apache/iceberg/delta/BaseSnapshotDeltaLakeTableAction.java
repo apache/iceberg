@@ -173,6 +173,7 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
             TableProperties.DEFAULT_NAME_MAPPING,
             NameMappingParser.toJson(MappingUtil.create(icebergTransaction.table().schema())))
         .commit();
+
     Iterator<VersionLog> versionLogIterator =
         deltaLog.getChanges(
             deltaStartVersion, false // not throw exception when data loss detected
@@ -181,6 +182,7 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
       VersionLog versionLog = versionLogIterator.next();
       commitDeltaVersionLogToIcebergTransaction(versionLog, icebergTransaction);
     }
+
     Snapshot icebergSnapshot = icebergTransaction.table().currentSnapshot();
     long totalDataFiles =
         icebergSnapshot != null
@@ -235,8 +237,8 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
       VersionLog versionLog, Transaction transaction) {
     List<Action> dataFileActions;
     if (versionLog.getVersion() == deltaStartVersion) {
-      // The first version log is a special case, since it contains the initial table state.
-      // we need to get all dataFiles from the corresponding delta snapshot to construct the table.
+      // The first version is a special case, since it represents the initial table state.
+      // Need to get all dataFiles from the corresponding delta snapshot to construct the table.
       dataFileActions =
           deltaLog.getSnapshotForVersionAsOf(deltaStartVersion).getAllFiles().stream()
               .map(addFile -> (Action) addFile)
@@ -313,7 +315,7 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
     FileFormat format = determineFileFormatFromPath(fullFilePath);
     InputFile file = deltaLakeFileIO.newInputFile(fullFilePath);
 
-    // If the file size is not specified, we need to read the file to get the file size
+    // If the file size is not specified, the size should be read from the file
     if (nullableFileSize != null) {
       fileSize = nullableFileSize;
     } else {
