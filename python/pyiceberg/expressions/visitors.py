@@ -24,6 +24,7 @@ from typing import (
     Set,
     Tuple,
     TypeVar,
+    Union,
 )
 
 from pyiceberg.conversions import from_bytes
@@ -64,7 +65,10 @@ from pyiceberg.types import (
     FloatType,
     IcebergType,
     PrimitiveType,
+    TimestampType,
+    TimestamptzType,
 )
+from pyiceberg.utils.datetime import micros_to_timestamp, micros_to_timestamptz
 
 T = TypeVar("T")
 
