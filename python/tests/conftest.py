@@ -48,7 +48,7 @@ import boto3
 import botocore.awsrequest
 import botocore.model
 import pytest
-from moto import mock_glue, mock_s3
+from moto import mock_dynamodb, mock_glue, mock_s3
 
 from pyiceberg import schema
 from pyiceberg.io import OutputFile, OutputStream, fsspec
@@ -1254,6 +1254,13 @@ def fixture_glue(_aws_credentials: None) -> Generator[boto3.client, None, None]:
     """Mocked glue client"""
     with mock_glue():
         yield boto3.client("glue", region_name="us-east-1")
+
+
+@pytest.fixture(name="_dynamodb")
+def fixture_dynamodb(_aws_credentials: None) -> Generator[boto3.client, None, None]:
+    """Mocked DynamoDB client"""
+    with mock_dynamodb():
+        yield boto3.client("dynamodb", region_name="us-east-1")
 
 
 @pytest.fixture

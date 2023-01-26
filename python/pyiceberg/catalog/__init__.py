@@ -27,11 +27,13 @@ from typing import (
     List,
     Optional,
     Set,
+    Tuple,
+    Type,
     Union,
     cast,
 )
 
-from pyiceberg.exceptions import NotInstalledError
+from pyiceberg.exceptions import NoSuchNamespaceError, NoSuchTableError, NotInstalledError
 from pyiceberg.io import FileIO, load_file_io
 from pyiceberg.manifest import ManifestFile
 from pyiceberg.partitioning import UNPARTITIONED_PARTITION_SPEC, PartitionSpec
@@ -56,17 +58,20 @@ ICEBERG = "iceberg"
 TABLE_TYPE = "table_type"
 WAREHOUSE_LOCATION = "warehouse"
 METADATA_LOCATION = "metadata_location"
+PREVIOUS_METADATA_LOCATION = "previous_metadata_location"
 MANIFEST = "manifest"
 MANIFEST_LIST = "manifest list"
 PREVIOUS_METADATA = "previous metadata"
 METADATA = "metadata"
 URI = "uri"
+LOCATION = "location"
 
 
 class CatalogType(Enum):
     REST = "rest"
     HIVE = "hive"
     GLUE = "glue"
+    DYNAMODB = "dynamodb"
 
 
 def load_rest(name: str, conf: Properties) -> Catalog:
@@ -93,10 +98,20 @@ def load_glue(name: str, conf: Properties) -> Catalog:
         raise NotInstalledError("AWS glue support not installed: pip install 'pyiceberg[glue]'") from exc
 
 
+def load_dynamodb(name: str, conf: Properties) -> Catalog:
+    try:
+        from pyiceberg.catalog.dynamodb import DynamoDbCatalog
+
+        return DynamoDbCatalog(name, **conf)
+    except ImportError as exc:
+        raise NotInstalledError("AWS DynamoDB support not installed: pip install 'pyiceberg[dynamodb]'") from exc
+
+
 AVAILABLE_CATALOGS: dict[CatalogType, Callable[[str, Properties], Catalog]] = {
     CatalogType.REST: load_rest,
     CatalogType.HIVE: load_hive,
     CatalogType.GLUE: load_glue,
+    CatalogType.DYNAMODB: load_dynamodb,
 }
 
 
@@ -104,6 +119,7 @@ def infer_catalog_type(name: str, catalog_properties: RecursiveDict) -> Optional
     """Tries to infer the type based on the dict
 
     Args:
+        name:
         catalog_properties: Catalog properties
 
     Returns:
@@ -149,6 +165,7 @@ def load_catalog(name: str, **properties: Optional[str]) -> Catalog:
     catalog_type: Optional[CatalogType]
     provided_catalog_type = conf.get(TYPE)
 
+    catalog_type = None
     if provided_catalog_type and isinstance(provided_catalog_type, str):
         catalog_type = CatalogType[provided_catalog_type.upper()]
     elif not provided_catalog_type:
@@ -431,3 +448,48 @@ class Catalog(ABC):
             Identifier: Namespace identifier
         """
         return Catalog.identifier_to_tuple(identifier)[:-1]
+
+    @staticmethod
+    def _check_for_overlap(removals: Optional[Set[str]], updates: Properties) -> None:
+        if updates and removals:
+            overlap = set(removals) & set(updates.keys())
+            if overlap:
+                raise ValueError(f"Updates and deletes have an overlap: {overlap}")
+
+    def _resolve_table_location(self, location: Optional[str], database_name: str, table_name: str) -> str:
+        if not location:
+            return self._get_default_warehouse_location(database_name, table_name)
+        return location
+
+    def _get_default_warehouse_location(self, database_name: str, table_name: str) -> str:
+        database_properties = self.load_namespace_properties(database_name)
+        if database_location := database_properties.get(LOCATION):
+            database_location = database_location.rstrip("/")
+            return f"{database_location}/{table_name}"
+
+        if warehouse_path := self.properties.get(WAREHOUSE_LOCATION):
+            warehouse_path = warehouse_path.rstrip("/")
+            return f"{warehouse_path}/{database_name}.db/{table_name}"
+
+        raise ValueError("No default path is set, please specify a location when creating a table")
+
+    @staticmethod
+    def identifier_to_database(
+        identifier: Union[str, Identifier], err: Union[Type[ValueError], Type[NoSuchNamespaceError]] = ValueError
+    ) -> str:
+        tuple_identifier = Catalog.identifier_to_tuple(identifier)
+        if len(tuple_identifier) != 1:
+            raise err(f"Invalid database, hierarchical namespaces are not supported: {identifier}")
+
+        return tuple_identifier[0]
+
+    @staticmethod
+    def identifier_to_database_and_table(
+        identifier: Union[str, Identifier],
+        err: Union[Type[ValueError], Type[NoSuchTableError], Type[NoSuchNamespaceError]] = ValueError,
+    ) -> Tuple[str, str]:
+        tuple_identifier = Catalog.identifier_to_tuple(identifier)
+        if len(tuple_identifier) != 2:
+            raise err(f"Invalid path, hierarchical namespaces are not supported: {identifier}")
+
+        return tuple_identifier[0], tuple_identifier[1]

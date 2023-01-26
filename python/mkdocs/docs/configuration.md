@@ -89,7 +89,7 @@ catalog:
 ## DynamoDB Catalog
 
 If you want to use AWS DynamoDB as the catalog, you can use the last two ways to configure the pyiceberg and refer
-[How to configure AWS credentials](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-configure.html) 
+[How to configure AWS credentials](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-configure.html)
 to set your AWS account credentials locally.
 
 ```yaml
