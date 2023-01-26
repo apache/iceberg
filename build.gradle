@@ -303,6 +303,11 @@ project(':iceberg-core') {
     testImplementation "com.esotericsoftware:kryo"
     testImplementation "com.google.guava:guava-testlib"
   }
+  tasks.named("jar", Jar).configure {
+    into("META-INF/openapi") {
+      from("$rootDir/open-api")
+    }
+  }
 }
 
 project(':iceberg-data') {
