@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.spark.source;
 
+import java.util.Arrays;
 import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.IsolationLevel;
 import org.apache.iceberg.PartitionSpec;
@@ -34,9 +35,11 @@ import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.spark.SparkWriteConf;
 import org.apache.iceberg.types.TypeUtil;
+import org.apache.iceberg.util.SortOrderUtil;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.connector.distributions.Distribution;
 import org.apache.spark.sql.connector.distributions.Distributions;
+import org.apache.spark.sql.connector.distributions.OrderedDistribution;
 import org.apache.spark.sql.connector.expressions.SortOrder;
 import org.apache.spark.sql.connector.iceberg.write.RowLevelOperation.Command;
 import org.apache.spark.sql.connector.read.Scan;
@@ -163,6 +166,22 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
       ordering = NO_ORDERING;
     }
 
+    // In case of CopyOnWrite operation with scan using file as split and OrderedDistribution
+    // * skip ordering by partition, iff, all input data files are in same partition and has same
+    // spec as current
+    //   table spec
+    // * skip ordering by table sort order, iff, all input files are already sorted by table's
+    // current sort order
+    if (copyOnWriteScan != null
+        && copyOnWriteScan.fileAsSplit()
+        && distribution instanceof OrderedDistribution) {
+      if (skipOrderingAndDistribution((OrderedDistribution) distribution)) {
+        LOG.info(
+            "Skipping distribution/ordering: input files are already in required distribution/ordering");
+        ordering = NO_ORDERING;
+        distribution = Distributions.unspecified();
+      }
+    }
     return new SparkWrite(
         spark, table, writeConf, writeInfo, appId, writeSchema, dsSchema, distribution, ordering) {
 
@@ -264,5 +283,27 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
     }
 
     return writeSchema;
+  }
+
+  private boolean skipOrderingAndDistribution(OrderedDistribution distribution) {
+    // check if all input files have same partitioning as current table partitioning
+    if (!copyOnWriteScan.files().stream()
+        .allMatch(x -> x.file().specId() == table.spec().specId())) {
+      return false;
+    }
+
+    // check if all input files are sorted on table's current sort order
+    if (!copyOnWriteScan.files().stream()
+        .allMatch(
+            x ->
+                x.file().sortOrderId() != null
+                    && x.file().sortOrderId() == table.sortOrder().orderId())) {
+      return false;
+    }
+
+    // check if required ordering is same as table's default ordering
+    return Arrays.equals(
+        distribution.ordering(),
+        SparkDistributionAndOrderingUtil.convert(SortOrderUtil.buildSortOrder(table)));
   }
 }

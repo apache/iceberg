@@ -179,6 +179,15 @@ public class SparkReadConf {
         .parse();
   }
 
+  public boolean fileAsSplit() {
+    return confParser
+        .booleanConf()
+        .option(SparkReadOptions.FILE_AS_SPLIT)
+        .tableProperty(TableProperties.FILE_AS_SPLIT)
+        .defaultValue(TableProperties.FILE_AS_SPLIT_DEFAULT)
+        .parse();
+  }
+
   /**
    * Enables reading a timestamp without time zone as a timestamp with time zone.
    *

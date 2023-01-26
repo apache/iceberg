@@ -634,6 +634,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
               .dataFileFormat(format)
               .dataSchema(writeSchema)
               .dataSparkType(dsSchema)
+              .dataSortOrder(table.sortOrder())
               .build();
 
       if (spec.isUnpartitioned()) {

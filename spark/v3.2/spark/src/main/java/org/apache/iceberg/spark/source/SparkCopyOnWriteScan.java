@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
+import org.apache.iceberg.BaseCombinedScanTask;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MetadataColumns;
@@ -51,6 +52,7 @@ class SparkCopyOnWriteScan extends SparkScan implements SupportsRuntimeFiltering
 
   private final TableScan scan;
   private final Snapshot snapshot;
+  private final SparkReadConf readConf;
 
   // lazy variables
   private List<FileScanTask> files = null; // lazy cache of files
@@ -79,6 +81,7 @@ class SparkCopyOnWriteScan extends SparkScan implements SupportsRuntimeFiltering
 
     this.scan = scan;
     this.snapshot = snapshot;
+    this.readConf = readConf;
 
     if (scan == null) {
       this.files = Collections.emptyList();
@@ -153,12 +156,19 @@ class SparkCopyOnWriteScan extends SparkScan implements SupportsRuntimeFiltering
   @Override
   protected synchronized List<CombinedScanTask> tasks() {
     if (tasks == null) {
-      CloseableIterable<FileScanTask> splitFiles =
-          TableScanUtil.splitFiles(
-              CloseableIterable.withNoopClose(files()), scan.targetSplitSize());
-      CloseableIterable<CombinedScanTask> scanTasks =
-          TableScanUtil.planTasks(
-              splitFiles, scan.targetSplitSize(), scan.splitLookback(), scan.splitOpenFileCost());
+      CloseableIterable<CombinedScanTask> scanTasks;
+      if (readConf.fileAsSplit()) {
+        scanTasks =
+            CloseableIterable.transform(
+                CloseableIterable.withNoopClose(files()), BaseCombinedScanTask::new);
+      } else {
+        CloseableIterable<FileScanTask> splitFiles =
+            TableScanUtil.splitFiles(
+                CloseableIterable.withNoopClose(files()), scan.targetSplitSize());
+        scanTasks =
+            TableScanUtil.planTasks(
+                splitFiles, scan.targetSplitSize(), scan.splitLookback(), scan.splitOpenFileCost());
+      }
       tasks = Lists.newArrayList(scanTasks);
     }
 
@@ -199,6 +209,10 @@ class SparkCopyOnWriteScan extends SparkScan implements SupportsRuntimeFiltering
     return String.format(
         "IcebergCopyOnWriteScan(table=%s, type=%s, filters=%s, caseSensitive=%s)",
         table(), expectedSchema().asStruct(), filterExpressions(), caseSensitive());
+  }
+
+  public boolean fileAsSplit() {
+    return readConf.fileAsSplit();
   }
 
   private Long currentSnapshotId() {
