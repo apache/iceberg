@@ -18,16 +18,14 @@
  */
 package org.apache.iceberg.flink.source;
 
-import java.io.IOException;
 import java.util.Set;
 import java.util.function.Supplier;
 import org.apache.flink.configuration.ReadableConfig;
 import org.apache.flink.table.api.config.ExecutionConfigOptions;
-import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.FlinkConfigOptions;
-import org.apache.iceberg.hadoop.HadoopFileIO;
-import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.hadoop.HadoopInputFile;
+import org.apache.iceberg.hadoop.Util;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.slf4j.Logger;
@@ -50,19 +48,10 @@ class SourceUtil {
       return false;
     }
 
-    FileIO fileIO = table.io();
-    if (fileIO instanceof HadoopFileIO) {
-      HadoopFileIO hadoopFileIO = (HadoopFileIO) fileIO;
-      try {
-        String scheme =
-            new Path(table.location()).getFileSystem(hadoopFileIO.getConf()).getScheme();
-        return FILE_SYSTEM_SUPPORT_LOCALITY.contains(scheme);
-      } catch (IOException e) {
-        LOG.warn(
-            "Failed to determine whether the locality information can be exposed for table: {}",
-            table,
-            e);
-      }
+    if (Util.isHDFSLocation(table.io(), table.location())) {
+      HadoopInputFile file = (HadoopInputFile) table.io().newInputFile(table.location());
+      String scheme = file.getFileSystem().getScheme();
+      return FILE_SYSTEM_SUPPORT_LOCALITY.contains(scheme);
     }
 
     return false;

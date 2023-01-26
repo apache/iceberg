@@ -34,7 +34,7 @@ import org.apache.iceberg.ScanTask;
 import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.FileIO;
-import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.io.ResolvingFileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -84,10 +84,16 @@ public class Util {
     return locations.toArray(HadoopInputFile.NO_LOCATION_PREFERENCE);
   }
 
+  public static boolean isHDFSLocation(FileIO io, String location) {
+    return io instanceof HadoopFileIO
+        || (io instanceof ResolvingFileIO
+            && ResolvingFileIO.implFromLocation(location).equals(HadoopFileIO.class.getName()));
+  }
+
   private static String[] blockLocations(FileIO io, ContentScanTask<?> task) {
-    InputFile inputFile = io.newInputFile(task.file().path().toString());
-    if (inputFile instanceof HadoopInputFile) {
-      HadoopInputFile hadoopInputFile = (HadoopInputFile) inputFile;
+    String location = task.file().path().toString();
+    if (isHDFSLocation(io, location)) {
+      HadoopInputFile hadoopInputFile = (HadoopInputFile) io.newInputFile(location);
       return hadoopInputFile.getBlockLocations(task.start(), task.length());
     } else {
       return HadoopInputFile.NO_LOCATION_PREFERENCE;

@@ -22,10 +22,8 @@ import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
-import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.hadoop.HadoopInputFile;
-import org.apache.iceberg.io.InputFile;
-import org.apache.iceberg.io.ResolvingFileIO;
+import org.apache.iceberg.hadoop.Util;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.spark.sql.SparkSession;
@@ -69,15 +67,11 @@ public class SparkReadConf {
   }
 
   public boolean localityEnabled() {
-    if (table.io() instanceof HadoopFileIO || table.io() instanceof ResolvingFileIO) {
-      InputFile file = table.io().newInputFile(table.location());
-      if (file instanceof HadoopInputFile) {
-        String scheme = ((HadoopInputFile) file).getFileSystem().getScheme();
-        boolean defaultValue = LOCALITY_WHITELIST_FS.contains(scheme);
-        return PropertyUtil.propertyAsBoolean(readOptions, SparkReadOptions.LOCALITY, defaultValue);
-      } else {
-        return false;
-      }
+    if (Util.isHDFSLocation(table.io(), table.location())) {
+      HadoopInputFile file = (HadoopInputFile) table.io().newInputFile(table.location());
+      String scheme = file.getFileSystem().getScheme();
+      boolean defaultValue = LOCALITY_WHITELIST_FS.contains(scheme);
+      return PropertyUtil.propertyAsBoolean(readOptions, SparkReadOptions.LOCALITY, defaultValue);
     }
 
     return false;
