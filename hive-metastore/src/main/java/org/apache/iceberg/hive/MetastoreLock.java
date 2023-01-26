@@ -76,7 +76,7 @@ public class MetastoreLock implements HiveLock {
   private static final long HIVE_LOCK_CREATION_MAX_WAIT_MS_DEFAULT = 5 * 1000; // 5 seconds
   private static final long HIVE_LOCK_HEARTBEAT_INTERVAL_MS_DEFAULT = 4 * 60 * 1000; // 4 minutes
   private static final long HIVE_TABLE_LEVEL_LOCK_EVICT_MS_DEFAULT = TimeUnit.MINUTES.toMillis(10);
-  private static Cache<String, ReentrantLock> commitLockCache;
+  private static volatile Cache<String, ReentrantLock> commitLockCache;
 
   private final ClientPool<IMetaStoreClient, TException> metaClients;
   private final String databaseName;
@@ -153,7 +153,7 @@ public class MetastoreLock implements HiveLock {
 
   @Override
   public void ensureActive() throws LockException {
-    if (hiveLockHeartbeat.encounteredException != null) {
+    if (hiveLockHeartbeat != null && hiveLockHeartbeat.encounteredException != null) {
       throw new LockException(
           hiveLockHeartbeat.encounteredException,
           "Failed to heartbeat for hive lock. %s",
@@ -294,7 +294,11 @@ public class MetastoreLock implements HiveLock {
         .retry(Integer.MAX_VALUE - 100)
         .exponentialBackoff(
             lockCreationMinWaitTime, lockCreationMaxWaitTime, lockCreationTimeout, 2.0)
-        .shouldRetryTest(e -> !interrupted.get() && HiveVersion.min(HiveVersion.HIVE_2))
+        .shouldRetryTest(
+            e ->
+                !interrupted.get()
+                    && e instanceof LockException
+                    && HiveVersion.min(HiveVersion.HIVE_2))
         .throwFailureWhenFinished()
         .run(
             request -> {
@@ -449,10 +453,16 @@ public class MetastoreLock implements HiveLock {
     }
   }
 
-  private static synchronized void initTableLevelLockCache(long evictionTimeout) {
+  private static void initTableLevelLockCache(long evictionTimeout) {
     if (commitLockCache == null) {
-      commitLockCache =
-          Caffeine.newBuilder().expireAfterAccess(evictionTimeout, TimeUnit.MILLISECONDS).build();
+      synchronized (MetastoreLock.class) {
+        if (commitLockCache == null) {
+          commitLockCache =
+              Caffeine.newBuilder()
+                  .expireAfterAccess(evictionTimeout, TimeUnit.MILLISECONDS)
+                  .build();
+        }
+      }
     }
   }
 
