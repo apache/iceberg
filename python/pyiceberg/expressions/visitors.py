@@ -883,7 +883,7 @@ def rewrite_to_dnf(expr: BooleanExpression) -> Tuple[BooleanExpression, ...]:
     return visit(expr_without_not, _RewriteToDNF())
 
 
-class _to_dask_format(BoundBooleanExpressionVisitor[List[Tuple[str, str, Any]]]):
+class ExpressionToPlainFormat(BoundBooleanExpressionVisitor[List[Tuple[str, str, Any]]]):
     def visit_in(self, term: BoundTerm[L], literals: Set[L]) -> List[Tuple[str, str, Any]]:
         return [(term.ref().field.name, "in", literals)]
 
@@ -940,7 +940,7 @@ class _to_dask_format(BoundBooleanExpressionVisitor[List[Tuple[str, str, Any]]])
         raise ValueError(f"Not allowed: {left_result} || {right_result}")
 
 
-def expr_to_dnf(expressions: Tuple[BooleanExpression, ...]) -> List[List[Tuple[str, str, Any]]]:
+def expression_to_plain_format(expressions: Tuple[BooleanExpression, ...]) -> List[List[Tuple[str, str, Any]]]:
     """Formats a Disjunctive Normal Form expression into the format that can be fed into:
 
     - https://arrow.apache.org/docs/python/generated/pyarrow.parquet.read_table.html
@@ -959,4 +959,4 @@ def expr_to_dnf(expressions: Tuple[BooleanExpression, ...]) -> List[List[Tuple[s
         Formatter filter compatible with Dask and PyArrow
     """
     # In the form of expr1 ∨ expr2 ∨ ... ∨ exprN
-    return [visit(expression, _to_dask_format()) for expression in expressions]
+    return [visit(expression, ExpressionToPlainFormat()) for expression in expressions]
