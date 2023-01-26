@@ -176,7 +176,8 @@ int partitionId = 1, taskId = 1;
 FileFormat fileFormat = FileFormat.valueOf(table.properties().getOrDefault("write.format.default", "parquet").toUpperCase());
 OutputFileFactory outputFileFactory = OutputFileFactory.builderFor(table, partitionId, taskId).format(fileFormat).build();
 // TaskWriter write records into files. (the same is ok for unpartiton table)
-GenericTaskWriter<Record> genericTaskWriter = new GenericTaskWriter(table.spec(), fileFormat, appenderFactory, outputFileFactory, table.io(), 50L * 1024 * 1024);
+long targetFileSizeInBytes = 50L * 1024 * 1024;
+GenericTaskWriter<Record> genericTaskWriter = new GenericTaskWriter(table.spec(), fileFormat, appenderFactory, outputFileFactory, table.io(), targetFileSizeInBytes);
 
 GenericRecord genericRecord = GenericRecord.create(table.schema());
 // assume write 1000 records
