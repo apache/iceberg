@@ -520,8 +520,7 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
 
         metricsEvaluators.put(
             partition
-                .copy(), // We need a new partition object to avoid collision on reading the next
-            // entry
+                .copy(), // The partition may be a re-used container so a copy is required
             Pair.of(inclusive, strict));
       }
       return metricsEvaluators.get(partition);
