@@ -20,10 +20,13 @@ package org.apache.iceberg;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.List;
+import java.util.stream.Collectors;
 import org.apache.iceberg.ManifestEntry.Status;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -368,19 +371,18 @@ public class TestDeleteFiles extends TableTestBase {
         StructLikeWrapper.forType(spec.partitionType()).set(partitionOne).hashCode(),
         StructLikeWrapper.forType(spec.partitionType()).set(partitionTwo).hashCode());
 
-    Metrics metrics = new Metrics(1L, null, null, null, null);
-
     DataFile testFileOne =
         DataFiles.builder(spec)
             .withPartition(partitionOne)
             .withPath("/g1.parquet")
             .withFileSizeInBytes(100)
-            .withMetrics(metrics)
+            .withRecordCount(1)
             .build();
+
     DataFile testFileTwo =
         DataFiles.builder(spec)
             .withPartition(partitionTwo)
-            .withMetrics(metrics)
+            .withRecordCount(1)
             .withFileSizeInBytes(100)
             .withPath("/g2.parquet")
             .build();
@@ -394,10 +396,13 @@ public class TestDeleteFiles extends TableTestBase {
 
     collisionTable.newDelete().deleteFromRowFilter(Expressions.equal("x", "BB")).commit();
 
+    List<StructLike> partitions =
+        Lists.newArrayList(collisionTable.newScan().planFiles().iterator()).stream()
+            .map(s -> ((PartitionData) s.partition()).copy())
+            .collect(Collectors.toList());
+
     Assert.assertEquals(
-        "We should have deleted one of them",
-        1,
-        Lists.newArrayList(collisionTable.newScan().planFiles().iterator()).size());
+        "We should have deleted partitionTwo of them", ImmutableList.of(partitionOne), partitions);
   }
 
   private static ByteBuffer longToBuffer(long value) {
