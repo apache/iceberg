@@ -239,11 +239,11 @@ public class SparkScanBuilder
       return false;
     } else {
       Map<String, String> map = snapshot.summary();
-      // if there are row-level deletes in current snapshot, the statics
+      // if there are row-level deletes in current snapshot, the statistics
       // maybe changed, so disable push down aggregate.
       if (Integer.parseInt(map.getOrDefault("total-position-deletes", "0")) > 0
           || Integer.parseInt(map.getOrDefault("total-equality-deletes", "0")) > 0) {
-        LOG.info("Cannot push down aggregate (row-level deletes might change the statistics.)");
+        LOG.info("Cannot push down aggregates when row level deletes exist.)");
         return false;
       }
     }
@@ -252,7 +252,7 @@ public class SparkScanBuilder
     // be used to calculate min/max/count, will enable aggregate push down in next phase.
     // TODO: enable aggregate push down for partition col group by expression
     if (aggregation.groupByExpressions().length > 0) {
-      LOG.info("Cannot push down aggregate (group by is not supported yet).");
+      LOG.info("Group by aggregation push down is not supported yet.");
       return false;
     }
 
@@ -290,14 +290,14 @@ public class SparkScanBuilder
       String colName = aggregate.columnName();
       if (!colName.equals("*")) {
         MetricsModes.MetricsMode mode = config.columnMode(colName);
-        if (mode.toString().equals("none")) {
+        if (mode instanceof MetricsModes.None) {
           return false;
-        } else if (mode.toString().equals("counts")) {
+        } else if (mode instanceof MetricsModes.Counts) {
           if (aggregate.op() == Expression.Operation.MAX
               || aggregate.op() == Expression.Operation.MIN) {
             return false;
           }
-        } else if (mode.toString().contains("truncate")) {
+        } else if (mode instanceof MetricsModes.Truncate) {
           // lower_bounds and upper_bounds may be truncated, so disable push down
           if (aggregate.type().typeId() == Type.TypeID.STRING) {
             if (aggregate.op() == Expression.Operation.MAX
