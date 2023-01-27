@@ -20,13 +20,13 @@ package org.apache.iceberg;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import org.apache.commons.compress.utils.Lists;
 import org.apache.iceberg.ManifestEntry.Status;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.StructLikeWrapper;
 import org.junit.Assert;
@@ -356,7 +356,8 @@ public class TestDeleteFiles extends TableTestBase {
   public void testDeleteWithCollision() {
     Schema schema = new Schema(Types.NestedField.of(0, false, "x", Types.StringType.get()));
     PartitionSpec spec = PartitionSpec.builderFor(schema).identity("x").build();
-    Table t = TestTables.create(tableDir, "hashcollision", schema, spec, formatVersion);
+    Table collisionTable =
+        TestTables.create(tableDir, "hashcollision", schema, spec, formatVersion);
 
     PartitionData partitionOne = new PartitionData(spec.partitionType());
     partitionOne.set(0, "Aa");
@@ -364,33 +365,39 @@ public class TestDeleteFiles extends TableTestBase {
     partitionTwo.set(0, "BB");
 
     Assert.assertEquals(
-            StructLikeWrapper.forType(spec.partitionType()).set(partitionOne).hashCode(),
-            StructLikeWrapper.forType(spec.partitionType()).set(partitionTwo).hashCode());
+        StructLikeWrapper.forType(spec.partitionType()).set(partitionOne).hashCode(),
+        StructLikeWrapper.forType(spec.partitionType()).set(partitionTwo).hashCode());
 
     Metrics metrics = new Metrics(1L, null, null, null, null);
 
-    DataFile testFileOne = DataFiles.builder(spec)
+    DataFile testFileOne =
+        DataFiles.builder(spec)
             .withPartition(partitionOne)
             .withPath("/g1.parquet")
             .withFileSizeInBytes(100)
             .withMetrics(metrics)
             .build();
-    DataFile testFileTwo = DataFiles.builder(spec)
+    DataFile testFileTwo =
+        DataFiles.builder(spec)
             .withPartition(partitionTwo)
             .withMetrics(metrics)
             .withFileSizeInBytes(100)
             .withPath("/g2.parquet")
             .build();
 
-    t.newFastAppend().appendFile(testFileOne).appendFile(testFileTwo).commit();
+    collisionTable.newFastAppend().appendFile(testFileOne).appendFile(testFileTwo).commit();
 
-    Assert.assertEquals("We should have two files", 2, Lists.newArrayList(t.newScan().planFiles().iterator()).size());
+    Assert.assertEquals(
+        "We should have two files",
+        2,
+        Lists.newArrayList(collisionTable.newScan().planFiles().iterator()).size());
 
-    t.newDelete().deleteFromRowFilter(Expressions.equal("x", "BB")).commit();
+    collisionTable.newDelete().deleteFromRowFilter(Expressions.equal("x", "BB")).commit();
 
-    Assert.assertEquals("We should have deleted one of them", 1, Lists.newArrayList(t.newScan().planFiles().iterator()).size());
-
-    Lists.newArrayList(t.newScan().planFiles().iterator());
+    Assert.assertEquals(
+        "We should have deleted one of them",
+        1,
+        Lists.newArrayList(collisionTable.newScan().planFiles().iterator()).size());
   }
 
   private static ByteBuffer longToBuffer(long value) {
