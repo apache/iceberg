@@ -28,15 +28,16 @@ from typing import (
 import boto3
 
 from pyiceberg.catalog import (
+    EXTERNAL_TABLE,
     ICEBERG,
     LOCATION,
     METADATA_LOCATION,
     TABLE_TYPE,
+    Catalog,
     Identifier,
     Properties,
     PropertiesUpdateSummary,
 )
-from pyiceberg.catalog.base_aws_catalog import EXTERNAL_TABLE_TYPE, BaseAwsCatalog
 from pyiceberg.exceptions import (
     NamespaceAlreadyExistsError,
     NamespaceNotEmptyError,
@@ -47,8 +48,12 @@ from pyiceberg.exceptions import (
     TableAlreadyExistsError,
 )
 from pyiceberg.io import load_file_io
+from pyiceberg.partitioning import UNPARTITIONED_PARTITION_SPEC, PartitionSpec
+from pyiceberg.schema import Schema
 from pyiceberg.serializers import FromInputFile
 from pyiceberg.table import Table
+from pyiceberg.table.metadata import new_table_metadata
+from pyiceberg.table.sorting import UNSORTED_SORT_ORDER, SortOrder
 from pyiceberg.typedef import EMPTY_DICT
 
 GLUE_CLIENT = "glue"
@@ -76,12 +81,59 @@ PROP_GLUE_NEXT_TOKEN = "NextToken"
 GLUE_DESCRIPTION_KEY = "comment"
 
 
-class GlueCatalog(BaseAwsCatalog):
+def _construct_parameters(metadata_location: str) -> Properties:
+    return {TABLE_TYPE: ICEBERG.upper(), METADATA_LOCATION: metadata_location}
+
+
+def _construct_create_table_input(table_name: str, metadata_location: str, properties: Properties) -> Dict[str, Any]:
+    table_input = {
+        PROP_GLUE_TABLE_NAME: table_name,
+        PROP_GLUE_TABLE_TYPE: EXTERNAL_TABLE,
+        PROP_GLUE_TABLE_PARAMETERS: _construct_parameters(metadata_location),
+    }
+
+    if table_description := properties.get(GLUE_DESCRIPTION_KEY):
+        table_input[PROP_GLUE_TABLE_DESCRIPTION] = table_description
+
+    return table_input
+
+
+def _construct_rename_table_input(to_table_name: str, glue_table: Dict[str, Any]) -> Dict[str, Any]:
+    rename_table_input = {PROP_GLUE_TABLE_NAME: to_table_name}
+    # use the same Glue info to create the new table, pointing to the old metadata
+    if table_type := glue_table.get(PROP_GLUE_TABLE_TYPE):
+        rename_table_input[PROP_GLUE_TABLE_TYPE] = table_type
+    if table_parameters := glue_table.get(PROP_GLUE_TABLE_PARAMETERS):
+        rename_table_input[PROP_GLUE_TABLE_PARAMETERS] = table_parameters
+    if table_owner := glue_table.get(PROP_GLUE_TABLE_OWNER):
+        rename_table_input[PROP_GLUE_TABLE_OWNER] = table_owner
+    if table_storage_descriptor := glue_table.get(PROP_GLUE_TABLE_STORAGE_DESCRIPTOR):
+        rename_table_input[PROP_GLUE_TABLE_STORAGE_DESCRIPTOR] = table_storage_descriptor
+    if table_description := glue_table.get(PROP_GLUE_TABLE_DESCRIPTION):
+        rename_table_input[PROP_GLUE_TABLE_DESCRIPTION] = table_description
+    return rename_table_input
+
+
+def _construct_database_input(database_name: str, properties: Properties) -> Dict[str, Any]:
+    database_input: Dict[str, Any] = {PROP_GLUE_DATABASE_NAME: database_name}
+    parameters = {}
+    for k, v in properties.items():
+        if k == GLUE_DESCRIPTION_KEY:
+            database_input[PROP_GLUE_DATABASE_DESCRIPTION] = v
+        elif k == LOCATION:
+            database_input[PROP_GLUE_DATABASE_LOCATION] = v
+        else:
+            parameters[k] = v
+    database_input[PROP_GLUE_DATABASE_PARAMETERS] = parameters
+    return database_input
+
+
+class GlueCatalog(Catalog):
     def __init__(self, name: str, **properties: str):
         super().__init__(name, **properties)
         self.glue = boto3.client(GLUE_CLIENT)
 
-    def _convert_glue_table_to_iceberg(self, glue_table: Dict[str, Any]) -> Table:
+    def _convert_glue_to_iceberg(self, glue_table: Dict[str, Any]) -> Table:
         properties: Properties = glue_table.get(PROP_GLUE_TABLE_PARAMETERS, {})
 
         if TABLE_TYPE not in properties:
@@ -114,14 +166,6 @@ class GlueCatalog(BaseAwsCatalog):
             io=self._load_file_io(metadata.properties),
         )
 
-    def _create_table(
-        self, identifier: Union[str, Identifier], table_name: str, metadata_location: str, properties: Properties = EMPTY_DICT
-    ) -> None:
-
-        table_input = self._construct_create_table_input(table_name, metadata_location, properties)
-        database_name, table_name = self.identifier_to_database_and_table(identifier)
-        self._create_glue_table(database_name=database_name, table_name=table_name, table_input=table_input)
-
     def _create_glue_table(self, database_name: str, table_name: str, table_input: Dict[str, Any]) -> None:
         try:
             self.glue.create_table(DatabaseName=database_name, TableInput=table_input)
@@ -129,6 +173,51 @@ class GlueCatalog(BaseAwsCatalog):
             raise TableAlreadyExistsError(f"Table {database_name}.{table_name} already exists") from e
         except self.glue.exceptions.EntityNotFoundException as e:
             raise NoSuchNamespaceError(f"Database {database_name} does not exist") from e
+
+    def create_table(
+        self,
+        identifier: Union[str, Identifier],
+        schema: Schema,
+        location: Optional[str] = None,
+        partition_spec: PartitionSpec = UNPARTITIONED_PARTITION_SPEC,
+        sort_order: SortOrder = UNSORTED_SORT_ORDER,
+        properties: Properties = EMPTY_DICT,
+    ) -> Table:
+        """
+        Create an Iceberg table
+
+        Args:
+            identifier: Table identifier.
+            schema: Table's schema.
+            location: Location for the table. Optional Argument.
+            partition_spec: PartitionSpec for the table.
+            sort_order: SortOrder for the table.
+            properties: Table properties that can be a string based dictionary.
+
+        Returns:
+            Table: the created table instance
+
+        Raises:
+            AlreadyExistsError: If a table with the name already exists
+            ValueError: If the identifier is invalid, or no path is given to store metadata
+
+        """
+        database_name, table_name = self.identifier_to_database_and_table(identifier)
+
+        location = self._resolve_table_location(location, database_name, table_name)
+        metadata_location = self._get_metadata_location(location=location)
+        metadata = new_table_metadata(
+            location=location, schema=schema, partition_spec=partition_spec, sort_order=sort_order, properties=properties
+        )
+        io = load_file_io(properties=self.properties, location=metadata_location)
+        self._write_metadata(metadata, io, metadata_location)
+
+        table_input = _construct_create_table_input(table_name, metadata_location, properties)
+        database_name, table_name = self.identifier_to_database_and_table(identifier)
+        self._create_glue_table(database_name=database_name, table_name=table_name, table_input=table_input)
+
+        loaded_table = self.load_table(identifier=identifier)
+        return loaded_table
 
     def load_table(self, identifier: Union[str, Identifier]) -> Table:
         """Loads the table's metadata and returns the table instance.
@@ -151,7 +240,7 @@ class GlueCatalog(BaseAwsCatalog):
         except self.glue.exceptions.EntityNotFoundException as e:
             raise NoSuchTableError(f"Table does not exist: {database_name}.{table_name}") from e
 
-        return self._convert_glue_table_to_iceberg(load_table_response.get(PROP_GLUE_TABLE, {}))
+        return self._convert_glue_to_iceberg(load_table_response.get(PROP_GLUE_TABLE, {}))
 
     def drop_table(self, identifier: Union[str, Identifier]) -> None:
         """Drop a table.
@@ -198,7 +287,7 @@ class GlueCatalog(BaseAwsCatalog):
 
         try:
             # verify that from_identifier is a valid iceberg table
-            self._convert_glue_table_to_iceberg(glue_table=glue_table)
+            self._convert_glue_to_iceberg(glue_table=glue_table)
         except NoSuchPropertyException as e:
             raise NoSuchPropertyException(
                 f"Failed to rename table {from_database_name}.{from_table_name} since it is missing required properties"
@@ -208,7 +297,7 @@ class GlueCatalog(BaseAwsCatalog):
                 f"Failed to rename table {from_database_name}.{from_table_name} since it is not a valid iceberg table"
             ) from e
 
-        rename_table_input = self._construct_rename_table_input(to_table_name=to_table_name, glue_table=glue_table)
+        rename_table_input = _construct_rename_table_input(to_table_name=to_table_name, glue_table=glue_table)
         self._create_glue_table(database_name=to_database_name, table_name=to_table_name, table_input=rename_table_input)
 
         try:
@@ -234,7 +323,7 @@ class GlueCatalog(BaseAwsCatalog):
         """
         database_name = self.identifier_to_database(namespace)
         try:
-            self.glue.create_database(DatabaseInput=self._construct_database_input(database_name, properties))
+            self.glue.create_database(DatabaseInput=_construct_database_input(database_name, properties))
         except self.glue.exceptions.AlreadyExistsException as e:
             raise NamespaceAlreadyExistsError(f"Database {database_name} already exists") from e
 
@@ -360,55 +449,6 @@ class GlueCatalog(BaseAwsCatalog):
         )
 
         database_name = self.identifier_to_database(namespace, NoSuchNamespaceError)
-        self.glue.update_database(
-            Name=database_name, DatabaseInput=self._construct_database_input(database_name, updated_properties)
-        )
+        self.glue.update_database(Name=database_name, DatabaseInput=_construct_database_input(database_name, updated_properties))
 
         return properties_update_summary
-
-    @staticmethod
-    def _construct_create_table_input(table_name: str, metadata_location: str, properties: Properties) -> Dict[str, Any]:
-        table_input = {
-            PROP_GLUE_TABLE_NAME: table_name,
-            PROP_GLUE_TABLE_TYPE: EXTERNAL_TABLE_TYPE,
-            PROP_GLUE_TABLE_PARAMETERS: _construct_parameters(metadata_location),
-        }
-
-        if table_description := properties.get(GLUE_DESCRIPTION_KEY):
-            table_input[PROP_GLUE_TABLE_DESCRIPTION] = table_description
-
-        return table_input
-
-    @staticmethod
-    def _construct_rename_table_input(to_table_name: str, glue_table: Dict[str, Any]) -> Dict[str, Any]:
-        rename_table_input = {PROP_GLUE_TABLE_NAME: to_table_name}
-        # use the same Glue info to create the new table, pointing to the old metadata
-        if table_type := glue_table.get(PROP_GLUE_TABLE_TYPE):
-            rename_table_input[PROP_GLUE_TABLE_TYPE] = table_type
-        if table_parameters := glue_table.get(PROP_GLUE_TABLE_PARAMETERS):
-            rename_table_input[PROP_GLUE_TABLE_PARAMETERS] = table_parameters
-        if table_owner := glue_table.get(PROP_GLUE_TABLE_OWNER):
-            rename_table_input[PROP_GLUE_TABLE_OWNER] = table_owner
-        if table_storage_descriptor := glue_table.get(PROP_GLUE_TABLE_STORAGE_DESCRIPTOR):
-            rename_table_input[PROP_GLUE_TABLE_STORAGE_DESCRIPTOR] = table_storage_descriptor
-        if table_description := glue_table.get(PROP_GLUE_TABLE_DESCRIPTION):
-            rename_table_input[PROP_GLUE_TABLE_DESCRIPTION] = table_description
-        return rename_table_input
-
-    @staticmethod
-    def _construct_database_input(database_name: str, properties: Properties) -> Dict[str, Any]:
-        database_input: Dict[str, Any] = {PROP_GLUE_DATABASE_NAME: database_name}
-        parameters = {}
-        for k, v in properties.items():
-            if k == GLUE_DESCRIPTION_KEY:
-                database_input[PROP_GLUE_DATABASE_DESCRIPTION] = v
-            elif k == LOCATION:
-                database_input[PROP_GLUE_DATABASE_LOCATION] = v
-            else:
-                parameters[k] = v
-        database_input[PROP_GLUE_DATABASE_PARAMETERS] = parameters
-        return database_input
-
-
-def _construct_parameters(metadata_location: str) -> Properties:
-    return {TABLE_TYPE: ICEBERG.upper(), METADATA_LOCATION: metadata_location}

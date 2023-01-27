@@ -18,6 +18,7 @@
 from __future__ import annotations
 
 import logging
+import uuid
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
@@ -38,7 +39,8 @@ from pyiceberg.io import FileIO, load_file_io
 from pyiceberg.manifest import ManifestFile
 from pyiceberg.partitioning import UNPARTITIONED_PARTITION_SPEC, PartitionSpec
 from pyiceberg.schema import Schema
-from pyiceberg.table import Table
+from pyiceberg.serializers import ToOutputFile
+from pyiceberg.table import Table, TableMetadata
 from pyiceberg.table.sorting import UNSORTED_SORT_ORDER, SortOrder
 from pyiceberg.typedef import (
     EMPTY_DICT,
@@ -65,6 +67,7 @@ PREVIOUS_METADATA = "previous metadata"
 METADATA = "metadata"
 URI = "uri"
 LOCATION = "location"
+EXTERNAL_TABLE = "EXTERNAL_TABLE"
 
 
 class CatalogType(Enum):
@@ -302,17 +305,6 @@ class Catalog(ABC):
         """
 
     @abstractmethod
-    def purge_table(self, identifier: Union[str, Identifier]) -> None:
-        """Drop a table and purge all data and metadata files.
-
-        Args:
-            identifier (str | Identifier): Table identifier.
-
-        Raises:
-            NoSuchTableError: If a table with the name does not exist
-        """
-
-    @abstractmethod
     def rename_table(self, from_identifier: Union[str, Identifier], to_identifier: Union[str, Identifier]) -> Table:
         """Rename a fully classified table name
 
@@ -493,3 +485,69 @@ class Catalog(ABC):
             raise err(f"Invalid path, hierarchical namespaces are not supported: {identifier}")
 
         return tuple_identifier[0], tuple_identifier[1]
+
+    def purge_table(self, identifier: Union[str, Identifier]) -> None:
+        """Drop a table and purge all data and metadata files.
+
+        Note: This method only logs warning rather than raise exception when encountering file deletion failure
+
+        Args:
+            identifier (str | Identifier): Table identifier.
+
+        Raises:
+            NoSuchTableError: If a table with the name does not exist, or the identifier is invalid
+        """
+        table = self.load_table(identifier)
+        self.drop_table(identifier)
+        io = load_file_io(self.properties, table.metadata_location)
+        metadata = table.metadata
+        manifest_lists_to_delete = set()
+        manifests_to_delete = []
+        for snapshot in metadata.snapshots:
+            manifests_to_delete += snapshot.manifests(io)
+            if snapshot.manifest_list is not None:
+                manifest_lists_to_delete.add(snapshot.manifest_list)
+
+        manifest_paths_to_delete = {manifest.manifest_path for manifest in manifests_to_delete}
+        prev_metadata_files = {log.metadata_file for log in metadata.metadata_log}
+
+        delete_data_files(io, manifests_to_delete)
+        delete_files(io, manifest_paths_to_delete, MANIFEST)
+        delete_files(io, manifest_lists_to_delete, MANIFEST_LIST)
+        delete_files(io, prev_metadata_files, PREVIOUS_METADATA)
+        delete_files(io, {table.metadata_location}, METADATA)
+
+    @staticmethod
+    def _write_metadata(metadata: TableMetadata, io: FileIO, metadata_path: str) -> None:
+        ToOutputFile.table_metadata(metadata, io.new_output(metadata_path))
+
+    @staticmethod
+    def _get_metadata_location(location: str) -> str:
+        return f"{location}/metadata/00000-{uuid.uuid4()}.metadata.json"
+
+    def _get_updated_props_and_update_summary(
+        self, current_properties: Properties, removals: Optional[Set[str]], updates: Properties
+    ) -> Tuple[PropertiesUpdateSummary, Properties]:
+
+        self._check_for_overlap(updates=updates, removals=removals)
+        updated_properties = dict(current_properties)
+
+        removed: Set[str] = set()
+        updated: Set[str] = set()
+
+        if removals:
+            for key in removals:
+                if key in updated_properties:
+                    updated_properties.pop(key)
+                    removed.add(key)
+        if updates:
+            for key, value in updates.items():
+                updated_properties[key] = value
+                updated.add(key)
+
+        expected_to_change = (removals or set()).difference(removed)
+        properties_update_summary = PropertiesUpdateSummary(
+            removed=list(removed or []), updated=list(updated or []), missing=list(expected_to_change)
+        )
+
+        return properties_update_summary, updated_properties

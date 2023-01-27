@@ -32,11 +32,11 @@ from pyiceberg.catalog import (
     METADATA_LOCATION,
     PREVIOUS_METADATA_LOCATION,
     TABLE_TYPE,
+    Catalog,
     Identifier,
     Properties,
     PropertiesUpdateSummary,
 )
-from pyiceberg.catalog.base_aws_catalog import BaseAwsCatalog
 from pyiceberg.exceptions import (
     ConditionalCheckFailedException,
     GenericDynamoDbError,
@@ -51,8 +51,12 @@ from pyiceberg.exceptions import (
     ValidationError,
 )
 from pyiceberg.io import load_file_io
+from pyiceberg.partitioning import UNPARTITIONED_PARTITION_SPEC, PartitionSpec
+from pyiceberg.schema import Schema
 from pyiceberg.serializers import FromInputFile
 from pyiceberg.table import Table
+from pyiceberg.table.metadata import new_table_metadata
+from pyiceberg.table.sorting import UNSORTED_SORT_ORDER, SortOrder
 from pyiceberg.typedef import EMPTY_DICT
 
 DYNAMODB_CLIENT = "dynamodb"
@@ -72,7 +76,7 @@ ACTIVE = "ACTIVE"
 ITEM = "Item"
 
 
-class DynamoDbCatalog(BaseAwsCatalog):
+class DynamoDbCatalog(Catalog):
     def __init__(self, name: str, **properties: str):
         super().__init__(name, **properties)
         self.dynamodb = boto3.client(DYNAMODB_CLIENT)
@@ -110,11 +114,43 @@ class DynamoDbCatalog(BaseAwsCatalog):
         else:
             return True
 
-    def _create_table(
-        self, identifier: Union[str, Identifier], table_name: str, metadata_location: str, properties: Properties = EMPTY_DICT
-    ) -> None:
+    def create_table(
+        self,
+        identifier: Union[str, Identifier],
+        schema: Schema,
+        location: Optional[str] = None,
+        partition_spec: PartitionSpec = UNPARTITIONED_PARTITION_SPEC,
+        sort_order: SortOrder = UNSORTED_SORT_ORDER,
+        properties: Properties = EMPTY_DICT,
+    ) -> Table:
+        """
+        Create an Iceberg table
 
+        Args:
+            identifier: Table identifier.
+            schema: Table's schema.
+            location: Location for the table. Optional Argument.
+            partition_spec: PartitionSpec for the table.
+            sort_order: SortOrder for the table.
+            properties: Table properties that can be a string based dictionary.
+
+        Returns:
+            Table: the created table instance
+
+        Raises:
+            AlreadyExistsError: If a table with the name already exists
+            ValueError: If the identifier is invalid, or no path is given to store metadata
+
+        """
         database_name, table_name = self.identifier_to_database_and_table(identifier)
+
+        location = self._resolve_table_location(location, database_name, table_name)
+        metadata_location = self._get_metadata_location(location=location)
+        metadata = new_table_metadata(
+            location=location, schema=schema, partition_spec=partition_spec, sort_order=sort_order, properties=properties
+        )
+        io = load_file_io(properties=self.properties, location=metadata_location)
+        self._write_metadata(metadata, io, metadata_location)
 
         self._ensure_namespace_exists(database_name=database_name)
 
@@ -127,6 +163,9 @@ class DynamoDbCatalog(BaseAwsCatalog):
             )
         except ConditionalCheckFailedException as e:
             raise TableAlreadyExistsError(f"Table {database_name}.{table_name} already exists") from e
+
+        loaded_table = self.load_table(identifier=identifier)
+        return loaded_table
 
     def load_table(self, identifier: Union[str, Identifier]) -> Table:
         """

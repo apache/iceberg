@@ -16,7 +16,6 @@
 #  under the License.
 import getpass
 import time
-import uuid
 from types import TracebackType
 from typing import (
     Any,
@@ -45,6 +44,7 @@ from thrift.protocol import TBinaryProtocol
 from thrift.transport import TSocket, TTransport
 
 from pyiceberg.catalog import (
+    EXTERNAL_TABLE,
     ICEBERG,
     LOCATION,
     METADATA_LOCATION,
@@ -65,9 +65,9 @@ from pyiceberg.exceptions import (
 from pyiceberg.io import FileIO, load_file_io
 from pyiceberg.partitioning import UNPARTITIONED_PARTITION_SPEC, PartitionSpec
 from pyiceberg.schema import Schema, SchemaVisitor, visit
-from pyiceberg.serializers import FromInputFile, ToOutputFile
+from pyiceberg.serializers import FromInputFile
 from pyiceberg.table import Table
-from pyiceberg.table.metadata import TableMetadata, new_table_metadata
+from pyiceberg.table.metadata import new_table_metadata
 from pyiceberg.table.sorting import UNSORTED_SORT_ORDER, SortOrder
 from pyiceberg.typedef import EMPTY_DICT
 from pyiceberg.types import (
@@ -245,10 +245,6 @@ class HiveCatalog(Catalog):
             io=self._load_file_io(metadata.properties),
         )
 
-    @staticmethod
-    def _write_metadata(metadata: TableMetadata, io: FileIO, metadata_path: str) -> None:
-        ToOutputFile.table_metadata(metadata, io.new_output(metadata_path))
-
     def create_table(
         self,
         identifier: Union[str, Identifier],
@@ -280,7 +276,7 @@ class HiveCatalog(Catalog):
 
         location = self._resolve_table_location(location, database_name, table_name)
 
-        metadata_location = f"{location}/metadata/00000-{uuid.uuid4()}.metadata.json"
+        metadata_location = self._get_metadata_location(location=location)
         metadata = new_table_metadata(
             location=location, schema=schema, partition_spec=partition_spec, sort_order=sort_order, properties=properties
         )
@@ -294,7 +290,7 @@ class HiveCatalog(Catalog):
             createTime=current_time_millis // 1000,
             lastAccessTime=current_time_millis // 1000,
             sd=_construct_hive_storage_descriptor(schema, location),
-            tableType="EXTERNAL_TABLE",
+            tableType=EXTERNAL_TABLE,
             parameters=_construct_parameters(metadata_location),
         )
         try:
