@@ -96,7 +96,7 @@ public class JdbcSnowflakeClientTest {
   @Test
   public void testDatabaseDoesntExist() throws SQLException {
     when(mockResultSet.next())
-        .thenThrow(new SQLException("Database does not exists", "2000", 2003, null));
+        .thenThrow(new SQLException("Database does not exist", "2000", 2003, null));
 
     Assertions.assertThat(snowflakeClient.databaseExists(SnowflakeIdentifier.ofDatabase("DB_1")))
         .isFalse();
@@ -134,7 +134,7 @@ public class JdbcSnowflakeClientTest {
   @Test
   public void testSchemaDoesntExistNoSchemaFoundException() throws SQLException {
     when(mockResultSet.next())
-        .thenThrow(new SQLException("Schema does not exists", "2000", 2003, null));
+        .thenThrow(new SQLException("Schema does not exist", "2000", 2003, null));
 
     Assertions.assertThat(
             snowflakeClient.schemaExists(SnowflakeIdentifier.ofSchema("DB_1", "SCHEMA_1")))
@@ -357,7 +357,7 @@ public class JdbcSnowflakeClientTest {
             eq(mockConnection),
             eq("SHOW ICEBERG TABLES IN SCHEMA IDENTIFIER(?)"),
             any(JdbcSnowflakeClient.ResultSetParser.class),
-            eq("" + "DB_1.SCHEMA_1"));
+            eq("DB_1.SCHEMA_1"));
 
     Assertions.assertThat(actualList)
         .containsExactly(

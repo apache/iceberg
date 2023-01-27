@@ -178,9 +178,9 @@ class JdbcSnowflakeClient implements SnowflakeClient {
 
     final String finalQuery = "SHOW TABLES IN SCHEMA IDENTIFIER(?) LIMIT 1";
 
-    List<SnowflakeIdentifier> schemas;
+    List<SnowflakeIdentifier> tables;
     try {
-      schemas =
+      tables =
           connectionPool.run(
               conn ->
                   queryHarness.query(
