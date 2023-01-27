@@ -23,6 +23,7 @@ from pyiceberg.catalog.dynamodb import (
     DYNAMODB_COL_CREATED_AT,
     DYNAMODB_COL_IDENTIFIER,
     DYNAMODB_COL_NAMESPACE,
+    DYNAMODB_TABLE_NAME_DEFAULT,
     DynamoDbCatalog,
     _add_property_prefix,
 )
@@ -45,6 +46,19 @@ from tests.catalog import (
     get_random_table_name,
     get_random_tables,
 )
+
+
+@mock_dynamodb
+def test_create_dynamodb_catalog_with_table_name(_dynamodb, _bucket_initialize: None, _patch_aiobotocore: None) -> None:  # type: ignore
+
+    DynamoDbCatalog("test_ddb_catalog")
+    response = _dynamodb.describe_table(TableName=DYNAMODB_TABLE_NAME_DEFAULT)
+    assert response["Table"]["TableName"] == DYNAMODB_TABLE_NAME_DEFAULT
+
+    custom_table_name = "custom_table_name"
+    DynamoDbCatalog("test_ddb_catalog", dynamodb_table_name=custom_table_name)
+    response = _dynamodb.describe_table(TableName=custom_table_name)
+    assert response["Table"]["TableName"] == custom_table_name
 
 
 @mock_dynamodb

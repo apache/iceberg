@@ -96,4 +96,5 @@ to set your AWS account credentials locally.
 catalog:
   default:
     type: dynamodb
+    dynamodb_table_name: iceberg
 ```

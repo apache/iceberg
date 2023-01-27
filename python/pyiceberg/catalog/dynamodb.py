@@ -70,6 +70,9 @@ DYNAMODB_NAMESPACE = "NAMESPACE"
 DYNAMODB_NAMESPACE_GSI = "namespace-identifier"
 DYNAMODB_PAY_PER_REQUEST = "PAY_PER_REQUEST"
 
+DYNAMODB_TABLE_NAME = "dynamodb_table_name"
+DYNAMODB_TABLE_NAME_DEFAULT = "iceberg"
+
 PROPERTY_KEY_PREFIX = "p."
 
 ACTIVE = "ACTIVE"
@@ -80,15 +83,16 @@ class DynamoDbCatalog(Catalog):
     def __init__(self, name: str, **properties: str):
         super().__init__(name, **properties)
         self.dynamodb = boto3.client(DYNAMODB_CLIENT)
+        self.dynamodb_table_name = self.properties.get(DYNAMODB_TABLE_NAME, DYNAMODB_TABLE_NAME_DEFAULT)
         self._ensure_catalog_table_exists_or_create()
 
     def _ensure_catalog_table_exists_or_create(self) -> None:
-        if self._dynamodb_table_exists(name=ICEBERG):
+        if self._dynamodb_table_exists():
             return
 
         try:
             self.dynamodb.create_table(
-                TableName=ICEBERG,
+                TableName=self.dynamodb_table_name,
                 AttributeDefinitions=_get_create_catalog_attribute_definitions(),
                 KeySchema=_get_key_schema(),
                 GlobalSecondaryIndexes=_get_global_secondary_indexes(),
@@ -101,16 +105,16 @@ class DynamoDbCatalog(Catalog):
         ) as e:
             raise GenericDynamoDbError(e.message) from e
 
-    def _dynamodb_table_exists(self, name: str) -> bool:
+    def _dynamodb_table_exists(self) -> bool:
         try:
-            response = self.dynamodb.describe_table(TableName=name)
+            response = self.dynamodb.describe_table(TableName=self.dynamodb_table_name)
         except self.dynamodb.exceptions.ResourceNotFoundException:
             return False
         except self.dynamodb.exceptions.InternalServerError as e:
             raise GenericDynamoDbError(e.message) from e
 
         if response["Table"]["TableStatus"] != ACTIVE:
-            raise GenericDynamoDbError(f"DynamoDB table for catalog {name} is not {ACTIVE}")
+            raise GenericDynamoDbError(f"DynamoDB table for catalog {self.dynamodb_table_name} is not {ACTIVE}")
         else:
             return True
 
@@ -199,7 +203,7 @@ class DynamoDbCatalog(Catalog):
         database_name, table_name = self.identifier_to_database_and_table(identifier, NoSuchTableError)
         try:
             self.dynamodb.delete_item(
-                TableName=ICEBERG,
+                TableName=self.dynamodb_table_name,
                 Key={
                     DYNAMODB_COL_IDENTIFIER: {
                         "S": f"{database_name}.{table_name}",
@@ -323,7 +327,7 @@ class DynamoDbCatalog(Catalog):
 
         try:
             self.dynamodb.delete_item(
-                TableName=ICEBERG,
+                TableName=self.dynamodb_table_name,
                 Key={
                     DYNAMODB_COL_IDENTIFIER: {
                         "S": DYNAMODB_NAMESPACE,
@@ -362,7 +366,7 @@ class DynamoDbCatalog(Catalog):
 
         try:
             page_iterator = paginator.paginate(
-                TableName=ICEBERG,
+                TableName=self.dynamodb_table_name,
                 IndexName=DYNAMODB_NAMESPACE_GSI,
                 KeyConditionExpression=f"{DYNAMODB_COL_NAMESPACE} = :namespace ",
                 ExpressionAttributeValues={
@@ -407,7 +411,7 @@ class DynamoDbCatalog(Catalog):
 
         try:
             page_iterator = paginator.paginate(
-                TableName=ICEBERG,
+                TableName=self.dynamodb_table_name,
                 ConsistentRead=True,
                 KeyConditionExpression=f"{DYNAMODB_COL_IDENTIFIER} = :identifier",
                 ExpressionAttributeValues={
@@ -507,7 +511,7 @@ class DynamoDbCatalog(Catalog):
     def _get_dynamo_item(self, identifier: str, namespace: str) -> Dict[str, Any]:
         try:
             response = self.dynamodb.get_item(
-                TableName=ICEBERG,
+                TableName=self.dynamodb_table_name,
                 ConsistentRead=True,
                 Key={
                     DYNAMODB_COL_IDENTIFIER: {
@@ -533,7 +537,7 @@ class DynamoDbCatalog(Catalog):
 
     def _put_dynamo_item(self, item: Dict[str, Any], condition_expression: str) -> None:
         try:
-            self.dynamodb.put_item(TableName=ICEBERG, Item=item, ConditionExpression=condition_expression)
+            self.dynamodb.put_item(TableName=self.dynamodb_table_name, Item=item, ConditionExpression=condition_expression)
         except self.dynamodb.exceptions.ConditionalCheckFailedException as e:
             raise ConditionalCheckFailedException(f"Condition expression check failed: {condition_expression} - {item}") from e
         except (
