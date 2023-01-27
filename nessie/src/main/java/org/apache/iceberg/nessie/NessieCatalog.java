@@ -262,8 +262,7 @@ public class NessieCatalog extends BaseMetastoreCatalog
   }
 
   /**
-   * Load the given namespace but return an empty map because namespace properties are currently not
-   * supported.
+   * Load the given namespace and return its properties.
    *
    * @param namespace a namespace. {@link Namespace}
    * @return an empty map
