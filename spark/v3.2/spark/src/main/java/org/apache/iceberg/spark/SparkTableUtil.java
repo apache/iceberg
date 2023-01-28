@@ -486,7 +486,7 @@ public class SparkTableUtil {
         stagingDir,
         Collections.emptyMap(),
         checkDuplicateFiles,
-        1);
+        ThreadPools.WORKER_THREAD_POOL_SIZE);
   }
 
   /**

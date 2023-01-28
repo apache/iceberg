@@ -25,6 +25,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.actions.MigrateTableSparkAction;
 import org.apache.iceberg.spark.actions.SparkActions;
 import org.apache.iceberg.spark.procedures.SparkProcedures.ProcedureBuilder;
+import org.apache.iceberg.util.ThreadPools;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.apache.spark.sql.connector.iceberg.catalog.ProcedureParameter;
@@ -100,7 +101,7 @@ class MigrateTableProcedure extends BaseProcedure {
     if (dropBackup) {
       result = migrateTableSparkAction.dropBackup().execute();
     } else {
-      int parallelism = (args.isNullAt(3)) ? 1 : args.getInt(3);
+      int parallelism = (args.isNullAt(3)) ? ThreadPools.WORKER_THREAD_POOL_SIZE : args.getInt(3);
       result = migrateTableSparkAction.withParallelReads(parallelism).execute();
     }
 

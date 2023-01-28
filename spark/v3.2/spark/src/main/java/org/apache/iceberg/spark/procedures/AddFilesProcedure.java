@@ -39,6 +39,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.spark.SparkTableUtil.SparkPartition;
+import org.apache.iceberg.util.ThreadPools;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.TableIdentifier;
 import org.apache.spark.sql.connector.catalog.CatalogPlugin;
@@ -113,19 +114,9 @@ class AddFilesProcedure extends BaseProcedure {
               });
     }
 
-    boolean checkDuplicateFiles;
-    if (args.isNullAt(3)) {
-      checkDuplicateFiles = true;
-    } else {
-      checkDuplicateFiles = args.getBoolean(3);
-    }
+    boolean checkDuplicateFiles = (args.isNullAt(3)) ? true : args.getBoolean(3);
 
-    int parallelism;
-    if (!args.isNullAt(4)) {
-      parallelism = args.getInt(4);
-    } else {
-      parallelism = 1;
-    }
+    int parallelism = (args.isNullAt(4)) ? ThreadPools.WORKER_THREAD_POOL_SIZE : args.getInt(4);
 
     long addedFilesCount =
         importToIceberg(tableIdent, sourceIdent, partitionFilter, checkDuplicateFiles, parallelism);
