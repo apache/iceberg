@@ -72,6 +72,7 @@ public abstract class S3V4RestSignerClient
   private static final ScheduledExecutorService TOKEN_REFRESH_EXECUTOR =
       ThreadPools.newScheduledPool("s3-signer-token-refresh", 1);
   private static final String SCOPE = "sign";
+  private static RESTClient httpClient;
 
   public abstract Map<String, String> properties();
 
@@ -104,13 +105,17 @@ public abstract class S3V4RestSignerClient
     return properties().get(OAuth2Properties.TOKEN);
   }
 
-  @Value.Lazy
-  RESTClient httpClient() {
-    // TODO: should be closed
-    return HTTPClient.builder()
-        .uri(baseSignerUri())
-        .withObjectMapper(S3ObjectMapper.mapper())
-        .build();
+  private RESTClient httpClient() {
+    if (null == httpClient) {
+      // TODO: should be closed
+      httpClient =
+          HTTPClient.builder()
+              .uri(baseSignerUri())
+              .withObjectMapper(S3ObjectMapper.mapper())
+              .build();
+    }
+
+    return httpClient;
   }
 
   @Value.Lazy
