@@ -102,8 +102,8 @@ public class SnapshotTableSparkAction extends BaseTableCreationSparkAction<Snaps
   }
 
   @Override
-  public SnapshotTableSparkAction withParallelReads(int numReaders) {
-    this.readDatafileParallelism = numReaders;
+  public SnapshotTableSparkAction withParallelReads(int parallelism) {
+    this.readDatafileParallelism = parallelism;
     return this;
   }
 

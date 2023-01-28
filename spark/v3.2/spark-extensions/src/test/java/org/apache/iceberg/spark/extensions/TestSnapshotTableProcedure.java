@@ -114,7 +114,7 @@ public class TestSnapshotTableProcedure extends SparkExtensionsTestBase {
     sql("INSERT INTO TABLE %s VALUES (3, 'c')", sourceName);
     Object result =
         scalarSql(
-            "CALL %s.system.snapshot(source_table => '%s', table => '%s', max_concurrent_read_datafiles => 4)",
+            "CALL %s.system.snapshot(source_table => '%s', table => '%s', parallelism => 4)",
             catalogName, sourceName, tableName);
 
     Assert.assertEquals("Should have added three file", 3L, result);

@@ -100,8 +100,8 @@ public class MigrateTableSparkAction extends BaseTableCreationSparkAction<Migrat
   }
 
   @Override
-  public MigrateTableSparkAction withParallelReads(int numReaders) {
-    this.readDatafileParallelism = numReaders;
+  public MigrateTableSparkAction withParallelReads(int parallelism) {
+    this.readDatafileParallelism = parallelism;
     return this;
   }
 

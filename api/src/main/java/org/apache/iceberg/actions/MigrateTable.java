@@ -51,10 +51,10 @@ public interface MigrateTable extends Action<MigrateTable, MigrateTable.Result> 
   }
 
   /**
-   * @param numReaders the number of concurrent file read operations to use per partition
+   * @param parallelism the number of concurrent file read operations to use per partition
    * @return this for method chaining
    */
-  default MigrateTable withParallelReads(int numReaders) {
+  default MigrateTable withParallelReads(int parallelism) {
     throw new UnsupportedOperationException(
         this.getClass().getName() + " does not implement withParallelReads");
   }

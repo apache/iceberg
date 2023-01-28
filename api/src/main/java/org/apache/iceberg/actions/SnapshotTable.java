@@ -58,10 +58,10 @@ public interface SnapshotTable extends Action<SnapshotTable, SnapshotTable.Resul
   SnapshotTable tableProperty(String key, String value);
 
   /**
-   * @param numReaders the number of concurrent file read operations to use per partition
+   * @param parallelism the number of concurrent file read operations to use per partition
    * @return this for method chaining
    */
-  default SnapshotTable withParallelReads(int numReaders) {
+  default SnapshotTable withParallelReads(int parallelism) {
     throw new UnsupportedOperationException(
         this.getClass().getName() + " does not implement withParallelReads");
   }

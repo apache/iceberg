@@ -119,8 +119,7 @@ public class TestMigrateTableProcedure extends SparkExtensionsTestBase {
 
     Object result =
         scalarSql(
-            "CALL %s.system.migrate(table => '%s', max_concurrent_read_datafiles => 3)",
-            catalogName, tableName);
+            "CALL %s.system.migrate(table => '%s', parallelism => 3)", catalogName, tableName);
 
     Assert.assertEquals("Should have added three files", 3L, result);
 

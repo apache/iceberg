@@ -61,7 +61,7 @@ class AddFilesProcedure extends BaseProcedure {
         ProcedureParameter.required("source_table", DataTypes.StringType),
         ProcedureParameter.optional("partition_filter", STRING_MAP),
         ProcedureParameter.optional("check_duplicate_files", DataTypes.BooleanType),
-        ProcedureParameter.optional("max_concurrent_read_datafiles", DataTypes.IntegerType)
+        ProcedureParameter.optional("parallelism", DataTypes.IntegerType)
       };
 
   private static final StructType OUTPUT_TYPE =

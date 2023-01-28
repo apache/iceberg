@@ -604,8 +604,7 @@ public class SparkTableUtil {
    * @param spec a partition spec
    * @param stagingDir a staging directory to store temporary manifest files
    * @param checkDuplicateFiles if true, throw exception if import results in a duplicate data file
-   * @param listPartitionParallelism Max number of concurrent files to read per partition while
-   *     indexing table
+   * @param parallelism Max number of concurrent files to read per partition while indexing table
    */
   public static void importSparkPartitions(
       SparkSession spark,
@@ -614,10 +613,10 @@ public class SparkTableUtil {
       PartitionSpec spec,
       String stagingDir,
       boolean checkDuplicateFiles,
-      int listPartitionParallelism) {
+      int parallelism) {
     Configuration conf = spark.sessionState().newHadoopConf();
     SerializableConfiguration serializableConf = new SerializableConfiguration(conf);
-    int parallelism =
+    int partitionDiscoveryParallelism =
         Math.min(
             partitions.size(), spark.sessionState().conf().parallelPartitionDiscoveryParallelism());
     int numShufflePartitions = spark.sessionState().conf().numShufflePartitions();
@@ -627,7 +626,8 @@ public class SparkTableUtil {
         nameMappingString != null ? NameMappingParser.fromJson(nameMappingString) : null;
 
     JavaSparkContext sparkContext = JavaSparkContext.fromSparkContext(spark.sparkContext());
-    JavaRDD<SparkPartition> partitionRDD = sparkContext.parallelize(partitions, parallelism);
+    JavaRDD<SparkPartition> partitionRDD =
+        sparkContext.parallelize(partitions, partitionDiscoveryParallelism);
 
     Dataset<SparkPartition> partitionDS =
         spark.createDataset(partitionRDD.rdd(), Encoders.javaSerialization(SparkPartition.class));
@@ -644,7 +644,7 @@ public class SparkTableUtil {
                             serializableConf.get(),
                             metricsConfig,
                             nameMapping,
-                            listPartitionParallelism)
+                            parallelism)
                         .iterator(),
             Encoders.javaSerialization(DataFile.class));
 

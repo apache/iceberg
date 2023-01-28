@@ -39,7 +39,7 @@ class SnapshotTableProcedure extends BaseProcedure {
         ProcedureParameter.required("table", DataTypes.StringType),
         ProcedureParameter.optional("location", DataTypes.StringType),
         ProcedureParameter.optional("properties", STRING_MAP),
-        ProcedureParameter.optional("max_concurrent_read_datafiles", DataTypes.IntegerType)
+        ProcedureParameter.optional("parallelism", DataTypes.IntegerType)
       };
 
   private static final StructType OUTPUT_TYPE =

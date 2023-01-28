@@ -386,7 +386,7 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
             "CALL %s.system.add_files("
                 + "table => '%s', "
                 + "source_table => '%s', "
-                + "max_concurrent_read_datafiles => 3)",
+                + "parallelism => 3)",
             catalogName, tableName, sourceTableName);
 
     Assert.assertEquals(8L, result);
@@ -411,7 +411,7 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
             "CALL %s.system.add_files("
                 + "table => '%s', "
                 + "source_table => '%s', "
-                + "max_concurrent_read_datafiles => 3)",
+                + "parallelism => 3)",
             catalogName, tableName, sourceTableName);
 
     Assert.assertEquals(2L, result);
