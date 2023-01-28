@@ -389,20 +389,27 @@ public class TestDeleteFiles extends TableTestBase {
 
     collisionTable.newFastAppend().appendFile(testFileOne).appendFile(testFileTwo).commit();
 
-    Assert.assertEquals(
-        "We should have two files",
-        2,
-        Lists.newArrayList(collisionTable.newScan().planFiles().iterator()).size());
-
-    collisionTable.newDelete().deleteFromRowFilter(Expressions.equal("x", "BB")).commit();
-
-    List<StructLike> partitions =
+    List<StructLike> beforeDeletePartitions =
         Lists.newArrayList(collisionTable.newScan().planFiles().iterator()).stream()
             .map(s -> ((PartitionData) s.partition()).copy())
             .collect(Collectors.toList());
 
     Assert.assertEquals(
-        "We should have deleted partitionTwo of them", ImmutableList.of(partitionOne), partitions);
+        "We should have both partitions",
+        ImmutableList.of(partitionOne, partitionTwo),
+        beforeDeletePartitions);
+
+    collisionTable.newDelete().deleteFromRowFilter(Expressions.equal("x", "BB")).commit();
+
+    List<StructLike> afterDeletePartitions =
+        Lists.newArrayList(collisionTable.newScan().planFiles().iterator()).stream()
+            .map(s -> ((PartitionData) s.partition()).copy())
+            .collect(Collectors.toList());
+
+    Assert.assertEquals(
+        "We should have deleted partitionTwo",
+        ImmutableList.of(partitionOne),
+        afterDeletePartitions);
   }
 
   private static ByteBuffer longToBuffer(long value) {
