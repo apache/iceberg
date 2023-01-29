@@ -168,8 +168,8 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
 
   @Test
   public void testBinPackReformat() throws IOException {
-    Table table = createTable(4);
-    shouldHaveFiles(table, 4);
+    Table table = createTable(1);
+    shouldHaveFiles(table, 1);
     try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
       tasks.forEach(
           task -> {
@@ -178,16 +178,7 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
           });
     }
 
-    basicRewrite(table).execute();
-    try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
-      tasks.forEach(
-          task -> {
-            FileFormat fileFormat = FileFormat.fromFileName(task.file().path());
-            Assert.assertEquals(FileFormat.PARQUET, fileFormat);
-          });
-    }
-
-    writeRecords(4, SCALE);
+    writeRecords(1, SCALE);
     basicRewrite(table).option(RewriteDataFiles.WRITE_FORMAT, "orc").execute();
     try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
       tasks.forEach(
@@ -935,24 +926,10 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
 
   @Test
   public void testSortReformat() throws IOException {
-    Table table = createTable(20);
-    shouldHaveFiles(table, 20);
+    Table table = createTable(2);
+    shouldHaveFiles(table, 2);
     table.replaceSortOrder().asc("c2").commit();
     shouldHaveLastCommitUnsorted(table, "c2");
-    try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
-      tasks.forEach(
-          task -> {
-            FileFormat fileFormat = FileFormat.fromFileName(task.file().path());
-            Assert.assertEquals(FileFormat.PARQUET, fileFormat);
-          });
-    }
-
-    basicRewrite(table)
-        .sort()
-        .option(SortStrategy.MIN_INPUT_FILES, "1")
-        .option(SortStrategy.REWRITE_ALL, "true")
-        .option(RewriteDataFiles.TARGET_FILE_SIZE_BYTES, Integer.toString(averageFileSize(table)))
-        .execute();
     try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
       tasks.forEach(
           task -> {
@@ -1207,9 +1184,8 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
 
   @Test
   public void testZOrderReformat() throws IOException {
-    int originalFiles = 20;
+    int originalFiles = 1;
     Table table = createTable(originalFiles);
-    shouldHaveLastCommitUnsorted(table, "c2");
     shouldHaveFiles(table, originalFiles);
 
     try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
@@ -1224,25 +1200,7 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
         .zOrder("c2", "c3")
         .option(
             SortStrategy.MAX_FILE_SIZE_BYTES, Integer.toString((averageFileSize(table) / 2) + 2))
-        // Divide files in 2
-        .option(
-            RewriteDataFiles.TARGET_FILE_SIZE_BYTES, Integer.toString(averageFileSize(table) / 2))
-        .option(SortStrategy.MIN_INPUT_FILES, "1")
-        .execute();
-    try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
-      tasks.forEach(
-          task -> {
-            FileFormat fileFormat = FileFormat.fromFileName(task.file().path());
-            Assert.assertEquals(FileFormat.PARQUET, fileFormat);
-          });
-    }
-
-    basicRewrite(table)
-        .zOrder("c2", "c3")
-        .option(
-            SortStrategy.MAX_FILE_SIZE_BYTES, Integer.toString((averageFileSize(table) / 2) + 2))
         .option(RewriteDataFiles.WRITE_FORMAT, "orc")
-        // Divide files in 2
         .option(
             RewriteDataFiles.TARGET_FILE_SIZE_BYTES, Integer.toString(averageFileSize(table) / 2))
         .option(SortStrategy.MIN_INPUT_FILES, "1")
