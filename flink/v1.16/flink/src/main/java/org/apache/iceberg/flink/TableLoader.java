@@ -34,11 +34,16 @@ import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
  * the cluster (for example, to get splits), not just on the client side. So we need an Iceberg
  * table loader to get the {@link Table} object.
  */
-public interface TableLoader extends Closeable, Serializable {
+public interface TableLoader extends Closeable, Serializable, Cloneable {
 
   void open();
 
   Table loadTable();
+
+  /**
+   * By shallow cloning, clone a tableLoader.
+   */
+ TableLoader clone() ;
 
   static TableLoader fromCatalog(CatalogLoader catalogLoader, TableIdentifier identifier) {
     return new CatalogTableLoader(catalogLoader, identifier);
@@ -77,6 +82,16 @@ public interface TableLoader extends Closeable, Serializable {
     }
 
     @Override
+    public TableLoader clone() {
+      try {
+        return (TableLoader) super.clone();
+      } catch (CloneNotSupportedException e) {
+        // should not happen as this class is cloneable
+        return null;
+      }
+    }
+
+    @Override
     public void close() {}
 
     @Override
@@ -91,7 +106,6 @@ public interface TableLoader extends Closeable, Serializable {
 
     private final CatalogLoader catalogLoader;
     private final String identifier;
-
     private transient Catalog catalog;
 
     private CatalogTableLoader(CatalogLoader catalogLoader, TableIdentifier tableIdentifier) {
@@ -113,6 +127,16 @@ public interface TableLoader extends Closeable, Serializable {
     public void close() throws IOException {
       if (catalog instanceof Closeable) {
         ((Closeable) catalog).close();
+      }
+    }
+
+    @Override
+    public TableLoader clone()  {
+      try {
+        return (TableLoader) super.clone();
+      } catch (Exception e) {
+        // should not happen as this class is cloneable
+        return null;
       }
     }
 

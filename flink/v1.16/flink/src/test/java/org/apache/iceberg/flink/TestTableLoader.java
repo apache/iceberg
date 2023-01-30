@@ -42,5 +42,15 @@ public class TestTableLoader implements TableLoader {
   }
 
   @Override
+  public TableLoader clone() {
+    try {
+      return (TableLoader) super.clone();
+    } catch (CloneNotSupportedException e) {
+      // should not happen as this class is cloneable
+      return null;
+    }
+  }
+
+  @Override
   public void close() {}
 }

@@ -28,6 +28,7 @@ import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.util.Preconditions;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.source.FlinkSplitPlanner;
 import org.apache.iceberg.flink.source.ScanContext;
 import org.apache.iceberg.flink.source.StreamingStartingStrategy;
@@ -46,6 +47,7 @@ public class ContinuousSplitPlannerImpl implements ContinuousSplitPlanner {
   private final ScanContext scanContext;
   private final boolean isSharedPool;
   private final ExecutorService workerPool;
+  private  TableLoader tableLoader;
 
   /**
    * @param threadName thread name prefix for worker pool to run the split planning. If null, a
@@ -62,11 +64,25 @@ public class ContinuousSplitPlannerImpl implements ContinuousSplitPlanner {
                 "iceberg-plan-worker-pool-" + threadName, scanContext.planParallelism());
   }
 
+  public ContinuousSplitPlannerImpl(TableLoader tableLoader, ScanContext scanContext, String threadName) {
+    this.tableLoader = tableLoader;
+    this.tableLoader.open();
+    this.table = tableLoader.loadTable();
+    this.scanContext = scanContext;
+    this.isSharedPool = threadName == null;
+    this.workerPool =
+        isSharedPool
+            ? ThreadPools.getWorkerPool()
+            : ThreadPools.newWorkerPool(
+            "iceberg-plan-worker-pool-" + threadName, scanContext.planParallelism());
+  }
+
   @Override
   public void close() throws IOException {
     if (!isSharedPool) {
       workerPool.shutdown();
     }
+    tableLoader.close();
   }
 
   @Override
