@@ -56,6 +56,7 @@ public abstract class ClientPoolImpl<C, E extends Exception>
     C client = get();
     try {
       return action.run(client);
+
     } catch (Exception exc) {
       if (retry && isConnectionException(exc)) {
         try {
@@ -69,35 +70,24 @@ public abstract class ClientPoolImpl<C, E extends Exception>
       }
 
       throw exc;
+
     } finally {
       release(client);
     }
   }
 
-  /**
-   * Check that clientPool is closed, prevents calls to closed pool
-   *
-   * @return Whether the current clientPool is closed
-   */
-  public boolean isClosed() {
-    return closed;
-  }
+  protected abstract C newClient();
 
-  /** Turn on the closed pool again and reuse it */
-  public void reuse() {
-    closed = false;
-  }
+  protected abstract C reconnect(C client);
 
   protected boolean isConnectionException(Exception exc) {
     return reconnectExc.isInstance(exc);
   }
 
+  protected abstract void close(C client);
+
   @Override
   public void close() {
-    if (closed) {
-      return;
-    }
-
     this.closed = true;
     try {
       while (currentSize > 0) {
@@ -117,6 +107,7 @@ public abstract class ClientPoolImpl<C, E extends Exception>
           }
         }
       }
+
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
       LOG.warn("Interrupted while shutting down pool. Some clients may not be closed.", e);
@@ -156,10 +147,4 @@ public abstract class ClientPoolImpl<C, E extends Exception>
   public int poolSize() {
     return poolSize;
   }
-
-  protected abstract C newClient();
-
-  protected abstract C reconnect(C client);
-
-  protected abstract void close(C client);
 }

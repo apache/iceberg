@@ -118,6 +118,7 @@ class JdbcTableOperations extends BaseMetastoreTableOperations {
         LOG.debug("Committing new table: {}", tableName());
         createTable(newMetadataLocation);
       }
+
     } catch (SQLIntegrityConstraintViolationException e) {
 
       if (currentMetadataLocation() == null) {
@@ -125,6 +126,7 @@ class JdbcTableOperations extends BaseMetastoreTableOperations {
       } else {
         throw new UncheckedSQLException(e, "Table already exists: %s", tableIdentifier);
       }
+
     } catch (SQLTimeoutException e) {
       throw new UncheckedSQLException(e, "Database Connection timeout");
     } catch (SQLTransientConnectionException | SQLNonTransientConnectionException e) {
@@ -147,8 +149,6 @@ class JdbcTableOperations extends BaseMetastoreTableOperations {
 
   private void updateTable(String newMetadataLocation, String oldMetadataLocation)
       throws SQLException, InterruptedException {
-    checkIsClosedOtherwiseReuse();
-
     int updatedRecords =
         connections.run(
             conn -> {
@@ -174,8 +174,6 @@ class JdbcTableOperations extends BaseMetastoreTableOperations {
   }
 
   private void createTable(String newMetadataLocation) throws SQLException, InterruptedException {
-    checkIsClosedOtherwiseReuse();
-
     Namespace namespace = tableIdentifier.namespace();
     if (PropertyUtil.propertyAsBoolean(catalogProperties, JdbcUtil.STRICT_MODE_PROPERTY, false)
         && !JdbcUtil.namespaceExists(catalogName, connections, namespace)) {
@@ -228,8 +226,6 @@ class JdbcTableOperations extends BaseMetastoreTableOperations {
 
   private Map<String, String> getTable()
       throws UncheckedSQLException, SQLException, InterruptedException {
-    checkIsClosedOtherwiseReuse();
-
     return connections.run(
         conn -> {
           Map<String, String> table = Maps.newHashMap();
@@ -255,15 +251,5 @@ class JdbcTableOperations extends BaseMetastoreTableOperations {
 
           return table;
         });
-  }
-
-  /**
-   * Check that pool is off and turn it back on if it is off, in case others turn it off and cannot
-   * use pool.
-   */
-  private void checkIsClosedOtherwiseReuse() {
-    if (connections != null && connections.isClosed()) {
-      connections.reuse();
-    }
   }
 }
