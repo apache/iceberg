@@ -885,3 +885,82 @@ def rewrite_to_dnf(expr: BooleanExpression) -> Tuple[BooleanExpression, ...]:
     # (A AND NOT(B) AND C) OR (NOT(D) AND E AND F) OR (G)
     expr_without_not = rewrite_not(expr)
     return visit(expr_without_not, _RewriteToDNF())
+
+
+class ExpressionToPlainFormat(BoundBooleanExpressionVisitor[List[Tuple[str, str, Any]]]):
+    def visit_in(self, term: BoundTerm[L], literals: Set[L]) -> List[Tuple[str, str, Any]]:
+        return [(term.ref().field.name, "in", literals)]
+
+    def visit_not_in(self, term: BoundTerm[L], literals: Set[L]) -> List[Tuple[str, str, Any]]:
+        return [(term.ref().field.name, "not in", literals)]
+
+    def visit_is_nan(self, term: BoundTerm[L]) -> List[Tuple[str, str, Any]]:
+        return [(term.ref().field.name, "==", float("nan"))]
+
+    def visit_not_nan(self, term: BoundTerm[L]) -> List[Tuple[str, str, Any]]:
+        return [(term.ref().field.name, "!=", float("nan"))]
+
+    def visit_is_null(self, term: BoundTerm[L]) -> List[Tuple[str, str, Any]]:
+        return [(term.ref().field.name, "==", None)]
+
+    def visit_not_null(self, term: BoundTerm[L]) -> List[Tuple[str, str, Any]]:
+        return [(term.ref().field.name, "!=", None)]
+
+    def visit_equal(self, term: BoundTerm[L], literal: Literal[L]) -> List[Tuple[str, str, Any]]:
+        return [(term.ref().field.name, "==", literal.value)]
+
+    def visit_not_equal(self, term: BoundTerm[L], literal: Literal[L]) -> List[Tuple[str, str, Any]]:
+        return [(term.ref().field.name, "!=", literal.value)]
+
+    def visit_greater_than_or_equal(self, term: BoundTerm[L], literal: Literal[L]) -> List[Tuple[str, str, Any]]:
+        return [(term.ref().field.name, ">=", literal.value)]
+
+    def visit_greater_than(self, term: BoundTerm[L], literal: Literal[L]) -> List[Tuple[str, str, Any]]:
+        return [(term.ref().field.name, ">", literal.value)]
+
+    def visit_less_than(self, term: BoundTerm[L], literal: Literal[L]) -> List[Tuple[str, str, Any]]:
+        return [(term.ref().field.name, "<", literal.value)]
+
+    def visit_less_than_or_equal(self, term: BoundTerm[L], literal: Literal[L]) -> List[Tuple[str, str, Any]]:
+        return [(term.ref().field.name, "<=", literal.value)]
+
+    def visit_true(self) -> List[Tuple[str, str, Any]]:
+        return []  # Not supported
+
+    def visit_false(self) -> List[Tuple[str, str, Any]]:
+        raise ValueError("Not supported: AlwaysFalse")
+
+    def visit_not(self, child_result: List[Tuple[str, str, Any]]) -> List[Tuple[str, str, Any]]:
+        raise ValueError(f"Not allowed: {child_result}")
+
+    def visit_and(
+        self, left_result: List[Tuple[str, str, Any]], right_result: List[Tuple[str, str, Any]]
+    ) -> List[Tuple[str, str, Any]]:
+        return left_result + right_result
+
+    def visit_or(
+        self, left_result: List[Tuple[str, str, Any]], right_result: List[Tuple[str, str, Any]]
+    ) -> List[Tuple[str, str, Any]]:
+        raise ValueError(f"Not allowed: {left_result} || {right_result}")
+
+
+def expression_to_plain_format(expressions: Tuple[BooleanExpression, ...]) -> List[List[Tuple[str, str, Any]]]:
+    """Formats a Disjunctive Normal Form expression into the format that can be fed into:
+
+    - https://arrow.apache.org/docs/python/generated/pyarrow.parquet.read_table.html
+    - https://docs.dask.org/en/stable/generated/dask.dataframe.read_parquet.html
+
+    Contrary to normal DNF that may contain Not expressions, but here they should have
+    been rewritten. This can be done using ``rewrite_not(...)``.
+
+    Keep in mind that this is only used for page skipping, and still needs to filter
+    on a row level.
+
+    Args:
+        expressions: Expression in Disjunctive Normal Form
+
+    Returns:
+        Formatter filter compatible with Dask and PyArrow
+    """
+    # In the form of expr1 ∨ expr2 ∨ ... ∨ exprN
+    return [visit(expression, ExpressionToPlainFormat()) for expression in expressions]
