@@ -422,6 +422,7 @@ def test_void_transform() -> None:
 
 class TestType(IcebergBaseModel):
     __root__: Transform[Any, Any]
+    __test__ = False
 
 
 def test_bucket_transform_serialize() -> None:

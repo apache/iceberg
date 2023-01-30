@@ -67,7 +67,18 @@ def get_random_databases(n: int) -> Set[str]:
 
 @pytest.fixture(name="_bucket_initialize")
 def fixture_s3_bucket(_s3) -> None:  # type: ignore
-    _s3.create_bucket(Bucket=BUCKET_NAME)
+    bucket = _s3.create_bucket(Bucket=BUCKET_NAME)
+    yield bucket
+
+    response = _s3.list_objects_v2(
+        Bucket=BUCKET_NAME,
+    )
+    while response["KeyCount"] > 0:
+        _s3.delete_objects(Bucket=BUCKET_NAME, Delete={"Objects": [{"Key": obj["Key"]} for obj in response["Contents"]]})
+        response = _s3.list_objects_v2(
+            Bucket=BUCKET_NAME,
+        )
+    _s3.delete_bucket(Bucket=BUCKET_NAME)
 
 
 @mock_glue
