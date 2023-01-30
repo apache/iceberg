@@ -41,6 +41,7 @@ public interface TableLoader extends Closeable, Serializable, Cloneable {
   Table loadTable();
 
   /** By shallow cloning, clone a tableLoader. */
+  @SuppressWarnings("checkstyle:NoClone")
   TableLoader clone();
 
   static TableLoader fromCatalog(CatalogLoader catalogLoader, TableIdentifier identifier) {
@@ -130,6 +131,7 @@ public interface TableLoader extends Closeable, Serializable, Cloneable {
     }
 
     @Override
+    @SuppressWarnings("checkstyle:NoClone")
     public TableLoader clone() {
       try {
         return (TableLoader) super.clone();
