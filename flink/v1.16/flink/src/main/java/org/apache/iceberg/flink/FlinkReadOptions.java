@@ -31,6 +31,16 @@ public class FlinkReadOptions {
 
   public static final ConfigOption<Long> SNAPSHOT_ID =
       ConfigOptions.key("snapshot-id").longType().defaultValue(null);
+  public static final ConfigOption<String> TAG =
+      ConfigOptions.key("tag").stringType().defaultValue(null);
+  public static final ConfigOption<String> BRANCH =
+      ConfigOptions.key("branch").stringType().defaultValue(null);
+
+  public static final ConfigOption<String> START_TAG =
+      ConfigOptions.key("start-tag").stringType().defaultValue(null);
+
+  public static final ConfigOption<String> END_TAG =
+      ConfigOptions.key("end-tag").stringType().defaultValue(null);
 
   public static final String CASE_SENSITIVE = "case-sensitive";
   public static final ConfigOption<Boolean> CASE_SENSITIVE_OPTION =

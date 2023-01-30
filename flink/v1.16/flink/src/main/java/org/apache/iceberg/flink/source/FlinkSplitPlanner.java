@@ -34,6 +34,7 @@ import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
 import org.apache.iceberg.hadoop.Util;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.Tasks;
 
@@ -86,11 +87,23 @@ public class FlinkSplitPlanner {
       IncrementalAppendScan scan = table.newIncrementalAppendScan();
       scan = refineScanWithBaseConfigs(scan, context, workerPool);
 
+      if (context.startTag() != null && table.snapshot(context.startTag()) != null) {
+        scan = scan.fromSnapshotExclusive(table.snapshot(context.startTag()).snapshotId());
+      }
+
       if (context.startSnapshotId() != null) {
+        Preconditions.checkArgument(
+            context.startTag() == null, "START_SNAPSHOT_ID and START_TAG cannot be used both");
         scan = scan.fromSnapshotExclusive(context.startSnapshotId());
       }
 
+      if (context.endTag() != null && table.snapshot(context.endTag()) != null) {
+        scan = scan.toSnapshot(table.snapshot(context.endTag()).snapshotId());
+      }
+
       if (context.endSnapshotId() != null) {
+        Preconditions.checkArgument(
+            context.endTag() == null, "END_SNAPSHOT_ID and END_TAG cannot be used both");
         scan = scan.toSnapshot(context.endSnapshotId());
       }
 
@@ -101,6 +114,10 @@ public class FlinkSplitPlanner {
 
       if (context.snapshotId() != null) {
         scan = scan.useSnapshot(context.snapshotId());
+      } else if (context.tag() != null) {
+        scan = scan.useRef(context.tag());
+      } else if (context.branch() != null) {
+        scan = scan.useRef(context.branch());
       }
 
       if (context.asOfTimestamp() != null) {
@@ -119,7 +136,9 @@ public class FlinkSplitPlanner {
   private static ScanMode checkScanMode(ScanContext context) {
     if (context.isStreaming()
         || context.startSnapshotId() != null
-        || context.endSnapshotId() != null) {
+        || context.endSnapshotId() != null
+        || context.startTag() != null
+        || context.endTag() != null) {
       return ScanMode.INCREMENTAL_APPEND_SCAN;
     } else {
       return ScanMode.BATCH;

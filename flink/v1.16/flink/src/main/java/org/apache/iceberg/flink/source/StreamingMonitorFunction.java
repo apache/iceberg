@@ -88,6 +88,8 @@ public class StreamingMonitorFunction extends RichSourceFunction<FlinkInputSplit
         scanContext.endSnapshotId() == null,
         "Cannot set end-snapshot-id option for streaming reader");
     Preconditions.checkArgument(
+        scanContext.endTag() == null, "Cannot set end-tag option for streaming reader");
+    Preconditions.checkArgument(
         scanContext.maxPlanningSnapshotCount() > 0,
         "The max-planning-snapshot-count must be greater than zero");
     this.tableLoader = tableLoader;
@@ -124,11 +126,33 @@ public class StreamingMonitorFunction extends RichSourceFunction<FlinkInputSplit
     if (context.isRestored()) {
       LOG.info("Restoring state for the {}.", getClass().getSimpleName());
       lastSnapshotId = lastSnapshotIdState.get().iterator().next();
-    } else if (scanContext.startSnapshotId() != null) {
+    } else if (scanContext.startTag() != null) {
+      Snapshot currentSnapshot =
+          scanContext.branch() == null
+              ? table.currentSnapshot()
+              : table.snapshot(scanContext.branch());
       Preconditions.checkNotNull(
-          table.currentSnapshot(), "Don't have any available snapshot in table.");
+          currentSnapshot,
+          "Don't have any available snapshot for branch " + scanContext.branch() + " in table.");
 
-      long currentSnapshotId = table.currentSnapshot().snapshotId();
+      long currentSnapshotId = currentSnapshot.snapshotId();
+      long startSnapshotId = table.snapshot(scanContext.startTag()).snapshotId();
+      Preconditions.checkState(
+          SnapshotUtil.isAncestorOf(table, currentSnapshotId, startSnapshotId),
+          "The option start-snapshot-id %s is not an ancestor of the current snapshot.",
+          startSnapshotId);
+
+      lastSnapshotId = startSnapshotId;
+    } else if (scanContext.startSnapshotId() != null) {
+      Snapshot currentSnapshot =
+          scanContext.branch() == null
+              ? table.currentSnapshot()
+              : table.snapshot(scanContext.branch());
+      Preconditions.checkNotNull(
+          currentSnapshot,
+          "Don't have any available snapshot for branch " + scanContext.branch() + " in table.");
+
+      long currentSnapshotId = currentSnapshot.snapshotId();
       Preconditions.checkState(
           SnapshotUtil.isAncestorOf(table, currentSnapshotId, scanContext.startSnapshotId()),
           "The option start-snapshot-id %s is not an ancestor of the current snapshot.",
@@ -176,7 +200,10 @@ public class StreamingMonitorFunction extends RichSourceFunction<FlinkInputSplit
     // Refresh the table to get the latest committed snapshot.
     table.refresh();
 
-    Snapshot snapshot = table.currentSnapshot();
+    Snapshot snapshot =
+        scanContext.branch() == null
+            ? table.currentSnapshot()
+            : table.snapshot(scanContext.branch());
     if (snapshot != null && snapshot.snapshotId() != lastSnapshotId) {
       long snapshotId = snapshot.snapshotId();
 
