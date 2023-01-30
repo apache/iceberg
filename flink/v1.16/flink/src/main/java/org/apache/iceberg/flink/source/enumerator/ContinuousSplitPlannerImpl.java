@@ -47,7 +47,7 @@ public class ContinuousSplitPlannerImpl implements ContinuousSplitPlanner {
   private final ScanContext scanContext;
   private final boolean isSharedPool;
   private final ExecutorService workerPool;
-  private  TableLoader tableLoader;
+  private TableLoader tableLoader;
 
   /**
    * @param threadName thread name prefix for worker pool to run the split planning. If null, a
@@ -64,7 +64,8 @@ public class ContinuousSplitPlannerImpl implements ContinuousSplitPlanner {
                 "iceberg-plan-worker-pool-" + threadName, scanContext.planParallelism());
   }
 
-  public ContinuousSplitPlannerImpl(TableLoader tableLoader, ScanContext scanContext, String threadName) {
+  public ContinuousSplitPlannerImpl(
+      TableLoader tableLoader, ScanContext scanContext, String threadName) {
     this.tableLoader = tableLoader;
     this.tableLoader.open();
     this.table = tableLoader.loadTable();
@@ -74,7 +75,7 @@ public class ContinuousSplitPlannerImpl implements ContinuousSplitPlanner {
         isSharedPool
             ? ThreadPools.getWorkerPool()
             : ThreadPools.newWorkerPool(
-            "iceberg-plan-worker-pool-" + threadName, scanContext.planParallelism());
+                "iceberg-plan-worker-pool-" + threadName, scanContext.planParallelism());
   }
 
   @Override

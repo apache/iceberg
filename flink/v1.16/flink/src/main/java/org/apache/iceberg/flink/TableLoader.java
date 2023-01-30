@@ -40,10 +40,8 @@ public interface TableLoader extends Closeable, Serializable, Cloneable {
 
   Table loadTable();
 
-  /**
-   * By shallow cloning, clone a tableLoader.
-   */
- TableLoader clone() ;
+  /** By shallow cloning, clone a tableLoader. */
+  TableLoader clone();
 
   static TableLoader fromCatalog(CatalogLoader catalogLoader, TableIdentifier identifier) {
     return new CatalogTableLoader(catalogLoader, identifier);
@@ -82,6 +80,7 @@ public interface TableLoader extends Closeable, Serializable, Cloneable {
     }
 
     @Override
+    @SuppressWarnings("checkstyle:NoClone")
     public TableLoader clone() {
       try {
         return (TableLoader) super.clone();
@@ -131,7 +130,7 @@ public interface TableLoader extends Closeable, Serializable, Cloneable {
     }
 
     @Override
-    public TableLoader clone()  {
+    public TableLoader clone() {
       try {
         return (TableLoader) super.clone();
       } catch (Exception e) {

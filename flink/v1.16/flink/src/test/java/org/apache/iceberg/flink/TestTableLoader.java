@@ -42,6 +42,7 @@ public class TestTableLoader implements TableLoader {
   }
 
   @Override
+  @SuppressWarnings("checkstyle:NoClone")
   public TableLoader clone() {
     try {
       return (TableLoader) super.clone();

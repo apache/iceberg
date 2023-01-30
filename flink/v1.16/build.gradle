@@ -55,10 +55,6 @@ project(":iceberg-flink:iceberg-flink-${flinkMajorVersion}") {
       exclude group: 'org.codehaus.jackson'
     }
 
-    compileOnly 'mysql:mysql-connector-java:8.0.28'
-    implementation 'mysql:mysql-connector-java:8.0.28'
-    testImplementation 'mysql:mysql-connector-java:8.0.28'
-
     compileOnly "org.apache.avro:avro"
 
     implementation("org.apache.orc:orc-core::nohive") {
