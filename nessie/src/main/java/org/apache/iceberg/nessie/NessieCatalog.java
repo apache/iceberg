@@ -65,6 +65,7 @@ public class NessieCatalog extends BaseMetastoreCatalog
 
   private static final Logger LOG = LoggerFactory.getLogger(NessieCatalog.class);
   private static final Joiner SLASH = Joiner.on("/");
+  private static final String NAMESPACE_LOCATION_PROPS = "location";
   private NessieIcebergClient client;
   private String warehouseLocation;
   private Configuration config;
@@ -202,7 +203,15 @@ public class NessieCatalog extends BaseMetastoreCatalog
   protected String defaultWarehouseLocation(TableIdentifier table) {
     String location;
     if (table.hasNamespace()) {
-      location = SLASH.join(warehouseLocation, table.namespace().toString(), table.name());
+      String baseLocation = SLASH.join(warehouseLocation, table.namespace().toString());
+      try {
+        baseLocation =
+            loadNamespaceMetadata(table.namespace())
+                .getOrDefault(NAMESPACE_LOCATION_PROPS, baseLocation);
+      } catch (NoSuchNamespaceException e) {
+        // do nothing we want the same behavior that if the location is not defined
+      }
+      location = SLASH.join(baseLocation, table.name());
     } else {
       location = SLASH.join(warehouseLocation, table.name());
     }
