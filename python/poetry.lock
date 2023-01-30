@@ -1990,23 +1990,23 @@ tests = ["coverage (>=6.0.0)", "flake8", "mypy", "pytest (>=7.0.0)", "pytest-asy
 
 [[package]]
 name = "rich"
-version = "13.2.0"
+version = "13.3.1"
 description = "Render rich text, tables, progress bars, syntax highlighting, markdown and more to the terminal"
 category = "main"
 optional = false
 python-versions = ">=3.7.0"
 files = [
-    {file = "rich-13.2.0-py3-none-any.whl", hash = "sha256:7c963f0d03819221e9ac561e1bc866e3f95a02248c1234daa48954e6d381c003"},
-    {file = "rich-13.2.0.tar.gz", hash = "sha256:f1a00cdd3eebf999a15d85ec498bfe0b1a77efe9b34f645768a54132ef444ac5"},
+    {file = "rich-13.3.1-py3-none-any.whl", hash = "sha256:8aa57747f3fc3e977684f0176a88e789be314a99f99b43b75d1e9cb5dc6db9e9"},
+    {file = "rich-13.3.1.tar.gz", hash = "sha256:125d96d20c92b946b983d0d392b84ff945461e5a06d3867e9f9e575f8697b67f"},
 ]
 
 [package.dependencies]
 markdown-it-py = ">=2.1.0,<3.0.0"
-pygments = ">=2.6.0,<3.0.0"
+pygments = ">=2.14.0,<3.0.0"
 typing-extensions = {version = ">=4.0.0,<5.0", markers = "python_version < \"3.9\""}
 
 [package.extras]
-jupyter = ["ipywidgets (>=7.5.1,<8.0.0)"]
+jupyter = ["ipywidgets (>=7.5.1,<9)"]
 
 [[package]]
 name = "s3fs"
@@ -2469,4 +2469,4 @@ snappy = ["python-snappy"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.8"
-content-hash = "6b74903d15252bb9327c9b6867617bf00ca7fb7c971740c4cc5be7e5d6f19a2d"
+content-hash = "fa445af21e9b4ff93574979f5ad6c84930ecadeb5afc3661e6fd19a76a54c77d"
