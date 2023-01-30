@@ -42,7 +42,6 @@ from urllib.parse import urlparse
 
 import pyarrow as pa
 import pyarrow.compute as pc
-import pyarrow.dataset as ds
 import pyarrow.parquet as pq
 from pyarrow.fs import (
     FileInfo,
@@ -62,9 +61,9 @@ from pyiceberg.expressions import (
 from pyiceberg.expressions.visitors import (
     BoundBooleanExpressionVisitor,
     bind,
+    expression_to_plain_format,
     extract_field_ids,
     rewrite_to_dnf,
-    to_plain_format,
     translate_column_names,
 )
 from pyiceberg.expressions.visitors import visit as boolean_expression_visit
@@ -500,7 +499,7 @@ def _file_to_table(
         if bound_row_filter is not AlwaysTrue():
             translated_row_filter = translate_column_names(bound_row_filter, file_schema, case_sensitive=case_sensitive)
             bound_file_filter = bind(file_schema, translated_row_filter, case_sensitive=case_sensitive)
-            dnf_filter = to_plain_format(rewrite_to_dnf(bound_file_filter), cast_int_to_datetime=True)
+            dnf_filter = expression_to_plain_format(rewrite_to_dnf(bound_file_filter), cast_int_to_datetime=True)
             pyarrow_filter = expression_to_pyarrow(bound_file_filter)
 
         file_project_schema = prune_columns(file_schema, projected_field_ids, select_full_types=False)
@@ -514,7 +513,7 @@ def _file_to_table(
             pre_buffer=True,
             buffer_size=8 * ONE_MEGABYTE,
             filters=dnf_filter,
-            columns=file_project_schema.column_names,
+            columns=[col.name for col in file_project_schema.columns],
         )
 
         if pyarrow_filter is not None:
