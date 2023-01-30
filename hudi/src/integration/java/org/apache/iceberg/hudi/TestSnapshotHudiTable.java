@@ -18,20 +18,34 @@
  */
 package org.apache.iceberg.hudi;
 
+import static org.apache.spark.sql.functions.current_date;
+import static org.apache.spark.sql.functions.date_add;
+import static org.apache.spark.sql.functions.expr;
+
 import java.io.File;
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
+
+import org.apache.hudi.DataSourceReadOptions;
 import org.apache.hudi.DataSourceWriteOptions;
 import org.apache.hudi.QuickstartUtils;
 import org.apache.hudi.common.table.HoodieTableMetaClient;
 import org.apache.hudi.config.HoodieWriteConfig;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.SparkSessionCatalog;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
+import org.apache.spark.sql.Column;
 import org.apache.spark.sql.Dataset;
+import org.apache.spark.sql.RelationalGroupedDataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SQLContext;
 import org.apache.spark.sql.SaveMode;
@@ -50,29 +64,6 @@ import org.slf4j.LoggerFactory;
 public class TestSnapshotHudiTable extends SparkHudiMigrationTestBase {
 
   private static final Logger LOG = LoggerFactory.getLogger(TestSnapshotHudiTable.class.getName());
-  private static final String row1 =
-      "{\"name\":\"Michael\",\"addresses\":[{\"city\":\"SanJose\",\"state\":\"CA\"},{\"city\":\"Sandiago\",\"state\":\"CA\"}],"
-          + "\"address_nested\":{\"current\":{\"state\":\"NY\",\"city\":\"NewYork\"},\"previous\":{\"state\":\"NJ\",\"city\":\"Newark\"}},"
-          + "\"properties\":{\"hair\":\"brown\",\"eye\":\"black\"},\"secondProp\":{\"height\":\"6\"},\"subjects\":[[\"Java\",\"Scala\",\"C++\"],"
-          + "[\"Spark\",\"Java\"]],\"id\":1,\"magic_number\":1.123123123123}";
-  private static final String row2 =
-      "{\"name\":\"Test\",\"addresses\":[{\"city\":\"SanJos123123e\",\"state\":\"CA\"},{\"city\":\"Sand12312iago\",\"state\":\"CA\"}],"
-          + "\"address_nested\":{\"current\":{\"state\":\"N12Y\",\"city\":\"NewY1231ork\"}},\"properties\":{\"hair\":\"brown\",\"eye\":\"black\"},"
-          + "\"secondProp\":{\"height\":\"6\"},\"subjects\":[[\"Java\",\"Scala\",\"C++\"],[\"Spark\",\"Java\"]],\"id\":2,\"magic_number\":2.123123123123}";
-  private static final String row3 =
-      "{\"name\":\"Test\",\"addresses\":[{\"city\":\"SanJose\",\"state\":\"CA\"},{\"city\":\"Sandiago\",\"state\":\"CA\"}],"
-          + "\"properties\":{\"hair\":\"brown\",\"eye\":\"black\"},\"secondProp\":{\"height\":\"6\"},\"subjects\":"
-          + "[[\"Java\",\"Scala\",\"C++\"],[\"Spark\",\"Java\"]],\"id\":3,\"magic_number\":3.123123123123}";
-  private static final String row4 =
-      "{\"name\":\"John\",\"addresses\":[{\"city\":\"LA\",\"state\":\"CA\"},{\"city\":\"Sandiago\",\"state\":\"CA\"}],"
-          + "\"address_nested\":{\"current\":{\"state\":\"NY\",\"city\":\"NewYork\"},\"previous\":{\"state\":\"NJ123\"}},"
-          + "\"properties\":{\"hair\":\"b12rown\",\"eye\":\"bla3221ck\"},\"secondProp\":{\"height\":\"633\"},\"subjects\":"
-          + "[[\"Spark\",\"Java\"]],\"id\":4,\"magic_number\":4.123123123123}";
-  private static final String row5 =
-      "{\"name\":\"Jonas\",\"addresses\":[{\"city\":\"Pittsburgh\",\"state\":\"PA\"},{\"city\":\"Sandiago\",\"state\":\"CA\"}],"
-          + "\"address_nested\":{\"current\":{\"state\":\"PA\",\"city\":\"Haha\"},\"previous\":{\"state\":\"NJ\"}},"
-          + "\"properties\":{\"hair\":\"black\",\"eye\":\"black\"},\"secondProp\":{\"height\":\"7\"},\"subjects\":[[\"Java\",\"Scala\",\"C++\"],"
-          + "[\"Spark\",\"Java\"]],\"id\":5,\"magic_number\":5.123123123123}";
   private static final String SNAPSHOT_SOURCE_PROP = "snapshot_source";
   private static final String DELTA_SOURCE_VALUE = "delta";
   private static final String ORIGINAL_LOCATION_PROP = "original_location";
@@ -186,37 +177,27 @@ public class TestSnapshotHudiTable extends SparkHudiMigrationTestBase {
     spark.sql(String.format("DROP TABLE IF EXISTS %s", unpartitionedIdentifier));
     spark.sql(String.format("DROP TABLE IF EXISTS %s", externalDataFilesIdentifier));
 
-    // hard code the dataframe
-    List<String> jsonList = Lists.newArrayList();
-    jsonList.add(row1);
-    jsonList.add(row2);
-    jsonList.add(row3);
-    jsonList.add(row4);
-    jsonList.add(row5);
-    JavaSparkContext javaSparkContext = JavaSparkContext.fromSparkContext(spark.sparkContext());
-    SQLContext sqlContext = new SQLContext(javaSparkContext);
-    JavaRDD<String> rdd = javaSparkContext.parallelize(jsonList);
-    Dataset<Row> df = sqlContext.read().json(rdd);
+    Dataset<Row> df = typeTestDataFrame();
 
     df.write()
         .format("hudi")
         .options(QuickstartUtils.getQuickstartWriteConfigs())
-        .option(DataSourceWriteOptions.RECORDKEY_FIELD().key(), "magic_number")
-        .option(DataSourceWriteOptions.PRECOMBINE_FIELD().key(), "name")
-        .option(DataSourceWriteOptions.PARTITIONPATH_FIELD().key(), "id")
+        .option(DataSourceWriteOptions.RECORDKEY_FIELD().key(), "decimalCol")
+        .option(DataSourceWriteOptions.PRECOMBINE_FIELD().key(), "intCol")
+        .option(DataSourceWriteOptions.PARTITIONPATH_FIELD().key(), "partitionPath")
         .option(HoodieWriteConfig.TABLE_NAME, partitionedIdentifier)
         .mode(SaveMode.Overwrite)
         .save(partitionedLocation);
 
-    df.write()
-        .format("hudi")
-        .options(QuickstartUtils.getQuickstartWriteConfigs())
-        .option(DataSourceWriteOptions.RECORDKEY_FIELD().key(), "magic_number")
-        .option(DataSourceWriteOptions.PRECOMBINE_FIELD().key(), "name")
-        .option(DataSourceWriteOptions.PARTITIONPATH_FIELD().key(), "")
-        .option(HoodieWriteConfig.TABLE_NAME, unpartitionedIdentifier)
-        .mode(SaveMode.Overwrite)
-        .save(unpartitionedLocation);
+//    df.write()
+//        .format("hudi")
+//        .options(QuickstartUtils.getQuickstartWriteConfigs())
+//        .option(DataSourceWriteOptions.RECORDKEY_FIELD().key(), "magic_number")
+//        .option(DataSourceWriteOptions.PRECOMBINE_FIELD().key(), "name")
+//        .option(DataSourceWriteOptions.PARTITIONPATH_FIELD().key(), "")
+//        .option(HoodieWriteConfig.TABLE_NAME, unpartitionedIdentifier)
+//        .mode(SaveMode.Overwrite)
+//        .save(unpartitionedLocation);
   }
 
   @Test
@@ -234,58 +215,6 @@ public class TestSnapshotHudiTable extends SparkHudiMigrationTestBase {
   }
 
   @Test
-  public void testHudiMetaClientExploration() {
-    HoodieTableMetaClient hoodieTableMetaClient =
-        HoodieTableMetaClient.builder()
-            .setConf(spark.sessionState().newHadoopConf())
-            .setBasePath(partitionedLocation)
-            .setLoadActiveTimelineOnLoad(true)
-            .build();
-
-    LOG.info("Alpha test: hoodie table base path: {}", hoodieTableMetaClient.getBasePathV2());
-    LOG.info(
-        "Alpha test: hoodie getBootStrapIndexByFileId: {}",
-        hoodieTableMetaClient.getBootstrapIndexByFileIdFolderNameFolderPath());
-    LOG.info(
-        "Alpha test: hoodie getBootStrapIndexByPartitionPath: {}",
-        hoodieTableMetaClient.getBootstrapIndexByPartitionFolderPath());
-    LOG.info(
-        "Alpha test: hoodie getCommitActionType: {}", hoodieTableMetaClient.getCommitActionType());
-    LOG.info(
-        "Alpha test: hoodie getCommitsAndCompactionTimeline: {}",
-        hoodieTableMetaClient.getCommitsAndCompactionTimeline());
-    LOG.info(
-        "Alpha test: hoodie getCommitsTimeline: {}", hoodieTableMetaClient.getCommitsTimeline());
-    LOG.info("Alpha test: hoodie getCommitTimeline: {}", hoodieTableMetaClient.getCommitTimeline());
-    LOG.info(
-        "Alpha test: hoodie getConsistencyGuardConfig: {}",
-        hoodieTableMetaClient.getConsistencyGuardConfig().toString());
-    LOG.info(
-        "Alpha test: hoodie getFileSystemRetryConfig: {}",
-        hoodieTableMetaClient.getFileSystemRetryConfig().toString());
-    LOG.info(
-        "Alpha test: hoodie getHashingMetadataPath: {}",
-        hoodieTableMetaClient.getHashingMetadataPath());
-    LOG.info(
-        "Alpha test: hoodie getMetaAuxiliaryPath: {}",
-        hoodieTableMetaClient.getMetaAuxiliaryPath());
-    LOG.info("Alpha test: hoodie getMetaPath: {}", hoodieTableMetaClient.getMetaPath());
-    LOG.info(
-        "Alpha test: hoodie getMetastoreConfig: {}",
-        hoodieTableMetaClient.getMetastoreConfig().toString());
-    LOG.info(
-        "Alpha test: hoodie getSchemaFolderName: {}", hoodieTableMetaClient.getSchemaFolderName());
-    LOG.info(
-        "Alpha test: hoodie getTableConfig: {}", hoodieTableMetaClient.getTableConfig().toString());
-    LOG.info(
-        "Alpha test: hoodie getTableType: {}", hoodieTableMetaClient.getTableType().toString());
-    LOG.info("Alpha test: hoodie getTempFolderPath: {}", hoodieTableMetaClient.getTempFolderPath());
-    LOG.info(
-        "Alpha test: hoodie getTimelineLayoutVersion: {}",
-        hoodieTableMetaClient.getTimelineLayoutVersion());
-  }
-
-  @Test
   public void testHudiMetaClientAlpha() {
     LOG.info("Alpha test reference: hoodie table path: {}", partitionedLocation);
     String newTableIdentifier = destName(icebergCatalogName, "alpha_iceberg_table");
@@ -294,29 +223,93 @@ public class TestSnapshotHudiTable extends SparkHudiMigrationTestBase {
                 spark, partitionedLocation, newTableIdentifier)
             .execute();
 
-    checkSnapshotIntegrity(partitionedIdentifier, newTableIdentifier);
+    checkSnapshotIntegrity(partitionedLocation, newTableIdentifier);
   }
 
   private void checkSnapshotIntegrity(
-      String hudiTableIdentifier,
+      String hudiTableLocation,
       String icebergTableIdentifier) {
-
-//    List<Row> deltaTableContents =
-//        spark.sql("SELECT * FROM " + hudiTableIdentifier).collectAsList();
+    Dataset<Row> hudiResult = spark.read().format("hudi").option(DataSourceReadOptions.QUERY_TYPE_OPT_KEY(), DataSourceReadOptions.QUERY_TYPE_SNAPSHOT_OPT_VAL()).load(hudiTableLocation);
+    Dataset<Row> icebergResult = spark.sql("SELECT * FROM " + icebergTableIdentifier);
+    // Need to sort the column by names since hudi tends to return the columns in a different order (put the one used for partitioning last)
+//    Dataset<Row> hudiSortedResult = hudiResult.groupBy(getColumns(hudiResult)).count();
+//    Dataset<Row> icebergSortedResult = icebergResult.groupBy(getColumns(icebergResult)).count();
+    List<Row> hudiTableContents =
+        hudiResult.collectAsList();
     List<Row> icebergTableContents =
-        spark.sql("SELECT * FROM " + icebergTableIdentifier).collectAsList();
-    LOG.info("Iceberg table contents: {}", spark.sql("SELECT * FROM " + icebergTableIdentifier).showString(10, 20, false));
-    return;
-
-//    Assertions.assertThat(deltaTableContents).hasSize(icebergTableContents.size());
-//    Assertions.assertThat(icebergTableContents).containsAll(deltaTableContents);
-//    Assertions.assertThat(deltaTableContents).containsAll(icebergTableContents);
+        icebergResult.collectAsList();
+    LOG.info("Hudi table contents: {}", hudiResult.showString(10, 20, false));
+    LOG.info("Iceberg table contents: {}", icebergResult.showString(10, 20, false));
+    Assertions.assertThat(hudiTableContents).hasSize(icebergTableContents.size());
+    Assertions.assertThat(hudiTableContents).containsAll(icebergTableContents);
+    Assertions.assertThat(icebergTableContents).containsAll(hudiTableContents); // TODO: may change to containsExactlyInAnyOrderElementsOf
   }
+
+  private Column[] getColumns(Dataset<Row> df) {
+    Column[] columns = new Column[df.columns().length];
+    for (int i = 0; i < df.columns().length; i++) {
+      columns[i] = df.col(df.columns()[i]);
+    }
+    Arrays.sort(columns, Comparator.comparing(Column::toString));
+    return columns;
+  }
+
 
   private String destName(String catalogName, String dest) {
     if (catalogName.equals(defaultSparkCatalog)) {
       return NAMESPACE + "." + catalogName + "_" + dest;
     }
     return catalogName + "." + NAMESPACE + "." + catalogName + "_" + dest;
+  }
+
+  private Dataset<Row> typeTestDataFrame() {
+    return spark
+        .range(0, 5, 1, 5)
+        .withColumnRenamed("id", "longCol")
+        .withColumn("intCol", expr("CAST(longCol AS INT)"))
+        .withColumn("floatCol", expr("CAST(longCol AS FLOAT)"))
+        .withColumn("doubleCol", expr("CAST(longCol AS DOUBLE)"))
+        .withColumn("dateCol", date_add(current_date(), 1))
+//        .withColumn("timestampCol", expr("TO_TIMESTAMP(dateCol)"))
+        .withColumn("stringCol", expr("CAST(dateCol AS STRING)"))
+        .withColumn("booleanCol", expr("longCol > 5"))
+        .withColumn("binaryCol", expr("CAST(longCol AS BINARY)"))
+        .withColumn("byteCol", expr("CAST(longCol AS BYTE)"))
+        .withColumn("decimalCol", expr("CAST(longCol AS DECIMAL(10, 2))"))
+        .withColumn("shortCol", expr("CAST(longCol AS SHORT)"))
+        .withColumn("mapCol", expr("MAP(stringCol, shortCol)")) // Hudi requires Map key to be String
+        .withColumn("arrayCol", expr("ARRAY(longCol)"))
+        .withColumn("structCol", expr("STRUCT(mapCol, arrayCol)"))
+        .withColumn("partitionPath", expr("CAST(longCol AS STRING)"));
+  }
+
+  private Dataset<Row> nestedDataFrame() {
+    return spark
+        .range(0, 5, 1, 5)
+        .withColumn("longCol", expr("id"))
+        .withColumn("decimalCol", expr("CAST(longCol AS DECIMAL(10, 2))"))
+        .withColumn("magic_number", expr("rand(5) * 100"))
+        .withColumn("dateCol", date_add(current_date(), 1))
+        .withColumn("dateString", expr("CAST(dateCol AS STRING)"))
+        .withColumn("random1", expr("CAST(rand(5) * 100 as LONG)"))
+        .withColumn("random2", expr("CAST(rand(51) * 100 as LONG)"))
+        .withColumn("random3", expr("CAST(rand(511) * 100 as LONG)"))
+        .withColumn("random4", expr("CAST(rand(15) * 100 as LONG)"))
+        .withColumn("random5", expr("CAST(rand(115) * 100 as LONG)"))
+        .withColumn("innerStruct1", expr("STRUCT(random1, random2)"))
+        .withColumn("innerStruct2", expr("STRUCT(random3, random4)"))
+        .withColumn("structCol1", expr("STRUCT(innerStruct1, innerStruct2)"))
+        .withColumn(
+            "innerStruct3",
+            expr("STRUCT(SHA1(CAST(random5 AS BINARY)), SHA1(CAST(random1 AS BINARY)))"))
+        .withColumn(
+            "structCol2",
+            expr(
+                "STRUCT(innerStruct3, STRUCT(SHA1(CAST(random2 AS BINARY)), SHA1(CAST(random3 AS BINARY))))"))
+        .withColumn("arrayCol", expr("ARRAY(random1, random2, random3, random4, random5)"))
+        .withColumn("mapCol1", expr("MAP(structCol1, structCol2)"))
+        .withColumn("mapCol2", expr("MAP(longCol, dateString)"))
+        .withColumn("mapCol3", expr("MAP(dateCol, arrayCol)"))
+        .withColumn("structCol3", expr("STRUCT(structCol2, mapCol3, arrayCol)"));
   }
 }
