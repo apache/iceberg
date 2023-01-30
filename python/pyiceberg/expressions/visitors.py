@@ -898,11 +898,11 @@ class ExpressionToPlainFormat(BoundBooleanExpressionVisitor[List[Tuple[str, str,
             iceberg_type_class = type(iceberg_type)
             conversions = {TimestampType: micros_to_timestamp, TimestamptzType: micros_to_timestamptz}
             if iceberg_type_class in conversions:
+                conversion_function = conversions[iceberg_type_class]
                 if isinstance(literal, set):
-                    conversion = conversions[iceberg_type_class]
-                    return {conversion(l) for l in literal}
+                    return {conversion_function(lit) for lit in literal}  # type: ignore
                 else:
-                    return conversions[iceberg_type_class](literal)
+                    return conversion_function(literal)  # type: ignore
         return literal
 
     def visit_in(self, term: BoundTerm[L], literals: Set[L]) -> List[Tuple[str, str, Any]]:
