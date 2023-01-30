@@ -90,7 +90,9 @@ public interface DeleteOrphanFiles extends Action<DeleteOrphanFiles, DeleteOrpha
   @Deprecated
   DeleteOrphanFiles executeDeleteWith(ExecutorService executorService);
 
-  DeleteOrphanFiles deleteBulkWith(Consumer<Iterable<String>> deleteFunc);
+  default DeleteOrphanFiles deleteBulkWith(Consumer<Iterable<String>> deleteFunc) {
+    throw new UnsupportedOperationException();
+  }
 
   /**
    * Passes a prefix mismatch mode that determines how this action should handle situations when the

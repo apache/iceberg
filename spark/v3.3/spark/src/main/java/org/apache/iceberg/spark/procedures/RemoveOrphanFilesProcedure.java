@@ -107,6 +107,7 @@ public class RemoveOrphanFilesProcedure extends BaseProcedure {
               + "configured FileIO for more information",
           PARAMETERS[4].name());
     }
+
     String fileListView = args.isNullAt(5) ? null : args.getString(5);
 
     Preconditions.checkArgument(

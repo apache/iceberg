@@ -100,7 +100,9 @@ public interface ExpireSnapshots extends Action<ExpireSnapshots, ExpireSnapshots
   @Deprecated
   ExpireSnapshots executeDeleteWith(ExecutorService executorService);
 
-  ExpireSnapshots deleteBulkWith(Consumer<Iterable<String>> deleteFunc);
+  default ExpireSnapshots deleteBulkWith(Consumer<Iterable<String>> deleteFunc){
+    throw new UnsupportedOperationException();
+  }
 
   /** The action result that contains a summary of the execution. */
   interface Result {

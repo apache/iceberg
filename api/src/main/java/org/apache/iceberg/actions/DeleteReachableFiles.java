@@ -54,7 +54,9 @@ public interface DeleteReachableFiles
    *     files as an argument.
    * @return this for method chaining
    */
-  DeleteReachableFiles deleteBulkWith(Consumer<Iterable<String>> deleteFunc);
+  default DeleteReachableFiles deleteBulkWith(Consumer<Iterable<String>> deleteFunc) {
+    throw new UnsupportedOperationException();
+  }
 
   /**
    * Passes an alternative executor service that will be used for files removal.
