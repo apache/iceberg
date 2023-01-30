@@ -107,7 +107,13 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
             ? new HadoopFileIO(conf)
             : CatalogUtil.loadFileIO(fileIOImpl, properties, conf);
 
-    this.clients = new CachedClientPool(conf, properties);
+    if (properties.containsKey(CatalogProperties.CLIENT_POOL_IMPL)) {
+      this.clients =
+          CatalogUtil.loadClientPool(
+              properties.get(CatalogProperties.CLIENT_POOL_IMPL), properties, conf);
+    } else {
+      this.clients = new CachedClientPool(conf, properties);
+    }
   }
 
   @Override
@@ -602,5 +608,10 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
   @VisibleForTesting
   void setListAllTables(boolean listAllTables) {
     this.listAllTables = listAllTables;
+  }
+
+  @VisibleForTesting
+  ClientPool<IMetaStoreClient, TException> clientPool() {
+    return clients;
   }
 }

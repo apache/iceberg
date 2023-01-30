@@ -448,4 +448,40 @@ public class CatalogUtil {
 
     return reporter;
   }
+
+  /**
+   * Load a custom ClientPool implementation.
+   *
+   * <p>The ClientPool must have a no-arg constructor. {@link ClientPool#initialize(Map, Object)} is
+   * called to complete the initialization.
+   *
+   * @param impl ClientPool implementation full class name
+   * @param properties catalog properties
+   * @param conf hadoop configuration if needed
+   * @return initialized ClientPool object
+   * @throws IllegalArgumentException if no-arg constructor not found or error during initialization
+   */
+  public static <C, E extends Exception> ClientPool<C, E> loadClientPool(
+      String impl, Map<String, String> properties, Object conf) {
+    Preconditions.checkNotNull(
+        impl, "Cannot initialize custom ClientPool, impl class name is null");
+    DynConstructors.Ctor<ClientPool<C, E>> ctor;
+    try {
+      ctor = DynConstructors.builder(ClientPool.class).impl(impl).buildChecked();
+    } catch (NoSuchMethodException e) {
+      throw new IllegalArgumentException(
+          String.format("Cannot initialize ClientPool implementation %s: %s", impl, e.getMessage()),
+          e);
+    }
+    ClientPool<C, E> clientPool;
+    try {
+      clientPool = ctor.newInstance();
+    } catch (ClassCastException e) {
+      throw new IllegalArgumentException(
+          String.format("Cannot initialize ClientPool, %s does not implement ClientPool.", impl),
+          e);
+    }
+    clientPool.initialize(properties, conf);
+    return clientPool;
+  }
 }
