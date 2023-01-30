@@ -39,11 +39,13 @@ packages = [
     { from = "vendor", include = "fb303" },
     { from = "vendor", include = "hive_metastore" },
     { include = "tests", format = "sdist" },
-    { include = "dev/check-license", format = "sdist" },
     { include = "Makefile", format = "sdist" },
     { include = "NOTICE", format = ["sdist", "wheel"] }
 ]
 
+include = [
+    {path = "dev", format = "sdist"}
+]
 
 [tool.poetry.dependencies]
 python = "^3.8"
