@@ -1541,6 +1541,8 @@ components:
           properties:
             snapshot:
               $ref: '#/components/schemas/Snapshot'
+            last-column-id:
+              type: integer
 
     SetSnapshotRefUpdate:
       allOf:
