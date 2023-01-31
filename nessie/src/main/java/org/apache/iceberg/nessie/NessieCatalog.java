@@ -44,6 +44,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.projectnessie.client.NessieClientBuilder;
 import org.projectnessie.client.NessieConfigConstants;
 import org.projectnessie.client.api.NessieApiV1;
+import org.projectnessie.client.api.NessieApiV2;
 import org.projectnessie.client.http.HttpClientBuilder;
 import org.projectnessie.model.ContentKey;
 import org.projectnessie.model.TableReference;
@@ -88,11 +89,24 @@ public class NessieCatalog extends BaseMetastoreCatalog
         options.get(removePrefix.apply(NessieConfigConstants.CONF_NESSIE_REF));
     String requestedHash =
         options.get(removePrefix.apply(NessieConfigConstants.CONF_NESSIE_REF_HASH));
-    NessieApiV1 api =
+
+    NessieClientBuilder<?> nessieClientBuilder =
         createNessieClientBuilder(
                 options.get(NessieConfigConstants.CONF_NESSIE_CLIENT_BUILDER_IMPL))
-            .fromConfig(x -> options.get(removePrefix.apply(x)))
-            .build(NessieApiV1.class);
+            .fromConfig(x -> options.get(removePrefix.apply(x)));
+    final String apiVersion = options.get(NessieUtil.CLIENT_API_VERSION);
+    NessieApiV1 api;
+    if (apiVersion == null || apiVersion.equalsIgnoreCase("v1")) {
+      // default version is set to v1.
+      api = nessieClientBuilder.build(NessieApiV1.class);
+    } else if (apiVersion.equalsIgnoreCase("v2")) {
+      api = nessieClientBuilder.build(NessieApiV2.class);
+    } else {
+      throw new IllegalArgumentException(
+          String.format(
+              "Unsupported %s: %s. Can only be v1 or v2",
+              NessieUtil.CLIENT_API_VERSION, apiVersion));
+    }
 
     initialize(
         name,

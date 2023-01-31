@@ -33,7 +33,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.RegisterExtension;
 import org.junit.jupiter.api.io.TempDir;
 import org.projectnessie.client.api.NessieApiV1;
-import org.projectnessie.client.ext.NessieApiVersion;
+import org.projectnessie.client.api.NessieApiV2;
 import org.projectnessie.client.ext.NessieApiVersions;
 import org.projectnessie.client.ext.NessieClientFactory;
 import org.projectnessie.client.ext.NessieClientUri;
@@ -54,7 +54,7 @@ import org.projectnessie.versioned.persist.tests.extension.NessieExternalDatabas
 @ExtendWith(DatabaseAdapterExtension.class)
 @NessieDbAdapterName(InmemoryDatabaseAdapterFactory.NAME)
 @NessieExternalDatabase(InmemoryTestConnectionProviderSource.class)
-@NessieApiVersions(versions = NessieApiVersion.V1)
+@NessieApiVersions // test all versions
 public class TestNessieCatalog extends CatalogTests<NessieCatalog> {
 
   @NessieDbAdapter static DatabaseAdapter databaseAdapter;
@@ -115,17 +115,16 @@ public class TestNessieCatalog extends CatalogTests<NessieCatalog> {
   private NessieCatalog initNessieCatalog(String ref) {
     NessieCatalog newCatalog = new NessieCatalog();
     newCatalog.setConf(hadoopConfig);
-    newCatalog.initialize(
-        "nessie",
-        ImmutableMap.of(
-            "ref",
-            ref,
-            CatalogProperties.URI,
-            uri,
-            "auth-type",
-            "NONE",
-            CatalogProperties.WAREHOUSE_LOCATION,
-            temp.toUri().toString()));
+    ImmutableMap.Builder<String, String> options =
+        ImmutableMap.<String, String>builder()
+            .put("ref", ref)
+            .put(CatalogProperties.URI, uri)
+            .put("auth-type", "NONE")
+            .put(CatalogProperties.WAREHOUSE_LOCATION, temp.toUri().toString());
+    if (api instanceof NessieApiV2) {
+      options.put(NessieUtil.CLIENT_API_VERSION, "v2");
+    }
+    newCatalog.initialize("nessie", options.buildOrThrow());
     return newCatalog;
   }
 
