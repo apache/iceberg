@@ -69,8 +69,9 @@ from pyiceberg.expressions.visitors import (
     rewrite_to_dnf,
     visit,
     visit_bound_predicate,
+    InclusiveMetricsEvaluator,
 )
-from pyiceberg.manifest import ManifestFile, PartitionFieldSummary
+from pyiceberg.manifest import ManifestFile, PartitionFieldSummary, DataFile, FileFormat
 from pyiceberg.schema import Accessor, Schema
 from pyiceberg.types import (
     DoubleType,
@@ -1472,3 +1473,205 @@ def test_dnf_to_dask(table_schema_simple: Schema) -> None:
         ),
     )
     assert expression_to_plain_format(expr) == [[("foo", ">", "hello")], [("bar", "in", {1, 2, 3}), ("baz", "==", True)]]
+
+
+@pytest.fixture
+def schema_data_file() -> Schema:
+    return Schema(
+        NestedField(1, "all_nan", DoubleType(), required=True),
+        NestedField(2, "max_nan", DoubleType(), required=True),
+        NestedField(3, "min_max_nan", FloatType(), required=False),
+        NestedField(4, "all_nan_null_bounds", DoubleType(), required=True),
+        NestedField(5, "some_nan_correct_bounds", FloatType(), required=False),
+    )
+
+
+@pytest.fixture
+def data_file() -> DataFile:
+    return DataFile(
+        file_path="file.avro",
+        file_format=FileFormat.PARQUET,
+        partition={},
+        record_count=50,
+        file_size_in_bytes=3,
+        column_sizes={
+            1: 10,
+            2: 10,
+            3: 10,
+            4: 10,
+            5: 10,
+        },
+        value_counts={
+            1: 10,
+            2: 10,
+            3: 10,
+            4: 10,
+            5: 10,
+        },
+        null_value_counts={
+            1: 0,
+            2: 0,
+            3: 0,
+            4: 0,
+            5: 0,
+        },
+        nan_value_counts={1: 10, 4: 10, 5: 5},
+        lower_bounds={
+            1: to_bytes(DoubleType(), float("nan")),
+            2: to_bytes(DoubleType(), 7),
+            3: to_bytes(FloatType(), float("nan")),
+            5: to_bytes(FloatType(), 7),
+        },
+        upper_bounds={
+            1: to_bytes(DoubleType(), float("nan")),
+            2: to_bytes(DoubleType(), float("nan")),
+            3: to_bytes(FloatType(), float("nan")),
+            5: to_bytes(FloatType(), 22),
+        },
+    )
+
+
+def test_inclusive_metrics_evaluator_less_than_and_less_than_equal(schema_data_file: Schema, data_file: DataFile) -> None:
+    for operator in [LessThan, LessThanOrEqual]:
+        should_read = InclusiveMetricsEvaluator(schema_data_file, operator("all_nan", 1)).eval(data_file)
+        assert not should_read, "Should not match: all nan column doesn't contain number"
+
+        should_read = InclusiveMetricsEvaluator(schema_data_file, operator("max_nan", 1)).eval(data_file)
+        assert not should_read, "Should not match: 1 is smaller than lower bound"
+
+        should_read = InclusiveMetricsEvaluator(schema_data_file, operator("max_nan", 10)).eval(data_file)
+        assert should_read, "Should match: 10 is larger than lower bound"
+
+        should_read = InclusiveMetricsEvaluator(schema_data_file, operator("min_max_nan", 1)).eval(data_file)
+        assert should_read, "Should match: no visibility"
+
+        should_read = InclusiveMetricsEvaluator(schema_data_file, operator("all_nan_null_bounds", 1)).eval(data_file)
+        assert not should_read, "Should not match: all nan column doesn't contain number"
+
+        should_read = InclusiveMetricsEvaluator(schema_data_file, operator("some_nan_correct_bounds", 1)).eval(data_file)
+        assert not should_read, "Should not match: 1 is smaller than lower bound"
+
+        should_read = InclusiveMetricsEvaluator(schema_data_file, operator("some_nan_correct_bounds", 10)).eval(data_file)
+        assert should_read, "Should match: 10 larger than lower bound"
+
+
+def test_inclusive_metrics_evaluator_greater_than_and_greater_than_equal(schema_data_file: Schema, data_file: DataFile) -> None:
+    for operator in [GreaterThan, GreaterThanOrEqual]:
+        should_read = InclusiveMetricsEvaluator(schema_data_file, operator("all_nan", 1)).eval(data_file)
+        assert not should_read, "Should not match: all nan column doesn't contain number"
+
+        should_read = InclusiveMetricsEvaluator(schema_data_file, operator("max_nan", 1)).eval(data_file)
+        assert should_read, "Should match: upper bound is larger than 1"
+
+        should_read = InclusiveMetricsEvaluator(schema_data_file, operator("max_nan", 10)).eval(data_file)
+        assert should_read, "Should match: upper bound is larger than 10"
+
+        should_read = InclusiveMetricsEvaluator(schema_data_file, operator("min_max_nan", 1)).eval(data_file)
+        assert should_read, "Should match: no visibility"
+
+        should_read = InclusiveMetricsEvaluator(schema_data_file, operator("all_nan_null_bounds", 1)).eval(data_file)
+        assert not should_read, "Should not match: all nan column doesn't contain number"
+
+        should_read = InclusiveMetricsEvaluator(schema_data_file, operator("some_nan_correct_bounds", 1)).eval(data_file)
+        assert should_read, "Should match: 1 is smaller than upper bound"
+
+        should_read = InclusiveMetricsEvaluator(schema_data_file, operator("some_nan_correct_bounds", 10)).eval(data_file)
+        assert should_read, "Should match: 10 is smaller than upper bound"
+
+        should_read = InclusiveMetricsEvaluator(schema_data_file, operator("all_nan", 30)).eval(data_file)
+        assert not should_read, "Should not match: 30 is greater than upper bound"
+
+
+def test_inclusive_metrics_evaluator_equals(schema_data_file: Schema, data_file: DataFile) -> None:
+    should_read = InclusiveMetricsEvaluator(schema_data_file, EqualTo("all_nan", 1)).eval(data_file)
+    assert not should_read, "Should not match: all nan column doesn't contain number"
+
+    should_read = InclusiveMetricsEvaluator(schema_data_file, EqualTo("max_nan", 1)).eval(data_file)
+    assert not should_read, "Should not match: 1 is smaller than lower bound"
+
+    should_read = InclusiveMetricsEvaluator(schema_data_file, EqualTo("max_nan", 10)).eval(data_file)
+    assert should_read, "Should match: 10 is within bounds"
+
+    should_read = InclusiveMetricsEvaluator(schema_data_file, EqualTo("min_max_nan", 1)).eval(data_file)
+    assert should_read, "Should match: no visibility"
+
+    should_read = InclusiveMetricsEvaluator(schema_data_file, EqualTo("all_nan_null_bounds", 1)).eval(data_file)
+    assert not should_read, "Should not match: all nan column doesn't contain number"
+
+    should_read = InclusiveMetricsEvaluator(schema_data_file, EqualTo("some_nan_correct_bounds", 1)).eval(data_file)
+    assert not should_read, "Should not match: 1 is smaller than lower bound"
+
+    should_read = InclusiveMetricsEvaluator(schema_data_file, EqualTo("some_nan_correct_bounds", 10)).eval(data_file)
+    assert should_read, "Should match: 10 is within bounds"
+
+    should_read = InclusiveMetricsEvaluator(schema_data_file, EqualTo("all_nan", 30)).eval(data_file)
+    assert not should_read, "Should not match: 30 is greater than upper bound"
+
+
+def test_inclusive_metrics_evaluator_not_equals(schema_data_file: Schema, data_file: DataFile) -> None:
+    should_read = InclusiveMetricsEvaluator(schema_data_file, NotEqualTo("all_nan", 1)).eval(data_file)
+    assert should_read, "Should match: no visibility"
+
+    should_read = InclusiveMetricsEvaluator(schema_data_file, NotEqualTo("max_nan", 10)).eval(data_file)
+    assert should_read, "Should match: no visibility"
+
+    should_read = InclusiveMetricsEvaluator(schema_data_file, NotEqualTo("max_nan", 10)).eval(data_file)
+    assert should_read, "Should match: no visibility"
+
+    should_read = InclusiveMetricsEvaluator(schema_data_file, NotEqualTo("min_max_nan", 1)).eval(data_file)
+    assert should_read, "Should match: no visibility"
+
+    should_read = InclusiveMetricsEvaluator(schema_data_file, NotEqualTo("all_nan_null_bounds", 1)).eval(data_file)
+    assert should_read, "Should match: no visibility"
+
+    should_read = InclusiveMetricsEvaluator(schema_data_file, NotEqualTo("some_nan_correct_bounds", 1)).eval(data_file)
+    assert should_read, "Should match: no visibility"
+
+    should_read = InclusiveMetricsEvaluator(schema_data_file, NotEqualTo("some_nan_correct_bounds", 10)).eval(data_file)
+    assert should_read, "Should match: no visibility"
+
+    should_read = InclusiveMetricsEvaluator(schema_data_file, NotEqualTo("some_nan_correct_bounds", 30)).eval(data_file)
+    assert should_read, "Should match: no visibility"
+
+
+def test_inclusive_metrics_evaluator_in(schema_data_file: Schema, data_file: DataFile) -> None:
+    should_read = InclusiveMetricsEvaluator(schema_data_file, In("all_nan", (1, 10, 30))).eval(data_file)
+    assert not should_read, "Should not match: all nan column doesn't contain number"
+
+    should_read = InclusiveMetricsEvaluator(schema_data_file, In("max_nan", (1, 10, 30))).eval(data_file)
+    assert should_read, "Should match: 10 and 30 are greater than lower bound"
+
+    should_read = InclusiveMetricsEvaluator(schema_data_file, In("min_max_nan", (1, 10, 30))).eval(data_file)
+    assert should_read, "Should match: no visibility"
+
+    should_read = InclusiveMetricsEvaluator(schema_data_file, In("all_nan_null_bounds", (1, 10, 30))).eval(data_file)
+    assert not should_read, "Should not match: all nan column doesn't contain number"
+
+    should_read = InclusiveMetricsEvaluator(schema_data_file, In("some_nan_correct_bounds", (1, 10, 30))).eval(data_file)
+    assert should_read, "Should match: 10 within bounds"
+
+    should_read = InclusiveMetricsEvaluator(schema_data_file, In("some_nan_correct_bounds", (1, 30))).eval(data_file)
+    assert not should_read, "Should not match: 1 not within bounds"
+
+
+def test_inclusive_metrics_evaluator_not_in(schema_data_file: Schema, data_file: DataFile) -> None:
+    should_read = InclusiveMetricsEvaluator(schema_data_file, NotIn("all_nan", (1, 10, 30))).eval(data_file)
+    assert should_read, "Should match: no visibility"
+
+    should_read = InclusiveMetricsEvaluator(schema_data_file, NotIn("max_nan", (1, 10, 30))).eval(data_file)
+    assert should_read, "Should match: no visibility"
+
+    should_read = InclusiveMetricsEvaluator(schema_data_file, NotIn("max_nan", (1, 10, 30))).eval(data_file)
+    assert should_read, "Should match: no visibility"
+
+    should_read = InclusiveMetricsEvaluator(schema_data_file, NotIn("min_max_nan", (1, 10, 30))).eval(data_file)
+    assert should_read, "Should match: no visibility"
+
+    should_read = InclusiveMetricsEvaluator(schema_data_file, NotIn("all_nan_null_bounds", (1, 10, 30))).eval(data_file)
+    assert should_read, "Should match: no visibility"
+
+    should_read = InclusiveMetricsEvaluator(schema_data_file, NotIn("some_nan_correct_bounds", (1, 30))).eval(data_file)
+    assert should_read, "Should match: no visibility"
+
+    should_read = InclusiveMetricsEvaluator(schema_data_file, NotIn("some_nan_correct_bounds", (1, 30))).eval(data_file)
+    assert should_read, "Should match: no visibility"

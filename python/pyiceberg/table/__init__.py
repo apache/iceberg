@@ -42,7 +42,7 @@ from pyiceberg.expressions import (
     BooleanExpression,
     visitors,
 )
-from pyiceberg.expressions.visitors import inclusive_projection
+from pyiceberg.expressions.visitors import inclusive_projection, InclusiveMetricsEvaluator
 from pyiceberg.io import FileIO
 from pyiceberg.io.pyarrow import project_table
 from pyiceberg.manifest import (
@@ -274,11 +274,19 @@ def _check_content(file: DataFile) -> DataFile:
         return file
 
 
-def _open_manifest(io: FileIO, manifest: ManifestFile, partition_filter: Callable[[DataFile], bool]) -> List[FileScanTask]:
+def _open_manifest(
+    io: FileIO,
+    schema: Schema,
+    row_filter: BooleanExpression,
+    manifest: ManifestFile,
+    partition_filter: Callable[[DataFile], bool],
+    case_sensitive: bool,
+) -> List[FileScanTask]:
     all_files = files(io.new_input(manifest.manifest_path))
     matching_partition_files = filter(partition_filter, all_files)
     matching_partition_data_files = map(_check_content, matching_partition_files)
-    return [FileScanTask(file) for file in matching_partition_data_files]
+    evaluator = InclusiveMetricsEvaluator(schema, row_filter, case_sensitive)
+    return [FileScanTask(file) for file in matching_partition_data_files if evaluator.eval(file)]
 
 
 class DataScan(TableScan["DataScan"]):
@@ -341,7 +349,17 @@ class DataScan(TableScan["DataScan"]):
             return chain(
                 *pool.starmap(
                     func=_open_manifest,
-                    iterable=[(io, manifest, partition_evaluators[manifest.partition_spec_id]) for manifest in manifests],
+                    iterable=[
+                        (
+                            io,
+                            self.table.schema(),
+                            self.row_filter,
+                            manifest,
+                            partition_evaluators[manifest.partition_spec_id],
+                            self.case_sensitive,
+                        )
+                        for manifest in manifests
+                    ],
                 )
             )
 

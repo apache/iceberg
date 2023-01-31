@@ -328,6 +328,9 @@ class FloatLiteral(Literal[float]):
     def __ge__(self, other: Any) -> bool:
         return self._value32 >= other
 
+    def __hash__(self) -> int:
+        return hash(self.value)
+
     @singledispatchmethod
     def to(self, type_var: IcebergType) -> Literal:  # type: ignore
         raise TypeError(f"Cannot convert FloatLiteral into {type_var}")

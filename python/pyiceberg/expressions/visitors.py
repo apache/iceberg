@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import math
 from abc import ABC, abstractmethod
 from functools import singledispatch
 from typing import (
@@ -24,6 +25,7 @@ from typing import (
     Set,
     Tuple,
     TypeVar,
+    Dict,
 )
 
 from pyiceberg.conversions import from_bytes
@@ -55,15 +57,16 @@ from pyiceberg.expressions import (
     UnboundPredicate,
 )
 from pyiceberg.expressions.literals import Literal
-from pyiceberg.manifest import ManifestFile, PartitionFieldSummary
+from pyiceberg.manifest import ManifestFile, PartitionFieldSummary, DataFile
 from pyiceberg.partitioning import PartitionSpec
 from pyiceberg.schema import Schema
-from pyiceberg.typedef import StructProtocol
+from pyiceberg.typedef import StructProtocol, EMPTY_DICT
 from pyiceberg.types import (
     DoubleType,
     FloatType,
     IcebergType,
     PrimitiveType,
+    StructType,
 )
 
 T = TypeVar("T")
@@ -190,7 +193,7 @@ def _(obj: Or, visitor: BooleanExpressionVisitor[T]) -> T:
     return visitor.visit_or(left_result=left_result, right_result=right_result)
 
 
-def bind(schema: Schema, expression: BooleanExpression, case_sensitive: bool) -> BooleanExpression:
+def bind(schema: Schema, expression: BooleanExpression, case_sensitive: bool) -> BoundPredicate:
     """Travers over an expression to bind the predicates to the schema
 
     Args:
@@ -960,3 +963,246 @@ def expression_to_plain_format(expressions: Tuple[BooleanExpression, ...]) -> Li
     """
     # In the form of expr1 ∨ expr2 ∨ ... ∨ exprN
     return [visit(expression, ExpressionToPlainFormat()) for expression in expressions]
+
+
+class InclusiveMetricsEvaluator(BoundBooleanExpressionVisitor[bool]):
+
+    struct: StructType
+    expr: BoundPredicate
+
+    value_counts: Dict[int, int]
+    null_counts: Dict[int, int]
+    nan_counts: Dict[int, int]
+    lower_bounds: Dict[int, bytes]
+    upper_bounds: Dict[int, bytes]
+
+    def __init__(self, schema: Schema, expr: BooleanExpression, case_sensitive: bool = True) -> None:
+        self.struct = schema.as_struct()
+        self.expr = bind(schema, rewrite_not(expr), case_sensitive)
+
+    """Test whether the file may contain records that match the expression."""
+
+    def eval(self, file: DataFile) -> bool:
+        if file.record_count == 0:
+            return ROWS_CANNOT_MATCH
+
+        if file.record_count < 0:
+            # we haven't implemented parsing record count from avro file and thus set record count -1
+            # when importing avro tables to iceberg tables. This should be updated once we implemented
+            # and set correct record count.
+            return ROWS_MIGHT_MATCH
+
+        self.value_counts = file.value_counts or EMPTY_DICT
+        self.null_counts = file.null_value_counts or EMPTY_DICT
+        self.nan_counts = file.nan_value_counts or EMPTY_DICT
+        self.lower_bounds = file.lower_bounds or EMPTY_DICT
+        self.upper_bounds = file.upper_bounds or EMPTY_DICT
+
+        return visit(self.expr, self)
+
+    def _contains_nulls_only(self, id: int) -> bool:
+        return id in self.value_counts and id in self.null_counts and self.value_counts[id] - self.null_counts[id] == 0
+
+    def _contains_nans_only(self, id: int) -> bool:
+        return id in self.nan_counts and id in self.value_counts and self.nan_counts[id] == self.value_counts[id]
+
+    def _is_nan(self, val: Any) -> bool:
+        return math.isnan(val)
+
+    def visit_true(self) -> bool:
+        # all rows match
+        return ROWS_MIGHT_MATCH
+
+    def visit_false(self) -> bool:
+        # all rows fail
+        return ROWS_CANNOT_MATCH
+
+    def visit_not(self, child_result: bool) -> bool:
+        raise ValueError(f"NOT should be rewritten: {child_result}")
+
+    def visit_and(self, left_result: bool, right_result: bool) -> bool:
+        return left_result and right_result
+
+    def visit_or(self, left_result: bool, right_result: bool) -> bool:
+        return left_result or right_result
+
+    def visit_is_null(self, term: BoundTerm[L]) -> bool:
+        id = term.ref().field.field_id
+
+        if self.null_counts is not None and id in self.null_counts and self.null_counts[id] == 0:
+            return ROWS_CANNOT_MATCH
+
+        return ROWS_MIGHT_MATCH
+
+    def visit_not_null(self, term: BoundTerm[L]) -> bool:
+        # no need to check whether the field is required because binding evaluates that case
+        # if the column has no non-null values, the expression cannot match
+        id = term.ref().field.field_id
+
+        if self._contains_nulls_only(id):
+            return ROWS_CANNOT_MATCH
+
+        return ROWS_MIGHT_MATCH
+
+    def visit_is_nan(self, term: BoundTerm[L]) -> bool:
+        id = term.ref().field.field_id
+
+        if id in self.nan_counts and self.nan_counts[id] == 0:
+            return ROWS_CANNOT_MATCH
+
+        # when there's no nanCounts information, but we already know the column only contains null,
+        # it's guaranteed that there's no NaN value
+        if self._contains_nulls_only(id):
+            return ROWS_CANNOT_MATCH
+
+        return ROWS_MIGHT_MATCH
+
+    def visit_not_nan(self, term: BoundTerm[L]) -> bool:
+        id = term.ref().field.field_id
+
+        if self._contains_nans_only(id):
+            return ROWS_CANNOT_MATCH
+
+        return ROWS_MIGHT_MATCH
+
+    def visit_less_than(self, term: BoundTerm[L], literal: Literal[L]) -> bool:
+        field = term.ref().field
+        id = field.field_id
+
+        if self._contains_nulls_only(id) or self._contains_nans_only(id):
+            return ROWS_CANNOT_MATCH
+
+        if not isinstance(field.field_type, PrimitiveType):
+            raise ValueError(f"Expected PrimitiveType: {field.field_type}")
+
+        if id in self.lower_bounds:
+            lower = from_bytes(field.field_type, self.lower_bounds[id])
+
+            if self._is_nan(lower):
+                # NaN indicates unreliable bounds. See the InclusiveMetricsEvaluator docs for more.
+                return ROWS_MIGHT_MATCH
+
+            if lower >= literal.value:
+                return ROWS_CANNOT_MATCH
+
+        return ROWS_MIGHT_MATCH
+
+    def visit_less_than_or_equal(self, term: BoundTerm[L], literal: Literal[L]) -> bool:
+        field = term.ref().field
+        id = field.field_id
+
+        if self._contains_nulls_only(id) or self._contains_nans_only(id):
+            return ROWS_CANNOT_MATCH
+
+        if not isinstance(field.field_type, PrimitiveType):
+            raise ValueError(f"Expected PrimitiveType: {field.field_type}")
+
+        if id in self.lower_bounds:
+            lower = from_bytes(field.field_type, self.lower_bounds[id])
+
+            if self._is_nan(lower):
+                # NaN indicates unreliable bounds. See the InclusiveMetricsEvaluator docs for more.
+                return ROWS_MIGHT_MATCH
+
+            if lower > literal.value:
+                return ROWS_CANNOT_MATCH
+
+        return ROWS_MIGHT_MATCH
+
+    def visit_greater_than(self, term: BoundTerm[L], literal: Literal[L]) -> bool:
+        field = term.ref().field
+        id = field.field_id
+
+        if self._contains_nulls_only(id) or self._contains_nans_only(id):
+            return ROWS_CANNOT_MATCH
+
+        if not isinstance(field.field_type, PrimitiveType):
+            raise ValueError(f"Expected PrimitiveType: {field.field_type}")
+
+        if id in self.upper_bounds and from_bytes(field.field_type, self.upper_bounds[id]) <= literal.value:
+            return ROWS_CANNOT_MATCH
+
+        return ROWS_MIGHT_MATCH
+
+    def visit_greater_than_or_equal(self, term: BoundTerm[L], literal: Literal[L]) -> bool:
+        field = term.ref().field
+        id = field.field_id
+
+        if self._contains_nulls_only(id) or self._contains_nans_only(id):
+            return ROWS_CANNOT_MATCH
+
+        if not isinstance(field.field_type, PrimitiveType):
+            raise ValueError(f"Expected PrimitiveType: {field.field_type}")
+
+        if id in self.upper_bounds and from_bytes(field.field_type, self.upper_bounds[id]) < literal.value:
+            return ROWS_CANNOT_MATCH
+
+        return ROWS_MIGHT_MATCH
+
+    def visit_equal(self, term: BoundTerm[L], literal: Literal[L]) -> bool:
+        field = term.ref().field
+        id = field.field_id
+
+        if self._contains_nulls_only(id) or self._contains_nans_only(id):
+            return ROWS_CANNOT_MATCH
+
+        if not isinstance(field.field_type, PrimitiveType):
+            raise ValueError(f"Expected PrimitiveType: {field.field_type}")
+
+        if id in self.lower_bounds:
+            lower = from_bytes(field.field_type, self.lower_bounds[id])
+
+            if self._is_nan(lower):
+                # NaN indicates unreliable bounds. See the InclusiveMetricsEvaluator docs for more.
+                return ROWS_MIGHT_MATCH
+
+            if lower > literal.value:
+                return ROWS_CANNOT_MATCH
+
+        if id in self.upper_bounds and from_bytes(field.field_type, self.upper_bounds[id]) < literal.value:
+            return ROWS_CANNOT_MATCH
+
+        return ROWS_MIGHT_MATCH
+
+    def visit_not_equal(self, term: BoundTerm[L], literal: Literal[L]) -> bool:
+        return ROWS_MIGHT_MATCH
+
+    def visit_in(self, term: BoundTerm[L], literals: Set[L]) -> bool:
+        field = term.ref().field
+        id = field.field_id
+
+        if self._contains_nulls_only(id) or self._contains_nans_only(id):
+            return ROWS_CANNOT_MATCH
+
+        if len(literals) > IN_PREDICATE_LIMIT:
+            # skip evaluating the predicate if the number of values is too big
+            return ROWS_MIGHT_MATCH
+
+        if not isinstance(field.field_type, PrimitiveType):
+            raise ValueError(f"Expected PrimitiveType: {field.field_type}")
+
+        if id in self.lower_bounds:
+            lower = from_bytes(field.field_type, self.lower_bounds[id])
+
+            if self._is_nan(lower):
+                # NaN indicates unreliable bounds. See the InclusiveMetricsEvaluator docs for more.
+                return ROWS_MIGHT_MATCH
+
+            literals = {lit for lit in literals if lower < lit}
+            if len(literals) == 0:
+                return ROWS_CANNOT_MATCH
+
+        if id in self.upper_bounds:
+            upper = from_bytes(field.field_type, self.upper_bounds[id])
+            # this is different from Java, here NaN is always larger
+            if not self._is_nan(upper):
+                literals = {lit for lit in literals if upper > lit}
+                if len(literals) == 0:
+                    return ROWS_CANNOT_MATCH
+
+        return ROWS_MIGHT_MATCH
+
+    def visit_not_in(self, term: BoundTerm[L], literals: Set[L]) -> bool:
+        # because the bounds are not necessarily a min or max value, this cannot be answered using
+        # them. notIn(col, {X, ...}) with (X, Y) doesn't guarantee that X is a value in col.
+        return ROWS_MIGHT_MATCH
