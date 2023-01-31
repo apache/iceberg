@@ -25,6 +25,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.Path;
 import org.apache.hudi.common.config.HoodieMetadataConfig;
 import org.apache.hudi.common.engine.HoodieEngineContext;
 import org.apache.hudi.common.engine.HoodieLocalEngineContext;
@@ -37,16 +38,12 @@ import org.apache.hudi.common.table.HoodieTableMetaClient;
 import org.apache.hudi.common.table.TableSchemaResolver;
 import org.apache.hudi.common.table.timeline.HoodieInstant;
 import org.apache.hudi.common.table.timeline.HoodieTimeline;
-import org.apache.hudi.common.table.view.FileSystemViewManager;
 import org.apache.hudi.common.table.view.HoodieTableFileSystemView;
 import org.apache.hudi.common.util.Option;
 import org.apache.hudi.exception.HoodieException;
 import org.apache.hudi.hadoop.utils.HoodieInputFormatUtils;
 import org.apache.hudi.internal.schema.InternalSchema;
 import org.apache.hudi.internal.schema.convert.AvroInternalSchemaConverter;
-import org.apache.hudi.metadata.HoodieTableMetadata;
-
-import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
@@ -118,12 +115,14 @@ public class BaseSnapshotHudiTableAction implements SnapshotHudiTable {
 
   @Override
   public SnapshotHudiTable tableProperties(Map<String, String> properties) {
-    return null;
+    additionalPropertiesBuilder.putAll(properties);
+    return this;
   }
 
   @Override
   public SnapshotHudiTable tableProperty(String key, String value) {
-    return null;
+    additionalPropertiesBuilder.put(key, value);
+    return this;
   }
 
   @Override
@@ -137,17 +136,20 @@ public class BaseSnapshotHudiTableAction implements SnapshotHudiTable {
     // TODO: add support for newTableLocation
     Transaction icebergTransaction =
         icebergCatalog.newCreateTableTransaction(
-            newTableIdentifier, icebergSchema, partitionSpec, destTableProperties());
+            newTableIdentifier,
+            icebergSchema,
+            partitionSpec,
+            hoodieTableBasePath,
+            destTableProperties());
     // We need name mapping to ensure we can read data files correctly as iceberg table has its own
     // rule to assign field id
     // Although the field id rule seems to be the same as hudi, but the rule is not guaranteed by
     // any API
+    NameMapping nameMapping = MappingUtil.create(icebergTransaction.table().schema());
     icebergTransaction
         .table()
         .updateProperties()
-        .set(
-            TableProperties.DEFAULT_NAME_MAPPING,
-            NameMappingParser.toJson(MappingUtil.create(icebergTransaction.table().schema())))
+        .set(TableProperties.DEFAULT_NAME_MAPPING, NameMappingParser.toJson(nameMapping))
         .commit();
 
     // Pre-process the timeline, we only need to process all COMPLETED commit for COW table
@@ -156,18 +158,24 @@ public class BaseSnapshotHudiTableAction implements SnapshotHudiTable {
         hoodieTableMetaClient.getActiveTimeline().getCommitsTimeline().filterCompletedInstants();
     // Initialize the FileSystemView for querying table data files
     // TODO: need to choose the correct implementation of the FileSystemView
-//    HoodieTableFileSystemView hoodieTableFileSystemView =
-//        FileSystemViewManager.createInMemoryFileSystemViewWithTimeline(
-//            hoodieEngineContext, hoodieTableMetaClient, hoodieMetadataConfig, timeline);
-    HoodieTableFileSystemView hoodieTableFileSystemView = new HoodieTableFileSystemView(
-        hoodieTableMetaClient, timeline);
+    //    HoodieTableFileSystemView hoodieTableFileSystemView =
+    //        FileSystemViewManager.createInMemoryFileSystemViewWithTimeline(
+    //            hoodieEngineContext, hoodieTableMetaClient, hoodieMetadataConfig, timeline);
+    HoodieTableFileSystemView hoodieTableFileSystemView =
+        new HoodieTableFileSystemView(hoodieTableMetaClient, timeline);
     // get all instants on the timeline
     Stream<HoodieInstant> completedInstants = timeline.getInstants();
-    List<String> partitionPaths = FSUtils.getAllPartitionPaths(hoodieEngineContext, hoodieMetadataConfig, hoodieTableMetaClient.getBasePathV2().toString());
+    List<String> partitionPaths =
+        FSUtils.getAllPartitionPaths(
+            hoodieEngineContext,
+            hoodieMetadataConfig,
+            hoodieTableMetaClient.getBasePathV2().toString());
     try {
       for (String partitionPath : partitionPaths) {
-        Path fullPartitionPath = FSUtils.getPartitionPath(hoodieTableMetaClient.getBasePathV2(), partitionPath);
-        hoodieTableFileSystemView.addFilesToView(FSUtils.getAllDataFilesInPartition(hoodieTableMetaClient.getFs(), fullPartitionPath));
+        Path fullPartitionPath =
+            FSUtils.getPartitionPath(hoodieTableMetaClient.getBasePathV2(), partitionPath);
+        hoodieTableFileSystemView.addFilesToView(
+            FSUtils.getAllDataFilesInPartition(hoodieTableMetaClient.getFs(), fullPartitionPath));
       }
     } catch (IOException e) {
       throw new RuntimeException("Failed to get all data files in partition", e);
@@ -380,7 +388,7 @@ public class BaseSnapshotHudiTableAction implements SnapshotHudiTable {
 
   private PartitionSpec getPartitionSpecFromHoodieMetadataData(Schema schema) {
     Option<String[]> partitionNames = hoodieTableConfig.getPartitionFields();
-    if (partitionNames.isPresent()) {
+    if (partitionNames.isPresent() && partitionNames.get().length > 0) {
       PartitionSpec.Builder builder = PartitionSpec.builderFor(schema);
       for (String partitionName : partitionNames.get()) {
         builder.identity(partitionName);

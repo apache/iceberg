@@ -473,6 +473,7 @@ project(':iceberg-hudi') {
       exclude group: 'com.google.code.gson', module: 'gson'
     }
     if (sparkVersions.contains("3.3") && scalaVersion == "2.12") {
+      integrationImplementation project(':iceberg-data')
       integrationImplementation("org.apache.hudi:hudi-spark3.3-bundle_2.12:0.12.2")
       integrationImplementation project(path: ":iceberg-spark:iceberg-spark-3.3_${scalaVersion}")
       integrationImplementation("org.apache.hadoop:hadoop-minicluster") {

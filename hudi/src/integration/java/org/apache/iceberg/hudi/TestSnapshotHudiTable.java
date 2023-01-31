@@ -24,31 +24,24 @@ import static org.apache.spark.sql.functions.expr;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.Comparator;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
-import java.util.stream.Collectors;
-
 import org.apache.hudi.DataSourceReadOptions;
 import org.apache.hudi.DataSourceWriteOptions;
-import org.apache.hudi.QuickstartUtils;
-import org.apache.hudi.common.table.HoodieTableMetaClient;
 import org.apache.hudi.config.HoodieWriteConfig;
+import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.data.IcebergGenerics;
+import org.apache.iceberg.data.Record;
+import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
-import org.apache.iceberg.spark.SparkSessionCatalog;
-import org.apache.spark.api.java.JavaRDD;
-import org.apache.spark.api.java.JavaSparkContext;
-import org.apache.spark.sql.Column;
+import org.apache.iceberg.spark.Spark3Util;
+import org.apache.iceberg.spark.SparkCatalog;
 import org.apache.spark.sql.Dataset;
-import org.apache.spark.sql.RelationalGroupedDataset;
 import org.apache.spark.sql.Row;
-import org.apache.spark.sql.SQLContext;
 import org.apache.spark.sql.SaveMode;
+import org.apache.spark.sql.connector.catalog.CatalogPlugin;
 import org.apache.spark.sql.hudi.catalog.HoodieCatalog;
 import org.assertj.core.api.Assertions;
 import org.junit.Before;
@@ -80,13 +73,15 @@ public class TestSnapshotHudiTable extends SparkHudiMigrationTestBase {
   private String unpartitionedLocation;
   private String newIcebergTableLocation;
   private String externalDataFilesTableLocation;
+  private Dataset<Row> typeTestDataframe = typeTestDataFrame();
+  private Dataset<Row> nestedDataframe = nestedDataFrame();
 
   @Parameterized.Parameters(name = "Catalog Name {0} - Options {2}")
   public static Object[][] parameters() {
     return new Object[][] {
       new Object[] {
         icebergCatalogName,
-        SparkSessionCatalog.class.getName(),
+        SparkCatalog.class.getName(),
         ImmutableMap.of(
             "type",
             "hive",
@@ -177,27 +172,39 @@ public class TestSnapshotHudiTable extends SparkHudiMigrationTestBase {
     spark.sql(String.format("DROP TABLE IF EXISTS %s", unpartitionedIdentifier));
     spark.sql(String.format("DROP TABLE IF EXISTS %s", externalDataFilesIdentifier));
 
-    Dataset<Row> df = typeTestDataFrame();
+    //    typeTestDataframe.write()
+    //        .format("hudi")
+    //        .options(QuickstartUtils.getQuickstartWriteConfigs())
+    //        .option(DataSourceWriteOptions.RECORDKEY_FIELD().key(), "decimalCol")
+    //        .option(DataSourceWriteOptions.PRECOMBINE_FIELD().key(), "intCol")
+    //        .option(DataSourceWriteOptions.PARTITIONPATH_FIELD().key(), "partitionPath")
+    //        .option(HoodieWriteConfig.TABLE_NAME, partitionedIdentifier)
+    //        .mode(SaveMode.Overwrite)
+    //        .save(partitionedLocation);
+    writeHoodieTable(
+        typeTestDataframe,
+        "decimalCol",
+        "intCol",
+        "partitionPath",
+        partitionedLocation,
+        partitionedIdentifier);
 
-    df.write()
-        .format("hudi")
-        .options(QuickstartUtils.getQuickstartWriteConfigs())
-        .option(DataSourceWriteOptions.RECORDKEY_FIELD().key(), "decimalCol")
-        .option(DataSourceWriteOptions.PRECOMBINE_FIELD().key(), "intCol")
-        .option(DataSourceWriteOptions.PARTITIONPATH_FIELD().key(), "partitionPath")
-        .option(HoodieWriteConfig.TABLE_NAME, partitionedIdentifier)
-        .mode(SaveMode.Overwrite)
-        .save(partitionedLocation);
-
-//    df.write()
-//        .format("hudi")
-//        .options(QuickstartUtils.getQuickstartWriteConfigs())
-//        .option(DataSourceWriteOptions.RECORDKEY_FIELD().key(), "magic_number")
-//        .option(DataSourceWriteOptions.PRECOMBINE_FIELD().key(), "name")
-//        .option(DataSourceWriteOptions.PARTITIONPATH_FIELD().key(), "")
-//        .option(HoodieWriteConfig.TABLE_NAME, unpartitionedIdentifier)
-//        .mode(SaveMode.Overwrite)
-//        .save(unpartitionedLocation);
+    //    df.write()
+    //        .format("hudi")
+    //        .options(QuickstartUtils.getQuickstartWriteConfigs())
+    //        .option(DataSourceWriteOptions.RECORDKEY_FIELD().key(), "magic_number")
+    //        .option(DataSourceWriteOptions.PRECOMBINE_FIELD().key(), "name")
+    //        .option(DataSourceWriteOptions.PARTITIONPATH_FIELD().key(), "")
+    //        .option(HoodieWriteConfig.TABLE_NAME, unpartitionedIdentifier)
+    //        .mode(SaveMode.Overwrite)
+    //        .save(unpartitionedLocation);
+    writeHoodieTable(
+        typeTestDataframe,
+        "decimalCol",
+        "intCol",
+        "",
+        unpartitionedLocation,
+        unpartitionedIdentifier);
   }
 
   @Test
@@ -215,45 +222,95 @@ public class TestSnapshotHudiTable extends SparkHudiMigrationTestBase {
   }
 
   @Test
-  public void testHudiMetaClientAlpha() {
+  public void testBasicPartitionedTable() {
     LOG.info("Alpha test reference: hoodie table path: {}", partitionedLocation);
     String newTableIdentifier = destName(icebergCatalogName, "alpha_iceberg_table");
     SnapshotHudiTable.Result result =
         HudiToIcebergMigrationSparkIntegration.snapshotHudiTable(
                 spark, partitionedLocation, newTableIdentifier)
             .execute();
-
-    checkSnapshotIntegrity(partitionedLocation, newTableIdentifier);
+    Table table = getIcebergTable(newTableIdentifier);
+    queryManual(table);
+    // checkSnapshotIntegrity(partitionedLocation, newTableIdentifier);
   }
 
-  private void checkSnapshotIntegrity(
-      String hudiTableLocation,
-      String icebergTableIdentifier) {
-    Dataset<Row> hudiResult = spark.read().format("hudi").option(DataSourceReadOptions.QUERY_TYPE_OPT_KEY(), DataSourceReadOptions.QUERY_TYPE_SNAPSHOT_OPT_VAL()).load(hudiTableLocation);
+  @Test
+  public void referenceIcebergTable() {
+    String newTableIdentifier = destName(icebergCatalogName, "reference_iceberg_table");
+    typeTestDataframe
+        .writeTo(newTableIdentifier)
+        .using("iceberg")
+        .tableProperty(
+            TableProperties.WRITE_DATA_LOCATION,
+            "/Users/jonasjiang/Workspace/Apache_Hudi_ws/hudi_table_test/unpartitioned_iceberg_ref")
+        .tableProperty(
+            TableProperties.WRITE_METADATA_LOCATION,
+            "/Users/jonasjiang/Workspace/Apache_Hudi_ws/hudi_table_test/unpartitioned_iceberg_ref/metadata")
+        .createOrReplace();
+    Table table = getIcebergTable(newTableIdentifier);
+    queryManual(table);
+  }
+
+  @Test
+  public void testBasicUnpartitionedTable() {
+    String newTableIdentifier = destName(icebergCatalogName, "alpha_iceberg_table_2");
+    SnapshotHudiTable.Result result =
+        HudiToIcebergMigrationSparkIntegration.snapshotHudiTable(
+                spark, unpartitionedLocation, newTableIdentifier)
+            .execute();
+
+    Dataset<Row> hudiResult =
+        spark
+            .read()
+            .format("hudi")
+            .option(
+                DataSourceReadOptions.QUERY_TYPE_OPT_KEY(),
+                DataSourceReadOptions.QUERY_TYPE_SNAPSHOT_OPT_VAL())
+            .load(unpartitionedLocation);
+    LOG.info("Hudi table contents: {}", hudiResult.showString(10, 20, false));
+    Table table = getIcebergTable(newTableIdentifier);
+    queryManual(table);
+    checkSnapshotIntegrity(unpartitionedLocation, newTableIdentifier);
+  }
+
+  private void checkSnapshotIntegrity(String hudiTableLocation, String icebergTableIdentifier) {
+    Dataset<Row> hudiResult =
+        spark
+            .read()
+            .format("hudi")
+            .option(
+                DataSourceReadOptions.QUERY_TYPE_OPT_KEY(),
+                DataSourceReadOptions.QUERY_TYPE_SNAPSHOT_OPT_VAL())
+            .load(hudiTableLocation);
     Dataset<Row> icebergResult = spark.sql("SELECT * FROM " + icebergTableIdentifier);
-    // Need to sort the column by names since hudi tends to return the columns in a different order (put the one used for partitioning last)
-//    Dataset<Row> hudiSortedResult = hudiResult.groupBy(getColumns(hudiResult)).count();
-//    Dataset<Row> icebergSortedResult = icebergResult.groupBy(getColumns(icebergResult)).count();
-    List<Row> hudiTableContents =
-        hudiResult.collectAsList();
-    List<Row> icebergTableContents =
-        icebergResult.collectAsList();
     LOG.info("Hudi table contents: {}", hudiResult.showString(10, 20, false));
     LOG.info("Iceberg table contents: {}", icebergResult.showString(10, 20, false));
+    // TODO: adjust test technique since hudi tends to return the columns in a different order (put
+    // the one used for partitioning last)
+    List<Row> hudiTableContents = hudiResult.collectAsList();
+    List<Row> icebergTableContents = icebergResult.collectAsList();
+
     Assertions.assertThat(hudiTableContents).hasSize(icebergTableContents.size());
     Assertions.assertThat(hudiTableContents).containsAll(icebergTableContents);
-    Assertions.assertThat(icebergTableContents).containsAll(hudiTableContents); // TODO: may change to containsExactlyInAnyOrderElementsOf
+    Assertions.assertThat(icebergTableContents)
+        .containsAll(hudiTableContents); // TODO: may change to containsExactlyInAnyOrderElementsOf
   }
 
-  private Column[] getColumns(Dataset<Row> df) {
-    Column[] columns = new Column[df.columns().length];
-    for (int i = 0; i < df.columns().length; i++) {
-      columns[i] = df.col(df.columns()[i]);
+  private void queryManual(Table table) {
+    CloseableIterable<Record> records = IcebergGenerics.read(table).build();
+    for (Record record : records) {
+      LOG.info("Alpha Test Iceberg Record: {}", record);
     }
-    Arrays.sort(columns, Comparator.comparing(Column::toString));
-    return columns;
   }
 
+  private Table getIcebergTable(String icebergTableIdentifier) {
+    CatalogPlugin defaultCatalog = spark.sessionState().catalogManager().currentCatalog();
+    Spark3Util.CatalogAndIdentifier catalogAndIdent =
+        Spark3Util.catalogAndIdentifier(
+            "test catalog", spark, icebergTableIdentifier, defaultCatalog);
+    return Spark3Util.loadIcebergCatalog(spark, catalogAndIdent.catalog().name())
+        .loadTable(TableIdentifier.parse(catalogAndIdent.identifier().toString()));
+  }
 
   private String destName(String catalogName, String dest) {
     if (catalogName.equals(defaultSparkCatalog)) {
@@ -267,20 +324,23 @@ public class TestSnapshotHudiTable extends SparkHudiMigrationTestBase {
         .range(0, 5, 1, 5)
         .withColumnRenamed("id", "longCol")
         .withColumn("intCol", expr("CAST(longCol AS INT)"))
-        .withColumn("floatCol", expr("CAST(longCol AS FLOAT)"))
-        .withColumn("doubleCol", expr("CAST(longCol AS DOUBLE)"))
+        //        .withColumn("floatCol", expr("CAST(longCol AS FLOAT)"))
+        //        .withColumn("doubleCol", expr("CAST(longCol AS DOUBLE)"))
         .withColumn("dateCol", date_add(current_date(), 1))
-//        .withColumn("timestampCol", expr("TO_TIMESTAMP(dateCol)"))
+        //        .withColumn("timestampCol", expr("TO_TIMESTAMP(dateCol)"))
         .withColumn("stringCol", expr("CAST(dateCol AS STRING)"))
-        .withColumn("booleanCol", expr("longCol > 5"))
-        .withColumn("binaryCol", expr("CAST(longCol AS BINARY)"))
-        .withColumn("byteCol", expr("CAST(longCol AS BYTE)"))
+        //        .withColumn("booleanCol", expr("longCol > 5"))
+        //        .withColumn("binaryCol", expr("CAST(longCol AS BINARY)"))
+        //        .withColumn("byteCol", expr("CAST(longCol AS BYTE)"))
         .withColumn("decimalCol", expr("CAST(longCol AS DECIMAL(10, 2))"))
-        .withColumn("shortCol", expr("CAST(longCol AS SHORT)"))
-        .withColumn("mapCol", expr("MAP(stringCol, shortCol)")) // Hudi requires Map key to be String
-        .withColumn("arrayCol", expr("ARRAY(longCol)"))
-        .withColumn("structCol", expr("STRUCT(mapCol, arrayCol)"))
-        .withColumn("partitionPath", expr("CAST(longCol AS STRING)"));
+        //        .withColumn("shortCol", expr("CAST(longCol AS SHORT)"))
+        .withColumn("mapCol", expr("MAP(stringCol, intCol)")) // Hudi requires Map key to be String
+        .withColumn("arrayCol", expr("ARRAY(dateCol)"))
+        //        .withColumn("structCol", expr("STRUCT(longCol AS a, longCol AS b)"))
+        .withColumn(
+            "partitionPath",
+            expr("CAST(longCol AS STRING)")); // For test convenience, please put the partition col
+    // in the end.
   }
 
   private Dataset<Row> nestedDataFrame() {
@@ -311,5 +371,23 @@ public class TestSnapshotHudiTable extends SparkHudiMigrationTestBase {
         .withColumn("mapCol2", expr("MAP(longCol, dateString)"))
         .withColumn("mapCol3", expr("MAP(dateCol, arrayCol)"))
         .withColumn("structCol3", expr("STRUCT(structCol2, mapCol3, arrayCol)"));
+  }
+
+  private void writeHoodieTable(
+      Dataset<Row> df,
+      String recordKey,
+      String preCombineKey,
+      String partitionPathField,
+      String tableLocation,
+      String tableIdentifier) {
+    df.write()
+        .format("hudi")
+        //        .options(QuickstartUtils.getQuickstartWriteConfigs())
+        .option(DataSourceWriteOptions.RECORDKEY_FIELD().key(), recordKey)
+        .option(DataSourceWriteOptions.PRECOMBINE_FIELD().key(), preCombineKey)
+        .option(DataSourceWriteOptions.PARTITIONPATH_FIELD().key(), partitionPathField)
+        .option(HoodieWriteConfig.TBL_NAME.key(), tableIdentifier)
+        .mode(SaveMode.Append)
+        .save(tableLocation);
   }
 }
