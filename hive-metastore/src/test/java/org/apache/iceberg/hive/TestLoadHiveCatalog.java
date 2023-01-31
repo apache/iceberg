@@ -25,6 +25,7 @@ import org.apache.hadoop.hive.metastore.IMetaStoreClient;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.ClientPool;
+import org.apache.iceberg.hadoop.Configurable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.thrift.TException;
 import org.junit.AfterClass;
@@ -64,11 +65,14 @@ public class TestLoadHiveCatalog {
                 properties,
                 metastore.hiveConf());
     Assert.assertTrue(hiveCatalog.clientPool() instanceof CachedClientPoolWrapper);
+    Assert.assertNotNull(((CachedClientPoolWrapper) hiveCatalog.clientPool()).hadoopConf);
   }
 
-  public static class CachedClientPoolWrapper implements ClientPool<IMetaStoreClient, TException> {
+  public static class CachedClientPoolWrapper
+      implements ClientPool<IMetaStoreClient, TException>, Configurable<Configuration> {
 
     private CachedClientPool delegate;
+    private Configuration hadoopConf;
 
     @Override
     public <R> R run(Action<R, IMetaStoreClient, TException> action)
@@ -83,8 +87,13 @@ public class TestLoadHiveCatalog {
     }
 
     @Override
-    public void initialize(Map<String, String> properties, Object hadoopConf) {
-      delegate = new CachedClientPool((Configuration) hadoopConf, properties);
+    public void initialize(Map<String, String> properties) {
+      delegate = new CachedClientPool(hadoopConf, properties);
+    }
+
+    @Override
+    public void setConf(Configuration conf) {
+      this.hadoopConf = conf;
     }
   }
 }

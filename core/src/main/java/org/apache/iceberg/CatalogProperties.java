@@ -120,7 +120,7 @@ public class CatalogProperties {
   public static final long CLIENT_POOL_CACHE_EVICTION_INTERVAL_MS_DEFAULT =
       TimeUnit.MINUTES.toMillis(5);
   /** Name of the custom {@link ClientPool} implementation class. */
-  public static final String CLIENT_POOL_IMPL = "client.pool.impl";
+  public static final String CLIENT_POOL_IMPL = "client-pool-impl";
 
   public static final String LOCK_IMPL = "lock-impl";
 
