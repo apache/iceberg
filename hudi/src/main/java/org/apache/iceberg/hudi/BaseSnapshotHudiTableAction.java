@@ -41,7 +41,6 @@ import org.apache.hudi.common.table.timeline.HoodieTimeline;
 import org.apache.hudi.common.table.view.HoodieTableFileSystemView;
 import org.apache.hudi.common.util.Option;
 import org.apache.hudi.exception.HoodieException;
-import org.apache.hudi.hadoop.utils.HoodieInputFormatUtils;
 import org.apache.hudi.internal.schema.InternalSchema;
 import org.apache.hudi.internal.schema.convert.AvroInternalSchemaConverter;
 import org.apache.iceberg.AppendFiles;
@@ -107,7 +106,7 @@ public class BaseSnapshotHudiTableAction implements SnapshotHudiTable {
     this.hoodieTableConfig = hoodieTableMetaClient.getTableConfig();
     this.hoodieEngineContext = new HoodieLocalEngineContext(hoodieConfiguration);
     this.hoodieTableBasePath = hoodieTableBasePath;
-    this.hoodieMetadataConfig = HoodieInputFormatUtils.buildMetadataConfig(hoodieConfiguration);
+    this.hoodieMetadataConfig = buildMetadataConfig(hoodieConfiguration);
     this.hoodieFileIO = new HadoopFileIO(hoodieConfiguration);
     this.icebergCatalog = icebergCatalog;
     this.newTableIdentifier = newTableIdentifier;
@@ -198,8 +197,6 @@ public class BaseSnapshotHudiTableAction implements SnapshotHudiTable {
     // BEGIN TEST ONLY CODE
     List<HoodieBaseFile> testGroups =
         hoodieTableFileSystemView.getLatestBaseFiles().collect(Collectors.toList());
-    LOG.info("Alpha test: get all stamped data files: {}", allStampedDataFiles);
-    LOG.info("Alpha test: get all file groups: {}", testGroups);
     // END TEST ONLY CODE
 
     // Help tracked if a previous version of the data file has been added to the iceberg table
@@ -447,5 +444,14 @@ public class BaseSnapshotHudiTableAction implements SnapshotHudiTable {
       default:
         throw new ValidationException("Cannot get metrics from file format: %s", format);
     }
+  }
+
+  private HoodieMetadataConfig buildMetadataConfig(Configuration conf) {
+    return HoodieMetadataConfig.newBuilder()
+        .enable(
+            conf.getBoolean(
+                HoodieMetadataConfig.ENABLE.key(),
+                HoodieMetadataConfig.DEFAULT_METADATA_ENABLE_FOR_READERS))
+        .build();
   }
 }

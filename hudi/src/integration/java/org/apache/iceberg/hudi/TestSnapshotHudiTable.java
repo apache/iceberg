@@ -231,7 +231,7 @@ public class TestSnapshotHudiTable extends SparkHudiMigrationTestBase {
             .execute();
     Table table = getIcebergTable(newTableIdentifier);
     queryManual(table);
-    // checkSnapshotIntegrity(partitionedLocation, newTableIdentifier);
+    checkSnapshotIntegrity(partitionedLocation, newTableIdentifier);
   }
 
   @Test
