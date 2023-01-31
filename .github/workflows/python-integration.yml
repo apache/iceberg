@@ -57,14 +57,17 @@ jobs:
         key: cache-mintegration
     - name: Update Image Cache if cache miss
       if: steps.cache-docker.outputs.cache-hit != 'true' || steps.check_file_changed.outputs.docs_changed == 'True'
-      run: docker build -t python-integration python/dev/ && mkdir -p ci/cache/docker/python && docker image save python-integration --output ./ci/cache/docker/python/python-integration.tar
+      run: |
+        docker build -t python-integration python/dev/ && \
+        mkdir -p ci/cache/docker/python && \
+        docker image save python-integration --output ./ci/cache/docker/python/python-integration.tar
     - name: Use Image Cache if cache hit
       if: steps.cache-docker.outputs.cache-hit == 'true'
       run: docker image load --input ./ci/cache/docker/python/python-integration.tar
     - name: Run Apache-Spark setup
-      working-directory: ./python/dev
+      working-directory: ./python
       run: |
-        docker-compose up -d
+        docker-compose -f dev/docker-compose-integration.yml up -d
         sleep 10
     - name: Install poetry
       run: pip install poetry

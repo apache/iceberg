@@ -36,7 +36,7 @@ test-s3:
 	poetry run coverage run --source=pyiceberg/ -m pytest tests/ -m s3 ${PYTEST_ARGS}
 
 test-integration:
-	docker-compose -f dev/docker-compose.yml up -d
+	docker-compose -f dev/docker-compose-integration.yml up -d
 	poetry run coverage run --source=pyiceberg/ -m pytest tests/ -m integration ${PYTEST_ARGS}
 	poetry run coverage report -m --fail-under=90
 	poetry run coverage html
