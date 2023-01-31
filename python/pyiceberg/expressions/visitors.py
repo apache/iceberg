@@ -24,6 +24,7 @@ from typing import (
     Set,
     Tuple,
     TypeVar,
+    Union,
 )
 
 from pyiceberg.conversions import from_bytes
@@ -64,7 +65,10 @@ from pyiceberg.types import (
     FloatType,
     IcebergType,
     PrimitiveType,
+    TimestampType,
+    TimestamptzType,
 )
+from pyiceberg.utils.datetime import micros_to_timestamp, micros_to_timestamptz
 
 T = TypeVar("T")
 
@@ -884,11 +888,30 @@ def rewrite_to_dnf(expr: BooleanExpression) -> Tuple[BooleanExpression, ...]:
 
 
 class ExpressionToPlainFormat(BoundBooleanExpressionVisitor[List[Tuple[str, str, Any]]]):
+    cast_int_to_date: bool
+
+    def __init__(self, cast_int_to_date: bool = False) -> None:
+        self.cast_int_to_date = cast_int_to_date
+
+    def _cast_if_necessary(self, iceberg_type: IcebergType, literal: Union[L, Set[L]]) -> Union[L, Set[L]]:
+        if self.cast_int_to_date:
+            iceberg_type_class = type(iceberg_type)
+            conversions = {TimestampType: micros_to_timestamp, TimestamptzType: micros_to_timestamptz}
+            if iceberg_type_class in conversions:
+                conversion_function = conversions[iceberg_type_class]
+                if isinstance(literal, set):
+                    return {conversion_function(lit) for lit in literal}  # type: ignore
+                else:
+                    return conversion_function(literal)  # type: ignore
+        return literal
+
     def visit_in(self, term: BoundTerm[L], literals: Set[L]) -> List[Tuple[str, str, Any]]:
-        return [(term.ref().field.name, "in", literals)]
+        field = term.ref().field
+        return [(term.ref().field.name, "in", self._cast_if_necessary(field.field_type, literals))]
 
     def visit_not_in(self, term: BoundTerm[L], literals: Set[L]) -> List[Tuple[str, str, Any]]:
-        return [(term.ref().field.name, "not in", literals)]
+        field = term.ref().field
+        return [(field.name, "not in", self._cast_if_necessary(field.field_type, literals))]
 
     def visit_is_nan(self, term: BoundTerm[L]) -> List[Tuple[str, str, Any]]:
         return [(term.ref().field.name, "==", float("nan"))]
@@ -903,22 +926,22 @@ class ExpressionToPlainFormat(BoundBooleanExpressionVisitor[List[Tuple[str, str,
         return [(term.ref().field.name, "!=", None)]
 
     def visit_equal(self, term: BoundTerm[L], literal: Literal[L]) -> List[Tuple[str, str, Any]]:
-        return [(term.ref().field.name, "==", literal.value)]
+        return [(term.ref().field.name, "==", self._cast_if_necessary(term.ref().field.field_type, literal.value))]
 
     def visit_not_equal(self, term: BoundTerm[L], literal: Literal[L]) -> List[Tuple[str, str, Any]]:
-        return [(term.ref().field.name, "!=", literal.value)]
+        return [(term.ref().field.name, "!=", self._cast_if_necessary(term.ref().field.field_type, literal.value))]
 
     def visit_greater_than_or_equal(self, term: BoundTerm[L], literal: Literal[L]) -> List[Tuple[str, str, Any]]:
-        return [(term.ref().field.name, ">=", literal.value)]
+        return [(term.ref().field.name, ">=", self._cast_if_necessary(term.ref().field.field_type, literal.value))]
 
     def visit_greater_than(self, term: BoundTerm[L], literal: Literal[L]) -> List[Tuple[str, str, Any]]:
-        return [(term.ref().field.name, ">", literal.value)]
+        return [(term.ref().field.name, ">", self._cast_if_necessary(term.ref().field.field_type, literal.value))]
 
     def visit_less_than(self, term: BoundTerm[L], literal: Literal[L]) -> List[Tuple[str, str, Any]]:
-        return [(term.ref().field.name, "<", literal.value)]
+        return [(term.ref().field.name, "<", self._cast_if_necessary(term.ref().field.field_type, literal.value))]
 
     def visit_less_than_or_equal(self, term: BoundTerm[L], literal: Literal[L]) -> List[Tuple[str, str, Any]]:
-        return [(term.ref().field.name, "<=", literal.value)]
+        return [(term.ref().field.name, "<=", self._cast_if_necessary(term.ref().field.field_type, literal.value))]
 
     def visit_true(self) -> List[Tuple[str, str, Any]]:
         return []  # Not supported
@@ -940,7 +963,9 @@ class ExpressionToPlainFormat(BoundBooleanExpressionVisitor[List[Tuple[str, str,
         raise ValueError(f"Not allowed: {left_result} || {right_result}")
 
 
-def expression_to_plain_format(expressions: Tuple[BooleanExpression, ...]) -> List[List[Tuple[str, str, Any]]]:
+def expression_to_plain_format(
+    expressions: Tuple[BooleanExpression, ...], cast_int_to_datetime: bool = False
+) -> List[List[Tuple[str, str, Any]]]:
     """Formats a Disjunctive Normal Form expression into the format that can be fed into:
 
     - https://arrow.apache.org/docs/python/generated/pyarrow.parquet.read_table.html
@@ -959,4 +984,5 @@ def expression_to_plain_format(expressions: Tuple[BooleanExpression, ...]) -> Li
         Formatter filter compatible with Dask and PyArrow
     """
     # In the form of expr1 ∨ expr2 ∨ ... ∨ exprN
-    return [visit(expression, ExpressionToPlainFormat()) for expression in expressions]
+    visitor = ExpressionToPlainFormat(cast_int_to_datetime)
+    return [visit(expression, visitor) for expression in expressions]
