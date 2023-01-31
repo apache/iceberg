@@ -33,7 +33,7 @@ from pyiceberg.exceptions import (
     ValidationError,
 )
 from pyiceberg.schema import Schema
-from tests.catalog import (
+from tests.conftest import (
     get_random_database_name,
     get_random_databases,
     get_random_table_name,

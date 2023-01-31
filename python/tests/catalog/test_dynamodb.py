@@ -37,7 +37,7 @@ from pyiceberg.exceptions import (
     TableAlreadyExistsError,
 )
 from pyiceberg.schema import Schema
-from tests.catalog import (
+from tests.conftest import (
     BUCKET_NAME,
     LIST_TEST_NUMBER,
     TABLE_METADATA_LOCATION_REGEX,
