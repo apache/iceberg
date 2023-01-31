@@ -290,8 +290,10 @@ public class ExpireSnapshotsSparkAction extends BaseSparkAction<ExpireSnapshotsS
       LOG.info("Triggering Bulk Delete Operations");
       summary = deleteFiles(bulkDeleteFunc, files);
     } else {
-      LOG.warn("Falling back to non-bulk deletes because the given io {} does not support bulk deletes. Using an IO" +
-              "with bulk deletes will provide better throughput.", ops.io());
+      LOG.warn(
+          "Falling back to non-bulk deletes because the given io {} does not support bulk deletes. Using an IO"
+              + "with bulk deletes will provide better throughput.",
+          ops.io());
       summary = deleteFiles(deleteExecutorService, deleteFunc, files);
     }
 
