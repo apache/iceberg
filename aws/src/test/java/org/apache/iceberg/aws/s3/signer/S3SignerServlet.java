@@ -201,6 +201,7 @@ public class S3SignerServlet extends HttpServlet {
         try (Reader reader = new InputStreamReader(request.getInputStream())) {
           requestBody = RESTUtil.decodeFormData(CharStreams.toString(reader));
         }
+
         OAuthTokenResponse oAuthTokenResponse =
             handleOAuth((Map<String, String>) castRequest(Map.class, requestBody));
         mapper.writeValue(response.getWriter(), oAuthTokenResponse);

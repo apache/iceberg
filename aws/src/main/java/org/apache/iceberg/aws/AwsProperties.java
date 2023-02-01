@@ -1161,7 +1161,7 @@ public class AwsProperties implements Serializable {
     Object signer;
     try {
       signer =
-          DynMethods.builder("of")
+          DynMethods.builder("create")
               .impl(s3SignerImpl, Map.class)
               .buildStaticChecked()
               .invoke(allProperties);

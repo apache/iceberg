@@ -267,8 +267,7 @@ public abstract class S3V4RestSignerClient
   }
 
   private boolean canBeCached(Map<String, String> responseHeaders) {
-    return responseHeaders.containsKey(CACHE_CONTROL)
-        && CACHE_CONTROL_PRIVATE.equals(responseHeaders.get(CACHE_CONTROL));
+    return CACHE_CONTROL_PRIVATE.equals(responseHeaders.get(CACHE_CONTROL));
   }
 
   private void checkSignerParams(AwsS3V4SignerParams signerParams) {
@@ -305,7 +304,7 @@ public abstract class S3V4RestSignerClient
     URI signedURI();
   }
 
-  public static S3V4RestSignerClient of(Map<String, String> properties) {
+  public static S3V4RestSignerClient create(Map<String, String> properties) {
     return ImmutableS3V4RestSignerClient.builder().properties(properties).build();
   }
 }
