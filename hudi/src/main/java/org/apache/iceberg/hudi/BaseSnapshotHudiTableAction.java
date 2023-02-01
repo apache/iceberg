@@ -153,6 +153,8 @@ public class BaseSnapshotHudiTableAction implements SnapshotHudiTable {
 
     // Pre-process the timeline, we only need to process all COMPLETED commit for COW table
     // Commit that has been rollbacked will not be in either REQUESTED or INFLIGHT state
+    HoodieTimeline commitsTimeline = hoodieTableMetaClient.getCommitsTimeline();
+    HoodieTimeline archivedTimeline = hoodieTableMetaClient.getArchivedTimeline();
     HoodieTimeline timeline =
         hoodieTableMetaClient.getActiveTimeline().getCommitsTimeline().filterCompletedInstants();
     // Initialize the FileSystemView for querying table data files
