@@ -1248,36 +1248,28 @@ public class TestRemoveSnapshots extends TableTestBase {
     table.newAppend().appendFile(FILE_A).commit();
     String statsFileLocation1 = statsFileLocation(table.location());
     StatisticsFile statisticsFile1 =
-        writeStatsFileForCurrentSnapshot(
+        writeStatsFile(
             table.currentSnapshot().snapshotId(),
             table.currentSnapshot().sequenceNumber(),
             statsFileLocation1,
             table.io());
-    commitStats(table.newTransaction(), statisticsFile1);
-    Assert.assertEquals(
-        "Must match the latest snapshot",
-        table.currentSnapshot().snapshotId(),
-        statisticsFile1.snapshotId());
+    commitStats(table, statisticsFile1);
 
     table.newAppend().appendFile(FILE_B).commit();
     String statsFileLocation2 = statsFileLocation(table.location());
     StatisticsFile statisticsFile2 =
-        writeStatsFileForCurrentSnapshot(
+        writeStatsFile(
             table.currentSnapshot().snapshotId(),
             table.currentSnapshot().sequenceNumber(),
             statsFileLocation2,
             table.io());
-    commitStats(table.newTransaction(), statisticsFile2);
-    Assert.assertEquals(
-        "Must match the latest snapshot",
-        table.currentSnapshot().snapshotId(),
-        statisticsFile2.snapshotId());
-
+    commitStats(table, statisticsFile2);
     Assert.assertEquals("Should have 2 statistics file", 2, table.statisticsFiles().size());
 
     long tAfterCommits = waitUntilAfter(table.currentSnapshot().timestampMillis());
     removeSnapshots(table).expireOlderThan(tAfterCommits).commit();
 
+    // only the current snapshot and its stats file should be retained
     Assert.assertEquals("Should keep 1 snapshot", 1, Iterables.size(table.snapshots()));
     Assertions.assertThat(table.statisticsFiles())
         .hasSize(1)
@@ -1294,34 +1286,28 @@ public class TestRemoveSnapshots extends TableTestBase {
     table.newAppend().appendFile(FILE_A).commit();
     String statsFileLocation1 = statsFileLocation(table.location());
     StatisticsFile statisticsFile1 =
-        writeStatsFileForCurrentSnapshot(
+        writeStatsFile(
             table.currentSnapshot().snapshotId(),
             table.currentSnapshot().sequenceNumber(),
             statsFileLocation1,
             table.io());
-    commitStats(table.newTransaction(), statisticsFile1);
-    Assert.assertEquals(
-        "Must match the latest snapshot",
-        table.currentSnapshot().snapshotId(),
-        statisticsFile1.snapshotId());
+    commitStats(table, statisticsFile1);
 
     table.newAppend().appendFile(FILE_B).commit();
-    // Note: RewriteDataFiles can reuse statistics files across operations.
+    // Note: RewriteDataFiles may reuse statistics files across operations.
     // This test reuses stats for append just to mimic this scenario without having to run
     // RewriteDataFiles.
     StatisticsFile statisticsFile2 =
         reuseStatsForCurrentSnapshot(table.currentSnapshot().snapshotId(), statisticsFile1);
-    commitStats(table.newTransaction(), statisticsFile2);
-    Assert.assertEquals(
-        "Must match the latest snapshot",
-        table.currentSnapshot().snapshotId(),
-        statisticsFile2.snapshotId());
+    commitStats(table, statisticsFile2);
 
     Assert.assertEquals("Should have 2 statistics file", 2, table.statisticsFiles().size());
 
     long tAfterCommits = waitUntilAfter(table.currentSnapshot().timestampMillis());
     removeSnapshots(table).expireOlderThan(tAfterCommits).commit();
 
+    // only the current snapshot and its stats file (reused from previous snapshot) should be
+    // retained
     Assert.assertEquals("Should keep 1 snapshot", 1, Iterables.size(table.snapshots()));
     Assertions.assertThat(table.statisticsFiles())
         .hasSize(1)
@@ -1614,7 +1600,7 @@ public class TestRemoveSnapshots extends TableTestBase {
     return (RemoveSnapshots) removeSnapshots.withIncrementalCleanup(incrementalCleanup);
   }
 
-  private StatisticsFile writeStatsFileForCurrentSnapshot(
+  private StatisticsFile writeStatsFile(
       long snapshotId, long snapshotSequenceNumber, String statsLocation, FileIO fileIO)
       throws IOException {
     try (PuffinWriter puffinWriter = Puffin.write(fileIO.newOutputFile(statsLocation)).build()) {
@@ -1648,12 +1634,8 @@ public class TestRemoveSnapshots extends TableTestBase {
         statisticsFile.blobMetadata());
   }
 
-  private void commitStats(Transaction transaction, StatisticsFile statisticsFile) {
-    transaction
-        .updateStatistics()
-        .setStatistics(statisticsFile.snapshotId(), statisticsFile)
-        .commit();
-    transaction.commitTransaction();
+  private void commitStats(Table table, StatisticsFile statisticsFile) {
+    table.updateStatistics().setStatistics(statisticsFile.snapshotId(), statisticsFile).commit();
   }
 
   private String statsFileLocation(String tableLocation) {
