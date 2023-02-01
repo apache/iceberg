@@ -197,7 +197,7 @@ def _(obj: Or, visitor: BooleanExpressionVisitor[T]) -> T:
     return visitor.visit_or(left_result=left_result, right_result=right_result)
 
 
-def bind(schema: Schema, expression: BooleanExpression, case_sensitive: bool) -> BoundPredicate:
+def bind(schema: Schema, expression: BooleanExpression, case_sensitive: bool) -> BooleanExpression:
     """Travers over an expression to bind the predicates to the schema
 
     Args:
@@ -991,10 +991,10 @@ def expression_to_plain_format(
     return [visit(expression, visitor) for expression in expressions]
 
 
-class InclusiveMetricsEvaluator(BoundBooleanExpressionVisitor[bool]):
+class _InclusiveMetricsEvaluator(BoundBooleanExpressionVisitor[bool]):
 
     struct: StructType
-    expr: BoundPredicate
+    expr: BooleanExpression
 
     value_counts: Dict[int, int]
     null_counts: Dict[int, int]

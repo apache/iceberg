@@ -42,7 +42,7 @@ from pyiceberg.expressions import (
     BooleanExpression,
     visitors,
 )
-from pyiceberg.expressions.visitors import InclusiveMetricsEvaluator, inclusive_projection
+from pyiceberg.expressions.visitors import _InclusiveMetricsEvaluator, inclusive_projection
 from pyiceberg.io import FileIO
 from pyiceberg.io.pyarrow import project_table
 from pyiceberg.manifest import (
@@ -285,7 +285,7 @@ def _open_manifest(
     all_files = files(io.new_input(manifest.manifest_path))
     matching_partition_files = filter(partition_filter, all_files)
     matching_partition_data_files = map(_check_content, matching_partition_files)
-    evaluator = InclusiveMetricsEvaluator(schema, row_filter, case_sensitive)
+    evaluator = _InclusiveMetricsEvaluator(schema, row_filter, case_sensitive)
     return [FileScanTask(file) for file in matching_partition_data_files if evaluator.eval(file)]
 
 
