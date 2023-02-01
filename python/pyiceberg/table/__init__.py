@@ -174,6 +174,19 @@ class Table:
 S = TypeVar("S", bound="TableScan", covariant=True)  # type: ignore
 
 
+def _parse_row_filter(expr: Union[str, BooleanExpression]) -> BooleanExpression:
+    """Accepts an expression in the form of a BooleanExpression or a string
+
+    In the case of a string, it will be converted into a unbound BooleanExpression
+
+    Args:
+        expr: Expression as a BooleanExpression or a string
+
+    Returns: An unbound BooleanExpression
+    """
+    return parser.parse(expr) if isinstance(expr, str) else expr
+
+
 class TableScan(Generic[S], ABC):
     table: Table
     row_filter: BooleanExpression
@@ -192,10 +205,7 @@ class TableScan(Generic[S], ABC):
         options: Properties = EMPTY_DICT,
     ):
         self.table = table
-        if row_filter is None:
-            self.row_filter = AlwaysTrue()
-        else:
-            self.row_filter = parser.parse(row_filter)
+        self.row_filter = _parse_row_filter(row_filter)
         self.selected_fields = selected_fields
         self.case_sensitive = case_sensitive
         self.snapshot_id = snapshot_id
@@ -247,7 +257,7 @@ class TableScan(Generic[S], ABC):
         return self.update(selected_fields=tuple(set(self.selected_fields).intersection(set(field_names))))
 
     def filter(self, expr: Union[str, BooleanExpression]) -> S:
-        return self.update(row_filter=And(self.row_filter, parser.parse(expr)))
+        return self.update(row_filter=And(self.row_filter, _parse_row_filter(expr)))
 
     def with_case_sensitive(self, case_sensitive: bool = True) -> S:
         return self.update(case_sensitive=case_sensitive)
