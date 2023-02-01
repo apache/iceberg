@@ -24,11 +24,13 @@ import static org.apache.iceberg.TableProperties.GC_ENABLED_DEFAULT;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Stream;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.CachingCatalog;
 import org.apache.iceberg.CatalogProperties;
@@ -37,6 +39,7 @@ import org.apache.iceberg.EnvironmentContext;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.catalog.Catalog;
@@ -105,6 +108,7 @@ public class SparkCatalog extends BaseCatalog {
   private static final Splitter COMMA = Splitter.on(",");
   private static final Pattern AT_TIMESTAMP = Pattern.compile("at_timestamp_(\\d+)");
   private static final Pattern SNAPSHOT_ID = Pattern.compile("snapshot_id_(\\d+)");
+  private static final Pattern BRANCH = Pattern.compile("branch_(.*)");
 
   private String catalogName = null;
   private Catalog icebergCatalog = null;
@@ -654,6 +658,13 @@ public class SparkCatalog extends BaseCatalog {
         return new SparkTable(table, snapshotId, !cacheEnabled);
       }
 
+      Matcher branch = BRANCH.matcher(ident.name());
+      if (branch.matches()) {
+        Snapshot snapshot = table.snapshot(branch.group(1));
+        if (snapshot != null) {
+          return new SparkTable(table, snapshot.snapshotId(), !cacheEnabled);
+        }
+      }
       // the name wasn't a valid snapshot selector and did not point to the changelog
       // throw the original exception
       throw e;
@@ -678,6 +689,7 @@ public class SparkCatalog extends BaseCatalog {
     String metadataTableName = null;
     Long asOfTimestamp = null;
     Long snapshotId = null;
+    String branch = null;
     boolean isChangelog = false;
 
     for (String meta : parsed.second()) {
@@ -701,12 +713,19 @@ public class SparkCatalog extends BaseCatalog {
       if (id.matches()) {
         snapshotId = Long.parseLong(id.group(1));
       }
+
+      Matcher ref = BRANCH.matcher(meta);
+      if (ref.matches()) {
+        branch = ref.group(1);
+      }
     }
 
     Preconditions.checkArgument(
-        asOfTimestamp == null || snapshotId == null,
-        "Cannot specify both snapshot-id and as-of-timestamp: %s",
-        ident.location());
+        Stream.of(snapshotId, asOfTimestamp, branch).filter(Objects::nonNull).count() <= 1,
+        "Can specify at most one of snapshot-id (%s), as-of-timestamp (%s), and snapshot-ref (%s)",
+        snapshotId,
+        asOfTimestamp,
+        branch);
 
     Preconditions.checkArgument(
         !isChangelog || (snapshotId == null && asOfTimestamp == null),
@@ -721,6 +740,9 @@ public class SparkCatalog extends BaseCatalog {
     } else if (asOfTimestamp != null) {
       long snapshotIdAsOfTime = SnapshotUtil.snapshotIdAsOfTime(table, asOfTimestamp);
       return new SparkTable(table, snapshotIdAsOfTime, !cacheEnabled);
+
+    } else if (branch != null && table.snapshot(branch) != null) {
+      return new SparkTable(table, table.snapshot(branch).snapshotId(), !cacheEnabled);
 
     } else {
       return new SparkTable(table, snapshotId, !cacheEnabled);

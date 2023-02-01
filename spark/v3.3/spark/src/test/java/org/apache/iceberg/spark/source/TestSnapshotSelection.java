@@ -370,4 +370,42 @@ public class TestSnapshotSelection {
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageStartingWith("Cannot override ref, already set snapshot id=");
   }
+
+  @Test
+  public void testSnapshotSelectionByBranchWithSchemaChange() throws IOException {
+    String tableLocation = temp.newFolder("iceberg-table").toString();
+
+    HadoopTables tables = new HadoopTables(CONF);
+    PartitionSpec spec = PartitionSpec.unpartitioned();
+    Table table = tables.create(SCHEMA, spec, tableLocation);
+
+    // produce the first snapshot
+    List<SimpleRecord> firstBatchRecords =
+        Lists.newArrayList(
+            new SimpleRecord(1, "a"), new SimpleRecord(2, "b"), new SimpleRecord(3, "c"));
+    Dataset<Row> firstDf = spark.createDataFrame(firstBatchRecords, SimpleRecord.class);
+    firstDf.select("id", "data").write().format("iceberg").mode("append").save(tableLocation);
+
+    table.manageSnapshots().createBranch("branch", table.currentSnapshot().snapshotId()).commit();
+
+    Dataset<Row> currentSnapshotResult =
+        spark.read().format("iceberg").option("branch", "branch").load(tableLocation);
+    List<SimpleRecord> currentSnapshotRecords =
+        currentSnapshotResult.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
+    List<SimpleRecord> expectedRecords = Lists.newArrayList();
+    expectedRecords.addAll(firstBatchRecords);
+    Assert.assertEquals(
+        "Current snapshot rows should match", expectedRecords, currentSnapshotRecords);
+
+    table.updateSchema().deleteColumn("data").commit();
+
+    Dataset<Row> deleteSnapshotResult =
+        spark.read().format("iceberg").option("branch", "branch").load(tableLocation);
+    List<SimpleRecord> deletedSnapshotRecords =
+        deleteSnapshotResult.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
+    List<SimpleRecord> expectedRecordsAfterDeletion = Lists.newArrayList();
+    expectedRecordsAfterDeletion.addAll(firstBatchRecords);
+    Assert.assertEquals(
+        "Current snapshot rows should match", expectedRecords, deletedSnapshotRecords);
+  }
 }

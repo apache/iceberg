@@ -67,6 +67,7 @@ public class IcebergSource implements DataSourceRegister, SupportsCatalogOptions
       "spark.sql.catalog." + DEFAULT_CACHE_CATALOG_NAME;
   private static final String AT_TIMESTAMP = "at_timestamp_";
   private static final String SNAPSHOT_ID = "snapshot_id_";
+  private static final String BRANCH = "branch_";
   private static final String[] EMPTY_NAMESPACE = new String[0];
 
   private static final SparkTableCache TABLE_CACHE = SparkTableCache.get();
@@ -124,6 +125,7 @@ public class IcebergSource implements DataSourceRegister, SupportsCatalogOptions
 
     Long snapshotId = propertyAsLong(options, SparkReadOptions.SNAPSHOT_ID);
     Long asOfTimestamp = propertyAsLong(options, SparkReadOptions.AS_OF_TIMESTAMP);
+    String branch = options.get(SparkReadOptions.BRANCH);
     Preconditions.checkArgument(
         asOfTimestamp == null || snapshotId == null,
         "Cannot specify both snapshot-id (%s) and as-of-timestamp (%s)",
@@ -138,6 +140,10 @@ public class IcebergSource implements DataSourceRegister, SupportsCatalogOptions
 
     if (asOfTimestamp != null) {
       selector = AT_TIMESTAMP + asOfTimestamp;
+    }
+
+    if (branch != null) {
+      selector = BRANCH + branch;
     }
 
     CatalogManager catalogManager = spark.sessionState().catalogManager();
