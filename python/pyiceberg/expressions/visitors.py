@@ -1006,9 +1006,10 @@ class InclusiveMetricsEvaluator(BoundBooleanExpressionVisitor[bool]):
         self.struct = schema.as_struct()
         self.expr = bind(schema, rewrite_not(expr), case_sensitive)
 
-    """Test whether the file may contain records that match the expression."""
 
     def eval(self, file: DataFile) -> bool:
+        """Test whether the file may contain records that match the expression."""
+
         if file.record_count == 0:
             return ROWS_CANNOT_MATCH
 
@@ -1026,11 +1027,11 @@ class InclusiveMetricsEvaluator(BoundBooleanExpressionVisitor[bool]):
 
         return visit(self.expr, self)
 
-    def _contains_nulls_only(self, id: int) -> bool:
-        return id in self.value_counts and id in self.null_counts and self.value_counts[id] - self.null_counts[id] == 0
+    def _contains_nulls_only(self, idx: int) -> bool:
+        return idx in self.value_counts and idx in self.null_counts and self.value_counts[idx] - self.null_counts[idx] == 0
 
-    def _contains_nans_only(self, id: int) -> bool:
-        return id in self.nan_counts and id in self.value_counts and self.nan_counts[id] == self.value_counts[id]
+    def _contains_nans_only(self, idx: int) -> bool:
+        return idx in self.nan_counts and idx in self.value_counts and self.nan_counts[idx] == self.value_counts[idx]
 
     def _is_nan(self, val: Any) -> bool:
         return math.isnan(val)
@@ -1053,9 +1054,9 @@ class InclusiveMetricsEvaluator(BoundBooleanExpressionVisitor[bool]):
         return left_result or right_result
 
     def visit_is_null(self, term: BoundTerm[L]) -> bool:
-        id = term.ref().field.field_id
+        idx = term.ref().field.field_id
 
-        if self.null_counts is not None and id in self.null_counts and self.null_counts[id] == 0:
+        if self.null_counts is not None and idx in self.null_counts and self.null_counts[idx] == 0:
             return ROWS_CANNOT_MATCH
 
         return ROWS_MIGHT_MATCH
@@ -1063,46 +1064,46 @@ class InclusiveMetricsEvaluator(BoundBooleanExpressionVisitor[bool]):
     def visit_not_null(self, term: BoundTerm[L]) -> bool:
         # no need to check whether the field is required because binding evaluates that case
         # if the column has no non-null values, the expression cannot match
-        id = term.ref().field.field_id
+        idx = term.ref().field.field_id
 
-        if self._contains_nulls_only(id):
+        if self._contains_nulls_only(idx):
             return ROWS_CANNOT_MATCH
 
         return ROWS_MIGHT_MATCH
 
     def visit_is_nan(self, term: BoundTerm[L]) -> bool:
-        id = term.ref().field.field_id
+        idx = term.ref().field.field_id
 
-        if id in self.nan_counts and self.nan_counts[id] == 0:
+        if idx in self.nan_counts and self.nan_counts[idx] == 0:
             return ROWS_CANNOT_MATCH
 
         # when there's no nanCounts information, but we already know the column only contains null,
         # it's guaranteed that there's no NaN value
-        if self._contains_nulls_only(id):
+        if self._contains_nulls_only(idx):
             return ROWS_CANNOT_MATCH
 
         return ROWS_MIGHT_MATCH
 
     def visit_not_nan(self, term: BoundTerm[L]) -> bool:
-        id = term.ref().field.field_id
+        idx = term.ref().field.field_id
 
-        if self._contains_nans_only(id):
+        if self._contains_nans_only(idx):
             return ROWS_CANNOT_MATCH
 
         return ROWS_MIGHT_MATCH
 
     def visit_less_than(self, term: BoundTerm[L], literal: Literal[L]) -> bool:
         field = term.ref().field
-        id = field.field_id
+        idx = field.field_id
 
-        if self._contains_nulls_only(id) or self._contains_nans_only(id):
+        if self._contains_nulls_only(idx) or self._contains_nans_only(idx):
             return ROWS_CANNOT_MATCH
 
         if not isinstance(field.field_type, PrimitiveType):
             raise ValueError(f"Expected PrimitiveType: {field.field_type}")
 
-        if id in self.lower_bounds:
-            lower = from_bytes(field.field_type, self.lower_bounds[id])
+        if idx in self.lower_bounds:
+            lower = from_bytes(field.field_type, self.lower_bounds[idx])
 
             if self._is_nan(lower):
                 # NaN indicates unreliable bounds. See the InclusiveMetricsEvaluator docs for more.
@@ -1115,16 +1116,16 @@ class InclusiveMetricsEvaluator(BoundBooleanExpressionVisitor[bool]):
 
     def visit_less_than_or_equal(self, term: BoundTerm[L], literal: Literal[L]) -> bool:
         field = term.ref().field
-        id = field.field_id
+        idx = field.field_id
 
-        if self._contains_nulls_only(id) or self._contains_nans_only(id):
+        if self._contains_nulls_only(idx) or self._contains_nans_only(idx):
             return ROWS_CANNOT_MATCH
 
         if not isinstance(field.field_type, PrimitiveType):
             raise ValueError(f"Expected PrimitiveType: {field.field_type}")
 
-        if id in self.lower_bounds:
-            lower = from_bytes(field.field_type, self.lower_bounds[id])
+        if idx in self.lower_bounds:
+            lower = from_bytes(field.field_type, self.lower_bounds[idx])
 
             if self._is_nan(lower):
                 # NaN indicates unreliable bounds. See the InclusiveMetricsEvaluator docs for more.
@@ -1137,46 +1138,46 @@ class InclusiveMetricsEvaluator(BoundBooleanExpressionVisitor[bool]):
 
     def visit_greater_than(self, term: BoundTerm[L], literal: Literal[L]) -> bool:
         field = term.ref().field
-        id = field.field_id
+        idx = field.field_id
 
-        if self._contains_nulls_only(id) or self._contains_nans_only(id):
+        if self._contains_nulls_only(idx) or self._contains_nans_only(idx):
             return ROWS_CANNOT_MATCH
 
         if not isinstance(field.field_type, PrimitiveType):
             raise ValueError(f"Expected PrimitiveType: {field.field_type}")
 
-        if id in self.upper_bounds and from_bytes(field.field_type, self.upper_bounds[id]) <= literal.value:
+        if idx in self.upper_bounds and from_bytes(field.field_type, self.upper_bounds[idx]) <= literal.value:
             return ROWS_CANNOT_MATCH
 
         return ROWS_MIGHT_MATCH
 
     def visit_greater_than_or_equal(self, term: BoundTerm[L], literal: Literal[L]) -> bool:
         field = term.ref().field
-        id = field.field_id
+        idx = field.field_id
 
-        if self._contains_nulls_only(id) or self._contains_nans_only(id):
+        if self._contains_nulls_only(idx) or self._contains_nans_only(idx):
             return ROWS_CANNOT_MATCH
 
         if not isinstance(field.field_type, PrimitiveType):
             raise ValueError(f"Expected PrimitiveType: {field.field_type}")
 
-        if id in self.upper_bounds and from_bytes(field.field_type, self.upper_bounds[id]) < literal.value:
+        if idx in self.upper_bounds and from_bytes(field.field_type, self.upper_bounds[idx]) < literal.value:
             return ROWS_CANNOT_MATCH
 
         return ROWS_MIGHT_MATCH
 
     def visit_equal(self, term: BoundTerm[L], literal: Literal[L]) -> bool:
         field = term.ref().field
-        id = field.field_id
+        idx = field.field_id
 
-        if self._contains_nulls_only(id) or self._contains_nans_only(id):
+        if self._contains_nulls_only(idx) or self._contains_nans_only(idx):
             return ROWS_CANNOT_MATCH
 
         if not isinstance(field.field_type, PrimitiveType):
             raise ValueError(f"Expected PrimitiveType: {field.field_type}")
 
-        if id in self.lower_bounds:
-            lower = from_bytes(field.field_type, self.lower_bounds[id])
+        if idx in self.lower_bounds:
+            lower = from_bytes(field.field_type, self.lower_bounds[idx])
 
             if self._is_nan(lower):
                 # NaN indicates unreliable bounds. See the InclusiveMetricsEvaluator docs for more.
@@ -1185,7 +1186,7 @@ class InclusiveMetricsEvaluator(BoundBooleanExpressionVisitor[bool]):
             if lower > literal.value:
                 return ROWS_CANNOT_MATCH
 
-        if id in self.upper_bounds and from_bytes(field.field_type, self.upper_bounds[id]) < literal.value:
+        if idx in self.upper_bounds and from_bytes(field.field_type, self.upper_bounds[idx]) < literal.value:
             return ROWS_CANNOT_MATCH
 
         return ROWS_MIGHT_MATCH
@@ -1195,9 +1196,9 @@ class InclusiveMetricsEvaluator(BoundBooleanExpressionVisitor[bool]):
 
     def visit_in(self, term: BoundTerm[L], literals: Set[L]) -> bool:
         field = term.ref().field
-        id = field.field_id
+        idx = field.field_id
 
-        if self._contains_nulls_only(id) or self._contains_nans_only(id):
+        if self._contains_nulls_only(idx) or self._contains_nans_only(idx):
             return ROWS_CANNOT_MATCH
 
         if len(literals) > IN_PREDICATE_LIMIT:
@@ -1207,8 +1208,8 @@ class InclusiveMetricsEvaluator(BoundBooleanExpressionVisitor[bool]):
         if not isinstance(field.field_type, PrimitiveType):
             raise ValueError(f"Expected PrimitiveType: {field.field_type}")
 
-        if id in self.lower_bounds:
-            lower = from_bytes(field.field_type, self.lower_bounds[id])
+        if idx in self.lower_bounds:
+            lower = from_bytes(field.field_type, self.lower_bounds[idx])
 
             if self._is_nan(lower):
                 # NaN indicates unreliable bounds. See the InclusiveMetricsEvaluator docs for more.
@@ -1218,8 +1219,8 @@ class InclusiveMetricsEvaluator(BoundBooleanExpressionVisitor[bool]):
             if len(literals) == 0:
                 return ROWS_CANNOT_MATCH
 
-        if id in self.upper_bounds:
-            upper = from_bytes(field.field_type, self.upper_bounds[id])
+        if idx in self.upper_bounds:
+            upper = from_bytes(field.field_type, self.upper_bounds[idx])
             # this is different from Java, here NaN is always larger
             if not self._is_nan(upper):
                 literals = {lit for lit in literals if upper > lit}
