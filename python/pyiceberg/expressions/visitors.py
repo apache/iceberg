@@ -1214,7 +1214,7 @@ class _InclusiveMetricsEvaluator(BoundBooleanExpressionVisitor[bool]):
                 # NaN indicates unreliable bounds. See the InclusiveMetricsEvaluator docs for more.
                 return ROWS_MIGHT_MATCH
 
-            literals = {lit for lit in literals if lower < lit}
+            literals = {lit for lit in literals if lower <= lit}
             if len(literals) == 0:
                 return ROWS_CANNOT_MATCH
 
@@ -1222,7 +1222,7 @@ class _InclusiveMetricsEvaluator(BoundBooleanExpressionVisitor[bool]):
             upper = from_bytes(field.field_type, self.upper_bounds[idx])
             # this is different from Java, here NaN is always larger
             if not self._is_nan(upper):
-                literals = {lit for lit in literals if upper > lit}
+                literals = {lit for lit in literals if upper >= lit}
                 if len(literals) == 0:
                     return ROWS_CANNOT_MATCH
 

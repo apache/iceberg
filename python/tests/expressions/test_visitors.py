@@ -1658,6 +1658,12 @@ def test_inclusive_metrics_evaluator_in(schema_data_file: Schema, data_file: Dat
     should_read = _InclusiveMetricsEvaluator(schema_data_file, In("some_nan_correct_bounds", (1, 30))).eval(data_file)
     assert not should_read, "Should not match: 1 not within bounds"
 
+    should_read = _InclusiveMetricsEvaluator(schema_data_file, In("some_nan_correct_bounds", (5, 7))).eval(data_file)
+    assert should_read, "Should match: overlap with lower bound"
+
+    should_read = _InclusiveMetricsEvaluator(schema_data_file, In("some_nan_correct_bounds", (22, 25))).eval(data_file)
+    assert should_read, "Should match: overlap with upper bounds"
+
 
 def test_inclusive_metrics_evaluator_not_in(schema_data_file: Schema, data_file: DataFile) -> None:
     should_read = _InclusiveMetricsEvaluator(schema_data_file, NotIn("all_nan", (1, 10, 30))).eval(data_file)
