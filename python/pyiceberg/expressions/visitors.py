@@ -20,12 +20,12 @@ from functools import singledispatch
 from typing import (
     Any,
     Callable,
+    Dict,
     Generic,
     List,
     Set,
     Tuple,
     TypeVar,
-    Dict,
     Union,
 )
 
@@ -58,10 +58,10 @@ from pyiceberg.expressions import (
     UnboundPredicate,
 )
 from pyiceberg.expressions.literals import Literal
-from pyiceberg.manifest import ManifestFile, PartitionFieldSummary, DataFile
+from pyiceberg.manifest import DataFile, ManifestFile, PartitionFieldSummary
 from pyiceberg.partitioning import PartitionSpec
 from pyiceberg.schema import Schema
-from pyiceberg.typedef import StructProtocol, EMPTY_DICT
+from pyiceberg.typedef import EMPTY_DICT, StructProtocol
 from pyiceberg.types import (
     DoubleType,
     FloatType,

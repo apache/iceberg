@@ -42,7 +42,7 @@ from pyiceberg.expressions import (
     BooleanExpression,
     visitors,
 )
-from pyiceberg.expressions.visitors import inclusive_projection, InclusiveMetricsEvaluator
+from pyiceberg.expressions.visitors import InclusiveMetricsEvaluator, inclusive_projection
 from pyiceberg.io import FileIO
 from pyiceberg.io.pyarrow import project_table
 from pyiceberg.manifest import (

@@ -63,15 +63,20 @@ from pyiceberg.expressions.visitors import (
     BindVisitor,
     BooleanExpressionVisitor,
     BoundBooleanExpressionVisitor,
+    InclusiveMetricsEvaluator,
     _ManifestEvalVisitor,
     expression_to_plain_format,
     rewrite_not,
     rewrite_to_dnf,
     visit,
     visit_bound_predicate,
-    InclusiveMetricsEvaluator,
 )
-from pyiceberg.manifest import ManifestFile, PartitionFieldSummary, DataFile, FileFormat
+from pyiceberg.manifest import (
+    DataFile,
+    FileFormat,
+    ManifestFile,
+    PartitionFieldSummary,
+)
 from pyiceberg.schema import Accessor, Schema
 from pyiceberg.types import (
     DoubleType,
