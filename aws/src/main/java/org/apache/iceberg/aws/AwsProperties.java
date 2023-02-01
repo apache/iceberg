@@ -39,6 +39,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SerializableMap;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
@@ -58,6 +60,8 @@ import software.amazon.awssdk.services.s3.model.ObjectCannedACL;
 import software.amazon.awssdk.services.s3.model.Tag;
 
 public class AwsProperties implements Serializable {
+
+  private static final Logger LOG = LoggerFactory.getLogger(AwsProperties.class);
 
   /**
    * Type of S3 Server side encryption used, default to {@link
@@ -1155,10 +1159,9 @@ public class AwsProperties implements Serializable {
     }
   }
 
-  @SuppressWarnings("checkstyle:NestedTryDepth")
   private Signer loadS3SignerDynamically() {
     // load the signer implementation dynamically
-    Object signer;
+    Object signer = null;
     try {
       signer =
           DynMethods.builder("create")
@@ -1166,18 +1169,31 @@ public class AwsProperties implements Serializable {
               .buildStaticChecked()
               .invoke(allProperties);
     } catch (NoSuchMethodException e) {
+      LOG.warn(
+          "Cannot find static method create(Map<String, String> properties) for signer {}",
+          s3SignerImpl,
+          e);
+    }
+
+    if (null == signer) {
       try {
         signer = DynMethods.builder("create").impl(s3SignerImpl).buildChecked().invoke(null);
-      } catch (NoSuchMethodException ex1) {
-        // try via default no-arg constructor
-        try {
-          signer = DynConstructors.builder().impl(s3SignerImpl).buildChecked().newInstance();
-        } catch (NoSuchMethodException ex2) {
-          throw new IllegalArgumentException(
-              String.format("Cannot instantiate custom signer: %s", s3SignerImpl), ex2);
-        }
+      } catch (NoSuchMethodException e) {
+        LOG.warn("Cannot find static method create() for signer {}", s3SignerImpl, e);
       }
     }
+
+    if (null == signer) {
+      // try via default no-arg constructor
+      try {
+        signer = DynConstructors.builder().impl(s3SignerImpl).buildChecked().newInstance();
+      } catch (NoSuchMethodException e) {
+        LOG.warn("Cannot find no-arg constructor for signer {}", s3SignerImpl, e);
+      }
+    }
+
+    Preconditions.checkArgument(
+        null != signer, "Cannot instantiate custom signer: %s", s3SignerImpl);
 
     Preconditions.checkArgument(
         signer instanceof Signer,
