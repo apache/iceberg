@@ -310,6 +310,7 @@ public class SparkWriteConf {
     return confParser
         .stringConf()
         .option(SparkWriteOptions.BRANCH)
+        .sessionConf(SparkWriteOptions.BRANCH)
         .defaultValue(SnapshotRef.MAIN_BRANCH)
         .parse();
   }

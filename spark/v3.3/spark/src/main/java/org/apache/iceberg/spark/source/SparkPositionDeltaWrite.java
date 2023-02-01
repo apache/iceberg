@@ -100,6 +100,7 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
   private final Map<String, String> extraSnapshotMetadata;
   private final Distribution requiredDistribution;
   private final SortOrder[] requiredOrdering;
+  private final String branch;
 
   private boolean cleanupOnAbort = true;
 
@@ -123,6 +124,7 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
     this.applicationId = spark.sparkContext().applicationId();
     this.wapEnabled = writeConf.wapEnabled();
     this.wapId = writeConf.wapId();
+    this.branch = writeConf.branch();
     this.extraSnapshotMetadata = writeConf.extraSnapshotMetadata();
     this.requiredDistribution = requiredDistribution;
     this.requiredOrdering = requiredOrdering;
@@ -277,6 +279,7 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
 
       try {
         long start = System.currentTimeMillis();
+        operation.toBranch(branch);
         operation.commit(); // abort is automatically called if this fails
         long duration = System.currentTimeMillis() - start;
         LOG.info("Committed in {} ms", duration);

@@ -220,6 +220,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
 
     try {
       long start = System.currentTimeMillis();
+      operation.toBranch(branch);
       operation.commit(); // abort is automatically called if this fails
       long duration = System.currentTimeMillis() - start;
       LOG.info("Committed in {} ms", duration);
@@ -292,7 +293,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
   private class BatchAppend extends BaseBatchWrite {
     @Override
     public void commit(WriterCommitMessage[] messages) {
-      AppendFiles append = table.newAppend().toBranch(branch);
+      AppendFiles append = table.newAppend();
 
       int numFiles = 0;
       for (DataFile file : files(messages)) {
@@ -314,7 +315,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
         return;
       }
 
-      ReplacePartitions dynamicOverwrite = table.newReplacePartitions().toBranch(branch);
+      ReplacePartitions dynamicOverwrite = table.newReplacePartitions();
 
       IsolationLevel isolationLevel = writeConf.isolationLevel();
       Long validateFromSnapshotId = writeConf.validateFromSnapshotId();
@@ -352,8 +353,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
 
     @Override
     public void commit(WriterCommitMessage[] messages) {
-      OverwriteFiles overwriteFiles =
-          table.newOverwrite().toBranch(branch).overwriteByRowFilter(overwriteExpr);
+      OverwriteFiles overwriteFiles = table.newOverwrite().overwriteByRowFilter(overwriteExpr);
 
       int numFiles = 0;
       for (DataFile file : files(messages)) {
@@ -414,7 +414,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
 
     @Override
     public void commit(WriterCommitMessage[] messages) {
-      OverwriteFiles overwriteFiles = table.newOverwrite().toBranch(branch);
+      OverwriteFiles overwriteFiles = table.newOverwrite();
 
       List<DataFile> overwrittenFiles = overwrittenFiles();
       int numOverwrittenFiles = overwrittenFiles.size();
