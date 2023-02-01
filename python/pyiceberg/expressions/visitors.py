@@ -1006,7 +1006,6 @@ class _InclusiveMetricsEvaluator(BoundBooleanExpressionVisitor[bool]):
         self.struct = schema.as_struct()
         self.expr = bind(schema, rewrite_not(expr), case_sensitive)
 
-
     def eval(self, file: DataFile) -> bool:
         """Test whether the file may contain records that match the expression."""
 
