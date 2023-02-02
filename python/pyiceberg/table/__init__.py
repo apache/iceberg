@@ -198,7 +198,7 @@ class TableScan(Generic[S], ABC):
     def __init__(
         self,
         table: Table,
-        row_filter: Optional[Union[str, BooleanExpression]] = None,
+        row_filter: Union[str, BooleanExpression] = AlwaysTrue(),
         selected_fields: Tuple[str] = ("*",),
         case_sensitive: bool = True,
         snapshot_id: Optional[int] = None,
@@ -300,7 +300,7 @@ class DataScan(TableScan["DataScan"]):
     def __init__(
         self,
         table: Table,
-        row_filter: Optional[Union[str, BooleanExpression]] = None,
+        row_filter: Union[str, BooleanExpression] = AlwaysTrue(),
         selected_fields: Tuple[str] = ("*",),
         case_sensitive: bool = True,
         snapshot_id: Optional[int] = None,
