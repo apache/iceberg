@@ -45,7 +45,7 @@ jobs:
           python-version: 3.9
       - name: Install
         working-directory: ./open-api
-        run: pip install openapi-spec-validator
+        run: pip install openapi-spec-validator==0.5.2
       - name: Validate
         working-directory: ./open-api
         run: openapi-spec-validator rest-catalog-open-api.yaml
