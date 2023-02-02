@@ -72,7 +72,7 @@ public class TestCreateBranch extends SparkExtensionsTestBase {
         tableName, branchName, snapshotId, maxRefAge, minSnapshotsToKeep, maxSnapshotAge);
     table.refresh();
     SnapshotRef ref = table.refs().get(branchName);
-    Assert.assertNotNull(ref);
+    Assert.assertEquals(table.currentSnapshot().snapshotId(), ref.snapshotId());
     Assert.assertEquals(minSnapshotsToKeep, ref.minSnapshotsToKeep());
     Assert.assertEquals(TimeUnit.DAYS.toMillis(maxSnapshotAge), ref.maxSnapshotAgeMs().longValue());
     Assert.assertEquals(TimeUnit.DAYS.toMillis(maxRefAge), ref.maxRefAgeMs().longValue());
@@ -91,7 +91,7 @@ public class TestCreateBranch extends SparkExtensionsTestBase {
     sql("ALTER TABLE %s CREATE BRANCH %s", tableName, branchName);
     table.refresh();
     SnapshotRef ref = table.refs().get(branchName);
-    Assert.assertNotNull(ref);
+    Assert.assertEquals(table.currentSnapshot().snapshotId(), ref.snapshotId());
     Assert.assertNull(ref.minSnapshotsToKeep());
     Assert.assertNull(ref.maxSnapshotAgeMs());
     Assert.assertNull(ref.maxRefAgeMs());
@@ -107,7 +107,7 @@ public class TestCreateBranch extends SparkExtensionsTestBase {
         tableName, branchName, minSnapshotsToKeep);
     table.refresh();
     SnapshotRef ref = table.refs().get(branchName);
-    Assert.assertNotNull(ref);
+    Assert.assertEquals(table.currentSnapshot().snapshotId(), ref.snapshotId());
     Assert.assertEquals(minSnapshotsToKeep, ref.minSnapshotsToKeep());
     Assert.assertNull(ref.maxSnapshotAgeMs());
     Assert.assertNull(ref.maxRefAgeMs());
@@ -130,6 +130,24 @@ public class TestCreateBranch extends SparkExtensionsTestBase {
   }
 
   @Test
+  public void testCreateBranchIfNotExists() throws NoSuchTableException {
+    long maxSnapshotAge = 2L;
+    Table table = createDefaultTableAndInsert2Row();
+    String branchName = "b1";
+    sql(
+        "ALTER TABLE %s CREATE BRANCH %s WITH SNAPSHOT RETENTION %d DAYS",
+        tableName, branchName, maxSnapshotAge);
+    sql("ALTER TABLE %s CREATE BRANCH IF NOT EXISTS %s", tableName, branchName);
+
+    table.refresh();
+    SnapshotRef ref = table.refs().get(branchName);
+    Assert.assertEquals(table.currentSnapshot().snapshotId(), ref.snapshotId());
+    Assert.assertNull(ref.minSnapshotsToKeep());
+    Assert.assertEquals(TimeUnit.DAYS.toMillis(maxSnapshotAge), ref.maxSnapshotAgeMs().longValue());
+    Assert.assertNull(ref.maxRefAgeMs());
+  }
+
+  @Test
   public void testCreateBranchUseCustomMinSnapshotsToKeepAndMaxSnapshotAge()
       throws NoSuchTableException {
     Integer minSnapshotsToKeep = 2;
@@ -141,7 +159,7 @@ public class TestCreateBranch extends SparkExtensionsTestBase {
         tableName, branchName, minSnapshotsToKeep, maxSnapshotAge);
     table.refresh();
     SnapshotRef ref = table.refs().get(branchName);
-    Assert.assertNotNull(ref);
+    Assert.assertEquals(table.currentSnapshot().snapshotId(), ref.snapshotId());
     Assert.assertEquals(minSnapshotsToKeep, ref.minSnapshotsToKeep());
     Assert.assertEquals(TimeUnit.DAYS.toMillis(maxSnapshotAge), ref.maxSnapshotAgeMs().longValue());
     Assert.assertNull(ref.maxRefAgeMs());
@@ -162,7 +180,7 @@ public class TestCreateBranch extends SparkExtensionsTestBase {
     sql("ALTER TABLE %s CREATE BRANCH %s RETAIN %d DAYS", tableName, branchName, maxRefAge);
     table.refresh();
     SnapshotRef ref = table.refs().get(branchName);
-    Assert.assertNotNull(ref);
+    Assert.assertEquals(table.currentSnapshot().snapshotId(), ref.snapshotId());
     Assert.assertNull(ref.minSnapshotsToKeep());
     Assert.assertNull(ref.maxSnapshotAgeMs());
     Assert.assertEquals(TimeUnit.DAYS.toMillis(maxRefAge), ref.maxRefAgeMs().longValue());
