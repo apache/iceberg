@@ -283,7 +283,7 @@ public class TestSnapshotHudiTable extends SparkHudiMigrationTestBase {
         .withColumn("floatCol", expr("CAST(longCol AS FLOAT)"))
         .withColumn("doubleCol", expr("CAST(longCol AS DOUBLE)"))
         .withColumn("dateCol", date_add(current_date(), 1))
-        //        .withColumn("timestampCol", expr("TO_TIMESTAMP(dateCol)"))
+        .withColumn("timestampCol", expr("TO_TIMESTAMP(dateCol)"))
         .withColumn("stringCol", expr("CAST(dateCol AS STRING)"))
         .withColumn("booleanCol", expr("longCol > 5"))
         .withColumn("binaryCol", expr("CAST(longCol AS BINARY)"))
@@ -291,13 +291,11 @@ public class TestSnapshotHudiTable extends SparkHudiMigrationTestBase {
         .withColumn("decimalCol", expr("CAST(longCol AS DECIMAL(10, 2))"))
         .withColumn("shortCol", expr("CAST(longCol AS SHORT)"))
         .withColumn("mapCol", expr("MAP(stringCol, intCol)")) // Hudi requires Map key to be String
-        //        .withColumn("arrayCol", expr("ARRAY(dateCol)")) // hudi's parquet handles array
-        // type differently from iceberg
+        .withColumn("arrayCol", expr("ARRAY(dateCol)"))
         .withColumn("structCol", expr("STRUCT(longCol AS a, longCol AS b)"))
         .withColumn(
             "partitionPath",
-            expr("CAST(longCol AS STRING)")); // For test convenience, please put the partition col
-    // in the end.
+            expr("CAST(longCol AS STRING)"));
   }
 
   private Dataset<Row> multiDataFrame(int start, int end) {

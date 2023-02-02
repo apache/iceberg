@@ -45,6 +45,7 @@ public abstract class SparkHudiMigrationTestBase {
             .config(
                 "spark.hadoop." + HiveConf.ConfVars.METASTOREURIS.varname,
                 hiveConf.get(HiveConf.ConfVars.METASTOREURIS.varname))
+            .config("spark.hadoop.parquet.avro.write-old-list-structure", "false")
             .config("spark.sql.legacy.respectNullabilityInTextDatasetConversion", "true")
             .config("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
             .config("spark.sql.extensions", "org.apache.spark.sql.hudi.HoodieSparkSessionExtension")
