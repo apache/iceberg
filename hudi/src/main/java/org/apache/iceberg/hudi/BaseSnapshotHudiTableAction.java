@@ -94,22 +94,13 @@ public class BaseSnapshotHudiTableAction implements SnapshotHudiTable {
   private String hoodieTableBasePath;
   private Catalog icebergCatalog;
   private TableIdentifier newTableIdentifier;
+  private String newTableLocation;
   private HadoopFileIO hoodieFileIO;
   private ImmutableMap.Builder<String, String> additionalPropertiesBuilder = ImmutableMap.builder();
 
-  public BaseSnapshotHudiTableAction(
-      Configuration hoodieConfiguration,
-      String hoodieTableBasePath,
-      Catalog icebergCatalog,
-      TableIdentifier newTableIdentifier) {
-    this.hoodieTableMetaClient = buildTableMetaClient(hoodieConfiguration, hoodieTableBasePath);
-    this.hoodieTableConfig = hoodieTableMetaClient.getTableConfig();
-    this.hoodieEngineContext = new HoodieLocalEngineContext(hoodieConfiguration);
+  public BaseSnapshotHudiTableAction(String hoodieTableBasePath) {
     this.hoodieTableBasePath = hoodieTableBasePath;
-    this.hoodieMetadataConfig = buildMetadataConfig(hoodieConfiguration);
-    this.hoodieFileIO = new HadoopFileIO(hoodieConfiguration);
-    this.icebergCatalog = icebergCatalog;
-    this.newTableIdentifier = newTableIdentifier;
+    this.newTableLocation = hoodieTableBasePath;
   }
 
   @Override
@@ -119,8 +110,36 @@ public class BaseSnapshotHudiTableAction implements SnapshotHudiTable {
   }
 
   @Override
-  public SnapshotHudiTable tableProperty(String key, String value) {
-    additionalPropertiesBuilder.put(key, value);
+  public SnapshotHudiTable tableProperty(String name, String value) {
+    additionalPropertiesBuilder.put(name, value);
+    return this;
+  }
+
+  @Override
+  public SnapshotHudiTable tableLocation(String location) {
+    this.newTableLocation = location;
+    return this;
+  }
+
+  @Override
+  public SnapshotHudiTable as(TableIdentifier identifier) {
+    this.newTableIdentifier = identifier;
+    return this;
+  }
+
+  @Override
+  public SnapshotHudiTable icebergCatalog(Catalog catalog) {
+    this.icebergCatalog = catalog;
+    return this;
+  }
+
+  @Override
+  public SnapshotHudiTable hoodieConfiguration(Configuration configuration) {
+    this.hoodieTableMetaClient = buildTableMetaClient(configuration, hoodieTableBasePath);
+    this.hoodieTableConfig = hoodieTableMetaClient.getTableConfig();
+    this.hoodieEngineContext = new HoodieLocalEngineContext(configuration);
+    this.hoodieMetadataConfig = buildMetadataConfig(configuration);
+    this.hoodieFileIO = new HadoopFileIO(configuration);
     return this;
   }
 
@@ -132,18 +151,15 @@ public class BaseSnapshotHudiTableAction implements SnapshotHudiTable {
     Schema icebergSchema = convertToIcebergSchema(hudiSchema);
     PartitionSpec partitionSpec = getPartitionSpecFromHoodieMetadataData(icebergSchema);
 
-    // TODO: add support for newTableLocation
     Transaction icebergTransaction =
         icebergCatalog.newCreateTableTransaction(
             newTableIdentifier,
             icebergSchema,
             partitionSpec,
-            hoodieTableBasePath,
+            newTableLocation,
             destTableProperties());
-    // We need name mapping to ensure we can read data files correctly as iceberg table has its own
+    // Need name mapping to ensure we can read data files correctly as iceberg table has its own
     // rule to assign field id
-    // Although the field id rule seems to be the same as hudi, but the rule is not guaranteed by
-    // any API
     NameMapping nameMapping = MappingUtil.create(icebergTransaction.table().schema());
     icebergTransaction
         .table()
@@ -153,19 +169,11 @@ public class BaseSnapshotHudiTableAction implements SnapshotHudiTable {
 
     // Pre-process the timeline, we only need to process all COMPLETED commit for COW table
     // Commit that has been rollbacked will not be in either REQUESTED or INFLIGHT state
-    HoodieTimeline commitsTimeline = hoodieTableMetaClient.getCommitsTimeline();
-    HoodieTimeline archivedTimeline = hoodieTableMetaClient.getArchivedTimeline();
     HoodieTimeline timeline =
         hoodieTableMetaClient.getActiveTimeline().getCommitsTimeline().filterCompletedInstants();
     // Initialize the FileSystemView for querying table data files
-    // TODO: need to choose the correct implementation of the FileSystemView
-    //    HoodieTableFileSystemView hoodieTableFileSystemView =
-    //        FileSystemViewManager.createInMemoryFileSystemViewWithTimeline(
-    //            hoodieEngineContext, hoodieTableMetaClient, hoodieMetadataConfig, timeline);
     HoodieTableFileSystemView hoodieTableFileSystemView =
         new HoodieTableFileSystemView(hoodieTableMetaClient, timeline);
-    // get all instants on the timeline
-    Stream<HoodieInstant> completedInstants = timeline.getInstants();
     List<String> partitionPaths =
         FSUtils.getAllPartitionPaths(
             hoodieEngineContext,
@@ -181,6 +189,8 @@ public class BaseSnapshotHudiTableAction implements SnapshotHudiTable {
     } catch (IOException e) {
       throw new RuntimeException("Failed to get all data files in partition", e);
     }
+    // get all instants on the timeline
+    Stream<HoodieInstant> completedInstants = timeline.getInstants();
     // file group id -> Map<timestamp, HoodieBaseFile>
     // This pre-process aims to make a timestamp to HoodieBaseFile map for each file group
     Map<HoodieFileGroupId, Map<String, HoodieBaseFile>> allStampedDataFiles =
@@ -196,21 +206,11 @@ public class BaseSnapshotHudiTableAction implements SnapshotHudiTable {
                                 ImmutableMap.toImmutableMap(
                                     HoodieBaseFile::getCommitTime, baseFile -> baseFile))));
 
-    // BEGIN TEST ONLY CODE
-    List<HoodieBaseFile> testGroups =
-        hoodieTableFileSystemView.getLatestBaseFiles().collect(Collectors.toList());
-    // END TEST ONLY CODE
-
     // Help tracked if a previous version of the data file has been added to the iceberg table
     Map<HoodieFileGroupId, DataFile> convertedDataFiles = Maps.newHashMap();
     // Replay the timeline from beginning to the end
     completedInstants.forEachOrdered(
         instant -> {
-          LOG.info("Alpha test: get completed instant: {}", instant);
-          // copyInstants to iceberg table
-          // TODO: need to verify the order of the instants, make sure it is from the oldest to the
-          // newest
-
           // commit each instant as a transaction to the iceberg table
           commitHoodieInstantToIcebergTransaction(
               instant,
@@ -253,7 +253,6 @@ public class BaseSnapshotHudiTableAction implements SnapshotHudiTable {
     List<DataFile> filesToAdd = Lists.newArrayList();
     List<DataFile> filesToRemove = Lists.newArrayList();
 
-    // TODO: may need to add synchronization lock for parallelism
     fileGroups
         .sequential()
         .forEach(
@@ -316,7 +315,6 @@ public class BaseSnapshotHudiTableAction implements SnapshotHudiTable {
     }
 
     PartitionSpec spec = table.spec();
-    // TODO: need to verify the path is absolute (the field's name is fullPath)
     String path = baseFile.getPath();
     long fileSize = baseFile.getFileSize();
     String partitionValue = fileGroup.getPartitionPath();
@@ -329,8 +327,6 @@ public class BaseSnapshotHudiTableAction implements SnapshotHudiTable {
     InputFile file = hoodieFileIO.newInputFile(path);
     FileFormat format = determineFileFormatFromPath(path);
     Metrics metrics = getMetricsForFile(file, format, metricsConfig, nameMapping);
-
-    List<PartitionField> testFields = spec.fields();
 
     String partition =
         spec.fields().stream()
@@ -355,14 +351,6 @@ public class BaseSnapshotHudiTableAction implements SnapshotHudiTable {
   private InternalSchema getHudiSchema() {
     TableSchemaResolver schemaUtil = new TableSchemaResolver(hoodieTableMetaClient);
     Option<InternalSchema> hudiSchema = schemaUtil.getTableInternalSchemaFromCommitMetadata();
-    LOG.info("Alpha test: hoodie schema: {}", hudiSchema);
-    LOG.info("Alpha test: active timeline: {}", hoodieTableMetaClient.getActiveTimeline());
-    LOG.info(
-        "Alpha test: active timeline commit timeline: {}",
-        hoodieTableMetaClient.getActiveTimeline().getCommitsTimeline());
-    LOG.info(
-        "Alpha test: active timeline commit timeline instants: {}",
-        hoodieTableMetaClient.getActiveTimeline().getCommitsTimeline().filterCompletedInstants());
     return hudiSchema.orElseGet(
         () -> {
           try {
@@ -399,14 +387,13 @@ public class BaseSnapshotHudiTableAction implements SnapshotHudiTable {
   }
 
   private Map<String, String> destTableProperties() {
-    // TODO: need to check which hoodie properties to add to
     additionalPropertiesBuilder.putAll(hoodieTableConfig.propsMap());
     additionalPropertiesBuilder.putAll(
         ImmutableMap.of(
             SNAPSHOT_SOURCE_PROP,
             HOODIE_SOURCE_VALUE,
             ORIGINAL_LOCATION_PROP,
-            hoodieTableMetaClient.getBasePathV2().toString()));
+            hoodieTableBasePath));
 
     return additionalPropertiesBuilder.build();
   }

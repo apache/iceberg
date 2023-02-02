@@ -19,16 +19,69 @@
 package org.apache.iceberg.hudi;
 
 import java.util.Map;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.actions.Action;
+import org.apache.iceberg.catalog.Catalog;
+import org.apache.iceberg.catalog.TableIdentifier;
 
 public interface SnapshotHudiTable extends Action<SnapshotHudiTable, SnapshotHudiTable.Result> {
 
+  /**
+   * Sets table properties in the newly created Iceberg table. Any properties with the same key name
+   * will be overwritten.
+   *
+   * @param properties a map of properties to set
+   * @return this for method chaining
+   */
   SnapshotHudiTable tableProperties(Map<String, String> properties);
 
-  SnapshotHudiTable tableProperty(String key, String value);
+  /**
+   * Sets a table property in the newly created Iceberg table. Any properties with the same key will
+   * be overwritten.
+   *
+   * @param name a table property name
+   * @param value a table property value
+   * @return this for method chaining
+   */
+  SnapshotHudiTable tableProperty(String name, String value);
 
+  /**
+   * Sets the location of the newly created Iceberg table. Default location is the same as the Hudi
+   * table.
+   *
+   * @param location a path to the new table location
+   * @return this for method chaining
+   */
+  SnapshotHudiTable tableLocation(String location);
+
+  /**
+   * Sets the identifier of the newly created Iceberg table. This is required to be set before
+   * execute the action.
+   *
+   * @param identifier a table identifier (namespace, name) @Returns this for method chaining
+   */
+  SnapshotHudiTable as(TableIdentifier identifier);
+
+  /**
+   * Sets the catalog of the newly created Iceberg table. This is required to be set before execute
+   * the action
+   *
+   * @param catalog a catalog @Returns this for method chaining
+   */
+  SnapshotHudiTable icebergCatalog(Catalog catalog);
+
+  /**
+   * Sets the Hadoop configuration used to access hudi table's timeline and file groups. This is
+   * required to be set before execute the action.
+   *
+   * @param conf a Hadoop configuration @Returns this for method chaining
+   */
+  SnapshotHudiTable hoodieConfiguration(Configuration conf);
+
+  /** The action result that contains a summary of the execution. */
   interface Result {
 
+    /** Returns the number of snapshot data files. */
     long snapshotFilesCount();
   }
 }

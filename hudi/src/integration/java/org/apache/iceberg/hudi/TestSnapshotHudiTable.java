@@ -31,9 +31,6 @@ import org.apache.hudi.DataSourceWriteOptions;
 import org.apache.hudi.config.HoodieWriteConfig;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.TableIdentifier;
-import org.apache.iceberg.data.IcebergGenerics;
-import org.apache.iceberg.data.Record;
-import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkCatalog;
@@ -57,7 +54,7 @@ public class TestSnapshotHudiTable extends SparkHudiMigrationTestBase {
 
   private static final Logger LOG = LoggerFactory.getLogger(TestSnapshotHudiTable.class.getName());
   private static final String SNAPSHOT_SOURCE_PROP = "snapshot_source";
-  private static final String DELTA_SOURCE_VALUE = "delta";
+  private static final String HUDI_SOURCE_VALUE = "hudi";
   private static final String ORIGINAL_LOCATION_PROP = "original_location";
   private static final String NAMESPACE = "delta_conversion_test";
   private static final String defaultSparkCatalog = "spark_catalog";
@@ -144,9 +141,9 @@ public class TestSnapshotHudiTable extends SparkHudiMigrationTestBase {
         HudiToIcebergMigrationSparkIntegration.snapshotHudiTable(
                 spark, partitionedLocation, newTableIdentifier)
             .execute();
-    Table table = getIcebergTable(newTableIdentifier);
-    queryManual(table);
     checkSnapshotIntegrity(partitionedLocation, newTableIdentifier);
+    checkIcebergTableLocation(newTableIdentifier, partitionedLocation);
+    checkIcebergTableProperties(newTableIdentifier, ImmutableMap.of(), partitionedLocation);
   }
 
   @Test
@@ -165,6 +162,8 @@ public class TestSnapshotHudiTable extends SparkHudiMigrationTestBase {
                 spark, unpartitionedLocation, newTableIdentifier)
             .execute();
     checkSnapshotIntegrity(unpartitionedLocation, newTableIdentifier);
+    checkIcebergTableLocation(newTableIdentifier, unpartitionedLocation);
+    checkIcebergTableProperties(newTableIdentifier, ImmutableMap.of(), unpartitionedLocation);
   }
 
   @Test
@@ -227,6 +226,49 @@ public class TestSnapshotHudiTable extends SparkHudiMigrationTestBase {
                 spark, multiCommitTableLocation, newTableIdentifier)
             .execute();
     checkSnapshotIntegrity(multiCommitTableLocation, newTableIdentifier);
+    checkIcebergTableLocation(newTableIdentifier, multiCommitTableLocation);
+    checkIcebergTableProperties(newTableIdentifier, ImmutableMap.of(), multiCommitTableLocation);
+  }
+
+  @Test
+  public void testSnapshotWithNewLocation() {
+    writeHoodieTable(
+        typeTestDataframe,
+        "decimalCol",
+        "intCol",
+        "partitionPath",
+        SaveMode.Overwrite,
+        partitionedLocation,
+        partitionedIdentifier);
+    String newTableIdentifier = destName(icebergCatalogName, "alpha_iceberg_table_4");
+    SnapshotHudiTable.Result result =
+        HudiToIcebergMigrationSparkIntegration.snapshotHudiTable(
+                spark, partitionedLocation, newTableIdentifier)
+            .tableLocation(newIcebergTableLocation)
+            .execute();
+    checkSnapshotIntegrity(partitionedLocation, newTableIdentifier);
+    checkIcebergTableLocation(newTableIdentifier, newIcebergTableLocation);
+  }
+
+  @Test
+  public void testSnapshotWithAdditionalProperties() {
+    writeHoodieTable(
+        typeTestDataframe,
+        "decimalCol",
+        "intCol",
+        "partitionPath",
+        SaveMode.Overwrite,
+        partitionedLocation,
+        partitionedIdentifier);
+    String newTableIdentifier = destName(icebergCatalogName, "alpha_iceberg_table_5");
+    SnapshotHudiTable.Result result =
+        HudiToIcebergMigrationSparkIntegration.snapshotHudiTable(
+                spark, partitionedLocation, newTableIdentifier)
+            .tableProperties(ImmutableMap.of("test", "test"))
+            .execute();
+    checkSnapshotIntegrity(partitionedLocation, newTableIdentifier);
+    checkIcebergTableProperties(
+        newTableIdentifier, ImmutableMap.of("test", "test"), partitionedLocation);
   }
 
   private void checkSnapshotIntegrity(String hudiTableLocation, String icebergTableIdentifier) {
@@ -239,24 +281,36 @@ public class TestSnapshotHudiTable extends SparkHudiMigrationTestBase {
                 DataSourceReadOptions.QUERY_TYPE_SNAPSHOT_OPT_VAL())
             .load(hudiTableLocation);
     Dataset<Row> icebergResult = spark.sql("SELECT * FROM " + icebergTableIdentifier);
-    LOG.info("Hudi table contents: {}", hudiResult.showString(10, 20, false));
-    LOG.info("Iceberg table contents: {}", icebergResult.showString(10, 20, false));
     // TODO: adjust test technique since hudi tends to return the columns in a different order (put
     // the one used for partitioning last)
     List<Row> hudiTableContents = hudiResult.collectAsList();
     List<Row> icebergTableContents = icebergResult.collectAsList();
 
     Assertions.assertThat(hudiTableContents).hasSize(icebergTableContents.size());
-    Assertions.assertThat(hudiTableContents).containsAll(icebergTableContents);
-    Assertions.assertThat(icebergTableContents)
-        .containsAll(hudiTableContents); // TODO: may change to containsExactlyInAnyOrderElementsOf
+    Assertions.assertThat(hudiTableContents)
+        .containsExactlyInAnyOrderElementsOf(icebergTableContents);
   }
 
-  private void queryManual(Table table) {
-    CloseableIterable<Record> records = IcebergGenerics.read(table).build();
-    for (Record record : records) {
-      LOG.info("Alpha Test Iceberg Record: {}", record);
-    }
+  private void checkIcebergTableLocation(String icebergTableIdentifier, String expectedLoacation) {
+    Table table = getIcebergTable(icebergTableIdentifier);
+    Assertions.assertThat(table.location()).isEqualTo(expectedLoacation);
+  }
+
+  private void checkIcebergTableProperties(
+      String icebergTableIdentifier,
+      Map<String, String> expectedAdditionalProperties,
+      String hudiTableLocation) {
+    Table icebergTable = getIcebergTable(icebergTableIdentifier);
+    ImmutableMap.Builder<String, String> expectedPropertiesBuilder = ImmutableMap.builder();
+    // The snapshot action will put some fixed properties to the table
+    expectedPropertiesBuilder.put(SNAPSHOT_SOURCE_PROP, HUDI_SOURCE_VALUE);
+    expectedPropertiesBuilder.putAll(expectedAdditionalProperties);
+    ImmutableMap<String, String> expectedProperties = expectedPropertiesBuilder.build();
+
+    Assertions.assertThat(icebergTable.properties().entrySet())
+        .containsAll(expectedProperties.entrySet());
+    Assertions.assertThat(icebergTable.properties())
+        .containsEntry(ORIGINAL_LOCATION_PROP, hudiTableLocation);
   }
 
   private Table getIcebergTable(String icebergTableIdentifier) {
@@ -293,9 +347,7 @@ public class TestSnapshotHudiTable extends SparkHudiMigrationTestBase {
         .withColumn("mapCol", expr("MAP(stringCol, intCol)")) // Hudi requires Map key to be String
         .withColumn("arrayCol", expr("ARRAY(dateCol)"))
         .withColumn("structCol", expr("STRUCT(longCol AS a, longCol AS b)"))
-        .withColumn(
-            "partitionPath",
-            expr("CAST(longCol AS STRING)"));
+        .withColumn("partitionPath", expr("CAST(longCol AS STRING)"));
   }
 
   private Dataset<Row> multiDataFrame(int start, int end) {

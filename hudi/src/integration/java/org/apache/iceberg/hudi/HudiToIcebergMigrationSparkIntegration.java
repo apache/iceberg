@@ -19,6 +19,7 @@
 package org.apache.iceberg.hudi;
 
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.connector.catalog.CatalogPlugin;
@@ -28,15 +29,23 @@ public class HudiToIcebergMigrationSparkIntegration {
 
   static SnapshotHudiTable snapshotHudiTable(
       SparkSession spark, String hudiTablePath, String newTableIdentifier) {
+    Preconditions.checkArgument(
+        spark != null, "The SparkSession cannot be null, please provide a valid SparkSession");
+    Preconditions.checkArgument(
+        newTableIdentifier != null,
+        "The table identifier cannot be null, please provide a valid table identifier for the new iceberg table");
+    Preconditions.checkArgument(
+        hudiTablePath != null,
+        "The hudi table location cannot be null, please provide a valid location of the delta lake table to be snapshot");
     String ctx = "hudi snapshot target";
     CatalogPlugin defaultCatalog = spark.sessionState().catalogManager().currentCatalog();
     Spark3Util.CatalogAndIdentifier catalogAndIdentifier =
         Spark3Util.catalogAndIdentifier(ctx, spark, newTableIdentifier, defaultCatalog);
-
-    return new BaseSnapshotHudiTableAction(
-        spark.sessionState().newHadoopConf(),
-        hudiTablePath,
-        Spark3Util.loadIcebergCatalog(spark, catalogAndIdentifier.catalog().name()),
-        TableIdentifier.parse(catalogAndIdentifier.identifier().toString()));
+    return HudiToIcebergMigrationActionsProvider.defaultProvider()
+        .snapshotHudiTable(hudiTablePath)
+        .as(TableIdentifier.parse(catalogAndIdentifier.identifier().toString()))
+        .hoodieConfiguration(spark.sessionState().newHadoopConf())
+        .icebergCatalog(
+            Spark3Util.loadIcebergCatalog(spark, catalogAndIdentifier.catalog().name()));
   }
 }

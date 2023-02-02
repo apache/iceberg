@@ -18,12 +18,28 @@
  */
 package org.apache.iceberg.hudi;
 
+/**
+ * An API that provide actions for migration from an Apache Hudi table to an Iceberg table. Query
+ * engines can use {@code defaultActions()} to access default action implementations, or implement
+ * this provider to supply a different implementation if necessary.
+ */
 public interface HudiToIcebergMigrationActionsProvider {
 
-  default SnapshotHudiTable snapshotHudiTable() {
-    throw new UnsupportedOperationException("snapshotHudiTable is not supported");
+  /**
+   * Initiates an action to snapshot an existing Delta Lake table to an Iceberg table.
+   *
+   * @param sourceTableLocation the location of the Delta Lake table
+   * @return a {@link SnapshotHudiTable} action
+   */
+  default SnapshotHudiTable snapshotHudiTable(String sourceTableLocation) {
+    return new BaseSnapshotHudiTableAction(sourceTableLocation);
   }
 
+  /**
+   * Get the default implementation of {@link HudiToIcebergMigrationActionsProvider}
+   *
+   * @return an instance with access to all default actions
+   */
   static HudiToIcebergMigrationActionsProvider defaultProvider() {
     return DefaultHudiToIcebergMigrationActions.defaultMigrationActions();
   }
