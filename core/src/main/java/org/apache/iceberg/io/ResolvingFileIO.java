@@ -164,8 +164,12 @@ public class ResolvingFileIO implements FileIO, HadoopConfigurable {
     return io;
   }
 
-  public static String implFromLocation(String location) {
+  private static String implFromLocation(String location) {
     return SCHEME_TO_FILE_IO.getOrDefault(scheme(location), FALLBACK_IMPL);
+  }
+
+  public Class<? extends FileIO> ioClass(String location) {
+    return io(location).getClass();
   }
 
   private static String scheme(String location) {

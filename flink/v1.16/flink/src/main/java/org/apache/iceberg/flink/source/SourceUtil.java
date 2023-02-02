@@ -18,24 +18,16 @@
  */
 package org.apache.iceberg.flink.source;
 
-import java.util.Set;
 import java.util.function.Supplier;
 import org.apache.flink.configuration.ReadableConfig;
 import org.apache.flink.table.api.config.ExecutionConfigOptions;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.FlinkConfigOptions;
-import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.hadoop.Util;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 class SourceUtil {
   private SourceUtil() {}
-
-  private static final Logger LOG = LoggerFactory.getLogger(SourceUtil.class);
-  private static final Set<String> FILE_SYSTEM_SUPPORT_LOCALITY = ImmutableSet.of("hdfs");
 
   static boolean isLocalityEnabled(
       Table table, ReadableConfig readableConfig, Boolean exposeLocality) {
@@ -48,13 +40,7 @@ class SourceUtil {
       return false;
     }
 
-    if (Util.isHDFSLocation(table.io(), table.location())) {
-      HadoopInputFile file = (HadoopInputFile) table.io().newInputFile(table.location());
-      String scheme = file.getFileSystem().getScheme();
-      return FILE_SYSTEM_SUPPORT_LOCALITY.contains(scheme);
-    }
-
-    return false;
+    return Util.mayHaveBlockLocations(table.io(), table.location());
   }
 
   /**

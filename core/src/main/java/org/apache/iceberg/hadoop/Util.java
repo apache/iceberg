@@ -34,7 +34,9 @@ import org.apache.iceberg.ScanTask;
 import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.ResolvingFileIO;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -42,6 +44,8 @@ import org.slf4j.LoggerFactory;
 public class Util {
 
   public static final String VERSION_HINT_FILENAME = "version-hint.text";
+
+  private static final Set<String> LOCALITY_WHITELIST_FS = ImmutableSet.of("hdfs");
 
   private static final Logger LOG = LoggerFactory.getLogger(Util.class);
 
@@ -84,15 +88,37 @@ public class Util {
     return locations.toArray(HadoopInputFile.NO_LOCATION_PREFERENCE);
   }
 
-  public static boolean isHDFSLocation(FileIO io, String location) {
-    return io instanceof HadoopFileIO
-        || (io instanceof ResolvingFileIO
-            && ResolvingFileIO.implFromLocation(location).equals(HadoopFileIO.class.getName()));
+  public static boolean usesHadoopFileIO(FileIO io, String location) {
+    if (io instanceof HadoopFileIO) {
+      return true;
+
+    } else if (io instanceof ResolvingFileIO) {
+      ResolvingFileIO resolvingFileIO = (ResolvingFileIO) io;
+      return resolvingFileIO.ioClass(location).isAssignableFrom(HadoopFileIO.class);
+
+    } else {
+      return false;
+    }
+  }
+
+  public static boolean mayHaveBlockLocations(FileIO io, String location) {
+    if (usesHadoopFileIO(io, location)) {
+      InputFile inputFile = io.newInputFile(location);
+      if (inputFile instanceof HadoopInputFile) {
+        String scheme = ((HadoopInputFile) inputFile).getFileSystem().getScheme();
+        return LOCALITY_WHITELIST_FS.contains(scheme);
+
+      } else {
+        return false;
+      }
+    }
+
+    return false;
   }
 
   private static String[] blockLocations(FileIO io, ContentScanTask<?> task) {
     String location = task.file().path().toString();
-    if (isHDFSLocation(io, location)) {
+    if (usesHadoopFileIO(io, location)) {
       HadoopInputFile hadoopInputFile = (HadoopInputFile) io.newInputFile(location);
       return hadoopInputFile.getBlockLocations(task.start(), task.length());
     } else {
