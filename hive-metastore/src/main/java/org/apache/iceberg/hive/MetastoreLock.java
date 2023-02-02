@@ -94,7 +94,7 @@ public class MetastoreLock implements HiveLock {
 
   private Optional<Long> hmsLockId = Optional.empty();
   private ReentrantLock jvmLock = null;
-  private HiveLockHeartbeat hiveLockHeartbeat = null;
+  private Heartbeat heartbeat = null;
 
   public MetastoreLock(
       Configuration conf,
@@ -146,30 +146,31 @@ public class MetastoreLock implements HiveLock {
     hmsLockId = Optional.of(acquireLock());
 
     // Starting heartbeat for the HMS lock
-    hiveLockHeartbeat =
-        new HiveLockHeartbeat(metaClients, hmsLockId.get(), lockHeartbeatIntervalTime);
-    hiveLockHeartbeat.schedule(exitingScheduledExecutorService);
+    heartbeat = new Heartbeat(metaClients, hmsLockId.get(), lockHeartbeatIntervalTime);
+    heartbeat.schedule(exitingScheduledExecutorService);
   }
 
   @Override
   public void ensureActive() throws LockException {
-    if (hiveLockHeartbeat != null && hiveLockHeartbeat.encounteredException != null) {
-      throw new LockException(
-          hiveLockHeartbeat.encounteredException,
-          "Failed to heartbeat for hive lock. %s",
-          hiveLockHeartbeat.encounteredException.getMessage());
-    }
-    if (hiveLockHeartbeat == null
-        || hiveLockHeartbeat.future == null
-        || hiveLockHeartbeat.future.isCancelled()) {
+    if (heartbeat == null) {
       throw new LockException("Lock is not active");
+    }
+
+    if (heartbeat.encounteredException != null) {
+      throw new LockException(
+          heartbeat.encounteredException,
+          "Failed to heartbeat for hive lock. %s",
+          heartbeat.encounteredException.getMessage());
+    }
+    if (!heartbeat.active()) {
+      throw new LockException("Hive lock heartbeat thread not active");
     }
   }
 
   @Override
   public void unlock() {
-    if (hiveLockHeartbeat != null) {
-      hiveLockHeartbeat.cancel();
+    if (heartbeat != null) {
+      heartbeat.cancel();
       exitingScheduledExecutorService.shutdown();
     }
 
@@ -181,12 +182,12 @@ public class MetastoreLock implements HiveLock {
   }
 
   private long acquireLock() throws LockException {
-    LockInfo lockInfo = tryLock();
+    LockInfo lockInfo = createLock();
 
     final long start = System.currentTimeMillis();
     long duration = 0;
     boolean timeout = false;
-    TException error = null;
+    TException thriftError = null;
 
     try {
       if (lockInfo.lockState.equals(LockState.WAITING)) {
@@ -231,7 +232,7 @@ public class MetastoreLock implements HiveLock {
       timeout = true;
       duration = System.currentTimeMillis() - start;
     } catch (TException e) {
-      error = e;
+      thriftError = e;
     } finally {
       if (!lockInfo.lockState.equals(LockState.ACQUIRED)) {
         unlock(Optional.of(lockInfo.lockId));
@@ -239,16 +240,14 @@ public class MetastoreLock implements HiveLock {
     }
 
     if (!lockInfo.lockState.equals(LockState.ACQUIRED)) {
-      // timeout and do not have lock acquired
       if (timeout) {
         throw new LockException(
             "Timed out after %s ms waiting for lock on %s.%s", duration, databaseName, tableName);
       }
 
-      // On thrift error and do not have lock acquired
-      if (error != null) {
+      if (thriftError != null) {
         throw new LockException(
-            error, "Metastore operation failed for %s.%s", databaseName, tableName);
+            thriftError, "Metastore operation failed for %s.%s", databaseName, tableName);
       }
 
       // Just for safety. We should not get here.
@@ -268,7 +267,7 @@ public class MetastoreLock implements HiveLock {
    *     an error during lock creation
    */
   @SuppressWarnings("ReverseDnsLookup")
-  private LockInfo tryLock() throws LockException {
+  private LockInfo createLock() throws LockException {
     LockInfo lockInfo = new LockInfo();
 
     String hostName;
@@ -466,15 +465,14 @@ public class MetastoreLock implements HiveLock {
     }
   }
 
-  private static class HiveLockHeartbeat implements Runnable {
+  private static class Heartbeat implements Runnable {
     private final ClientPool<IMetaStoreClient, TException> hmsClients;
     private final long lockId;
     private final long intervalMs;
     private ScheduledFuture<?> future;
     private volatile Exception encounteredException = null;
 
-    HiveLockHeartbeat(
-        ClientPool<IMetaStoreClient, TException> hmsClients, long lockId, long intervalMs) {
+    Heartbeat(ClientPool<IMetaStoreClient, TException> hmsClients, long lockId, long intervalMs) {
       this.hmsClients = hmsClients;
       this.lockId = lockId;
       this.intervalMs = intervalMs;
@@ -498,6 +496,10 @@ public class MetastoreLock implements HiveLock {
     public void schedule(ScheduledExecutorService scheduler) {
       future =
           scheduler.scheduleAtFixedRate(this, intervalMs / 2, intervalMs, TimeUnit.MILLISECONDS);
+    }
+
+    boolean active() {
+      return future != null && !future.isCancelled();
     }
 
     public void cancel() {

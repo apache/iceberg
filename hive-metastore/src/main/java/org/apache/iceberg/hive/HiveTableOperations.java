@@ -21,14 +21,12 @@ package org.apache.iceberg.hive;
 import static org.apache.iceberg.TableProperties.GC_ENABLED;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.github.benmanes.caffeine.cache.Cache;
 import java.util.Collections;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.common.StatsSetupConst;
@@ -89,8 +87,6 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
           // gc.enabled in Iceberg and external.table.purge in Hive are meant to do the same things
           // but with different names
           GC_ENABLED, "external.table.purge");
-
-  private static Cache<String, ReentrantLock> commitLockCache;
 
   /**
    * Provides key translation where necessary between Iceberg and HMS props. This translation is
