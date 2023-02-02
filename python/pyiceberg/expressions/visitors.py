@@ -1013,7 +1013,7 @@ class _InclusiveMetricsEvaluator(BoundBooleanExpressionVisitor[bool]):
             return ROWS_CANNOT_MATCH
 
         if file.record_count < 0:
-            # we haven't implemented parsing record count from avro file and thus set record count -1
+            # @TODO we haven't implemented parsing record count from avro file and thus set record count -1
             # when importing avro tables to iceberg tables. This should be updated once we implemented
             # and set correct record count.
             return ROWS_MIGHT_MATCH

@@ -1656,7 +1656,7 @@ def test_inclusive_metrics_evaluator_in(schema_data_file: Schema, data_file: Dat
     assert should_read, "Should match: 10 within bounds"
 
     should_read = _InclusiveMetricsEvaluator(schema_data_file, In("some_nan_correct_bounds", (1, 30))).eval(data_file)
-    assert not should_read, "Should not match: 1 not within bounds"
+    assert not should_read, "Should not match: 1 and 30 not within bounds"
 
     should_read = _InclusiveMetricsEvaluator(schema_data_file, In("some_nan_correct_bounds", (5, 7))).eval(data_file)
     assert should_read, "Should match: overlap with lower bound"

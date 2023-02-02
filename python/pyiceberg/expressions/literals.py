@@ -329,7 +329,7 @@ class FloatLiteral(Literal[float]):
         return self._value32 >= other
 
     def __hash__(self) -> int:
-        return hash(self.value)
+        return hash(self._value32)
 
     @singledispatchmethod
     def to(self, type_var: IcebergType) -> Literal:  # type: ignore
