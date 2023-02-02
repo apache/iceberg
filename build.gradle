@@ -458,10 +458,10 @@ project(':iceberg-hudi') {
     implementation project(':iceberg-orc')
     implementation "com.fasterxml.jackson.core:jackson-databind"
 
-    // TODO: we only need hudi-common here, however, hudi-common has some dependency conflicts with hudi-spark-bundle
-    // which is currently used by the integration test. We should fix this in the future.
-    // Also, hudi uses java8, may need to assess if we can use hudi in java11.
-    compileOnly("org.apache.hudi:hudi-spark3.3-bundle_2.12:0.12.2")
+    // Hudi uses java8, may need to assess if we can use hudi in java11.
+    compileOnly("org.apache.hudi:hudi-common")
+    // Added to resolve dependency conflicts with hudi-spark-bundle
+    compileOnly("org.apache.hudi:hudi-client-common")
     implementation("org.apache.avro:avro") {
       exclude group: 'org.tukaani' // xz compression is not supported
     }
@@ -474,7 +474,10 @@ project(':iceberg-hudi') {
     }
     if (sparkVersions.contains("3.3") && scalaVersion == "2.12") {
       integrationImplementation project(':iceberg-data')
-      integrationImplementation("org.apache.hudi:hudi-spark3.3-bundle_2.12:0.12.2")
+      integrationImplementation("org.apache.hudi:hudi-spark3.3-bundle_2.12") {
+        exclude group: 'org.apache.hudi', module: 'hudi-common'
+        exclude group: 'org.apache.hudi', module: 'hudi-client-common'
+      }
       integrationImplementation project(path: ":iceberg-spark:iceberg-spark-3.3_${scalaVersion}")
       integrationImplementation("org.apache.hadoop:hadoop-minicluster") {
         exclude group: 'org.apache.avro', module: 'avro'
