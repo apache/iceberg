@@ -109,7 +109,7 @@ markers = [
     "s3: marks a test as requiring access to s3 compliant storage (use with --aws-access-key-id, --aws-secret-access-key, and --endpoint-url args)",
     "adlfs: marks a test as requiring access to adlfs compliant storage (use with --adlfs.account-name, --adlfs.account-key, and --adlfs.endpoint args)"
 ]
-# Turns an warning into an error
+# Turns a warning into an error
 filterwarnings = [
     "error"
 ]
