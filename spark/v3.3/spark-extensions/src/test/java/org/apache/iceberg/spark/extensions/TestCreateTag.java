@@ -98,6 +98,12 @@ public class TestCreateTag extends SparkExtensionsTestBase {
     AssertHelpers.assertThrows(
         "Illegal statement",
         IcebergParseException.class,
+        "mismatched input",
+        () -> sql("ALTER TABLE %s CREATE TAG %s RETAIN %s DAYS", tableName, tagName, "abc"));
+
+    AssertHelpers.assertThrows(
+        "Illegal statement",
+        IcebergParseException.class,
         "mismatched input 'SECONDS' expecting {'DAYS', 'HOURS', 'MINUTES'}",
         () ->
             sql(
@@ -128,6 +134,12 @@ public class TestCreateTag extends SparkExtensionsTestBase {
         IllegalArgumentException.class,
         "already exists",
         () -> sql("ALTER TABLE %s CREATE TAG %s", tableName, tagName));
+
+    AssertHelpers.assertThrows(
+        "Non-conforming tag name",
+        IcebergParseException.class,
+        "mismatched input '123'",
+        () -> sql("ALTER TABLE %s CREATE TAG %s", tableName, "123"));
 
     table.manageSnapshots().removeTag(tagName).commit();
     List<SimpleRecord> records =

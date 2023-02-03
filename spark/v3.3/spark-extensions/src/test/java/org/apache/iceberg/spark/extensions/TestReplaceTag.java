@@ -103,10 +103,8 @@ public class TestReplaceTag extends SparkExtensionsTestBase {
     long second = table.currentSnapshot().snapshotId();
 
     sql("ALTER TABLE %s REPLACE Tag %s AS OF VERSION %d", tableName, tagName, second);
-
     table.refresh();
     SnapshotRef ref = table.refs().get(tagName);
-    Assert.assertNotNull(ref);
     Assert.assertEquals(second, ref.snapshotId());
     Assert.assertEquals(expectedMaxRefAgeMs, ref.maxRefAgeMs().longValue());
   }
@@ -142,7 +140,6 @@ public class TestReplaceTag extends SparkExtensionsTestBase {
     long first = table.currentSnapshot().snapshotId();
     String tagName = "t1";
     table.manageSnapshots().createTag(tagName, first).commit();
-    SnapshotRef t1 = table.refs().get(tagName);
     df.writeTo(tableName).append();
     long second = table.currentSnapshot().snapshotId();
 
@@ -154,7 +151,6 @@ public class TestReplaceTag extends SparkExtensionsTestBase {
 
       table.refresh();
       SnapshotRef ref = table.refs().get(tagName);
-      Assert.assertNotNull(ref);
       Assert.assertEquals(second, ref.snapshotId());
       Assert.assertEquals(
           TimeUnit.valueOf(timeUnit).toMillis(maxRefAge), ref.maxRefAgeMs().longValue());
@@ -177,10 +173,8 @@ public class TestReplaceTag extends SparkExtensionsTestBase {
     table.manageSnapshots().createTag(tagName, second).commit();
 
     sql("ALTER TABLE %s CREATE OR REPLACE TAG %s AS OF VERSION %d", tableName, tagName, first);
-
     table.refresh();
     SnapshotRef ref = table.refs().get(tagName);
-    Assert.assertNotNull(ref);
     Assert.assertEquals(first, ref.snapshotId());
   }
 }

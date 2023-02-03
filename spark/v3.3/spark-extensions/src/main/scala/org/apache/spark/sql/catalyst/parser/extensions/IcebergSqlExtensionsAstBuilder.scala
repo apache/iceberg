@@ -130,9 +130,7 @@ class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface) extends IcebergS
       branchOptions,
       replace,
       ifNotExists)
-
   }
-
 
   /**
    * Create an CREATE OR REPLACE TAG logical command.

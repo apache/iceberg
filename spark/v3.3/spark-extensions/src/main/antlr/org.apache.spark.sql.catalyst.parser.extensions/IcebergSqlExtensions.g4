@@ -88,10 +88,12 @@ createReplaceBranchClause
     ;
 
 tagOptions
-    : (AS OF VERSION snapshotId)? (refRetain)?;
+    : (AS OF VERSION snapshotId)? (refRetain)?
+    ;
 
 branchOptions
-    : (AS OF VERSION snapshotId)? (refRetain)? (snapshotRetention)?;
+    : (AS OF VERSION snapshotId)? (refRetain)? (snapshotRetention)?
+    ;
 
 snapshotRetention
     : WITH SNAPSHOT RETENTION minSnapshotsToKeep
