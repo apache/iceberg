@@ -140,7 +140,7 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
     // estimate stats using snapshot summary only for partitioned tables
     // (metadata tables are unpartitioned)
     if (!table.spec().isUnpartitioned() && filterExpressions.isEmpty()) {
-      LOG.debug("Using table metadata to estimate table statistics");
+      LOG.debug("Using snapshot metadata to estimate statistics for table {}", table.name());
       long totalRecords = totalRecords(snapshot);
       return new Stats(SparkSchemaUtil.estimateSize(readSchema(), totalRecords), totalRecords);
     }

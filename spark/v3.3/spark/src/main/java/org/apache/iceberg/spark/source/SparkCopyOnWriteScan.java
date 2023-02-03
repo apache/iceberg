@@ -40,9 +40,13 @@ import org.apache.spark.sql.connector.read.Statistics;
 import org.apache.spark.sql.connector.read.SupportsRuntimeFiltering;
 import org.apache.spark.sql.sources.Filter;
 import org.apache.spark.sql.sources.In;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 class SparkCopyOnWriteScan extends SparkPartitioningAwareScan<FileScanTask>
     implements SupportsRuntimeFiltering {
+
+  private static final Logger LOG = LoggerFactory.getLogger(SparkCopyOnWriteScan.class);
 
   private final Snapshot snapshot;
   private Set<String> filteredLocations = null;
@@ -123,8 +127,17 @@ class SparkCopyOnWriteScan extends SparkPartitioningAwareScan<FileScanTask>
               tasks().stream()
                   .filter(file -> fileLocations.contains(file.file().path().toString()))
                   .collect(Collectors.toList());
+
+          LOG.info(
+              "{}/{} tasks for table {} matched runtime file filter",
+              filteredTasks.size(),
+              tasks().size(),
+              table().name());
+
           resetTasks(filteredTasks);
         }
+      } else {
+        LOG.warn("Unsupported runtime filter {}", filter);
       }
     }
   }
