@@ -52,7 +52,7 @@ import org.apache.thrift.TException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class MetastoreLock implements HiveLock {
+class MetastoreLock implements HiveLock {
   private static final Logger LOG = LoggerFactory.getLogger(MetastoreLock.class);
   private static final String HIVE_ACQUIRE_LOCK_TIMEOUT_MS = "iceberg.hive.lock-timeout-ms";
   private static final String HIVE_LOCK_CHECK_MIN_WAIT_MS = "iceberg.hive.lock-check-min-wait-ms";
@@ -96,7 +96,7 @@ public class MetastoreLock implements HiveLock {
   private ReentrantLock jvmLock = null;
   private Heartbeat heartbeat = null;
 
-  public MetastoreLock(
+  MetastoreLock(
       Configuration conf,
       ClientPool<IMetaStoreClient, TException> metaClients,
       String catalogName,
