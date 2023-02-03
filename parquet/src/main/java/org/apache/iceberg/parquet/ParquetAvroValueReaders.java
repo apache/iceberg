@@ -45,8 +45,8 @@ import org.apache.iceberg.types.Type.TypeID;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.UUIDUtil;
 import org.apache.parquet.column.ColumnDescriptor;
-import org.apache.parquet.schema.DecimalMetadata;
 import org.apache.parquet.schema.GroupType;
+import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
@@ -184,7 +184,9 @@ public class ParquetAvroValueReaders {
           case TIMESTAMP_MILLIS:
             return new TimestampMillisReader(desc);
           case DECIMAL:
-            DecimalMetadata decimal = primitive.getDecimalMetadata();
+            LogicalTypeAnnotation typeAnnotation = primitive.getLogicalTypeAnnotation();
+            LogicalTypeAnnotation.DecimalLogicalTypeAnnotation decimal =
+                (LogicalTypeAnnotation.DecimalLogicalTypeAnnotation) typeAnnotation;
             switch (primitive.getPrimitiveTypeName()) {
               case BINARY:
               case FIXED_LEN_BYTE_ARRAY:
