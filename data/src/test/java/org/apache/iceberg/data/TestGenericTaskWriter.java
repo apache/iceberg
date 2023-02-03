@@ -74,6 +74,7 @@ public class TestGenericTaskWriter {
     if (testWareHouse.exists()) {
       Assert.assertTrue(testWareHouse.delete());
     }
+
     Catalog catalog = new HadoopCatalog(new Configuration(), testWareHouse.getPath());
     this.table =
         catalog.createTable(
@@ -87,10 +88,12 @@ public class TestGenericTaskWriter {
   private void writeRecords() throws IOException {
     GenericAppenderFactory appenderFactory =
         new GenericAppenderFactory(table.schema(), table.spec());
-    int partitionId = 1, taskId = 1;
+
     FileFormat fileFormat =
         FileFormat.valueOf(
             table.properties().getOrDefault("write.format.default", "parquet").toUpperCase());
+
+    int partitionId = 1, taskId = 1;
     OutputFileFactory outputFileFactory =
         OutputFileFactory.builderFor(table, partitionId, taskId).format(fileFormat).build();
     // TaskWriter write records into file. (the same is ok for unpartition table)
@@ -105,7 +108,7 @@ public class TestGenericTaskWriter {
             targetFileSizeInBytes);
 
     GenericRecord genericRecord = GenericRecord.create(table.schema());
-    // assume write 1000 records
+    // Write 1000 records
     for (int i = 0; i < 1000; i++) {
       GenericRecord record = genericRecord.copy();
       record.setField("level", i % 6 == 0 ? "error" : "info");
@@ -113,16 +116,15 @@ public class TestGenericTaskWriter {
       record.setField("message", "Iceberg is a great table format");
       record.setField("call_stack", Collections.singletonList("NullPointerException"));
       genericTaskWriter.write(record);
-      // just for test, remove from doc code
       this.testRecords.add(record);
     }
-    // after the data file is written above,
-    // the written data file is submitted to the metadata of the table through Table API.
+
+    // Call the AppendFiles API on each of the data files
     AppendFiles appendFiles = table.newAppend();
     for (DataFile dataFile : genericTaskWriter.dataFiles()) {
       appendFiles.appendFile(dataFile);
     }
-    // submit data file.
+    // Commit the AppendFiles operation
     appendFiles.commit();
   }
 

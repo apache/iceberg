@@ -147,13 +147,11 @@ t.newAppend().appendFile(data).commit();
 t.commitTransaction();
 ```
 
-### WriteData
+### Writing Data
 
-The java API can write data into iceberg table.
+The Java API can be used to write data into Iceberg tables
 
-First write data to the data file, then submit the data file, the data you write will take effect in the table.
-
-For example, add 1000 rows of data to the table.
+The following example will demonstrate how to write data files into Iceberg tables
 
 The structure of this table is the same as the demo table in java-api-quickstart
 
@@ -173,12 +171,15 @@ The structure of this table is the same as the demo table in java-api-quickstart
 
 GenericAppenderFactory appenderFactory =
     new GenericAppenderFactory(table.schema(), table.spec());
-int partitionId = 1, taskId = 1;
+
 FileFormat fileFormat =
     FileFormat.valueOf(
         table.properties().getOrDefault("write.format.default", "parquet").toUpperCase());
+
+int partitionId = 1, taskId = 1;
 OutputFileFactory outputFileFactory =
     OutputFileFactory.builderFor(table, partitionId, taskId).format(fileFormat).build();
+
 // TaskWriter write records into file. (the same is ok for unpartition table)
 long targetFileSizeInBytes = 50L * 1024 * 1024;
 GenericTaskWriter<Record> genericTaskWriter =
@@ -191,7 +192,7 @@ GenericTaskWriter<Record> genericTaskWriter =
         targetFileSizeInBytes);
 
 GenericRecord genericRecord = GenericRecord.create(table.schema());
-// assume write 1000 records
+// Write 1000 records
 for (int i = 0; i < 1000; i++) {
     GenericRecord record = genericRecord.copy();
     record.setField("level", i % 6 == 0 ? "error" : "info");
@@ -200,13 +201,13 @@ for (int i = 0; i < 1000; i++) {
     record.setField("call_stack", Collections.singletonList("NullPointerException"));
     genericTaskWriter.write(record);
 }
-// after the data file is written above,
-// the written data file is submitted to the metadata of the table through Table API.
+
+// Call the AppendFiles API on each of the data files
 AppendFiles appendFiles = table.newAppend();
 for (DataFile dataFile : genericTaskWriter.dataFiles()) {
     appendFiles.appendFile(dataFile);
 }
-//submit data file.
+// Commit the AppendFiles operation
 appendFiles.commit();
 ```
 
