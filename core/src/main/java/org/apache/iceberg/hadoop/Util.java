@@ -88,19 +88,6 @@ public class Util {
     return locations.toArray(HadoopInputFile.NO_LOCATION_PREFERENCE);
   }
 
-  public static boolean usesHadoopFileIO(FileIO io, String location) {
-    if (io instanceof HadoopFileIO) {
-      return true;
-
-    } else if (io instanceof ResolvingFileIO) {
-      ResolvingFileIO resolvingFileIO = (ResolvingFileIO) io;
-      return resolvingFileIO.ioClass(location).isAssignableFrom(HadoopFileIO.class);
-
-    } else {
-      return false;
-    }
-  }
-
   public static boolean mayHaveBlockLocations(FileIO io, String location) {
     if (usesHadoopFileIO(io, location)) {
       InputFile inputFile = io.newInputFile(location);
@@ -116,11 +103,29 @@ public class Util {
     return false;
   }
 
+  public static boolean usesHadoopFileIO(FileIO io, String location) {
+    if (io instanceof HadoopFileIO) {
+      return true;
+
+    } else if (io instanceof ResolvingFileIO) {
+      ResolvingFileIO resolvingFileIO = (ResolvingFileIO) io;
+      return HadoopFileIO.class.isAssignableFrom(resolvingFileIO.ioClass(location));
+
+    } else {
+      return false;
+    }
+  }
+
   private static String[] blockLocations(FileIO io, ContentScanTask<?> task) {
     String location = task.file().path().toString();
     if (usesHadoopFileIO(io, location)) {
-      HadoopInputFile hadoopInputFile = (HadoopInputFile) io.newInputFile(location);
-      return hadoopInputFile.getBlockLocations(task.start(), task.length());
+      InputFile inputFile = io.newInputFile(location);
+      if (inputFile instanceof HadoopInputFile) {
+        return ((HadoopInputFile) inputFile).getBlockLocations(task.start(), task.length());
+
+      } else {
+        return HadoopInputFile.NO_LOCATION_PREFERENCE;
+      }
     } else {
       return HadoopInputFile.NO_LOCATION_PREFERENCE;
     }
