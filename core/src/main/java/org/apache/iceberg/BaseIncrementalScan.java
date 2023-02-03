@@ -131,7 +131,8 @@ abstract class BaseIncrementalScan<ThisT, T extends ScanTask, G extends ScanTask
       } else {
         // validate there is an ancestor of toSnapshotIdInclusive where parent is fromSnapshotId
         Preconditions.checkArgument(
-            SnapshotUtil.isParentAncestorOf(table(), toSnapshotIdInclusive, fromSnapshotId),
+            SnapshotUtil.isParentAncestorOf(table(), toSnapshotIdInclusive, fromSnapshotId)
+                || fromSnapshotId.equals(toSnapshotIdInclusive),
             "Starting snapshot (exclusive) %s is not a parent ancestor of end snapshot %s",
             fromSnapshotId,
             toSnapshotIdInclusive);

@@ -65,19 +65,7 @@ public class DeleteReachableFilesSparkAction
         }
       };
 
-  private Consumer<String> deleteFunc = defaultDelete;
-
-  private final Consumer<Iterable<String>> defaultBulkDelete =
-      new Consumer<Iterable<String>>() {
-        @Override
-        public void accept(Iterable<String> paths) {
-          Preconditions.checkArgument(
-              io instanceof SupportsBulkOperations, "FileIO {} does not support bulk deletes", io);
-          ((SupportsBulkOperations) io).deleteFiles(paths);
-        }
-      };
-
-  private Consumer<Iterable<String>> bulkDeleteFunc = defaultBulkDelete;
+  private Consumer<String> deleteFunc = null;
   private ExecutorService deleteExecutorService = null;
   private FileIO io = new HadoopFileIO(spark().sessionState().newHadoopConf());
 
@@ -106,12 +94,6 @@ public class DeleteReachableFilesSparkAction
   @Override
   public DeleteReachableFilesSparkAction executeDeleteWith(ExecutorService executorService) {
     this.deleteExecutorService = executorService;
-    return this;
-  }
-
-  @Override
-  public DeleteReachableFiles deleteBulkWith(Consumer<Iterable<String>> newBulkDeleteFunc) {
-    this.bulkDeleteFunc = newBulkDeleteFunc;
     return this;
   }
 
@@ -154,12 +136,17 @@ public class DeleteReachableFilesSparkAction
 
   private DeleteReachableFiles.Result deleteFiles(Iterator<FileInfo> files) {
     DeleteSummary summary;
-    if (io instanceof SupportsBulkOperations) {
-      LOG.info("Triggering Bulk Delete Operations");
-      summary = deleteFiles(bulkDeleteFunc, files);
-    } else {
-      LOG.warn("Warning falling back to non-bulk deletes");
+    if (deleteFunc != null || !(io instanceof SupportsBulkOperations)) {
+      if (deleteFunc == null) {
+        LOG.info("Table IO does not support Bulk Operations. Using non-bulk deletes.");
+        deleteFunc = defaultDelete;
+      } else {
+        LOG.info("Custom delete function provided.");
+      }
+
       summary = deleteFiles(deleteExecutorService, deleteFunc, files);
+    } else {
+      summary = deleteFiles((SupportsBulkOperations) io, files);
     }
 
     LOG.info("Deleted {} total files", summary.totalFilesCount());

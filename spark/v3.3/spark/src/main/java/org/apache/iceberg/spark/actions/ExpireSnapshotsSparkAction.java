@@ -86,20 +86,7 @@ public class ExpireSnapshotsSparkAction extends BaseSparkAction<ExpireSnapshotsS
   private final Set<Long> expiredSnapshotIds = Sets.newHashSet();
   private Long expireOlderThanValue = null;
   private Integer retainLastValue = null;
-  private Consumer<String> deleteFunc = defaultDelete;
-  private final Consumer<Iterable<String>> defaultBulkDelete =
-      new Consumer<Iterable<String>>() {
-        @Override
-        public void accept(Iterable<String> paths) {
-          Preconditions.checkArgument(
-              ops.io() instanceof SupportsBulkOperations,
-              "FileIO {} does not support bulk deletes",
-              ops.io());
-          ((SupportsBulkOperations) ops.io()).deleteFiles(paths);
-        }
-      };
-
-  private Consumer<Iterable<String>> bulkDeleteFunc = defaultBulkDelete;
+  private Consumer<String> deleteFunc = null;
   private ExecutorService deleteExecutorService = null;
   private Dataset<FileInfo> expiredFileDS = null;
 
@@ -121,12 +108,6 @@ public class ExpireSnapshotsSparkAction extends BaseSparkAction<ExpireSnapshotsS
   @Override
   public ExpireSnapshotsSparkAction executeDeleteWith(ExecutorService executorService) {
     this.deleteExecutorService = executorService;
-    return this;
-  }
-
-  @Override
-  public ExpireSnapshots deleteBulkWith(Consumer<Iterable<String>> newBulkDeleteFunc) {
-    this.bulkDeleteFunc = newBulkDeleteFunc;
     return this;
   }
 
@@ -286,15 +267,17 @@ public class ExpireSnapshotsSparkAction extends BaseSparkAction<ExpireSnapshotsS
 
   private ExpireSnapshots.Result deleteFiles(Iterator<FileInfo> files) {
     DeleteSummary summary;
-    if (ops.io() instanceof SupportsBulkOperations) {
-      LOG.info("Triggering Bulk Delete Operations");
-      summary = deleteFiles(bulkDeleteFunc, files);
-    } else {
-      LOG.warn(
-          "Falling back to non-bulk deletes because the given io {} does not support bulk deletes. Using an IO"
-              + "with bulk deletes will provide better throughput.",
-          ops.io());
+    if (deleteFunc != null || !(table.io() instanceof SupportsBulkOperations)) {
+      if (deleteFunc == null) {
+        LOG.info("Table IO does not support Bulk Operations. Using non-bulk deletes.");
+        deleteFunc = defaultDelete;
+      } else {
+        LOG.info("Custom delete function provided.");
+      }
+
       summary = deleteFiles(deleteExecutorService, deleteFunc, files);
+    } else {
+      summary = deleteFiles((SupportsBulkOperations) table.io(), files);
     }
 
     LOG.info("Deleted {} total files", summary.totalFilesCount());

@@ -40,33 +40,19 @@ public interface DeleteReachableFiles
    * @param deleteFunc a function that will be called to delete files. The function accepts path to
    *     file as an argument.
    * @return this for method chaining
-   * @deprecated Deletes are now performed in bulk see {@link #deleteBulkWith(Consumer)}. This
-   *     method will only be used if the FileIO does not implement {@link
-   *     org.apache.iceberg.io.SupportsBulkOperations}
    */
-  @Deprecated
   DeleteReachableFiles deleteWith(Consumer<String> deleteFunc);
 
   /**
-   * Passes an alternative delete implementation that will be used for files.
-   *
-   * @param deleteFunc a function that will be called to delete files. The function accepts paths to
-   *     files as an argument.
-   * @return this for method chaining
-   */
-  default DeleteReachableFiles deleteBulkWith(Consumer<Iterable<String>> deleteFunc) {
-    throw new UnsupportedOperationException();
-  }
-
-  /**
-   * Passes an alternative executor service that will be used for files removal.
+   * Passes an alternative executor service that will be used for files removal. This service will
+   * only be used if a custom delete function is provided by {@link #deleteWith(Consumer)} or if the
+   * FileIO does not {@link org.apache.iceberg.io.SupportsBulkOperations support bulk deletes}.
+   * Otherwise, parallelism should be controlled by the IO specific {@link
+   * org.apache.iceberg.io.SupportsBulkOperations#deleteFiles(Iterable) deleteFiles} method.
    *
    * @param executorService the service to use
    * @return this for method chaining
-   * @deprecated All deletes should be performed using the bulk delete api if available. Use FileIO
-   *     specific parallelism controls to adjust bulk delete concurrency within that api.
    */
-  @Deprecated
   DeleteReachableFiles executeDeleteWith(ExecutorService executorService);
 
   /**

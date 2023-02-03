@@ -48,7 +48,6 @@ import org.apache.iceberg.actions.BaseDeleteOrphanFilesActionResult;
 import org.apache.iceberg.actions.DeleteOrphanFiles;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.HiddenPathFilter;
-import org.apache.iceberg.io.BulkDeletionFailureException;
 import org.apache.iceberg.io.SupportsBulkOperations;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -121,27 +120,13 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
         }
       };
 
-  private final Consumer<Iterable<String>> defaultBulkDelete =
-      new Consumer<Iterable<String>>() {
-        @Override
-        public void accept(Iterable<String> paths) {
-          Preconditions.checkArgument(
-              table.io() instanceof SupportsBulkOperations,
-              "FileIO {} does not support bulk deletes",
-              table.io());
-          ((SupportsBulkOperations) table.io()).deleteFiles(paths);
-        }
-      };
-
-  private Consumer<Iterable<String>> bulkDeleteFunc = defaultBulkDelete;
-
   private Map<String, String> equalSchemes = flattenMap(EQUAL_SCHEMES_DEFAULT);
   private Map<String, String> equalAuthorities = Collections.emptyMap();
   private PrefixMismatchMode prefixMismatchMode = PrefixMismatchMode.ERROR;
   private String location = null;
   private long olderThanTimestamp = System.currentTimeMillis() - TimeUnit.DAYS.toMillis(3);
   private Dataset<Row> compareToFileList;
-  private Consumer<String> deleteFunc = defaultDelete;
+  private Consumer<String> deleteFunc = null;
   private ExecutorService deleteExecutorService = null;
 
   DeleteOrphanFilesSparkAction(SparkSession spark, Table table) {
@@ -165,12 +150,6 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
   @Override
   public DeleteOrphanFilesSparkAction executeDeleteWith(ExecutorService executorService) {
     this.deleteExecutorService = executorService;
-    return this;
-  }
-
-  @Override
-  public DeleteOrphanFiles deleteBulkWith(Consumer<Iterable<String>> newBulkDeleteFunc) {
-    this.bulkDeleteFunc = newBulkDeleteFunc;
     return this;
   }
 
@@ -268,21 +247,22 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
     List<String> orphanFiles =
         findOrphanFiles(spark(), actualFileIdentDS, validFileIdentDS, prefixMismatchMode);
 
-    if (table.io() instanceof SupportsBulkOperations) {
-      try {
-        bulkDeleteFunc.accept(orphanFiles);
-      } catch (BulkDeletionFailureException bulkDeletionFailureException) {
-        LOG.warn(
-            "Bulk delete failed to remove {} files",
-            bulkDeletionFailureException.numberFailedObjects());
+    if (deleteFunc != null || !(table.io() instanceof SupportsBulkOperations)) {
+      if (deleteFunc == null) {
+        LOG.info("Table IO does not support Bulk Operations. Using non-bulk deletes.");
+        deleteFunc = defaultDelete;
+      } else {
+        LOG.info("Custom delete function provided.");
       }
-    } else {
+
       Tasks.foreach(orphanFiles)
           .noRetry()
           .executeWith(deleteExecutorService)
           .suppressFailureWhenFinished()
           .onFailure((file, exc) -> LOG.warn("Failed to delete file: {}", file, exc))
           .run(deleteFunc::accept);
+    } else {
+      ((SupportsBulkOperations) table.io()).deleteFiles(orphanFiles);
     }
 
     return new BaseDeleteOrphanFilesActionResult(orphanFiles);

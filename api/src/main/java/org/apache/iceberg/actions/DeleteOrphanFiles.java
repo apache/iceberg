@@ -59,7 +59,7 @@ public interface DeleteOrphanFiles extends Action<DeleteOrphanFiles, DeleteOrpha
   /**
    * Passes an alternative delete implementation that will be used for orphan files.
    *
-   * <p>This method allows users to customize the delete func. For example, one may set a custom
+   * <p>This method allows users to customize the delete function. For example, one may set a custom
    * delete func and collect all orphan files into a set instead of physically removing them.
    *
    * <p>If not set, defaults to using the table's {@link org.apache.iceberg.io.FileIO io}
@@ -67,32 +67,24 @@ public interface DeleteOrphanFiles extends Action<DeleteOrphanFiles, DeleteOrpha
    *
    * @param deleteFunc a function that will be called to delete files
    * @return this for method chaining
-   * @deprecated Deletes are now performed in bulk see {@link #deleteBulkWith(Consumer)}. This
-   *     method will only be used if the FileIO does not implement {@link
-   *     org.apache.iceberg.io.SupportsBulkOperations}
    */
-  @Deprecated
   DeleteOrphanFiles deleteWith(Consumer<String> deleteFunc);
 
   /**
-   * Passes an alternative executor service that will be used for removing orphaned files.
+   * Passes an alternative executor service that will be used for removing orphaned files. This
+   * service will only be used if a custom delete function is provided by {@link
+   * #deleteWith(Consumer)} or if the FileIO does not {@link
+   * org.apache.iceberg.io.SupportsBulkOperations support bulk deletes}. Otherwise, parallelism
+   * should be controlled by the IO specific {@link
+   * org.apache.iceberg.io.SupportsBulkOperations#deleteFiles(Iterable) deleteFiles} method.
    *
-   * <p>If this method is not called, orphaned manifests and data files will still be deleted in the
-   * current thread.
-   *
-   * <p>
+   * <p>If this method is not called and bulk deletes are not supported, orphaned manifests and data
+   * files will still be deleted in the current thread.
    *
    * @param executorService the service to use
    * @return this for method chaining
-   * @deprecated All deletes should be performed using the bulk delete api if available. Use FileIO
-   *     specific parallelism controls to adjust bulk delete concurrency within that api.
    */
-  @Deprecated
   DeleteOrphanFiles executeDeleteWith(ExecutorService executorService);
-
-  default DeleteOrphanFiles deleteBulkWith(Consumer<Iterable<String>> deleteFunc) {
-    throw new UnsupportedOperationException();
-  }
 
   /**
    * Passes a prefix mismatch mode that determines how this action should handle situations when the

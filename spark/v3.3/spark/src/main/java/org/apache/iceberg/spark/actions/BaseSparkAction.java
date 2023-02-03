@@ -51,6 +51,7 @@ import org.apache.iceberg.io.BulkDeletionFailureException;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.ClosingIterator;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.SupportsBulkOperations;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -257,8 +258,7 @@ abstract class BaseSparkAction<ThisT> {
     return summary;
   }
 
-  protected DeleteSummary deleteFiles(
-      Consumer<Iterable<String>> bulkDeleteFunc, Iterator<FileInfo> files) {
+  protected DeleteSummary deleteFiles(SupportsBulkOperations io, Iterator<FileInfo> files) {
     DeleteSummary summary = new DeleteSummary();
     Iterator<List<FileInfo>> groupedIterator = Iterators.partition(files, DELETE_GROUP_SIZE);
 
@@ -277,7 +277,7 @@ abstract class BaseSparkAction<ThisT> {
                                 .collect(Collectors.toList());
                         int failures = 0;
                         try {
-                          bulkDeleteFunc.accept(pathsToDelete);
+                          io.deleteFiles(pathsToDelete);
                         } catch (BulkDeletionFailureException bulkDeletionFailureException) {
                           failures = bulkDeletionFailureException.numberFailedObjects();
                         }

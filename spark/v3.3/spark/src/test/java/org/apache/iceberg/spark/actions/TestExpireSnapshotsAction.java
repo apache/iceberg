@@ -21,8 +21,12 @@ package org.apache.iceberg.spark.actions;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.AssertHelpers;
@@ -44,6 +48,7 @@ import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -188,6 +193,57 @@ public class TestExpireSnapshotsAction extends SparkTestBase {
         "Table does not have 1 snapshot after expiration", 1, Iterables.size(table.snapshots()));
 
     checkExpirationResults(1L, 0L, 0L, 1L, 2L, results);
+  }
+
+  @Test
+  public void dataFilesCleanupWithParallelTasks() throws IOException {
+
+    table.newFastAppend().appendFile(FILE_A).commit();
+
+    table.newFastAppend().appendFile(FILE_B).commit();
+
+    table.newRewrite().rewriteFiles(ImmutableSet.of(FILE_B), ImmutableSet.of(FILE_D)).commit();
+
+    table.newRewrite().rewriteFiles(ImmutableSet.of(FILE_A), ImmutableSet.of(FILE_C)).commit();
+
+    long t4 = rightAfterSnapshot();
+
+    Set<String> deletedFiles = Sets.newHashSet();
+    Set<String> deleteThreads = ConcurrentHashMap.newKeySet();
+    AtomicInteger deleteThreadsIndex = new AtomicInteger(0);
+
+    ExpireSnapshots.Result result =
+        SparkActions.get()
+            .expireSnapshots(table)
+            .executeDeleteWith(
+                Executors.newFixedThreadPool(
+                    4,
+                    runnable -> {
+                      Thread thread = new Thread(runnable);
+                      thread.setName("remove-snapshot-" + deleteThreadsIndex.getAndIncrement());
+                      thread.setDaemon(
+                          true); // daemon threads will be terminated abruptly when the JVM exits
+                      return thread;
+                    }))
+            .expireOlderThan(t4)
+            .deleteWith(
+                s -> {
+                  deleteThreads.add(Thread.currentThread().getName());
+                  deletedFiles.add(s);
+                })
+            .execute();
+
+    // Verifies that the delete methods ran in the threads created by the provided ExecutorService
+    // ThreadFactory
+    Assert.assertEquals(
+        deleteThreads,
+        Sets.newHashSet(
+            "remove-snapshot-0", "remove-snapshot-1", "remove-snapshot-2", "remove-snapshot-3"));
+
+    Assert.assertTrue("FILE_A should be deleted", deletedFiles.contains(FILE_A.path().toString()));
+    Assert.assertTrue("FILE_B should be deleted", deletedFiles.contains(FILE_B.path().toString()));
+
+    checkExpirationResults(2L, 0L, 0L, 3L, 3L, result);
   }
 
   @Test
@@ -497,7 +553,7 @@ public class TestExpireSnapshotsAction extends SparkTestBase {
         SparkActions.get()
             .expireSnapshots(table)
             .expireOlderThan(t3)
-            .deleteBulkWith(files -> files.forEach(deletedFiles::add))
+            .deleteWith(deletedFiles::add)
             .execute();
 
     Assert.assertTrue("FILE_A should be deleted", deletedFiles.contains(FILE_A.path().toString()));
@@ -526,7 +582,7 @@ public class TestExpireSnapshotsAction extends SparkTestBase {
         SparkActions.get()
             .expireSnapshots(table)
             .expireOlderThan(t3)
-            .deleteBulkWith(files -> files.forEach(deletedFiles::add))
+            .deleteWith(deletedFiles::add)
             .execute();
 
     Assert.assertTrue("FILE_A should be deleted", deletedFiles.contains(FILE_A.path().toString()));
@@ -558,7 +614,7 @@ public class TestExpireSnapshotsAction extends SparkTestBase {
     ExpireSnapshots.Result result =
         SparkActions.get()
             .expireSnapshots(table)
-            .deleteBulkWith(files -> files.forEach(deletedFiles::add))
+            .deleteWith(deletedFiles::add)
             .expireOlderThan(snapshotB.timestampMillis() + 1)
             .execute();
 
@@ -630,7 +686,7 @@ public class TestExpireSnapshotsAction extends SparkTestBase {
     ExpireSnapshots.Result result =
         SparkActions.get()
             .expireSnapshots(table)
-            .deleteBulkWith(files -> files.forEach(deletedFiles::add))
+            .deleteWith(deletedFiles::add)
             .expireOlderThan(snapshotC.timestampMillis() + 1)
             .execute();
 
@@ -679,7 +735,7 @@ public class TestExpireSnapshotsAction extends SparkTestBase {
     ExpireSnapshots.Result firstResult =
         SparkActions.get()
             .expireSnapshots(table)
-            .deleteBulkWith(files -> files.forEach(deletedFiles::add))
+            .deleteWith(deletedFiles::add)
             .expireSnapshotId(snapshotB.snapshotId())
             .execute();
 
@@ -699,7 +755,7 @@ public class TestExpireSnapshotsAction extends SparkTestBase {
     ExpireSnapshots.Result secondResult =
         SparkActions.get()
             .expireSnapshots(table)
-            .deleteBulkWith(files -> files.forEach(deletedFiles::add))
+            .deleteWith(deletedFiles::add)
             .expireOlderThan(table.currentSnapshot().timestampMillis() + 1)
             .execute();
 
@@ -736,7 +792,7 @@ public class TestExpireSnapshotsAction extends SparkTestBase {
         SparkActions.get()
             .expireSnapshots(table)
             .expireOlderThan(tAfterCommits)
-            .deleteBulkWith(files -> files.forEach(deletedFiles::add))
+            .deleteWith(deletedFiles::add)
             .execute();
 
     Assert.assertEquals(
@@ -785,7 +841,7 @@ public class TestExpireSnapshotsAction extends SparkTestBase {
         SparkActions.get()
             .expireSnapshots(table)
             .expireOlderThan(tAfterCommits)
-            .deleteBulkWith(files -> files.forEach(deletedFiles::add))
+            .deleteWith(deletedFiles::add)
             .execute();
 
     Assert.assertEquals(
@@ -858,7 +914,7 @@ public class TestExpireSnapshotsAction extends SparkTestBase {
         SparkActions.get()
             .expireSnapshots(table)
             .expireOlderThan(tAfterCommits)
-            .deleteBulkWith(files -> files.forEach(deletedFiles::add))
+            .deleteWith(deletedFiles::add)
             .execute();
 
     Assert.assertEquals(
@@ -920,7 +976,7 @@ public class TestExpireSnapshotsAction extends SparkTestBase {
         SparkActions.get()
             .expireSnapshots(table)
             .expireOlderThan(tAfterCommits)
-            .deleteBulkWith(files -> files.forEach(deletedFiles::add))
+            .deleteWith(deletedFiles::add)
             .execute();
 
     Assert.assertEquals(
@@ -975,7 +1031,7 @@ public class TestExpireSnapshotsAction extends SparkTestBase {
         SparkActions.get()
             .expireSnapshots(table)
             .expireOlderThan(tAfterCommits)
-            .deleteBulkWith(files -> files.forEach(deletedFiles::add))
+            .deleteWith(deletedFiles::add)
             .execute();
 
     Assert.assertEquals(
@@ -1034,7 +1090,7 @@ public class TestExpireSnapshotsAction extends SparkTestBase {
         SparkActions.get()
             .expireSnapshots(table)
             .expireOlderThan(afterAllDeleted)
-            .deleteBulkWith(files -> files.forEach(deletedFiles::add))
+            .deleteWith(deletedFiles::add)
             .execute();
 
     Set<String> expectedDeletes =
@@ -1076,7 +1132,7 @@ public class TestExpireSnapshotsAction extends SparkTestBase {
         SparkActions.get()
             .expireSnapshots(table)
             .expireOlderThan(System.currentTimeMillis())
-            .deleteBulkWith(files -> files.forEach(deletedFiles::add))
+            .deleteWith(deletedFiles::add)
             .execute();
 
     checkExpirationResults(0, 0, 0, 0, 0, result);
@@ -1256,7 +1312,7 @@ public class TestExpireSnapshotsAction extends SparkTestBase {
     SparkActions.get()
         .expireSnapshots(table)
         .expireOlderThan(end)
-        .deleteBulkWith(files -> files.forEach(deletedFiles::add))
+        .deleteWith(deletedFiles::add)
         .execute();
 
     Assert.assertEquals(
@@ -1285,7 +1341,7 @@ public class TestExpireSnapshotsAction extends SparkTestBase {
     SparkActions.get()
         .expireSnapshots(table)
         .expireOlderThan(after)
-        .deleteBulkWith(files -> files.forEach(deletedFiles::add))
+        .deleteWith(deletedFiles::add)
         .execute();
 
     // C, D should be retained (live)

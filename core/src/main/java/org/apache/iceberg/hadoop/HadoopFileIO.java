@@ -171,6 +171,7 @@ public class HadoopFileIO
         .executeWith(executorService())
         .retry(3)
         .stopRetryOn(FileNotFoundException.class)
+        .suppressFailureWhenFinished()
         .onFailure(
             (f, e) -> {
               LOG.error("Failure during bulk delete on file: {} ", f, e);
