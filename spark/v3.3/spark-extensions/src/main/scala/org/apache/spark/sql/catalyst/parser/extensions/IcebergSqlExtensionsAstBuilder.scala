@@ -92,6 +92,9 @@ class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface) extends IcebergS
       typedVisit[Transform](ctx.transform))
   }
 
+  /**
+   * Create a CREATE OR REPLACE BRANCH logical command.
+   */
   override def visitCreateOrReplaceBranch(ctx: CreateOrReplaceBranchContext): CreateOrReplaceBranch = withOrigin(ctx) {
     val createOrReplaceBranchClause = ctx.createReplaceBranchClause()
 
@@ -99,7 +102,7 @@ class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface) extends IcebergS
     val branchOptionsContext = Option(createOrReplaceBranchClause.branchOptions())
     val snapshotId = branchOptionsContext.flatMap(branchOptions => Option(branchOptions.snapshotId()))
       .map(_.getText.toLong)
-    val snapshotRetention =  branchOptionsContext.flatMap(branchOptions => Option(branchOptions.snapshotRetention()))
+    val snapshotRetention = branchOptionsContext.flatMap(branchOptions => Option(branchOptions.snapshotRetention()))
     val minSnapshotsToKeep = snapshotRetention.flatMap(retention => Option(retention.minSnapshotsToKeep()))
       .map(minSnapshots => minSnapshots.number().getText.toLong)
     val maxSnapshotAgeMs = snapshotRetention
@@ -125,7 +128,6 @@ class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface) extends IcebergS
       branchOptions,
       replace,
       ifNotExists)
-
   }
 
   /**
