@@ -30,7 +30,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.encryption.EncryptionManager;
 
-/** Factory responsible for generating unique but recognizable data file names. */
+/** Factory responsible for generating unique but recognizable data/delete file names. */
 public class OutputFileFactory {
   private final PartitionSpec defaultSpec;
   private final FileFormat format;
@@ -46,6 +46,7 @@ public class OutputFileFactory {
   // with a recursive listing and grep.
   private final String operationId;
   private final AtomicInteger fileCount = new AtomicInteger(0);
+  private final String suffix;
 
   /**
    * Constructor with specific operationId. The [partitionId, taskId, operationId] triplet has to be
@@ -60,6 +61,7 @@ public class OutputFileFactory {
    * @param partitionId First part of the file name
    * @param taskId Second part of the file name
    * @param operationId Third part of the file name
+   * @param suffix Suffix part of the file name
    */
   private OutputFileFactory(
       PartitionSpec spec,
@@ -69,7 +71,8 @@ public class OutputFileFactory {
       EncryptionManager encryptionManager,
       int partitionId,
       long taskId,
-      String operationId) {
+      String operationId,
+      String suffix) {
     this.defaultSpec = spec;
     this.format = format;
     this.locations = locations;
@@ -78,6 +81,7 @@ public class OutputFileFactory {
     this.partitionId = partitionId;
     this.taskId = taskId;
     this.operationId = operationId;
+    this.suffix = suffix;
   }
 
   public static Builder builderFor(Table table, int partitionId, long taskId) {
@@ -87,7 +91,12 @@ public class OutputFileFactory {
   private String generateFilename() {
     return format.addExtension(
         String.format(
-            "%05d-%d-%s-%05d", partitionId, taskId, operationId, fileCount.incrementAndGet()));
+            "%05d-%d-%s-%05d%s",
+            partitionId,
+            taskId,
+            operationId,
+            fileCount.incrementAndGet(),
+            null != suffix ? "-" + suffix : ""));
   }
 
   /** Generates an {@link EncryptedOutputFile} for unpartitioned writes. */
@@ -115,6 +124,7 @@ public class OutputFileFactory {
     private PartitionSpec defaultSpec;
     private String operationId;
     private FileFormat format;
+    private String suffix;
 
     private Builder(Table table, int partitionId, long taskId) {
       this.table = table;
@@ -143,12 +153,17 @@ public class OutputFileFactory {
       return this;
     }
 
+    public Builder suffix(String newSuffix) {
+      this.suffix = newSuffix;
+      return this;
+    }
+
     public OutputFileFactory build() {
       LocationProvider locations = table.locationProvider();
       FileIO io = table.io();
       EncryptionManager encryption = table.encryption();
       return new OutputFileFactory(
-          defaultSpec, format, locations, io, encryption, partitionId, taskId, operationId);
+          defaultSpec, format, locations, io, encryption, partitionId, taskId, operationId, suffix);
     }
   }
 }

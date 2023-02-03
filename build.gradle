@@ -28,7 +28,7 @@ buildscript {
   dependencies {
     classpath 'gradle.plugin.com.github.jengelman.gradle.plugins:shadow:7.0.0'
     classpath 'com.palantir.baseline:gradle-baseline-java:4.42.0'
-    classpath 'com.diffplug.spotless:spotless-plugin-gradle:6.12.0'
+    classpath 'com.diffplug.spotless:spotless-plugin-gradle:6.13.0'
     classpath 'gradle.plugin.org.inferred:gradle-processors:3.7.0'
     classpath 'me.champeau.jmh:jmh-gradle-plugin:0.6.8'
     classpath 'gradle.plugin.io.morethan.jmhreport:gradle-jmh-report:0.9.0'
@@ -694,6 +694,24 @@ project(':iceberg-dell') {
     testImplementation "javax.xml.bind:jaxb-api"
     testImplementation "javax.activation:activation"
     testImplementation "org.glassfish.jaxb:jaxb-runtime"
+  }
+}
+
+project(':iceberg-snowflake') {
+  test {
+    useJUnitPlatform()
+  }
+
+  dependencies {
+    implementation project(':iceberg-core')
+    implementation project(':iceberg-common')
+    implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
+    implementation "com.fasterxml.jackson.core:jackson-databind"
+    implementation "com.fasterxml.jackson.core:jackson-core"
+
+    runtimeOnly("net.snowflake:snowflake-jdbc")
+
+    testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
   }
 }
 

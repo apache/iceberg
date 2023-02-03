@@ -205,7 +205,10 @@ class IcebergSparkSqlExtensionsParser(delegate: ParserInterface) extends ParserI
             normalized.contains("write distributed by") ||
             normalized.contains("write unordered") ||
             normalized.contains("set identifier fields") ||
-            normalized.contains("drop identifier fields")))
+            normalized.contains("drop identifier fields") ||
+            normalized.contains("create branch"))) ||
+            normalized.contains("replace branch")
+
   }
 
   protected def parse[T](command: String)(toResult: IcebergSqlExtensionsParser => T): T = {

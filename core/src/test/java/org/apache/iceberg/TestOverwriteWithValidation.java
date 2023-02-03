@@ -177,13 +177,21 @@ public class TestOverwriteWithValidation extends TableTestBase {
 
   private static final Expression EXPRESSION_DAY_2_ANOTHER_ID_RANGE = greaterThanOrEqual("id", 10L);
 
-  @Parameterized.Parameters(name = "formatVersion = {0}")
+  private final String branch;
+
+  @Parameterized.Parameters(name = "formatVersion = {0}, branch = {1}")
   public static Object[] parameters() {
-    return new Object[] {1, 2};
+    return new Object[][] {
+      new Object[] {1, "main"},
+      new Object[] {1, "testBranch"},
+      new Object[] {2, "main"},
+      new Object[] {2, "testBranch"}
+    };
   }
 
-  public TestOverwriteWithValidation(int formatVersion) {
+  public TestOverwriteWithValidation(int formatVersion, String branch) {
     super(formatVersion);
+    this.branch = branch;
   }
 
   private static ByteBuffer longToBuffer(long value) {
@@ -202,112 +210,120 @@ public class TestOverwriteWithValidation extends TableTestBase {
 
   @Test
   public void testOverwriteEmptyTableNotValidated() {
-    Assert.assertNull("Should be empty table", table.currentSnapshot());
+    Assert.assertNull("Should be empty table", latestSnapshot(table, branch));
 
-    table.newOverwrite().addFile(FILE_DAY_2_MODIFIED).commit();
+    commit(table, table.newOverwrite().addFile(FILE_DAY_2_MODIFIED), branch);
 
-    validateTableFiles(table, FILE_DAY_2_MODIFIED);
+    validateBranchFiles(table, branch, FILE_DAY_2_MODIFIED);
   }
 
   @Test
   public void testOverwriteEmptyTableStrictValidated() {
-    Assert.assertNull("Should be empty table", table.currentSnapshot());
+    Assert.assertNull("Should be empty table", latestSnapshot(table, branch));
 
-    table
-        .newOverwrite()
-        .addFile(FILE_DAY_2_MODIFIED)
-        .conflictDetectionFilter(alwaysTrue())
-        .validateNoConflictingData()
-        .commit();
+    commit(
+        table,
+        table
+            .newOverwrite()
+            .addFile(FILE_DAY_2_MODIFIED)
+            .conflictDetectionFilter(alwaysTrue())
+            .validateNoConflictingData(),
+        branch);
 
-    validateTableFiles(table, FILE_DAY_2_MODIFIED);
+    validateBranchFiles(table, branch, FILE_DAY_2_MODIFIED);
   }
 
   @Test
   public void testOverwriteEmptyTableValidated() {
-    Assert.assertNull("Should be empty table", table.currentSnapshot());
+    Assert.assertNull("Should be empty table", latestSnapshot(table, branch));
 
-    table
-        .newOverwrite()
-        .addFile(FILE_DAY_2_MODIFIED)
-        .conflictDetectionFilter(EXPRESSION_DAY_2)
-        .validateNoConflictingData()
-        .commit();
+    commit(
+        table,
+        table
+            .newOverwrite()
+            .addFile(FILE_DAY_2_MODIFIED)
+            .conflictDetectionFilter(EXPRESSION_DAY_2)
+            .validateNoConflictingData(),
+        branch);
 
-    validateTableFiles(table, FILE_DAY_2_MODIFIED);
+    validateBranchFiles(table, branch, FILE_DAY_2_MODIFIED);
   }
 
   @Test
   public void testOverwriteTableNotValidated() {
-    table.newAppend().appendFile(FILE_DAY_1).appendFile(FILE_DAY_2).commit();
+    commit(table, table.newAppend().appendFile(FILE_DAY_1).appendFile(FILE_DAY_2), branch);
 
-    Snapshot baseSnapshot = table.currentSnapshot();
+    Snapshot baseSnapshot = latestSnapshot(table, branch);
     validateSnapshot(null, baseSnapshot, FILE_DAY_1, FILE_DAY_2);
 
-    table.newOverwrite().deleteFile(FILE_DAY_2).addFile(FILE_DAY_2_MODIFIED).commit();
+    commit(table, table.newOverwrite().deleteFile(FILE_DAY_2).addFile(FILE_DAY_2_MODIFIED), branch);
 
-    validateTableFiles(table, FILE_DAY_1, FILE_DAY_2_MODIFIED);
+    validateBranchFiles(table, branch, FILE_DAY_1, FILE_DAY_2_MODIFIED);
   }
 
   @Test
   public void testOverwriteTableStrictValidated() {
-    table.newAppend().appendFile(FILE_DAY_1).appendFile(FILE_DAY_2).commit();
+    commit(table, table.newAppend().appendFile(FILE_DAY_1).appendFile(FILE_DAY_2), branch);
 
-    Snapshot baseSnapshot = table.currentSnapshot();
+    Snapshot baseSnapshot = latestSnapshot(table, branch);
     validateSnapshot(null, baseSnapshot, FILE_DAY_1, FILE_DAY_2);
 
-    table
-        .newOverwrite()
-        .deleteFile(FILE_DAY_2)
-        .addFile(FILE_DAY_2_MODIFIED)
-        .validateFromSnapshot(baseSnapshot.snapshotId())
-        .conflictDetectionFilter(alwaysTrue())
-        .validateNoConflictingData()
-        .commit();
+    commit(
+        table,
+        table
+            .newOverwrite()
+            .deleteFile(FILE_DAY_2)
+            .addFile(FILE_DAY_2_MODIFIED)
+            .validateFromSnapshot(baseSnapshot.snapshotId())
+            .conflictDetectionFilter(alwaysTrue())
+            .validateNoConflictingData(),
+        branch);
 
-    validateTableFiles(table, FILE_DAY_1, FILE_DAY_2_MODIFIED);
+    validateBranchFiles(table, branch, FILE_DAY_1, FILE_DAY_2_MODIFIED);
   }
 
   @Test
   public void testOverwriteTableValidated() {
-    table.newAppend().appendFile(FILE_DAY_1).appendFile(FILE_DAY_2).commit();
+    commit(table, table.newAppend().appendFile(FILE_DAY_1).appendFile(FILE_DAY_2), branch);
 
-    Snapshot baseSnapshot = table.currentSnapshot();
+    Snapshot baseSnapshot = latestSnapshot(table, branch);
     validateSnapshot(null, baseSnapshot, FILE_DAY_1, FILE_DAY_2);
 
-    table
-        .newOverwrite()
-        .deleteFile(FILE_DAY_2)
-        .addFile(FILE_DAY_2_MODIFIED)
-        .validateFromSnapshot(baseSnapshot.snapshotId())
-        .conflictDetectionFilter(EXPRESSION_DAY_2)
-        .validateNoConflictingData()
-        .commit();
+    commit(
+        table,
+        table
+            .newOverwrite()
+            .deleteFile(FILE_DAY_2)
+            .addFile(FILE_DAY_2_MODIFIED)
+            .validateFromSnapshot(baseSnapshot.snapshotId())
+            .conflictDetectionFilter(EXPRESSION_DAY_2)
+            .validateNoConflictingData(),
+        branch);
 
-    validateTableFiles(table, FILE_DAY_1, FILE_DAY_2_MODIFIED);
+    validateBranchFiles(table, branch, FILE_DAY_1, FILE_DAY_2_MODIFIED);
   }
 
   @Test
   public void testOverwriteCompatibleAdditionNotValidated() {
-    table.newAppend().appendFile(FILE_DAY_2).commit();
+    commit(table, table.newAppend().appendFile(FILE_DAY_2), branch);
 
-    validateSnapshot(null, table.currentSnapshot(), FILE_DAY_2);
+    validateSnapshot(null, latestSnapshot(table, branch), FILE_DAY_2);
 
     OverwriteFiles overwrite =
         table.newOverwrite().deleteFile(FILE_DAY_2).addFile(FILE_DAY_2_MODIFIED);
 
-    table.newAppend().appendFile(FILE_DAY_1).commit();
+    commit(table, table.newAppend().appendFile(FILE_DAY_1), branch);
 
-    overwrite.commit();
+    commit(table, overwrite, branch);
 
-    validateTableFiles(table, FILE_DAY_1, FILE_DAY_2_MODIFIED);
+    validateBranchFiles(table, branch, FILE_DAY_1, FILE_DAY_2_MODIFIED);
   }
 
   @Test
   public void testOverwriteCompatibleAdditionStrictValidated() {
-    table.newAppend().appendFile(FILE_DAY_2).commit();
+    commit(table, table.newAppend().appendFile(FILE_DAY_2), branch);
 
-    Snapshot baseSnapshot = table.currentSnapshot();
+    Snapshot baseSnapshot = latestSnapshot(table, branch);
     validateSnapshot(null, baseSnapshot, FILE_DAY_2);
 
     OverwriteFiles overwrite =
@@ -319,26 +335,26 @@ public class TestOverwriteWithValidation extends TableTestBase {
             .conflictDetectionFilter(alwaysTrue())
             .validateNoConflictingData();
 
-    table.newAppend().appendFile(FILE_DAY_1).commit();
-    long committedSnapshotId = table.currentSnapshot().snapshotId();
+    commit(table, table.newAppend().appendFile(FILE_DAY_1), branch);
+    long committedSnapshotId = latestSnapshot(table, branch).snapshotId();
 
     AssertHelpers.assertThrows(
         "Should reject commit",
         ValidationException.class,
         "Found conflicting files",
-        overwrite::commit);
+        () -> commit(table, overwrite, branch));
 
     Assert.assertEquals(
         "Should not create a new snapshot",
         committedSnapshotId,
-        table.currentSnapshot().snapshotId());
+        latestSnapshot(table, branch).snapshotId());
   }
 
   @Test
   public void testOverwriteCompatibleAdditionValidated() {
-    table.newAppend().appendFile(FILE_DAY_2).commit();
+    commit(table, table.newAppend().appendFile(FILE_DAY_2), branch);
 
-    Snapshot baseSnapshot = table.currentSnapshot();
+    Snapshot baseSnapshot = latestSnapshot(table, branch);
     validateSnapshot(null, baseSnapshot, FILE_DAY_2);
 
     OverwriteFiles overwrite =
@@ -350,18 +366,18 @@ public class TestOverwriteWithValidation extends TableTestBase {
             .conflictDetectionFilter(EXPRESSION_DAY_2)
             .validateNoConflictingData();
 
-    table.newAppend().appendFile(FILE_DAY_1).commit();
+    commit(table, table.newAppend().appendFile(FILE_DAY_1), branch);
 
-    overwrite.commit();
+    commit(table, overwrite, branch);
 
-    validateTableFiles(table, FILE_DAY_1, FILE_DAY_2_MODIFIED);
+    validateBranchFiles(table, branch, FILE_DAY_1, FILE_DAY_2_MODIFIED);
   }
 
   @Test
   public void testOverwriteCompatibleDeletionValidated() {
-    table.newAppend().appendFile(FILE_DAY_1).appendFile(FILE_DAY_2).commit();
+    commit(table, table.newAppend().appendFile(FILE_DAY_1).appendFile(FILE_DAY_2), branch);
 
-    Snapshot baseSnapshot = table.currentSnapshot();
+    Snapshot baseSnapshot = latestSnapshot(table, branch);
     validateSnapshot(null, baseSnapshot, FILE_DAY_1, FILE_DAY_2);
 
     OverwriteFiles overwrite =
@@ -373,18 +389,18 @@ public class TestOverwriteWithValidation extends TableTestBase {
             .conflictDetectionFilter(EXPRESSION_DAY_2)
             .validateNoConflictingData();
 
-    table.newDelete().deleteFile(FILE_DAY_1).commit();
+    commit(table, table.newDelete().deleteFile(FILE_DAY_1), branch);
 
-    overwrite.commit();
+    commit(table, overwrite, branch);
 
-    validateTableFiles(table, FILE_DAY_2_MODIFIED);
+    validateBranchFiles(table, branch, FILE_DAY_2_MODIFIED);
   }
 
   @Test
   public void testOverwriteIncompatibleAdditionValidated() {
-    table.newAppend().appendFile(FILE_DAY_1).commit();
+    commit(table, table.newAppend().appendFile(FILE_DAY_1), branch);
 
-    Snapshot baseSnapshot = table.currentSnapshot();
+    Snapshot baseSnapshot = latestSnapshot(table, branch);
     validateSnapshot(null, baseSnapshot, FILE_DAY_1);
 
     OverwriteFiles overwrite =
@@ -395,26 +411,26 @@ public class TestOverwriteWithValidation extends TableTestBase {
             .conflictDetectionFilter(EXPRESSION_DAY_2)
             .validateNoConflictingData();
 
-    table.newAppend().appendFile(FILE_DAY_2).commit();
-    long committedSnapshotId = table.currentSnapshot().snapshotId();
+    commit(table, table.newAppend().appendFile(FILE_DAY_2), branch);
+    long committedSnapshotId = latestSnapshot(table, branch).snapshotId();
 
     AssertHelpers.assertThrows(
         "Should reject commit",
         ValidationException.class,
         "Found conflicting files",
-        overwrite::commit);
+        () -> commit(table, overwrite, branch));
 
     Assert.assertEquals(
         "Should not create a new snapshot",
         committedSnapshotId,
-        table.currentSnapshot().snapshotId());
+        latestSnapshot(table, branch).snapshotId());
   }
 
   @Test
   public void testOverwriteIncompatibleDeletionValidated() {
-    table.newAppend().appendFile(FILE_DAY_1).appendFile(FILE_DAY_2).commit();
+    commit(table, table.newAppend().appendFile(FILE_DAY_1).appendFile(FILE_DAY_2), branch);
 
-    Snapshot baseSnapshot = table.currentSnapshot();
+    Snapshot baseSnapshot = latestSnapshot(table, branch);
     validateSnapshot(null, baseSnapshot, FILE_DAY_1, FILE_DAY_2);
 
     OverwriteFiles overwrite =
@@ -426,26 +442,26 @@ public class TestOverwriteWithValidation extends TableTestBase {
             .conflictDetectionFilter(EXPRESSION_DAY_2)
             .validateNoConflictingData();
 
-    table.newDelete().deleteFile(FILE_DAY_2).commit();
-    long committedSnapshotId = table.currentSnapshot().snapshotId();
+    commit(table, table.newDelete().deleteFile(FILE_DAY_2), branch);
+    long committedSnapshotId = latestSnapshot(table, branch).snapshotId();
 
     AssertHelpers.assertThrows(
         "Should reject commit",
         ValidationException.class,
         "Missing required files to delete:",
-        overwrite::commit);
+        () -> commit(table, overwrite, branch));
 
     Assert.assertEquals(
         "Should not create a new snapshot",
         committedSnapshotId,
-        table.currentSnapshot().snapshotId());
+        latestSnapshot(table, branch).snapshotId());
   }
 
   @Test
   public void testOverwriteCompatibleRewriteAllowed() {
-    table.newAppend().appendFile(FILE_DAY_1).appendFile(FILE_DAY_2).commit();
+    commit(table, table.newAppend().appendFile(FILE_DAY_1).appendFile(FILE_DAY_2), branch);
 
-    Snapshot baseSnapshot = table.currentSnapshot();
+    Snapshot baseSnapshot = latestSnapshot(table, branch);
     validateSnapshot(null, baseSnapshot, FILE_DAY_1, FILE_DAY_2);
 
     OverwriteFiles overwrite =
@@ -457,23 +473,25 @@ public class TestOverwriteWithValidation extends TableTestBase {
             .conflictDetectionFilter(EXPRESSION_DAY_2)
             .validateNoConflictingData();
 
-    table
-        .newRewrite()
-        .rewriteFiles(ImmutableSet.of(FILE_DAY_2), ImmutableSet.of(FILE_DAY_2))
-        .commit();
-    long committedSnapshotId = table.currentSnapshot().snapshotId();
+    commit(
+        table,
+        table.newRewrite().rewriteFiles(ImmutableSet.of(FILE_DAY_2), ImmutableSet.of(FILE_DAY_2)),
+        branch);
+    long committedSnapshotId = latestSnapshot(table, branch).snapshotId();
 
-    overwrite.commit();
+    commit(table, overwrite, branch);
 
     Assert.assertNotEquals(
-        "Should successfully commit", committedSnapshotId, table.currentSnapshot().snapshotId());
+        "Should successfully commit",
+        committedSnapshotId,
+        latestSnapshot(table, branch).snapshotId());
   }
 
   @Test
   public void testOverwriteCompatibleExpirationAdditionValidated() {
-    table.newAppend().appendFile(FILE_DAY_2).commit(); // id 1
+    commit(table, table.newAppend().appendFile(FILE_DAY_2), branch); // id 1
 
-    Snapshot baseSnapshot = table.currentSnapshot();
+    Snapshot baseSnapshot = latestSnapshot(table, branch);
     validateSnapshot(null, baseSnapshot, FILE_DAY_2);
 
     OverwriteFiles overwrite =
@@ -485,20 +503,20 @@ public class TestOverwriteWithValidation extends TableTestBase {
             .conflictDetectionFilter(EXPRESSION_DAY_2)
             .validateNoConflictingData();
 
-    table.newAppend().appendFile(FILE_DAY_1).commit(); // id 2
+    commit(table, table.newAppend().appendFile(FILE_DAY_1), branch); // id 2
 
     table.expireSnapshots().expireSnapshotId(1L).commit();
 
-    overwrite.commit();
+    commit(table, overwrite, branch);
 
-    validateTableFiles(table, FILE_DAY_1, FILE_DAY_2_MODIFIED);
+    validateBranchFiles(table, branch, FILE_DAY_1, FILE_DAY_2_MODIFIED);
   }
 
   @Test
   public void testOverwriteCompatibleExpirationDeletionValidated() {
-    table.newAppend().appendFile(FILE_DAY_1).appendFile(FILE_DAY_2).commit(); // id 1
+    commit(table, table.newAppend().appendFile(FILE_DAY_1).appendFile(FILE_DAY_2), branch); // id 1
 
-    Snapshot baseSnapshot = table.currentSnapshot();
+    Snapshot baseSnapshot = latestSnapshot(table, branch);
     validateSnapshot(null, baseSnapshot, FILE_DAY_1, FILE_DAY_2);
 
     OverwriteFiles overwrite =
@@ -510,20 +528,20 @@ public class TestOverwriteWithValidation extends TableTestBase {
             .conflictDetectionFilter(EXPRESSION_DAY_2)
             .validateNoConflictingData();
 
-    table.newDelete().deleteFile(FILE_DAY_1).commit(); // id 2
+    commit(table, table.newDelete().deleteFile(FILE_DAY_1), branch); // id 2
 
     table.expireSnapshots().expireSnapshotId(1L).commit();
 
-    overwrite.commit();
+    commit(table, overwrite, branch);
 
-    validateTableFiles(table, FILE_DAY_2_MODIFIED);
+    validateBranchFiles(table, branch, FILE_DAY_2_MODIFIED);
   }
 
   @Test
   public void testOverwriteIncompatibleExpirationValidated() {
-    table.newAppend().appendFile(FILE_DAY_1).commit(); // id 1
+    commit(table, table.newAppend().appendFile(FILE_DAY_1), branch); // id 1
 
-    Snapshot baseSnapshot = table.currentSnapshot();
+    Snapshot baseSnapshot = latestSnapshot(table, branch);
     OverwriteFiles overwrite =
         table
             .newOverwrite()
@@ -532,28 +550,28 @@ public class TestOverwriteWithValidation extends TableTestBase {
             .conflictDetectionFilter(EXPRESSION_DAY_2)
             .validateNoConflictingData();
 
-    table.newAppend().appendFile(FILE_DAY_2).commit(); // id 2
+    commit(table, table.newAppend().appendFile(FILE_DAY_2), branch); // id 2
 
-    table.newDelete().deleteFile(FILE_DAY_1).commit(); // id 3
+    commit(table, table.newDelete().deleteFile(FILE_DAY_1), branch); // id 3
 
     table.expireSnapshots().expireSnapshotId(2L).commit();
-    long committedSnapshotId = table.currentSnapshot().snapshotId();
+    long committedSnapshotId = latestSnapshot(table, branch).snapshotId();
 
     AssertHelpers.assertThrows(
         "Should reject commit",
         ValidationException.class,
         "Cannot determine history",
-        overwrite::commit);
+        () -> commit(table, overwrite, branch));
 
     Assert.assertEquals(
         "Should not create a new snapshot",
         committedSnapshotId,
-        table.currentSnapshot().snapshotId());
+        latestSnapshot(table, branch).snapshotId());
   }
 
   @Test
   public void testOverwriteIncompatibleBaseExpirationEmptyTableValidated() {
-    Assert.assertNull("Should be empty table", table.currentSnapshot());
+    Assert.assertNull("Should be empty table", latestSnapshot(table, branch));
 
     OverwriteFiles overwrite =
         table
@@ -562,28 +580,28 @@ public class TestOverwriteWithValidation extends TableTestBase {
             .conflictDetectionFilter(EXPRESSION_DAY_2)
             .validateNoConflictingData();
 
-    table.newAppend().appendFile(FILE_DAY_2).commit(); // id 1
+    commit(table, table.newAppend().appendFile(FILE_DAY_2), branch); // id 1
 
-    table.newDelete().deleteFile(FILE_DAY_1).commit(); // id 2
+    commit(table, table.newDelete().deleteFile(FILE_DAY_1), branch); // id 2
 
     table.expireSnapshots().expireSnapshotId(1L).commit();
-    long committedSnapshotId = table.currentSnapshot().snapshotId();
+    long committedSnapshotId = latestSnapshot(table, branch).snapshotId();
 
     AssertHelpers.assertThrows(
         "Should reject commit",
         ValidationException.class,
         "Cannot determine history",
-        overwrite::commit);
+        () -> commit(table, overwrite, branch));
 
     Assert.assertEquals(
         "Should not create a new snapshot",
         committedSnapshotId,
-        table.currentSnapshot().snapshotId());
+        latestSnapshot(table, branch).snapshotId());
   }
 
   @Test
   public void testOverwriteAnotherRangeValidated() {
-    Assert.assertNull("Should be empty table", table.currentSnapshot());
+    Assert.assertNull("Should be empty table", latestSnapshot(table, branch));
 
     OverwriteFiles overwrite =
         table
@@ -592,16 +610,16 @@ public class TestOverwriteWithValidation extends TableTestBase {
             .conflictDetectionFilter(EXPRESSION_DAY_2_ID_RANGE)
             .validateNoConflictingData();
 
-    table.newAppend().appendFile(FILE_DAY_1).commit();
+    commit(table, table.newAppend().appendFile(FILE_DAY_1), branch);
 
-    overwrite.commit();
+    commit(table, overwrite, branch);
 
-    validateTableFiles(table, FILE_DAY_1, FILE_DAY_2_MODIFIED);
+    validateBranchFiles(table, branch, FILE_DAY_1, FILE_DAY_2_MODIFIED);
   }
 
   @Test
   public void testOverwriteAnotherRangeWithinPartitionValidated() {
-    Assert.assertNull("Should be empty table", table.currentSnapshot());
+    Assert.assertNull("Should be empty table", latestSnapshot(table, branch));
 
     Expression conflictDetectionFilter = and(EXPRESSION_DAY_2, EXPRESSION_DAY_2_ID_RANGE);
     OverwriteFiles overwrite =
@@ -611,20 +629,20 @@ public class TestOverwriteWithValidation extends TableTestBase {
             .conflictDetectionFilter(conflictDetectionFilter)
             .validateNoConflictingData();
 
-    table.newAppend().appendFile(FILE_DAY_2_ANOTHER_RANGE).commit();
+    commit(table, table.newAppend().appendFile(FILE_DAY_2_ANOTHER_RANGE), branch);
 
-    overwrite.commit();
+    commit(table, overwrite, branch);
 
-    validateTableFiles(table, FILE_DAY_2_ANOTHER_RANGE, FILE_DAY_2_MODIFIED);
+    validateBranchFiles(table, branch, FILE_DAY_2_ANOTHER_RANGE, FILE_DAY_2_MODIFIED);
   }
 
   @Test
   public void testTransactionCompatibleAdditionValidated() {
-    Assert.assertNull("Should be empty table", table.currentSnapshot());
+    Assert.assertNull("Should be empty table", latestSnapshot(table, branch));
 
-    table.newAppend().appendFile(FILE_DAY_2).commit();
+    commit(table, table.newAppend().appendFile(FILE_DAY_2), branch);
 
-    Snapshot baseSnapshot = table.currentSnapshot();
+    Snapshot baseSnapshot = latestSnapshot(table, branch);
 
     Transaction txn = table.newTransaction();
     OverwriteFiles overwrite =
@@ -635,21 +653,21 @@ public class TestOverwriteWithValidation extends TableTestBase {
             .conflictDetectionFilter(EXPRESSION_DAY_2)
             .validateNoConflictingData();
 
-    table.newAppend().appendFile(FILE_DAY_1).commit();
+    commit(table, table.newAppend().appendFile(FILE_DAY_1), branch);
 
-    overwrite.commit();
+    commit(table, overwrite, branch);
     txn.commitTransaction();
 
-    validateTableFiles(table, FILE_DAY_1, FILE_DAY_2_MODIFIED);
+    validateBranchFiles(table, branch, FILE_DAY_1, FILE_DAY_2_MODIFIED);
   }
 
   @Test
   public void testTransactionIncompatibleAdditionValidated() {
-    Assert.assertNull("Should be empty table", table.currentSnapshot());
+    Assert.assertNull("Should be empty table", latestSnapshot(table, branch));
 
     Transaction txn = table.newTransaction();
 
-    txn.newAppend().appendFile(FILE_DAY_1).commit();
+    commit(table, txn.newAppend().appendFile(FILE_DAY_1), branch);
 
     OverwriteFiles overwrite =
         txn.newOverwrite()
@@ -657,10 +675,10 @@ public class TestOverwriteWithValidation extends TableTestBase {
             .conflictDetectionFilter(EXPRESSION_DAY_2)
             .validateNoConflictingData();
 
-    table.newAppend().appendFile(FILE_DAY_2).commit();
-    long committedSnapshotId = table.currentSnapshot().snapshotId();
+    commit(table, table.newAppend().appendFile(FILE_DAY_2), branch);
+    long committedSnapshotId = latestSnapshot(table, branch).snapshotId();
 
-    overwrite.commit();
+    commit(table, overwrite, branch);
 
     AssertHelpers.assertThrows(
         "Should reject commit",
@@ -671,18 +689,18 @@ public class TestOverwriteWithValidation extends TableTestBase {
     Assert.assertEquals(
         "Should not create a new snapshot",
         committedSnapshotId,
-        table.currentSnapshot().snapshotId());
+        latestSnapshot(table, branch).snapshotId());
   }
 
   @Test
   public void testConcurrentConflictingPositionDeletes() {
     Assume.assumeTrue(formatVersion == 2);
 
-    Assert.assertNull("Should be empty table", table.currentSnapshot());
+    Assert.assertNull("Should be empty table", latestSnapshot(table, branch));
 
-    table.newAppend().appendFile(FILE_DAY_1).appendFile(FILE_DAY_2).commit();
+    commit(table, table.newAppend().appendFile(FILE_DAY_1).appendFile(FILE_DAY_2), branch);
 
-    Snapshot firstSnapshot = table.currentSnapshot();
+    Snapshot firstSnapshot = latestSnapshot(table, branch);
 
     OverwriteFiles overwrite =
         table
@@ -694,21 +712,24 @@ public class TestOverwriteWithValidation extends TableTestBase {
             .validateNoConflictingData()
             .validateNoConflictingDeletes();
 
-    table.newRowDelta().addDeletes(FILE_DAY_2_POS_DELETES).commit();
+    commit(table, table.newRowDelta().addDeletes(FILE_DAY_2_POS_DELETES), branch);
 
     AssertHelpers.assertThrows(
-        "Should reject commit", ValidationException.class, "found new delete", overwrite::commit);
+        "Should reject commit",
+        ValidationException.class,
+        "found new delete",
+        () -> commit(table, overwrite, branch));
   }
 
   @Test
   public void testConcurrentConflictingPositionDeletesOverwriteByFilter() {
     Assume.assumeTrue(formatVersion == 2);
 
-    Assert.assertNull("Should be empty table", table.currentSnapshot());
+    Assert.assertNull("Should be empty table", latestSnapshot(table, branch));
 
-    table.newAppend().appendFile(FILE_DAY_1).appendFile(FILE_DAY_2).commit();
+    commit(table, table.newAppend().appendFile(FILE_DAY_1).appendFile(FILE_DAY_2), branch);
 
-    Snapshot firstSnapshot = table.currentSnapshot();
+    Snapshot firstSnapshot = latestSnapshot(table, branch);
 
     OverwriteFiles overwrite =
         table
@@ -720,22 +741,22 @@ public class TestOverwriteWithValidation extends TableTestBase {
             .validateNoConflictingData()
             .validateNoConflictingDeletes();
 
-    table.newRowDelta().addDeletes(FILE_DAY_2_POS_DELETES).commit();
+    commit(table, table.newRowDelta().addDeletes(FILE_DAY_2_POS_DELETES), branch);
 
     AssertHelpers.assertThrows(
         "Should reject commit",
         ValidationException.class,
         "Found new conflicting delete",
-        overwrite::commit);
+        () -> commit(table, overwrite, branch));
   }
 
   @Test
   public void testConcurrentConflictingDataFileDeleteOverwriteByFilter() {
-    Assert.assertNull("Should be empty table", table.currentSnapshot());
+    Assert.assertNull("Should be empty table", latestSnapshot(table, branch));
 
-    table.newAppend().appendFile(FILE_DAY_1).appendFile(FILE_DAY_2).commit();
+    commit(table, table.newAppend().appendFile(FILE_DAY_1).appendFile(FILE_DAY_2), branch);
 
-    Snapshot firstSnapshot = table.currentSnapshot();
+    Snapshot firstSnapshot = latestSnapshot(table, branch);
 
     OverwriteFiles overwrite =
         table
@@ -746,22 +767,22 @@ public class TestOverwriteWithValidation extends TableTestBase {
             .validateNoConflictingData()
             .validateNoConflictingDeletes();
 
-    table.newOverwrite().deleteFile(FILE_DAY_2).commit();
+    commit(table, table.newOverwrite().deleteFile(FILE_DAY_2), branch);
 
     AssertHelpers.assertThrows(
         "Should reject commit",
         ValidationException.class,
         "Found conflicting deleted files",
-        overwrite::commit);
+        () -> commit(table, overwrite, branch));
   }
 
   @Test
   public void testConcurrentNonConflictingDataFileDeleteOverwriteByFilter() {
-    Assert.assertNull("Should be empty table", table.currentSnapshot());
+    Assert.assertNull("Should be empty table", latestSnapshot(table, branch));
 
-    table.newAppend().appendFile(FILE_DAY_1).appendFile(FILE_DAY_2).commit();
+    commit(table, table.newAppend().appendFile(FILE_DAY_1).appendFile(FILE_DAY_2), branch);
 
-    Snapshot firstSnapshot = table.currentSnapshot();
+    Snapshot firstSnapshot = latestSnapshot(table, branch);
 
     OverwriteFiles overwrite =
         table
@@ -772,22 +793,22 @@ public class TestOverwriteWithValidation extends TableTestBase {
             .validateNoConflictingData()
             .validateNoConflictingDeletes();
 
-    table.newOverwrite().deleteFile(FILE_DAY_1).commit();
+    commit(table, table.newOverwrite().deleteFile(FILE_DAY_1), branch);
 
-    overwrite.commit();
+    commit(table, overwrite, branch);
 
-    validateTableFiles(table, FILE_DAY_2_MODIFIED);
+    validateBranchFiles(table, branch, FILE_DAY_2_MODIFIED);
   }
 
   @Test
   public void testConcurrentNonConflictingPositionDeletes() {
     Assume.assumeTrue(formatVersion == 2);
 
-    Assert.assertNull("Should be empty table", table.currentSnapshot());
+    Assert.assertNull("Should be empty table", latestSnapshot(table, branch));
 
-    table.newAppend().appendFile(FILE_DAY_1).appendFile(FILE_DAY_2).commit();
+    commit(table, table.newAppend().appendFile(FILE_DAY_1).appendFile(FILE_DAY_2), branch);
 
-    Snapshot firstSnapshot = table.currentSnapshot();
+    Snapshot firstSnapshot = latestSnapshot(table, branch);
 
     OverwriteFiles overwrite =
         table
@@ -799,23 +820,23 @@ public class TestOverwriteWithValidation extends TableTestBase {
             .validateNoConflictingData()
             .validateNoConflictingDeletes();
 
-    table.newRowDelta().addDeletes(FILE_DAY_1_POS_DELETES).commit();
+    commit(table, table.newRowDelta().addDeletes(FILE_DAY_1_POS_DELETES), branch);
 
-    overwrite.commit();
+    commit(table, overwrite, branch);
 
-    validateTableFiles(table, FILE_DAY_1, FILE_DAY_2_MODIFIED);
-    validateTableDeleteFiles(table, FILE_DAY_1_POS_DELETES);
+    validateBranchFiles(table, branch, FILE_DAY_1, FILE_DAY_2_MODIFIED);
+    validateBranchDeleteFiles(table, branch, FILE_DAY_1_POS_DELETES);
   }
 
   @Test
   public void testConcurrentNonConflictingPositionDeletesOverwriteByFilter() {
     Assume.assumeTrue(formatVersion == 2);
 
-    Assert.assertNull("Should be empty table", table.currentSnapshot());
+    Assert.assertNull("Should be empty table", latestSnapshot(table, branch));
 
-    table.newAppend().appendFile(FILE_DAY_1).appendFile(FILE_DAY_2).commit();
+    commit(table, table.newAppend().appendFile(FILE_DAY_1).appendFile(FILE_DAY_2), branch);
 
-    Snapshot firstSnapshot = table.currentSnapshot();
+    Snapshot firstSnapshot = latestSnapshot(table, branch);
 
     OverwriteFiles overwrite =
         table
@@ -827,23 +848,23 @@ public class TestOverwriteWithValidation extends TableTestBase {
             .validateNoConflictingData()
             .validateNoConflictingDeletes();
 
-    table.newRowDelta().addDeletes(FILE_DAY_1_POS_DELETES).commit();
+    commit(table, table.newRowDelta().addDeletes(FILE_DAY_1_POS_DELETES), branch);
 
-    overwrite.commit();
+    commit(table, overwrite, branch);
 
-    validateTableFiles(table, FILE_DAY_1, FILE_DAY_2_MODIFIED);
-    validateTableDeleteFiles(table, FILE_DAY_1_POS_DELETES);
+    validateBranchFiles(table, branch, FILE_DAY_1, FILE_DAY_2_MODIFIED);
+    validateBranchDeleteFiles(table, branch, FILE_DAY_1_POS_DELETES);
   }
 
   @Test
   public void testConcurrentConflictingEqualityDeletes() {
     Assume.assumeTrue(formatVersion == 2);
 
-    Assert.assertNull("Should be empty table", table.currentSnapshot());
+    Assert.assertNull("Should be empty table", latestSnapshot(table, branch));
 
-    table.newAppend().appendFile(FILE_DAY_1).appendFile(FILE_DAY_2).commit();
+    commit(table, table.newAppend().appendFile(FILE_DAY_1).appendFile(FILE_DAY_2), branch);
 
-    Snapshot firstSnapshot = table.currentSnapshot();
+    Snapshot firstSnapshot = latestSnapshot(table, branch);
 
     OverwriteFiles overwrite =
         table
@@ -855,21 +876,27 @@ public class TestOverwriteWithValidation extends TableTestBase {
             .validateNoConflictingData()
             .validateNoConflictingDeletes();
 
-    table.newRowDelta().addDeletes(FILE_DAY_2_EQ_DELETES).commit();
+    commit(table, table.newRowDelta().addDeletes(FILE_DAY_2_EQ_DELETES), branch);
 
     AssertHelpers.assertThrows(
-        "Should reject commit", ValidationException.class, "found new delete", overwrite::commit);
+        "Should reject commit",
+        ValidationException.class,
+        "found new delete",
+        () -> commit(table, overwrite, branch));
   }
 
   @Test
   public void testConcurrentNonConflictingEqualityDeletes() {
     Assume.assumeTrue(formatVersion == 2);
 
-    Assert.assertNull("Should be empty table", table.currentSnapshot());
+    Assert.assertNull("Should be empty table", latestSnapshot(table, branch));
 
-    table.newAppend().appendFile(FILE_DAY_2).appendFile(FILE_DAY_2_ANOTHER_RANGE).commit();
+    commit(
+        table,
+        table.newAppend().appendFile(FILE_DAY_2).appendFile(FILE_DAY_2_ANOTHER_RANGE),
+        branch);
 
-    Snapshot firstSnapshot = table.currentSnapshot();
+    Snapshot firstSnapshot = latestSnapshot(table, branch);
 
     OverwriteFiles overwrite =
         table
@@ -881,23 +908,23 @@ public class TestOverwriteWithValidation extends TableTestBase {
             .validateNoConflictingData()
             .validateNoConflictingDeletes();
 
-    table.newRowDelta().addDeletes(FILE_DAY_2_ANOTHER_RANGE_EQ_DELETES).commit();
+    commit(table, table.newRowDelta().addDeletes(FILE_DAY_2_ANOTHER_RANGE_EQ_DELETES), branch);
 
-    overwrite.commit();
+    commit(table, overwrite, branch);
 
-    validateTableFiles(table, FILE_DAY_2_ANOTHER_RANGE, FILE_DAY_2_MODIFIED);
-    validateTableDeleteFiles(table, FILE_DAY_2_ANOTHER_RANGE_EQ_DELETES);
+    validateBranchFiles(table, branch, FILE_DAY_2_ANOTHER_RANGE, FILE_DAY_2_MODIFIED);
+    validateBranchDeleteFiles(table, branch, FILE_DAY_2_ANOTHER_RANGE_EQ_DELETES);
   }
 
   @Test
   public void testOverwriteByFilterInheritsConflictDetectionFilter() {
     Assume.assumeTrue(formatVersion == 2);
 
-    Assert.assertNull("Should be empty table", table.currentSnapshot());
+    Assert.assertNull("Should be empty table", latestSnapshot(table, branch));
 
-    table.newAppend().appendFile(FILE_DAY_1).appendFile(FILE_DAY_2).commit();
+    commit(table, table.newAppend().appendFile(FILE_DAY_1).appendFile(FILE_DAY_2), branch);
 
-    Snapshot firstSnapshot = table.currentSnapshot();
+    Snapshot firstSnapshot = latestSnapshot(table, branch);
 
     OverwriteFiles overwrite =
         table
@@ -909,19 +936,19 @@ public class TestOverwriteWithValidation extends TableTestBase {
             .validateNoConflictingData()
             .validateNoConflictingDeletes();
 
-    table.newRowDelta().addDeletes(FILE_DAY_1_POS_DELETES).commit();
+    commit(table, table.newRowDelta().addDeletes(FILE_DAY_1_POS_DELETES), branch);
 
-    overwrite.commit();
+    commit(table, overwrite, branch);
 
-    validateTableFiles(table, FILE_DAY_1, FILE_DAY_2_MODIFIED);
-    validateTableDeleteFiles(table, FILE_DAY_1_POS_DELETES);
+    validateBranchFiles(table, branch, FILE_DAY_1, FILE_DAY_2_MODIFIED);
+    validateBranchDeleteFiles(table, branch, FILE_DAY_1_POS_DELETES);
   }
 
   @Test
   public void testOverwriteCaseSensitivity() {
-    table.newAppend().appendFile(FILE_DAY_1).appendFile(FILE_DAY_2).commit();
+    commit(table, table.newAppend().appendFile(FILE_DAY_1).appendFile(FILE_DAY_2), branch);
 
-    table.newAppend().appendFile(FILE_DAY_1).commit();
+    commit(table, table.newAppend().appendFile(FILE_DAY_1), branch);
 
     Expression rowFilter = equal("dAtE", "2018-06-09");
 
@@ -930,25 +957,29 @@ public class TestOverwriteWithValidation extends TableTestBase {
         ValidationException.class,
         "Cannot find field 'dAtE'",
         () ->
-            table
-                .newOverwrite()
-                .addFile(FILE_DAY_2_MODIFIED)
-                .conflictDetectionFilter(rowFilter)
-                .validateNoConflictingData()
-                .commit());
+            commit(
+                table,
+                table
+                    .newOverwrite()
+                    .addFile(FILE_DAY_2_MODIFIED)
+                    .conflictDetectionFilter(rowFilter)
+                    .validateNoConflictingData(),
+                branch));
 
     AssertHelpers.assertThrows(
         "Should fail with case sensitive binding",
         ValidationException.class,
         "Cannot find field 'dAtE'",
         () ->
-            table
-                .newOverwrite()
-                .caseSensitive(true)
-                .addFile(FILE_DAY_2_MODIFIED)
-                .conflictDetectionFilter(rowFilter)
-                .validateNoConflictingData()
-                .commit());
+            commit(
+                table,
+                table
+                    .newOverwrite()
+                    .caseSensitive(true)
+                    .addFile(FILE_DAY_2_MODIFIED)
+                    .conflictDetectionFilter(rowFilter)
+                    .validateNoConflictingData(),
+                branch));
 
     // binding should succeed and trigger the validation
     AssertHelpers.assertThrows(
@@ -956,36 +987,45 @@ public class TestOverwriteWithValidation extends TableTestBase {
         ValidationException.class,
         "Found conflicting files",
         () ->
-            table
-                .newOverwrite()
-                .caseSensitive(false)
-                .addFile(FILE_DAY_2_MODIFIED)
-                .conflictDetectionFilter(rowFilter)
-                .validateNoConflictingData()
-                .commit());
+            commit(
+                table,
+                table
+                    .newOverwrite()
+                    .caseSensitive(false)
+                    .addFile(FILE_DAY_2_MODIFIED)
+                    .conflictDetectionFilter(rowFilter)
+                    .validateNoConflictingData(),
+                branch));
   }
 
   @Test
   public void testMetadataOnlyDeleteWithPositionDeletes() {
     Assume.assumeTrue(formatVersion == 2);
 
-    Assert.assertNull("Should be empty table", table.currentSnapshot());
+    Assert.assertNull("Should be empty table", latestSnapshot(table, branch));
 
-    table.newAppend().appendFile(FILE_DAY_2).appendFile(FILE_DAY_2_ANOTHER_RANGE).commit();
+    commit(
+        table,
+        table.newAppend().appendFile(FILE_DAY_2).appendFile(FILE_DAY_2_ANOTHER_RANGE),
+        branch);
 
-    table
-        .newRowDelta()
-        .addDeletes(FILE_DAY_2_POS_DELETES)
-        .addDeletes(FILE_DAY_2_ANOTHER_RANGE_EQ_DELETES)
-        .commit();
+    commit(
+        table,
+        table
+            .newRowDelta()
+            .addDeletes(FILE_DAY_2_POS_DELETES)
+            .addDeletes(FILE_DAY_2_ANOTHER_RANGE_EQ_DELETES),
+        branch);
 
-    table
-        .newOverwrite()
-        .overwriteByRowFilter(EXPRESSION_DAY_2_ANOTHER_ID_RANGE)
-        .addFile(FILE_DAY_2_MODIFIED)
-        .commit();
+    commit(
+        table,
+        table
+            .newOverwrite()
+            .overwriteByRowFilter(EXPRESSION_DAY_2_ANOTHER_ID_RANGE)
+            .addFile(FILE_DAY_2_MODIFIED),
+        branch);
 
-    validateTableFiles(table, FILE_DAY_2, FILE_DAY_2_MODIFIED);
-    validateTableDeleteFiles(table, FILE_DAY_2_POS_DELETES);
+    validateBranchFiles(table, branch, FILE_DAY_2, FILE_DAY_2_MODIFIED);
+    validateBranchDeleteFiles(table, branch, FILE_DAY_2_POS_DELETES);
   }
 }

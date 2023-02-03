@@ -22,7 +22,9 @@ from typing import (
     Generic,
     List,
     Set,
+    Tuple,
     TypeVar,
+    Union,
 )
 
 from pyiceberg.conversions import from_bytes
@@ -39,12 +41,15 @@ from pyiceberg.expressions import (
     BoundIsNull,
     BoundLessThan,
     BoundLessThanOrEqual,
+    BoundLiteralPredicate,
     BoundNotEqualTo,
     BoundNotIn,
     BoundNotNaN,
     BoundNotNull,
     BoundPredicate,
+    BoundSetPredicate,
     BoundTerm,
+    BoundUnaryPredicate,
     L,
     Not,
     Or,
@@ -60,7 +65,10 @@ from pyiceberg.types import (
     FloatType,
     IcebergType,
     PrimitiveType,
+    TimestampType,
+    TimestamptzType,
 )
+from pyiceberg.utils.datetime import micros_to_timestamp, micros_to_timestamptz
 
 T = TypeVar("T")
 
@@ -753,3 +761,228 @@ def inclusive_projection(
     schema: Schema, spec: PartitionSpec, case_sensitive: bool = True
 ) -> Callable[[BooleanExpression], BooleanExpression]:
     return InclusiveProjection(schema, spec, case_sensitive).project
+
+
+class _ColumnNameTranslator(BooleanExpressionVisitor[BooleanExpression]):
+    """Converts the column names with the ones in the actual file
+
+    Args:
+      file_schema (Schema): The schema of the file
+      case_sensitive (bool): Whether to consider case when binding a reference to a field in a schema, defaults to True
+
+    Raises:
+        TypeError: In the case of an UnboundPredicate
+        ValueError: When a column name cannot be found
+    """
+
+    file_schema: Schema
+    case_sensitive: bool
+
+    def __init__(self, file_schema: Schema, case_sensitive: bool) -> None:
+        self.file_schema = file_schema
+        self.case_sensitive = case_sensitive
+
+    def visit_true(self) -> BooleanExpression:
+        return AlwaysTrue()
+
+    def visit_false(self) -> BooleanExpression:
+        return AlwaysFalse()
+
+    def visit_not(self, child_result: BooleanExpression) -> BooleanExpression:
+        return Not(child=child_result)
+
+    def visit_and(self, left_result: BooleanExpression, right_result: BooleanExpression) -> BooleanExpression:
+        return And(left=left_result, right=right_result)
+
+    def visit_or(self, left_result: BooleanExpression, right_result: BooleanExpression) -> BooleanExpression:
+        return Or(left=left_result, right=right_result)
+
+    def visit_unbound_predicate(self, predicate: UnboundPredicate[L]) -> BooleanExpression:
+        raise TypeError(f"Expected Bound Predicate, got: {predicate.term}")
+
+    def visit_bound_predicate(self, predicate: BoundPredicate[L]) -> BooleanExpression:
+        file_column_name = self.file_schema.find_column_name(predicate.term.ref().field.field_id)
+
+        if not file_column_name:
+            raise ValueError(f"Not found in file schema: {file_column_name}")
+
+        if isinstance(predicate, BoundUnaryPredicate):
+            return predicate.as_unbound(file_column_name)
+        elif isinstance(predicate, BoundLiteralPredicate):
+            return predicate.as_unbound(file_column_name, predicate.literal)
+        elif isinstance(predicate, BoundSetPredicate):
+            return predicate.as_unbound(file_column_name, predicate.literals)
+        else:
+            raise ValueError(f"Unsupported predicate: {predicate}")
+
+
+def translate_column_names(expr: BooleanExpression, file_schema: Schema, case_sensitive: bool) -> BooleanExpression:
+    return visit(expr, _ColumnNameTranslator(file_schema, case_sensitive))
+
+
+class _ExpressionFieldIDs(BooleanExpressionVisitor[Set[int]]):
+    """Extracts the field IDs used in the BooleanExpression"""
+
+    def visit_true(self) -> Set[int]:
+        return set()
+
+    def visit_false(self) -> Set[int]:
+        return set()
+
+    def visit_not(self, child_result: Set[int]) -> Set[int]:
+        return child_result
+
+    def visit_and(self, left_result: Set[int], right_result: Set[int]) -> Set[int]:
+        return left_result.union(right_result)
+
+    def visit_or(self, left_result: Set[int], right_result: Set[int]) -> Set[int]:
+        return left_result.union(right_result)
+
+    def visit_unbound_predicate(self, predicate: UnboundPredicate[L]) -> Set[int]:
+        raise ValueError("Only works on bound records")
+
+    def visit_bound_predicate(self, predicate: BoundPredicate[L]) -> Set[int]:
+        return {predicate.term.ref().field.field_id}
+
+
+def extract_field_ids(expr: BooleanExpression) -> Set[int]:
+    return visit(expr, _ExpressionFieldIDs())
+
+
+class _RewriteToDNF(BooleanExpressionVisitor[Tuple[BooleanExpression, ...]]):
+    def visit_true(self) -> Tuple[BooleanExpression, ...]:
+        return (AlwaysTrue(),)
+
+    def visit_false(self) -> Tuple[BooleanExpression, ...]:
+        return (AlwaysFalse(),)
+
+    def visit_not(self, child_result: Tuple[BooleanExpression, ...]) -> Tuple[BooleanExpression, ...]:
+        raise ValueError(f"Not expressions are not allowed: {child_result}")
+
+    def visit_and(
+        self, left_result: Tuple[BooleanExpression, ...], right_result: Tuple[BooleanExpression, ...]
+    ) -> Tuple[BooleanExpression, ...]:
+        # Distributive law:
+        # ((P OR Q) AND (R OR S)) AND (((P AND R) OR (P AND S)) OR ((Q AND R) OR ((Q AND S)))
+        # A AND (B OR C) = (A AND B) OR (A AND C)
+        # (A OR B) AND C = (A AND C) OR (B AND C)
+        return tuple(And(le, re) for le in left_result for re in right_result)
+
+    def visit_or(
+        self, left_result: Tuple[BooleanExpression, ...], right_result: Tuple[BooleanExpression, ...]
+    ) -> Tuple[BooleanExpression, ...]:
+        return left_result + right_result
+
+    def visit_unbound_predicate(self, predicate: UnboundPredicate[L]) -> Tuple[BooleanExpression, ...]:
+        return (predicate,)
+
+    def visit_bound_predicate(self, predicate: BoundPredicate[L]) -> Tuple[BooleanExpression, ...]:
+        return (predicate,)
+
+
+def rewrite_to_dnf(expr: BooleanExpression) -> Tuple[BooleanExpression, ...]:
+    # Rewrites an arbitrary boolean expression to disjunctive normal form (DNF):
+    # (A AND NOT(B) AND C) OR (NOT(D) AND E AND F) OR (G)
+    expr_without_not = rewrite_not(expr)
+    return visit(expr_without_not, _RewriteToDNF())
+
+
+class ExpressionToPlainFormat(BoundBooleanExpressionVisitor[List[Tuple[str, str, Any]]]):
+    cast_int_to_date: bool
+
+    def __init__(self, cast_int_to_date: bool = False) -> None:
+        self.cast_int_to_date = cast_int_to_date
+
+    def _cast_if_necessary(self, iceberg_type: IcebergType, literal: Union[L, Set[L]]) -> Union[L, Set[L]]:
+        if self.cast_int_to_date:
+            iceberg_type_class = type(iceberg_type)
+            conversions = {TimestampType: micros_to_timestamp, TimestamptzType: micros_to_timestamptz}
+            if iceberg_type_class in conversions:
+                conversion_function = conversions[iceberg_type_class]
+                if isinstance(literal, set):
+                    return {conversion_function(lit) for lit in literal}  # type: ignore
+                else:
+                    return conversion_function(literal)  # type: ignore
+        return literal
+
+    def visit_in(self, term: BoundTerm[L], literals: Set[L]) -> List[Tuple[str, str, Any]]:
+        field = term.ref().field
+        return [(term.ref().field.name, "in", self._cast_if_necessary(field.field_type, literals))]
+
+    def visit_not_in(self, term: BoundTerm[L], literals: Set[L]) -> List[Tuple[str, str, Any]]:
+        field = term.ref().field
+        return [(field.name, "not in", self._cast_if_necessary(field.field_type, literals))]
+
+    def visit_is_nan(self, term: BoundTerm[L]) -> List[Tuple[str, str, Any]]:
+        return [(term.ref().field.name, "==", float("nan"))]
+
+    def visit_not_nan(self, term: BoundTerm[L]) -> List[Tuple[str, str, Any]]:
+        return [(term.ref().field.name, "!=", float("nan"))]
+
+    def visit_is_null(self, term: BoundTerm[L]) -> List[Tuple[str, str, Any]]:
+        return [(term.ref().field.name, "==", None)]
+
+    def visit_not_null(self, term: BoundTerm[L]) -> List[Tuple[str, str, Any]]:
+        return [(term.ref().field.name, "!=", None)]
+
+    def visit_equal(self, term: BoundTerm[L], literal: Literal[L]) -> List[Tuple[str, str, Any]]:
+        return [(term.ref().field.name, "==", self._cast_if_necessary(term.ref().field.field_type, literal.value))]
+
+    def visit_not_equal(self, term: BoundTerm[L], literal: Literal[L]) -> List[Tuple[str, str, Any]]:
+        return [(term.ref().field.name, "!=", self._cast_if_necessary(term.ref().field.field_type, literal.value))]
+
+    def visit_greater_than_or_equal(self, term: BoundTerm[L], literal: Literal[L]) -> List[Tuple[str, str, Any]]:
+        return [(term.ref().field.name, ">=", self._cast_if_necessary(term.ref().field.field_type, literal.value))]
+
+    def visit_greater_than(self, term: BoundTerm[L], literal: Literal[L]) -> List[Tuple[str, str, Any]]:
+        return [(term.ref().field.name, ">", self._cast_if_necessary(term.ref().field.field_type, literal.value))]
+
+    def visit_less_than(self, term: BoundTerm[L], literal: Literal[L]) -> List[Tuple[str, str, Any]]:
+        return [(term.ref().field.name, "<", self._cast_if_necessary(term.ref().field.field_type, literal.value))]
+
+    def visit_less_than_or_equal(self, term: BoundTerm[L], literal: Literal[L]) -> List[Tuple[str, str, Any]]:
+        return [(term.ref().field.name, "<=", self._cast_if_necessary(term.ref().field.field_type, literal.value))]
+
+    def visit_true(self) -> List[Tuple[str, str, Any]]:
+        return []  # Not supported
+
+    def visit_false(self) -> List[Tuple[str, str, Any]]:
+        raise ValueError("Not supported: AlwaysFalse")
+
+    def visit_not(self, child_result: List[Tuple[str, str, Any]]) -> List[Tuple[str, str, Any]]:
+        raise ValueError(f"Not allowed: {child_result}")
+
+    def visit_and(
+        self, left_result: List[Tuple[str, str, Any]], right_result: List[Tuple[str, str, Any]]
+    ) -> List[Tuple[str, str, Any]]:
+        return left_result + right_result
+
+    def visit_or(
+        self, left_result: List[Tuple[str, str, Any]], right_result: List[Tuple[str, str, Any]]
+    ) -> List[Tuple[str, str, Any]]:
+        raise ValueError(f"Not allowed: {left_result} || {right_result}")
+
+
+def expression_to_plain_format(
+    expressions: Tuple[BooleanExpression, ...], cast_int_to_datetime: bool = False
+) -> List[List[Tuple[str, str, Any]]]:
+    """Formats a Disjunctive Normal Form expression into the format that can be fed into:
+
+    - https://arrow.apache.org/docs/python/generated/pyarrow.parquet.read_table.html
+    - https://docs.dask.org/en/stable/generated/dask.dataframe.read_parquet.html
+
+    Contrary to normal DNF that may contain Not expressions, but here they should have
+    been rewritten. This can be done using ``rewrite_not(...)``.
+
+    Keep in mind that this is only used for page skipping, and still needs to filter
+    on a row level.
+
+    Args:
+        expressions: Expression in Disjunctive Normal Form
+
+    Returns:
+        Formatter filter compatible with Dask and PyArrow
+    """
+    # In the form of expr1 ∨ expr2 ∨ ... ∨ exprN
+    visitor = ExpressionToPlainFormat(cast_int_to_datetime)
+    return [visit(expression, visitor) for expression in expressions]

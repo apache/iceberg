@@ -349,6 +349,20 @@ acceptedBreaks:
       old: "method void org.apache.iceberg.SnapshotProducer<ThisT>::validate(org.apache.iceberg.TableMetadata)\
         \ @ org.apache.iceberg.StreamingDelete"
       justification: "Removing deprecations for 1.2.0"
+    - code: "java.method.returnTypeChangedCovariantly"
+      old: "method org.apache.iceberg.Table org.apache.iceberg.BaseMetadataTable::table()"
+      new: "method org.apache.iceberg.BaseTable org.apache.iceberg.BaseMetadataTable::table()"
+      justification: "Returning more specific subclass"
+    - code: "java.method.returnTypeChangedCovariantly"
+      old: "method ThisT org.apache.iceberg.SnapshotUpdate<ThisT>::toBranch(java.lang.String)\
+        \ @ org.apache.iceberg.BaseOverwriteFiles"
+      new: "method org.apache.iceberg.BaseOverwriteFiles org.apache.iceberg.BaseOverwriteFiles::toBranch(java.lang.String)"
+      justification: "Introducing branch snapshot operations on BaseOverwrite"
+    - code: "java.method.returnTypeChangedCovariantly"
+      old: "method ThisT org.apache.iceberg.SnapshotUpdate<ThisT>::toBranch(java.lang.String)\
+        \ @ org.apache.iceberg.BaseReplacePartitions"
+      new: "method org.apache.iceberg.BaseReplacePartitions org.apache.iceberg.BaseReplacePartitions::toBranch(java.lang.String)"
+      justification: "Introducing branch snapshot operations for BaseReplacePartitions"
     org.apache.iceberg:iceberg-orc:
     - code: "java.method.removed"
       old: "method org.apache.iceberg.orc.ORC.WriteBuilder org.apache.iceberg.orc.ORC.WriteBuilder::config(java.lang.String,\

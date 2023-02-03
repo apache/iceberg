@@ -30,7 +30,7 @@ public interface SQLViewRepresentation extends ViewRepresentation {
   }
 
   /** The view query SQL text. */
-  String query();
+  String sql();
 
   /** The view query SQL dialect. */
   String dialect();
@@ -44,9 +44,9 @@ public interface SQLViewRepresentation extends ViewRepresentation {
   /** The query output schema at version create time, without aliases. */
   Schema schema();
 
-  /** The view field aliases. */
+  /** The view field comments. */
   List<String> fieldComments();
 
-  /** The view field comments. */
+  /** The view field aliases. */
   List<String> fieldAliases();
 }

@@ -24,8 +24,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.AssertHelpers;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.events.Listeners;
 import org.apache.iceberg.events.ScanEvent;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.spark.Spark3Util;
@@ -33,6 +35,7 @@ import org.apache.iceberg.spark.SparkCatalogTestBase;
 import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
+import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Assume;
@@ -229,6 +232,92 @@ public class TestSelect extends SparkCatalogTestBase {
             .load(tableName);
     List<Object[]> fromDF = rowsToJava(df.collectAsList());
     assertEquals("Snapshot at specific ID " + snapshotId, expected, fromDF);
+  }
+
+  @Test
+  public void testTagReferenceAsOf() {
+    Table table = validationCatalog.loadTable(tableIdent);
+    long snapshotId = table.currentSnapshot().snapshotId();
+    table.manageSnapshots().createTag("test_tag", snapshotId).commit();
+
+    // create a second snapshot, read the table at the snapshot
+    List<Object[]> expected = sql("SELECT * FROM %s", tableName);
+    sql("INSERT INTO %s VALUES (4, 'd', 4.0), (5, 'e', 5.0)", tableName);
+    List<Object[]> actual1 = sql("SELECT * FROM %s VERSION AS OF 'test_tag'", tableName);
+    assertEquals("Snapshot at specific tag reference name", expected, actual1);
+
+    // read the table at the snapshot
+    // HIVE time travel syntax
+    List<Object[]> actual2 = sql("SELECT * FROM %s FOR SYSTEM_VERSION AS OF 'test_tag'", tableName);
+    assertEquals("Snapshot at specific tag reference name", expected, actual2);
+
+    // read the table using DataFrameReader option: branch
+    Dataset<Row> df =
+        spark.read().format("iceberg").option(SparkReadOptions.TAG, "test_tag").load(tableName);
+    List<Object[]> fromDF = rowsToJava(df.collectAsList());
+    assertEquals("Snapshot at specific tag reference name", expected, fromDF);
+  }
+
+  @Test
+  public void testUseSnapshotIdForTagReferenceAsOf() {
+    Table table = validationCatalog.loadTable(tableIdent);
+    long snapshotId1 = table.currentSnapshot().snapshotId();
+
+    // create a second snapshot, read the table at the snapshot
+    List<Object[]> actual = sql("SELECT * FROM %s", tableName);
+    sql("INSERT INTO %s VALUES (4, 'd', 4.0), (5, 'e', 5.0)", tableName);
+
+    table.refresh();
+    long snapshotId2 = table.currentSnapshot().snapshotId();
+    table.manageSnapshots().createTag(Long.toString(snapshotId1), snapshotId2).commit();
+
+    // currently Spark version travel ignores the type of the AS OF
+    // this means if a tag name matches a snapshot ID, it will always choose snapshotID to travel
+    // to.
+    List<Object[]> travelWithStringResult =
+        sql("SELECT * FROM %s VERSION AS OF '%s'", tableName, snapshotId1);
+    assertEquals("Snapshot at specific tag reference name", actual, travelWithStringResult);
+
+    List<Object[]> travelWithLongResult =
+        sql("SELECT * FROM %s VERSION AS OF %s", tableName, snapshotId1);
+    assertEquals("Snapshot at specific tag reference name", actual, travelWithLongResult);
+  }
+
+  @Test
+  public void testBranchReferenceAsOf() {
+    Table table = validationCatalog.loadTable(tableIdent);
+    long snapshotId = table.currentSnapshot().snapshotId();
+    table.manageSnapshots().createBranch("test_branch", snapshotId).commit();
+
+    // create a second snapshot, read the table at the snapshot
+    List<Object[]> expected = sql("SELECT * FROM %s", tableName);
+    sql("INSERT INTO %s VALUES (4, 'd', 4.0), (5, 'e', 5.0)", tableName);
+    List<Object[]> actual1 = sql("SELECT * FROM %s VERSION AS OF 'test_branch'", tableName);
+    assertEquals("Snapshot at specific branch reference name", expected, actual1);
+
+    // read the table at the snapshot
+    // HIVE time travel syntax
+    List<Object[]> actual2 =
+        sql("SELECT * FROM %s FOR SYSTEM_VERSION AS OF 'test_branch'", tableName);
+    assertEquals("Snapshot at specific branch reference name", expected, actual2);
+
+    // read the table using DataFrameReader option: branch
+    Dataset<Row> df =
+        spark
+            .read()
+            .format("iceberg")
+            .option(SparkReadOptions.BRANCH, "test_branch")
+            .load(tableName);
+    List<Object[]> fromDF = rowsToJava(df.collectAsList());
+    assertEquals("Snapshot at specific branch reference name", expected, fromDF);
+  }
+
+  @Test
+  public void testUnknownReferenceAsOf() {
+    Assertions.assertThatThrownBy(
+            () -> sql("SELECT * FROM %s VERSION AS OF 'test_unknown'", tableName))
+        .hasMessageContaining("Cannot find matching snapshot ID or reference name for version")
+        .isInstanceOf(ValidationException.class);
   }
 
   @Test

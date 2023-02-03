@@ -186,7 +186,13 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
     Broadcast<Table> tableBroadcast =
         sparkContext.broadcast(SerializableTableWithSize.copyOf(table));
     return new WriterFactory(
-        tableBroadcast, format, targetFileSize, writeSchema, dsSchema, partitionedFanoutEnabled);
+        tableBroadcast,
+        queryId,
+        format,
+        targetFileSize,
+        writeSchema,
+        dsSchema,
+        partitionedFanoutEnabled);
   }
 
   private void commitOperation(SnapshotUpdate<?> operation, String description) {
@@ -383,7 +389,11 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
     }
 
     private List<DataFile> overwrittenFiles() {
-      return scan.files().stream().map(FileScanTask::file).collect(Collectors.toList());
+      if (scan == null) {
+        return ImmutableList.of();
+      } else {
+        return scan.tasks().stream().map(FileScanTask::file).collect(Collectors.toList());
+      }
     }
 
     private Expression conflictDetectionFilter() {
@@ -415,12 +425,21 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
         overwriteFiles.addFile(file);
       }
 
-      if (isolationLevel == SERIALIZABLE) {
-        commitWithSerializableIsolation(overwriteFiles, numOverwrittenFiles, numAddedFiles);
-      } else if (isolationLevel == SNAPSHOT) {
-        commitWithSnapshotIsolation(overwriteFiles, numOverwrittenFiles, numAddedFiles);
+      // the scan may be null if the optimizer replaces it with an empty relation (e.g. false cond)
+      // no validation is needed in this case as the command does not depend on the table state
+      if (scan != null) {
+        if (isolationLevel == SERIALIZABLE) {
+          commitWithSerializableIsolation(overwriteFiles, numOverwrittenFiles, numAddedFiles);
+        } else if (isolationLevel == SNAPSHOT) {
+          commitWithSnapshotIsolation(overwriteFiles, numOverwrittenFiles, numAddedFiles);
+        } else {
+          throw new IllegalArgumentException("Unsupported isolation level: " + isolationLevel);
+        }
+
       } else {
-        throw new IllegalArgumentException("Unsupported isolation level: " + isolationLevel);
+        commitOperation(
+            overwriteFiles,
+            String.format("overwrite with %d new data files (no validation)", numAddedFiles));
       }
     }
 
@@ -620,9 +639,11 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
     private final Schema writeSchema;
     private final StructType dsSchema;
     private final boolean partitionedFanoutEnabled;
+    private final String queryId;
 
     protected WriterFactory(
         Broadcast<Table> tableBroadcast,
+        String queryId,
         FileFormat format,
         long targetFileSize,
         Schema writeSchema,
@@ -634,6 +655,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
       this.writeSchema = writeSchema;
       this.dsSchema = dsSchema;
       this.partitionedFanoutEnabled = partitionedFanoutEnabled;
+      this.queryId = queryId;
     }
 
     @Override
@@ -648,7 +670,10 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
       FileIO io = table.io();
 
       OutputFileFactory fileFactory =
-          OutputFileFactory.builderFor(table, partitionId, taskId).format(format).build();
+          OutputFileFactory.builderFor(table, partitionId, taskId)
+              .format(format)
+              .operationId(queryId)
+              .build();
       SparkFileWriterFactory writerFactory =
           SparkFileWriterFactory.builderFor(table)
               .dataFileFormat(format)

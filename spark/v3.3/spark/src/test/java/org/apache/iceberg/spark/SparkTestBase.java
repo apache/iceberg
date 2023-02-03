@@ -28,8 +28,9 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
-import java.util.stream.IntStream;
+import java.util.TimeZone;
+import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicReference;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.ContentFile;
@@ -41,22 +42,27 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
+import org.apache.spark.sql.execution.QueryExecution;
+import org.apache.spark.sql.execution.SparkPlan;
+import org.apache.spark.sql.execution.adaptive.AdaptiveSparkPlanExec;
 import org.apache.spark.sql.internal.SQLConf;
+import org.apache.spark.sql.util.QueryExecutionListener;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 
-public abstract class SparkTestBase {
-
-  protected static final Object ANY = new Object();
+public abstract class SparkTestBase extends SparkTestHelperBase {
 
   protected static TestHiveMetastore metastore = null;
   protected static HiveConf hiveConf = null;
   protected static SparkSession spark = null;
+  protected static JavaSparkContext sparkContext = null;
   protected static HiveCatalog catalog = null;
 
   @BeforeClass
@@ -74,6 +80,8 @@ public abstract class SparkTestBase {
             .enableHiveSupport()
             .getOrCreate();
 
+    SparkTestBase.sparkContext = JavaSparkContext.fromSparkContext(spark.sparkContext());
+
     SparkTestBase.catalog =
         (HiveCatalog)
             CatalogUtil.loadCatalog(
@@ -89,10 +97,15 @@ public abstract class SparkTestBase {
   @AfterClass
   public static void stopMetastoreAndSpark() throws Exception {
     SparkTestBase.catalog = null;
-    metastore.stop();
-    SparkTestBase.metastore = null;
-    spark.stop();
-    SparkTestBase.spark = null;
+    if (metastore != null) {
+      metastore.stop();
+      SparkTestBase.metastore = null;
+    }
+    if (spark != null) {
+      spark.stop();
+      SparkTestBase.spark = null;
+      SparkTestBase.sparkContext = null;
+    }
   }
 
   protected long waitUntilAfter(long timestampMillis) {
@@ -112,32 +125,6 @@ public abstract class SparkTestBase {
     return rowsToJava(rows);
   }
 
-  protected List<Object[]> rowsToJava(List<Row> rows) {
-    return rows.stream().map(this::toJava).collect(Collectors.toList());
-  }
-
-  private Object[] toJava(Row row) {
-    return IntStream.range(0, row.size())
-        .mapToObj(
-            pos -> {
-              if (row.isNullAt(pos)) {
-                return null;
-              }
-
-              Object value = row.get(pos);
-              if (value instanceof Row) {
-                return toJava((Row) value);
-              } else if (value instanceof scala.collection.Seq) {
-                return row.getList(pos);
-              } else if (value instanceof scala.collection.Map) {
-                return row.getJavaMap(pos);
-              } else {
-                return value;
-              }
-            })
-        .toArray(Object[]::new);
-  }
-
   protected Object scalarSql(String query, Object... args) {
     List<Object[]> rows = sql(query, args);
     Assert.assertEquals("Scalar SQL should return one row", 1, rows.size());
@@ -148,39 +135,6 @@ public abstract class SparkTestBase {
 
   protected Object[] row(Object... values) {
     return values;
-  }
-
-  protected void assertEquals(
-      String context, List<Object[]> expectedRows, List<Object[]> actualRows) {
-    Assert.assertEquals(
-        context + ": number of results should match", expectedRows.size(), actualRows.size());
-    for (int row = 0; row < expectedRows.size(); row += 1) {
-      Object[] expected = expectedRows.get(row);
-      Object[] actual = actualRows.get(row);
-      Assert.assertEquals("Number of columns should match", expected.length, actual.length);
-      for (int col = 0; col < actualRows.get(row).length; col += 1) {
-        String newContext = String.format("%s: row %d col %d", context, row + 1, col + 1);
-        assertEquals(newContext, expected, actual);
-      }
-    }
-  }
-
-  private void assertEquals(String context, Object[] expectedRow, Object[] actualRow) {
-    Assert.assertEquals("Number of columns should match", expectedRow.length, actualRow.length);
-    for (int col = 0; col < actualRow.length; col += 1) {
-      Object expectedValue = expectedRow[col];
-      Object actualValue = actualRow[col];
-      if (expectedValue != null && expectedValue.getClass().isArray()) {
-        String newContext = String.format("%s (nested col %d)", context, col + 1);
-        if (expectedValue instanceof byte[]) {
-          Assert.assertArrayEquals(newContext, (byte[]) expectedValue, (byte[]) actualValue);
-        } else {
-          assertEquals(newContext, (Object[]) expectedValue, (Object[]) actualValue);
-        }
-      } else if (expectedValue != ANY) {
-        Assert.assertEquals(context + " contents should match", expectedValue, actualValue);
-      }
-    }
   }
 
   protected static String dbPath(String dbName) {
@@ -214,6 +168,16 @@ public abstract class SparkTestBase {
       for (String location : locations) {
         move(location + "_temp", location);
       }
+    }
+  }
+
+  protected void withDefaultTimeZone(String zoneId, Action action) {
+    TimeZone currentZone = TimeZone.getDefault();
+    try {
+      TimeZone.setDefault(TimeZone.getTimeZone(zoneId));
+      action.invoke();
+    } finally {
+      TimeZone.setDefault(currentZone);
     }
   }
 
@@ -255,6 +219,65 @@ public abstract class SparkTestBase {
   protected Dataset<Row> jsonToDF(String schema, String... records) {
     Dataset<String> jsonDF = spark.createDataset(ImmutableList.copyOf(records), Encoders.STRING());
     return spark.read().schema(schema).json(jsonDF);
+  }
+
+  protected void append(String table, String... jsonRecords) {
+    try {
+      String schema = spark.table(table).schema().toDDL();
+      Dataset<Row> df = jsonToDF(schema, jsonRecords);
+      df.coalesce(1).writeTo(table).append();
+    } catch (NoSuchTableException e) {
+      throw new RuntimeException("Failed to write data", e);
+    }
+  }
+
+  protected String tablePropsAsString(Map<String, String> tableProps) {
+    StringBuilder stringBuilder = new StringBuilder();
+
+    for (Map.Entry<String, String> property : tableProps.entrySet()) {
+      if (stringBuilder.length() > 0) {
+        stringBuilder.append(", ");
+      }
+      stringBuilder.append(String.format("'%s' '%s'", property.getKey(), property.getValue()));
+    }
+
+    return stringBuilder.toString();
+  }
+
+  protected SparkPlan executeAndKeepPlan(String query, Object... args) {
+    return executeAndKeepPlan(() -> sql(query, args));
+  }
+
+  protected SparkPlan executeAndKeepPlan(Action action) {
+    AtomicReference<SparkPlan> executedPlanRef = new AtomicReference<>();
+
+    QueryExecutionListener listener =
+        new QueryExecutionListener() {
+          @Override
+          public void onSuccess(String funcName, QueryExecution qe, long durationNs) {
+            executedPlanRef.set(qe.executedPlan());
+          }
+
+          @Override
+          public void onFailure(String funcName, QueryExecution qe, Exception exception) {}
+        };
+
+    spark.listenerManager().register(listener);
+
+    action.invoke();
+
+    try {
+      spark.sparkContext().listenerBus().waitUntilEmpty();
+    } catch (TimeoutException e) {
+      throw new RuntimeException("Timeout while waiting for processing events", e);
+    }
+
+    SparkPlan executedPlan = executedPlanRef.get();
+    if (executedPlan instanceof AdaptiveSparkPlanExec) {
+      return ((AdaptiveSparkPlanExec) executedPlan).executedPlan();
+    } else {
+      return executedPlan;
+    }
   }
 
   @FunctionalInterface

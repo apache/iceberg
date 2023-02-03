@@ -29,10 +29,9 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
-import org.apache.iceberg.TableScan;
-import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Binder;
 import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.ExpressionUtil;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -106,42 +105,52 @@ public class SparkScanBuilder
 
   @Override
   public Filter[] pushFilters(Filter[] filters) {
+    // there are 3 kinds of filters:
+    // (1) filters that can be pushed down completely and don't have to evaluated by Spark
+    //     (e.g. filters that select entire partitions)
+    // (2) filters that can be pushed down partially and require record-level filtering in Spark
+    //     (e.g. filters that may select some but not necessarily all rows in a file)
+    // (3) filters that can't be pushed down at all and have to be evaluated by Spark
+    //     (e.g. unsupported filters)
+    // filters (1) and (2) are used prune files during job planning in Iceberg
+    // filters (2) and (3) form a set of post scan filters and must be evaluated by Spark
+
     List<Expression> expressions = Lists.newArrayListWithExpectedSize(filters.length);
-    List<Filter> pushed = Lists.newArrayListWithExpectedSize(filters.length);
+    List<Filter> pushableFilters = Lists.newArrayListWithExpectedSize(filters.length);
+    List<Filter> postScanFilters = Lists.newArrayListWithExpectedSize(filters.length);
 
     for (Filter filter : filters) {
-      Expression expr = null;
       try {
-        expr = SparkFilters.convert(filter);
-      } catch (IllegalArgumentException e) {
-        // converting to Iceberg Expression failed, so this expression cannot be pushed down
-        LOG.info(
-            "Failed to convert filter to Iceberg expression, skipping push down for this expression: {}. {}",
-            filter,
-            e.getMessage());
-      }
+        Expression expr = SparkFilters.convert(filter);
 
-      if (expr != null) {
-        try {
+        if (expr != null) {
+          // try binding the expression to ensure it can be pushed down
           Binder.bind(schema.asStruct(), expr, caseSensitive);
           expressions.add(expr);
-          pushed.add(filter);
-        } catch (ValidationException e) {
-          // binding to the table schema failed, so this expression cannot be pushed down
-          LOG.info(
-              "Failed to bind expression to table schema, skipping push down for this expression: {}. {}",
-              filter,
-              e.getMessage());
+          pushableFilters.add(filter);
         }
+
+        if (expr == null || requiresSparkFiltering(expr)) {
+          postScanFilters.add(filter);
+        } else {
+          LOG.info("Evaluating completely on Iceberg side: {}", filter);
+        }
+
+      } catch (Exception e) {
+        LOG.warn("Failed to check if {} can be pushed down: {}", filter, e.getMessage());
+        postScanFilters.add(filter);
       }
     }
 
     this.filterExpressions = expressions;
-    this.pushedFilters = pushed.toArray(new Filter[0]);
+    this.pushedFilters = pushableFilters.toArray(new Filter[0]);
 
-    // Spark doesn't support residuals per task, so return all filters
-    // to get Spark to handle record-level filtering
-    return filters;
+    return postScanFilters.toArray(new Filter[0]);
+  }
+
+  private boolean requiresSparkFiltering(Expression expr) {
+    return table.specs().values().stream()
+        .anyMatch(spec -> !ExpressionUtil.selectsPartitions(expr, spec, caseSensitive));
   }
 
   @Override
@@ -421,9 +430,9 @@ public class SparkScanBuilder
 
     Schema expectedSchema = schemaWithMetadataColumns();
 
-    TableScan scan =
+    BatchScan scan =
         table
-            .newScan()
+            .newBatchScan()
             .useSnapshot(snapshot.snapshotId())
             .ignoreResiduals()
             .caseSensitive(caseSensitive)

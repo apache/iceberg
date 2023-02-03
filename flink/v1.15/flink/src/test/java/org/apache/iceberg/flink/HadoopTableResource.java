@@ -58,18 +58,6 @@ public class HadoopTableResource extends HadoopCatalogResource {
     tableLoader.open();
   }
 
-  @Override
-  protected void after() {
-    try {
-      catalog.dropTable(TableIdentifier.of(database, tableName));
-      catalog.close();
-      tableLoader.close();
-    } catch (Exception e) {
-      throw new RuntimeException("Failed to close catalog resource");
-    }
-    super.after();
-  }
-
   public Table table() {
     return table;
   }

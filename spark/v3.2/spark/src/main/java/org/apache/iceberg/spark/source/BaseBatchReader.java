@@ -20,7 +20,6 @@ package org.apache.iceberg.spark.source;
 
 import java.util.Map;
 import java.util.Set;
-import org.apache.arrow.vector.NullCheckingForGet;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.ScanTask;
@@ -88,11 +87,7 @@ abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBa
         .createBatchedReaderFunc(
             fileSchema ->
                 VectorizedSparkParquetReaders.buildReader(
-                    requiredSchema,
-                    fileSchema, /* setArrowValidityVector */
-                    NullCheckingForGet.NULL_CHECKING_ENABLED,
-                    idToConstant,
-                    deleteFilter))
+                    requiredSchema, fileSchema, idToConstant, deleteFilter))
         .recordsPerBatch(batchSize)
         .filter(residual)
         .caseSensitive(caseSensitive())

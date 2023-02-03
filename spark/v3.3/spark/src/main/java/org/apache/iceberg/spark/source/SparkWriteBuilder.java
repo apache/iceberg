@@ -86,8 +86,6 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
   }
 
   public WriteBuilder overwriteFiles(Scan scan, Command command, IsolationLevel isolationLevel) {
-    Preconditions.checkArgument(
-        scan instanceof SparkCopyOnWriteScan, "%s is not SparkCopyOnWriteScan", scan);
     Preconditions.checkState(!overwriteByFilter, "Cannot overwrite individual files and by filter");
     Preconditions.checkState(
         !overwriteDynamic, "Cannot overwrite individual files and dynamically");

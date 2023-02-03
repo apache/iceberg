@@ -63,6 +63,9 @@ from pyiceberg.expressions.visitors import _from_byte_buffer
 from pyiceberg.schema import Accessor, Schema
 from pyiceberg.typedef import Record
 from pyiceberg.types import (
+    BinaryType,
+    BooleanType,
+    DecimalType,
     DoubleType,
     FloatType,
     IntegerType,
@@ -70,6 +73,8 @@ from pyiceberg.types import (
     LongType,
     NestedField,
     StringType,
+    StructType,
+    UUIDType,
 )
 from pyiceberg.utils.singleton import Singleton
 
@@ -605,22 +610,37 @@ def test_invert_always() -> None:
 def test_accessor_base_class() -> None:
     """Test retrieving a value at a position of a container using an accessor"""
 
-    struct = Record(*([None] * 12))
+    struct = Record(
+        struct=StructType(
+            NestedField(1, "a", StringType()),
+            NestedField(2, "b", StringType()),
+            NestedField(3, "c", StringType()),
+            NestedField(4, "d", IntegerType()),
+            NestedField(5, "e", IntegerType()),
+            NestedField(6, "f", IntegerType()),
+            NestedField(7, "g", FloatType()),
+            NestedField(8, "h", DecimalType(8, 4)),
+            NestedField(9, "i", UUIDType()),
+            NestedField(10, "j", BooleanType()),
+            NestedField(11, "k", BooleanType()),
+            NestedField(12, "l", BinaryType()),
+        )
+    )
 
     uuid_value = uuid.uuid4()
 
-    struct.set(0, "foo")
-    struct.set(1, "bar")
-    struct.set(2, "baz")
-    struct.set(3, 1)
-    struct.set(4, 2)
-    struct.set(5, 3)
-    struct.set(6, 1.234)
-    struct.set(7, Decimal("1.234"))
-    struct.set(8, uuid_value)
-    struct.set(9, True)
-    struct.set(10, False)
-    struct.set(11, b"\x19\x04\x9e?")
+    struct[0] = "foo"
+    struct[1] = "bar"
+    struct[2] = "baz"
+    struct[3] = 1
+    struct[4] = 2
+    struct[5] = 3
+    struct[6] = 1.234
+    struct[7] = Decimal("1.234")
+    struct[8] = uuid_value
+    struct[9] = True
+    struct[10] = False
+    struct[11] = b"\x19\x04\x9e?"
 
     assert Accessor(position=0).get(struct) == "foo"
     assert Accessor(position=1).get(struct) == "bar"
@@ -902,15 +922,15 @@ def test_less_than_or_equal() -> None:
 
 def test_bound_reference_eval(table_schema_simple: Schema) -> None:
     """Test creating a BoundReference and evaluating it on a StructProtocol"""
-    struct = Record(None, None, None, None)
+    struct = Record(struct=table_schema_simple.as_struct())
 
-    struct.set(pos=1, value="foovalue")
-    struct.set(pos=2, value=123)
-    struct.set(pos=3, value=True)
+    struct[0] = "foovalue"
+    struct[1] = 123
+    struct[2] = True
 
-    position1_accessor = Accessor(position=1)
-    position2_accessor = Accessor(position=2)
-    position3_accessor = Accessor(position=3)
+    position1_accessor = Accessor(position=0)
+    position2_accessor = Accessor(position=1)
+    position3_accessor = Accessor(position=2)
 
     field1 = table_schema_simple.find_field(1)
     field2 = table_schema_simple.find_field(2)

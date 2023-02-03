@@ -28,12 +28,10 @@ from typing import (
 from urllib.parse import urlparse
 
 import requests
-from adlfs import AzureBlobFileSystem
 from botocore import UNSIGNED
 from botocore.awsrequest import AWSRequest
 from fsspec import AbstractFileSystem
 from requests import HTTPError
-from s3fs import S3FileSystem
 
 from pyiceberg.catalog import TOKEN
 from pyiceberg.exceptions import SignError
@@ -81,6 +79,8 @@ SIGNERS: Dict[str, Callable[[Properties, AWSRequest], AWSRequest]] = {"S3V4RestS
 
 
 def _s3(properties: Properties) -> AbstractFileSystem:
+    from s3fs import S3FileSystem
+
     client_kwargs = {
         "endpoint_url": properties.get("s3.endpoint"),
         "aws_access_key_id": properties.get("s3.access-key-id"),
@@ -110,6 +110,8 @@ def _s3(properties: Properties) -> AbstractFileSystem:
 
 
 def _adlfs(properties: Properties) -> AbstractFileSystem:
+    from adlfs import AzureBlobFileSystem
+
     fs = AzureBlobFileSystem(**properties)
     return fs
 
@@ -148,8 +150,11 @@ class FsspecInputFile(InputFile):
         """Checks whether the location exists"""
         return self._fs.lexists(self.location)
 
-    def open(self) -> InputStream:
+    def open(self, seekable: bool = True) -> InputStream:
         """Create an input stream for reading the contents of the file
+
+        Args:
+            seekable: If the stream should support seek, or if it is consumed sequential
 
         Returns:
             OpenFile: An fsspec compliant file-like object

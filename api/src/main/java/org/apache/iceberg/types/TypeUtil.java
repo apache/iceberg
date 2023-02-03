@@ -300,6 +300,28 @@ public class TypeUtil {
   }
 
   /**
+   * Reassigns doc in a schema from another schema.
+   *
+   * <p>Doc are determined by field id. If a field in the schema cannot be found in the source
+   * schema, this will throw IllegalArgumentException.
+   *
+   * <p>This will not alter a schema's structure, nullability, or types.
+   *
+   * @param schema the schema to have doc reassigned
+   * @param docSourceSchema the schema from which field doc will be used
+   * @return an structurally identical schema with field ids matching the source schema
+   * @throws IllegalArgumentException if a field cannot be found (by id) in the source schema
+   */
+  public static Schema reassignDoc(Schema schema, Schema docSourceSchema) {
+    TypeUtil.CustomOrderSchemaVisitor<Type> visitor = new ReassignDoc(docSourceSchema);
+    return new Schema(
+        visitor
+            .schema(schema, new VisitFuture<>(schema.asStruct(), visitor))
+            .asStructType()
+            .fields());
+  }
+
+  /**
    * Reassigns ids in a schema from another schema.
    *
    * <p>Ids are determined by field names. If a field in the schema cannot be found in the source

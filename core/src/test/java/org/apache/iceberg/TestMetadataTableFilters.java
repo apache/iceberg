@@ -109,21 +109,21 @@ public class TestMetadataTableFilters extends TableTestBase {
   private Table createMetadataTable() {
     switch (type) {
       case FILES:
-        return new FilesTable(table.ops(), table);
+        return new FilesTable(table);
       case DATA_FILES:
-        return new DataFilesTable(table.ops(), table);
+        return new DataFilesTable(table);
       case DELETE_FILES:
-        return new DeleteFilesTable(table.ops(), table);
+        return new DeleteFilesTable(table);
       case ALL_DATA_FILES:
-        return new AllDataFilesTable(table.ops(), table);
+        return new AllDataFilesTable(table);
       case ALL_DELETE_FILES:
-        return new AllDeleteFilesTable(table.ops(), table);
+        return new AllDeleteFilesTable(table);
       case ALL_FILES:
-        return new AllFilesTable(table.ops(), table);
+        return new AllFilesTable(table);
       case ENTRIES:
-        return new ManifestEntriesTable(table.ops(), table);
+        return new ManifestEntriesTable(table);
       case ALL_ENTRIES:
-        return new AllEntriesTable(table.ops(), table);
+        return new AllEntriesTable(table);
       default:
         throw new IllegalArgumentException("Unsupported metadata table type:" + type);
     }

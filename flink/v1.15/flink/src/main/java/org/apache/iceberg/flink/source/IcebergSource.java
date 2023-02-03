@@ -39,6 +39,7 @@ import org.apache.flink.core.io.SimpleVersionedSerializer;
 import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.util.Preconditions;
+import org.apache.iceberg.BaseMetadataTable;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
@@ -57,6 +58,7 @@ import org.apache.iceberg.flink.source.enumerator.IcebergEnumeratorStateSerializ
 import org.apache.iceberg.flink.source.enumerator.StaticIcebergEnumerator;
 import org.apache.iceberg.flink.source.reader.IcebergSourceReader;
 import org.apache.iceberg.flink.source.reader.IcebergSourceReaderMetrics;
+import org.apache.iceberg.flink.source.reader.MetaDataReaderFunction;
 import org.apache.iceberg.flink.source.reader.ReaderFunction;
 import org.apache.iceberg.flink.source.reader.RowDataReaderFunction;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
@@ -204,14 +206,11 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
   }
 
   public static class Builder<T> {
-
-    // required
     private TableLoader tableLoader;
+    private Table table;
     private SplitAssignerFactory splitAssignerFactory;
     private ReaderFunction<T> readerFunction;
     private ReadableConfig flinkConfig = new Configuration();
-
-    // optional
     private final ScanContext.Builder contextBuilder = ScanContext.builder();
     private TableSchema projectedFlinkSchema;
     private Boolean exposeLocality;
@@ -222,6 +221,11 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
 
     public Builder<T> tableLoader(TableLoader loader) {
       this.tableLoader = loader;
+      return this;
+    }
+
+    public Builder table(Table newTable) {
+      this.table = newTable;
       return this;
     }
 
@@ -393,12 +397,13 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
     }
 
     public IcebergSource<T> build() {
-      Table table;
-      try (TableLoader loader = tableLoader) {
-        loader.open();
-        table = tableLoader.loadTable();
-      } catch (IOException e) {
-        throw new UncheckedIOException(e);
+      if (table == null) {
+        try (TableLoader loader = tableLoader) {
+          loader.open();
+          this.table = tableLoader.loadTable();
+        } catch (IOException e) {
+          throw new UncheckedIOException(e);
+        }
       }
 
       contextBuilder.resolveConfig(table, readOptions, flinkConfig);
@@ -410,16 +415,23 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
 
       ScanContext context = contextBuilder.build();
       if (readerFunction == null) {
-        RowDataReaderFunction rowDataReaderFunction =
-            new RowDataReaderFunction(
-                flinkConfig,
-                table.schema(),
-                context.project(),
-                context.nameMapping(),
-                context.caseSensitive(),
-                table.io(),
-                table.encryption());
-        this.readerFunction = (ReaderFunction<T>) rowDataReaderFunction;
+        if (table instanceof BaseMetadataTable) {
+          MetaDataReaderFunction rowDataReaderFunction =
+              new MetaDataReaderFunction(
+                  flinkConfig, table.schema(), context.project(), table.io(), table.encryption());
+          this.readerFunction = (ReaderFunction<T>) rowDataReaderFunction;
+        } else {
+          RowDataReaderFunction rowDataReaderFunction =
+              new RowDataReaderFunction(
+                  flinkConfig,
+                  table.schema(),
+                  context.project(),
+                  context.nameMapping(),
+                  context.caseSensitive(),
+                  table.io(),
+                  table.encryption());
+          this.readerFunction = (ReaderFunction<T>) rowDataReaderFunction;
+        }
       }
 
       checkRequired();

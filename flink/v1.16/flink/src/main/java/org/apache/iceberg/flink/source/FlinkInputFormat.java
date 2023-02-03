@@ -28,6 +28,7 @@ import org.apache.flink.api.common.io.statistics.BaseStatistics;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.core.io.InputSplitAssigner;
 import org.apache.flink.table.data.RowData;
+import org.apache.iceberg.BaseMetadataTable;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.encryption.EncryptionManager;
@@ -45,7 +46,7 @@ public class FlinkInputFormat extends RichInputFormat<RowData, FlinkInputSplit> 
   private final FileIO io;
   private final EncryptionManager encryption;
   private final ScanContext context;
-  private final RowDataFileScanTaskReader rowDataReader;
+  private final FileScanTaskReader rowDataReader;
 
   private transient DataIterator<RowData> iterator;
   private transient long currentReadCount = 0L;
@@ -60,9 +61,16 @@ public class FlinkInputFormat extends RichInputFormat<RowData, FlinkInputSplit> 
     this.io = io;
     this.encryption = encryption;
     this.context = context;
-    this.rowDataReader =
-        new RowDataFileScanTaskReader(
-            tableSchema, context.project(), context.nameMapping(), context.caseSensitive());
+
+    tableLoader.open();
+    Table table = tableLoader.loadTable();
+    if (table instanceof BaseMetadataTable) {
+      this.rowDataReader = new DataTaskReader(context.project());
+    } else {
+      this.rowDataReader =
+          new RowDataFileScanTaskReader(
+              tableSchema, context.project(), context.nameMapping(), context.caseSensitive());
+    }
   }
 
   @VisibleForTesting
