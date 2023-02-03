@@ -74,11 +74,12 @@ statement
     | ALTER TABLE multipartIdentifier SET IDENTIFIER_KW FIELDS fieldList                    #setIdentifierFields
     | ALTER TABLE multipartIdentifier DROP IDENTIFIER_KW FIELDS fieldList                   #dropIdentifierFields
     | ALTER TABLE multipartIdentifier createReplaceBranchClause                             #createOrReplaceBranch
-    | ALTER TABLE multipartIdentifier createTagClause                                       #createTag
+    | ALTER TABLE multipartIdentifier createReplaceTagClause                                #createOrReplaceTag
     ;
 
-createTagClause
-    : CREATE TAG (IF NOT EXISTS)? identifier tagOptions
+createReplaceTagClause
+    : (CREATE OR)? REPLACE TAG identifier tagOptions
+    | CREATE TAG (IF NOT EXISTS)? identifier tagOptions
     ;
 
 createReplaceBranchClause

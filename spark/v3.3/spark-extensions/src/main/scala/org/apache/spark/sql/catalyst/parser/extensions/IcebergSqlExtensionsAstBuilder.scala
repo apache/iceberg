@@ -41,7 +41,7 @@ import org.apache.spark.sql.catalyst.plans.logical.BranchOptions
 import org.apache.spark.sql.catalyst.plans.logical.CallArgument
 import org.apache.spark.sql.catalyst.plans.logical.CallStatement
 import org.apache.spark.sql.catalyst.plans.logical.CreateOrReplaceBranch
-import org.apache.spark.sql.catalyst.plans.logical.CreateTag
+import org.apache.spark.sql.catalyst.plans.logical.CreateOrReplaceTag
 import org.apache.spark.sql.catalyst.plans.logical.DropIdentifierFields
 import org.apache.spark.sql.catalyst.plans.logical.DropPartitionField
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
@@ -133,11 +133,12 @@ class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface) extends IcebergS
 
   }
 
+
   /**
-   * Create an CREATE TAG logical command.
+   * Create an CREATE OR REPLACE TAG logical command.
    */
-  override def visitCreateTag(ctx: CreateTagContext): CreateTag = withOrigin(ctx) {
-    val createTagClause = ctx.createTagClause()
+  override def visitCreateOrReplaceTag(ctx: CreateOrReplaceTagContext): CreateOrReplaceTag = withOrigin(ctx) {
+    val createTagClause = ctx.createReplaceTagClause()
 
     val tagName = createTagClause.identifier().getText
 
@@ -152,11 +153,13 @@ class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface) extends IcebergS
       tagRefAgeMs
     )
 
+    val replace = createTagClause.REPLACE() != null
     val ifNotExists = createTagClause.EXISTS() != null
 
-    CreateTag(typedVisit[Seq[String]](ctx.multipartIdentifier),
+    CreateOrReplaceTag(typedVisit[Seq[String]](ctx.multipartIdentifier),
       tagName,
       tagOptions,
+      replace,
       ifNotExists)
   }
 

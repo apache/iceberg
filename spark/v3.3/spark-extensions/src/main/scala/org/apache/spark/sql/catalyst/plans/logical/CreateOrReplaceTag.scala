@@ -21,13 +21,18 @@ package org.apache.spark.sql.catalyst.plans.logical
 
 import org.apache.spark.sql.catalyst.expressions.Attribute
 
-case class CreateTag(table: Seq[String], tag: String, tagOptions: TagOptions,ifNotExists: Boolean) extends LeafCommand {
+case class CreateOrReplaceTag(
+    table: Seq[String],
+    tag: String,
+    tagOptions: TagOptions,
+    replace: Boolean,
+    ifNotExists: Boolean) extends LeafCommand {
 
   import org.apache.spark.sql.connector.catalog.CatalogV2Implicits._
 
   override lazy val output: Seq[Attribute] = Nil
 
   override def simpleString(maxFields: Int): String = {
-    s"Create tag: ${tag} for table: ${table.quoted}"
+    s"CreateOrReplaceTag tag: ${tag} for table: ${table.quoted}"
   }
 }

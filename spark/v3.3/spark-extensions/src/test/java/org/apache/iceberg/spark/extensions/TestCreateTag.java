@@ -35,42 +35,25 @@ import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.catalyst.parser.extensions.IcebergParseException;
 import org.junit.After;
 import org.junit.Assert;
-import org.junit.Assume;
 import org.junit.Test;
 import org.junit.runners.Parameterized;
 
 public class TestCreateTag extends SparkExtensionsTestBase {
-  private final String timeUnit;
+  private static final String[] TIME_UNITS = {"DAYS", "HOURS", "MINUTES"};
 
-  @Parameterized.Parameters(
-      name = "catalogName = {0}, implementation = {1}, config = {2}, timeUnit = {3}")
+  @Parameterized.Parameters(name = "catalogName = {0}, implementation = {1}, config = {2}")
   public static Object[][] parameters() {
     return new Object[][] {
       {
         SparkCatalogConfig.SPARK.catalogName(),
         SparkCatalogConfig.SPARK.implementation(),
-        SparkCatalogConfig.SPARK.properties(),
-        "days"
-      },
-      {
-        SparkCatalogConfig.SPARK.catalogName(),
-        SparkCatalogConfig.SPARK.implementation(),
-        SparkCatalogConfig.SPARK.properties(),
-        "hours"
-      },
-      {
-        SparkCatalogConfig.SPARK.catalogName(),
-        SparkCatalogConfig.SPARK.implementation(),
-        SparkCatalogConfig.SPARK.properties(),
-        "minutes"
+        SparkCatalogConfig.SPARK.properties()
       }
     };
   }
 
-  public TestCreateTag(
-      String catalogName, String implementation, Map<String, String> config, String timeUnit) {
+  public TestCreateTag(String catalogName, String implementation, Map<String, String> config) {
     super(catalogName, implementation, config);
-    this.timeUnit = timeUnit;
   }
 
   @After
@@ -79,27 +62,30 @@ public class TestCreateTag extends SparkExtensionsTestBase {
   }
 
   @Test
-  public void testCreateTag() throws NoSuchTableException {
+  public void testCreateTagWithRetain() throws NoSuchTableException {
     Table table = createDefaultTableAndInsert2Row();
     long firstSnapshotId = table.currentSnapshot().snapshotId();
+    long maxRefAge = 10L;
 
     List<SimpleRecord> records =
         ImmutableList.of(new SimpleRecord(1, "a"), new SimpleRecord(2, "b"));
     Dataset<Row> df = spark.createDataFrame(records, SimpleRecord.class);
     df.writeTo(tableName).append();
 
-    String tagName = "t1";
-    long maxRefAge = 10L;
-    sql(
-        "ALTER TABLE %s CREATE TAG %s AS OF VERSION %d RETAIN %d %s",
-        tableName, tagName, firstSnapshotId, maxRefAge, timeUnit);
-    table.refresh();
-    SnapshotRef ref = table.refs().get(tagName);
-    Assert.assertEquals(firstSnapshotId, ref.snapshotId());
-    Assert.assertEquals(
-        TimeUnit.valueOf(timeUnit.toUpperCase(Locale.ENGLISH)).toMillis(maxRefAge),
-        ref.maxRefAgeMs().longValue());
+    for (String timeUnit : TIME_UNITS) {
+      String tagName = "t1" + timeUnit;
+      sql(
+          "ALTER TABLE %s CREATE TAG %s AS OF VERSION %d RETAIN %d %s",
+          tableName, tagName, firstSnapshotId, maxRefAge, timeUnit);
+      table.refresh();
+      SnapshotRef ref = table.refs().get(tagName);
+      Assert.assertEquals(firstSnapshotId, ref.snapshotId());
+      Assert.assertEquals(
+          TimeUnit.valueOf(timeUnit.toUpperCase(Locale.ENGLISH)).toMillis(maxRefAge),
+          ref.maxRefAgeMs().longValue());
+    }
 
+    String tagName = "t1";
     AssertHelpers.assertThrows(
         "Illegal statement",
         IcebergParseException.class,
@@ -121,8 +107,6 @@ public class TestCreateTag extends SparkExtensionsTestBase {
 
   @Test
   public void testCreateTagUseDefaultConfig() throws NoSuchTableException {
-    Assume.assumeFalse(!timeUnit.equalsIgnoreCase("days"));
-
     Table table = createDefaultTableAndInsert2Row();
     long snapshotId = table.currentSnapshot().snapshotId();
     String tagName = "t1";
@@ -163,15 +147,13 @@ public class TestCreateTag extends SparkExtensionsTestBase {
     long maxSnapshotAge = 2L;
     Table table = createDefaultTableAndInsert2Row();
     String tagName = "t1";
-    sql("ALTER TABLE %s CREATE TAG %s RETAIN %d %s", tableName, tagName, maxSnapshotAge, timeUnit);
+    sql("ALTER TABLE %s CREATE TAG %s RETAIN %d days", tableName, tagName, maxSnapshotAge);
     sql("ALTER TABLE %s CREATE TAG IF NOT EXISTS %s", tableName, tagName);
 
     table.refresh();
     SnapshotRef ref = table.refs().get(tagName);
     Assert.assertEquals(table.currentSnapshot().snapshotId(), ref.snapshotId());
-    Assert.assertEquals(
-        TimeUnit.valueOf(timeUnit.toUpperCase(Locale.ENGLISH)).toMillis(maxSnapshotAge),
-        ref.maxRefAgeMs().longValue());
+    Assert.assertEquals(TimeUnit.DAYS.toMillis(maxSnapshotAge), ref.maxRefAgeMs().longValue());
   }
 
   private Table createDefaultTableAndInsert2Row() throws NoSuchTableException {

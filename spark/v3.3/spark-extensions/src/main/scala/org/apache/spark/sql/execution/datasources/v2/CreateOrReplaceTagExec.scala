@@ -22,15 +22,16 @@ package org.apache.spark.sql.execution.datasources.v2
 import org.apache.iceberg.spark.source.SparkTable
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.Attribute
-import org.apache.spark.sql.catalyst.plans.logical.CreateTag
 import org.apache.spark.sql.catalyst.plans.logical.TagOptions
 import org.apache.spark.sql.connector.catalog._
 
-case class CreateTagExec(catalog: TableCatalog,
-                         ident: Identifier,
-                         tag: String,
-                         tagOptions: TagOptions,
-                         ifNotExists: Boolean) extends LeafV2CommandExec {
+case class CreateOrReplaceTagExec(
+    catalog: TableCatalog,
+    ident: Identifier,
+    tag: String,
+    tagOptions: TagOptions,
+    replace: Boolean,
+    ifNotExists: Boolean) extends LeafV2CommandExec {
 
   import org.apache.spark.sql.connector.catalog.CatalogV2Implicits._
 
@@ -39,15 +40,20 @@ case class CreateTagExec(catalog: TableCatalog,
   override protected def run(): Seq[InternalRow] = {
     catalog.loadTable(ident) match {
       case iceberg: SparkTable =>
-        val ref = iceberg.table().refs().get(tag);
-        if (ref != null && ifNotExists) {
-          return Nil
-        }
-
         val snapshotId = tagOptions.snapshotId.getOrElse(iceberg.table.currentSnapshot().snapshotId())
         val manageSnapshot = iceberg.table.manageSnapshots()
-          .createTag(tag, snapshotId)
-        if(tagOptions.snapshotRefRetain.nonEmpty) {
+        if (!replace) {
+          val ref = iceberg.table().refs().get(tag);
+          if (ref != null && ifNotExists) {
+            return Nil
+          }
+
+          manageSnapshot.createTag(tag, snapshotId)
+        } else {
+          manageSnapshot.replaceTag(tag, snapshotId)
+        }
+
+        if (tagOptions.snapshotRefRetain.nonEmpty) {
           manageSnapshot.setMaxRefAgeMs(tag, tagOptions.snapshotRefRetain.get)
         }
 
