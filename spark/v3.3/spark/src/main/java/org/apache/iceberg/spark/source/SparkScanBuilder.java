@@ -223,7 +223,9 @@ public class SparkScanBuilder
 
     Object[] results = aggregateEvaluator.result();
     for (Object result : results) {
-      if (result == null) return false;
+      if (result == null) {
+        return false;
+      }
     }
     applyDataTypeConversionIfNecessary(results);
 
