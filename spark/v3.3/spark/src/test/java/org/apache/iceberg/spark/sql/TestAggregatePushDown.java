@@ -380,9 +380,9 @@ public class TestAggregatePushDown extends SparkCatalogTestBase {
   public void testAggregateWithComplexType() {
     sql("CREATE TABLE %s (id INT, complex STRUCT<c1:INT,c2:STRING>) USING iceberg", tableName);
     sql(
-            "INSERT INTO TABLE %s VALUES (1, named_struct(\"c1\", 3, \"c2\", \"v1\")),"
-                    + "(2, named_struct(\"c1\", 2, \"c2\", \"v2\")), (3, null)",
-            tableName);
+        "INSERT INTO TABLE %s VALUES (1, named_struct(\"c1\", 3, \"c2\", \"v1\")),"
+            + "(2, named_struct(\"c1\", 2, \"c2\", \"v2\")), (3, null)",
+        tableName);
     String select = "SELECT count(complex) FROM %s";
     List<Object[]> explain = sql("EXPLAIN " + select, tableName);
     String explainString = explain.get(0)[0].toString();
