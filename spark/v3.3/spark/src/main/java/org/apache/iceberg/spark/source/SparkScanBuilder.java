@@ -185,11 +185,20 @@ public class SparkScanBuilder
 
     AggregateEvaluator aggregateEvaluator;
     try {
-      List<Expression> aggregates =
+      List<BoundAggregate<?, ?>> aggregates =
           Arrays.stream(aggregation.aggregateExpressions())
               .map(agg -> SparkAggregates.convert(agg))
+              .map(expr -> Binder.bind(schema.asStruct(), expr, caseSensitive))
+              .map(bound -> (BoundAggregate<?, ?>) bound)
               .collect(Collectors.toList());
-      aggregateEvaluator = AggregateEvaluator.create(schema, aggregates);
+
+//      for (BoundAggregate aggregate : aggregates) {
+//        if (aggregate.aggregateComplexType()) {
+//          return false;
+//        }
+//      }
+
+      aggregateEvaluator = AggregateEvaluator.create(aggregates);
     } catch (Exception e) {
       LOG.info("Can't push down aggregates: " + e.getMessage());
       return false;

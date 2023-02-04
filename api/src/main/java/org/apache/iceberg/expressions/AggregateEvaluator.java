@@ -29,6 +29,10 @@ import org.apache.iceberg.types.Types;
 
 public class AggregateEvaluator {
 
+  public static AggregateEvaluator create(List<BoundAggregate<?, ?>> aggregates) {
+    return new AggregateEvaluator(aggregates);
+  }
+
   public static AggregateEvaluator create(Schema schema, List<Expression> aggregates) {
     return create(schema.asStruct(), aggregates);
   }

@@ -66,6 +66,14 @@ public class BoundAggregate<T, C> extends Aggregate<BoundTerm<T>> implements Bou
     }
   }
 
+  public boolean aggregateComplexType() {
+    if (op() == Operation.COUNT_STAR) {
+      return false;
+    } else {
+      return ref().type().isNestedType();
+    }
+  }
+
   public String describe() {
     switch (op()) {
       case COUNT_STAR:

@@ -39,22 +39,7 @@ public class CountNonNull<T> extends CountAggregate<T> {
 
   @Override
   protected Long countFor(DataFile file) {
-    if (field.type().isNestedType()) {
-      return file.recordCount();
-    }
-
-    // NaN value counts were not required in v1 and were included in value counts
-    return safeSubtract(
-        safeAdd(safeGet(file.valueCounts(), fieldId), safeGet(file.nanValueCounts(), fieldId, 0L)),
-        safeGet(file.nullValueCounts(), fieldId, 0L));
-  }
-
-  private Long safeAdd(Long left, Long right) {
-    if (left != null && right != null) {
-      return left + right;
-    }
-
-    return null;
+    return safeSubtract(safeGet(file.valueCounts(), fieldId), safeGet(file.nullValueCounts(), fieldId, 0L));
   }
 
   private Long safeSubtract(Long left, Long right) {

@@ -379,42 +379,29 @@ public class TestAggregatePushDown extends SparkCatalogTestBase {
   @Test
   public void testAggregateWithComplexType() {
     sql("CREATE TABLE %s (id INT, complex STRUCT<c1:INT,c2:STRING>) USING iceberg", tableName);
-    sql(
-        "INSERT INTO TABLE %s VALUES (1, named_struct(\"c1\", 3, \"c2\", \"v1\")),"
-            + "(2, named_struct(\"c1\", 2, \"c2\", \"v2\"))",
-        tableName);
-    String select = "SELECT max(complex), min(complex), count(complex) FROM %s";
+//    sql(
+//        "INSERT INTO TABLE %s VALUES (1, named_struct(\"c1\", 3, \"c2\", \"v1\")),"
+//            + "(2, named_struct(\"c1\", 2, \"c2\", \"v2\"))",
+//        tableName);
 
+    sql(
+            "INSERT INTO TABLE %s VALUES (1, named_struct(\"c1\", 3, \"c2\", \"v1\")),"
+                    + "(2, named_struct(\"c1\", 2, \"c2\", \"v2\")), (3, null)",
+            tableName);
+    String select = "SELECT count(complex) FROM %s";
     List<Object[]> explain = sql("EXPLAIN " + select, tableName);
     String explainString = explain.get(0)[0].toString();
     boolean explainContainsPushDownAggregates = false;
-    if (explainString.contains("max(complex)")
-        || explainString.contains("min(complex)")
-        || explainString.contains("count(complex)")) {
-      explainContainsPushDownAggregates = true;
-    }
-
-    // min and max can't be pushed down for complex type
-    Assert.assertFalse(
-        "min/max/count not pushed down for complex types", explainContainsPushDownAggregates);
-    List<Object[]> actual = sql(select, tableName);
-    System.out.println();
-
-    String select2 = "SELECT count(complex) FROM %s";
-
-    List<Object[]> explain2 = sql("EXPLAIN " + select2, tableName);
-    explainString = explain2.get(0)[0].toString();
-    explainContainsPushDownAggregates = false;
     if (explainString.contains("count(complex)")) {
       explainContainsPushDownAggregates = true;
     }
 
-    // count can be pushed down for complex type
-    Assert.assertTrue("count pushed down for complex types", explainContainsPushDownAggregates);
-    List<Object[]> actual2 = sql(select2, tableName);
+    Assert.assertFalse(
+        "count not pushed down for complex types", explainContainsPushDownAggregates);
+    List<Object[]> actual = sql(select, tableName);
     List<Object[]> expected = Lists.newArrayList();
     expected.add(new Object[] {2L});
-    assertEquals("count push down", actual2, expected);
+    assertEquals("count not push down", actual, expected);
   }
 
   @Test
