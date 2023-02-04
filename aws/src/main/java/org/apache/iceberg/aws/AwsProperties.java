@@ -20,7 +20,6 @@ package org.apache.iceberg.aws;
 
 import java.io.Serializable;
 import java.net.URI;
-import java.time.Duration;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
@@ -30,9 +29,9 @@ import org.apache.iceberg.aws.glue.GlueCatalog;
 import org.apache.iceberg.aws.lakeformation.LakeFormationAwsClientFactory;
 import org.apache.iceberg.aws.s3.S3FileIO;
 import org.apache.iceberg.common.DynConstructors;
+import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.exceptions.ValidationException;
-import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -366,12 +365,18 @@ public class AwsProperties implements Serializable {
    */
   public static final String HTTP_CLIENT_TYPE_URLCONNECTION = "urlconnection";
 
+  public static final String HTTP_CLIENT_IMPL_URLCONNECTION =
+      UrlConnectionHttpClientConfigurations.class.getName();
+
   /**
    * If this is set under {@link #HTTP_CLIENT_TYPE}, {@link
    * software.amazon.awssdk.http.apache.ApacheHttpClient} will be used as the HTTP Client in {@link
    * AwsClientFactory}
    */
   public static final String HTTP_CLIENT_TYPE_APACHE = "apache";
+
+  public static final String HTTP_CLIENT_IMPL_APACHE =
+      ApacheHttpClientConfigurations.class.getName();
 
   public static final String HTTP_CLIENT_TYPE_DEFAULT = HTTP_CLIENT_TYPE_URLCONNECTION;
 
@@ -1214,22 +1219,34 @@ public class AwsProperties implements Serializable {
    * </pre>
    */
   public <T extends AwsSyncClientBuilder> void applyHttpClientConfigurations(T builder) {
+    HttpClientConfigurations httpClientConfigurations;
     if (Strings.isNullOrEmpty(httpClientType)) {
       httpClientType = HTTP_CLIENT_TYPE_DEFAULT;
     }
     switch (httpClientType) {
       case HTTP_CLIENT_TYPE_URLCONNECTION:
-        builder.httpClientBuilder(
-            UrlConnectionHttpClient.builder()
-                .applyMutation(this::configureUrlConnectionHttpClientBuilder));
+        httpClientConfigurations = loadHttpClientConfigurations(HTTP_CLIENT_IMPL_URLCONNECTION);
+        httpClientConfigurations
+            .withConnectionTimeoutMs(httpClientUrlConnectionConnectionTimeoutMs)
+            .withSocketTimeoutMs(httpClientUrlConnectionSocketTimeoutMs);
         break;
       case HTTP_CLIENT_TYPE_APACHE:
-        builder.httpClientBuilder(
-            ApacheHttpClient.builder().applyMutation(this::configureApacheHttpClientBuilder));
+        httpClientConfigurations = loadHttpClientConfigurations(HTTP_CLIENT_IMPL_APACHE);
+        httpClientConfigurations
+            .withConnectionTimeoutMs(httpClientApacheConnectionTimeoutMs)
+            .withSocketTimeoutMs(httpClientApacheSocketTimeoutMs)
+            .withConnectionAcquisitionTimeoutMs(httpClientApacheConnectionAcquisitionTimeoutMs)
+            .withConnectionMaxIdleTimeMs(httpClientApacheConnectionMaxIdleTimeMs)
+            .withConnectionTimeToLiveMs(httpClientApacheConnectionTimeToLiveMs)
+            .withExpectContinueEnabled(httpClientApacheExpectContinueEnabled)
+            .withMaxConnections(httpClientApacheMaxConnections)
+            .withTcpKeepAliveEnabled(httpClientApacheTcpKeepAliveEnabled)
+            .withUseIdleConnectionReaperEnabled(httpClientApacheUseIdleConnectionReaperEnabled);
         break;
       default:
         throw new IllegalArgumentException("Unrecognized HTTP client type " + httpClientType);
     }
+    httpClientConfigurations.applyConfigurations(builder);
   }
 
   /**
@@ -1314,55 +1331,14 @@ public class AwsProperties implements Serializable {
     }
   }
 
-  @VisibleForTesting
-  <T extends UrlConnectionHttpClient.Builder> void configureUrlConnectionHttpClientBuilder(
-      T builder) {
-    if (httpClientUrlConnectionConnectionTimeoutMs != null) {
-      builder.connectionTimeout(Duration.ofMillis(httpClientUrlConnectionConnectionTimeoutMs));
+  private HttpClientConfigurations loadHttpClientConfigurations(String impl) {
+    DynConstructors.Ctor<HttpClientConfigurations> ctor;
+    try {
+      ctor =
+          DynConstructors.builder(HttpClientConfigurations.class).hiddenImpl(impl).buildChecked();
+    } catch (NoSuchMethodException e) {
+      throw new RuntimeException("Failed to initialize HttpClientConfigurations", e);
     }
-
-    if (httpClientUrlConnectionSocketTimeoutMs != null) {
-      builder.socketTimeout(Duration.ofMillis(httpClientUrlConnectionSocketTimeoutMs));
-    }
-  }
-
-  @VisibleForTesting
-  <T extends ApacheHttpClient.Builder> void configureApacheHttpClientBuilder(T builder) {
-    if (httpClientApacheConnectionTimeoutMs != null) {
-      builder.connectionTimeout(Duration.ofMillis(httpClientApacheConnectionTimeoutMs));
-    }
-
-    if (httpClientApacheSocketTimeoutMs != null) {
-      builder.socketTimeout(Duration.ofMillis(httpClientApacheSocketTimeoutMs));
-    }
-
-    if (httpClientApacheConnectionAcquisitionTimeoutMs != null) {
-      builder.connectionAcquisitionTimeout(
-          Duration.ofMillis(httpClientApacheConnectionAcquisitionTimeoutMs));
-    }
-
-    if (httpClientApacheConnectionMaxIdleTimeMs != null) {
-      builder.connectionMaxIdleTime(Duration.ofMillis(httpClientApacheConnectionMaxIdleTimeMs));
-    }
-
-    if (httpClientApacheConnectionTimeToLiveMs != null) {
-      builder.connectionTimeToLive(Duration.ofMillis(httpClientApacheConnectionTimeToLiveMs));
-    }
-
-    if (httpClientApacheExpectContinueEnabled != null) {
-      builder.expectContinueEnabled(httpClientApacheExpectContinueEnabled);
-    }
-
-    if (httpClientApacheMaxConnections != null) {
-      builder.maxConnections(httpClientApacheMaxConnections);
-    }
-
-    if (httpClientApacheTcpKeepAliveEnabled != null) {
-      builder.tcpKeepAlive(httpClientApacheTcpKeepAliveEnabled);
-    }
-
-    if (httpClientApacheUseIdleConnectionReaperEnabled != null) {
-      builder.useIdleConnectionReaper(httpClientApacheUseIdleConnectionReaperEnabled);
-    }
+    return ctor.newInstance();
   }
 }
