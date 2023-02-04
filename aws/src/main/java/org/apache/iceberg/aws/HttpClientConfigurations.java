@@ -20,7 +20,7 @@ package org.apache.iceberg.aws;
 
 import software.amazon.awssdk.awscore.client.builder.AwsSyncClientBuilder;
 
-public interface HttpClientConfigurations {
+interface HttpClientConfigurations {
 
   <T extends AwsSyncClientBuilder> void applyConfigurations(T clientBuilder);
 

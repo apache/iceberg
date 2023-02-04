@@ -22,12 +22,9 @@ import java.time.Duration;
 import software.amazon.awssdk.awscore.client.builder.AwsSyncClientBuilder;
 import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
 
-public class UrlConnectionHttpClientConfigurations implements HttpClientConfigurations {
-  private UrlConnectionHttpClient.Builder builder;
+class UrlConnectionHttpClientConfigurations implements HttpClientConfigurations {
 
-  public UrlConnectionHttpClientConfigurations() {
-    this.builder = UrlConnectionHttpClient.builder();
-  }
+  private final UrlConnectionHttpClient.Builder builder = UrlConnectionHttpClient.builder();
 
   @Override
   public <T extends AwsSyncClientBuilder> void applyConfigurations(T clientBuilder) {
