@@ -616,8 +616,6 @@ public class TestGlueCatalogTable extends GlueTestBase {
     Assert.assertEquals("metadata location should be updated with registerTable call",
         metadataLocation, actualMetadataLocation);
 
-    System.out.println("===" + metadataLocation);
-
     // commit new transaction, should create a new metadata file
     DataFile dataFile =
         DataFiles.builder(partitionSpec)
