@@ -192,11 +192,11 @@ public class SparkScanBuilder
               .map(bound -> (BoundAggregate<?, ?>) bound)
               .collect(Collectors.toList());
 
-//      for (BoundAggregate aggregate : aggregates) {
-//        if (aggregate.aggregateComplexType()) {
-//          return false;
-//        }
-//      }
+      for (BoundAggregate aggregate : aggregates) {
+        if (aggregate.aggregateComplexType()) {
+          return false;
+        }
+      }
 
       aggregateEvaluator = AggregateEvaluator.create(aggregates);
     } catch (Exception e) {
