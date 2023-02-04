@@ -35,7 +35,9 @@ from pyiceberg.expressions import (
     NotIn,
     NotNaN,
     NotNull,
+    NotStartsWith,
     Or,
+    StartsWith,
 )
 from pyiceberg.expressions.visitors import _InclusiveMetricsEvaluator
 from pyiceberg.manifest import DataFile, FileFormat
@@ -132,6 +134,54 @@ def data_file() -> DataFile:
     )
 
 
+@pytest.fixture
+def data_file_2() -> DataFile:
+    return DataFile(
+        file_path="file_2.parquet",
+        file_format=FileFormat.PARQUET,
+        partition={},
+        record_count=50,
+        file_size_in_bytes=3,
+        value_counts={3: 20},
+        null_value_counts={3: 2},
+        nan_value_counts=None,
+        lower_bounds={3: to_bytes(StringType(), "aa")},
+        upper_bounds={3: to_bytes(StringType(), "dC")},
+    )
+
+
+@pytest.fixture
+def data_file_3() -> DataFile:
+    return DataFile(
+        file_path="file_3.parquet",
+        file_format=FileFormat.PARQUET,
+        partition={},
+        record_count=50,
+        file_size_in_bytes=3,
+        value_counts={3: 20},
+        null_value_counts={3: 2},
+        nan_value_counts=None,
+        lower_bounds={3: to_bytes(StringType(), "1str1")},
+        upper_bounds={3: to_bytes(StringType(), "3str3")},
+    )
+
+
+@pytest.fixture
+def data_file_4() -> DataFile:
+    return DataFile(
+        file_path="file_4.parquet",
+        file_format=FileFormat.PARQUET,
+        partition={},
+        record_count=50,
+        file_size_in_bytes=3,
+        value_counts={3: 20},
+        null_value_counts={3: 2},
+        nan_value_counts=None,
+        lower_bounds={3: to_bytes(StringType(), "abc")},
+        upper_bounds={3: to_bytes(StringType(), "イロハニホヘト")},
+    )
+
+
 def test_all_null(schema_data_file: Schema, data_file: DataFile) -> None:
     should_read = _InclusiveMetricsEvaluator(schema_data_file, NotNull("all_nulls")).eval(data_file)
     assert not should_read, "Should skip: no non-null value in all null column"
@@ -150,6 +200,12 @@ def test_all_null(schema_data_file: Schema, data_file: DataFile) -> None:
 
     should_read = _InclusiveMetricsEvaluator(schema_data_file, EqualTo("all_nulls", "a")).eval(data_file)
     assert not should_read, "Should skip: equal on all null column"
+
+    should_read = _InclusiveMetricsEvaluator(schema_data_file, StartsWith("all_nulls", "a")).eval(data_file)
+    assert not should_read, "Should skip: startsWith on all null column"
+
+    should_read = _InclusiveMetricsEvaluator(schema_data_file, NotStartsWith("all_nulls", "a")).eval(data_file)
+    assert not should_read, "Should skip: notStartsWith on all null column"
 
     should_read = _InclusiveMetricsEvaluator(schema_data_file, NotNull("some_nulls")).eval(data_file)
     assert should_read, "Should read: column with some nulls contains a non-null value"
@@ -782,3 +838,93 @@ def test_inclusive_metrics_evaluator_not_in(schema_data_file_nan: Schema, data_f
 
     should_read = _InclusiveMetricsEvaluator(schema_data_file_nan, NotIn("some_nan_correct_bounds", (1, 30))).eval(data_file_nan)
     assert should_read, "Should match: no visibility"
+
+
+def test_string_starts_with(
+    schema_data_file: Schema, data_file: DataFile, data_file_2: DataFile, data_file_3: DataFile, data_file_4: DataFile
+) -> None:
+    should_read = _InclusiveMetricsEvaluator(schema_data_file, StartsWith("required", "a")).eval(data_file)
+    assert should_read, "Should read: no stats"
+
+    should_read = _InclusiveMetricsEvaluator(schema_data_file, StartsWith("required", "a")).eval(data_file_2)
+    assert should_read, "Should read: range matches"
+
+    should_read = _InclusiveMetricsEvaluator(schema_data_file, StartsWith("required", "aa")).eval(data_file_2)
+    assert should_read, "Should read: range matches"
+
+    should_read = _InclusiveMetricsEvaluator(schema_data_file, StartsWith("required", "aaa")).eval(data_file_2)
+    assert should_read, "Should read: range matches"
+
+    should_read = _InclusiveMetricsEvaluator(schema_data_file, StartsWith("required", "1s")).eval(data_file_3)
+    assert should_read, "Should read: range matches"
+
+    should_read = _InclusiveMetricsEvaluator(schema_data_file, StartsWith("required", "1str1x")).eval(data_file_3)
+    assert should_read, "Should read: range matches"
+
+    should_read = _InclusiveMetricsEvaluator(schema_data_file, StartsWith("required", "ff")).eval(data_file_4)
+    assert should_read, "Should read: range matches"
+
+    should_read = _InclusiveMetricsEvaluator(schema_data_file, StartsWith("required", "aB")).eval(data_file_2)
+    assert not should_read, "Should not read: range doesn't match"
+
+    should_read = _InclusiveMetricsEvaluator(schema_data_file, StartsWith("required", "dWX")).eval(data_file_2)
+    assert not should_read, "Should not read: range doesn't match"
+
+    should_read = _InclusiveMetricsEvaluator(schema_data_file, StartsWith("required", "5")).eval(data_file_3)
+    assert not should_read, "Should not read: range doesn't match"
+
+    should_read = _InclusiveMetricsEvaluator(schema_data_file, StartsWith("required", "3str3x")).eval(data_file_3)
+    assert not should_read, "Should not read: range doesn't match"
+
+    should_read = _InclusiveMetricsEvaluator(schema_data_file, StartsWith("some_empty", "房东整租霍")).eval(data_file)
+    assert should_read, "Should read: range matches"
+
+    should_read = _InclusiveMetricsEvaluator(schema_data_file, StartsWith("all_nulls", "")).eval(data_file)
+    assert not should_read, "Should not read: range doesn't match"
+
+    # above_max = UnicodeUtil.truncateStringMax(Literal.of("イロハニホヘト"), 4).value().toString();
+
+    # should_read = _InclusiveMetricsEvaluator(schema_data_file, StartsWith("required", above_max)).eval(data_file_4)
+    # assert not should_read, "Should not read: range doesn't match"
+
+
+def test_string_not_starts_with(
+    schema_data_file: Schema, data_file: DataFile, data_file_2: DataFile, data_file_3: DataFile, data_file_4: DataFile
+) -> None:
+    should_read = _InclusiveMetricsEvaluator(schema_data_file, NotStartsWith("required", "a")).eval(data_file)
+    assert should_read, "Should read: no stats"
+
+    should_read = _InclusiveMetricsEvaluator(schema_data_file, NotStartsWith("required", "a")).eval(data_file_2)
+    assert should_read, "Should read: range matches"
+
+    should_read = _InclusiveMetricsEvaluator(schema_data_file, NotStartsWith("required", "aa")).eval(data_file_2)
+    assert should_read, "Should read: range matches"
+
+    should_read = _InclusiveMetricsEvaluator(schema_data_file, NotStartsWith("required", "aaa")).eval(data_file_2)
+    assert should_read, "Should read: range matches"
+
+    should_read = _InclusiveMetricsEvaluator(schema_data_file, NotStartsWith("required", "1s")).eval(data_file_3)
+    assert should_read, "Should read: range matches"
+
+    should_read = _InclusiveMetricsEvaluator(schema_data_file, NotStartsWith("required", "1str1x")).eval(data_file_3)
+    assert should_read, "Should read: range matches"
+
+    should_read = _InclusiveMetricsEvaluator(schema_data_file, NotStartsWith("required", "ff")).eval(data_file_4)
+    assert should_read, "Should read: range matches"
+
+    should_read = _InclusiveMetricsEvaluator(schema_data_file, NotStartsWith("required", "aB")).eval(data_file_2)
+    assert should_read, "Should not read: range doesn't match"
+
+    should_read = _InclusiveMetricsEvaluator(schema_data_file, NotStartsWith("required", "dWX")).eval(data_file_2)
+    assert should_read, "Should not read: range doesn't match"
+
+    should_read = _InclusiveMetricsEvaluator(schema_data_file, NotStartsWith("required", "5")).eval(data_file_3)
+    assert should_read, "Should not read: range doesn't match"
+
+    should_read = _InclusiveMetricsEvaluator(schema_data_file, NotStartsWith("required", "3str3x")).eval(data_file_3)
+    assert should_read, "Should not read: range doesn't match"
+
+    # above_max = UnicodeUtil.truncateStringMax(Literal.of("イロハニホヘト"), 4).value().toString();
+
+    # should_read = _InclusiveMetricsEvaluator(schema_data_file, NotStartsWith("required", above_max)).eval(data_file_4)
+    # assert should_read, "Should not read: range doesn't match"
