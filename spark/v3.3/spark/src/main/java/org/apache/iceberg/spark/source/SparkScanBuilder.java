@@ -181,18 +181,13 @@ public class SparkScanBuilder
 
   @Override
   public boolean pushAggregation(Aggregation aggregation) {
-    if (!pushDownAggregate(aggregation)) {
+    if (!canPushDownAggregation(aggregation)) {
       return false;
     }
 
     AggregateEvaluator aggregateEvaluator;
     try {
-      List<BoundAggregate<?, ?>> aggregates =
-          Arrays.stream(aggregation.aggregateExpressions())
-              .map(agg -> SparkAggregates.convert(agg))
-              .map(expr -> Binder.bind(schema.asStruct(), expr, caseSensitive))
-              .map(bound -> (BoundAggregate<?, ?>) bound)
-              .collect(Collectors.toList());
+      List<BoundAggregate<?, ?>> aggregates = boundAggregates(aggregation);
 
       for (BoundAggregate aggregate : aggregates) {
         if (aggregate.aggregateComplexType()) {
@@ -241,12 +236,12 @@ public class SparkScanBuilder
     return true;
   }
 
-  private boolean pushDownAggregate(Aggregation aggregation) {
+  private boolean canPushDownAggregation(Aggregation aggregation) {
     if (!(table instanceof BaseTable)) {
       return false;
     }
 
-    if (!readConf.aggregatePushDown()) {
+    if (!readConf.aggregatePushDownEnabled()) {
       return false;
     }
 
@@ -332,6 +327,14 @@ public class SparkScanBuilder
     }
 
     return true;
+  }
+
+  private List<BoundAggregate<?, ?>> boundAggregates(Aggregation aggregation) {
+    return Arrays.stream(aggregation.aggregateExpressions())
+        .map(agg -> SparkAggregates.convert(agg))
+        .map(expr -> Binder.bind(schema.asStruct(), expr, caseSensitive))
+        .map(bound -> (BoundAggregate<?, ?>) bound)
+        .collect(Collectors.toList());
   }
 
   @Override

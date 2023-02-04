@@ -23,6 +23,7 @@ import java.util.stream.Collectors;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
+import org.apache.iceberg.expressions.BoundAggregate.Aggregator;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
@@ -47,14 +48,14 @@ public class AggregateEvaluator {
     return new AggregateEvaluator(boundAggregates);
   }
 
-  private final List<BoundAggregate.Aggregator<?>> aggregators;
+  private final List<Aggregator<?>> aggregators;
   private final Types.StructType resultType;
   private final List<BoundAggregate<?, ?>> aggregates;
 
   private AggregateEvaluator(List<BoundAggregate<?, ?>> aggregates) {
-    ImmutableList.Builder<BoundAggregate.Aggregator<?>> aggregatorsBuilder =
-        ImmutableList.builder();
+    ImmutableList.Builder<Aggregator<?>> aggregatorsBuilder = ImmutableList.builder();
     List<Types.NestedField> resultFields = Lists.newArrayList();
+
     for (int pos = 0; pos < aggregates.size(); pos += 1) {
       BoundAggregate<?, ?> aggregate = aggregates.get(pos);
       aggregatorsBuilder.add(aggregate.newAggregator());
@@ -67,13 +68,13 @@ public class AggregateEvaluator {
   }
 
   public void update(StructLike struct) {
-    for (BoundAggregate.Aggregator<?> aggregator : aggregators) {
+    for (Aggregator<?> aggregator : aggregators) {
       aggregator.update(struct);
     }
   }
 
   public void update(DataFile file) {
-    for (BoundAggregate.Aggregator<?> aggregator : aggregators) {
+    for (Aggregator<?> aggregator : aggregators) {
       aggregator.update(file);
     }
   }
@@ -87,7 +88,7 @@ public class AggregateEvaluator {
   }
 
   public Object[] result() {
-    return aggregators.stream().map(BoundAggregate.Aggregator::result).toArray(Object[]::new);
+    return aggregators.stream().map(Aggregator::result).toArray(Object[]::new);
   }
 
   public List<BoundAggregate<?, ?>> aggregates() {
