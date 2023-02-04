@@ -2470,4 +2470,4 @@ snappy = ["python-snappy"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.8"
-content-hash = "9294e496c5be2025b0ea54dbd1e068730349b47337d459553c0080f41b3a3abd"
+content-hash = "9ed787b3f081bd27cee8c90fa1ad3461d8734f5251edcc0339c62b37c3a275f9"
