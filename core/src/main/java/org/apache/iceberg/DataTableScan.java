@@ -44,7 +44,7 @@ public class DataTableScan extends BaseTableScan {
     this(table, schema, context);
   }
 
-  protected DataTableScan(Table table, Schema schema, TableScanContext context) {
+  public DataTableScan(Table table, Schema schema, TableScanContext context) {
     super(table, schema, context);
   }
 

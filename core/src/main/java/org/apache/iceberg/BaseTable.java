@@ -53,6 +53,10 @@ public class BaseTable implements Table, HasTableOperations, Serializable {
     this.reporter = reporter;
   }
 
+  public MetricsReporter getReporter() {
+    return reporter;
+  }
+
   @Override
   public TableOperations operations() {
     return ops;

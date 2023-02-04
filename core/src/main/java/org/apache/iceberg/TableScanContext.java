@@ -31,12 +31,12 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.util.ThreadPools;
 
 /** Context object with optional arguments for a TableScan. */
-final class TableScanContext {
+public final class TableScanContext {
   private final Long snapshotId;
   private final Expression rowFilter;
   private final boolean ignoreResiduals;
   private final boolean caseSensitive;
-  private final boolean colStats;
+  private boolean colStats;
   private final Schema projectedSchema;
   private final Collection<String> selectedColumns;
   private final ImmutableMap<String, String> options;
@@ -46,7 +46,7 @@ final class TableScanContext {
   private final boolean fromSnapshotInclusive;
   private final MetricsReporter metricsReporter;
 
-  TableScanContext() {
+  public TableScanContext() {
     this.snapshotId = null;
     this.rowFilter = Expressions.alwaysTrue();
     this.ignoreResiduals = false;
@@ -358,7 +358,7 @@ final class TableScanContext {
     return metricsReporter;
   }
 
-  TableScanContext reportWith(MetricsReporter reporter) {
+  public TableScanContext reportWith(MetricsReporter reporter) {
     return new TableScanContext(
         snapshotId,
         rowFilter,
@@ -373,5 +373,9 @@ final class TableScanContext {
         planExecutor,
         fromSnapshotInclusive,
         reporter);
+  }
+
+  public void setColStats(boolean colStats) {
+    this.colStats = colStats;
   }
 }

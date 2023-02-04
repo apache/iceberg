@@ -29,12 +29,12 @@ import org.apache.spark.sql.types.StructType;
 class SparkLocalScan implements LocalScan {
 
   private final Table table;
-  private final StructType aggregateSchema;
+  private final StructType readSchema;
   private final InternalRow[] rows;
 
-  SparkLocalScan(Table table, StructType aggregateSchema, InternalRow[] rows) {
+  SparkLocalScan(Table table, StructType readSchema, InternalRow[] rows) {
     this.table = table;
-    this.aggregateSchema = aggregateSchema;
+    this.readSchema = readSchema;
     this.rows = rows;
   }
 
@@ -45,15 +45,13 @@ class SparkLocalScan implements LocalScan {
 
   @Override
   public StructType readSchema() {
-    return aggregateSchema;
+    return readSchema;
   }
 
   @Override
   public String description() {
-    String aggregates =
-        Arrays.stream(aggregateSchema.fields())
-            .map(StructField::name)
-            .collect(Collectors.joining(", "));
-    return String.format("%s [aggregates=%s]", table, aggregates);
+    String fields =
+        Arrays.stream(readSchema.fields()).map(StructField::name).collect(Collectors.joining(", "));
+    return String.format("%s [%s]", table, fields);
   }
 }
