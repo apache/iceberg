@@ -21,6 +21,7 @@ package org.apache.iceberg.aws.glue;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -78,6 +79,7 @@ import software.amazon.awssdk.services.glue.model.InvalidInputException;
 import software.amazon.awssdk.services.glue.model.Table;
 import software.amazon.awssdk.services.glue.model.TableInput;
 import software.amazon.awssdk.services.glue.model.UpdateDatabaseRequest;
+import software.amazon.awssdk.services.glue.model.UpdateTableRequest;
 
 public class GlueCatalog extends BaseMetastoreCatalog
     implements Closeable, SupportsNamespaces, Configurable<Configuration> {
@@ -435,6 +437,44 @@ public class GlueCatalog extends BaseMetastoreCatalog
     }
 
     LOG.info("Successfully renamed table from {} to {}", from, to);
+  }
+
+  @Override
+  public org.apache.iceberg.Table registerTable(TableIdentifier identifier, String metadataFileLocation) {
+    Preconditions.checkArgument(isValidIdentifier(identifier),
+        "Table identifier to register is invalid: " + identifier);
+    Preconditions.checkArgument(metadataFileLocation != null && !metadataFileLocation.isEmpty(),
+        "Cannot register an empty metadata file location as a table");
+
+    Map<String, String> tableParameters = ImmutableMap.of(
+        BaseMetastoreTableOperations.TABLE_TYPE_PROP,
+        BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE.toLowerCase(Locale.ENGLISH),
+        BaseMetastoreTableOperations.METADATA_LOCATION_PROP,
+        metadataFileLocation);
+
+    TableInput tableInput = TableInput.builder()
+        .name(IcebergToGlueConverter.getTableName(identifier, awsProperties.glueCatalogSkipNameValidation()))
+        .tableType(GlueTableOperations.GLUE_EXTERNAL_TABLE_TYPE)
+        .parameters(tableParameters)
+        .build();
+
+    try {
+      glue.createTable(CreateTableRequest.builder()
+          .databaseName(IcebergToGlueConverter.getDatabaseName(identifier,
+              awsProperties.glueCatalogSkipNameValidation()))
+          .tableInput(tableInput)
+          .build());
+    } catch (software.amazon.awssdk.services.glue.model.AlreadyExistsException e) {
+      glue.updateTable(UpdateTableRequest.builder()
+          .databaseName(IcebergToGlueConverter.getDatabaseName(identifier,
+              awsProperties.glueCatalogSkipNameValidation()))
+          .tableInput(tableInput)
+          .build());
+    } catch (EntityNotFoundException e) {
+      throw new NoSuchNamespaceException(e, "Namespace %s is not found in Glue", identifier.namespace());
+    }
+
+    return loadTable(identifier);
   }
 
   @Override

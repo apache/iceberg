@@ -42,6 +42,7 @@ import org.apache.iceberg.aws.s3.S3FileIO;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
+import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -563,11 +564,35 @@ public class TestGlueCatalogTable extends GlueTestBase {
     Table registeredTable = glueCatalog.registerTable(identifier, metadataLocation);
     Assertions.assertThat(registeredTable).isNotNull();
     String expectedMetadataLocation =
-        ((BaseTable) table).operations().current().metadataFileLocation();
+        ((BaseTable) registeredTable).operations().current().metadataFileLocation();
     Assertions.assertThat(metadataLocation).isEqualTo(expectedMetadataLocation);
+
+    GetTableResponse response =
+        glue.getTable(GetTableRequest.builder().databaseName(namespace).name(tableName).build());
+    String actualMetadataLocationGlue = response.table()
+        .parameters().get(BaseMetastoreTableOperations.METADATA_LOCATION_PROP);
+
+    Assert.assertEquals(
+        "Glue Catalog Register Table should not submit a new commit",
+        expectedMetadataLocation,
+        actualMetadataLocationGlue);
+
     Assertions.assertThat(glueCatalog.loadTable(identifier)).isNotNull();
     Assertions.assertThat(glueCatalog.dropTable(identifier, true)).isTrue();
     Assertions.assertThat(glueCatalog.dropNamespace(Namespace.of(namespace))).isTrue();
+  }
+
+  @Test
+  public void testRegisterTableNamespaceNotFound() {
+    String namespace = createNamespace();
+    String tableName = getRandomName();
+    createTable(namespace, tableName);
+    Table table = glueCatalog.loadTable(TableIdentifier.of(namespace, tableName));
+    String metadataLocation = ((BaseTable) table).operations().current().metadataFileLocation();
+    AssertHelpers.assertThrows("Should fail to register to an unknown namespace",
+        NoSuchNamespaceException.class,
+        "not found in Glue",
+        () -> glueCatalog.registerTable(TableIdentifier.of(getRandomName(), getRandomName()), metadataLocation));
   }
 
   @Test
@@ -578,10 +603,38 @@ public class TestGlueCatalogTable extends GlueTestBase {
     TableIdentifier identifier = TableIdentifier.of(namespace, tableName);
     Table table = glueCatalog.loadTable(identifier);
     String metadataLocation = ((BaseTable) table).operations().current().metadataFileLocation();
-    Assertions.assertThatThrownBy(() -> glueCatalog.registerTable(identifier, metadataLocation))
-        .isInstanceOf(AlreadyExistsException.class);
-    Assertions.assertThat(glueCatalog.dropTable(identifier, true)).isTrue();
-    Assertions.assertThat(glueCatalog.dropNamespace(Namespace.of(namespace))).isTrue();
+    Assertions.assertThat(glueCatalog.dropTable(identifier, false)).isTrue();
+    Table registeredTable = glueCatalog.registerTable(identifier, metadataLocation);
+    Assertions.assertThat(registeredTable).isNotNull();
+
+    GetTableResponse response =
+        glue.getTable(GetTableRequest.builder().databaseName(namespace).name(tableName).build());
+    Assert.assertEquals(
+        "external table type is set after register", "EXTERNAL_TABLE", response.table().tableType());
+    String actualMetadataLocation = response.table()
+        .parameters().get(BaseMetastoreTableOperations.METADATA_LOCATION_PROP);
+    Assert.assertEquals("metadata location should be updated with registerTable call",
+        metadataLocation, actualMetadataLocation);
+
+    System.out.println("===" + metadataLocation);
+
+    // commit new transaction, should create a new metadata file
+    DataFile dataFile =
+        DataFiles.builder(partitionSpec)
+            .withPath("/path/to/data-a.parquet")
+            .withFileSizeInBytes(10)
+            .withRecordCount(1)
+            .build();
+    table.newAppend().appendFile(dataFile).commit();
+
+    metadataLocation = ((BaseTable) table).operations().current().metadataFileLocation();
+    // update metadata location
+    glueCatalog.registerTable(identifier, metadataLocation);
+    response = glue.getTable(GetTableRequest.builder().databaseName(namespace).name(tableName).build());
+    String updatedMetadataLocation = response.table()
+        .parameters().get(BaseMetastoreTableOperations.METADATA_LOCATION_PROP);
+    Assert.assertEquals("metadata location should be updated with registerTable call",
+        metadataLocation, updatedMetadataLocation);
   }
 
   @Test

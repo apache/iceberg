@@ -388,6 +388,32 @@ public class TestGlueCatalog {
   }
 
   @Test
+  public void testRegisterTableInvalidIdentifier() {
+    AssertHelpers.assertThrows("Should not allow registering table with multi-level namespace",
+        IllegalArgumentException.class,
+        "Table identifier to register is invalid",
+        () -> glueCatalog.registerTable(TableIdentifier.of("a", "b", "name"), "s3://path"));
+
+    AssertHelpers.assertThrows("Should not allow registering table with unsupported table name",
+        IllegalArgumentException.class,
+        "Table identifier to register is invalid",
+        () -> glueCatalog.registerTable(TableIdentifier.of("a", "$name"), "s3://path"));
+  }
+
+  @Test
+  public void testRegisterTableWithBadLocation() {
+    AssertHelpers.assertThrows("Should not allow registering null location",
+        IllegalArgumentException.class,
+        "Cannot register an empty metadata file location as a table",
+        () -> glueCatalog.registerTable(TableIdentifier.of("a", "name"), null));
+
+    AssertHelpers.assertThrows("Should not allow registering empty location",
+        IllegalArgumentException.class,
+        "Cannot register an empty metadata file location as a table",
+        () -> glueCatalog.registerTable(TableIdentifier.of("a", "name"), ""));
+  }
+
+  @Test
   public void testCreateNamespace() {
     Mockito.doReturn(CreateDatabaseResponse.builder().build())
         .when(glue)

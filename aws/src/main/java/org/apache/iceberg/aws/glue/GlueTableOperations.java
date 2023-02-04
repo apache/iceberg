@@ -63,7 +63,7 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
 
   // same as org.apache.hadoop.hive.metastore.TableType.EXTERNAL_TABLE
   // more details: https://docs.aws.amazon.com/glue/latest/webapi/API_TableInput.html
-  private static final String GLUE_EXTERNAL_TABLE_TYPE = "EXTERNAL_TABLE";
+  static final String GLUE_EXTERNAL_TABLE_TYPE = "EXTERNAL_TABLE";
 
   private final GlueClient glue;
   private final AwsProperties awsProperties;
