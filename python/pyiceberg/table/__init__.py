@@ -71,6 +71,9 @@ if TYPE_CHECKING:
     from duckdb import DuckDBPyConnection
 
 
+ALWAYS_TRUE = AlwaysTrue()
+
+
 class Table:
     identifier: Identifier = Field()
     metadata: TableMetadata = Field()
@@ -93,7 +96,7 @@ class Table:
 
     def scan(
         self,
-        row_filter: Optional[Union[str, BooleanExpression]] = None,
+        row_filter: Union[str, BooleanExpression] = ALWAYS_TRUE,
         selected_fields: Tuple[str] = ("*",),
         case_sensitive: bool = True,
         snapshot_id: Optional[int] = None,
@@ -101,7 +104,7 @@ class Table:
     ) -> TableScan[Any]:
         return DataScan(
             table=self,
-            row_filter=row_filter or AlwaysTrue(),
+            row_filter=row_filter,
             selected_fields=selected_fields,
             case_sensitive=case_sensitive,
             snapshot_id=snapshot_id,
@@ -198,7 +201,7 @@ class TableScan(Generic[S], ABC):
     def __init__(
         self,
         table: Table,
-        row_filter: Union[str, BooleanExpression] = AlwaysTrue(),
+        row_filter: Union[str, BooleanExpression] = ALWAYS_TRUE,
         selected_fields: Tuple[str] = ("*",),
         case_sensitive: bool = True,
         snapshot_id: Optional[int] = None,
@@ -300,7 +303,7 @@ class DataScan(TableScan["DataScan"]):
     def __init__(
         self,
         table: Table,
-        row_filter: Union[str, BooleanExpression] = AlwaysTrue(),
+        row_filter: Union[str, BooleanExpression] = ALWAYS_TRUE,
         selected_fields: Tuple[str] = ("*",),
         case_sensitive: bool = True,
         snapshot_id: Optional[int] = None,
