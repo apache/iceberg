@@ -365,18 +365,12 @@ public class AwsProperties implements Serializable {
    */
   public static final String HTTP_CLIENT_TYPE_URLCONNECTION = "urlconnection";
 
-  public static final String HTTP_CLIENT_IMPL_URLCONNECTION =
-      UrlConnectionHttpClientConfigurations.class.getName();
-
   /**
    * If this is set under {@link #HTTP_CLIENT_TYPE}, {@link
    * software.amazon.awssdk.http.apache.ApacheHttpClient} will be used as the HTTP Client in {@link
    * AwsClientFactory}
    */
   public static final String HTTP_CLIENT_TYPE_APACHE = "apache";
-
-  public static final String HTTP_CLIENT_IMPL_APACHE =
-      ApacheHttpClientConfigurations.class.getName();
 
   public static final String HTTP_CLIENT_TYPE_DEFAULT = HTTP_CLIENT_TYPE_URLCONNECTION;
 
@@ -637,6 +631,10 @@ public class AwsProperties implements Serializable {
    */
   public static final String LAKE_FORMATION_DB_NAME = "lakeformation.db-name";
 
+  private static final String HTTP_CLIENT_IMPL_URLCONNECTION =
+      UrlConnectionHttpClientConfigurations.class.getName();
+  private static final String HTTP_CLIENT_IMPL_APACHE =
+      ApacheHttpClientConfigurations.class.getName();
   private String httpClientType;
   private Long httpClientUrlConnectionConnectionTimeoutMs;
   private Long httpClientUrlConnectionSocketTimeoutMs;
@@ -1336,9 +1334,19 @@ public class AwsProperties implements Serializable {
     try {
       ctor =
           DynConstructors.builder(HttpClientConfigurations.class).hiddenImpl(impl).buildChecked();
+      return ctor.newInstance();
     } catch (NoSuchMethodException e) {
-      throw new RuntimeException("Failed to initialize HttpClientConfigurations", e);
+      throw new IllegalArgumentException(
+          String.format(
+              "Cannot initialize HttpClientConfigurations Implementation %s: %s",
+              impl, e.getMessage()),
+          e);
+    } catch (ClassCastException e) {
+      throw new IllegalArgumentException(
+          String.format(
+              "Cannot initialize HttpClientConfigurations, %s does not implement HttpClientConfigurations: %s",
+              impl, e.getMessage()),
+          e);
     }
-    return ctor.newInstance();
   }
 }
