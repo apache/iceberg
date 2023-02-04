@@ -366,11 +366,23 @@ public class AwsProperties implements Serializable {
   public static final String HTTP_CLIENT_TYPE_URLCONNECTION = "urlconnection";
 
   /**
+   * The prefix for configurations of for {@link
+   * software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient.Builder}
+   */
+  public static final String HTTP_CLIENT_URLCONNECTION_PREFIX = "http-client.urlconnection.";
+
+  /**
    * If this is set under {@link #HTTP_CLIENT_TYPE}, {@link
    * software.amazon.awssdk.http.apache.ApacheHttpClient} will be used as the HTTP Client in {@link
    * AwsClientFactory}
    */
   public static final String HTTP_CLIENT_TYPE_APACHE = "apache";
+
+  /**
+   * The prefix for configurations of for {@link
+   * software.amazon.awssdk.http.apache.ApacheHttpClient.Builder}
+   */
+  public static final String HTTP_CLIENT_APACHE_PREFIX = "http-client.apache.";
 
   public static final String HTTP_CLIENT_TYPE_DEFAULT = HTTP_CLIENT_TYPE_URLCONNECTION;
 
@@ -383,7 +395,7 @@ public class AwsProperties implements Serializable {
    * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/urlconnection/UrlConnectionHttpClient.Builder.html
    */
   public static final String HTTP_CLIENT_URLCONNECTION_CONNECTION_TIMEOUT_MS =
-      "http-client.urlconnection.connection-timeout-ms";
+      HTTP_CLIENT_URLCONNECTION_PREFIX + HttpClientConfigurations.CONNECTION_TIMEOUT_MS;
 
   /**
    * Used to configure the socket timeout in milliseconds for {@link
@@ -394,7 +406,7 @@ public class AwsProperties implements Serializable {
    * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/urlconnection/UrlConnectionHttpClient.Builder.html
    */
   public static final String HTTP_CLIENT_URLCONNECTION_SOCKET_TIMEOUT_MS =
-      "http-client.urlconnection.socket-timeout-ms";
+      HTTP_CLIENT_URLCONNECTION_PREFIX + HttpClientConfigurations.SOCKET_TIMEOUT_MS;
 
   /**
    * Used to configure the connection timeout in milliseconds for {@link
@@ -405,7 +417,7 @@ public class AwsProperties implements Serializable {
    * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html
    */
   public static final String HTTP_CLIENT_APACHE_CONNECTION_TIMEOUT_MS =
-      "http-client.apache.connection-timeout-ms";
+      HTTP_CLIENT_APACHE_PREFIX + HttpClientConfigurations.CONNECTION_TIMEOUT_MS;
 
   /**
    * Used to configure the socket timeout in milliseconds for {@link
@@ -416,7 +428,7 @@ public class AwsProperties implements Serializable {
    * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html
    */
   public static final String HTTP_CLIENT_APACHE_SOCKET_TIMEOUT_MS =
-      "http-client.apache.socket-timeout-ms";
+      HTTP_CLIENT_APACHE_PREFIX + HttpClientConfigurations.SOCKET_TIMEOUT_MS;
 
   /**
    * Used to configure the connection acquisition timeout in milliseconds for {@link
@@ -427,7 +439,7 @@ public class AwsProperties implements Serializable {
    * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html
    */
   public static final String HTTP_CLIENT_APACHE_CONNECTION_ACQUISITION_TIMEOUT_MS =
-      "http-client.apache.connection-acquisition-timeout-ms";
+      HTTP_CLIENT_APACHE_PREFIX + HttpClientConfigurations.CONNECTION_ACQUISITION_TIMEOUT_MS;
 
   /**
    * Used to configure the connection max idle time in milliseconds for {@link
@@ -438,7 +450,7 @@ public class AwsProperties implements Serializable {
    * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html
    */
   public static final String HTTP_CLIENT_APACHE_CONNECTION_MAX_IDLE_TIME_MS =
-      "http-client.apache.connection-max-idle-time-ms";
+      HTTP_CLIENT_APACHE_PREFIX + HttpClientConfigurations.CONNECTION_MAX_IDLE_TIME_MS;
 
   /**
    * Used to configure the connection time to live in milliseconds for {@link
@@ -449,7 +461,7 @@ public class AwsProperties implements Serializable {
    * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html
    */
   public static final String HTTP_CLIENT_APACHE_CONNECTION_TIME_TO_LIVE_MS =
-      "http-client.apache.connection-time-to-live-ms";
+      HTTP_CLIENT_APACHE_PREFIX + HttpClientConfigurations.CONNECTION_TIME_TO_LIVE_MS;
 
   /**
    * Used to configure whether to enable the expect continue setting for {@link
@@ -462,7 +474,7 @@ public class AwsProperties implements Serializable {
    * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html
    */
   public static final String HTTP_CLIENT_APACHE_EXPECT_CONTINUE_ENABLED =
-      "http-client.apache.expect-continue-enabled";
+      HTTP_CLIENT_APACHE_PREFIX + HttpClientConfigurations.EXPECT_CONTINUE_ENABLED;
 
   /**
    * Used to configure the max connections number for {@link
@@ -473,7 +485,7 @@ public class AwsProperties implements Serializable {
    * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html
    */
   public static final String HTTP_CLIENT_APACHE_MAX_CONNECTIONS =
-      "http-client.apache.max-connections";
+      HTTP_CLIENT_APACHE_PREFIX + HttpClientConfigurations.MAX_CONNECTIONS;
 
   /**
    * Used to configure whether to enable the tcp keep alive setting for {@link
@@ -486,7 +498,7 @@ public class AwsProperties implements Serializable {
    * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html
    */
   public static final String HTTP_CLIENT_APACHE_TCP_KEEP_ALIVE_ENABLED =
-      "http-client.apache.tcp-keep-alive-enabled";
+      HTTP_CLIENT_APACHE_PREFIX + HttpClientConfigurations.TCP_KEEP_ALIVE_ENABLED;
 
   /**
    * Used to configure whether to use idle connection reaper for {@link
@@ -499,7 +511,8 @@ public class AwsProperties implements Serializable {
    * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html
    */
   public static final String HTTP_CLIENT_APACHE_USE_IDLE_CONNECTION_REAPER_ENABLED =
-      "http-client.apache.use-idle-connection-reaper-enabled";
+      HTTP_CLIENT_APACHE_PREFIX + HttpClientConfigurations.USE_IDLE_CONNECTION_REAPER_ENABLED;
+
   /**
    * Used by {@link S3FileIO} to tag objects when writing. To set, we can pass a catalog property.
    *
@@ -636,17 +649,8 @@ public class AwsProperties implements Serializable {
   private static final String HTTP_CLIENT_IMPL_APACHE =
       ApacheHttpClientConfigurations.class.getName();
   private String httpClientType;
-  private Long httpClientUrlConnectionConnectionTimeoutMs;
-  private Long httpClientUrlConnectionSocketTimeoutMs;
-  private Long httpClientApacheConnectionAcquisitionTimeoutMs;
-  private Long httpClientApacheConnectionMaxIdleTimeMs;
-  private Long httpClientApacheConnectionTimeToLiveMs;
-  private Long httpClientApacheConnectionTimeoutMs;
-  private Boolean httpClientApacheExpectContinueEnabled;
-  private Integer httpClientApacheMaxConnections;
-  private Long httpClientApacheSocketTimeoutMs;
-  private Boolean httpClientApacheTcpKeepAliveEnabled;
-  private Boolean httpClientApacheUseIdleConnectionReaperEnabled;
+  private final Map<String, String> urlConnectionHttpClientProperties;
+  private final Map<String, String> apacheHttpClientProperties;
   private final Set<software.amazon.awssdk.services.sts.model.Tag> stsClientAssumeRoleTags;
 
   private String clientAssumeRoleArn;
@@ -696,17 +700,8 @@ public class AwsProperties implements Serializable {
 
   public AwsProperties() {
     this.httpClientType = HTTP_CLIENT_TYPE_DEFAULT;
-    this.httpClientUrlConnectionConnectionTimeoutMs = null;
-    this.httpClientUrlConnectionSocketTimeoutMs = null;
-    this.httpClientApacheConnectionAcquisitionTimeoutMs = null;
-    this.httpClientApacheConnectionMaxIdleTimeMs = null;
-    this.httpClientApacheConnectionTimeToLiveMs = null;
-    this.httpClientApacheConnectionTimeoutMs = null;
-    this.httpClientApacheExpectContinueEnabled = null;
-    this.httpClientApacheMaxConnections = null;
-    this.httpClientApacheSocketTimeoutMs = null;
-    this.httpClientApacheTcpKeepAliveEnabled = null;
-    this.httpClientApacheUseIdleConnectionReaperEnabled = null;
+    this.urlConnectionHttpClientProperties = Collections.emptyMap();
+    this.apacheHttpClientProperties = Collections.emptyMap();
     this.stsClientAssumeRoleTags = Sets.newHashSet();
 
     this.clientAssumeRoleArn = null;
@@ -763,36 +758,10 @@ public class AwsProperties implements Serializable {
   public AwsProperties(Map<String, String> properties) {
     this.httpClientType =
         PropertyUtil.propertyAsString(properties, HTTP_CLIENT_TYPE, HTTP_CLIENT_TYPE_DEFAULT);
-    this.httpClientUrlConnectionConnectionTimeoutMs =
-        PropertyUtil.propertyAsNullableLong(
-            properties, HTTP_CLIENT_URLCONNECTION_CONNECTION_TIMEOUT_MS);
-    this.httpClientUrlConnectionSocketTimeoutMs =
-        PropertyUtil.propertyAsNullableLong(
-            properties, HTTP_CLIENT_URLCONNECTION_SOCKET_TIMEOUT_MS);
-    this.httpClientApacheConnectionAcquisitionTimeoutMs =
-        PropertyUtil.propertyAsNullableLong(
-            properties, HTTP_CLIENT_APACHE_CONNECTION_ACQUISITION_TIMEOUT_MS);
-    this.httpClientApacheConnectionMaxIdleTimeMs =
-        PropertyUtil.propertyAsNullableLong(
-            properties, HTTP_CLIENT_APACHE_CONNECTION_MAX_IDLE_TIME_MS);
-    this.httpClientApacheConnectionTimeToLiveMs =
-        PropertyUtil.propertyAsNullableLong(
-            properties, HTTP_CLIENT_APACHE_CONNECTION_TIME_TO_LIVE_MS);
-    this.httpClientApacheConnectionTimeoutMs =
-        PropertyUtil.propertyAsNullableLong(properties, HTTP_CLIENT_APACHE_CONNECTION_TIMEOUT_MS);
-    this.httpClientApacheExpectContinueEnabled =
-        PropertyUtil.propertyAsNullableBoolean(
-            properties, HTTP_CLIENT_APACHE_EXPECT_CONTINUE_ENABLED);
-    this.httpClientApacheMaxConnections =
-        PropertyUtil.propertyAsNullableInt(properties, HTTP_CLIENT_APACHE_MAX_CONNECTIONS);
-    this.httpClientApacheSocketTimeoutMs =
-        PropertyUtil.propertyAsNullableLong(properties, HTTP_CLIENT_APACHE_SOCKET_TIMEOUT_MS);
-    this.httpClientApacheTcpKeepAliveEnabled =
-        PropertyUtil.propertyAsNullableBoolean(
-            properties, HTTP_CLIENT_APACHE_TCP_KEEP_ALIVE_ENABLED);
-    this.httpClientApacheUseIdleConnectionReaperEnabled =
-        PropertyUtil.propertyAsNullableBoolean(
-            properties, HTTP_CLIENT_APACHE_USE_IDLE_CONNECTION_REAPER_ENABLED);
+    this.urlConnectionHttpClientProperties =
+        PropertyUtil.propertiesWithPrefix(properties, HTTP_CLIENT_URLCONNECTION_PREFIX);
+    this.apacheHttpClientProperties =
+        PropertyUtil.propertiesWithPrefix(properties, HTTP_CLIENT_APACHE_PREFIX);
     this.stsClientAssumeRoleTags = toStsTags(properties, CLIENT_ASSUME_ROLE_TAGS_PREFIX);
     this.clientAssumeRoleArn = properties.get(CLIENT_ASSUME_ROLE_ARN);
     this.clientAssumeRoleTimeoutSec =
@@ -1111,6 +1080,14 @@ public class AwsProperties implements Serializable {
     return s3BucketToAccessPointMapping;
   }
 
+  public Map<String, String> urlConnectionHttpClientProperties() {
+    return urlConnectionHttpClientProperties;
+  }
+
+  public Map<String, String> apacheHttpClientProperties() {
+    return apacheHttpClientProperties;
+  }
+
   /**
    * Configure the credentials for an S3 client.
    *
@@ -1223,28 +1200,19 @@ public class AwsProperties implements Serializable {
     }
     switch (httpClientType) {
       case HTTP_CLIENT_TYPE_URLCONNECTION:
-        httpClientConfigurations = loadHttpClientConfigurations(HTTP_CLIENT_IMPL_URLCONNECTION);
-        httpClientConfigurations
-            .withConnectionTimeoutMs(httpClientUrlConnectionConnectionTimeoutMs)
-            .withSocketTimeoutMs(httpClientUrlConnectionSocketTimeoutMs);
+        httpClientConfigurations =
+            loadHttpClientConfigurations(
+                HTTP_CLIENT_IMPL_URLCONNECTION, urlConnectionHttpClientProperties);
+        httpClientConfigurations.configureHttpClientBuilder(builder);
         break;
       case HTTP_CLIENT_TYPE_APACHE:
-        httpClientConfigurations = loadHttpClientConfigurations(HTTP_CLIENT_IMPL_APACHE);
-        httpClientConfigurations
-            .withConnectionTimeoutMs(httpClientApacheConnectionTimeoutMs)
-            .withSocketTimeoutMs(httpClientApacheSocketTimeoutMs)
-            .withConnectionAcquisitionTimeoutMs(httpClientApacheConnectionAcquisitionTimeoutMs)
-            .withConnectionMaxIdleTimeMs(httpClientApacheConnectionMaxIdleTimeMs)
-            .withConnectionTimeToLiveMs(httpClientApacheConnectionTimeToLiveMs)
-            .withExpectContinueEnabled(httpClientApacheExpectContinueEnabled)
-            .withMaxConnections(httpClientApacheMaxConnections)
-            .withTcpKeepAliveEnabled(httpClientApacheTcpKeepAliveEnabled)
-            .withUseIdleConnectionReaperEnabled(httpClientApacheUseIdleConnectionReaperEnabled);
+        httpClientConfigurations =
+            loadHttpClientConfigurations(HTTP_CLIENT_IMPL_APACHE, apacheHttpClientProperties);
+        httpClientConfigurations.configureHttpClientBuilder(builder);
         break;
       default:
         throw new IllegalArgumentException("Unrecognized HTTP client type " + httpClientType);
     }
-    httpClientConfigurations.applyConfigurations(builder);
   }
 
   /**
@@ -1329,11 +1297,14 @@ public class AwsProperties implements Serializable {
     }
   }
 
-  private HttpClientConfigurations loadHttpClientConfigurations(String impl) {
+  private HttpClientConfigurations loadHttpClientConfigurations(
+      String impl, Map<String, String> httpClientProperties) {
     DynConstructors.Ctor<HttpClientConfigurations> ctor;
     try {
       ctor =
           DynConstructors.builder(HttpClientConfigurations.class).hiddenImpl(impl).buildChecked();
+      HttpClientConfigurations httpClientConfigurations = ctor.newInstance();
+      httpClientConfigurations.initialize(httpClientProperties);
       return ctor.newInstance();
     } catch (NoSuchMethodException e) {
       throw new IllegalArgumentException(

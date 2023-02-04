@@ -19,89 +19,82 @@
 package org.apache.iceberg.aws;
 
 import java.time.Duration;
+import java.util.Map;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
+import org.apache.iceberg.util.PropertyUtil;
 import software.amazon.awssdk.awscore.client.builder.AwsSyncClientBuilder;
 import software.amazon.awssdk.http.apache.ApacheHttpClient;
 
 class ApacheHttpClientConfigurations implements HttpClientConfigurations {
-
-  private final ApacheHttpClient.Builder builder = ApacheHttpClient.builder();
+  private Long connectionTimeoutMs;
+  private Long socketTimeoutMs;
+  private Long acquisitionTimeoutMs;
+  private Long connectionMaxIdleTimeMs;
+  private Long connectionTimeToLiveMs;
+  private Boolean expectContinueEnabled;
+  private Long maxConnections;
+  private Boolean tcpKeepAliveEnabled;
+  private Boolean useIdleConnectionReaperEnabled;
 
   @Override
-  public <T extends AwsSyncClientBuilder> void applyConfigurations(T clientBuilder) {
-    clientBuilder.httpClientBuilder(builder);
+  public void initialize(Map<String, String> httpClientProperties) {
+    this.connectionTimeoutMs =
+        PropertyUtil.propertyAsNullableLong(httpClientProperties, CONNECTION_TIMEOUT_MS);
+    this.socketTimeoutMs =
+        PropertyUtil.propertyAsNullableLong(httpClientProperties, SOCKET_TIMEOUT_MS);
+    this.acquisitionTimeoutMs =
+        PropertyUtil.propertyAsNullableLong(
+            httpClientProperties, CONNECTION_ACQUISITION_TIMEOUT_MS);
+    this.connectionMaxIdleTimeMs =
+        PropertyUtil.propertyAsNullableLong(httpClientProperties, CONNECTION_MAX_IDLE_TIME_MS);
+    this.connectionTimeToLiveMs =
+        PropertyUtil.propertyAsNullableLong(httpClientProperties, CONNECTION_TIME_TO_LIVE_MS);
+    this.expectContinueEnabled =
+        PropertyUtil.propertyAsNullableBoolean(httpClientProperties, EXPECT_CONTINUE_ENABLED);
+    this.maxConnections =
+        PropertyUtil.propertyAsNullableLong(httpClientProperties, MAX_CONNECTIONS);
+    this.tcpKeepAliveEnabled =
+        PropertyUtil.propertyAsNullableBoolean(httpClientProperties, TCP_KEEP_ALIVE_ENABLED);
+    this.useIdleConnectionReaperEnabled =
+        PropertyUtil.propertyAsNullableBoolean(
+            httpClientProperties, USE_IDLE_CONNECTION_REAPER_ENABLED);
   }
 
   @Override
-  public ApacheHttpClientConfigurations withConnectionTimeoutMs(Long connectionTimeoutMs) {
+  public <T extends AwsSyncClientBuilder> void configureHttpClientBuilder(T awsClientBuilder) {
+    ApacheHttpClient.Builder apacheHttpClientBuilder = ApacheHttpClient.builder();
+    configureApacheHttpClientBuilder(apacheHttpClientBuilder);
+    awsClientBuilder.httpClientBuilder(apacheHttpClientBuilder);
+  }
+
+  @VisibleForTesting
+  void configureApacheHttpClientBuilder(ApacheHttpClient.Builder apacheHttpClientBuilder) {
     if (connectionTimeoutMs != null) {
-      builder.connectionTimeout(Duration.ofMillis(connectionTimeoutMs));
+      apacheHttpClientBuilder.connectionTimeout(Duration.ofMillis(connectionTimeoutMs));
     }
-    return this;
-  }
-
-  @Override
-  public ApacheHttpClientConfigurations withSocketTimeoutMs(Long socketTimeoutMs) {
     if (socketTimeoutMs != null) {
-      builder.socketTimeout(Duration.ofMillis(socketTimeoutMs));
+      apacheHttpClientBuilder.socketTimeout(Duration.ofMillis(socketTimeoutMs));
     }
-    return this;
-  }
-
-  @Override
-  public ApacheHttpClientConfigurations withConnectionAcquisitionTimeoutMs(
-      Long connectionAcquisitionTimeoutMs) {
-    if (connectionAcquisitionTimeoutMs != null) {
-      builder.connectionAcquisitionTimeout(Duration.ofMillis(connectionAcquisitionTimeoutMs));
+    if (acquisitionTimeoutMs != null) {
+      apacheHttpClientBuilder.connectionAcquisitionTimeout(Duration.ofMillis(acquisitionTimeoutMs));
     }
-    return this;
-  }
-
-  @Override
-  public ApacheHttpClientConfigurations withConnectionMaxIdleTimeMs(Long connectionMaxIdleTimeMs) {
     if (connectionMaxIdleTimeMs != null) {
-      builder.connectionMaxIdleTime(Duration.ofMillis(connectionMaxIdleTimeMs));
+      apacheHttpClientBuilder.connectionMaxIdleTime(Duration.ofMillis(connectionMaxIdleTimeMs));
     }
-    return this;
-  }
-
-  @Override
-  public ApacheHttpClientConfigurations withConnectionTimeToLiveMs(Long timeToLiveMs) {
-    if (timeToLiveMs != null) {
-      builder.connectionTimeToLive(Duration.ofMillis(timeToLiveMs));
+    if (connectionTimeToLiveMs != null) {
+      apacheHttpClientBuilder.connectionTimeToLive(Duration.ofMillis(connectionTimeToLiveMs));
     }
-    return this;
-  }
-
-  @Override
-  public ApacheHttpClientConfigurations withExpectContinueEnabled(Boolean expectContinueEnabled) {
     if (expectContinueEnabled != null) {
-      builder.expectContinueEnabled(expectContinueEnabled);
+      apacheHttpClientBuilder.expectContinueEnabled(expectContinueEnabled);
     }
-    return this;
-  }
-
-  @Override
-  public ApacheHttpClientConfigurations withMaxConnections(Integer maxConnections) {
     if (maxConnections != null) {
-      builder.maxConnections(maxConnections);
+      apacheHttpClientBuilder.maxConnections(maxConnections.intValue());
     }
-    return this;
-  }
-
-  @Override
-  public ApacheHttpClientConfigurations withTcpKeepAliveEnabled(Boolean tcpKeepAlive) {
-    if (tcpKeepAlive != null) {
-      builder.tcpKeepAlive(tcpKeepAlive);
+    if (tcpKeepAliveEnabled != null) {
+      apacheHttpClientBuilder.tcpKeepAlive(tcpKeepAliveEnabled);
     }
-    return this;
-  }
-
-  @Override
-  public ApacheHttpClientConfigurations withUseIdleConnectionReaperEnabled(
-      Boolean usedIdleConnectionReaper) {
-    if (usedIdleConnectionReaper != null) {
-      builder.useIdleConnectionReaper(usedIdleConnectionReaper);
+    if (useIdleConnectionReaperEnabled != null) {
+      apacheHttpClientBuilder.useIdleConnectionReaper(useIdleConnectionReaperEnabled);
     }
-    return this;
   }
 }

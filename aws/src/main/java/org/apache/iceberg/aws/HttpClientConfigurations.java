@@ -18,46 +18,31 @@
  */
 package org.apache.iceberg.aws;
 
+import java.util.Map;
 import software.amazon.awssdk.awscore.client.builder.AwsSyncClientBuilder;
 
 interface HttpClientConfigurations {
+  String CONNECTION_TIMEOUT_MS = "connection-timeout-ms";
+  String SOCKET_TIMEOUT_MS = "socket-timeout-ms";
+  String CONNECTION_ACQUISITION_TIMEOUT_MS = "connection-acquisition-timeout-ms";
+  String CONNECTION_MAX_IDLE_TIME_MS = "connection-max-idle-time-ms";
+  String CONNECTION_TIME_TO_LIVE_MS = "connection-time-to-live-ms";
+  String EXPECT_CONTINUE_ENABLED = "expect-continue-enabled";
+  String MAX_CONNECTIONS = "max-connections";
+  String TCP_KEEP_ALIVE_ENABLED = "tcp-keep-alive-enabled";
+  String USE_IDLE_CONNECTION_REAPER_ENABLED = "use-idle-connection-reaper-enabled";
 
-  <T extends AwsSyncClientBuilder> void applyConfigurations(T clientBuilder);
+  /**
+   * Initialize the configurations from the given properties
+   *
+   * @param httpClientProperties properties for http client
+   */
+  void initialize(Map<String, String> httpClientProperties);
 
-  default HttpClientConfigurations withConnectionTimeoutMs(Long connectionTimeoutMs) {
-    throw new UnsupportedOperationException("Connection timeout is not supported");
-  }
-
-  default HttpClientConfigurations withSocketTimeoutMs(Long socketTimeoutMs) {
-    throw new UnsupportedOperationException("Socket timeout is not supported");
-  }
-
-  default HttpClientConfigurations withConnectionAcquisitionTimeoutMs(Long acquisitionTimeoutMs) {
-    throw new UnsupportedOperationException("Connection acquisition timeout is not supported");
-  }
-
-  default HttpClientConfigurations withConnectionMaxIdleTimeMs(Long connectionMaxIdleMs) {
-    throw new UnsupportedOperationException("Connection max idle time is not supported");
-  }
-
-  default HttpClientConfigurations withConnectionTimeToLiveMs(Long timeToLiveMs) {
-    throw new UnsupportedOperationException("Connection time to live is not supported");
-  }
-
-  default HttpClientConfigurations withExpectContinueEnabled(Boolean expectedContinueEnabled) {
-    throw new UnsupportedOperationException("Expect continue is not supported");
-  }
-
-  default HttpClientConfigurations withMaxConnections(Integer maxConnections) {
-    throw new UnsupportedOperationException("Max connections is not supported");
-  }
-
-  default HttpClientConfigurations withTcpKeepAliveEnabled(Boolean tcpKeepAlive) {
-    throw new UnsupportedOperationException("TCP keep alive is not supported");
-  }
-
-  default HttpClientConfigurations withUseIdleConnectionReaperEnabled(
-      Boolean useIdleConnectionReaper) {
-    throw new UnsupportedOperationException("Use idle connection reaper is not supported");
-  }
+  /**
+   * Configure http client builder for a given AWS client builder
+   *
+   * @param awsClientBuilder AWS client builder
+   */
+  <T extends AwsSyncClientBuilder> void configureHttpClientBuilder(T awsClientBuilder);
 }

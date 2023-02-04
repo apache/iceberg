@@ -277,6 +277,12 @@ public class TestAwsProperties {
     Assert.assertEquals(
         awsProperties.s3BucketToAccessPointMapping(),
         deSerializedAwsProperties.s3BucketToAccessPointMapping());
+    Assert.assertEquals(
+        awsProperties.urlConnectionHttpClientProperties(),
+        deSerializedAwsProperties.urlConnectionHttpClientProperties());
+    Assert.assertEquals(
+        awsProperties.apacheHttpClientProperties(),
+        deSerializedAwsProperties.apacheHttpClientProperties());
 
     AwsProperties awsPropertiesWithProps = new AwsProperties(ImmutableMap.of("a", "b"));
     AwsProperties deSerializedAwsPropertiesWithProps =
@@ -284,6 +290,12 @@ public class TestAwsProperties {
     Assert.assertEquals(
         awsPropertiesWithProps.s3BucketToAccessPointMapping(),
         deSerializedAwsPropertiesWithProps.s3BucketToAccessPointMapping());
+    Assert.assertEquals(
+        awsProperties.urlConnectionHttpClientProperties(),
+        deSerializedAwsProperties.urlConnectionHttpClientProperties());
+    Assert.assertEquals(
+        awsProperties.apacheHttpClientProperties(),
+        deSerializedAwsProperties.apacheHttpClientProperties());
 
     AwsProperties awsPropertiesWithEmptyProps = new AwsProperties(Collections.emptyMap());
     AwsProperties deSerializedAwsPropertiesWithEmptyProps =
@@ -291,6 +303,12 @@ public class TestAwsProperties {
     Assert.assertEquals(
         awsPropertiesWithEmptyProps.s3BucketToAccessPointMapping(),
         deSerializedAwsPropertiesWithEmptyProps.s3BucketToAccessPointMapping());
+    Assert.assertEquals(
+        awsProperties.urlConnectionHttpClientProperties(),
+        deSerializedAwsProperties.urlConnectionHttpClientProperties());
+    Assert.assertEquals(
+        awsProperties.apacheHttpClientProperties(),
+        deSerializedAwsProperties.apacheHttpClientProperties());
   }
 
   @Test

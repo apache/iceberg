@@ -19,31 +19,43 @@
 package org.apache.iceberg.aws;
 
 import java.time.Duration;
+import java.util.Map;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
+import org.apache.iceberg.util.PropertyUtil;
 import software.amazon.awssdk.awscore.client.builder.AwsSyncClientBuilder;
 import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
 
 class UrlConnectionHttpClientConfigurations implements HttpClientConfigurations {
 
-  private final UrlConnectionHttpClient.Builder builder = UrlConnectionHttpClient.builder();
+  private Long httpClientUrlConnectionConnectionTimeoutMs;
+  private Long httpClientUrlConnectionSocketTimeoutMs;
 
   @Override
-  public <T extends AwsSyncClientBuilder> void applyConfigurations(T clientBuilder) {
-    clientBuilder.httpClientBuilder(builder);
+  public void initialize(Map<String, String> httpClientProperties) {
+    this.httpClientUrlConnectionConnectionTimeoutMs =
+        PropertyUtil.propertyAsNullableLong(httpClientProperties, CONNECTION_TIMEOUT_MS);
+    this.httpClientUrlConnectionSocketTimeoutMs =
+        PropertyUtil.propertyAsNullableLong(httpClientProperties, SOCKET_TIMEOUT_MS);
   }
 
   @Override
-  public UrlConnectionHttpClientConfigurations withConnectionTimeoutMs(Long connectionTimeoutMs) {
-    if (connectionTimeoutMs != null) {
-      builder.connectionTimeout(Duration.ofMillis(connectionTimeoutMs));
-    }
-    return this;
+  public <T extends AwsSyncClientBuilder> void configureHttpClientBuilder(T awsClientBuilder) {
+    UrlConnectionHttpClient.Builder urlConnectionHttpClientBuilder =
+        UrlConnectionHttpClient.builder();
+    configureUrlConnectionHttpClientBuilder(urlConnectionHttpClientBuilder);
+    awsClientBuilder.httpClientBuilder(urlConnectionHttpClientBuilder);
   }
 
-  @Override
-  public UrlConnectionHttpClientConfigurations withSocketTimeoutMs(Long socketTimeoutMs) {
-    if (socketTimeoutMs != null) {
-      builder.socketTimeout(Duration.ofMillis(socketTimeoutMs));
+  @VisibleForTesting
+  void configureUrlConnectionHttpClientBuilder(
+      UrlConnectionHttpClient.Builder urlConnectionHttpClientBuilder) {
+    if (httpClientUrlConnectionConnectionTimeoutMs != null) {
+      urlConnectionHttpClientBuilder.connectionTimeout(
+          Duration.ofMillis(httpClientUrlConnectionConnectionTimeoutMs));
     }
-    return this;
+    if (httpClientUrlConnectionSocketTimeoutMs != null) {
+      urlConnectionHttpClientBuilder.socketTimeout(
+          Duration.ofMillis(httpClientUrlConnectionSocketTimeoutMs));
+    }
   }
 }
