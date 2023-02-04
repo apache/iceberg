@@ -170,10 +170,11 @@ public class ResolvingFileIO implements FileIO, HadoopConfigurable {
   }
 
   public Class<?> ioClass(String location) {
+    String fileIOClassName = implFromLocation(location);
     try {
-      return Class.forName(implFromLocation(location));
+      return Class.forName(fileIOClassName);
     } catch (ClassNotFoundException e) {
-      throw new ValidationException(e.getMessage());
+      throw new ValidationException("Class %s not found : %s", fileIOClassName, e.getMessage());
     }
   }
 

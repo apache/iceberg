@@ -62,13 +62,8 @@ public class SparkReadConf {
   }
 
   public boolean localityEnabled() {
-    if (Util.usesHadoopFileIO(table.io(), table.location())) {
-      boolean defaultValue = Util.mayHaveBlockLocations(table.io(), table.location());
-      return PropertyUtil.propertyAsBoolean(readOptions, SparkReadOptions.LOCALITY, defaultValue);
-
-    } else {
-      return false;
-    }
+    boolean defaultValue = Util.mayHaveBlockLocations(table.io(), table.location());
+    return PropertyUtil.propertyAsBoolean(readOptions, SparkReadOptions.LOCALITY, defaultValue);
   }
 
   public Long snapshotId() {

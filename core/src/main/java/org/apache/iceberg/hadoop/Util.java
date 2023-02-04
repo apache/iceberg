@@ -103,19 +103,6 @@ public class Util {
     return false;
   }
 
-  public static boolean usesHadoopFileIO(FileIO io, String location) {
-    if (io instanceof HadoopFileIO) {
-      return true;
-
-    } else if (io instanceof ResolvingFileIO) {
-      ResolvingFileIO resolvingFileIO = (ResolvingFileIO) io;
-      return HadoopFileIO.class.isAssignableFrom(resolvingFileIO.ioClass(location));
-
-    } else {
-      return false;
-    }
-  }
-
   private static String[] blockLocations(FileIO io, ContentScanTask<?> task) {
     String location = task.file().path().toString();
     if (usesHadoopFileIO(io, location)) {
@@ -128,6 +115,19 @@ public class Util {
       }
     } else {
       return HadoopInputFile.NO_LOCATION_PREFERENCE;
+    }
+  }
+
+  private static boolean usesHadoopFileIO(FileIO io, String location) {
+    if (io instanceof HadoopFileIO) {
+      return true;
+
+    } else if (io instanceof ResolvingFileIO) {
+      ResolvingFileIO resolvingFileIO = (ResolvingFileIO) io;
+      return HadoopFileIO.class.isAssignableFrom(resolvingFileIO.ioClass(location));
+
+    } else {
+      return false;
     }
   }
 
