@@ -106,8 +106,11 @@ def test_create_table_with_strips(
     table = test_catalog.create_table(identifier, table_schema_nested)
     assert table.identifier == identifier
     assert table_metadata_location_regex.match(table.metadata_location)
-    database_name = f"{database_name}_second"
-    table_name = f"{table_name}_second"
+
+
+def test_create_table_with_strips_bucket_root(
+    _bucket_initialize: None, _patch_aiobotocore: None, table_schema_nested: Schema, database_name: str, table_name: str
+) -> None:
     identifier = (database_name, table_name)
     test_catalog_strip = GlueCatalog("glue", warehouse=f"s3://{BUCKET_NAME}/")
     test_catalog_strip.create_namespace(namespace=database_name)
