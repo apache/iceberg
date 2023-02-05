@@ -28,6 +28,10 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 
+/**
+ * A class for evaluating aggregates. It evaluates each of the aggregates and updates the aggregated
+ * value. The final aggregated result can be returned by {@link #resultStruct()}.
+ */
 public class AggregateEvaluator {
 
   public static AggregateEvaluator create(List<BoundAggregate<?, ?>> aggregates) {

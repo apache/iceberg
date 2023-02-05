@@ -19,12 +19,8 @@
 package org.apache.iceberg.spark.source;
 
 import java.io.IOException;
-import java.math.BigDecimal;
-import java.nio.ByteBuffer;
-import java.nio.CharBuffer;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.iceberg.BaseTable;
@@ -38,6 +34,7 @@ import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.MetricsModes;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TableScan;
@@ -72,13 +69,11 @@ import org.apache.spark.sql.connector.read.SupportsPushDownFilters;
 import org.apache.spark.sql.connector.read.SupportsPushDownRequiredColumns;
 import org.apache.spark.sql.connector.read.SupportsReportStatistics;
 import org.apache.spark.sql.sources.Filter;
-import org.apache.spark.sql.types.Decimal;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import scala.collection.JavaConverters;
 
 public class SparkScanBuilder
     implements ScanBuilder,
@@ -208,12 +203,21 @@ public class SparkScanBuilder
     TableScanContext context = new TableScanContext().reportWith(((BaseTable) table).getReporter());
     context.setColStats(true);
     TableScan scan = new DataTableScan(table, table.schema(), context);
-    scan = scan.useSnapshot(readSnapshot().snapshotId());
+    Snapshot snapshot = readSnapshot();
+    if (snapshot == null) {
+      LOG.info("Skipped aggregate pushdown: table snapshot is null");
+      return false;
+    }
+    scan = scan.useSnapshot(snapshot.snapshotId());
     scan = configureSplitPlanning(scan);
 
     try (CloseableIterable<FileScanTask> fileScanTasks = scan.planFiles()) {
       List<FileScanTask> tasks = ImmutableList.copyOf(fileScanTasks);
       for (FileScanTask task : tasks) {
+        if (!task.deletes().isEmpty()) {
+          LOG.info("Skipped aggregate pushdown: detected row level deletes.");
+          return false;
+        }
         aggregateEvaluator.update(task.file());
       }
     } catch (IOException e) {
@@ -221,20 +225,12 @@ public class SparkScanBuilder
       return false;
     }
 
-    Object[] results = aggregateEvaluator.result();
-    for (Object result : results) {
-      if (result == null) {
-        return false;
-      }
-    }
-    applyDataTypeConversionIfNecessary(results);
-
-    List<Object> valuesInSparkInternalRow = java.util.Arrays.asList(results);
-    this.pushedAggregateRows = new InternalRow[1];
-    pushedAggregateRows[0] =
-        InternalRow.fromSeq(JavaConverters.asScalaBuffer(valuesInSparkInternalRow).toSeq());
     pushedAggregateSchema =
         SparkSchemaUtil.convert(new Schema(aggregateEvaluator.resultType().fields()));
+    this.pushedAggregateRows = new InternalRow[1];
+    StructLike structLike = aggregateEvaluator.resultStruct();
+    this.pushedAggregateRows[0] =
+        new StructInternalRow(aggregateEvaluator.resultType()).setStruct(structLike);
     return true;
   }
 
@@ -245,20 +241,6 @@ public class SparkScanBuilder
 
     if (!readConf.aggregatePushDownEnabled()) {
       return false;
-    }
-
-    Snapshot snapshot = readSnapshot();
-    if (snapshot == null) {
-      return false;
-    } else {
-      Map<String, String> map = snapshot.summary();
-      // if there are row-level deletes in current snapshot, the statistics
-      // maybe changed, so disable push down aggregate.
-      if (Integer.parseInt(map.getOrDefault("total-position-deletes", "0")) > 0
-          || Integer.parseInt(map.getOrDefault("total-equality-deletes", "0")) > 0) {
-        LOG.info("Skipped aggregate pushdown: detected row level deletes.");
-        return false;
-      }
     }
 
     // If group by expression is the same as the partition, the statistics information can still
@@ -281,20 +263,6 @@ public class SparkScanBuilder
     }
 
     return snapshot;
-  }
-
-  private void applyDataTypeConversionIfNecessary(Object[] result) {
-    for (int i = 0; i < result.length; i++) {
-      if (result[i] instanceof java.math.BigDecimal) {
-        result[i] = Decimal.apply(new scala.math.BigDecimal((BigDecimal) result[i]));
-      } else if (result[i] instanceof ByteBuffer) {
-        byte[] arr = new byte[((ByteBuffer) result[i]).remaining()];
-        ((ByteBuffer) result[i]).get(arr);
-        result[i] = arr;
-      } else if (result[i] instanceof CharBuffer) {
-        result[i] = org.apache.spark.unsafe.types.UTF8String.fromString(result[i].toString());
-      }
-    }
   }
 
   private boolean metricsModeSupportsAggregatePushDown(List<BoundAggregate<?, ?>> aggregates) {
