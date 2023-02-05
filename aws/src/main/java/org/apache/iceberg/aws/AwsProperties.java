@@ -48,7 +48,6 @@ import software.amazon.awssdk.awscore.client.builder.AwsSyncClientBuilder;
 import software.amazon.awssdk.core.client.builder.SdkClientBuilder;
 import software.amazon.awssdk.core.client.config.SdkAdvancedClientOption;
 import software.amazon.awssdk.core.signer.Signer;
-import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClientBuilder;
 import software.amazon.awssdk.services.glue.GlueClientBuilder;
 import software.amazon.awssdk.services.s3.S3ClientBuilder;
@@ -386,8 +385,8 @@ public class AwsProperties implements Serializable {
 
   /**
    * Used to configure the connection timeout in milliseconds for {@link
-   * UrlConnectionHttpClient.Builder}. This flag only works when {@link #HTTP_CLIENT_TYPE} is set to
-   * {@link #HTTP_CLIENT_TYPE_URLCONNECTION}
+   * software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient.Builder}. This flag only
+   * works when {@link #HTTP_CLIENT_TYPE} is set to {@link #HTTP_CLIENT_TYPE_URLCONNECTION}
    *
    * <p>For more details, see
    * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/urlconnection/UrlConnectionHttpClient.Builder.html
@@ -397,8 +396,8 @@ public class AwsProperties implements Serializable {
 
   /**
    * Used to configure the socket timeout in milliseconds for {@link
-   * UrlConnectionHttpClient.Builder}. This flag only works when {@link #HTTP_CLIENT_TYPE} is set to
-   * {@link #HTTP_CLIENT_TYPE_URLCONNECTION}
+   * software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient.Builder}. This flag only
+   * works when {@link #HTTP_CLIENT_TYPE} is set to {@link #HTTP_CLIENT_TYPE_URLCONNECTION}
    *
    * <p>For more details, see
    * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/urlconnection/UrlConnectionHttpClient.Builder.html
