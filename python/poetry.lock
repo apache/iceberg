@@ -1142,14 +1142,14 @@ files = [
 
 [[package]]
 name = "moto"
-version = "4.1.0"
+version = "4.1.2"
 description = ""
 category = "dev"
 optional = false
 python-versions = ">=3.7"
 files = [
-    {file = "moto-4.1.0-py2.py3-none-any.whl", hash = "sha256:12f231196ebf22d19774f2a75738fdedae10a8c82abb8fa0877e1819aa799f4f"},
-    {file = "moto-4.1.0.tar.gz", hash = "sha256:e65a692df57abb631b06c8f3f7827c9deceae3416887527e266c775ad722a2fa"},
+    {file = "moto-4.1.2-py2.py3-none-any.whl", hash = "sha256:1b361ece638c74a657325378a259276f368aafce2f8be84f8143e69fa93ce8ec"},
+    {file = "moto-4.1.2.tar.gz", hash = "sha256:63431733d2a02c7bd652ad71ec1da442a0e0d580cbac5eeb50d440a2ce066eac"},
 ]
 
 [package.dependencies]
@@ -1178,6 +1178,7 @@ dynamodbstreams = ["docker (>=2.5.1)"]
 ebs = ["sshpubkeys (>=3.1.0)"]
 ec2 = ["sshpubkeys (>=3.1.0)"]
 efs = ["sshpubkeys (>=3.1.0)"]
+eks = ["sshpubkeys (>=3.1.0)"]
 glue = ["pyparsing (>=3.0.7)"]
 iotdata = ["jsondiff (>=1.1.2)"]
 route53resolver = ["sshpubkeys (>=3.1.0)"]
@@ -2469,4 +2470,4 @@ snappy = ["python-snappy"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.8"
-content-hash = "c41254b0c11e3d2094ae1b7ea9752ccb74a7b8c3bb5bc2165cc61befe693f9fd"
+content-hash = "9294e496c5be2025b0ea54dbd1e068730349b47337d459553c0080f41b3a3abd"

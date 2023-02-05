@@ -85,7 +85,7 @@ pre-commit = "3.0.4"
 fastavro = "1.7.1"
 coverage = { version = "^7.1.0", extras = ["toml"] }
 requests-mock = "1.10.0"
-moto = "^4.1.0"
+moto = "^4.1.2"
 typing-extensions = '4.4.0'
 
 [tool.poetry.scripts]
