@@ -81,7 +81,7 @@ adlfs = { version = "2023.1.0", optional = true }
 [tool.poetry.dev-dependencies]
 pytest = "7.2.1"
 pytest-checkdocs = "2.9.0"
-pre-commit = "3.0.1"
+pre-commit = "3.0.4"
 fastavro = "1.7.1"
 coverage = { version = "^7.1.0", extras = ["toml"] }
 requests-mock = "1.10.0"
