@@ -32,7 +32,7 @@ class ApacheHttpClientConfigurations extends HttpClientConfigurations {
   private Long connectionMaxIdleTimeMs;
   private Long connectionTimeToLiveMs;
   private Boolean expectContinueEnabled;
-  private Long maxConnections;
+  private Integer maxConnections;
   private Boolean tcpKeepAliveEnabled;
   private Boolean useIdleConnectionReaperEnabled;
 
@@ -58,7 +58,7 @@ class ApacheHttpClientConfigurations extends HttpClientConfigurations {
         PropertyUtil.propertyAsNullableBoolean(
             httpClientProperties, AwsProperties.HTTP_CLIENT_APACHE_EXPECT_CONTINUE_ENABLED);
     this.maxConnections =
-        PropertyUtil.propertyAsNullableLong(
+        PropertyUtil.propertyAsNullableInt(
             httpClientProperties, AwsProperties.HTTP_CLIENT_APACHE_MAX_CONNECTIONS);
     this.tcpKeepAliveEnabled =
         PropertyUtil.propertyAsNullableBoolean(
@@ -97,7 +97,7 @@ class ApacheHttpClientConfigurations extends HttpClientConfigurations {
       apacheHttpClientBuilder.expectContinueEnabled(expectContinueEnabled);
     }
     if (maxConnections != null) {
-      apacheHttpClientBuilder.maxConnections(maxConnections.intValue());
+      apacheHttpClientBuilder.maxConnections(maxConnections);
     }
     if (tcpKeepAliveEnabled != null) {
       apacheHttpClientBuilder.tcpKeepAlive(tcpKeepAliveEnabled);

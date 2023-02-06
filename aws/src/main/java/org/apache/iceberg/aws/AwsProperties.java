@@ -1292,15 +1292,12 @@ public class AwsProperties implements Serializable {
       return httpClientConfigurations;
     } catch (NoSuchMethodException e) {
       throw new IllegalArgumentException(
-          String.format(
-              "Cannot initialize HttpClientConfigurations Implementation %s: %s",
-              impl, e.getMessage()),
-          e);
+          String.format("Cannot initialize HttpClientConfigurations Implementation %s", impl), e);
     } catch (ClassCastException e) {
       throw new IllegalArgumentException(
           String.format(
-              "Cannot initialize HttpClientConfigurations, %s does not implement HttpClientConfigurations: %s",
-              impl, e.getMessage()),
+              "Cannot initialize HttpClientConfigurations, %s does not implement HttpClientConfigurations",
+              impl),
           e);
     }
   }
