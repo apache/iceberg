@@ -50,8 +50,8 @@ public class HiveClientPool extends ClientPoolImpl<IMetaStoreClient, TException>
   private final HiveConf hiveConf;
 
   public HiveClientPool(int poolSize, Configuration conf) {
-    // Do not allow retry by default as we rely on RetryingHiveClient
-    super(poolSize, TTransportException.class, false);
+    // Allow retry for a case of failure in RetryingHiveClient if impersonation is enabled.
+    super(poolSize, TTransportException.class, true);
     this.hiveConf = new HiveConf(conf, HiveClientPool.class);
     this.hiveConf.addResource(conf);
   }
