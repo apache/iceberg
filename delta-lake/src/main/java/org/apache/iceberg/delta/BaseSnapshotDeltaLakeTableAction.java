@@ -51,8 +51,8 @@ import org.apache.iceberg.Transaction;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.ValidationException;
-import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.io.ResolvingFileIO;
 import org.apache.iceberg.mapping.MappingUtil;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.mapping.NameMappingParser;
@@ -86,7 +86,7 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
   private final String deltaTableLocation;
   private TableIdentifier newTableIdentifier;
   private String newTableLocation;
-  private HadoopFileIO deltaLakeFileIO;
+  private ResolvingFileIO deltaLakeFileIO;
   private long deltaStartVersion;
 
   /**
@@ -136,7 +136,9 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
   @Override
   public SnapshotDeltaLakeTable deltaLakeConfiguration(Configuration conf) {
     this.deltaLog = DeltaLog.forTable(conf, deltaTableLocation);
-    this.deltaLakeFileIO = new HadoopFileIO(conf);
+    this.deltaLakeFileIO = new ResolvingFileIO();
+    this.deltaLakeFileIO.initialize(ImmutableMap.of());
+    this.deltaLakeFileIO.setConf(conf);
     // get the earliest version available in the delta lake table
     this.deltaStartVersion = deltaLog.getVersionAtOrAfterTimestamp(0L);
     return this;
