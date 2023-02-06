@@ -1289,7 +1289,7 @@ public class AwsProperties implements Serializable {
           DynConstructors.builder(HttpClientConfigurations.class).hiddenImpl(impl).buildChecked();
       HttpClientConfigurations httpClientConfigurations = ctor.newInstance();
       httpClientConfigurations.initialize(httpClientProperties);
-      return ctor.newInstance();
+      return httpClientConfigurations;
     } catch (NoSuchMethodException e) {
       throw new IllegalArgumentException(
           String.format(
