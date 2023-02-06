@@ -392,7 +392,7 @@ public class AwsProperties implements Serializable {
    * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/urlconnection/UrlConnectionHttpClient.Builder.html
    */
   public static final String HTTP_CLIENT_URLCONNECTION_CONNECTION_TIMEOUT_MS =
-      HTTP_CLIENT_URLCONNECTION_PREFIX + HttpClientConfigurations.CONNECTION_TIMEOUT_MS;
+      "http-client.urlconnection.connection-timeout-ms";
 
   /**
    * Used to configure the socket timeout in milliseconds for {@link
@@ -403,7 +403,7 @@ public class AwsProperties implements Serializable {
    * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/urlconnection/UrlConnectionHttpClient.Builder.html
    */
   public static final String HTTP_CLIENT_URLCONNECTION_SOCKET_TIMEOUT_MS =
-      HTTP_CLIENT_URLCONNECTION_PREFIX + HttpClientConfigurations.SOCKET_TIMEOUT_MS;
+      "http-client.urlconnection.socket-timeout-ms";
 
   /**
    * Used to configure the connection timeout in milliseconds for {@link
@@ -414,7 +414,7 @@ public class AwsProperties implements Serializable {
    * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html
    */
   public static final String HTTP_CLIENT_APACHE_CONNECTION_TIMEOUT_MS =
-      HTTP_CLIENT_APACHE_PREFIX + HttpClientConfigurations.CONNECTION_TIMEOUT_MS;
+      "http-client.apache.connection-timeout-ms";
 
   /**
    * Used to configure the socket timeout in milliseconds for {@link
@@ -425,7 +425,7 @@ public class AwsProperties implements Serializable {
    * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html
    */
   public static final String HTTP_CLIENT_APACHE_SOCKET_TIMEOUT_MS =
-      HTTP_CLIENT_APACHE_PREFIX + HttpClientConfigurations.SOCKET_TIMEOUT_MS;
+      "http-client.apache.socket-timeout-ms";
 
   /**
    * Used to configure the connection acquisition timeout in milliseconds for {@link
@@ -436,7 +436,7 @@ public class AwsProperties implements Serializable {
    * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html
    */
   public static final String HTTP_CLIENT_APACHE_CONNECTION_ACQUISITION_TIMEOUT_MS =
-      HTTP_CLIENT_APACHE_PREFIX + HttpClientConfigurations.CONNECTION_ACQUISITION_TIMEOUT_MS;
+      "http-client.apache.connection-acquisition-timeout-ms";
 
   /**
    * Used to configure the connection max idle time in milliseconds for {@link
@@ -447,7 +447,7 @@ public class AwsProperties implements Serializable {
    * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html
    */
   public static final String HTTP_CLIENT_APACHE_CONNECTION_MAX_IDLE_TIME_MS =
-      HTTP_CLIENT_APACHE_PREFIX + HttpClientConfigurations.CONNECTION_MAX_IDLE_TIME_MS;
+      "http-client.apache.connection-max-idle-time-ms";
 
   /**
    * Used to configure the connection time to live in milliseconds for {@link
@@ -458,7 +458,7 @@ public class AwsProperties implements Serializable {
    * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html
    */
   public static final String HTTP_CLIENT_APACHE_CONNECTION_TIME_TO_LIVE_MS =
-      HTTP_CLIENT_APACHE_PREFIX + HttpClientConfigurations.CONNECTION_TIME_TO_LIVE_MS;
+      "http-client.apache.connection-time-to-live-ms";
 
   /**
    * Used to configure whether to enable the expect continue setting for {@link
@@ -471,7 +471,7 @@ public class AwsProperties implements Serializable {
    * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html
    */
   public static final String HTTP_CLIENT_APACHE_EXPECT_CONTINUE_ENABLED =
-      HTTP_CLIENT_APACHE_PREFIX + HttpClientConfigurations.EXPECT_CONTINUE_ENABLED;
+      "http-client.apache.expect-continue-enabled";
 
   /**
    * Used to configure the max connections number for {@link
@@ -482,7 +482,7 @@ public class AwsProperties implements Serializable {
    * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html
    */
   public static final String HTTP_CLIENT_APACHE_MAX_CONNECTIONS =
-      HTTP_CLIENT_APACHE_PREFIX + HttpClientConfigurations.MAX_CONNECTIONS;
+      "http-client.apache.max-connections";
 
   /**
    * Used to configure whether to enable the tcp keep alive setting for {@link
@@ -495,7 +495,7 @@ public class AwsProperties implements Serializable {
    * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html
    */
   public static final String HTTP_CLIENT_APACHE_TCP_KEEP_ALIVE_ENABLED =
-      HTTP_CLIENT_APACHE_PREFIX + HttpClientConfigurations.TCP_KEEP_ALIVE_ENABLED;
+      "http-client.apache.tcp-keep-alive-enabled";
 
   /**
    * Used to configure whether to use idle connection reaper for {@link
@@ -508,8 +508,7 @@ public class AwsProperties implements Serializable {
    * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html
    */
   public static final String HTTP_CLIENT_APACHE_USE_IDLE_CONNECTION_REAPER_ENABLED =
-      HTTP_CLIENT_APACHE_PREFIX + HttpClientConfigurations.USE_IDLE_CONNECTION_REAPER_ENABLED;
-
+      "http-client.apache.use-idle-connection-reaper-enabled";
   /**
    * Used by {@link S3FileIO} to tag objects when writing. To set, we can pass a catalog property.
    *
