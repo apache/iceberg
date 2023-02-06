@@ -29,6 +29,7 @@ org.scala-lang.modules:scala-collection-compat_2.13 = 2.6.0
 com.emc.ecs:object-client-bundle = 3.3.2
 org.immutables:value = 2.9.2
 net.snowflake:snowflake-jdbc = 3.13.22
+org.apache.hudi:* = 0.12.0
 
 # test deps
 org.junit.vintage:junit-vintage-engine = 5.8.2
