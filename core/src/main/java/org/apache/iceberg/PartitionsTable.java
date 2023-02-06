@@ -35,12 +35,12 @@ public class PartitionsTable extends BaseMetadataTable {
   static final boolean PLAN_SCANS_WITH_WORKER_POOL =
       SystemProperties.getBoolean(SystemProperties.SCAN_THREAD_POOL_ENABLED, true);
 
-  PartitionsTable(TableOperations ops, Table table) {
-    this(ops, table, table.name() + ".partitions");
+  PartitionsTable(Table table) {
+    this(table, table.name() + ".partitions");
   }
 
-  PartitionsTable(TableOperations ops, Table table, String name) {
-    super(ops, table, name);
+  PartitionsTable(Table table, String name) {
+    super(table, name);
 
     this.schema =
         new Schema(
@@ -52,7 +52,7 @@ public class PartitionsTable extends BaseMetadataTable {
 
   @Override
   public TableScan newScan() {
-    return new PartitionsScan(operations(), table());
+    return new PartitionsScan(table());
   }
 
   @Override
@@ -69,19 +69,18 @@ public class PartitionsTable extends BaseMetadataTable {
   }
 
   private DataTask task(StaticTableScan scan) {
-    TableOperations ops = operations();
     Iterable<Partition> partitions = partitions(table(), scan);
     if (table().spec().fields().size() < 1) {
       // the table is unpartitioned, partitions contains only the root partition
       return StaticDataTask.of(
-          io().newInputFile(ops.current().metadataFileLocation()),
+          io().newInputFile(table().operations().current().metadataFileLocation()),
           schema(),
           scan.schema(),
           partitions,
           root -> StaticDataTask.Row.of(root.recordCount, root.fileCount));
     } else {
       return StaticDataTask.of(
-          io().newInputFile(ops.current().metadataFileLocation()),
+          io().newInputFile(table().operations().current().metadataFileLocation()),
           schema(),
           scan.schema(),
           partitions,
@@ -193,9 +192,8 @@ public class PartitionsTable extends BaseMetadataTable {
   }
 
   private class PartitionsScan extends StaticTableScan {
-    PartitionsScan(TableOperations ops, Table table) {
+    PartitionsScan(Table table) {
       super(
-          ops,
           table,
           PartitionsTable.this.schema(),
           MetadataTableType.PARTITIONS,

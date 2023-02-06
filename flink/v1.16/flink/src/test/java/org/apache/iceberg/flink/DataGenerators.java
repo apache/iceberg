@@ -259,7 +259,7 @@ public class DataGenerators {
       // Flink for decimal type
       genericRecord.put("decimal_field", ByteBuffer.wrap(bigDecimal.unscaledValue().toByteArray()));
 
-      genericRecord.put("fixed_field", FIXED_BYTES);
+      genericRecord.put("fixed_field", ByteBuffer.wrap(FIXED_BYTES));
 
       return genericRecord;
     }

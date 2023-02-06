@@ -95,7 +95,15 @@ The above list is in order of priority. For example: a matching catalog will tak
 
 #### SQL
 
-Spark 3.3 and later supports time travel in SQL queries using `TIMESTAMP AS OF` or `VERSION AS OF` clauses
+Spark 3.3 and later supports time travel in SQL queries using `TIMESTAMP AS OF` or `VERSION AS OF` clauses.
+The `VERSION AS OF` clause can contain a long snapshot ID or a string branch or tag name.
+
+{{< hint info >}}
+Note: If the name of a branch or tag is the same as a snapshot ID, then the snapshot which is selected for time travel is the snapshot
+with the given snapshot ID. For example, consider the case where there is a tag named '1' and it references snapshot with ID 2. 
+If the version travel clause is `VERSION AS OF '1'`, time travel will be done to the snapshot with ID 1. 
+If this is not desired, rename the tag or branch with a well-defined prefix such as 'snapshot-1'.
+{{< /hint >}}
 
 ```sql 
 -- time travel to October 26, 1986 at 01:21:00
@@ -103,6 +111,12 @@ SELECT * FROM prod.db.table TIMESTAMP AS OF '1986-10-26 01:21:00';
 
 -- time travel to snapshot with id 10963874102873L
 SELECT * FROM prod.db.table VERSION AS OF 10963874102873;
+
+-- time travel to the head snapshot of audit-branch
+SELECT * FROM prod.db.table VERSION AS OF 'audit-branch';
+
+-- time travel to the snapshot referenced by the tag historical-snapshot
+SELECT * FROM prod.db.table VERSION AS OF 'historical-snapshot';
 ```
 
 In addition, `FOR SYSTEM_TIME AS OF` and `FOR SYSTEM_VERSION AS OF` clauses are also supported:
@@ -110,6 +124,8 @@ In addition, `FOR SYSTEM_TIME AS OF` and `FOR SYSTEM_VERSION AS OF` clauses are 
 ```sql
 SELECT * FROM prod.db.table FOR SYSTEM_TIME AS OF '1986-10-26 01:21:00';
 SELECT * FROM prod.db.table FOR SYSTEM_VERSION AS OF 10963874102873;
+SELECT * FROM prod.db.table FOR SYSTEM_VERSION AS OF 'audit-branch';
+SELECT * FROM prod.db.table FOR SYSTEM_VERSION AS OF 'historical-snapshot';
 ```
 
 Timestamps may also be supplied as a Unix timestamp, in seconds:
@@ -122,12 +138,12 @@ SELECT * FROM prod.db.table FOR SYSTEM_TIME AS OF 499162860;
 
 #### DataFrame
 
-To select a specific table snapshot or the snapshot at some time in the DataFrame API, Iceberg supports two Spark read options:
+To select a specific table snapshot or the snapshot at some time in the DataFrame API, Iceberg supports four Spark read options:
 
 * `snapshot-id` selects a specific table snapshot
 * `as-of-timestamp` selects the current snapshot at a timestamp, in milliseconds
 * `branch` selects the head snapshot of the specified branch. Note that currently branch cannot be combined with as-of-timestamp.
-* `tag` selects the snapshot associated with the specified tag
+* `tag` selects the snapshot associated with the specified tag. Tags cannot be combined with `as-of-timestamp`.
 
 ```scala
 // time travel to October 26, 1986 at 01:21:00

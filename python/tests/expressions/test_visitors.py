@@ -64,6 +64,7 @@ from pyiceberg.expressions.visitors import (
     BooleanExpressionVisitor,
     BoundBooleanExpressionVisitor,
     _ManifestEvalVisitor,
+    expression_to_plain_format,
     rewrite_not,
     rewrite_to_dnf,
     visit,
@@ -1451,3 +1452,23 @@ def test_to_dnf_and() -> None:
 def test_to_dnf_not_and() -> None:
     expr = Not(And(Not(EqualTo("Q", "b")), EqualTo("R", "c")))
     assert rewrite_to_dnf(expr) == (EqualTo("Q", "b"), NotEqualTo("R", "c"))
+
+
+def test_dnf_to_dask(table_schema_simple: Schema) -> None:
+    expr = (
+        BoundGreaterThan[str](
+            term=BoundReference(table_schema_simple.find_field(1), table_schema_simple.accessor_for_field(1)),
+            literal=literal("hello"),
+        ),
+        And(
+            BoundIn[int](
+                term=BoundReference(table_schema_simple.find_field(2), table_schema_simple.accessor_for_field(2)),
+                literals={literal(1), literal(2), literal(3)},
+            ),
+            BoundEqualTo[bool](
+                term=BoundReference(table_schema_simple.find_field(3), table_schema_simple.accessor_for_field(3)),
+                literal=literal(True),
+            ),
+        ),
+    )
+    assert expression_to_plain_format(expr) == [[("foo", ">", "hello")], [("bar", "in", {1, 2, 3}), ("baz", "==", True)]]

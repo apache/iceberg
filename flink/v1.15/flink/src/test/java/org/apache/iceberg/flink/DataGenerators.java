@@ -31,6 +31,7 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import org.apache.avro.LogicalTypes;
@@ -175,7 +176,8 @@ public class DataGenerators {
       for (int i = 0; i < 16; ++i) {
         uuidBytes[i] = (byte) i;
       }
-      genericRecord.setField("uuid_field", uuidBytes);
+
+      genericRecord.setField("uuid_field", UUID.nameUUIDFromBytes(uuidBytes));
 
       byte[] binaryBytes = new byte[7];
       for (int i = 0; i < 7; ++i) {
@@ -257,7 +259,7 @@ public class DataGenerators {
       // Flink for decimal type
       genericRecord.put("decimal_field", ByteBuffer.wrap(bigDecimal.unscaledValue().toByteArray()));
 
-      genericRecord.put("fixed_field", FIXED_BYTES);
+      genericRecord.put("fixed_field", ByteBuffer.wrap(FIXED_BYTES));
 
       return genericRecord;
     }

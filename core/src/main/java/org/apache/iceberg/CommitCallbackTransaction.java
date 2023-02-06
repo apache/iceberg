@@ -112,6 +112,11 @@ class CommitCallbackTransaction implements Transaction {
   }
 
   @Override
+  public ManageSnapshots manageSnapshots() {
+    return wrapped.manageSnapshots();
+  }
+
+  @Override
   public void commitTransaction() {
     wrapped.commitTransaction();
     callback.run();

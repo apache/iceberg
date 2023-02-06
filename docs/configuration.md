@@ -74,6 +74,8 @@ Iceberg tables support table properties to configure table behavior, like the de
 | write.delete.target-file-size-bytes| 67108864 (64 MB)   | Controls the size of delete files generated to target about this many bytes |
 | write.distribution-mode            | none               | Defines distribution of write data: __none__: don't shuffle rows; __hash__: hash distribute by partition key ; __range__: range distribute by partition key or sort key if table has an SortOrder |
 | write.delete.distribution-mode     | hash               | Defines distribution of write delete data          |
+| write.update.distribution-mode     | hash               | Defines distribution of write update data          |
+| write.merge.distribution-mode      | none               | Defines distribution of write merge data           |
 | write.wap.enabled                  | false              | Enables write-audit-publish writes |
 | write.summary.partition-limit      | 0                  | Includes partition-level summary stats in snapshot summaries if the changed partition count is less than this limit |
 | write.metadata.delete-after-commit.enabled | false      | Controls whether to delete the oldest **tracked** version metadata files after commit |

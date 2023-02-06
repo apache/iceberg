@@ -186,7 +186,13 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
     Broadcast<Table> tableBroadcast =
         sparkContext.broadcast(SerializableTableWithSize.copyOf(table));
     return new WriterFactory(
-        tableBroadcast, format, targetFileSize, writeSchema, dsSchema, partitionedFanoutEnabled);
+        tableBroadcast,
+        queryId,
+        format,
+        targetFileSize,
+        writeSchema,
+        dsSchema,
+        partitionedFanoutEnabled);
   }
 
   private void commitOperation(SnapshotUpdate<?> operation, String description) {
@@ -620,9 +626,11 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
     private final Schema writeSchema;
     private final StructType dsSchema;
     private final boolean partitionedFanoutEnabled;
+    private final String queryId;
 
     protected WriterFactory(
         Broadcast<Table> tableBroadcast,
+        String queryId,
         FileFormat format,
         long targetFileSize,
         Schema writeSchema,
@@ -634,6 +642,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
       this.writeSchema = writeSchema;
       this.dsSchema = dsSchema;
       this.partitionedFanoutEnabled = partitionedFanoutEnabled;
+      this.queryId = queryId;
     }
 
     @Override
@@ -648,7 +657,10 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
       FileIO io = table.io();
 
       OutputFileFactory fileFactory =
-          OutputFileFactory.builderFor(table, partitionId, taskId).format(format).build();
+          OutputFileFactory.builderFor(table, partitionId, taskId)
+              .format(format)
+              .operationId(queryId)
+              .build();
       SparkFileWriterFactory writerFactory =
           SparkFileWriterFactory.builderFor(table)
               .dataFileFormat(format)

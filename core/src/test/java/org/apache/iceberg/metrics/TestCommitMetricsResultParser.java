@@ -193,7 +193,7 @@ public class TestCommitMetricsResultParser {
             + "    \"unit\" : \"bytes\",\n"
             + "    \"value\" : 16\n"
             + "  },\n"
-            + "  \"added-position-deletes\" : {\n"
+            + "  \"added-positional-deletes\" : {\n"
             + "    \"unit\" : \"count\",\n"
             + "    \"value\" : 17\n"
             + "  },\n"

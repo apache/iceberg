@@ -33,15 +33,16 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.RegisterExtension;
 import org.junit.jupiter.api.io.TempDir;
 import org.projectnessie.client.api.NessieApiV1;
-import org.projectnessie.client.http.HttpClientBuilder;
+import org.projectnessie.client.ext.NessieApiVersion;
+import org.projectnessie.client.ext.NessieApiVersions;
+import org.projectnessie.client.ext.NessieClientFactory;
+import org.projectnessie.client.ext.NessieClientUri;
 import org.projectnessie.error.NessieConflictException;
 import org.projectnessie.error.NessieNotFoundException;
 import org.projectnessie.jaxrs.ext.NessieJaxRsExtension;
-import org.projectnessie.jaxrs.ext.NessieUri;
 import org.projectnessie.model.Branch;
 import org.projectnessie.model.Reference;
 import org.projectnessie.model.Tag;
-import org.projectnessie.server.store.TableCommitMetaStoreWorker;
 import org.projectnessie.versioned.persist.adapter.DatabaseAdapter;
 import org.projectnessie.versioned.persist.inmem.InmemoryDatabaseAdapterFactory;
 import org.projectnessie.versioned.persist.inmem.InmemoryTestConnectionProviderSource;
@@ -53,13 +54,14 @@ import org.projectnessie.versioned.persist.tests.extension.NessieExternalDatabas
 @ExtendWith(DatabaseAdapterExtension.class)
 @NessieDbAdapterName(InmemoryDatabaseAdapterFactory.NAME)
 @NessieExternalDatabase(InmemoryTestConnectionProviderSource.class)
+@NessieApiVersions(versions = NessieApiVersion.V1)
 public class TestNessieCatalog extends CatalogTests<NessieCatalog> {
 
-  @NessieDbAdapter(storeWorker = TableCommitMetaStoreWorker.class)
-  static DatabaseAdapter databaseAdapter;
+  @NessieDbAdapter static DatabaseAdapter databaseAdapter;
 
   @RegisterExtension
-  static NessieJaxRsExtension server = new NessieJaxRsExtension(() -> databaseAdapter);
+  static NessieJaxRsExtension server =
+      NessieJaxRsExtension.jaxRsExtensionForDatabaseAdapter(() -> databaseAdapter);
 
   @TempDir public Path temp;
 
@@ -70,12 +72,11 @@ public class TestNessieCatalog extends CatalogTests<NessieCatalog> {
   private String uri;
 
   @BeforeEach
-  public void beforeEach(@NessieUri URI nessieUri) throws IOException {
-    this.uri = nessieUri.toString();
-    this.api = HttpClientBuilder.builder().withUri(this.uri).build(NessieApiV1.class);
-
+  public void setUp(NessieClientFactory clientFactory, @NessieClientUri URI nessieUri)
+      throws NessieNotFoundException {
+    api = clientFactory.make();
     initialHashOfDefaultBranch = api.getDefaultBranch().getHash();
-
+    uri = nessieUri.toASCIIString();
     hadoopConfig = new Configuration();
     catalog = initNessieCatalog("main");
   }

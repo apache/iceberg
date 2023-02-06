@@ -27,7 +27,7 @@ import static org.mockito.Mockito.when;
 
 import java.io.File;
 import java.net.UnknownHostException;
-import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.PartitionSpec;
@@ -41,7 +41,6 @@ import org.apache.iceberg.types.Types;
 import org.apache.thrift.TException;
 import org.junit.Assert;
 import org.junit.Test;
-import org.mockito.ArgumentCaptor;
 
 public class TestHiveCommits extends HiveTableBaseTest {
 
@@ -62,13 +61,22 @@ public class TestHiveCommits extends HiveTableBaseTest {
 
     HiveTableOperations spyOps = spy(ops);
 
-    ArgumentCaptor<Long> lockId = ArgumentCaptor.forClass(Long.class);
-    doThrow(new RuntimeException()).when(spyOps).doUnlock(lockId.capture());
+    AtomicReference<HiveLock> lockRef = new AtomicReference<>();
+
+    when(spyOps.lockObject())
+        .thenAnswer(
+            i -> {
+              HiveLock lock = (HiveLock) i.callRealMethod();
+              lockRef.set(lock);
+              return lock;
+            });
 
     try {
       spyOps.commit(metadataV2, metadataV1);
+      HiveLock spyLock = spy(lockRef.get());
+      doThrow(new RuntimeException()).when(spyLock).unlock();
     } finally {
-      ops.doUnlock(lockId.getValue());
+      lockRef.get().unlock();
     }
 
     ops.refresh();
@@ -268,16 +276,16 @@ public class TestHiveCommits extends HiveTableBaseTest {
 
     HiveTableOperations spyOps = spy(ops);
 
-    AtomicLong lockId = new AtomicLong();
+    AtomicReference<HiveLock> lock = new AtomicReference<>();
     doAnswer(
-            i -> {
-              lockId.set(ops.acquireLock("agentInfo"));
-              return lockId.get();
+            l -> {
+              lock.set(ops.lockObject());
+              return lock.get();
             })
         .when(spyOps)
-        .acquireLock(any());
+        .lockObject();
 
-    concurrentCommitAndThrowException(ops, spyOps, table, lockId);
+    concurrentCommitAndThrowException(ops, spyOps, table, lock);
 
     /*
     This commit and our concurrent commit should succeed even though this commit throws an exception
@@ -331,7 +339,7 @@ public class TestHiveCommits extends HiveTableBaseTest {
       HiveTableOperations realOperations,
       HiveTableOperations spyOperations,
       Table table,
-      AtomicLong lockId)
+      AtomicReference<HiveLock> lock)
       throws TException, InterruptedException {
     // Simulate a communication error after a successful commit
     doAnswer(
@@ -340,7 +348,7 @@ public class TestHiveCommits extends HiveTableBaseTest {
                   i.getArgument(0, org.apache.hadoop.hive.metastore.api.Table.class);
               realOperations.persistTable(tbl, true);
               // Simulate lock expiration or removal
-              realOperations.doUnlock(lockId.get());
+              lock.get().unlock();
               table.refresh();
               table.updateSchema().addColumn("newCol", Types.IntegerType.get()).commit();
               throw new TException("Datacenter on fire");

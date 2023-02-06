@@ -23,17 +23,17 @@ import org.apache.iceberg.io.CloseableIterable;
 /** A {@link Table} implementation that exposes a table's data files as rows. */
 public class DataFilesTable extends BaseFilesTable {
 
-  DataFilesTable(TableOperations ops, Table table) {
-    this(ops, table, table.name() + ".data_files");
+  DataFilesTable(Table table) {
+    this(table, table.name() + ".data_files");
   }
 
-  DataFilesTable(TableOperations ops, Table table, String name) {
-    super(ops, table, name);
+  DataFilesTable(Table table, String name) {
+    super(table, name);
   }
 
   @Override
   public TableScan newScan() {
-    return new DataFilesTableScan(operations(), table(), schema());
+    return new DataFilesTableScan(table(), schema());
   }
 
   @Override
@@ -43,23 +43,22 @@ public class DataFilesTable extends BaseFilesTable {
 
   public static class DataFilesTableScan extends BaseFilesTableScan {
 
-    DataFilesTableScan(TableOperations ops, Table table, Schema schema) {
-      super(ops, table, schema, MetadataTableType.DATA_FILES);
+    DataFilesTableScan(Table table, Schema schema) {
+      super(table, schema, MetadataTableType.DATA_FILES);
     }
 
-    DataFilesTableScan(TableOperations ops, Table table, Schema schema, TableScanContext context) {
-      super(ops, table, schema, MetadataTableType.DATA_FILES, context);
+    DataFilesTableScan(Table table, Schema schema, TableScanContext context) {
+      super(table, schema, MetadataTableType.DATA_FILES, context);
     }
 
     @Override
-    protected TableScan newRefinedScan(
-        TableOperations ops, Table table, Schema schema, TableScanContext context) {
-      return new DataFilesTableScan(ops, table, schema, context);
+    protected TableScan newRefinedScan(Table table, Schema schema, TableScanContext context) {
+      return new DataFilesTableScan(table, schema, context);
     }
 
     @Override
     protected CloseableIterable<ManifestFile> manifests() {
-      return CloseableIterable.withNoopClose(snapshot().dataManifests(tableOps().io()));
+      return CloseableIterable.withNoopClose(snapshot().dataManifests(table().io()));
     }
   }
 }

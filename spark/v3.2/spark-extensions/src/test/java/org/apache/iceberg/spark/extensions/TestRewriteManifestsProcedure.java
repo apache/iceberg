@@ -79,6 +79,28 @@ public class TestRewriteManifestsProcedure extends SparkExtensionsTestBase {
   }
 
   @Test
+  public void testRewriteManifestsNoOp() {
+    sql(
+        "CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg PARTITIONED BY (data)",
+        tableName);
+    sql("INSERT INTO TABLE %s VALUES (1, 'a'), (2, 'b'), (3, 'c'), (4, 'd')", tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    Assert.assertEquals(
+        "Must have 1 manifest", 1, table.currentSnapshot().allManifests(table.io()).size());
+
+    List<Object[]> output = sql("CALL %s.system.rewrite_manifests('%s')", catalogName, tableIdent);
+    // should not rewrite any manifests for no-op (output of rewrite is same as before and after)
+    assertEquals("Procedure output must match", ImmutableList.of(row(0, 0)), output);
+
+    table.refresh();
+
+    Assert.assertEquals(
+        "Must have 1 manifests", 1, table.currentSnapshot().allManifests(table.io()).size());
+  }
+
+  @Test
   public void testRewriteLargeManifestsOnDatePartitionedTableWithJava8APIEnabled() {
     withSQLConf(
         ImmutableMap.of("spark.sql.datetime.java8API.enabled", "true"),
