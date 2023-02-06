@@ -79,6 +79,9 @@ public class HiveIcebergFilterFactory {
       case NOT:
         return not(translate(childNodes.get(0), leaves));
       case LEAF:
+        if (tree.getLeaf() >= leaves.size()) {
+          throw new UnsupportedOperationException("No more leaves are available");
+        }
         return translateLeaf(leaves.get(tree.getLeaf()));
       case CONSTANT:
         throw new UnsupportedOperationException("CONSTANT operator is not supported");
@@ -107,6 +110,9 @@ public class HiveIcebergFilterFactory {
         return in(column, leafToLiteralList(leaf));
       case BETWEEN:
         List<Object> icebergLiterals = leafToLiteralList(leaf);
+        if (icebergLiterals.size() < 2) {
+          throw new UnsupportedOperationException("Missing leaf literals: " + leaf);
+        }
         return and(
             greaterThanOrEqual(column, icebergLiterals.get(0)),
             lessThanOrEqual(column, icebergLiterals.get(1)));
