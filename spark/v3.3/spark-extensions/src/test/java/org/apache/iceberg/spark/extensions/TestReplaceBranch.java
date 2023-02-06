@@ -111,7 +111,7 @@ public class TestReplaceBranch extends SparkExtensionsTestBase {
     table.refresh();
     SnapshotRef ref = table.refs().get(branchName);
     Assert.assertNotNull(ref);
-    Assert.assertEquals(ref.snapshotId(), second);
+    Assert.assertEquals(second, ref.snapshotId());
     Assert.assertEquals(expectedMinSnapshotsToKeep, ref.minSnapshotsToKeep().intValue());
     Assert.assertEquals(expectedMaxSnapshotAgeMs, ref.maxSnapshotAgeMs().longValue());
     Assert.assertEquals(expectedMaxRefAgeMs, ref.maxRefAgeMs().longValue());
@@ -163,7 +163,7 @@ public class TestReplaceBranch extends SparkExtensionsTestBase {
       table.refresh();
       SnapshotRef ref = table.refs().get(branchName);
       Assert.assertNotNull(ref);
-      Assert.assertEquals(ref.snapshotId(), second);
+      Assert.assertEquals(second, ref.snapshotId());
       Assert.assertEquals(minSnapshotsToKeep, ref.minSnapshotsToKeep());
       Assert.assertEquals(maxSnapshotAgeMs, ref.maxSnapshotAgeMs());
       Assert.assertEquals(
@@ -196,7 +196,7 @@ public class TestReplaceBranch extends SparkExtensionsTestBase {
       table.refresh();
       SnapshotRef ref = table.refs().get(branchName);
       Assert.assertNotNull(ref);
-      Assert.assertEquals(ref.snapshotId(), second);
+      Assert.assertEquals(second, ref.snapshotId());
       Assert.assertEquals(minSnapshotsToKeep, ref.minSnapshotsToKeep());
       Assert.assertEquals(
           TimeUnit.valueOf(timeUnit).toMillis(maxSnapshotAge), ref.maxSnapshotAgeMs().longValue());
@@ -237,7 +237,7 @@ public class TestReplaceBranch extends SparkExtensionsTestBase {
       table.refresh();
       SnapshotRef ref = table.refs().get(branchName);
       Assert.assertNotNull(ref);
-      Assert.assertEquals(ref.snapshotId(), second);
+      Assert.assertEquals(second, ref.snapshotId());
       Assert.assertEquals(minSnapshotsToKeep, ref.minSnapshotsToKeep());
       Assert.assertEquals(
           TimeUnit.valueOf(timeUnit).toMillis(maxSnapshotAge), ref.maxSnapshotAgeMs().longValue());
@@ -268,6 +268,6 @@ public class TestReplaceBranch extends SparkExtensionsTestBase {
     table.refresh();
     SnapshotRef ref = table.refs().get(branchName);
     Assert.assertNotNull(ref);
-    Assert.assertEquals(ref.snapshotId(), first);
+    Assert.assertEquals(first, ref.snapshotId());
   }
 }

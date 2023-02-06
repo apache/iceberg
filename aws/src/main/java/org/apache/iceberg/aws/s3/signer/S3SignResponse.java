@@ -16,23 +16,20 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.exceptions;
+package org.apache.iceberg.aws.s3.signer;
 
-import com.google.errorprone.annotations.FormatMethod;
+import java.net.URI;
+import java.util.List;
+import java.util.Map;
+import org.apache.iceberg.rest.RESTResponse;
+import org.immutables.value.Value;
 
-/** Exception raised when a commit fails because of out of date metadata. */
-public class CommitFailedException extends RuntimeException {
-  @FormatMethod
-  public CommitFailedException(String message, Object... args) {
-    super(String.format(message, args));
-  }
+@Value.Immutable
+public interface S3SignResponse extends RESTResponse {
+  URI uri();
 
-  @FormatMethod
-  public CommitFailedException(Throwable cause, String message, Object... args) {
-    super(String.format(message, args), cause);
-  }
+  Map<String, List<String>> headers();
 
-  public CommitFailedException(Throwable cause) {
-    super(cause);
-  }
+  @Override
+  default void validate() {}
 }

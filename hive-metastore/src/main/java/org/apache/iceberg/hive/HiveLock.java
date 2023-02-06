@@ -16,23 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.exceptions;
+package org.apache.iceberg.hive;
 
-import com.google.errorprone.annotations.FormatMethod;
+interface HiveLock {
+  void lock() throws LockException;
 
-/** Exception raised when a commit fails because of out of date metadata. */
-public class CommitFailedException extends RuntimeException {
-  @FormatMethod
-  public CommitFailedException(String message, Object... args) {
-    super(String.format(message, args));
-  }
+  void ensureActive() throws LockException;
 
-  @FormatMethod
-  public CommitFailedException(Throwable cause, String message, Object... args) {
-    super(String.format(message, args), cause);
-  }
-
-  public CommitFailedException(Throwable cause) {
-    super(cause);
-  }
+  void unlock();
 }

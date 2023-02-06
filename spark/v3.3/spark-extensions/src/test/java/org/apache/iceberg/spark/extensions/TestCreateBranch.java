@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.spark.extensions;
 
-import java.util.IllegalFormatConversionException;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -193,9 +192,9 @@ public class TestCreateBranch extends SparkExtensionsTestBase {
 
     AssertHelpers.assertThrows(
         "Illegal statement",
-        IllegalFormatConversionException.class,
-        "d != java.lang.String",
-        () -> sql("ALTER TABLE %s CREATE BRANCH %s RETAIN %d DAYS", tableName, branchName, "abc"));
+        IcebergParseException.class,
+        "mismatched input",
+        () -> sql("ALTER TABLE %s CREATE BRANCH %s RETAIN %s DAYS", tableName, branchName, "abc"));
 
     AssertHelpers.assertThrows(
         "Illegal statement",
