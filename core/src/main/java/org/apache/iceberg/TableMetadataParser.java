@@ -436,16 +436,14 @@ public class TableMetadataParser {
     long currentSnapshotId = JsonUtil.getLong(CURRENT_SNAPSHOT_ID, node);
     long lastUpdatedMillis = JsonUtil.getLong(LAST_UPDATED_MILLIS, node);
 
-    Map<String, SnapshotRef> refs;
+    SnapshotOperations.Builder snapshotOperationsBuilder = SnapshotOperations.buildFromEmpty();
+
     if (node.has(REFS)) {
-      refs = refsFromJson(node.get(REFS));
+      snapshotOperationsBuilder.refs(refsFromJson(node.get(REFS)));
     } else if (currentSnapshotId != -1) {
       // initialize the main branch if there are no refs
-      refs =
-          ImmutableMap.of(
-              SnapshotRef.MAIN_BRANCH, SnapshotRef.branchBuilder(currentSnapshotId).build());
-    } else {
-      refs = ImmutableMap.of();
+      snapshotOperationsBuilder.addRef(
+          SnapshotRef.MAIN_BRANCH, SnapshotRef.branchBuilder(currentSnapshotId).build());
     }
 
     JsonNode snapshotArray = JsonUtil.get(SNAPSHOTS, node);
@@ -455,7 +453,7 @@ public class TableMetadataParser {
     List<Snapshot> snapshots = Lists.newArrayListWithExpectedSize(snapshotArray.size());
     Iterator<JsonNode> iterator = snapshotArray.elements();
     while (iterator.hasNext()) {
-      snapshots.add(SnapshotParser.fromJson(iterator.next()));
+      snapshotOperationsBuilder.add(SnapshotParser.fromJson(iterator.next()));
     }
 
     List<StatisticsFile> statisticsFiles;
@@ -506,10 +504,9 @@ public class TableMetadataParser {
         sortOrders,
         properties,
         currentSnapshotId,
-        snapshots,
+        snapshotOperationsBuilder.build(),
         entries.build(),
         metadataEntries.build(),
-        refs,
         statisticsFiles,
         ImmutableList.of() /* no changes from the file */);
   }

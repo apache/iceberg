@@ -143,6 +143,12 @@ public class TestTableMetadata {
                     new GenericBlobMetadata(
                         "some-stats", 11L, 2, ImmutableList.of(4), ImmutableMap.of()))));
 
+    SnapshotOperations snapshotOperations =
+        SnapshotOperations.buildFromEmpty()
+            .snapshots(Arrays.asList(previousSnapshot, currentSnapshot))
+            .refs(refs)
+            .build();
+
     TableMetadata expected =
         new TableMetadata(
             null,
@@ -161,10 +167,9 @@ public class TestTableMetadata {
             ImmutableList.of(SORT_ORDER_3),
             ImmutableMap.of("property", "value"),
             currentSnapshotId,
-            Arrays.asList(previousSnapshot, currentSnapshot),
+            snapshotOperations,
             snapshotLog,
             ImmutableList.of(),
-            refs,
             statisticsFiles,
             ImmutableList.of());
 
@@ -264,6 +269,11 @@ public class TestTableMetadata {
             null,
             manifestList);
 
+    SnapshotOperations snapshotOperations =
+        SnapshotOperations.buildFromEmpty()
+            .snapshots(Arrays.asList(previousSnapshot, currentSnapshot))
+            .build();
+
     TableMetadata expected =
         new TableMetadata(
             null,
@@ -282,10 +292,9 @@ public class TestTableMetadata {
             ImmutableList.of(sortOrder),
             ImmutableMap.of("property", "value"),
             currentSnapshotId,
-            Arrays.asList(previousSnapshot, currentSnapshot),
+            snapshotOperations,
             ImmutableList.of(),
             ImmutableList.of(),
-            ImmutableMap.of(),
             ImmutableList.of(),
             ImmutableList.of());
 
@@ -403,6 +412,12 @@ public class TestTableMetadata {
     Map<String, SnapshotRef> refs =
         ImmutableMap.of("main", SnapshotRef.branchBuilder(previousSnapshotId).build());
 
+    SnapshotOperations snapshotOperations =
+        SnapshotOperations.buildFromEmpty()
+            .snapshots(Arrays.asList(previousSnapshot, currentSnapshot))
+            .refs(refs)
+            .build();
+
     AssertHelpers.assertThrows(
         "Should fail if main branch snapshot ID does not match currentSnapshotId",
         IllegalArgumentException.class,
@@ -425,10 +440,9 @@ public class TestTableMetadata {
                 ImmutableList.of(SORT_ORDER_3),
                 ImmutableMap.of("property", "value"),
                 currentSnapshotId,
-                Arrays.asList(previousSnapshot, currentSnapshot),
+                snapshotOperations,
                 snapshotLog,
                 ImmutableList.of(),
-                refs,
                 ImmutableList.of(),
                 ImmutableList.of()));
   }
@@ -446,6 +460,12 @@ public class TestTableMetadata {
 
     Map<String, SnapshotRef> refs =
         ImmutableMap.of("main", SnapshotRef.branchBuilder(snapshotId).build());
+
+    SnapshotOperations snapshotOperations =
+        SnapshotOperations.buildFromEmpty()
+            .snapshots(ImmutableList.of(snapshot))
+            .refs(refs)
+            .build();
 
     AssertHelpers.assertThrows(
         "Should fail if main branch snapshot ID does not match currentSnapshotId",
@@ -469,10 +489,9 @@ public class TestTableMetadata {
                 ImmutableList.of(SORT_ORDER_3),
                 ImmutableMap.of("property", "value"),
                 -1,
-                ImmutableList.of(snapshot),
+                snapshotOperations,
                 ImmutableList.of(),
                 ImmutableList.of(),
-                refs,
                 ImmutableList.of(),
                 ImmutableList.of()));
   }
@@ -485,6 +504,8 @@ public class TestTableMetadata {
 
     Map<String, SnapshotRef> refs =
         ImmutableMap.of("main", SnapshotRef.branchBuilder(snapshotId).build());
+
+    SnapshotOperations snapshotOperations = SnapshotOperations.buildFromEmpty().refs(refs).build();
 
     AssertHelpers.assertThrows(
         "Should fail if main branch snapshot ID does not match currentSnapshotId",
@@ -508,10 +529,9 @@ public class TestTableMetadata {
                 ImmutableList.of(SORT_ORDER_3),
                 ImmutableMap.of("property", "value"),
                 -1,
+                snapshotOperations,
                 ImmutableList.of(),
                 ImmutableList.of(),
-                ImmutableList.of(),
-                refs,
                 ImmutableList.of(),
                 ImmutableList.of()));
   }
@@ -590,6 +610,11 @@ public class TestTableMetadata {
         new MetadataLogEntry(
             currentTimestamp, "/tmp/000001-" + UUID.randomUUID().toString() + ".metadata.json"));
 
+    SnapshotOperations snapshotOperations =
+        SnapshotOperations.buildFromEmpty()
+            .snapshots(Arrays.asList(previousSnapshot, currentSnapshot))
+            .build();
+
     TableMetadata base =
         new TableMetadata(
             null,
@@ -608,10 +633,9 @@ public class TestTableMetadata {
             ImmutableList.of(SORT_ORDER_3),
             ImmutableMap.of("property", "value"),
             currentSnapshotId,
-            Arrays.asList(previousSnapshot, currentSnapshot),
+            snapshotOperations,
             reversedSnapshotLog,
             ImmutableList.copyOf(previousMetadataLog),
-            ImmutableMap.of(),
             ImmutableList.of(),
             ImmutableList.of());
 
@@ -668,6 +692,11 @@ public class TestTableMetadata {
             currentTimestamp - 80,
             "/tmp/000003-" + UUID.randomUUID().toString() + ".metadata.json");
 
+    SnapshotOperations snapshotOperations =
+        SnapshotOperations.buildFromEmpty()
+            .snapshots(Arrays.asList(previousSnapshot, currentSnapshot))
+            .build();
+
     TableMetadata base =
         new TableMetadata(
             latestPreviousMetadata.file(),
@@ -686,10 +715,9 @@ public class TestTableMetadata {
             ImmutableList.of(SORT_ORDER_3),
             ImmutableMap.of("property", "value"),
             currentSnapshotId,
-            Arrays.asList(previousSnapshot, currentSnapshot),
+            snapshotOperations,
             reversedSnapshotLog,
             ImmutableList.copyOf(previousMetadataLog),
-            ImmutableMap.of(),
             ImmutableList.of(),
             ImmutableList.of());
 
@@ -764,6 +792,11 @@ public class TestTableMetadata {
             currentTimestamp - 50,
             "/tmp/000006-" + UUID.randomUUID().toString() + ".metadata.json");
 
+    SnapshotOperations snapshotOperations =
+        SnapshotOperations.buildFromEmpty()
+            .snapshots(Arrays.asList(previousSnapshot, currentSnapshot))
+            .build();
+
     TableMetadata base =
         new TableMetadata(
             latestPreviousMetadata.file(),
@@ -782,10 +815,9 @@ public class TestTableMetadata {
             ImmutableList.of(SORT_ORDER_3),
             ImmutableMap.of("property", "value"),
             currentSnapshotId,
-            Arrays.asList(previousSnapshot, currentSnapshot),
+            snapshotOperations,
             reversedSnapshotLog,
             ImmutableList.copyOf(previousMetadataLog),
-            ImmutableMap.of(),
             ImmutableList.of(),
             ImmutableList.of());
 
@@ -866,6 +898,11 @@ public class TestTableMetadata {
             currentTimestamp - 50,
             "/tmp/000006-" + UUID.randomUUID().toString() + ".metadata.json");
 
+    SnapshotOperations snapshotOperations =
+        SnapshotOperations.buildFromEmpty()
+            .snapshots(Arrays.asList(previousSnapshot, currentSnapshot))
+            .build();
+
     TableMetadata base =
         new TableMetadata(
             latestPreviousMetadata.file(),
@@ -884,10 +921,9 @@ public class TestTableMetadata {
             ImmutableList.of(SortOrder.unsorted()),
             ImmutableMap.of("property", "value"),
             currentSnapshotId,
-            Arrays.asList(previousSnapshot, currentSnapshot),
+            snapshotOperations,
             reversedSnapshotLog,
             ImmutableList.copyOf(previousMetadataLog),
-            ImmutableMap.of(),
             ImmutableList.of(),
             ImmutableList.of());
 
@@ -934,10 +970,9 @@ public class TestTableMetadata {
                 ImmutableList.of(SORT_ORDER_3),
                 ImmutableMap.of(),
                 -1L,
+                SnapshotOperations.empty(),
                 ImmutableList.of(),
                 ImmutableList.of(),
-                ImmutableList.of(),
-                ImmutableMap.of(),
                 ImmutableList.of(),
                 ImmutableList.of()));
   }
@@ -967,10 +1002,9 @@ public class TestTableMetadata {
                 ImmutableList.of(SORT_ORDER_3),
                 ImmutableMap.of(),
                 -1L,
+                SnapshotOperations.empty(),
                 ImmutableList.of(),
                 ImmutableList.of(),
-                ImmutableList.of(),
-                ImmutableMap.of(),
                 ImmutableList.of(),
                 ImmutableList.of()));
   }
