@@ -48,7 +48,6 @@ import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.Transaction;
-import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -57,7 +56,6 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.mapping.MappingUtil;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.mapping.NameMappingParser;
-import org.apache.iceberg.orc.OrcMetrics;
 import org.apache.iceberg.parquet.ParquetUtil;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -358,17 +356,10 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
 
   private Metrics getMetricsForFile(
       InputFile file, FileFormat format, MetricsConfig metricsSpec, NameMapping mapping) {
-    switch (format) {
-      case AVRO:
-        long rowCount = Avro.rowCount(file);
-        return new Metrics(rowCount, null, null, null, null);
-      case PARQUET:
-        return ParquetUtil.fileMetrics(file, metricsSpec, mapping);
-      case ORC:
-        return OrcMetrics.fromInputFile(file, metricsSpec, mapping);
-      default:
-        throw new ValidationException("Cannot get metrics from file format: %s", format);
+    if (format == FileFormat.PARQUET) {
+      return ParquetUtil.fileMetrics(file, metricsSpec, mapping);
     }
+    throw new ValidationException("Cannot get metrics from file format: %s", format);
   }
 
   private Map<String, String> destTableProperties(
