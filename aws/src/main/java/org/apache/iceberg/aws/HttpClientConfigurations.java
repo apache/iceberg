@@ -21,28 +21,20 @@ package org.apache.iceberg.aws;
 import java.util.Map;
 import software.amazon.awssdk.awscore.client.builder.AwsSyncClientBuilder;
 
-interface HttpClientConfigurations {
-  String CONNECTION_TIMEOUT_MS = "connection-timeout-ms";
-  String SOCKET_TIMEOUT_MS = "socket-timeout-ms";
-  String CONNECTION_ACQUISITION_TIMEOUT_MS = "connection-acquisition-timeout-ms";
-  String CONNECTION_MAX_IDLE_TIME_MS = "connection-max-idle-time-ms";
-  String CONNECTION_TIME_TO_LIVE_MS = "connection-time-to-live-ms";
-  String EXPECT_CONTINUE_ENABLED = "expect-continue-enabled";
-  String MAX_CONNECTIONS = "max-connections";
-  String TCP_KEEP_ALIVE_ENABLED = "tcp-keep-alive-enabled";
-  String USE_IDLE_CONNECTION_REAPER_ENABLED = "use-idle-connection-reaper-enabled";
+abstract class HttpClientConfigurations {
 
   /**
    * Initialize the configurations from the given properties
    *
    * @param httpClientProperties properties for http client
    */
-  void initialize(Map<String, String> httpClientProperties);
+  public abstract void initialize(Map<String, String> httpClientProperties);
 
   /**
    * Configure http client builder for a given AWS client builder
    *
    * @param awsClientBuilder AWS client builder
    */
-  <T extends AwsSyncClientBuilder> void configureHttpClientBuilder(T awsClientBuilder);
+  public abstract <T extends AwsSyncClientBuilder> void configureHttpClientBuilder(
+      T awsClientBuilder);
 }

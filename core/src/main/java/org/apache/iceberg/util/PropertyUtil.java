@@ -120,6 +120,27 @@ public class PropertyUtil {
         .collect(Collectors.toMap(e -> e.getKey().replaceFirst(prefix, ""), Map.Entry::getValue));
   }
 
+  /**
+   * Returns subset of provided map with keys matching the provided prefix. Matching is
+   * case-sensitive.
+   *
+   * @param properties input map
+   * @param prefix prefix to choose keys from input map
+   * @return subset of input map with keys starting with provided prefix
+   */
+  public static Map<String, String> propertiesWithPrefixNoTrim(
+      Map<String, String> properties, String prefix) {
+    if (properties == null || properties.isEmpty()) {
+      return Collections.emptyMap();
+    }
+
+    Preconditions.checkArgument(prefix != null, "Invalid prefix: null");
+
+    return properties.entrySet().stream()
+        .filter(e -> e.getKey().startsWith(prefix))
+        .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+  }
+
   public static Map<String, String> applySchemaChanges(
       Map<String, String> properties,
       List<String> deletedColumns,

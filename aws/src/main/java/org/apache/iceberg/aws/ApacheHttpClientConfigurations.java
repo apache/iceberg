@@ -25,7 +25,7 @@ import org.apache.iceberg.util.PropertyUtil;
 import software.amazon.awssdk.awscore.client.builder.AwsSyncClientBuilder;
 import software.amazon.awssdk.http.apache.ApacheHttpClient;
 
-class ApacheHttpClientConfigurations implements HttpClientConfigurations {
+class ApacheHttpClientConfigurations extends HttpClientConfigurations {
   private Long connectionTimeoutMs;
   private Long socketTimeoutMs;
   private Long acquisitionTimeoutMs;
@@ -39,25 +39,34 @@ class ApacheHttpClientConfigurations implements HttpClientConfigurations {
   @Override
   public void initialize(Map<String, String> httpClientProperties) {
     this.connectionTimeoutMs =
-        PropertyUtil.propertyAsNullableLong(httpClientProperties, CONNECTION_TIMEOUT_MS);
+        PropertyUtil.propertyAsNullableLong(
+            httpClientProperties, AwsProperties.HTTP_CLIENT_APACHE_CONNECTION_TIMEOUT_MS);
     this.socketTimeoutMs =
-        PropertyUtil.propertyAsNullableLong(httpClientProperties, SOCKET_TIMEOUT_MS);
+        PropertyUtil.propertyAsNullableLong(
+            httpClientProperties, AwsProperties.HTTP_CLIENT_APACHE_SOCKET_TIMEOUT_MS);
     this.acquisitionTimeoutMs =
         PropertyUtil.propertyAsNullableLong(
-            httpClientProperties, CONNECTION_ACQUISITION_TIMEOUT_MS);
+            httpClientProperties,
+            AwsProperties.HTTP_CLIENT_APACHE_CONNECTION_ACQUISITION_TIMEOUT_MS);
     this.connectionMaxIdleTimeMs =
-        PropertyUtil.propertyAsNullableLong(httpClientProperties, CONNECTION_MAX_IDLE_TIME_MS);
+        PropertyUtil.propertyAsNullableLong(
+            httpClientProperties, AwsProperties.HTTP_CLIENT_APACHE_CONNECTION_MAX_IDLE_TIME_MS);
     this.connectionTimeToLiveMs =
-        PropertyUtil.propertyAsNullableLong(httpClientProperties, CONNECTION_TIME_TO_LIVE_MS);
+        PropertyUtil.propertyAsNullableLong(
+            httpClientProperties, AwsProperties.HTTP_CLIENT_APACHE_CONNECTION_TIME_TO_LIVE_MS);
     this.expectContinueEnabled =
-        PropertyUtil.propertyAsNullableBoolean(httpClientProperties, EXPECT_CONTINUE_ENABLED);
+        PropertyUtil.propertyAsNullableBoolean(
+            httpClientProperties, AwsProperties.HTTP_CLIENT_APACHE_EXPECT_CONTINUE_ENABLED);
     this.maxConnections =
-        PropertyUtil.propertyAsNullableLong(httpClientProperties, MAX_CONNECTIONS);
+        PropertyUtil.propertyAsNullableLong(
+            httpClientProperties, AwsProperties.HTTP_CLIENT_APACHE_MAX_CONNECTIONS);
     this.tcpKeepAliveEnabled =
-        PropertyUtil.propertyAsNullableBoolean(httpClientProperties, TCP_KEEP_ALIVE_ENABLED);
+        PropertyUtil.propertyAsNullableBoolean(
+            httpClientProperties, AwsProperties.HTTP_CLIENT_APACHE_TCP_KEEP_ALIVE_ENABLED);
     this.useIdleConnectionReaperEnabled =
         PropertyUtil.propertyAsNullableBoolean(
-            httpClientProperties, USE_IDLE_CONNECTION_REAPER_ENABLED);
+            httpClientProperties,
+            AwsProperties.HTTP_CLIENT_APACHE_USE_IDLE_CONNECTION_REAPER_ENABLED);
   }
 
   @Override

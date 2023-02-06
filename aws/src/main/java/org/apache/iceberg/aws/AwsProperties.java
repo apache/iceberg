@@ -363,23 +363,11 @@ public class AwsProperties implements Serializable {
   public static final String HTTP_CLIENT_TYPE_URLCONNECTION = "urlconnection";
 
   /**
-   * The prefix for configurations of for {@link
-   * software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient.Builder}
-   */
-  public static final String HTTP_CLIENT_URLCONNECTION_PREFIX = "http-client.urlconnection.";
-
-  /**
    * If this is set under {@link #HTTP_CLIENT_TYPE}, {@link
    * software.amazon.awssdk.http.apache.ApacheHttpClient} will be used as the HTTP Client in {@link
    * AwsClientFactory}
    */
   public static final String HTTP_CLIENT_TYPE_APACHE = "apache";
-
-  /**
-   * The prefix for configurations of for {@link
-   * software.amazon.awssdk.http.apache.ApacheHttpClient.Builder}
-   */
-  public static final String HTTP_CLIENT_APACHE_PREFIX = "http-client.apache.";
 
   public static final String HTTP_CLIENT_TYPE_DEFAULT = HTTP_CLIENT_TYPE_URLCONNECTION;
 
@@ -640,10 +628,8 @@ public class AwsProperties implements Serializable {
    */
   public static final String LAKE_FORMATION_DB_NAME = "lakeformation.db-name";
 
-  private static final String HTTP_CLIENT_IMPL_URLCONNECTION =
-      UrlConnectionHttpClientConfigurations.class.getName();
-  private static final String HTTP_CLIENT_IMPL_APACHE =
-      ApacheHttpClientConfigurations.class.getName();
+  private static final String HTTP_CLIENT_URLCONNECTION_PREFIX = "http-client.urlconnection.";
+  private static final String HTTP_CLIENT_APACHE_PREFIX = "http-client.apache.";
   private String httpClientType;
   private final Map<String, String> urlConnectionHttpClientProperties;
   private final Map<String, String> apacheHttpClientProperties;
@@ -755,9 +741,9 @@ public class AwsProperties implements Serializable {
     this.httpClientType =
         PropertyUtil.propertyAsString(properties, HTTP_CLIENT_TYPE, HTTP_CLIENT_TYPE_DEFAULT);
     this.urlConnectionHttpClientProperties =
-        PropertyUtil.propertiesWithPrefix(properties, HTTP_CLIENT_URLCONNECTION_PREFIX);
+        PropertyUtil.propertiesWithPrefixNoTrim(properties, HTTP_CLIENT_URLCONNECTION_PREFIX);
     this.apacheHttpClientProperties =
-        PropertyUtil.propertiesWithPrefix(properties, HTTP_CLIENT_APACHE_PREFIX);
+        PropertyUtil.propertiesWithPrefixNoTrim(properties, HTTP_CLIENT_APACHE_PREFIX);
     this.stsClientAssumeRoleTags = toStsTags(properties, CLIENT_ASSUME_ROLE_TAGS_PREFIX);
     this.clientAssumeRoleArn = properties.get(CLIENT_ASSUME_ROLE_ARN);
     this.clientAssumeRoleTimeoutSec =
@@ -1198,12 +1184,14 @@ public class AwsProperties implements Serializable {
       case HTTP_CLIENT_TYPE_URLCONNECTION:
         httpClientConfigurations =
             loadHttpClientConfigurations(
-                HTTP_CLIENT_IMPL_URLCONNECTION, urlConnectionHttpClientProperties);
+                UrlConnectionHttpClientConfigurations.class.getName(),
+                urlConnectionHttpClientProperties);
         httpClientConfigurations.configureHttpClientBuilder(builder);
         break;
       case HTTP_CLIENT_TYPE_APACHE:
         httpClientConfigurations =
-            loadHttpClientConfigurations(HTTP_CLIENT_IMPL_APACHE, apacheHttpClientProperties);
+            loadHttpClientConfigurations(
+                ApacheHttpClientConfigurations.class.getName(), apacheHttpClientProperties);
         httpClientConfigurations.configureHttpClientBuilder(builder);
         break;
       default:

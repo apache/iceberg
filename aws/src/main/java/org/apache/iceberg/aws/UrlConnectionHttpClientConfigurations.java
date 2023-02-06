@@ -25,7 +25,7 @@ import org.apache.iceberg.util.PropertyUtil;
 import software.amazon.awssdk.awscore.client.builder.AwsSyncClientBuilder;
 import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
 
-class UrlConnectionHttpClientConfigurations implements HttpClientConfigurations {
+class UrlConnectionHttpClientConfigurations extends HttpClientConfigurations {
 
   private Long httpClientUrlConnectionConnectionTimeoutMs;
   private Long httpClientUrlConnectionSocketTimeoutMs;
@@ -33,9 +33,11 @@ class UrlConnectionHttpClientConfigurations implements HttpClientConfigurations 
   @Override
   public void initialize(Map<String, String> httpClientProperties) {
     this.httpClientUrlConnectionConnectionTimeoutMs =
-        PropertyUtil.propertyAsNullableLong(httpClientProperties, CONNECTION_TIMEOUT_MS);
+        PropertyUtil.propertyAsNullableLong(
+            httpClientProperties, AwsProperties.HTTP_CLIENT_URLCONNECTION_CONNECTION_TIMEOUT_MS);
     this.httpClientUrlConnectionSocketTimeoutMs =
-        PropertyUtil.propertyAsNullableLong(httpClientProperties, SOCKET_TIMEOUT_MS);
+        PropertyUtil.propertyAsNullableLong(
+            httpClientProperties, AwsProperties.HTTP_CLIENT_URLCONNECTION_SOCKET_TIMEOUT_MS);
   }
 
   @Override
