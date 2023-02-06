@@ -464,11 +464,6 @@ public class JdbcCatalog extends BaseMetastoreCatalog
     return JdbcUtil.namespaceExists(catalogName, connections, namespace);
   }
 
-  @Override
-  protected Map<String, String> properties() {
-    return catalogProperties == null ? ImmutableMap.of() : catalogProperties;
-  }
-
   private int execute(String sql, String... args) {
     return execute(err -> {}, sql, args);
   }
