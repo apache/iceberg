@@ -147,4 +147,10 @@ public class CatalogProperties {
 
   public static final String AUTH_SESSION_TIMEOUT_MS = "auth.session-timeout-ms";
   public static final long AUTH_SESSION_TIMEOUT_MS_DEFAULT = TimeUnit.HOURS.toMillis(1);
+
+  public static final String RETRY_LIMIT = "retry.limit";
+  public static final int RETRY_LIMIT_DEFAULT = 2;
+
+  public static final String RETRY_DELAY_MS = "retry.delay-ms";
+  public static final long RETRY_DELAY_MS_DEFAULT = 2000;
 }

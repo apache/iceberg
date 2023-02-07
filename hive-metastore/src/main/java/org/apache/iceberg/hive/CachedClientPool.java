@@ -36,12 +36,16 @@ public class CachedClientPool implements ClientPool<IMetaStoreClient, TException
   private static Cache<String, HiveClientPool> clientPoolCache;
 
   private final Configuration conf;
+
+  private final Map<String, String> properties;
+
   private final String metastoreUri;
   private final int clientPoolSize;
   private final long evictionInterval;
 
   CachedClientPool(Configuration conf, Map<String, String> properties) {
     this.conf = conf;
+    this.properties = properties;
     this.metastoreUri = conf.get(HiveConf.ConfVars.METASTOREURIS.varname, "");
     this.clientPoolSize =
         PropertyUtil.propertyAsInt(
@@ -58,7 +62,8 @@ public class CachedClientPool implements ClientPool<IMetaStoreClient, TException
 
   @VisibleForTesting
   HiveClientPool clientPool() {
-    return clientPoolCache.get(metastoreUri, k -> new HiveClientPool(clientPoolSize, conf));
+    return clientPoolCache.get(
+        metastoreUri, k -> new HiveClientPool(clientPoolSize, conf, properties));
   }
 
   private synchronized void init() {
@@ -83,8 +88,9 @@ public class CachedClientPool implements ClientPool<IMetaStoreClient, TException
   }
 
   @Override
-  public <R> R run(Action<R, IMetaStoreClient, TException> action, boolean retry)
+  public <R> R run(
+      Action<R, IMetaStoreClient, TException> action, int retryLimit, long retryDelayMillis)
       throws TException, InterruptedException {
-    return clientPool().run(action, retry);
+    return clientPool().run(action, retryLimit, retryDelayMillis);
   }
 }

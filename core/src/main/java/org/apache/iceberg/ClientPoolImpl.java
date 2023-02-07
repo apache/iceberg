@@ -21,6 +21,7 @@ package org.apache.iceberg;
 import java.io.Closeable;
 import java.util.ArrayDeque;
 import java.util.Deque;
+import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -33,40 +34,58 @@ public abstract class ClientPoolImpl<C, E extends Exception>
   private final Deque<C> clients;
   private final Class<? extends E> reconnectExc;
   private final Object signal = new Object();
-  private final boolean retryByDefault;
+
+  private int defaultRetryLimit;
+  private final long defaultRetryDelayMillis;
   private volatile int currentSize;
   private boolean closed;
 
-  public ClientPoolImpl(int poolSize, Class<? extends E> reconnectExc, boolean retryByDefault) {
+  public ClientPoolImpl(int poolSize, Class<? extends E> reconnectExc, Map<String, String> props) {
     this.poolSize = poolSize;
     this.reconnectExc = reconnectExc;
     this.clients = new ArrayDeque<>(poolSize);
     this.currentSize = 0;
     this.closed = false;
-    this.retryByDefault = retryByDefault;
+    this.defaultRetryLimit =
+        Integer.parseInt(
+            props.getOrDefault(
+                CatalogProperties.RETRY_LIMIT,
+                String.valueOf(CatalogProperties.RETRY_LIMIT_DEFAULT)));
+    this.defaultRetryDelayMillis =
+        Long.parseLong(
+            props.getOrDefault(
+                CatalogProperties.RETRY_DELAY_MS,
+                String.valueOf(CatalogProperties.RETRY_DELAY_MS_DEFAULT)));
   }
 
   @Override
   public <R> R run(Action<R, C, E> action) throws E, InterruptedException {
-    return run(action, retryByDefault);
+    return run(action, defaultRetryLimit, defaultRetryDelayMillis);
   }
 
   @Override
-  public <R> R run(Action<R, C, E> action, boolean retry) throws E, InterruptedException {
-    C client = get();
+  public <R> R run(Action<R, C, E> action, int retryLimit, long retryDelayMillis)
+      throws E, InterruptedException {
+    return run(get(), action, retryLimit, retryDelayMillis);
+  }
+
+  private <R> R run(C client, Action<R, C, E> action, int remainRetryCount, long retryDelayMillis)
+      throws E, InterruptedException {
     try {
       return action.run(client);
 
     } catch (Exception exc) {
-      if (retry && isConnectionException(exc)) {
+      if (remainRetryCount > 0 && isConnectionException(exc)) {
+        Thread.sleep(retryDelayMillis);
+        C newClient;
         try {
-          client = reconnect(client);
+          newClient = reconnect(client);
         } catch (Exception ignored) {
           // if reconnection throws any exception, rethrow the original failure
           throw reconnectExc.cast(exc);
         }
 
-        return action.run(client);
+        return run(newClient, action, remainRetryCount - 1, retryDelayMillis);
       }
 
       throw exc;
@@ -146,5 +165,9 @@ public abstract class ClientPoolImpl<C, E extends Exception>
 
   public int poolSize() {
     return poolSize;
+  }
+
+  public void setDefaultRetryLimit(int defaultRetryLimit) {
+    this.defaultRetryLimit = defaultRetryLimit;
   }
 }

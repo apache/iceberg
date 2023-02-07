@@ -54,6 +54,7 @@ import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
 import org.apache.thrift.TException;
 import org.junit.AfterClass;
@@ -96,7 +97,7 @@ public class TestHiveCommitLocks extends HiveTableBaseTest {
 
     // Set up the spy clients as static variables instead of before every test.
     // The spy clients are reused between methods and closed at the end of all tests in this class.
-    spyClientPool = spy(new HiveClientPool(1, overriddenHiveConf));
+    spyClientPool = spy(new HiveClientPool(1, overriddenHiveConf, Maps.newHashMap()));
     when(spyClientPool.newClient())
         .thenAnswer(
             invocation -> {

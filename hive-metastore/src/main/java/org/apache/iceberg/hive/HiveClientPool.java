@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.hive;
 
+import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.HiveMetaHookLoader;
@@ -49,9 +50,10 @@ public class HiveClientPool extends ClientPoolImpl<IMetaStoreClient, TException>
 
   private final HiveConf hiveConf;
 
-  public HiveClientPool(int poolSize, Configuration conf) {
-    // Allow retry for a case of failure in RetryingHiveClient if impersonation is enabled.
-    super(poolSize, TTransportException.class, true);
+  public HiveClientPool(int poolSize, Configuration conf, Map<String, String> props) {
+    super(poolSize, TTransportException.class, props);
+    // Retry just once because of using RetryingMetaStoreClient
+    super.setDefaultRetryLimit(1);
     this.hiveConf = new HiveConf(conf, HiveClientPool.class);
     this.hiveConf.addResource(conf);
   }
@@ -101,8 +103,9 @@ public class HiveClientPool extends ClientPoolImpl<IMetaStoreClient, TException>
     return super.isConnectionException(e)
         || (e != null
             && e instanceof MetaException
-            && e.getMessage()
-                .contains("Got exception: org.apache.thrift.transport.TTransportException"));
+            && (e.getMessage()
+                    .contains("Got exception: org.apache.thrift.transport.TTransportException")
+                || e.getMessage().contains("java.security.AccessControlException")));
   }
 
   @Override

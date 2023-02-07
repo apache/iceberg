@@ -261,6 +261,24 @@ acceptedBreaks:
         \ T) throws java.io.IOException, com.fasterxml.jackson.core.JacksonException\
         \ @ org.apache.iceberg.rest.RESTSerializers.UpdateRequirementDeserializer"
       justification: "False positive - JacksonException is a subclass of IOException"
+    - code: "java.method.numberOfParametersChanged"
+      old: "method <R> R org.apache.iceberg.ClientPool<C, E extends java.lang.Exception>::run(org.apache.iceberg.ClientPool.Action<R,\
+        \ C, E>, boolean) throws E, java.lang.InterruptedException"
+      new: "method <R> R org.apache.iceberg.ClientPool<C, E extends java.lang.Exception>::run(org.apache.iceberg.ClientPool.Action<R,\
+        \ C, E>, int, long) throws E, java.lang.InterruptedException"
+      justification: "Add retry limit and delay time instead of retry flag"
+    - code: "java.method.numberOfParametersChanged"
+      old: "method <R> R org.apache.iceberg.ClientPoolImpl<C, E extends java.lang.Exception>::run(org.apache.iceberg.ClientPool.Action<R,\
+        \ C, E>, boolean) throws E, java.lang.InterruptedException"
+      new: "method <R> R org.apache.iceberg.ClientPoolImpl<C, E extends java.lang.Exception>::run(org.apache.iceberg.ClientPool.Action<R,\
+        \ C, E>, int, long) throws E, java.lang.InterruptedException"
+      justification: "Add retry limit and delay time instead of retry flag"
+    - code: "java.method.parameterTypeChanged"
+      old: "parameter void org.apache.iceberg.ClientPoolImpl<C, E extends java.lang.Exception>::<init>(int,\
+        \ java.lang.Class<? extends E>, ===boolean===)"
+      new: "parameter void org.apache.iceberg.ClientPoolImpl<C, E extends java.lang.Exception>::<init>(int,\
+        \ java.lang.Class<? extends E>, ===java.util.Map<java.lang.String, java.lang.String>===)"
+      justification: "Add retry limit and delay time instead of retry flag"
     - code: "java.method.removed"
       old: "method <T> org.apache.iceberg.io.CloseableIterable<T> org.apache.iceberg.deletes.Deletes::filterDeleted(org.apache.iceberg.io.CloseableIterable<T>,\
         \ java.util.function.Predicate<T>)"
@@ -350,10 +368,6 @@ acceptedBreaks:
         \ @ org.apache.iceberg.StreamingDelete"
       justification: "Removing deprecations for 1.2.0"
     - code: "java.method.returnTypeChangedCovariantly"
-      old: "method org.apache.iceberg.Table org.apache.iceberg.BaseMetadataTable::table()"
-      new: "method org.apache.iceberg.BaseTable org.apache.iceberg.BaseMetadataTable::table()"
-      justification: "Returning more specific subclass"
-    - code: "java.method.returnTypeChangedCovariantly"
       old: "method ThisT org.apache.iceberg.SnapshotUpdate<ThisT>::toBranch(java.lang.String)\
         \ @ org.apache.iceberg.BaseOverwriteFiles"
       new: "method org.apache.iceberg.BaseOverwriteFiles org.apache.iceberg.BaseOverwriteFiles::toBranch(java.lang.String)"
@@ -363,6 +377,10 @@ acceptedBreaks:
         \ @ org.apache.iceberg.BaseReplacePartitions"
       new: "method org.apache.iceberg.BaseReplacePartitions org.apache.iceberg.BaseReplacePartitions::toBranch(java.lang.String)"
       justification: "Introducing branch snapshot operations for BaseReplacePartitions"
+    - code: "java.method.returnTypeChangedCovariantly"
+      old: "method org.apache.iceberg.Table org.apache.iceberg.BaseMetadataTable::table()"
+      new: "method org.apache.iceberg.BaseTable org.apache.iceberg.BaseMetadataTable::table()"
+      justification: "Returning more specific subclass"
     org.apache.iceberg:iceberg-orc:
     - code: "java.method.removed"
       old: "method org.apache.iceberg.orc.ORC.WriteBuilder org.apache.iceberg.orc.ORC.WriteBuilder::config(java.lang.String,\

@@ -33,6 +33,7 @@ import org.apache.hadoop.hive.metastore.api.MetaException;
 import org.apache.hadoop.hive.metastore.api.PrincipalType;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.thrift.transport.TTransportException;
 import org.junit.After;
 import org.junit.Assert;
@@ -56,7 +57,7 @@ public class TestHiveClientPool {
 
   @Before
   public void before() {
-    HiveClientPool clientPool = new HiveClientPool(2, new Configuration());
+    HiveClientPool clientPool = new HiveClientPool(2, new Configuration(), Maps.newHashMap());
     clients = Mockito.spy(clientPool);
   }
 
@@ -71,7 +72,7 @@ public class TestHiveClientPool {
     HiveConf conf = createHiveConf();
     conf.set(HiveConf.ConfVars.METASTOREWAREHOUSE.varname, "file:/mywarehouse/");
 
-    HiveClientPool clientPool = new HiveClientPool(10, conf);
+    HiveClientPool clientPool = new HiveClientPool(10, conf, Maps.newHashMap());
     HiveConf clientConf = clientPool.hiveConf();
 
     Assert.assertEquals(
@@ -136,7 +137,7 @@ public class TestHiveClientPool {
 
     Mockito.doReturn(databases).when(newClient).getAllDatabases();
     // The return is OK when the reconnect method is called.
-    Assert.assertEquals(databases, clients.run(client -> client.getAllDatabases(), true));
+    Assert.assertEquals(databases, clients.run(client -> client.getAllDatabases(), 1, 100));
 
     // Verify that the method is called.
     Mockito.verify(clients).reconnect(hmsClient);
@@ -164,8 +165,31 @@ public class TestHiveClientPool {
             null));
     Mockito.doReturn(response).when(newClient).getAllFunctions();
 
-    Assert.assertEquals(response, clients.run(client -> client.getAllFunctions(), true));
+    Assert.assertEquals(response, clients.run(client -> client.getAllFunctions(), 1, 100));
 
+    Mockito.verify(clients).reconnect(hmsClient);
+    Mockito.verify(clients, Mockito.never()).reconnect(newClient);
+  }
+
+  @Test
+  public void testConnectionFailureRetryCount() throws Exception {
+    HiveMetaStoreClient hmsClient = newClient();
+
+    // Throwing an exception may trigger the client to reconnect.
+    String metaMessage = "Got exception: org.apache.thrift.transport.TTransportException";
+    Mockito.doThrow(new MetaException(metaMessage)).when(hmsClient).getAllDatabases();
+
+    // Create a new client when the reconnect method is called.
+    HiveMetaStoreClient newClient = reconnect(hmsClient);
+    Mockito.doThrow(new MetaException(metaMessage)).when(newClient).getAllDatabases();
+
+    // The return is OK when the reconnect method is called.
+    Assert.assertThrows(
+        metaMessage,
+        MetaException.class,
+        () -> clients.run(client -> client.getAllDatabases(), 1, 1000));
+
+    // Verify that the method is called.
     Mockito.verify(clients).reconnect(hmsClient);
     Mockito.verify(clients, Mockito.never()).reconnect(newClient);
   }

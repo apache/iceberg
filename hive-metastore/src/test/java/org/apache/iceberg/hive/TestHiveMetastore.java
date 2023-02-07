@@ -46,6 +46,7 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.hadoop.Util;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.thrift.TException;
 import org.apache.thrift.protocol.TBinaryProtocol;
 import org.apache.thrift.server.TServer;
@@ -168,7 +169,7 @@ public class TestHiveMetastore {
           HiveConf.ConfVars.METASTOREURIS.varname,
           hiveConf.getVar(HiveConf.ConfVars.METASTOREURIS));
 
-      this.clientPool = new HiveClientPool(1, hiveConf);
+      this.clientPool = new HiveClientPool(1, hiveConf, Maps.newHashMap());
     } catch (Exception e) {
       throw new RuntimeException("Cannot start TestHiveMetastore", e);
     }
