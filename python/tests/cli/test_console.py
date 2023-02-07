@@ -136,7 +136,6 @@ MOCK_ENVIRONMENT = {"PYICEBERG_CATALOG__PRODUCTION__URI": "test://doesnotexist"}
 
 
 def test_missing_uri(empty_home_dir_path: str) -> None:
-
     # mock to prevent parsing ~/.pyiceberg.yaml or {PYICEBERG_HOME}/.pyiceberg.yaml
     with mock.patch.dict(os.environ, {"HOME": empty_home_dir_path, "PYICEBERG_HOME": empty_home_dir_path}):
         with mock.patch("pyiceberg.catalog._ENV_CONFIG", Config()):
