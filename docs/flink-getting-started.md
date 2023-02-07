@@ -747,6 +747,44 @@ FlinkSink.builderFor(
   .append();
 ```
 
+### monitoring metrics
+
+The following Flink metrics are provided by the Flink Iceberg sink.
+
+Parallel writer metrics are added under the sub group of `IcebergStreamWriter`. 
+They should have the following key-value tags.
+* table: full table name (like iceberg.my_db.my_table)
+* subtask_index: writer subtask index starting from 0
+
+ Metric name                | Metric type | Description                                                                                         |
+| ------------------------- |------------|-----------------------------------------------------------------------------------------------------|
+| lastFlushDurationMs       | Gague      | The duration (in milli) that writer subtasks take to flush and upload the files during checkpoint.  |
+| flushedDataFiles          | Counter    | Number of data files flushed and uploaded.                                                          |
+| flushedDeleteFiles        | Counter    | Number of delete files flushed and uploaded.                                                        |
+| flushedReferencedDataFiles| Counter    | Number of data files referenced by the flushed delete files.                                        |
+| dataFilesSizeHistogram    | Histogram  | Histogram distribution of data file sizes (in bytes).                                               |
+| deleteFilesSizeHistogram  | Histogram  | Histogram distribution of delete file sizes (in bytes).                                             |
+
+Committer metrics are added under the sub group of `IcebergFilesCommitter`.
+They should have the following key-value tags.
+* table: full table name (like iceberg.my_db.my_table)
+
+ Metric name                      | Metric type | Description                                                                |
+|---------------------------------|--------|----------------------------------------------------------------------------|
+| lastCheckpointDurationMs        | Gague  | The duration (in milli) that the committer operator checkpoints its state. |
+| lastCommitDurationMs            | Gague  | The duration (in milli) that the Iceberg table commit takes.               |
+| committedDataFilesCount         | Counter | Number of data files committed.                                            |
+| committedDataFilesRecordCount   | Counter | Number of records contained in the committed data files.                   |
+| committedDataFilesByteCount     | Counter | Number of bytes contained in the committed data files.                     |
+| committedDeleteFilesCount       | Counter | Number of delete files committed.                                          |
+| committedDeleteFilesRecordCount | Counter | Number of records contained in the committed delete files.                 |
+| committedDeleteFilesByteCount   | Counter | Number of bytes contained in the committed delete files.                   |
+| elapsedSecondsSinceLastSuccessfulCommit| Gague  | Elapsed time (in seconds) since last successful Iceberg commit.            |
+
+`elapsedSecondsSinceLastSuccessfulCommit` is an ideal alerting metric for these scenarios.
+* Iceberg commit happened after successful Flink checkpoint in the `notifyCheckpointComplete` callback.
+It could happen that Iceberg commits failed (for whatever reason), while Flink checkpoints succeeding.
+* It could also happen that `notifyCheckpointComplete` wasn't triggered (for whatever bug).
 
 ## Options
 ### Read options
