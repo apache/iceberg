@@ -389,9 +389,15 @@ project(':iceberg-aws') {
     api project(':iceberg-api')
     implementation project(':iceberg-common')
     implementation project(':iceberg-core')
+    annotationProcessor "org.immutables:value"
+    compileOnly "org.immutables:value"
+    implementation "com.github.ben-manes.caffeine:caffeine"
+    implementation "com.fasterxml.jackson.core:jackson-databind"
+    implementation "com.fasterxml.jackson.core:jackson-core"
 
     compileOnly 'software.amazon.awssdk:url-connection-client'
     compileOnly 'software.amazon.awssdk:apache-client'
+    compileOnly 'software.amazon.awssdk:auth'
     compileOnly 'software.amazon.awssdk:s3'
     compileOnly 'software.amazon.awssdk:kms'
     compileOnly 'software.amazon.awssdk:glue'
@@ -416,6 +422,9 @@ project(':iceberg-aws') {
     }
     testImplementation "com.esotericsoftware:kryo"
     testImplementation "org.xerial:sqlite-jdbc"
+    testImplementation "org.testcontainers:testcontainers"
+    testImplementation "org.apache.httpcomponents.client5:httpclient5"
+    testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
   }
 
   sourceSets {

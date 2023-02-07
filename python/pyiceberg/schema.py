@@ -210,6 +210,18 @@ class Schema(IcebergBaseModel):
         """
         return self._lazy_id_to_name.get(column_id)
 
+    @property
+    def column_names(self) -> List[str]:
+        """
+        Returns a list of all the column names, including nested fields
+
+        Excludes short names
+
+        Returns:
+            List[str]: The column names
+        """
+        return list(self._lazy_id_to_name.values())
+
     def accessor_for_field(self, field_id: int) -> "Accessor":
         """Find a schema position accessor given a field ID
 

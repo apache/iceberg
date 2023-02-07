@@ -148,7 +148,8 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
     try {
       glueTempTableCreated = createGlueTempTableIfNecessary(base, metadata.location());
 
-      newMetadataLocation = writeNewMetadata(metadata, currentVersion() + 1);
+      boolean newTable = base == null;
+      newMetadataLocation = writeNewMetadataIfRequired(newTable, metadata);
       lock(newMetadataLocation);
       Table glueTable = getGlueTable();
       checkMetadataLocation(glueTable, base);
