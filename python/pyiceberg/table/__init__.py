@@ -184,7 +184,6 @@ class StaticTable(Table):
 
     @classmethod
     def from_metadata(cls, metadata_location: str, properties: Properties = EMPTY_DICT) -> StaticTable:
-
         io = load_file_io(properties=properties, location=metadata_location)
         file = io.new_input(metadata_location)
         metadata = FromInputFile.table_metadata(file)
