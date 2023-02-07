@@ -18,12 +18,14 @@
  */
 package org.apache.iceberg.spark.procedures;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.RewriteDataFiles;
+import org.apache.iceberg.actions.BaseRewriteDataFilesResult;
 import org.apache.iceberg.expressions.NamedReference;
 import org.apache.iceberg.expressions.Zorder;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -116,6 +118,10 @@ class RewriteDataFilesProcedure extends BaseProcedure {
           }
 
           String where = args.isNullAt(4) ? null : args.getString(4);
+          if(where != null && SparkExpressionConverter.checkWhereAlwaysFalse(spark(), quotedFullIdentifier, where)){
+            RewriteDataFiles.Result result = new BaseRewriteDataFilesResult(new ArrayList<>());
+            return toOutputRows(result);
+          }
 
           action = checkAndApplyFilter(action, where, quotedFullIdentifier);
 
