@@ -30,6 +30,7 @@ import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
 import org.apache.flink.table.api.config.TableConfigOptions;
 import org.apache.flink.types.Row;
 import org.apache.flink.util.CloseableIterator;
+import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TestHelpers;
@@ -212,6 +213,24 @@ public class TestStreamScanSql extends FlinkCatalogTestBase {
   }
 
   @Test
+  public void testConsumeFilesWithBranch() throws Exception {
+    sql("CREATE TABLE %s (id INT, data VARCHAR, dt VARCHAR)", TABLE);
+    Table table = validationCatalog.loadTable(TableIdentifier.of(icebergNamespace, TABLE));
+    Row row1 = Row.of(1, "aaa", "2021-01-01");
+    Row row2 = Row.of(2, "bbb", "2021-01-01");
+    insertRows(table, row1, row2);
+
+    AssertHelpers.assertThrows(
+        "Cannot scan table using ref for stream yet",
+        IllegalArgumentException.class,
+        "Cannot scan table using ref",
+        () ->
+            exec(
+                "SELECT * FROM %s /*+ OPTIONS('streaming'='true', 'monitor-interval'='1s', 'branch'='b1')*/",
+                TABLE));
+  }
+
+  @Test
   public void testConsumeFromStartSnapshotId() throws Exception {
     sql("CREATE TABLE %s (id INT, data VARCHAR, dt VARCHAR)", TABLE);
     Table table = validationCatalog.loadTable(TableIdentifier.of(icebergNamespace, TABLE));
@@ -260,8 +279,9 @@ public class TestStreamScanSql extends FlinkCatalogTestBase {
     insertRows(table, row1);
     insertRows(table, row2);
 
+    String tagName = "t1";
     long startSnapshotId = table.currentSnapshot().snapshotId();
-    table.manageSnapshots().createTag("t1", startSnapshotId).commit();
+    table.manageSnapshots().createTag(tagName, startSnapshotId).commit();
 
     Row row3 = Row.of(3, "ccc", "2021-01-01");
     Row row4 = Row.of(4, "ddd", "2021-01-01");
@@ -271,7 +291,7 @@ public class TestStreamScanSql extends FlinkCatalogTestBase {
         exec(
             "SELECT * FROM %s /*+ OPTIONS('streaming'='true', 'monitor-interval'='1s', "
                 + "'start-tag'='%s')*/",
-            TABLE, "t1");
+            TABLE, tagName);
     try (CloseableIterator<Row> iterator = result.collect()) {
       // The row2 in start snapshot will be excluded.
       assertRows(ImmutableList.of(row3, row4), iterator);
@@ -286,5 +306,15 @@ public class TestStreamScanSql extends FlinkCatalogTestBase {
       assertRows(ImmutableList.of(row7), iterator);
     }
     result.getJobClient().ifPresent(JobClient::cancel);
+
+    AssertHelpers.assertThrows(
+        "START_SNAPSHOT_ID and START_TAG cannot be used both.",
+        IllegalArgumentException.class,
+        "START_SNAPSHOT_ID and START_TAG cannot be used both.",
+        () ->
+            exec(
+                "SELECT * FROM %s /*+ OPTIONS('streaming'='true', 'monitor-interval'='1s', 'start-tag'='%s', "
+                    + "'start-snapshot-id'='%d' )*/",
+                TABLE, tagName, startSnapshotId));
   }
 }

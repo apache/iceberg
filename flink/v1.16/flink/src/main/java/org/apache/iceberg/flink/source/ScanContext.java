@@ -137,7 +137,24 @@ public class ScanContext implements Serializable {
             startSnapshotId == null,
             "Invalid starting snapshot id for SPECIFIC_START_SNAPSHOT_ID strategy: not null");
       }
+
+      Preconditions.checkArgument(
+          branch == null,
+          String.format(
+              "Cannot scan table using ref %s configured for streaming reader yet", branch));
+
+      Preconditions.checkArgument(
+          tag == null,
+          String.format("Cannot scan table using ref %s configured for streaming reader", tag));
     }
+
+    Preconditions.checkArgument(
+        !(startTag != null && startSnapshotId() != null),
+        "START_SNAPSHOT_ID and START_TAG cannot be used both.");
+
+    Preconditions.checkArgument(
+        !(endTag != null && endSnapshotId() != null),
+        "END_SNAPSHOT_ID and END_TAG cannot be used both.");
   }
 
   public boolean caseSensitive() {
@@ -244,8 +261,8 @@ public class ScanContext implements Serializable {
         .useTag(null)
         .startSnapshotId(newStartSnapshotId)
         .endSnapshotId(newEndSnapshotId)
-        .startTag(startTag)
-        .endTag(endTag)
+        .startTag(null)
+        .endTag(null)
         .asOfTimestamp(null)
         .splitSize(splitSize)
         .splitLookback(splitLookback)
