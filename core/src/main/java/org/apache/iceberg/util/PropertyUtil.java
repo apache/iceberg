@@ -22,6 +22,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -121,23 +122,22 @@ public class PropertyUtil {
   }
 
   /**
-   * Returns subset of provided map with keys matching the provided prefix. Matching is
-   * case-sensitive.
+   * Filter the properties map by the provided predicate.
    *
    * @param properties input map
-   * @param prefix prefix to choose keys from input map
+   * @param keyPattern predicate to choose keys from input map
    * @return subset of input map with keys starting with provided prefix
    */
-  public static Map<String, String> propertiesWithPrefixNoTrim(
-      Map<String, String> properties, String prefix) {
+  public static Map<String, String> filterProperties(
+      Map<String, String> properties, Predicate<String> keyPattern) {
     if (properties == null || properties.isEmpty()) {
       return Collections.emptyMap();
     }
 
-    Preconditions.checkArgument(prefix != null, "Invalid prefix: null");
+    Preconditions.checkArgument(keyPattern != null, "Invalid key pattern: null");
 
     return properties.entrySet().stream()
-        .filter(e -> e.getKey().startsWith(prefix))
+        .filter(e -> keyPattern.test(e.getKey()))
         .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
   }
 
