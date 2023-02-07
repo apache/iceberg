@@ -165,6 +165,15 @@ public class AwsProperties implements Serializable {
   public static final String GLUE_CATALOG_ENDPOINT = "glue.endpoint";
 
   /**
+   * If set, Glue will always update the catalog table if the table already exists in glue catalog.
+   * By default, Glue catalog will only be able to create new table and will throw
+   * AlreadyExistsException when register an existing table name.
+   */
+  public static final String GLUE_CATALOG_FORCE_REGISTER_TABLE = "glue.force-register-table";
+
+  public static final boolean GLUE_CATALOG_FORCE_REGISTER_TABLE_DEFAULT = false;
+
+  /**
    * Number of threads to use for uploading parts to S3 (shared pool across all output streams),
    * default to {@link Runtime#availableProcessors()}
    */
@@ -684,6 +693,7 @@ public class AwsProperties implements Serializable {
   private boolean glueCatalogSkipArchive;
   private boolean glueCatalogSkipNameValidation;
   private boolean glueLakeFormationEnabled;
+  private boolean glueCatalogForceRegisterTable;
 
   private String dynamoDbTableName;
   private String dynamoDbEndpoint;
@@ -744,6 +754,7 @@ public class AwsProperties implements Serializable {
     this.glueCatalogSkipArchive = GLUE_CATALOG_SKIP_ARCHIVE_DEFAULT;
     this.glueCatalogSkipNameValidation = GLUE_CATALOG_SKIP_NAME_VALIDATION_DEFAULT;
     this.glueLakeFormationEnabled = GLUE_LAKEFORMATION_ENABLED_DEFAULT;
+    this.glueCatalogForceRegisterTable = GLUE_CATALOG_FORCE_REGISTER_TABLE_DEFAULT;
 
     this.dynamoDbEndpoint = null;
     this.dynamoDbTableName = DYNAMODB_TABLE_NAME_DEFAULT;
@@ -826,6 +837,11 @@ public class AwsProperties implements Serializable {
     this.glueLakeFormationEnabled =
         PropertyUtil.propertyAsBoolean(
             properties, GLUE_LAKEFORMATION_ENABLED, GLUE_LAKEFORMATION_ENABLED_DEFAULT);
+    this.glueCatalogForceRegisterTable =
+        PropertyUtil.propertyAsBoolean(
+            properties,
+            GLUE_CATALOG_FORCE_REGISTER_TABLE,
+            GLUE_CATALOG_FORCE_REGISTER_TABLE_DEFAULT);
     this.s3FileIoMultipartUploadThreads =
         PropertyUtil.propertyAsInt(
             properties,
@@ -998,6 +1014,14 @@ public class AwsProperties implements Serializable {
 
   public void setGlueLakeFormationEnabled(boolean glueLakeFormationEnabled) {
     this.glueLakeFormationEnabled = glueLakeFormationEnabled;
+  }
+
+  public boolean glueCatalogForceRegisterTable() {
+    return glueCatalogForceRegisterTable;
+  }
+
+  public void setGlueCatalogForceRegisterTable(boolean glueCatalogForceRegisterTable) {
+    this.glueCatalogForceRegisterTable = glueCatalogForceRegisterTable;
   }
 
   public int s3FileIoMultipartUploadThreads() {

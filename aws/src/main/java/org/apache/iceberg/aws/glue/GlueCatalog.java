@@ -481,8 +481,20 @@ public class GlueCatalog extends BaseMetastoreCatalog
       glue.createTable(
           CreateTableRequest.builder().databaseName(databaseName).tableInput(tableInput).build());
     } catch (software.amazon.awssdk.services.glue.model.AlreadyExistsException e) {
-      glue.updateTable(
-          UpdateTableRequest.builder().databaseName(databaseName).tableInput(tableInput).build());
+      if (awsProperties.glueCatalogForceRegisterTable()) {
+        GetTableResponse response =
+            glue.getTable(
+                GetTableRequest.builder().databaseName(databaseName).name(tableName).build());
+        String versionId = response.table().versionId();
+        glue.updateTable(
+            UpdateTableRequest.builder()
+                .databaseName(databaseName)
+                .tableInput(tableInput)
+                .versionId(versionId)
+                .build());
+      } else {
+        throw new AlreadyExistsException("Table already exists: %s", identifier);
+      }
     } catch (EntityNotFoundException e) {
       throw new NoSuchNamespaceException(
           e, "Namespace %s is not found in Glue", identifier.namespace());
