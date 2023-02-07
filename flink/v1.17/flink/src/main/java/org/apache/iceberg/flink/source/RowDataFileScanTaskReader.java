@@ -29,6 +29,8 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.data.DeleteFilter;
+import org.apache.iceberg.encryption.EncryptionKeyMetadata;
+import org.apache.iceberg.encryption.EncryptionUtil;
 import org.apache.iceberg.encryption.InputFilesDecryptor;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
@@ -180,6 +182,13 @@ public class RowDataFileScanTaskReader implements FileScanTaskReader<RowData> {
 
     if (nameMapping != null) {
       builder.withNameMapping(NameMappingParser.fromJson(nameMapping));
+    }
+
+    if (task.file().keyMetadata() != null) {
+      EncryptionKeyMetadata keyMetadata =
+          EncryptionUtil.parseKeyMetadata(task.file().keyMetadata());
+      builder.withFileEncryptionKey(keyMetadata.encryptionKey());
+      builder.withAADPrefix(keyMetadata.aadPrefix());
     }
 
     return builder.build();

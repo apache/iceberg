@@ -118,7 +118,7 @@ public abstract class BaseFileWriterFactory<T> implements FileWriterFactory<T> {
 
         case PARQUET:
           Parquet.DataWriteBuilder parquetBuilder =
-              Parquet.writeData(outputFile)
+              Parquet.writeData(file)
                   .schema(dataSchema)
                   .setAll(properties)
                   .metricsConfig(metricsConfig)
@@ -186,7 +186,7 @@ public abstract class BaseFileWriterFactory<T> implements FileWriterFactory<T> {
 
         case PARQUET:
           Parquet.DeleteWriteBuilder parquetBuilder =
-              Parquet.writeDeletes(outputFile)
+              Parquet.writeDeletes(file)
                   .setAll(properties)
                   .metricsConfig(metricsConfig)
                   .rowSchema(equalityDeleteRowSchema)
@@ -254,7 +254,7 @@ public abstract class BaseFileWriterFactory<T> implements FileWriterFactory<T> {
 
         case PARQUET:
           Parquet.DeleteWriteBuilder parquetBuilder =
-              Parquet.writeDeletes(outputFile)
+              Parquet.writeDeletes(file)
                   .setAll(properties)
                   .metricsConfig(metricsConfig)
                   .rowSchema(positionDeleteRowSchema)

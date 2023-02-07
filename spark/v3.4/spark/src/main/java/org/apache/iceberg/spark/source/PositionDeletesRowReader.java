@@ -92,6 +92,7 @@ class PositionDeletesRowReader extends BaseRowReader<PositionDeletesScanTask>
 
     return newIterable(
             inputFile,
+            task.file().keyMetadata(),
             task.file().format(),
             task.start(),
             task.length(),

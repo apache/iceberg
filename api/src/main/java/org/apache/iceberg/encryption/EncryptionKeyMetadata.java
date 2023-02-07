@@ -39,6 +39,11 @@ public interface EncryptionKeyMetadata {
         public EncryptionKeyMetadata copy() {
           return this;
         }
+
+        @Override
+        public ByteBuffer encryptionKey() {
+          return null;
+        }
       };
 
   static EncryptionKeyMetadata empty() {
@@ -49,4 +54,12 @@ public interface EncryptionKeyMetadata {
   ByteBuffer buffer();
 
   EncryptionKeyMetadata copy();
+
+  default ByteBuffer encryptionKey() {
+    throw new UnsupportedOperationException("Not implemented");
+  }
+
+  default ByteBuffer aadPrefix() {
+    throw new UnsupportedOperationException("Not implemented");
+  }
 }

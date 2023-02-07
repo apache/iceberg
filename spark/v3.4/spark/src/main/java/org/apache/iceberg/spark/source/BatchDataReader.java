@@ -100,6 +100,7 @@ class BatchDataReader extends BaseBatchReader<FileScanTask>
 
     return newBatchIterable(
             inputFile,
+            task.file().keyMetadata(),
             task.file().format(),
             task.start(),
             task.length(),

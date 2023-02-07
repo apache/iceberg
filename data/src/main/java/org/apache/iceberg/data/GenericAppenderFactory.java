@@ -32,6 +32,7 @@ import org.apache.iceberg.data.orc.GenericOrcWriter;
 import org.apache.iceberg.data.parquet.GenericParquetWriter;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
+import org.apache.iceberg.encryption.EncryptedFiles;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.FileAppenderFactory;
@@ -84,7 +85,14 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
 
   @Override
   public FileAppender<Record> newAppender(OutputFile outputFile, FileFormat fileFormat) {
+    return newAppender(EncryptedFiles.plainAsEncryptedOutput(outputFile), fileFormat);
+  }
+
+  @Override
+  public FileAppender<Record> newAppender(
+      EncryptedOutputFile encryptedOutputFile, FileFormat fileFormat) {
     MetricsConfig metricsConfig = MetricsConfig.fromProperties(config);
+    OutputFile outputFile = encryptedOutputFile.encryptingOutputFile();
     try {
       switch (fileFormat) {
         case AVRO:
@@ -97,7 +105,7 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
               .build();
 
         case PARQUET:
-          return Parquet.write(outputFile)
+          return Parquet.write(encryptedOutputFile)
               .schema(schema)
               .createWriterFunc(GenericParquetWriter::buildWriter)
               .setAll(config)
@@ -127,7 +135,7 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
   public org.apache.iceberg.io.DataWriter<Record> newDataWriter(
       EncryptedOutputFile file, FileFormat format, StructLike partition) {
     return new org.apache.iceberg.io.DataWriter<>(
-        newAppender(file.encryptingOutputFile(), format),
+        newAppender(file, format),
         format,
         file.encryptingOutputFile().location(),
         spec,
@@ -146,10 +154,12 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
         "Equality delete row schema shouldn't be null when creating equality-delete writer");
 
     MetricsConfig metricsConfig = MetricsConfig.fromProperties(config);
+    OutputFile outputFile = file.encryptingOutputFile();
+
     try {
       switch (format) {
         case AVRO:
-          return Avro.writeDeletes(file.encryptingOutputFile())
+          return Avro.writeDeletes(outputFile)
               .createWriterFunc(DataWriter::create)
               .withPartition(partition)
               .overwrite()
@@ -161,7 +171,7 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
               .buildEqualityWriter();
 
         case ORC:
-          return ORC.writeDeletes(file.encryptingOutputFile())
+          return ORC.writeDeletes(outputFile)
               .createWriterFunc(GenericOrcWriter::buildWriter)
               .withPartition(partition)
               .overwrite()
@@ -174,7 +184,7 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
               .buildEqualityWriter();
 
         case PARQUET:
-          return Parquet.writeDeletes(file.encryptingOutputFile())
+          return Parquet.writeDeletes(file)
               .createWriterFunc(GenericParquetWriter::buildWriter)
               .withPartition(partition)
               .overwrite()
@@ -199,10 +209,12 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
   public PositionDeleteWriter<Record> newPosDeleteWriter(
       EncryptedOutputFile file, FileFormat format, StructLike partition) {
     MetricsConfig metricsConfig = MetricsConfig.fromProperties(config);
+    OutputFile outputFile = file.encryptingOutputFile();
+
     try {
       switch (format) {
         case AVRO:
-          return Avro.writeDeletes(file.encryptingOutputFile())
+          return Avro.writeDeletes(outputFile)
               .createWriterFunc(DataWriter::create)
               .withPartition(partition)
               .overwrite()
@@ -213,7 +225,7 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
               .buildPositionWriter();
 
         case ORC:
-          return ORC.writeDeletes(file.encryptingOutputFile())
+          return ORC.writeDeletes(outputFile)
               .createWriterFunc(GenericOrcWriter::buildWriter)
               .withPartition(partition)
               .overwrite()
@@ -224,7 +236,7 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
               .buildPositionWriter();
 
         case PARQUET:
-          return Parquet.writeDeletes(file.encryptingOutputFile())
+          return Parquet.writeDeletes(file)
               .createWriterFunc(GenericParquetWriter::buildWriter)
               .withPartition(partition)
               .overwrite()

@@ -36,6 +36,8 @@ import org.apache.iceberg.data.parquet.GenericParquetReaders;
 import org.apache.iceberg.deletes.DeleteCounter;
 import org.apache.iceberg.deletes.Deletes;
 import org.apache.iceberg.deletes.PositionDeleteIndex;
+import org.apache.iceberg.encryption.EncryptionKeyMetadata;
+import org.apache.iceberg.encryption.EncryptionUtil;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.InputFile;
@@ -291,6 +293,13 @@ public abstract class DeleteFilter<T> {
 
         if (deleteFile.content() == FileContent.POSITION_DELETES) {
           builder.filter(Expressions.equal(MetadataColumns.DELETE_FILE_PATH.name(), filePath));
+        }
+
+        if (deleteFile.keyMetadata() != null) {
+          EncryptionKeyMetadata keyMetadata =
+              EncryptionUtil.parseKeyMetadata(deleteFile.keyMetadata());
+          builder.withFileEncryptionKey(keyMetadata.encryptionKey());
+          builder.withAADPrefix(keyMetadata.aadPrefix());
         }
 
         return builder.build();

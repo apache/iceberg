@@ -34,6 +34,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
+import org.apache.iceberg.encryption.EncryptedFiles;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.data.FlinkAvroWriter;
@@ -99,7 +100,15 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
 
   @Override
   public FileAppender<RowData> newAppender(OutputFile outputFile, FileFormat format) {
+    return newAppender(EncryptedFiles.plainAsEncryptedOutput(outputFile), format);
+  }
+
+  @Override
+  public FileAppender<RowData> newAppender(
+      EncryptedOutputFile encryptedOutputFile, FileFormat format) {
     MetricsConfig metricsConfig = MetricsConfig.forTable(table);
+    OutputFile outputFile = encryptedOutputFile.encryptingOutputFile();
+
     try {
       switch (format) {
         case AVRO:
@@ -122,7 +131,7 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
               .build();
 
         case PARQUET:
-          return Parquet.write(outputFile)
+          return Parquet.write(encryptedOutputFile)
               .createWriterFunc(msgType -> FlinkParquetWriters.buildWriter(flinkSchema, msgType))
               .setAll(props)
               .metricsConfig(metricsConfig)
@@ -142,7 +151,7 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
   public DataWriter<RowData> newDataWriter(
       EncryptedOutputFile file, FileFormat format, StructLike partition) {
     return new DataWriter<>(
-        newAppender(file.encryptingOutputFile(), format),
+        newAppender(file, format),
         format,
         file.encryptingOutputFile().location(),
         spec,
@@ -191,7 +200,7 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
               .buildEqualityWriter();
 
         case PARQUET:
-          return Parquet.writeDeletes(outputFile.encryptingOutputFile())
+          return Parquet.writeDeletes(outputFile)
               .createWriterFunc(
                   msgType -> FlinkParquetWriters.buildWriter(lazyEqDeleteFlinkSchema(), msgType))
               .withPartition(partition)
@@ -250,7 +259,7 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
         case PARQUET:
           RowType flinkPosDeleteSchema =
               FlinkSchemaUtil.convert(DeleteSchemaUtil.posDeleteSchema(posDeleteRowSchema));
-          return Parquet.writeDeletes(outputFile.encryptingOutputFile())
+          return Parquet.writeDeletes(outputFile)
               .createWriterFunc(
                   msgType -> FlinkParquetWriters.buildWriter(flinkPosDeleteSchema, msgType))
               .withPartition(partition)

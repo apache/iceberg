@@ -30,6 +30,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
+import org.apache.iceberg.encryption.EncryptedFiles;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.DataWriter;
@@ -161,7 +162,12 @@ class SparkAppenderFactory implements FileAppenderFactory<InternalRow> {
   }
 
   @Override
-  public FileAppender<InternalRow> newAppender(OutputFile file, FileFormat fileFormat) {
+  public FileAppender<InternalRow> newAppender(OutputFile outputFile, FileFormat format) {
+    return newAppender(EncryptedFiles.plainAsEncryptedOutput(outputFile), format);
+  }
+
+  @Override
+  public FileAppender<InternalRow> newAppender(EncryptedOutputFile file, FileFormat fileFormat) {
     MetricsConfig metricsConfig = MetricsConfig.fromProperties(properties);
     try {
       switch (fileFormat) {
@@ -175,7 +181,7 @@ class SparkAppenderFactory implements FileAppenderFactory<InternalRow> {
               .build();
 
         case AVRO:
-          return Avro.write(file)
+          return Avro.write(file.encryptingOutputFile())
               .createWriterFunc(ignored -> new SparkAvroWriter(dsSchema))
               .setAll(properties)
               .schema(writeSchema)
@@ -183,7 +189,7 @@ class SparkAppenderFactory implements FileAppenderFactory<InternalRow> {
               .build();
 
         case ORC:
-          return ORC.write(file)
+          return ORC.write(file.encryptingOutputFile())
               .createWriterFunc(SparkOrcWriter::new)
               .setAll(properties)
               .metricsConfig(metricsConfig)
@@ -203,7 +209,7 @@ class SparkAppenderFactory implements FileAppenderFactory<InternalRow> {
   public DataWriter<InternalRow> newDataWriter(
       EncryptedOutputFile file, FileFormat format, StructLike partition) {
     return new DataWriter<>(
-        newAppender(file.encryptingOutputFile(), format),
+        newAppender(file, format),
         format,
         file.encryptingOutputFile().location(),
         spec,
@@ -224,7 +230,7 @@ class SparkAppenderFactory implements FileAppenderFactory<InternalRow> {
     try {
       switch (format) {
         case PARQUET:
-          return Parquet.writeDeletes(file.encryptingOutputFile())
+          return Parquet.writeDeletes(file)
               .createWriterFunc(
                   msgType -> SparkParquetWriters.buildWriter(lazyEqDeleteSparkType(), msgType))
               .overwrite()
@@ -274,7 +280,7 @@ class SparkAppenderFactory implements FileAppenderFactory<InternalRow> {
         case PARQUET:
           StructType sparkPosDeleteSchema =
               SparkSchemaUtil.convert(DeleteSchemaUtil.posDeleteSchema(posDeleteRowSchema));
-          return Parquet.writeDeletes(file.encryptingOutputFile())
+          return Parquet.writeDeletes(file)
               .createWriterFunc(
                   msgType -> SparkParquetWriters.buildWriter(sparkPosDeleteSchema, msgType))
               .overwrite()
