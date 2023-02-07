@@ -122,22 +122,22 @@ public class PropertyUtil {
   }
 
   /**
-   * Filter the properties map by the provided predicate.
+   * Filter the properties map by the provided key predicate.
    *
    * @param properties input map
-   * @param keyPattern predicate to choose keys from input map
-   * @return subset of input map with keys starting with provided prefix
+   * @param keyPredicate predicate to choose keys from input map
+   * @return subset of input map with keys satisfying the predicate
    */
   public static Map<String, String> filterProperties(
-      Map<String, String> properties, Predicate<String> keyPattern) {
+      Map<String, String> properties, Predicate<String> keyPredicate) {
     if (properties == null || properties.isEmpty()) {
       return Collections.emptyMap();
     }
 
-    Preconditions.checkArgument(keyPattern != null, "Invalid key pattern: null");
+    Preconditions.checkArgument(keyPredicate != null, "Invalid key pattern: null");
 
     return properties.entrySet().stream()
-        .filter(e -> keyPattern.test(e.getKey()))
+        .filter(e -> keyPredicate.test(e.getKey()))
         .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
   }
 

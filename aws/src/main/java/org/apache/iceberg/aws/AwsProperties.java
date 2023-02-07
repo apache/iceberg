@@ -1174,15 +1174,13 @@ public class AwsProperties implements Serializable {
       case HTTP_CLIENT_TYPE_URLCONNECTION:
         UrlConnectionHttpClientConfigurations urlConnectionHttpClientConfigurations =
             (UrlConnectionHttpClientConfigurations)
-                loadHttpClientConfigurations(
-                    UrlConnectionHttpClientConfigurations.class.getName(), httpClientProperties);
+                loadHttpClientConfigurations(UrlConnectionHttpClientConfigurations.class.getName());
         urlConnectionHttpClientConfigurations.configureHttpClientBuilder(builder);
         break;
       case HTTP_CLIENT_TYPE_APACHE:
         ApacheHttpClientConfigurations apacheHttpClientConfigurations =
             (ApacheHttpClientConfigurations)
-                loadHttpClientConfigurations(
-                    ApacheHttpClientConfigurations.class.getName(), httpClientProperties);
+                loadHttpClientConfigurations(ApacheHttpClientConfigurations.class.getName());
         apacheHttpClientConfigurations.configureHttpClientBuilder(builder);
         break;
       default:
@@ -1272,8 +1270,7 @@ public class AwsProperties implements Serializable {
     }
   }
 
-  private Object loadHttpClientConfigurations(
-      String impl, Map<String, String> httpClientProperties) {
+  private Object loadHttpClientConfigurations(String impl) {
     Object httpClientConfigurations;
     try {
       httpClientConfigurations =
