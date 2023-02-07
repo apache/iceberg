@@ -569,8 +569,8 @@ public class TestGlueCatalogTable extends GlueTestBase {
 
     GetTableResponse response =
         glue.getTable(GetTableRequest.builder().databaseName(namespace).name(tableName).build());
-    String actualMetadataLocationGlue = response.table()
-        .parameters().get(BaseMetastoreTableOperations.METADATA_LOCATION_PROP);
+    String actualMetadataLocationGlue =
+        response.table().parameters().get(BaseMetastoreTableOperations.METADATA_LOCATION_PROP);
 
     Assert.assertEquals(
         "Glue Catalog Register Table should not submit a new commit",
@@ -589,10 +589,13 @@ public class TestGlueCatalogTable extends GlueTestBase {
     createTable(namespace, tableName);
     Table table = glueCatalog.loadTable(TableIdentifier.of(namespace, tableName));
     String metadataLocation = ((BaseTable) table).operations().current().metadataFileLocation();
-    AssertHelpers.assertThrows("Should fail to register to an unknown namespace",
+    AssertHelpers.assertThrows(
+        "Should fail to register to an unknown namespace",
         NoSuchNamespaceException.class,
         "not found in Glue",
-        () -> glueCatalog.registerTable(TableIdentifier.of(getRandomName(), getRandomName()), metadataLocation));
+        () ->
+            glueCatalog.registerTable(
+                TableIdentifier.of(getRandomName(), getRandomName()), metadataLocation));
   }
 
   @Test
@@ -610,11 +613,15 @@ public class TestGlueCatalogTable extends GlueTestBase {
     GetTableResponse response =
         glue.getTable(GetTableRequest.builder().databaseName(namespace).name(tableName).build());
     Assert.assertEquals(
-        "external table type is set after register", "EXTERNAL_TABLE", response.table().tableType());
-    String actualMetadataLocation = response.table()
-        .parameters().get(BaseMetastoreTableOperations.METADATA_LOCATION_PROP);
-    Assert.assertEquals("metadata location should be updated with registerTable call",
-        metadataLocation, actualMetadataLocation);
+        "external table type is set after register",
+        "EXTERNAL_TABLE",
+        response.table().tableType());
+    String actualMetadataLocation =
+        response.table().parameters().get(BaseMetastoreTableOperations.METADATA_LOCATION_PROP);
+    Assert.assertEquals(
+        "metadata location should be updated with registerTable call",
+        metadataLocation,
+        actualMetadataLocation);
 
     // commit new transaction, should create a new metadata file
     DataFile dataFile =
@@ -628,11 +635,14 @@ public class TestGlueCatalogTable extends GlueTestBase {
     metadataLocation = ((BaseTable) table).operations().current().metadataFileLocation();
     // update metadata location
     glueCatalog.registerTable(identifier, metadataLocation);
-    response = glue.getTable(GetTableRequest.builder().databaseName(namespace).name(tableName).build());
-    String updatedMetadataLocation = response.table()
-        .parameters().get(BaseMetastoreTableOperations.METADATA_LOCATION_PROP);
-    Assert.assertEquals("metadata location should be updated with registerTable call",
-        metadataLocation, updatedMetadataLocation);
+    response =
+        glue.getTable(GetTableRequest.builder().databaseName(namespace).name(tableName).build());
+    String updatedMetadataLocation =
+        response.table().parameters().get(BaseMetastoreTableOperations.METADATA_LOCATION_PROP);
+    Assert.assertEquals(
+        "metadata location should be updated with registerTable call",
+        metadataLocation,
+        updatedMetadataLocation);
   }
 
   @Test
