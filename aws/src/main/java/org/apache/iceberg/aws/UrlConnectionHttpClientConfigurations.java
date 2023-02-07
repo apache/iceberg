@@ -25,27 +25,27 @@ import org.apache.iceberg.util.PropertyUtil;
 import software.amazon.awssdk.awscore.client.builder.AwsSyncClientBuilder;
 import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
 
-class UrlConnectionHttpClientConfigurations extends HttpClientConfigurations {
+class UrlConnectionHttpClientConfigurations {
 
   private Long httpClientUrlConnectionConnectionTimeoutMs;
   private Long httpClientUrlConnectionSocketTimeoutMs;
 
-  @Override
-  public void initialize(Map<String, String> httpClientProperties) {
+  private UrlConnectionHttpClientConfigurations() {}
+
+  public <T extends AwsSyncClientBuilder> void configureHttpClientBuilder(T awsClientBuilder) {
+    UrlConnectionHttpClient.Builder urlConnectionHttpClientBuilder =
+        UrlConnectionHttpClient.builder();
+    configureUrlConnectionHttpClientBuilder(urlConnectionHttpClientBuilder);
+    awsClientBuilder.httpClientBuilder(urlConnectionHttpClientBuilder);
+  }
+
+  private void initialize(Map<String, String> httpClientProperties) {
     this.httpClientUrlConnectionConnectionTimeoutMs =
         PropertyUtil.propertyAsNullableLong(
             httpClientProperties, AwsProperties.HTTP_CLIENT_URLCONNECTION_CONNECTION_TIMEOUT_MS);
     this.httpClientUrlConnectionSocketTimeoutMs =
         PropertyUtil.propertyAsNullableLong(
             httpClientProperties, AwsProperties.HTTP_CLIENT_URLCONNECTION_SOCKET_TIMEOUT_MS);
-  }
-
-  @Override
-  public <T extends AwsSyncClientBuilder> void configureHttpClientBuilder(T awsClientBuilder) {
-    UrlConnectionHttpClient.Builder urlConnectionHttpClientBuilder =
-        UrlConnectionHttpClient.builder();
-    configureUrlConnectionHttpClientBuilder(urlConnectionHttpClientBuilder);
-    awsClientBuilder.httpClientBuilder(urlConnectionHttpClientBuilder);
   }
 
   @VisibleForTesting
@@ -59,5 +59,13 @@ class UrlConnectionHttpClientConfigurations extends HttpClientConfigurations {
       urlConnectionHttpClientBuilder.socketTimeout(
           Duration.ofMillis(httpClientUrlConnectionSocketTimeoutMs));
     }
+  }
+
+  public static UrlConnectionHttpClientConfigurations create(
+      Map<String, String> httpClientProperties) {
+    UrlConnectionHttpClientConfigurations configurations =
+        new UrlConnectionHttpClientConfigurations();
+    configurations.initialize(httpClientProperties);
+    return configurations;
   }
 }

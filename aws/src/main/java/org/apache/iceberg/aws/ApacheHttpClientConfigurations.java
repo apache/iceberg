@@ -25,7 +25,7 @@ import org.apache.iceberg.util.PropertyUtil;
 import software.amazon.awssdk.awscore.client.builder.AwsSyncClientBuilder;
 import software.amazon.awssdk.http.apache.ApacheHttpClient;
 
-class ApacheHttpClientConfigurations extends HttpClientConfigurations {
+class ApacheHttpClientConfigurations {
   private Long connectionTimeoutMs;
   private Long socketTimeoutMs;
   private Long acquisitionTimeoutMs;
@@ -36,8 +36,15 @@ class ApacheHttpClientConfigurations extends HttpClientConfigurations {
   private Boolean tcpKeepAliveEnabled;
   private Boolean useIdleConnectionReaperEnabled;
 
-  @Override
-  public void initialize(Map<String, String> httpClientProperties) {
+  private ApacheHttpClientConfigurations() {}
+
+  public <T extends AwsSyncClientBuilder> void configureHttpClientBuilder(T awsClientBuilder) {
+    ApacheHttpClient.Builder apacheHttpClientBuilder = ApacheHttpClient.builder();
+    configureApacheHttpClientBuilder(apacheHttpClientBuilder);
+    awsClientBuilder.httpClientBuilder(apacheHttpClientBuilder);
+  }
+
+  private void initialize(Map<String, String> httpClientProperties) {
     this.connectionTimeoutMs =
         PropertyUtil.propertyAsNullableLong(
             httpClientProperties, AwsProperties.HTTP_CLIENT_APACHE_CONNECTION_TIMEOUT_MS);
@@ -69,13 +76,6 @@ class ApacheHttpClientConfigurations extends HttpClientConfigurations {
             AwsProperties.HTTP_CLIENT_APACHE_USE_IDLE_CONNECTION_REAPER_ENABLED);
   }
 
-  @Override
-  public <T extends AwsSyncClientBuilder> void configureHttpClientBuilder(T awsClientBuilder) {
-    ApacheHttpClient.Builder apacheHttpClientBuilder = ApacheHttpClient.builder();
-    configureApacheHttpClientBuilder(apacheHttpClientBuilder);
-    awsClientBuilder.httpClientBuilder(apacheHttpClientBuilder);
-  }
-
   @VisibleForTesting
   void configureApacheHttpClientBuilder(ApacheHttpClient.Builder apacheHttpClientBuilder) {
     if (connectionTimeoutMs != null) {
@@ -105,5 +105,11 @@ class ApacheHttpClientConfigurations extends HttpClientConfigurations {
     if (useIdleConnectionReaperEnabled != null) {
       apacheHttpClientBuilder.useIdleConnectionReaper(useIdleConnectionReaperEnabled);
     }
+  }
+
+  public static ApacheHttpClientConfigurations create(Map<String, String> properties) {
+    ApacheHttpClientConfigurations configurations = new ApacheHttpClientConfigurations();
+    configurations.initialize(properties);
+    return configurations;
   }
 }

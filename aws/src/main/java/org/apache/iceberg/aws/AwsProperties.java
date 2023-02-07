@@ -1167,22 +1167,23 @@ public class AwsProperties implements Serializable {
    * </pre>
    */
   public <T extends AwsSyncClientBuilder> void applyHttpClientConfigurations(T builder) {
-    HttpClientConfigurations httpClientConfigurations;
     if (Strings.isNullOrEmpty(httpClientType)) {
       httpClientType = HTTP_CLIENT_TYPE_DEFAULT;
     }
     switch (httpClientType) {
       case HTTP_CLIENT_TYPE_URLCONNECTION:
-        httpClientConfigurations =
-            loadHttpClientConfigurations(
-                UrlConnectionHttpClientConfigurations.class.getName(), httpClientProperties);
-        httpClientConfigurations.configureHttpClientBuilder(builder);
+        UrlConnectionHttpClientConfigurations urlConnectionHttpClientConfigurations =
+            (UrlConnectionHttpClientConfigurations)
+                loadHttpClientConfigurations(
+                    UrlConnectionHttpClientConfigurations.class.getName(), httpClientProperties);
+        urlConnectionHttpClientConfigurations.configureHttpClientBuilder(builder);
         break;
       case HTTP_CLIENT_TYPE_APACHE:
-        httpClientConfigurations =
-            loadHttpClientConfigurations(
-                ApacheHttpClientConfigurations.class.getName(), httpClientProperties);
-        httpClientConfigurations.configureHttpClientBuilder(builder);
+        ApacheHttpClientConfigurations apacheHttpClientConfigurations =
+            (ApacheHttpClientConfigurations)
+                loadHttpClientConfigurations(
+                    ApacheHttpClientConfigurations.class.getName(), httpClientProperties);
+        apacheHttpClientConfigurations.configureHttpClientBuilder(builder);
         break;
       default:
         throw new IllegalArgumentException("Unrecognized HTTP client type " + httpClientType);
@@ -1271,24 +1272,19 @@ public class AwsProperties implements Serializable {
     }
   }
 
-  private HttpClientConfigurations loadHttpClientConfigurations(
+  private Object loadHttpClientConfigurations(
       String impl, Map<String, String> httpClientProperties) {
-    DynConstructors.Ctor<HttpClientConfigurations> ctor;
+    Object httpClientConfigurations;
     try {
-      ctor =
-          DynConstructors.builder(HttpClientConfigurations.class).hiddenImpl(impl).buildChecked();
-      HttpClientConfigurations httpClientConfigurations = ctor.newInstance();
-      httpClientConfigurations.initialize(httpClientProperties);
+      httpClientConfigurations =
+          DynMethods.builder("create")
+              .hiddenImpl(impl, Map.class)
+              .buildStaticChecked()
+              .invoke(httpClientProperties);
       return httpClientConfigurations;
     } catch (NoSuchMethodException e) {
       throw new IllegalArgumentException(
           String.format("Cannot initialize HttpClientConfigurations Implementation %s", impl), e);
-    } catch (ClassCastException e) {
-      throw new IllegalArgumentException(
-          String.format(
-              "Cannot initialize HttpClientConfigurations, %s does not implement HttpClientConfigurations",
-              impl),
-          e);
     }
   }
 }
