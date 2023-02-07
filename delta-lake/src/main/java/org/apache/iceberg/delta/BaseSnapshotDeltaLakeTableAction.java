@@ -344,7 +344,7 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
     if (path.endsWith(PARQUET_SUFFIX)) {
       return FileFormat.PARQUET;
     } else {
-      throw new ValidationException("Do not support file format from path %s", path);
+      throw new ValidationException("Do not support file format in path %s", path);
     }
   }
 
