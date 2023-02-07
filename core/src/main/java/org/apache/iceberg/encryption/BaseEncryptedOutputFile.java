@@ -20,12 +20,13 @@ package org.apache.iceberg.encryption;
 
 import org.apache.iceberg.io.OutputFile;
 
-class BaseEncryptedOutputFile implements EncryptedOutputFile {
+public class BaseEncryptedOutputFile implements EncryptedOutputFile {
 
   private final OutputFile encryptingOutputFile;
   private final EncryptionKeyMetadata keyMetadata;
 
-  BaseEncryptedOutputFile(OutputFile encryptingOutputFile, EncryptionKeyMetadata keyMetadata) {
+  public BaseEncryptedOutputFile(
+      OutputFile encryptingOutputFile, EncryptionKeyMetadata keyMetadata) {
     this.encryptingOutputFile = encryptingOutputFile;
     this.keyMetadata = keyMetadata;
   }

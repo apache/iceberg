@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.encryption;
+package org.apache.iceberg.encryption.envelope;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;

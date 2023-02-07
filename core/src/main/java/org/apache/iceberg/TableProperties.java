@@ -362,12 +362,4 @@ public class TableProperties {
 
   /** @deprecated will be removed in 1.3.0, use the HMS_TABLE_OWNER constant from HiveCatalog */
   @Deprecated public static final String HMS_TABLE_OWNER = "hive.metastore.table.owner";
-
-  public static final String ENCRYPTION_TABLE_KEY = "encryption.table.key.id";
-
-  public static final String ENCRYPTION_DEK_LENGTH = "encryption.data.key.length";
-  public static final int ENCRYPTION_DEK_LENGTH_DEFAULT = 16;
-
-  /** Implementation of the KMS client for envelope encryption */
-  public static final String ENCRYPTION_KMS_CLIENT_IMPL = "encryption.kms.client-impl";
 }

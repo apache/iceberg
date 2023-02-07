@@ -16,14 +16,15 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.encryption;
-
-import static org.apache.iceberg.TableProperties.ENCRYPTION_DEK_LENGTH;
-import static org.apache.iceberg.TableProperties.ENCRYPTION_DEK_LENGTH_DEFAULT;
+package org.apache.iceberg.encryption.envelope;
 
 import java.nio.ByteBuffer;
 import java.security.SecureRandom;
 import java.util.Map;
+import org.apache.iceberg.encryption.BaseEncryptedOutputFile;
+import org.apache.iceberg.encryption.EncryptedInputFile;
+import org.apache.iceberg.encryption.EncryptedOutputFile;
+import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -40,10 +41,20 @@ import org.apache.iceberg.util.PropertyUtil;
  * pulling bytes from a {@link SecureRandom} on the JVM writing the file.
  */
 public class EnvelopeEncryptionManager implements EncryptionManager {
-  private final String tableKeyId;
-  private final KeyManagementClient kmsClient;
-  private final int dataKeyLength;
-  private final boolean kmsGeneratedKeys;
+  public static final String ENCRYPTION_TABLE_KEY = "encryption.table.key.id";
+
+  public static final String ENCRYPTION_DEK_LENGTH = "encryption.data.key.length";
+  public static final int ENCRYPTION_DEK_LENGTH_DEFAULT = 16;
+
+  public static final int ENCRYPTION_AAD_LENGTH_DEFAULT = 16;
+
+  /** Implementation of the KMS client for envelope encryption */
+  public static final String ENCRYPTION_KMS_CLIENT_IMPL = "encryption.kms.client-impl";
+
+  private final KmsClient kmsClient;
+  private String tableKeyId;
+  private int dataKeyLength;
+  private boolean kmsGeneratedKeys;
 
   private transient volatile SecureRandom workerRNG = null;
 
@@ -53,10 +64,10 @@ public class EnvelopeEncryptionManager implements EncryptionManager {
    * @param encryptionProperties encryption properties
    */
   public EnvelopeEncryptionManager(
-      String tableKeyId, KeyManagementClient kmsClient, Map<String, String> encryptionProperties) {
+      String tableKeyId, KmsClient kmsClient, Map<String, String> encryptionProperties) {
     Preconditions.checkNotNull(
-            tableKeyId,
-            "Cannot create EnvelopeEncryptionManager because table encryption key ID is not specified");
+        tableKeyId,
+        "Cannot create EnvelopeEncryptionManager because table encryption key ID is not specified");
     Preconditions.checkNotNull(
         kmsClient, "Cannot create EnvelopeEncryptionManager because kmsClient is null");
     Preconditions.checkNotNull(
@@ -73,37 +84,17 @@ public class EnvelopeEncryptionManager implements EncryptionManager {
 
   @Override
   public EncryptedOutputFile encrypt(OutputFile rawOutput) {
-    ByteBuffer fileDek;
-    ByteBuffer wrappedFileDEK;
-
-    if (kmsGeneratedKeys) {
-      KeyManagementClient.KeyGenerationResult generatedDek = kmsClient.generateKey(tableKeyId);
-      fileDek = generatedDek.key();
-      wrappedFileDEK = generatedDek.wrappedKey();
-    } else {
-      if (null == workerRNG) {
-        workerRNG = new SecureRandom();
-      }
-      fileDek = ByteBuffer.allocate(dataKeyLength);
-      workerRNG.nextBytes(fileDek.array());
-      wrappedFileDEK = kmsClient.wrapKey(ByteBuffer.wrap(fileDek.array()), tableKeyId);
+    if (null == workerRNG) {
+      workerRNG = new SecureRandom();
     }
 
-    NativeFileCryptoParameters nativeEncryptParams =
-        NativeFileCryptoParameters.create(fileDek).build();
+    ByteBuffer fileDek = ByteBuffer.allocate(dataKeyLength);
+    workerRNG.nextBytes(fileDek.array());
 
-    if (!(rawOutput instanceof NativelyEncryptedFile)) {
-      throw new RuntimeException(
-          "Can't natively encrypt "
-              + rawOutput.location()
-              + " because the class "
-              + rawOutput.getClass()
-              + " doesn't implement NativelyEncryptedFile interface");
-    }
+    ByteBuffer aadPrefix = ByteBuffer.allocate(ENCRYPTION_AAD_LENGTH_DEFAULT);
+    workerRNG.nextBytes(aadPrefix.array());
 
-    ((NativelyEncryptedFile) rawOutput).setNativeCryptoParameters(nativeEncryptParams);
-
-    EnvelopeKeyMetadata fileEnvelopeMetadata = new EnvelopeKeyMetadata(tableKeyId, wrappedFileDEK);
+    EnvelopeKeyMetadata fileEnvelopeMetadata = new EnvelopeKeyMetadata(null, fileDek, aadPrefix);
 
     return new BaseEncryptedOutputFile(rawOutput, fileEnvelopeMetadata);
   }
@@ -111,26 +102,9 @@ public class EnvelopeEncryptionManager implements EncryptionManager {
   @Override
   public InputFile decrypt(EncryptedInputFile encrypted) {
     if (encrypted.keyMetadata().buffer() == null) { // unencrypted file
-      return encrypted.encryptedInputFile();
-    }
-    EnvelopeKeyMetadata metadata = EnvelopeKeyMetadata.parse(encrypted.keyMetadata().buffer());
-    ByteBuffer fileDek = kmsClient.unwrapKey(metadata.encryptionKey(), metadata.wrappingKeyId());
-
-    NativeFileCryptoParameters nativeDecryptParams =
-        NativeFileCryptoParameters.create(fileDek).build();
-    InputFile rawInput = encrypted.encryptedInputFile();
-
-    if (!(rawInput instanceof NativelyEncryptedFile)) {
       throw new RuntimeException(
-          "Can't natively decrypt "
-              + rawInput.location()
-              + " because the class "
-              + rawInput.getClass()
-              + " doesn't implement NativelyEncryptedFile interface");
+          "Unencrypted file " + encrypted.encryptedInputFile().location() + " in encrypted table");
     }
-
-    ((NativelyEncryptedFile) rawInput).setNativeCryptoParameters(nativeDecryptParams);
-
-    return rawInput;
+    return encrypted.encryptedInputFile();
   }
 }

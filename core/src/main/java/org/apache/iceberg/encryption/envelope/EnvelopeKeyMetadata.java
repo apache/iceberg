@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.encryption;
+package org.apache.iceberg.encryption.envelope;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -29,6 +29,7 @@ import org.apache.avro.io.DecoderFactory;
 import org.apache.avro.io.EncoderFactory;
 import org.apache.avro.specific.SpecificDatumReader;
 import org.apache.avro.specific.SpecificDatumWriter;
+import org.apache.iceberg.encryption.EncryptionKeyMetadata;
 
 public class EnvelopeKeyMetadata implements EncryptionKeyMetadata {
 
@@ -37,10 +38,12 @@ public class EnvelopeKeyMetadata implements EncryptionKeyMetadata {
 
   private final String wrappingKeyId;
   private final ByteBuffer encryptionKey;
+  private final ByteBuffer aadPrefix;
 
-  public EnvelopeKeyMetadata(String wrappingKeyId, ByteBuffer encryptionKey) {
+  public EnvelopeKeyMetadata(String wrappingKeyId, ByteBuffer encryptionKey, ByteBuffer aadPrefix) {
     this.wrappingKeyId = wrappingKeyId;
     this.encryptionKey = encryptionKey;
+    this.aadPrefix = aadPrefix;
   }
 
   public String wrappingKeyId() {
@@ -51,14 +54,22 @@ public class EnvelopeKeyMetadata implements EncryptionKeyMetadata {
     return encryptionKey;
   }
 
+  public ByteBuffer aadPrefix() {
+    return aadPrefix;
+  }
+
   @Override
   public ByteBuffer buffer() {
     try {
-      AvroKeyRecord avroKeyRecord =
-          AvroKeyRecord.newBuilder()
-              .setEncryptionKey(encryptionKey)
-              .setWrappingKeyId(wrappingKeyId)
-              .build();
+      AvroKeyRecord.Builder avroKeyRecordBuilder =
+          AvroKeyRecord.newBuilder().setEncryptionKey(encryptionKey);
+      if (null != wrappingKeyId) {
+        avroKeyRecordBuilder.setWrappingKeyId(wrappingKeyId);
+      }
+      if (null != aadPrefix) {
+        avroKeyRecordBuilder.setAadPrefix(aadPrefix);
+      }
+      AvroKeyRecord avroKeyRecord = avroKeyRecordBuilder.build();
 
       ByteArrayOutputStream baos = new ByteArrayOutputStream();
       baos.write(magic);
@@ -78,7 +89,8 @@ public class EnvelopeKeyMetadata implements EncryptionKeyMetadata {
 
   @Override
   public EncryptionKeyMetadata copy() {
-    EnvelopeKeyMetadata metadata = new EnvelopeKeyMetadata(wrappingKeyId(), encryptionKey());
+    EnvelopeKeyMetadata metadata =
+        new EnvelopeKeyMetadata(wrappingKeyId(), encryptionKey(), aadPrefix());
     return metadata;
   }
 
@@ -86,6 +98,7 @@ public class EnvelopeKeyMetadata implements EncryptionKeyMetadata {
     try {
       DatumReader<AvroKeyRecord> avroReader = new SpecificDatumReader<>(AvroKeyRecord.class);
       byte[] array = buffer.array();
+      // TODO rm magic, mv version to Avro field?
       if (array[0] != magic) {
         throw new RuntimeException("Not envelope key metadata format");
       }
@@ -99,7 +112,8 @@ public class EnvelopeKeyMetadata implements EncryptionKeyMetadata {
       if (avroKeyRecord.getWrappingKeyId() != null) {
         wrappingKeyId = avroKeyRecord.getWrappingKeyId().toString();
       }
-      return new EnvelopeKeyMetadata(wrappingKeyId, avroKeyRecord.getEncryptionKey());
+      return new EnvelopeKeyMetadata(
+          wrappingKeyId, avroKeyRecord.getEncryptionKey(), avroKeyRecord.getAadPrefix());
 
     } catch (IOException e) {
       throw new RuntimeException("Failed to parse envelope encryption metadata", e);

@@ -18,22 +18,26 @@
  */
 package org.apache.iceberg.encryption;
 
-import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
+import org.apache.iceberg.encryption.envelope.EnvelopeKeyMetadata;
 import org.junit.Assert;
 import org.junit.Test;
+
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 
 public class TestEnvelopeMetadataParser {
 
   @Test
   public void testParser() {
     String wrappingKeyId = "keyA";
-    ByteBuffer wrappedDek = ByteBuffer.wrap("WrappedDek".getBytes(StandardCharsets.UTF_8));
-    EnvelopeKeyMetadata metadata = new EnvelopeKeyMetadata(wrappingKeyId, wrappedDek);
+    ByteBuffer encryptionKey = ByteBuffer.wrap("0123456789012345".getBytes(StandardCharsets.UTF_8));
+    ByteBuffer aadPrefix = ByteBuffer.wrap("1234567890123456".getBytes(StandardCharsets.UTF_8));
+    EnvelopeKeyMetadata metadata = new EnvelopeKeyMetadata(wrappingKeyId, encryptionKey, aadPrefix);
     ByteBuffer serialized = metadata.buffer();
 
     EnvelopeKeyMetadata parsedMetadata = EnvelopeKeyMetadata.parse(serialized);
     Assert.assertEquals(parsedMetadata.wrappingKeyId(), wrappingKeyId);
-    Assert.assertEquals(parsedMetadata.encryptionKey(), wrappedDek);
+    Assert.assertEquals(parsedMetadata.encryptionKey(), encryptionKey);
+    Assert.assertEquals(parsedMetadata.aadPrefix(), aadPrefix);
   }
 }
