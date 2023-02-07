@@ -14,6 +14,7 @@
 #  KIND, either express or implied.  See the License for the
 #  specific language governing permissions and limitations
 #  under the License.
+# pylint:disable=redefined-outer-name
 
 from typing import (
     Dict,
@@ -203,6 +204,11 @@ class InMemoryCatalog(Catalog):
         return PropertiesUpdateSummary(
             removed=list(removed or []), updated=list(updates.keys() if updates else []), missing=list(expected_to_change)
         )
+
+
+@pytest.fixture
+def catalog() -> InMemoryCatalog:
+    return InMemoryCatalog("test.in.memory.catalog", **{"test.key": "test.value"})
 
 
 TEST_TABLE_IDENTIFIER = ("com", "organization", "department", "my_table")
