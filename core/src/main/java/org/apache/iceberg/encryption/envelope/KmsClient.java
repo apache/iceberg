@@ -16,14 +16,15 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.encryption;
+package org.apache.iceberg.encryption.envelope;
 
+import java.io.Closeable;
 import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.util.Map;
 
 /** A minimum client interface to connect to a key management service (KMS). */
-public interface KeyManagementClient extends Serializable {
+public interface KmsClient extends Serializable, Closeable {
 
   /**
    * Wrap a secret key, using a wrapping/master key which is stored in KMS and referenced by an ID.
@@ -72,11 +73,18 @@ public interface KeyManagementClient extends Serializable {
   ByteBuffer unwrapKey(ByteBuffer wrappedKey, String wrappingKeyId);
 
   /**
-   * Initialize the KMS client with given properties
+   * Initialize the KMS client with given properties.
    *
    * @param properties kms client properties
    */
   void initialize(Map<String, String> properties);
+
+  /**
+   * Close KMS Client to release underlying resources, this could be triggered in different threads
+   * when KmsClient is shared by multiple encryption managers.
+   */
+  @Override
+  default void close() {}
 
   /**
    * For KMS systems that support key generation, this class keeps the key generation result - the

@@ -21,10 +21,10 @@ package org.apache.iceberg.encryption.kms;
 import java.nio.ByteBuffer;
 import java.util.Map;
 import org.apache.iceberg.encryption.Ciphers;
-import org.apache.iceberg.encryption.KeyManagementClient;
+import org.apache.iceberg.encryption.envelope.KmsClient;
 
 /** For testing and demonstrations; not for use in production. */
-public abstract class MemoryMockKMS implements KeyManagementClient {
+public abstract class MemoryMockKMS implements KmsClient {
 
   protected Map<String, byte[]> masterKeys;
 
