@@ -278,11 +278,7 @@ public class TestAwsProperties {
         awsProperties.s3BucketToAccessPointMapping(),
         deSerializedAwsProperties.s3BucketToAccessPointMapping());
     Assert.assertEquals(
-        awsProperties.urlConnectionHttpClientProperties(),
-        deSerializedAwsProperties.urlConnectionHttpClientProperties());
-    Assert.assertEquals(
-        awsProperties.apacheHttpClientProperties(),
-        deSerializedAwsProperties.apacheHttpClientProperties());
+        awsProperties.httpClientProperties(), deSerializedAwsProperties.httpClientProperties());
 
     AwsProperties awsPropertiesWithProps = new AwsProperties(ImmutableMap.of("a", "b"));
     AwsProperties deSerializedAwsPropertiesWithProps =
@@ -291,11 +287,7 @@ public class TestAwsProperties {
         awsPropertiesWithProps.s3BucketToAccessPointMapping(),
         deSerializedAwsPropertiesWithProps.s3BucketToAccessPointMapping());
     Assert.assertEquals(
-        awsProperties.urlConnectionHttpClientProperties(),
-        deSerializedAwsProperties.urlConnectionHttpClientProperties());
-    Assert.assertEquals(
-        awsProperties.apacheHttpClientProperties(),
-        deSerializedAwsProperties.apacheHttpClientProperties());
+        awsProperties.httpClientProperties(), deSerializedAwsProperties.httpClientProperties());
 
     AwsProperties awsPropertiesWithEmptyProps = new AwsProperties(Collections.emptyMap());
     AwsProperties deSerializedAwsPropertiesWithEmptyProps =
@@ -304,11 +296,7 @@ public class TestAwsProperties {
         awsPropertiesWithEmptyProps.s3BucketToAccessPointMapping(),
         deSerializedAwsPropertiesWithEmptyProps.s3BucketToAccessPointMapping());
     Assert.assertEquals(
-        awsProperties.urlConnectionHttpClientProperties(),
-        deSerializedAwsProperties.urlConnectionHttpClientProperties());
-    Assert.assertEquals(
-        awsProperties.apacheHttpClientProperties(),
-        deSerializedAwsProperties.apacheHttpClientProperties());
+        awsProperties.httpClientProperties(), deSerializedAwsProperties.httpClientProperties());
   }
 
   @Test

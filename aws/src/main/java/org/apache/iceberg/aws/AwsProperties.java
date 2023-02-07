@@ -628,11 +628,9 @@ public class AwsProperties implements Serializable {
    */
   public static final String LAKE_FORMATION_DB_NAME = "lakeformation.db-name";
 
-  private static final String HTTP_CLIENT_URLCONNECTION_PREFIX = "http-client.urlconnection.";
-  private static final String HTTP_CLIENT_APACHE_PREFIX = "http-client.apache.";
+  private static final String HTTP_CLIENT_PREFIX = "http-client.";
   private String httpClientType;
-  private final Map<String, String> urlConnectionHttpClientProperties;
-  private final Map<String, String> apacheHttpClientProperties;
+  private final Map<String, String> httpClientProperties;
   private final Set<software.amazon.awssdk.services.sts.model.Tag> stsClientAssumeRoleTags;
 
   private String clientAssumeRoleArn;
@@ -682,8 +680,7 @@ public class AwsProperties implements Serializable {
 
   public AwsProperties() {
     this.httpClientType = HTTP_CLIENT_TYPE_DEFAULT;
-    this.urlConnectionHttpClientProperties = Collections.emptyMap();
-    this.apacheHttpClientProperties = Collections.emptyMap();
+    this.httpClientProperties = Collections.emptyMap();
     this.stsClientAssumeRoleTags = Sets.newHashSet();
 
     this.clientAssumeRoleArn = null;
@@ -740,10 +737,8 @@ public class AwsProperties implements Serializable {
   public AwsProperties(Map<String, String> properties) {
     this.httpClientType =
         PropertyUtil.propertyAsString(properties, HTTP_CLIENT_TYPE, HTTP_CLIENT_TYPE_DEFAULT);
-    this.urlConnectionHttpClientProperties =
-        PropertyUtil.propertiesWithPrefixNoTrim(properties, HTTP_CLIENT_URLCONNECTION_PREFIX);
-    this.apacheHttpClientProperties =
-        PropertyUtil.propertiesWithPrefixNoTrim(properties, HTTP_CLIENT_APACHE_PREFIX);
+    this.httpClientProperties =
+        PropertyUtil.propertiesWithPrefixNoTrim(properties, HTTP_CLIENT_PREFIX);
     this.stsClientAssumeRoleTags = toStsTags(properties, CLIENT_ASSUME_ROLE_TAGS_PREFIX);
     this.clientAssumeRoleArn = properties.get(CLIENT_ASSUME_ROLE_ARN);
     this.clientAssumeRoleTimeoutSec =
@@ -1062,12 +1057,8 @@ public class AwsProperties implements Serializable {
     return s3BucketToAccessPointMapping;
   }
 
-  public Map<String, String> urlConnectionHttpClientProperties() {
-    return urlConnectionHttpClientProperties;
-  }
-
-  public Map<String, String> apacheHttpClientProperties() {
-    return apacheHttpClientProperties;
+  public Map<String, String> httpClientProperties() {
+    return httpClientProperties;
   }
 
   /**
@@ -1184,14 +1175,13 @@ public class AwsProperties implements Serializable {
       case HTTP_CLIENT_TYPE_URLCONNECTION:
         httpClientConfigurations =
             loadHttpClientConfigurations(
-                UrlConnectionHttpClientConfigurations.class.getName(),
-                urlConnectionHttpClientProperties);
+                UrlConnectionHttpClientConfigurations.class.getName(), httpClientProperties);
         httpClientConfigurations.configureHttpClientBuilder(builder);
         break;
       case HTTP_CLIENT_TYPE_APACHE:
         httpClientConfigurations =
             loadHttpClientConfigurations(
-                ApacheHttpClientConfigurations.class.getName(), apacheHttpClientProperties);
+                ApacheHttpClientConfigurations.class.getName(), httpClientProperties);
         httpClientConfigurations.configureHttpClientBuilder(builder);
         break;
       default:

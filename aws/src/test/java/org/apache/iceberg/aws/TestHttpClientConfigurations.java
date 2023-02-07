@@ -35,8 +35,7 @@ public class TestHttpClientConfigurations {
     AwsProperties awsProperties = new AwsProperties(properties);
     UrlConnectionHttpClientConfigurations urlConnectionHttpClientConfigurations =
         new UrlConnectionHttpClientConfigurations();
-    urlConnectionHttpClientConfigurations.initialize(
-        awsProperties.urlConnectionHttpClientProperties());
+    urlConnectionHttpClientConfigurations.initialize(awsProperties.httpClientProperties());
     UrlConnectionHttpClient.Builder urlConnectionHttpClientBuilder =
         UrlConnectionHttpClient.builder();
     UrlConnectionHttpClient.Builder spyUrlConnectionHttpClientBuilder =
@@ -55,8 +54,7 @@ public class TestHttpClientConfigurations {
     AwsProperties awsProperties = new AwsProperties(properties);
     UrlConnectionHttpClientConfigurations urlConnectionHttpClientConfigurations =
         new UrlConnectionHttpClientConfigurations();
-    urlConnectionHttpClientConfigurations.initialize(
-        awsProperties.urlConnectionHttpClientProperties());
+    urlConnectionHttpClientConfigurations.initialize(awsProperties.httpClientProperties());
     UrlConnectionHttpClient.Builder urlConnectionHttpClientBuilder =
         UrlConnectionHttpClient.builder();
     UrlConnectionHttpClient.Builder spyUrlConnectionHttpClientBuilder =
@@ -86,7 +84,7 @@ public class TestHttpClientConfigurations {
     AwsProperties awsProperties = new AwsProperties(properties);
     ApacheHttpClientConfigurations apacheHttpClientConfigurations =
         new ApacheHttpClientConfigurations();
-    apacheHttpClientConfigurations.initialize(awsProperties.apacheHttpClientProperties());
+    apacheHttpClientConfigurations.initialize(awsProperties.httpClientProperties());
     ApacheHttpClient.Builder apacheHttpClientBuilder = ApacheHttpClient.builder();
     ApacheHttpClient.Builder spyApacheHttpClientBuilder = Mockito.spy(apacheHttpClientBuilder);
 
@@ -109,7 +107,7 @@ public class TestHttpClientConfigurations {
     AwsProperties awsProperties = new AwsProperties(properties);
     ApacheHttpClientConfigurations apacheHttpClientConfigurations =
         new ApacheHttpClientConfigurations();
-    apacheHttpClientConfigurations.initialize(awsProperties.apacheHttpClientProperties());
+    apacheHttpClientConfigurations.initialize(awsProperties.httpClientProperties());
     ApacheHttpClient.Builder apacheHttpClientBuilder = ApacheHttpClient.builder();
     ApacheHttpClient.Builder spyApacheHttpClientBuilder = Mockito.spy(apacheHttpClientBuilder);
 
