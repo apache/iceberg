@@ -108,6 +108,7 @@ def test_create_table_with_strips(
     assert table_metadata_location_regex.match(table.metadata_location)
 
 
+@mock_glue
 def test_create_table_with_strips_bucket_root(
     _bucket_initialize: None, _patch_aiobotocore: None, table_schema_nested: Schema, database_name: str, table_name: str
 ) -> None:
