@@ -30,16 +30,6 @@ import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.PropertyUtil;
 
-/**
- * Encryption manager which in conjunction with a KMS can encrypt {@link OutputFile} and decrypt
- * {@link InputFile}. Envelope encryption uses a key wrapping strategy, where a Key Encryption Key
- * (KEK) is used to wrap or unwrap a Data Encryption Key DEK which is used to encrypt the underlying
- * files.
- *
- * <p>When generating new DEKs for OutputFiles, this class will first attempt to have the KMS
- * generate a new key. If the KMS does not support key generation a new key will be produced by
- * pulling bytes from a {@link SecureRandom} on the JVM writing the file.
- */
 public class EnvelopeEncryptionManager implements EncryptionManager {
   public static final String ENCRYPTION_TABLE_KEY = "encryption.table.key.id";
 
