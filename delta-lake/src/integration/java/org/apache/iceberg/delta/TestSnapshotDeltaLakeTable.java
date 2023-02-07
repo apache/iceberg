@@ -476,6 +476,7 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
             expr(
                 "STRUCT(innerStruct3, STRUCT(SHA1(CAST(random2 AS BINARY)), SHA1(CAST(random3 AS BINARY))))"))
         .withColumn("arrayCol", expr("ARRAY(random1, random2, random3, random4, random5)"))
+        .withColumn("arrayStructCol", expr("ARRAY(innerStruct1, innerStruct1, innerStruct1)"))
         .withColumn("mapCol1", expr("MAP(structCol1, structCol2)"))
         .withColumn("mapCol2", expr("MAP(longCol, dateString)"))
         .withColumn("mapCol3", expr("MAP(dateCol, arrayCol)"))
