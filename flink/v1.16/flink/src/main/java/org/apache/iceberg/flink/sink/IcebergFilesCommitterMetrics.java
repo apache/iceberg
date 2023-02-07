@@ -18,13 +18,16 @@
  */
 package org.apache.iceberg.flink.sink;
 
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import org.apache.flink.metrics.Counter;
+import org.apache.flink.metrics.Gauge;
 import org.apache.flink.metrics.MetricGroup;
 
 class IcebergFilesCommitterMetrics {
   private final AtomicLong lastCheckpointDurationMs = new AtomicLong();
   private final AtomicLong lastCommitDurationMs = new AtomicLong();
+  private final ElapsedTimeGauge elapsedSecondsSinceLastSuccessfulCommit;
   private final Counter committedDataFilesCount;
   private final Counter committedDataFilesRecordCount;
   private final Counter committedDataFilesByteCount;
@@ -37,6 +40,9 @@ class IcebergFilesCommitterMetrics {
         metrics.addGroup("IcebergFilesCommitter").addGroup("table", fullTableName);
     committerMetrics.gauge("lastCheckpointDurationMs", lastCheckpointDurationMs::get);
     committerMetrics.gauge("lastCommitDurationMs", lastCommitDurationMs::get);
+    this.elapsedSecondsSinceLastSuccessfulCommit = new ElapsedTimeGauge(TimeUnit.SECONDS);
+    committerMetrics.gauge(
+        "elapsedSecondsSinceLastSuccessfulCommit", elapsedSecondsSinceLastSuccessfulCommit);
     this.committedDataFilesCount = committerMetrics.counter("committedDataFilesCount");
     this.committedDataFilesRecordCount = committerMetrics.counter("committedDataFilesRecordCount");
     this.committedDataFilesByteCount = committerMetrics.counter("committedDataFilesByteCount");
@@ -54,12 +60,34 @@ class IcebergFilesCommitterMetrics {
     lastCommitDurationMs.set(commitDurationMs);
   }
 
+  /** This is called upon a successful commit. */
   void updateCommitSummary(CommitSummary stats) {
+    elapsedSecondsSinceLastSuccessfulCommit.refreshLastSuccessfulCommitTime();
     committedDataFilesCount.inc(stats.dataFilesCount());
     committedDataFilesRecordCount.inc(stats.dataFilesRecordCount());
     committedDataFilesByteCount.inc(stats.dataFilesByteCount());
     committedDeleteFilesCount.inc(stats.deleteFilesCount());
     committedDeleteFilesRecordCount.inc(stats.deleteFilesRecordCount());
     committedDeleteFilesByteCount.inc(stats.deleteFilesByteCount());
+  }
+
+  private static class ElapsedTimeGauge implements Gauge<Long> {
+    private final TimeUnit reportUnit;
+    private volatile long lastSuccessfulCommitTimeNano;
+
+    ElapsedTimeGauge(TimeUnit timeUnit) {
+      this.reportUnit = timeUnit;
+      this.lastSuccessfulCommitTimeNano = System.nanoTime();
+    }
+
+    void refreshLastSuccessfulCommitTime() {
+      this.lastSuccessfulCommitTimeNano = System.nanoTime();
+    }
+
+    @Override
+    public Long getValue() {
+      return reportUnit.convert(
+          System.nanoTime() - lastSuccessfulCommitTimeNano, TimeUnit.NANOSECONDS);
+    }
   }
 }
