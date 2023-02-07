@@ -33,6 +33,7 @@ public class CountStar<T> extends CountAggregate<T> {
 
   @Override
   protected Long countFor(DataFile file) {
+    setCanPushDown(true);
     long count = file.recordCount();
     if (count < 0) {
       return null;

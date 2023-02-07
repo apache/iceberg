@@ -383,8 +383,8 @@ public class TestAggregatePushDown extends SparkCatalogTestBase {
         "INSERT INTO TABLE %s VALUES (1, named_struct(\"c1\", 3, \"c2\", \"v1\")),"
             + "(2, named_struct(\"c1\", 2, \"c2\", \"v2\")), (3, null)",
         tableName);
-    String select = "SELECT count(complex) FROM %s";
-    List<Object[]> explain = sql("EXPLAIN " + select, tableName);
+    String select1 = "SELECT count(complex), count(id) FROM %s";
+    List<Object[]> explain = sql("EXPLAIN " + select1, tableName);
     String explainString = explain.get(0)[0].toString();
     boolean explainContainsPushDownAggregates = false;
     if (explainString.contains("count(complex)")) {
@@ -394,10 +394,20 @@ public class TestAggregatePushDown extends SparkCatalogTestBase {
     Assert.assertFalse(
         "count not pushed down for complex types", explainContainsPushDownAggregates);
 
-    List<Object[]> actual = sql(select, tableName);
+    List<Object[]> actual = sql(select1, tableName);
     List<Object[]> expected = Lists.newArrayList();
-    expected.add(new Object[] {2L});
+    expected.add(new Object[] {2L, 3L});
     assertEquals("count not push down", actual, expected);
+
+    String select2 = "SELECT max(complex) FROM %s";
+    explain = sql("EXPLAIN " + select2, tableName);
+    explainString = explain.get(0)[0].toString();
+    explainContainsPushDownAggregates = false;
+    if (explainString.contains("max(complex)")) {
+      explainContainsPushDownAggregates = true;
+    }
+
+    Assert.assertFalse("max not pushed down for complex types", explainContainsPushDownAggregates);
   }
 
   @Test

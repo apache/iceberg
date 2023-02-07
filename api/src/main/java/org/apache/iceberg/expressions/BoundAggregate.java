@@ -25,8 +25,17 @@ import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
 public class BoundAggregate<T, C> extends Aggregate<BoundTerm<T>> implements Bound<C> {
+
+  // indicates if there are enough stats for this aggregate to be calculated at
+  // iceberg side.
+  private boolean canPushDown = false;
+
   protected BoundAggregate(Operation op, BoundTerm<T> term) {
     super(op, term);
+  }
+
+  void setCanPushDown(boolean canPushDown) {
+    this.canPushDown = canPushDown;
   }
 
   @Override
@@ -66,14 +75,6 @@ public class BoundAggregate<T, C> extends Aggregate<BoundTerm<T>> implements Bou
     }
   }
 
-  public boolean aggregateComplexType() {
-    if (op() == Operation.COUNT_STAR) {
-      return false;
-    } else {
-      return ref().type().isNestedType();
-    }
-  }
-
   public String describe() {
     switch (op()) {
       case COUNT_STAR:
@@ -107,11 +108,13 @@ public class BoundAggregate<T, C> extends Aggregate<BoundTerm<T>> implements Bou
     void update(DataFile file);
 
     R result();
+
+    boolean hasValue();
   }
 
   abstract static class NullSafeAggregator<T, R> implements Aggregator<R> {
     private final BoundAggregate<T, R> aggregate;
-    private boolean isNull = false;
+    private boolean hasValue = true;
 
     NullSafeAggregator(BoundAggregate<T, R> aggregate) {
       this.aggregate = aggregate;
@@ -123,27 +126,40 @@ public class BoundAggregate<T, C> extends Aggregate<BoundTerm<T>> implements Bou
 
     @Override
     public void update(StructLike struct) {
-      if (!isNull) {
+      if (hasValue) {
         R value = aggregate.eval(struct);
-        update(value);
+        if (aggregate.canPushDown) {
+          update(value);
+        } else {
+          this.hasValue = false;
+        }
       }
     }
 
     @Override
     public void update(DataFile file) {
-      if (!isNull) {
+      if (hasValue) {
         R value = aggregate.eval(file);
-        update(value);
+        if (aggregate.canPushDown) {
+          update(value);
+        } else {
+          this.hasValue = false;
+        }
       }
     }
 
     @Override
     public R result() {
-      if (isNull) {
+      if (!hasValue) {
         return null;
       }
 
       return current();
+    }
+
+    @Override
+    public boolean hasValue() {
+      return hasValue;
     }
   }
 }

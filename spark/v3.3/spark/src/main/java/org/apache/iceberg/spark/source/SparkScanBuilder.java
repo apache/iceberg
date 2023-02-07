@@ -182,16 +182,12 @@ public class SparkScanBuilder
 
     AggregateEvaluator aggregateEvaluator;
     try {
-      List<BoundAggregate<?, ?>> aggregates = boundAggregates(aggregation);
-
-      for (BoundAggregate aggregate : aggregates) {
-        if (aggregate.aggregateComplexType()) {
-          return false;
-        }
-      }
-
-      aggregateEvaluator = AggregateEvaluator.create(aggregates);
-    } catch (UnsupportedOperationException e) {
+      List<Expression> aggregates =
+          Arrays.stream(aggregation.aggregateExpressions())
+              .map(agg -> SparkAggregates.convert(agg))
+              .collect(Collectors.toList());
+      aggregateEvaluator = AggregateEvaluator.create(schema, aggregates);
+    } catch (UnsupportedOperationException | IllegalArgumentException e) {
       LOG.info("Skipped aggregate pushdown: " + e);
       return false;
     }
@@ -218,7 +214,9 @@ public class SparkScanBuilder
           LOG.info("Skipped aggregate pushdown: detected row level deletes.");
           return false;
         }
-        aggregateEvaluator.update(task.file());
+        if (!aggregateEvaluator.update(task.file())) {
+          return false;
+        }
       }
     } catch (IOException e) {
       LOG.info("Skipped aggregate pushdown: " + e);
@@ -228,7 +226,7 @@ public class SparkScanBuilder
     pushedAggregateSchema =
         SparkSchemaUtil.convert(new Schema(aggregateEvaluator.resultType().fields()));
     this.pushedAggregateRows = new InternalRow[1];
-    StructLike structLike = aggregateEvaluator.resultStruct();
+    StructLike structLike = aggregateEvaluator.result();
     this.pushedAggregateRows[0] =
         new StructInternalRow(aggregateEvaluator.resultType()).setStruct(structLike);
     return true;
@@ -297,14 +295,6 @@ public class SparkScanBuilder
     }
 
     return true;
-  }
-
-  private List<BoundAggregate<?, ?>> boundAggregates(Aggregation aggregation) {
-    return Arrays.stream(aggregation.aggregateExpressions())
-        .map(agg -> SparkAggregates.convert(agg))
-        .map(expr -> Binder.bind(schema.asStruct(), expr, caseSensitive))
-        .map(bound -> (BoundAggregate<?, ?>) bound)
-        .collect(Collectors.toList());
   }
 
   @Override

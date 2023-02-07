@@ -30,13 +30,9 @@ import org.apache.iceberg.types.Types;
 
 /**
  * A class for evaluating aggregates. It evaluates each of the aggregates and updates the aggregated
- * value. The final aggregated result can be returned by {@link #resultStruct()}.
+ * value. The final aggregated result can be returned by {@link #result()}.
  */
 public class AggregateEvaluator {
-
-  public static AggregateEvaluator create(List<BoundAggregate<?, ?>> aggregates) {
-    return new AggregateEvaluator(aggregates);
-  }
 
   public static AggregateEvaluator create(Schema schema, List<Expression> aggregates) {
     return create(schema.asStruct(), aggregates);
@@ -77,22 +73,24 @@ public class AggregateEvaluator {
     }
   }
 
-  public void update(DataFile file) {
+  public boolean update(DataFile file) {
     for (Aggregator<?> aggregator : aggregators) {
       aggregator.update(file);
+      if (!aggregator.hasValue()) {
+        return false;
+      }
     }
+    return true;
   }
 
   public Types.StructType resultType() {
     return resultType;
   }
 
-  public StructLike resultStruct() {
-    return new ArrayStructLike(result());
-  }
-
-  public Object[] result() {
-    return aggregators.stream().map(Aggregator::result).toArray(Object[]::new);
+  public StructLike result() {
+    Object[] results =
+        aggregators.stream().map(BoundAggregate.Aggregator::result).toArray(Object[]::new);
+    return new ArrayStructLike(results);
   }
 
   public List<BoundAggregate<?, ?>> aggregates() {

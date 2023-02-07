@@ -40,7 +40,13 @@ public class MaxAggregate<T> extends ValueAggregate<T> {
 
   @Override
   protected Object evaluateRef(DataFile file) {
-    return Conversions.fromByteBuffer(type, safeGet(file.upperBounds(), fieldId));
+    if (!file.valueCounts().containsKey(fieldId)) {
+      setCanPushDown(false);
+      return null;
+    } else {
+      setCanPushDown(true);
+      return Conversions.fromByteBuffer(type, safeGet(file.upperBounds(), fieldId));
+    }
   }
 
   @Override

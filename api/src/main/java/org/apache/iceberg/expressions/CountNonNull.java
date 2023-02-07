@@ -39,8 +39,14 @@ public class CountNonNull<T> extends CountAggregate<T> {
 
   @Override
   protected Long countFor(DataFile file) {
-    return safeSubtract(
-        safeGet(file.valueCounts(), fieldId), safeGet(file.nullValueCounts(), fieldId, 0L));
+    if (!file.valueCounts().containsKey(fieldId)) {
+      setCanPushDown(false);
+      return null;
+    } else {
+      setCanPushDown(true);
+      return safeSubtract(
+          safeGet(file.valueCounts(), fieldId), safeGet(file.nullValueCounts(), fieldId, 0L));
+    }
   }
 
   private Long safeSubtract(Long left, Long right) {
