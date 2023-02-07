@@ -159,10 +159,10 @@ public class TestSnapshotOperations extends TableTestBase {
             .build();
 
     SnapshotOperations result = TestHelpers.roundTripSerialize(snapshotOperations);
+    SnapshotOperations kryoResult = TestHelpers.KryoHelpers.roundTripSerialize(snapshotOperations);
 
-    assertThat(result).isNotNull();
-
-    assertThat(table.snapshots()).containsExactlyElementsOf(snapshotOperations.snapshots());
+    assertThat(table.snapshots()).containsExactlyElementsOf(result.snapshots());
+    assertThat(table.snapshots()).containsExactlyElementsOf(kryoResult.snapshots());
   }
 
   private static class MetadataTableOperations implements TableOperations {

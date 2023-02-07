@@ -28,10 +28,10 @@ import java.util.stream.Collectors;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.util.SerializableMap;
 import org.apache.iceberg.util.SerializableSupplier;
 
 /**
@@ -57,7 +57,7 @@ class SnapshotOperations implements Serializable {
       SerializableSupplier<Map<String, SnapshotRef>> refsSupplier) {
     this.snapshots = ImmutableList.copyOf(snapshots);
     this.snapshotsSupplier = snapshotsSupplier;
-    this.refs = ImmutableMap.copyOf(refs);
+    this.refs = SerializableMap.copyOf(refs);
     this.refsSupplier = refsSupplier;
 
     this.snapshotsById = indexSnapshotsById(snapshots);
@@ -100,7 +100,7 @@ class SnapshotOperations implements Serializable {
     }
 
     if (!loaded && refsSupplier != null) {
-      this.refs = ImmutableMap.copyOf(refsSupplier.get());
+      this.refs = SerializableMap.copyOf(refsSupplier.get());
     }
 
     loaded = true;
@@ -143,7 +143,8 @@ class SnapshotOperations implements Serializable {
   }
 
   private static Map<Long, Snapshot> indexSnapshotsById(List<Snapshot> snapshots) {
-    return snapshots.stream().collect(Collectors.toMap(Snapshot::snapshotId, Function.identity()));
+    return SerializableMap.copyOf(
+        snapshots.stream().collect(Collectors.toMap(Snapshot::snapshotId, Function.identity())));
   }
 
   public static Builder buildFrom(SnapshotOperations base) {
