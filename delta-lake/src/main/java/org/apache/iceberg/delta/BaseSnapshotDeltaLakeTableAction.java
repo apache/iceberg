@@ -77,8 +77,6 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
   private static final String DELTA_SOURCE_VALUE = "delta";
   private static final String ORIGINAL_LOCATION_PROP = "original_location";
   private static final String PARQUET_SUFFIX = ".parquet";
-  private static final String AVRO_SUFFIX = ".avro";
-  private static final String ORC_SUFFIX = ".orc";
   private final ImmutableMap.Builder<String, String> additionalPropertiesBuilder =
       ImmutableMap.builder();
   private DeltaLog deltaLog;
@@ -345,12 +343,8 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
   private FileFormat determineFileFormatFromPath(String path) {
     if (path.endsWith(PARQUET_SUFFIX)) {
       return FileFormat.PARQUET;
-    } else if (path.endsWith(AVRO_SUFFIX)) {
-      return FileFormat.AVRO;
-    } else if (path.endsWith(ORC_SUFFIX)) {
-      return FileFormat.ORC;
     } else {
-      throw new ValidationException("Cannot determine file format from path %s", path);
+      throw new ValidationException("Do not support file format from path %s", path);
     }
   }
 
