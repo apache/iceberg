@@ -450,6 +450,11 @@ public class GlueCatalog extends BaseMetastoreCatalog
         metadataFileLocation != null && !metadataFileLocation.isEmpty(),
         "Cannot register an empty metadata file location as a table");
 
+    // keep the original behavior when force-register-table flag is off
+    if (!awsProperties.glueCatalogForceRegisterTable()) {
+      return super.registerTable(identifier, metadataFileLocation);
+    }
+
     TableOperations ops = newTableOps(identifier);
     InputFile metadataFile = ops.io().newInputFile(metadataFileLocation);
     TableMetadata metadata = TableMetadataParser.read(ops.io(), metadataFile);
@@ -481,20 +486,16 @@ public class GlueCatalog extends BaseMetastoreCatalog
       glue.createTable(
           CreateTableRequest.builder().databaseName(databaseName).tableInput(tableInput).build());
     } catch (software.amazon.awssdk.services.glue.model.AlreadyExistsException e) {
-      if (awsProperties.glueCatalogForceRegisterTable()) {
-        GetTableResponse response =
-            glue.getTable(
-                GetTableRequest.builder().databaseName(databaseName).name(tableName).build());
-        String versionId = response.table().versionId();
-        glue.updateTable(
-            UpdateTableRequest.builder()
-                .databaseName(databaseName)
-                .tableInput(tableInput)
-                .versionId(versionId)
-                .build());
-      } else {
-        throw new AlreadyExistsException("Table already exists: %s", identifier);
-      }
+      GetTableResponse response =
+          glue.getTable(
+              GetTableRequest.builder().databaseName(databaseName).name(tableName).build());
+      String versionId = response.table().versionId();
+      glue.updateTable(
+          UpdateTableRequest.builder()
+              .databaseName(databaseName)
+              .tableInput(tableInput)
+              .versionId(versionId)
+              .build());
     } catch (EntityNotFoundException e) {
       throw new NoSuchNamespaceException(
           e, "Namespace %s is not found in Glue", identifier.namespace());

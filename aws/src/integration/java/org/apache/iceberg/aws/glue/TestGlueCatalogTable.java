@@ -578,14 +578,15 @@ public class TestGlueCatalogTable extends GlueTestBase {
     String namespace = createNamespace();
     String tableName = getRandomName();
     createTable(namespace, tableName);
-    Table table = glueCatalog.loadTable(TableIdentifier.of(namespace, tableName));
+    Table table =
+        glueCatalogWithForceRegisterTable.loadTable(TableIdentifier.of(namespace, tableName));
     String metadataLocation = ((BaseTable) table).operations().current().metadataFileLocation();
     AssertHelpers.assertThrows(
         "Should fail to register to an unknown namespace",
         NoSuchNamespaceException.class,
         "not found in Glue",
         () ->
-            glueCatalog.registerTable(
+            glueCatalogWithForceRegisterTable.registerTable(
                 TableIdentifier.of(getRandomName(), getRandomName()), metadataLocation));
   }
 
