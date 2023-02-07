@@ -130,6 +130,8 @@ public class TestDeltaLakeTypeToType {
     Assertions.assertThat(
             convertedSchema.findType(structArrayType).asListType().isElementOptional())
         .isTrue();
+    Assertions.assertThat(convertedSchema.findType(structArrayType).asListType().elementType())
+        .isInstanceOf(Types.StructType.class);
     Assertions.assertThat(
             convertedSchema
                 .findType(structArrayType)
