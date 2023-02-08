@@ -72,8 +72,8 @@ class IcebergFilesCommitterMetrics {
   }
 
   /**
-   * This gauge measures the elapsed time between now and last recorded time
-   * set by {@link ElapsedTimeGauge#refreshLastRecordedTime()}.
+   * This gauge measures the elapsed time between now and last recorded time set by {@link
+   * ElapsedTimeGauge#refreshLastRecordedTime()}.
    */
   private static class ElapsedTimeGauge implements Gauge<Long> {
     private final TimeUnit reportUnit;
@@ -90,8 +90,7 @@ class IcebergFilesCommitterMetrics {
 
     @Override
     public Long getValue() {
-      return reportUnit.convert(
-          System.nanoTime() - lastRecordedTimeNano, TimeUnit.NANOSECONDS);
+      return reportUnit.convert(System.nanoTime() - lastRecordedTimeNano, TimeUnit.NANOSECONDS);
     }
   }
 }
