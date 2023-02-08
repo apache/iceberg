@@ -176,7 +176,8 @@ FileFormat fileFormat =
     FileFormat.valueOf(
         table.properties().getOrDefault("write.format.default", "parquet").toUpperCase());
 
-int partitionId = 1, taskId = 1;
+int partitionId = 1;
+int taskId = 1;
 OutputFileFactory outputFileFactory =
     OutputFileFactory.builderFor(table, partitionId, taskId).format(fileFormat).build();
 

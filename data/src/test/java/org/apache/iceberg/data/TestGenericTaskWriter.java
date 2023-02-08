@@ -21,16 +21,20 @@ package org.apache.iceberg.data;
 import java.io.File;
 import java.io.IOException;
 import java.time.OffsetDateTime;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import org.apache.commons.compress.utils.Lists;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.iceberg.*;
+import org.apache.iceberg.AppendFiles;
+import org.apache.iceberg.DataFile;
+import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.io.OutputFileFactory;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.StructLikeSet;
 import org.junit.Assert;
@@ -45,7 +49,7 @@ import org.junit.runners.Parameterized;
 public class TestGenericTaskWriter {
   @Rule public final TemporaryFolder temp = new TemporaryFolder();
 
-  private final Schema SCHEMA =
+  private final Schema schema =
       new Schema(
           Types.NestedField.required(1, "level", Types.StringType.get()),
           Types.NestedField.required(2, "event_time", Types.TimestampType.withZone()),
@@ -53,8 +57,9 @@ public class TestGenericTaskWriter {
           Types.NestedField.optional(
               4, "call_stack", Types.ListType.ofRequired(5, Types.StringType.get())));
 
-  private final PartitionSpec SPEC =
-      PartitionSpec.builderFor(SCHEMA).hour("event_time").identity("level").build();
+  private final PartitionSpec spec =
+      PartitionSpec.builderFor(schema).hour("event_time").identity("level").build();
+
   private Table table;
   private List<Record> testRecords = Lists.newArrayList();
   private final String testFileFormat;
@@ -79,8 +84,8 @@ public class TestGenericTaskWriter {
     this.table =
         catalog.createTable(
             TableIdentifier.of("logging", "logs"),
-            SCHEMA,
-            SPEC,
+            schema,
+            spec,
             Collections.singletonMap("write.format.default", testFileFormat));
   }
 
@@ -93,7 +98,8 @@ public class TestGenericTaskWriter {
         FileFormat.valueOf(
             table.properties().getOrDefault("write.format.default", "parquet").toUpperCase());
 
-    int partitionId = 1, taskId = 1;
+    int partitionId = 1;
+    int taskId = 1;
     OutputFileFactory outputFileFactory =
         OutputFileFactory.builderFor(table, partitionId, taskId).format(fileFormat).build();
     // TaskWriter write records into file. (the same is ok for unpartition table)
@@ -134,7 +140,7 @@ public class TestGenericTaskWriter {
     IcebergGenerics.ScanBuilder scanBuilder = IcebergGenerics.read(table);
     InternalRecordWrapper recordWrapper = new InternalRecordWrapper(table.schema().asStruct());
 
-    ArrayList<Record> actualRecords = Lists.newArrayList(scanBuilder.build().iterator());
+    List<Record> actualRecords = Lists.newArrayList(scanBuilder.build().iterator());
     StructLikeSet actualSet = StructLikeSet.create(table.schema().asStruct());
     actualRecords.forEach(record -> actualSet.add(recordWrapper.wrap(record)));
 
