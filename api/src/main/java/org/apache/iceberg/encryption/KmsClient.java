@@ -22,10 +22,8 @@ import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.util.Map;
 
-/**
- * @deprecated the API will be removed in v2.0.0 (replaced with KeyManagementClient interface). A
- *     minimum client interface to connect to a key management service (KMS).
- */
+/** A minimum client interface to connect to a key management service (KMS). */
+/** @deprecated the API will be removed in v2.0.0 (replaced with KeyManagementClient interface). */
 @Deprecated
 public interface KmsClient extends Serializable {
 

@@ -16,12 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.encryption.kms;
+package org.apache.iceberg.encryption.envelope;
 
 import java.nio.ByteBuffer;
 import java.util.Map;
 import org.apache.iceberg.encryption.Ciphers;
-import org.apache.iceberg.encryption.envelope.KmsClient;
 
 /** For testing and demonstrations; not for use in production. */
 public abstract class MemoryMockKMS implements KmsClient {
