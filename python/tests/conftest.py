@@ -25,12 +25,15 @@ and the built-in pytest fixture request should be used as an additional argument
 retrieved using `request.getfixturevalue(fixture_name)`.
 """
 import os
+import string
+from random import choice
 from tempfile import TemporaryDirectory
 from typing import (
     Any,
     Callable,
     Dict,
     Generator,
+    List,
 )
 from unittest.mock import MagicMock
 from urllib.parse import urlparse
@@ -65,7 +68,6 @@ from pyiceberg.types import (
     StringType,
     StructType,
 )
-from tests.catalog.test_base import InMemoryCatalog
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:
@@ -308,11 +310,6 @@ EXAMPLE_TABLE_METADATA_V2 = {
 @pytest.fixture
 def example_table_metadata_v2() -> Dict[str, Any]:
     return EXAMPLE_TABLE_METADATA_V2
-
-
-@pytest.fixture
-def catalog() -> InMemoryCatalog:
-    return InMemoryCatalog("test.in.memory.catalog", **{"test.key": "test.value"})
 
 
 manifest_entry_records = [
@@ -1271,3 +1268,31 @@ def adlfs_fsspec_fileio(request: pytest.FixtureRequest) -> Generator[FsspecFileI
 def empty_home_dir_path(tmp_path_factory: pytest.TempPathFactory) -> str:
     home_path = str(tmp_path_factory.mktemp("home"))
     return home_path
+
+
+RANDOM_LENGTH = 20
+NUM_TABLES = 2
+
+
+@pytest.fixture()
+def table_name() -> str:
+    prefix = "my_iceberg_table-"
+    random_tag = "".join(choice(string.ascii_letters) for _ in range(RANDOM_LENGTH))
+    return (prefix + random_tag).lower()
+
+
+@pytest.fixture()
+def table_list(table_name: str) -> List[str]:
+    return [f"{table_name}_{idx}" for idx in range(NUM_TABLES)]
+
+
+@pytest.fixture()
+def database_name() -> str:
+    prefix = "my_iceberg_database-"
+    random_tag = "".join(choice(string.ascii_letters) for _ in range(RANDOM_LENGTH))
+    return (prefix + random_tag).lower()
+
+
+@pytest.fixture()
+def database_list(database_name: str) -> List[str]:
+    return [f"{database_name}_{idx}" for idx in range(NUM_TABLES)]

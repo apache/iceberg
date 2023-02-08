@@ -42,7 +42,6 @@ from urllib.parse import urlparse
 
 import pyarrow as pa
 import pyarrow.compute as pc
-import pyarrow.dataset as ds
 import pyarrow.parquet as pq
 from pyarrow.fs import (
     FileInfo,
@@ -493,31 +492,30 @@ def _file_to_table(
             )
         file_schema = Schema.parse_raw(schema_raw)
 
-    pyarrow_filter = None
-    if bound_row_filter is not AlwaysTrue():
-        translated_row_filter = translate_column_names(bound_row_filter, file_schema, case_sensitive=case_sensitive)
-        bound_file_filter = bind(file_schema, translated_row_filter, case_sensitive=case_sensitive)
-        pyarrow_filter = expression_to_pyarrow(bound_file_filter)
+        pyarrow_filter = None
+        if bound_row_filter is not AlwaysTrue():
+            translated_row_filter = translate_column_names(bound_row_filter, file_schema, case_sensitive=case_sensitive)
+            bound_file_filter = bind(file_schema, translated_row_filter, case_sensitive=case_sensitive)
+            pyarrow_filter = expression_to_pyarrow(bound_file_filter)
 
-    file_project_schema = prune_columns(file_schema, projected_field_ids, select_full_types=False)
+        file_project_schema = prune_columns(file_schema, projected_field_ids, select_full_types=False)
 
-    if file_schema is None:
-        raise ValueError(f"Missing Iceberg schema in Metadata for file: {path}")
+        if file_schema is None:
+            raise ValueError(f"Missing Iceberg schema in Metadata for file: {path}")
 
-    # Prune the stuff that we don't need anyway
-    file_project_schema_arrow = schema_to_pyarrow(file_project_schema)
+        arrow_table = pq.read_table(
+            source=fout,
+            schema=parquet_schema,
+            pre_buffer=True,
+            buffer_size=8 * ONE_MEGABYTE,
+            filters=pyarrow_filter,
+            columns=[col.name for col in file_project_schema.columns],
+        )
 
-    read_options = {
-        "pre_buffer": True,
-        "use_buffered_stream": True,
-        "buffer_size": 8388608,
-    }
+        if pyarrow_filter is not None:
+            arrow_table = arrow_table.filter(pyarrow_filter)
 
-    arrow_table = ds.dataset(
-        source=[path], schema=file_project_schema_arrow, format=ds.ParquetFileFormat(**read_options), filesystem=fs
-    ).to_table(filter=pyarrow_filter)
-
-    return to_requested_schema(projected_schema, file_project_schema, arrow_table)
+        return to_requested_schema(projected_schema, file_project_schema, arrow_table)
 
 
 def project_table(

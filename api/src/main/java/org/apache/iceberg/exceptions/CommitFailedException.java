@@ -31,4 +31,8 @@ public class CommitFailedException extends RuntimeException {
   public CommitFailedException(Throwable cause, String message, Object... args) {
     super(String.format(message, args), cause);
   }
+
+  public CommitFailedException(Throwable cause) {
+    super(cause);
+  }
 }

@@ -29,12 +29,18 @@ import org.apache.iceberg.aws.dynamodb.DynamoDbCatalog;
 import org.apache.iceberg.aws.glue.GlueCatalog;
 import org.apache.iceberg.aws.lakeformation.LakeFormationAwsClientFactory;
 import org.apache.iceberg.aws.s3.S3FileIO;
+import org.apache.iceberg.common.DynConstructors;
+import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.PropertyUtil;
+import org.apache.iceberg.util.SerializableMap;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
@@ -42,6 +48,8 @@ import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.awscore.client.builder.AwsSyncClientBuilder;
 import software.amazon.awssdk.core.client.builder.SdkClientBuilder;
+import software.amazon.awssdk.core.client.config.SdkAdvancedClientOption;
+import software.amazon.awssdk.core.signer.Signer;
 import software.amazon.awssdk.http.apache.ApacheHttpClient;
 import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClientBuilder;
@@ -52,6 +60,8 @@ import software.amazon.awssdk.services.s3.model.ObjectCannedACL;
 import software.amazon.awssdk.services.s3.model.Tag;
 
 public class AwsProperties implements Serializable {
+
+  private static final Logger LOG = LoggerFactory.getLogger(AwsProperties.class);
 
   /**
    * Type of S3 Server side encryption used, default to {@link
@@ -260,6 +270,8 @@ public class AwsProperties implements Serializable {
   public static final String S3_CHECKSUM_ENABLED = "s3.checksum-enabled";
 
   public static final boolean S3_CHECKSUM_ENABLED_DEFAULT = false;
+
+  public static final String S3_SIGNER_IMPL = "s3.signer-impl";
 
   /** Configure the batch size used when deleting multiple files from a given S3 bucket */
   public static final String S3FILEIO_DELETE_BATCH_SIZE = "s3.delete.batch-size";
@@ -676,6 +688,9 @@ public class AwsProperties implements Serializable {
   private String dynamoDbTableName;
   private String dynamoDbEndpoint;
 
+  private final String s3SignerImpl;
+  private final Map<String, String> allProperties;
+
   public AwsProperties() {
     this.httpClientType = HTTP_CLIENT_TYPE_DEFAULT;
     this.httpClientUrlConnectionConnectionTimeoutMs = null;
@@ -732,11 +747,16 @@ public class AwsProperties implements Serializable {
 
     this.dynamoDbEndpoint = null;
     this.dynamoDbTableName = DYNAMODB_TABLE_NAME_DEFAULT;
+
+    this.s3SignerImpl = null;
+    this.allProperties = Maps.newHashMap();
+
     ValidationException.check(
         s3KeyIdAccessKeyBothConfigured(),
         "S3 client access key ID and secret access key must be set at the same time");
   }
 
+  @SuppressWarnings("MethodLength")
   public AwsProperties(Map<String, String> properties) {
     this.httpClientType =
         PropertyUtil.propertyAsString(properties, HTTP_CLIENT_TYPE, HTTP_CLIENT_TYPE_DEFAULT);
@@ -883,6 +903,10 @@ public class AwsProperties implements Serializable {
     this.dynamoDbEndpoint = properties.get(DYNAMODB_ENDPOINT);
     this.dynamoDbTableName =
         PropertyUtil.propertyAsString(properties, DYNAMODB_TABLE_NAME, DYNAMODB_TABLE_NAME_DEFAULT);
+
+    this.s3SignerImpl = properties.get(S3_SIGNER_IMPL);
+    this.allProperties = SerializableMap.copyOf(properties);
+
     ValidationException.check(
         s3KeyIdAccessKeyBothConfigured(),
         "S3 client access key ID and secret access key must be set at the same time");
@@ -1117,6 +1141,66 @@ public class AwsProperties implements Serializable {
                 .useArnRegionEnabled(s3UseArnRegionEnabled)
                 .accelerateModeEnabled(s3AccelerationEnabled)
                 .build());
+  }
+
+  /**
+   * Configure a signer for an S3 client.
+   *
+   * <p>Sample usage:
+   *
+   * <pre>
+   *     S3Client.builder().applyMutation(awsProperties::applyS3SignerConfiguration)
+   * </pre>
+   */
+  public <T extends S3ClientBuilder> void applyS3SignerConfiguration(T builder) {
+    if (null != s3SignerImpl) {
+      builder.overrideConfiguration(
+          c -> c.putAdvancedOption(SdkAdvancedClientOption.SIGNER, loadS3SignerDynamically()));
+    }
+  }
+
+  private Signer loadS3SignerDynamically() {
+    // load the signer implementation dynamically
+    Object signer = null;
+    try {
+      signer =
+          DynMethods.builder("create")
+              .impl(s3SignerImpl, Map.class)
+              .buildStaticChecked()
+              .invoke(allProperties);
+    } catch (NoSuchMethodException e) {
+      LOG.warn(
+          "Cannot find static method create(Map<String, String> properties) for signer {}",
+          s3SignerImpl,
+          e);
+    }
+
+    if (null == signer) {
+      try {
+        signer = DynMethods.builder("create").impl(s3SignerImpl).buildChecked().invoke(null);
+      } catch (NoSuchMethodException e) {
+        LOG.warn("Cannot find static method create() for signer {}", s3SignerImpl, e);
+      }
+    }
+
+    if (null == signer) {
+      // try via default no-arg constructor
+      try {
+        signer = DynConstructors.builder().impl(s3SignerImpl).buildChecked().newInstance();
+      } catch (NoSuchMethodException e) {
+        LOG.warn("Cannot find no-arg constructor for signer {}", s3SignerImpl, e);
+      }
+    }
+
+    Preconditions.checkArgument(
+        null != signer, "Cannot instantiate custom signer: %s", s3SignerImpl);
+
+    Preconditions.checkArgument(
+        signer instanceof Signer,
+        "Custom signer %s must be an instance of %s",
+        s3SignerImpl,
+        Signer.class.getName());
+    return (Signer) signer;
   }
 
   /**
