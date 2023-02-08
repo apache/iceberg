@@ -781,10 +781,16 @@ They should have the following key-value tags.
 | committedDeleteFilesByteCount   | Counter | Number of bytes contained in the committed delete files.                   |
 | elapsedSecondsSinceLastSuccessfulCommit| Gague  | Elapsed time (in seconds) since last successful Iceberg commit.            |
 
-`elapsedSecondsSinceLastSuccessfulCommit` is an ideal alerting metric for these scenarios.
+`elapsedSecondsSinceLastSuccessfulCommit` is an ideal alerting metric
+to detect failed or missing Iceberg commits.
 * Iceberg commit happened after successful Flink checkpoint in the `notifyCheckpointComplete` callback.
 It could happen that Iceberg commits failed (for whatever reason), while Flink checkpoints succeeding.
 * It could also happen that `notifyCheckpointComplete` wasn't triggered (for whatever bug).
+As a result, there won't be any Iceberg commits attempted.
+
+If the checkpoint interval (and expected Iceberg commit interval) is 5 minutes,
+we can set up alert with rule like `elapsedSecondsSinceLastSuccessfulCommit > 60 minutes`.
+Then we can detect failed or missing Iceberg commits in 60 minutes.
 
 ## Options
 ### Read options
