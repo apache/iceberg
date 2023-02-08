@@ -836,9 +836,25 @@ public class Spark3Util {
    * @param format format of the file
    * @param partitionFilter partitionFilter of the file
    * @return all table's partitions
+   * @deprecated use {@link Spark3Util#getPartitions(SparkSession, Path, String, Map, Option)}
+   */
+  @Deprecated
+  public static List<SparkPartition> getPartitions(
+          SparkSession spark, Path rootPath, String format, Map<String, String> partitionFilter) {
+    return getPartitions(spark, rootPath, format, partitionFilter, Option.empty());
+  }
+
+  /**
+   * Use Spark to list all partitions in the table.
+   *
+   * @param spark a Spark session
+   * @param rootPath a table identifier
+   * @param format format of the file
+   * @param partitionFilter partitionFilter of the file
+   * @return all table's partitions
    */
   public static List<SparkPartition> getPartitions(
-      SparkSession spark, Path rootPath, String format, Map<String, String> partitionFilter) {
+      SparkSession spark, Path rootPath, String format, Map<String, String> partitionFilter, Option<PartitionSpec> partitionSpec) {
     FileStatusCache fileStatusCache = FileStatusCache.getOrCreate(spark);
 
     InMemoryFileIndex fileIndex =
@@ -848,7 +864,7 @@ public class Spark3Util {
                 .asScala()
                 .toSeq(),
             scala.collection.immutable.Map$.MODULE$.<String, String>empty(),
-            Option.empty(),
+            partitionSpec.map(SparkSchemaUtil::convert),
             fileStatusCache,
             Option.empty(),
             Option.empty());

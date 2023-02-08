@@ -392,4 +392,13 @@ public class SparkSchemaUtil {
     Function<String, String> quotingFunc = name -> String.format("`%s`", name.replace("`", "``"));
     return TypeUtil.indexQuotedNameById(schema.asStruct(), quotingFunc);
   }
+
+  /**
+   * convert partition spec to Spark type
+   * @param spec
+   * @return
+   */
+  public static StructType convert(PartitionSpec spec) {
+    return convert(new Schema(spec.partitionType().asNestedType().asStructType().fields()));
+  }
 }
