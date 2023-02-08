@@ -29,6 +29,7 @@ import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.mapping.MappingUtil;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.mapping.NameMappingParser;
@@ -49,6 +50,7 @@ import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
+import scala.Option;
 import scala.runtime.BoxedUnit;
 
 class AddFilesProcedure extends BaseProcedure {
@@ -146,7 +148,7 @@ class AddFilesProcedure extends BaseProcedure {
           if (isFileIdentifier(sourceIdent)) {
             Path sourcePath = new Path(sourceIdent.name());
             String format = sourceIdent.namespace()[0];
-            importFileTable(table, sourcePath, format, partitionFilter, checkDuplicateFiles);
+            importFileTable(table, sourcePath, format, partitionFilter, checkDuplicateFiles, table.spec());
           } else {
             importCatalogTable(table, sourceIdent, partitionFilter, checkDuplicateFiles);
           }
@@ -171,10 +173,10 @@ class AddFilesProcedure extends BaseProcedure {
       Path tableLocation,
       String format,
       Map<String, String> partitionFilter,
-      boolean checkDuplicateFiles) {
+      boolean checkDuplicateFiles, PartitionSpec spec) {
     // List Partitions via Spark InMemory file search interface
     List<SparkPartition> partitions =
-        Spark3Util.getPartitions(spark(), tableLocation, format, partitionFilter);
+        Spark3Util.getPartitions(spark(), tableLocation, format, partitionFilter, Option.apply(spec));
 
     if (table.spec().isUnpartitioned()) {
       Preconditions.checkArgument(
