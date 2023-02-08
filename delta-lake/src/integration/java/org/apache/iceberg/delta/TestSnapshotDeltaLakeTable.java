@@ -42,6 +42,7 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkCatalog;
+import org.apache.iceberg.util.LocationUtil;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SaveMode;
@@ -327,7 +328,7 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
 
   private void checkIcebergTableLocation(String icebergTableIdentifier, String expectedLocation) {
     Table icebergTable = getIcebergTable(icebergTableIdentifier);
-    Assertions.assertThat(icebergTable.location()).isEqualTo(expectedLocation);
+    Assertions.assertThat(icebergTable.location()).isEqualTo(LocationUtil.stripTrailingSlash(expectedLocation));
   }
 
   private void checkIcebergTableProperties(
