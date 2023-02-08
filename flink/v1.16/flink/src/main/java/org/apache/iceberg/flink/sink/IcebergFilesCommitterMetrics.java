@@ -62,7 +62,7 @@ class IcebergFilesCommitterMetrics {
 
   /** This is called upon a successful commit. */
   void updateCommitSummary(CommitSummary stats) {
-    elapsedSecondsSinceLastSuccessfulCommit.refreshLastSuccessfulCommitTime();
+    elapsedSecondsSinceLastSuccessfulCommit.refreshLastRecordedTime();
     committedDataFilesCount.inc(stats.dataFilesCount());
     committedDataFilesRecordCount.inc(stats.dataFilesRecordCount());
     committedDataFilesByteCount.inc(stats.dataFilesByteCount());
@@ -71,23 +71,27 @@ class IcebergFilesCommitterMetrics {
     committedDeleteFilesByteCount.inc(stats.deleteFilesByteCount());
   }
 
+  /**
+   * This gauge measures the elapsed time between now and last recorded time
+   * set by {@link ElapsedTimeGauge#refreshLastRecordedTime()}.
+   */
   private static class ElapsedTimeGauge implements Gauge<Long> {
     private final TimeUnit reportUnit;
-    private volatile long lastSuccessfulCommitTimeNano;
+    private volatile long lastRecordedTimeNano;
 
     ElapsedTimeGauge(TimeUnit timeUnit) {
       this.reportUnit = timeUnit;
-      this.lastSuccessfulCommitTimeNano = System.nanoTime();
+      this.lastRecordedTimeNano = System.nanoTime();
     }
 
-    void refreshLastSuccessfulCommitTime() {
-      this.lastSuccessfulCommitTimeNano = System.nanoTime();
+    void refreshLastRecordedTime() {
+      this.lastRecordedTimeNano = System.nanoTime();
     }
 
     @Override
     public Long getValue() {
       return reportUnit.convert(
-          System.nanoTime() - lastSuccessfulCommitTimeNano, TimeUnit.NANOSECONDS);
+          System.nanoTime() - lastRecordedTimeNano, TimeUnit.NANOSECONDS);
     }
   }
 }
