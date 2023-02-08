@@ -328,7 +328,8 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
 
   private void checkIcebergTableLocation(String icebergTableIdentifier, String expectedLocation) {
     Table icebergTable = getIcebergTable(icebergTableIdentifier);
-    Assertions.assertThat(icebergTable.location()).isEqualTo(LocationUtil.stripTrailingSlash(expectedLocation));
+    Assertions.assertThat(icebergTable.location())
+        .isEqualTo(LocationUtil.stripTrailingSlash(expectedLocation));
   }
 
   private void checkIcebergTableProperties(
