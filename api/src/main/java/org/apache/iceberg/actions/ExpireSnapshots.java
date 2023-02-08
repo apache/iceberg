@@ -77,7 +77,6 @@ public interface ExpireSnapshots extends Action<ExpireSnapshots, ExpireSnapshots
    * @param deleteFunc a function that will be called to delete manifests and data files
    * @return this for method chaining
    */
-  @Deprecated
   ExpireSnapshots deleteWith(Consumer<String> deleteFunc);
 
   /**
@@ -95,7 +94,6 @@ public interface ExpireSnapshots extends Action<ExpireSnapshots, ExpireSnapshots
    * @param executorService the service to use
    * @return this for method chaining
    */
-  @Deprecated
   ExpireSnapshots executeDeleteWith(ExecutorService executorService);
 
   /** The action result that contains a summary of the execution. */

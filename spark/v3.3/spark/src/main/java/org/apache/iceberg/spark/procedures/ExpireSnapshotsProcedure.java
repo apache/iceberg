@@ -99,8 +99,8 @@ public class ExpireSnapshotsProcedure extends BaseProcedure {
     Integer maxConcurrentDeletes = args.isNullAt(3) ? null : args.getInt(3);
     if (maxConcurrentDeletes != null) {
       LOG.warn(
-          "{} is now deprecated, parallelism should now be configured in the FileIO bulk operations. Check the"
-              + "configured FileIO for more information",
+          "Setting {} disables FileIO bulk deletes if they are supported. Parallelism for bulk deletes should "
+              + "be configured in the FileIO bulk operations. Check the configured FileIO for more information",
           PARAMETERS[3].name());
     }
     Boolean streamResult = args.isNullAt(4) ? null : args.getBoolean(4);
