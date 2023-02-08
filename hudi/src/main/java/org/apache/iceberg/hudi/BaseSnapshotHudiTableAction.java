@@ -321,7 +321,7 @@ public class BaseSnapshotHudiTableAction implements SnapshotHudiTable {
     String[] partitionValues = fileGroup.getPartitionPath().split("/");
     List<PartitionField> partitionFields = spec.fields();
     Preconditions.checkState(
-        partitionValues.length == partitionFields.size(), "Invalid partition values");
+        partitionValues.length == partitionFields.size() || partitionFields.isEmpty(), "Invalid partition values");
     // map partition values to spec
     ImmutableMap.Builder<String, String> partitionValueMapBuilder = ImmutableMap.builder();
     ImmutableMap<String, String> partitionValueMap;
