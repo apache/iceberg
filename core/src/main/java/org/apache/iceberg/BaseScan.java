@@ -46,7 +46,8 @@ abstract class BaseScan<ThisT, T extends ScanTask, G extends ScanTaskGroup<T>>
           "record_count",
           "partition",
           "key_metadata",
-          "split_offsets");
+          "split_offsets",
+          "modification_time");
 
   private static final List<String> STATS_COLUMNS =
       ImmutableList.of(

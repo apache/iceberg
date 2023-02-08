@@ -90,6 +90,7 @@ public class DataWriter<T> implements FileWriter<T, DataWriteResult> {
               .withMetrics(appender.metrics())
               .withSplitOffsets(appender.splitOffsets())
               .withSortOrder(sortOrder)
+              .withModificationTime(System.currentTimeMillis())
               .build();
     }
   }

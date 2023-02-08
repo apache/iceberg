@@ -57,6 +57,9 @@ public interface ContentFile<F> {
   /** Returns the file size in bytes. */
   long fileSizeInBytes();
 
+  /** Returns the file modification time. */
+  long modificationTime();
+
   /**
    * Returns if collected, map from column ID to the size of the column in bytes, null otherwise.
    */

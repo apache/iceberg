@@ -107,6 +107,7 @@ public class DataFiles {
         .withFormat(FileFormat.AVRO)
         .withRecordCount(manifest.addedFilesCount() + manifest.existingFilesCount())
         .withFileSizeInBytes(manifest.length())
+        .withModificationTime(System.currentTimeMillis())
         .build();
   }
 
@@ -123,6 +124,7 @@ public class DataFiles {
     private FileFormat format = null;
     private long recordCount = -1L;
     private long fileSizeInBytes = -1L;
+    private long modificationTime = -1L;
     private Integer sortOrderId = SortOrder.unsorted().orderId();
 
     // optional fields
@@ -150,6 +152,7 @@ public class DataFiles {
       this.format = null;
       this.recordCount = -1L;
       this.fileSizeInBytes = -1L;
+      this.modificationTime = -1L;
       this.columnSizes = null;
       this.valueCounts = null;
       this.nullValueCounts = null;
@@ -170,6 +173,7 @@ public class DataFiles {
       this.format = toCopy.format();
       this.recordCount = toCopy.recordCount();
       this.fileSizeInBytes = toCopy.fileSizeInBytes();
+      this.modificationTime = toCopy.modificationTime();
       this.columnSizes = toCopy.columnSizes();
       this.valueCounts = toCopy.valueCounts();
       this.nullValueCounts = toCopy.nullValueCounts();
@@ -186,6 +190,7 @@ public class DataFiles {
     public Builder withStatus(FileStatus stat) {
       this.filePath = stat.getPath().toString();
       this.fileSizeInBytes = stat.getLen();
+      this.modificationTime = stat.getModificationTime();
       return this;
     }
 
@@ -234,6 +239,11 @@ public class DataFiles {
 
     public Builder withFileSizeInBytes(long newFileSizeInBytes) {
       this.fileSizeInBytes = newFileSizeInBytes;
+      return this;
+    }
+
+    public Builder withModificationTime(long newModificationTime) {
+      this.modificationTime = newModificationTime;
       return this;
     }
 
@@ -299,6 +309,7 @@ public class DataFiles {
           format,
           isPartitioned ? partitionData.copy() : null,
           fileSizeInBytes,
+          modificationTime,
           new Metrics(
               recordCount,
               columnSizes,

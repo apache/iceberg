@@ -188,6 +188,7 @@ public class TableMigrationUtil {
         .withFileSizeInBytes(stat.getLen())
         .withMetrics(metrics)
         .withPartitionPath(partitionKey)
+        .withModificationTime(System.currentTimeMillis())
         .build();
   }
 

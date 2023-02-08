@@ -459,6 +459,9 @@ acceptedBreaks:
       new: "method java.util.List<org.apache.iceberg.ManifestFile> org.apache.iceberg.Snapshot::deleteManifests(org.apache.iceberg.io.FileIO)"
       justification: "Allow adding a new method to the interface - old method is deprecated"
     - code: "java.method.addedToInterface"
+      new: "method long org.apache.iceberg.ContentFile<F>::modificationTime()"
+      justification: "Allow adding a new method to the interface"
+    - code: "java.method.addedToInterface"
       new: "method java.util.Map<java.lang.String, org.apache.iceberg.SnapshotRef>\
         \ org.apache.iceberg.Table::refs()"
       justification: "Adding new refs method to Table API for easier access"
