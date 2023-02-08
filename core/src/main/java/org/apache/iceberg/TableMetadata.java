@@ -41,6 +41,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.TypeUtil;
+import org.apache.iceberg.util.LocationUtil;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.PropertyUtil;
 
@@ -290,7 +291,7 @@ public class TableMetadata implements Serializable {
     this.metadataFileLocation = metadataFileLocation;
     this.formatVersion = formatVersion;
     this.uuid = uuid;
-    this.location = location;
+    this.location = location != null ? LocationUtil.stripTrailingSlash(location) : null;
     this.lastSequenceNumber = lastSequenceNumber;
     this.lastUpdatedMillis = lastUpdatedMillis;
     this.lastColumnId = lastColumnId;

@@ -38,6 +38,7 @@ import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -1560,6 +1561,19 @@ public class TestTableMetadata {
                 "/tmp",
                 ImmutableMap.of(TableProperties.UUID, "uuid"),
                 1));
+  }
+
+  @Test
+  public void testNoTrailingLocationSlash() {
+    String locationWithSlash = "/with_trailing_slash/";
+    String locationWithoutSlash = "/with_trailing_slash";
+    TableMetadata meta =
+        TableMetadata.newTableMetadata(
+            TEST_SCHEMA, SPEC_5, SORT_ORDER_3, locationWithSlash, Collections.emptyMap());
+    Assert.assertEquals(
+        "Metadata should never return a location ending in a slash",
+        locationWithoutSlash,
+        meta.location());
   }
 
   private String createManifestListWithManifestFile(
