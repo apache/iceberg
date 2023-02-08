@@ -70,6 +70,7 @@ import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.mapping.NameMappingParser;
 import org.apache.iceberg.orc.OrcMetrics;
 import org.apache.iceberg.parquet.ParquetUtil;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -317,7 +318,17 @@ public class BaseSnapshotHudiTableAction implements SnapshotHudiTable {
     PartitionSpec spec = table.spec();
     String path = baseFile.getPath();
     long fileSize = baseFile.getFileSize();
-    String partitionValue = fileGroup.getPartitionPath();
+    String[] partitionValues = fileGroup.getPartitionPath().split("/");
+    List<PartitionField> partitionFields = spec.fields();
+    Preconditions.checkState(
+        partitionValues.length == partitionFields.size(), "Invalid partition values");
+    // map partition values to spec
+    ImmutableMap.Builder<String, String> partitionValueMapBuilder = ImmutableMap.builder();
+    ImmutableMap<String, String> partitionValueMap;
+    for (int i = 0; i < partitionFields.size(); i++) {
+      partitionValueMapBuilder.put(partitionFields.get(i).name(), partitionValues[i]);
+    }
+    partitionValueMap = partitionValueMapBuilder.build();
 
     MetricsConfig metricsConfig = MetricsConfig.forTable(table);
     String nameMappingString = table.properties().get(TableProperties.DEFAULT_NAME_MAPPING);
@@ -329,9 +340,8 @@ public class BaseSnapshotHudiTableAction implements SnapshotHudiTable {
     Metrics metrics = getMetricsForFile(file, format, metricsConfig, nameMapping);
 
     String partition =
-        spec.fields().stream()
-            .map(PartitionField::name)
-            .map(name -> String.format("%s=%s", name, partitionValue))
+        partitionValueMap.entrySet().stream()
+            .map(e -> String.format("%s=%s", e.getKey(), e.getValue()))
             .collect(Collectors.joining("/"));
 
     return DataFiles.builder(spec)

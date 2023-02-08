@@ -271,6 +271,27 @@ public class TestSnapshotHudiTable extends SparkHudiMigrationTestBase {
         newTableIdentifier, ImmutableMap.of("test", "test"), partitionedLocation);
   }
 
+  @Test
+  public void testSnapshotWithComplexKeyGen() {
+    writeHoodieTableKeyGenerator(
+        multiDataFrame(0, 1),
+        "decimalCol,dateCol",
+        "magic_number",
+        "zpartitionPath,partitionPath,partitionPath2",
+        SaveMode.Append,
+        partitionedLocation,
+        partitionedIdentifier);
+    String newTableIdentifier = destName(icebergCatalogName, "alpha_iceberg_table_6");
+    SnapshotHudiTable.Result result =
+        HudiToIcebergMigrationSparkIntegration.snapshotHudiTable(
+                spark, partitionedLocation, newTableIdentifier)
+            .tableProperties(ImmutableMap.of("test", "test"))
+            .execute();
+    checkSnapshotIntegrity(partitionedLocation, newTableIdentifier);
+    checkIcebergTableProperties(
+        newTableIdentifier, ImmutableMap.of("test", "test"), partitionedLocation);
+  }
+
   private void checkSnapshotIntegrity(String hudiTableLocation, String icebergTableIdentifier) {
     Dataset<Row> hudiResult =
         spark
@@ -373,7 +394,9 @@ public class TestSnapshotHudiTable extends SparkHudiMigrationTestBase {
             "structCol2",
             expr(
                 "STRUCT(innerStruct3, STRUCT(SHA1(CAST(random2 AS BINARY)), SHA1(CAST(random3 AS BINARY))))"))
-        .withColumn("partitionPath", expr("CAST(id AS STRING)"));
+        .withColumn("zpartitionPath", expr("CAST(dateCol AS STRING)"))
+        .withColumn("partitionPath", expr("CAST(id AS STRING)"))
+        .withColumn("partitionPath2", expr("CAST(random1 AS STRING)"));
   }
 
   private Dataset<Row> nestedDataFrame() {
@@ -420,6 +443,28 @@ public class TestSnapshotHudiTable extends SparkHudiMigrationTestBase {
         .option(DataSourceWriteOptions.RECORDKEY_FIELD().key(), recordKey)
         .option(DataSourceWriteOptions.PRECOMBINE_FIELD().key(), preCombineKey)
         .option(DataSourceWriteOptions.PARTITIONPATH_FIELD().key(), partitionPathField)
+        .option(HoodieWriteConfig.TBL_NAME.key(), tableIdentifier)
+        .mode(saveMode)
+        .save(tableLocation);
+  }
+
+  private void writeHoodieTableKeyGenerator(
+      Dataset<Row> df,
+      String recordKey,
+      String preCombineKey,
+      String partitionPathField,
+      SaveMode saveMode,
+      String tableLocation,
+      String tableIdentifier) {
+    df.write()
+        .format("hudi")
+        //        .options(QuickstartUtils.getQuickstartWriteConfigs())
+        .option(DataSourceWriteOptions.RECORDKEY_FIELD().key(), recordKey)
+        .option(DataSourceWriteOptions.PRECOMBINE_FIELD().key(), preCombineKey)
+        .option(DataSourceWriteOptions.PARTITIONPATH_FIELD().key(), partitionPathField)
+        .option(
+            DataSourceWriteOptions.KEYGENERATOR_CLASS_NAME().key(),
+            "org.apache.hudi.keygen.ComplexKeyGenerator")
         .option(HoodieWriteConfig.TBL_NAME.key(), tableIdentifier)
         .mode(saveMode)
         .save(tableLocation);
