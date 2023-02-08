@@ -395,6 +395,7 @@ public class SparkSchemaUtil {
 
   /**
    * convert partition spec to Spark type
+   *
    * @param spec
    * @return
    */

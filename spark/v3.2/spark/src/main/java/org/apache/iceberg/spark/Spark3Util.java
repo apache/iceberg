@@ -819,7 +819,7 @@ public class Spark3Util {
    */
   @Deprecated
   public static List<SparkPartition> getPartitions(
-          SparkSession spark, Path rootPath, String format, Map<String, String> partitionFilter) {
+      SparkSession spark, Path rootPath, String format, Map<String, String> partitionFilter) {
     return getPartitions(spark, rootPath, format, partitionFilter, Option.empty());
   }
 
@@ -833,20 +833,24 @@ public class Spark3Util {
    * @return all table's partitions
    */
   public static List<SparkPartition> getPartitions(
-          SparkSession spark, Path rootPath, String format, Map<String, String> partitionFilter, Option<PartitionSpec> partitionSpec) {
+      SparkSession spark,
+      Path rootPath,
+      String format,
+      Map<String, String> partitionFilter,
+      Option<PartitionSpec> partitionSpec) {
     FileStatusCache fileStatusCache = FileStatusCache.getOrCreate(spark);
 
     InMemoryFileIndex fileIndex =
-            new InMemoryFileIndex(
-                    spark,
-                    JavaConverters.collectionAsScalaIterableConverter(ImmutableList.of(rootPath))
-                            .asScala()
-                            .toSeq(),
-                    scala.collection.immutable.Map$.MODULE$.<String, String>empty(),
-                    partitionSpec.map(SparkSchemaUtil::convert),
-                    fileStatusCache,
-                    Option.empty(),
-                    Option.empty());
+        new InMemoryFileIndex(
+            spark,
+            JavaConverters.collectionAsScalaIterableConverter(ImmutableList.of(rootPath))
+                .asScala()
+                .toSeq(),
+            scala.collection.immutable.Map$.MODULE$.<String, String>empty(),
+            partitionSpec.map(SparkSchemaUtil::convert),
+            fileStatusCache,
+            Option.empty(),
+            Option.empty());
 
     org.apache.spark.sql.execution.datasources.PartitionSpec spec = fileIndex.partitionSpec();
     StructType schema = spec.partitionColumns();

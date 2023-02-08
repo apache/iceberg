@@ -840,7 +840,7 @@ public class Spark3Util {
    */
   @Deprecated
   public static List<SparkPartition> getPartitions(
-          SparkSession spark, Path rootPath, String format, Map<String, String> partitionFilter) {
+      SparkSession spark, Path rootPath, String format, Map<String, String> partitionFilter) {
     return getPartitions(spark, rootPath, format, partitionFilter, Option.empty());
   }
 
@@ -854,7 +854,11 @@ public class Spark3Util {
    * @return all table's partitions
    */
   public static List<SparkPartition> getPartitions(
-      SparkSession spark, Path rootPath, String format, Map<String, String> partitionFilter, Option<PartitionSpec> partitionSpec) {
+      SparkSession spark,
+      Path rootPath,
+      String format,
+      Map<String, String> partitionFilter,
+      Option<PartitionSpec> partitionSpec) {
     FileStatusCache fileStatusCache = FileStatusCache.getOrCreate(spark);
 
     InMemoryFileIndex fileIndex =

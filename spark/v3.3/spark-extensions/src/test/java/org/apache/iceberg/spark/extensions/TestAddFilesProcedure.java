@@ -423,22 +423,23 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
     createDateHourPartitionedFileTable("parquet");
 
     String createIceberg =
-            "CREATE TABLE %s (id Integer, name String, dept String, date Date, hour String) USING iceberg PARTITIONED BY (date, hour)";
+        "CREATE TABLE %s (id Integer, name String, dept String, date Date, hour String) USING iceberg PARTITIONED BY (date, hour)";
 
     sql(createIceberg, tableName);
 
     Object result =
-            scalarSql(
-                    "CALL %s.system.add_files('%s', '`parquet`.`%s`', map('date', '2021-01-01'))",
-                    catalogName, tableName, fileTableDir.getAbsolutePath());
+        scalarSql(
+            "CALL %s.system.add_files('%s', '`parquet`.`%s`', map('date', '2021-01-01'))",
+            catalogName, tableName, fileTableDir.getAbsolutePath());
 
     Assert.assertEquals(2L, result);
 
-    String sqlFormat = "SELECT id, name, dept, date, hour FROM %s WHERE date = '2021-01-01' and hour= '01' ORDER BY id";
+    String sqlFormat =
+        "SELECT id, name, dept, date, hour FROM %s WHERE date = '2021-01-01' and hour= '01' ORDER BY id";
     assertEquals(
-            "Iceberg table contains correct data",
-            sql(sqlFormat, sourceTableName),
-            sql(sqlFormat, tableName));
+        "Iceberg table contains correct data",
+        sql(sqlFormat, sourceTableName),
+        sql(sqlFormat, tableName));
   }
 
   @Test
@@ -935,11 +936,11 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
   };
 
   private static final StructField[] dateHourStruct = {
-          new StructField("id", DataTypes.IntegerType, true, Metadata.empty()),
-          new StructField("name", DataTypes.StringType, true, Metadata.empty()),
-          new StructField("dept", DataTypes.StringType, true, Metadata.empty()),
-          new StructField("ts", DataTypes.DateType, true, Metadata.empty()),
-          new StructField("hour", DataTypes.StringType, true, Metadata.empty())
+    new StructField("id", DataTypes.IntegerType, true, Metadata.empty()),
+    new StructField("name", DataTypes.StringType, true, Metadata.empty()),
+    new StructField("dept", DataTypes.StringType, true, Metadata.empty()),
+    new StructField("ts", DataTypes.DateType, true, Metadata.empty()),
+    new StructField("hour", DataTypes.StringType, true, Metadata.empty())
   };
 
   private static java.sql.Date toDate(String value) {
@@ -958,15 +959,15 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
           .repartition(2);
 
   private static final Dataset<Row> dateHourDF =
-          spark
-                  .createDataFrame(
-                          ImmutableList.of(
-                                  RowFactory.create(1, "John Doe", "hr", toDate("2021-01-01"),"01"),
-                                  RowFactory.create(2, "Jane Doe", "hr", toDate("2021-01-01"),"01"),
-                                  RowFactory.create(3, "Matt Doe", "hr", toDate("2021-01-02"),"02"),
-                                  RowFactory.create(4, "Will Doe", "facilities", toDate("2021-01-02"), "11")),
-                          new StructType(dateHourStruct))
-                  .repartition(2);
+      spark
+          .createDataFrame(
+              ImmutableList.of(
+                  RowFactory.create(1, "John Doe", "hr", toDate("2021-01-01"), "01"),
+                  RowFactory.create(2, "Jane Doe", "hr", toDate("2021-01-01"), "01"),
+                  RowFactory.create(3, "Matt Doe", "hr", toDate("2021-01-02"), "02"),
+                  RowFactory.create(4, "Will Doe", "facilities", toDate("2021-01-02"), "11")),
+              new StructType(dateHourStruct))
+          .repartition(2);
 
   private void createUnpartitionedFileTable(String format) {
     String createParquet =
@@ -1058,8 +1059,8 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
 
   private void createDateHourPartitionedFileTable(String format) {
     String createParquet =
-            "CREATE TABLE %s (id Integer, name String, dept String, date Date, hour String) USING %s "
-                    + "PARTITIONED BY (date, hour) LOCATION '%s'";
+        "CREATE TABLE %s (id Integer, name String, dept String, date Date, hour String) USING %s "
+            + "PARTITIONED BY (date, hour) LOCATION '%s'";
 
     sql(createParquet, sourceTableName, format, fileTableDir.getAbsolutePath());
 

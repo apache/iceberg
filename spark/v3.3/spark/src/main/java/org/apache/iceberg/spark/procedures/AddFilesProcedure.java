@@ -25,11 +25,11 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.PartitionField;
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
-import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.mapping.MappingUtil;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.mapping.NameMappingParser;
@@ -149,7 +149,8 @@ class AddFilesProcedure extends BaseProcedure {
           if (isFileIdentifier(sourceIdent)) {
             Path sourcePath = new Path(sourceIdent.name());
             String format = sourceIdent.namespace()[0];
-            importFileTable(table, sourcePath, format, partitionFilter, checkDuplicateFiles, table.spec());
+            importFileTable(
+                table, sourcePath, format, partitionFilter, checkDuplicateFiles, table.spec());
           } else {
             importCatalogTable(table, sourceIdent, partitionFilter, checkDuplicateFiles);
           }
@@ -170,14 +171,16 @@ class AddFilesProcedure extends BaseProcedure {
   }
 
   private void importFileTable(
-          Table table,
-          Path tableLocation,
-          String format,
-          Map<String, String> partitionFilter,
-          boolean checkDuplicateFiles, PartitionSpec spec) {
+      Table table,
+      Path tableLocation,
+      String format,
+      Map<String, String> partitionFilter,
+      boolean checkDuplicateFiles,
+      PartitionSpec spec) {
     // List Partitions via Spark InMemory file search interface
     List<SparkPartition> partitions =
-        Spark3Util.getPartitions(spark(), tableLocation, format, partitionFilter, Option.apply(spec));
+        Spark3Util.getPartitions(
+            spark(), tableLocation, format, partitionFilter, Option.apply(spec));
 
     if (table.spec().isUnpartitioned()) {
       Preconditions.checkArgument(
