@@ -55,11 +55,12 @@ from pyiceberg.io.pyarrow import (
     PyArrowFile,
     PyArrowFileIO,
     _ConvertToArrowSchema,
+    _read_deletes,
     expression_to_pyarrow,
     project_table,
     schema_to_pyarrow,
 )
-from pyiceberg.manifest import DataFile, FileFormat
+from pyiceberg.manifest import DataFile, DataFileContent, FileFormat
 from pyiceberg.partitioning import PartitionSpec
 from pyiceberg.schema import Schema, visit
 from pyiceberg.table import FileScanTask, Table
@@ -377,7 +378,7 @@ def test_timestamp_type_to_pyarrow() -> None:
 
 def test_timestamptz_type_to_pyarrow() -> None:
     iceberg_type = TimestamptzType()
-    assert visit(iceberg_type, _ConvertToArrowSchema()) == pa.timestamp(unit="us", tz="+00:00")
+    assert visit(iceberg_type, _ConvertToArrowSchema()) == pa.timestamp(unit="us", tz="UTC")
 
 
 def test_string_type_to_pyarrow() -> None:
@@ -749,7 +750,14 @@ def project(
     return project_table(
         [
             FileScanTask(
-                DataFile(file_path=file, file_format=FileFormat.PARQUET, partition={}, record_count=3, file_size_in_bytes=3)
+                DataFile(
+                    content=DataFileContent.DATA,
+                    file_path=file,
+                    file_format=FileFormat.PARQUET,
+                    partition={},
+                    record_count=3,
+                    file_size_in_bytes=3,
+                )
             )
             for file in files
         ],
@@ -1114,3 +1122,21 @@ def test_projection_filter_on_unknown_field(schema_int_str: Schema, file_int_str
         _ = project(schema, [file_int_str], GreaterThan("unknown_field", "1"), schema_int_str)
 
     assert "Could not find field with name unknown_field, case_sensitive=True" in str(exc_info.value)
+
+
+@pytest.fixture
+def deletes_file(tmp_path: str) -> str:
+    path = "s3://bucket/default.db/table/data.parquet"
+    table = pa.table({"file_path": [path, path, path], "pos": [19, 22, 25]})
+
+    deletes_file_path = f"{tmp_path}/deletes.parquet"
+    pq.write_table(table, deletes_file_path)
+
+    return deletes_file_path
+
+
+def test_read_deletes(deletes_file: str) -> None:
+    # None filesystem will default to a local filesystem
+    deletes = _read_deletes(None, deletes_file)
+    assert set(deletes.keys()) == {"s3://bucket/default.db/table/data.parquet"}
+    assert list(deletes.values())[0] == pa.chunked_array([[19, 22, 25]])

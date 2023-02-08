@@ -47,12 +47,7 @@ from pyiceberg.expressions import (
 from pyiceberg.expressions.visitors import inclusive_projection
 from pyiceberg.io import FileIO
 from pyiceberg.io.pyarrow import project_table
-from pyiceberg.manifest import (
-    DataFile,
-    ManifestContent,
-    ManifestFile,
-    files,
-)
+from pyiceberg.manifest import DataFile, ManifestFile, files
 from pyiceberg.partitioning import PartitionSpec
 from pyiceberg.schema import Schema
 from pyiceberg.table.metadata import TableMetadata
@@ -282,21 +277,10 @@ class FileScanTask(ScanTask):
         self.length = length or data_file.file_size_in_bytes
 
 
-def _check_content(file: DataFile) -> DataFile:
-    try:
-        if file.content == ManifestContent.DELETES:
-            raise ValueError("PyIceberg does not support deletes: https://github.com/apache/iceberg/issues/6568")
-        return file
-    except AttributeError:
-        # If the attribute is not there, it is a V1 record
-        return file
-
-
 def _open_manifest(io: FileIO, manifest: ManifestFile, partition_filter: Callable[[DataFile], bool]) -> List[FileScanTask]:
     all_files = files(io.new_input(manifest.manifest_path))
     matching_partition_files = filter(partition_filter, all_files)
-    matching_partition_data_files = map(_check_content, matching_partition_files)
-    return [FileScanTask(file) for file in matching_partition_data_files]
+    return [FileScanTask(file) for file in matching_partition_files]
 
 
 class DataScan(TableScan["DataScan"]):
@@ -352,7 +336,6 @@ class DataScan(TableScan["DataScan"]):
 
         # step 2: filter the data files in each manifest
         # this filter depends on the partition spec used to write the manifest file
-
         partition_evaluators: Dict[int, Callable[[DataFile], bool]] = KeyDefaultDict(self._build_partition_evaluator)
 
         with ThreadPool() as pool:

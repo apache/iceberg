@@ -31,6 +31,7 @@ from typing import (
     TYPE_CHECKING,
     Any,
     Callable,
+    Dict,
     Iterable,
     List,
     Optional,
@@ -72,6 +73,7 @@ from pyiceberg.io import (
     OutputFile,
     OutputStream,
 )
+from pyiceberg.manifest import DataFileContent
 from pyiceberg.schema import (
     PartnerAccessor,
     Schema,
@@ -391,7 +393,7 @@ class _ConvertToArrowSchema(SchemaVisitorPerPrimitiveType[pa.DataType], Singleto
         return pa.timestamp(unit="us")
 
     def visit_timestampz(self, _: TimestamptzType) -> pa.DataType:
-        return pa.timestamp(unit="us", tz="+00:00")
+        return pa.timestamp(unit="us", tz="UTC")
 
     def visit_string(self, _: StringType) -> pa.DataType:
         return pa.string()
@@ -470,6 +472,17 @@ def expression_to_pyarrow(expr: BooleanExpression) -> pc.Expression:
     return boolean_expression_visit(expr, _ConvertToArrowExpression())
 
 
+def _read_deletes(fs: FileSystem, file_path: str) -> Dict[str, pa.ChunkedArray]:
+    _, path = PyArrowFileIO.parse_location(file_path)
+    table = pq.read_table(
+        source=path, pre_buffer=True, buffer_size=8 * ONE_MEGABYTE, read_dictionary=["file_path"], filesystem=fs
+    )
+    table.unify_dictionaries()
+    return {
+        file.as_py(): table.filter(pc.field("file_path") == file).column("pos") for file in table.columns[0].chunks[0].dictionary
+    }
+
+
 def _file_to_table(
     fs: FileSystem,
     task: FileScanTask,
@@ -477,6 +490,7 @@ def _file_to_table(
     projected_schema: Schema,
     projected_field_ids: Set[int],
     case_sensitive: bool,
+    positional_deletes: List[pa.ChunkedArray],
 ) -> pa.Table:
     _, path = PyArrowFileIO.parse_location(task.file.file_path)
 
@@ -515,6 +529,14 @@ def _file_to_table(
         if pyarrow_filter is not None:
             arrow_table = arrow_table.filter(pyarrow_filter)
 
+        if len(positional_deletes) > 0:
+            # When there are positional deletes, create a filter mask
+            mask = [True] * len(arrow_table)
+            for buffer in positional_deletes:
+                for pos in buffer:
+                    mask[pos.as_py()] = False
+            arrow_table = arrow_table.filter(mask)
+
         return to_requested_schema(projected_schema, file_project_schema, arrow_table)
 
 
@@ -546,11 +568,45 @@ def project_table(
         id for id in projected_schema.field_ids if not isinstance(projected_schema.find_type(id), (MapType, ListType))
     }.union(extract_field_ids(bound_row_filter))
 
+    tasks_data_files: List[FileScanTask] = []
+    tasks_positional_deletes: List[FileScanTask] = []
+    for task in tasks:
+        if task.file.content == DataFileContent.DATA:
+            tasks_data_files.append(task)
+        elif task.file.content == DataFileContent.POSITION_DELETES:
+            tasks_positional_deletes.append(task)
+        elif task.file.content == DataFileContent.EQUALITY_DELETES:
+            raise ValueError("PyIceberg does not yet support equality deletes: https://github.com/apache/iceberg/issues/6568")
+        else:
+            raise ValueError(f"Unknown file content: {task.file.content}")
+
     with ThreadPool() as pool:
+        positional_deletes_per_file: Dict[str, List[pa.ChunkedArray]] = {}
+        if tasks_positional_deletes:
+            # If there are any positional deletes, get those first
+            for delete_files in pool.starmap(
+                func=_read_deletes,
+                iterable=[(fs, task.file.file_path) for task in tasks_positional_deletes],
+            ):
+                for file, buffer in delete_files.items():
+                    positional_deletes_per_file[file] = positional_deletes_per_file.get(file, []) + [buffer]
+
         tables = pool.starmap(
             func=_file_to_table,
-            iterable=[(fs, task, bound_row_filter, projected_schema, projected_field_ids, case_sensitive) for task in tasks],
-            chunksize=None,  # we could use this to control how to materialize the generator of tasks (we should also make the expression above lazy)
+            iterable=[
+                (
+                    fs,
+                    task,
+                    bound_row_filter,
+                    projected_schema,
+                    projected_field_ids,
+                    case_sensitive,
+                    positional_deletes_per_file.get(task.file.file_path, []),
+                )
+                for task in tasks_data_files
+            ],
+            chunksize=None,
+            # we could use this to control how to materialize the generator of tasks (we should also make the expression above lazy)
         )
 
     if len(tables) > 1:

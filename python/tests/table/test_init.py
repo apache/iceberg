@@ -26,10 +26,9 @@ from pyiceberg.expressions import (
     In,
 )
 from pyiceberg.io import load_file_io
-from pyiceberg.manifest import DataFile, ManifestContent
 from pyiceberg.partitioning import PartitionField, PartitionSpec
 from pyiceberg.schema import Schema
-from pyiceberg.table import Table, _check_content
+from pyiceberg.table import Table
 from pyiceberg.table.metadata import TableMetadataV2
 from pyiceberg.table.snapshots import (
     Operation,
@@ -44,7 +43,6 @@ from pyiceberg.table.sorting import (
     SortOrder,
 )
 from pyiceberg.transforms import BucketTransform, IdentityTransform
-from pyiceberg.typedef import Record
 from pyiceberg.types import LongType, NestedField
 
 
@@ -245,23 +243,3 @@ def test_table_scan_projection_unknown_column(table: Table) -> None:
         _ = scan.select("a").projection()
 
     assert "Could not find column: 'a'" in str(exc_info.value)
-
-
-def test_check_content_deletes() -> None:
-    with pytest.raises(ValueError) as exc_info:
-        _check_content(
-            DataFile(
-                content=ManifestContent.DELETES,
-            )
-        )
-    assert "PyIceberg does not support deletes: https://github.com/apache/iceberg/issues/6568" in str(exc_info.value)
-
-
-def test_check_content_data() -> None:
-    manifest_file = DataFile(content=ManifestContent.DATA)
-    assert _check_content(manifest_file) == manifest_file
-
-
-def test_check_content_missing_attr() -> None:
-    r = Record(*([None] * 15))
-    assert _check_content(r) == r  # type: ignore
