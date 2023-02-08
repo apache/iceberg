@@ -173,7 +173,7 @@ public class TestSnapshotHudiTable extends SparkHudiMigrationTestBase {
         initialDataFrame,
         "decimalCol",
         "magic_number",
-        "partitionPath",
+        "partitionPath2",
         SaveMode.Append,
         multiCommitTableLocation,
         multiCommitIdentifier);
@@ -181,7 +181,7 @@ public class TestSnapshotHudiTable extends SparkHudiMigrationTestBase {
         initialDataFrame,
         "decimalCol",
         "magic_number",
-        "partitionPath",
+        "partitionPath2",
         SaveMode.Append,
         multiCommitTableLocation,
         multiCommitIdentifier);
@@ -189,7 +189,7 @@ public class TestSnapshotHudiTable extends SparkHudiMigrationTestBase {
         multiDataFrame(2, 5),
         "decimalCol",
         "magic_number",
-        "partitionPath",
+        "partitionPath2",
         SaveMode.Append,
         multiCommitTableLocation,
         multiCommitIdentifier);
@@ -197,7 +197,7 @@ public class TestSnapshotHudiTable extends SparkHudiMigrationTestBase {
         multiDataFrame(0, 1),
         "decimalCol",
         "magic_number",
-        "partitionPath",
+        "partitionPath2",
         SaveMode.Append,
         multiCommitTableLocation,
         multiCommitIdentifier);
@@ -206,7 +206,7 @@ public class TestSnapshotHudiTable extends SparkHudiMigrationTestBase {
         toDelete,
         "decimalCol",
         "magic_number",
-        "partitionPath",
+        "partitionPath2",
         SaveMode.Append,
         multiCommitTableLocation,
         multiCommitIdentifier);
@@ -215,7 +215,7 @@ public class TestSnapshotHudiTable extends SparkHudiMigrationTestBase {
         DataSourceWriteOptions.DELETE_OPERATION_OPT_VAL(),
         "decimalCol",
         "magic_number",
-        "partitionPath",
+        "partitionPath2",
         SaveMode.Append,
         multiCommitTableLocation,
         multiCommitIdentifier);
