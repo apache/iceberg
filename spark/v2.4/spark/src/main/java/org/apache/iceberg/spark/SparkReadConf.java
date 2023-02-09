@@ -19,12 +19,9 @@
 package org.apache.iceberg.spark;
 
 import java.util.Map;
-import java.util.Set;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
-import org.apache.iceberg.hadoop.HadoopInputFile;
-import org.apache.iceberg.io.InputFile;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+import org.apache.iceberg.hadoop.Util;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.spark.sql.SparkSession;
 
@@ -48,8 +45,6 @@ import org.apache.spark.sql.SparkSession;
  */
 public class SparkReadConf {
 
-  private static final Set<String> LOCALITY_WHITELIST_FS = ImmutableSet.of("hdfs");
-
   private final Table table;
   private final Map<String, String> readOptions;
   private final SparkConfParser confParser;
@@ -61,15 +56,8 @@ public class SparkReadConf {
   }
 
   public boolean localityEnabled() {
-    InputFile file = table.io().newInputFile(table.location());
-
-    if (file instanceof HadoopInputFile) {
-      String scheme = ((HadoopInputFile) file).getFileSystem().getScheme();
-      boolean defaultValue = LOCALITY_WHITELIST_FS.contains(scheme);
-      return PropertyUtil.propertyAsBoolean(readOptions, SparkReadOptions.LOCALITY, defaultValue);
-    }
-
-    return false;
+    boolean defaultValue = Util.mayHaveBlockLocations(table.io(), table.location());
+    return PropertyUtil.propertyAsBoolean(readOptions, SparkReadOptions.LOCALITY, defaultValue);
   }
 
   public Long snapshotId() {
