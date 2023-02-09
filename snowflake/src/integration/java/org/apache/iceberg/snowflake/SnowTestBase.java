@@ -18,12 +18,13 @@
  */
 package org.apache.iceberg.snowflake;
 
+import java.sql.PreparedStatement;
+import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.Map;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.jdbc.JdbcClientPool;
 import org.junit.BeforeClass;
-import org.junit.jupiter.api.BeforeAll;
 
 @SuppressWarnings("VisibilityModifier")
 class SnowTestBase {
@@ -32,13 +33,35 @@ class SnowTestBase {
 
   static JdbcClientPool clientPool;
 
+  protected SnowTestBase() {}
+
   @BeforeClass
-  static public void beforeAll() {
+  public static void beforeAll() {
     snowflakeCatalog = new SnowflakeCatalog();
     TestConfigurations configs = TestConfigurations.getInstance();
-    Map<String,String> catalogProps = new HashMap<String,String>(configs.getJdbcProperties());
+    Map<String, String> catalogProps = new HashMap<String, String>(configs.getProperties());
     catalogProps.put(CatalogProperties.URI, configs.getURI());
     snowflakeCatalog.initialize("testCatalog", catalogProps);
-    clientPool = new JdbcClientPool(configs.getURI(), configs.getJdbcProperties());
+    clientPool = new JdbcClientPool(configs.getURI(), configs.getProperties());
+  }
+
+  static void createOrReplaceSchema(String schemaName) throws SQLException, InterruptedException {
+    clientPool.run(
+        conn -> {
+          PreparedStatement statement =
+              conn.prepareStatement("CREATE OR REPLACE SCHEMA IDENTIFIER(?)");
+          statement.setString(1, schemaName);
+          return statement.execute();
+        });
+  }
+
+  static void dropSchemaIfExists(String schemaName) throws SQLException, InterruptedException {
+    clientPool.run(
+        conn -> {
+          PreparedStatement statement =
+              conn.prepareStatement("DROP SCHEMA IF EXISTS IDENTIFIER(?)");
+          statement.setString(1, schemaName);
+          return statement.execute();
+        });
   }
 }
