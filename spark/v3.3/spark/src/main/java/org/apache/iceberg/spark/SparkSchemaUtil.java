@@ -398,6 +398,7 @@ public class SparkSchemaUtil {
    *
    * @param spec iceberg PartitionSpec
    * @return {@link StructType}
+   * @throws IllegalArgumentException if the type cannot be converted
    */
   public static StructType convert(PartitionSpec spec) {
     return convert(new Schema(spec.partitionType().asNestedType().asStructType().fields()));

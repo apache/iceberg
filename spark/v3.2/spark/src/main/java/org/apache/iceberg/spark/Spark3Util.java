@@ -830,6 +830,7 @@ public class Spark3Util {
    * @param rootPath a table identifier
    * @param format format of the file
    * @param partitionFilter partitionFilter of the file
+   * @param partitionSpec partitionSpec of the table
    * @return all table's partitions
    */
   public static List<SparkPartition> getPartitions(

@@ -356,10 +356,11 @@ public class SparkSchemaUtil {
   }
 
   /**
-   * convert partition spec to Spark type
+   * Convert a {@link PartitionSpec} to a {@link DataType Spark type}.
    *
-   * @param spec
-   * @return
+   * @param spec iceberg PartitionSpec
+   * @return {@link StructType}
+   * @throws IllegalArgumentException if the type cannot be converted
    */
   public static StructType convert(PartitionSpec spec) {
     return convert(new Schema(spec.partitionType().asNestedType().asStructType().fields()));
