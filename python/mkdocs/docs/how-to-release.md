@@ -162,3 +162,7 @@ This Python release can be downloaded from: https://pypi.org/project/pyiceberg/<
 
 Thanks to everyone for contributing!
 ```
+
+## Release the docs
+
+A committer triggers the `Python Docs` Github Actions through the UI by selecting the branch that just has been released. This will publish the new docs.

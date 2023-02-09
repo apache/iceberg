@@ -38,6 +38,7 @@ import org.apache.iceberg.transforms.PartitionSpecVisitor;
 import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.transforms.UnknownTransform;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.util.Pair;
 
 class BaseUpdatePartitionSpec implements UpdatePartitionSpec {
@@ -338,6 +339,12 @@ class BaseUpdatePartitionSpec implements UpdatePartitionSpec {
     int sourceId = boundTerm.ref().fieldId();
     Transform<?, ?> transform = toTransform(boundTerm);
 
+    Type fieldType = schema.findType(sourceId);
+    if (fieldType != null) {
+      transform = Transforms.fromString(fieldType, transform.toString());
+    } else {
+      transform = Transforms.fromString(transform.toString());
+    }
     return Pair.of(sourceId, transform);
   }
 
