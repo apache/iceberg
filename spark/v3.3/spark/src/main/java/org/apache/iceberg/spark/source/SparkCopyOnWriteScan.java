@@ -129,10 +129,11 @@ class SparkCopyOnWriteScan extends SparkPartitioningAwareScan<FileScanTask>
                   .collect(Collectors.toList());
 
           LOG.info(
-              "{}/{} tasks for table {} matched runtime file filter",
+              "{} of {} task(s) for table {} matched runtime file filter with {} location(s)",
               filteredTasks.size(),
               tasks().size(),
-              table().name());
+              table().name(),
+              fileLocations.size());
 
           resetTasks(filteredTasks);
         }

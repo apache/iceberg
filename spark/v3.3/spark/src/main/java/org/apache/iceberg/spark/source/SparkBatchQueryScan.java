@@ -142,7 +142,7 @@ class SparkBatchQueryScan extends SparkPartitioningAwareScan<PartitionScanTask>
               .collect(Collectors.toList());
 
       LOG.info(
-          "{}/{} tasks for table {} matched runtime filter {}",
+          "{} of {} task(s) for table {} matched runtime filter {}",
           filteredTasks.size(),
           tasks().size(),
           table().name(),
