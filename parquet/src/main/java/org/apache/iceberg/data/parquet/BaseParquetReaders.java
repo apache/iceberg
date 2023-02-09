@@ -43,7 +43,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.schema.GroupType;
-import org.apache.parquet.schema.LogicalTypeAnnotation;
+import org.apache.parquet.schema.LogicalTypeAnnotation.DecimalLogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
@@ -276,9 +276,8 @@ public abstract class BaseParquetReaders<T> {
           case TIME_MILLIS:
             return new TimeMillisReader(desc);
           case DECIMAL:
-            LogicalTypeAnnotation typeAnnotation = primitive.getLogicalTypeAnnotation();
-            LogicalTypeAnnotation.DecimalLogicalTypeAnnotation decimal =
-                (LogicalTypeAnnotation.DecimalLogicalTypeAnnotation) typeAnnotation;
+            DecimalLogicalTypeAnnotation decimal =
+                (DecimalLogicalTypeAnnotation) primitive.getLogicalTypeAnnotation();
             switch (primitive.getPrimitiveTypeName()) {
               case BINARY:
               case FIXED_LEN_BYTE_ARRAY:
