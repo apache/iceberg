@@ -1270,6 +1270,12 @@ public class AwsProperties implements Serializable {
     }
   }
 
+  /**
+   * Dynamically load the http client builder to avoid runtime deps requirements of both {@link
+   * software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient} and {@link
+   * software.amazon.awssdk.http.apache.ApacheHttpClient}, since including both will cause error
+   * described in <a href="https://github.com/apache/iceberg/issues/6715">issue#6715</a>
+   */
   private Object loadHttpClientConfigurations(String impl) {
     Object httpClientConfigurations;
     try {
@@ -1281,7 +1287,8 @@ public class AwsProperties implements Serializable {
       return httpClientConfigurations;
     } catch (NoSuchMethodException e) {
       throw new IllegalArgumentException(
-          String.format("Cannot initialize HttpClientConfigurations Implementation %s", impl), e);
+          String.format("Cannot create %s to generate and configure the http client builder", impl),
+          e);
     }
   }
 }
