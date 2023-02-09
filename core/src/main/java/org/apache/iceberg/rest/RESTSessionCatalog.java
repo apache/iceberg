@@ -191,9 +191,12 @@ public class RESTSessionCatalog extends BaseSessionCatalog
   }
 
   private AuthSession session(SessionContext context) {
-    return sessions.get(
-        context.sessionId(),
-        id -> newSession(context.credentials(), context.properties(), catalogAuth));
+    AuthSession session =
+        sessions.get(
+            context.sessionId(),
+            id -> newSession(context.credentials(), context.properties(), catalogAuth));
+
+    return session != null ? session : catalogAuth;
   }
 
   private Supplier<Map<String, String>> headers(SessionContext context) {
@@ -728,7 +731,9 @@ public class RESTSessionCatalog extends BaseSessionCatalog
   }
 
   private AuthSession tableSession(Map<String, String> tableConf, AuthSession parent) {
-    return newSession(tableConf, tableConf, parent);
+    AuthSession session = newSession(tableConf, tableConf, parent);
+
+    return session != null ? session : parent;
   }
 
   private static ConfigResponse fetchConfig(
@@ -784,7 +789,7 @@ public class RESTSessionCatalog extends BaseSessionCatalog
       }
     }
 
-    return parent;
+    return null;
   }
 
   private Long expiresAtMillis(Map<String, String> properties) {

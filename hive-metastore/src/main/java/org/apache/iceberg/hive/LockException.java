@@ -16,19 +16,18 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.apache.iceberg.hive;
 
-package org.apache.spark.sql.catalyst.plans.logical
+import com.google.errorprone.annotations.FormatMethod;
 
-import org.apache.spark.sql.catalyst.expressions.Attribute
+class LockException extends RuntimeException {
+  @FormatMethod
+  LockException(String message, Object... args) {
+    super(String.format(message, args));
+  }
 
-case class CreateBranch(table: Seq[String], branch: String, snapshotId: Option[Long], numSnapshots: Option[Long],
-                        snapshotRetain: Option[Long], snapshotRefRetain: Option[Long]) extends LeafCommand {
-
-  import org.apache.spark.sql.connector.catalog.CatalogV2Implicits._
-
-  override lazy val output: Seq[Attribute] = Nil
-
-  override def simpleString(maxFields: Int): String = {
-    s"Create branch: ${branch} for table: ${table.quoted} "
+  @FormatMethod
+  LockException(Throwable cause, String message, Object... args) {
+    super(String.format(message, args), cause);
   }
 }

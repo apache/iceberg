@@ -37,9 +37,10 @@ import org.apache.spark.sql.catalyst.parser.ParserInterface
 import org.apache.spark.sql.catalyst.parser.extensions.IcebergParserUtils.withOrigin
 import org.apache.spark.sql.catalyst.parser.extensions.IcebergSqlExtensionsParser._
 import org.apache.spark.sql.catalyst.plans.logical.AddPartitionField
+import org.apache.spark.sql.catalyst.plans.logical.BranchOptions
 import org.apache.spark.sql.catalyst.plans.logical.CallArgument
 import org.apache.spark.sql.catalyst.plans.logical.CallStatement
-import org.apache.spark.sql.catalyst.plans.logical.CreateBranch
+import org.apache.spark.sql.catalyst.plans.logical.CreateOrReplaceBranch
 import org.apache.spark.sql.catalyst.plans.logical.DropIdentifierFields
 import org.apache.spark.sql.catalyst.plans.logical.DropPartitionField
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
@@ -92,24 +93,41 @@ class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface) extends IcebergS
   }
 
   /**
-   * Create an ADD BRANCH logical command.
+   * Create a CREATE OR REPLACE BRANCH logical command.
    */
-  override def visitCreateBranch(ctx: CreateBranchContext): CreateBranch = withOrigin(ctx) {
-    val snapshotRetention = Option(ctx.snapshotRetentionClause())
+  override def visitCreateOrReplaceBranch(ctx: CreateOrReplaceBranchContext): CreateOrReplaceBranch = withOrigin(ctx) {
+    val createOrReplaceBranchClause = ctx.createReplaceBranchClause()
 
-    CreateBranch(
+    val branchName = createOrReplaceBranchClause.identifier()
+    val branchOptionsContext = Option(createOrReplaceBranchClause.branchOptions())
+    val snapshotId = branchOptionsContext.flatMap(branchOptions => Option(branchOptions.snapshotId()))
+      .map(_.getText.toLong)
+    val snapshotRetention = branchOptionsContext.flatMap(branchOptions => Option(branchOptions.snapshotRetention()))
+    val minSnapshotsToKeep = snapshotRetention.flatMap(retention => Option(retention.minSnapshotsToKeep()))
+      .map(minSnapshots => minSnapshots.number().getText.toLong)
+    val maxSnapshotAgeMs = snapshotRetention
+      .flatMap(retention => Option(retention.maxSnapshotAge()))
+      .map(retention => TimeUnit.valueOf(retention.timeUnit().getText.toUpperCase(Locale.ENGLISH))
+        .toMillis(retention.number().getText.toLong))
+    val branchRetention = branchOptionsContext.flatMap(branchOptions => Option(branchOptions.refRetain()))
+    val branchRefAgeMs = branchRetention.map(retain =>
+      TimeUnit.valueOf(retain.timeUnit().getText.toUpperCase(Locale.ENGLISH)).toMillis(retain.number().getText.toLong))
+    val replace = ctx.createReplaceBranchClause().REPLACE() != null
+    val ifNotExists = createOrReplaceBranchClause.EXISTS() != null
+
+    val branchOptions = BranchOptions(
+      snapshotId,
+      minSnapshotsToKeep,
+      maxSnapshotAgeMs,
+      branchRefAgeMs
+    )
+
+    CreateOrReplaceBranch(
       typedVisit[Seq[String]](ctx.multipartIdentifier),
-      ctx.identifier().getText,
-      Option(ctx.snapshotId()).map(_.getText.toLong),
-      snapshotRetention.flatMap(s => Option(s.numSnapshots())).map(_.getText.toLong),
-      snapshotRetention.flatMap(s => Option(s.snapshotRetain())).map(retain => {
-        TimeUnit.valueOf(ctx.snapshotRetentionClause().snapshotRetainTimeUnit().getText.toUpperCase(Locale.ENGLISH))
-          .toMillis(retain.getText.toLong)
-      }),
-      Option(ctx.snapshotRefRetain()).map(retain => {
-        TimeUnit.valueOf(ctx.snapshotRefRetainTimeUnit().getText.toUpperCase(Locale.ENGLISH))
-          .toMillis(retain.getText.toLong)
-      }))
+      branchName.getText,
+      branchOptions,
+      replace,
+      ifNotExists)
   }
 
   /**

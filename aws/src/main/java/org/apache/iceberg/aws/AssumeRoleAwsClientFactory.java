@@ -43,6 +43,7 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
         .applyMutation(awsProperties::applyHttpClientConfigurations)
         .applyMutation(awsProperties::applyS3EndpointConfigurations)
         .applyMutation(awsProperties::applyS3ServiceConfigurations)
+        .applyMutation(awsProperties::applyS3SignerConfiguration)
         .build();
   }
 
