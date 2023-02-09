@@ -800,7 +800,6 @@ project(':iceberg-snowflake') {
     runtimeOnly("net.snowflake:snowflake-jdbc")
 
     testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
-    integrationRuntime("net.snowflake:snowflake-jdbc")
     integrationImplementation("net.snowflake:snowflake-jdbc")
   }
 
