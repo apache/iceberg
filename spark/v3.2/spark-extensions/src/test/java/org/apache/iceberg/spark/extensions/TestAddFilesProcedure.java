@@ -935,6 +935,14 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
     new StructField("ts", DataTypes.DateType, true, Metadata.empty())
   };
 
+  private static final StructField[] dateHourStruct = {
+    new StructField("id", DataTypes.IntegerType, true, Metadata.empty()),
+    new StructField("name", DataTypes.StringType, true, Metadata.empty()),
+    new StructField("dept", DataTypes.StringType, true, Metadata.empty()),
+    new StructField("ts", DataTypes.DateType, true, Metadata.empty()),
+    new StructField("hour", DataTypes.StringType, true, Metadata.empty())
+  };
+
   private static java.sql.Date toDate(String value) {
     return new java.sql.Date(DateTime.parse(value).getMillis());
   }
