@@ -645,26 +645,30 @@ public class SparkCatalog extends BaseCatalog {
         return new SparkChangelogTable(table, !cacheEnabled);
       }
 
+      long snapshotId = -1;
       Matcher at = AT_TIMESTAMP.matcher(ident.name());
       if (at.matches()) {
         long asOfTimestamp = Long.parseLong(at.group(1));
-        long snapshotId = SnapshotUtil.snapshotIdAsOfTime(table, asOfTimestamp);
-        return new SparkTable(table, snapshotId, !cacheEnabled);
+        snapshotId = SnapshotUtil.snapshotIdAsOfTime(table, asOfTimestamp);
       }
 
       Matcher id = SNAPSHOT_ID.matcher(ident.name());
       if (id.matches()) {
-        long snapshotId = Long.parseLong(id.group(1));
-        return new SparkTable(table, snapshotId, !cacheEnabled);
+        snapshotId = Long.parseLong(id.group(1));
       }
 
       Matcher branch = BRANCH.matcher(ident.name());
       if (branch.matches()) {
         Snapshot snapshot = table.snapshot(branch.group(1));
         if (snapshot != null) {
-          return new SparkTable(table, snapshot.snapshotId(), !cacheEnabled);
+          snapshotId = snapshot.snapshotId();
         }
       }
+
+      if (snapshotId != -1) {
+        return new SparkTable(table, snapshotId, !cacheEnabled);
+      }
+
       // the name wasn't a valid snapshot selector and did not point to the changelog
       // throw the original exception
       throw e;
@@ -734,19 +738,19 @@ public class SparkCatalog extends BaseCatalog {
     org.apache.iceberg.Table table =
         tables.load(parsed.first() + (metadataTableName != null ? "#" + metadataTableName : ""));
 
+    snapshotId = -1L;
+
     if (isChangelog) {
       return new SparkChangelogTable(table, !cacheEnabled);
 
     } else if (asOfTimestamp != null) {
-      long snapshotIdAsOfTime = SnapshotUtil.snapshotIdAsOfTime(table, asOfTimestamp);
-      return new SparkTable(table, snapshotIdAsOfTime, !cacheEnabled);
-
-    } else if (branch != null && table.snapshot(branch) != null) {
-      return new SparkTable(table, table.snapshot(branch).snapshotId(), !cacheEnabled);
-
-    } else {
-      return new SparkTable(table, snapshotId, !cacheEnabled);
+      snapshotId = SnapshotUtil.snapshotIdAsOfTime(table, asOfTimestamp);
+    } else if (branch != null) {
+      Preconditions.checkArgument(
+          table.snapshot(branch) != null, "branch not associated with a snapshot");
+      snapshotId = table.snapshot(branch).snapshotId();
     }
+    return new SparkTable(table, snapshotId, !cacheEnabled);
   }
 
   private Identifier namespaceToIdentifier(String[] namespace) {
