@@ -801,6 +801,11 @@ project(':iceberg-snowflake') {
 
     testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
     integrationImplementation("net.snowflake:snowflake-jdbc")
+    integrationImplementation("org.apache.hadoop:hadoop-common") {
+      exclude group: 'commons-beanutils'
+      exclude group: 'org.apache.avro', module: 'avro'
+      exclude group: 'org.slf4j', module: 'slf4j-log4j12'
+    }
   }
 
   sourceSets {

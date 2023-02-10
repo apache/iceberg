@@ -65,7 +65,7 @@ class TestConfigurations {
   Map<String, String> getProperties() {
     return properties;
   }
-
+  
   static synchronized TestConfigurations getInstance() {
     if (instance == null) {
       instance = new TestConfigurations();
