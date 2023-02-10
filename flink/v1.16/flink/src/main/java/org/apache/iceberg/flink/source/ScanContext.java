@@ -150,11 +150,11 @@ public class ScanContext implements Serializable {
 
     Preconditions.checkArgument(
         !(startTag != null && startSnapshotId() != null),
-        "START_SNAPSHOT_ID and START_TAG cannot be used both.");
+        "START_SNAPSHOT_ID and START_TAG cannot both be set.");
 
     Preconditions.checkArgument(
         !(endTag != null && endSnapshotId() != null),
-        "END_SNAPSHOT_ID and END_TAG cannot be used both.");
+        "END_SNAPSHOT_ID and END_TAG cannot both be set.");
   }
 
   public boolean caseSensitive() {

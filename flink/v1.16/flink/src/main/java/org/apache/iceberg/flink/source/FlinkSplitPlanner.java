@@ -93,7 +93,7 @@ public class FlinkSplitPlanner {
 
       if (context.startSnapshotId() != null) {
         Preconditions.checkArgument(
-            context.startTag() == null, "START_SNAPSHOT_ID and START_TAG cannot be used both");
+            context.startTag() == null, "START_SNAPSHOT_ID and START_TAG cannot both be set");
         scan = scan.fromSnapshotExclusive(context.startSnapshotId());
       }
 
@@ -103,7 +103,7 @@ public class FlinkSplitPlanner {
 
       if (context.endSnapshotId() != null) {
         Preconditions.checkArgument(
-            context.endTag() == null, "END_SNAPSHOT_ID and END_TAG cannot be used both");
+            context.endTag() == null, "END_SNAPSHOT_ID and END_TAG cannot both be set");
         scan = scan.toSnapshot(context.endSnapshotId());
       }
 

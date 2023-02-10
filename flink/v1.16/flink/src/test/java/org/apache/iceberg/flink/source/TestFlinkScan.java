@@ -343,7 +343,7 @@ public abstract class TestFlinkScan {
         TestFixtures.SCHEMA);
 
     AssertHelpers.assertThrows(
-        "START_SNAPSHOT_ID and START_TAG cannot be used both.",
+        "START_SNAPSHOT_ID and START_TAG cannot both be set.",
         Exception.class,
         () ->
             runWithOptions(
@@ -354,7 +354,7 @@ public abstract class TestFlinkScan {
                     .buildOrThrow()));
 
     AssertHelpers.assertThrows(
-        "END_SNAPSHOT_ID and END_TAG cannot be used both.",
+        "END_SNAPSHOT_ID and END_TAG cannot both be set.",
         Exception.class,
         () ->
             runWithOptions(

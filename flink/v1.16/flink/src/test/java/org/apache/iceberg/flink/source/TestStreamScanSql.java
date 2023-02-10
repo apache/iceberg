@@ -308,9 +308,9 @@ public class TestStreamScanSql extends FlinkCatalogTestBase {
     result.getJobClient().ifPresent(JobClient::cancel);
 
     AssertHelpers.assertThrows(
-        "START_SNAPSHOT_ID and START_TAG cannot be used both.",
+        "START_SNAPSHOT_ID and START_TAG cannot both be set.",
         IllegalArgumentException.class,
-        "START_SNAPSHOT_ID and START_TAG cannot be used both.",
+        "START_SNAPSHOT_ID and START_TAG cannot both be set.",
         () ->
             exec(
                 "SELECT * FROM %s /*+ OPTIONS('streaming'='true', 'monitor-interval'='1s', 'start-tag'='%s', "

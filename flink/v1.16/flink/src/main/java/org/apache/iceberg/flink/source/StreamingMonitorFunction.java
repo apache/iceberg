@@ -129,7 +129,7 @@ public class StreamingMonitorFunction extends RichSourceFunction<FlinkInputSplit
     } else if (scanContext.startTag() != null || scanContext.startSnapshotId() != null) {
       Preconditions.checkArgument(
           !(scanContext.startTag() != null && scanContext.startSnapshotId() != null),
-          "START_SNAPSHOT_ID and START_TAG cannot be used both.");
+          "START_SNAPSHOT_ID and START_TAG cannot both be set.");
       Preconditions.checkArgument(
           scanContext.branch() == null,
           "Cannot scan table using ref %s configured for streaming reader yet.");
