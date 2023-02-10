@@ -49,6 +49,7 @@ public class SparkCachedTableCatalog implements TableCatalog {
   private static final Pattern AT_TIMESTAMP = Pattern.compile("at_timestamp_(\\d+)");
   private static final Pattern SNAPSHOT_ID = Pattern.compile("snapshot_id_(\\d+)");
   private static final Pattern BRANCH = Pattern.compile("branch_(.*)");
+  private static final Pattern TAG = Pattern.compile("tag_(.*)");
   private static final SparkTableCache TABLE_CACHE = SparkTableCache.get();
 
   private String name = null;
@@ -136,6 +137,7 @@ public class SparkCachedTableCatalog implements TableCatalog {
     Long asOfTimestamp = null;
     Long snapshotId = null;
     String branch = null;
+    String tag = null;
     for (String meta : metadata) {
       Matcher timeBasedMatcher = AT_TIMESTAMP.matcher(meta);
       if (timeBasedMatcher.matches()) {
@@ -148,14 +150,19 @@ public class SparkCachedTableCatalog implements TableCatalog {
         snapshotId = Long.parseLong(snapshotBasedMatcher.group(1));
       }
 
-      Matcher snapshotRefBasedMatcher = BRANCH.matcher(meta);
-      if (snapshotRefBasedMatcher.matches()) {
-        branch = snapshotRefBasedMatcher.group(1);
+      Matcher branchBasedMatcher = BRANCH.matcher(meta);
+      if (branchBasedMatcher.matches()) {
+        branch = branchBasedMatcher.group(1);
+      }
+
+      Matcher tagBasedMatcher = BRANCH.matcher(meta);
+      if (tagBasedMatcher.matches()) {
+        tag = tagBasedMatcher.group(1);
       }
     }
 
     Preconditions.checkArgument(
-        Stream.of(snapshotId, asOfTimestamp, branch).filter(Objects::nonNull).count() <= 1,
+        Stream.of(snapshotId, asOfTimestamp, branch, tag).filter(Objects::nonNull).count() <= 1,
         "Can specify at most one of snapshot-id (%s), as-of-timestamp (%s), and snapshot-ref (%s)",
         snapshotId,
         asOfTimestamp,
@@ -177,6 +184,10 @@ public class SparkCachedTableCatalog implements TableCatalog {
       Preconditions.checkArgument(
           table.snapshot(branch) != null, "branch not associated with a snapshot");
       snapshotIdFromTimeTravel = table.snapshot(branch).snapshotId();
+    } else if (tag != null) {
+      Preconditions.checkArgument(
+          table.snapshot(tag) != null, "tag not associated with a snapshot");
+      snapshotIdFromTimeTravel = table.snapshot(tag).snapshotId();
     }
 
     if (snapshotIdFromTimeTravel != -1L) {

@@ -765,7 +765,12 @@ public class SparkCatalog extends BaseCatalog {
       Preconditions.checkArgument(
           table.snapshot(branch) != null, "branch not associated with a snapshot");
       snapshotIdFromTimeTravel = table.snapshot(branch).snapshotId();
+    } else if (tag != null) {
+      Preconditions.checkArgument(
+          table.snapshot(tag) != null, "tag not associated with a snapshot");
+      snapshotIdFromTimeTravel = table.snapshot(tag).snapshotId();
     }
+
     if (snapshotIdFromTimeTravel != -1L) {
       return new SparkTable(table, snapshotIdFromTimeTravel, !cacheEnabled);
     }
