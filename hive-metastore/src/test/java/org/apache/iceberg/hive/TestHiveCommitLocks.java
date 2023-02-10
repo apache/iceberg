@@ -157,7 +157,7 @@ public class TestHiveCommitLocks extends HiveTableBaseTest {
   @Test
   public void testLockAcquisitionAtFirstTime() throws TException, InterruptedException {
     doReturn(acquiredLockResponse).when(spyClient).lock(any());
-    doNothing().when(spyOps).doUnlock(eq(dummyLockId));
+    doNothing().when(spyClient).unlock(eq(dummyLockId));
     doNothing().when(spyClient).heartbeat(eq(0L), eq(dummyLockId));
 
     spyOps.doCommit(metadataV2, metadataV1);
@@ -176,7 +176,7 @@ public class TestHiveCommitLocks extends HiveTableBaseTest {
         .doReturn(acquiredLockResponse)
         .when(spyClient)
         .checkLock(eq(dummyLockId));
-    doNothing().when(spyOps).doUnlock(eq(dummyLockId));
+    doNothing().when(spyClient).unlock(eq(dummyLockId));
     doNothing().when(spyClient).heartbeat(eq(0L), eq(dummyLockId));
 
     spyOps.doCommit(metadataV2, metadataV1);
@@ -195,7 +195,6 @@ public class TestHiveCommitLocks extends HiveTableBaseTest {
         .doReturn(acquiredLockResponse)
         .when(spyClient)
         .checkLock(eq(dummyLockId));
-    doNothing().when(spyOps).doUnlock(eq(dummyLockId));
     doNothing().when(spyClient).heartbeat(eq(0L), eq(dummyLockId));
 
     spyOps.doCommit(metadataV2, metadataV1);
@@ -220,7 +219,6 @@ public class TestHiveCommitLocks extends HiveTableBaseTest {
 
     doReturn(showLocksResponse).when(spyClient).showLocks(any());
     doReturn(acquiredLockResponse).when(spyClient).checkLock(eq(dummyLockId));
-    doNothing().when(spyOps).doUnlock(eq(dummyLockId));
     doNothing().when(spyClient).heartbeat(eq(0L), eq(dummyLockId));
 
     spyOps.doCommit(metadataV2, metadataV1);
@@ -282,7 +280,7 @@ public class TestHiveCommitLocks extends HiveTableBaseTest {
     AssertHelpers.assertThrows(
         "Expected an exception",
         RuntimeException.class,
-        "Interrupted while acquiring lock",
+        "Interrupted while creating lock",
         () -> spyOps.doCommit(metadataV2, metadataV1));
 
     verify(spyClient, times(1)).unlock(eq(dummyLockId));

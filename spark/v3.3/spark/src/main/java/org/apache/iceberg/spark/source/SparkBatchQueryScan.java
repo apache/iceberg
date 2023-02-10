@@ -132,11 +132,6 @@ class SparkBatchQueryScan extends SparkPartitioningAwareScan<PartitionScanTask>
         evaluatorsBySpecId.put(spec.specId(), inclusive);
       }
 
-      LOG.info(
-          "Trying to filter {} tasks using runtime filter {}",
-          tasks().size(),
-          ExpressionUtil.toSanitizedString(runtimeFilterExpr));
-
       List<PartitionScanTask> filteredTasks =
           tasks().stream()
               .filter(
@@ -147,9 +142,10 @@ class SparkBatchQueryScan extends SparkPartitioningAwareScan<PartitionScanTask>
               .collect(Collectors.toList());
 
       LOG.info(
-          "{}/{} tasks matched runtime filter {}",
+          "{} of {} task(s) for table {} matched runtime filter {}",
           filteredTasks.size(),
           tasks().size(),
+          table().name(),
           ExpressionUtil.toSanitizedString(runtimeFilterExpr));
 
       // don't invalidate tasks if the runtime filter had no effect to avoid planning splits again

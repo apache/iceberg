@@ -268,6 +268,11 @@ scan = table.scan(
     selected_fields=("VendorID", "tpep_pickup_datetime", "tpep_dropoff_datetime"),
 )
 
+# Or filter using a string predicate
+scan = table.scan(
+    row_filter="trip_distance > 10.0",
+)
+
 [task.file.file_path for task in scan.plan_files()]
 ```
 
