@@ -32,7 +32,8 @@ class TestConfigurations {
     // add catalog properties
     props.put(CatalogProperties.URI, "env:" + "SNOW_URI");
 
-    // add jdbc properties
+    // add jdbc properties, env: prefix is added to annotate that these variables should be
+    // resolved by EnvironmentUtil.
     props.put("jdbc." + CatalogProperties.URI, "env:" + "SNOW_URI");
     props.put("jdbc." + CatalogProperties.USER, "env:" + "SNOW_USER");
     props.put("jdbc.password", "env:" + "SNOW_PASSWORD");

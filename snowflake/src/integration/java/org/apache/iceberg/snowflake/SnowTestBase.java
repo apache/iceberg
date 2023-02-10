@@ -41,10 +41,11 @@ class SnowTestBase {
     // Check required arguments for test
     Preconditions.checkNotNull(
         configs.getURI(),
-        "URI is required argument and should be resolve from environment variable SNOW_URI");
+        "URI is required argument and should be resolved from environment variable SNOW_URI");
+    // Ensure that environment variable resolution was attempted and the variable was resolved.
     Preconditions.checkArgument(
         !configs.getURI().isEmpty() && !configs.getURI().contains("env"),
-        "URI is required argument and should be resolve from environment variable SNOW_URI");
+        "URI is required argument and should be resolved from environment variable SNOW_URI");
     Preconditions.checkNotNull(
         configs.getDatabase(),
         "Database is required argument, please set environment variable SNOW_TEST_DB_NAME");

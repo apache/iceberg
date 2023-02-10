@@ -33,7 +33,7 @@ import org.junit.Test;
 public class NamespaceTests extends SnowTestBase {
 
   @Test
-  public void listNamespacesAtRootLevel() throws SQLException, InterruptedException {
+  public void testListNamespacesAtRootLevel() throws SQLException, InterruptedException {
     List<Namespace> namespaces = snowflakeCatalog.listNamespaces(Namespace.empty());
     int dbCount =
         clientPool.run(
@@ -49,7 +49,7 @@ public class NamespaceTests extends SnowTestBase {
   }
 
   @Test
-  public void listNamespacesAtDatabaseLevel() throws SQLException, InterruptedException {
+  public void testListNamespacesAtDatabaseLevel() throws SQLException, InterruptedException {
     String schema1 = "Schema_1";
     String schema2 = "Schema_2";
     String dbName = TestConfigurations.getInstance().getDatabase().toUpperCase();
@@ -73,7 +73,8 @@ public class NamespaceTests extends SnowTestBase {
   }
 
   @Test
-  public void listNamespacesAtSchemaLevelIsNotAllowed() throws SQLException, InterruptedException {
+  public void testListNamespacesAtSchemaLevelIsNotAllowed()
+      throws SQLException, InterruptedException {
     String schema1 = "Schema_1";
     String dbName = TestConfigurations.getInstance().getDatabase().toUpperCase();
     try {
@@ -91,7 +92,7 @@ public class NamespaceTests extends SnowTestBase {
   }
 
   @Test
-  public void loadNonExistingRootLevelNamespace() throws SQLException, InterruptedException {
+  public void testLoadNonExistingRootLevelNamespace() {
     String nonExistingDb = "IDontExist";
     Assertions.assertThatThrownBy(
             () -> {
@@ -101,7 +102,7 @@ public class NamespaceTests extends SnowTestBase {
   }
 
   @Test
-  public void loadNonExistingDBLevelNamespace() throws SQLException, InterruptedException {
+  public void testLoadNonExistingDBLevelNamespace() {
     String nonExistingSchema = "IDontExist";
     String db = TestConfigurations.getInstance().getDatabase();
     Assertions.assertThatThrownBy(
@@ -112,8 +113,7 @@ public class NamespaceTests extends SnowTestBase {
   }
 
   @Test
-  public void loadNamespaceThatExceedMaxSupportedHierarchy()
-      throws SQLException, InterruptedException {
+  public void testLoadNamespaceThatExceedMaxSupportedHierarchy() {
     String nonExistingSchema = "IDontExist";
     String db = TestConfigurations.getInstance().getDatabase();
     Assertions.assertThatThrownBy(
@@ -125,7 +125,7 @@ public class NamespaceTests extends SnowTestBase {
   }
 
   @Test
-  public void loadNamespaceWithUnquotedIdentifier() throws SQLException, InterruptedException {
+  public void testLoadNamespaceWithUnquotedIdentifier() throws SQLException, InterruptedException {
     String schema1 = "Schema123";
     String dbName = TestConfigurations.getInstance().getDatabase();
     try {
@@ -142,7 +142,7 @@ public class NamespaceTests extends SnowTestBase {
   }
 
   @Test
-  public void loadNamespaceWithUnquotedIdentifierIsCaseInsensitive()
+  public void testLoadNamespaceWithUnquotedIdentifierIsCaseInsensitive()
       throws SQLException, InterruptedException {
     String schema1 = "Schema123";
     String dbName = TestConfigurations.getInstance().getDatabase();
@@ -162,7 +162,7 @@ public class NamespaceTests extends SnowTestBase {
   }
 
   @Test
-  public void loadNamespaceWithUnquotedIdentifierWithLeadingUnderscoreAndDollarCharacters()
+  public void testLoadNamespaceWithUnquotedIdentifierWithLeadingUnderscoreAndDollarCharacters()
       throws SQLException, InterruptedException {
     String schema1 = "_Schema$_123";
     String dbName = TestConfigurations.getInstance().getDatabase();
@@ -180,7 +180,7 @@ public class NamespaceTests extends SnowTestBase {
   }
 
   @Test
-  public void loadNamespaceWithQuotedIdentifierIsCaseSensitive()
+  public void testLoadNamespaceWithQuotedIdentifierIsCaseSensitive()
       throws SQLException, InterruptedException {
     String schema1 = "\"Schema123\"";
     String dbName = TestConfigurations.getInstance().getDatabase();
@@ -198,7 +198,7 @@ public class NamespaceTests extends SnowTestBase {
   }
 
   @Test
-  public void loadNamespaceWithQuotedIdentifier() throws SQLException, InterruptedException {
+  public void testLoadNamespaceWithQuotedIdentifier() throws SQLException, InterruptedException {
     String schema1 = "\"Schema123\"";
     String dbName = TestConfigurations.getInstance().getDatabase();
     try {
@@ -215,7 +215,7 @@ public class NamespaceTests extends SnowTestBase {
   }
 
   @Test
-  public void loadNamespaceWithQuotedIdentifierWithSpecialCharacters()
+  public void testLoadNamespaceWithQuotedIdentifierWithSpecialCharacters()
       throws SQLException, InterruptedException {
     String schema1 = "\"H@!!.0-w*r()^'\"";
     String dbName = TestConfigurations.getInstance().getDatabase();
@@ -233,7 +233,7 @@ public class NamespaceTests extends SnowTestBase {
   }
 
   @Test
-  public void dropNamespaceNotSupported() throws SQLException, InterruptedException {
+  public void testDropNamespaceNotSupported() throws SQLException, InterruptedException {
     String schema1 = "Schema123";
     String dbName = TestConfigurations.getInstance().getDatabase();
     try {
@@ -251,7 +251,7 @@ public class NamespaceTests extends SnowTestBase {
   }
 
   @Test
-  public void setPropertiesNotSupported() throws SQLException, InterruptedException {
+  public void testSetPropertiesNotSupported() throws SQLException, InterruptedException {
     String schema1 = "Schema123";
     String dbName = TestConfigurations.getInstance().getDatabase();
     try {
@@ -270,7 +270,7 @@ public class NamespaceTests extends SnowTestBase {
   }
 
   @Test
-  public void removePropertiesNotSupported() throws SQLException, InterruptedException {
+  public void testRemovePropertiesNotSupported() throws SQLException, InterruptedException {
     String schema1 = "Schema123";
     String dbName = TestConfigurations.getInstance().getDatabase();
     try {
