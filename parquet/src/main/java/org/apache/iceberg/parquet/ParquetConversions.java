@@ -85,6 +85,7 @@ class ParquetConversions {
   static Function<Object, Object> converterFromParquet(PrimitiveType type) {
     if (type.getOriginalType() != null) {
       switch (type.getOriginalType()) {
+        case ENUM:
         case UTF8:
           // decode to CharSequence to avoid copying into a new String
           return binary -> StandardCharsets.UTF_8.decode(((Binary) binary).toByteBuffer());
