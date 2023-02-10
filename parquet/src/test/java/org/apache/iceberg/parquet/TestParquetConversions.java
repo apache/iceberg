@@ -27,7 +27,7 @@ import org.apache.parquet.schema.Type;
 import org.junit.Assert;
 import org.junit.Test;
 
-public class ParquetConversionsTest {
+public class TestParquetConversions {
   @Test
   public void fromParquetPrimitive() {
     Literal<Object> out = ParquetConversions.fromParquetPrimitive(
