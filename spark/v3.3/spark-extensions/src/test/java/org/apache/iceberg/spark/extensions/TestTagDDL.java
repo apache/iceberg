@@ -177,15 +177,10 @@ public class TestTagDDL extends SparkExtensionsTestBase {
   @Test
   public void testReplaceTagFailsForBranch() throws NoSuchTableException {
     String branchName = "branch1";
-
-    List<SimpleRecord> records =
-        ImmutableList.of(new SimpleRecord(1, "a"), new SimpleRecord(2, "b"));
-    Dataset<Row> df = spark.createDataFrame(records, SimpleRecord.class);
-    df.writeTo(tableName).append();
-    Table table = validationCatalog.loadTable(tableIdent);
+    Table table = insertRows();
     long first = table.currentSnapshot().snapshotId();
     table.manageSnapshots().createBranch(branchName, first).commit();
-    df.writeTo(tableName).append();
+    insertRows();
     long second = table.currentSnapshot().snapshotId();
 
     AssertHelpers.assertThrows(
@@ -197,12 +192,7 @@ public class TestTagDDL extends SparkExtensionsTestBase {
 
   @Test
   public void testReplaceTag() throws NoSuchTableException {
-    List<SimpleRecord> records =
-        ImmutableList.of(new SimpleRecord(1, "a"), new SimpleRecord(2, "b"));
-    Dataset<Row> df = spark.createDataFrame(records, SimpleRecord.class);
-    df.writeTo(tableName).append();
-
-    Table table = validationCatalog.loadTable(tableIdent);
+    Table table = insertRows();
     long first = table.currentSnapshot().snapshotId();
     String tagName = "t1";
     long expectedMaxRefAgeMs = 1000;
@@ -212,7 +202,7 @@ public class TestTagDDL extends SparkExtensionsTestBase {
         .setMaxRefAgeMs(tagName, expectedMaxRefAgeMs)
         .commit();
 
-    df.writeTo(tableName).append();
+    insertRows();
     long second = table.currentSnapshot().snapshotId();
 
     sql("ALTER TABLE %s REPLACE Tag %s AS OF VERSION %d", tableName, tagName, second);
@@ -224,11 +214,7 @@ public class TestTagDDL extends SparkExtensionsTestBase {
 
   @Test
   public void testReplaceTagDoesNotExist() throws NoSuchTableException {
-    List<SimpleRecord> records =
-        ImmutableList.of(new SimpleRecord(1, "a"), new SimpleRecord(2, "b"));
-    Dataset<Row> df = spark.createDataFrame(records, SimpleRecord.class);
-    df.writeTo(tableName).append();
-    Table table = validationCatalog.loadTable(tableIdent);
+    Table table = insertRows();
 
     AssertHelpers.assertThrows(
         "Cannot perform replace tag on tag which does not exist",
@@ -242,16 +228,11 @@ public class TestTagDDL extends SparkExtensionsTestBase {
 
   @Test
   public void testReplaceTagWithRetain() throws NoSuchTableException {
-    List<SimpleRecord> records =
-        ImmutableList.of(new SimpleRecord(1, "a"), new SimpleRecord(2, "b"));
-    Dataset<Row> df = spark.createDataFrame(records, SimpleRecord.class);
-    df.writeTo(tableName).append();
-
-    Table table = validationCatalog.loadTable(tableIdent);
+    Table table = insertRows();
     long first = table.currentSnapshot().snapshotId();
     String tagName = "t1";
     table.manageSnapshots().createTag(tagName, first).commit();
-    df.writeTo(tableName).append();
+    insertRows();
     long second = table.currentSnapshot().snapshotId();
 
     long maxRefAge = 10;
@@ -270,15 +251,10 @@ public class TestTagDDL extends SparkExtensionsTestBase {
 
   @Test
   public void testCreateOrReplace() throws NoSuchTableException {
-    List<SimpleRecord> records =
-        ImmutableList.of(new SimpleRecord(1, "a"), new SimpleRecord(2, "b"));
-    Dataset<Row> df = spark.createDataFrame(records, SimpleRecord.class);
-    df.writeTo(tableName).append();
-
-    Table table = validationCatalog.loadTable(tableIdent);
+    Table table = insertRows();
     long first = table.currentSnapshot().snapshotId();
     String tagName = "t1";
-    df.writeTo(tableName).append();
+    insertRows();
     long second = table.currentSnapshot().snapshotId();
     table.manageSnapshots().createTag(tagName, second).commit();
 
