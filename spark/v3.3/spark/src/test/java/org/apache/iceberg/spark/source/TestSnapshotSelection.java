@@ -374,7 +374,7 @@ public class TestSnapshotSelection {
   }
 
   @Test
-  public void testSnapshotSelectionByBranchWithSchemaChange() throws IOException {
+  public void testSnapshotSelectionByBranchOrTagWithSchemaChange() throws IOException {
     String tableLocation = temp.newFolder("iceberg-table").toString();
 
     HadoopTables tables = new HadoopTables(CONF);
@@ -389,28 +389,46 @@ public class TestSnapshotSelection {
     firstDf.select("id", "data").write().format("iceberg").mode("append").save(tableLocation);
 
     table.manageSnapshots().createBranch("branch", table.currentSnapshot().snapshotId()).commit();
+    table.manageSnapshots().createTag("tag", table.currentSnapshot().snapshotId()).commit();
 
-    Dataset<Row> currentSnapshotResult =
+    Dataset<Row> branchSnapshotResult =
         spark.read().format("iceberg").option("branch", "branch").load(tableLocation);
-    List<SimpleRecord> currentSnapshotRecords =
-        currentSnapshotResult.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
+    List<SimpleRecord> branchSnapshotRecords =
+            branchSnapshotResult.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
     List<SimpleRecord> expectedRecords = Lists.newArrayList();
     expectedRecords.addAll(firstBatchRecords);
     Assert.assertEquals(
-        "Current snapshot rows should match", expectedRecords, currentSnapshotRecords);
+        "Current snapshot rows should match", expectedRecords, branchSnapshotRecords);
+
+    Dataset<Row> tagSnapshotResult =
+            spark.read().format("iceberg").option("tag", "tag").load(tableLocation);
+    List<SimpleRecord> tagSnapshotRecords =
+            tagSnapshotResult.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
+    Assert.assertEquals(
+            "Current snapshot rows should match", expectedRecords, tagSnapshotRecords);
 
     // Deleting a column to indicate schema change
     table.updateSchema().deleteColumn("data").commit();
 
-    Dataset<Row> deleteColumnSnapshotResult =
+    // The data should have the deleted column as it was captured in an earlier snapshot.
+    Dataset<Row> deletedColumnBranchSnapshotResult =
         spark.read().format("iceberg").option("branch", "branch").load(tableLocation);
-    List<SimpleRecord> deletedSnapshotRecords =
-        deleteColumnSnapshotResult
+    List<SimpleRecord> deletedColumnBranchSnapshotRecords =
+        deletedColumnBranchSnapshotResult
             .orderBy("id")
             .as(Encoders.bean(SimpleRecord.class))
             .collectAsList();
-    // The data should have the deleted column as it was captured in an earlier snapshot.
     Assert.assertEquals(
-        "Current snapshot rows should match", expectedRecords, deletedSnapshotRecords);
+            "Current snapshot rows should match", expectedRecords, deletedColumnBranchSnapshotRecords);
+
+    Dataset<Row> deletedColumnTagSnapshotResult =
+            spark.read().format("iceberg").option("branch", "branch").load(tableLocation);
+    List<SimpleRecord> deletedColumnTagSnapshotRecords =
+            deletedColumnTagSnapshotResult
+                    .orderBy("id")
+                    .as(Encoders.bean(SimpleRecord.class))
+                    .collectAsList();
+    Assert.assertEquals(
+            "Current snapshot rows should match", expectedRecords, deletedColumnTagSnapshotRecords);
   }
 }
