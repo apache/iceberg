@@ -61,7 +61,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.source.SparkTable;
-import org.apache.iceberg.util.NumberUtil;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.util.ThreadPools;
@@ -639,10 +638,8 @@ public class SparkTableUtil {
                             stagingDir,
                             fileTuple,
                             targetTable.properties().get(TableProperties.AVRO_COMPRESSION),
-                            NumberUtil.createInteger(
-                                targetTable
-                                    .properties()
-                                    .get(TableProperties.AVRO_COMPRESSION_LEVEL))),
+                            PropertyUtil.propertyAsNullableInt(
+                                targetTable.properties(), TableProperties.AVRO_COMPRESSION_LEVEL)),
                 Encoders.javaSerialization(ManifestFile.class))
             .collectAsList();
 

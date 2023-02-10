@@ -47,7 +47,6 @@ import org.apache.iceberg.RowDelta;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotUpdate;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
@@ -58,7 +57,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Types;
-import org.apache.iceberg.util.NumberUtil;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.ThreadPools;
 import org.slf4j.Logger;
@@ -454,12 +452,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     WriteResult result = WriteResult.builder().addAll(writeResultsOfCurrentCkpt).build();
     DeltaManifests deltaManifests =
         FlinkManifestUtil.writeCompletedFiles(
-            result,
-            () -> manifestOutputFileFactory.create(checkpointId),
-            table.spec(),
-            table.properties().get(TableProperties.AVRO_COMPRESSION),
-            NumberUtil.createInteger(
-                table.properties().get(TableProperties.AVRO_COMPRESSION_LEVEL)));
+            result, () -> manifestOutputFileFactory.create(checkpointId), spec);
 
     return SimpleVersionedSerialization.writeVersionAndSerialize(
         DeltaManifestsSerializer.INSTANCE, deltaManifests);

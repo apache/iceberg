@@ -262,7 +262,11 @@ public class TableTestBase {
       throws IOException {
     File manifestFile = temp.newFile();
     Assert.assertTrue(manifestFile.delete());
-    OutputFile outputFile = table.ops().io().newOutputFile(manifestFile.getCanonicalPath());
+    OutputFile outputFile =
+        table
+            .ops()
+            .io()
+            .newOutputFile(FileFormat.AVRO.addExtension(manifestFile.getCanonicalPath()));
 
     ManifestWriter<DataFile> writer =
         ManifestFiles.write(

@@ -30,7 +30,6 @@ import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
 import org.assertj.core.api.Assertions;
 import org.assertj.core.api.Assumptions;
-import org.hamcrest.Matchers;
 import org.junit.Assert;
 import org.junit.Assume;
 import org.junit.Test;
@@ -386,6 +385,7 @@ public class TestManifestWriter extends TableTestBase {
     }
   }
 
+  @Test
   public void testWriteManifestWithCompression() throws IOException {
     validateManifestCompressionCodec(
         compressionCodec -> writeManifest(SNAPSHOT_ID, compressionCodec, FILE_A),
@@ -394,7 +394,7 @@ public class TestManifestWriter extends TableTestBase {
 
   @Test
   public void testWriteDeleteManifestWithCompression() throws IOException {
-    Assume.assumeThat(formatVersion, Matchers.is(2));
+    Assume.assumeTrue("delete files are only written for format version > 1", formatVersion > 1);
     validateManifestCompressionCodec(
         compressionCodec ->
             writeDeleteManifest(formatVersion, SNAPSHOT_ID, compressionCodec, FILE_A_DELETES),

@@ -85,6 +85,7 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
   private final FileType content;
   private final PartitionSpec spec;
   private final Schema fileSchema;
+  private Map<String, String> metadata;
 
   // updated by configuration methods
   private PartitionSet partitionSet = null;
@@ -119,7 +120,7 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
   }
 
   private <T extends ContentFile<T>> PartitionSpec readPartitionSpec(InputFile inputFile) {
-    Map<String, String> metadata = readMetadata(inputFile);
+    this.metadata = readMetadata(inputFile);
 
     int specId = TableMetadata.INITIAL_SPEC_ID;
     String specProperty = metadata.get("partition-spec-id");

@@ -487,6 +487,10 @@ public class TableMetadata implements Serializable {
     return PropertyUtil.propertyAsInt(properties, property, defaultValue);
   }
 
+  public Integer propertyAsNullableInt(String property) {
+    return PropertyUtil.propertyAsNullableInt(properties, property);
+  }
+
   public long propertyAsLong(String property, long defaultValue) {
     return PropertyUtil.propertyAsLong(properties, property, defaultValue);
   }
