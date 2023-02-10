@@ -26,6 +26,7 @@ import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -75,5 +76,28 @@ public class TestOutputFileFactory extends TableTestBase {
     String partitionedFileLocation = partitionedFile.encryptingOutputFile().location();
     Assert.assertTrue(
         partitionedFileLocation.endsWith("data_bucket=7/00001-100-append-00002.parquet"));
+  }
+
+  @Test
+  public void testWithCustomSuffix() {
+    OutputFileFactory fileFactory =
+        OutputFileFactory.builderFor(table, PARTITION_ID, TASK_ID)
+            .operationId("append")
+            .suffix("suffix")
+            .build();
+
+    EncryptedOutputFile unpartitionedFile =
+        fileFactory.newOutputFile(PartitionSpec.unpartitioned(), null);
+    String unpartitionedFileLocation = unpartitionedFile.encryptingOutputFile().location();
+    Assertions.assertThat(unpartitionedFileLocation)
+        .endsWith("data/00001-100-append-00001-suffix.parquet");
+
+    Record record = GenericRecord.create(table.schema()).copy(ImmutableMap.of("data", "aaa"));
+    PartitionKey partitionKey = new PartitionKey(table.spec(), table.schema());
+    partitionKey.partition(record);
+    EncryptedOutputFile partitionedFile = fileFactory.newOutputFile(table.spec(), partitionKey);
+    String partitionedFileLocation = partitionedFile.encryptingOutputFile().location();
+    Assertions.assertThat(partitionedFileLocation)
+        .endsWith("data_bucket=7/00001-100-append-00002-suffix.parquet");
   }
 }

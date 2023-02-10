@@ -18,7 +18,9 @@
 from typing import Type
 
 import pytest
+from pydantic import ValidationError
 
+from pyiceberg.typedef import IcebergBaseModel
 from pyiceberg.types import (
     BinaryType,
     BooleanType,
@@ -41,7 +43,6 @@ from pyiceberg.types import (
     TimeType,
     UUIDType,
 )
-from pyiceberg.utils.iceberg_base_model import IcebergBaseModel
 
 non_parameterized_types = [
     (1, BooleanType),
@@ -408,6 +409,13 @@ def test_deserialization_fixed() -> None:
     assert len(inner) == 22
 
 
+def test_deserialization_fixed_failure() -> None:
+    with pytest.raises(ValidationError) as exc_info:
+        _ = IcebergTestType.parse_raw('"fixed[abc]"')
+
+    assert "Could not match fixed[abc], expected format fixed[22]" in str(exc_info.value)
+
+
 def test_str_fixed() -> None:
     assert str(FixedType(22)) == "fixed[22]"
 
@@ -444,6 +452,13 @@ def test_deserialization_decimal() -> None:
     assert isinstance(inner, DecimalType)
     assert inner.precision == 19
     assert inner.scale == 25
+
+
+def test_deserialization_decimal_failure() -> None:
+    with pytest.raises(ValidationError) as exc_info:
+        _ = IcebergTestType.parse_raw('"decimal(abc, def)"')
+
+    assert "Could not parse decimal(abc, def) into a DecimalType" in str(exc_info.value)
 
 
 def test_str_decimal() -> None:

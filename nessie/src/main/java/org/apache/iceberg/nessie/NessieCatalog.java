@@ -65,6 +65,7 @@ public class NessieCatalog extends BaseMetastoreCatalog
 
   private static final Logger LOG = LoggerFactory.getLogger(NessieCatalog.class);
   private static final Joiner SLASH = Joiner.on("/");
+  private static final String NAMESPACE_LOCATION_PROPS = "location";
   private NessieIcebergClient client;
   private String warehouseLocation;
   private Configuration config;
@@ -202,7 +203,15 @@ public class NessieCatalog extends BaseMetastoreCatalog
   protected String defaultWarehouseLocation(TableIdentifier table) {
     String location;
     if (table.hasNamespace()) {
-      location = SLASH.join(warehouseLocation, table.namespace().toString(), table.name());
+      String baseLocation = SLASH.join(warehouseLocation, table.namespace().toString());
+      try {
+        baseLocation =
+            loadNamespaceMetadata(table.namespace())
+                .getOrDefault(NAMESPACE_LOCATION_PROPS, baseLocation);
+      } catch (NoSuchNamespaceException e) {
+        // do nothing we want the same behavior that if the location is not defined
+      }
+      location = SLASH.join(baseLocation, table.name());
     } else {
       location = SLASH.join(warehouseLocation, table.name());
     }
@@ -262,11 +271,10 @@ public class NessieCatalog extends BaseMetastoreCatalog
   }
 
   /**
-   * Load the given namespace but return an empty map because namespace properties are currently not
-   * supported.
+   * Load the given namespace and return its properties.
    *
    * @param namespace a namespace. {@link Namespace}
-   * @return an empty map
+   * @return a string map of properties for the given namespace
    * @throws NoSuchNamespaceException If the namespace does not exist
    */
   @Override
@@ -330,5 +338,10 @@ public class NessieCatalog extends BaseMetastoreCatalog
       return TableIdentifier.of(identifier.namespace(), tableReference.getName());
     }
     return identifier;
+  }
+
+  @Override
+  protected Map<String, String> properties() {
+    return catalogOptions == null ? ImmutableMap.of() : catalogOptions;
   }
 }

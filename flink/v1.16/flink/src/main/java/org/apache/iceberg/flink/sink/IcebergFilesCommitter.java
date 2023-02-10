@@ -69,6 +69,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
 
   private static final Logger LOG = LoggerFactory.getLogger(IcebergFilesCommitter.class);
   private static final String FLINK_JOB_ID = "flink.job-id";
+  private static final String OPERATOR_ID = "flink.operator-id";
 
   // The max checkpoint id we've committed to iceberg table. As the flink's checkpoint is always
   // increasing, so we could correctly commit all the data files whose checkpoint id is greater than
@@ -97,6 +98,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
 
   // It will have an unique identifier for one job.
   private transient String flinkJobId;
+  private transient String operatorUniqueId;
   private transient Table table;
   private transient IcebergFilesCommitterMetrics committerMetrics;
   private transient ManifestOutputFileFactory manifestOutputFileFactory;
@@ -134,6 +136,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
   public void initializeState(StateInitializationContext context) throws Exception {
     super.initializeState(context);
     this.flinkJobId = getContainingTask().getEnvironment().getJobID().toString();
+    this.operatorUniqueId = getRuntimeContext().getOperatorUniqueID();
 
     // Open the table loader and load the table.
     this.tableLoader.open();
@@ -147,7 +150,6 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
 
     int subTaskId = getRuntimeContext().getIndexOfThisSubtask();
     int attemptId = getRuntimeContext().getAttemptNumber();
-    String operatorUniqueId = getRuntimeContext().getOperatorUniqueID();
     this.manifestOutputFileFactory =
         FlinkManifestUtil.createOutputFileFactory(
             table, flinkJobId, operatorUniqueId, subTaskId, attemptId);
@@ -176,7 +178,8 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
       // flink job even if it's restored from a snapshot created by another different flink job, so
       // it's safe to assign the max committed checkpoint id from restored flink job to the current
       // flink job.
-      this.maxCommittedCheckpointId = getMaxCommittedCheckpointId(table, restoredFlinkJobId);
+      this.maxCommittedCheckpointId =
+          getMaxCommittedCheckpointId(table, restoredFlinkJobId, operatorUniqueId);
 
       NavigableMap<Long, byte[]> uncommittedDataFiles =
           Maps.newTreeMap(checkpointsState.get().iterator().next())
@@ -184,7 +187,8 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
       if (!uncommittedDataFiles.isEmpty()) {
         // Committed all uncommitted data files from the old flink job to iceberg table.
         long maxUncommittedCheckpointId = uncommittedDataFiles.lastKey();
-        commitUpToCheckpoint(uncommittedDataFiles, restoredFlinkJobId, maxUncommittedCheckpointId);
+        commitUpToCheckpoint(
+            uncommittedDataFiles, restoredFlinkJobId, operatorUniqueId, maxUncommittedCheckpointId);
       }
     }
   }
@@ -226,13 +230,22 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     // the files,
     // Besides, we need to maintain the max-committed-checkpoint-id to be increasing.
     if (checkpointId > maxCommittedCheckpointId) {
-      commitUpToCheckpoint(dataFilesPerCheckpoint, flinkJobId, checkpointId);
+      LOG.info("Checkpoint {} completed. Attempting commit.", checkpointId);
+      commitUpToCheckpoint(dataFilesPerCheckpoint, flinkJobId, operatorUniqueId, checkpointId);
       this.maxCommittedCheckpointId = checkpointId;
+    } else {
+      LOG.info(
+          "Skipping committing checkpoint {}. {} is already committed.",
+          checkpointId,
+          maxCommittedCheckpointId);
     }
   }
 
   private void commitUpToCheckpoint(
-      NavigableMap<Long, byte[]> deltaManifestsMap, String newFlinkJobId, long checkpointId)
+      NavigableMap<Long, byte[]> deltaManifestsMap,
+      String newFlinkJobId,
+      String operatorId,
+      long checkpointId)
       throws IOException {
     NavigableMap<Long, byte[]> pendingMap = deltaManifestsMap.headMap(checkpointId, true);
     List<ManifestFile> manifests = Lists.newArrayList();
@@ -252,7 +265,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     }
 
     CommitSummary summary = new CommitSummary(pendingResults);
-    commitPendingResult(pendingResults, summary, newFlinkJobId, checkpointId);
+    commitPendingResult(pendingResults, summary, newFlinkJobId, operatorId, checkpointId);
     committerMetrics.updateCommitSummary(summary);
     pendingMap.clear();
     deleteCommittedManifests(manifests, newFlinkJobId, checkpointId);
@@ -262,16 +275,19 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
       NavigableMap<Long, WriteResult> pendingResults,
       CommitSummary summary,
       String newFlinkJobId,
+      String operatorId,
       long checkpointId) {
     long totalFiles = summary.dataFilesCount() + summary.deleteFilesCount();
     continuousEmptyCheckpoints = totalFiles == 0 ? continuousEmptyCheckpoints + 1 : 0;
     if (totalFiles != 0 || continuousEmptyCheckpoints % maxContinuousEmptyCommits == 0) {
       if (replacePartitions) {
-        replacePartitions(pendingResults, summary, newFlinkJobId, checkpointId);
+        replacePartitions(pendingResults, summary, newFlinkJobId, operatorId, checkpointId);
       } else {
-        commitDeltaTxn(pendingResults, summary, newFlinkJobId, checkpointId);
+        commitDeltaTxn(pendingResults, summary, newFlinkJobId, operatorId, checkpointId);
       }
       continuousEmptyCheckpoints = 0;
+    } else {
+      LOG.info("Skip commit for checkpoint {} due to no data files or delete files.", checkpointId);
     }
   }
 
@@ -300,6 +316,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
       NavigableMap<Long, WriteResult> pendingResults,
       CommitSummary summary,
       String newFlinkJobId,
+      String operatorId,
       long checkpointId) {
     Preconditions.checkState(
         summary.deleteFilesCount() == 0, "Cannot overwrite partitions with delete files.");
@@ -312,13 +329,19 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     }
 
     commitOperation(
-        dynamicOverwrite, summary, "dynamic partition overwrite", newFlinkJobId, checkpointId);
+        dynamicOverwrite,
+        summary,
+        "dynamic partition overwrite",
+        newFlinkJobId,
+        operatorId,
+        checkpointId);
   }
 
   private void commitDeltaTxn(
       NavigableMap<Long, WriteResult> pendingResults,
       CommitSummary summary,
       String newFlinkJobId,
+      String operatorId,
       long checkpointId) {
     if (summary.deleteFilesCount() == 0) {
       // To be compatible with iceberg format V1.
@@ -329,7 +352,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
             "Should have no referenced data files for append.");
         Arrays.stream(result.dataFiles()).forEach(appendFiles::appendFile);
       }
-      commitOperation(appendFiles, summary, "append", newFlinkJobId, checkpointId);
+      commitOperation(appendFiles, summary, "append", newFlinkJobId, operatorId, checkpointId);
     } else {
       // To be compatible with iceberg format V2.
       for (Map.Entry<Long, WriteResult> e : pendingResults.entrySet()) {
@@ -350,7 +373,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
 
         Arrays.stream(result.dataFiles()).forEach(rowDelta::addRows);
         Arrays.stream(result.deleteFiles()).forEach(rowDelta::addDeletes);
-        commitOperation(rowDelta, summary, "rowDelta", newFlinkJobId, e.getKey());
+        commitOperation(rowDelta, summary, "rowDelta", newFlinkJobId, operatorId, e.getKey());
       }
     }
   }
@@ -360,23 +383,30 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
       CommitSummary summary,
       String description,
       String newFlinkJobId,
+      String operatorId,
       long checkpointId) {
-    LOG.info("Committing {} to table {} with summary: {}", description, table.name(), summary);
+    LOG.info(
+        "Committing {} for checkpoint {} to table {} with summary: {}",
+        description,
+        checkpointId,
+        table.name(),
+        summary);
     snapshotProperties.forEach(operation::set);
     // custom snapshot metadata properties will be overridden if they conflict with internal ones
     // used by the sink.
     operation.set(MAX_COMMITTED_CHECKPOINT_ID, Long.toString(checkpointId));
     operation.set(FLINK_JOB_ID, newFlinkJobId);
+    operation.set(OPERATOR_ID, operatorId);
 
     long startNano = System.nanoTime();
     operation.commit(); // abort is automatically called if this fails.
     long durationMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNano);
     LOG.info(
-        "Committed {} to table {} in {} ms with summary: {}",
+        "Committed {} to table: {}, checkpointId {} in {} ms",
         description,
         table.name(),
-        durationMs,
-        summary);
+        checkpointId,
+        durationMs);
     committerMetrics.commitDuration(durationMs);
   }
 
@@ -392,7 +422,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     dataFilesPerCheckpoint.put(currentCheckpointId, writeToManifest(currentCheckpointId));
     writeResultsOfCurrentCkpt.clear();
 
-    commitUpToCheckpoint(dataFilesPerCheckpoint, flinkJobId, currentCheckpointId);
+    commitUpToCheckpoint(dataFilesPerCheckpoint, flinkJobId, operatorUniqueId, currentCheckpointId);
   }
 
   /**
@@ -444,14 +474,16 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     return new ListStateDescriptor<>("iceberg-files-committer-state", sortedMapTypeInfo);
   }
 
-  static long getMaxCommittedCheckpointId(Table table, String flinkJobId) {
+  static long getMaxCommittedCheckpointId(Table table, String flinkJobId, String operatorId) {
     Snapshot snapshot = table.currentSnapshot();
     long lastCommittedCheckpointId = INITIAL_CHECKPOINT_ID;
 
     while (snapshot != null) {
       Map<String, String> summary = snapshot.summary();
       String snapshotFlinkJobId = summary.get(FLINK_JOB_ID);
-      if (flinkJobId.equals(snapshotFlinkJobId)) {
+      String snapshotOperatorId = summary.get(OPERATOR_ID);
+      if (flinkJobId.equals(snapshotFlinkJobId)
+          && (snapshotOperatorId == null || snapshotOperatorId.equals(operatorId))) {
         String value = summary.get(MAX_COMMITTED_CHECKPOINT_ID);
         if (value != null) {
           lastCommittedCheckpointId = Long.parseLong(value);

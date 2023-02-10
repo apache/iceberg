@@ -23,17 +23,17 @@ import org.apache.iceberg.io.CloseableIterable;
 /** A {@link Table} implementation that exposes a table's files as rows. */
 public class FilesTable extends BaseFilesTable {
 
-  FilesTable(TableOperations ops, Table table) {
-    this(ops, table, table.name() + ".files");
+  FilesTable(Table table) {
+    this(table, table.name() + ".files");
   }
 
-  FilesTable(TableOperations ops, Table table, String name) {
-    super(ops, table, name);
+  FilesTable(Table table, String name) {
+    super(table, name);
   }
 
   @Override
   public TableScan newScan() {
-    return new FilesTableScan(operations(), table(), schema());
+    return new FilesTableScan(table(), schema());
   }
 
   @Override
@@ -43,23 +43,22 @@ public class FilesTable extends BaseFilesTable {
 
   public static class FilesTableScan extends BaseFilesTableScan {
 
-    FilesTableScan(TableOperations ops, Table table, Schema schema) {
-      super(ops, table, schema, MetadataTableType.FILES);
+    FilesTableScan(Table table, Schema schema) {
+      super(table, schema, MetadataTableType.FILES);
     }
 
-    FilesTableScan(TableOperations ops, Table table, Schema schema, TableScanContext context) {
-      super(ops, table, schema, MetadataTableType.FILES, context);
+    FilesTableScan(Table table, Schema schema, TableScanContext context) {
+      super(table, schema, MetadataTableType.FILES, context);
     }
 
     @Override
-    protected TableScan newRefinedScan(
-        TableOperations ops, Table table, Schema schema, TableScanContext context) {
-      return new FilesTableScan(ops, table, schema, context);
+    protected TableScan newRefinedScan(Table table, Schema schema, TableScanContext context) {
+      return new FilesTableScan(table, schema, context);
     }
 
     @Override
     protected CloseableIterable<ManifestFile> manifests() {
-      return CloseableIterable.withNoopClose(snapshot().allManifests(tableOps().io()));
+      return CloseableIterable.withNoopClose(snapshot().allManifests(table().io()));
     }
   }
 }

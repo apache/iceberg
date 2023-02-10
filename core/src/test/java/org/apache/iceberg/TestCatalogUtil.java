@@ -48,7 +48,7 @@ public class TestCatalogUtil {
         CatalogUtil.loadCatalog(TestCatalog.class.getName(), name, options, hadoopConf);
     Assertions.assertThat(catalog).isInstanceOf(TestCatalog.class);
     Assert.assertEquals(name, ((TestCatalog) catalog).catalogName);
-    Assert.assertEquals(options, ((TestCatalog) catalog).flinkOptions);
+    Assert.assertEquals(options, ((TestCatalog) catalog).catalogProperties);
   }
 
   @Test
@@ -62,7 +62,7 @@ public class TestCatalogUtil {
         CatalogUtil.loadCatalog(TestCatalogConfigurable.class.getName(), name, options, hadoopConf);
     Assertions.assertThat(catalog).isInstanceOf(TestCatalogConfigurable.class);
     Assert.assertEquals(name, ((TestCatalogConfigurable) catalog).catalogName);
-    Assert.assertEquals(options, ((TestCatalogConfigurable) catalog).flinkOptions);
+    Assert.assertEquals(options, ((TestCatalogConfigurable) catalog).catalogProperties);
     Assert.assertEquals(hadoopConf, ((TestCatalogConfigurable) catalog).configuration);
   }
 
@@ -218,14 +218,14 @@ public class TestCatalogUtil {
   public static class TestCatalog extends BaseMetastoreCatalog {
 
     private String catalogName;
-    private Map<String, String> flinkOptions;
+    private Map<String, String> catalogProperties;
 
     public TestCatalog() {}
 
     @Override
     public void initialize(String name, Map<String, String> properties) {
       this.catalogName = name;
-      this.flinkOptions = properties;
+      this.catalogProperties = properties;
     }
 
     @Override
@@ -255,7 +255,7 @@ public class TestCatalogUtil {
   public static class TestCatalogConfigurable extends BaseMetastoreCatalog implements Configurable {
 
     private String catalogName;
-    private Map<String, String> flinkOptions;
+    private Map<String, String> catalogProperties;
     private Configuration configuration;
 
     public TestCatalogConfigurable() {}
@@ -263,7 +263,7 @@ public class TestCatalogUtil {
     @Override
     public void initialize(String name, Map<String, String> properties) {
       this.catalogName = name;
-      this.flinkOptions = properties;
+      this.catalogProperties = properties;
     }
 
     @Override

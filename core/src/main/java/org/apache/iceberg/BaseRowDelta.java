@@ -22,6 +22,7 @@ import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.CharSequenceSet;
+import org.apache.iceberg.util.SnapshotUtil;
 
 class BaseRowDelta extends MergingSnapshotProducer<RowDelta> implements RowDelta {
   private Long startingSnapshotId = null; // check all versions by default
@@ -96,23 +97,37 @@ class BaseRowDelta extends MergingSnapshotProducer<RowDelta> implements RowDelta
   }
 
   @Override
-  protected void validate(TableMetadata base, Snapshot snapshot) {
-    if (base.currentSnapshot() != null) {
+  public RowDelta toBranch(String branch) {
+    targetBranch(branch);
+    return this;
+  }
+
+  @Override
+  protected void validate(TableMetadata base, Snapshot parent) {
+    if (parent != null) {
+      if (startingSnapshotId != null) {
+        Preconditions.checkArgument(
+            SnapshotUtil.isAncestorOf(parent.snapshotId(), startingSnapshotId, base::snapshot),
+            "Snapshot %s is not an ancestor of %s",
+            startingSnapshotId,
+            parent.snapshotId());
+      }
       if (!referencedDataFiles.isEmpty()) {
         validateDataFilesExist(
             base,
             startingSnapshotId,
             referencedDataFiles,
             !validateDeletes,
-            conflictDetectionFilter);
+            conflictDetectionFilter,
+            parent);
       }
 
       if (validateNewDataFiles) {
-        validateAddedDataFiles(base, startingSnapshotId, conflictDetectionFilter);
+        validateAddedDataFiles(base, startingSnapshotId, conflictDetectionFilter, parent);
       }
 
       if (validateNewDeleteFiles) {
-        validateNoNewDeleteFiles(base, startingSnapshotId, conflictDetectionFilter);
+        validateNoNewDeleteFiles(base, startingSnapshotId, conflictDetectionFilter, parent);
       }
     }
   }

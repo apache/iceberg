@@ -21,6 +21,7 @@ package org.apache.iceberg;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import org.apache.iceberg.expressions.Binder;
@@ -59,26 +60,49 @@ abstract class BaseScan<ThisT, T extends ScanTask, G extends ScanTaskGroup<T>>
   private static final List<String> SCAN_WITH_STATS_COLUMNS =
       ImmutableList.<String>builder().addAll(SCAN_COLUMNS).addAll(STATS_COLUMNS).build();
 
+  protected static final List<String> DELETE_SCAN_COLUMNS =
+      ImmutableList.of(
+          "snapshot_id",
+          "content",
+          "file_path",
+          "file_ordinal",
+          "file_format",
+          "block_size_in_bytes",
+          "file_size_in_bytes",
+          "record_count",
+          "partition",
+          "key_metadata",
+          "split_offsets");
+
+  protected static final List<String> DELETE_SCAN_WITH_STATS_COLUMNS =
+      ImmutableList.<String>builder().addAll(DELETE_SCAN_COLUMNS).addAll(STATS_COLUMNS).build();
+
   private static final boolean PLAN_SCANS_WITH_WORKER_POOL =
       SystemProperties.getBoolean(SystemProperties.SCAN_THREAD_POOL_ENABLED, true);
 
-  private final TableOperations ops;
   private final Table table;
   private final Schema schema;
   private final TableScanContext context;
 
-  protected BaseScan(TableOperations ops, Table table, Schema schema, TableScanContext context) {
-    this.ops = ops;
+  protected BaseScan(Table table, Schema schema, TableScanContext context) {
     this.table = table;
     this.schema = schema;
     this.context = context;
   }
 
+  /**
+   * @deprecated will be removed in 1.3.0; avoid using TableOperations for scans or use BaseTable
+   */
+  @Deprecated
   protected TableOperations tableOps() {
-    return ops;
+    if (table instanceof BaseTable) {
+      return ((BaseTable) table).operations();
+    }
+
+    return null;
   }
 
-  protected Table table() {
+  public Table table() {
     return table;
   }
 
@@ -88,6 +112,10 @@ abstract class BaseScan<ThisT, T extends ScanTask, G extends ScanTaskGroup<T>>
 
   protected TableScanContext context() {
     return context;
+  }
+
+  protected Map<String, String> options() {
+    return context().options();
   }
 
   protected List<String> scanColumns() {
@@ -106,22 +134,32 @@ abstract class BaseScan<ThisT, T extends ScanTask, G extends ScanTaskGroup<T>>
     return context().planExecutor();
   }
 
+  /**
+   * @deprecated will be removed in 1.3.0; use newRefinedScan(Table, Schema, TableScanContext)
+   *     instead.
+   */
+  @Deprecated
+  protected ThisT newRefinedScan(
+      TableOperations ignored, Table newTable, Schema newSchema, TableScanContext newContext) {
+    return newRefinedScan(newTable, newSchema, newContext);
+  }
+
   protected abstract ThisT newRefinedScan(
-      TableOperations newOps, Table newTable, Schema newSchema, TableScanContext newContext);
+      Table newTable, Schema newSchema, TableScanContext newContext);
 
   @Override
   public ThisT option(String property, String value) {
-    return newRefinedScan(ops, table, schema, context.withOption(property, value));
+    return newRefinedScan(table, schema, context.withOption(property, value));
   }
 
   @Override
   public ThisT project(Schema projectedSchema) {
-    return newRefinedScan(ops, table, schema, context.project(projectedSchema));
+    return newRefinedScan(table, schema, context.project(projectedSchema));
   }
 
   @Override
   public ThisT caseSensitive(boolean caseSensitive) {
-    return newRefinedScan(ops, table, schema, context.setCaseSensitive(caseSensitive));
+    return newRefinedScan(table, schema, context.setCaseSensitive(caseSensitive));
   }
 
   @Override
@@ -131,18 +169,18 @@ abstract class BaseScan<ThisT, T extends ScanTask, G extends ScanTaskGroup<T>>
 
   @Override
   public ThisT includeColumnStats() {
-    return newRefinedScan(ops, table, schema, context.shouldReturnColumnStats(true));
+    return newRefinedScan(table, schema, context.shouldReturnColumnStats(true));
   }
 
   @Override
   public ThisT select(Collection<String> columns) {
-    return newRefinedScan(ops, table, schema, context.selectColumns(columns));
+    return newRefinedScan(table, schema, context.selectColumns(columns));
   }
 
   @Override
   public ThisT filter(Expression expr) {
     return newRefinedScan(
-        ops, table, schema, context.filterRows(Expressions.and(context.rowFilter(), expr)));
+        table, schema, context.filterRows(Expressions.and(context.rowFilter(), expr)));
   }
 
   @Override
@@ -152,12 +190,12 @@ abstract class BaseScan<ThisT, T extends ScanTask, G extends ScanTaskGroup<T>>
 
   @Override
   public ThisT ignoreResiduals() {
-    return newRefinedScan(ops, table, schema, context.ignoreResiduals(true));
+    return newRefinedScan(table, schema, context.ignoreResiduals(true));
   }
 
   @Override
   public ThisT planWith(ExecutorService executorService) {
-    return newRefinedScan(ops, table, schema, context.planWith(executorService));
+    return newRefinedScan(table, schema, context.planWith(executorService));
   }
 
   @Override
@@ -168,16 +206,18 @@ abstract class BaseScan<ThisT, T extends ScanTask, G extends ScanTaskGroup<T>>
   @Override
   public long targetSplitSize() {
     long tableValue =
-        ops.current()
-            .propertyAsLong(TableProperties.SPLIT_SIZE, TableProperties.SPLIT_SIZE_DEFAULT);
+        PropertyUtil.propertyAsLong(
+            table().properties(), TableProperties.SPLIT_SIZE, TableProperties.SPLIT_SIZE_DEFAULT);
     return PropertyUtil.propertyAsLong(context.options(), TableProperties.SPLIT_SIZE, tableValue);
   }
 
   @Override
   public int splitLookback() {
     int tableValue =
-        ops.current()
-            .propertyAsInt(TableProperties.SPLIT_LOOKBACK, TableProperties.SPLIT_LOOKBACK_DEFAULT);
+        PropertyUtil.propertyAsInt(
+            table().properties(),
+            TableProperties.SPLIT_LOOKBACK,
+            TableProperties.SPLIT_LOOKBACK_DEFAULT);
     return PropertyUtil.propertyAsInt(
         context.options(), TableProperties.SPLIT_LOOKBACK, tableValue);
   }
@@ -185,9 +225,10 @@ abstract class BaseScan<ThisT, T extends ScanTask, G extends ScanTaskGroup<T>>
   @Override
   public long splitOpenFileCost() {
     long tableValue =
-        ops.current()
-            .propertyAsLong(
-                TableProperties.SPLIT_OPEN_FILE_COST, TableProperties.SPLIT_OPEN_FILE_COST_DEFAULT);
+        PropertyUtil.propertyAsLong(
+            table().properties(),
+            TableProperties.SPLIT_OPEN_FILE_COST,
+            TableProperties.SPLIT_OPEN_FILE_COST_DEFAULT);
     return PropertyUtil.propertyAsLong(
         context.options(), TableProperties.SPLIT_OPEN_FILE_COST, tableValue);
   }

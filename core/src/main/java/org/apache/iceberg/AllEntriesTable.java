@@ -29,17 +29,17 @@ import org.apache.iceberg.io.CloseableIterable;
  */
 public class AllEntriesTable extends BaseEntriesTable {
 
-  AllEntriesTable(TableOperations ops, Table table) {
-    this(ops, table, table.name() + ".all_entries");
+  AllEntriesTable(Table table) {
+    this(table, table.name() + ".all_entries");
   }
 
-  AllEntriesTable(TableOperations ops, Table table, String name) {
-    super(ops, table, name);
+  AllEntriesTable(Table table, String name) {
+    super(table, name);
   }
 
   @Override
   public TableScan newScan() {
-    return new Scan(operations(), table(), schema());
+    return new Scan(table(), schema());
   }
 
   @Override
@@ -49,24 +49,23 @@ public class AllEntriesTable extends BaseEntriesTable {
 
   private static class Scan extends BaseAllMetadataTableScan {
 
-    Scan(TableOperations ops, Table table, Schema schema) {
-      super(ops, table, schema, MetadataTableType.ALL_ENTRIES);
+    Scan(Table table, Schema schema) {
+      super(table, schema, MetadataTableType.ALL_ENTRIES);
     }
 
-    private Scan(TableOperations ops, Table table, Schema schema, TableScanContext context) {
-      super(ops, table, schema, MetadataTableType.ALL_ENTRIES, context);
+    private Scan(Table table, Schema schema, TableScanContext context) {
+      super(table, schema, MetadataTableType.ALL_ENTRIES, context);
     }
 
     @Override
-    protected TableScan newRefinedScan(
-        TableOperations ops, Table table, Schema schema, TableScanContext context) {
-      return new Scan(ops, table, schema, context);
+    protected TableScan newRefinedScan(Table table, Schema schema, TableScanContext context) {
+      return new Scan(table, schema, context);
     }
 
     @Override
     protected CloseableIterable<FileScanTask> doPlanFiles() {
       CloseableIterable<ManifestFile> manifests =
-          reachableManifests(snapshot -> snapshot.allManifests(tableOps().io()));
+          reachableManifests(snapshot -> snapshot.allManifests(table().io()));
       return BaseEntriesTable.planFiles(table(), manifests, tableSchema(), schema(), context());
     }
   }

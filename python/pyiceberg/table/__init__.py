@@ -16,10 +16,11 @@
 # under the License.
 from __future__ import annotations
 
-import warnings
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from functools import cached_property
+from itertools import chain
+from multiprocessing.pool import ThreadPool
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -31,6 +32,7 @@ from typing import (
     Optional,
     Tuple,
     TypeVar,
+    Union,
 )
 
 from pydantic import Field
@@ -39,11 +41,18 @@ from pyiceberg.expressions import (
     AlwaysTrue,
     And,
     BooleanExpression,
+    parser,
     visitors,
 )
-from pyiceberg.expressions.visitors import bind, inclusive_projection
+from pyiceberg.expressions.visitors import inclusive_projection
 from pyiceberg.io import FileIO
-from pyiceberg.manifest import DataFile, ManifestFile, files
+from pyiceberg.io.pyarrow import project_table
+from pyiceberg.manifest import (
+    DataFile,
+    ManifestContent,
+    ManifestFile,
+    files,
+)
 from pyiceberg.partitioning import PartitionSpec
 from pyiceberg.schema import Schema
 from pyiceberg.table.metadata import TableMetadata
@@ -54,14 +63,15 @@ from pyiceberg.typedef import (
     Identifier,
     KeyDefaultDict,
     Properties,
-    StructProtocol,
 )
-from pyiceberg.types import StructType
 
 if TYPE_CHECKING:
     import pandas as pd
     import pyarrow as pa
     from duckdb import DuckDBPyConnection
+
+
+ALWAYS_TRUE = AlwaysTrue()
 
 
 class Table:
@@ -86,7 +96,7 @@ class Table:
 
     def scan(
         self,
-        row_filter: Optional[BooleanExpression] = None,
+        row_filter: Union[str, BooleanExpression] = ALWAYS_TRUE,
         selected_fields: Tuple[str, ...] = ("*",),
         case_sensitive: bool = True,
         snapshot_id: Optional[int] = None,
@@ -94,7 +104,7 @@ class Table:
     ) -> TableScan[Any]:
         return DataScan(
             table=self,
-            row_filter=row_filter or AlwaysTrue(),
+            row_filter=row_filter,
             selected_fields=selected_fields,
             case_sensitive=case_sensitive,
             snapshot_id=snapshot_id,
@@ -167,6 +177,19 @@ class Table:
 S = TypeVar("S", bound="TableScan", covariant=True)  # type: ignore
 
 
+def _parse_row_filter(expr: Union[str, BooleanExpression]) -> BooleanExpression:
+    """Accepts an expression in the form of a BooleanExpression or a string
+
+    In the case of a string, it will be converted into a unbound BooleanExpression
+
+    Args:
+        expr: Expression as a BooleanExpression or a string
+
+    Returns: An unbound BooleanExpression
+    """
+    return parser.parse(expr) if isinstance(expr, str) else expr
+
+
 class TableScan(Generic[S], ABC):
     table: Table
     row_filter: BooleanExpression
@@ -178,14 +201,14 @@ class TableScan(Generic[S], ABC):
     def __init__(
         self,
         table: Table,
-        row_filter: Optional[BooleanExpression] = None,
+        row_filter: Union[str, BooleanExpression] = ALWAYS_TRUE,
         selected_fields: Tuple[str] = ("*",),
         case_sensitive: bool = True,
         snapshot_id: Optional[int] = None,
         options: Properties = EMPTY_DICT,
     ):
         self.table = table
-        self.row_filter = row_filter or AlwaysTrue()
+        self.row_filter = _parse_row_filter(row_filter)
         self.selected_fields = selected_fields
         self.case_sensitive = case_sensitive
         self.snapshot_id = snapshot_id
@@ -236,8 +259,8 @@ class TableScan(Generic[S], ABC):
             return self.update(selected_fields=field_names)
         return self.update(selected_fields=tuple(set(self.selected_fields).intersection(set(field_names))))
 
-    def filter(self, new_row_filter: BooleanExpression) -> S:
-        return self.update(row_filter=And(self.row_filter, new_row_filter))
+    def filter(self, expr: Union[str, BooleanExpression]) -> S:
+        return self.update(row_filter=And(self.row_filter, _parse_row_filter(expr)))
 
     def with_case_sensitive(self, case_sensitive: bool = True) -> S:
         return self.update(case_sensitive=case_sensitive)
@@ -259,29 +282,28 @@ class FileScanTask(ScanTask):
         self.length = length or data_file.file_size_in_bytes
 
 
-class _DictAsStruct(StructProtocol):
-    pos_to_name: Dict[int, str]
-    wrapped: Dict[str, Any]
+def _check_content(file: DataFile) -> DataFile:
+    try:
+        if file.content == ManifestContent.DELETES:
+            raise ValueError("PyIceberg does not support deletes: https://github.com/apache/iceberg/issues/6568")
+        return file
+    except AttributeError:
+        # If the attribute is not there, it is a V1 record
+        return file
 
-    def __init__(self, partition_type: StructType):
-        self.pos_to_name = {pos: field.name for pos, field in enumerate(partition_type.fields)}
 
-    def wrap(self, to_wrap: Dict[str, Any]) -> _DictAsStruct:
-        self.wrapped = to_wrap
-        return self
-
-    def get(self, pos: int) -> Any:
-        return self.wrapped[self.pos_to_name[pos]]
-
-    def set(self, pos: int, value: Any) -> None:
-        raise NotImplementedError("Cannot set values in DictAsStruct")
+def _open_manifest(io: FileIO, manifest: ManifestFile, partition_filter: Callable[[DataFile], bool]) -> List[FileScanTask]:
+    all_files = files(io.new_input(manifest.manifest_path))
+    matching_partition_files = filter(partition_filter, all_files)
+    matching_partition_data_files = map(_check_content, matching_partition_files)
+    return [FileScanTask(file) for file in matching_partition_data_files]
 
 
 class DataScan(TableScan["DataScan"]):
     def __init__(
         self,
         table: Table,
-        row_filter: Optional[BooleanExpression] = None,
+        row_filter: Union[str, BooleanExpression] = ALWAYS_TRUE,
         selected_fields: Tuple[str] = ("*",),
         case_sensitive: bool = True,
         snapshot_id: Optional[int] = None,
@@ -307,16 +329,13 @@ class DataScan(TableScan["DataScan"]):
         partition_schema = Schema(*partition_type.fields)
         partition_expr = self.partition_filters[spec_id]
 
-        # TODO: remove the dict to struct wrapper by using a StructProtocol record  # pylint: disable=W0511
-        wrapper = _DictAsStruct(partition_type)
         evaluator = visitors.expression_evaluator(partition_schema, partition_expr, self.case_sensitive)
+        return lambda data_file: evaluator(data_file.partition)
 
-        return lambda data_file: evaluator(wrapper.wrap(data_file.partition))
-
-    def plan_files(self) -> Iterator[ScanTask]:
+    def plan_files(self) -> Iterator[FileScanTask]:
         snapshot = self.snapshot()
         if not snapshot:
-            return
+            return iter([])
 
         io = self.table.io
 
@@ -336,54 +355,18 @@ class DataScan(TableScan["DataScan"]):
 
         partition_evaluators: Dict[int, Callable[[DataFile], bool]] = KeyDefaultDict(self._build_partition_evaluator)
 
-        for manifest in manifests:
-            partition_filter = partition_evaluators[manifest.partition_spec_id]
-            all_files = files(io.new_input(manifest.manifest_path))
-            matching_partition_files = filter(partition_filter, all_files)
-
-            yield from (FileScanTask(file) for file in matching_partition_files)
+        with ThreadPool() as pool:
+            return chain(
+                *pool.starmap(
+                    func=_open_manifest,
+                    iterable=[(io, manifest, partition_evaluators[manifest.partition_spec_id]) for manifest in manifests],
+                )
+            )
 
     def to_arrow(self) -> pa.Table:
-        from pyiceberg.io.pyarrow import PyArrowFileIO, expression_to_pyarrow, schema_to_pyarrow
-
-        warnings.warn(
-            "Projection is currently done by name instead of Field ID, this can lead to incorrect results in some cases."
+        return project_table(
+            self.plan_files(), self.table, self.row_filter, self.projection(), case_sensitive=self.case_sensitive
         )
-
-        fs = None
-        if isinstance(self.table.io, PyArrowFileIO):
-            scheme, path = PyArrowFileIO.parse_location(self.table.location())
-            fs = self.table.io.get_fs(scheme)
-
-        locations = []
-        for task in self.plan_files():
-            if isinstance(task, FileScanTask):
-                _, path = PyArrowFileIO.parse_location(task.file.file_path)
-                locations.append(path)
-            else:
-                raise ValueError(f"Cannot read unexpected task: {task}")
-
-        columns = None
-        if "*" not in self.selected_fields:
-            columns = list(self.selected_fields)
-
-        pyarrow_filter = None
-        if self.row_filter is not AlwaysTrue():
-            bound_row_filter = bind(self.table.schema(), self.row_filter, case_sensitive=self.case_sensitive)
-            pyarrow_filter = expression_to_pyarrow(bound_row_filter)
-
-        from pyarrow.dataset import dataset
-
-        ds = dataset(
-            source=locations,
-            filesystem=fs,
-            # Optionally provide the Schema for the Dataset,
-            # in which case it will not be inferred from the source.
-            # https://arrow.apache.org/docs/python/generated/pyarrow.dataset.dataset.html#pyarrow.dataset.dataset
-            schema=schema_to_pyarrow(self.table.schema()),
-        )
-
-        return ds.to_table(filter=pyarrow_filter, columns=columns)
 
     def to_pandas(self, **kwargs: Any) -> pd.DataFrame:
         return self.to_arrow().to_pandas(**kwargs)

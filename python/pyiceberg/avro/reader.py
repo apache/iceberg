@@ -28,7 +28,7 @@ from __future__ import annotations
 from abc import abstractmethod
 from dataclasses import dataclass
 from dataclasses import field as dataclassfield
-from datetime import date, datetime, time
+from datetime import datetime, time
 from decimal import Decimal
 from typing import (
     Any,
@@ -37,33 +37,12 @@ from typing import (
     List,
     Optional,
     Tuple,
-    Union,
 )
 from uuid import UUID
 
 from pyiceberg.avro.decoder import BinaryDecoder
-from pyiceberg.schema import Schema, SchemaVisitorPerPrimitiveType
-from pyiceberg.typedef import Record, StructProtocol
-from pyiceberg.types import (
-    BinaryType,
-    BooleanType,
-    DateType,
-    DecimalType,
-    DoubleType,
-    FixedType,
-    FloatType,
-    IntegerType,
-    ListType,
-    LongType,
-    MapType,
-    NestedField,
-    StringType,
-    StructType,
-    TimestampType,
-    TimestamptzType,
-    TimeType,
-    UUIDType,
-)
+from pyiceberg.typedef import StructProtocol
+from pyiceberg.types import StructType
 from pyiceberg.utils.singleton import Singleton
 
 
@@ -112,6 +91,9 @@ class Reader(Singleton):
     def skip(self, decoder: BinaryDecoder) -> None:
         ...
 
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}()"
+
 
 class NoneReader(Reader):
     def read(self, _: BinaryDecoder) -> None:
@@ -156,8 +138,8 @@ class DoubleReader(Reader):
 
 
 class DateReader(Reader):
-    def read(self, decoder: BinaryDecoder) -> date:
-        return decoder.read_date_from_int()
+    def read(self, decoder: BinaryDecoder) -> int:
+        return decoder.read_int()
 
     def skip(self, decoder: BinaryDecoder) -> None:
         decoder.skip_int()
@@ -216,6 +198,9 @@ class FixedReader(Reader):
     def __len__(self) -> int:
         return self._len
 
+    def __repr__(self) -> str:
+        return f"FixedReader({self._len})"
+
 
 class BinaryReader(Reader):
     def read(self, decoder: BinaryDecoder) -> bytes:
@@ -235,6 +220,9 @@ class DecimalReader(Reader):
 
     def skip(self, decoder: BinaryDecoder) -> None:
         decoder.skip_bytes()
+
+    def __repr__(self) -> str:
+        return f"DecimalReader({self.precision}, {self.scale})"
 
 
 @dataclass(frozen=True)
@@ -260,23 +248,58 @@ class OptionReader(Reader):
             return self.option.skip(decoder)
 
 
-@dataclass(frozen=True)
 class StructReader(Reader):
-    fields: Tuple[Tuple[Optional[int], Reader], ...] = dataclassfield()
+    field_readers: Tuple[Tuple[Optional[int], Reader], ...]
+    create_struct: Callable[..., StructProtocol]
+    struct: StructType
 
-    def read(self, decoder: BinaryDecoder) -> Record:
-        result: List[Union[Any, StructProtocol]] = [None] * len(self.fields)
-        for (pos, field) in self.fields:
+    def __init__(
+        self,
+        field_readers: Tuple[Tuple[Optional[int], Reader], ...],
+        create_struct: Callable[..., StructProtocol],
+        struct: StructType,
+    ) -> None:
+        self.field_readers = field_readers
+        self.create_struct = create_struct
+        self.struct = struct
+
+    def read(self, decoder: BinaryDecoder) -> StructProtocol:
+        try:
+            # Try initializing the struct, first with the struct keyword argument
+            struct = self.create_struct(struct=self.struct)
+        except TypeError as e:
+            if "'struct' is an invalid keyword argument for" in str(e):
+                struct = self.create_struct()
+            else:
+                raise ValueError(f"Unable to initialize struct: {self.create_struct}") from e
+
+        if not isinstance(struct, StructProtocol):
+            raise ValueError(f"Incompatible with StructProtocol: {self.create_struct}")
+
+        for pos, field in self.field_readers:
             if pos is not None:
-                result[pos] = field.read(decoder)
+                struct[pos] = field.read(decoder)  # later: pass reuse in here
             else:
                 field.skip(decoder)
 
-        return Record(*result)
+        return struct
 
     def skip(self, decoder: BinaryDecoder) -> None:
-        for _, field in self.fields:
+        for _, field in self.field_readers:
             field.skip(decoder)
+
+    def __eq__(self, other: Any) -> bool:
+        return (
+            self.field_readers == other.field_readers and self.create_struct == other.create_struct
+            if isinstance(other, StructReader)
+            else False
+        )
+
+    def __repr__(self) -> str:
+        return f"StructReader(({','.join(repr(field) for field in self.field_readers)}), {repr(self.create_struct)})"
+
+    def __hash__(self) -> int:
+        return hash(self.field_readers)
 
 
 @dataclass(frozen=True)
@@ -325,64 +348,3 @@ class MapReader(Reader):
             self.value.skip(decoder)
 
         _skip_map_array(decoder, skip)
-
-
-class ConstructReader(SchemaVisitorPerPrimitiveType[Reader]):
-    def schema(self, schema: Schema, struct_result: Reader) -> Reader:
-        return struct_result
-
-    def struct(self, struct: StructType, field_results: List[Reader]) -> Reader:
-        return StructReader(tuple(enumerate(field_results)))
-
-    def field(self, field: NestedField, field_result: Reader) -> Reader:
-        return field_result if field.required else OptionReader(field_result)
-
-    def list(self, list_type: ListType, element_result: Reader) -> Reader:
-        element_reader = element_result if list_type.element_required else OptionReader(element_result)
-        return ListReader(element_reader)
-
-    def map(self, map_type: MapType, key_result: Reader, value_result: Reader) -> Reader:
-        value_reader = value_result if map_type.value_required else OptionReader(value_result)
-        return MapReader(key_result, value_reader)
-
-    def visit_fixed(self, fixed_type: FixedType) -> Reader:
-        return FixedReader(len(fixed_type))
-
-    def visit_decimal(self, decimal_type: DecimalType) -> Reader:
-        return DecimalReader(decimal_type.precision, decimal_type.scale)
-
-    def visit_boolean(self, boolean_type: BooleanType) -> Reader:
-        return BooleanReader()
-
-    def visit_integer(self, integer_type: IntegerType) -> Reader:
-        return IntegerReader()
-
-    def visit_long(self, long_type: LongType) -> Reader:
-        return IntegerReader()
-
-    def visit_float(self, float_type: FloatType) -> Reader:
-        return FloatReader()
-
-    def visit_double(self, double_type: DoubleType) -> Reader:
-        return DoubleReader()
-
-    def visit_date(self, date_type: DateType) -> Reader:
-        return DateReader()
-
-    def visit_time(self, time_type: TimeType) -> Reader:
-        return TimeReader()
-
-    def visit_timestamp(self, timestamp_type: TimestampType) -> Reader:
-        return TimestampReader()
-
-    def visit_timestampz(self, timestamptz_type: TimestamptzType) -> Reader:
-        return TimestamptzReader()
-
-    def visit_string(self, string_type: StringType) -> Reader:
-        return StringReader()
-
-    def visit_uuid(self, uuid_type: UUIDType) -> Reader:
-        return UUIDReader()
-
-    def visit_binary(self, binary_ype: BinaryType) -> Reader:
-        return BinaryReader()

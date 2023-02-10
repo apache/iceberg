@@ -25,12 +25,15 @@ and the built-in pytest fixture request should be used as an additional argument
 retrieved using `request.getfixturevalue(fixture_name)`.
 """
 import os
+import string
+from random import choice
 from tempfile import TemporaryDirectory
 from typing import (
     Any,
     Callable,
     Dict,
     Generator,
+    List,
 )
 from unittest.mock import MagicMock
 from urllib.parse import urlparse
@@ -54,6 +57,7 @@ from pyiceberg.schema import Schema
 from pyiceberg.types import (
     BinaryType,
     BooleanType,
+    DateType,
     DoubleType,
     FloatType,
     IntegerType,
@@ -64,7 +68,6 @@ from pyiceberg.types import (
     StringType,
     StructType,
 )
-from tests.catalog.test_base import InMemoryCatalog
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:
@@ -309,11 +312,6 @@ def example_table_metadata_v2() -> Dict[str, Any]:
     return EXAMPLE_TABLE_METADATA_V2
 
 
-@pytest.fixture
-def catalog() -> InMemoryCatalog:
-    return InMemoryCatalog("test.in.memory.catalog", **{"test.key": "test.value"})
-
-
 manifest_entry_records = [
     {
         "status": 1,
@@ -321,7 +319,7 @@ manifest_entry_records = [
         "data_file": {
             "file_path": "/home/iceberg/warehouse/nyc/taxis_partitioned/data/VendorID=null/00000-633-d8a4223e-dc97-45a1-86e1-adaba6e8abd7-00001.parquet",
             "file_format": "PARQUET",
-            "partition": {"VendorID": None},
+            "partition": {"VendorID": 1, "tpep_pickup_datetime": 1925},
             "record_count": 19513,
             "file_size_in_bytes": 388872,
             "block_size_in_bytes": 67108864,
@@ -441,7 +439,7 @@ manifest_entry_records = [
         "data_file": {
             "file_path": "/home/iceberg/warehouse/nyc/taxis_partitioned/data/VendorID=1/00000-633-d8a4223e-dc97-45a1-86e1-adaba6e8abd7-00002.parquet",
             "file_format": "PARQUET",
-            "partition": {"VendorID": 1},
+            "partition": {"VendorID": 1, "tpep_pickup_datetime": 1925},
             "record_count": 95050,
             "file_size_in_bytes": 1265950,
             "block_size_in_bytes": 67108864,
@@ -714,7 +712,15 @@ def avro_schema_manifest_entry() -> Dict[str, Any]:
                             "type": {
                                 "type": "record",
                                 "name": "r102",
-                                "fields": [{"name": "VendorID", "type": ["null", "int"], "default": None, "field-id": 1000}],
+                                "fields": [
+                                    {"field-id": 1000, "default": None, "name": "VendorID", "type": ["null", "int"]},
+                                    {
+                                        "field-id": 1001,
+                                        "default": None,
+                                        "name": "tpep_pickup_datetime",
+                                        "type": ["null", {"type": "int", "logicalType": "date"}],
+                                    },
+                                ],
                             },
                             "field-id": 102,
                         },
@@ -987,6 +993,12 @@ def iceberg_manifest_entry_schema() -> Schema:
                             field_type=IntegerType(),
                             required=False,
                         ),
+                        NestedField(
+                            field_id=1001,
+                            name="tpep_pickup_datetime",
+                            field_type=DateType(),
+                            required=False,
+                        ),
                     ),
                     required=True,
                 ),
@@ -1256,3 +1268,31 @@ def adlfs_fsspec_fileio(request: pytest.FixtureRequest) -> Generator[FsspecFileI
 def empty_home_dir_path(tmp_path_factory: pytest.TempPathFactory) -> str:
     home_path = str(tmp_path_factory.mktemp("home"))
     return home_path
+
+
+RANDOM_LENGTH = 20
+NUM_TABLES = 2
+
+
+@pytest.fixture()
+def table_name() -> str:
+    prefix = "my_iceberg_table-"
+    random_tag = "".join(choice(string.ascii_letters) for _ in range(RANDOM_LENGTH))
+    return (prefix + random_tag).lower()
+
+
+@pytest.fixture()
+def table_list(table_name: str) -> List[str]:
+    return [f"{table_name}_{idx}" for idx in range(NUM_TABLES)]
+
+
+@pytest.fixture()
+def database_name() -> str:
+    prefix = "my_iceberg_database-"
+    random_tag = "".join(choice(string.ascii_letters) for _ in range(RANDOM_LENGTH))
+    return (prefix + random_tag).lower()
+
+
+@pytest.fixture()
+def database_list(database_name: str) -> List[str]:
+    return [f"{database_name}_{idx}" for idx in range(NUM_TABLES)]

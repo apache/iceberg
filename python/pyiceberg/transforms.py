@@ -60,7 +60,7 @@ from pyiceberg.expressions.literals import (
     TimestampLiteral,
     literal,
 )
-from pyiceberg.typedef import L
+from pyiceberg.typedef import IcebergBaseModel, L
 from pyiceberg.types import (
     BinaryType,
     DateType,
@@ -77,7 +77,6 @@ from pyiceberg.types import (
 )
 from pyiceberg.utils import datetime
 from pyiceberg.utils.decimal import decimal_to_bytes, truncate_decimal
-from pyiceberg.utils.iceberg_base_model import IcebergBaseModel
 from pyiceberg.utils.parsing import ParseNumberFromBrackets
 from pyiceberg.utils.singleton import Singleton
 

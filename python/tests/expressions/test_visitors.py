@@ -64,7 +64,9 @@ from pyiceberg.expressions.visitors import (
     BooleanExpressionVisitor,
     BoundBooleanExpressionVisitor,
     _ManifestEvalVisitor,
+    expression_to_plain_format,
     rewrite_not,
+    rewrite_to_dnf,
     visit,
     visit_bound_predicate,
 )
@@ -785,12 +787,8 @@ def _to_byte_buffer(field_type: IcebergType, val: Any) -> bytes:
 
 
 def _to_manifest_file(*partitions: PartitionFieldSummary) -> ManifestFile:
-    return ManifestFile(
-        manifest_path="",
-        manifest_length=0,
-        partition_spec_id=0,
-        partitions=partitions,
-    )
+    """Helper to create a ManifestFile"""
+    return ManifestFile(manifest_path="", manifest_length=0, partition_spec_id=0, partitions=partitions)
 
 
 INT_MIN_VALUE = 30
@@ -1374,14 +1372,28 @@ def test_rewrite_not_in() -> None:
 
 
 def test_rewrite_and() -> None:
-    assert rewrite_not(Not(And(EqualTo(Reference("x"), 34.56), EqualTo(Reference("y"), 34.56),))) == Or(
+    assert rewrite_not(
+        Not(
+            And(
+                EqualTo(Reference("x"), 34.56),
+                EqualTo(Reference("y"), 34.56),
+            )
+        )
+    ) == Or(
         NotEqualTo(term=Reference(name="x"), literal=34.56),
         NotEqualTo(term=Reference(name="y"), literal=34.56),
     )
 
 
 def test_rewrite_or() -> None:
-    assert rewrite_not(Not(Or(EqualTo(Reference("x"), 34.56), EqualTo(Reference("y"), 34.56),))) == And(
+    assert rewrite_not(
+        Not(
+            Or(
+                EqualTo(Reference("x"), 34.56),
+                EqualTo(Reference("y"), 34.56),
+            )
+        )
+    ) == And(
         NotEqualTo(term=Reference(name="x"), literal=34.56),
         NotEqualTo(term=Reference(name="y"), literal=34.56),
     )
@@ -1403,3 +1415,74 @@ def test_rewrite_bound() -> None:
             accessor=Accessor(position=0, inner=None),
         )
     )
+
+
+def test_to_dnf() -> None:
+    expr = Or(Not(EqualTo("P", "a")), And(EqualTo("Q", "b"), Not(Or(Not(EqualTo("R", "c")), EqualTo("S", "d")))))
+    assert rewrite_to_dnf(expr) == (NotEqualTo("P", "a"), And(EqualTo("Q", "b"), And(EqualTo("R", "c"), NotEqualTo("S", "d"))))
+
+
+def test_to_dnf_nested_or() -> None:
+    expr = Or(EqualTo("P", "a"), And(EqualTo("Q", "b"), Or(EqualTo("R", "c"), EqualTo("S", "d"))))
+    assert rewrite_to_dnf(expr) == (
+        EqualTo("P", "a"),
+        And(EqualTo("Q", "b"), EqualTo("R", "c")),
+        And(EqualTo("Q", "b"), EqualTo("S", "d")),
+    )
+
+
+def test_to_dnf_double_distribution() -> None:
+    expr = And(Or(EqualTo("P", "a"), EqualTo("Q", "b")), Or(EqualTo("R", "c"), EqualTo("S", "d")))
+    assert rewrite_to_dnf(expr) == (
+        And(
+            left=EqualTo(term=Reference(name="P"), literal=literal("a")),
+            right=EqualTo(term=Reference(name="R"), literal=literal("c")),
+        ),
+        And(
+            left=EqualTo(term=Reference(name="P"), literal=literal("a")),
+            right=EqualTo(term=Reference(name="S"), literal=literal("d")),
+        ),
+        And(
+            left=EqualTo(term=Reference(name="Q"), literal=literal("b")),
+            right=EqualTo(term=Reference(name="R"), literal=literal("c")),
+        ),
+        And(
+            left=EqualTo(term=Reference(name="Q"), literal=literal("b")),
+            right=EqualTo(term=Reference(name="S"), literal=literal("d")),
+        ),
+    )
+
+
+def test_to_dnf_double_negation() -> None:
+    expr = rewrite_to_dnf(Not(Not(Not(Not(Not(Not(EqualTo("P", "a"))))))))
+    assert expr == (EqualTo("P", "a"),)
+
+
+def test_to_dnf_and() -> None:
+    expr = And(Not(EqualTo("Q", "b")), EqualTo("R", "c"))
+    assert rewrite_to_dnf(expr) == (And(NotEqualTo("Q", "b"), EqualTo("R", "c")),)
+
+
+def test_to_dnf_not_and() -> None:
+    expr = Not(And(Not(EqualTo("Q", "b")), EqualTo("R", "c")))
+    assert rewrite_to_dnf(expr) == (EqualTo("Q", "b"), NotEqualTo("R", "c"))
+
+
+def test_dnf_to_dask(table_schema_simple: Schema) -> None:
+    expr = (
+        BoundGreaterThan[str](
+            term=BoundReference(table_schema_simple.find_field(1), table_schema_simple.accessor_for_field(1)),
+            literal=literal("hello"),
+        ),
+        And(
+            BoundIn[int](
+                term=BoundReference(table_schema_simple.find_field(2), table_schema_simple.accessor_for_field(2)),
+                literals={literal(1), literal(2), literal(3)},
+            ),
+            BoundEqualTo[bool](
+                term=BoundReference(table_schema_simple.find_field(3), table_schema_simple.accessor_for_field(3)),
+                literal=literal(True),
+            ),
+        ),
+    )
+    assert expression_to_plain_format(expr) == [[("foo", ">", "hello")], [("bar", "in", {1, 2, 3}), ("baz", "==", True)]]

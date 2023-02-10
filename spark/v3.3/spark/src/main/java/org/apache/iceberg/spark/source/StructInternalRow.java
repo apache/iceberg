@@ -27,6 +27,7 @@ import java.time.OffsetDateTime;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import org.apache.iceberg.StructLike;
@@ -355,5 +356,24 @@ class StructInternalRow extends InternalRow {
     }
 
     return new GenericArrayData(array);
+  }
+
+  @Override
+  public boolean equals(Object other) {
+    if (this == other) {
+      return true;
+    }
+
+    if (other == null || getClass() != other.getClass()) {
+      return false;
+    }
+
+    StructInternalRow that = (StructInternalRow) other;
+    return type.equals(that.type) && struct.equals(that.struct);
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(type, struct);
   }
 }
