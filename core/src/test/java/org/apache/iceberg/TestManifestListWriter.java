@@ -22,7 +22,6 @@ import java.io.IOException;
 import java.util.Map;
 import org.apache.iceberg.avro.AvroIterable;
 import org.apache.iceberg.io.InputFile;
-import org.hamcrest.Matchers;
 import org.junit.Assert;
 import org.junit.Assume;
 import org.junit.Test;
@@ -52,7 +51,7 @@ public class TestManifestListWriter extends TableTestBase {
 
   @Test
   public void testWriteDeleteManifestListWithCompression() throws IOException {
-    Assume.assumeThat(formatVersion, Matchers.is(2));
+    Assume.assumeTrue("delete files are only written for format version > 1", formatVersion > 1);
     validateManifestListCompressionCodec(
         compressionCodec -> {
           ManifestFile manifest = writeManifest(SNAPSHOT_ID, compressionCodec, FILE_A);

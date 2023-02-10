@@ -44,7 +44,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
-import org.apache.iceberg.util.NumberUtil;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.Tasks;
 
@@ -173,7 +172,7 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
         snapshotId(),
         summaryBuilder,
         current.properties().get(TableProperties.AVRO_COMPRESSION),
-        NumberUtil.createInteger(current.properties().get(TableProperties.AVRO_COMPRESSION_LEVEL)));
+        current.propertyAsNullableInt(TableProperties.AVRO_COMPRESSION_LEVEL));
   }
 
   @Override

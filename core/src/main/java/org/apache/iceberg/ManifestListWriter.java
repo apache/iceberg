@@ -114,12 +114,15 @@ abstract class ManifestListWriter implements FileAppender<ManifestFile> {
                 .named("manifest_file")
                 .meta(meta)
                 .overwrite();
+
         if (compressionCodec != null) {
           builder.set(TableProperties.AVRO_COMPRESSION, compressionCodec);
         }
+
         if (compressionLevel != null) {
           builder.set(TableProperties.AVRO_COMPRESSION_LEVEL, compressionLevel.toString());
         }
+
         return builder.build();
       } catch (IOException e) {
         throw new RuntimeIOException(e, "Failed to create snapshot list writer for path: %s", file);
@@ -167,12 +170,15 @@ abstract class ManifestListWriter implements FileAppender<ManifestFile> {
                 .named("manifest_file")
                 .meta(meta)
                 .overwrite();
+
         if (compressionCodec != null) {
           builder.set(TableProperties.AVRO_COMPRESSION, compressionCodec);
         }
+
         if (compressionLevel != null) {
           builder.set(TableProperties.AVRO_COMPRESSION_LEVEL, compressionLevel.toString());
         }
+
         return builder.build();
       } catch (IOException e) {
         throw new RuntimeIOException(e, "Failed to create snapshot list writer for path: %s", file);

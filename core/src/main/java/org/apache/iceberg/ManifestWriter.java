@@ -251,12 +251,15 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
                 .meta("format-version", "2")
                 .meta("content", "data")
                 .overwrite();
+
         if (compressionCodec != null) {
           builder.set(TableProperties.AVRO_COMPRESSION, compressionCodec);
         }
+
         if (compressionLevel != null) {
           builder.set(TableProperties.AVRO_COMPRESSION_LEVEL, compressionLevel.toString());
         }
+
         return builder.build();
       } catch (IOException e) {
         throw new RuntimeIOException(e, "Failed to create manifest writer for path: %s", file);
@@ -297,12 +300,15 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
                 .meta("format-version", "2")
                 .meta("content", "deletes")
                 .overwrite();
+
         if (compressionCodec != null) {
           builder.set(TableProperties.AVRO_COMPRESSION, compressionCodec);
         }
+
         if (compressionLevel != null) {
           builder.set(TableProperties.AVRO_COMPRESSION_LEVEL, compressionLevel.toString());
         }
+
         return builder.build();
       } catch (IOException e) {
         throw new RuntimeIOException(e, "Failed to create manifest writer for path: %s", file);
@@ -347,12 +353,15 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
                 .meta("partition-spec-id", String.valueOf(spec.specId()))
                 .meta("format-version", "1")
                 .overwrite();
+
         if (compressionCodec != null) {
           builder.set(TableProperties.AVRO_COMPRESSION, compressionCodec);
         }
+
         if (compressionLevel != null) {
           builder.set(TableProperties.AVRO_COMPRESSION_LEVEL, compressionLevel.toString());
         }
+
         return builder.build();
       } catch (IOException e) {
         throw new RuntimeIOException(e, "Failed to create manifest writer for path: %s", file);
