@@ -32,6 +32,7 @@ import org.apache.spark.sql.catalyst.expressions.PredicateHelper
 import org.apache.spark.sql.catalyst.plans.logical.AddPartitionField
 import org.apache.spark.sql.catalyst.plans.logical.Call
 import org.apache.spark.sql.catalyst.plans.logical.CreateOrReplaceBranch
+import org.apache.spark.sql.catalyst.plans.logical.CreateOrReplaceTag
 import org.apache.spark.sql.catalyst.plans.logical.DeleteFromIcebergTable
 import org.apache.spark.sql.catalyst.plans.logical.DropIdentifierFields
 import org.apache.spark.sql.catalyst.plans.logical.DropPartitionField
@@ -65,6 +66,9 @@ case class ExtendedDataSourceV2Strategy(spark: SparkSession) extends Strategy wi
     case CreateOrReplaceBranch(
         IcebergCatalogAndIdentifier(catalog, ident), branch, branchOptions, replace, ifNotExists) =>
       CreateOrReplaceBranchExec(catalog, ident, branch, branchOptions, replace, ifNotExists) :: Nil
+
+    case CreateOrReplaceTag(IcebergCatalogAndIdentifier(catalog, ident), tag, tagOptions, replace, ifNotExists) =>
+      CreateOrReplaceTagExec(catalog, ident, tag, tagOptions, replace, ifNotExists) :: Nil
 
     case DropPartitionField(IcebergCatalogAndIdentifier(catalog, ident), transform) =>
       DropPartitionFieldExec(catalog, ident, transform) :: Nil
