@@ -228,4 +228,16 @@ public class TestSnapshotTableProcedure extends SparkExtensionsTestBase {
         "Cannot handle an empty identifier",
         () -> sql("CALL %s.system.snapshot('src', '')", catalogName));
   }
+
+  @Test
+  public void testSnapshotWithoutCatalogNameForDest() throws IOException {
+    String destWithDBAndTable = "default.table";
+    String location = temp.newFolder().toString();
+    sql(
+            "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'",
+            sourceName, location);
+    Object result =
+            scalarSql("CALL %s.system.snapshot('%s', '%s')", catalogName, sourceName, destWithDBAndTable);
+    Assert.assertEquals("Should have added no file with snapshot success", 0L, result);
+  }
 }

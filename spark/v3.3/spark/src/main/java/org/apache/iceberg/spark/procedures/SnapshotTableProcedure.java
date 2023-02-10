@@ -93,6 +93,11 @@ class SnapshotTableProcedure extends BaseProcedure {
               });
     }
 
+    // add the catalog name if dest name is like `db.table`
+    dest = dest.split("\\.").length == 2
+            ? String.format("%s.%s", tableCatalog().name(), dest)
+            : dest;
+
     Preconditions.checkArgument(
         !source.equals(dest),
         "Cannot create a snapshot with the same name as the source of the snapshot.");
