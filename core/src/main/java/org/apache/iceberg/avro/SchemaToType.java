@@ -73,9 +73,7 @@ class SchemaToType extends AvroSchemaVisitor<Type> {
   }
 
   private int allocateId() {
-    int current = nextId;
-    nextId += 1;
-    return current;
+    return ++this.nextId;
   }
 
   @Override
