@@ -20,11 +20,10 @@ package org.apache.iceberg.snowflake;
 
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
-import java.util.HashMap;
-import java.util.Map;
-import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.jdbc.JdbcClientPool;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.junit.BeforeClass;
+import org.junit.jupiter.api.AfterAll;
 
 @SuppressWarnings("VisibilityModifier")
 class SnowTestBase {
@@ -39,10 +38,33 @@ class SnowTestBase {
   public static void beforeAll() {
     snowflakeCatalog = new SnowflakeCatalog();
     TestConfigurations configs = TestConfigurations.getInstance();
-    Map<String, String> catalogProps = new HashMap<String, String>(configs.getProperties());
-    catalogProps.put(CatalogProperties.URI, configs.getURI());
-    snowflakeCatalog.initialize("testCatalog", catalogProps);
+    // Check required arguments for test
+    Preconditions.checkNotNull(
+        configs.getURI(),
+        "URI is required argument and should be resolve from environment variable SNOW_URI");
+    Preconditions.checkArgument(
+        !configs.getURI().isEmpty() && !configs.getURI().contains("env"),
+        "URI is required argument and should be resolve from environment variable SNOW_URI");
+    Preconditions.checkNotNull(
+        configs.getDatabase(),
+        "Database is required argument, please set environment variable SNOW_TEST_DB_NAME");
+
+    snowflakeCatalog.initialize("testCatalog", configs.getProperties());
     clientPool = new JdbcClientPool(configs.getURI(), configs.getProperties());
+    try {
+      createOrReplaceDatabase(configs.getDatabase());
+    } catch (SQLException | InterruptedException e) {
+      throw new RuntimeException(e);
+    }
+  }
+
+  @AfterAll
+  public void afterAll() {
+    try {
+      dropDatabaseIfExists(TestConfigurations.getInstance().getDatabase());
+    } catch (SQLException | InterruptedException e) {
+      throw new RuntimeException(e);
+    }
   }
 
   static void createOrReplaceSchema(String schemaName) throws SQLException, InterruptedException {
@@ -61,6 +83,26 @@ class SnowTestBase {
           PreparedStatement statement =
               conn.prepareStatement("DROP SCHEMA IF EXISTS IDENTIFIER(?)");
           statement.setString(1, schemaName);
+          return statement.execute();
+        });
+  }
+
+  static void createOrReplaceDatabase(String dbName) throws SQLException, InterruptedException {
+    clientPool.run(
+        conn -> {
+          PreparedStatement statement =
+              conn.prepareStatement("CREATE OR REPLACE DATABASE IDENTIFIER(?)");
+          statement.setString(1, dbName);
+          return statement.execute();
+        });
+  }
+
+  static void dropDatabaseIfExists(String dbName) throws SQLException, InterruptedException {
+    clientPool.run(
+        conn -> {
+          PreparedStatement statement =
+              conn.prepareStatement("DROP DATABASE IF EXISTS IDENTIFIER(?)");
+          statement.setString(1, dbName);
           return statement.execute();
         });
   }

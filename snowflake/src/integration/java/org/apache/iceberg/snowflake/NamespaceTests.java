@@ -28,26 +28,9 @@ import java.util.List;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.assertj.core.api.Assertions;
-import org.junit.BeforeClass;
 import org.junit.Test;
-import org.junit.jupiter.api.AfterAll;
 
 public class NamespaceTests extends SnowTestBase {
-
-  @BeforeClass
-  public static void beforeAll() {
-    SnowTestBase.beforeAll();
-    try {
-      clientPool.run(
-          conn -> {
-            return conn.createStatement()
-                .execute(
-                    "CREATE OR REPLACE DATABASE " + TestConfigurations.getInstance().getDatabase());
-          });
-    } catch (SQLException | InterruptedException e) {
-      throw new RuntimeException(e);
-    }
-  }
 
   @Test
   public void listNamespacesAtRootLevel() throws SQLException, InterruptedException {
@@ -302,20 +285,6 @@ public class NamespaceTests extends SnowTestBase {
           .isInstanceOf(UnsupportedOperationException.class);
     } finally {
       dropSchemaIfExists(schema1);
-    }
-  }
-
-  @AfterAll
-  public void afterAll() {
-    try {
-      clientPool.run(
-          conn -> {
-            return conn.createStatement()
-                .execute(
-                    "DROP DATABASE IF EXISTS " + TestConfigurations.getInstance().getDatabase());
-          });
-    } catch (SQLException | InterruptedException e) {
-      throw new RuntimeException(e);
     }
   }
 }

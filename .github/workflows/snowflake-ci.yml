@@ -52,9 +52,11 @@ jobs:
     - run: echo -e "$(ip addr show eth0 | grep "inet\b" | awk '{print $2}' | cut -d/ -f1)\t$(hostname -f) $(hostname -s)" | sudo tee -a /etc/hosts
     - name: Run Snowflake integration tests
       env:
-        SNOW_USERNAME: ${{ secrets.SNOW_USERNAME }}
+        SNOW_USER: ${{ secrets.SNOW_USERNAME }}
         SNOW_PASSWORD: ${{ secrets.SNOW_PASSWORD }}
-	SNOW_TEST_ACCOUNT: iceberg
+        SNOW_URI: jdbc:snowflake://https://account.snowflakecomputing.com:8085/
+        SNOW_TEST_DB_NAME : iceberg_test_db
+        SNOW_WAREHOUSE : iceberg_test
       run: ./gradlew :iceberg-snowflake:integrationTest
     - uses: actions/upload-artifact@v2
       if: failure()

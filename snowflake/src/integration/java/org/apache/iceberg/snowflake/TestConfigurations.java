@@ -58,14 +58,10 @@ class TestConfigurations {
     return properties.get("jdbc.database");
   }
 
-  String getExternalVolume() {
-    return properties.get("externalVolume");
-  }
-
   Map<String, String> getProperties() {
     return properties;
   }
-  
+
   static synchronized TestConfigurations getInstance() {
     if (instance == null) {
       instance = new TestConfigurations();
