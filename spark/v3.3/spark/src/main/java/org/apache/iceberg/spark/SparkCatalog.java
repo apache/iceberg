@@ -109,6 +109,7 @@ public class SparkCatalog extends BaseCatalog {
   private static final Pattern AT_TIMESTAMP = Pattern.compile("at_timestamp_(\\d+)");
   private static final Pattern SNAPSHOT_ID = Pattern.compile("snapshot_id_(\\d+)");
   private static final Pattern BRANCH = Pattern.compile("branch_(.*)");
+  private static final Pattern TAG = Pattern.compile("tag_(.*)");
 
   private String catalogName = null;
   private Catalog icebergCatalog = null;
@@ -665,6 +666,14 @@ public class SparkCatalog extends BaseCatalog {
         }
       }
 
+      Matcher tag = TAG.matcher(ident.name());
+      if (tag.matches()) {
+        Snapshot snapshot = table.snapshot(tag.group(1));
+        if (snapshot != null) {
+          snapshotId = snapshot.snapshotId();
+        }
+      }
+
       if (snapshotId != -1) {
         return new SparkTable(table, snapshotId, !cacheEnabled);
       }
@@ -694,6 +703,7 @@ public class SparkCatalog extends BaseCatalog {
     Long asOfTimestamp = null;
     Long snapshotId = null;
     String branch = null;
+    String tag = null;
     boolean isChangelog = false;
 
     for (String meta : parsed.second()) {
@@ -718,18 +728,24 @@ public class SparkCatalog extends BaseCatalog {
         snapshotId = Long.parseLong(id.group(1));
       }
 
-      Matcher ref = BRANCH.matcher(meta);
-      if (ref.matches()) {
-        branch = ref.group(1);
+      Matcher branchRef = BRANCH.matcher(meta);
+      if (branchRef.matches()) {
+        branch = branchRef.group(1);
+      }
+
+      Matcher tagRef = TAG.matcher(meta);
+      if (tagRef.matches()) {
+        tag = tagRef.group(1);
       }
     }
 
     Preconditions.checkArgument(
-        Stream.of(snapshotId, asOfTimestamp, branch).filter(Objects::nonNull).count() <= 1,
-        "Can specify at most one of snapshot-id (%s), as-of-timestamp (%s), and snapshot-ref (%s)",
+        Stream.of(snapshotId, asOfTimestamp, branch, tag).filter(Objects::nonNull).count() <= 1,
+        "Can specify at most one of snapshot-id (%s), as-of-timestamp (%s), branch (%s) and tag (%s)",
         snapshotId,
         asOfTimestamp,
-        branch);
+        branch,
+        tag);
 
     Preconditions.checkArgument(
         !isChangelog || (snapshotId == null && asOfTimestamp == null),
@@ -738,17 +754,20 @@ public class SparkCatalog extends BaseCatalog {
     org.apache.iceberg.Table table =
         tables.load(parsed.first() + (metadataTableName != null ? "#" + metadataTableName : ""));
 
-    snapshotId = -1L;
+    long snapshotIdFromTimeTravel = -1L;
 
     if (isChangelog) {
       return new SparkChangelogTable(table, !cacheEnabled);
 
     } else if (asOfTimestamp != null) {
-      snapshotId = SnapshotUtil.snapshotIdAsOfTime(table, asOfTimestamp);
+      snapshotIdFromTimeTravel = SnapshotUtil.snapshotIdAsOfTime(table, asOfTimestamp);
     } else if (branch != null) {
       Preconditions.checkArgument(
           table.snapshot(branch) != null, "branch not associated with a snapshot");
-      snapshotId = table.snapshot(branch).snapshotId();
+      snapshotIdFromTimeTravel = table.snapshot(branch).snapshotId();
+    }
+    if (snapshotIdFromTimeTravel != -1L) {
+      return new SparkTable(table, snapshotIdFromTimeTravel, !cacheEnabled);
     }
     return new SparkTable(table, snapshotId, !cacheEnabled);
   }

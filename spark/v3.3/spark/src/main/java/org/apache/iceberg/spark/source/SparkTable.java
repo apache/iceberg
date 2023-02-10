@@ -368,7 +368,9 @@ public class SparkTable
       scanOptions.putAll(options.asCaseSensitiveMap());
       scanOptions.put(SparkReadOptions.SNAPSHOT_ID, value);
       scanOptions.remove(SparkReadOptions.AS_OF_TIMESTAMP);
+
       scanOptions.remove(SparkReadOptions.BRANCH);
+      scanOptions.remove(SparkReadOptions.TAG);
       return new CaseInsensitiveStringMap(scanOptions);
     }
 

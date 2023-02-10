@@ -223,8 +223,10 @@ public class TestSnapshotSelection {
                     .option(SparkReadOptions.AS_OF_TIMESTAMP, timestamp)
                     .load(tableLocation))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Cannot specify both snapshot-id")
-        .hasMessageContaining("and as-of-timestamp");
+        .hasMessageContaining("Can specify at most one of snapshot-id")
+        .hasMessageContaining("as-of-timestamp")
+        .hasMessageContaining("branch")
+        .hasMessageContaining("tag");
   }
 
   @Test
@@ -325,7 +327,7 @@ public class TestSnapshotSelection {
                     .load(tableLocation)
                     .show())
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageStartingWith("Cannot override ref, already set snapshot id=");
+        .hasMessageStartingWith("Can specify at most one of snapshot-id");
   }
 
   @Test
@@ -356,7 +358,7 @@ public class TestSnapshotSelection {
                     .load(tableLocation)
                     .show())
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageStartingWith("Cannot override ref, already set snapshot id=");
+        .hasMessageStartingWith("Can specify at most one of snapshot-id");
 
     Assertions.assertThatThrownBy(
             () ->
@@ -368,7 +370,7 @@ public class TestSnapshotSelection {
                     .load(tableLocation)
                     .show())
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageStartingWith("Cannot override ref, already set snapshot id=");
+        .hasMessageStartingWith("Can specify at most one of snapshot-id");
   }
 
   @Test
@@ -397,14 +399,17 @@ public class TestSnapshotSelection {
     Assert.assertEquals(
         "Current snapshot rows should match", expectedRecords, currentSnapshotRecords);
 
+    // Deleting a column to indicate schema change
     table.updateSchema().deleteColumn("data").commit();
 
-    Dataset<Row> deleteSnapshotResult =
+    Dataset<Row> deleteColumnSnapshotResult =
         spark.read().format("iceberg").option("branch", "branch").load(tableLocation);
     List<SimpleRecord> deletedSnapshotRecords =
-        deleteSnapshotResult.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
-    List<SimpleRecord> expectedRecordsAfterDeletion = Lists.newArrayList();
-    expectedRecordsAfterDeletion.addAll(firstBatchRecords);
+        deleteColumnSnapshotResult
+            .orderBy("id")
+            .as(Encoders.bean(SimpleRecord.class))
+            .collectAsList();
+    // The data should have the deleted column as it was captured in an earlier snapshot.
     Assert.assertEquals(
         "Current snapshot rows should match", expectedRecords, deletedSnapshotRecords);
   }

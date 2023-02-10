@@ -20,9 +20,11 @@ package org.apache.iceberg.spark;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Stream;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Splitter;
@@ -46,7 +48,7 @@ public class SparkCachedTableCatalog implements TableCatalog {
   private static final Splitter COMMA = Splitter.on(",");
   private static final Pattern AT_TIMESTAMP = Pattern.compile("at_timestamp_(\\d+)");
   private static final Pattern SNAPSHOT_ID = Pattern.compile("snapshot_id_(\\d+)");
-
+  private static final Pattern BRANCH = Pattern.compile("branch_(.*)");
   private static final SparkTableCache TABLE_CACHE = SparkTableCache.get();
 
   private String name = null;
@@ -133,6 +135,7 @@ public class SparkCachedTableCatalog implements TableCatalog {
 
     Long asOfTimestamp = null;
     Long snapshotId = null;
+    String branch = null;
     for (String meta : metadata) {
       Matcher timeBasedMatcher = AT_TIMESTAMP.matcher(meta);
       if (timeBasedMatcher.matches()) {
@@ -144,12 +147,19 @@ public class SparkCachedTableCatalog implements TableCatalog {
       if (snapshotBasedMatcher.matches()) {
         snapshotId = Long.parseLong(snapshotBasedMatcher.group(1));
       }
+
+      Matcher snapshotRefBasedMatcher = BRANCH.matcher(meta);
+      if (snapshotRefBasedMatcher.matches()) {
+        branch = snapshotRefBasedMatcher.group(1);
+      }
     }
 
     Preconditions.checkArgument(
-        asOfTimestamp == null || snapshotId == null,
-        "Cannot specify both snapshot and timestamp for time travel: %s",
-        ident);
+        Stream.of(snapshotId, asOfTimestamp, branch).filter(Objects::nonNull).count() <= 1,
+        "Can specify at most one of snapshot-id (%s), as-of-timestamp (%s), and snapshot-ref (%s)",
+        snapshotId,
+        asOfTimestamp,
+        branch);
 
     Table table = TABLE_CACHE.get(key);
 
@@ -157,10 +167,20 @@ public class SparkCachedTableCatalog implements TableCatalog {
       throw new NoSuchTableException(ident);
     }
 
+    long snapshotIdFromTimeTravel = -1L;
+
     if (snapshotId != null) {
-      return Pair.of(table, snapshotId);
+      snapshotIdFromTimeTravel = snapshotId;
     } else if (asOfTimestamp != null) {
-      return Pair.of(table, SnapshotUtil.snapshotIdAsOfTime(table, asOfTimestamp));
+      snapshotIdFromTimeTravel = SnapshotUtil.snapshotIdAsOfTime(table, asOfTimestamp);
+    } else if (branch != null) {
+      Preconditions.checkArgument(
+          table.snapshot(branch) != null, "branch not associated with a snapshot");
+      snapshotIdFromTimeTravel = table.snapshot(branch).snapshotId();
+    }
+
+    if (snapshotIdFromTimeTravel != -1L) {
+      return Pair.of(table, snapshotIdFromTimeTravel);
     } else {
       return Pair.of(table, null);
     }
