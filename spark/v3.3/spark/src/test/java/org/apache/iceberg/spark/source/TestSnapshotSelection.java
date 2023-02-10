@@ -394,18 +394,17 @@ public class TestSnapshotSelection {
     Dataset<Row> branchSnapshotResult =
         spark.read().format("iceberg").option("branch", "branch").load(tableLocation);
     List<SimpleRecord> branchSnapshotRecords =
-            branchSnapshotResult.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
+        branchSnapshotResult.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
     List<SimpleRecord> expectedRecords = Lists.newArrayList();
     expectedRecords.addAll(firstBatchRecords);
     Assert.assertEquals(
         "Current snapshot rows should match", expectedRecords, branchSnapshotRecords);
 
     Dataset<Row> tagSnapshotResult =
-            spark.read().format("iceberg").option("tag", "tag").load(tableLocation);
+        spark.read().format("iceberg").option("tag", "tag").load(tableLocation);
     List<SimpleRecord> tagSnapshotRecords =
-            tagSnapshotResult.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
-    Assert.assertEquals(
-            "Current snapshot rows should match", expectedRecords, tagSnapshotRecords);
+        tagSnapshotResult.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
+    Assert.assertEquals("Current snapshot rows should match", expectedRecords, tagSnapshotRecords);
 
     // Deleting a column to indicate schema change
     table.updateSchema().deleteColumn("data").commit();
@@ -419,16 +418,16 @@ public class TestSnapshotSelection {
             .as(Encoders.bean(SimpleRecord.class))
             .collectAsList();
     Assert.assertEquals(
-            "Current snapshot rows should match", expectedRecords, deletedColumnBranchSnapshotRecords);
+        "Current snapshot rows should match", expectedRecords, deletedColumnBranchSnapshotRecords);
 
     Dataset<Row> deletedColumnTagSnapshotResult =
-            spark.read().format("iceberg").option("branch", "branch").load(tableLocation);
+        spark.read().format("iceberg").option("branch", "branch").load(tableLocation);
     List<SimpleRecord> deletedColumnTagSnapshotRecords =
-            deletedColumnTagSnapshotResult
-                    .orderBy("id")
-                    .as(Encoders.bean(SimpleRecord.class))
-                    .collectAsList();
+        deletedColumnTagSnapshotResult
+            .orderBy("id")
+            .as(Encoders.bean(SimpleRecord.class))
+            .collectAsList();
     Assert.assertEquals(
-            "Current snapshot rows should match", expectedRecords, deletedColumnTagSnapshotRecords);
+        "Current snapshot rows should match", expectedRecords, deletedColumnTagSnapshotRecords);
   }
 }
