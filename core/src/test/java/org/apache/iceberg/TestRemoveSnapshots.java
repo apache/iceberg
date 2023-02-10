@@ -1294,11 +1294,11 @@ public class TestRemoveSnapshots extends TableTestBase {
     commitStats(table, statisticsFile1);
 
     table.newAppend().appendFile(FILE_B).commit();
-    // Note: RewriteDataFiles may reuse statistics files across operations.
-    // This test reuses stats for append just to mimic this scenario without having to run
-    // RewriteDataFiles.
+    // If an expired snapshot's stats file is reused for some reason by the live snapshots,
+    // that stats file should not get deleted from the file system as the live snapshots still
+    // reference it.
     StatisticsFile statisticsFile2 =
-        reuseStatsForCurrentSnapshot(table.currentSnapshot().snapshotId(), statisticsFile1);
+        reuseStatsFile(table.currentSnapshot().snapshotId(), statisticsFile1);
     commitStats(table, statisticsFile2);
 
     Assert.assertEquals("Should have 2 statistics file", 2, table.statisticsFiles().size());
@@ -1624,8 +1624,7 @@ public class TestRemoveSnapshots extends TableTestBase {
     }
   }
 
-  private StatisticsFile reuseStatsForCurrentSnapshot(
-      long snapshotId, StatisticsFile statisticsFile) {
+  private StatisticsFile reuseStatsFile(long snapshotId, StatisticsFile statisticsFile) {
     return new GenericStatisticsFile(
         snapshotId,
         statisticsFile.path(),
