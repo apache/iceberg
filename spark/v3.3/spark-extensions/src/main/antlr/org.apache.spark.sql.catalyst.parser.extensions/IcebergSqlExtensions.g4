@@ -147,6 +147,7 @@ transformArgument
 expression
     : constant
     | stringMap
+    | stringArray
     ;
 
 constant
@@ -158,6 +159,10 @@ constant
 
 stringMap
     : MAP '(' constant (',' constant)* ')'
+    ;
+
+stringArray
+    : ARRAY '(' constant (',' constant)* ')'
     ;
 
 booleanValue
@@ -198,7 +203,7 @@ nonReserved
     : ADD | ALTER | AS | ASC | BRANCH | BY | CALL | CREATE | DAYS | DESC | DROP | EXISTS | FIELD | FIRST | HOURS | IF | LAST | NOT | NULLS | OF | OR | ORDERED | PARTITION | TABLE | WRITE
     | DISTRIBUTED | LOCALLY | MINUTES | MONTHS | UNORDERED | REPLACE | RETAIN | VERSION | WITH | IDENTIFIER_KW | FIELDS | SET | SNAPSHOT | SNAPSHOTS
     | TRUE | FALSE
-    | MAP
+    | MAP | ARRAY
     ;
 
 snapshotId
@@ -260,6 +265,7 @@ TRUE: 'TRUE';
 FALSE: 'FALSE';
 
 MAP: 'MAP';
+ARRAY: 'ARRAY';
 
 PLUS: '+';
 MINUS: '-';

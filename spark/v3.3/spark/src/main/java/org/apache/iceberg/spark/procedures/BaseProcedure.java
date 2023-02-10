@@ -50,6 +50,9 @@ abstract class BaseProcedure implements Procedure {
   protected static final DataType STRING_MAP =
       DataTypes.createMapType(DataTypes.StringType, DataTypes.StringType);
 
+  protected static final DataType STRING_ARRAY =
+      DataTypes.createArrayType(DataTypes.StringType, false);
+
   private final SparkSession spark;
   private final TableCatalog tableCatalog;
 

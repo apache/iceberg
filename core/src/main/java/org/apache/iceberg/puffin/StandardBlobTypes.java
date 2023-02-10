@@ -26,4 +26,6 @@ public final class StandardBlobTypes {
    * href="https://datasketches.apache.org/">Apache DataSketches</a> library
    */
   public static final String APACHE_DATASKETCHES_THETA_V1 = "apache-datasketches-theta-v1";
+
+  public static final String NDV_BLOB = "ndv-blob";
 }
