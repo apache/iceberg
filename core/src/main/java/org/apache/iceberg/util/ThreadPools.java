@@ -42,7 +42,7 @@ public class ThreadPools {
   private static final ExecutorService WORKER_POOL = newWorkerPool("iceberg-worker-pool");
 
   public static final int DELETE_WORKER_THREAD_POOL_SIZE =
-      getPoolSize(SystemProperties.DELETE_POS_FILES_THREAD_POOL_SIZE, 4));
+      getPoolSize(SystemProperties.DELETE_POS_FILES_THREAD_POOL_SIZE, 4);
 
   private static final ExecutorService DELETE_WORKER_POOL =
       newWorkerPool("iceberg-delete-worker-pool", DELETE_WORKER_THREAD_POOL_SIZE);
