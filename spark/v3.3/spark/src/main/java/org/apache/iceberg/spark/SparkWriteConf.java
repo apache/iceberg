@@ -309,8 +309,8 @@ public class SparkWriteConf {
   public String branch() {
     return confParser
         .stringConf()
-        .option(SparkWriteOptions.BRANCH)
-        .sessionConf(SparkWriteOptions.BRANCH)
+        .option(SparkSQLProperties.BRANCH)
+        .sessionConf(SparkSQLProperties.BRANCH)
         .defaultValue(SnapshotRef.MAIN_BRANCH)
         .parse();
   }

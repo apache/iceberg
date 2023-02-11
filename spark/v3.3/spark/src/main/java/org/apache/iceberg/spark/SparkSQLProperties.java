@@ -47,4 +47,8 @@ public class SparkSQLProperties {
   public static final String PRESERVE_DATA_GROUPING =
       "spark.sql.iceberg.planning.preserve-data-grouping";
   public static final boolean PRESERVE_DATA_GROUPING_DEFAULT = false;
+
+  // Branch to write to
+  public static final String BRANCH = "spark.sql.iceberg.write-branch";
+
 }

@@ -67,6 +67,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.CommitMetadata;
 import org.apache.iceberg.spark.FileRewriteCoordinator;
+import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.spark.SparkWriteConf;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
@@ -316,7 +317,6 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
       }
 
       ReplacePartitions dynamicOverwrite = table.newReplacePartitions();
-
       IsolationLevel isolationLevel = writeConf.isolationLevel();
       Long validateFromSnapshotId = writeConf.validateFromSnapshotId();
 
@@ -539,7 +539,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
     }
 
     private Long findLastCommittedEpochId() {
-      Snapshot snapshot = table.snapshot(branch);
+      Snapshot snapshot = SparkUtil.latestSnapshot(table, branch);
       Long lastCommittedEpochId = null;
       while (snapshot != null) {
         Map<String, String> summary = snapshot.summary();
@@ -573,7 +573,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
 
     @Override
     protected void doCommit(long epochId, WriterCommitMessage[] messages) {
-      AppendFiles append = table.newFastAppend().toBranch(branch);
+      AppendFiles append = table.newFastAppend();
       int numFiles = 0;
       for (DataFile file : files(messages)) {
         append.appendFile(file);
