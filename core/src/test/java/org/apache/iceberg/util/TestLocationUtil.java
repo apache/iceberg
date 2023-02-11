@@ -151,7 +151,7 @@ public class TestLocationUtil {
   }
 
   @Test
-  public void testPosixNormalizeNoSchemePaths() {
+  public void testPosixNormalizePathsWithoutScheme() {
     Assert.assertEquals(
         "Must work with the root directory representation", "/", LocationUtil.posixNormalize("/"));
     Assert.assertEquals(
