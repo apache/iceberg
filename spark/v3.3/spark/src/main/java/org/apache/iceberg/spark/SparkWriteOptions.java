@@ -80,5 +80,4 @@ public class SparkWriteOptions {
 
   // Branch to write to
   public static final String BRANCH = "branch";
-
 }

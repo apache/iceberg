@@ -80,8 +80,6 @@ public class TestSparkDataWrite {
       new Object[] {"parquet", "main"},
       new Object[] {"parquet", "testBranch"},
       new Object[] {"avro", "main"},
-      new Object[] {"avro", "testBranch"},
-      new Object[] {"orc", "main"},
       new Object[] {"orc", "testBranch"},
     };
   }

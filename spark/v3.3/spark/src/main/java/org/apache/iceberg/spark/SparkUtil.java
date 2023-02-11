@@ -299,6 +299,7 @@ public class SparkUtil {
 
   /**
    * fetch latest snapshot based on the branch tip
+   *
    * @param table
    * @param branch
    * @return Snapshot
