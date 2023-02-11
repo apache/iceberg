@@ -75,6 +75,7 @@ statement
     | ALTER TABLE multipartIdentifier DROP IDENTIFIER_KW FIELDS fieldList                   #dropIdentifierFields
     | ALTER TABLE multipartIdentifier createReplaceBranchClause                             #createOrReplaceBranch
     | ALTER TABLE multipartIdentifier createReplaceTagClause                                #createOrReplaceTag
+    | ALTER TABLE multipartIdentifier DROP BRANCH (IF EXISTS)? identifier                   #dropBranch
     ;
 
 createReplaceTagClause

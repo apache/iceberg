@@ -17,22 +17,40 @@
  * under the License.
  */
 
-package org.apache.spark.sql.catalyst.plans.logical
+package org.apache.spark.sql.execution.datasources.v2
 
+import org.apache.iceberg.spark.source.SparkTable
+import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.Attribute
+import org.apache.spark.sql.connector.catalog.Identifier
+import org.apache.spark.sql.connector.catalog.TableCatalog
 
-case class CreateOrReplaceBranch(
-    table: Seq[String],
+case class DropBranchExec(
+    catalog: TableCatalog,
+    ident: Identifier,
     branch: String,
-    branchOptions: BranchOptions,
-    replace: Boolean,
-    ifNotExists: Boolean) extends LeafCommand {
+    ifExists: Boolean) extends LeafV2CommandExec {
 
   import org.apache.spark.sql.connector.catalog.CatalogV2Implicits._
 
   override lazy val output: Seq[Attribute] = Nil
 
+  override protected def run(): Seq[InternalRow] = {
+    catalog.loadTable(ident) match {
+      case iceberg: SparkTable =>
+        val ref = iceberg.table().refs().get(branch)
+        if (ref != null || !ifExists) {
+          iceberg.table().manageSnapshots().removeBranch(branch).commit()
+        }
+
+      case table =>
+        throw new UnsupportedOperationException(s"Cannot drop branch on non-Iceberg table: $table")
+    }
+
+    Nil
+  }
+
   override def simpleString(maxFields: Int): String = {
-    s"CreateOrReplaceBranch branch: ${branch} for table: ${table.quoted}"
+    s"DropBranch branch: ${branch} for table: ${ident.quoted}"
   }
 }
