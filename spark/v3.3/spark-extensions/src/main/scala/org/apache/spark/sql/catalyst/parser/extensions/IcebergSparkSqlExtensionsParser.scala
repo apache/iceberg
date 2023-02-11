@@ -214,7 +214,8 @@ class IcebergSparkSqlExtensionsParser(delegate: ParserInterface) extends ParserI
       normalized.contains("replace branch") ||
       normalized.contains("create tag") ||
       normalized.contains("replace tag") ||
-      normalized.contains("drop branch")
+      normalized.contains("drop branch") ||
+      normalized.contains("drop tag")
   }
 
   protected def parse[T](command: String)(toResult: IcebergSqlExtensionsParser => T): T = {

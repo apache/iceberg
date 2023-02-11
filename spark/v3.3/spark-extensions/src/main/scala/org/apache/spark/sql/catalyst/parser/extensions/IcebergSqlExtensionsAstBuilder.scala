@@ -45,6 +45,7 @@ import org.apache.spark.sql.catalyst.plans.logical.CreateOrReplaceTag
 import org.apache.spark.sql.catalyst.plans.logical.DropBranch
 import org.apache.spark.sql.catalyst.plans.logical.DropIdentifierFields
 import org.apache.spark.sql.catalyst.plans.logical.DropPartitionField
+import org.apache.spark.sql.catalyst.plans.logical.DropTag
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.catalyst.plans.logical.NamedArgument
 import org.apache.spark.sql.catalyst.plans.logical.PositionalArgument
@@ -167,6 +168,13 @@ class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface) extends IcebergS
    */
   override def visitDropBranch(ctx: DropBranchContext): DropBranch = withOrigin(ctx) {
     DropBranch(typedVisit[Seq[String]](ctx.multipartIdentifier), ctx.identifier().getText, ctx.EXISTS() != null)
+  }
+
+  /**
+   * Create an DROP TAG logical command.
+   */
+  override def visitDropTag(ctx: DropTagContext): DropTag = withOrigin(ctx) {
+    DropTag(typedVisit[Seq[String]](ctx.multipartIdentifier), ctx.identifier().getText, ctx.EXISTS() != null)
   }
 
   /**

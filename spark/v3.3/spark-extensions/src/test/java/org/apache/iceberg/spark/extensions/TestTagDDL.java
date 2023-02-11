@@ -264,6 +264,54 @@ public class TestTagDDL extends SparkExtensionsTestBase {
     Assert.assertEquals(first, ref.snapshotId());
   }
 
+  @Test
+  public void testDropTag() throws NoSuchTableException {
+    insertRows();
+    Table table = validationCatalog.loadTable(tableIdent);
+    String tagName = "t1";
+    table.manageSnapshots().createTag(tagName, table.currentSnapshot().snapshotId()).commit();
+    SnapshotRef ref = table.refs().get(tagName);
+    Assert.assertEquals(table.currentSnapshot().snapshotId(), ref.snapshotId());
+
+    sql("ALTER TABLE %s DROP TAG %s", tableName, tagName);
+    table.refresh();
+    ref = table.refs().get(tagName);
+    Assert.assertNull(ref);
+
+    AssertHelpers.assertThrows(
+        "Non-conforming tag name",
+        IcebergParseException.class,
+        "mismatched input '123'",
+        () -> sql("ALTER TABLE %s DROP TAG %s", tableName, "123"));
+  }
+
+  @Test
+  public void testDropTagDoesNotExist() {
+    AssertHelpers.assertThrows(
+        "Cannot perform drop tag on tag which does not exist",
+        IllegalArgumentException.class,
+        "Tag does not exist: nonExistingTag",
+        () -> sql("ALTER TABLE %s DROP TAG %s", tableName, "nonExistingTag"));
+  }
+
+  @Test
+  public void testDropTagIfExists() throws NoSuchTableException {
+    String tagName = "nonExistingTag";
+    Table table = insertRows();
+    Assert.assertNull(table.refs().get(tagName));
+
+    sql("ALTER TABLE %s DROP TAG IF EXISTS %s", tableName, tagName);
+    table.refresh();
+    Assert.assertNull(table.refs().get(tagName));
+
+    table.manageSnapshots().createTag(tagName, table.currentSnapshot().snapshotId()).commit();
+    Assert.assertEquals(
+        table.currentSnapshot().snapshotId(), table.refs().get(tagName).snapshotId());
+    sql("ALTER TABLE %s DROP TAG IF EXISTS %s", tableName, tagName);
+    table.refresh();
+    Assert.assertNull(table.refs().get(tagName));
+  }
+
   private Table insertRows() throws NoSuchTableException {
     List<SimpleRecord> records =
         ImmutableList.of(new SimpleRecord(1, "a"), new SimpleRecord(2, "b"));
