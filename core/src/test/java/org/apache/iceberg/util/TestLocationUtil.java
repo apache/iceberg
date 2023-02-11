@@ -153,9 +153,7 @@ public class TestLocationUtil {
   @Test
   public void testPosixNormalizeNoSchemePaths() {
     Assert.assertEquals(
-        "Must work with the root directory representation",
-        "/",
-        LocationUtil.posixNormalize("/"));
+        "Must work with the root directory representation", "/", LocationUtil.posixNormalize("/"));
     Assert.assertEquals(
         "Must resolve all root directory representations to /",
         "/",
@@ -165,9 +163,7 @@ public class TestLocationUtil {
         "/dir",
         LocationUtil.posixNormalize("//dir"));
     Assert.assertEquals(
-        "Must remove / from the end of directory",
-        "/dir",
-        LocationUtil.posixNormalize("/dir/"));
+        "Must remove / from the end of directory", "/dir", LocationUtil.posixNormalize("/dir/"));
     Assert.assertEquals(
         "Must change // to / to enforce posix path",
         "/foo/bar",

@@ -300,10 +300,7 @@ public class TestLocationProvider extends TableTestBase {
 
   @Test
   public void testPosixNormalizeWithDefaultLocationProviderAndDefaultDataLocation() {
-    table
-        .updateProperties()
-        .set(TableProperties.WRITE_POSIX_PATH_ENFORCED, "true")
-        .commit();
+    table.updateProperties().set(TableProperties.WRITE_POSIX_PATH_ENFORCED, "true").commit();
     table.updateLocation().setLocation("s3://bucket").commit();
     table.refresh();
     Assert.assertEquals(
