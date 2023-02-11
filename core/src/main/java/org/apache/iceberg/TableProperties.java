@@ -250,6 +250,10 @@ public class TableProperties {
   // If not set, defaults to a "metadata" folder underneath the root path of the table.
   public static final String WRITE_METADATA_LOCATION = "write.metadata.path";
 
+  public static final String WRITE_POSIX_PATH_ENFORCED = "write.posix-path-enforced";
+
+  public static final boolean WRITE_POSIX_PATH_ENFORCED_DEFAULT = true;
+
   public static final String WRITE_PARTITION_SUMMARY_LIMIT = "write.summary.partition-limit";
   public static final int WRITE_PARTITION_SUMMARY_LIMIT_DEFAULT = 0;
 

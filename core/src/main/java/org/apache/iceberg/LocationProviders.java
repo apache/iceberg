@@ -76,9 +76,15 @@ public class LocationProviders {
 
   static class DefaultLocationProvider implements LocationProvider {
     private final String dataLocation;
+    private final boolean posixPathEnforced;
 
     DefaultLocationProvider(String tableLocation, Map<String, String> properties) {
       this.dataLocation = LocationUtil.stripTrailingSlash(dataLocation(properties, tableLocation));
+      this.posixPathEnforced =
+          PropertyUtil.propertyAsBoolean(
+              properties,
+              TableProperties.WRITE_POSIX_PATH_ENFORCED,
+              TableProperties.WRITE_POSIX_PATH_ENFORCED_DEFAULT);
     }
 
     private static String dataLocation(Map<String, String> properties, String tableLocation) {
@@ -94,12 +100,15 @@ public class LocationProviders {
 
     @Override
     public String newDataLocation(PartitionSpec spec, StructLike partitionData, String filename) {
-      return String.format("%s/%s/%s", dataLocation, spec.partitionToPath(partitionData), filename);
+      String location =
+          String.format("%s/%s/%s", dataLocation, spec.partitionToPath(partitionData), filename);
+      return posixPathEnforced ? LocationUtil.posixNormalize(location) : location;
     }
 
     @Override
     public String newDataLocation(String filename) {
-      return String.format("%s/%s", dataLocation, filename);
+      String location = String.format("%s/%s", dataLocation, filename);
+      return posixPathEnforced ? LocationUtil.posixNormalize(location) : location;
     }
   }
 
@@ -109,6 +118,7 @@ public class LocationProviders {
 
     private final String storageLocation;
     private final String context;
+    private final boolean posixPathEnforced;
 
     ObjectStoreLocationProvider(String tableLocation, Map<String, String> properties) {
       this.storageLocation =
@@ -120,6 +130,11 @@ public class LocationProviders {
       } else {
         this.context = pathContext(tableLocation);
       }
+      this.posixPathEnforced =
+          PropertyUtil.propertyAsBoolean(
+              properties,
+              TableProperties.WRITE_POSIX_PATH_ENFORCED,
+              TableProperties.WRITE_POSIX_PATH_ENFORCED_DEFAULT);
     }
 
     private static String dataLocation(Map<String, String> properties, String tableLocation) {
@@ -138,17 +153,22 @@ public class LocationProviders {
 
     @Override
     public String newDataLocation(PartitionSpec spec, StructLike partitionData, String filename) {
-      return newDataLocation(String.format("%s/%s", spec.partitionToPath(partitionData), filename));
+      String location =
+          newDataLocation(String.format("%s/%s", spec.partitionToPath(partitionData), filename));
+      return posixPathEnforced ? LocationUtil.posixNormalize(location) : location;
     }
 
     @Override
     public String newDataLocation(String filename) {
       int hash = HASH_FUNC.apply(filename);
+      String location;
       if (context != null) {
-        return String.format("%s/%08x/%s/%s", storageLocation, hash, context, filename);
+        location = String.format("%s/%08x/%s/%s", storageLocation, hash, context, filename);
       } else {
-        return String.format("%s/%08x/%s", storageLocation, hash, filename);
+        location = String.format("%s/%08x/%s", storageLocation, hash, filename);
       }
+
+      return posixPathEnforced ? LocationUtil.posixNormalize(location) : location;
     }
 
     private static String pathContext(String tableLocation) {

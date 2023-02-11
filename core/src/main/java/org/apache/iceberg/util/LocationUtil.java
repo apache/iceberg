@@ -18,9 +18,14 @@
  */
 package org.apache.iceberg.util;
 
+import java.nio.file.Paths;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 public class LocationUtil {
+  private static final String SCHEME_DELIM = "://";
+  private static final String PATH_DELIM = "/";
+
   private LocationUtil() {}
 
   public static String stripTrailingSlash(String path) {
@@ -32,5 +37,18 @@ public class LocationUtil {
       result = result.substring(0, result.length() - 1);
     }
     return result;
+  }
+
+  public static String posixNormalize(String path) {
+    String[] schemeSplit = path.split(SCHEME_DELIM, -1);
+    ValidationException.check(
+        schemeSplit.length <= 2, // length is at least 1 in a split
+        "Invalid path, must only contain at most 1 scheme: %s",
+        path);
+    if (schemeSplit.length == 1) {
+      return Paths.get(path).normalize().toString();
+    }
+
+    return schemeSplit[0] + SCHEME_DELIM + Paths.get(schemeSplit[1]).normalize().toString();
   }
 }

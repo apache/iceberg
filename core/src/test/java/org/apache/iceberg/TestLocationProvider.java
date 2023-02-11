@@ -297,4 +297,106 @@ public class TestLocationProvider extends TableTestBase {
     Assert.assertEquals(
         "Fourth part should be the file name passed in", "test.parquet", parts.get(3));
   }
+
+  @Test
+  public void testPosixNormalizeCustomDataURILocationWithDoubleSlashPart() {
+    String rootLocation = "s3://some/path/";
+    String nonPosixPart = "foo//bar";
+    String posixPart = "foo/bar";
+    table
+        .updateProperties()
+        .set(TableProperties.WRITE_POSIX_PATH_ENFORCED, "true")
+        .set(TableProperties.WRITE_DATA_LOCATION, rootLocation)
+        .commit();
+    table.refresh();
+    Assert.assertEquals(
+        "Must change // to / to enforce posix path with custom data location",
+        rootLocation + posixPart,
+        table.locationProvider().newDataLocation(nonPosixPart));
+  }
+
+  @Test
+  public void testPosixNormalizeCustomDataURILocationWithDoubleDotPart() {
+    String rootLocation = "s3://some/path/";
+    String nonPosixPart = "foo/../bar";
+    String posixPart = "bar";
+    table
+        .updateProperties()
+        .set(TableProperties.WRITE_POSIX_PATH_ENFORCED, "true")
+        .set(TableProperties.WRITE_DATA_LOCATION, rootLocation)
+        .commit();
+    table.refresh();
+    Assert.assertEquals(
+        "Must resolve .. to previous directory to enforce posix path with custom data location",
+        rootLocation + posixPart,
+        table.locationProvider().newDataLocation(nonPosixPart));
+  }
+
+  @Test
+  public void testPosixNormalizeCustomDataURILocationWithSingleDotPart() {
+    String rootLocation = "s3://some/path/";
+    String nonPosixPart = "foo/./bar";
+    String posixPart = "foo/bar";
+    table
+        .updateProperties()
+        .set(TableProperties.WRITE_POSIX_PATH_ENFORCED, "true")
+        .set(TableProperties.WRITE_DATA_LOCATION, rootLocation)
+        .commit();
+    table.refresh();
+    Assert.assertEquals(
+        "Must resolve . to current directory to enforce posix path with custom data location",
+        rootLocation + posixPart,
+        table.locationProvider().newDataLocation(nonPosixPart));
+  }
+
+  @Test
+  public void testPosixNormalizeCustomDataPathLocationWithDoubleSlashPart() {
+    String rootLocation = "/local/some/path/";
+    String nonPosixPart = "foo//bar";
+    String posixPart = "foo/bar";
+    table
+        .updateProperties()
+        .set(TableProperties.WRITE_POSIX_PATH_ENFORCED, "true")
+        .set(TableProperties.WRITE_DATA_LOCATION, rootLocation)
+        .commit();
+    table.refresh();
+    Assert.assertEquals(
+        "Must change // to / to enforce posix path with default table location",
+        rootLocation + posixPart,
+        table.locationProvider().newDataLocation(nonPosixPart));
+  }
+
+  @Test
+  public void testPosixNormalizeCustomDataPathLocationWithDoubleDotPart() {
+    String rootLocation = "/local/some/path/";
+    String nonPosixPart = "foo/../bar";
+    String posixPart = "bar";
+    table
+        .updateProperties()
+        .set(TableProperties.WRITE_POSIX_PATH_ENFORCED, "true")
+        .set(TableProperties.WRITE_DATA_LOCATION, rootLocation)
+        .commit();
+    table.refresh();
+    Assert.assertEquals(
+        "Must resolve .. to previous directory to enforce posix path with default table location",
+        rootLocation + posixPart,
+        table.locationProvider().newDataLocation(nonPosixPart));
+  }
+
+  @Test
+  public void testPosixNormalizeCustomDataPathLocationWithSingleDotPart() {
+    String rootLocation = "/local/some/path/";
+    String nonPosixPart = "foo/./bar";
+    String posixPart = "foo/bar";
+    table
+        .updateProperties()
+        .set(TableProperties.WRITE_POSIX_PATH_ENFORCED, "true")
+        .set(TableProperties.WRITE_DATA_LOCATION, rootLocation)
+        .commit();
+    table.refresh();
+    Assert.assertEquals(
+        "Must resolve . to current directory to enforce posix path with default table location",
+        rootLocation + posixPart,
+        table.locationProvider().newDataLocation(nonPosixPart));
+  }
 }

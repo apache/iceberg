@@ -61,4 +61,124 @@ public class TestLocationUtil {
           () -> LocationUtil.stripTrailingSlash(invalidPath));
     }
   }
+
+  @Test
+  public void testPosixNormalizePathsWithSchemeAndAuthorityS3Style() {
+    Assert.assertEquals(
+        "Must work with a root authority",
+        "s3://bucket",
+        LocationUtil.posixNormalize("s3://bucket"));
+    Assert.assertEquals(
+        "Must remove / from the end of authority",
+        "s3://bucket",
+        LocationUtil.posixNormalize("s3://bucket/"));
+    Assert.assertEquals(
+        "Must remove / from the end of directory",
+        "s3://bucket/dir",
+        LocationUtil.posixNormalize("s3://bucket/dir/"));
+    Assert.assertEquals(
+        "Must change // to / to enforce posix path",
+        "s3://bucket/foo/bar",
+        LocationUtil.posixNormalize("s3://bucket/foo//bar"));
+    Assert.assertEquals(
+        "Must resolve .. to previous directory to enforce posix path",
+        "s3://bucket/bar",
+        LocationUtil.posixNormalize("s3://bucket/foo/../bar"));
+    Assert.assertEquals(
+        "Must resolve . to current directory to enforce posix path",
+        "s3://bucket/foo/bar",
+        LocationUtil.posixNormalize("s3://bucket/foo/.//bar"));
+  }
+
+  @Test
+  public void testPosixNormalizePathsWithSchemeAndAuthorityHdfsStyle() {
+    Assert.assertEquals(
+        "Must work with a root authority",
+        "hdfs://1.2.3.4",
+        LocationUtil.posixNormalize("hdfs://1.2.3.4"));
+    Assert.assertEquals(
+        "Must remove / from the end of authority",
+        "hdfs://1.2.3.4",
+        LocationUtil.posixNormalize("hdfs://1.2.3.4/"));
+    Assert.assertEquals(
+        "Must remove / from the end of directory",
+        "hdfs://1.2.3.4/dir",
+        LocationUtil.posixNormalize("hdfs://1.2.3.4/dir/"));
+    Assert.assertEquals(
+        "Must change // to / to enforce posix path",
+        "hdfs://1.2.3.4/foo/bar",
+        LocationUtil.posixNormalize("hdfs://1.2.3.4/foo//bar"));
+    Assert.assertEquals(
+        "Must resolve .. to previous directory to enforce posix path",
+        "hdfs://1.2.3.4/bar",
+        LocationUtil.posixNormalize("hdfs://1.2.3.4/foo/../bar"));
+    Assert.assertEquals(
+        "Must resolve . to current directory to enforce posix path",
+        "hdfs://1.2.3.4/foo/bar",
+        LocationUtil.posixNormalize("hdfs://1.2.3.4/foo/.//bar"));
+  }
+
+  @Test
+  public void testPosixNormalizePathsWithSchemeAndWithoutAuthority() {
+    Assert.assertEquals(
+        "Must work with the root directory representation",
+        "file:///",
+        LocationUtil.posixNormalize("file:///"));
+    Assert.assertEquals(
+        "Must resolve all root directory representations to /",
+        "file:///",
+        LocationUtil.posixNormalize("file:////"));
+    Assert.assertEquals(
+        "Must resolve all root directory representations to / with subdirectory",
+        "file:///dir",
+        LocationUtil.posixNormalize("file:////dir"));
+    Assert.assertEquals(
+        "Must remove / from the end of directory",
+        "file:///dir",
+        LocationUtil.posixNormalize("file:///dir/"));
+    Assert.assertEquals(
+        "Must change // to / to enforce posix path",
+        "file:///foo/bar",
+        LocationUtil.posixNormalize("file:///foo//bar"));
+    Assert.assertEquals(
+        "Must resolve .. to previous directory to enforce posix path",
+        "file:///bar",
+        LocationUtil.posixNormalize("file:///foo/../bar"));
+    Assert.assertEquals(
+        "Must resolve . to current directory to enforce posix path",
+        "file:///foo/bar",
+        LocationUtil.posixNormalize("file:///foo/.//bar"));
+  }
+
+  @Test
+  public void testPosixNormalizeNoSchemePaths() {
+    Assert.assertEquals(
+        "Must work with the root directory representation",
+        "/",
+        LocationUtil.posixNormalize("/"));
+    Assert.assertEquals(
+        "Must resolve all root directory representations to /",
+        "/",
+        LocationUtil.posixNormalize("//"));
+    Assert.assertEquals(
+        "Must resolve all root directory representations to / with subdirectory",
+        "/dir",
+        LocationUtil.posixNormalize("//dir"));
+    Assert.assertEquals(
+        "Must remove / from the end of directory",
+        "/dir",
+        LocationUtil.posixNormalize("/dir/"));
+    Assert.assertEquals(
+        "Must change // to / to enforce posix path",
+        "/foo/bar",
+        LocationUtil.posixNormalize("/foo//bar"));
+    Assert.assertEquals(
+        "Must resolve .. to previous directory to enforce posix path",
+        "/bar",
+        LocationUtil.posixNormalize("/foo/../bar"));
+    Assert.assertEquals(
+        "Must resolve . to current directory to enforce posix path",
+        "/foo/bar",
+        LocationUtil.posixNormalize("/foo/.//bar"));
+  }
 }
