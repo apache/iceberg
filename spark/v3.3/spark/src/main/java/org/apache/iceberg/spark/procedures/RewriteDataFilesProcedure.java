@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.spark.procedures;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.Schema;
@@ -118,8 +117,8 @@ class RewriteDataFilesProcedure extends BaseProcedure {
           }
 
           String where = args.isNullAt(4) ? null : args.getString(4);
-          if(where != null && SparkExpressionConverter.checkWhereAlwaysFalse(spark(), quotedFullIdentifier, where)){
-            RewriteDataFiles.Result result = new BaseRewriteDataFilesResult(new ArrayList<>());
+          if (where != null && SparkExpressionConverter.checkWhereAlwaysFalse(spark(), quotedFullIdentifier, where)) {
+            RewriteDataFiles.Result result = new BaseRewriteDataFilesResult(Lists.newArrayList());
             return toOutputRows(result);
           }
 

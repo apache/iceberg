@@ -35,13 +35,14 @@ object SparkExpressionConverter {
     // But these two conversions already exist and well tested. So, we are going with this approach.
     SparkFilters.convert(DataSourceStrategy.translateFilter(sparkExpression, supportNestedPredicatePushdown = true).get)
   }
-   // check if where expression is always false
+
   def checkWhereAlwaysFalse(session: SparkSession, tableName: String, where: String): Boolean ={
+    // check if where expression is always false
     val tableAttrs = session.table(tableName).queryExecution.analyzed.output
     val unresolvedExpression = session.sessionState.sqlParser.parseExpression(where)
     val filter = Filter(unresolvedExpression, DummyRelation(tableAttrs))
     val optimizedLogicalPlan = session.sessionState.executePlan(filter).optimizedPlan
-    optimizedLogicalPlan.deterministic &&  optimizedLogicalPlan.resolved && optimizedLogicalPlan.containsChild.isEmpty
+    optimizedLogicalPlan.deterministic && optimizedLogicalPlan.resolved && optimizedLogicalPlan.containsChild.isEmpty
   }
 
   @throws[AnalysisException]
