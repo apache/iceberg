@@ -150,7 +150,9 @@ public class TestSnapshotLoading extends TableTestBase {
   @Test
   public void testRemovedCurrentSnapshotFails() {
     List<Snapshot> snapshotsMissingCurrent =
-        allSnapshots.stream().filter(Predicate.isEqual(currentSnapshot).negate()).collect(Collectors.toList());
+        allSnapshots.stream()
+            .filter(Predicate.isEqual(currentSnapshot).negate())
+            .collect(Collectors.toList());
 
     TableMetadata tableMetadata =
         TableMetadata.buildFrom(originalTableMetadata)
@@ -169,8 +171,8 @@ public class TestSnapshotLoading extends TableTestBase {
 
   @Test
   public void testRemovedRefSnapshotFails() {
-    Snapshot referencedSnapshot = allSnapshots.stream()
-        .filter(Predicate.isEqual(currentSnapshot).negate()).findFirst().get();
+    Snapshot referencedSnapshot =
+        allSnapshots.stream().filter(Predicate.isEqual(currentSnapshot).negate()).findFirst().get();
 
     TableMetadata tableMetadata =
         TableMetadata.buildFrom(originalTableMetadata)
