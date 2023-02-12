@@ -20,8 +20,11 @@ package org.apache.iceberg.spark.sql;
 
 import java.util.List;
 import java.util.Map;
+import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.spark.SparkCatalogConfig;
 import org.apache.iceberg.spark.SparkCatalogTestBase;
+import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.iceberg.spark.source.SimpleRecord;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
@@ -31,11 +34,35 @@ import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
+import org.junit.runners.Parameterized;
 
 public class TestPartitionedWrites extends SparkCatalogTestBase {
+
+  private String targetBranch;
+
   public TestPartitionedWrites(
-      String catalogName, String implementation, Map<String, String> config) {
+      String catalogName, String implementation, Map<String, String> config, String targetBranch) {
     super(catalogName, implementation, config);
+    this.targetBranch = targetBranch;
+  }
+
+  @Parameterized.Parameters(
+      name = "catalogName = {0}, implementation = {1}, config = {2}, branch = {3}")
+  public static Object[][] parameters() {
+    return new Object[][] {
+      {
+        SparkCatalogConfig.SPARK.catalogName(),
+        SparkCatalogConfig.SPARK.implementation(),
+        SparkCatalogConfig.SPARK.properties(),
+        SnapshotRef.MAIN_BRANCH
+      },
+      {
+        SparkCatalogConfig.SPARK.catalogName(),
+        SparkCatalogConfig.SPARK.implementation(),
+        SparkCatalogConfig.SPARK.properties(),
+        "test-branch"
+      }
+    };
   }
 
   @Before
@@ -91,16 +118,20 @@ public class TestPartitionedWrites extends SparkCatalogTestBase {
     List<SimpleRecord> data = ImmutableList.of(new SimpleRecord(4, "d"), new SimpleRecord(5, "e"));
     Dataset<Row> ds = spark.createDataFrame(data, SimpleRecord.class);
 
-    ds.writeTo(tableName).append();
+    ds.writeTo(tableName).option(SparkWriteOptions.BRANCH, targetBranch).append();
 
     Assert.assertEquals(
-        "Should have 5 rows after insert", 5L, scalarSql("SELECT count(*) FROM %s", tableName));
+        "Should have 5 rows after insert",
+        5L,
+        scalarSql("SELECT count(*) FROM %s VERSION AS OF '%s'", tableName, targetBranch));
 
     List<Object[]> expected =
         ImmutableList.of(row(1L, "a"), row(2L, "b"), row(3L, "c"), row(4L, "d"), row(5L, "e"));
 
     assertEquals(
-        "Row data should match expected", expected, sql("SELECT * FROM %s ORDER BY id", tableName));
+        "Row data should match expected",
+        expected,
+        sql("SELECT * FROM %s VERSION AS OF '%s' ORDER BY id", tableName, targetBranch));
   }
 
   @Test
@@ -110,16 +141,20 @@ public class TestPartitionedWrites extends SparkCatalogTestBase {
     List<SimpleRecord> data = ImmutableList.of(new SimpleRecord(4, "d"), new SimpleRecord(5, "e"));
     Dataset<Row> ds = spark.createDataFrame(data, SimpleRecord.class);
 
-    ds.writeTo(tableName).overwritePartitions();
+    ds.writeTo(tableName).option(SparkWriteOptions.BRANCH, targetBranch).overwritePartitions();
 
     Assert.assertEquals(
-        "Should have 4 rows after overwrite", 4L, scalarSql("SELECT count(*) FROM %s", tableName));
+        "Should have 4 rows after overwrite",
+        4L,
+        scalarSql("SELECT count(*) FROM %s VERSION AS OF '%s'", tableName, targetBranch));
 
     List<Object[]> expected =
         ImmutableList.of(row(1L, "a"), row(2L, "b"), row(4L, "d"), row(5L, "e"));
 
     assertEquals(
-        "Row data should match expected", expected, sql("SELECT * FROM %s ORDER BY id", tableName));
+        "Row data should match expected",
+        expected,
+        sql("SELECT * FROM %s VERSION AS OF '%s' ORDER BY id", tableName, targetBranch));
   }
 
   @Test
@@ -129,15 +164,21 @@ public class TestPartitionedWrites extends SparkCatalogTestBase {
     List<SimpleRecord> data = ImmutableList.of(new SimpleRecord(4, "d"), new SimpleRecord(5, "e"));
     Dataset<Row> ds = spark.createDataFrame(data, SimpleRecord.class);
 
-    ds.writeTo(tableName).overwrite(functions.col("id").$less(3));
+    ds.writeTo(tableName)
+        .option(SparkWriteOptions.BRANCH, targetBranch)
+        .overwrite(functions.col("id").$less(3));
 
     Assert.assertEquals(
-        "Should have 3 rows after overwrite", 3L, scalarSql("SELECT count(*) FROM %s", tableName));
+        "Should have 3 rows after overwrite",
+        3L,
+        scalarSql("SELECT count(*) FROM %s VERSION AS OF '%s'", tableName, targetBranch));
 
     List<Object[]> expected = ImmutableList.of(row(3L, "c"), row(4L, "d"), row(5L, "e"));
 
     assertEquals(
-        "Row data should match expected", expected, sql("SELECT * FROM %s ORDER BY id", tableName));
+        "Row data should match expected",
+        expected,
+        sql("SELECT * FROM %s VERSION AS OF '%s' ORDER BY id", tableName, targetBranch));
   }
 
   @Test
