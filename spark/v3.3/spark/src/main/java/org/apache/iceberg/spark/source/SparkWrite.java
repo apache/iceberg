@@ -355,6 +355,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
     public void commit(WriterCommitMessage[] messages) {
       OverwriteFiles overwriteFiles = table.newOverwrite();
       overwriteFiles.overwriteByRowFilter(overwriteExpr);
+
       int numFiles = 0;
       for (DataFile file : files(messages)) {
         numFiles += 1;
