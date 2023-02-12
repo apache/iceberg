@@ -40,7 +40,6 @@ from pyiceberg.catalog import (
 from pyiceberg.exceptions import (
     ConditionalCheckFailedException,
     GenericDynamoDbError,
-    ItemNotFound,
     NamespaceAlreadyExistsError,
     NamespaceNotEmptyError,
     NoSuchIcebergTableError,
@@ -70,7 +69,7 @@ DYNAMODB_NAMESPACE = "NAMESPACE"
 DYNAMODB_NAMESPACE_GSI = "namespace-identifier"
 DYNAMODB_PAY_PER_REQUEST = "PAY_PER_REQUEST"
 
-DYNAMODB_TABLE_NAME = "dynamodb_table_name"
+DYNAMODB_TABLE_NAME = "table-name"
 DYNAMODB_TABLE_NAME_DEFAULT = "iceberg"
 
 PROPERTY_KEY_PREFIX = "p."
@@ -88,14 +87,14 @@ class DynamoDbCatalog(Catalog):
 
     def _ensure_catalog_table_exists_or_create(self) -> None:
         if self._dynamodb_table_exists():
-            return
+            return None
 
         try:
             self.dynamodb.create_table(
                 TableName=self.dynamodb_table_name,
-                AttributeDefinitions=_get_create_catalog_attribute_definitions(),
-                KeySchema=_get_key_schema(),
-                GlobalSecondaryIndexes=_get_global_secondary_indexes(),
+                AttributeDefinitions=CREATE_CATALOG_ATTRIBUTE_DEFINITIONS,
+                KeySchema=CREATE_CATALOG_KEY_SCHEMA,
+                GlobalSecondaryIndexes=CREATE_CATALOG_GLOBAL_SECONDARY_INDEXES,
                 BillingMode=DYNAMODB_PAY_PER_REQUEST,
             )
         except (
@@ -168,8 +167,7 @@ class DynamoDbCatalog(Catalog):
         except ConditionalCheckFailedException as e:
             raise TableAlreadyExistsError(f"Table {database_name}.{table_name} already exists") from e
 
-        loaded_table = self.load_table(identifier=identifier)
-        return loaded_table
+        return self.load_table(identifier=identifier)
 
     def load_table(self, identifier: Union[str, Identifier]) -> Table:
         """
@@ -201,30 +199,14 @@ class DynamoDbCatalog(Catalog):
             NoSuchTableError: If a table with the name does not exist, or the identifier is invalid
         """
         database_name, table_name = self.identifier_to_database_and_table(identifier, NoSuchTableError)
+
         try:
-            self.dynamodb.delete_item(
-                TableName=self.dynamodb_table_name,
-                Key={
-                    DYNAMODB_COL_IDENTIFIER: {
-                        "S": f"{database_name}.{table_name}",
-                    },
-                    DYNAMODB_COL_NAMESPACE: {
-                        "S": database_name,
-                    },
-                },
-                ConditionExpression=f"attribute_exists({DYNAMODB_COL_IDENTIFIER})",
+            self._delete_dynamo_item(
+                namespace= database_name, identifier=f"{database_name}.{table_name}",
+                condition_expression=f"attribute_exists({DYNAMODB_COL_IDENTIFIER})",
             )
-        except self.dynamodb.exceptions.ConditionalCheckFailedException as e:
+        except ConditionalCheckFailedException as e:
             raise NoSuchTableError(f"Table does not exist: {database_name}.{table_name}") from e
-        except (
-            self.dynamodb.exceptions.ProvisionedThroughputExceededException,
-            self.dynamodb.exceptions.ResourceNotFoundException,
-            self.dynamodb.exceptions.ItemCollectionSizeLimitExceededException,
-            self.dynamodb.exceptions.TransactionConflictException,
-            self.dynamodb.exceptions.RequestLimitExceeded,
-            self.dynamodb.exceptions.InternalServerError,
-        ) as e:
-            raise GenericDynamoDbError(e.message) from e
 
     def rename_table(self, from_identifier: Union[str, Identifier], to_identifier: Union[str, Identifier]) -> Table:
         """Rename a fully classified table name
@@ -278,11 +260,16 @@ class DynamoDbCatalog(Catalog):
         try:
             self.drop_table(from_identifier)
         except (NoSuchTableError, GenericDynamoDbError) as e:
-            self.drop_table(to_identifier)
-            raise ValueError(
-                f"Failed to drop old table {from_database_name}.{from_table_name}, "
-                f"after renaming to {to_database_name}.{to_table_name}. Rolling back to use the old one."
-            ) from e
+            log_message = f"Failed to drop old table {from_database_name}.{from_table_name}. "
+
+            try:
+                self.drop_table(to_identifier)
+                log_message += f"Rolled back table creation for {to_database_name}.{to_table_name}."
+            except (NoSuchTableError, GenericDynamoDbError):
+                log_message += f"Failed to roll back table creation for {to_database_name}.{to_table_name}. " \
+                               f"Please clean up manually"
+
+            raise ValueError(log_message) from e
 
         return self.load_table(to_identifier)
 
@@ -326,29 +313,12 @@ class DynamoDbCatalog(Catalog):
             raise NamespaceNotEmptyError(f"Database {database_name} is not empty")
 
         try:
-            self.dynamodb.delete_item(
-                TableName=self.dynamodb_table_name,
-                Key={
-                    DYNAMODB_COL_IDENTIFIER: {
-                        "S": DYNAMODB_NAMESPACE,
-                    },
-                    DYNAMODB_COL_NAMESPACE: {
-                        "S": database_name,
-                    },
-                },
-                ConditionExpression=f"attribute_exists({DYNAMODB_COL_NAMESPACE})",
+            self._delete_dynamo_item(
+                namespace=database_name, identifier=DYNAMODB_NAMESPACE,
+                condition_expression=f"attribute_exists({DYNAMODB_COL_IDENTIFIER})",
             )
-        except self.dynamodb.exceptions.ConditionalCheckFailedException as e:
+        except ConditionalCheckFailedException as e:
             raise NoSuchNamespaceError(f"Database does not exist: {database_name}") from e
-        except (
-            self.dynamodb.exceptions.ProvisionedThroughputExceededException,
-            self.dynamodb.exceptions.ResourceNotFoundException,
-            self.dynamodb.exceptions.ItemCollectionSizeLimitExceededException,
-            self.dynamodb.exceptions.TransactionConflictException,
-            self.dynamodb.exceptions.RequestLimitExceeded,
-            self.dynamodb.exceptions.InternalServerError,
-        ) as e:
-            raise GenericDynamoDbError(e.message) from e
 
     def list_tables(self, namespace: Union[str, Identifier]) -> List[Identifier]:
         """List tables under the given namespace in the catalog (including non-Iceberg tables)
@@ -375,12 +345,7 @@ class DynamoDbCatalog(Catalog):
                     }
                 },
             )
-        except (
-            self.dynamodb.exceptions.ProvisionedThroughputExceededException,
-            self.dynamodb.exceptions.ResourceNotFoundException,
-            self.dynamodb.exceptions.RequestLimitExceeded,
-            self.dynamodb.exceptions.InternalServerError,
-        ) as e:
+        except self._get_ddb_query_paginate_exceptions() as e:
             raise GenericDynamoDbError(e.message) from e
 
         table_identifiers = []
@@ -420,12 +385,7 @@ class DynamoDbCatalog(Catalog):
                     }
                 },
             )
-        except (
-            self.dynamodb.exceptions.ProvisionedThroughputExceededException,
-            self.dynamodb.exceptions.ResourceNotFoundException,
-            self.dynamodb.exceptions.RequestLimitExceeded,
-            self.dynamodb.exceptions.InternalServerError,
-        ) as e:
+        except self._get_ddb_query_paginate_exceptions() as e:
             raise GenericDynamoDbError(e.message) from e
 
         database_identifiers = []
@@ -496,13 +456,13 @@ class DynamoDbCatalog(Catalog):
     def _get_iceberg_table_item(self, database_name: str, table_name: str) -> Dict[str, Any]:
         try:
             return self._get_dynamo_item(identifier=f"{database_name}.{table_name}", namespace=database_name)
-        except ItemNotFound as e:
+        except ValueError as e:
             raise NoSuchTableError(f"Table does not exist: {database_name}.{table_name}") from e
 
     def _get_iceberg_namespace_item(self, database_name: str) -> Dict[str, Any]:
         try:
             return self._get_dynamo_item(identifier=DYNAMODB_NAMESPACE, namespace=database_name)
-        except ItemNotFound as e:
+        except ValueError as e:
             raise NoSuchNamespaceError(f"Namespace does not exist: {database_name}") from e
 
     def _ensure_namespace_exists(self, database_name: str) -> Dict[str, Any]:
@@ -525,14 +485,10 @@ class DynamoDbCatalog(Catalog):
             if ITEM in response:
                 return response[ITEM]
             else:
-                raise ItemNotFound(f"Item not found. identifier: {identifier} - namespace: {namespace}")
+                raise ValueError(f"Item not found. identifier: {identifier} - namespace: {namespace}")
         except self.dynamodb.exceptions.ResourceNotFoundException as e:
-            raise ItemNotFound(f"Item not found. identifier: {identifier} - namespace: {namespace}") from e
-        except (
-            self.dynamodb.exceptions.ProvisionedThroughputExceededException,
-            self.dynamodb.exceptions.RequestLimitExceeded,
-            self.dynamodb.exceptions.InternalServerError,
-        ) as e:
+            raise ValueError(f"Item not found. identifier: {identifier} - namespace: {namespace}") from e
+        except self._get_ddb_shared_exceptions() as e:
             raise GenericDynamoDbError(e.message) from e
 
     def _put_dynamo_item(self, item: Dict[str, Any], condition_expression: str) -> None:
@@ -540,14 +496,26 @@ class DynamoDbCatalog(Catalog):
             self.dynamodb.put_item(TableName=self.dynamodb_table_name, Item=item, ConditionExpression=condition_expression)
         except self.dynamodb.exceptions.ConditionalCheckFailedException as e:
             raise ConditionalCheckFailedException(f"Condition expression check failed: {condition_expression} - {item}") from e
-        except (
-            self.dynamodb.exceptions.ResourceNotFoundException,
-            self.dynamodb.exceptions.ProvisionedThroughputExceededException,
-            self.dynamodb.exceptions.ItemCollectionSizeLimitExceededException,
-            self.dynamodb.exceptions.TransactionConflictException,
-            self.dynamodb.exceptions.RequestLimitExceeded,
-            self.dynamodb.exceptions.InternalServerError,
-        ) as e:
+        except self._get_ddb_put_and_delete_exceptions() as e:
+            raise GenericDynamoDbError(e.message) from e
+
+    def _delete_dynamo_item(self, namespace: str, identifier: str, condition_expression: str) -> None:
+        try:
+            self.dynamodb.delete_item(
+                TableName=self.dynamodb_table_name,
+                Key={
+                    DYNAMODB_COL_IDENTIFIER: {
+                        "S": identifier,
+                    },
+                    DYNAMODB_COL_NAMESPACE: {
+                        "S": namespace,
+                    },
+                },
+                ConditionExpression=condition_expression,
+            )
+        except self.dynamodb.exceptions.ConditionalCheckFailedException as e:
+            raise ConditionalCheckFailedException(f"Condition expression check failed: {condition_expression} - {identifier}") from e
+        except self._get_ddb_put_and_delete_exceptions() as e:
             raise GenericDynamoDbError(e.message) from e
 
     def _convert_dynamo_table_item_to_iceberg_table(self, dynamo_table_item: Dict[str, Any]) -> Table:
@@ -575,11 +543,26 @@ class DynamoDbCatalog(Catalog):
         file = io.new_input(metadata_location)
         metadata = FromInputFile.table_metadata(file)
         return Table(
-            identifier=(database_name, table_name),
+            identifier=(self.name, database_name, table_name),
             metadata=metadata,
             metadata_location=metadata_location,
             io=self._load_file_io(metadata.properties),
         )
+
+    def _get_ddb_shared_exceptions(self) -> List[Exception]:
+        return [self.dynamodb.exceptions.ProvisionedThroughputExceededException,
+                self.dynamodb.exceptions.RequestLimitExceeded,
+                self.dynamodb.exceptions.InternalServerError]
+
+    def _get_ddb_query_paginate_exceptions(self) -> List[Exception]:
+        return self._get_ddb_shared_exceptions() + [self.dynamodb.exceptions.ResourceNotFoundException]
+
+    def _get_ddb_put_and_delete_exceptions(self) -> List[Exception]:
+        return self._get_ddb_shared_exceptions() + [
+            self.dynamodb.exceptions.ResourceNotFoundException,
+            self.dynamodb.exceptions.ItemCollectionSizeLimitExceededException,
+            self.dynamodb.exceptions.TransactionConflictException
+        ]
 
 
 def _get_create_table_item(database_name: str, table_name: str, properties: Properties, metadata_location: str) -> Dict[str, Any]:
@@ -652,16 +635,16 @@ def _get_create_database_item(database_name: str, properties: Properties) -> Dic
 def _get_update_database_item(namespace_item: Dict[str, Any], updated_properties: Properties) -> Dict[str, Any]:
     current_timestamp_ms = str(round(time() * 1000))
 
-    # noinspection PyDictCreation
-    _dict = {}
-    _dict[DYNAMODB_COL_IDENTIFIER] = namespace_item[DYNAMODB_COL_IDENTIFIER]
-    _dict[DYNAMODB_COL_NAMESPACE] = namespace_item[DYNAMODB_COL_NAMESPACE]
-    _dict[DYNAMODB_COL_VERSION] = {
-        "S": str(uuid.uuid4()),
-    }
-    _dict[DYNAMODB_COL_CREATED_AT] = namespace_item[DYNAMODB_COL_CREATED_AT]
-    _dict[DYNAMODB_COL_UPDATED_AT] = {
-        "N": current_timestamp_ms,
+    _dict = {
+        DYNAMODB_COL_IDENTIFIER: namespace_item[DYNAMODB_COL_IDENTIFIER],
+        DYNAMODB_COL_NAMESPACE: namespace_item[DYNAMODB_COL_NAMESPACE],
+        DYNAMODB_COL_VERSION: {
+            "S": str(uuid.uuid4()),
+        },
+        DYNAMODB_COL_CREATED_AT: namespace_item[DYNAMODB_COL_CREATED_AT],
+        DYNAMODB_COL_UPDATED_AT: {
+            "N": current_timestamp_ms,
+        }
     }
 
     for key, val in updated_properties.items():
@@ -670,61 +653,55 @@ def _get_update_database_item(namespace_item: Dict[str, Any], updated_properties
     return _dict
 
 
-def _get_create_catalog_attribute_definitions() -> List[Dict[str, str]]:
-    return [
-        {
-            "AttributeName": DYNAMODB_COL_IDENTIFIER,
-            "AttributeType": "S",
-        },
-        {
-            "AttributeName": DYNAMODB_COL_NAMESPACE,
-            "AttributeType": "S",
-        },
-    ]
+CREATE_CATALOG_ATTRIBUTE_DEFINITIONS = [
+    {
+        "AttributeName": DYNAMODB_COL_IDENTIFIER,
+        "AttributeType": "S",
+    },
+    {
+        "AttributeName": DYNAMODB_COL_NAMESPACE,
+        "AttributeType": "S",
+    },
+]
+
+CREATE_CATALOG_KEY_SCHEMA = [
+    {
+        "AttributeName": DYNAMODB_COL_IDENTIFIER,
+        "KeyType": "HASH",
+    },
+    {
+        "AttributeName": DYNAMODB_COL_NAMESPACE,
+        "KeyType": "RANGE",
+    },
+]
 
 
-def _get_key_schema() -> List[Dict[str, str]]:
-    return [
-        {
-            "AttributeName": DYNAMODB_COL_IDENTIFIER,
-            "KeyType": "HASH",
-        },
-        {
-            "AttributeName": DYNAMODB_COL_NAMESPACE,
-            "KeyType": "RANGE",
-        },
-    ]
-
-
-def _get_global_secondary_indexes() -> List[Dict[str, Any]]:
-    return [
-        {
-            "IndexName": DYNAMODB_NAMESPACE_GSI,
-            "KeySchema": [
-                {
-                    "AttributeName": DYNAMODB_COL_NAMESPACE,
-                    "KeyType": "HASH",
-                },
-                {
-                    "AttributeName": DYNAMODB_COL_IDENTIFIER,
-                    "KeyType": "RANGE",
-                },
-            ],
-            "Projection": {
-                "ProjectionType": "KEYS_ONLY",
+CREATE_CATALOG_GLOBAL_SECONDARY_INDEXES = [
+    {
+        "IndexName": DYNAMODB_NAMESPACE_GSI,
+        "KeySchema": [
+            {
+                "AttributeName": DYNAMODB_COL_NAMESPACE,
+                "KeyType": "HASH",
             },
-        }
-    ]
+            {
+                "AttributeName": DYNAMODB_COL_IDENTIFIER,
+                "KeyType": "RANGE",
+            },
+        ],
+        "Projection": {
+            "ProjectionType": "KEYS_ONLY",
+        },
+    }
+]
 
 
 def _get_namespace_properties(namespace_dict: Dict[str, str]) -> Properties:
-    namespace_properties = {}
-    for key, val in namespace_dict.items():
-        if not key.startswith(PROPERTY_KEY_PREFIX):
-            continue
-
-        namespace_properties[_remove_property_prefix(key)] = val
-    return namespace_properties
+    return {
+        _remove_property_prefix(key): val
+        for key, val in namespace_dict.items()
+        if key.startswith(PROPERTY_KEY_PREFIX)
+    }
 
 
 def _convert_dynamo_item_to_regular_dict(dynamo_json: Dict[str, Any]) -> Dict[str, str]:
@@ -755,7 +732,10 @@ def _convert_dynamo_item_to_regular_dict(dynamo_json: Dict[str, Any]) -> Dict[st
     regular_json = {}
     for column_name, val_dict in dynamo_json.items():
         keys = list(val_dict.keys())
-        assert len(keys) == 1
+
+        if len(keys) != 1:
+            raise ValueError(f"Expecting only 1 key: {keys}")
+
         data_type = keys[0]
         if data_type not in ("S", "N"):
             raise ValueError("Only S and N data types are supported.")

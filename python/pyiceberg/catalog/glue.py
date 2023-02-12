@@ -216,8 +216,7 @@ class GlueCatalog(Catalog):
         database_name, table_name = self.identifier_to_database_and_table(identifier)
         self._create_glue_table(database_name=database_name, table_name=table_name, table_input=table_input)
 
-        loaded_table = self.load_table(identifier=identifier)
-        return loaded_table
+        return self.load_table(identifier=identifier)
 
     def load_table(self, identifier: Union[str, Identifier]) -> Table:
         """Loads the table's metadata and returns the table instance.
@@ -303,11 +302,18 @@ class GlueCatalog(Catalog):
         try:
             self.drop_table(from_identifier)
         except Exception as e:
-            self.drop_table(to_identifier)
-            raise ValueError(
-                f"Fail to drop old table {from_database_name}.{from_table_name}, "
-                f"after renaming to {to_database_name}.{to_table_name}. Rolling back to use the old one."
-            ) from e
+
+            log_message = f"Failed to drop old table {from_database_name}.{from_table_name}. "
+
+            try:
+                self.drop_table(to_identifier)
+                log_message += f"Rolled back table creation for {to_database_name}.{to_table_name}."
+            except Exception:
+                log_message += f"Failed to roll back table creation for {to_database_name}.{to_table_name}. " \
+                               f"Please clean up manually"
+
+            raise ValueError(log_message) from e
+
         return self.load_table(to_identifier)
 
     def create_namespace(self, namespace: Union[str, Identifier], properties: Properties = EMPTY_DICT) -> None:

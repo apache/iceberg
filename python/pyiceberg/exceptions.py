@@ -96,10 +96,6 @@ class DynamoDbError(Exception):
     pass
 
 
-class ItemNotFound(DynamoDbError):
-    pass
-
-
 class ConditionalCheckFailedException(DynamoDbError):
     pass
 

@@ -122,7 +122,7 @@ def infer_catalog_type(name: str, catalog_properties: RecursiveDict) -> Optional
     """Tries to infer the type based on the dict
 
     Args:
-        name:
+        name: Name of the catalog
         catalog_properties: Catalog properties
 
     Returns:
