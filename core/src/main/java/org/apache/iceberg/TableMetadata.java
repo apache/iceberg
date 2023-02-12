@@ -243,11 +243,11 @@ public class TableMetadata implements Serializable {
   private final List<MetadataLogEntry> previousFiles;
   private final List<StatisticsFile> statisticsFiles;
   private final List<MetadataUpdate> changes;
-  private final SerializableSupplier<List<Snapshot>> snapshotsSupplier;
-  private List<Snapshot> snapshots;
-  private Map<Long, Snapshot> snapshotsById;
-  private Map<String, SnapshotRef> refs;
-  private boolean snapshotsLoaded;
+  private SerializableSupplier<List<Snapshot>> snapshotsSupplier;
+  private volatile List<Snapshot> snapshots;
+  private volatile Map<Long, Snapshot> snapshotsById;
+  private volatile Map<String, SnapshotRef> refs;
+  private volatile boolean snapshotsLoaded;
 
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
   TableMetadata(
@@ -310,6 +310,7 @@ public class TableMetadata implements Serializable {
     this.currentSnapshotId = currentSnapshotId;
     this.snapshots = snapshots;
     this.snapshotsSupplier = snapshotsSupplier;
+    this.snapshotsLoaded = snapshotsSupplier == null;
     this.snapshotLog = snapshotLog;
     this.previousFiles = previousFiles;
 
@@ -493,8 +494,8 @@ public class TableMetadata implements Serializable {
     return snapshots;
   }
 
-  private void ensureSnapshotsLoaded() {
-    if (!snapshotsLoaded && snapshotsSupplier != null) {
+  private synchronized void ensureSnapshotsLoaded() {
+    if (!snapshotsLoaded) {
       List<Snapshot> loadedSnapshots = Lists.newArrayList(snapshotsSupplier.get());
       loadedSnapshots.removeIf(s -> s.sequenceNumber() > lastSequenceNumber);
 
@@ -510,6 +511,7 @@ public class TableMetadata implements Serializable {
       this.refs = validateRefs(currentSnapshotId, refs, snapshotsById);
 
       this.snapshotsLoaded = true;
+      this.snapshotsSupplier = null;
     }
   }
 
