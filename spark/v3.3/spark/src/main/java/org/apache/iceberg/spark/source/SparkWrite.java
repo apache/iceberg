@@ -135,6 +135,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
     this.applicationId = applicationId;
     this.wapEnabled = writeConf.wapEnabled();
     this.wapId = writeConf.wapId();
+    this.branch = writeConf.branch();
     this.targetFileSize = writeConf.targetDataFileSize();
     this.writeSchema = writeSchema;
     this.dsSchema = dsSchema;
@@ -142,7 +143,6 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
     this.partitionedFanoutEnabled = writeConf.fanoutWriterEnabled();
     this.requiredDistribution = requiredDistribution;
     this.requiredOrdering = requiredOrdering;
-    this.branch = writeConf.branch();
   }
 
   @Override
@@ -353,8 +353,8 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
 
     @Override
     public void commit(WriterCommitMessage[] messages) {
-      OverwriteFiles overwriteFiles = table.newOverwrite().overwriteByRowFilter(overwriteExpr);
-
+      OverwriteFiles overwriteFiles = table.newOverwrite();
+      overwriteFiles.overwriteByRowFilter(overwriteExpr);
       int numFiles = 0;
       for (DataFile file : files(messages)) {
         numFiles += 1;

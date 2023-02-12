@@ -36,13 +36,13 @@ import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.ManifestFiles;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.SparkException;
@@ -126,19 +126,24 @@ public class TestSparkDataWrite {
         .format("iceberg")
         .option(SparkWriteOptions.WRITE_FORMAT, format.toString())
         .mode(SaveMode.Append)
-        .option("branch", targetBranch)
+        .option(SparkWriteOptions.BRANCH, targetBranch)
         .save(location.toString());
 
     table.refresh();
 
     Dataset<Row> result =
-        spark.read().format("iceberg").option("branch", targetBranch).load(location.toString());
+        spark
+            .read()
+            .format("iceberg")
+            .option(SparkWriteOptions.BRANCH, targetBranch)
+            .load(location.toString());
 
     List<SimpleRecord> actual =
         result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
     Assert.assertEquals("Number of rows should match", expected.size(), actual.size());
     Assert.assertEquals("Result rows should match", expected, actual);
-    for (ManifestFile manifest : latestSnapshot(table, targetBranch).allManifests(table.io())) {
+    for (ManifestFile manifest :
+        SparkUtil.latestSnapshot(table, targetBranch).allManifests(table.io())) {
       for (DataFile file : ManifestFiles.read(manifest, table.io())) {
         // TODO: avro not support split
         if (!format.equals(FileFormat.AVRO)) {
@@ -186,7 +191,7 @@ public class TestSparkDataWrite {
         .format("iceberg")
         .option(SparkWriteOptions.WRITE_FORMAT, format.toString())
         .mode(SaveMode.Append)
-        .option("branch", targetBranch)
+        .option(SparkWriteOptions.BRANCH, targetBranch)
         .save(location.toString());
 
     df.withColumn("id", df.col("id").plus(3))
@@ -195,13 +200,17 @@ public class TestSparkDataWrite {
         .format("iceberg")
         .option(SparkWriteOptions.WRITE_FORMAT, format.toString())
         .mode(SaveMode.Append)
-        .option("branch", targetBranch)
+        .option(SparkWriteOptions.BRANCH, targetBranch)
         .save(location.toString());
 
     table.refresh();
 
     Dataset<Row> result =
-        spark.read().format("iceberg").option("branch", targetBranch).load(location.toString());
+        spark
+            .read()
+            .format("iceberg")
+            .option(SparkWriteOptions.BRANCH, targetBranch)
+            .load(location.toString());
 
     List<SimpleRecord> actual =
         result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
@@ -230,7 +239,7 @@ public class TestSparkDataWrite {
         .format("iceberg")
         .option(SparkWriteOptions.WRITE_FORMAT, format.toString())
         .mode(SaveMode.Append)
-        .option("branch", targetBranch)
+        .option(SparkWriteOptions.BRANCH, targetBranch)
         .save(location.toString());
 
     Dataset<Row> empty = spark.createDataFrame(ImmutableList.of(), SimpleRecord.class);
@@ -241,13 +250,17 @@ public class TestSparkDataWrite {
         .option(SparkWriteOptions.WRITE_FORMAT, format.toString())
         .mode(SaveMode.Overwrite)
         .option("overwrite-mode", "dynamic")
-        .option("branch", targetBranch)
+        .option(SparkWriteOptions.BRANCH, targetBranch)
         .save(location.toString());
 
     table.refresh();
 
     Dataset<Row> result =
-        spark.read().format("iceberg").option("branch", targetBranch).load(location.toString());
+        spark
+            .read()
+            .format("iceberg")
+            .option(SparkWriteOptions.BRANCH, targetBranch)
+            .load(location.toString());
 
     List<SimpleRecord> actual =
         result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
@@ -283,7 +296,7 @@ public class TestSparkDataWrite {
         .format("iceberg")
         .option(SparkWriteOptions.WRITE_FORMAT, format.toString())
         .mode(SaveMode.Append)
-        .option("branch", targetBranch)
+        .option(SparkWriteOptions.BRANCH, targetBranch)
         .save(location.toString());
 
     // overwrite with 2*id to replace record 2, append 4 and 6
@@ -294,13 +307,17 @@ public class TestSparkDataWrite {
         .option(SparkWriteOptions.WRITE_FORMAT, format.toString())
         .mode(SaveMode.Overwrite)
         .option("overwrite-mode", "dynamic")
-        .option("branch", targetBranch)
+        .option(SparkWriteOptions.BRANCH, targetBranch)
         .save(location.toString());
 
     table.refresh();
 
     Dataset<Row> result =
-        spark.read().format("iceberg").option("branch", targetBranch).load(location.toString());
+        spark
+            .read()
+            .format("iceberg")
+            .option(SparkWriteOptions.BRANCH, targetBranch)
+            .load(location.toString());
 
     List<SimpleRecord> actual =
         result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
@@ -328,7 +345,7 @@ public class TestSparkDataWrite {
         .format("iceberg")
         .option(SparkWriteOptions.WRITE_FORMAT, format.toString())
         .mode(SaveMode.Append)
-        .option("branch", targetBranch)
+        .option(SparkWriteOptions.BRANCH, targetBranch)
         .save(location.toString());
 
     // overwrite with the same data; should not produce two copies
@@ -337,13 +354,17 @@ public class TestSparkDataWrite {
         .format("iceberg")
         .option(SparkWriteOptions.WRITE_FORMAT, format.toString())
         .mode(SaveMode.Overwrite)
-        .option("branch", targetBranch)
+        .option(SparkWriteOptions.BRANCH, targetBranch)
         .save(location.toString());
 
     table.refresh();
 
     Dataset<Row> result =
-        spark.read().format("iceberg").option("branch", targetBranch).load(location.toString());
+        spark
+            .read()
+            .format("iceberg")
+            .option(SparkWriteOptions.BRANCH, targetBranch)
+            .load(location.toString());
 
     List<SimpleRecord> actual =
         result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
@@ -377,13 +398,17 @@ public class TestSparkDataWrite {
         .format("iceberg")
         .option(SparkWriteOptions.WRITE_FORMAT, format.toString())
         .mode(SaveMode.Append)
-        .option("branch", targetBranch)
+        .option(SparkWriteOptions.BRANCH, targetBranch)
         .save(location.toString());
 
     table.refresh();
 
     Dataset<Row> result =
-        spark.read().format("iceberg").option("branch", targetBranch).load(location.toString());
+        spark
+            .read()
+            .format("iceberg")
+            .option(SparkWriteOptions.BRANCH, targetBranch)
+            .load(location.toString());
 
     List<SimpleRecord> actual =
         result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
@@ -391,7 +416,8 @@ public class TestSparkDataWrite {
     Assert.assertEquals("Result rows should match", expected, actual);
 
     List<DataFile> files = Lists.newArrayList();
-    for (ManifestFile manifest : latestSnapshot(table, targetBranch).allManifests(table.io())) {
+    for (ManifestFile manifest :
+        SparkUtil.latestSnapshot(table, targetBranch).allManifests(table.io())) {
       for (DataFile file : ManifestFiles.read(manifest, table.io())) {
         files.add(file);
       }
@@ -671,14 +697,6 @@ public class TestSparkDataWrite {
         result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
     Assert.assertEquals("Number of rows should match", records.size(), actual.size());
     Assert.assertEquals("Result rows should match", records, actual);
-  }
-
-  private Snapshot latestSnapshot(Table table, String branch) {
-    if ("main".equals(branch)) {
-      return table.currentSnapshot();
-    } else {
-      return table.snapshot(branch);
-    }
   }
 
   public enum IcebergOptionsType {

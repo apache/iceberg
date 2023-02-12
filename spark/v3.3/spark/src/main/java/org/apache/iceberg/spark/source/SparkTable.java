@@ -249,6 +249,7 @@ public class SparkTable
   public WriteBuilder newWriteBuilder(LogicalWriteInfo info) {
     Preconditions.checkArgument(
         snapshotId == null, "Cannot write to table at a specific snapshot: %s", snapshotId);
+
     return new SparkWriteBuilder(sparkSession(), icebergTable, info);
   }
 

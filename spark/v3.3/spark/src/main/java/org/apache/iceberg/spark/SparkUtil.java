@@ -30,6 +30,7 @@ import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.hadoop.HadoopConfigurable;
 import org.apache.iceberg.io.FileIO;
@@ -298,14 +299,15 @@ public class SparkUtil {
   }
 
   /**
-   * fetch latest snapshot based on the branch tip
+   * fetch latest snapshot based on the branch tip. We are still using currentSnapshot() when commit
+   * is to main branch to validate behavior has not changed.
    *
    * @param table
    * @param branch
    * @return Snapshot
    */
   public static Snapshot latestSnapshot(Table table, String branch) {
-    if ("main".equals(branch)) {
+    if (SnapshotRef.MAIN_BRANCH.equals(branch)) {
       return table.currentSnapshot();
     } else {
       return table.snapshot(branch);
