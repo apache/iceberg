@@ -512,8 +512,8 @@ def _file_to_table(
             columns=[col.name for col in file_project_schema.columns],
         )
 
-        if pyarrow_filter is not None:
-            arrow_table = arrow_table.filter(pyarrow_filter)
+        # if pyarrow_filter is not None:
+        #     arrow_table = arrow_table.filter(pyarrow_filter)
 
         return to_requested_schema(projected_schema, file_project_schema, arrow_table)
 

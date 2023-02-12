@@ -62,7 +62,5 @@ RUN chmod u+x /opt/spark/sbin/* && \
 COPY entrypoint.sh .
 COPY provision.py .
 
-COPY data/ data/
-
 ENTRYPOINT ["./entrypoint.sh"]
 CMD ["notebook"]

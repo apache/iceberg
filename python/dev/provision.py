@@ -16,45 +16,61 @@
 # under the License.
 import time
 
-import pyspark.sql.functions as F
 from pyspark.sql import SparkSession
-from pyspark.sql.types import DoubleType, IntegerType
 
 spark = SparkSession.builder.getOrCreate()
 
 print("Create database")
 
-spark.sql(
-    """
-  CREATE DATABASE default;
-"""
-)
+spark.sql("""
+  CREATE DATABASE IF NOT EXISTS default;
+""")
 
-print("Create beers table")
+spark.sql("""
+  use default;
+""")
 
-df = spark.read.csv("/opt/spark/data/beers.csv", header=True)
+spark.sql("""
+  DROP TABLE IF EXISTS test_null_nan;
+""")
 
-df = (
-    df.withColumn("abv", df.abv.cast(DoubleType()))
-    .withColumn("ibu", df.ibu.cast(DoubleType()))
-    .withColumn("beer_id", df.beer_id.cast(IntegerType()))
-    .withColumn("brewery_id", df.brewery_id.cast(IntegerType()))
-    .withColumn("ounces", df.ounces.cast(DoubleType()))
-    # Inject a NaN which is nice for testing
-    .withColumn("ibu", F.when(F.col("beer_id") == 2546, float("NaN")).otherwise(F.col("ibu")))
-)
+spark.sql("""
+  CREATE TABLE test_null_nan 
+  USING iceberg
+  AS SELECT
+    1            AS idx,
+    float('NaN') AS col_numeric
+UNION ALL SELECT
+    2            AS idx,
+    null         AS col_numeric
+UNION ALL SELECT
+    3            AS idx,
+    1            AS col_numeric
+""")
 
-df.write.saveAsTable("default.beers")
+spark.sql("""
+  DROP TABLE IF EXISTS test_deletes;
+""")
 
-print("Create breweries table")
+spark.sql("""
+  CREATE TABLE test_deletes 
+  USING iceberg
+  TBLPROPERTIES (
+    'write.delete.mode'='merge-on-read',
+    'write.update.mode'='merge-on-read',
+    'write.merge.mode'='merge-on-read'
+  )
+  AS SELECT
+    1       AS idx,
+    True    AS deleted
+UNION ALL SELECT
+    2       AS idx,
+    False   AS deleted;
+""")
 
-df = spark.read.csv("/opt/spark/data/breweries.csv", header=True)
-
-df = df.withColumn("brewery_id", df.brewery_id.cast(IntegerType()))
-
-df.write.saveAsTable("default.breweries")
-
-print("Done!")
+spark.sql("""
+  DELETE FROM test_deletes WHERE deleted = True;
+""")
 
 while True:
     time.sleep(1)
