@@ -767,9 +767,9 @@ public class SparkCatalog extends BaseCatalog {
       Preconditions.checkArgument(
           tagSnapshot != null, "Cannot find snapshot associated with tag name: %s", tag);
       return new SparkTable(table, tagSnapshot.snapshotId(), !cacheEnabled);
+    } else {
+      return new SparkTable(table, snapshotId, !cacheEnabled);
     }
-
-    return new SparkTable(table, snapshotId, !cacheEnabled);
   }
 
   private Identifier namespaceToIdentifier(String[] namespace) {

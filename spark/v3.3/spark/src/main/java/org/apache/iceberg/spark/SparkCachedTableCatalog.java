@@ -190,9 +190,9 @@ public class SparkCachedTableCatalog implements TableCatalog {
       Preconditions.checkArgument(
           tagSnapshot != null, "Cannot find snapshot associated with tag name: %s", tag);
       return Pair.of(table, tagSnapshot.snapshotId());
+    } else {
+      return Pair.of(table, null);
     }
-
-    return Pair.of(table, null);
   }
 
   private Pair<String, List<String>> parseIdent(Identifier ident) {
