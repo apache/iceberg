@@ -24,7 +24,6 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 public class LocationUtil {
   private static final String SCHEME_DELIM = "://";
-  private static final String PATH_DELIM = "/";
 
   private LocationUtil() {}
 
