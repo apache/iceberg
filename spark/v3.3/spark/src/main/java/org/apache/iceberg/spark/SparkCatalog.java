@@ -756,6 +756,7 @@ public class SparkCatalog extends BaseCatalog {
     } else if (asOfTimestamp != null) {
       long snapshotIdAsOfTime = SnapshotUtil.snapshotIdAsOfTime(table, asOfTimestamp);
       return new SparkTable(table, snapshotIdAsOfTime, !cacheEnabled);
+
     } else if (branch != null) {
       Snapshot branchSnapshot = table.snapshot(branch);
       Preconditions.checkArgument(
