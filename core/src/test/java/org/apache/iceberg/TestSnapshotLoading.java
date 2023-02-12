@@ -150,7 +150,7 @@ public class TestSnapshotLoading extends TableTestBase {
   @Test
   public void testRemovedCurrentSnapshotFails() {
     List<Snapshot> snapshotsMissingCurrent =
-        allSnapshots.stream().filter(s -> !s.equals(currentSnapshot)).collect(Collectors.toList());
+        allSnapshots.stream().filter(Predicate.isEqual(currentSnapshot).negate()).collect(Collectors.toList());
 
     TableMetadata tableMetadata =
         TableMetadata.buildFrom(originalTableMetadata)
@@ -165,6 +165,26 @@ public class TestSnapshotLoading extends TableTestBase {
     assertThatThrownBy(tableMetadata::snapshots)
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid table metadata: Cannot find current version");
+  }
+
+  @Test
+  public void testRemovedRefSnapshotFails() {
+    Snapshot referencedSnapshot = allSnapshots.stream()
+        .filter(Predicate.isEqual(currentSnapshot).negate()).findFirst().get();
+
+    TableMetadata tableMetadata =
+        TableMetadata.buildFrom(originalTableMetadata)
+            .setRef("toRemove", SnapshotRef.branchBuilder(referencedSnapshot.snapshotId()).build())
+            .setSnapshotsSupplier(() -> Lists.newArrayList(currentSnapshot))
+            .build();
+
+    long fakeSnapshotId = 123;
+
+    // trigger loading the snapshots to cause ref failure
+    assertThatThrownBy(() -> tableMetadata.snapshot(fakeSnapshotId))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Snapshot for reference")
+        .hasMessageEndingWith("does not exist in the existing snapshots list");
   }
 
   @Test

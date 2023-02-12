@@ -241,12 +241,12 @@ public class TableMetadata implements Serializable {
   private final Map<Integer, SortOrder> sortOrdersById;
   private final List<HistoryEntry> snapshotLog;
   private final List<MetadataLogEntry> previousFiles;
-  private final Map<String, SnapshotRef> refs;
   private final List<StatisticsFile> statisticsFiles;
   private final List<MetadataUpdate> changes;
   private final SerializableSupplier<List<Snapshot>> snapshotsSupplier;
   private List<Snapshot> snapshots;
   private Map<Long, Snapshot> snapshotsById;
+  private Map<String, SnapshotRef> refs;
   private boolean snapshotsLoaded;
 
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
@@ -505,8 +505,10 @@ public class TableMetadata implements Serializable {
 
       this.snapshots = ImmutableList.copyOf(loadedSnapshots);
       this.snapshotsById = indexAndValidateSnapshots(snapshots, lastSequenceNumber);
-
       validateCurrentSnapshot();
+
+      this.refs = validateRefs(currentSnapshotId, refs, snapshotsById);
+
       this.snapshotsLoaded = true;
     }
   }
