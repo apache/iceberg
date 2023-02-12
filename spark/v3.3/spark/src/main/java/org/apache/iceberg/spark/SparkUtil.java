@@ -302,8 +302,8 @@ public class SparkUtil {
    * fetch latest snapshot based on the branch tip. We are still using currentSnapshot() when commit
    * is to main branch to validate behavior has not changed.
    *
-   * @param table
-   * @param branch
+   * @param table to fetch snapshot from.
+   * @param branch used to fetch snapshot from a branch ref.
    * @return Snapshot
    */
   public static Snapshot latestSnapshot(Table table, String branch) {
