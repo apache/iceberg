@@ -44,6 +44,7 @@ import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.LocationUtil;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.PropertyUtil;
+import org.apache.iceberg.util.SerializableSupplier;
 
 /** Metadata for a table. */
 public class TableMetadata implements Serializable {
@@ -235,16 +236,18 @@ public class TableMetadata implements Serializable {
   private final List<SortOrder> sortOrders;
   private final Map<String, String> properties;
   private final long currentSnapshotId;
-  private final List<Snapshot> snapshots;
-  private final Map<Long, Snapshot> snapshotsById;
   private final Map<Integer, Schema> schemasById;
   private final Map<Integer, PartitionSpec> specsById;
   private final Map<Integer, SortOrder> sortOrdersById;
   private final List<HistoryEntry> snapshotLog;
   private final List<MetadataLogEntry> previousFiles;
-  private final Map<String, SnapshotRef> refs;
   private final List<StatisticsFile> statisticsFiles;
   private final List<MetadataUpdate> changes;
+  private SerializableSupplier<List<Snapshot>> snapshotsSupplier;
+  private volatile List<Snapshot> snapshots;
+  private volatile Map<Long, Snapshot> snapshotsById;
+  private volatile Map<String, SnapshotRef> refs;
+  private volatile boolean snapshotsLoaded;
 
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
   TableMetadata(
@@ -265,6 +268,7 @@ public class TableMetadata implements Serializable {
       Map<String, String> properties,
       long currentSnapshotId,
       List<Snapshot> snapshots,
+      SerializableSupplier<List<Snapshot>> snapshotsSupplier,
       List<HistoryEntry> snapshotLog,
       List<MetadataLogEntry> previousFiles,
       Map<String, SnapshotRef> refs,
@@ -305,6 +309,8 @@ public class TableMetadata implements Serializable {
     this.properties = properties;
     this.currentSnapshotId = currentSnapshotId;
     this.snapshots = snapshots;
+    this.snapshotsSupplier = snapshotsSupplier;
+    this.snapshotsLoaded = snapshotsSupplier == null;
     this.snapshotLog = snapshotLog;
     this.previousFiles = previousFiles;
 
@@ -359,9 +365,7 @@ public class TableMetadata implements Serializable {
           previous.timestampMillis);
     }
 
-    Preconditions.checkArgument(
-        currentSnapshotId < 0 || snapshotsById.containsKey(currentSnapshotId),
-        "Invalid table metadata: Cannot find current version");
+    validateCurrentSnapshot();
   }
 
   public int formatVersion() {
@@ -473,6 +477,10 @@ public class TableMetadata implements Serializable {
   }
 
   public Snapshot snapshot(long snapshotId) {
+    if (!snapshotsById.containsKey(snapshotId)) {
+      ensureSnapshotsLoaded();
+    }
+
     return snapshotsById.get(snapshotId);
   }
 
@@ -481,7 +489,30 @@ public class TableMetadata implements Serializable {
   }
 
   public List<Snapshot> snapshots() {
+    ensureSnapshotsLoaded();
+
     return snapshots;
+  }
+
+  private synchronized void ensureSnapshotsLoaded() {
+    if (!snapshotsLoaded) {
+      List<Snapshot> loadedSnapshots = Lists.newArrayList(snapshotsSupplier.get());
+      loadedSnapshots.removeIf(s -> s.sequenceNumber() > lastSequenceNumber);
+
+      // Format version 1 does not have accurate sequence numbering, so remove based on timestamp
+      if (this.formatVersion == 1) {
+        loadedSnapshots.removeIf(s -> s.timestampMillis() > currentSnapshot().timestampMillis());
+      }
+
+      this.snapshots = ImmutableList.copyOf(loadedSnapshots);
+      this.snapshotsById = indexAndValidateSnapshots(snapshots, lastSequenceNumber);
+      validateCurrentSnapshot();
+
+      this.refs = validateRefs(currentSnapshotId, refs, snapshotsById);
+
+      this.snapshotsLoaded = true;
+      this.snapshotsSupplier = null;
+    }
   }
 
   public SnapshotRef ref(String name) {
@@ -526,7 +557,7 @@ public class TableMetadata implements Serializable {
   }
 
   public TableMetadata removeSnapshotsIf(Predicate<Snapshot> removeIf) {
-    List<Snapshot> toRemove = snapshots.stream().filter(removeIf).collect(Collectors.toList());
+    List<Snapshot> toRemove = snapshots().stream().filter(removeIf).collect(Collectors.toList());
     return new Builder(this).removeSnapshots(toRemove).build();
   }
 
@@ -552,6 +583,12 @@ public class TableMetadata implements Serializable {
         .removeProperties(removed)
         .upgradeFormatVersion(newFormatVersion)
         .build();
+  }
+
+  private void validateCurrentSnapshot() {
+    Preconditions.checkArgument(
+        currentSnapshotId < 0 || snapshotsById.containsKey(currentSnapshotId),
+        "Invalid table metadata: Cannot find current version");
   }
 
   private PartitionSpec reassignPartitionIds(PartitionSpec partitionSpec, TypeUtil.NextID nextID) {
@@ -823,6 +860,7 @@ public class TableMetadata implements Serializable {
     private final Map<String, String> properties;
     private long currentSnapshotId;
     private List<Snapshot> snapshots;
+    private SerializableSupplier<List<Snapshot>> snapshotsSupplier;
     private final Map<String, SnapshotRef> refs;
     private final Map<Long, List<StatisticsFile>> statisticsFiles;
 
@@ -885,7 +923,7 @@ public class TableMetadata implements Serializable {
       this.sortOrders = Lists.newArrayList(base.sortOrders);
       this.properties = Maps.newHashMap(base.properties);
       this.currentSnapshotId = base.currentSnapshotId;
-      this.snapshots = Lists.newArrayList(base.snapshots);
+      this.snapshots = Lists.newArrayList(base.snapshots());
       this.changes = Lists.newArrayList(base.changes);
       this.startingChangeCount = changes.size();
 
@@ -1102,6 +1140,11 @@ public class TableMetadata implements Serializable {
       snapshotsById.put(snapshot.snapshotId(), snapshot);
       changes.add(new MetadataUpdate.AddSnapshot(snapshot));
 
+      return this;
+    }
+
+    public Builder setSnapshotsSupplier(SerializableSupplier<List<Snapshot>> snapshotsSupplier) {
+      this.snapshotsSupplier = snapshotsSupplier;
       return this;
     }
 
@@ -1332,6 +1375,7 @@ public class TableMetadata implements Serializable {
           ImmutableMap.copyOf(properties),
           currentSnapshotId,
           ImmutableList.copyOf(snapshots),
+          snapshotsSupplier,
           ImmutableList.copyOf(newSnapshotLog),
           ImmutableList.copyOf(metadataHistory),
           ImmutableMap.copyOf(refs),
