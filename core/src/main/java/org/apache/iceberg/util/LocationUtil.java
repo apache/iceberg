@@ -48,6 +48,6 @@ public class LocationUtil {
       return Paths.get(path).normalize().toString();
     }
 
-    return schemeSplit[0] + SCHEME_DELIM + Paths.get(schemeSplit[1]).normalize().toString();
+    return schemeSplit[0] + SCHEME_DELIM + Paths.get(schemeSplit[1]).normalize();
   }
 }
