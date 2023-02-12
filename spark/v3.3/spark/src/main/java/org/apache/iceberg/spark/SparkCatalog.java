@@ -646,38 +646,34 @@ public class SparkCatalog extends BaseCatalog {
         return new SparkChangelogTable(table, !cacheEnabled);
       }
 
-      long snapshotId = -1;
       Matcher at = AT_TIMESTAMP.matcher(ident.name());
       if (at.matches()) {
         long asOfTimestamp = Long.parseLong(at.group(1));
-        snapshotId = SnapshotUtil.snapshotIdAsOfTime(table, asOfTimestamp);
+        long snapshotId = SnapshotUtil.snapshotIdAsOfTime(table, asOfTimestamp);
+        return new SparkTable(table, snapshotId, !cacheEnabled);
       }
 
       Matcher id = SNAPSHOT_ID.matcher(ident.name());
       if (id.matches()) {
-        snapshotId = Long.parseLong(id.group(1));
+        long snapshotId = Long.parseLong(id.group(1));
+        return new SparkTable(table, snapshotId, !cacheEnabled);
       }
 
       Matcher branch = BRANCH.matcher(ident.name());
       if (branch.matches()) {
-        Snapshot snapshot = table.snapshot(branch.group(1));
-        if (snapshot != null) {
-          snapshotId = snapshot.snapshotId();
+        Snapshot branchSnapshot = table.snapshot(branch.group(1));
+        if (branchSnapshot != null) {
+          return new SparkTable(table, branchSnapshot.snapshotId(), !cacheEnabled);
         }
       }
 
       Matcher tag = TAG.matcher(ident.name());
       if (tag.matches()) {
-        Snapshot snapshot = table.snapshot(tag.group(1));
-        if (snapshot != null) {
-          snapshotId = snapshot.snapshotId();
+        Snapshot tagSnapshot = table.snapshot(tag.group(1));
+        if (tagSnapshot != null) {
+          return new SparkTable(table, tagSnapshot.snapshotId(), !cacheEnabled);
         }
       }
-
-      if (snapshotId != -1) {
-        return new SparkTable(table, snapshotId, !cacheEnabled);
-      }
-
       // the name wasn't a valid snapshot selector and did not point to the changelog
       // throw the original exception
       throw e;
@@ -754,26 +750,24 @@ public class SparkCatalog extends BaseCatalog {
     org.apache.iceberg.Table table =
         tables.load(parsed.first() + (metadataTableName != null ? "#" + metadataTableName : ""));
 
-    long snapshotIdFromTimeTravel = -1L;
-
     if (isChangelog) {
       return new SparkChangelogTable(table, !cacheEnabled);
 
     } else if (asOfTimestamp != null) {
-      snapshotIdFromTimeTravel = SnapshotUtil.snapshotIdAsOfTime(table, asOfTimestamp);
+      long snapshotIdAsOfTime = SnapshotUtil.snapshotIdAsOfTime(table, asOfTimestamp);
+      return new SparkTable(table, snapshotIdAsOfTime, !cacheEnabled);
     } else if (branch != null) {
+      Snapshot branchSnapshot = table.snapshot(branch);
       Preconditions.checkArgument(
-          table.snapshot(branch) != null, "branch not associated with a snapshot");
-      snapshotIdFromTimeTravel = table.snapshot(branch).snapshotId();
+          branchSnapshot != null, "Cannot find snapshot associated with branch name: %s", branch);
+      return new SparkTable(table, branchSnapshot.snapshotId(), !cacheEnabled);
     } else if (tag != null) {
+      Snapshot tagSnapshot = table.snapshot(tag);
       Preconditions.checkArgument(
-          table.snapshot(tag) != null, "tag not associated with a snapshot");
-      snapshotIdFromTimeTravel = table.snapshot(tag).snapshotId();
+          tagSnapshot != null, "Cannot find snapshot associated with tag name: %s", tag);
+      return new SparkTable(table, tagSnapshot.snapshotId(), !cacheEnabled);
     }
 
-    if (snapshotIdFromTimeTravel != -1L) {
-      return new SparkTable(table, snapshotIdFromTimeTravel, !cacheEnabled);
-    }
     return new SparkTable(table, snapshotId, !cacheEnabled);
   }
 

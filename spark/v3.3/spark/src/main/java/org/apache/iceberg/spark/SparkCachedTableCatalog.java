@@ -25,6 +25,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
+import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Splitter;
@@ -50,6 +51,7 @@ public class SparkCachedTableCatalog implements TableCatalog {
   private static final Pattern SNAPSHOT_ID = Pattern.compile("snapshot_id_(\\d+)");
   private static final Pattern BRANCH = Pattern.compile("branch_(.*)");
   private static final Pattern TAG = Pattern.compile("tag_(.*)");
+
   private static final SparkTableCache TABLE_CACHE = SparkTableCache.get();
 
   private String name = null;
@@ -155,7 +157,7 @@ public class SparkCachedTableCatalog implements TableCatalog {
         branch = branchBasedMatcher.group(1);
       }
 
-      Matcher tagBasedMatcher = BRANCH.matcher(meta);
+      Matcher tagBasedMatcher = TAG.matcher(meta);
       if (tagBasedMatcher.matches()) {
         tag = tagBasedMatcher.group(1);
       }
@@ -174,27 +176,23 @@ public class SparkCachedTableCatalog implements TableCatalog {
       throw new NoSuchTableException(ident);
     }
 
-    long snapshotIdFromTimeTravel = -1L;
-
     if (snapshotId != null) {
-      snapshotIdFromTimeTravel = snapshotId;
+      return Pair.of(table, snapshotId);
     } else if (asOfTimestamp != null) {
-      snapshotIdFromTimeTravel = SnapshotUtil.snapshotIdAsOfTime(table, asOfTimestamp);
+      return Pair.of(table, SnapshotUtil.snapshotIdAsOfTime(table, asOfTimestamp));
     } else if (branch != null) {
+      Snapshot branchSnapshot = table.snapshot(branch);
       Preconditions.checkArgument(
-          table.snapshot(branch) != null, "branch not associated with a snapshot");
-      snapshotIdFromTimeTravel = table.snapshot(branch).snapshotId();
+          branchSnapshot != null, "Cannot find snapshot associated with branch name: %s", branch);
+      return Pair.of(table, branchSnapshot.snapshotId());
     } else if (tag != null) {
+      Snapshot tagSnapshot = table.snapshot(tag);
       Preconditions.checkArgument(
-          table.snapshot(tag) != null, "tag not associated with a snapshot");
-      snapshotIdFromTimeTravel = table.snapshot(tag).snapshotId();
+          tagSnapshot != null, "Cannot find snapshot associated with tag name: %s", tag);
+      return Pair.of(table, tagSnapshot.snapshotId());
     }
 
-    if (snapshotIdFromTimeTravel != -1L) {
-      return Pair.of(table, snapshotIdFromTimeTravel);
-    } else {
-      return Pair.of(table, null);
-    }
+    return Pair.of(table, null);
   }
 
   private Pair<String, List<String>> parseIdent(Identifier ident) {
