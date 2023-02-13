@@ -491,6 +491,7 @@ public class TestPartitionValues {
             .option(SparkReadOptions.VECTORIZATION_ENABLED, String.valueOf(vectorized))
             .load(baseLocation)
             .select("struct.innerName")
+            .orderBy("struct.innerName")
             .as(Encoders.STRING())
             .collectAsList();
 
