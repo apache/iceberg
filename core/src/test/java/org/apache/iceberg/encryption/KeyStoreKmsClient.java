@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.encryption.envelope;
+package org.apache.iceberg.encryption;
 
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
