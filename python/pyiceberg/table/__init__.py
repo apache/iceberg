@@ -195,9 +195,6 @@ class StaticTable(Table):
         )
 
 
-S = TypeVar("S", bound="TableScan", covariant=True)  # type: ignore
-
-
 def _parse_row_filter(expr: Union[str, BooleanExpression]) -> BooleanExpression:
     """Accepts an expression in the form of a BooleanExpression or a string
 
