@@ -27,13 +27,13 @@ subprojects {
   afterEvaluate {
 
     task sourceJar(type: Jar, dependsOn: classes) {
-      classifier = 'sources'
+      archiveClassifier.set('sources')
       from sourceSets.main.allSource
       group 'build'
     }
 
     task javadocJar(type: Jar, dependsOn: javadoc) {
-      classifier = 'javadoc'
+      archiveClassifier.set('javadoc')
       from javadoc.destinationDir
       group 'build'
     }
