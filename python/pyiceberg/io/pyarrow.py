@@ -420,11 +420,11 @@ class _ConvertToArrowExpression(BoundBooleanExpressionVisitor[pc.Expression]):
 
     def visit_is_nan(self, term: BoundTerm[Any]) -> pc.Expression:
         ref = pc.field(term.ref().field.name)
-        return ref.is_null(nan_is_null=True) & ref.is_valid()
+        return ref.is_null(nan_is_null=True) & ~ref.is_null()
 
     def visit_not_nan(self, term: BoundTerm[Any]) -> pc.Expression:
         ref = pc.field(term.ref().field.name)
-        return ref != float('NaN')
+        return ref != float("NaN")
 
     def visit_is_null(self, term: BoundTerm[Any]) -> pc.Expression:
         return pc.field(term.ref().field.name).is_null(nan_is_null=False)

@@ -22,20 +22,27 @@ spark = SparkSession.builder.getOrCreate()
 
 print("Create database")
 
-spark.sql("""
+spark.sql(
+    """
   CREATE DATABASE IF NOT EXISTS default;
-""")
+"""
+)
 
-spark.sql("""
+spark.sql(
+    """
   use default;
-""")
+"""
+)
 
-spark.sql("""
+spark.sql(
+    """
   DROP TABLE IF EXISTS test_null_nan;
-""")
+"""
+)
 
-spark.sql("""
-  CREATE TABLE test_null_nan 
+spark.sql(
+    """
+  CREATE TABLE test_null_nan
   USING iceberg
   AS SELECT
     1            AS idx,
@@ -46,14 +53,26 @@ UNION ALL SELECT
 UNION ALL SELECT
     3            AS idx,
     1            AS col_numeric
-""")
+"""
+)
 
-spark.sql("""
+spark.sql(
+    """
+  CREATE TABLE test_null_nan_rewritten
+  USING iceberg
+  AS SELECT * FROM test_null_nan
+"""
+)
+
+spark.sql(
+    """
   DROP TABLE IF EXISTS test_deletes;
-""")
+"""
+)
 
-spark.sql("""
-  CREATE TABLE test_deletes 
+spark.sql(
+    """
+  CREATE TABLE test_deletes
   USING iceberg
   TBLPROPERTIES (
     'write.delete.mode'='merge-on-read',
@@ -66,11 +85,14 @@ spark.sql("""
 UNION ALL SELECT
     2       AS idx,
     False   AS deleted;
-""")
+"""
+)
 
-spark.sql("""
+spark.sql(
+    """
   DELETE FROM test_deletes WHERE deleted = True;
-""")
+"""
+)
 
 while True:
     time.sleep(1)
