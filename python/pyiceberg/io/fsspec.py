@@ -16,6 +16,7 @@
 # under the License.
 """FileIO implementation for reading and writing table files that uses fsspec compatible filesystems."""
 import errno
+import json
 import logging
 import os
 from functools import lru_cache, partial
@@ -124,6 +125,24 @@ def _s3(properties: Properties) -> AbstractFileSystem:
     return fs
 
 
+def _gs(properties: Properties) -> AbstractFileSystem:
+    from gcsfs import GCSFileSystem
+
+    fs_kwargs = {
+        "project": properties.get("gs.project"),
+        "access": properties.get("gs.access", "full_control"),
+        "token": properties.get("gs.token"),
+        "consistency": properties.get("gs.consistency"),
+        "cache_timeout": properties.get("gs.cache-timeout"),
+        "requester_pays": properties.get("gs.requester-pays"),
+        "session_kwargs": json.loads(properties.get("gs.session-kwargs", "{}")),
+        "endpoint_url": properties.get("gs.endpoint-url"),
+        "default_location": properties.get("gs.default-location"),
+        "version_aware": json.loads(properties.get("gs.version-aware", "false").lower()),
+    }
+    return GCSFileSystem(**fs_kwargs)
+
+
 def _adlfs(properties: Properties) -> AbstractFileSystem:
     from adlfs import AzureBlobFileSystem
 
@@ -145,6 +164,8 @@ SCHEME_TO_FS = {
     "s3n": _s3,
     "abfs": _adlfs,
     "abfss": _adlfs,
+    "gs": _gs,
+    "gcs": _gs,
 }
 
 

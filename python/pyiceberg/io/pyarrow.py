@@ -57,6 +57,7 @@ from pyarrow.fs import (
     FileSystem,
     FileType,
     FSSpecHandler,
+    GcsFileSystem,
     HadoopFileSystem,
     LocalFileSystem,
     PyFileSystem,
@@ -313,6 +314,15 @@ class PyArrowFileIO(FileIO):
                 "kerb_ticket": self.properties.get(HDFS_KERB_TICKET),
             }
             return HadoopFileSystem(**client_kwargs)
+        elif scheme in {"gs", "gcs"}:
+            if access_token := self.properties.get("gs.access-token"):
+                client_kwargs = {
+                    "access_token": access_token,
+                    "credential_token_expiration": self.properties.get("gs.credential-token-expiration"),
+                }
+                return GcsFileSystem(**client_kwargs)
+            else:
+                return GcsFileSystem()
         elif scheme == "file":
             return LocalFileSystem()
         else:
