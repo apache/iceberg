@@ -204,16 +204,6 @@ class IcebergToGlueConverter {
   }
 
   /**
-   * Validate Iceberg TableIdentifier is valid in Glue
-   *
-   * @param tableIdentifier Iceberg table identifier
-   */
-  static void validateTableIdentifier(TableIdentifier tableIdentifier) {
-    validateNamespace(tableIdentifier.namespace());
-    validateTableName(tableIdentifier.name());
-  }
-
-  /**
    * Set Glue table input information based on Iceberg table metadata.
    *
    * <p>A best-effort conversion of Iceberg metadata to Glue table is performed to display Iceberg

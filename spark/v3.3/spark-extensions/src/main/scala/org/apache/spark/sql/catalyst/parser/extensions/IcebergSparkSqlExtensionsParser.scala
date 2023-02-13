@@ -210,7 +210,11 @@ class IcebergSparkSqlExtensionsParser(delegate: ParserInterface) extends ParserI
   }
 
   private def isSnapshotRefDdl(normalized: String): Boolean = {
-    normalized.contains("create branch") || normalized.contains("replace branch")
+    normalized.contains("create branch") ||
+      normalized.contains("replace branch") ||
+      normalized.contains("create tag") ||
+      normalized.contains("replace tag") ||
+      normalized.contains("drop branch")
   }
 
   protected def parse[T](command: String)(toResult: IcebergSqlExtensionsParser => T): T = {
