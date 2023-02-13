@@ -30,8 +30,8 @@ from typing import (
     List,
     Optional,
     Tuple,
-    Union,
     TypeVar,
+    Union,
 )
 
 from pydantic import Field
@@ -187,7 +187,7 @@ def _parse_row_filter(expr: Union[str, BooleanExpression]) -> BooleanExpression:
 
 
 
-S = TypeVar("S", bound="TableScan", covariant=True)  # type: ignore
+S = TypeVar("S", bound="TableScan", covariant=True)
 
 
 class TableScan(ABC):
