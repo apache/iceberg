@@ -186,7 +186,6 @@ def _parse_row_filter(expr: Union[str, BooleanExpression]) -> BooleanExpression:
     return parser.parse(expr) if isinstance(expr, str) else expr
 
 
-
 S = TypeVar("S", bound="TableScan", covariant=True)
 
 
