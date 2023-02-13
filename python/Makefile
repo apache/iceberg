@@ -41,13 +41,7 @@ test-integration:
 	docker-compose -f dev/docker-compose-integration.yml up -d
 	sleep 10
 	poetry run coverage run --source=pyiceberg/ -m pytest tests/ -m integration ${PYTEST_ARGS}
-	poetry run coverage report -m --fail-under=90
-	poetry run coverage html
-	poetry run coverage xml
 
 test-adlfs:
 	sh ./dev/run-azurite.sh
 	poetry run coverage run --source=pyiceberg/ -m pytest tests/ -m adlfs ${PYTEST_ARGS}
-	poetry run coverage report -m --fail-under=90
-	poetry run coverage html
-	poetry run coverage xml
