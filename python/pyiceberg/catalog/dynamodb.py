@@ -380,6 +380,10 @@ class DynamoDbCatalog(Catalog):
         if namespace:
             raise ValidationError("This API is not supported for hierarchical namespaces.")
 
+        # Hierarchical namespace is nto supported. Return an empty list
+        if namespace:
+            return []
+
         paginator = self.dynamodb.get_paginator("query")
 
         try:
