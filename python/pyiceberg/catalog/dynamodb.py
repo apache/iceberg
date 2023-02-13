@@ -202,7 +202,8 @@ class DynamoDbCatalog(Catalog):
 
         try:
             self._delete_dynamo_item(
-                namespace= database_name, identifier=f"{database_name}.{table_name}",
+                namespace=database_name,
+                identifier=f"{database_name}.{table_name}",
                 condition_expression=f"attribute_exists({DYNAMODB_COL_IDENTIFIER})",
             )
         except ConditionalCheckFailedException as e:
@@ -266,8 +267,9 @@ class DynamoDbCatalog(Catalog):
                 self.drop_table(to_identifier)
                 log_message += f"Rolled back table creation for {to_database_name}.{to_table_name}."
             except (NoSuchTableError, GenericDynamoDbError):
-                log_message += f"Failed to roll back table creation for {to_database_name}.{to_table_name}. " \
-                               f"Please clean up manually"
+                log_message += (
+                    f"Failed to roll back table creation for {to_database_name}.{to_table_name}. " f"Please clean up manually"
+                )
 
             raise ValueError(log_message) from e
 
@@ -314,7 +316,8 @@ class DynamoDbCatalog(Catalog):
 
         try:
             self._delete_dynamo_item(
-                namespace=database_name, identifier=DYNAMODB_NAMESPACE,
+                namespace=database_name,
+                identifier=DYNAMODB_NAMESPACE,
                 condition_expression=f"attribute_exists({DYNAMODB_COL_IDENTIFIER})",
             )
         except ConditionalCheckFailedException as e:
@@ -345,7 +348,12 @@ class DynamoDbCatalog(Catalog):
                     }
                 },
             )
-        except self._get_ddb_query_paginate_exceptions() as e:
+        except (
+            self.dynamodb.exceptions.ProvisionedThroughputExceededException,
+            self.dynamodb.exceptions.RequestLimitExceeded,
+            self.dynamodb.exceptions.InternalServerError,
+            self.dynamodb.exceptions.ResourceNotFoundException,
+        ) as e:
             raise GenericDynamoDbError(e.message) from e
 
         table_identifiers = []
@@ -385,7 +393,12 @@ class DynamoDbCatalog(Catalog):
                     }
                 },
             )
-        except self._get_ddb_query_paginate_exceptions() as e:
+        except (
+            self.dynamodb.exceptions.ProvisionedThroughputExceededException,
+            self.dynamodb.exceptions.RequestLimitExceeded,
+            self.dynamodb.exceptions.InternalServerError,
+            self.dynamodb.exceptions.ResourceNotFoundException,
+        ) as e:
             raise GenericDynamoDbError(e.message) from e
 
         database_identifiers = []
@@ -488,7 +501,11 @@ class DynamoDbCatalog(Catalog):
                 raise ValueError(f"Item not found. identifier: {identifier} - namespace: {namespace}")
         except self.dynamodb.exceptions.ResourceNotFoundException as e:
             raise ValueError(f"Item not found. identifier: {identifier} - namespace: {namespace}") from e
-        except self._get_ddb_shared_exceptions() as e:
+        except (
+            self.dynamodb.exceptions.ProvisionedThroughputExceededException,
+            self.dynamodb.exceptions.RequestLimitExceeded,
+            self.dynamodb.exceptions.InternalServerError,
+        ) as e:
             raise GenericDynamoDbError(e.message) from e
 
     def _put_dynamo_item(self, item: Dict[str, Any], condition_expression: str) -> None:
@@ -496,7 +513,14 @@ class DynamoDbCatalog(Catalog):
             self.dynamodb.put_item(TableName=self.dynamodb_table_name, Item=item, ConditionExpression=condition_expression)
         except self.dynamodb.exceptions.ConditionalCheckFailedException as e:
             raise ConditionalCheckFailedException(f"Condition expression check failed: {condition_expression} - {item}") from e
-        except self._get_ddb_put_and_delete_exceptions() as e:
+        except (
+            self.dynamodb.exceptions.ProvisionedThroughputExceededException,
+            self.dynamodb.exceptions.RequestLimitExceeded,
+            self.dynamodb.exceptions.InternalServerError,
+            self.dynamodb.exceptions.ResourceNotFoundException,
+            self.dynamodb.exceptions.ItemCollectionSizeLimitExceededException,
+            self.dynamodb.exceptions.TransactionConflictException,
+        ) as e:
             raise GenericDynamoDbError(e.message) from e
 
     def _delete_dynamo_item(self, namespace: str, identifier: str, condition_expression: str) -> None:
@@ -514,8 +538,17 @@ class DynamoDbCatalog(Catalog):
                 ConditionExpression=condition_expression,
             )
         except self.dynamodb.exceptions.ConditionalCheckFailedException as e:
-            raise ConditionalCheckFailedException(f"Condition expression check failed: {condition_expression} - {identifier}") from e
-        except self._get_ddb_put_and_delete_exceptions() as e:
+            raise ConditionalCheckFailedException(
+                f"Condition expression check failed: {condition_expression} - {identifier}"
+            ) from e
+        except (
+            self.dynamodb.exceptions.ProvisionedThroughputExceededException,
+            self.dynamodb.exceptions.RequestLimitExceeded,
+            self.dynamodb.exceptions.InternalServerError,
+            self.dynamodb.exceptions.ResourceNotFoundException,
+            self.dynamodb.exceptions.ItemCollectionSizeLimitExceededException,
+            self.dynamodb.exceptions.TransactionConflictException,
+        ) as e:
             raise GenericDynamoDbError(e.message) from e
 
     def _convert_dynamo_table_item_to_iceberg_table(self, dynamo_table_item: Dict[str, Any]) -> Table:
@@ -543,30 +576,14 @@ class DynamoDbCatalog(Catalog):
         file = io.new_input(metadata_location)
         metadata = FromInputFile.table_metadata(file)
         return Table(
-            identifier=(self.name, database_name, table_name),
+            identifier=(database_name, table_name),
             metadata=metadata,
             metadata_location=metadata_location,
             io=self._load_file_io(metadata.properties),
         )
 
-    def _get_ddb_shared_exceptions(self) -> List[Exception]:
-        return [self.dynamodb.exceptions.ProvisionedThroughputExceededException,
-                self.dynamodb.exceptions.RequestLimitExceeded,
-                self.dynamodb.exceptions.InternalServerError]
-
-    def _get_ddb_query_paginate_exceptions(self) -> List[Exception]:
-        return self._get_ddb_shared_exceptions() + [self.dynamodb.exceptions.ResourceNotFoundException]
-
-    def _get_ddb_put_and_delete_exceptions(self) -> List[Exception]:
-        return self._get_ddb_shared_exceptions() + [
-            self.dynamodb.exceptions.ResourceNotFoundException,
-            self.dynamodb.exceptions.ItemCollectionSizeLimitExceededException,
-            self.dynamodb.exceptions.TransactionConflictException
-        ]
-
 
 def _get_create_table_item(database_name: str, table_name: str, properties: Properties, metadata_location: str) -> Dict[str, Any]:
-
     current_timestamp_ms = str(round(time() * 1000))
     _dict = {
         DYNAMODB_COL_IDENTIFIER: {
@@ -644,7 +661,7 @@ def _get_update_database_item(namespace_item: Dict[str, Any], updated_properties
         DYNAMODB_COL_CREATED_AT: namespace_item[DYNAMODB_COL_CREATED_AT],
         DYNAMODB_COL_UPDATED_AT: {
             "N": current_timestamp_ms,
-        }
+        },
     }
 
     for key, val in updated_properties.items():
@@ -697,11 +714,7 @@ CREATE_CATALOG_GLOBAL_SECONDARY_INDEXES = [
 
 
 def _get_namespace_properties(namespace_dict: Dict[str, str]) -> Properties:
-    return {
-        _remove_property_prefix(key): val
-        for key, val in namespace_dict.items()
-        if key.startswith(PROPERTY_KEY_PREFIX)
-    }
+    return {_remove_property_prefix(key): val for key, val in namespace_dict.items() if key.startswith(PROPERTY_KEY_PREFIX)}
 
 
 def _convert_dynamo_item_to_regular_dict(dynamo_json: Dict[str, Any]) -> Dict[str, str]:

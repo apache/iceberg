@@ -15,8 +15,7 @@
 #  specific language governing permissions and limitations
 #  under the License.
 
-import os
-from typing import Generator, List, Optional
+from typing import Generator, List
 
 import boto3
 import pytest
@@ -32,49 +31,15 @@ from pyiceberg.exceptions import (
     TableAlreadyExistsError,
 )
 from pyiceberg.schema import Schema
+from tests.conftest import clean_up, get_bucket_name, get_s3_path
 
 # The number of tables/databases used in list_table/namespace test
 LIST_TEST_NUMBER = 2
 
 
-def get_bucket_name() -> str:
-    """
-    Set the environment variable AWS_TEST_BUCKET for a default bucket to test
-    """
-    bucket_name = os.getenv("AWS_TEST_BUCKET")
-    if bucket_name is None:
-        raise ValueError("Please specify a bucket to run the test by setting environment variable AWS_TEST_BUCKET")
-    return bucket_name
-
-
-def get_s3_path(bucket_name: str, database_name: Optional[str] = None, table_name: Optional[str] = None) -> str:
-    result_path = f"s3://{bucket_name}"
-    if database_name is not None:
-        result_path += f"/{database_name}.db"
-
-    if table_name is not None:
-        result_path += f"/{table_name}"
-    return result_path
-
-
-@pytest.fixture(name="s3", scope="module")
-def fixture_s3_client() -> boto3.client:
-    yield boto3.client("s3")
-
-
 @pytest.fixture(name="glue", scope="module")
 def fixture_glue_client() -> boto3.client:
     yield boto3.client("glue")
-
-
-def clean_up(test_catalog: Catalog) -> None:
-    """Clean all databases and tables created during the integration test"""
-    for database_tuple in test_catalog.list_namespaces():
-        database_name = database_tuple[0]
-        if "my_iceberg_database-" in database_name:
-            for identifier in test_catalog.list_tables(database_name):
-                test_catalog.purge_table(identifier)
-            test_catalog.drop_namespace(database_name)
 
 
 @pytest.fixture(name="test_catalog", scope="module")

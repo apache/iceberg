@@ -528,7 +528,6 @@ class Catalog(ABC):
     def _get_updated_props_and_update_summary(
         self, current_properties: Properties, removals: Optional[Set[str]], updates: Properties
     ) -> Tuple[PropertiesUpdateSummary, Properties]:
-
         self._check_for_overlap(updates=updates, removals=removals)
         updated_properties = dict(current_properties)
 

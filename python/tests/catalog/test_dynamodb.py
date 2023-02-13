@@ -14,6 +14,7 @@
 #  KIND, either express or implied.  See the License for the
 #  specific language governing permissions and limitations
 #  under the License.
+from typing import List
 
 import pytest
 from moto import mock_dynamodb
@@ -37,36 +38,25 @@ from pyiceberg.exceptions import (
     TableAlreadyExistsError,
 )
 from pyiceberg.schema import Schema
-from tests.conftest import (
-    BUCKET_NAME,
-    LIST_TEST_NUMBER,
-    TABLE_METADATA_LOCATION_REGEX,
-    get_random_database_name,
-    get_random_databases,
-    get_random_table_name,
-    get_random_tables,
-)
+from tests.conftest import BUCKET_NAME, TABLE_METADATA_LOCATION_REGEX
 
 
 @mock_dynamodb
 def test_create_dynamodb_catalog_with_table_name(_dynamodb, _bucket_initialize: None, _patch_aiobotocore: None) -> None:  # type: ignore
-
     DynamoDbCatalog("test_ddb_catalog")
     response = _dynamodb.describe_table(TableName=DYNAMODB_TABLE_NAME_DEFAULT)
     assert response["Table"]["TableName"] == DYNAMODB_TABLE_NAME_DEFAULT
 
     custom_table_name = "custom_table_name"
-    DynamoDbCatalog("test_ddb_catalog", dynamodb_table_name=custom_table_name)
+    DynamoDbCatalog("test_ddb_catalog", **{"table-name": custom_table_name})
     response = _dynamodb.describe_table(TableName=custom_table_name)
     assert response["Table"]["TableName"] == custom_table_name
 
 
 @mock_dynamodb
 def test_create_table_with_database_location(
-    _bucket_initialize: None, _patch_aiobotocore: None, table_schema_nested: Schema
+    _bucket_initialize: None, _patch_aiobotocore: None, table_schema_nested: Schema, database_name: str, table_name: str
 ) -> None:
-    database_name = get_random_database_name()
-    table_name = get_random_table_name()
     identifier = (database_name, table_name)
     test_catalog = DynamoDbCatalog("test_ddb_catalog")
     test_catalog.create_namespace(namespace=database_name, properties={"location": f"s3://{BUCKET_NAME}/{database_name}.db"})
@@ -77,10 +67,8 @@ def test_create_table_with_database_location(
 
 @mock_dynamodb
 def test_create_table_with_default_warehouse(
-    _bucket_initialize: None, _patch_aiobotocore: None, table_schema_nested: Schema
+    _bucket_initialize: None, _patch_aiobotocore: None, table_schema_nested: Schema, database_name: str, table_name: str
 ) -> None:
-    database_name = get_random_database_name()
-    table_name = get_random_table_name()
     identifier = (database_name, table_name)
     test_catalog = DynamoDbCatalog("test_ddb_catalog", warehouse=f"s3://{BUCKET_NAME}")
     test_catalog.create_namespace(namespace=database_name)
@@ -91,10 +79,8 @@ def test_create_table_with_default_warehouse(
 
 @mock_dynamodb
 def test_create_table_with_given_location(
-    _bucket_initialize: None, _patch_aiobotocore: None, table_schema_nested: Schema
+    _bucket_initialize: None, _patch_aiobotocore: None, table_schema_nested: Schema, database_name: str, table_name: str
 ) -> None:
-    database_name = get_random_database_name()
-    table_name = get_random_table_name()
     identifier = (database_name, table_name)
     test_catalog = DynamoDbCatalog("test_ddb_catalog")
     test_catalog.create_namespace(namespace=database_name)
@@ -106,9 +92,9 @@ def test_create_table_with_given_location(
 
 
 @mock_dynamodb
-def test_create_table_with_no_location(_bucket_initialize: None, _patch_aiobotocore: None, table_schema_nested: Schema) -> None:
-    database_name = get_random_database_name()
-    table_name = get_random_table_name()
+def test_create_table_with_no_location(
+    _bucket_initialize: None, _patch_aiobotocore: None, table_schema_nested: Schema, database_name: str, table_name: str
+) -> None:
     identifier = (database_name, table_name)
     test_catalog = DynamoDbCatalog("test_ddb_catalog")
     test_catalog.create_namespace(namespace=database_name)
@@ -117,29 +103,33 @@ def test_create_table_with_no_location(_bucket_initialize: None, _patch_aiobotoc
 
 
 @mock_dynamodb
-def test_create_table_with_strips(_bucket_initialize: None, _patch_aiobotocore: None, table_schema_nested: Schema) -> None:
-    database_name = get_random_database_name()
-    table_name = get_random_table_name()
+def test_create_table_with_strips(
+    _bucket_initialize: None, _patch_aiobotocore: None, table_schema_nested: Schema, database_name: str, table_name: str
+) -> None:
     identifier = (database_name, table_name)
     test_catalog = DynamoDbCatalog("test_ddb_catalog")
     test_catalog.create_namespace(namespace=database_name, properties={"location": f"s3://{BUCKET_NAME}/{database_name}.db/"})
     table = test_catalog.create_table(identifier, table_schema_nested)
     assert table.identifier == identifier
     assert TABLE_METADATA_LOCATION_REGEX.match(table.metadata_location)
-    database_name = get_random_database_name()
-    table_name = get_random_table_name()
+
+
+@mock_dynamodb
+def test_create_table_with_strips_bucket_root(
+    _bucket_initialize: None, _patch_aiobotocore: None, table_schema_nested: Schema, database_name: str, table_name: str
+) -> None:
     identifier = (database_name, table_name)
-    test_catalog_strip = DynamoDbCatalog("test_ddb_catalog", warehouse=f"s3://{BUCKET_NAME}/")
-    test_catalog_strip.create_namespace(namespace=database_name)
-    table_strip = test_catalog_strip.create_table(identifier, table_schema_nested)
+    test_catalog = DynamoDbCatalog("test_ddb_catalog", warehouse=f"s3://{BUCKET_NAME}/")
+    test_catalog.create_namespace(namespace=database_name)
+    table_strip = test_catalog.create_table(identifier, table_schema_nested)
     assert table_strip.identifier == identifier
     assert TABLE_METADATA_LOCATION_REGEX.match(table_strip.metadata_location)
 
 
 @mock_dynamodb
-def test_create_table_with_no_database(_bucket_initialize: None, _patch_aiobotocore: None, table_schema_nested: Schema) -> None:
-    database_name = get_random_database_name()
-    table_name = get_random_table_name()
+def test_create_table_with_no_database(
+    _bucket_initialize: None, _patch_aiobotocore: None, table_schema_nested: Schema, database_name: str, table_name: str
+) -> None:
     identifier = (database_name, table_name)
     test_catalog = DynamoDbCatalog("test_ddb_catalog")
     with pytest.raises(NoSuchNamespaceError):
@@ -147,9 +137,9 @@ def test_create_table_with_no_database(_bucket_initialize: None, _patch_aiobotoc
 
 
 @mock_dynamodb
-def test_create_duplicated_table(_bucket_initialize: None, _patch_aiobotocore: None, table_schema_nested: Schema) -> None:
-    database_name = get_random_database_name()
-    table_name = get_random_table_name()
+def test_create_duplicated_table(
+    _bucket_initialize: None, _patch_aiobotocore: None, table_schema_nested: Schema, database_name: str, table_name: str
+) -> None:
     identifier = (database_name, table_name)
     test_catalog = DynamoDbCatalog("test_ddb_catalog", warehouse=f"s3://{BUCKET_NAME}")
     test_catalog.create_namespace(namespace=database_name)
@@ -159,9 +149,9 @@ def test_create_duplicated_table(_bucket_initialize: None, _patch_aiobotocore: N
 
 
 @mock_dynamodb
-def test_load_table(_bucket_initialize: None, _patch_aiobotocore: None, table_schema_nested: Schema) -> None:
-    database_name = get_random_database_name()
-    table_name = get_random_table_name()
+def test_load_table(
+    _bucket_initialize: None, _patch_aiobotocore: None, table_schema_nested: Schema, database_name: str, table_name: str
+) -> None:
     identifier = (database_name, table_name)
     test_catalog = DynamoDbCatalog("test_ddb_catalog", warehouse=f"s3://{BUCKET_NAME}")
     test_catalog.create_namespace(namespace=database_name)
@@ -172,9 +162,7 @@ def test_load_table(_bucket_initialize: None, _patch_aiobotocore: None, table_sc
 
 
 @mock_dynamodb
-def test_load_non_exist_table(_bucket_initialize: None, _patch_aiobotocore: None) -> None:
-    database_name = get_random_database_name()
-    table_name = get_random_table_name()
+def test_load_non_exist_table(_bucket_initialize: None, _patch_aiobotocore: None, database_name: str, table_name: str) -> None:
     identifier = (database_name, table_name)
     test_catalog = DynamoDbCatalog("test_ddb_catalog", warehouse=f"s3://{BUCKET_NAME}")
     test_catalog.create_namespace(namespace=database_name)
@@ -183,9 +171,9 @@ def test_load_non_exist_table(_bucket_initialize: None, _patch_aiobotocore: None
 
 
 @mock_dynamodb
-def test_drop_table(_bucket_initialize: None, _patch_aiobotocore: None, table_schema_nested: Schema) -> None:
-    database_name = get_random_database_name()
-    table_name = get_random_table_name()
+def test_drop_table(
+    _bucket_initialize: None, _patch_aiobotocore: None, table_schema_nested: Schema, database_name: str, table_name: str
+) -> None:
     identifier = (database_name, table_name)
     test_catalog = DynamoDbCatalog("test_ddb_catalog", warehouse=f"s3://{BUCKET_NAME}")
     test_catalog.create_namespace(namespace=database_name)
@@ -199,9 +187,7 @@ def test_drop_table(_bucket_initialize: None, _patch_aiobotocore: None, table_sc
 
 
 @mock_dynamodb
-def test_drop_non_exist_table(_bucket_initialize: None, _patch_aiobotocore: None) -> None:
-    database_name = get_random_database_name()
-    table_name = get_random_table_name()
+def test_drop_non_exist_table(_bucket_initialize: None, _patch_aiobotocore: None, database_name: str, table_name: str) -> None:
     identifier = (database_name, table_name)
     test_catalog = DynamoDbCatalog("test_ddb_catalog", warehouse=f"s3://{BUCKET_NAME}")
     with pytest.raises(NoSuchTableError):
@@ -209,10 +195,10 @@ def test_drop_non_exist_table(_bucket_initialize: None, _patch_aiobotocore: None
 
 
 @mock_dynamodb
-def test_rename_table(_bucket_initialize: None, _patch_aiobotocore: None, table_schema_nested: Schema) -> None:
-    database_name = get_random_database_name()
-    table_name = get_random_table_name()
-    new_table_name = get_random_table_name()
+def test_rename_table(
+    _bucket_initialize: None, _patch_aiobotocore: None, table_schema_nested: Schema, database_name: str, table_name: str
+) -> None:
+    new_table_name = f"{table_name}_new"
     identifier = (database_name, table_name)
     new_identifier = (database_name, new_table_name)
     test_catalog = DynamoDbCatalog("test_ddb_catalog", warehouse=f"s3://{BUCKET_NAME}")
@@ -231,11 +217,11 @@ def test_rename_table(_bucket_initialize: None, _patch_aiobotocore: None, table_
 
 
 @mock_dynamodb
-def test_fail_on_rename_table_with_missing_required_params(_bucket_initialize: None, _patch_aiobotocore: None) -> None:
-    database_name = get_random_database_name()
-    new_database_name = get_random_database_name()
-    table_name = get_random_table_name()
-    new_table_name = get_random_table_name()
+def test_fail_on_rename_table_with_missing_required_params(
+    _bucket_initialize: None, _patch_aiobotocore: None, database_name: str, table_name: str
+) -> None:
+    new_database_name = f"{database_name}_new"
+    new_table_name = f"{table_name}_new"
     identifier = (database_name, table_name)
     new_identifier = (new_database_name, new_table_name)
     test_catalog = DynamoDbCatalog("test_ddb_catalog", warehouse=f"s3://{BUCKET_NAME}")
@@ -257,11 +243,9 @@ def test_fail_on_rename_table_with_missing_required_params(_bucket_initialize: N
 
 
 @mock_dynamodb
-def test_fail_on_rename_non_iceberg_table(_dynamodb, _bucket_initialize: None, _patch_aiobotocore: None) -> None:  # type: ignore
-    database_name = get_random_database_name()
-    new_database_name = get_random_database_name()
-    table_name = get_random_table_name()
-    new_table_name = get_random_table_name()
+def test_fail_on_rename_non_iceberg_table(_dynamodb, _bucket_initialize: None, _patch_aiobotocore: None, database_name: str, table_name: str) -> None:  # type: ignore
+    new_database_name = f"{database_name}_new"
+    new_table_name = f"{table_name}_new"
     identifier = (database_name, table_name)
     new_identifier = (new_database_name, new_table_name)
     test_catalog = DynamoDbCatalog("test_ddb_catalog", warehouse=f"s3://{BUCKET_NAME}")
@@ -286,9 +270,9 @@ def test_fail_on_rename_non_iceberg_table(_dynamodb, _bucket_initialize: None, _
 
 
 @mock_dynamodb
-def test_list_tables(_bucket_initialize: None, _patch_aiobotocore: None, table_schema_nested: Schema) -> None:
-    database_name = get_random_database_name()
-    table_list = get_random_tables(LIST_TEST_NUMBER)
+def test_list_tables(
+    _bucket_initialize: None, _patch_aiobotocore: None, table_schema_nested: Schema, database_name: str, table_list: List[str]
+) -> None:
     test_catalog = DynamoDbCatalog("test_ddb_catalog", warehouse=f"s3://{BUCKET_NAME}")
     test_catalog.create_namespace(namespace=database_name)
     for table_name in table_list:
@@ -299,8 +283,7 @@ def test_list_tables(_bucket_initialize: None, _patch_aiobotocore: None, table_s
 
 
 @mock_dynamodb
-def test_list_namespaces(_bucket_initialize: None, _patch_aiobotocore: None) -> None:
-    database_list = get_random_databases(LIST_TEST_NUMBER)
+def test_list_namespaces(_bucket_initialize: None, _patch_aiobotocore: None, database_list: List[str]) -> None:
     test_catalog = DynamoDbCatalog("test_ddb_catalog")
     for database_name in database_list:
         test_catalog.create_namespace(namespace=database_name)
@@ -310,8 +293,7 @@ def test_list_namespaces(_bucket_initialize: None, _patch_aiobotocore: None) -> 
 
 
 @mock_dynamodb
-def test_create_namespace_no_properties(_bucket_initialize: None, _patch_aiobotocore: None) -> None:
-    database_name = get_random_database_name()
+def test_create_namespace_no_properties(_bucket_initialize: None, _patch_aiobotocore: None, database_name: str) -> None:
     test_catalog = DynamoDbCatalog("test_ddb_catalog")
     test_catalog.create_namespace(namespace=database_name)
     loaded_database_list = test_catalog.list_namespaces()
@@ -322,8 +304,9 @@ def test_create_namespace_no_properties(_bucket_initialize: None, _patch_aioboto
 
 
 @mock_dynamodb
-def test_create_namespace_with_comment_and_location(_bucket_initialize: None, _patch_aiobotocore: None) -> None:
-    database_name = get_random_database_name()
+def test_create_namespace_with_comment_and_location(
+    _bucket_initialize: None, _patch_aiobotocore: None, database_name: str
+) -> None:
     test_location = f"s3://{BUCKET_NAME}/{database_name}.db"
     test_properties = {
         "comment": "this is a test description",
@@ -340,8 +323,7 @@ def test_create_namespace_with_comment_and_location(_bucket_initialize: None, _p
 
 
 @mock_dynamodb
-def test_create_duplicated_namespace(_bucket_initialize: None, _patch_aiobotocore: None) -> None:
-    database_name = get_random_database_name()
+def test_create_duplicated_namespace(_bucket_initialize: None, _patch_aiobotocore: None, database_name: str) -> None:
     test_catalog = DynamoDbCatalog("test_ddb_catalog")
     test_catalog.create_namespace(namespace=database_name)
     loaded_database_list = test_catalog.list_namespaces()
@@ -352,8 +334,7 @@ def test_create_duplicated_namespace(_bucket_initialize: None, _patch_aiobotocor
 
 
 @mock_dynamodb
-def test_drop_namespace(_bucket_initialize: None, _patch_aiobotocore: None) -> None:
-    database_name = get_random_database_name()
+def test_drop_namespace(_bucket_initialize: None, _patch_aiobotocore: None, database_name: str) -> None:
     test_catalog = DynamoDbCatalog("test_ddb_catalog")
     test_catalog.create_namespace(namespace=database_name)
     loaded_database_list = test_catalog.list_namespaces()
@@ -365,9 +346,9 @@ def test_drop_namespace(_bucket_initialize: None, _patch_aiobotocore: None) -> N
 
 
 @mock_dynamodb
-def test_drop_non_empty_namespace(_bucket_initialize: None, _patch_aiobotocore: None, table_schema_nested: Schema) -> None:
-    database_name = get_random_database_name()
-    table_name = get_random_table_name()
+def test_drop_non_empty_namespace(
+    _bucket_initialize: None, _patch_aiobotocore: None, table_schema_nested: Schema, database_name: str, table_name: str
+) -> None:
     identifier = (database_name, table_name)
     test_catalog = DynamoDbCatalog("test_ddb_catalog", warehouse=f"s3://{BUCKET_NAME}")
     test_catalog.create_namespace(namespace=database_name)
@@ -378,16 +359,14 @@ def test_drop_non_empty_namespace(_bucket_initialize: None, _patch_aiobotocore: 
 
 
 @mock_dynamodb
-def test_drop_non_exist_namespace(_bucket_initialize: None, _patch_aiobotocore: None) -> None:
-    database_name = get_random_database_name()
+def test_drop_non_exist_namespace(_bucket_initialize: None, _patch_aiobotocore: None, database_name: str) -> None:
     test_catalog = DynamoDbCatalog("test_ddb_catalog")
     with pytest.raises(NoSuchNamespaceError):
         test_catalog.drop_namespace(database_name)
 
 
 @mock_dynamodb
-def test_load_namespace_properties(_bucket_initialize: None, _patch_aiobotocore: None) -> None:
-    database_name = get_random_database_name()
+def test_load_namespace_properties(_bucket_initialize: None, _patch_aiobotocore: None, database_name: str) -> None:
     test_location = f"s3://{BUCKET_NAME}/{database_name}.db"
     test_properties = {
         "comment": "this is a test description",
@@ -405,16 +384,14 @@ def test_load_namespace_properties(_bucket_initialize: None, _patch_aiobotocore:
 
 
 @mock_dynamodb
-def test_load_non_exist_namespace_properties(_bucket_initialize: None, _patch_aiobotocore: None) -> None:
-    database_name = get_random_database_name()
+def test_load_non_exist_namespace_properties(_bucket_initialize: None, _patch_aiobotocore: None, database_name: str) -> None:
     test_catalog = DynamoDbCatalog("test_ddb_catalog")
     with pytest.raises(NoSuchNamespaceError):
         test_catalog.load_namespace_properties(database_name)
 
 
 @mock_dynamodb
-def test_update_namespace_properties(_bucket_initialize: None, _patch_aiobotocore: None) -> None:
-    database_name = get_random_database_name()
+def test_update_namespace_properties(_bucket_initialize: None, _patch_aiobotocore: None, database_name: str) -> None:
     test_properties = {
         "comment": "this is a test description",
         "location": f"s3://{BUCKET_NAME}/{database_name}.db",
@@ -439,8 +416,7 @@ def test_update_namespace_properties(_bucket_initialize: None, _patch_aiobotocor
 
 
 @mock_dynamodb
-def test_load_empty_namespace_properties(_bucket_initialize: None, _patch_aiobotocore: None) -> None:
-    database_name = get_random_database_name()
+def test_load_empty_namespace_properties(_bucket_initialize: None, _patch_aiobotocore: None, database_name: str) -> None:
     test_catalog = DynamoDbCatalog("test_ddb_catalog")
     test_catalog.create_namespace(database_name)
     listed_properties = test_catalog.load_namespace_properties(database_name)
@@ -448,8 +424,9 @@ def test_load_empty_namespace_properties(_bucket_initialize: None, _patch_aiobot
 
 
 @mock_dynamodb
-def test_update_namespace_properties_overlap_update_removal(_bucket_initialize: None, _patch_aiobotocore: None) -> None:
-    database_name = get_random_database_name()
+def test_update_namespace_properties_overlap_update_removal(
+    _bucket_initialize: None, _patch_aiobotocore: None, database_name: str
+) -> None:
     test_properties = {
         "comment": "this is a test description",
         "location": f"s3://{BUCKET_NAME}/{database_name}.db",

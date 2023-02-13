@@ -15,8 +15,7 @@
 #  specific language governing permissions and limitations
 #  under the License.
 
-import os
-from typing import Generator, Optional
+from typing import Generator, List
 
 import boto3
 import pytest
@@ -33,57 +32,15 @@ from pyiceberg.exceptions import (
     ValidationError,
 )
 from pyiceberg.schema import Schema
-from tests.conftest import (
-    get_random_database_name,
-    get_random_databases,
-    get_random_table_name,
-    get_random_tables,
-)
+from tests.conftest import clean_up, get_bucket_name, get_s3_path
 
-# The number of random characters in generated table/database name
-RANDOM_LENGTH = 20
 # The number of tables/databases used in list_table/namespace test
 LIST_TEST_NUMBER = 2
-
-
-def get_bucket_name() -> str:
-    """
-    Set the environment variable AWS_TEST_BUCKET for a default bucket to test
-    """
-    bucket_name = os.getenv("AWS_TEST_BUCKET")
-    if bucket_name is None:
-        raise ValueError("Please specify a bucket to run the test by setting environment variable AWS_TEST_BUCKET")
-    return bucket_name
-
-
-def get_s3_path(bucket_name: str, database_name: Optional[str] = None, table_name: Optional[str] = None) -> str:
-    result_path = f"s3://{bucket_name}"
-    if database_name is not None:
-        result_path += f"/{database_name}.db"
-
-    if table_name is not None:
-        result_path += f"/{table_name}"
-    return result_path
-
-
-@pytest.fixture(name="s3", scope="module")
-def fixture_s3_client() -> boto3.client:
-    yield boto3.client("s3")
 
 
 @pytest.fixture(name="dynamodb", scope="module")
 def fixture_dynamodb_client() -> boto3.client:
     yield boto3.client("dynamodb")
-
-
-def clean_up(test_catalog: Catalog) -> None:
-    """Clean all databases and tables created during the integration test"""
-    for database_tuple in test_catalog.list_namespaces():
-        database_name = database_tuple[0]
-        if "my_iceberg_database-" in database_name:
-            for identifier in test_catalog.list_tables(database_name):
-                test_catalog.purge_table(identifier)
-            test_catalog.drop_namespace(database_name)
 
 
 @pytest.fixture(name="test_catalog", scope="module")
@@ -94,9 +51,9 @@ def fixture_test_catalog() -> Generator[Catalog, None, None]:
     clean_up(test_catalog)
 
 
-def test_create_table(test_catalog: Catalog, s3: boto3.client, table_schema_nested: Schema) -> None:
-    table_name = get_random_table_name()
-    database_name = get_random_database_name()
+def test_create_table(
+    test_catalog: Catalog, s3: boto3.client, table_schema_nested: Schema, database_name: str, table_name: str
+) -> None:
     identifier = (database_name, table_name)
     test_catalog.create_namespace(database_name)
     test_catalog.create_table(identifier, table_schema_nested, get_s3_path(get_bucket_name(), database_name, table_name))
@@ -106,9 +63,7 @@ def test_create_table(test_catalog: Catalog, s3: boto3.client, table_schema_nest
     s3.head_object(Bucket=get_bucket_name(), Key=metadata_location)
 
 
-def test_create_table_with_invalid_location(table_schema_nested: Schema) -> None:
-    table_name = get_random_table_name()
-    database_name = get_random_database_name()
+def test_create_table_with_invalid_location(table_schema_nested: Schema, database_name: str, table_name: str) -> None:
     identifier = (database_name, table_name)
     test_catalog_no_warehouse = DynamoDbCatalog("test_ddb_catalog")
     test_catalog_no_warehouse.create_namespace(database_name)
@@ -117,9 +72,9 @@ def test_create_table_with_invalid_location(table_schema_nested: Schema) -> None
     test_catalog_no_warehouse.drop_namespace(database_name)
 
 
-def test_create_table_with_default_location(test_catalog: Catalog, s3: boto3.client, table_schema_nested: Schema) -> None:
-    table_name = get_random_table_name()
-    database_name = get_random_database_name()
+def test_create_table_with_default_location(
+    test_catalog: Catalog, s3: boto3.client, table_schema_nested: Schema, database_name: str, table_name: str
+) -> None:
     identifier = (database_name, table_name)
     test_catalog.create_namespace(database_name)
     test_catalog.create_table(identifier, table_schema_nested)
@@ -129,25 +84,20 @@ def test_create_table_with_default_location(test_catalog: Catalog, s3: boto3.cli
     s3.head_object(Bucket=get_bucket_name(), Key=metadata_location)
 
 
-def test_create_table_with_invalid_database(test_catalog: Catalog, table_schema_nested: Schema) -> None:
-    table_name = get_random_table_name()
+def test_create_table_with_invalid_database(test_catalog: Catalog, table_schema_nested: Schema, table_name: str) -> None:
     identifier = ("invalid", table_name)
     with pytest.raises(NoSuchNamespaceError):
         test_catalog.create_table(identifier, table_schema_nested)
 
 
-def test_create_duplicated_table(test_catalog: Catalog, table_schema_nested: Schema) -> None:
-    table_name = get_random_table_name()
-    database_name = get_random_database_name()
+def test_create_duplicated_table(test_catalog: Catalog, table_schema_nested: Schema, database_name: str, table_name: str) -> None:
     test_catalog.create_namespace(database_name)
     test_catalog.create_table((database_name, table_name), table_schema_nested)
     with pytest.raises(TableAlreadyExistsError):
         test_catalog.create_table((database_name, table_name), table_schema_nested)
 
 
-def test_load_table(test_catalog: Catalog, table_schema_nested: Schema) -> None:
-    table_name = get_random_table_name()
-    database_name = get_random_database_name()
+def test_load_table(test_catalog: Catalog, table_schema_nested: Schema, database_name: str, table_name: str) -> None:
     identifier = (database_name, table_name)
     test_catalog.create_namespace(database_name)
     table = test_catalog.create_table(identifier, table_schema_nested)
@@ -157,22 +107,20 @@ def test_load_table(test_catalog: Catalog, table_schema_nested: Schema) -> None:
     assert table.metadata == loaded_table.metadata
 
 
-def test_list_tables(test_catalog: Catalog, table_schema_nested: Schema) -> None:
-    test_tables = get_random_tables(LIST_TEST_NUMBER)
-    database_name = get_random_database_name()
+def test_list_tables(test_catalog: Catalog, table_schema_nested: Schema, database_name: str, table_list: List[str]) -> None:
     test_catalog.create_namespace(database_name)
-    for table_name in test_tables:
+    for table_name in table_list:
         test_catalog.create_table((database_name, table_name), table_schema_nested)
     identifier_list = test_catalog.list_tables(database_name)
     assert len(identifier_list) == LIST_TEST_NUMBER
-    for table_name in test_tables:
+    for table_name in table_list:
         assert (database_name, table_name) in identifier_list
 
 
-def test_rename_table(test_catalog: Catalog, s3: boto3.client, table_schema_nested: Schema) -> None:
-    table_name = get_random_table_name()
-    database_name = get_random_database_name()
-    new_database_name = get_random_database_name()
+def test_rename_table(
+    test_catalog: Catalog, s3: boto3.client, table_schema_nested: Schema, table_name: str, database_name: str
+) -> None:
+    new_database_name = f"{database_name}_new"
     test_catalog.create_namespace(database_name)
     test_catalog.create_namespace(new_database_name)
     new_table_name = f"rename-{table_name}"
@@ -190,9 +138,7 @@ def test_rename_table(test_catalog: Catalog, s3: boto3.client, table_schema_nest
         test_catalog.load_table(identifier)
 
 
-def test_drop_table(test_catalog: Catalog, table_schema_nested: Schema) -> None:
-    table_name = get_random_table_name()
-    database_name = get_random_database_name()
+def test_drop_table(test_catalog: Catalog, table_schema_nested: Schema, table_name: str, database_name: str) -> None:
     identifier = (database_name, table_name)
     test_catalog.create_namespace(database_name)
     table = test_catalog.create_table(identifier, table_schema_nested)
@@ -202,9 +148,9 @@ def test_drop_table(test_catalog: Catalog, table_schema_nested: Schema) -> None:
         test_catalog.load_table(identifier)
 
 
-def test_purge_table(test_catalog: Catalog, s3: boto3.client, table_schema_nested: Schema) -> None:
-    table_name = get_random_table_name()
-    database_name = get_random_database_name()
+def test_purge_table(
+    test_catalog: Catalog, s3: boto3.client, table_schema_nested: Schema, table_name: str, database_name: str
+) -> None:
     identifier = (database_name, table_name)
     test_catalog.create_namespace(database_name)
     test_catalog.create_table(identifier, table_schema_nested)
@@ -219,21 +165,18 @@ def test_purge_table(test_catalog: Catalog, s3: boto3.client, table_schema_neste
         s3.head_object(Bucket=get_bucket_name(), Key=metadata_location)
 
 
-def test_create_namespace(test_catalog: Catalog) -> None:
-    database_name = get_random_database_name()
+def test_create_namespace(test_catalog: Catalog, database_name: str) -> None:
     test_catalog.create_namespace(database_name)
     assert (database_name,) in test_catalog.list_namespaces()
 
 
-def test_create_duplicate_namespace(test_catalog: Catalog) -> None:
-    database_name = get_random_database_name()
+def test_create_duplicate_namespace(test_catalog: Catalog, database_name: str) -> None:
     test_catalog.create_namespace(database_name)
     with pytest.raises(NamespaceAlreadyExistsError):
         test_catalog.create_namespace(database_name)
 
 
-def test_create_namespace_with_comment_and_location(test_catalog: Catalog) -> None:
-    database_name = get_random_database_name()
+def test_create_namespace_with_comment_and_location(test_catalog: Catalog, database_name: str) -> None:
     test_location = get_s3_path(get_bucket_name(), database_name)
     test_properties = {
         "comment": "this is a test description",
@@ -247,8 +190,7 @@ def test_create_namespace_with_comment_and_location(test_catalog: Catalog) -> No
     assert properties["location"] == test_location
 
 
-def test_list_namespaces(test_catalog: Catalog) -> None:
-    database_list = get_random_databases(LIST_TEST_NUMBER)
+def test_list_namespaces(test_catalog: Catalog, database_list: List[str]) -> None:
     for database_name in database_list:
         test_catalog.create_namespace(database_name)
     db_list = test_catalog.list_namespaces()
@@ -259,9 +201,7 @@ def test_list_namespaces(test_catalog: Catalog) -> None:
         test_catalog.list_namespaces(list(database_list)[0])
 
 
-def test_drop_namespace(test_catalog: Catalog, table_schema_nested: Schema) -> None:
-    table_name = get_random_table_name()
-    database_name = get_random_database_name()
+def test_drop_namespace(test_catalog: Catalog, table_schema_nested: Schema, table_name: str, database_name: str) -> None:
     test_catalog.create_namespace(database_name)
     assert (database_name,) in test_catalog.list_namespaces()
     test_catalog.create_table((database_name, table_name), table_schema_nested)
@@ -272,9 +212,8 @@ def test_drop_namespace(test_catalog: Catalog, table_schema_nested: Schema) -> N
     assert (database_name,) not in test_catalog.list_namespaces()
 
 
-def test_load_namespace_properties(test_catalog: Catalog) -> None:
+def test_load_namespace_properties(test_catalog: Catalog, database_name: str) -> None:
     warehouse_location = get_s3_path(get_bucket_name())
-    database_name = get_random_database_name()
     test_properties = {
         "comment": "this is a test description",
         "location": f"{warehouse_location}/{database_name}.db",
@@ -290,16 +229,14 @@ def test_load_namespace_properties(test_catalog: Catalog) -> None:
         assert v == test_properties[k]
 
 
-def test_load_empty_namespace_properties(test_catalog: Catalog) -> None:
-    database_name = get_random_database_name()
+def test_load_empty_namespace_properties(test_catalog: Catalog, database_name: str) -> None:
     test_catalog.create_namespace(database_name)
     listed_properties = test_catalog.load_namespace_properties(database_name)
     assert listed_properties == {}
 
 
-def test_update_namespace_properties(test_catalog: Catalog) -> None:
+def test_update_namespace_properties(test_catalog: Catalog, database_name: str) -> None:
     warehouse_location = get_s3_path(get_bucket_name())
-    database_name = get_random_database_name()
     test_properties = {
         "comment": "this is a test description",
         "location": f"{warehouse_location}/{database_name}.db",

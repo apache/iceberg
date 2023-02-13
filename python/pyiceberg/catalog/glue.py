@@ -302,15 +302,15 @@ class GlueCatalog(Catalog):
         try:
             self.drop_table(from_identifier)
         except Exception as e:
-
             log_message = f"Failed to drop old table {from_database_name}.{from_table_name}. "
 
             try:
                 self.drop_table(to_identifier)
                 log_message += f"Rolled back table creation for {to_database_name}.{to_table_name}."
-            except Exception:
-                log_message += f"Failed to roll back table creation for {to_database_name}.{to_table_name}. " \
-                               f"Please clean up manually"
+            except NoSuchTableError:
+                log_message += (
+                    f"Failed to roll back table creation for {to_database_name}.{to_table_name}. " f"Please clean up manually"
+                )
 
             raise ValueError(log_message) from e
 
