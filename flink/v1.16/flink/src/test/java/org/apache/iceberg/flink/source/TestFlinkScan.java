@@ -266,25 +266,33 @@ public abstract class TestFlinkScan {
 
     GenericAppenderHelper helper = new GenericAppenderHelper(table, fileFormat, TEMPORARY_FOLDER);
 
-    List<Record> expectedRecords1 = RandomGenericData.generate(TestFixtures.SCHEMA, 1, 0L);
-    helper.appendToTable(expectedRecords1);
+    List<Record> expectedRecordsBase = RandomGenericData.generate(TestFixtures.SCHEMA, 1, 0L);
+    helper.appendToTable(expectedRecordsBase);
     long snapshotId = table.currentSnapshot().snapshotId();
 
-    table.manageSnapshots().createBranch("b1", snapshotId).commit();
+    String branchName = "b1";
+    table.manageSnapshots().createBranch(branchName, snapshotId).commit();
 
-    List<Record> expectedRecords2 = RandomGenericData.generate(TestFixtures.SCHEMA, 1, 0L);
-    helper.appendToTable(expectedRecords2);
+    List<Record> expectedRecordsForBranch = RandomGenericData.generate(TestFixtures.SCHEMA, 1, 0L);
+    helper.appendToTable(branchName, expectedRecordsForBranch);
+
+    List<Record> expectedRecordsForMain = RandomGenericData.generate(TestFixtures.SCHEMA, 1, 0L);
+    helper.appendToTable(expectedRecordsForMain);
+
+    List<Record> branchExpectedRecords = Lists.newArrayList();
+    branchExpectedRecords.addAll(expectedRecordsBase);
+    branchExpectedRecords.addAll(expectedRecordsForBranch);
 
     TestHelpers.assertRecords(
-        runWithOptions(ImmutableMap.of("branch", "b1")), expectedRecords1, TestFixtures.SCHEMA);
+        runWithOptions(ImmutableMap.of("branch", branchName)),
+        branchExpectedRecords,
+        TestFixtures.SCHEMA);
 
-    table.manageSnapshots().fastForwardBranch("b1", "main").commit();
+    List<Record> mainExpectedRecords = Lists.newArrayList();
+    mainExpectedRecords.addAll(expectedRecordsBase);
+    mainExpectedRecords.addAll(expectedRecordsForMain);
 
-    List<Record> expectedRecords = Lists.newArrayList();
-    expectedRecords.addAll(expectedRecords1);
-    expectedRecords.addAll(expectedRecords2);
-    TestHelpers.assertRecords(
-        runWithOptions(ImmutableMap.of("branch", "b1")), expectedRecords, TestFixtures.SCHEMA);
+    TestHelpers.assertRecords(run(), mainExpectedRecords, TestFixtures.SCHEMA);
   }
 
   @Test

@@ -87,7 +87,11 @@ public class FlinkSplitPlanner {
       IncrementalAppendScan scan = table.newIncrementalAppendScan();
       scan = refineScanWithBaseConfigs(scan, context, workerPool);
 
-      if (context.startTag() != null && table.snapshot(context.startTag()) != null) {
+      if (context.startTag() != null) {
+        Preconditions.checkArgument(
+            table.snapshot(context.startTag()) != null,
+            "Cannot find snapshot with tag %s",
+            context.startTag());
         scan = scan.fromSnapshotExclusive(table.snapshot(context.startTag()).snapshotId());
       }
 
@@ -97,7 +101,11 @@ public class FlinkSplitPlanner {
         scan = scan.fromSnapshotExclusive(context.startSnapshotId());
       }
 
-      if (context.endTag() != null && table.snapshot(context.endTag()) != null) {
+      if (context.endTag() != null) {
+        Preconditions.checkArgument(
+            table.snapshot(context.endTag()) != null,
+            "Cannot find snapshot with tag %s",
+            context.endTag());
         scan = scan.toSnapshot(table.snapshot(context.endTag()).snapshotId());
       }
 

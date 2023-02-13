@@ -253,7 +253,7 @@ public class TestStreamScanSql extends FlinkCatalogTestBase {
                 + "'start-snapshot-id'='%d')*/",
             TABLE, startSnapshotId);
     try (CloseableIterator<Row> iterator = result.collect()) {
-      // The row2 in start snapshot will be excluded.
+      // the start snapshot(row2) is exclusive.
       assertRows(ImmutableList.of(row3, row4), iterator);
 
       Row row5 = Row.of(5, "eee", "2021-01-01");
@@ -293,7 +293,7 @@ public class TestStreamScanSql extends FlinkCatalogTestBase {
                 + "'start-tag'='%s')*/",
             TABLE, tagName);
     try (CloseableIterator<Row> iterator = result.collect()) {
-      // The row2 in start snapshot will be excluded.
+      // the start snapshot(row2) is exclusive.
       assertRows(ImmutableList.of(row3, row4), iterator);
 
       Row row5 = Row.of(5, "eee", "2021-01-01");
