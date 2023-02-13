@@ -24,7 +24,7 @@ import java.nio.ByteBuffer;
 import java.util.Map;
 
 /** A minimum client interface to connect to a key management service (KMS). */
-interface KmsClient extends Serializable, Closeable {
+interface KeyManagementClient extends Serializable, Closeable {
 
   /**
    * Wrap a secret key, using a wrapping/master key which is stored in KMS and referenced by an ID.

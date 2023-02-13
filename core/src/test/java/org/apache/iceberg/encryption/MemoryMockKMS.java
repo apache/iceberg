@@ -22,7 +22,7 @@ import java.nio.ByteBuffer;
 import java.util.Map;
 
 /** For testing and demonstrations; not for use in production. */
-public abstract class MemoryMockKMS implements KmsClient {
+public abstract class MemoryMockKMS implements KeyManagementClient {
 
   protected Map<String, byte[]> masterKeys;
 
