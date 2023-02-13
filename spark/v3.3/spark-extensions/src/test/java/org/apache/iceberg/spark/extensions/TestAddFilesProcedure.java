@@ -402,26 +402,22 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
     createPartitionedFileTable("parquet");
 
     String createIceberg =
-            "CREATE TABLE %s (id Integer, name String, dept String, subdept String) USING iceberg PARTITIONED BY (id)" +
-                    "TBLPROPERTIES ('%s'='true')";
+        "CREATE TABLE %s (id Integer, name String, dept String, subdept String) USING iceberg PARTITIONED BY (id)"
+            + "TBLPROPERTIES ('%s'='true')";
 
     sql(createIceberg, tableName, TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED);
 
     scalarSql(
-              "CALL %s.system.add_files('%s', '`parquet`.`%s`', map('id', 1))",
-              catalogName, tableName, fileTableDir.getAbsolutePath());
+        "CALL %s.system.add_files('%s', '`parquet`.`%s`', map('id', 1))",
+        catalogName, tableName, fileTableDir.getAbsolutePath());
 
     // verify manifest file name has uuid pattern
-    String manifestPath =
-            (String) sql(
-                    "select path from %s.manifests",
-                    tableName).get(0)[0];
+    String manifestPath = (String) sql("select path from %s.manifests", tableName).get(0)[0];
 
-    Pattern uuidPattern =
-            Pattern.compile("[a-f0-9]{8}(?:-[a-f0-9]{4}){4}[a-f0-9]{8}");
+    Pattern uuidPattern = Pattern.compile("[a-f0-9]{8}(?:-[a-f0-9]{4}){4}[a-f0-9]{8}");
 
     Matcher matcher = uuidPattern.matcher(manifestPath);
-    Assert.assertTrue("verify manifest path has uuid", matcher.find() );
+    Assert.assertTrue("verify manifest path has uuid", matcher.find());
   }
 
   @Test
