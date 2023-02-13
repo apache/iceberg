@@ -186,10 +186,8 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
         referencedDataFiles.addAll(Arrays.asList(taskCommit.referencedDataFiles()));
       }
 
-      // the scan may be null if the optimizer replaces it with an empty relation (e.g. the cond is
-      // false)
-      // no validation is needed in this case as the command does not depend on the scanned table
-      // state
+      // the scan may be null if the optimizer replaces it with an empty relation
+      // no validation is needed in this case as the command is independent of the table state
       if (scan != null) {
         Expression conflictDetectionFilter = conflictDetectionFilter(scan);
         rowDelta.conflictDetectionFilter(conflictDetectionFilter);

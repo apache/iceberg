@@ -19,20 +19,4 @@
 
 package org.apache.spark.sql.catalyst.plans.logical
 
-import org.apache.spark.sql.catalyst.expressions.Attribute
-
-case class CreateOrReplaceBranch(
-    table: Seq[String],
-    branch: String,
-    branchOptions: BranchOptions,
-    replace: Boolean,
-    ifNotExists: Boolean) extends LeafCommand {
-
-  import org.apache.spark.sql.connector.catalog.CatalogV2Implicits._
-
-  override lazy val output: Seq[Attribute] = Nil
-
-  override def simpleString(maxFields: Int): String = {
-    s"CreateOrReplaceBranch branch: ${branch} for table: ${table.quoted}"
-  }
-}
+case class TagOptions(snapshotId: Option[Long], snapshotRefRetain: Option[Long])

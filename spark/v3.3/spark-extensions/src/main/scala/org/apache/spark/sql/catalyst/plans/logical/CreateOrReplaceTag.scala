@@ -21,10 +21,10 @@ package org.apache.spark.sql.catalyst.plans.logical
 
 import org.apache.spark.sql.catalyst.expressions.Attribute
 
-case class CreateOrReplaceBranch(
+case class CreateOrReplaceTag(
     table: Seq[String],
-    branch: String,
-    branchOptions: BranchOptions,
+    tag: String,
+    tagOptions: TagOptions,
     replace: Boolean,
     ifNotExists: Boolean) extends LeafCommand {
 
@@ -33,6 +33,6 @@ case class CreateOrReplaceBranch(
   override lazy val output: Seq[Attribute] = Nil
 
   override def simpleString(maxFields: Int): String = {
-    s"CreateOrReplaceBranch branch: ${branch} for table: ${table.quoted}"
+    s"CreateOrReplaceTag tag: ${tag} for table: ${table.quoted}"
   }
 }
