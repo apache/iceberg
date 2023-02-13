@@ -47,7 +47,6 @@ from pyiceberg.exceptions import (
     NoSuchPropertyException,
     NoSuchTableError,
     TableAlreadyExistsError,
-    ValidationError,
 )
 from pyiceberg.io import load_file_io
 from pyiceberg.partitioning import UNPARTITIONED_PARTITION_SPEC, PartitionSpec
@@ -376,9 +375,6 @@ class DynamoDbCatalog(Catalog):
         Returns:
             List[Identifier]: a List of namespace identifiers
         """
-
-        if namespace:
-            raise ValidationError("This API is not supported for hierarchical namespaces.")
 
         # Hierarchical namespace is nto supported. Return an empty list
         if namespace:
