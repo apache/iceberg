@@ -28,6 +28,11 @@ buildscript {
   dependencies {
     classpath 'gradle.plugin.com.github.jengelman.gradle.plugins:shadow:7.0.0'
     classpath 'com.palantir.baseline:gradle-baseline-java:4.42.0'
+    // com.palantir.baseline:gradle-baseline-java:4.42.0 (the last version supporting Java 8) pulls
+    // in an old version of the errorprone, which doesn't work w/ Gradle 8, so bump errorpone as
+    // well.
+    classpath "net.ltgt.gradle:gradle-errorprone-plugin:3.0.1"
+
     classpath 'com.diffplug.spotless:spotless-plugin-gradle:6.13.0'
     classpath 'gradle.plugin.org.inferred:gradle-processors:3.7.0'
     classpath 'me.champeau.jmh:jmh-gradle-plugin:0.6.8'
@@ -36,10 +41,12 @@ buildscript {
     classpath 'com.palantir.gradle.revapi:gradle-revapi:1.7.0'
     classpath 'com.gorylenko.gradle-git-properties:gradle-git-properties:2.4.1'
     classpath 'com.palantir.gradle.gitversion:gradle-git-version:1.0.0'
-    classpath ('org.eclipse.jgit:org.eclipse.jgit:5.13.1.202206130422-r') {
+    classpath ('org.eclipse.jgit:org.eclipse.jgit') {
       // gradle-git-version automatically uses a jgit version that requires JDK11
       // so we need to enforce the latest jgit version that works with JDK8
-      force = true
+      version {
+        strictly('5.13.1.202206130422-r')
+      }
     }
   }
 }
@@ -219,7 +226,7 @@ project(':iceberg-bundled-guava') {
   }
 
   shadowJar {
-    classifier null
+    archiveClassifier.set(null)
     configurations = [project.configurations.compileClasspath]
     zip64 true
 
@@ -241,7 +248,7 @@ project(':iceberg-bundled-guava') {
   }
 
   jar {
-    archiveClassifier = 'empty'
+    archiveClassifier.set('empty')
   }
 }
 
@@ -256,6 +263,16 @@ project(':iceberg-api') {
   }
 
   tasks.processTestResources.dependsOn rootProject.tasks.buildInfo
+
+  // Workaround to prevent:
+  // Task ':iceberg-api:processTestResources' uses this output of task
+  // ':spotlessInternalRegisterDependencies' without declaring an explicit or implicit dependency.
+  // This can lead to incorrect results being produced, depending on what order the tasks are executed.
+  rootProject.tasks.configureEach { rootTask ->
+    if (rootTask.name == 'spotlessInternalRegisterDependencies') {
+      tasks.processTestResources.dependsOn rootTask
+    }
+  }
 
   sourceSets {
     test {
