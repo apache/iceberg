@@ -44,7 +44,7 @@ from pyiceberg.expressions import (
     visitors,
 )
 from pyiceberg.expressions.visitors import inclusive_projection
-from pyiceberg.io import FileIO
+from pyiceberg.io import FileIO, load_file_io
 from pyiceberg.io.pyarrow import project_table
 from pyiceberg.manifest import (
     DataFile,
@@ -54,6 +54,7 @@ from pyiceberg.manifest import (
 )
 from pyiceberg.partitioning import PartitionSpec
 from pyiceberg.schema import Schema
+from pyiceberg.serializers import FromInputFile
 from pyiceberg.table.metadata import TableMetadata
 from pyiceberg.table.snapshots import Snapshot, SnapshotLogEntry
 from pyiceberg.table.sorting import SortOrder
@@ -170,6 +171,27 @@ class Table:
             and self.metadata_location == other.metadata_location
             if isinstance(other, Table)
             else False
+        )
+
+
+class StaticTable(Table):
+    """Load a table directly from a metadata file (i.e., without using a catalog)."""
+
+    def refresh(self) -> Table:
+        """Refresh the current table metadata"""
+        raise NotImplementedError("To be implemented")
+
+    @classmethod
+    def from_metadata(cls, metadata_location: str, properties: Properties = EMPTY_DICT) -> StaticTable:
+        io = load_file_io(properties=properties, location=metadata_location)
+        file = io.new_input(metadata_location)
+        metadata = FromInputFile.table_metadata(file)
+
+        return cls(
+            identifier=("static-table", metadata_location),
+            metadata_location=metadata_location,
+            metadata=metadata,
+            io=load_file_io({**properties, **metadata.properties}),
         )
 
 

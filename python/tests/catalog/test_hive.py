@@ -17,7 +17,6 @@
 # pylint: disable=protected-access,redefined-outer-name
 import json
 import uuid
-from typing import Any, Dict
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -42,10 +41,8 @@ from pyiceberg.exceptions import (
     NoSuchNamespaceError,
     NoSuchTableError,
 )
-from pyiceberg.io.pyarrow import PyArrowFileIO
 from pyiceberg.partitioning import PartitionField, PartitionSpec
 from pyiceberg.schema import Schema
-from pyiceberg.serializers import ToOutputFile
 from pyiceberg.table.metadata import TableMetadataUtil, TableMetadataV2
 from pyiceberg.table.refs import SnapshotRef, SnapshotRefType
 from pyiceberg.table.snapshots import (
@@ -75,12 +72,7 @@ HIVE_METASTORE_FAKE_URL = "thrift://unknown:9083"
 
 
 @pytest.fixture
-def hive_table(tmp_path_factory: pytest.TempPathFactory, example_table_metadata_v2: Dict[str, Any]) -> HiveTable:
-    metadata_path = str(tmp_path_factory.mktemp("metadata") / f"{uuid.uuid4()}.metadata.json")
-    metadata = TableMetadataV2(**example_table_metadata_v2)
-
-    ToOutputFile.table_metadata(metadata, PyArrowFileIO().new_output(location=str(metadata_path)), True)
-
+def hive_table(metadata_location: str) -> HiveTable:
     return HiveTable(
         tableName="new_tabl2e",
         dbName="default",
@@ -119,7 +111,7 @@ def hive_table(tmp_path_factory: pytest.TempPathFactory, example_table_metadata_
             "EXTERNAL": "TRUE",
             "transient_lastDdlTime": "1659092339",
             "table_type": "ICEBERG",
-            "metadata_location": metadata_path,
+            "metadata_location": metadata_location,
         },
         viewOriginalText=None,
         viewExpandedText=None,

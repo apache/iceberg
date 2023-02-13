@@ -58,6 +58,8 @@ Returns as list with tuples, containing a single table `taxis`:
 
 ## Load a table
 
+### From a catalog
+
 Loading the `taxis` table:
 
 ```python
@@ -163,6 +165,27 @@ Table(
     format_version=2,
     last_sequence_number=1
   )
+)
+```
+
+### Directly from a metadata file
+
+To load a table directly from a metadata file (i.e., **without** using a catalog), you can use a `StaticTable` as follows:
+
+```python
+table = StaticTable.from_metadata(
+    "s3a://warehouse/wh/nyc.db/taxis/metadata/00002-6ea51ce3-62aa-4197-9cf8-43d07c3440ca.metadata.json"
+)
+```
+
+For the rest, this table behaves similarly as a table loaded using a catalog. Note that `StaticTable` is intended to be _read only_.
+
+Any properties related to file IO can be passed accordingly:
+
+```python
+table = StaticTable.from_metadata(
+    "s3a://warehouse/wh/nyc.db/taxis/metadata/00002-6ea51ce3-62aa-4197-9cf8-43d07c3440ca.metadata.json",
+    {PY_IO_IMPL: "pyiceberg.some.FileIO.class"},
 )
 ```
 
