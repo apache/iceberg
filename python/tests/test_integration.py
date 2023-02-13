@@ -47,7 +47,7 @@ def table_test_null_nan(catalog: Catalog) -> Table:
 @pytest.mark.integration
 def test_pyarrow_nan(table_test_null_nan: Table) -> None:
     """To check if we detect NaN values properly"""
-    arrow_table = table_test_null_nan.scan(row_filter=IsNaN("col_numeric"), selected_fields=("idx",)).to_arrow()
+    arrow_table = table_test_null_nan.scan(row_filter=IsNaN("col_numeric"), selected_fields=("idx", "col_numeric")).to_arrow()
     assert len(arrow_table) == 1
     assert arrow_table[0][0].as_py() == 1
     assert math.isnan(arrow_table[1][0].as_py())
@@ -57,12 +57,12 @@ def test_pyarrow_nan(table_test_null_nan: Table) -> None:
 def test_pyarrow_not_nan_count(table_test_null_nan: Table) -> None:
     """To check if exclude NaN values properly"""
     not_nan = table_test_null_nan.scan(row_filter=NotNaN("col_numeric"), selected_fields=("idx",)).to_arrow()
-    assert len(not_nan) == 1
+    assert len(not_nan) == 2
 
 
 @pytest.mark.integration
-@pytest.mark.skip(reason="Seems to be a bug in the PyArrow to DuckDB conversion")
+# @pytest.mark.skip(reason="Seems to be a bug in the PyArrow to DuckDB conversion")
 def test_duckdb_nan(table_test_null_nan: Table) -> None:
     """To check if we detect NaN values properly"""
-    con = table_test_null_nan.scan(row_filter=IsNaN("col_nan"), selected_fields=("idx",)).to_duckdb("test_null_nan")
-    assert con.query("SELECT idx FROM test_null_nan WHERE ibu = 'NaN'").fetchone() == (1,)
+    con = table_test_null_nan.scan().to_duckdb("table_test_null_nan")
+    assert con.query("SELECT idx FROM table_test_null_nan WHERE col_numeric = 'NaN'").fetchone() == (1,)
