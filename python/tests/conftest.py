@@ -113,6 +113,11 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         default="Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==",
         help="The ADLS secret account key for tests marked as adlfs",
     )
+    parser.addoption(
+        "--gs.endpoint-url", action="store", default="http://0.0.0.0:4443", help="The GCS endpoint URL for tests marked gcs"
+    )
+    parser.addoption("--gs.token", action="store", default="anon", help="The GCS authentication method for tests marked gcs")
+    parser.addoption("--gs.project", action="store", default="test", help="The GCP project for tests marked gcs")
 
 
 @pytest.fixture(scope="session")
@@ -1293,6 +1298,16 @@ def fsspec_fileio(request: pytest.FixtureRequest) -> FsspecFileIO:
         "s3.endpoint": request.config.getoption("--s3.endpoint"),
         "s3.access-key-id": request.config.getoption("--s3.access-key-id"),
         "s3.secret-access-key": request.config.getoption("--s3.secret-access-key"),
+    }
+    return fsspec.FsspecFileIO(properties=properties)
+
+
+@pytest.fixture
+def fsspec_fileio_gcs(request: pytest.FixtureRequest) -> FsspecFileIO:
+    properties = {
+        "gs.endpoint-url": request.config.getoption("--gs.endpoint-url"),
+        "gs.token": request.config.getoption("--gs.token"),
+        "gs.project": request.config.getoption("--gs.project"),
     }
     return fsspec.FsspecFileIO(properties=properties)
 

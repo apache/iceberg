@@ -57,6 +57,7 @@ from pyarrow.fs import (
     FileSystem,
     FileType,
     FSSpecHandler,
+    GcsFileSystem,
     LocalFileSystem,
     PyFileSystem,
     S3FileSystem,
@@ -300,6 +301,15 @@ class PyArrowFileIO(FileIO):
                 client_kwargs["proxy_options"] = proxy_uri
 
             return S3FileSystem(**client_kwargs)
+        elif scheme in {"gs", "gcs"}:
+            if access_token := self.properties.get("gs.access-token"):
+                client_kwargs = {
+                    "access_token": access_token,
+                    "credential_token_expiration": self.properties.get("gs.credential-token-expiration"),
+                }
+                return GcsFileSystem(**client_kwargs)
+            else:
+                return GcsFileSystem()
         elif scheme == "file":
             return LocalFileSystem()
         else:
