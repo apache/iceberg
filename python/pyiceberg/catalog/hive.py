@@ -441,7 +441,8 @@ class HiveCatalog(Catalog):
             List[Identifier]: a List of namespace identifiers
         """
         # Hive does not support hierarchical namespaces, therefore return an empty list
-        if namespace:
+        tuple_identifier = Catalog.identifier_to_tuple(namespace)
+        if len(tuple_identifier) > 1:
             return []
 
         with self._client as open_client:

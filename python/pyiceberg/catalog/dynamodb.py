@@ -377,7 +377,8 @@ class DynamoDbCatalog(Catalog):
         """
 
         # Hierarchical namespace is nto supported. Return an empty list
-        if namespace:
+        tuple_identifier = Catalog.identifier_to_tuple(namespace)
+        if len(tuple_identifier) > 1:
             return []
 
         paginator = self.dynamodb.get_paginator("query")
@@ -576,7 +577,7 @@ class DynamoDbCatalog(Catalog):
         file = io.new_input(metadata_location)
         metadata = FromInputFile.table_metadata(file)
         return Table(
-            identifier=(database_name, table_name),
+            identifier=(self.name, database_name, table_name),
             metadata=metadata,
             metadata_location=metadata_location,
             io=self._load_file_io(metadata.properties),
