@@ -53,7 +53,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -87,7 +86,6 @@ import org.apache.iceberg.parquet.ParquetValueWriters.PositionDeleteStructWriter
 import org.apache.iceberg.parquet.ParquetValueWriters.StructWriter;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.ArrayUtil;
@@ -913,7 +911,6 @@ public class Parquet {
     private boolean reuseContainers = false;
     private int maxRecordsPerBatch = 10000;
     private NameMapping nameMapping = null;
-    private Set<Integer> constantFieldIds = ImmutableSet.of();
 
     private ReadBuilder(InputFile file) {
       this.file = file;
@@ -1003,11 +1000,6 @@ public class Parquet {
       return this;
     }
 
-    public ReadBuilder withConstantFields(Set<Integer> fieldIds) {
-      this.constantFieldIds = fieldIds;
-      return this;
-    }
-
     @SuppressWarnings({"unchecked", "checkstyle:CyclomaticComplexity"})
     public <D> CloseableIterable<D> build() {
       if (readerFunc != null || batchedReaderFunc != null) {
@@ -1047,8 +1039,7 @@ public class Parquet {
               filter,
               reuseContainers,
               caseSensitive,
-              maxRecordsPerBatch,
-              constantFieldIds);
+              maxRecordsPerBatch);
         } else {
           return new org.apache.iceberg.parquet.ParquetReader<>(
               file,
@@ -1058,8 +1049,7 @@ public class Parquet {
               nameMapping,
               filter,
               reuseContainers,
-              caseSensitive,
-              constantFieldIds);
+              caseSensitive);
         }
       }
 

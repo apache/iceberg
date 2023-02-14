@@ -33,7 +33,6 @@ import org.apache.iceberg.expressions.ExpressionVisitors;
 import org.apache.iceberg.expressions.ExpressionVisitors.BoundExpressionVisitor;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.Literal;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Type;
@@ -51,22 +50,15 @@ public class ParquetMetricsRowGroupFilter {
 
   private final Schema schema;
   private final Expression expr;
-  private final Set<Integer> constantFieldIds;
 
   public ParquetMetricsRowGroupFilter(Schema schema, Expression unbound) {
-    this(schema, unbound, true, ImmutableSet.of());
+    this(schema, unbound, true);
   }
 
   public ParquetMetricsRowGroupFilter(Schema schema, Expression unbound, boolean caseSensitive) {
-    this(schema, unbound, caseSensitive, ImmutableSet.of());
-  }
-
-  public ParquetMetricsRowGroupFilter(
-      Schema schema, Expression unbound, boolean caseSensitive, Set<Integer> constantFieldIds) {
     this.schema = schema;
     StructType struct = schema.asStruct();
     this.expr = Binder.bind(struct, Expressions.rewriteNot(unbound), caseSensitive);
-    this.constantFieldIds = constantFieldIds;
   }
 
   /**
@@ -172,9 +164,7 @@ public class ParquetMetricsRowGroupFilter {
       Long valueCount = valueCounts.get(id);
       if (valueCount == null) {
         // the column is not present and is all nulls
-        if (constantFieldIds == null || !constantFieldIds.contains(id)) {
-          return ROWS_CANNOT_MATCH;
-        }
+        return ROWS_CANNOT_MATCH;
       }
 
       Statistics<?> colStats = stats.get(id);
@@ -193,9 +183,7 @@ public class ParquetMetricsRowGroupFilter {
       Long valueCount = valueCounts.get(id);
       if (valueCount == null) {
         // the column is not present and is all nulls
-        if (constantFieldIds == null || !constantFieldIds.contains(id)) {
-          return ROWS_CANNOT_MATCH;
-        }
+        return ROWS_CANNOT_MATCH;
       }
 
       Statistics<?> colStats = stats.get(id);
@@ -219,9 +207,7 @@ public class ParquetMetricsRowGroupFilter {
       Long valueCount = valueCounts.get(id);
       if (valueCount == null) {
         // the column is not present and is all nulls
-        if (constantFieldIds == null || !constantFieldIds.contains(id)) {
-          return ROWS_CANNOT_MATCH;
-        }
+        return ROWS_CANNOT_MATCH;
       }
 
       Statistics<?> colStats = stats.get(id);
@@ -251,9 +237,7 @@ public class ParquetMetricsRowGroupFilter {
       Long valueCount = valueCounts.get(id);
       if (valueCount == null) {
         // the column is not present and is all nulls
-        if (constantFieldIds == null || !constantFieldIds.contains(id)) {
-          return ROWS_CANNOT_MATCH;
-        }
+        return ROWS_CANNOT_MATCH;
       }
 
       Statistics<?> colStats = stats.get(id);
@@ -283,9 +267,7 @@ public class ParquetMetricsRowGroupFilter {
       Long valueCount = valueCounts.get(id);
       if (valueCount == null) {
         // the column is not present and is all nulls
-        if (constantFieldIds == null || !constantFieldIds.contains(id)) {
-          return ROWS_CANNOT_MATCH;
-        }
+        return ROWS_CANNOT_MATCH;
       }
 
       Statistics<?> colStats = stats.get(id);
@@ -315,9 +297,7 @@ public class ParquetMetricsRowGroupFilter {
       Long valueCount = valueCounts.get(id);
       if (valueCount == null) {
         // the column is not present and is all nulls
-        if (constantFieldIds == null || !constantFieldIds.contains(id)) {
-          return ROWS_CANNOT_MATCH;
-        }
+        return ROWS_CANNOT_MATCH;
       }
 
       Statistics<?> colStats = stats.get(id);
@@ -354,9 +334,7 @@ public class ParquetMetricsRowGroupFilter {
       Long valueCount = valueCounts.get(id);
       if (valueCount == null) {
         // the column is not present and is all nulls
-        if (constantFieldIds == null || !constantFieldIds.contains(id)) {
-          return ROWS_CANNOT_MATCH;
-        }
+        return ROWS_CANNOT_MATCH;
       }
 
       Statistics<?> colStats = stats.get(id);
@@ -406,9 +384,7 @@ public class ParquetMetricsRowGroupFilter {
       Long valueCount = valueCounts.get(id);
       if (valueCount == null) {
         // the column is not present and is all nulls
-        if (constantFieldIds == null || !constantFieldIds.contains(id)) {
-          return ROWS_CANNOT_MATCH;
-        }
+        return ROWS_CANNOT_MATCH;
       }
 
       Statistics<?> colStats = stats.get(id);
@@ -467,9 +443,7 @@ public class ParquetMetricsRowGroupFilter {
       Long valueCount = valueCounts.get(id);
       if (valueCount == null) {
         // the column is not present and is all nulls
-        if (constantFieldIds == null || !constantFieldIds.contains(id)) {
-          return ROWS_CANNOT_MATCH;
-        }
+        return ROWS_CANNOT_MATCH;
       }
 
       Statistics<Binary> colStats = (Statistics<Binary>) stats.get(id);
@@ -510,17 +484,15 @@ public class ParquetMetricsRowGroupFilter {
       return ROWS_MIGHT_MATCH;
     }
 
-    @SuppressWarnings({"checkstyle:CyclomaticComplexity", "unchecked"})
     @Override
+    @SuppressWarnings("unchecked")
     public <T> Boolean notStartsWith(BoundReference<T> ref, Literal<T> lit) {
       int id = ref.fieldId();
       Long valueCount = valueCounts.get(id);
 
       if (valueCount == null) {
         // the column is not present and is all nulls
-        if (constantFieldIds == null || !constantFieldIds.contains(id)) {
-          return ROWS_CANNOT_MATCH;
-        }
+        return ROWS_MIGHT_MATCH;
       }
 
       Statistics<Binary> colStats = (Statistics<Binary>) stats.get(id);

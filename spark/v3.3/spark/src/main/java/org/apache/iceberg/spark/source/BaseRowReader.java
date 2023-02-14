@@ -20,6 +20,7 @@ package org.apache.iceberg.spark.source;
 
 import java.util.Map;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.ScanTask;
 import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Schema;
@@ -30,9 +31,11 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.data.SparkAvroReader;
 import org.apache.iceberg.spark.data.SparkOrcReader;
 import org.apache.iceberg.spark.data.SparkParquetReaders;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.spark.sql.catalyst.InternalRow;
 
 abstract class BaseRowReader<T extends ScanTask> extends BaseReader<InternalRow, T> {
@@ -91,7 +94,6 @@ abstract class BaseRowReader<T extends ScanTask> extends BaseReader<InternalRow,
         .filter(residual)
         .caseSensitive(caseSensitive())
         .withNameMapping(nameMapping())
-        .withConstantFields(idToConstant.keySet())
         .build();
   }
 
@@ -102,15 +104,18 @@ abstract class BaseRowReader<T extends ScanTask> extends BaseReader<InternalRow,
       Expression residual,
       Schema readSchema,
       Map<Integer, ?> idToConstant) {
+    Schema readSchemaWithoutConstantAndMetadataFields =
+        TypeUtil.selectNot(
+            readSchema, Sets.union(idToConstant.keySet(), MetadataColumns.metadataFieldIds()));
+
     return ORC.read(file)
-        .project(readSchema)
+        .project(readSchemaWithoutConstantAndMetadataFields)
         .split(start, length)
         .createReaderFunc(
             readOrcSchema -> new SparkOrcReader(readSchema, readOrcSchema, idToConstant))
         .filter(residual)
         .caseSensitive(caseSensitive())
         .withNameMapping(nameMapping())
-        .withConstantFields(idToConstant.keySet())
         .build();
   }
 }

@@ -22,7 +22,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
-import java.util.Set;
 import java.util.function.Function;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.exceptions.RuntimeIOException;
@@ -33,7 +32,6 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.mapping.NameMapping;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.parquet.ParquetReadOptions;
 import org.apache.parquet.column.page.PageReadStore;
 import org.apache.parquet.hadoop.ParquetFileReader;
@@ -51,31 +49,6 @@ public class VectorizedParquetReader<T> extends CloseableGroup implements Closea
   private final boolean caseSensitive;
   private final int batchSize;
   private final NameMapping nameMapping;
-  private final Set<Integer> constantFieldIds;
-
-  public VectorizedParquetReader(
-      InputFile input,
-      Schema expectedSchema,
-      ParquetReadOptions options,
-      Function<MessageType, VectorizedReader<?>> readerFunc,
-      NameMapping nameMapping,
-      Expression filter,
-      boolean reuseContainers,
-      boolean caseSensitive,
-      int maxRecordsPerBatch,
-      Set<Integer> constantFieldIds) {
-    this.input = input;
-    this.expectedSchema = expectedSchema;
-    this.options = options;
-    this.batchReaderFunc = readerFunc;
-    // replace alwaysTrue with null to avoid extra work evaluating a trivial filter
-    this.filter = filter == Expressions.alwaysTrue() ? null : filter;
-    this.reuseContainers = reuseContainers;
-    this.caseSensitive = caseSensitive;
-    this.batchSize = maxRecordsPerBatch;
-    this.nameMapping = nameMapping;
-    this.constantFieldIds = constantFieldIds;
-  }
 
   public VectorizedParquetReader(
       InputFile input,
@@ -87,17 +60,16 @@ public class VectorizedParquetReader<T> extends CloseableGroup implements Closea
       boolean reuseContainers,
       boolean caseSensitive,
       int maxRecordsPerBatch) {
-    this(
-        input,
-        expectedSchema,
-        options,
-        readerFunc,
-        nameMapping,
-        filter,
-        reuseContainers,
-        caseSensitive,
-        maxRecordsPerBatch,
-        Sets.newHashSet());
+    this.input = input;
+    this.expectedSchema = expectedSchema;
+    this.options = options;
+    this.batchReaderFunc = readerFunc;
+    // replace alwaysTrue with null to avoid extra work evaluating a trivial filter
+    this.filter = filter == Expressions.alwaysTrue() ? null : filter;
+    this.reuseContainers = reuseContainers;
+    this.caseSensitive = caseSensitive;
+    this.batchSize = maxRecordsPerBatch;
+    this.nameMapping = nameMapping;
   }
 
   private ReadConf conf = null;
@@ -115,8 +87,7 @@ public class VectorizedParquetReader<T> extends CloseableGroup implements Closea
               nameMapping,
               reuseContainers,
               caseSensitive,
-              batchSize,
-              constantFieldIds);
+              batchSize);
       this.conf = readConf.copy();
       return readConf;
     }

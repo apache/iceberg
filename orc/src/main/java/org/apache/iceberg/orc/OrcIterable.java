@@ -19,10 +19,8 @@
 package org.apache.iceberg.orc;
 
 import java.io.IOException;
-import java.util.Set;
 import java.util.function.Function;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Binder;
@@ -34,8 +32,6 @@ import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.mapping.MappingUtil;
 import org.apache.iceberg.mapping.NameMapping;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
-import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.Pair;
 import org.apache.orc.Reader;
 import org.apache.orc.TypeDescription;
@@ -54,7 +50,6 @@ class OrcIterable<T> extends CloseableGroup implements CloseableIterable<T> {
   private final boolean caseSensitive;
   private final Function<TypeDescription, OrcBatchReader<?>> batchReaderFunction;
   private final int recordsPerBatch;
-  private final Set<Integer> constantFieldIds;
   private NameMapping nameMapping;
 
   OrcIterable(
@@ -68,8 +63,7 @@ class OrcIterable<T> extends CloseableGroup implements CloseableIterable<T> {
       boolean caseSensitive,
       Expression filter,
       Function<TypeDescription, OrcBatchReader<?>> batchReaderFunction,
-      int recordsPerBatch,
-      Set<Integer> constantFieldIds) {
+      int recordsPerBatch) {
     this.schema = schema;
     this.readerFunction = readerFunction;
     this.file = file;
@@ -81,7 +75,6 @@ class OrcIterable<T> extends CloseableGroup implements CloseableIterable<T> {
     this.filter = (filter == Expressions.alwaysTrue()) ? null : filter;
     this.batchReaderFunction = batchReaderFunction;
     this.recordsPerBatch = recordsPerBatch;
-    this.constantFieldIds = constantFieldIds;
   }
 
   @SuppressWarnings("unchecked")
@@ -91,18 +84,15 @@ class OrcIterable<T> extends CloseableGroup implements CloseableIterable<T> {
     addCloseable(orcFileReader);
 
     TypeDescription fileSchema = orcFileReader.getSchema();
-    Schema schemaWithoutConstantFields =
-        TypeUtil.selectNot(
-            schema, Sets.union(constantFieldIds, MetadataColumns.metadataFieldIds()));
     final TypeDescription readOrcSchema;
     if (ORCSchemaUtil.hasIds(fileSchema)) {
-      readOrcSchema = ORCSchemaUtil.buildOrcProjection(schemaWithoutConstantFields, fileSchema);
+      readOrcSchema = ORCSchemaUtil.buildOrcProjection(schema, fileSchema);
     } else {
       if (nameMapping == null) {
-        nameMapping = MappingUtil.create(schemaWithoutConstantFields);
+        nameMapping = MappingUtil.create(schema);
       }
       TypeDescription typeWithIds = ORCSchemaUtil.applyNameMapping(fileSchema, nameMapping);
-      readOrcSchema = ORCSchemaUtil.buildOrcProjection(schemaWithoutConstantFields, typeWithIds);
+      readOrcSchema = ORCSchemaUtil.buildOrcProjection(schema, typeWithIds);
     }
 
     SearchArgument sarg = null;
