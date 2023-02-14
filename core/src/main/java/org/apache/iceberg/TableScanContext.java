@@ -31,7 +31,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.util.ThreadPools;
 
 /** Context object with optional arguments for a TableScan. */
-public final class TableScanContext {
+final class TableScanContext {
   private final Long snapshotId;
   private final Expression rowFilter;
   private final boolean ignoreResiduals;
@@ -46,7 +46,7 @@ public final class TableScanContext {
   private final boolean fromSnapshotInclusive;
   private final MetricsReporter metricsReporter;
 
-  public TableScanContext() {
+  TableScanContext() {
     this.snapshotId = null;
     this.rowFilter = Expressions.alwaysTrue();
     this.ignoreResiduals = false;
@@ -358,7 +358,7 @@ public final class TableScanContext {
     return metricsReporter;
   }
 
-  public TableScanContext reportWith(MetricsReporter reporter) {
+  TableScanContext reportWith(MetricsReporter reporter) {
     return new TableScanContext(
         snapshotId,
         rowFilter,

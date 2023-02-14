@@ -39,14 +39,13 @@ public class MinAggregate<T> extends ValueAggregate<T> {
   }
 
   @Override
+  protected boolean hasValue(DataFile file) {
+    return file.valueCounts().containsKey(fieldId);
+  }
+
+  @Override
   protected Object evaluateRef(DataFile file) {
-    if (!file.valueCounts().containsKey(fieldId)) {
-      setCanPushDown(false);
-      return null;
-    } else {
-      setCanPushDown(true);
-      return Conversions.fromByteBuffer(type, safeGet(file.lowerBounds(), fieldId));
-    }
+    return Conversions.fromByteBuffer(type, safeGet(file.lowerBounds(), fieldId));
   }
 
   @Override
@@ -65,7 +64,7 @@ public class MinAggregate<T> extends ValueAggregate<T> {
 
     @Override
     protected void update(T value) {
-      if (value != null && (min == null || comparator.compare(value, min) < 0)) {
+      if (min == null || comparator.compare(value, min) < 0) {
         this.min = value;
       }
     }

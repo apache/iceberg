@@ -39,14 +39,13 @@ public class MaxAggregate<T> extends ValueAggregate<T> {
   }
 
   @Override
+  protected boolean hasValue(DataFile file) {
+    return file.valueCounts().containsKey(fieldId);
+  }
+
+  @Override
   protected Object evaluateRef(DataFile file) {
-    if (!file.valueCounts().containsKey(fieldId)) {
-      setCanPushDown(false);
-      return null;
-    } else {
-      setCanPushDown(true);
-      return Conversions.fromByteBuffer(type, safeGet(file.upperBounds(), fieldId));
-    }
+    return Conversions.fromByteBuffer(type, safeGet(file.upperBounds(), fieldId));
   }
 
   @Override
@@ -65,7 +64,7 @@ public class MaxAggregate<T> extends ValueAggregate<T> {
 
     @Override
     protected void update(T value) {
-      if (value != null && (max == null || comparator.compare(value, max) > 0)) {
+      if (max == null || comparator.compare(value, max) > 0) {
         this.max = value;
       }
     }

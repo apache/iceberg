@@ -38,7 +38,6 @@ import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TableScan;
-import org.apache.iceberg.TableScanContext;
 import org.apache.iceberg.expressions.AggregateEvaluator;
 import org.apache.iceberg.expressions.Binder;
 import org.apache.iceberg.expressions.BoundAggregate;
@@ -85,7 +84,7 @@ public class SparkScanBuilder
   private static final Logger LOG = LoggerFactory.getLogger(SparkScanBuilder.class);
   private static final Filter[] NO_FILTERS = new Filter[0];
   private StructType pushedAggregateSchema;
-  private InternalRow[] pushedAggregateRows;
+  private Scan localScan;
 
   private final SparkSession spark;
   private final Table table;
@@ -196,9 +195,8 @@ public class SparkScanBuilder
       return false;
     }
 
-    TableScanContext context = new TableScanContext().reportWith(((BaseTable) table).getReporter());
-    context.setColStats(true);
-    TableScan scan = new DataTableScan(table, table.schema(), context);
+    TableScan scan = table.newScan();
+    ((DataTableScan) scan).setStats(true);
     Snapshot snapshot = readSnapshot();
     if (snapshot == null) {
       LOG.info("Skipped aggregate pushdown: table snapshot is null");
@@ -211,24 +209,29 @@ public class SparkScanBuilder
       List<FileScanTask> tasks = ImmutableList.copyOf(fileScanTasks);
       for (FileScanTask task : tasks) {
         if (!task.deletes().isEmpty()) {
-          LOG.info("Skipped aggregate pushdown: detected row level deletes.");
+          LOG.info("Skipped aggregate pushdown: detected row level deletes");
           return false;
         }
-        if (!aggregateEvaluator.update(task.file())) {
-          return false;
-        }
+
+        aggregateEvaluator.update(task.file());
       }
     } catch (IOException e) {
       LOG.info("Skipped aggregate pushdown: " + e);
       return false;
     }
 
+    if (!aggregateEvaluator.allAggregatorsValid()) {
+      return false;
+    }
+
     pushedAggregateSchema =
         SparkSchemaUtil.convert(new Schema(aggregateEvaluator.resultType().fields()));
-    this.pushedAggregateRows = new InternalRow[1];
+    InternalRow[] pushedAggregateRows = new InternalRow[1];
     StructLike structLike = aggregateEvaluator.result();
-    this.pushedAggregateRows[0] =
+    pushedAggregateRows[0] =
         new StructInternalRow(aggregateEvaluator.resultType()).setStruct(structLike);
+    localScan = new SparkLocalScan(table, pushedAggregateSchema, pushedAggregateRows);
+
     return true;
   }
 
@@ -245,7 +248,7 @@ public class SparkScanBuilder
     // be used to calculate min/max/count, will enable aggregate push down in next phase.
     // TODO: enable aggregate push down for partition col group by expression
     if (aggregation.groupByExpressions().length > 0) {
-      LOG.info("Skipped aggregate pushdown: group by aggregation push down is not supported.");
+      LOG.info("Skipped aggregate pushdown: group by aggregation push down is not supported");
       return false;
     }
 
@@ -270,14 +273,14 @@ public class SparkScanBuilder
       if (!colName.equals("*")) {
         MetricsModes.MetricsMode mode = config.columnMode(colName);
         if (mode instanceof MetricsModes.None) {
-          LOG.info("Skipped aggregate pushdown: MetricsModes.None");
+          LOG.info("Skipped aggregate pushdown: No metrics for column %s", colName);
           return false;
         } else if (mode instanceof MetricsModes.Counts) {
           if (aggregate.op() == Expression.Operation.MAX
               || aggregate.op() == Expression.Operation.MIN) {
             LOG.info(
-                "Skipped aggregate pushdown: MetricsModes.Counts, but the aggregate is "
-                    + aggregate);
+                "Skipped aggregate pushdown: Cannot produce min or max from count for column %s",
+                colName);
             return false;
           }
         } else if (mode instanceof MetricsModes.Truncate) {
@@ -286,7 +289,8 @@ public class SparkScanBuilder
             if (aggregate.op() == Expression.Operation.MAX
                 || aggregate.op() == Expression.Operation.MIN) {
               LOG.info(
-                  "Skipped aggregate pushdown: MetricsModes.Truncate, but the aggregate is MIN/MAX on a String column.");
+                  "Skipped aggregate pushdown: Cannot produce min or max from truncated values for column %s",
+                  colName);
               return false;
             }
           }
@@ -332,13 +336,8 @@ public class SparkScanBuilder
 
   @Override
   public Scan build() {
-    // if aggregates are pushed down, instead of constructing a SparkBatchQueryScan, creating file
-    // read tasks and sending over the tasks to Spark executors, a SparkLocalScan will be created
-    // and the scan is done locally on the Spark driver instead of the executors. The statistics
-    // info will be retrieved from manifest file and used to build a Spark internal row, which
-    // contains the pushed down aggregate values.
-    if (pushedAggregateRows != null) {
-      return new SparkLocalScan(table, pushedAggregateSchema, pushedAggregateRows);
+    if (localScan != null) {
+      return localScan;
     } else {
       return buildBatchScan();
     }

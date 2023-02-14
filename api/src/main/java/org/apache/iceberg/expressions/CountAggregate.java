@@ -60,9 +60,7 @@ public class CountAggregate<T> extends BoundAggregate<T, Long> {
 
     @Override
     protected void update(Long value) {
-      if (value != null) {
-        count += value;
-      }
+      count += value;
     }
 
     @Override

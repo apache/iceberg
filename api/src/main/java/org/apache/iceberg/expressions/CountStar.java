@@ -32,8 +32,12 @@ public class CountStar<T> extends CountAggregate<T> {
   }
 
   @Override
+  protected boolean hasValue(DataFile file) {
+    return true;
+  }
+
+  @Override
   protected Long countFor(DataFile file) {
-    setCanPushDown(true);
     long count = file.recordCount();
     if (count < 0) {
       return null;

@@ -26,16 +26,8 @@ import org.apache.iceberg.types.Types;
 
 public class BoundAggregate<T, C> extends Aggregate<BoundTerm<T>> implements Bound<C> {
 
-  // indicates if there are enough stats for this aggregate to be calculated at
-  // iceberg side.
-  private boolean canPushDown = false;
-
   protected BoundAggregate(Operation op, BoundTerm<T> term) {
     super(op, term);
-  }
-
-  void setCanPushDown(boolean canPushDown) {
-    this.canPushDown = canPushDown;
   }
 
   @Override
@@ -47,6 +39,11 @@ public class BoundAggregate<T, C> extends Aggregate<BoundTerm<T>> implements Bou
   C eval(DataFile file) {
     throw new UnsupportedOperationException(
         this.getClass().getName() + " does not implement eval(DataFile)");
+  }
+
+  boolean hasValue(DataFile file) {
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " does not implement hasValue(DataFile)");
   }
 
   Aggregator<C> newAggregator() {
@@ -107,14 +104,16 @@ public class BoundAggregate<T, C> extends Aggregate<BoundTerm<T>> implements Bou
 
     void update(DataFile file);
 
+    boolean hasValue(DataFile file);
+
     R result();
 
-    boolean hasValue();
+    boolean isValid();
   }
 
   abstract static class NullSafeAggregator<T, R> implements Aggregator<R> {
     private final BoundAggregate<T, R> aggregate;
-    private boolean hasValue = true;
+    private boolean isValid = true;
 
     NullSafeAggregator(BoundAggregate<T, R> aggregate) {
       this.aggregate = aggregate;
@@ -126,31 +125,38 @@ public class BoundAggregate<T, C> extends Aggregate<BoundTerm<T>> implements Bou
 
     @Override
     public void update(StructLike struct) {
-      if (hasValue) {
+      if (isValid) {
         R value = aggregate.eval(struct);
-        if (aggregate.canPushDown) {
+        if (value != null) {
           update(value);
         } else {
-          this.hasValue = false;
+          this.isValid = false;
         }
       }
     }
 
     @Override
+    public boolean hasValue(DataFile file) {
+      return aggregate.hasValue(file);
+    }
+
+    @Override
     public void update(DataFile file) {
-      if (hasValue) {
-        R value = aggregate.eval(file);
-        if (aggregate.canPushDown) {
-          update(value);
+      if (isValid) {
+        if (hasValue(file)) {
+          R value = aggregate.eval(file);
+          if (value != null) {
+            update(value);
+          }
         } else {
-          this.hasValue = false;
+          this.isValid = false;
         }
       }
     }
 
     @Override
     public R result() {
-      if (!hasValue) {
+      if (!isValid) {
         return null;
       }
 
@@ -158,8 +164,8 @@ public class BoundAggregate<T, C> extends Aggregate<BoundTerm<T>> implements Bou
     }
 
     @Override
-    public boolean hasValue() {
-      return hasValue;
+    public boolean isValid() {
+      return this.isValid;
     }
   }
 }

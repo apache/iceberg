@@ -73,18 +73,18 @@ public class AggregateEvaluator {
     }
   }
 
-  public boolean update(DataFile file) {
+  public void update(DataFile file) {
     for (Aggregator<?> aggregator : aggregators) {
       aggregator.update(file);
-      if (!aggregator.hasValue()) {
-        return false;
-      }
     }
-    return true;
   }
 
   public Types.StructType resultType() {
     return resultType;
+  }
+
+  public boolean allAggregatorsValid() {
+    return aggregators.stream().allMatch(BoundAggregate.Aggregator::isValid);
   }
 
   public StructLike result() {

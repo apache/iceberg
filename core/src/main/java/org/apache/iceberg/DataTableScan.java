@@ -112,4 +112,8 @@ public class DataTableScan extends BaseTableScan {
 
     return manifestGroup.planFiles();
   }
+
+  public void setStats(boolean setStats) {
+    context().setColStats(true);
+  }
 }
