@@ -34,8 +34,8 @@ import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.DecimalUtil;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.io.api.Binary;
-import org.apache.parquet.schema.DecimalMetadata;
 import org.apache.parquet.schema.GroupType;
+import org.apache.parquet.schema.LogicalTypeAnnotation.DecimalLogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
@@ -151,7 +151,8 @@ public class SparkParquetWriters {
           case TIMESTAMP_MICROS:
             return ParquetValueWriters.longs(desc);
           case DECIMAL:
-            DecimalMetadata decimal = primitive.getDecimalMetadata();
+            DecimalLogicalTypeAnnotation decimal =
+                (DecimalLogicalTypeAnnotation) primitive.getLogicalTypeAnnotation();
             switch (primitive.getPrimitiveTypeName()) {
               case INT32:
                 return decimalAsInteger(desc, decimal.getPrecision(), decimal.getScale());
