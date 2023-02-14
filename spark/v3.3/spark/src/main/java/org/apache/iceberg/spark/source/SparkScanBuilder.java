@@ -273,13 +273,13 @@ public class SparkScanBuilder
       if (!colName.equals("*")) {
         MetricsModes.MetricsMode mode = config.columnMode(colName);
         if (mode instanceof MetricsModes.None) {
-          LOG.info("Skipped aggregate pushdown: No metrics for column %s", colName);
+          LOG.info("Skipped aggregate pushdown: No metrics for column {}", colName);
           return false;
         } else if (mode instanceof MetricsModes.Counts) {
           if (aggregate.op() == Expression.Operation.MAX
               || aggregate.op() == Expression.Operation.MIN) {
             LOG.info(
-                "Skipped aggregate pushdown: Cannot produce min or max from count for column %s",
+                "Skipped aggregate pushdown: Cannot produce min or max from count for column {}",
                 colName);
             return false;
           }
@@ -289,7 +289,7 @@ public class SparkScanBuilder
             if (aggregate.op() == Expression.Operation.MAX
                 || aggregate.op() == Expression.Operation.MIN) {
               LOG.info(
-                  "Skipped aggregate pushdown: Cannot produce min or max from truncated values for column %s",
+                  "Skipped aggregate pushdown: Cannot produce min or max from truncated values for column {}",
                   colName);
               return false;
             }
