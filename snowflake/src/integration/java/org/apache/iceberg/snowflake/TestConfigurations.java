@@ -37,7 +37,6 @@ class TestConfigurations {
     props.put("jdbc." + CatalogProperties.URI, "env:" + "SNOW_URI");
     props.put("jdbc." + CatalogProperties.USER, "env:" + "SNOW_USER");
     props.put("jdbc.password", "env:" + "SNOW_PASSWORD");
-    props.put("jdbc.warehouse", "env:" + "SNOW_WAREHOUSE");
     props.put("jdbc.database", "env:" + "SNOW_TEST_DB_NAME");
 
     properties = EnvironmentUtil.resolveAll(props);
@@ -49,10 +48,6 @@ class TestConfigurations {
 
   String getUser() {
     return properties.get("jdbc." + CatalogProperties.USER);
-  }
-
-  String getWarehouse() {
-    return properties.get("jdbc.warehouse");
   }
 
   String getDatabase() {
