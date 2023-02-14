@@ -28,6 +28,6 @@ case class DropTag(table: Seq[String], tag: String, ifExists: Boolean) extends L
   override lazy val output: Seq[Attribute] = Nil
 
   override def simpleString(maxFields: Int): String = {
-    s"DropTag tag: ${tag} for tag: ${table.quoted}"
+    s"DropTag tag: ${tag} for table: ${table.quoted}"
   }
 }
