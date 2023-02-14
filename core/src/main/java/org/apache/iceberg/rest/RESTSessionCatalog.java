@@ -100,7 +100,7 @@ public class RESTSessionCatalog extends BaseSessionCatalog
   private final Function<Map<String, String>, RESTClient> clientBuilder;
   private Cache<String, AuthSession> sessions = null;
   private AuthSession catalogAuth = null;
-  private boolean refreshAuthByDefault = false;
+  private boolean keepTokenRefreshed = true;
   private RESTClient client = null;
   private ResourcePaths paths = null;
   private SnapshotMode snapshotMode = null;
@@ -167,11 +167,11 @@ public class RESTSessionCatalog extends BaseSessionCatalog
     Map<String, String> baseHeaders = configHeaders(mergedProps);
 
     this.sessions = newSessionCache(mergedProps);
-    this.refreshAuthByDefault =
+    this.keepTokenRefreshed =
         PropertyUtil.propertyAsBoolean(
             mergedProps,
-            CatalogProperties.AUTH_DEFAULT_REFRESH_ENABLED,
-            CatalogProperties.AUTH_DEFAULT_REFRESH_ENABLED_DEFAULT);
+            OAuth2Properties.TOKEN_REFRESH_ENABLED,
+            OAuth2Properties.TOKEN_REFRESH_ENABLED_DEFAULT);
     this.client = clientBuilder.apply(mergedProps);
     this.paths = ResourcePaths.forCatalogProperties(mergedProps);
 
@@ -472,6 +472,10 @@ public class RESTSessionCatalog extends BaseSessionCatalog
   }
 
   private ScheduledExecutorService tokenRefreshExecutor() {
+    if (!keepTokenRefreshed) {
+      return null;
+    }
+
     if (refreshExecutor == null) {
       synchronized (this) {
         if (refreshExecutor == null) {
@@ -826,7 +830,7 @@ public class RESTSessionCatalog extends BaseSessionCatalog
   }
 
   private Long expiresAtMillis(Map<String, String> properties) {
-    if (refreshAuthByDefault || properties.containsKey(OAuth2Properties.TOKEN_EXPIRES_IN_MS)) {
+    if (properties.containsKey(OAuth2Properties.TOKEN_EXPIRES_IN_MS)) {
       long expiresInMillis =
           PropertyUtil.propertyAsLong(
               properties,
