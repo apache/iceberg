@@ -239,6 +239,28 @@ public class TestBranchDDL extends SparkExtensionsTestBase {
   }
 
   @Test
+  public void testDropBranchFailesForTag() throws NoSuchTableException {
+    String tagName = "b1";
+    Table table = insertRows();
+    table.manageSnapshots().createTag(tagName, table.currentSnapshot().snapshotId()).commit();
+
+    AssertHelpers.assertThrows(
+        "Cannot perform drop branch on tag",
+        IllegalArgumentException.class,
+        "Ref b1 is a tag not a branch",
+        () -> sql("ALTER TABLE %s DROP BRANCH %s", tableName, tagName));
+  }
+
+  @Test
+  public void testDropBranchNonConformingName() {
+    AssertHelpers.assertThrows(
+        "Non-conforming branch name",
+        IcebergParseException.class,
+        "mismatched input '123'",
+        () -> sql("ALTER TABLE %s DROP BRANCH %s", tableName, "123"));
+  }
+
+  @Test
   public void testDropMainBranchFails() {
     AssertHelpers.assertThrows(
         "Cannot drop the main branch",
