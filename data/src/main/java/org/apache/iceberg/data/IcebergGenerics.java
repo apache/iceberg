@@ -68,8 +68,8 @@ public class IcebergGenerics {
     }
 
     public ScanBuilder select(Collection<String> columns) {
-        this.tableScan = tableScan.select(ImmutableList.copyOf(columns));
-        return this;
+      this.tableScan = tableScan.select(ImmutableList.copyOf(columns));
+      return this;
     }
 
     public ScanBuilder project(Schema schema) {
