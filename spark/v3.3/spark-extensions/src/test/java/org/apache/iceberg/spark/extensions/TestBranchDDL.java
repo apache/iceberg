@@ -239,7 +239,7 @@ public class TestBranchDDL extends SparkExtensionsTestBase {
   }
 
   @Test
-  public void testDropBranchFailesForTag() throws NoSuchTableException {
+  public void testDropBranchFailsForTag() throws NoSuchTableException {
     String tagName = "b1";
     Table table = insertRows();
     table.manageSnapshots().createTag(tagName, table.currentSnapshot().snapshotId()).commit();
