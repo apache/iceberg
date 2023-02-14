@@ -166,7 +166,9 @@ public class DynamoDbCatalog extends BaseMetastoreCatalog
             GetItemRequest.builder()
                 .tableName(awsProperties.dynamoDbTableName())
                 .consistentRead(true)
-                .key(namespacePrimaryKey(tableIdentifier.namespace()))
+                .key(
+                    namespacePrimaryKey(
+                        tableIdentifier.namespace(), awsProperties.dynamoDbSchemaVersion()))
                 .build());
 
     if (!response.hasItem()) {
@@ -188,7 +190,8 @@ public class DynamoDbCatalog extends BaseMetastoreCatalog
   @Override
   public void createNamespace(Namespace namespace, Map<String, String> metadata) {
     validateNamespace(namespace);
-    Map<String, AttributeValue> values = namespacePrimaryKey(namespace);
+    Map<String, AttributeValue> values =
+        namespacePrimaryKey(namespace, awsProperties.dynamoDbSchemaVersion());
     setNewCatalogEntryMetadata(values);
     metadata.forEach(
         (key, value) -> values.put(toPropertyCol(key), AttributeValue.builder().s(value).build()));
@@ -207,6 +210,47 @@ public class DynamoDbCatalog extends BaseMetastoreCatalog
 
   @Override
   public List<Namespace> listNamespaces(Namespace namespace) throws NoSuchNamespaceException {
+    return awsProperties.dynamoDbSchemaVersion() == AwsProperties.DynamoDbSchemaVersion.V1
+        ? listNamespacesForV1(namespace)
+        : listNamespacesForV2(namespace);
+  }
+
+  private List<Namespace> listNamespacesForV2(Namespace namespace) throws NoSuchNamespaceException {
+    validateNamespace(namespace);
+    List<Namespace> namespaces = Lists.newArrayList();
+    Map<String, AttributeValue> lastEvaluatedKey = null;
+    String condition = COL_NAMESPACE + " = :namespace";
+    Map<String, AttributeValue> conditionValues = Maps.newHashMap();
+    conditionValues.put(":namespace", AttributeValue.builder().s(COL_IDENTIFIER_NAMESPACE).build());
+    if (!namespace.isEmpty()) {
+      condition += " AND " + "begins_with(" + COL_IDENTIFIER + ",:identifier)";
+      conditionValues.put(":identifier", AttributeValue.builder().s(namespace.toString()).build());
+    }
+    do {
+      QueryResponse response =
+          dynamo.query(
+              QueryRequest.builder()
+                  .tableName(awsProperties.dynamoDbTableName())
+                  .indexName(GSI_NAMESPACE_IDENTIFIER)
+                  .keyConditionExpression(condition)
+                  .expressionAttributeValues(conditionValues)
+                  .exclusiveStartKey(lastEvaluatedKey)
+                  .build());
+
+      if (response.hasItems()) {
+        for (Map<String, AttributeValue> item : response.items()) {
+          String ns = item.get(COL_IDENTIFIER).s();
+          namespaces.add(Namespace.of(ns.split("\\.")));
+        }
+      }
+
+      lastEvaluatedKey = response.lastEvaluatedKey();
+    } while (!lastEvaluatedKey.isEmpty());
+
+    return namespaces;
+  }
+
+  private List<Namespace> listNamespacesForV1(Namespace namespace) throws NoSuchNamespaceException {
     validateNamespace(namespace);
     List<Namespace> namespaces = Lists.newArrayList();
     Map<String, AttributeValue> lastEvaluatedKey = null;
@@ -218,7 +262,6 @@ public class DynamoDbCatalog extends BaseMetastoreCatalog
       condition += " AND " + "begins_with(" + COL_NAMESPACE + ",:ns)";
       conditionValues.put(":ns", AttributeValue.builder().s(namespace.toString()).build());
     }
-
     do {
       QueryResponse response =
           dynamo.query(
@@ -252,7 +295,7 @@ public class DynamoDbCatalog extends BaseMetastoreCatalog
             GetItemRequest.builder()
                 .tableName(awsProperties.dynamoDbTableName())
                 .consistentRead(true)
-                .key(namespacePrimaryKey(namespace))
+                .key(namespacePrimaryKey(namespace, awsProperties.dynamoDbSchemaVersion()))
                 .build());
 
     if (!response.hasItem()) {
@@ -275,7 +318,7 @@ public class DynamoDbCatalog extends BaseMetastoreCatalog
       dynamo.deleteItem(
           DeleteItemRequest.builder()
               .tableName(awsProperties.dynamoDbTableName())
-              .key(namespacePrimaryKey(namespace))
+              .key(namespacePrimaryKey(namespace, awsProperties.dynamoDbSchemaVersion()))
               .conditionExpression("attribute_exists(" + COL_NAMESPACE + ")")
               .build());
       return true;
@@ -513,9 +556,19 @@ public class DynamoDbCatalog extends BaseMetastoreCatalog
   }
 
   static Map<String, AttributeValue> namespacePrimaryKey(Namespace namespace) {
+    return namespacePrimaryKey(namespace, AwsProperties.DYNAMODB_DEFAULT_SCHEMA_VERSION);
+  }
+
+  static Map<String, AttributeValue> namespacePrimaryKey(
+      Namespace namespace, AwsProperties.DynamoDbSchemaVersion version) {
     Map<String, AttributeValue> key = Maps.newHashMap();
-    key.put(COL_IDENTIFIER, AttributeValue.builder().s(COL_IDENTIFIER_NAMESPACE).build());
-    key.put(COL_NAMESPACE, AttributeValue.builder().s(namespace.toString()).build());
+    if (version == AwsProperties.DynamoDbSchemaVersion.V1) {
+      key.put(COL_IDENTIFIER, AttributeValue.builder().s(COL_IDENTIFIER_NAMESPACE).build());
+      key.put(COL_NAMESPACE, AttributeValue.builder().s(namespace.toString()).build());
+    } else {
+      key.put(COL_IDENTIFIER, AttributeValue.builder().s(namespace.toString()).build());
+      key.put(COL_NAMESPACE, AttributeValue.builder().s(COL_IDENTIFIER_NAMESPACE).build());
+    }
     return key;
   }
 
@@ -660,7 +713,8 @@ public class DynamoDbCatalog extends BaseMetastoreCatalog
       Map<String, AttributeValue> attributeValues,
       Map<String, String> attributeNames) {
     validateNamespace(namespace);
-    Map<String, AttributeValue> key = namespacePrimaryKey(namespace);
+    Map<String, AttributeValue> key =
+        namespacePrimaryKey(namespace, awsProperties.dynamoDbSchemaVersion());
     try {
       GetItemResponse response =
           dynamo.getItem(

@@ -21,6 +21,7 @@ package org.apache.iceberg.aws;
 import java.io.Serializable;
 import java.net.URI;
 import java.util.Collections;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -299,6 +300,14 @@ public class AwsProperties implements Serializable {
   public static final String DYNAMODB_TABLE_NAME = "dynamodb.table-name";
 
   public static final String DYNAMODB_TABLE_NAME_DEFAULT = "iceberg";
+
+  public static final String DYNAMODB_V2_SCHEMA_DEFAULT_TABLE_NAME = "iceberg_v2";
+
+  public static final String DYNAMODB_CATALOG_SCHEMA_FORMAT =
+      "dynamodb.catalog.schema.format-version";
+
+  public static final DynamoDbSchemaVersion DYNAMODB_DEFAULT_SCHEMA_VERSION =
+      DynamoDbSchemaVersion.V1;
 
   /**
    * The implementation class of {@link AwsClientFactory} to customize AWS client configurations. If
@@ -750,6 +759,7 @@ public class AwsProperties implements Serializable {
 
   private String dynamoDbTableName;
   private String dynamoDbEndpoint;
+  private DynamoDbSchemaVersion dynamodbCatalogSchemaVersion;
 
   private final boolean s3RemoteSigningEnabled;
   private final Map<String, String> allProperties;
@@ -941,8 +951,19 @@ public class AwsProperties implements Serializable {
             properties, S3_PRELOAD_CLIENT_ENABLED, S3_PRELOAD_CLIENT_ENABLED_DEFAULT);
 
     this.dynamoDbEndpoint = properties.get(DYNAMODB_ENDPOINT);
+    this.dynamodbCatalogSchemaVersion =
+        DynamoDbSchemaVersion.fromString(
+            PropertyUtil.propertyAsString(
+                properties,
+                DYNAMODB_CATALOG_SCHEMA_FORMAT,
+                DYNAMODB_DEFAULT_SCHEMA_VERSION.version()));
+
+    String defaultDynamoDbTableName =
+        this.dynamodbCatalogSchemaVersion == DynamoDbSchemaVersion.V1
+            ? DYNAMODB_TABLE_NAME_DEFAULT
+            : DYNAMODB_V2_SCHEMA_DEFAULT_TABLE_NAME;
     this.dynamoDbTableName =
-        PropertyUtil.propertyAsString(properties, DYNAMODB_TABLE_NAME, DYNAMODB_TABLE_NAME_DEFAULT);
+        PropertyUtil.propertyAsString(properties, DYNAMODB_TABLE_NAME, defaultDynamoDbTableName);
 
     this.s3RemoteSigningEnabled =
         PropertyUtil.propertyAsBoolean(
@@ -1100,8 +1121,20 @@ public class AwsProperties implements Serializable {
     return dynamoDbTableName;
   }
 
+  public DynamoDbSchemaVersion dynamoDbSchemaVersion() {
+    return dynamodbCatalogSchemaVersion;
+  }
+
   public void setDynamoDbTableName(String name) {
     this.dynamoDbTableName = name;
+  }
+
+  public void setDynamoDbSchemaVersion(DynamoDbSchemaVersion dynamoDbSchemaVersion) {
+    this.dynamodbCatalogSchemaVersion = dynamoDbSchemaVersion;
+  }
+
+  public void setDynamoDbSchemaVersion(String version) {
+    this.dynamodbCatalogSchemaVersion = DynamoDbSchemaVersion.fromString(version);
   }
 
   public boolean isS3ChecksumEnabled() {
@@ -1445,6 +1478,31 @@ public class AwsProperties implements Serializable {
       throw new IllegalArgumentException(
           String.format("Cannot create %s to generate and configure the http client builder", impl),
           e);
+    }
+  }
+
+  public enum DynamoDbSchemaVersion {
+    V1("V1"),
+    V2("V2");
+
+    private final String version;
+
+    public static DynamoDbSchemaVersion fromString(String version) {
+      Preconditions.checkArgument(null != version, "Invalid dynamoDb catalog schema version: null");
+      try {
+        return valueOf(version.toUpperCase(Locale.ROOT));
+      } catch (IllegalArgumentException e) {
+        throw new IllegalArgumentException(
+            String.format("Invalid dynamodb catalog schema version: %s", version));
+      }
+    }
+
+    DynamoDbSchemaVersion(String version) {
+      this.version = version;
+    }
+
+    public String version() {
+      return this.version;
     }
   }
 }
