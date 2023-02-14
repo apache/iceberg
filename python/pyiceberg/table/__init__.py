@@ -186,6 +186,7 @@ class StaticTable(Table):
         file = io.new_input(metadata_location)
 
         from pyiceberg.serializers import FromInputFile
+
         metadata = FromInputFile.table_metadata(file)
 
         return cls(
