@@ -114,6 +114,6 @@ public class DataTableScan extends BaseTableScan {
   }
 
   public void setStats(boolean setStats) {
-    context().setColStats(true);
+    context().setColStats(setStats);
   }
 }
