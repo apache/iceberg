@@ -40,6 +40,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.RowFactory;
+import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.StructField;
@@ -398,7 +399,7 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
   }
 
   @Test
-  public void addPartitionToPartitionedSnapshotIdInheritanceEnabled() {
+  public void addPartitionToPartitionedSnapshotIdInheritanceEnabledInTwoRuns() {
     createPartitionedFileTable("parquet");
 
     String createIceberg =
@@ -407,9 +408,20 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
 
     sql(createIceberg, tableName, TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED);
 
+    SparkSession.clearActiveSession();
     scalarSql(
         "CALL %s.system.add_files('%s', '`parquet`.`%s`', map('id', 1))",
         catalogName, tableName, fileTableDir.getAbsolutePath());
+
+    SparkSession.clearActiveSession();
+    scalarSql(
+        "CALL %s.system.add_files('%s', '`parquet`.`%s`', map('id', 2))",
+        catalogName, tableName, fileTableDir.getAbsolutePath());
+
+    assertEquals(
+        "Iceberg table contains correct data",
+        sql("SELECT id, name, dept, subdept FROM %s WHERE id < 3 ORDER BY id", sourceTableName),
+        sql("SELECT id, name, dept, subdept FROM %s ORDER BY id", tableName));
 
     // verify manifest file name has uuid pattern
     String manifestPath = (String) sql("select path from %s.manifests", tableName).get(0)[0];
