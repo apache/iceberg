@@ -1030,7 +1030,7 @@ public class TestDictionaryRowGroupFilter {
         IllegalStateException.class,
         "Failed to read required dictionary page for id: 5",
         () ->
-            new ParquetDictionaryRowGroupFilter(SCHEMA, notEqual("some_nulls", "some"))
+            new ParquetDictionaryRowGroupFilter(SCHEMA, equal("some_nulls", "some"))
                 .shouldRead(parquetSchema, rowGroupMetadata, descriptor -> null));
   }
 
