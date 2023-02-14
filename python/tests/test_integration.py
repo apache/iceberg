@@ -50,7 +50,6 @@ def table_test_null_nan_rewritten(catalog: Catalog) -> Table:
 
 
 @pytest.mark.integration
-@pytest.mark.skip(reason="Seems to be an issue with PyArrow: https://github.com/apache/arrow/issues/34162")
 def test_pyarrow_nan(table_test_null_nan: Table) -> None:
     arrow_table = table_test_null_nan.scan(row_filter=IsNaN("col_numeric"), selected_fields=("idx", "col_numeric")).to_arrow()
     assert len(arrow_table) == 1
