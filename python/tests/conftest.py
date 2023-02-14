@@ -26,6 +26,7 @@ retrieved using `request.getfixturevalue(fixture_name)`.
 """
 import os
 import string
+import uuid
 from random import choice
 from tempfile import TemporaryDirectory
 from typing import (
@@ -54,6 +55,8 @@ from pyiceberg.io import OutputFile, OutputStream, fsspec
 from pyiceberg.io.fsspec import FsspecFileIO
 from pyiceberg.io.pyarrow import PyArrowFile, PyArrowFileIO
 from pyiceberg.schema import Schema
+from pyiceberg.serializers import ToOutputFile
+from pyiceberg.table.metadata import TableMetadataV2
 from pyiceberg.types import (
     BinaryType,
     BooleanType,
@@ -310,6 +313,14 @@ EXAMPLE_TABLE_METADATA_V2 = {
 @pytest.fixture
 def example_table_metadata_v2() -> Dict[str, Any]:
     return EXAMPLE_TABLE_METADATA_V2
+
+
+@pytest.fixture(scope="session")
+def metadata_location(tmp_path_factory: pytest.TempPathFactory) -> str:
+    metadata_location = str(tmp_path_factory.mktemp("metadata") / f"{uuid.uuid4()}.metadata.json")
+    metadata = TableMetadataV2(**EXAMPLE_TABLE_METADATA_V2)
+    ToOutputFile.table_metadata(metadata, PyArrowFileIO().new_output(location=metadata_location), overwrite=True)
+    return metadata_location
 
 
 manifest_entry_records = [

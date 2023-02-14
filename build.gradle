@@ -249,7 +249,6 @@ project(':iceberg-api') {
   dependencies {
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     compileOnly "com.google.errorprone:error_prone_annotations"
-    compileOnly 'com.google.code.findbugs:jsr305'
     annotationProcessor "org.immutables:value"
     compileOnly "org.immutables:value"
     testImplementation "org.apache.avro:avro"
