@@ -76,6 +76,7 @@ statement
     | ALTER TABLE multipartIdentifier createReplaceBranchClause                             #createOrReplaceBranch
     | ALTER TABLE multipartIdentifier createReplaceTagClause                                #createOrReplaceTag
     | ALTER TABLE multipartIdentifier DROP BRANCH (IF EXISTS)? identifier                   #dropBranch
+    | ALTER TABLE multipartIdentifier DROP TAG (IF EXISTS)? identifier                      #dropTag
     ;
 
 createReplaceTagClause
