@@ -300,12 +300,12 @@ public class ParquetDictionaryRowGroupFilter {
       int id = ref.fieldId();
 
       Boolean hasNonDictPage = isFallback.get(id);
-      if (hasNonDictPage == null || hasNonDictPage) {
+      if (hasNonDictPage == null || hasNonDictPage || mayContainNulls.get(id)) {
         return ROWS_MIGHT_MATCH;
       }
 
       Set<T> dictionary = dict(id, lit.comparator());
-      if (dictionary.size() > 1 || mayContainNulls.get(id)) {
+      if (dictionary.size() > 1) {
         return ROWS_MIGHT_MATCH;
       }
 
@@ -351,12 +351,12 @@ public class ParquetDictionaryRowGroupFilter {
       int id = ref.fieldId();
 
       Boolean hasNonDictPage = isFallback.get(id);
-      if (hasNonDictPage == null || hasNonDictPage) {
+      if (hasNonDictPage == null || hasNonDictPage || mayContainNulls.get(id)) {
         return ROWS_MIGHT_MATCH;
       }
 
       Set<T> dictionary = dict(id, ref.comparator());
-      if (dictionary.size() > literalSet.size() || mayContainNulls.get(id)) {
+      if (dictionary.size() > literalSet.size()) {
         return ROWS_MIGHT_MATCH;
       }
 
