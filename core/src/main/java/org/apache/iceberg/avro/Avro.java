@@ -162,7 +162,8 @@ public class Avro {
      * @return {@link WriteBuilder}
      */
     public WriteBuilder overwriteIfNeeded() {
-      boolean needsOverwrite = file instanceof HadoopFileIO || file instanceof Files.LocalOutputFile;
+      boolean needsOverwrite =
+          file instanceof HadoopFileIO || file instanceof Files.LocalOutputFile;
       return overwrite(needsOverwrite);
     }
 
