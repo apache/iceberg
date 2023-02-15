@@ -59,7 +59,7 @@ def test_create_table_with_database_location(
 ) -> None:
     catalog_name = "test_ddb_catalog"
     identifier = (database_name, table_name)
-    test_catalog = DynamoDbCatalog(catalog_name)
+    test_catalog = DynamoDbCatalog(catalog_name, **{"py-io-impl": "pyiceberg.io.fsspec.FsspecFileIO"})
     test_catalog.create_namespace(namespace=database_name, properties={"location": f"s3://{BUCKET_NAME}/{database_name}.db"})
     table = test_catalog.create_table(identifier, table_schema_nested)
     assert table.identifier == (catalog_name,) + identifier
@@ -72,7 +72,9 @@ def test_create_table_with_default_warehouse(
 ) -> None:
     catalog_name = "test_ddb_catalog"
     identifier = (database_name, table_name)
-    test_catalog = DynamoDbCatalog(catalog_name, warehouse=f"s3://{BUCKET_NAME}")
+    test_catalog = DynamoDbCatalog(
+        catalog_name, **{"py-io-impl": "pyiceberg.io.fsspec.FsspecFileIO", "warehouse": f"s3://{BUCKET_NAME}"}
+    )
     test_catalog.create_namespace(namespace=database_name)
     table = test_catalog.create_table(identifier, table_schema_nested)
     assert table.identifier == (catalog_name,) + identifier
@@ -85,7 +87,7 @@ def test_create_table_with_given_location(
 ) -> None:
     catalog_name = "test_ddb_catalog"
     identifier = (database_name, table_name)
-    test_catalog = DynamoDbCatalog(catalog_name)
+    test_catalog = DynamoDbCatalog(catalog_name, **{"py-io-impl": "pyiceberg.io.fsspec.FsspecFileIO"})
     test_catalog.create_namespace(namespace=database_name)
     table = test_catalog.create_table(
         identifier=identifier, schema=table_schema_nested, location=f"s3://{BUCKET_NAME}/{database_name}.db/{table_name}"
@@ -111,7 +113,7 @@ def test_create_table_with_strips(
 ) -> None:
     catalog_name = "test_ddb_catalog"
     identifier = (database_name, table_name)
-    test_catalog = DynamoDbCatalog(catalog_name)
+    test_catalog = DynamoDbCatalog(catalog_name, **{"py-io-impl": "pyiceberg.io.fsspec.FsspecFileIO"})
     test_catalog.create_namespace(namespace=database_name, properties={"location": f"s3://{BUCKET_NAME}/{database_name}.db/"})
     table = test_catalog.create_table(identifier, table_schema_nested)
     assert table.identifier == (catalog_name,) + identifier
@@ -124,7 +126,9 @@ def test_create_table_with_strips_bucket_root(
 ) -> None:
     catalog_name = "test_ddb_catalog"
     identifier = (database_name, table_name)
-    test_catalog = DynamoDbCatalog(catalog_name, warehouse=f"s3://{BUCKET_NAME}/")
+    test_catalog = DynamoDbCatalog(
+        catalog_name, **{"py-io-impl": "pyiceberg.io.fsspec.FsspecFileIO", "warehouse": f"s3://{BUCKET_NAME}/"}
+    )
     test_catalog.create_namespace(namespace=database_name)
     table_strip = test_catalog.create_table(identifier, table_schema_nested)
     assert table_strip.identifier == (catalog_name,) + identifier
@@ -146,7 +150,9 @@ def test_create_duplicated_table(
     _bucket_initialize: None, _patch_aiobotocore: None, table_schema_nested: Schema, database_name: str, table_name: str
 ) -> None:
     identifier = (database_name, table_name)
-    test_catalog = DynamoDbCatalog("test_ddb_catalog", warehouse=f"s3://{BUCKET_NAME}")
+    test_catalog = DynamoDbCatalog(
+        "test_ddb_catalog", **{"warehouse": f"s3://{BUCKET_NAME}", "py-io-impl": "pyiceberg.io.fsspec.FsspecFileIO"}
+    )
     test_catalog.create_namespace(namespace=database_name)
     test_catalog.create_table(identifier, table_schema_nested)
     with pytest.raises(TableAlreadyExistsError):
@@ -159,7 +165,9 @@ def test_load_table(
 ) -> None:
     catalog_name = "test_ddb_catalog"
     identifier = (database_name, table_name)
-    test_catalog = DynamoDbCatalog(catalog_name, warehouse=f"s3://{BUCKET_NAME}")
+    test_catalog = DynamoDbCatalog(
+        catalog_name, **{"warehouse": f"s3://{BUCKET_NAME}", "py-io-impl": "pyiceberg.io.fsspec.FsspecFileIO"}
+    )
     test_catalog.create_namespace(namespace=database_name)
     test_catalog.create_table(identifier, table_schema_nested)
     table = test_catalog.load_table(identifier)
@@ -182,7 +190,9 @@ def test_drop_table(
 ) -> None:
     catalog_name = "test_ddb_catalog"
     identifier = (database_name, table_name)
-    test_catalog = DynamoDbCatalog(catalog_name, warehouse=f"s3://{BUCKET_NAME}")
+    test_catalog = DynamoDbCatalog(
+        catalog_name, **{"warehouse": f"s3://{BUCKET_NAME}", "py-io-impl": "pyiceberg.io.fsspec.FsspecFileIO"}
+    )
     test_catalog.create_namespace(namespace=database_name)
     test_catalog.create_table(identifier, table_schema_nested)
     table = test_catalog.load_table(identifier)
@@ -209,7 +219,9 @@ def test_rename_table(
     new_table_name = f"{table_name}_new"
     identifier = (database_name, table_name)
     new_identifier = (database_name, new_table_name)
-    test_catalog = DynamoDbCatalog(catalog_name, warehouse=f"s3://{BUCKET_NAME}")
+    test_catalog = DynamoDbCatalog(
+        catalog_name, **{"warehouse": f"s3://{BUCKET_NAME}", "py-io-impl": "pyiceberg.io.fsspec.FsspecFileIO"}
+    )
     test_catalog.create_namespace(namespace=database_name)
     table = test_catalog.create_table(identifier, table_schema_nested)
     assert table.identifier == (catalog_name,) + identifier
@@ -281,7 +293,9 @@ def test_fail_on_rename_non_iceberg_table(_dynamodb, _bucket_initialize: None, _
 def test_list_tables(
     _bucket_initialize: None, _patch_aiobotocore: None, table_schema_nested: Schema, database_name: str, table_list: List[str]
 ) -> None:
-    test_catalog = DynamoDbCatalog("test_ddb_catalog", warehouse=f"s3://{BUCKET_NAME}")
+    test_catalog = DynamoDbCatalog(
+        "test_ddb_catalog", **{"warehouse": f"s3://{BUCKET_NAME}", "py-io-impl": "pyiceberg.io.fsspec.FsspecFileIO"}
+    )
     test_catalog.create_namespace(namespace=database_name)
     for table_name in table_list:
         test_catalog.create_table((database_name, table_name), table_schema_nested)
@@ -358,7 +372,9 @@ def test_drop_non_empty_namespace(
     _bucket_initialize: None, _patch_aiobotocore: None, table_schema_nested: Schema, database_name: str, table_name: str
 ) -> None:
     identifier = (database_name, table_name)
-    test_catalog = DynamoDbCatalog("test_ddb_catalog", warehouse=f"s3://{BUCKET_NAME}")
+    test_catalog = DynamoDbCatalog(
+        "test_ddb_catalog", **{"warehouse": f"s3://{BUCKET_NAME}", "py-io-impl": "pyiceberg.io.fsspec.FsspecFileIO"}
+    )
     test_catalog.create_namespace(namespace=database_name)
     test_catalog.create_table(identifier, table_schema_nested)
     assert len(test_catalog.list_tables(database_name)) == 1
