@@ -45,7 +45,6 @@ from pyiceberg.expressions import (
 )
 from pyiceberg.expressions.visitors import inclusive_projection
 from pyiceberg.io import FileIO, load_file_io
-from pyiceberg.io.pyarrow import project_table
 from pyiceberg.manifest import (
     DataFile,
     ManifestContent,
@@ -385,6 +384,8 @@ class DataScan(TableScan):
             )
 
     def to_arrow(self) -> pa.Table:
+        from pyiceberg.io.pyarrow import project_table
+
         return project_table(
             self.plan_files(), self.table, self.row_filter, self.projection(), case_sensitive=self.case_sensitive
         )
