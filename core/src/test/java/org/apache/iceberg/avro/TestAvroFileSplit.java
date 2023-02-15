@@ -66,7 +66,7 @@ public class TestAvroFileSplit {
             .set(TableProperties.AVRO_COMPRESSION, "uncompressed")
             .createWriterFunc(DataWriter::create)
             .schema(SCHEMA)
-            .overwrite()
+            .overwriteIfNeeded()
             .build()) {
 
       Record record = GenericRecord.create(SCHEMA);
