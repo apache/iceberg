@@ -43,7 +43,7 @@ public class Files {
     return localOutput(Paths.get(file).toAbsolutePath().toFile());
   }
 
-  private static class LocalOutputFile implements OutputFile {
+  public static class LocalOutputFile implements OutputFile {
     private final File file;
 
     private LocalOutputFile(File file) {
