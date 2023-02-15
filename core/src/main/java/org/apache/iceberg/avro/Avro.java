@@ -155,18 +155,15 @@ public class Avro {
       return this;
     }
 
-    /* public WriteBuilder overwriteIfNeeded() {
-      return overwrite(file instanceof HadoopFileIO || file instanceof Files.LocalOutputFile);
-    }*/
-
     /**
      * Overwrite only if needed on File systems where a new empty file gets pre-created like {@link
      * HadoopFileIO}
      *
-     * @return
+     * @return {@link WriteBuilder}
      */
     public WriteBuilder overwriteIfNeeded() {
-      return overwrite(file instanceof HadoopFileIO || file instanceof Files.LocalOutputFile);
+      boolean needsOverride = file instanceof HadoopFileIO || file instanceof Files.LocalOutputFile;
+      return overwrite(needsOverride);
     }
 
     public WriteBuilder overwrite() {
