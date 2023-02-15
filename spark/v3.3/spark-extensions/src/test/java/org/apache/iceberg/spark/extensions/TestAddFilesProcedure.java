@@ -408,12 +408,10 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
 
     sql(createIceberg, tableName, TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED);
 
-    SparkSession.clearActiveSession();
     scalarSql(
         "CALL %s.system.add_files('%s', '`parquet`.`%s`', map('id', 1))",
         catalogName, tableName, fileTableDir.getAbsolutePath());
 
-    SparkSession.clearActiveSession();
     scalarSql(
         "CALL %s.system.add_files('%s', '`parquet`.`%s`', map('id', 2))",
         catalogName, tableName, fileTableDir.getAbsolutePath());
