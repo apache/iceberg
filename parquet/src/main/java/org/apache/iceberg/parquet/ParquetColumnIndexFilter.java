@@ -522,16 +522,17 @@ public class ParquetColumnIndexFilter {
 
       if (conversion == null) {
         Type type = schema.findType(columnId);
-        Function<ByteBuffer, ByteBuffer> bytesReorder;
-        if (type == Types.UUIDType.get() || type instanceof Types.DecimalType) {
-          // The buffers returned by Parquet are all in little-endian byte order,
+        conversion = buffer -> {
+          // The buffers returned by Parquet might be in little-endian byte order,
           // but Conversions#fromByteBuffer use big-endian byte order for UUIDs and Decimals.
-          bytesReorder = buffer -> toBigEndian(buffer);
-        } else {
-          bytesReorder = Function.identity();
-        }
+          if ((type == Types.UUIDType.get() || type instanceof Types.DecimalType) &&
+                  buffer.order() == ByteOrder.LITTLE_ENDIAN) {
+            return Conversions.fromByteBuffer(type, toBigEndian(buffer));
+          } else {
+            return Conversions.fromByteBuffer(type, buffer);
+          }
+        };
 
-        conversion = bytesReorder.andThen(buffer -> Conversions.fromByteBuffer(type, buffer));
         conversions.put(columnId, conversion);
       }
 

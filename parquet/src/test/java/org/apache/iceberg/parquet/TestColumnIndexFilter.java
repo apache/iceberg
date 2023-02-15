@@ -19,7 +19,9 @@
 
 package org.apache.iceberg.parquet;
 
+import java.math.BigDecimal;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.List;
 import java.util.Locale;
 import java.util.PrimitiveIterator;
@@ -28,8 +30,9 @@ import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
-import org.apache.parquet.bytes.BytesUtils;
+import org.apache.iceberg.util.DecimalUtil;
 import org.apache.parquet.hadoop.metadata.ColumnPath;
 import org.apache.parquet.internal.column.columnindex.BoundaryOrder;
 import org.apache.parquet.internal.column.columnindex.ColumnIndex;
@@ -64,6 +67,7 @@ import static org.apache.parquet.internal.column.columnindex.BoundaryOrder.UNORD
 import static org.apache.parquet.schema.LogicalTypeAnnotation.stringType;
 import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.BINARY;
 import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.DOUBLE;
+import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.FIXED_LEN_BYTE_ARRAY;
 import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.INT32;
 import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.INT64;
 import static org.apache.parquet.schema.Types.optional;
@@ -285,8 +289,12 @@ public class TestColumnIndexFilter {
   private static final RowRanges ALL_ROWS = RowRanges.createSingle(TOTAL_ROW_COUNT);
   private static final RowRanges NO_ROWS = RowRanges.EMPTY;
 
-  private static RowRanges createRowRanges(String path, Integer... pageIndexes) {
-    return RowRanges.create(TOTAL_ROW_COUNT, new PrimitiveIterator.OfInt() {
+  private static RowRanges selectRowRanges(String path, int... pageIndexes) {
+    return selectRowRanges(path, STORE, TOTAL_ROW_COUNT, pageIndexes);
+  }
+
+  private static RowRanges selectRowRanges(String path, ColumnIndexStore store, long rowCount, int... pageIndexes) {
+    return RowRanges.create(rowCount, new PrimitiveIterator.OfInt() {
       int index = -1;
 
       @Override
@@ -299,7 +307,7 @@ public class TestColumnIndexFilter {
         index += 1;
         return index < pageIndexes.length;
       }
-    }, STORE.getOffsetIndex(ColumnPath.fromDotString(path)));
+    }, store.getOffsetIndex(ColumnPath.fromDotString(path)));
   }
 
   private boolean rowRangesEquals(RowRanges r1, RowRanges r2) {
@@ -350,21 +358,26 @@ public class TestColumnIndexFilter {
   }
 
   private RowRanges calculateRowRanges(Schema schema, MessageType messageType, Expression expr, boolean caseSensitive) {
+    return calculateRowRanges(schema, messageType, expr, caseSensitive, STORE, TOTAL_ROW_COUNT);
+  }
+
+  private RowRanges calculateRowRanges(Schema schema, MessageType messageType, Expression expr,
+                                       boolean caseSensitive, ColumnIndexStore store, long rowCount) {
     return new ParquetColumnIndexFilter(schema, expr, caseSensitive)
-            .calculateRowRanges(messageType, STORE, TOTAL_ROW_COUNT);
+            .calculateRowRanges(messageType, store, rowCount);
   }
 
   @Test
   public void testIsNulls() {
     RowRanges expected;
 
-    expected = createRowRanges(INT_COL, 1, 3);
+    expected = selectRowRanges(INT_COL, 1, 3);
     assertRowRangesEquals(expected, calculateRowRanges(isNull(INT_COL)));
 
-    expected = createRowRanges(STR_COL, 2, 3);
+    expected = selectRowRanges(STR_COL, 2, 3);
     assertRowRangesEquals(expected, calculateRowRanges(isNull(STR_COL)));
 
-    expected = createRowRanges(NO_NANS, 2, 4, 6);
+    expected = selectRowRanges(NO_NANS, 2, 4, 6);
     assertRowRangesEquals(expected, calculateRowRanges(isNull(NO_NANS)));
 
     expected = ALL_ROWS;
@@ -378,10 +391,10 @@ public class TestColumnIndexFilter {
     expected = ALL_ROWS;
     assertRowRangesEquals(expected, calculateRowRanges(notNull(INT_COL)));
 
-    expected = createRowRanges(STR_COL, 0, 1, 2, 4, 5, 6, 7);
+    expected = selectRowRanges(STR_COL, 0, 1, 2, 4, 5, 6, 7);
     assertRowRangesEquals(expected, calculateRowRanges(notNull(STR_COL)));
 
-    expected = createRowRanges(NO_NANS, 0, 1, 2, 3, 4, 5);
+    expected = selectRowRanges(NO_NANS, 0, 1, 2, 3, 4, 5);
     assertRowRangesEquals(expected, calculateRowRanges(notNull(NO_NANS)));
 
     expected = NO_ROWS;
@@ -393,7 +406,7 @@ public class TestColumnIndexFilter {
     RowRanges expected;
 
     // column index exists, null page 6 should be filtered out
-    expected = createRowRanges(NO_NANS, 0, 1, 2, 3, 4, 5);
+    expected = selectRowRanges(NO_NANS, 0, 1, 2, 3, 4, 5);
     assertRowRangesEquals(expected, calculateRowRanges(isNaN(NO_NANS)));
 
     assertRowRangesEquals(ALL_ROWS, calculateRowRanges(isNaN(ALL_NANS)));
@@ -443,7 +456,7 @@ public class TestColumnIndexFilter {
     expected = ALL_ROWS;
     assertRowRangesEquals(expected, calculateRowRanges(not(lessThan(INT_COL, 1))));
 
-    expected = createRowRanges(INT_COL, 1, 2, 3, 4, 5, 6);
+    expected = selectRowRanges(INT_COL, 1, 2, 3, 4, 5, 6);
     assertRowRangesEquals(expected, calculateRowRanges(not(lessThanOrEqual(INT_COL, 1))));
   }
 
@@ -460,7 +473,7 @@ public class TestColumnIndexFilter {
     assertRowRangesEquals(expected, calculateRowRanges(expr));
 
     expr = Expressions.and(equal(INT_COL, 2), equal(STR_COL, "Tango"));
-    expected = RowRanges.intersection(createRowRanges(INT_COL, 1), createRowRanges(STR_COL, 2));
+    expected = RowRanges.intersection(selectRowRanges(INT_COL, 1), selectRowRanges(STR_COL, 2));
     assertRowRangesEquals(expected, calculateRowRanges(expr));
   }
 
@@ -469,16 +482,16 @@ public class TestColumnIndexFilter {
     RowRanges expected;
     Expression expr;
 
-    expected = createRowRanges(INT_COL, 0, 1);
+    expected = selectRowRanges(INT_COL, 0, 1);
     expr = Expressions.or(equal(INT_COL, 1), equal(INT_COL, 2));
     assertRowRangesEquals(expected, calculateRowRanges(expr));
 
-    expected = RowRanges.union(createRowRanges(INT_COL, 0), createRowRanges(STR_COL, 7));
+    expected = RowRanges.union(selectRowRanges(INT_COL, 0), selectRowRanges(STR_COL, 7));
     expr = Expressions.or(equal(INT_COL, 1), equal(STR_COL, "Alfa"));
     assertRowRangesEquals(expected, calculateRowRanges(expr));
 
     expr = Expressions.or(equal(INT_COL, 2), equal(STR_COL, "Tango"));
-    expected = RowRanges.union(createRowRanges(INT_COL, 1), createRowRanges(STR_COL, 2));
+    expected = RowRanges.union(selectRowRanges(INT_COL, 1), selectRowRanges(STR_COL, 2));
     assertRowRangesEquals(expected, calculateRowRanges(expr));
   }
 
@@ -492,10 +505,10 @@ public class TestColumnIndexFilter {
     expected = ALL_ROWS;
     assertRowRangesEquals(expected, calculateRowRanges(lessThan(INT_COL, 27)));
 
-    expected = createRowRanges(INT_COL, 0, 1);
+    expected = selectRowRanges(INT_COL, 0, 1);
     assertRowRangesEquals(expected, calculateRowRanges(lessThan(INT_COL, 7)));
 
-    expected = createRowRanges(INT_COL, 0, 1, 2, 3);
+    expected = selectRowRanges(INT_COL, 0, 1, 2, 3);
     assertRowRangesEquals(expected, calculateRowRanges(lessThan(INT_COL, 10)));
   }
 
@@ -509,13 +522,13 @@ public class TestColumnIndexFilter {
     expected = ALL_ROWS;
     assertRowRangesEquals(expected, calculateRowRanges(lessThanOrEqual(INT_COL, 27)));
 
-    expected = createRowRanges(INT_COL, 0, 1, 2, 3);
+    expected = selectRowRanges(INT_COL, 0, 1, 2, 3);
     assertRowRangesEquals(expected, calculateRowRanges(lessThanOrEqual(INT_COL, 7)));
 
-    expected = createRowRanges(INT_COL, 0, 1, 2, 3, 4);
+    expected = selectRowRanges(INT_COL, 0, 1, 2, 3, 4);
     assertRowRangesEquals(expected, calculateRowRanges(lessThanOrEqual(INT_COL, 11)));
 
-    expected = createRowRanges(INT_COL, 0);
+    expected = selectRowRanges(INT_COL, 0);
 
     assertRowRangesEquals(expected, calculateRowRanges(lessThanOrEqual(INT_COL, 1)));
   }
@@ -530,7 +543,7 @@ public class TestColumnIndexFilter {
     expected = ALL_ROWS;
     assertRowRangesEquals(expected, calculateRowRanges(greaterThan(INT_COL, 0)));
 
-    expected = createRowRanges(INT_COL, 3, 4, 5, 6);
+    expected = selectRowRanges(INT_COL, 3, 4, 5, 6);
     assertRowRangesEquals(expected, calculateRowRanges(greaterThan(INT_COL, 7)));
   }
 
@@ -544,7 +557,7 @@ public class TestColumnIndexFilter {
     expected = ALL_ROWS;
     assertRowRangesEquals(expected, calculateRowRanges(greaterThanOrEqual(INT_COL, 1)));
 
-    expected = createRowRanges(INT_COL, 2, 3, 4, 5, 6);
+    expected = selectRowRanges(INT_COL, 2, 3, 4, 5, 6);
     assertRowRangesEquals(expected, calculateRowRanges(greaterThanOrEqual(INT_COL, 7)));
   }
 
@@ -555,10 +568,10 @@ public class TestColumnIndexFilter {
     expected = NO_ROWS;
     assertRowRangesEquals(expected, calculateRowRanges(equal(INT_COL, 0)));
 
-    expected = createRowRanges(INT_COL, 2, 3);
+    expected = selectRowRanges(INT_COL, 2, 3);
     assertRowRangesEquals(expected, calculateRowRanges(equal(INT_COL, 7)));
 
-    expected = createRowRanges(INT_COL, 0);
+    expected = selectRowRanges(INT_COL, 0);
     assertRowRangesEquals(expected, calculateRowRanges(equal(INT_COL, 1)));
   }
 
@@ -569,7 +582,6 @@ public class TestColumnIndexFilter {
     expected = ALL_ROWS;
     assertRowRangesEquals(expected, calculateRowRanges(notEqual(INT_COL, 0)));
 
-    // TODO 如果是不会被截断的类型，可以用最大最小值做评估，跳过没有null值，且 min == max == value 的 pages
     assertRowRangesEquals(expected, calculateRowRanges(notEqual(INT_COL, 7)));
   }
 
@@ -582,10 +594,10 @@ public class TestColumnIndexFilter {
     expected = NO_ROWS;
     assertRowRangesEquals(expected, calculateRowRanges(equal(intColAllCaps, 0), false));
 
-    expected = createRowRanges(INT_COL, 2, 3);
+    expected = selectRowRanges(INT_COL, 2, 3);
     assertRowRangesEquals(expected, calculateRowRanges(equal(intColAllCaps, 7), false));
 
-    expected = createRowRanges(INT_COL, 0);
+    expected = selectRowRanges(INT_COL, 0);
     assertRowRangesEquals(expected, calculateRowRanges(equal(intColAllCaps, 1), false));
   }
 
@@ -596,7 +608,7 @@ public class TestColumnIndexFilter {
     expected = NO_ROWS;
     assertRowRangesEquals(expected, calculateRowRanges(startsWith(STR_COL, "?")));
 
-    expected = createRowRanges(STR_COL, 0);
+    expected = selectRowRanges(STR_COL, 0);
     assertRowRangesEquals(expected, calculateRowRanges(startsWith(STR_COL, "Z")));
   }
 
@@ -604,10 +616,10 @@ public class TestColumnIndexFilter {
   public void testStringNotStartsWith() {
     RowRanges expected;
 
-    expected = createRowRanges(STR_COL, 1, 2, 3, 4, 5, 6, 7);
+    expected = selectRowRanges(STR_COL, 1, 2, 3, 4, 5, 6, 7);
     assertRowRangesEquals(expected, calculateRowRanges(notStartsWith(STR_COL, "Z")));
 
-    expected = createRowRanges(STR_COL, 0, 1, 2, 3, 4, 5, 6);
+    expected = selectRowRanges(STR_COL, 0, 1, 2, 3, 4, 5, 6);
     assertRowRangesEquals(expected, calculateRowRanges(notStartsWith(STR_COL, "A")));
   }
 
@@ -617,7 +629,7 @@ public class TestColumnIndexFilter {
     Expression expr;
 
     expr = Expressions.in(INT_COL, 7, 13);
-    expected = createRowRanges(INT_COL, 2, 3, 4);
+    expected = selectRowRanges(INT_COL, 2, 3, 4);
     assertRowRangesEquals(expected, calculateRowRanges(expr));
   }
 
@@ -649,7 +661,7 @@ public class TestColumnIndexFilter {
     expected = NO_ROWS;
     assertRowRangesEquals(expected, calculateRowRanges(promotedLong, equal(INT_COL, 0), true));
 
-    expected = createRowRanges(INT_COL, 2, 3);
+    expected = selectRowRanges(INT_COL, 2, 3);
     assertRowRangesEquals(expected, calculateRowRanges(promotedLong, equal(INT_COL, 7), true));
   }
 
@@ -664,6 +676,109 @@ public class TestColumnIndexFilter {
 
     expected = ALL_ROWS;
     assertRowRangesEquals(expected, calculateRowRanges(SCHEMA, messageType, equal(INT_COL, 1), true));
+  }
+
+  // 38 precision 10 scale decimal to bytes
+  private byte[] decimalToBytes(String decimalStr) {
+    BigDecimal decimal = new BigDecimal(decimalStr).setScale(10);
+    int requiredBytes = TypeUtil.decimalRequiredBytes(38);
+    byte[] bytes = new byte[requiredBytes];
+    return DecimalUtil.toReusedFixLengthBytes(38, 10, decimal, bytes);
+  }
+
+  @Test
+  public void testDecimalType() {
+    String intDecimal = "decimal_7_2";
+    String longDecimal = "decimal_11_2";
+    String binaryDecimal = "decimal_38_10";
+    long rowCount = 9;
+    ColumnIndex intDecimalCI = new CIBuilder(optional(INT32).named(intDecimal), ASCENDING)
+            .addPage(0, 1234, 1235)
+            .addPage(1, 1235, 1235)
+            .addPage(2, 1237, 9999)
+            .build();
+
+    OffsetIndex intDecimalOI = new OIBuilder()
+            .addPage(2)
+            .addPage(3)
+            .addPage(4)
+            .build();
+
+    ColumnIndex binaryDecimalCI = new CIBuilder(optional(FIXED_LEN_BYTE_ARRAY)
+            .length(TypeUtil.decimalRequiredBytes(38))
+            .named(binaryDecimal), ASCENDING)
+            .addPage(0, decimalToBytes("12.34"), decimalToBytes("12.35"))
+            .addPage(0, decimalToBytes("12.35"), decimalToBytes("12.39"))
+            .build();
+
+    OffsetIndex binaryDecimalOI = new OIBuilder()
+            .addPage(5)
+            .addPage(4)
+            .build();
+
+    ColumnIndexStore columnIndexStore = new ColumnIndexStore() {
+      @Override
+      public ColumnIndex getColumnIndex(ColumnPath columnPath) {
+        switch (columnPath.toDotString()) {
+          case "decimal_7_2":
+            return intDecimalCI;
+          case "decimal_38_10":
+            return binaryDecimalCI;
+          default:
+            return null;
+        }
+      }
+
+      @Override
+      public OffsetIndex getOffsetIndex(ColumnPath columnPath) {
+        switch (columnPath.toDotString()) {
+          case "decimal_7_2":
+            return intDecimalOI;
+          case "decimal_38_10":
+            return binaryDecimalOI;
+          default:
+            throw new MissingOffsetIndexException(columnPath);
+        }
+      }
+    };
+
+    MessageType messageType = new MessageType("test",
+            org.apache.parquet.schema.Types.primitive(INT32, Type.Repetition.OPTIONAL)
+            .id(1)
+            .named("decimal_7_2"),
+            org.apache.parquet.schema.Types.primitive(FIXED_LEN_BYTE_ARRAY, Type.Repetition.OPTIONAL)
+            .length(TypeUtil.decimalRequiredBytes(38))
+            .id(3)
+            .named("decimal_38_10"));
+
+    Schema schema = new Schema(Types.NestedField.optional(1, intDecimal, Types.DecimalType.of(7, 2)),
+            Types.NestedField.optional(2, longDecimal, Types.DecimalType.of(11, 2)),
+            Types.NestedField.optional(3, binaryDecimal, Types.DecimalType.of(38, 10)));
+
+    Expression expr = Expressions.and(
+            lessThan(intDecimal, new BigDecimal("12.37")),
+            greaterThanOrEqual(intDecimal, new BigDecimal("12.35"))
+    );
+
+    RowRanges expected = selectRowRanges(intDecimal, columnIndexStore, rowCount, 0, 1);
+    RowRanges actual = calculateRowRanges(schema, messageType, expr, true, columnIndexStore, rowCount);
+
+    assertRowRangesEquals(expected, actual);
+
+    expr = Expressions.and(
+            lessThan(binaryDecimal, new BigDecimal("12.37")),
+            greaterThanOrEqual(binaryDecimal, new BigDecimal("12.35"))
+    );
+
+    expected = selectRowRanges(binaryDecimal, columnIndexStore, rowCount, 0, 1);
+    actual = calculateRowRanges(schema, messageType, expr, true, columnIndexStore, rowCount);
+    assertRowRangesEquals(expected, actual);
+
+
+    expr = Expressions.greaterThan(binaryDecimal, new BigDecimal("99.99"));
+    expected = NO_ROWS;
+    actual = calculateRowRanges(schema, messageType, expr, true, columnIndexStore, rowCount);
+    assertRowRangesEquals(expected, actual);
   }
 
   private static class CIBuilder {
@@ -689,11 +804,29 @@ public class TestColumnIndexFilter {
       return this;
     }
 
+    CIBuilder addPage(long nullCount, byte[] min, byte[] max) {
+      nullPages.add(false);
+      nullCounts.add(nullCount);
+      minValues.add(ByteBuffer.wrap(min));
+      maxValues.add(ByteBuffer.wrap(max));
+      return this;
+    }
+
     CIBuilder addPage(long nullCount, int min, int max) {
       nullPages.add(false);
       nullCounts.add(nullCount);
-      minValues.add(ByteBuffer.wrap(BytesUtils.intToBytes(min)));
-      maxValues.add(ByteBuffer.wrap(BytesUtils.intToBytes(max)));
+      minValues.add(ByteBuffer.allocate(Integer.BYTES).order(ByteOrder.LITTLE_ENDIAN).putInt(0, min));
+      maxValues.add(ByteBuffer.allocate(Integer.BYTES).order(ByteOrder.LITTLE_ENDIAN).putInt(0, max));
+//      minValues.add(ByteBuffer.wrap(BytesUtils.intToBytes(min)));
+//      maxValues.add(ByteBuffer.wrap(BytesUtils.intToBytes(max)));
+      return this;
+    }
+
+    CIBuilder addPage(long nullCount, long min, long max) {
+      nullPages.add(false);
+      nullCounts.add(nullCount);
+      minValues.add(ByteBuffer.allocate(Long.BYTES).order(ByteOrder.LITTLE_ENDIAN).putLong(0, min));
+      maxValues.add(ByteBuffer.allocate(Long.BYTES).order(ByteOrder.LITTLE_ENDIAN).putLong(0, max));
       return this;
     }
 
@@ -713,8 +846,10 @@ public class TestColumnIndexFilter {
 
       nullPages.add(false);
       nullCounts.add(nullCount);
-      minValues.add(ByteBuffer.wrap(BytesUtils.longToBytes(Double.doubleToLongBits(min))));
-      maxValues.add(ByteBuffer.wrap(BytesUtils.longToBytes(Double.doubleToLongBits(max))));
+      minValues.add(ByteBuffer.allocate(Double.BYTES).order(ByteOrder.LITTLE_ENDIAN).putDouble(0, min));
+      maxValues.add(ByteBuffer.allocate(Double.BYTES).order(ByteOrder.LITTLE_ENDIAN).putDouble(0, max));
+//      minValues.add(ByteBuffer.wrap(BytesUtils.longToBytes(Double.doubleToLongBits(min))));
+//      maxValues.add(ByteBuffer.wrap(BytesUtils.longToBytes(Double.doubleToLongBits(max))));
       return this;
     }
 
