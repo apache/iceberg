@@ -18,25 +18,22 @@
  */
 package org.apache.iceberg.spark.action;
 
-import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.apache.spark.sql.functions.lit;
 
 import java.sql.Timestamp;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
-import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.PartitionSpec;
-import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.actions.DeleteOrphanFiles;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.io.Files;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.actions.SparkActions;
-import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
@@ -53,34 +50,44 @@ import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.TearDown;
 import org.openjdk.jmh.annotations.Threads;
 import org.openjdk.jmh.annotations.Timeout;
+import org.openjdk.jmh.annotations.Warmup;
+import org.openjdk.jmh.infra.Blackhole;
 
+/**
+ * A benchmark that evaluates the performance of remove orphan files action in Spark.
+ *
+ * <p>To run this benchmark for spark-3.3: <code>
+ *   ./gradlew -DsparkVersions=3.3 :iceberg-spark:iceberg-spark-3.3_2.12:jmh
+ *       -PjmhIncludeRegex=DeleteOrphanFilesBenchmark
+ *       -PjmhOutputPath=benchmark/delete-orphan-files-benchmark-results.txt
+ * </code>
+ */
 @Fork(1)
 @State(Scope.Benchmark)
-@Measurement(iterations = 10)
+@Warmup(iterations = 3)
+@Measurement(iterations = 5)
 @BenchmarkMode(Mode.SingleShotTime)
 @Timeout(time = 1000, timeUnit = TimeUnit.HOURS)
 public class DeleteOrphanFilesBenchmark {
 
-  private static final String NAME = "delete_orphan_perf";
+  private static final String TABLE_NAME = "delete_orphan_perf";
+  private static final int NUM_SNAPSHOTS = 1000;
+  private static final int NUM_FILES = 1000;
 
   private SparkSession spark;
-  private final Configuration hadoopConf = initHadoopConf();
-  private final List<String> paths = Lists.newArrayList();
+  private final List<String> orphanPaths = Lists.newArrayList();
+  private Table table;
 
   @Setup
   public void setupBench() {
     setupSpark();
+    initTable();
+    appendData();
   }
 
   @TearDown
   public void teardownBench() {
     tearDownSpark();
-  }
-
-  @Setup(Level.Iteration)
-  public void setupIteration() {
-    initTable();
-    appendData();
   }
 
   @TearDown(Level.Iteration)
@@ -90,46 +97,41 @@ public class DeleteOrphanFilesBenchmark {
 
   @Benchmark
   @Threads(1)
-  public void testDeleteOrphanFiles() {
+  public void testDeleteOrphanFiles(Blackhole blackhole) {
     Timestamp timestamp = new Timestamp(10000);
-    Dataset<Row> rowDataset =
+    Dataset<Row> orphanFilesDF =
         spark
-            .createDataset(paths, Encoders.STRING())
+            .createDataset(orphanPaths, Encoders.STRING())
             .withColumnRenamed("value", "file_path")
             .withColumn("last_modified", lit(timestamp));
 
-    SparkActions.get(spark).deleteOrphanFiles(table()).compareToFileList(rowDataset).execute();
+    DeleteOrphanFiles.Result results =
+        SparkActions.get(spark)
+            .deleteOrphanFiles(table())
+            .compareToFileList(orphanFilesDF)
+            .execute();
+    blackhole.consume(results);
   }
 
-  protected Configuration initHadoopConf() {
-    return new Configuration();
-  }
-
-  protected final void initTable() {
-    spark.sql(String.format("DROP TABLE IF EXISTS %s", NAME));
+  private void initTable() {
     spark.sql(
         String.format(
             "CREATE TABLE %s(id INT, name STRING)"
                 + " USING ICEBERG"
                 + " TBLPROPERTIES ( 'format-version' = '2',"
                 + " 'compatibility.snapshot-id-inheritance.enabled' = 'true')",
-            NAME));
+            TABLE_NAME));
   }
 
   private void appendData() {
-    Schema schema =
-        new Schema(
-            required(3, "id", Types.IntegerType.get()),
-            required(4, "data", Types.StringType.get()));
-
     String location = table().location();
-    // Partition spec used to create tables
-    PartitionSpec partitionSpec = PartitionSpec.builderFor(schema).build();
+    PartitionSpec partitionSpec = table().spec();
 
-    for (int i = 0; i < 1000; i++) {
+    for (int i = 0; i < NUM_SNAPSHOTS; i++) {
       AppendFiles appendFiles = table().newFastAppend();
-      for (int j = 0; j < 10000; j++) {
+      for (int j = 0; j < NUM_FILES; j++) {
         String path = String.format("%s/path/to/data-%d-%d.parquet", location, i, j);
+        orphanPaths.add(path);
         DataFile dataFile =
             DataFiles.builder(partitionSpec)
                 .withPath(path)
@@ -142,40 +144,41 @@ public class DeleteOrphanFilesBenchmark {
     }
   }
 
-  protected final Table table() {
-    try {
-      return Spark3Util.loadIcebergTable(spark(), NAME);
-    } catch (Exception e) {
-      throw new RuntimeException(e);
+  private Table table() {
+    if (table == null) {
+      try {
+        table = Spark3Util.loadIcebergTable(spark(), TABLE_NAME);
+      } catch (Exception e) {
+        throw new RuntimeException(e);
+      }
     }
+    return table;
   }
 
-  protected final SparkSession spark() {
+  private SparkSession spark() {
     return spark;
   }
 
-  protected String getCatalogWarehouse() {
+  private String catalogWarehouse() {
     return Files.createTempDir().getAbsolutePath() + "/" + UUID.randomUUID() + "/";
   }
 
-  protected void cleanupFiles() {
-    spark.sql("DROP TABLE IF EXISTS " + NAME);
+  private void cleanupFiles() {
+    spark.sql("DROP TABLE IF EXISTS " + TABLE_NAME);
   }
 
-  protected void setupSpark() {
+  private void setupSpark() {
     SparkSession.Builder builder =
         SparkSession.builder()
             .config(
                 "spark.sql.catalog.spark_catalog", "org.apache.iceberg.spark.SparkSessionCatalog")
             .config("spark.sql.catalog.spark_catalog.type", "hadoop")
-            .config("spark.sql.catalog.spark_catalog.warehouse", getCatalogWarehouse())
-            .master("local[*]");
+            .config("spark.sql.catalog.spark_catalog.warehouse", catalogWarehouse())
+            .master("local");
     spark = builder.getOrCreate();
-    Configuration sparkHadoopConf = spark.sessionState().newHadoopConf();
-    hadoopConf.forEach(entry -> sparkHadoopConf.set(entry.getKey(), entry.getValue()));
   }
 
-  protected void tearDownSpark() {
+  private void tearDownSpark() {
     spark.stop();
   }
 }
