@@ -53,7 +53,6 @@ from pyiceberg.manifest import (
 )
 from pyiceberg.partitioning import PartitionSpec
 from pyiceberg.schema import Schema
-from pyiceberg.serializers import FromInputFile
 from pyiceberg.table.metadata import TableMetadata
 from pyiceberg.table.snapshots import Snapshot, SnapshotLogEntry
 from pyiceberg.table.sorting import SortOrder
@@ -184,6 +183,9 @@ class StaticTable(Table):
     def from_metadata(cls, metadata_location: str, properties: Properties = EMPTY_DICT) -> StaticTable:
         io = load_file_io(properties=properties, location=metadata_location)
         file = io.new_input(metadata_location)
+
+        from pyiceberg.serializers import FromInputFile
+
         metadata = FromInputFile.table_metadata(file)
 
         return cls(

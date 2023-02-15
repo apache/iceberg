@@ -18,6 +18,7 @@
 from __future__ import annotations
 
 import logging
+import uuid
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
@@ -27,16 +28,19 @@ from typing import (
     List,
     Optional,
     Set,
+    Tuple,
+    Type,
     Union,
     cast,
 )
 
-from pyiceberg.exceptions import NotInstalledError
+from pyiceberg.exceptions import NoSuchNamespaceError, NoSuchTableError, NotInstalledError
 from pyiceberg.io import FileIO, load_file_io
 from pyiceberg.manifest import ManifestFile
 from pyiceberg.partitioning import UNPARTITIONED_PARTITION_SPEC, PartitionSpec
 from pyiceberg.schema import Schema
-from pyiceberg.table import Table
+from pyiceberg.serializers import ToOutputFile
+from pyiceberg.table import Table, TableMetadata
 from pyiceberg.table.sorting import UNSORTED_SORT_ORDER, SortOrder
 from pyiceberg.typedef import (
     EMPTY_DICT,
@@ -56,17 +60,21 @@ ICEBERG = "iceberg"
 TABLE_TYPE = "table_type"
 WAREHOUSE_LOCATION = "warehouse"
 METADATA_LOCATION = "metadata_location"
+PREVIOUS_METADATA_LOCATION = "previous_metadata_location"
 MANIFEST = "manifest"
 MANIFEST_LIST = "manifest list"
 PREVIOUS_METADATA = "previous metadata"
 METADATA = "metadata"
 URI = "uri"
+LOCATION = "location"
+EXTERNAL_TABLE = "EXTERNAL_TABLE"
 
 
 class CatalogType(Enum):
     REST = "rest"
     HIVE = "hive"
     GLUE = "glue"
+    DYNAMODB = "dynamodb"
 
 
 def load_rest(name: str, conf: Properties) -> Catalog:
@@ -93,10 +101,20 @@ def load_glue(name: str, conf: Properties) -> Catalog:
         raise NotInstalledError("AWS glue support not installed: pip install 'pyiceberg[glue]'") from exc
 
 
+def load_dynamodb(name: str, conf: Properties) -> Catalog:
+    try:
+        from pyiceberg.catalog.dynamodb import DynamoDbCatalog
+
+        return DynamoDbCatalog(name, **conf)
+    except ImportError as exc:
+        raise NotInstalledError("AWS DynamoDB support not installed: pip install 'pyiceberg[dynamodb]'") from exc
+
+
 AVAILABLE_CATALOGS: dict[CatalogType, Callable[[str, Properties], Catalog]] = {
     CatalogType.REST: load_rest,
     CatalogType.HIVE: load_hive,
     CatalogType.GLUE: load_glue,
+    CatalogType.DYNAMODB: load_dynamodb,
 }
 
 
@@ -104,6 +122,7 @@ def infer_catalog_type(name: str, catalog_properties: RecursiveDict) -> Optional
     """Tries to infer the type based on the dict
 
     Args:
+        name: Name of the catalog
         catalog_properties: Catalog properties
 
     Returns:
@@ -149,6 +168,7 @@ def load_catalog(name: str, **properties: Optional[str]) -> Catalog:
     catalog_type: Optional[CatalogType]
     provided_catalog_type = conf.get(TYPE)
 
+    catalog_type = None
     if provided_catalog_type and isinstance(provided_catalog_type, str):
         catalog_type = CatalogType[provided_catalog_type.upper()]
     elif not provided_catalog_type:
@@ -276,17 +296,6 @@ class Catalog(ABC):
     @abstractmethod
     def drop_table(self, identifier: Union[str, Identifier]) -> None:
         """Drop a table.
-
-        Args:
-            identifier (str | Identifier): Table identifier.
-
-        Raises:
-            NoSuchTableError: If a table with the name does not exist
-        """
-
-    @abstractmethod
-    def purge_table(self, identifier: Union[str, Identifier]) -> None:
-        """Drop a table and purge all data and metadata files.
 
         Args:
             identifier (str | Identifier): Table identifier.
@@ -431,3 +440,113 @@ class Catalog(ABC):
             Identifier: Namespace identifier
         """
         return Catalog.identifier_to_tuple(identifier)[:-1]
+
+    @staticmethod
+    def _check_for_overlap(removals: Optional[Set[str]], updates: Properties) -> None:
+        if updates and removals:
+            overlap = set(removals) & set(updates.keys())
+            if overlap:
+                raise ValueError(f"Updates and deletes have an overlap: {overlap}")
+
+    def _resolve_table_location(self, location: Optional[str], database_name: str, table_name: str) -> str:
+        if not location:
+            return self._get_default_warehouse_location(database_name, table_name)
+        return location
+
+    def _get_default_warehouse_location(self, database_name: str, table_name: str) -> str:
+        database_properties = self.load_namespace_properties(database_name)
+        if database_location := database_properties.get(LOCATION):
+            database_location = database_location.rstrip("/")
+            return f"{database_location}/{table_name}"
+
+        if warehouse_path := self.properties.get(WAREHOUSE_LOCATION):
+            warehouse_path = warehouse_path.rstrip("/")
+            return f"{warehouse_path}/{database_name}.db/{table_name}"
+
+        raise ValueError("No default path is set, please specify a location when creating a table")
+
+    @staticmethod
+    def identifier_to_database(
+        identifier: Union[str, Identifier], err: Union[Type[ValueError], Type[NoSuchNamespaceError]] = ValueError
+    ) -> str:
+        tuple_identifier = Catalog.identifier_to_tuple(identifier)
+        if len(tuple_identifier) != 1:
+            raise err(f"Invalid database, hierarchical namespaces are not supported: {identifier}")
+
+        return tuple_identifier[0]
+
+    @staticmethod
+    def identifier_to_database_and_table(
+        identifier: Union[str, Identifier],
+        err: Union[Type[ValueError], Type[NoSuchTableError], Type[NoSuchNamespaceError]] = ValueError,
+    ) -> Tuple[str, str]:
+        tuple_identifier = Catalog.identifier_to_tuple(identifier)
+        if len(tuple_identifier) != 2:
+            raise err(f"Invalid path, hierarchical namespaces are not supported: {identifier}")
+
+        return tuple_identifier[0], tuple_identifier[1]
+
+    def purge_table(self, identifier: Union[str, Identifier]) -> None:
+        """Drop a table and purge all data and metadata files.
+
+        Note: This method only logs warning rather than raise exception when encountering file deletion failure
+
+        Args:
+            identifier (str | Identifier): Table identifier.
+
+        Raises:
+            NoSuchTableError: If a table with the name does not exist, or the identifier is invalid
+        """
+        table = self.load_table(identifier)
+        self.drop_table(identifier)
+        io = load_file_io(self.properties, table.metadata_location)
+        metadata = table.metadata
+        manifest_lists_to_delete = set()
+        manifests_to_delete = []
+        for snapshot in metadata.snapshots:
+            manifests_to_delete += snapshot.manifests(io)
+            if snapshot.manifest_list is not None:
+                manifest_lists_to_delete.add(snapshot.manifest_list)
+
+        manifest_paths_to_delete = {manifest.manifest_path for manifest in manifests_to_delete}
+        prev_metadata_files = {log.metadata_file for log in metadata.metadata_log}
+
+        delete_data_files(io, manifests_to_delete)
+        delete_files(io, manifest_paths_to_delete, MANIFEST)
+        delete_files(io, manifest_lists_to_delete, MANIFEST_LIST)
+        delete_files(io, prev_metadata_files, PREVIOUS_METADATA)
+        delete_files(io, {table.metadata_location}, METADATA)
+
+    @staticmethod
+    def _write_metadata(metadata: TableMetadata, io: FileIO, metadata_path: str) -> None:
+        ToOutputFile.table_metadata(metadata, io.new_output(metadata_path))
+
+    @staticmethod
+    def _get_metadata_location(location: str) -> str:
+        return f"{location}/metadata/00000-{uuid.uuid4()}.metadata.json"
+
+    def _get_updated_props_and_update_summary(
+        self, current_properties: Properties, removals: Optional[Set[str]], updates: Properties
+    ) -> Tuple[PropertiesUpdateSummary, Properties]:
+        self._check_for_overlap(updates=updates, removals=removals)
+        updated_properties = dict(current_properties)
+
+        removed: Set[str] = set()
+        updated: Set[str] = set()
+
+        if removals:
+            for key in removals:
+                if key in updated_properties:
+                    updated_properties.pop(key)
+                    removed.add(key)
+        if updates:
+            for key, value in updates.items():
+                updated_properties[key] = value
+                updated.add(key)
+
+        expected_to_change = (removals or set()).difference(removed)
+        properties_update_summary = PropertiesUpdateSummary(
+            removed=list(removed or []), updated=list(updated or []), missing=list(expected_to_change)
+        )
+
+        return properties_update_summary, updated_properties

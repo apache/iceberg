@@ -25,6 +25,7 @@ and the built-in pytest fixture request should be used as an additional argument
 retrieved using `request.getfixturevalue(fixture_name)`.
 """
 import os
+import re
 import string
 import uuid
 from random import choice
@@ -35,6 +36,7 @@ from typing import (
     Dict,
     Generator,
     List,
+    Optional,
 )
 from unittest.mock import MagicMock
 from urllib.parse import urlparse
@@ -48,9 +50,10 @@ import boto3
 import botocore.awsrequest
 import botocore.model
 import pytest
-from moto import mock_glue, mock_s3
+from moto import mock_dynamodb, mock_glue, mock_s3
 
 from pyiceberg import schema
+from pyiceberg.catalog import Catalog
 from pyiceberg.io import OutputFile, OutputStream, fsspec
 from pyiceberg.io.fsspec import FsspecFileIO
 from pyiceberg.io.pyarrow import PyArrowFile, PyArrowFileIO
@@ -916,7 +919,9 @@ class LocalOutputFile(OutputFile):
 
     def __init__(self, location: str) -> None:
         parsed_location = urlparse(location)  # Create a ParseResult from the uri
-        if parsed_location.scheme and parsed_location.scheme != "file":  # Validate that a uri is provided with a scheme of `file`
+        if (
+            parsed_location.scheme and parsed_location.scheme != "file"
+        ):  # Validate that an uri is provided with a scheme of `file`
             raise ValueError("LocalOutputFile location must have a scheme of `file`")
         elif parsed_location.netloc:
             raise ValueError(f"Network location is not allowed for LocalOutputFile: {parsed_location.netloc}")
@@ -1256,6 +1261,13 @@ def fixture_glue(_aws_credentials: None) -> Generator[boto3.client, None, None]:
         yield boto3.client("glue", region_name="us-east-1")
 
 
+@pytest.fixture(name="_dynamodb")
+def fixture_dynamodb(_aws_credentials: None) -> Generator[boto3.client, None, None]:
+    """Mocked DynamoDB client"""
+    with mock_dynamodb():
+        yield boto3.client("dynamodb", region_name="us-east-1")
+
+
 @pytest.fixture
 def adlfs_fsspec_fileio(request: pytest.FixtureRequest) -> Generator[FsspecFileIO, None, None]:
     from azure.storage.blob import BlobServiceClient
@@ -1307,3 +1319,52 @@ def database_name() -> str:
 @pytest.fixture()
 def database_list(database_name: str) -> List[str]:
     return [f"{database_name}_{idx}" for idx in range(NUM_TABLES)]
+
+
+BUCKET_NAME = "test_bucket"
+TABLE_METADATA_LOCATION_REGEX = re.compile(
+    r"""s3://test_bucket/my_iceberg_database-[a-z]{20}.db/
+    my_iceberg_table-[a-z]{20}/metadata/
+    00000-[a-f0-9]{8}-?[a-f0-9]{4}-?4[a-f0-9]{3}-?[89ab][a-f0-9]{3}-?[a-f0-9]{12}.metadata.json""",
+    re.X,
+)
+
+
+@pytest.fixture(name="_bucket_initialize")
+def fixture_s3_bucket(_s3) -> None:  # type: ignore
+    _s3.create_bucket(Bucket=BUCKET_NAME)
+
+
+def get_bucket_name() -> str:
+    """
+    Set the environment variable AWS_TEST_BUCKET for a default bucket to test
+    """
+    bucket_name = os.getenv("AWS_TEST_BUCKET")
+    if bucket_name is None:
+        raise ValueError("Please specify a bucket to run the test by setting environment variable AWS_TEST_BUCKET")
+    return bucket_name
+
+
+def get_s3_path(bucket_name: str, database_name: Optional[str] = None, table_name: Optional[str] = None) -> str:
+    result_path = f"s3://{bucket_name}"
+    if database_name is not None:
+        result_path += f"/{database_name}.db"
+
+    if table_name is not None:
+        result_path += f"/{table_name}"
+    return result_path
+
+
+@pytest.fixture(name="s3", scope="module")
+def fixture_s3_client() -> boto3.client:
+    yield boto3.client("s3")
+
+
+def clean_up(test_catalog: Catalog) -> None:
+    """Clean all databases and tables created during the integration test"""
+    for database_tuple in test_catalog.list_namespaces():
+        database_name = database_tuple[0]
+        if "my_iceberg_database-" in database_name:
+            for identifier in test_catalog.list_tables(database_name):
+                test_catalog.purge_table(identifier)
+            test_catalog.drop_namespace(database_name)

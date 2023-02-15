@@ -17,9 +17,17 @@
 from typing import List
 
 import pytest
-from moto import mock_glue
+from moto import mock_dynamodb
 
-from pyiceberg.catalog.glue import GlueCatalog
+from pyiceberg.catalog import METADATA_LOCATION, TABLE_TYPE
+from pyiceberg.catalog.dynamodb import (
+    DYNAMODB_COL_CREATED_AT,
+    DYNAMODB_COL_IDENTIFIER,
+    DYNAMODB_COL_NAMESPACE,
+    DYNAMODB_TABLE_NAME_DEFAULT,
+    DynamoDbCatalog,
+    _add_property_prefix,
+)
 from pyiceberg.exceptions import (
     NamespaceAlreadyExistsError,
     NamespaceNotEmptyError,
@@ -33,162 +41,182 @@ from pyiceberg.schema import Schema
 from tests.conftest import BUCKET_NAME, TABLE_METADATA_LOCATION_REGEX
 
 
-@mock_glue
+@mock_dynamodb
+def test_create_dynamodb_catalog_with_table_name(_dynamodb, _bucket_initialize: None, _patch_aiobotocore: None) -> None:  # type: ignore
+    DynamoDbCatalog("test_ddb_catalog")
+    response = _dynamodb.describe_table(TableName=DYNAMODB_TABLE_NAME_DEFAULT)
+    assert response["Table"]["TableName"] == DYNAMODB_TABLE_NAME_DEFAULT
+
+    custom_table_name = "custom_table_name"
+    DynamoDbCatalog("test_ddb_catalog", **{"table-name": custom_table_name})
+    response = _dynamodb.describe_table(TableName=custom_table_name)
+    assert response["Table"]["TableName"] == custom_table_name
+
+
+@mock_dynamodb
 def test_create_table_with_database_location(
     _bucket_initialize: None, _patch_aiobotocore: None, table_schema_nested: Schema, database_name: str, table_name: str
 ) -> None:
+    catalog_name = "test_ddb_catalog"
     identifier = (database_name, table_name)
-    test_catalog = GlueCatalog("glue", **{"py-io-impl": "pyiceberg.io.fsspec.FsspecFileIO"})
+    test_catalog = DynamoDbCatalog(catalog_name)
     test_catalog.create_namespace(namespace=database_name, properties={"location": f"s3://{BUCKET_NAME}/{database_name}.db"})
     table = test_catalog.create_table(identifier, table_schema_nested)
-    assert table.identifier == identifier
+    assert table.identifier == (catalog_name,) + identifier
     assert TABLE_METADATA_LOCATION_REGEX.match(table.metadata_location)
 
 
-@mock_glue
+@mock_dynamodb
 def test_create_table_with_default_warehouse(
     _bucket_initialize: None, _patch_aiobotocore: None, table_schema_nested: Schema, database_name: str, table_name: str
 ) -> None:
+    catalog_name = "test_ddb_catalog"
     identifier = (database_name, table_name)
-    test_catalog = GlueCatalog("glue", **{"py-io-impl": "pyiceberg.io.fsspec.FsspecFileIO", "warehouse": f"s3://{BUCKET_NAME}"})
+    test_catalog = DynamoDbCatalog(catalog_name, warehouse=f"s3://{BUCKET_NAME}")
     test_catalog.create_namespace(namespace=database_name)
     table = test_catalog.create_table(identifier, table_schema_nested)
-    assert table.identifier == identifier
+    assert table.identifier == (catalog_name,) + identifier
     assert TABLE_METADATA_LOCATION_REGEX.match(table.metadata_location)
 
 
-@mock_glue
+@mock_dynamodb
 def test_create_table_with_given_location(
     _bucket_initialize: None, _patch_aiobotocore: None, table_schema_nested: Schema, database_name: str, table_name: str
 ) -> None:
+    catalog_name = "test_ddb_catalog"
     identifier = (database_name, table_name)
-    test_catalog = GlueCatalog("glue", **{"py-io-impl": "pyiceberg.io.fsspec.FsspecFileIO"})
+    test_catalog = DynamoDbCatalog(catalog_name)
     test_catalog.create_namespace(namespace=database_name)
     table = test_catalog.create_table(
         identifier=identifier, schema=table_schema_nested, location=f"s3://{BUCKET_NAME}/{database_name}.db/{table_name}"
     )
-    assert table.identifier == identifier
+    assert table.identifier == (catalog_name,) + identifier
     assert TABLE_METADATA_LOCATION_REGEX.match(table.metadata_location)
 
 
-@mock_glue
+@mock_dynamodb
 def test_create_table_with_no_location(
     _bucket_initialize: None, _patch_aiobotocore: None, table_schema_nested: Schema, database_name: str, table_name: str
 ) -> None:
     identifier = (database_name, table_name)
-    test_catalog = GlueCatalog("glue", **{"py-io-impl": "pyiceberg.io.fsspec.FsspecFileIO"})
+    test_catalog = DynamoDbCatalog("test_ddb_catalog")
     test_catalog.create_namespace(namespace=database_name)
     with pytest.raises(ValueError):
         test_catalog.create_table(identifier=identifier, schema=table_schema_nested)
 
 
-@mock_glue
+@mock_dynamodb
 def test_create_table_with_strips(
     _bucket_initialize: None, _patch_aiobotocore: None, table_schema_nested: Schema, database_name: str, table_name: str
 ) -> None:
+    catalog_name = "test_ddb_catalog"
     identifier = (database_name, table_name)
-    test_catalog = GlueCatalog("glue", **{"py-io-impl": "pyiceberg.io.fsspec.FsspecFileIO"})
+    test_catalog = DynamoDbCatalog(catalog_name)
     test_catalog.create_namespace(namespace=database_name, properties={"location": f"s3://{BUCKET_NAME}/{database_name}.db/"})
     table = test_catalog.create_table(identifier, table_schema_nested)
-    assert table.identifier == identifier
+    assert table.identifier == (catalog_name,) + identifier
     assert TABLE_METADATA_LOCATION_REGEX.match(table.metadata_location)
 
 
-@mock_glue
+@mock_dynamodb
 def test_create_table_with_strips_bucket_root(
     _bucket_initialize: None, _patch_aiobotocore: None, table_schema_nested: Schema, database_name: str, table_name: str
 ) -> None:
+    catalog_name = "test_ddb_catalog"
     identifier = (database_name, table_name)
-    test_catalog = GlueCatalog("glue", **{"py-io-impl": "pyiceberg.io.fsspec.FsspecFileIO", "warehouse": f"s3://{BUCKET_NAME}/"})
+    test_catalog = DynamoDbCatalog(catalog_name, warehouse=f"s3://{BUCKET_NAME}/")
     test_catalog.create_namespace(namespace=database_name)
     table_strip = test_catalog.create_table(identifier, table_schema_nested)
-    assert table_strip.identifier == identifier
+    assert table_strip.identifier == (catalog_name,) + identifier
     assert TABLE_METADATA_LOCATION_REGEX.match(table_strip.metadata_location)
 
 
-@mock_glue
+@mock_dynamodb
 def test_create_table_with_no_database(
     _bucket_initialize: None, _patch_aiobotocore: None, table_schema_nested: Schema, database_name: str, table_name: str
 ) -> None:
     identifier = (database_name, table_name)
-    test_catalog = GlueCatalog("glue", **{"py-io-impl": "pyiceberg.io.fsspec.FsspecFileIO"})
+    test_catalog = DynamoDbCatalog("test_ddb_catalog")
     with pytest.raises(NoSuchNamespaceError):
         test_catalog.create_table(identifier=identifier, schema=table_schema_nested)
 
 
-@mock_glue
+@mock_dynamodb
 def test_create_duplicated_table(
     _bucket_initialize: None, _patch_aiobotocore: None, table_schema_nested: Schema, database_name: str, table_name: str
 ) -> None:
     identifier = (database_name, table_name)
-    test_catalog = GlueCatalog("glue", **{"py-io-impl": "pyiceberg.io.fsspec.FsspecFileIO", "warehouse": f"s3://{BUCKET_NAME}/"})
+    test_catalog = DynamoDbCatalog("test_ddb_catalog", warehouse=f"s3://{BUCKET_NAME}")
     test_catalog.create_namespace(namespace=database_name)
     test_catalog.create_table(identifier, table_schema_nested)
     with pytest.raises(TableAlreadyExistsError):
         test_catalog.create_table(identifier, table_schema_nested)
 
 
-@mock_glue
+@mock_dynamodb
 def test_load_table(
     _bucket_initialize: None, _patch_aiobotocore: None, table_schema_nested: Schema, database_name: str, table_name: str
 ) -> None:
+    catalog_name = "test_ddb_catalog"
     identifier = (database_name, table_name)
-    test_catalog = GlueCatalog("glue", **{"py-io-impl": "pyiceberg.io.fsspec.FsspecFileIO", "warehouse": f"s3://{BUCKET_NAME}/"})
+    test_catalog = DynamoDbCatalog(catalog_name, warehouse=f"s3://{BUCKET_NAME}")
     test_catalog.create_namespace(namespace=database_name)
     test_catalog.create_table(identifier, table_schema_nested)
     table = test_catalog.load_table(identifier)
-    assert table.identifier == identifier
+    assert table.identifier == (catalog_name,) + identifier
     assert TABLE_METADATA_LOCATION_REGEX.match(table.metadata_location)
 
 
-@mock_glue
+@mock_dynamodb
 def test_load_non_exist_table(_bucket_initialize: None, _patch_aiobotocore: None, database_name: str, table_name: str) -> None:
     identifier = (database_name, table_name)
-    test_catalog = GlueCatalog("glue", **{"py-io-impl": "pyiceberg.io.fsspec.FsspecFileIO", "warehouse": f"s3://{BUCKET_NAME}/"})
+    test_catalog = DynamoDbCatalog("test_ddb_catalog", warehouse=f"s3://{BUCKET_NAME}")
     test_catalog.create_namespace(namespace=database_name)
     with pytest.raises(NoSuchTableError):
         test_catalog.load_table(identifier)
 
 
-@mock_glue
+@mock_dynamodb
 def test_drop_table(
     _bucket_initialize: None, _patch_aiobotocore: None, table_schema_nested: Schema, database_name: str, table_name: str
 ) -> None:
+    catalog_name = "test_ddb_catalog"
     identifier = (database_name, table_name)
-    test_catalog = GlueCatalog("glue", **{"py-io-impl": "pyiceberg.io.fsspec.FsspecFileIO", "warehouse": f"s3://{BUCKET_NAME}/"})
+    test_catalog = DynamoDbCatalog(catalog_name, warehouse=f"s3://{BUCKET_NAME}")
     test_catalog.create_namespace(namespace=database_name)
     test_catalog.create_table(identifier, table_schema_nested)
     table = test_catalog.load_table(identifier)
-    assert table.identifier == identifier
+    assert table.identifier == (catalog_name,) + identifier
     assert TABLE_METADATA_LOCATION_REGEX.match(table.metadata_location)
     test_catalog.drop_table(identifier)
     with pytest.raises(NoSuchTableError):
         test_catalog.load_table(identifier)
 
 
-@mock_glue
+@mock_dynamodb
 def test_drop_non_exist_table(_bucket_initialize: None, _patch_aiobotocore: None, database_name: str, table_name: str) -> None:
     identifier = (database_name, table_name)
-    test_catalog = GlueCatalog("glue", **{"py-io-impl": "pyiceberg.io.fsspec.FsspecFileIO", "warehouse": f"s3://{BUCKET_NAME}/"})
+    test_catalog = DynamoDbCatalog("test_ddb_catalog", warehouse=f"s3://{BUCKET_NAME}")
     with pytest.raises(NoSuchTableError):
         test_catalog.drop_table(identifier)
 
 
-@mock_glue
+@mock_dynamodb
 def test_rename_table(
     _bucket_initialize: None, _patch_aiobotocore: None, table_schema_nested: Schema, database_name: str, table_name: str
 ) -> None:
+    catalog_name = "test_ddb_catalog"
     new_table_name = f"{table_name}_new"
     identifier = (database_name, table_name)
     new_identifier = (database_name, new_table_name)
-    test_catalog = GlueCatalog("glue", **{"py-io-impl": "pyiceberg.io.fsspec.FsspecFileIO", "warehouse": f"s3://{BUCKET_NAME}/"})
+    test_catalog = DynamoDbCatalog(catalog_name, warehouse=f"s3://{BUCKET_NAME}")
     test_catalog.create_namespace(namespace=database_name)
     table = test_catalog.create_table(identifier, table_schema_nested)
-    assert table.identifier == identifier
+    assert table.identifier == (catalog_name,) + identifier
     assert TABLE_METADATA_LOCATION_REGEX.match(table.metadata_location)
     test_catalog.rename_table(identifier, new_identifier)
     new_table = test_catalog.load_table(new_identifier)
-    assert new_table.identifier == new_identifier
+    assert new_table.identifier == (catalog_name,) + new_identifier
     # the metadata_location should not change
     assert new_table.metadata_location == table.metadata_location
     # old table should be dropped
@@ -196,54 +224,64 @@ def test_rename_table(
         test_catalog.load_table(identifier)
 
 
-@mock_glue
-def test_rename_table_no_params(_glue, _bucket_initialize: None, _patch_aiobotocore: None, database_name: str, table_name: str) -> None:  # type: ignore
+@mock_dynamodb
+def test_fail_on_rename_table_with_missing_required_params(
+    _bucket_initialize: None, _patch_aiobotocore: None, database_name: str, table_name: str
+) -> None:
     new_database_name = f"{database_name}_new"
     new_table_name = f"{table_name}_new"
     identifier = (database_name, table_name)
     new_identifier = (new_database_name, new_table_name)
-    test_catalog = GlueCatalog("glue", **{"py-io-impl": "pyiceberg.io.fsspec.FsspecFileIO", "warehouse": f"s3://{BUCKET_NAME}/"})
+    test_catalog = DynamoDbCatalog("test_ddb_catalog", warehouse=f"s3://{BUCKET_NAME}")
     test_catalog.create_namespace(namespace=database_name)
     test_catalog.create_namespace(namespace=new_database_name)
-    _glue.create_table(
-        DatabaseName=database_name,
-        TableInput={"Name": table_name, "TableType": "EXTERNAL_TABLE", "Parameters": {"table_type": "iceberg"}},
+
+    # Missing required params
+    # pylint: disable=W0212
+    test_catalog._put_dynamo_item(
+        item={
+            DYNAMODB_COL_IDENTIFIER: {"S": f"{database_name}.{table_name}"},
+            DYNAMODB_COL_NAMESPACE: {"S": database_name},
+        },
+        condition_expression=f"attribute_not_exists({DYNAMODB_COL_IDENTIFIER})",
     )
+
     with pytest.raises(NoSuchPropertyException):
         test_catalog.rename_table(identifier, new_identifier)
 
 
-@mock_glue
-def test_rename_non_iceberg_table(_glue, _bucket_initialize: None, _patch_aiobotocore: None, database_name: str, table_name: str) -> None:  # type: ignore
+@mock_dynamodb
+def test_fail_on_rename_non_iceberg_table(_dynamodb, _bucket_initialize: None, _patch_aiobotocore: None, database_name: str, table_name: str) -> None:  # type: ignore
     new_database_name = f"{database_name}_new"
     new_table_name = f"{table_name}_new"
     identifier = (database_name, table_name)
     new_identifier = (new_database_name, new_table_name)
-    test_catalog = GlueCatalog("glue", **{"py-io-impl": "pyiceberg.io.fsspec.FsspecFileIO", "warehouse": f"s3://{BUCKET_NAME}/"})
+    test_catalog = DynamoDbCatalog("test_ddb_catalog", warehouse=f"s3://{BUCKET_NAME}")
     test_catalog.create_namespace(namespace=database_name)
     test_catalog.create_namespace(namespace=new_database_name)
-    _glue.create_table(
-        DatabaseName=database_name,
-        TableInput={
-            "Name": table_name,
-            "TableType": "EXTERNAL_TABLE",
-            "Parameters": {"table_type": "noniceberg", "metadata_location": "test"},
+
+    # Wrong TABLE_TYPE param
+    # pylint: disable=W0212
+    test_catalog._put_dynamo_item(
+        item={
+            DYNAMODB_COL_IDENTIFIER: {"S": f"{database_name}.{table_name}"},
+            DYNAMODB_COL_NAMESPACE: {"S": database_name},
+            DYNAMODB_COL_CREATED_AT: {"S": "test-1873287263487623"},
+            _add_property_prefix(TABLE_TYPE): {"S": "non-iceberg-table-type"},
+            _add_property_prefix(METADATA_LOCATION): {"S": "test-metadata-location"},
         },
+        condition_expression=f"attribute_not_exists({DYNAMODB_COL_IDENTIFIER})",
     )
+
     with pytest.raises(NoSuchIcebergTableError):
         test_catalog.rename_table(identifier, new_identifier)
 
 
-@mock_glue
+@mock_dynamodb
 def test_list_tables(
-    _bucket_initialize: None,
-    _patch_aiobotocore: None,
-    table_schema_nested: Schema,
-    database_name: str,
-    table_name: str,
-    table_list: List[str],
+    _bucket_initialize: None, _patch_aiobotocore: None, table_schema_nested: Schema, database_name: str, table_list: List[str]
 ) -> None:
-    test_catalog = GlueCatalog("glue", **{"py-io-impl": "pyiceberg.io.fsspec.FsspecFileIO", "warehouse": f"s3://{BUCKET_NAME}/"})
+    test_catalog = DynamoDbCatalog("test_ddb_catalog", warehouse=f"s3://{BUCKET_NAME}")
     test_catalog.create_namespace(namespace=database_name)
     for table_name in table_list:
         test_catalog.create_table((database_name, table_name), table_schema_nested)
@@ -252,9 +290,9 @@ def test_list_tables(
         assert (database_name, table_name) in loaded_table_list
 
 
-@mock_glue
+@mock_dynamodb
 def test_list_namespaces(_bucket_initialize: None, _patch_aiobotocore: None, database_list: List[str]) -> None:
-    test_catalog = GlueCatalog("glue", **{"py-io-impl": "pyiceberg.io.fsspec.FsspecFileIO"})
+    test_catalog = DynamoDbCatalog("test_ddb_catalog")
     for database_name in database_list:
         test_catalog.create_namespace(namespace=database_name)
     loaded_database_list = test_catalog.list_namespaces()
@@ -262,9 +300,9 @@ def test_list_namespaces(_bucket_initialize: None, _patch_aiobotocore: None, dat
         assert (database_name,) in loaded_database_list
 
 
-@mock_glue
+@mock_dynamodb
 def test_create_namespace_no_properties(_bucket_initialize: None, _patch_aiobotocore: None, database_name: str) -> None:
-    test_catalog = GlueCatalog("glue", **{"py-io-impl": "pyiceberg.io.fsspec.FsspecFileIO"})
+    test_catalog = DynamoDbCatalog("test_ddb_catalog")
     test_catalog.create_namespace(namespace=database_name)
     loaded_database_list = test_catalog.list_namespaces()
     assert len(loaded_database_list) == 1
@@ -273,7 +311,7 @@ def test_create_namespace_no_properties(_bucket_initialize: None, _patch_aioboto
     assert properties == {}
 
 
-@mock_glue
+@mock_dynamodb
 def test_create_namespace_with_comment_and_location(
     _bucket_initialize: None, _patch_aiobotocore: None, database_name: str
 ) -> None:
@@ -282,7 +320,7 @@ def test_create_namespace_with_comment_and_location(
         "comment": "this is a test description",
         "location": test_location,
     }
-    test_catalog = GlueCatalog("glue", **{"py-io-impl": "pyiceberg.io.fsspec.FsspecFileIO"})
+    test_catalog = DynamoDbCatalog("test_ddb_catalog")
     test_catalog.create_namespace(namespace=database_name, properties=test_properties)
     loaded_database_list = test_catalog.list_namespaces()
     assert len(loaded_database_list) == 1
@@ -292,9 +330,9 @@ def test_create_namespace_with_comment_and_location(
     assert properties["location"] == test_location
 
 
-@mock_glue
+@mock_dynamodb
 def test_create_duplicated_namespace(_bucket_initialize: None, _patch_aiobotocore: None, database_name: str) -> None:
-    test_catalog = GlueCatalog("glue", **{"py-io-impl": "pyiceberg.io.fsspec.FsspecFileIO"})
+    test_catalog = DynamoDbCatalog("test_ddb_catalog")
     test_catalog.create_namespace(namespace=database_name)
     loaded_database_list = test_catalog.list_namespaces()
     assert len(loaded_database_list) == 1
@@ -303,9 +341,9 @@ def test_create_duplicated_namespace(_bucket_initialize: None, _patch_aiobotocor
         test_catalog.create_namespace(namespace=database_name, properties={"test": "test"})
 
 
-@mock_glue
+@mock_dynamodb
 def test_drop_namespace(_bucket_initialize: None, _patch_aiobotocore: None, database_name: str) -> None:
-    test_catalog = GlueCatalog("glue", **{"py-io-impl": "pyiceberg.io.fsspec.FsspecFileIO"})
+    test_catalog = DynamoDbCatalog("test_ddb_catalog")
     test_catalog.create_namespace(namespace=database_name)
     loaded_database_list = test_catalog.list_namespaces()
     assert len(loaded_database_list) == 1
@@ -315,12 +353,12 @@ def test_drop_namespace(_bucket_initialize: None, _patch_aiobotocore: None, data
     assert len(loaded_database_list) == 0
 
 
-@mock_glue
+@mock_dynamodb
 def test_drop_non_empty_namespace(
     _bucket_initialize: None, _patch_aiobotocore: None, table_schema_nested: Schema, database_name: str, table_name: str
 ) -> None:
     identifier = (database_name, table_name)
-    test_catalog = GlueCatalog("glue", **{"py-io-impl": "pyiceberg.io.fsspec.FsspecFileIO", "warehouse": f"s3://{BUCKET_NAME}/"})
+    test_catalog = DynamoDbCatalog("test_ddb_catalog", warehouse=f"s3://{BUCKET_NAME}")
     test_catalog.create_namespace(namespace=database_name)
     test_catalog.create_table(identifier, table_schema_nested)
     assert len(test_catalog.list_tables(database_name)) == 1
@@ -328,14 +366,14 @@ def test_drop_non_empty_namespace(
         test_catalog.drop_namespace(database_name)
 
 
-@mock_glue
+@mock_dynamodb
 def test_drop_non_exist_namespace(_bucket_initialize: None, _patch_aiobotocore: None, database_name: str) -> None:
-    test_catalog = GlueCatalog("glue", **{"py-io-impl": "pyiceberg.io.fsspec.FsspecFileIO"})
+    test_catalog = DynamoDbCatalog("test_ddb_catalog")
     with pytest.raises(NoSuchNamespaceError):
         test_catalog.drop_namespace(database_name)
 
 
-@mock_glue
+@mock_dynamodb
 def test_load_namespace_properties(_bucket_initialize: None, _patch_aiobotocore: None, database_name: str) -> None:
     test_location = f"s3://{BUCKET_NAME}/{database_name}.db"
     test_properties = {
@@ -345,7 +383,7 @@ def test_load_namespace_properties(_bucket_initialize: None, _patch_aiobotocore:
         "test_property2": "2",
         "test_property3": "3",
     }
-    test_catalog = GlueCatalog("glue", **{"py-io-impl": "pyiceberg.io.fsspec.FsspecFileIO"})
+    test_catalog = DynamoDbCatalog("test_ddb_catalog")
     test_catalog.create_namespace(database_name, test_properties)
     listed_properties = test_catalog.load_namespace_properties(database_name)
     for k, v in listed_properties.items():
@@ -353,14 +391,14 @@ def test_load_namespace_properties(_bucket_initialize: None, _patch_aiobotocore:
         assert v == test_properties[k]
 
 
-@mock_glue
+@mock_dynamodb
 def test_load_non_exist_namespace_properties(_bucket_initialize: None, _patch_aiobotocore: None, database_name: str) -> None:
-    test_catalog = GlueCatalog("glue", **{"py-io-impl": "pyiceberg.io.fsspec.FsspecFileIO"})
+    test_catalog = DynamoDbCatalog("test_ddb_catalog")
     with pytest.raises(NoSuchNamespaceError):
         test_catalog.load_namespace_properties(database_name)
 
 
-@mock_glue
+@mock_dynamodb
 def test_update_namespace_properties(_bucket_initialize: None, _patch_aiobotocore: None, database_name: str) -> None:
     test_properties = {
         "comment": "this is a test description",
@@ -371,7 +409,7 @@ def test_update_namespace_properties(_bucket_initialize: None, _patch_aiobotocor
     }
     removals = {"test_property1", "test_property2", "test_property3", "should_not_removed"}
     updates = {"test_property4": "4", "test_property5": "5", "comment": "updated test description"}
-    test_catalog = GlueCatalog("glue", **{"py-io-impl": "pyiceberg.io.fsspec.FsspecFileIO"})
+    test_catalog = DynamoDbCatalog("test_ddb_catalog")
     test_catalog.create_namespace(database_name, test_properties)
     update_report = test_catalog.update_namespace_properties(database_name, removals, updates)
     for k in updates.keys():
@@ -385,24 +423,15 @@ def test_update_namespace_properties(_bucket_initialize: None, _patch_aiobotocor
     test_catalog.drop_namespace(database_name)
 
 
-@mock_glue
+@mock_dynamodb
 def test_load_empty_namespace_properties(_bucket_initialize: None, _patch_aiobotocore: None, database_name: str) -> None:
-    test_catalog = GlueCatalog("glue", **{"py-io-impl": "pyiceberg.io.fsspec.FsspecFileIO"})
+    test_catalog = DynamoDbCatalog("test_ddb_catalog")
     test_catalog.create_namespace(database_name)
     listed_properties = test_catalog.load_namespace_properties(database_name)
     assert listed_properties == {}
 
 
-@mock_glue
-def test_load_default_namespace_properties(_glue, _bucket_initialize, _patch_aiobotocore, database_name: str) -> None:  # type: ignore
-    # simulate creating database with default settings through AWS Glue Web Console
-    _glue.create_database(DatabaseInput={"Name": database_name})
-    test_catalog = GlueCatalog("glue", **{"py-io-impl": "pyiceberg.io.fsspec.FsspecFileIO"})
-    listed_properties = test_catalog.load_namespace_properties(database_name)
-    assert listed_properties == {}
-
-
-@mock_glue
+@mock_dynamodb
 def test_update_namespace_properties_overlap_update_removal(
     _bucket_initialize: None, _patch_aiobotocore: None, database_name: str
 ) -> None:
@@ -415,7 +444,7 @@ def test_update_namespace_properties_overlap_update_removal(
     }
     removals = {"test_property1", "test_property2", "test_property3", "should_not_removed"}
     updates = {"test_property1": "4", "test_property5": "5", "comment": "updated test description"}
-    test_catalog = GlueCatalog("glue", **{"py-io-impl": "pyiceberg.io.fsspec.FsspecFileIO"})
+    test_catalog = DynamoDbCatalog("test_ddb_catalog")
     test_catalog.create_namespace(database_name, test_properties)
     with pytest.raises(ValueError):
         test_catalog.update_namespace_properties(database_name, removals, updates)
