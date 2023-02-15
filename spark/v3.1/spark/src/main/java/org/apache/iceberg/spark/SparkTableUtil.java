@@ -378,7 +378,9 @@ public class SparkTableUtil {
       FileIO io = new HadoopFileIO(conf.get());
       TaskContext ctx = TaskContext.get();
       String suffix =
-          String.format("stage-%d-task-%d-manifest", ctx.stageId(), ctx.taskAttemptId());
+          String.format(
+              "stage-%d-task-%d-manifest-%s",
+              ctx.stageId(), ctx.taskAttemptId(), UUID.randomUUID());
       Path location = new Path(basePath, suffix);
       String outputPath = FileFormat.AVRO.addExtension(location.toString());
       OutputFile outputFile = io.newOutputFile(outputPath);
