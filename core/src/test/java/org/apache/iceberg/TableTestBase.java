@@ -31,6 +31,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import org.apache.avro.file.DataFileConstants;
+import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.FileIO;
@@ -168,18 +170,18 @@ public class TableTestBase {
 
   static final FileIO FILE_IO = new TestTables.LocalFileIO();
 
-  static final Map<String, String> CODEC_METADATA_MAPPING =
+  // Mapping of Avro codec name used by Iceberg to name used by Avro (and appearing in Avro metadata
+  // under the key, avro.codec).
+  // In tests, we use the Iceberg name to specify the codec, and we verify the codec used by reading
+  // the Avro metadata and checking for the Avro name in avro.codec.
+  static final Map<String, String> AVRO_CODEC_NAME_MAPPING =
       ImmutableMap.<String, String>builder()
-          .put("uncompressed", "null")
-          .put("zstd", "zstandard")
-          .put("gzip", "deflate")
+          .put(Avro.Codec.UNCOMPRESSED.name(), DataFileConstants.NULL_CODEC)
+          .put(Avro.Codec.ZSTD.name(), DataFileConstants.ZSTANDARD_CODEC)
+          .put(Avro.Codec.GZIP.name(), DataFileConstants.DEFLATE_CODEC)
           .build();
 
-  static final String AVRO_CODEC_KEY = "avro.codec";
-
   static final long SNAPSHOT_ID = 987134631982734L;
-
-  private static final long SEQUENCE_NUMBER = 34L;
 
   @Rule public TemporaryFolder temp = new TemporaryFolder();
 
@@ -368,7 +370,7 @@ public class TableTestBase {
             outputFile,
             SNAPSHOT_ID,
             SNAPSHOT_ID - 1,
-            formatVersion > 1 ? SEQUENCE_NUMBER : 0,
+            formatVersion > 1 ? 34L : 0,
             compressionCodec,
             /* compressionLevel */ null)) {
       for (ManifestFile manifestFile : manifestFiles) {

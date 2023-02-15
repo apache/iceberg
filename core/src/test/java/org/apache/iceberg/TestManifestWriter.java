@@ -24,6 +24,7 @@ import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import org.apache.avro.file.DataFileConstants;
 import org.apache.iceberg.ManifestEntry.Status;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.types.Conversions;
@@ -457,18 +458,14 @@ public class TestManifestWriter extends TableTestBase {
       CheckedFunction<String, ManifestFile> createManifestFunc,
       CheckedFunction<ManifestFile, ManifestReader<F>> manifestReaderFunc)
       throws IOException {
-    for (Map.Entry<String, String> entry : CODEC_METADATA_MAPPING.entrySet()) {
+    for (Map.Entry<String, String> entry : AVRO_CODEC_NAME_MAPPING.entrySet()) {
       String codec = entry.getKey();
       String expectedCodecValue = entry.getValue();
 
       ManifestFile manifest = createManifestFunc.apply(codec);
-
       try (ManifestReader<F> reader = manifestReaderFunc.apply(manifest)) {
-        Map<String, String> metadata = reader.metadata();
-        Assert.assertEquals(
-            "Manifest file codec value must match",
-            expectedCodecValue,
-            metadata.get(AVRO_CODEC_KEY));
+        Assertions.assertThat(reader.metadata())
+            .containsEntry(DataFileConstants.CODEC, expectedCodecValue);
       }
     }
   }
