@@ -376,9 +376,8 @@ class DynamoDbCatalog(Catalog):
             List[Identifier]: a List of namespace identifiers
         """
 
-        # Hierarchical namespace is nto supported. Return an empty list
-        tuple_identifier = Catalog.identifier_to_tuple(namespace)
-        if len(tuple_identifier) > 1:
+        # Hierarchical namespace is not supported. Return an empty list
+        if namespace:
             return []
 
         paginator = self.dynamodb.get_paginator("query")

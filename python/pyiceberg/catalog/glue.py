@@ -389,9 +389,8 @@ class GlueCatalog(Catalog):
         Returns:
             List[Identifier]: a List of namespace identifiers
         """
-        # Glue does not support hierarchical namespace, therefore return an empty list
-        tuple_identifier = Catalog.identifier_to_tuple(namespace)
-        if len(tuple_identifier) > 1:
+        # Hierarchical namespace is not supported. Return an empty list
+        if namespace:
             return []
 
         database_list = []

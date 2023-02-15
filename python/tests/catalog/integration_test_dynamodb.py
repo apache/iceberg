@@ -29,7 +29,6 @@ from pyiceberg.exceptions import (
     NoSuchNamespaceError,
     NoSuchTableError,
     TableAlreadyExistsError,
-    ValidationError,
 )
 from pyiceberg.schema import Schema
 from tests.conftest import clean_up, get_bucket_name, get_s3_path
@@ -58,7 +57,7 @@ def test_create_table(
     test_catalog.create_namespace(database_name)
     test_catalog.create_table(identifier, table_schema_nested, get_s3_path(get_bucket_name(), database_name, table_name))
     table = test_catalog.load_table(identifier)
-    assert table.identifier == identifier
+    assert table.identifier == (test_catalog.name,) + identifier
     metadata_location = table.metadata_location.split(get_bucket_name())[1][1:]
     s3.head_object(Bucket=get_bucket_name(), Key=metadata_location)
 
@@ -79,7 +78,7 @@ def test_create_table_with_default_location(
     test_catalog.create_namespace(database_name)
     test_catalog.create_table(identifier, table_schema_nested)
     table = test_catalog.load_table(identifier)
-    assert table.identifier == identifier
+    assert table.identifier == (test_catalog.name,) + identifier
     metadata_location = table.metadata_location.split(get_bucket_name())[1][1:]
     s3.head_object(Bucket=get_bucket_name(), Key=metadata_location)
 
@@ -126,11 +125,11 @@ def test_rename_table(
     new_table_name = f"rename-{table_name}"
     identifier = (database_name, table_name)
     table = test_catalog.create_table(identifier, table_schema_nested)
-    assert table.identifier == identifier
+    assert table.identifier == (test_catalog.name,) + identifier
     new_identifier = (new_database_name, new_table_name)
     test_catalog.rename_table(identifier, new_identifier)
     new_table = test_catalog.load_table(new_identifier)
-    assert new_table.identifier == new_identifier
+    assert new_table.identifier == (test_catalog.name,) + new_identifier
     assert new_table.metadata_location == table.metadata_location
     metadata_location = new_table.metadata_location.split(get_bucket_name())[1][1:]
     s3.head_object(Bucket=get_bucket_name(), Key=metadata_location)
@@ -142,7 +141,7 @@ def test_drop_table(test_catalog: Catalog, table_schema_nested: Schema, table_na
     identifier = (database_name, table_name)
     test_catalog.create_namespace(database_name)
     table = test_catalog.create_table(identifier, table_schema_nested)
-    assert table.identifier == identifier
+    assert table.identifier == (test_catalog.name,) + identifier
     test_catalog.drop_table(identifier)
     with pytest.raises(NoSuchTableError):
         test_catalog.load_table(identifier)
@@ -155,7 +154,7 @@ def test_purge_table(
     test_catalog.create_namespace(database_name)
     test_catalog.create_table(identifier, table_schema_nested)
     table = test_catalog.load_table(identifier)
-    assert table.identifier == identifier
+    assert table.identifier == (test_catalog.name,) + identifier
     metadata_location = table.metadata_location.split(get_bucket_name())[1][1:]
     s3.head_object(Bucket=get_bucket_name(), Key=metadata_location)
     test_catalog.purge_table(identifier)
@@ -196,9 +195,7 @@ def test_list_namespaces(test_catalog: Catalog, database_list: List[str]) -> Non
     db_list = test_catalog.list_namespaces()
     for database_name in database_list:
         assert (database_name,) in db_list
-
-    with pytest.raises(ValidationError, match="This API is not supported for hierarchical namespaces."):
-        test_catalog.list_namespaces(list(database_list)[0])
+    assert len(test_catalog.list_namespaces(list(database_list)[0])) == 0
 
 
 def test_drop_namespace(test_catalog: Catalog, table_schema_nested: Schema, table_name: str, database_name: str) -> None:
