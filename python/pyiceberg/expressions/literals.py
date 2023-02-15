@@ -562,6 +562,13 @@ class StringLiteral(Literal[str]):
                 f"Could not convert {self.value} into a {type_var}, scales differ {type_var.scale} <> {abs(dec.as_tuple().exponent)}"
             )
 
+    @to.register(BooleanType)
+    def _(self, type_var: BooleanType) -> Literal[bool]:
+        if self.value.upper() in ['TRUE', 'FALSE']:
+            return BooleanLiteral(True if self.value.upper() == 'TRUE' else False)
+        else:
+            raise ValueError(f"Could not convert {self.value} into a {type_var}")
+
     def __repr__(self) -> str:
         return f"literal({repr(self.value)})"
 
