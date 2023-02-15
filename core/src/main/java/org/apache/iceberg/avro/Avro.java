@@ -56,6 +56,7 @@ import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
 import org.apache.iceberg.encryption.EncryptionKeyMetadata;
+import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.io.DataWriter;
 import org.apache.iceberg.io.DeleteSchemaUtil;
 import org.apache.iceberg.io.FileAppender;
@@ -154,8 +155,9 @@ public class Avro {
     }
 
     public WriteBuilder overwrite() {
-      return overwrite(true);
+      return overwrite(file instanceof HadoopFileIO);
     }
+
 
     public WriteBuilder overwrite(boolean enabled) {
       this.overwrite = enabled;

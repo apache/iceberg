@@ -96,6 +96,7 @@ abstract class ManifestListWriter implements FileAppender<ManifestFile> {
             .schema(V2Metadata.MANIFEST_LIST_SCHEMA)
             .named("manifest_file")
             .meta(meta)
+            .overwrite()
             .build();
 
       } catch (IOException e) {
@@ -131,6 +132,7 @@ abstract class ManifestListWriter implements FileAppender<ManifestFile> {
             .schema(V1Metadata.MANIFEST_LIST_SCHEMA)
             .named("manifest_file")
             .meta(meta)
+            .overwrite()
             .build();
 
       } catch (IOException e) {
