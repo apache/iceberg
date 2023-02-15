@@ -158,7 +158,6 @@ public class Avro {
       return overwrite(file instanceof HadoopFileIO);
     }
 
-
     public WriteBuilder overwrite(boolean enabled) {
       this.overwrite = enabled;
       return this;
