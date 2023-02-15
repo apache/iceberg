@@ -414,6 +414,8 @@ class StringLiteral(BaseLiteral):
                     return DecimalLiteral(Decimal(str(self.value))
                                           .quantize(Decimal("." + "".join(["0" for i in range(1, type_var.scale)]) + "1"),
                                                     rounding=ROUND_HALF_UP))
+        elif type_var.type_id == TypeID.BOOLEAN and self.value.upper() in ['TRUE', 'FALSE']:
+            return BooleanLiteral(True if self.value.upper() == 'TRUE' else False)
 
     def __eq__(self, other):
         if id(self) == id(other):
