@@ -44,6 +44,12 @@ from pyiceberg.typedef import EMPTY_DICT, Properties
 
 logger = logging.getLogger(__name__)
 
+S3_ENDPOINT = "s3.endpoint"
+S3_ACCESS_KEY_ID = "s3.access-key-id"
+S3_SECRET_ACCESS_KEY = "s3.secret-access-key"
+S3_SESSION_TOKEN = "s3.session-token"
+S3_REGION = "s3.region"
+
 
 @runtime_checkable
 class InputStream(Protocol):

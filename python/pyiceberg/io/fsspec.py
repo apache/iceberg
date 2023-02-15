@@ -36,6 +36,11 @@ from requests import HTTPError
 from pyiceberg.catalog import TOKEN
 from pyiceberg.exceptions import SignError
 from pyiceberg.io import (
+    S3_ACCESS_KEY_ID,
+    S3_ENDPOINT,
+    S3_REGION,
+    S3_SECRET_ACCESS_KEY,
+    S3_SESSION_TOKEN,
     FileIO,
     InputFile,
     InputStream,
@@ -82,10 +87,11 @@ def _s3(properties: Properties) -> AbstractFileSystem:
     from s3fs import S3FileSystem
 
     client_kwargs = {
-        "endpoint_url": properties.get("s3.endpoint"),
-        "aws_access_key_id": properties.get("s3.access-key-id"),
-        "aws_secret_access_key": properties.get("s3.secret-access-key"),
-        "aws_session_token": properties.get("s3.session-token"),
+        "endpoint_url": properties.get(S3_ENDPOINT),
+        "aws_access_key_id": properties.get(S3_ACCESS_KEY_ID),
+        "aws_secret_access_key": properties.get(S3_SECRET_ACCESS_KEY),
+        "aws_session_token": properties.get(S3_SESSION_TOKEN),
+        "region_name": properties.get(S3_REGION),
     }
     config_kwargs = {}
     register_events: Dict[str, Callable[[Properties], None]] = {}
