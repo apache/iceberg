@@ -41,7 +41,6 @@ import org.apache.spark.sql.SparkSession;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
-import org.openjdk.jmh.annotations.Level;
 import org.openjdk.jmh.annotations.Measurement;
 import org.openjdk.jmh.annotations.Mode;
 import org.openjdk.jmh.annotations.Scope;
@@ -90,11 +89,6 @@ public class DeleteOrphanFilesBenchmark {
     tearDownSpark();
   }
 
-  @TearDown(Level.Iteration)
-  public void cleanUpIteration() {
-    cleanupFiles();
-  }
-
   @Benchmark
   @Threads(1)
   public void testDeleteOrphanFiles(Blackhole blackhole) {
@@ -114,6 +108,7 @@ public class DeleteOrphanFilesBenchmark {
   }
 
   private void initTable() {
+    spark.sql("DROP TABLE IF EXISTS " + TABLE_NAME);
     spark.sql(
         String.format(
             "CREATE TABLE %s(id INT, name STRING)"
@@ -161,10 +156,6 @@ public class DeleteOrphanFilesBenchmark {
 
   private String catalogWarehouse() {
     return Files.createTempDir().getAbsolutePath() + "/" + UUID.randomUUID() + "/";
-  }
-
-  private void cleanupFiles() {
-    spark.sql("DROP TABLE IF EXISTS " + TABLE_NAME);
   }
 
   private void setupSpark() {
