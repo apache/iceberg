@@ -20,9 +20,10 @@ package org.apache.iceberg;
 
 import java.io.IOException;
 import java.util.Map;
+import org.apache.avro.file.DataFileConstants;
 import org.apache.iceberg.avro.AvroIterable;
 import org.apache.iceberg.io.InputFile;
-import org.junit.Assert;
+import org.assertj.core.api.Assertions;
 import org.junit.Assume;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -63,17 +64,14 @@ public class TestManifestListWriter extends TableTestBase {
 
   void validateManifestListCompressionCodec(
       CheckedFunction<String, InputFile> createManifestListFunc) throws IOException {
-    for (Map.Entry<String, String> entry : CODEC_METADATA_MAPPING.entrySet()) {
+    for (Map.Entry<String, String> entry : AVRO_CODEC_NAME_MAPPING.entrySet()) {
       String codec = entry.getKey();
       String expectedCodecValue = entry.getValue();
 
       InputFile manifestList = createManifestListFunc.apply(codec);
       try (AvroIterable<ManifestFile> reader = ManifestLists.manifestFileIterable(manifestList)) {
-        Map<String, String> metadata = reader.getMetadata();
-        Assert.assertEquals(
-            "Manifest list codec value must match",
-            expectedCodecValue,
-            metadata.get(AVRO_CODEC_KEY));
+        Assertions.assertThat(reader.getMetadata())
+            .containsEntry(DataFileConstants.CODEC, expectedCodecValue);
       }
     }
   }

@@ -68,6 +68,14 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
 
   protected abstract ManifestEntry<F> prepare(ManifestEntry<F> entry);
 
+  /**
+   * @deprecated since 1.2.0, will be removed in 1.3.0; use {@link
+   *     ManifestWriter#newAppender(PartitionSpec, OutputFile, String, Integer)} instead.
+   */
+  @Deprecated
+  protected abstract FileAppender<ManifestEntry<F>> newAppender(
+      PartitionSpec spec, OutputFile outputFile);
+
   protected abstract FileAppender<ManifestEntry<F>> newAppender(
       PartitionSpec spec, OutputFile outputFile, String compressionCodec, Integer compressionLevel);
 
@@ -238,6 +246,12 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
 
     @Override
     protected FileAppender<ManifestEntry<DataFile>> newAppender(
+        PartitionSpec spec, OutputFile file) {
+      return newAppender(spec, file, null, null);
+    }
+
+    @Override
+    protected FileAppender<ManifestEntry<DataFile>> newAppender(
         PartitionSpec spec, OutputFile file, String compressionCodec, Integer compressionLevel) {
       Schema manifestSchema = V2Metadata.entrySchema(spec.partitionType());
       try {
@@ -283,6 +297,12 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
     @Override
     protected ManifestEntry<DeleteFile> prepare(ManifestEntry<DeleteFile> entry) {
       return entryWrapper.wrap(entry);
+    }
+
+    @Override
+    protected FileAppender<ManifestEntry<DeleteFile>> newAppender(
+        PartitionSpec spec, OutputFile file) {
+      return newAppender(spec, file, null, null);
     }
 
     @Override
@@ -337,6 +357,12 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
     @Override
     protected ManifestEntry<DataFile> prepare(ManifestEntry<DataFile> entry) {
       return entryWrapper.wrap(entry);
+    }
+
+    @Override
+    protected FileAppender<ManifestEntry<DataFile>> newAppender(
+        PartitionSpec spec, OutputFile file) {
+      return newAppender(spec, file, null, null);
     }
 
     @Override

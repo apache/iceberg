@@ -833,16 +833,12 @@ acceptedBreaks:
     - code: "java.class.removed"
       old: "interface org.apache.iceberg.actions.RewritePositionDeleteStrategy"
       justification: "Removing deprecated code"
-    - code: "java.method.numberOfParametersChanged"
-      old: "method org.apache.iceberg.io.FileAppender<org.apache.iceberg.ManifestEntry<F>>\
-        \ org.apache.iceberg.ManifestWriter<F extends org.apache.iceberg.ContentFile<F\
-        \ extends org.apache.iceberg.ContentFile<F>>>::newAppender(org.apache.iceberg.PartitionSpec,\
-        \ org.apache.iceberg.io.OutputFile)"
+    - code: "java.method.abstractMethodAdded"
       new: "method org.apache.iceberg.io.FileAppender<org.apache.iceberg.ManifestEntry<F>>\
         \ org.apache.iceberg.ManifestWriter<F extends org.apache.iceberg.ContentFile<F\
         \ extends org.apache.iceberg.ContentFile<F>>>::newAppender(org.apache.iceberg.PartitionSpec,\
         \ org.apache.iceberg.io.OutputFile, java.lang.String, java.lang.Integer)"
-      justification: "Feature improvement"
+      justification: "Allow adding a new method to the abstract class - old method is deprecated"
     - code: "java.method.removed"
       old: "method java.util.List<org.apache.iceberg.DataFile> org.apache.iceberg.MergingSnapshotProducer<ThisT>::addedFiles()\
         \ @ org.apache.iceberg.BaseOverwriteFiles"
