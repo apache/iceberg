@@ -22,13 +22,13 @@ import uuid
 import dateutil.parser
 from fastavro.write import LOGICAL_WRITERS as avro_conversion
 from iceberg.api.expressions import Literal
-from iceberg.api.types import (DateType,
+from iceberg.api.types import (BooleanType,
+                               DateType,
                                DecimalType,
                                StringType,
                                TimestampType,
                                TimeType,
-                               UUIDType,
-                               BooleanType)
+                               UUIDType)
 from pytest import raises
 
 
