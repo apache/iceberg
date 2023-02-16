@@ -23,6 +23,8 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.List;
+import org.apache.iceberg.exceptions.NoSuchNamespaceException;
+import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.jdbc.JdbcClientPool;
 import org.apache.iceberg.jdbc.UncheckedInterruptedException;
 import org.apache.iceberg.jdbc.UncheckedSQLException;
@@ -153,8 +155,9 @@ class JdbcSnowflakeClient implements SnowflakeClient {
                   queryHarness.query(
                       conn, finalQuery, SCHEMA_RESULT_SET_HANDLER, database.databaseName()));
     } catch (SQLException e) {
-      if (e.getErrorCode() == 2003 && e.getMessage().contains("does not exist")) {
-        return false;
+      // 2003, 2043, 2001 are possible Snowflake error codes for Object does not exist
+      if (e.getErrorCode() == 2003 || e.getErrorCode() == 2043 || e.getErrorCode() == 2001) {
+        throw new NoSuchNamespaceException("%s", e.getMessage());
       }
       throw new UncheckedSQLException(e, "Failed to check if database '%s' exists", database);
     } catch (InterruptedException e) {
@@ -186,8 +189,9 @@ class JdbcSnowflakeClient implements SnowflakeClient {
                   queryHarness.query(
                       conn, finalQuery, TABLE_RESULT_SET_HANDLER, schema.toIdentifierString()));
     } catch (SQLException e) {
-      if (e.getErrorCode() == 2003 && e.getMessage().contains("does not exist")) {
-        return false;
+      // 2003, 2043, 2001 are possible Snowflake error codes for Object does not exist
+      if (e.getErrorCode() == 2003 || e.getErrorCode() == 2043 || e.getErrorCode() == 2001) {
+        throw new NoSuchNamespaceException("%s", e.getMessage());
       }
       throw new UncheckedSQLException(e, "Failed to check if schema '%s' exists", schema);
     } catch (InterruptedException e) {
@@ -208,6 +212,10 @@ class JdbcSnowflakeClient implements SnowflakeClient {
                   queryHarness.query(
                       conn, "SHOW DATABASES IN ACCOUNT", DATABASE_RESULT_SET_HANDLER));
     } catch (SQLException e) {
+      // 2003, 2043, 2001 are possible Snowflake error codes for Object does not exist
+      if (e.getErrorCode() == 2003 || e.getErrorCode() == 2043 || e.getErrorCode() == 2001) {
+        throw new NoSuchNamespaceException("%s", e.getMessage());
+      }
       throw new UncheckedSQLException(e, "Failed to list databases");
     } catch (InterruptedException e) {
       throw new UncheckedInterruptedException(e, "Interrupted while listing databases");
@@ -250,6 +258,10 @@ class JdbcSnowflakeClient implements SnowflakeClient {
                   queryHarness.query(
                       conn, finalQuery, SCHEMA_RESULT_SET_HANDLER, finalQueryParams));
     } catch (SQLException e) {
+      // 2003, 2043, 2001 are possible Snowflake error codes for Object does not exist
+      if (e.getErrorCode() == 2003 || e.getErrorCode() == 2043 || e.getErrorCode() == 2001) {
+        throw new NoSuchNamespaceException("%s", e.getMessage());
+      }
       throw new UncheckedSQLException(e, "Failed to list schemas for scope '%s'", scope);
     } catch (InterruptedException e) {
       throw new UncheckedInterruptedException(
@@ -298,6 +310,10 @@ class JdbcSnowflakeClient implements SnowflakeClient {
               conn ->
                   queryHarness.query(conn, finalQuery, TABLE_RESULT_SET_HANDLER, finalQueryParams));
     } catch (SQLException e) {
+      // 2003, 2043, 2001 are possible Snowflake error codes for Object does not exist
+      if (e.getErrorCode() == 2003 || e.getErrorCode() == 2043 || e.getErrorCode() == 2001) {
+        throw new NoSuchNamespaceException("%s", e.getMessage());
+      }
       throw new UncheckedSQLException(e, "Failed to list tables for scope '%s'", scope);
     } catch (InterruptedException e) {
       throw new UncheckedInterruptedException(
@@ -331,6 +347,10 @@ class JdbcSnowflakeClient implements SnowflakeClient {
                       TABLE_METADATA_RESULT_SET_HANDLER,
                       tableIdentifier.toIdentifierString()));
     } catch (SQLException e) {
+      // 2003, 2043, 2001 are possible Snowflake error codes for Table does not exist
+      if (e.getErrorCode() == 2003 || e.getErrorCode() == 2043 || e.getErrorCode() == 2001) {
+        throw new NoSuchTableException("%s", e.getMessage());
+      }
       throw new UncheckedSQLException(e, "Failed to get table metadata for '%s'", tableIdentifier);
     } catch (InterruptedException e) {
       throw new UncheckedInterruptedException(
