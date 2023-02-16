@@ -18,9 +18,6 @@
  */
 package org.apache.iceberg.avro;
 
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.*;
-
 import java.io.IOException;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
@@ -35,6 +32,10 @@ import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
+
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.mock;
 
 class AvroTest {
 
