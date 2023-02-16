@@ -706,7 +706,7 @@ def test_invalid_decimal_conversions() -> None:
 def test_invalid_string_conversions() -> None:
     assert_invalid_conversions(
         literal("abc"),
-        [BooleanType(), FloatType(), DoubleType(), FixedType(1), BinaryType()],
+        [FloatType(), DoubleType(), FixedType(1), BinaryType()],
     )
 
 
