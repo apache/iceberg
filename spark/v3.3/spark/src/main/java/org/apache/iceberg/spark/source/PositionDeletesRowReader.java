@@ -71,8 +71,6 @@ class PositionDeletesRowReader extends BaseRowReader<PositionDeletesScanTask>
 
   @Override
   protected CloseableIterator<InternalRow> open(PositionDeletesScanTask task) {
-    Schema schema = expectedSchema();
-    Map<Integer, ?> idToConstant = constantsMap(task, schema);
     String filePath = task.file().path().toString();
     LOG.debug("Opening position delete file {}", filePath);
 
@@ -80,22 +78,14 @@ class PositionDeletesRowReader extends BaseRowReader<PositionDeletesScanTask>
     InputFileBlockHolder.set(filePath, task.start(), task.length());
 
     InputFile inputFile = getInputFile(task.file().path().toString());
-    Preconditions.checkNotNull(
-        inputFile, "Could not find InputFile associated with PositionDeleteScanTask");
+    Preconditions.checkNotNull(inputFile, "Could not find InputFile associated with %s", task);
 
     // select out constant fields when pushing down filter to row reader
-    Set<Integer> fields = schema.idToName().keySet();
-    Set<Integer> nonConstantFields =
-        fields.stream()
-            .filter(id -> schema.findField(id).type().isPrimitiveType())
-            .collect(Collectors.toSet());
-    nonConstantFields.removeAll(idToConstant.keySet());
+    Map<Integer, ?> idToConstant = constantsMap(task, expectedSchema());
+    Set<Integer> nonConstantFieldIds = nonConstantFieldIds(idToConstant);
     Expression residualWithoutConstants =
         ExpressionUtil.extractByIdInclusive(
-            task.residual(),
-            task.spec().schema(),
-            caseSensitive(),
-            Ints.toArray(nonConstantFields));
+            task.residual(), expectedSchema(), caseSensitive(), Ints.toArray(nonConstantFieldIds));
 
     return newIterable(
             inputFile,
@@ -106,5 +96,13 @@ class PositionDeletesRowReader extends BaseRowReader<PositionDeletesScanTask>
             expectedSchema(),
             idToConstant)
         .iterator();
+  }
+
+  private Set<Integer> nonConstantFieldIds(Map<Integer, ?> idToConstant) {
+    Set<Integer> fields = expectedSchema().idToName().keySet();
+    return fields.stream()
+        .filter(id -> expectedSchema().findField(id).type().isPrimitiveType())
+        .filter(id -> !idToConstant.containsKey(id))
+        .collect(Collectors.toSet());
   }
 }
