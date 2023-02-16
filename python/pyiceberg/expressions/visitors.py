@@ -48,8 +48,10 @@ from pyiceberg.expressions import (
     BoundNotIn,
     BoundNotNaN,
     BoundNotNull,
+    BoundNotStartsWith,
     BoundPredicate,
     BoundSetPredicate,
+    BoundStartsWith,
     BoundTerm,
     BoundUnaryPredicate,
     L,
@@ -320,6 +322,14 @@ class BoundBooleanExpressionVisitor(BooleanExpressionVisitor[T], ABC):
     def visit_or(self, left_result: T, right_result: T) -> T:
         """Visit a bound Or predicate"""
 
+    @abstractmethod
+    def visit_starts_with(self, term: BoundTerm[L], literal: Literal[L]) -> T:
+        """Visit bound StartsWith predicate"""
+
+    @abstractmethod
+    def visit_not_starts_with(self, term: BoundTerm[L], literal: Literal[L]) -> T:
+        """Visit bound NotStartsWith predicate"""
+
     def visit_unbound_predicate(self, predicate: UnboundPredicate[L]) -> T:
         """Visit an unbound predicate
         Args:
@@ -403,6 +413,16 @@ def _(expr: BoundLessThanOrEqual[L], visitor: BoundBooleanExpressionVisitor[T]) 
     return visitor.visit_less_than_or_equal(term=expr.term, literal=expr.literal)
 
 
+@visit_bound_predicate.register(BoundStartsWith)
+def _(expr: BoundStartsWith[L], visitor: BoundBooleanExpressionVisitor[T]) -> T:
+    return visitor.visit_starts_with(term=expr.term, literal=expr.literal)
+
+
+@visit_bound_predicate.register(BoundNotStartsWith)
+def _(expr: BoundNotStartsWith[L], visitor: BoundBooleanExpressionVisitor[T]) -> T:
+    return visitor.visit_not_starts_with(term=expr.term, literal=expr.literal)
+
+
 def rewrite_not(expr: BooleanExpression) -> BooleanExpression:
     return visit(expr, _RewriteNotVisitor())
 
@@ -484,6 +504,12 @@ class _ExpressionEvaluator(BoundBooleanExpressionVisitor[bool]):
 
     def visit_less_than_or_equal(self, term: BoundTerm[L], literal: Literal[L]) -> bool:
         return term.eval(self.struct) <= literal.value
+
+    def visit_starts_with(self, term: BoundTerm[L], literal: Literal[L]) -> T:
+        return term.eval(self.struct).startswith(literal.value)
+
+    def visit_not_starts_with(self, term: BoundTerm[L], literal: Literal[L]) -> T:
+        return not term.eval(self.struct).startswith(literal.value)
 
     def visit_true(self) -> bool:
         return True
@@ -674,6 +700,34 @@ class _ManifestEvalVisitor(BoundBooleanExpressionVisitor[bool]):
         lower = _from_byte_buffer(term.ref().field.field_type, field.lower_bound)
 
         if literal.value < lower:
+            return ROWS_CANNOT_MATCH
+
+        return ROWS_MIGHT_MATCH
+
+    def visit_starts_with(self, term: BoundTerm[L], literal: Literal[L]) -> bool:
+        pos = term.ref().accessor.position
+        field = self.partition_fields[pos]
+
+        if field.upper_bound is None:
+            return ROWS_CANNOT_MATCH
+
+        upper = _from_byte_buffer(term.ref().field.field_type, field.upper_bound)
+
+        if literal.value.startswith(upper):
+            return ROWS_CANNOT_MATCH
+
+        return ROWS_MIGHT_MATCH
+
+    def visit_not_starts_with(self, term: BoundTerm[L], literal: Literal[L]) -> bool:
+        pos = term.ref().accessor.position
+        field = self.partition_fields[pos]
+
+        if field.upper_bound is None:
+            return ROWS_CANNOT_MATCH
+
+        upper = _from_byte_buffer(term.ref().field.field_type, field.upper_bound)
+
+        if not literal.value.startswith(upper):
             return ROWS_CANNOT_MATCH
 
         return ROWS_MIGHT_MATCH
@@ -945,6 +999,12 @@ class ExpressionToPlainFormat(BoundBooleanExpressionVisitor[List[Tuple[str, str,
 
     def visit_less_than_or_equal(self, term: BoundTerm[L], literal: Literal[L]) -> List[Tuple[str, str, Any]]:
         return [(term.ref().field.name, "<=", self._cast_if_necessary(term.ref().field.field_type, literal.value))]
+
+    def visit_starts_with(self, term: BoundTerm[L], literal: Literal[L]) -> List[Tuple[str, str, Any]]:
+        return [(term.ref().field.name, "starts_with", self._cast_if_necessary(term.ref().field.field_type, literal.value))]
+
+    def visit_not_starts_with(self, term: BoundTerm[L], literal: Literal[L]) -> List[Tuple[str, str, Any]]:
+        return [(term.ref().field.name, "not starts_with", self._cast_if_necessary(term.ref().field.field_type, literal.value))]
 
     def visit_true(self) -> List[Tuple[str, str, Any]]:
         return []  # Not supported

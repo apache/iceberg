@@ -51,8 +51,10 @@ from pyiceberg.expressions import (
     NotIn,
     NotNaN,
     NotNull,
+    NotStartsWith,
     Or,
     Reference,
+    StartsWith,
 )
 from pyiceberg.expressions.literals import (
     DecimalLiteral,
@@ -71,6 +73,7 @@ IS = CaselessKeyword("is")
 IN = CaselessKeyword("in")
 NULL = CaselessKeyword("null")
 NAN = CaselessKeyword("nan")
+STARTS_WITH = CaselessKeyword("starts_with")
 
 identifier = Word(alphas, alphanums + "_$").set_results_name("identifier")
 column = delimited_list(identifier, delim=".", combine=True).set_results_name("column")
@@ -207,7 +210,22 @@ def _(result: ParseResults) -> BooleanExpression:
     return NotIn(result.column, result.literal_set)
 
 
-predicate = (comparison | in_check | null_check | nan_check | boolean).set_results_name("predicate")
+starts_with = column + STARTS_WITH + string
+not_starts_with = column + NOT + STARTS_WITH + string
+starts_check = starts_with | not_starts_with
+
+
+@starts_with.set_parse_action
+def _(result: ParseResults) -> BooleanExpression:
+    return StartsWith(result.column, result.string)
+
+
+@not_starts_with.set_parse_action
+def _(result: ParseResults) -> BooleanExpression:
+    return NotStartsWith(result.column, result.string)
+
+
+predicate = (comparison | in_check | null_check | nan_check | starts_check | boolean).set_results_name("predicate")
 
 
 def handle_not(result: ParseResults) -> Not:

@@ -205,6 +205,14 @@ class FooBoundBooleanExpressionVisitor(BoundBooleanExpressionVisitor[List[str]])
         self.visit_history.append("OR")
         return self.visit_history
 
+    def visit_starts_with(self, term: BoundTerm[Any], literal: Literal[Any]) -> List[str]:
+        self.visit_history.append("STARTS_WITH")
+        return self.visit_history
+
+    def visit_not_starts_with(self, term: BoundTerm[Any], literal: Literal[Any]) -> List[str]:
+        self.visit_history.append("NOT_STARTS_WITH")
+        return self.visit_history
+
 
 def test_boolean_expression_visitor() -> None:
     """Test post-order traversal of boolean expression visit method"""

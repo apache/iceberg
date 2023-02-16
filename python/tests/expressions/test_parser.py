@@ -29,6 +29,8 @@ from pyiceberg.expressions import (
     IsNull,
     LessThan,
     LessThanOrEqual,
+    StartsWith,
+    NotStartsWith,
     Not,
     NotEqualTo,
     NotIn,
@@ -149,3 +151,13 @@ def test_and_or_with_parens() -> None:
     assert Or(IsNull("x"), And(GreaterThanOrEqual("x", 5), Not(LessThan("x", 10)))) == parser.parse(
         "(x is null) or (5 <= x) and not(x < 10)"
     )
+
+
+def test_starts_with() -> None:
+    assert StartsWith("x", "data") == parser.parse("x starts_with 'data'")
+    assert StartsWith("x", "data") == parser.parse("x STARTS_WITH 'data'")
+
+
+def test_not_starts_with() -> None:
+    assert NotStartsWith("x", "data") == parser.parse("x not starts_with 'data'")
+    assert NotStartsWith("x", "data") == parser.parse("x not STARTS_WITH 'data'")
