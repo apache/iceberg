@@ -382,6 +382,7 @@ class StringLiteral(BaseLiteral):
         super(StringLiteral, self).__init__(value, TypeID.STRING)
 
     def to(self, type_var):  # noqa: C901
+        value_upper = self.value.upper()
         import dateutil.parser
         if type_var.type_id == TypeID.DATE:
             return DateLiteral((dateutil.parser.parse(self.value) - Literals.EPOCH).days)
@@ -414,8 +415,8 @@ class StringLiteral(BaseLiteral):
                     return DecimalLiteral(Decimal(str(self.value))
                                           .quantize(Decimal("." + "".join(["0" for i in range(1, type_var.scale)]) + "1"),
                                                     rounding=ROUND_HALF_UP))
-        elif type_var.type_id == TypeID.BOOLEAN and self.value.upper() in ['TRUE', 'FALSE']:
-            return BooleanLiteral(True if self.value.upper() == 'TRUE' else False)
+        elif type_var.type_id == TypeID.BOOLEAN and value_upper in ['TRUE', 'FALSE']:
+            return BooleanLiteral(value_upper == 'TRUE')
 
     def __eq__(self, other):
         if id(self) == id(other):
