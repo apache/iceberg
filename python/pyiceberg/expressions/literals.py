@@ -565,7 +565,7 @@ class StringLiteral(Literal[str]):
     @to.register(BooleanType)
     def _(self, type_var: BooleanType) -> Literal[bool]:
         if self.value.upper() in ['TRUE', 'FALSE']:
-            return BooleanLiteral(True if self.value.upper() == 'TRUE' else False)
+            return BooleanLiteral(self.value.upper() == 'TRUE')
         else:
             raise ValueError(f"Could not convert {self.value} into a {type_var}")
 
