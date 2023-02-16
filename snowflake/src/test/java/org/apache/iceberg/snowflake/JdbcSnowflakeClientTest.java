@@ -109,7 +109,6 @@ public class JdbcSnowflakeClientTest {
     Assertions.assertThatExceptionOfType(NoSuchNamespaceException.class)
         .isThrownBy(() -> snowflakeClient.databaseExists(SnowflakeIdentifier.ofDatabase("DB_1")))
         .withStackTraceContaining("Database does not exist");
-    ;
 
     // Error code 2043
     Assertions.assertThatExceptionOfType(NoSuchNamespaceException.class)
