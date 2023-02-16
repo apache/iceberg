@@ -29,10 +29,11 @@ import com.fasterxml.jackson.databind.JsonDeserializer;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.JsonSerializer;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.PropertyNamingStrategies;
+import com.fasterxml.jackson.databind.PropertyNamingStrategy;
 import com.fasterxml.jackson.databind.SerializerProvider;
 import com.fasterxml.jackson.databind.module.SimpleModule;
 import java.io.IOException;
+import java.util.concurrent.atomic.AtomicReference;
 import org.apache.iceberg.rest.RESTSerializers.ErrorResponseDeserializer;
 import org.apache.iceberg.rest.RESTSerializers.ErrorResponseSerializer;
 import org.apache.iceberg.rest.RESTSerializers.OAuthTokenResponseDeserializer;
@@ -42,26 +43,24 @@ import org.apache.iceberg.rest.responses.OAuthTokenResponse;
 
 public class S3ObjectMapper {
 
-  private static final JsonFactory FACTORY = new JsonFactory();
-  private static final ObjectMapper MAPPER = new ObjectMapper(FACTORY);
-  private static volatile boolean isInitialized = false;
+  private static final AtomicReference<ObjectMapper> REFERENCE = new AtomicReference<>();
 
   private S3ObjectMapper() {}
 
   static ObjectMapper mapper() {
-    if (!isInitialized) {
-      synchronized (S3ObjectMapper.class) {
-        if (!isInitialized) {
-          MAPPER.setVisibility(PropertyAccessor.FIELD, JsonAutoDetect.Visibility.ANY);
-          MAPPER.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-          MAPPER.setPropertyNamingStrategy(PropertyNamingStrategies.KebabCaseStrategy.INSTANCE);
-          MAPPER.registerModule(initModule());
-          isInitialized = true;
-        }
-      }
+    if (null == REFERENCE.get()) {
+      ObjectMapper mapper = new ObjectMapper(new JsonFactory());
+      mapper.setVisibility(PropertyAccessor.FIELD, JsonAutoDetect.Visibility.ANY);
+      mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+      // even though using new PropertyNamingStrategy.KebabCaseStrategy() is deprecated
+      // and PropertyNamingStrategies.KebabCaseStrategy.INSTANCE (introduced in jackson 2.14) is
+      // recommended, we can't use it because Spark still relies on jackson 2.13.x stuff
+      mapper.setPropertyNamingStrategy(new PropertyNamingStrategy.KebabCaseStrategy());
+      mapper.registerModule(initModule());
+      REFERENCE.compareAndSet(null, mapper);
     }
 
-    return MAPPER;
+    return REFERENCE.get();
   }
 
   private static SimpleModule initModule() {

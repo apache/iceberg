@@ -24,27 +24,23 @@ import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.PropertyNamingStrategy;
+import java.util.concurrent.atomic.AtomicReference;
 
 class RESTObjectMapper {
-  private static final JsonFactory FACTORY = new JsonFactory();
-  private static final ObjectMapper MAPPER = new ObjectMapper(FACTORY);
-  private static volatile boolean isInitialized = false;
+  private static final AtomicReference<ObjectMapper> REFERENCE = new AtomicReference<>();
 
   private RESTObjectMapper() {}
 
   static ObjectMapper mapper() {
-    if (!isInitialized) {
-      synchronized (RESTObjectMapper.class) {
-        if (!isInitialized) {
-          MAPPER.setVisibility(PropertyAccessor.FIELD, JsonAutoDetect.Visibility.ANY);
-          MAPPER.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-          MAPPER.setPropertyNamingStrategy(new PropertyNamingStrategy.KebabCaseStrategy());
-          RESTSerializers.registerAll(MAPPER);
-          isInitialized = true;
-        }
-      }
+    if (null == REFERENCE.get()) {
+      ObjectMapper mapper = new ObjectMapper(new JsonFactory());
+      mapper.setVisibility(PropertyAccessor.FIELD, JsonAutoDetect.Visibility.ANY);
+      mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+      mapper.setPropertyNamingStrategy(new PropertyNamingStrategy.KebabCaseStrategy());
+      RESTSerializers.registerAll(mapper);
+      REFERENCE.compareAndSet(null, mapper);
     }
 
-    return MAPPER;
+    return REFERENCE.get();
   }
 }
