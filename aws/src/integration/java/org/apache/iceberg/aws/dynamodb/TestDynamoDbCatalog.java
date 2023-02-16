@@ -25,7 +25,6 @@ import java.util.concurrent.ForkJoinPool;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.apache.iceberg.AssertHelpers;
-import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
@@ -33,13 +32,11 @@ import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.aws.AwsClientFactories;
 import org.apache.iceberg.aws.AwsClientFactory;
 import org.apache.iceberg.aws.AwsIntegTestUtil;
-import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.ValidationException;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
@@ -56,17 +53,17 @@ import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 
-public class TestDynamoDbCatalog {
+public abstract class TestDynamoDbCatalog {
 
   private static final ForkJoinPool POOL = new ForkJoinPool(16);
   private static final Schema SCHEMA =
       new Schema(Types.NestedField.required(1, "id", Types.StringType.get()));
 
-  private static String catalogTableName;
-  private static DynamoDbClient dynamo;
-  private static S3Client s3;
-  private static DynamoDbCatalog catalog;
-  private static String testBucket;
+  static String catalogTableName;
+  static DynamoDbClient dynamo;
+  static S3Client s3;
+  static DynamoDbCatalog catalog;
+  static String testBucket;
 
   @BeforeClass
   public static void beforeClass() {
@@ -76,41 +73,11 @@ public class TestDynamoDbCatalog {
     s3 = clientFactory.s3();
     catalog = new DynamoDbCatalog();
     testBucket = AwsIntegTestUtil.testBucketName();
-    catalog.initialize(
-        "test",
-        ImmutableMap.of(
-            AwsProperties.DYNAMODB_TABLE_NAME,
-            catalogTableName,
-            CatalogProperties.WAREHOUSE_LOCATION,
-            "s3://" + testBucket + "/" + genRandomName()));
   }
 
   @AfterClass
   public static void afterClass() {
     dynamo.deleteTable(DeleteTableRequest.builder().tableName(catalogTableName).build());
-  }
-
-  @Test
-  public void testCreateNamespace() {
-    Namespace namespace = Namespace.of(genRandomName());
-    catalog.createNamespace(namespace);
-    GetItemResponse response =
-        dynamo.getItem(
-            GetItemRequest.builder()
-                .tableName(catalogTableName)
-                .key(DynamoDbCatalog.namespacePrimaryKey(namespace))
-                .build());
-    Assert.assertTrue("namespace must exist", response.hasItem());
-    Assert.assertEquals(
-        "namespace must be stored in DynamoDB",
-        namespace.toString(),
-        response.item().get("namespace").s());
-
-    AssertHelpers.assertThrows(
-        "should not create duplicated namespace",
-        AlreadyExistsException.class,
-        "already exists",
-        () -> catalog.createNamespace(namespace));
   }
 
   @Test
@@ -346,20 +313,6 @@ public class TestDynamoDbCatalog {
   }
 
   @Test
-  public void testDropNamespace() {
-    Namespace namespace = Namespace.of(genRandomName());
-    catalog.createNamespace(namespace);
-    catalog.dropNamespace(namespace);
-    GetItemResponse response =
-        dynamo.getItem(
-            GetItemRequest.builder()
-                .tableName(catalogTableName)
-                .key(DynamoDbCatalog.namespacePrimaryKey(namespace))
-                .build());
-    Assert.assertFalse("namespace must not exist", response.hasItem());
-  }
-
-  @Test
   public void testRegisterTable() {
     Namespace namespace = Namespace.of(genRandomName());
     catalog.createNamespace(namespace);
@@ -394,7 +347,7 @@ public class TestDynamoDbCatalog {
     Assertions.assertThat(catalog.dropNamespace(namespace)).isTrue();
   }
 
-  private static String genRandomName() {
+  static String genRandomName() {
     return UUID.randomUUID().toString().replace("-", "");
   }
 }
