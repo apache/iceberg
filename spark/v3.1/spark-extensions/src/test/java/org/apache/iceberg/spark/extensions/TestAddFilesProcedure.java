@@ -36,10 +36,10 @@ import org.apache.avro.generic.GenericRecord;
 import org.apache.avro.io.DatumWriter;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DataFile;
-import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.Files;
-import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.MetadataTableType;
+import org.apache.iceberg.MetricsConfig;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.data.orc.GenericOrcWriter;
 import org.apache.iceberg.io.FileAppender;
@@ -432,12 +432,12 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
 
     // verify manifest file name has uuid pattern
     List<Row> rows =
-            spark
-                    .read()
-                    .format("iceberg")
-                    .load(String.format("%s.%s", tableName, MetadataTableType.MANIFESTS.name()))
-                    .select("path")
-                    .collectAsList();
+        spark
+            .read()
+            .format("iceberg")
+            .load(String.format("%s.%s", tableName, MetadataTableType.MANIFESTS.name()))
+            .select("path")
+            .collectAsList();
 
     Pattern uuidPattern = Pattern.compile("[a-f0-9]{8}(?:-[a-f0-9]{4}){4}[a-f0-9]{8}");
 
