@@ -714,9 +714,9 @@ class _ManifestEvalVisitor(BoundBooleanExpressionVisitor[bool]):
         upper = _from_byte_buffer(term.ref().field.field_type, field.upper_bound)
 
         if literal.value.startswith(upper):
-            return ROWS_CANNOT_MATCH
+            return ROWS_MIGHT_MATCH
 
-        return ROWS_MIGHT_MATCH
+        return ROWS_CANNOT_MATCH
 
     def visit_not_starts_with(self, term: BoundTerm[L], literal: Literal[L]) -> bool:
         pos = term.ref().accessor.position
@@ -728,9 +728,9 @@ class _ManifestEvalVisitor(BoundBooleanExpressionVisitor[bool]):
         upper = _from_byte_buffer(term.ref().field.field_type, field.upper_bound)
 
         if not literal.value.startswith(upper):
-            return ROWS_CANNOT_MATCH
+            return ROWS_MIGHT_MATCH
 
-        return ROWS_MIGHT_MATCH
+        return ROWS_CANNOT_MATCH
 
     def visit_true(self) -> bool:
         return ROWS_MIGHT_MATCH

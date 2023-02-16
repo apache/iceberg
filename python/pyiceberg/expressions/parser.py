@@ -217,12 +217,12 @@ starts_check = starts_with | not_starts_with
 
 @starts_with.set_parse_action
 def _(result: ParseResults) -> BooleanExpression:
-    return StartsWith(result.column, result.string)
+    return StartsWith(result.column, result.raw_quoted_string)
 
 
 @not_starts_with.set_parse_action
 def _(result: ParseResults) -> BooleanExpression:
-    return NotStartsWith(result.column, result.string)
+    return NotStartsWith(result.column, result.raw_quoted_string)
 
 
 predicate = (comparison | in_check | null_check | nan_check | starts_check | boolean).set_results_name("predicate")

@@ -42,6 +42,8 @@ from pyiceberg.expressions import (
     BoundLessThanOrEqual,
     BoundLiteralPredicate,
     BoundNotIn,
+    BoundStartsWith,
+    BoundNotStartsWith,
     BoundPredicate,
     BoundSetPredicate,
     BoundTerm,
@@ -49,6 +51,8 @@ from pyiceberg.expressions import (
     EqualTo,
     GreaterThanOrEqual,
     LessThanOrEqual,
+    StartsWith,
+    NotStartsWith,
     Reference,
     UnboundPredicate,
 )
@@ -600,9 +604,6 @@ class TruncateTransform(Transform[S, S]):
         if isinstance(pred.term, BoundTransform):
             return _project_transform_predicate(self, name, pred)
 
-        # Implement startswith and notstartswith for string (and probably binary)
-        # https://github.com/apache/iceberg/issues/6112
-
         if isinstance(pred, BoundUnaryPredicate):
             return pred.as_unbound(Reference(name))
         elif isinstance(pred, BoundIn):
@@ -794,6 +795,10 @@ def _truncate_array(
         return GreaterThanOrEqual(Reference(name), _transform_literal(transform, boundary))
     if isinstance(pred, BoundEqualTo):
         return EqualTo(Reference(name), _transform_literal(transform, boundary))
+    elif isinstance(pred, BoundStartsWith):
+        return StartsWith(Reference(name), _transform_literal(transform, boundary))
+    elif isinstance(pred, BoundNotStartsWith):
+        return NotStartsWith(Reference(name), _transform_literal(transform, boundary))
     else:
         return None
 

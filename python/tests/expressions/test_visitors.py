@@ -38,6 +38,8 @@ from pyiceberg.expressions import (
     BoundNotIn,
     BoundNotNaN,
     BoundNotNull,
+    BoundStartsWith,
+    BoundNotStartsWith,
     BoundPredicate,
     BoundReference,
     BoundTerm,
@@ -55,6 +57,8 @@ from pyiceberg.expressions import (
     NotNaN,
     NotNull,
     Or,
+    StartsWith,
+    NotStartsWith,
     Reference,
     UnboundPredicate,
 )
@@ -788,6 +792,32 @@ def test_bound_boolean_expression_visitor_raise_on_unbound_predicate() -> None:
     assert "Not a bound predicate" in str(exc_info.value)
 
 
+def test_bound_boolean_expression_visitor_starts_with() -> None:
+    bound_expression = BoundStartsWith(
+        term=BoundReference(
+            field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
+            accessor=Accessor(position=0, inner=None),
+        ),
+        literal=literal("foo"),
+    )
+    visitor = FooBoundBooleanExpressionVisitor()
+    result = visit(bound_expression, visitor=visitor)
+    assert result == ["STARTS_WITH"]
+
+
+def test_bound_boolean_expression_visitor_not_starts_with() -> None:
+    bound_expression = BoundNotStartsWith(
+        term=BoundReference(
+            field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
+            accessor=Accessor(position=0, inner=None),
+        ),
+        literal=literal("foo"),
+    )
+    visitor = FooBoundBooleanExpressionVisitor()
+    result = visit(bound_expression, visitor=visitor)
+    assert result == ["NOT_STARTS_WITH"]
+
+
 def _to_byte_buffer(field_type: IcebergType, val: Any) -> bytes:
     if not isinstance(field_type, PrimitiveType):
         raise ValueError(f"Expected a PrimitiveType, got: {type(field_type)}")
@@ -1365,6 +1395,26 @@ def test_integer_not_in(schema: Schema, manifest: ManifestFile) -> None:
     assert _ManifestEvalVisitor(schema, NotIn(Reference("no_nulls"), ("abc", "def")), case_sensitive=True).eval(
         manifest
     ), "Should read: in on no nulls column"
+
+
+def test_string_starts_with(schema: Schema, manifest: ManifestFile) -> None:
+    assert _ManifestEvalVisitor(schema, StartsWith(Reference("no_nulls_same_value_a"), "a"), case_sensitive=True).eval(
+        manifest
+    ), "Should read: no_nulls_same_value_a starts with a"
+
+    assert not _ManifestEvalVisitor(schema, StartsWith(Reference("no_nulls_same_value_a"), "b"), case_sensitive=True).eval(
+        manifest
+    ), "Should read: no_nulls_same_value_a does not start with a"
+
+
+def test_string_not_starts_with(schema: Schema, manifest: ManifestFile) -> None:
+    assert _ManifestEvalVisitor(schema, NotStartsWith(Reference("no_nulls_same_value_a"), "b"), case_sensitive=True).eval(
+        manifest
+    ), "Should read: no_nulls_same_value_a does not start with a"
+
+    assert not _ManifestEvalVisitor(schema, NotStartsWith(Reference("no_nulls_same_value_a"), "a"), case_sensitive=True).eval(
+        manifest
+    ), "Should read: no_nulls_same_value_a starts with a"
 
 
 def test_rewrite_not_equal_to() -> None:

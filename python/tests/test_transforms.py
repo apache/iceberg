@@ -34,6 +34,8 @@ from pyiceberg.expressions import (
     BoundNotIn,
     BoundNotNull,
     BoundReference,
+    BoundStartsWith,
+    BoundNotStartsWith,
     EqualTo,
     GreaterThanOrEqual,
     In,
@@ -41,6 +43,8 @@ from pyiceberg.expressions import (
     NotIn,
     NotNull,
     Reference,
+    StartsWith,
+    NotStartsWith
 )
 from pyiceberg.expressions.literals import (
     DateLiteral,
@@ -898,3 +902,15 @@ def test_projection_truncate_long_in(bound_reference_decimal: BoundReference[Dec
             Decimal("18.14999999999999857891452847979962825775146484374"),
         },
     )
+
+
+def test_projection_truncate_string_starts_with(bound_reference_str: BoundReference[str]) -> None:
+    assert TruncateTransform(2).project(
+        "name", BoundStartsWith(term=bound_reference_str, literal=literal("hello"))
+    ) == StartsWith(term="name", literal=literal("he"))
+
+
+def test_projection_truncate_string_not_starts_with(bound_reference_str: BoundReference[str]) -> None:
+    assert TruncateTransform(2).project(
+        "name", BoundNotStartsWith(term=bound_reference_str, literal=literal("hello"))
+    ) == NotStartsWith(term="name", literal=literal("he"))
