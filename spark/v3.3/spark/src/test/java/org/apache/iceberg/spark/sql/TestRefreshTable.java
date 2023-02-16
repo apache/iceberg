@@ -23,6 +23,7 @@ import java.util.Map;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.spark.SparkCatalogConfig;
 import org.apache.iceberg.spark.SparkCatalogTestBase;
 import org.junit.After;
 import org.junit.Before;
@@ -49,7 +50,8 @@ public class TestRefreshTable extends SparkCatalogTestBase {
   public void testRefreshCommand() {
     // We are not allowed to change the session catalog after it has been initialized, so build a
     // new one
-    if (catalogName.equals("spark_catalog")) {
+    if (catalogName.equals(SparkCatalogConfig.SPARK.catalogName())
+        || catalogName.equals(SparkCatalogConfig.HADOOP.catalogName())) {
       spark.conf().set("spark.sql.catalog." + catalogName + ".cache-enabled", true);
       spark = spark.cloneSession();
     }
