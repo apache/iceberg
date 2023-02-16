@@ -105,7 +105,10 @@ public abstract class TestDynamoDbCatalog {
             .collect(Collectors.toList());
     catalog.createNamespace(parent);
     namespaceList.forEach(ns -> catalog.createNamespace(ns));
-    Assert.assertEquals(4, catalog.listNamespaces(parent).size());
+    List<Namespace> response = catalog.listNamespaces(parent);
+    Assert.assertEquals(4, response.size());
+    Assert.assertTrue("should contain the parent namespace " + parent, response.contains(parent));
+    Assert.assertTrue("should contain all sub namespaces", response.containsAll(namespaceList));
   }
 
   @Test
