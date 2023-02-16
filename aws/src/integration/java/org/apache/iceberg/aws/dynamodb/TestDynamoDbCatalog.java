@@ -53,6 +53,7 @@ import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 
+@SuppressWarnings("VisibilityModifier")
 public abstract class TestDynamoDbCatalog {
 
   private static final ForkJoinPool POOL = new ForkJoinPool(16);
