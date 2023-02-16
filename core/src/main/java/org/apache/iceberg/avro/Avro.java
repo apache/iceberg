@@ -57,7 +57,7 @@ import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
 import org.apache.iceberg.encryption.EncryptionKeyMetadata;
-import org.apache.iceberg.hadoop.HadoopFileIO;
+import org.apache.iceberg.hadoop.HadoopOutputFile;
 import org.apache.iceberg.io.DataWriter;
 import org.apache.iceberg.io.DeleteSchemaUtil;
 import org.apache.iceberg.io.FileAppender;
@@ -157,13 +157,13 @@ public class Avro {
 
     /**
      * Overwrite only if needed on File systems where a new empty file gets pre-created like {@link
-     * HadoopFileIO}
+     * HadoopOutputFile}
      *
      * @return {@link WriteBuilder}
      */
     public WriteBuilder overwriteIfNeeded() {
       boolean needsOverwrite =
-          file instanceof HadoopFileIO || file instanceof Files.LocalOutputFile;
+          file instanceof HadoopOutputFile || file instanceof Files.LocalOutputFile;
       return overwrite(needsOverwrite);
     }
 
