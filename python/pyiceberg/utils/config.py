@@ -23,7 +23,9 @@ import yaml
 from pyiceberg.typedef import FrozenDict, RecursiveDict
 
 PYICEBERG = "pyiceberg_"
+DEFAULT = "default"
 CATALOG = "catalog"
+DEFAULT_CATALOG = f"{DEFAULT}-{CATALOG}"
 HOME = "HOME"
 PYICEBERG_HOME = "PYICEBERG_HOME"
 PYICEBERG_YML = ".pyiceberg.yaml"
@@ -128,6 +130,20 @@ class Config:
                 set_property(config, parts_normalized, config_value)
 
         return config
+
+    def get_default_catalog_name(self) -> str:
+        """
+        Looks into the configuration file for `default-catalog`
+        and returns the name as the default catalog
+
+        Returns: The name of the default catalog in `default-catalog`
+                 Returns `default` when the key cannot be found.
+        """
+        if default_catalog_name := self.config.get(DEFAULT_CATALOG):
+            if not isinstance(default_catalog_name, str):
+                raise ValueError(f"Default catalog name should be a str: {default_catalog_name}")
+            return default_catalog_name
+        return DEFAULT
 
     def get_catalog_config(self, catalog_name: str) -> Optional[RecursiveDict]:
         if CATALOG in self.config:
