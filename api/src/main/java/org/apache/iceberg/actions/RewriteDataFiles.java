@@ -187,6 +187,10 @@ public interface RewriteDataFiles
           .mapToInt(FileGroupRewriteResult::rewrittenDataFilesCount)
           .sum();
     }
+
+    default long rewrittenBytesCount() {
+      return rewriteResults().stream().mapToLong(FileGroupRewriteResult::rewrittenBytesCount).sum();
+    }
   }
 
   /**
@@ -199,6 +203,10 @@ public interface RewriteDataFiles
     int addedDataFilesCount();
 
     int rewrittenDataFilesCount();
+
+    default long rewrittenBytesCount() {
+      return 0L;
+    }
   }
 
   /**

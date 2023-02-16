@@ -22,14 +22,14 @@ package org.apache.spark.sql.execution.datasources.v2
 import org.apache.iceberg.spark.source.SparkTable
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.Attribute
-import org.apache.spark.sql.catalyst.plans.logical.CreateBranch
 import org.apache.spark.sql.connector.catalog.Identifier
 import org.apache.spark.sql.connector.catalog.TableCatalog
 
-case class CreateBranchExec(
-                             catalog: TableCatalog,
-                             ident: Identifier,
-                             createBranch: CreateBranch) extends LeafV2CommandExec {
+case class DropTagExec(
+    catalog: TableCatalog,
+    ident: Identifier,
+    tag: String,
+    ifExists: Boolean) extends LeafV2CommandExec {
 
   import org.apache.spark.sql.connector.catalog.CatalogV2Implicits._
 
@@ -38,33 +38,19 @@ case class CreateBranchExec(
   override protected def run(): Seq[InternalRow] = {
     catalog.loadTable(ident) match {
       case iceberg: SparkTable =>
-
-        val snapshotId = createBranch.snapshotId.getOrElse(iceberg.table.currentSnapshot().snapshotId())
-        val manageSnapshot = iceberg.table.manageSnapshots()
-          .createBranch(createBranch.branch, snapshotId)
-
-        if (createBranch.numSnapshots.nonEmpty) {
-          manageSnapshot.setMinSnapshotsToKeep(createBranch.branch, createBranch.numSnapshots.get.toInt)
+        val ref = iceberg.table().refs().get(tag)
+        if (ref != null || !ifExists) {
+          iceberg.table().manageSnapshots().removeTag(tag).commit()
         }
-
-        if (createBranch.snapshotRetain.nonEmpty) {
-          manageSnapshot.setMaxSnapshotAgeMs(createBranch.branch, createBranch.snapshotRetain.get)
-        }
-
-        if (createBranch.snapshotRefRetain.nonEmpty) {
-          manageSnapshot.setMaxRefAgeMs(createBranch.branch, createBranch.snapshotRefRetain.get)
-        }
-
-        manageSnapshot.commit()
 
       case table =>
-        throw new UnsupportedOperationException(s"Cannot add branch to non-Iceberg table: $table")
+        throw new UnsupportedOperationException(s"Cannot drop tag on non-Iceberg table: $table")
     }
 
     Nil
   }
 
   override def simpleString(maxFields: Int): String = {
-    s"Create branch: ${createBranch.branch} operation for table: ${ident.quoted}"
+    s"DropTag tag: ${tag} for table: ${ident.quoted}"
   }
 }

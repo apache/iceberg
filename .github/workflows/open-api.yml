@@ -46,6 +46,9 @@ jobs:
       - name: Install
         working-directory: ./open-api
         run: pip install openapi-spec-validator==0.5.2
-      - name: Validate
+      - name: Validate REST catalog spec
         working-directory: ./open-api
         run: openapi-spec-validator rest-catalog-open-api.yaml
+      - name: Validate S3 REST Signer spec
+        working-directory: ./aws/src/main/resources
+        run: openapi-spec-validator s3-signer-open-api.yaml

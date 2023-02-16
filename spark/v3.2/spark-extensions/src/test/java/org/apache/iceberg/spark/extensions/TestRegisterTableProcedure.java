@@ -22,7 +22,6 @@ import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.hive.HiveTableOperations;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.catalyst.parser.ParseException;
@@ -30,7 +29,6 @@ import org.apache.spark.sql.functions;
 import org.apache.spark.sql.types.DataTypes;
 import org.junit.After;
 import org.junit.Assert;
-import org.junit.Assume;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -55,10 +53,6 @@ public class TestRegisterTableProcedure extends SparkExtensionsTestBase {
 
   @Test
   public void testRegisterTable() throws NoSuchTableException, ParseException {
-    Assume.assumeTrue(
-        "Register only implemented on Hive Catalogs",
-        spark.conf().get("spark.sql.catalog." + catalogName + ".type").equals("hive"));
-
     long numRows = 1000;
 
     sql("CREATE TABLE %s (id int, data string) using ICEBERG", tableName);
@@ -72,8 +66,7 @@ public class TestRegisterTableProcedure extends SparkExtensionsTestBase {
     long originalFileCount = (long) scalarSql("SELECT COUNT(*) from %s.files", tableName);
     long currentSnapshotId = table.currentSnapshot().snapshotId();
     String metadataJson =
-        ((HiveTableOperations) (((HasTableOperations) table).operations()))
-            .currentMetadataLocation();
+        (((HasTableOperations) table).operations()).current().metadataFileLocation();
 
     List<Object[]> result =
         sql("CALL %s.system.register_table('%s', '%s')", catalogName, targetName, metadataJson);

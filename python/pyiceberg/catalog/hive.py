@@ -16,7 +16,6 @@
 #  under the License.
 import getpass
 import time
-import uuid
 from types import TracebackType
 from typing import (
     Any,
@@ -24,7 +23,6 @@ from typing import (
     List,
     Optional,
     Set,
-    Tuple,
     Type,
     Union,
 )
@@ -46,10 +44,11 @@ from thrift.protocol import TBinaryProtocol
 from thrift.transport import TSocket, TTransport
 
 from pyiceberg.catalog import (
+    EXTERNAL_TABLE,
     ICEBERG,
+    LOCATION,
     METADATA_LOCATION,
     TABLE_TYPE,
-    WAREHOUSE_LOCATION,
     Catalog,
     Identifier,
     Properties,
@@ -66,9 +65,9 @@ from pyiceberg.exceptions import (
 from pyiceberg.io import FileIO, load_file_io
 from pyiceberg.partitioning import UNPARTITIONED_PARTITION_SPEC, PartitionSpec
 from pyiceberg.schema import Schema, SchemaVisitor, visit
-from pyiceberg.serializers import FromInputFile, ToOutputFile
+from pyiceberg.serializers import FromInputFile
 from pyiceberg.table import Table
-from pyiceberg.table.metadata import TableMetadata, new_table_metadata
+from pyiceberg.table.metadata import new_table_metadata
 from pyiceberg.table.sorting import UNSORTED_SORT_ORDER, SortOrder
 from pyiceberg.typedef import EMPTY_DICT
 from pyiceberg.types import (
@@ -110,7 +109,6 @@ hive_types = {
 
 COMMENT = "comment"
 OWNER = "owner"
-LOCATION = "location"
 
 
 class _HiveClient:
@@ -218,27 +216,6 @@ class SchemaToHiveConverter(SchemaVisitor[str]):
 class HiveCatalog(Catalog):
     _client: _HiveClient
 
-    @staticmethod
-    def identifier_to_database(
-        identifier: Union[str, Identifier], err: Union[Type[ValueError], Type[NoSuchNamespaceError]] = ValueError
-    ) -> str:
-        tuple_identifier = Catalog.identifier_to_tuple(identifier)
-        if len(tuple_identifier) != 1:
-            raise err(f"Invalid database, hierarchical namespaces are not supported: {identifier}")
-
-        return tuple_identifier[0]
-
-    @staticmethod
-    def identifier_to_database_and_table(
-        identifier: Union[str, Identifier],
-        err: Union[Type[ValueError], Type[NoSuchTableError], Type[NoSuchNamespaceError]] = ValueError,
-    ) -> Tuple[str, str]:
-        tuple_identifier = Catalog.identifier_to_tuple(identifier)
-        if len(tuple_identifier) != 2:
-            raise err(f"Invalid path, hierarchical namespaces are not supported: {identifier}")
-
-        return tuple_identifier[0], tuple_identifier[1]
-
     def __init__(self, name: str, **properties: str):
         super().__init__(name, **properties)
         self._client = _HiveClient(properties["uri"])
@@ -267,22 +244,6 @@ class HiveCatalog(Catalog):
             metadata_location=metadata_location,
             io=self._load_file_io(metadata.properties),
         )
-
-    def _write_metadata(self, metadata: TableMetadata, io: FileIO, metadata_path: str) -> None:
-        ToOutputFile.table_metadata(metadata, io.new_output(metadata_path))
-
-    def _resolve_table_location(self, location: Optional[str], database_name: str, table_name: str) -> str:
-        if not location:
-            database_properties = self.load_namespace_properties(database_name)
-            if database_location := database_properties.get(LOCATION):
-                database_location = database_location.rstrip("/")
-                return f"{database_location}/{table_name}"
-
-            if warehouse_location := self.properties.get(WAREHOUSE_LOCATION):
-                warehouse_location = warehouse_location.rstrip("/")
-                return f"{warehouse_location}/{database_name}/{table_name}"
-            raise ValueError("Cannot determine location from warehouse, please provide an explicit location")
-        return location
 
     def create_table(
         self,
@@ -315,7 +276,7 @@ class HiveCatalog(Catalog):
 
         location = self._resolve_table_location(location, database_name, table_name)
 
-        metadata_location = f"{location}/metadata/00000-{uuid.uuid4()}.metadata.json"
+        metadata_location = self._get_metadata_location(location=location)
         metadata = new_table_metadata(
             location=location, schema=schema, partition_spec=partition_spec, sort_order=sort_order, properties=properties
         )
@@ -329,7 +290,7 @@ class HiveCatalog(Catalog):
             createTime=current_time_millis // 1000,
             lastAccessTime=current_time_millis // 1000,
             sd=_construct_hive_storage_descriptor(schema, location),
-            tableType="EXTERNAL_TABLE",
+            tableType=EXTERNAL_TABLE,
             parameters=_construct_parameters(metadata_location),
         )
         try:
@@ -380,7 +341,7 @@ class HiveCatalog(Catalog):
             with self._client as open_client:
                 open_client.drop_table(dbname=database_name, name=table_name, deleteData=False)
         except NoSuchObjectException as e:
-            # When the namespace doesn't exists, it throws the same error
+            # When the namespace doesn't exist, it throws the same error
             raise NoSuchTableError(f"Table does not exists: {table_name}") from e
 
     def purge_table(self, identifier: Union[str, Identifier]) -> None:
@@ -398,9 +359,9 @@ class HiveCatalog(Catalog):
             Table: the updated table instance with its metadata
 
         Raises:
-            ValueError: When the from table identifier is invalid
+            ValueError: When from table identifier is invalid
             NoSuchTableError: When a table with the name does not exist
-            NoSuchNamespaceError: When the destination namespace doesn't exists
+            NoSuchNamespaceError: When the destination namespace doesn't exist
         """
         from_database_name, from_table_name = self.identifier_to_database_and_table(from_identifier, NoSuchTableError)
         to_database_name, to_table_name = self.identifier_to_database_and_table(to_identifier)
@@ -479,7 +440,7 @@ class HiveCatalog(Catalog):
         Returns:
             List[Identifier]: a List of namespace identifiers
         """
-        # Hive does not support hierarchical namespaces, therefore return an empty list
+        # Hierarchical namespace is not supported. Return an empty list
         if namespace:
             return []
 
@@ -524,14 +485,8 @@ class HiveCatalog(Catalog):
             NoSuchNamespaceError: If a namespace with the given name does not exist
             ValueError: If removals and updates have overlapping keys.
         """
-        removed: Set[str] = set()
-        updated: Set[str] = set()
 
-        if updates and removals:
-            overlap = set(removals) & set(updates.keys())
-            if overlap:
-                raise ValueError(f"Updates and deletes have an overlap: {overlap}")
-
+        self._check_for_overlap(updates=updates, removals=removals)
         database_name = self.identifier_to_database(namespace, NoSuchNamespaceError)
         with self._client as open_client:
             try:
@@ -539,6 +494,10 @@ class HiveCatalog(Catalog):
                 parameters = database.parameters
             except NoSuchObjectException as e:
                 raise NoSuchNamespaceError(f"Database does not exists: {database_name}") from e
+
+            removed: Set[str] = set()
+            updated: Set[str] = set()
+
             if removals:
                 for key in removals:
                     if key in parameters:
@@ -548,10 +507,9 @@ class HiveCatalog(Catalog):
                 for key, value in updates.items():
                     parameters[key] = value
                     updated.add(key)
+
             open_client.alter_database(database_name, _annotate_namespace(database, parameters))
 
         expected_to_change = (removals or set()).difference(removed)
 
-        return PropertiesUpdateSummary(
-            removed=list(removed or []), updated=list(updates.keys() if updates else []), missing=list(expected_to_change)
-        )
+        return PropertiesUpdateSummary(removed=list(removed or []), updated=list(updated or []), missing=list(expected_to_change))

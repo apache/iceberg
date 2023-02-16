@@ -87,7 +87,7 @@ public class SnowflakeCatalogTest {
         "s3://tab1/metadata/v3.metadata.json",
         TableMetadataParser.toJson(
                 TableMetadata.newTableMetadata(
-                    schema, partitionSpec, "s3://tab1/", ImmutableMap.<String, String>of()))
+                    schema, partitionSpec, "s3://tab1", ImmutableMap.<String, String>of()))
             .getBytes());
     fakeFileIO.addFile(
         "wasbs://mycontainer@myaccount.blob.core.windows.net/tab3/metadata/v334.metadata.json",
@@ -216,20 +216,20 @@ public class SnowflakeCatalogTest {
   @Test
   public void testLoadS3Table() {
     Table table = catalog.loadTable(TableIdentifier.of(Namespace.of("DB_1", "SCHEMA_1"), "TAB_1"));
-    Assertions.assertThat(table.location()).isEqualTo("s3://tab1/");
+    Assertions.assertThat(table.location()).isEqualTo("s3://tab1");
   }
 
   @Test
   public void testLoadAzureTable() {
     Table table = catalog.loadTable(TableIdentifier.of(Namespace.of("DB_2", "SCHEMA_2"), "TAB_3"));
     Assertions.assertThat(table.location())
-        .isEqualTo("wasbs://mycontainer@myaccount.blob.core.windows.net/tab1/");
+        .isEqualTo("wasbs://mycontainer@myaccount.blob.core.windows.net/tab1");
   }
 
   @Test
   public void testLoadGcsTable() {
     Table table = catalog.loadTable(TableIdentifier.of(Namespace.of("DB_3", "SCHEMA_3"), "TAB_5"));
-    Assertions.assertThat(table.location()).isEqualTo("gs://tab5/");
+    Assertions.assertThat(table.location()).isEqualTo("gs://tab5");
   }
 
   @Test

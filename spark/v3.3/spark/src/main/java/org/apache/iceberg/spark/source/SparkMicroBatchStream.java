@@ -118,9 +118,8 @@ public class SparkMicroBatchStream implements MicroBatchStream {
     Snapshot latestSnapshot = table.currentSnapshot();
     long addedFilesCount =
         PropertyUtil.propertyAsLong(latestSnapshot.summary(), SnapshotSummary.ADDED_FILES_PROP, -1);
-    // If snapshotSummary doesn't have SnapshotSummary.ADDED_FILES_PROP, iterate through addedFiles
-    // iterator to find
-    // addedFilesCount.
+    // if the latest snapshot summary doesn't contain SnapshotSummary.ADDED_FILES_PROP,
+    // iterate through addedDataFiles to compute addedFilesCount
     addedFilesCount =
         addedFilesCount == -1
             ? Iterables.size(latestSnapshot.addedDataFiles(table.io()))

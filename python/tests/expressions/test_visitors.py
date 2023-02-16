@@ -1378,14 +1378,28 @@ def test_rewrite_not_in() -> None:
 
 
 def test_rewrite_and() -> None:
-    assert rewrite_not(Not(And(EqualTo(Reference("x"), 34.56), EqualTo(Reference("y"), 34.56),))) == Or(
+    assert rewrite_not(
+        Not(
+            And(
+                EqualTo(Reference("x"), 34.56),
+                EqualTo(Reference("y"), 34.56),
+            )
+        )
+    ) == Or(
         NotEqualTo(term=Reference(name="x"), literal=34.56),
         NotEqualTo(term=Reference(name="y"), literal=34.56),
     )
 
 
 def test_rewrite_or() -> None:
-    assert rewrite_not(Not(Or(EqualTo(Reference("x"), 34.56), EqualTo(Reference("y"), 34.56),))) == And(
+    assert rewrite_not(
+        Not(
+            Or(
+                EqualTo(Reference("x"), 34.56),
+                EqualTo(Reference("y"), 34.56),
+            )
+        )
+    ) == And(
         NotEqualTo(term=Reference(name="x"), literal=34.56),
         NotEqualTo(term=Reference(name="y"), literal=34.56),
     )

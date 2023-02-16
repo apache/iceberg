@@ -61,9 +61,7 @@ from pyiceberg.expressions import (
 from pyiceberg.expressions.visitors import (
     BoundBooleanExpressionVisitor,
     bind,
-    expression_to_plain_format,
     extract_field_ids,
-    rewrite_to_dnf,
     translate_column_names,
 )
 from pyiceberg.expressions.visitors import visit as boolean_expression_visit
@@ -495,11 +493,9 @@ def _file_to_table(
         file_schema = Schema.parse_raw(schema_raw)
 
         pyarrow_filter = None
-        dnf_filter = None
         if bound_row_filter is not AlwaysTrue():
             translated_row_filter = translate_column_names(bound_row_filter, file_schema, case_sensitive=case_sensitive)
             bound_file_filter = bind(file_schema, translated_row_filter, case_sensitive=case_sensitive)
-            dnf_filter = expression_to_plain_format(rewrite_to_dnf(bound_file_filter), cast_int_to_datetime=True)
             pyarrow_filter = expression_to_pyarrow(bound_file_filter)
 
         file_project_schema = prune_columns(file_schema, projected_field_ids, select_full_types=False)
@@ -512,7 +508,7 @@ def _file_to_table(
             schema=parquet_schema,
             pre_buffer=True,
             buffer_size=8 * ONE_MEGABYTE,
-            filters=dnf_filter,
+            filters=pyarrow_filter,
             columns=[col.name for col in file_project_schema.columns],
         )
 
