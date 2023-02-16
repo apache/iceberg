@@ -34,11 +34,7 @@ import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericDatumWriter;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.avro.io.DatumWriter;
-import org.apache.iceberg.AssertHelpers;
-import org.apache.iceberg.DataFile;
-import org.apache.iceberg.Files;
-import org.apache.iceberg.MetricsConfig;
-import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.*;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.data.orc.GenericOrcWriter;
 import org.apache.iceberg.io.FileAppender;
@@ -430,11 +426,17 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
         sql("SELECT id, name, dept, subdept FROM %s ORDER BY id", tableName));
 
     // verify manifest file name has uuid pattern
-    String manifestPath = (String) sql("select path from %s.manifests", tableName).get(0)[0];
+    List<Row> rows =
+            spark
+                    .read()
+                    .format("iceberg")
+                    .load(String.format("%s.%s", tableName, MetadataTableType.MANIFESTS.name()))
+                    .select("path")
+                    .collectAsList();
 
     Pattern uuidPattern = Pattern.compile("[a-f0-9]{8}(?:-[a-f0-9]{4}){4}[a-f0-9]{8}");
 
-    Matcher matcher = uuidPattern.matcher(manifestPath);
+    Matcher matcher = uuidPattern.matcher((String) rows.get(0).get(0));
     Assert.assertTrue("verify manifest path has uuid", matcher.find());
   }
 
