@@ -56,7 +56,7 @@ class AvroTest {
   }
 
   @Test
-  void overwriteIsUsedForInMemoryOutputFile() throws IOException {
+  void overwriteIsNotUsedForNonHadoopLocalOutputFile() throws IOException {
     OutputFile out = mock(InMemoryOutputFile.class);
     Mockito.when(out.create()).thenReturn(testOutputStream());
 
