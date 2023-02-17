@@ -558,7 +558,9 @@ public class PartitionSpec implements Serializable {
 
     Builder add(int sourceId, int fieldId, String name, Transform<?, ?> transform) {
       checkAndAddPartitionName(name, sourceId);
-      fields.add(new PartitionField(sourceId, fieldId, name, transform));
+      PartitionField field = new PartitionField(sourceId, fieldId, name, transform);
+      checkForRedundantPartitions(field);
+      fields.add(field);
       lastAssignedFieldId.getAndAccumulate(fieldId, Math::max);
       return this;
     }

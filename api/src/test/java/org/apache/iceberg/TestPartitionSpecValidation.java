@@ -342,4 +342,19 @@ public class TestPartitionSpecValidation {
     Assert.assertEquals(1006, spec.fields().get(2).fieldId());
     Assert.assertEquals(1006, spec.lastAssignedFieldId());
   }
+
+  @Test
+  public void testBindSchemaRedundancyCheck() {
+    UnboundPartitionSpec spec =
+        UnboundPartitionSpec.builder()
+            .addField("day", 2, "days(ts)")
+            .addField("hour", 2, "hours(ts)")
+            .build();
+
+    AssertHelpers.assertThrows(
+        "Should not allow days(ts) and hours(ts)",
+        IllegalArgumentException.class,
+        "Cannot add redundant partition",
+        () -> spec.bind(SCHEMA));
+  }
 }
