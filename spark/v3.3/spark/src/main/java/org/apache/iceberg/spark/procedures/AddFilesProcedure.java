@@ -18,10 +18,7 @@
  */
 package org.apache.iceberg.spark.procedures;
 
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.PartitionField;
@@ -51,7 +48,6 @@ import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
-import scala.Option;
 import scala.runtime.BoxedUnit;
 
 class AddFilesProcedure extends BaseProcedure {
@@ -180,7 +176,7 @@ class AddFilesProcedure extends BaseProcedure {
     // List Partitions via Spark InMemory file search interface
     List<SparkPartition> partitions =
         Spark3Util.getPartitions(
-            spark(), tableLocation, format, partitionFilter, Option.apply(spec));
+            spark(), tableLocation, format, partitionFilter, Optional.of(spec));
 
     if (table.spec().isUnpartitioned()) {
       Preconditions.checkArgument(
