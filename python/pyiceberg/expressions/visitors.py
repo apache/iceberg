@@ -992,7 +992,6 @@ def expression_to_plain_format(
 
 
 class _InclusiveMetricsEvaluator(BoundBooleanExpressionVisitor[bool]):
-
     struct: StructType
     expr: BooleanExpression
 
