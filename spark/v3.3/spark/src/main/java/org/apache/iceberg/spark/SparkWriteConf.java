@@ -207,6 +207,7 @@ public class SparkWriteConf {
         confParser
             .stringConf()
             .option(SparkWriteOptions.DISTRIBUTION_MODE)
+            .sessionConf(SparkSQLProperties.DISTRIBUTION_MODE)
             .tableProperty(TableProperties.WRITE_DISTRIBUTION_MODE)
             .parseOptional();
 
@@ -243,6 +244,7 @@ public class SparkWriteConf {
         confParser
             .stringConf()
             .option(SparkWriteOptions.DISTRIBUTION_MODE)
+            .sessionConf(SparkSQLProperties.DISTRIBUTION_MODE)
             .tableProperty(TableProperties.DELETE_DISTRIBUTION_MODE)
             .defaultValue(TableProperties.WRITE_DISTRIBUTION_MODE_HASH)
             .parse();
@@ -254,6 +256,7 @@ public class SparkWriteConf {
         confParser
             .stringConf()
             .option(SparkWriteOptions.DISTRIBUTION_MODE)
+            .sessionConf(SparkSQLProperties.DISTRIBUTION_MODE)
             .tableProperty(TableProperties.UPDATE_DISTRIBUTION_MODE)
             .defaultValue(TableProperties.WRITE_DISTRIBUTION_MODE_HASH)
             .parse();
@@ -265,6 +268,7 @@ public class SparkWriteConf {
         confParser
             .stringConf()
             .option(SparkWriteOptions.DISTRIBUTION_MODE)
+            .sessionConf(SparkSQLProperties.DISTRIBUTION_MODE)
             .tableProperty(TableProperties.MERGE_DISTRIBUTION_MODE)
             .parseOptional();
 
@@ -285,6 +289,7 @@ public class SparkWriteConf {
         confParser
             .stringConf()
             .option(SparkWriteOptions.DISTRIBUTION_MODE)
+            .sessionConf(SparkSQLProperties.DISTRIBUTION_MODE)
             .tableProperty(TableProperties.MERGE_DISTRIBUTION_MODE)
             .defaultValue(TableProperties.WRITE_DISTRIBUTION_MODE_HASH)
             .parse();
