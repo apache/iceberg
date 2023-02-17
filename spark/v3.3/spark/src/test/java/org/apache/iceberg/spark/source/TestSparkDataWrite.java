@@ -42,9 +42,9 @@ import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.SparkException;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
@@ -143,7 +143,7 @@ public class TestSparkDataWrite {
     Assert.assertEquals("Number of rows should match", expected.size(), actual.size());
     Assert.assertEquals("Result rows should match", expected, actual);
     for (ManifestFile manifest :
-        SparkUtil.latestSnapshot(table, targetBranch).allManifests(table.io())) {
+        SnapshotUtil.latestSnapshot(table, targetBranch).allManifests(table.io())) {
       for (DataFile file : ManifestFiles.read(manifest, table.io())) {
         // TODO: avro not support split
         if (!format.equals(FileFormat.AVRO)) {
@@ -417,7 +417,7 @@ public class TestSparkDataWrite {
 
     List<DataFile> files = Lists.newArrayList();
     for (ManifestFile manifest :
-        SparkUtil.latestSnapshot(table, targetBranch).allManifests(table.io())) {
+        SnapshotUtil.latestSnapshot(table, targetBranch).allManifests(table.io())) {
       for (DataFile file : ManifestFiles.read(manifest, table.io())) {
         files.add(file);
       }

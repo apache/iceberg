@@ -27,6 +27,7 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.HistoryEntry;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.io.FileIO;
@@ -393,5 +394,20 @@ public class SnapshotUtil {
     }
 
     return table.schema();
+  }
+
+  /**
+   * Fetch latest snapshot based on the branch tip
+   *
+   * @param table to fetch snapshot from.
+   * @param branch used to fetch snapshot from a branch ref.
+   * @return Snapshot
+   */
+  public static Snapshot latestSnapshot(Table table, String branch) {
+    if (SnapshotRef.MAIN_BRANCH.equals(branch)) {
+      return table.currentSnapshot();
+    } else {
+      return table.snapshot(branch);
+    }
   }
 }
