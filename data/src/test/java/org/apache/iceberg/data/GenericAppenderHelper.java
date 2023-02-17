@@ -27,6 +27,7 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Files;
+import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.io.FileAppender;
@@ -56,10 +57,11 @@ public class GenericAppenderHelper {
     this(table, fileFormat, tmp, null);
   }
 
-  public void appendToTable(DataFile... dataFiles) {
+  public void appendToTable(String branch, DataFile... dataFiles) {
     Preconditions.checkNotNull(table, "table not set");
 
-    AppendFiles append = table.newAppend();
+    AppendFiles append =
+        table.newAppend().toBranch(branch != null ? branch : SnapshotRef.MAIN_BRANCH);
 
     for (DataFile dataFile : dataFiles) {
       append = append.appendFile(dataFile);
@@ -68,8 +70,21 @@ public class GenericAppenderHelper {
     append.commit();
   }
 
+  public void appendToTable(DataFile... dataFiles) {
+    appendToTable(null, dataFiles);
+  }
+
   public void appendToTable(List<Record> records) throws IOException {
-    appendToTable(null, records);
+    appendToTable(null, null, records);
+  }
+
+  public void appendToTable(String branch, List<Record> records) throws IOException {
+    appendToTable(null, branch, records);
+  }
+
+  public void appendToTable(StructLike partition, String branch, List<Record> records)
+      throws IOException {
+    appendToTable(branch, writeFile(partition, records));
   }
 
   public void appendToTable(StructLike partition, List<Record> records) throws IOException {

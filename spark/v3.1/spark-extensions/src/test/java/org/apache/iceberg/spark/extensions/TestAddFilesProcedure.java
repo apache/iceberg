@@ -24,6 +24,8 @@ import java.io.File;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import org.apache.avro.Schema;
 import org.apache.avro.SchemaBuilder;
@@ -35,7 +37,9 @@ import org.apache.avro.io.DatumWriter;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.Files;
+import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.MetricsConfig;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.data.orc.GenericOrcWriter;
 import org.apache.iceberg.io.FileAppender;
@@ -401,6 +405,44 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
         "Iceberg table contains correct data",
         sql("SELECT id, name, dept, subdept FROM %s WHERE id = 1 ORDER BY id", sourceTableName),
         sql("SELECT id, name, dept, subdept FROM %s ORDER BY id", tableName));
+  }
+
+  @Test
+  public void addPartitionToPartitionedSnapshotIdInheritanceEnabledInTwoRuns() {
+    createPartitionedFileTable("parquet");
+
+    String createIceberg =
+        "CREATE TABLE %s (id Integer, name String, dept String, subdept String) USING iceberg PARTITIONED BY (id)"
+            + "TBLPROPERTIES ('%s'='true')";
+
+    sql(createIceberg, tableName, TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED);
+
+    sql(
+        "CALL %s.system.add_files('%s', '`parquet`.`%s`', map('id', 1))",
+        catalogName, tableName, fileTableDir.getAbsolutePath());
+
+    sql(
+        "CALL %s.system.add_files('%s', '`parquet`.`%s`', map('id', 2))",
+        catalogName, tableName, fileTableDir.getAbsolutePath());
+
+    assertEquals(
+        "Iceberg table contains correct data",
+        sql("SELECT id, name, dept, subdept FROM %s WHERE id < 3 ORDER BY id", sourceTableName),
+        sql("SELECT id, name, dept, subdept FROM %s ORDER BY id", tableName));
+
+    // verify manifest file name has uuid pattern
+    List<Row> rows =
+        spark
+            .read()
+            .format("iceberg")
+            .load(String.format("%s.%s", tableName, MetadataTableType.MANIFESTS.name()))
+            .select("path")
+            .collectAsList();
+
+    Pattern uuidPattern = Pattern.compile("[a-f0-9]{8}(?:-[a-f0-9]{4}){4}[a-f0-9]{8}");
+
+    Matcher matcher = uuidPattern.matcher((String) rows.get(0).get(0));
+    Assert.assertTrue("verify manifest path has uuid", matcher.find());
   }
 
   @Test

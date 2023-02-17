@@ -29,6 +29,7 @@ import java.util.function.Function;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.transforms.Transforms;
@@ -80,6 +81,24 @@ public class ExpressionUtil {
    */
   public static String toSanitizedString(Expression expr) {
     return ExpressionVisitors.visit(expr, new StringSanitizer());
+  }
+
+  /**
+   * Extracts an expression that references only the given column IDs from the given expression.
+   *
+   * <p>The result is inclusive. If a row would match the original filter, it must match the result
+   * filter.
+   *
+   * @param expression a filter Expression
+   * @param schema a Schema
+   * @param caseSensitive whether binding is case sensitive
+   * @param ids field IDs used to match predicates to extract from the expression
+   * @return an Expression that selects at least the same rows as the original using only the IDs
+   */
+  public static Expression extractByIdInclusive(
+      Expression expression, Schema schema, boolean caseSensitive, int... ids) {
+    PartitionSpec spec = identitySpec(schema, ids);
+    return Projections.inclusive(spec, caseSensitive).project(Expressions.rewriteNot(expression));
   }
 
   /**
@@ -395,5 +414,15 @@ public class ExpressionUtil {
   private static String sanitizeSimpleString(CharSequence value) {
     // hash the value and return the hash as hex
     return String.format("(hash-%08x)", HASH_FUNC.apply(value));
+  }
+
+  private static PartitionSpec identitySpec(Schema schema, int... ids) {
+    PartitionSpec.Builder specBuilder = PartitionSpec.builderFor(schema);
+
+    for (int id : ids) {
+      specBuilder.identity(schema.findColumnName(id));
+    }
+
+    return specBuilder.build();
   }
 }

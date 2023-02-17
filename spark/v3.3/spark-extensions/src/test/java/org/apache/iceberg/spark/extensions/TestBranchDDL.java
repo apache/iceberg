@@ -33,10 +33,21 @@ import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.catalyst.parser.extensions.IcebergParseException;
 import org.junit.After;
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.Test;
 import org.junit.runners.Parameterized;
 
-public class TestCreateBranch extends SparkExtensionsTestBase {
+public class TestBranchDDL extends SparkExtensionsTestBase {
+
+  @Before
+  public void before() {
+    sql("CREATE TABLE %s (id INT, data STRING) USING iceberg", tableName);
+  }
+
+  @After
+  public void removeTable() {
+    sql("DROP TABLE IF EXISTS %s", tableName);
+  }
 
   @Parameterized.Parameters(name = "catalogName = {0}, implementation = {1}, config = {2}")
   public static Object[][] parameters() {
@@ -49,18 +60,13 @@ public class TestCreateBranch extends SparkExtensionsTestBase {
     };
   }
 
-  public TestCreateBranch(String catalogName, String implementation, Map<String, String> config) {
-    super(catalogName, implementation, config);
-  }
-
-  @After
-  public void removeTable() {
-    sql("DROP TABLE IF EXISTS %s", tableName);
+  public TestBranchDDL(String catalog, String implementation, Map<String, String> properties) {
+    super(catalog, implementation, properties);
   }
 
   @Test
   public void testCreateBranch() throws NoSuchTableException {
-    Table table = createDefaultTableAndInsert2Row();
+    Table table = insertRows();
     long snapshotId = table.currentSnapshot().snapshotId();
     String branchName = "b1";
     Integer minSnapshotsToKeep = 2;
@@ -79,13 +85,13 @@ public class TestCreateBranch extends SparkExtensionsTestBase {
     AssertHelpers.assertThrows(
         "Cannot create an existing branch",
         IllegalArgumentException.class,
-        "already exists",
+        "Ref b1 already exists",
         () -> sql("ALTER TABLE %s CREATE BRANCH %s", tableName, branchName));
   }
 
   @Test
   public void testCreateBranchUseDefaultConfig() throws NoSuchTableException {
-    Table table = createDefaultTableAndInsert2Row();
+    Table table = insertRows();
     String branchName = "b1";
     sql("ALTER TABLE %s CREATE BRANCH %s", tableName, branchName);
     table.refresh();
@@ -99,7 +105,7 @@ public class TestCreateBranch extends SparkExtensionsTestBase {
   @Test
   public void testCreateBranchUseCustomMinSnapshotsToKeep() throws NoSuchTableException {
     Integer minSnapshotsToKeep = 2;
-    Table table = createDefaultTableAndInsert2Row();
+    Table table = insertRows();
     String branchName = "b1";
     sql(
         "ALTER TABLE %s CREATE BRANCH %s WITH SNAPSHOT RETENTION %d SNAPSHOTS",
@@ -115,7 +121,7 @@ public class TestCreateBranch extends SparkExtensionsTestBase {
   @Test
   public void testCreateBranchUseCustomMaxSnapshotAge() throws NoSuchTableException {
     long maxSnapshotAge = 2L;
-    Table table = createDefaultTableAndInsert2Row();
+    Table table = insertRows();
     String branchName = "b1";
     sql(
         "ALTER TABLE %s CREATE BRANCH %s WITH SNAPSHOT RETENTION %d DAYS",
@@ -131,7 +137,7 @@ public class TestCreateBranch extends SparkExtensionsTestBase {
   @Test
   public void testCreateBranchIfNotExists() throws NoSuchTableException {
     long maxSnapshotAge = 2L;
-    Table table = createDefaultTableAndInsert2Row();
+    Table table = insertRows();
     String branchName = "b1";
     sql(
         "ALTER TABLE %s CREATE BRANCH %s WITH SNAPSHOT RETENTION %d DAYS",
@@ -151,7 +157,7 @@ public class TestCreateBranch extends SparkExtensionsTestBase {
       throws NoSuchTableException {
     Integer minSnapshotsToKeep = 2;
     long maxSnapshotAge = 2L;
-    Table table = createDefaultTableAndInsert2Row();
+    Table table = insertRows();
     String branchName = "b1";
     sql(
         "ALTER TABLE %s CREATE BRANCH %s WITH SNAPSHOT RETENTION %d SNAPSHOTS %d DAYS",
@@ -174,7 +180,7 @@ public class TestCreateBranch extends SparkExtensionsTestBase {
   @Test
   public void testCreateBranchUseCustomMaxRefAge() throws NoSuchTableException {
     long maxRefAge = 10L;
-    Table table = createDefaultTableAndInsert2Row();
+    Table table = insertRows();
     String branchName = "b1";
     sql("ALTER TABLE %s CREATE BRANCH %s RETAIN %d DAYS", tableName, branchName, maxRefAge);
     table.refresh();
@@ -206,9 +212,77 @@ public class TestCreateBranch extends SparkExtensionsTestBase {
                 tableName, branchName, maxRefAge));
   }
 
-  private Table createDefaultTableAndInsert2Row() throws NoSuchTableException {
-    sql("CREATE TABLE %s (id INT, data STRING) USING iceberg", tableName);
+  @Test
+  public void testDropBranch() throws NoSuchTableException {
+    insertRows();
 
+    Table table = validationCatalog.loadTable(tableIdent);
+    String branchName = "b1";
+    table.manageSnapshots().createBranch(branchName, table.currentSnapshot().snapshotId()).commit();
+    SnapshotRef ref = table.refs().get(branchName);
+    Assert.assertEquals(table.currentSnapshot().snapshotId(), ref.snapshotId());
+
+    sql("ALTER TABLE %s DROP BRANCH %s", tableName, branchName);
+    table.refresh();
+
+    ref = table.refs().get(branchName);
+    Assert.assertNull(ref);
+  }
+
+  @Test
+  public void testDropBranchDoesNotExist() {
+    AssertHelpers.assertThrows(
+        "Cannot perform drop branch on branch which does not exist",
+        IllegalArgumentException.class,
+        "Branch does not exist: nonExistingBranch",
+        () -> sql("ALTER TABLE %s DROP BRANCH %s", tableName, "nonExistingBranch"));
+  }
+
+  @Test
+  public void testDropBranchFailsForTag() throws NoSuchTableException {
+    String tagName = "b1";
+    Table table = insertRows();
+    table.manageSnapshots().createTag(tagName, table.currentSnapshot().snapshotId()).commit();
+
+    AssertHelpers.assertThrows(
+        "Cannot perform drop branch on tag",
+        IllegalArgumentException.class,
+        "Ref b1 is a tag not a branch",
+        () -> sql("ALTER TABLE %s DROP BRANCH %s", tableName, tagName));
+  }
+
+  @Test
+  public void testDropBranchNonConformingName() {
+    AssertHelpers.assertThrows(
+        "Non-conforming branch name",
+        IcebergParseException.class,
+        "mismatched input '123'",
+        () -> sql("ALTER TABLE %s DROP BRANCH %s", tableName, "123"));
+  }
+
+  @Test
+  public void testDropMainBranchFails() {
+    AssertHelpers.assertThrows(
+        "Cannot drop the main branch",
+        IllegalArgumentException.class,
+        "Cannot remove main branch",
+        () -> sql("ALTER TABLE %s DROP BRANCH main", tableName));
+  }
+
+  @Test
+  public void testDropBranchIfExists() {
+    String branchName = "nonExistingBranch";
+    Table table = validationCatalog.loadTable(tableIdent);
+    Assert.assertNull(table.refs().get(branchName));
+
+    sql("ALTER TABLE %s DROP BRANCH IF EXISTS %s", tableName, branchName);
+    table.refresh();
+
+    SnapshotRef ref = table.refs().get(branchName);
+    Assert.assertNull(ref);
+  }
+
+  private Table insertRows() throws NoSuchTableException {
     List<SimpleRecord> records =
         ImmutableList.of(new SimpleRecord(1, "a"), new SimpleRecord(2, "b"));
     Dataset<Row> df = spark.createDataFrame(records, SimpleRecord.class);

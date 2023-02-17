@@ -335,9 +335,8 @@ public class SparkCatalog extends BaseCatalog {
       boolean dropped = dropTableWithoutPurging(ident);
 
       if (dropped) {
-        // We should check whether the metadata file exists. Because the HadoopCatalog/HadoopTables
-        // will drop the
-        // warehouse directly and ignore the `purge` argument.
+        // check whether the metadata file exists because HadoopCatalog/HadoopTables
+        // will drop the warehouse directly and ignore the `purge` argument
         boolean metadataFileExists = table.io().newInputFile(metadataFileLocation).exists();
 
         if (metadataFileExists) {
@@ -562,8 +561,7 @@ public class SparkCatalog extends BaseCatalog {
       List<TableChange> propertyChanges,
       List<TableChange> schemaChanges) {
     // don't allow setting the snapshot and picking a commit at the same time because order is
-    // ambiguous and choosing
-    // one order leads to different results
+    // ambiguous and choosing one order leads to different results
     Preconditions.checkArgument(
         setSnapshotId == null || pickSnapshotId == null,
         "Cannot set the current the current snapshot ID and cherry-pick snapshot changes");

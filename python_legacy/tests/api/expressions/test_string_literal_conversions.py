@@ -22,7 +22,8 @@ import uuid
 import dateutil.parser
 from fastavro.write import LOGICAL_WRITERS as avro_conversion
 from iceberg.api.expressions import Literal
-from iceberg.api.types import (DateType,
+from iceberg.api.types import (BooleanType,
+                               DateType,
                                DecimalType,
                                StringType,
                                TimestampType,
@@ -100,3 +101,10 @@ def test_string_to_decimal_literal():
 
     assert decimal_str.to(DecimalType.of(9, 2)) is None
     assert decimal_str.to(DecimalType.of(9, 4)) is None
+
+
+def test_string_to_boolean_literal():
+    assert Literal.of(True) == Literal.of("true").to(BooleanType.get())
+    assert Literal.of(True) == Literal.of("True").to(BooleanType.get())
+    assert Literal.of(False) == Literal.of("false").to(BooleanType.get())
+    assert Literal.of(False) == Literal.of("False").to(BooleanType.get())
