@@ -116,6 +116,23 @@ public class TestMultipleClients extends BaseTestIceberg {
             TableIdentifier.parse("foo.tbl1"), TableIdentifier.parse("foo.tbl2"));
   }
 
+  @Test
+  public void testCommits() {
+    TableIdentifier identifier = TableIdentifier.parse("foo.tbl1");
+    catalog.createTable(identifier, schema);
+    Table tableFromCatalog = catalog.loadTable(identifier);
+    tableFromCatalog.updateSchema().addColumn("x1", Types.LongType.get()).commit();
+
+    Table tableFromAnotherCatalog = anotherCatalog.loadTable(identifier);
+    tableFromAnotherCatalog.updateSchema().addColumn("x2", Types.LongType.get()).commit();
+
+    tableFromCatalog.updateSchema().addColumn("x3", Types.LongType.get()).commit();
+    tableFromAnotherCatalog.updateSchema().addColumn("x4", Types.LongType.get()).commit();
+
+    Assertions.assertThat(catalog.loadTable(identifier).schema().columns()).hasSize(5);
+    Assertions.assertThat(anotherCatalog.loadTable(identifier).schema().columns()).hasSize(5);
+  }
+
   private static void dropTables(NessieCatalog nessieCatalog) {
     nessieCatalog
         .listNamespaces()
