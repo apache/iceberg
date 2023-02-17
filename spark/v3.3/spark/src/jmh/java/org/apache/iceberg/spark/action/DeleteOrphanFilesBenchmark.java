@@ -75,7 +75,7 @@ public class DeleteOrphanFilesBenchmark {
   private static final int NUM_FILES = 1000;
 
   private SparkSession spark;
-  private final List<String> validAndOrphandPaths = Lists.newArrayList();
+  private final List<String> validAndOrphanPaths = Lists.newArrayList();
   private Table table;
 
   @Setup
@@ -94,16 +94,16 @@ public class DeleteOrphanFilesBenchmark {
   @Benchmark
   @Threads(1)
   public void testDeleteOrphanFiles(Blackhole blackhole) {
-    Dataset<Row> orphanFilesDF =
+    Dataset<Row> validAndOrphanPathsDF =
         spark
-            .createDataset(validAndOrphandPaths, Encoders.STRING())
+            .createDataset(validAndOrphanPaths, Encoders.STRING())
             .withColumnRenamed("value", "file_path")
             .withColumn("last_modified", lit(new Timestamp(10000)));
 
     DeleteOrphanFiles.Result results =
         SparkActions.get(spark)
             .deleteOrphanFiles(table())
-            .compareToFileList(orphanFilesDF)
+            .compareToFileList(validAndOrphanPathsDF)
             .execute();
     blackhole.consume(results);
   }
@@ -125,7 +125,7 @@ public class DeleteOrphanFilesBenchmark {
       AppendFiles appendFiles = table().newFastAppend();
       for (int j = 0; j < NUM_FILES; j++) {
         String path = String.format("%s/path/to/data-%d-%d.parquet", location, i, j);
-        validAndOrphandPaths.add(path);
+        validAndOrphanPaths.add(path);
         DataFile dataFile =
             DataFiles.builder(partitionSpec)
                 .withPath(path)
@@ -143,7 +143,7 @@ public class DeleteOrphanFilesBenchmark {
     // Generate 10% orphan files
     int orphanFileCount = (NUM_FILES * NUM_SNAPSHOTS) / 10;
     for (int i = 0; i < orphanFileCount; i++) {
-      validAndOrphandPaths.add(
+      validAndOrphanPaths.add(
           String.format("%s/path/to/data-%s.parquet", location, UUID.randomUUID()));
     }
   }
