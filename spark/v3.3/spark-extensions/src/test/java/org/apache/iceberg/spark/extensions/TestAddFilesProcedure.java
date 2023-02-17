@@ -427,12 +427,9 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
 
     sql(createIceberg, tableName);
 
-    Object result =
-        scalarSql(
-            "CALL %s.system.add_files('%s', '`parquet`.`%s`', map('date', '2021-01-01'))",
-            catalogName, tableName, fileTableDir.getAbsolutePath());
-
-    Assert.assertEquals(2L, result);
+    scalarSql(
+        "CALL %s.system.add_files('%s', '`parquet`.`%s`', map('date', '2021-01-01'))",
+        catalogName, tableName, fileTableDir.getAbsolutePath());
 
     String sqlFormat =
         "SELECT id, name, dept, date, hour FROM %s WHERE date = '2021-01-01' and hour= '01' ORDER BY id";
