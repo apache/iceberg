@@ -322,6 +322,8 @@ project(':iceberg-data') {
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
     }
 
+    implementation "com.github.ben-manes.caffeine:caffeine"
+
     implementation("org.apache.orc:orc-core::nohive") {
       exclude group: 'org.apache.hadoop'
       exclude group: 'commons-lang'
