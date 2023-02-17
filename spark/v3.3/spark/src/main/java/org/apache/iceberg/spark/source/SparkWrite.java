@@ -67,9 +67,9 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.CommitMetadata;
 import org.apache.iceberg.spark.FileRewriteCoordinator;
-import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.spark.SparkWriteConf;
 import org.apache.iceberg.util.PropertyUtil;
+import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.util.ThreadPools;
 import org.apache.spark.TaskContext;
@@ -106,6 +106,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
   private final String applicationId;
   private final boolean wapEnabled;
   private final String wapId;
+  private final String branch;
   private final long targetFileSize;
   private final Schema writeSchema;
   private final StructType dsSchema;
@@ -115,7 +116,6 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
   private final SortOrder[] requiredOrdering;
 
   private boolean cleanupOnAbort = true;
-  private String branch;
 
   SparkWrite(
       SparkSession spark,
@@ -540,7 +540,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
     }
 
     private Long findLastCommittedEpochId() {
-      Snapshot snapshot = SparkUtil.latestSnapshot(table, branch);
+      Snapshot snapshot = SnapshotUtil.latestSnapshot(table, branch);
       Long lastCommittedEpochId = null;
       while (snapshot != null) {
         Map<String, String> summary = snapshot.summary();
@@ -592,7 +592,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
 
     @Override
     public void doCommit(long epochId, WriterCommitMessage[] messages) {
-      OverwriteFiles overwriteFiles = table.newOverwrite().toBranch(branch);
+      OverwriteFiles overwriteFiles = table.newOverwrite();
       overwriteFiles.overwriteByRowFilter(Expressions.alwaysTrue());
       int numFiles = 0;
       for (DataFile file : files(messages)) {

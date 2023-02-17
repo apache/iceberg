@@ -97,10 +97,10 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
   private final String applicationId;
   private final boolean wapEnabled;
   private final String wapId;
+  private final String branch;
   private final Map<String, String> extraSnapshotMetadata;
   private final Distribution requiredDistribution;
   private final SortOrder[] requiredOrdering;
-  private final String branch;
 
   private boolean cleanupOnAbort = true;
 
