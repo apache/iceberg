@@ -454,7 +454,7 @@ class _ConvertToArrowExpression(BoundBooleanExpressionVisitor[pc.Expression]):
         return pc.starts_with(pc.field(term.ref().field.name), literal.value)
 
     def visit_not_starts_with(self, term: BoundTerm[Any], literal: Literal[Any]) -> pc.Expression:
-        return not pc.starts_with(pc.field(term.ref().field.name), literal.value)
+        return ~pc.starts_with(pc.field(term.ref().field.name), literal.value)
 
     def visit_true(self) -> pc.Expression:
         return pc.scalar(True)
