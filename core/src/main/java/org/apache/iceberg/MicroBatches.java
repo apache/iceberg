@@ -26,6 +26,7 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.Pair;
 import org.slf4j.Logger;
@@ -108,6 +109,14 @@ public class MicroBatches {
     public MicroBatchBuilder specsById(Map<Integer, PartitionSpec> specs) {
       this.specsById = specs;
       return this;
+    }
+
+    public MicroBatch generate(long startFileIndex, long targetSizeInBytes, boolean scanAllFiles) {
+      return generate(
+          startFileIndex,
+          Iterables.size(snapshot.addedDataFiles(io)),
+          targetSizeInBytes,
+          scanAllFiles);
     }
 
     public MicroBatch generate(

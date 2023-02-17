@@ -261,12 +261,6 @@ acceptedBreaks:
         \ T) throws java.io.IOException, com.fasterxml.jackson.core.JacksonException\
         \ @ org.apache.iceberg.rest.RESTSerializers.UpdateRequirementDeserializer"
       justification: "False positive - JacksonException is a subclass of IOException"
-    - code: "java.method.numberOfParametersChanged"
-      old: "method org.apache.iceberg.MicroBatches.MicroBatch org.apache.iceberg.MicroBatches.MicroBatchBuilder::generate(long,\
-        \ long, boolean)"
-      new: "method org.apache.iceberg.MicroBatches.MicroBatch org.apache.iceberg.MicroBatches.MicroBatchBuilder::generate(long,\
-        \ long, long, boolean)"
-      justification: "support rate limit in spark streaming"
     - code: "java.method.removed"
       old: "method <T> org.apache.iceberg.io.CloseableIterable<T> org.apache.iceberg.deletes.Deletes::filterDeleted(org.apache.iceberg.io.CloseableIterable<T>,\
         \ java.util.function.Predicate<T>)"
