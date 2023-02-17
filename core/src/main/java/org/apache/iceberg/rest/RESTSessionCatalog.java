@@ -26,6 +26,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.time.Duration;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Future;
@@ -88,6 +89,7 @@ public class RESTSessionCatalog extends BaseSessionCatalog
     implements Configurable<Configuration>, Closeable {
   private static final Logger LOG = LoggerFactory.getLogger(RESTSessionCatalog.class);
   private static final String REST_METRICS_REPORTING_ENABLED = "rest-metrics-reporting-enabled";
+  private static final String REST_SNAPSHOT_LOADING_MODE = "rest-snapshot-loading-mode";
   private static final List<String> TOKEN_PREFERENCE_ORDER =
       ImmutableList.of(
           OAuth2Properties.ID_TOKEN_TYPE,
@@ -102,6 +104,7 @@ public class RESTSessionCatalog extends BaseSessionCatalog
   private boolean refreshAuthByDefault = false;
   private RESTClient client = null;
   private ResourcePaths paths = null;
+  private SnapshotMode snapshotMode = null;
   private Object conf = null;
   private FileIO io = null;
   private MetricsReporter reporter = null;
@@ -109,6 +112,15 @@ public class RESTSessionCatalog extends BaseSessionCatalog
 
   // a lazy thread pool for token refresh
   private volatile ScheduledExecutorService refreshExecutor = null;
+
+  enum SnapshotMode {
+    ALL,
+    REFS;
+
+    Map<String, String> params() {
+      return ImmutableMap.of("snapshots", this.name().toLowerCase(Locale.US));
+    }
+  }
 
   public RESTSessionCatalog() {
     this(config -> HTTPClient.builder().uri(config.get(CatalogProperties.URI)).build());
@@ -179,6 +191,13 @@ public class RESTSessionCatalog extends BaseSessionCatalog
     this.io =
         CatalogUtil.loadFileIO(
             ioImpl != null ? ioImpl : ResolvingFileIO.class.getName(), mergedProps, conf);
+
+    this.snapshotMode =
+        SnapshotMode.valueOf(
+            PropertyUtil.propertyAsString(
+                    mergedProps, REST_SNAPSHOT_LOADING_MODE, SnapshotMode.ALL.name())
+                .toUpperCase(Locale.US));
+
     String metricsReporterImpl = mergedProps.get(CatalogProperties.METRICS_REPORTER_IMPL);
     this.reporter =
         null != metricsReporterImpl
@@ -263,9 +282,11 @@ public class RESTSessionCatalog extends BaseSessionCatalog
     client.post(paths.rename(), request, null, headers(context), ErrorHandlers.tableErrorHandler());
   }
 
-  private LoadTableResponse loadInternal(SessionContext context, TableIdentifier identifier) {
+  private LoadTableResponse loadInternal(
+      SessionContext context, TableIdentifier identifier, SnapshotMode mode) {
     return client.get(
         paths.table(identifier),
+        mode.params(),
         LoadTableResponse.class,
         headers(context),
         ErrorHandlers.tableErrorHandler());
@@ -279,7 +300,7 @@ public class RESTSessionCatalog extends BaseSessionCatalog
     LoadTableResponse response;
     TableIdentifier loadedIdent;
     try {
-      response = loadInternal(context, identifier);
+      response = loadInternal(context, identifier, snapshotMode);
       loadedIdent = identifier;
       metadataType = null;
 
@@ -289,7 +310,7 @@ public class RESTSessionCatalog extends BaseSessionCatalog
         // attempt to load a metadata table using the identifier's namespace as the base table
         TableIdentifier baseIdent = TableIdentifier.of(identifier.namespace().levels());
         try {
-          response = loadInternal(context, baseIdent);
+          response = loadInternal(context, baseIdent, snapshotMode);
           loadedIdent = baseIdent;
         } catch (NoSuchTableException ignored) {
           // the base table does not exist
@@ -302,13 +323,29 @@ public class RESTSessionCatalog extends BaseSessionCatalog
     }
 
     AuthSession session = tableSession(response.config(), session(context));
+    TableMetadata tableMetadata;
+
+    if (snapshotMode == SnapshotMode.REFS) {
+      tableMetadata =
+          TableMetadata.buildFrom(response.tableMetadata())
+              .setSnapshotsSupplier(
+                  () ->
+                      loadInternal(context, identifier, SnapshotMode.ALL)
+                          .tableMetadata()
+                          .snapshots())
+              .discardChanges()
+              .build();
+    } else {
+      tableMetadata = response.tableMetadata();
+    }
+
     RESTTableOperations ops =
         new RESTTableOperations(
             client,
             paths.table(loadedIdent),
             session::headers,
             tableFileIO(response.config()),
-            response.tableMetadata());
+            tableMetadata);
 
     TableIdentifier tableIdentifier = loadedIdent;
     BaseTable table =
@@ -588,7 +625,7 @@ public class RESTSessionCatalog extends BaseSessionCatalog
 
     @Override
     public Transaction replaceTransaction() {
-      LoadTableResponse response = loadInternal(context, ident);
+      LoadTableResponse response = loadInternal(context, ident, snapshotMode);
       String fullName = fullTableName(ident);
 
       AuthSession session = tableSession(response.config(), session(context));

@@ -23,6 +23,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -30,9 +31,11 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.CatalogProperties;
@@ -40,7 +43,9 @@ import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.catalog.CatalogTests;
 import org.apache.iceberg.catalog.SessionCatalog;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -49,7 +54,9 @@ import org.apache.iceberg.jdbc.JdbcCatalog;
 import org.apache.iceberg.metrics.MetricsReport;
 import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.RESTCatalogAdapter.HTTPMethod;
+import org.apache.iceberg.rest.RESTSessionCatalog.SnapshotMode;
 import org.apache.iceberg.rest.auth.AuthSessionUtil;
 import org.apache.iceberg.rest.auth.OAuth2Properties;
 import org.apache.iceberg.rest.auth.OAuth2Util;
@@ -735,6 +742,113 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
         ImmutableMap.of("credential", "table-user:secret"),
         ImmutableMap.of("Authorization", "Bearer token-exchange-token:sub=id-token,act=catalog"),
         ImmutableMap.of("Authorization", "Bearer client-credentials-token:sub=table-user"));
+  }
+
+  @org.junit.Test
+  public void testSnapshotParams() {
+    assertThat(SnapshotMode.ALL.params()).isEqualTo(ImmutableMap.of("snapshots", "all"));
+
+    assertThat(SnapshotMode.REFS.params()).isEqualTo(ImmutableMap.of("snapshots", "refs"));
+  }
+
+  @Test
+  public void testTableSnapshotLoading() {
+    RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
+
+    RESTCatalog catalog =
+        new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
+    catalog.initialize(
+        "test",
+        ImmutableMap.of(
+            CatalogProperties.URI,
+            "ignored",
+            CatalogProperties.FILE_IO_IMPL,
+            "org.apache.iceberg.io.InMemoryFileIO",
+            // default loading to refs only
+            "rest-snapshot-loading-mode",
+            "refs"));
+
+    // Create a table with multiple snapshots
+    Table table = catalog.createTable(TABLE, SCHEMA);
+    table
+        .newFastAppend()
+        .appendFile(
+            DataFiles.builder(PartitionSpec.unpartitioned())
+                .withPath("/path/to/data-a.parquet")
+                .withFileSizeInBytes(10)
+                .withRecordCount(2)
+                .build())
+        .commit();
+
+    table
+        .newFastAppend()
+        .appendFile(
+            DataFiles.builder(PartitionSpec.unpartitioned())
+                .withPath("/path/to/data-b.parquet")
+                .withFileSizeInBytes(10)
+                .withRecordCount(2)
+                .build())
+        .commit();
+
+    ResourcePaths paths = ResourcePaths.forCatalogProperties(Maps.newHashMap());
+
+    // Respond with only referenced snapshots
+    Answer<?> refsAnswer =
+        invocation -> {
+          LoadTableResponse originalResponse = (LoadTableResponse) invocation.callRealMethod();
+          TableMetadata fullTableMetadata = originalResponse.tableMetadata();
+
+          Set<Long> referencedSnapshotIds =
+              fullTableMetadata.refs().values().stream()
+                  .map(SnapshotRef::snapshotId)
+                  .collect(Collectors.toSet());
+
+          TableMetadata refsMetadata =
+              fullTableMetadata.removeSnapshotsIf(
+                  s -> !referencedSnapshotIds.contains(s.snapshotId()));
+
+          return LoadTableResponse.builder()
+              .withTableMetadata(refsMetadata)
+              .addAllConfig(originalResponse.config())
+              .build();
+        };
+
+    Mockito.doAnswer(refsAnswer)
+        .when(adapter)
+        .execute(
+            eq(HTTPMethod.GET),
+            eq(paths.table(TABLE)),
+            eq(ImmutableMap.of("snapshots", "refs")),
+            any(),
+            eq(LoadTableResponse.class),
+            any(),
+            any());
+
+    Table refsTables = catalog.loadTable(TABLE);
+
+    assertThat(refsTables.currentSnapshot()).isEqualTo(table.currentSnapshot());
+    // verify that the table was loaded with the refs argument
+    verify(adapter, times(1))
+        .execute(
+            eq(HTTPMethod.GET),
+            eq(paths.table(TABLE)),
+            eq(ImmutableMap.of("snapshots", "refs")),
+            any(),
+            eq(LoadTableResponse.class),
+            any(),
+            any());
+
+    // verify that all snapshots are loaded when referenced
+    assertThat(refsTables.snapshots()).containsExactlyInAnyOrderElementsOf(table.snapshots());
+    verify(adapter, times(1))
+        .execute(
+            eq(HTTPMethod.GET),
+            eq(paths.table(TABLE)),
+            eq(ImmutableMap.of("snapshots", "all")),
+            any(),
+            eq(LoadTableResponse.class),
+            any(),
+            any());
   }
 
   public void testTableAuth(
