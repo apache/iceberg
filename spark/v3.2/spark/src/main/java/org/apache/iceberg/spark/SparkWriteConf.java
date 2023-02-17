@@ -213,7 +213,7 @@ public class SparkWriteConf {
       DistributionMode mode = DistributionMode.fromName(modeName);
       return adjustWriteDistributionMode(mode);
     } else {
-      return table.sortOrder().isSorted() ? RANGE : NONE;
+      return defaultWriteDistributionMode();
     }
   }
 
@@ -224,6 +224,16 @@ public class SparkWriteConf {
       return NONE;
     } else {
       return mode;
+    }
+  }
+
+  private DistributionMode defaultWriteDistributionMode() {
+    if (table.sortOrder().isSorted()) {
+      return RANGE;
+    } else if (table.spec().isPartitioned()) {
+      return HASH;
+    } else {
+      return NONE;
     }
   }
 
@@ -260,6 +270,10 @@ public class SparkWriteConf {
     if (mergeModeName != null) {
       DistributionMode mergeMode = DistributionMode.fromName(mergeModeName);
       return adjustWriteDistributionMode(mergeMode);
+
+    } else if (table.spec().isPartitioned()) {
+      return HASH;
+
     } else {
       return distributionMode();
     }
@@ -271,8 +285,9 @@ public class SparkWriteConf {
             .stringConf()
             .option(SparkWriteOptions.DISTRIBUTION_MODE)
             .tableProperty(TableProperties.MERGE_DISTRIBUTION_MODE)
-            .parseOptional();
-    return mergeModeName != null ? DistributionMode.fromName(mergeModeName) : distributionMode();
+            .defaultValue(TableProperties.WRITE_DISTRIBUTION_MODE_HASH)
+            .parse();
+    return DistributionMode.fromName(mergeModeName);
   }
 
   public boolean useTableDistributionAndOrdering() {
