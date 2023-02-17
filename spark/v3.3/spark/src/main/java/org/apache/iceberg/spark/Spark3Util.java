@@ -19,7 +19,13 @@
 package org.apache.iceberg.spark;
 
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.hadoop.fs.FileStatus;
@@ -831,7 +837,7 @@ public class Spark3Util {
    * @param format format of the file
    * @param partitionFilter partitionFilter of the file
    * @return all table's partitions
-   * @deprecated use {@link Spark3Util#getPartitions(SparkSession, Path, String, Map, Option)}
+   * @deprecated use {@link Spark3Util#getPartitions(SparkSession, Path, String, Map, Optional)}
    */
   @Deprecated
   public static List<SparkPartition> getPartitions(

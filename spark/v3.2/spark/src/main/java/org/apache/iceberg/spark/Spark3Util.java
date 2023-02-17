@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -820,7 +821,7 @@ public class Spark3Util {
   @Deprecated
   public static List<SparkPartition> getPartitions(
       SparkSession spark, Path rootPath, String format, Map<String, String> partitionFilter) {
-    return getPartitions(spark, rootPath, format, partitionFilter, Option.empty());
+    return getPartitions(spark, rootPath, format, partitionFilter, Optional.empty());
   }
 
   /**
@@ -838,7 +839,7 @@ public class Spark3Util {
       Path rootPath,
       String format,
       Map<String, String> partitionFilter,
-      Option<PartitionSpec> partitionSpec) {
+      Optional<PartitionSpec> partitionSpec) {
     FileStatusCache fileStatusCache = FileStatusCache.getOrCreate(spark);
 
     InMemoryFileIndex fileIndex =
@@ -848,7 +849,12 @@ public class Spark3Util {
                 .asScala()
                 .toSeq(),
             scala.collection.immutable.Map$.MODULE$.<String, String>empty(),
-            partitionSpec.map(SparkSchemaUtil::convert),
+            partitionSpec
+                .map(
+                    spec ->
+                        Option.apply(
+                            SparkSchemaUtil.convert(new Schema(spec.partitionType().fields()))))
+                .orElse(Option.empty()),
             fileStatusCache,
             Option.empty(),
             Option.empty());
