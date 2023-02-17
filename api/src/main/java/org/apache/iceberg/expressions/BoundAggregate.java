@@ -125,13 +125,9 @@ public class BoundAggregate<T, C> extends Aggregate<BoundTerm<T>> implements Bou
 
     @Override
     public void update(StructLike struct) {
-      if (isValid) {
-        R value = aggregate.eval(struct);
-        if (value != null) {
-          update(value);
-        } else {
-          this.isValid = false;
-        }
+      R value = aggregate.eval(struct);
+      if (value != null) {
+        update(value);
       }
     }
 

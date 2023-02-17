@@ -40,7 +40,10 @@ public class MinAggregate<T> extends ValueAggregate<T> {
 
   @Override
   protected boolean hasValue(DataFile file) {
-    return file.valueCounts().containsKey(fieldId);
+    return file.lowerBounds().containsKey(fieldId)
+        || (safeGet(file.valueCounts(), fieldId) != null
+            && safeGet(file.valueCounts(), fieldId).longValue()
+                == safeGet(file.nullValueCounts(), fieldId).longValue());
   }
 
   @Override

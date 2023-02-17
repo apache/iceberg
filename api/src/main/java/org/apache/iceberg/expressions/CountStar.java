@@ -33,7 +33,7 @@ public class CountStar<T> extends CountAggregate<T> {
 
   @Override
   protected boolean hasValue(DataFile file) {
-    return true;
+    return file.recordCount() >= 0;
   }
 
   @Override

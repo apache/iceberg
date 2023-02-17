@@ -562,14 +562,12 @@ public class TestAggregatePushDown extends SparkCatalogTestBase {
       explainContainsPushDownAggregates = true;
     }
 
-    Assert.assertTrue(
-        "explain should contain the pushed down aggregates", explainContainsPushDownAggregates);
+    Assert.assertFalse(
+        "explain should not contain the pushed down aggregates", explainContainsPushDownAggregates);
 
     List<Object[]> actual = sql(select, tableName);
     List<Object[]> expected = Lists.newArrayList();
-    //    expected.add(
-    //            new Object[] {6L, Float.NaN, Float.NaN, 6L});
-    expected.add(new Object[] {6L, null, null, 6L});
+    expected.add(new Object[] {6L, Float.NaN, Float.NaN, 6L});
     assertEquals("min/max/count push down", expected, actual);
   }
 
@@ -595,12 +593,12 @@ public class TestAggregatePushDown extends SparkCatalogTestBase {
       explainContainsPushDownAggregates = true;
     }
 
-    Assert.assertTrue(
-        "explain should contain the pushed down aggregates", explainContainsPushDownAggregates);
+    Assert.assertFalse(
+        "explain should not contain the pushed down aggregates", explainContainsPushDownAggregates);
 
     List<Object[]> actual = sql(select, tableName);
     List<Object[]> expected = Lists.newArrayList();
-    expected.add(new Object[] {6L, 2.0f, 1.0f, 6L});
+    expected.add(new Object[] {6L, Float.NaN, 1.0F, 6L});
     assertEquals("min/max/count push down", expected, actual);
   }
 
