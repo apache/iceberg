@@ -1,5 +1,5 @@
 acceptedBreaks:
-  "1.2.0-SNAPSHOT":
+  "1.3.0":
     org.apache.iceberg:iceberg-api:
     - code: "java.method.addedToInterface"
       new: "method ThisT org.apache.iceberg.IncrementalScan<ThisT, T extends org.apache.iceberg.ScanTask, G extends org.apache.iceberg.ScanTaskGroup<T extends org.apache.iceberg.ScanTask>>::useBranch(java.lang.String)"
