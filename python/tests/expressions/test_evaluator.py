@@ -15,9 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint:disable=redefined-outer-name
+from typing import Any
 
 import pytest
-from tests.expressions.test_visitors import _to_byte_buffer
 
 from pyiceberg.conversions import to_bytes
 from pyiceberg.expressions import (
@@ -43,13 +43,22 @@ from pyiceberg.schema import Schema
 from pyiceberg.types import (
     DoubleType,
     FloatType,
+    IcebergType,
     IntegerType,
     NestedField,
+    PrimitiveType,
     StringType,
 )
 
 INT_MIN_VALUE = 30
 INT_MAX_VALUE = 79
+
+
+def _to_byte_buffer(field_type: IcebergType, val: Any) -> bytes:
+    if not isinstance(field_type, PrimitiveType):
+        raise ValueError(f"Expected a PrimitiveType, got: {type(field_type)}")
+    return to_bytes(field_type, val)
+
 
 INT_MIN = _to_byte_buffer(IntegerType(), INT_MIN_VALUE)
 INT_MAX = _to_byte_buffer(IntegerType(), INT_MAX_VALUE)
