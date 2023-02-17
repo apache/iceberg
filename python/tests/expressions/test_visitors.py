@@ -63,7 +63,6 @@ from pyiceberg.expressions.visitors import (
     BindVisitor,
     BooleanExpressionVisitor,
     BoundBooleanExpressionVisitor,
-    _InclusiveMetricsEvaluator,
     _ManifestEvalVisitor,
     expression_to_plain_format,
     rewrite_not,
@@ -71,12 +70,7 @@ from pyiceberg.expressions.visitors import (
     visit,
     visit_bound_predicate,
 )
-from pyiceberg.manifest import (
-    DataFile,
-    FileFormat,
-    ManifestFile,
-    PartitionFieldSummary,
-)
+from pyiceberg.manifest import ManifestFile, PartitionFieldSummary
 from pyiceberg.schema import Accessor, Schema
 from pyiceberg.types import (
     DoubleType,
@@ -936,7 +930,7 @@ def test_all_nulls(schema: Schema, manifest: ManifestFile) -> None:
     ), "Should read: non-null column contains a non-null value"
 
 
-def test_no_nulls(schema: Schema, manifest: ManifestFile) -> None:
+def test_no_nulls_nan(schema: Schema, manifest: ManifestFile) -> None:
     assert _ManifestEvalVisitor(schema, IsNull(Reference("all_nulls_missing_nan")), case_sensitive=True).eval(
         manifest
     ), "Should read: at least one null value in all null column"
@@ -954,7 +948,7 @@ def test_no_nulls(schema: Schema, manifest: ManifestFile) -> None:
     ), "Should read: both_nan_and_null column contains no null values"
 
 
-def test_is_nan(schema: Schema, manifest: ManifestFile) -> None:
+def test_is_nan_nan(schema: Schema, manifest: ManifestFile) -> None:
     assert _ManifestEvalVisitor(schema, IsNaN(Reference("float")), case_sensitive=True).eval(
         manifest
     ), "Should read: no information on if there are nan value in float column"
@@ -984,7 +978,7 @@ def test_is_nan(schema: Schema, manifest: ManifestFile) -> None:
     ), "Should skip: no_nan_or_null column doesn't contain nan value"
 
 
-def test_not_nan(schema: Schema, manifest: ManifestFile) -> None:
+def test_not_nan_nan(schema: Schema, manifest: ManifestFile) -> None:
     assert _ManifestEvalVisitor(schema, NotNaN(Reference("float")), case_sensitive=True).eval(
         manifest
     ), "Should read: no information on if there are nan value in float column"
@@ -1010,7 +1004,7 @@ def test_not_nan(schema: Schema, manifest: ManifestFile) -> None:
     ), "Should read: no_nan_or_null column contains non nan value"
 
 
-def test_missing_stats(schema: Schema, manifest_no_stats: ManifestFile) -> None:
+def test_manifest_missing_stats(schema: Schema, manifest_no_stats: ManifestFile) -> None:
     expressions: List[BooleanExpression] = [
         LessThan(Reference("id"), 5),
         LessThanOrEqual(Reference("id"), 30),
@@ -1030,7 +1024,7 @@ def test_missing_stats(schema: Schema, manifest_no_stats: ManifestFile) -> None:
         ), f"Should read when missing stats for expr: {expr}"
 
 
-def test_not(schema: Schema, manifest: ManifestFile) -> None:
+def test_not_nan(schema: Schema, manifest: ManifestFile) -> None:
     assert _ManifestEvalVisitor(schema, Not(LessThan(Reference("id"), INT_MIN_VALUE - 25)), case_sensitive=True).eval(
         manifest
     ), "Should read: not(false)"
@@ -1040,7 +1034,7 @@ def test_not(schema: Schema, manifest: ManifestFile) -> None:
     ), "Should skip: not(true)"
 
 
-def test_and(schema: Schema, manifest: ManifestFile) -> None:
+def test_and_nan(schema: Schema, manifest: ManifestFile) -> None:
     assert not _ManifestEvalVisitor(
         schema,
         And(
@@ -1069,7 +1063,7 @@ def test_and(schema: Schema, manifest: ManifestFile) -> None:
     ).eval(manifest), "Should read: and(true, true)"
 
 
-def test_or(schema: Schema, manifest: ManifestFile) -> None:
+def test_or_nan(schema: Schema, manifest: ManifestFile) -> None:
     assert not _ManifestEvalVisitor(
         schema,
         Or(
@@ -1089,7 +1083,7 @@ def test_or(schema: Schema, manifest: ManifestFile) -> None:
     ).eval(manifest), "Should read: or(false, true)"
 
 
-def test_integer_lt(schema: Schema, manifest: ManifestFile) -> None:
+def test_integer_lt_nan(schema: Schema, manifest: ManifestFile) -> None:
     assert not _ManifestEvalVisitor(schema, LessThan(Reference("id"), INT_MIN_VALUE - 25), case_sensitive=True).eval(
         manifest
     ), "Should not read: id range below lower bound (5 < 30)"
@@ -1107,7 +1101,7 @@ def test_integer_lt(schema: Schema, manifest: ManifestFile) -> None:
     ), "Should read: may possible ids"
 
 
-def test_integer_lt_eq(schema: Schema, manifest: ManifestFile) -> None:
+def test_integer_lt_eq_nan(schema: Schema, manifest: ManifestFile) -> None:
     assert not _ManifestEvalVisitor(schema, LessThanOrEqual(Reference("id"), INT_MIN_VALUE - 25), case_sensitive=True).eval(
         manifest
     ), "Should not read: id range below lower bound (5 < 30)"
@@ -1125,7 +1119,7 @@ def test_integer_lt_eq(schema: Schema, manifest: ManifestFile) -> None:
     ), "Should read: many possible ids"
 
 
-def test_integer_gt(schema: Schema, manifest: ManifestFile) -> None:
+def test_integer_gt_nan(schema: Schema, manifest: ManifestFile) -> None:
     assert not _ManifestEvalVisitor(schema, GreaterThan(Reference("id"), INT_MAX_VALUE + 6), case_sensitive=True).eval(
         manifest
     ), "Should not read: id range above upper bound (85 < 79)"
@@ -1143,7 +1137,7 @@ def test_integer_gt(schema: Schema, manifest: ManifestFile) -> None:
     ), "Should read: may possible ids"
 
 
-def test_integer_gt_eq(schema: Schema, manifest: ManifestFile) -> None:
+def test_integer_gt_eq_nan(schema: Schema, manifest: ManifestFile) -> None:
     assert not _ManifestEvalVisitor(schema, GreaterThanOrEqual(Reference("id"), INT_MAX_VALUE + 6), case_sensitive=True).eval(
         manifest
     ), "Should not read: id range above upper bound (85 < 79)"
@@ -1161,7 +1155,7 @@ def test_integer_gt_eq(schema: Schema, manifest: ManifestFile) -> None:
     ), "Should read: may possible ids"
 
 
-def test_integer_eq(schema: Schema, manifest: ManifestFile) -> None:
+def test_integer_eq_nan(schema: Schema, manifest: ManifestFile) -> None:
     assert not _ManifestEvalVisitor(schema, EqualTo(Reference("id"), INT_MIN_VALUE - 25), case_sensitive=True).eval(
         manifest
     ), "Should not read: id below lower bound"
@@ -1191,7 +1185,7 @@ def test_integer_eq(schema: Schema, manifest: ManifestFile) -> None:
     ), "Should not read: id above upper bound"
 
 
-def test_integer_not_eq(schema: Schema, manifest: ManifestFile) -> None:
+def test_integer_not_eq_nan(schema: Schema, manifest: ManifestFile) -> None:
     assert _ManifestEvalVisitor(schema, NotEqualTo(Reference("id"), INT_MIN_VALUE - 25), case_sensitive=True).eval(
         manifest
     ), "Should read: id below lower bound"
@@ -1221,7 +1215,7 @@ def test_integer_not_eq(schema: Schema, manifest: ManifestFile) -> None:
     ), "Should read: id above upper bound"
 
 
-def test_integer_not_eq_rewritten(schema: Schema, manifest: ManifestFile) -> None:
+def test_integer_not_eq_rewritten_nan(schema: Schema, manifest: ManifestFile) -> None:
     assert _ManifestEvalVisitor(schema, Not(EqualTo(Reference("id"), INT_MIN_VALUE - 25)), case_sensitive=True).eval(
         manifest
     ), "Should read: id below lower bound"
@@ -1251,7 +1245,7 @@ def test_integer_not_eq_rewritten(schema: Schema, manifest: ManifestFile) -> Non
     ), "Should read: id above upper bound"
 
 
-def test_integer_not_eq_rewritten_case_insensitive(schema: Schema, manifest: ManifestFile) -> None:
+def test_integer_not_eq_rewritten_case_insensitive_nan(schema: Schema, manifest: ManifestFile) -> None:
     assert _ManifestEvalVisitor(schema, Not(EqualTo(Reference("ID"), INT_MIN_VALUE - 25)), case_sensitive=False).eval(
         manifest
     ), "Should read: id below lower bound"
@@ -1281,7 +1275,7 @@ def test_integer_not_eq_rewritten_case_insensitive(schema: Schema, manifest: Man
     ), "Should read: id above upper bound"
 
 
-def test_integer_in(schema: Schema, manifest: ManifestFile) -> None:
+def test_integer_in_nan(schema: Schema, manifest: ManifestFile) -> None:
     assert not _ManifestEvalVisitor(
         schema, In(Reference("id"), (INT_MIN_VALUE - 25, INT_MIN_VALUE - 24)), case_sensitive=True
     ).eval(manifest), "Should not read: id below lower bound (5 < 30, 6 < 30)"
@@ -1323,7 +1317,7 @@ def test_integer_in(schema: Schema, manifest: ManifestFile) -> None:
     ), "Should read: in on no nulls column"
 
 
-def test_integer_not_in(schema: Schema, manifest: ManifestFile) -> None:
+def test_integer_not_in_nan(schema: Schema, manifest: ManifestFile) -> None:
     assert _ManifestEvalVisitor(
         schema, NotIn(Reference("id"), (INT_MIN_VALUE - 25, INT_MIN_VALUE - 24)), case_sensitive=True
     ).eval(manifest), "Should read: id below lower bound (5 < 30, 6 < 30)"
@@ -1365,19 +1359,19 @@ def test_integer_not_in(schema: Schema, manifest: ManifestFile) -> None:
     ), "Should read: in on no nulls column"
 
 
-def test_rewrite_not_equal_to() -> None:
+def test_rewrite_not_equal_to_nan() -> None:
     assert rewrite_not(Not(EqualTo(Reference("x"), 34.56))) == NotEqualTo(Reference("x"), 34.56)
 
 
-def test_rewrite_not_not_equal_to() -> None:
+def test_rewrite_not_not_equal_to_nan() -> None:
     assert rewrite_not(Not(NotEqualTo(Reference("x"), 34.56))) == EqualTo(Reference("x"), 34.56)
 
 
-def test_rewrite_not_in() -> None:
+def test_rewrite_not_in_nan() -> None:
     assert rewrite_not(Not(In(Reference("x"), (34.56,)))) == NotIn(Reference("x"), (34.56,))
 
 
-def test_rewrite_and() -> None:
+def test_rewrite_and_nan() -> None:
     assert rewrite_not(
         Not(
             And(
@@ -1391,7 +1385,7 @@ def test_rewrite_and() -> None:
     )
 
 
-def test_rewrite_or() -> None:
+def test_rewrite_or_nan() -> None:
     assert rewrite_not(
         Not(
             Or(
@@ -1492,211 +1486,3 @@ def test_dnf_to_dask(table_schema_simple: Schema) -> None:
         ),
     )
     assert expression_to_plain_format(expr) == [[("foo", ">", "hello")], [("bar", "in", {1, 2, 3}), ("baz", "==", True)]]
-
-
-@pytest.fixture
-def schema_data_file() -> Schema:
-    return Schema(
-        NestedField(1, "all_nan", DoubleType(), required=True),
-        NestedField(2, "max_nan", DoubleType(), required=True),
-        NestedField(3, "min_max_nan", FloatType(), required=False),
-        NestedField(4, "all_nan_null_bounds", DoubleType(), required=True),
-        NestedField(5, "some_nan_correct_bounds", FloatType(), required=False),
-    )
-
-
-@pytest.fixture
-def data_file() -> DataFile:
-    return DataFile(
-        file_path="file.avro",
-        file_format=FileFormat.PARQUET,
-        partition={},
-        record_count=50,
-        file_size_in_bytes=3,
-        column_sizes={
-            1: 10,
-            2: 10,
-            3: 10,
-            4: 10,
-            5: 10,
-        },
-        value_counts={
-            1: 10,
-            2: 10,
-            3: 10,
-            4: 10,
-            5: 10,
-        },
-        null_value_counts={
-            1: 0,
-            2: 0,
-            3: 0,
-            4: 0,
-            5: 0,
-        },
-        nan_value_counts={1: 10, 4: 10, 5: 5},
-        lower_bounds={
-            1: to_bytes(DoubleType(), float("nan")),
-            2: to_bytes(DoubleType(), 7),
-            3: to_bytes(FloatType(), float("nan")),
-            5: to_bytes(FloatType(), 7),
-        },
-        upper_bounds={
-            1: to_bytes(DoubleType(), float("nan")),
-            2: to_bytes(DoubleType(), float("nan")),
-            3: to_bytes(FloatType(), float("nan")),
-            5: to_bytes(FloatType(), 22),
-        },
-    )
-
-
-def test_inclusive_metrics_evaluator_less_than_and_less_than_equal(schema_data_file: Schema, data_file: DataFile) -> None:
-    for operator in [LessThan, LessThanOrEqual]:
-        should_read = _InclusiveMetricsEvaluator(schema_data_file, operator("all_nan", 1)).eval(data_file)
-        assert not should_read, "Should not match: all nan column doesn't contain number"
-
-        should_read = _InclusiveMetricsEvaluator(schema_data_file, operator("max_nan", 1)).eval(data_file)
-        assert not should_read, "Should not match: 1 is smaller than lower bound"
-
-        should_read = _InclusiveMetricsEvaluator(schema_data_file, operator("max_nan", 10)).eval(data_file)
-        assert should_read, "Should match: 10 is larger than lower bound"
-
-        should_read = _InclusiveMetricsEvaluator(schema_data_file, operator("min_max_nan", 1)).eval(data_file)
-        assert should_read, "Should match: no visibility"
-
-        should_read = _InclusiveMetricsEvaluator(schema_data_file, operator("all_nan_null_bounds", 1)).eval(data_file)
-        assert not should_read, "Should not match: all nan column doesn't contain number"
-
-        should_read = _InclusiveMetricsEvaluator(schema_data_file, operator("some_nan_correct_bounds", 1)).eval(data_file)
-        assert not should_read, "Should not match: 1 is smaller than lower bound"
-
-        should_read = _InclusiveMetricsEvaluator(schema_data_file, operator("some_nan_correct_bounds", 10)).eval(data_file)
-        assert should_read, "Should match: 10 larger than lower bound"
-
-
-def test_inclusive_metrics_evaluator_greater_than_and_greater_than_equal(schema_data_file: Schema, data_file: DataFile) -> None:
-    for operator in [GreaterThan, GreaterThanOrEqual]:
-        should_read = _InclusiveMetricsEvaluator(schema_data_file, operator("all_nan", 1)).eval(data_file)
-        assert not should_read, "Should not match: all nan column doesn't contain number"
-
-        should_read = _InclusiveMetricsEvaluator(schema_data_file, operator("max_nan", 1)).eval(data_file)
-        assert should_read, "Should match: upper bound is larger than 1"
-
-        should_read = _InclusiveMetricsEvaluator(schema_data_file, operator("max_nan", 10)).eval(data_file)
-        assert should_read, "Should match: upper bound is larger than 10"
-
-        should_read = _InclusiveMetricsEvaluator(schema_data_file, operator("min_max_nan", 1)).eval(data_file)
-        assert should_read, "Should match: no visibility"
-
-        should_read = _InclusiveMetricsEvaluator(schema_data_file, operator("all_nan_null_bounds", 1)).eval(data_file)
-        assert not should_read, "Should not match: all nan column doesn't contain number"
-
-        should_read = _InclusiveMetricsEvaluator(schema_data_file, operator("some_nan_correct_bounds", 1)).eval(data_file)
-        assert should_read, "Should match: 1 is smaller than upper bound"
-
-        should_read = _InclusiveMetricsEvaluator(schema_data_file, operator("some_nan_correct_bounds", 10)).eval(data_file)
-        assert should_read, "Should match: 10 is smaller than upper bound"
-
-        should_read = _InclusiveMetricsEvaluator(schema_data_file, operator("all_nan", 30)).eval(data_file)
-        assert not should_read, "Should not match: 30 is greater than upper bound"
-
-
-def test_inclusive_metrics_evaluator_equals(schema_data_file: Schema, data_file: DataFile) -> None:
-    should_read = _InclusiveMetricsEvaluator(schema_data_file, EqualTo("all_nan", 1)).eval(data_file)
-    assert not should_read, "Should not match: all nan column doesn't contain number"
-
-    should_read = _InclusiveMetricsEvaluator(schema_data_file, EqualTo("max_nan", 1)).eval(data_file)
-    assert not should_read, "Should not match: 1 is smaller than lower bound"
-
-    should_read = _InclusiveMetricsEvaluator(schema_data_file, EqualTo("max_nan", 10)).eval(data_file)
-    assert should_read, "Should match: 10 is within bounds"
-
-    should_read = _InclusiveMetricsEvaluator(schema_data_file, EqualTo("min_max_nan", 1)).eval(data_file)
-    assert should_read, "Should match: no visibility"
-
-    should_read = _InclusiveMetricsEvaluator(schema_data_file, EqualTo("all_nan_null_bounds", 1)).eval(data_file)
-    assert not should_read, "Should not match: all nan column doesn't contain number"
-
-    should_read = _InclusiveMetricsEvaluator(schema_data_file, EqualTo("some_nan_correct_bounds", 1)).eval(data_file)
-    assert not should_read, "Should not match: 1 is smaller than lower bound"
-
-    should_read = _InclusiveMetricsEvaluator(schema_data_file, EqualTo("some_nan_correct_bounds", 10)).eval(data_file)
-    assert should_read, "Should match: 10 is within bounds"
-
-    should_read = _InclusiveMetricsEvaluator(schema_data_file, EqualTo("all_nan", 30)).eval(data_file)
-    assert not should_read, "Should not match: 30 is greater than upper bound"
-
-
-def test_inclusive_metrics_evaluator_not_equals(schema_data_file: Schema, data_file: DataFile) -> None:
-    should_read = _InclusiveMetricsEvaluator(schema_data_file, NotEqualTo("all_nan", 1)).eval(data_file)
-    assert should_read, "Should match: no visibility"
-
-    should_read = _InclusiveMetricsEvaluator(schema_data_file, NotEqualTo("max_nan", 10)).eval(data_file)
-    assert should_read, "Should match: no visibility"
-
-    should_read = _InclusiveMetricsEvaluator(schema_data_file, NotEqualTo("max_nan", 10)).eval(data_file)
-    assert should_read, "Should match: no visibility"
-
-    should_read = _InclusiveMetricsEvaluator(schema_data_file, NotEqualTo("min_max_nan", 1)).eval(data_file)
-    assert should_read, "Should match: no visibility"
-
-    should_read = _InclusiveMetricsEvaluator(schema_data_file, NotEqualTo("all_nan_null_bounds", 1)).eval(data_file)
-    assert should_read, "Should match: no visibility"
-
-    should_read = _InclusiveMetricsEvaluator(schema_data_file, NotEqualTo("some_nan_correct_bounds", 1)).eval(data_file)
-    assert should_read, "Should match: no visibility"
-
-    should_read = _InclusiveMetricsEvaluator(schema_data_file, NotEqualTo("some_nan_correct_bounds", 10)).eval(data_file)
-    assert should_read, "Should match: no visibility"
-
-    should_read = _InclusiveMetricsEvaluator(schema_data_file, NotEqualTo("some_nan_correct_bounds", 30)).eval(data_file)
-    assert should_read, "Should match: no visibility"
-
-
-def test_inclusive_metrics_evaluator_in(schema_data_file: Schema, data_file: DataFile) -> None:
-    should_read = _InclusiveMetricsEvaluator(schema_data_file, In("all_nan", (1, 10, 30))).eval(data_file)
-    assert not should_read, "Should not match: all nan column doesn't contain number"
-
-    should_read = _InclusiveMetricsEvaluator(schema_data_file, In("max_nan", (1, 10, 30))).eval(data_file)
-    assert should_read, "Should match: 10 and 30 are greater than lower bound"
-
-    should_read = _InclusiveMetricsEvaluator(schema_data_file, In("min_max_nan", (1, 10, 30))).eval(data_file)
-    assert should_read, "Should match: no visibility"
-
-    should_read = _InclusiveMetricsEvaluator(schema_data_file, In("all_nan_null_bounds", (1, 10, 30))).eval(data_file)
-    assert not should_read, "Should not match: all nan column doesn't contain number"
-
-    should_read = _InclusiveMetricsEvaluator(schema_data_file, In("some_nan_correct_bounds", (1, 10, 30))).eval(data_file)
-    assert should_read, "Should match: 10 within bounds"
-
-    should_read = _InclusiveMetricsEvaluator(schema_data_file, In("some_nan_correct_bounds", (1, 30))).eval(data_file)
-    assert not should_read, "Should not match: 1 and 30 not within bounds"
-
-    should_read = _InclusiveMetricsEvaluator(schema_data_file, In("some_nan_correct_bounds", (5, 7))).eval(data_file)
-    assert should_read, "Should match: overlap with lower bound"
-
-    should_read = _InclusiveMetricsEvaluator(schema_data_file, In("some_nan_correct_bounds", (22, 25))).eval(data_file)
-    assert should_read, "Should match: overlap with upper bounds"
-
-
-def test_inclusive_metrics_evaluator_not_in(schema_data_file: Schema, data_file: DataFile) -> None:
-    should_read = _InclusiveMetricsEvaluator(schema_data_file, NotIn("all_nan", (1, 10, 30))).eval(data_file)
-    assert should_read, "Should match: no visibility"
-
-    should_read = _InclusiveMetricsEvaluator(schema_data_file, NotIn("max_nan", (1, 10, 30))).eval(data_file)
-    assert should_read, "Should match: no visibility"
-
-    should_read = _InclusiveMetricsEvaluator(schema_data_file, NotIn("max_nan", (1, 10, 30))).eval(data_file)
-    assert should_read, "Should match: no visibility"
-
-    should_read = _InclusiveMetricsEvaluator(schema_data_file, NotIn("min_max_nan", (1, 10, 30))).eval(data_file)
-    assert should_read, "Should match: no visibility"
-
-    should_read = _InclusiveMetricsEvaluator(schema_data_file, NotIn("all_nan_null_bounds", (1, 10, 30))).eval(data_file)
-    assert should_read, "Should match: no visibility"
-
-    should_read = _InclusiveMetricsEvaluator(schema_data_file, NotIn("some_nan_correct_bounds", (1, 30))).eval(data_file)
-    assert should_read, "Should match: no visibility"
-
-    should_read = _InclusiveMetricsEvaluator(schema_data_file, NotIn("some_nan_correct_bounds", (1, 30))).eval(data_file)
-    assert should_read, "Should match: no visibility"

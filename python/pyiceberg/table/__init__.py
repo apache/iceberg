@@ -316,17 +316,14 @@ def _check_content(file: DataFile) -> DataFile:
 
 def _open_manifest(
     io: FileIO,
-    schema: Schema,
-    row_filter: BooleanExpression,
     manifest: ManifestFile,
     partition_filter: Callable[[DataFile], bool],
-    case_sensitive: bool,
+    metrics_evaluator: Callable[[DataFile], bool],
 ) -> List[FileScanTask]:
     all_files = files(io.new_input(manifest.manifest_path))
     matching_partition_files = filter(partition_filter, all_files)
     matching_partition_data_files = map(_check_content, matching_partition_files)
-    evaluator = _InclusiveMetricsEvaluator(schema, row_filter, case_sensitive)
-    return [FileScanTask(file) for file in matching_partition_data_files if evaluator.eval(file)]
+    return [FileScanTask(file) for file in matching_partition_data_files if metrics_evaluator(file)]
 
 
 class DataScan(TableScan):
@@ -384,7 +381,7 @@ class DataScan(TableScan):
         # this filter depends on the partition spec used to write the manifest file
 
         partition_evaluators: Dict[int, Callable[[DataFile], bool]] = KeyDefaultDict(self._build_partition_evaluator)
-
+        metrics_evaluator = _InclusiveMetricsEvaluator(self.table.schema(), self.row_filter, self.case_sensitive).eval
         with ThreadPool() as pool:
             return chain(
                 *pool.starmap(
@@ -392,11 +389,9 @@ class DataScan(TableScan):
                     iterable=[
                         (
                             io,
-                            self.table.schema(),
-                            self.row_filter,
                             manifest,
                             partition_evaluators[manifest.partition_spec_id],
-                            self.case_sensitive,
+                            metrics_evaluator,
                         )
                         for manifest in manifests
                     ],
