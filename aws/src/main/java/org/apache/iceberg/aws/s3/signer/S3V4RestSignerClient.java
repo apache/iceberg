@@ -106,6 +106,14 @@ public abstract class S3V4RestSignerClient
     return properties().get(OAuth2Properties.TOKEN);
   }
 
+  @Value.Lazy
+  boolean refreshAuthByDefault() {
+    return PropertyUtil.propertyAsBoolean(
+        properties(),
+        CatalogProperties.AUTH_DEFAULT_REFRESH_ENABLED,
+        CatalogProperties.AUTH_DEFAULT_REFRESH_ENABLED_DEFAULT);
+  }
+
   private RESTClient httpClient() {
     if (null == HTTP_CLIENT_REF.get()) {
       // TODO: should be closed
@@ -125,7 +133,7 @@ public abstract class S3V4RestSignerClient
     if (null != token()) {
       return AuthSession.fromAccessToken(
           httpClient(),
-          TOKEN_REFRESH_EXECUTOR,
+          refreshAuthByDefault() ? TOKEN_REFRESH_EXECUTOR : null,
           token(),
           expiresAtMillis(properties()),
           new AuthSession(ImmutableMap.of(), token(), null, credential(), SCOPE));
@@ -137,7 +145,11 @@ public abstract class S3V4RestSignerClient
       OAuthTokenResponse authResponse =
           OAuth2Util.fetchToken(httpClient(), session.headers(), credential(), SCOPE);
       return AuthSession.fromTokenResponse(
-          httpClient(), TOKEN_REFRESH_EXECUTOR, authResponse, startTimeMillis, session);
+          httpClient(),
+          refreshAuthByDefault() ? TOKEN_REFRESH_EXECUTOR : null,
+          authResponse,
+          startTimeMillis,
+          session);
     }
 
     return AuthSession.empty();

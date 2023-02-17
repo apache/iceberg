@@ -168,11 +168,19 @@ public class RESTSessionCatalog extends BaseSessionCatalog
     if (authResponse != null) {
       this.catalogAuth =
           AuthSession.fromTokenResponse(
-              client, tokenRefreshExecutor(), authResponse, startTimeMillis, catalogAuth);
+              client,
+              refreshAuthByDefault ? tokenRefreshExecutor() : null,
+              authResponse,
+              startTimeMillis,
+              catalogAuth);
     } else if (initToken != null) {
       this.catalogAuth =
           AuthSession.fromAccessToken(
-              client, tokenRefreshExecutor(), initToken, expiresAtMillis(mergedProps), catalogAuth);
+              client,
+              refreshAuthByDefault ? tokenRefreshExecutor() : null,
+              initToken,
+              expiresAtMillis(mergedProps),
+              catalogAuth);
     }
 
     String ioImpl = mergedProps.get(CatalogProperties.FILE_IO_IMPL);
