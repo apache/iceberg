@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import javax.annotation.Nullable;
@@ -72,7 +73,7 @@ public abstract class S3V4RestSignerClient
   private static final ScheduledExecutorService TOKEN_REFRESH_EXECUTOR =
       ThreadPools.newScheduledPool("s3-signer-token-refresh", 1);
   private static final String SCOPE = "sign";
-  private static RESTClient httpClient;
+  private static final AtomicReference<RESTClient> HTTP_CLIENT_REF = new AtomicReference<>();
 
   public abstract Map<String, String> properties();
 
@@ -106,16 +107,17 @@ public abstract class S3V4RestSignerClient
   }
 
   private RESTClient httpClient() {
-    if (null == httpClient) {
+    if (null == HTTP_CLIENT_REF.get()) {
       // TODO: should be closed
-      httpClient =
+      HTTP_CLIENT_REF.compareAndSet(
+          null,
           HTTPClient.builder()
               .uri(baseSignerUri())
               .withObjectMapper(S3ObjectMapper.mapper())
-              .build();
+              .build());
     }
 
-    return httpClient;
+    return HTTP_CLIENT_REF.get();
   }
 
   @Value.Lazy

@@ -105,6 +105,7 @@ hive = ["thrift"]
 s3fs = ["s3fs"]
 glue = ["boto3"]
 adlfs = ["adlfs"]
+dynamodb = ["boto3"]
 
 [tool.pytest.ini_options]
 markers = [

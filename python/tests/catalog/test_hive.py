@@ -696,4 +696,4 @@ def test_resolve_table_location_warehouse(hive_database: HiveDatabase) -> None:
     catalog._client.__enter__().get_database.return_value = hive_database
 
     location = catalog._resolve_table_location(None, "database", "table")
-    assert location == "/tmp/warehouse/database/table"
+    assert location == "/tmp/warehouse/database.db/table"

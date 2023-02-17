@@ -26,8 +26,8 @@ import org.apache.iceberg.parquet.ParquetValueWriters.StructWriter;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.io.api.Binary;
-import org.apache.parquet.schema.DecimalMetadata;
 import org.apache.parquet.schema.GroupType;
+import org.apache.parquet.schema.LogicalTypeAnnotation.DecimalLogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
@@ -123,7 +123,8 @@ public class ParquetAvroWriter {
           case TIMESTAMP_MICROS:
             return ParquetValueWriters.longs(desc);
           case DECIMAL:
-            DecimalMetadata decimal = primitive.getDecimalMetadata();
+            DecimalLogicalTypeAnnotation decimal =
+                (DecimalLogicalTypeAnnotation) primitive.getLogicalTypeAnnotation();
             switch (primitive.getPrimitiveTypeName()) {
               case INT32:
                 return ParquetValueWriters.decimalAsInteger(

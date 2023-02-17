@@ -45,7 +45,6 @@ from pyiceberg.expressions import (
 )
 from pyiceberg.expressions.visitors import inclusive_projection
 from pyiceberg.io import FileIO, load_file_io
-from pyiceberg.io.pyarrow import project_table
 from pyiceberg.manifest import (
     DataFile,
     ManifestContent,
@@ -54,7 +53,6 @@ from pyiceberg.manifest import (
 )
 from pyiceberg.partitioning import PartitionSpec
 from pyiceberg.schema import Schema
-from pyiceberg.serializers import FromInputFile
 from pyiceberg.table.metadata import TableMetadata
 from pyiceberg.table.snapshots import Snapshot, SnapshotLogEntry
 from pyiceberg.table.sorting import SortOrder
@@ -185,6 +183,9 @@ class StaticTable(Table):
     def from_metadata(cls, metadata_location: str, properties: Properties = EMPTY_DICT) -> StaticTable:
         io = load_file_io(properties=properties, location=metadata_location)
         file = io.new_input(metadata_location)
+
+        from pyiceberg.serializers import FromInputFile
+
         metadata = FromInputFile.table_metadata(file)
 
         return cls(
@@ -385,6 +386,8 @@ class DataScan(TableScan):
             )
 
     def to_arrow(self) -> pa.Table:
+        from pyiceberg.io.pyarrow import project_table
+
         return project_table(
             self.plan_files(), self.table, self.row_filter, self.projection(), case_sensitive=self.case_sensitive
         )
