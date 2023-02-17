@@ -358,6 +358,7 @@ class DataScan(TableScan):
 
         # step 2: filter the data files in each manifest
         # this filter depends on the partition spec used to write the manifest file
+
         partition_evaluators: Dict[int, Callable[[DataFile], bool]] = KeyDefaultDict(self._build_partition_evaluator)
 
         with ThreadPool() as pool:
