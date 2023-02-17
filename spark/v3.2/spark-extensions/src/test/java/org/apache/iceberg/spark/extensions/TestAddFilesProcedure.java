@@ -423,20 +423,20 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
     createDateHourPartitionedFileTable("parquet");
 
     String createIceberg =
-            "CREATE TABLE %s (id Integer, name String, dept String, date Date, hour String) USING iceberg PARTITIONED BY (date, hour)";
+        "CREATE TABLE %s (id Integer, name String, dept String, date Date, hour String) USING iceberg PARTITIONED BY (date, hour)";
 
     sql(createIceberg, tableName);
 
     scalarSql(
-            "CALL %s.system.add_files('%s', '`parquet`.`%s`', map('date', '2021-01-01'))",
-            catalogName, tableName, fileTableDir.getAbsolutePath());
+        "CALL %s.system.add_files('%s', '`parquet`.`%s`', map('date', '2021-01-01'))",
+        catalogName, tableName, fileTableDir.getAbsolutePath());
 
     String sqlFormat =
-            "SELECT id, name, dept, date, hour FROM %s WHERE date = '2021-01-01' and hour= '01' ORDER BY id";
+        "SELECT id, name, dept, date, hour FROM %s WHERE date = '2021-01-01' and hour= '01' ORDER BY id";
     assertEquals(
-            "Iceberg table contains correct data",
-            sql(sqlFormat, sourceTableName),
-            sql(sqlFormat, tableName));
+        "Iceberg table contains correct data",
+        sql(sqlFormat, sourceTableName),
+        sql(sqlFormat, tableName));
   }
 
   @Test
