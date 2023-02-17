@@ -25,6 +25,8 @@ import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.metrics.LoggingMetricsReporter;
+import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -35,6 +37,8 @@ import org.slf4j.LoggerFactory;
 
 public abstract class BaseMetastoreCatalog implements Catalog {
   private static final Logger LOG = LoggerFactory.getLogger(BaseMetastoreCatalog.class);
+
+  private MetricsReporter metricsReporter;
 
   @Override
   public Table loadTable(TableIdentifier identifier) {
@@ -51,7 +55,7 @@ public abstract class BaseMetastoreCatalog implements Catalog {
         }
 
       } else {
-        result = new BaseTable(ops, fullTableName(name(), identifier));
+        result = new BaseTable(ops, fullTableName(name(), identifier), metricsReporter());
       }
 
     } else if (isValidMetadataIdentifier(identifier)) {
@@ -300,5 +304,17 @@ public abstract class BaseMetastoreCatalog implements Catalog {
     sb.append(identifier.name());
 
     return sb.toString();
+  }
+
+  private MetricsReporter metricsReporter() {
+    if (metricsReporter == null) {
+      metricsReporter =
+          properties().containsKey(CatalogProperties.METRICS_REPORTER_IMPL)
+              ? CatalogUtil.loadMetricsReporter(
+                  properties().get(CatalogProperties.METRICS_REPORTER_IMPL))
+              : LoggingMetricsReporter.instance();
+    }
+
+    return metricsReporter;
   }
 }

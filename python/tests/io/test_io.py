@@ -26,7 +26,6 @@ from pyiceberg.io import (
     _import_file_io,
     load_file_io,
 )
-from pyiceberg.io.fsspec import FsspecFileIO
 from pyiceberg.io.pyarrow import PyArrowFileIO
 
 
@@ -277,7 +276,7 @@ def test_load_file_io_does_not_exist() -> None:
 
 
 def test_load_file_io_warehouse() -> None:
-    assert isinstance(load_file_io({"warehouse": "s3://some-path/"}), FsspecFileIO)
+    assert isinstance(load_file_io({"warehouse": "s3://some-path/"}), PyArrowFileIO)
 
 
 def test_load_file_io_location() -> None:
