@@ -89,7 +89,7 @@ public class RESTSessionCatalog extends BaseSessionCatalog
     implements Configurable<Configuration>, Closeable {
   private static final Logger LOG = LoggerFactory.getLogger(RESTSessionCatalog.class);
   private static final String REST_METRICS_REPORTING_ENABLED = "rest-metrics-reporting-enabled";
-  private static final String REST_SNAPSHOT_LOADING_MODE = "rest-snapshot-loading-mode";
+  private static final String REST_SNAPSHOT_LOADING_MODE = "snapshot-loading-mode";
   private static final List<String> TOKEN_PREFERENCE_ORDER =
       ImmutableList.of(
           OAuth2Properties.ID_TOKEN_TYPE,

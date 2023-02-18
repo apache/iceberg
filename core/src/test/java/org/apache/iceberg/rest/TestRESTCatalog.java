@@ -744,7 +744,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
         ImmutableMap.of("Authorization", "Bearer client-credentials-token:sub=table-user"));
   }
 
-  @org.junit.Test
+  @Test
   public void testSnapshotParams() {
     assertThat(SnapshotMode.ALL.params()).isEqualTo(ImmutableMap.of("snapshots", "all"));
 
@@ -765,7 +765,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             CatalogProperties.FILE_IO_IMPL,
             "org.apache.iceberg.io.InMemoryFileIO",
             // default loading to refs only
-            "rest-snapshot-loading-mode",
+            "snapshot-loading-mode",
             "refs"));
 
     // Create a table with multiple snapshots
