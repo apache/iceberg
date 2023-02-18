@@ -23,6 +23,7 @@ import io.delta.standalone.VersionLog;
 import io.delta.standalone.actions.Action;
 import io.delta.standalone.actions.AddFile;
 import io.delta.standalone.actions.RemoveFile;
+import io.delta.standalone.exceptions.DeltaStandaloneException;
 import java.io.File;
 import java.net.URI;
 import java.util.Iterator;
@@ -87,7 +88,6 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
   private String newTableLocation;
   private HadoopFileIO deltaLakeFileIO;
   private long deltaStartVersion;
-  private Boolean initialized = false;
 
   /**
    * Snapshot a delta lake table to be an iceberg table. The action will read the delta lake table's
@@ -156,7 +156,7 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
         deltaTableLocation);
     io.delta.standalone.Snapshot updatedSnapshot = deltaLog.update();
     Schema schema = convertDeltaLakeSchema(updatedSnapshot.getMetadata().getSchema());
-    PartitionSpec partitionSpec = getPartitionSpecFromDeltaSnapshot(schema);
+    PartitionSpec partitionSpec = getPartitionSpecFromDeltaSnapshot(schema, updatedSnapshot);
     Transaction icebergTransaction =
         icebergCatalog.newCreateTableTransaction(
             newTableIdentifier,
@@ -171,10 +171,12 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
             TableProperties.DEFAULT_NAME_MAPPING,
             NameMappingParser.toJson(MappingUtil.create(icebergTransaction.table().schema())))
         .commit();
-
+    long constructableStartVersion =
+        commitInitialDeltaSnapshotToIcebergTransaction(
+            updatedSnapshot.getVersion(), icebergTransaction);
     Iterator<VersionLog> versionLogIterator =
         deltaLog.getChanges(
-            deltaStartVersion, false // not throw exception when data loss detected
+            constructableStartVersion + 1, false // not throw exception when data loss detected
             );
     while (versionLogIterator.hasNext()) {
       VersionLog versionLog = versionLogIterator.next();
@@ -202,8 +204,9 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
     return new Schema(converted.asNestedType().asStructType().fields());
   }
 
-  private PartitionSpec getPartitionSpecFromDeltaSnapshot(Schema schema) {
-    List<String> partitionNames = deltaLog.snapshot().getMetadata().getPartitionColumns();
+  private PartitionSpec getPartitionSpecFromDeltaSnapshot(
+      Schema schema, io.delta.standalone.Snapshot deltaSnapshot) {
+    List<String> partitionNames = deltaSnapshot.getMetadata().getPartitionColumns();
     if (partitionNames.isEmpty()) {
       return PartitionSpec.unpartitioned();
     }
@@ -213,6 +216,34 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
       builder.identity(partitionName);
     }
     return builder.build();
+  }
+
+  private long commitInitialDeltaSnapshotToIcebergTransaction(
+      long latestVersion, Transaction transaction) {
+    long constructableStartVersion = deltaStartVersion;
+    while (constructableStartVersion <= latestVersion) {
+      try {
+        List<AddFile> initDataFiles =
+            deltaLog.getSnapshotForVersionAsOf(constructableStartVersion).getAllFiles();
+        List<DataFile> filesToAdd = Lists.newArrayList();
+        for (AddFile addFile : initDataFiles) {
+          DataFile dataFile = buildDataFileFromAction(addFile, transaction.table());
+          filesToAdd.add(dataFile);
+        }
+
+        // AppendFiles case
+        AppendFiles appendFiles = transaction.newAppend();
+        filesToAdd.forEach(appendFiles::appendFile);
+        appendFiles.commit();
+
+        return constructableStartVersion;
+      } catch (NotFoundException | IllegalArgumentException | DeltaStandaloneException e) {
+        constructableStartVersion++;
+      }
+    }
+
+    throw new ValidationException(
+        "Delta table at %s contains no constructable snapshot", deltaTableLocation);
   }
 
   /**
@@ -233,43 +264,24 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
    */
   private void commitDeltaVersionLogToIcebergTransaction(
       VersionLog versionLog, Transaction transaction) {
-    List<Action> dataFileActions;
-    if (!initialized) {
-      // The first version is a special case, since it represents the initial table state.
-      // Need to get all dataFiles from the corresponding delta snapshot to construct the table.
-      dataFileActions =
-          deltaLog.getSnapshotForVersionAsOf(versionLog.getVersion()).getAllFiles().stream()
-              .map(addFile -> (Action) addFile)
-              .collect(Collectors.toList());
-    } else {
-      // Only need actions related to data change: AddFile and RemoveFile
-      dataFileActions =
-          versionLog.getActions().stream()
-              .filter(action -> action instanceof AddFile || action instanceof RemoveFile)
-              .collect(Collectors.toList());
-    }
+    // Only need actions related to data change: AddFile and RemoveFile
+    List<Action> dataFileActions =
+        versionLog.getActions().stream()
+            .filter(action -> action instanceof AddFile || action instanceof RemoveFile)
+            .collect(Collectors.toList());
 
     List<DataFile> filesToAdd = Lists.newArrayList();
     List<DataFile> filesToRemove = Lists.newArrayList();
-    try {
-      for (Action action : dataFileActions) {
-        DataFile dataFile = buildDataFileFromAction(action, transaction.table());
-        if (action instanceof AddFile) {
-          filesToAdd.add(dataFile);
-        } else if (action instanceof RemoveFile) {
-          filesToRemove.add(dataFile);
-        } else {
-          throw new ValidationException(
-              "The action %s's is unsupported", action.getClass().getSimpleName());
-        }
+    for (Action action : dataFileActions) {
+      DataFile dataFile = buildDataFileFromAction(action, transaction.table());
+      if (action instanceof AddFile) {
+        filesToAdd.add(dataFile);
+      } else if (action instanceof RemoveFile) {
+        filesToRemove.add(dataFile);
+      } else {
+        throw new ValidationException(
+            "The action %s's is unsupported", action.getClass().getSimpleName());
       }
-    } catch (NotFoundException e) {
-      if (!initialized) {
-        LOG.info(
-            "Fail to reconstruct the snapshot for version {}, skip it", versionLog.getVersion(), e);
-        return;
-      }
-      throw e;
     }
 
     if (filesToAdd.size() > 0 && filesToRemove.size() > 0) {
@@ -288,10 +300,6 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
       DeleteFiles deleteFiles = transaction.newDelete();
       filesToRemove.forEach(deleteFiles::deleteFile);
       deleteFiles.commit();
-    }
-
-    if (!initialized) {
-      initialized = true;
     }
   }
 
