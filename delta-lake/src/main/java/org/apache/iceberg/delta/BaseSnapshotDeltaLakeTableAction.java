@@ -50,6 +50,7 @@ import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.io.InputFile;
@@ -86,6 +87,7 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
   private String newTableLocation;
   private HadoopFileIO deltaLakeFileIO;
   private long deltaStartVersion;
+  private Boolean initialized = false;
 
   /**
    * Snapshot a delta lake table to be an iceberg table. The action will read the delta lake table's
@@ -232,11 +234,11 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
   private void commitDeltaVersionLogToIcebergTransaction(
       VersionLog versionLog, Transaction transaction) {
     List<Action> dataFileActions;
-    if (versionLog.getVersion() == deltaStartVersion) {
+    if (!initialized) {
       // The first version is a special case, since it represents the initial table state.
       // Need to get all dataFiles from the corresponding delta snapshot to construct the table.
       dataFileActions =
-          deltaLog.getSnapshotForVersionAsOf(deltaStartVersion).getAllFiles().stream()
+          deltaLog.getSnapshotForVersionAsOf(versionLog.getVersion()).getAllFiles().stream()
               .map(addFile -> (Action) addFile)
               .collect(Collectors.toList());
     } else {
@@ -249,16 +251,25 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
 
     List<DataFile> filesToAdd = Lists.newArrayList();
     List<DataFile> filesToRemove = Lists.newArrayList();
-    for (Action action : dataFileActions) {
-      DataFile dataFile = buildDataFileFromAction(action, transaction.table());
-      if (action instanceof AddFile) {
-        filesToAdd.add(dataFile);
-      } else if (action instanceof RemoveFile) {
-        filesToRemove.add(dataFile);
-      } else {
-        throw new ValidationException(
-            "The action %s's is unsupported", action.getClass().getSimpleName());
+    try {
+      for (Action action : dataFileActions) {
+        DataFile dataFile = buildDataFileFromAction(action, transaction.table());
+        if (action instanceof AddFile) {
+          filesToAdd.add(dataFile);
+        } else if (action instanceof RemoveFile) {
+          filesToRemove.add(dataFile);
+        } else {
+          throw new ValidationException(
+              "The action %s's is unsupported", action.getClass().getSimpleName());
+        }
       }
+    } catch (NotFoundException e) {
+      if (!initialized) {
+        LOG.info(
+            "Fail to reconstruct the snapshot for version {}, skip it", versionLog.getVersion(), e);
+        return;
+      }
+      throw e;
     }
 
     if (filesToAdd.size() > 0 && filesToRemove.size() > 0) {
@@ -277,6 +288,10 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
       DeleteFiles deleteFiles = transaction.newDelete();
       filesToRemove.forEach(deleteFiles::deleteFile);
       deleteFiles.commit();
+    }
+
+    if (!initialized) {
+      initialized = true;
     }
   }
 
