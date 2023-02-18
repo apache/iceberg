@@ -69,15 +69,20 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
   protected abstract ManifestEntry<F> prepare(ManifestEntry<F> entry);
 
   /**
-   * @deprecated since 1.2.0, will be removed in 1.3.0; use {@link
+   * @deprecated since 1.4.0, will be removed in 1.5.0; use {@link
    *     ManifestWriter#newAppender(PartitionSpec, OutputFile, String, Integer)} instead.
    */
   @Deprecated
   protected abstract FileAppender<ManifestEntry<F>> newAppender(
       PartitionSpec spec, OutputFile outputFile);
 
-  protected abstract FileAppender<ManifestEntry<F>> newAppender(
-      PartitionSpec spec, OutputFile outputFile, String compressionCodec, Integer compressionLevel);
+  protected FileAppender<ManifestEntry<F>> newAppender(
+      PartitionSpec spec,
+      OutputFile outputFile,
+      String compressionCodec,
+      Integer compressionLevel) {
+    return newAppender(spec, outputFile);
+  }
 
   protected ManifestContent content() {
     return ManifestContent.DATA;

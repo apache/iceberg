@@ -838,12 +838,6 @@ acceptedBreaks:
     - code: "java.field.removedWithConstant"
       old: "field org.apache.iceberg.TableProperties.MERGE_CARDINALITY_CHECK_ENABLED_DEFAULT"
       justification: "Spark 3.1 has been dropped"
-    - code: "java.method.abstractMethodAdded"
-      new: "method org.apache.iceberg.io.FileAppender<org.apache.iceberg.ManifestEntry<F>>\
-        \ org.apache.iceberg.ManifestWriter<F extends org.apache.iceberg.ContentFile<F\
-        \ extends org.apache.iceberg.ContentFile<F>>>::newAppender(org.apache.iceberg.PartitionSpec,\
-        \ org.apache.iceberg.io.OutputFile, java.lang.String, java.lang.Integer)"
-      justification: "Allow adding a new method to the abstract class - old method is deprecated"
     - code: "java.method.removed"
       old: "method java.util.List<org.apache.iceberg.DataFile> org.apache.iceberg.MergingSnapshotProducer<ThisT>::addedFiles()\
         \ @ org.apache.iceberg.BaseOverwriteFiles"
