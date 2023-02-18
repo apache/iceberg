@@ -218,6 +218,24 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
     return builder.build();
   }
 
+  /**
+   * Commit the initial delta snapshot to iceberg transaction. It tries the snapshot starting from
+   * {@code deltaStartVersion} to {@code latestVersion} and commit the first constructable one.
+   *
+   * <p>There are two cases that the delta snapshot is not constructable:
+   *
+   * <ul>
+   *   <li>the version is earlier than the earliest checkpoint
+   *   <li>the corresponding data files are deleted by {@code VACUUM}
+   * </ul>
+   *
+   * <p>For more information, please refer to delta lake's <a
+   * href="https://docs.delta.io/latest/delta-batch.html#-data-retention">Data Retention</a>
+   *
+   * @param latestVersion the latest version of the delta lake table
+   * @param transaction the iceberg transaction
+   * @return the initial version of the delta lake table that is successfully committed to iceberg
+   */
   private long commitInitialDeltaSnapshotToIcebergTransaction(
       long latestVersion, Transaction transaction) {
     long constructableStartVersion = deltaStartVersion;

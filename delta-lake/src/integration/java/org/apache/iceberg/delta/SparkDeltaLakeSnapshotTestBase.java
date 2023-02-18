@@ -47,7 +47,6 @@ public abstract class SparkDeltaLakeSnapshotTestBase {
                 hiveConf.get(HiveConf.ConfVars.METASTOREURIS.varname))
             .config("spark.sql.legacy.respectNullabilityInTextDatasetConversion", "true")
             .config("spark.databricks.delta.retentionDurationCheck.enabled", "false")
-            .config("spark.databricks.delta.logRetentionDuration", "interval 0 days")
             .config("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension")
             .enableHiveSupport()
             .getOrCreate();
