@@ -37,6 +37,7 @@ import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TableScan;
 import org.apache.iceberg.expressions.Evaluator;
 import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.ExpressionUtil;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.Projections;
 import org.apache.iceberg.expressions.StrictMetricsEvaluator;
@@ -274,18 +275,21 @@ public class SparkTable
       }
     }
 
-    return deleteExpr == Expressions.alwaysTrue() || canDeleteUsingMetadata(deleteExpr);
+    return selectsPartitions(deleteExpr) || canDeleteUsingMetadata(deleteExpr);
+  }
+
+  private boolean selectsPartitions(Expression expr) {
+    return table().specs().values().stream()
+        .allMatch(spec -> ExpressionUtil.selectsPartitions(expr, spec, isCaseSensitive()));
   }
 
   // a metadata delete is possible iff matching files can be deleted entirely
   private boolean canDeleteUsingMetadata(Expression deleteExpr) {
-    boolean caseSensitive =
-        Boolean.parseBoolean(sparkSession().conf().get("spark.sql.caseSensitive"));
     TableScan scan =
         table()
             .newScan()
             .filter(deleteExpr)
-            .caseSensitive(caseSensitive)
+            .caseSensitive(isCaseSensitive())
             .includeColumnStats()
             .ignoreResiduals();
 
@@ -312,6 +316,10 @@ public class SparkTable
       LOG.warn("Failed to close task iterable", ioe);
       return false;
     }
+  }
+
+  private boolean isCaseSensitive() {
+    return Boolean.parseBoolean(sparkSession().conf().get("spark.sql.caseSensitive"));
   }
 
   @Override
