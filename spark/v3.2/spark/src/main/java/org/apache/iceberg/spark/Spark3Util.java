@@ -24,7 +24,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -816,7 +815,8 @@ public class Spark3Util {
    * @param format format of the file
    * @param partitionFilter partitionFilter of the file
    * @return all table's partitions
-   * @deprecated use {@link Spark3Util#getPartitions(SparkSession, Path, String, Map, PartitionSpec)}
+   * @deprecated use {@link Spark3Util#getPartitions(SparkSession, Path, String, Map,
+   *     PartitionSpec)}
    */
   @Deprecated
   public static List<SparkPartition> getPartitions(
@@ -842,8 +842,11 @@ public class Spark3Util {
       PartitionSpec partitionSpec) {
     FileStatusCache fileStatusCache = FileStatusCache.getOrCreate(spark);
 
-    Option<StructType> userSpecifiedSchema = partitionSpec == null ? Option.empty() : Option.apply(
-            SparkSchemaUtil.convert(new Schema(partitionSpec.partitionType().fields())));
+    Option<StructType> userSpecifiedSchema =
+        partitionSpec == null
+            ? Option.empty()
+            : Option.apply(
+                SparkSchemaUtil.convert(new Schema(partitionSpec.partitionType().fields())));
 
     InMemoryFileIndex fileIndex =
         new InMemoryFileIndex(

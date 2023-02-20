@@ -423,20 +423,20 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
     createTableWithTwoPartitions("parquet");
 
     String createIceberg =
-            "CREATE TABLE %s (id Integer, name String, date Date, dept String) USING iceberg PARTITIONED BY (date, dept)";
+        "CREATE TABLE %s (id Integer, name String, date Date, dept String) USING iceberg PARTITIONED BY (date, dept)";
 
     sql(createIceberg, tableName);
 
     scalarSql(
-            "CALL %s.system.add_files('%s', '`parquet`.`%s`', map('date', '2021-01-01'))",
-            catalogName, tableName, fileTableDir.getAbsolutePath());
+        "CALL %s.system.add_files('%s', '`parquet`.`%s`', map('date', '2021-01-01'))",
+        catalogName, tableName, fileTableDir.getAbsolutePath());
 
     String sqlFormat =
-            "SELECT id, name, dept, date FROM %s WHERE date = '2021-01-01' and dept= '01' ORDER BY id";
+        "SELECT id, name, dept, date FROM %s WHERE date = '2021-01-01' and dept= '01' ORDER BY id";
     assertEquals(
-            "Iceberg table contains correct data",
-            sql(sqlFormat, sourceTableName),
-            sql(sqlFormat, tableName));
+        "Iceberg table contains correct data",
+        sql(sqlFormat, sourceTableName),
+        sql(sqlFormat, tableName));
   }
 
   @Test
@@ -937,15 +937,15 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
   }
 
   private static final Dataset<Row> dateDF =
-          spark
-                  .createDataFrame(
-                          ImmutableList.of(
-                                  RowFactory.create(1, "John Doe", toDate("2021-01-01"), "01"),
-                                  RowFactory.create(2, "Jane Doe", toDate("2021-01-01"), "01"),
-                                  RowFactory.create(3, "Matt Doe", toDate("2021-01-02"), "02"),
-                                  RowFactory.create(4, "Will Doe", toDate("2021-01-02"), "02")),
-                          new StructType(dateStruct))
-                  .repartition(2);
+      spark
+          .createDataFrame(
+              ImmutableList.of(
+                  RowFactory.create(1, "John Doe", toDate("2021-01-01"), "01"),
+                  RowFactory.create(2, "Jane Doe", toDate("2021-01-01"), "01"),
+                  RowFactory.create(3, "Matt Doe", toDate("2021-01-02"), "02"),
+                  RowFactory.create(4, "Will Doe", toDate("2021-01-02"), "02")),
+              new StructType(dateStruct))
+          .repartition(2);
 
   private void createUnpartitionedFileTable(String format) {
     String createParquet =
@@ -1037,8 +1037,8 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
 
   private void createTableWithTwoPartitions(String format) {
     String createParquet =
-            "CREATE TABLE %s (id Integer, name String, date Date, dept String) USING %s "
-                    + "PARTITIONED BY (date, dept) LOCATION '%s'";
+        "CREATE TABLE %s (id Integer, name String, date Date, dept String) USING %s "
+            + "PARTITIONED BY (date, dept) LOCATION '%s'";
 
     sql(createParquet, sourceTableName, format, fileTableDir.getAbsolutePath());
 

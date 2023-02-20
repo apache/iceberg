@@ -21,7 +21,6 @@ package org.apache.iceberg.spark.procedures;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.hadoop.fs.Path;
@@ -178,8 +177,7 @@ class AddFilesProcedure extends BaseProcedure {
       PartitionSpec spec) {
     // List Partitions via Spark InMemory file search interface
     List<SparkPartition> partitions =
-        Spark3Util.getPartitions(
-            spark(), tableLocation, format, partitionFilter, spec);
+        Spark3Util.getPartitions(spark(), tableLocation, format, partitionFilter, spec);
 
     if (table.spec().isUnpartitioned()) {
       Preconditions.checkArgument(
