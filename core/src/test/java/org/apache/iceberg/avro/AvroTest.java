@@ -35,8 +35,11 @@ import org.apache.iceberg.io.PositionOutputStream;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 class AvroTest {
+  private static final Logger LOG = LoggerFactory.getLogger(AvroTest.class);
   private static final Schema SCHEMA =
       new Schema(
           Types.NestedField.required(1, "id", Types.LongType.get()),
@@ -78,7 +81,7 @@ class AvroTest {
             .overwriteIfNeeded()
             .build()) {
     } catch (Exception e) {
-      // ignore write exception as we are only verifying file creation
+      LOG.trace("error building avro writer", e);
     }
   }
 
