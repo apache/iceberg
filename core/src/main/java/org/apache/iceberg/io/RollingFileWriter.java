@@ -23,6 +23,7 @@ import java.io.UncheckedIOException;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
+import org.apache.iceberg.exceptions.FileHandlingException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
@@ -127,7 +128,7 @@ abstract class RollingFileWriter<T, W extends FileWriter<T, R>, R> implements Fi
       if (currentFileRows == 0L) {
         try {
           io.deleteFile(currentFile.encryptingOutputFile());
-        } catch (UncheckedIOException e) {
+        } catch (UncheckedIOException | FileHandlingException e) {
           // the file may not have been created, and it isn't worth failing the job to clean up,
           // skip deleting
         }
