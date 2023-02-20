@@ -25,7 +25,7 @@ import java.util.Map;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
-import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.exceptions.FileHandlingException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.LocationProvider;
@@ -315,7 +315,7 @@ public class TestTables {
     @Override
     public void deleteFile(String path) {
       if (!new File(path).delete()) {
-        throw new RuntimeIOException("Failed to delete file: " + path);
+        throw new FileHandlingException("Failed to delete file: " + path);
       }
     }
   }

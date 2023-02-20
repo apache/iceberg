@@ -27,6 +27,7 @@ import org.apache.avro.file.DataFileWriter;
 import org.apache.avro.io.DatumWriter;
 import org.apache.iceberg.Metrics;
 import org.apache.iceberg.MetricsConfig;
+import org.apache.iceberg.exceptions.FileHandlingException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.OutputFile;
@@ -85,7 +86,7 @@ class AvroFileAppender<D> implements FileAppender<D> {
         throw new RuntimeIOException(e, "Failed to get stream length");
       }
     }
-    throw new RuntimeIOException("Failed to get stream length: no open stream");
+    throw new FileHandlingException("Failed to get stream length: no open stream");
   }
 
   @Override

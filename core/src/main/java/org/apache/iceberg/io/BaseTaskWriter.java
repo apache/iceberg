@@ -31,6 +31,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
+import org.apache.iceberg.exceptions.FileHandlingException;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -316,7 +317,7 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
           if (currentRows == 0L) {
             try {
               io.deleteFile(currentFile.encryptingOutputFile());
-            } catch (UncheckedIOException e) {
+            } catch (UncheckedIOException | FileHandlingException e) {
               // the file may not have been created, and it isn't worth failing the job to clean up,
               // skip deleting
             }
