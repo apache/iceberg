@@ -179,7 +179,7 @@ class AddFilesProcedure extends BaseProcedure {
     // List Partitions via Spark InMemory file search interface
     List<SparkPartition> partitions =
         Spark3Util.getPartitions(
-            spark(), tableLocation, format, partitionFilter, Optional.of(spec));
+            spark(), tableLocation, format, partitionFilter, spec);
 
     if (table.spec().isUnpartitioned()) {
       Preconditions.checkArgument(
