@@ -32,6 +32,7 @@ from typing import (
     Any,
     Callable,
     Dict,
+    Generator,
     Iterable,
     List,
     Optional,
@@ -393,7 +394,7 @@ class _ConvertToArrowSchema(SchemaVisitorPerPrimitiveType[pa.DataType], Singleto
         return pa.timestamp(unit="us")
 
     def visit_timestampz(self, _: TimestamptzType) -> pa.DataType:
-        return pa.timestamp(unit="us", tz="+00:00")
+        return pa.timestamp(unit="us", tz="UTC")
 
     def visit_string(self, _: StringType) -> pa.DataType:
         return pa.string()
@@ -490,7 +491,7 @@ def _file_to_table(
     projected_schema: Schema,
     projected_field_ids: Set[int],
     case_sensitive: bool,
-    positional_deletes: List[pa.ChunkedArray],
+    positional_deletes: Optional[pa.ChunkedArray],
 ) -> pa.Table:
     _, path = PyArrowFileIO.parse_location(task.file.file_path)
 
@@ -529,12 +530,19 @@ def _file_to_table(
         if pyarrow_filter is not None:
             arrow_table = arrow_table.filter(pyarrow_filter)
 
-        if len(positional_deletes) > 0:
+        if positional_deletes is not None:
             # When there are positional deletes, create a filter mask
-            mask = [True] * len(arrow_table)
-            for buffer in positional_deletes:
-                for pos in buffer:
-                    mask[pos.as_py()] = False
+            def generator() -> Generator[int, None, None]:
+                itr = iter(positional_deletes)
+                next_delete = next(itr)
+                for pos in range(len(arrow_table)):
+                    if pos == next_delete:
+                        yield True
+                        next_delete = next(itr)
+                    else:
+                        yield False
+
+            mask = pa.array(generator(), type=pa.bool_())
             arrow_table = arrow_table.filter(mask)
 
         return to_requested_schema(projected_schema, file_project_schema, arrow_table)
@@ -571,7 +579,7 @@ def project_table(
     tasks_data_files: List[FileScanTask] = []
     tasks_positional_deletes: List[FileScanTask] = []
     for task in tasks:
-        if task.file.content == DataFileContent.DATA:
+        if task.file.content is None or task.file.content == DataFileContent.DATA:
             tasks_data_files.append(task)
         elif task.file.content == DataFileContent.POSITION_DELETES:
             tasks_positional_deletes.append(task)
@@ -581,7 +589,7 @@ def project_table(
             raise ValueError(f"Unknown file content: {task.file.content}")
 
     with ThreadPool() as pool:
-        positional_deletes_per_file: Dict[str, List[pa.ChunkedArray]] = {}
+        positional_deletes_per_file: Dict[str, pa.ChunkedArray] = {}
         if tasks_positional_deletes:
             # If there are any positional deletes, get those first
             for delete_files in pool.starmap(
@@ -589,7 +597,9 @@ def project_table(
                 iterable=[(fs, task.file.file_path) for task in tasks_positional_deletes],
             ):
                 for file, buffer in delete_files.items():
-                    positional_deletes_per_file[file] = positional_deletes_per_file.get(file, []) + [buffer]
+                    if file in positional_deletes_per_file:
+                        raise ValueError(f"Duplicate deletes found for {file}")
+                    positional_deletes_per_file[file] = buffer
 
         tables = pool.starmap(
             func=_file_to_table,
@@ -601,7 +611,7 @@ def project_table(
                     projected_schema,
                     projected_field_ids,
                     case_sensitive,
-                    positional_deletes_per_file.get(task.file.file_path, []),
+                    positional_deletes_per_file.get(task.file.file_path),
                 )
                 for task in tasks_data_files
             ],
