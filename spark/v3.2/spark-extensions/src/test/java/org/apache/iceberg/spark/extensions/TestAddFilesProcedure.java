@@ -425,7 +425,7 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
 
     sql(createIceberg, tableName);
 
-    scalarSql(
+    sql(
         "CALL %s.system.add_files('%s', '`parquet`.`%s`', map('date', '2021-01-01'))",
         catalogName, tableName, fileTableDir.getAbsolutePath());
 
