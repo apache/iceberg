@@ -38,14 +38,10 @@ import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
 class AvroTest {
-
   private static final Schema SCHEMA =
       new Schema(
           Types.NestedField.required(1, "id", Types.LongType.get()),
           Types.NestedField.required(2, "data", Types.StringType.get()));
-
-  @BeforeEach
-  void setUp() {}
 
   @Test
   void overwriteIsUsedForLocalOutputFile() throws IOException {
