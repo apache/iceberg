@@ -23,13 +23,14 @@ import java.util.Comparator;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Binder;
 import org.apache.iceberg.expressions.BoundReference;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ExpressionVisitors;
-import org.apache.iceberg.expressions.ExpressionVisitors.BoundExpressionVisitor;
+import org.apache.iceberg.expressions.ExpressionVisitors.FindsResidualVisitor;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -52,14 +53,18 @@ public class ParquetDictionaryRowGroupFilter {
   private final Schema schema;
   private final Expression expr;
 
-  public ParquetDictionaryRowGroupFilter(Schema schema, Expression unbound) {
-    this(schema, unbound, true);
+  public ParquetDictionaryRowGroupFilter(Schema schema, Expression expr) {
+    this(schema, expr, true);
   }
 
-  public ParquetDictionaryRowGroupFilter(Schema schema, Expression unbound, boolean caseSensitive) {
+  public ParquetDictionaryRowGroupFilter(Schema schema, Expression expr, boolean caseSensitive) {
     this.schema = schema;
     StructType struct = schema.asStruct();
-    this.expr = Binder.bind(struct, Expressions.rewriteNot(unbound), caseSensitive);
+    if (Binder.isBound(expr)) {
+      this.expr = Expressions.rewriteNot(expr);
+    } else {
+      this.expr = Binder.bind(struct, Expressions.rewriteNot(expr), caseSensitive);
+    }
   }
 
   /**
@@ -71,13 +76,15 @@ public class ParquetDictionaryRowGroupFilter {
    */
   public boolean shouldRead(
       MessageType fileSchema, BlockMetaData rowGroup, DictionaryPageReadStore dictionaries) {
+    return residualFor(fileSchema, rowGroup, dictionaries) != Expressions.alwaysFalse();
+  }
+
+  public Expression residualFor(
+      MessageType fileSchema, BlockMetaData rowGroup, DictionaryPageReadStore dictionaries) {
     return new EvalVisitor().eval(fileSchema, rowGroup, dictionaries);
   }
 
-  private static final boolean ROWS_MIGHT_MATCH = true;
-  private static final boolean ROWS_CANNOT_MATCH = false;
-
-  private class EvalVisitor extends BoundExpressionVisitor<Boolean> {
+  private class EvalVisitor extends FindsResidualVisitor {
     private DictionaryPageReadStore dictionaries = null;
     private Map<Integer, Set<?>> dictCache = null;
     private Map<Integer, Boolean> isFallback = null;
@@ -85,7 +92,7 @@ public class ParquetDictionaryRowGroupFilter {
     private Map<Integer, ColumnDescriptor> cols = null;
     private Map<Integer, Function<Object, Object>> conversions = null;
 
-    private boolean eval(
+    private Expression eval(
         MessageType fileSchema,
         BlockMetaData rowGroup,
         DictionaryPageReadStore dictionaryReadStore) {
@@ -115,48 +122,58 @@ public class ParquetDictionaryRowGroupFilter {
         }
       }
 
-      return ExpressionVisitors.visitEvaluator(expr, this);
+      return ExpressionVisitors.visit(expr, this);
     }
 
     @Override
-    public Boolean alwaysTrue() {
-      return ROWS_MIGHT_MATCH; // all rows match
+    public Expression alwaysTrue() {
+      return ROWS_ALL_MATCH; // all rows match
     }
 
     @Override
-    public Boolean alwaysFalse() {
+    public Expression alwaysFalse() {
       return ROWS_CANNOT_MATCH; // all rows fail
     }
 
     @Override
-    public Boolean not(Boolean result) {
-      return !result;
+    public Expression not(Expression result) {
+      throw new UnsupportedOperationException("This path shouldn't be reached.");
     }
 
     @Override
-    public Boolean and(Boolean leftResult, Boolean rightResult) {
-      return leftResult && rightResult;
+    public Expression and(Supplier<Expression> left, Supplier<Expression> right) {
+      Expression leftResult = left.get();
+      if (leftResult == ROWS_CANNOT_MATCH) {
+        return leftResult;
+      }
+
+      return Expressions.and(leftResult, right.get());
     }
 
     @Override
-    public Boolean or(Boolean leftResult, Boolean rightResult) {
-      return leftResult || rightResult;
+    public Expression or(Supplier<Expression> left, Supplier<Expression> right) {
+      Expression leftResult = left.get();
+      if (leftResult == ROWS_ALL_MATCH) {
+        return leftResult;
+      }
+
+      return Expressions.or(leftResult, right.get());
     }
 
     @Override
-    public <T> Boolean isNull(BoundReference<T> ref) {
+    public <T> Expression isNull(BoundReference<T> ref) {
       // dictionaries only contain non-nulls and cannot eliminate based on isNull or NotNull
       return ROWS_MIGHT_MATCH;
     }
 
     @Override
-    public <T> Boolean notNull(BoundReference<T> ref) {
+    public <T> Expression notNull(BoundReference<T> ref) {
       // dictionaries only contain non-nulls and cannot eliminate based on isNull or NotNull
       return ROWS_MIGHT_MATCH;
     }
 
     @Override
-    public <T> Boolean isNaN(BoundReference<T> ref) {
+    public <T> Expression isNaN(BoundReference<T> ref) {
       int id = ref.fieldId();
 
       Boolean hasNonDictPage = isFallback.get(id);
@@ -169,7 +186,7 @@ public class ParquetDictionaryRowGroupFilter {
     }
 
     @Override
-    public <T> Boolean notNaN(BoundReference<T> ref) {
+    public <T> Expression notNaN(BoundReference<T> ref) {
       int id = ref.fieldId();
 
       if (mayContainNulls.get(id)) {
@@ -194,7 +211,7 @@ public class ParquetDictionaryRowGroupFilter {
     }
 
     @Override
-    public <T> Boolean lt(BoundReference<T> ref, Literal<T> lit) {
+    public <T> Expression lt(BoundReference<T> ref, Literal<T> lit) {
       int id = ref.fieldId();
 
       Boolean hasNonDictPage = isFallback.get(id);
@@ -216,7 +233,7 @@ public class ParquetDictionaryRowGroupFilter {
     }
 
     @Override
-    public <T> Boolean ltEq(BoundReference<T> ref, Literal<T> lit) {
+    public <T> Expression ltEq(BoundReference<T> ref, Literal<T> lit) {
       int id = ref.fieldId();
 
       Boolean hasNonDictPage = isFallback.get(id);
@@ -238,7 +255,7 @@ public class ParquetDictionaryRowGroupFilter {
     }
 
     @Override
-    public <T> Boolean gt(BoundReference<T> ref, Literal<T> lit) {
+    public <T> Expression gt(BoundReference<T> ref, Literal<T> lit) {
       int id = ref.fieldId();
 
       Boolean hasNonDictPage = isFallback.get(id);
@@ -260,7 +277,7 @@ public class ParquetDictionaryRowGroupFilter {
     }
 
     @Override
-    public <T> Boolean gtEq(BoundReference<T> ref, Literal<T> lit) {
+    public <T> Expression gtEq(BoundReference<T> ref, Literal<T> lit) {
       int id = ref.fieldId();
 
       Boolean hasNonDictPage = isFallback.get(id);
@@ -282,7 +299,7 @@ public class ParquetDictionaryRowGroupFilter {
     }
 
     @Override
-    public <T> Boolean eq(BoundReference<T> ref, Literal<T> lit) {
+    public <T> Expression eq(BoundReference<T> ref, Literal<T> lit) {
       int id = ref.fieldId();
 
       Boolean hasNonDictPage = isFallback.get(id);
@@ -296,7 +313,7 @@ public class ParquetDictionaryRowGroupFilter {
     }
 
     @Override
-    public <T> Boolean notEq(BoundReference<T> ref, Literal<T> lit) {
+    public <T> Expression notEq(BoundReference<T> ref, Literal<T> lit) {
       int id = ref.fieldId();
 
       Boolean hasNonDictPage = isFallback.get(id);
@@ -313,7 +330,7 @@ public class ParquetDictionaryRowGroupFilter {
     }
 
     @Override
-    public <T> Boolean in(BoundReference<T> ref, Set<T> literalSet) {
+    public <T> Expression in(BoundReference<T> ref, Set<T> literalSet) {
       int id = ref.fieldId();
 
       Boolean hasNonDictPage = isFallback.get(id);
@@ -347,7 +364,7 @@ public class ParquetDictionaryRowGroupFilter {
     }
 
     @Override
-    public <T> Boolean notIn(BoundReference<T> ref, Set<T> literalSet) {
+    public <T> Expression notIn(BoundReference<T> ref, Set<T> literalSet) {
       int id = ref.fieldId();
 
       Boolean hasNonDictPage = isFallback.get(id);
@@ -368,7 +385,7 @@ public class ParquetDictionaryRowGroupFilter {
     }
 
     @Override
-    public <T> Boolean startsWith(BoundReference<T> ref, Literal<T> lit) {
+    public <T> Expression startsWith(BoundReference<T> ref, Literal<T> lit) {
       int id = ref.fieldId();
 
       Boolean hasNonDictPage = isFallback.get(id);
@@ -387,7 +404,7 @@ public class ParquetDictionaryRowGroupFilter {
     }
 
     @Override
-    public <T> Boolean notStartsWith(BoundReference<T> ref, Literal<T> lit) {
+    public <T> Expression notStartsWith(BoundReference<T> ref, Literal<T> lit) {
       int id = ref.fieldId();
 
       Boolean hasNonDictPage = isFallback.get(id);

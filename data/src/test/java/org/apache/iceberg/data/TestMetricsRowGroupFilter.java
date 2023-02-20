@@ -55,7 +55,9 @@ import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.data.orc.GenericOrcReader;
 import org.apache.iceberg.data.orc.GenericOrcWriter;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.expressions.Binder;
 import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.InputFile;
@@ -936,6 +938,31 @@ public class TestMetricsRowGroupFilter {
         new ParquetMetricsRowGroupFilter(promotedSchema, equal("id", INT_MIN_VALUE + 1), true)
             .shouldRead(parquetSchema, rowGroupMetadata);
     Assert.assertTrue("Should succeed with promoted schema", shouldRead);
+  }
+
+  @Test
+  public void testParquetFindsResidual() {
+    Assume.assumeTrue("Only valid for Parquet", format == FileFormat.PARQUET);
+
+    Expression mightMatch = notEqual("some_nulls", "some");
+    Expression cannotMatch = equal("id", INT_MIN_VALUE - 25);
+
+    Expression expected = Binder.bind(SCHEMA.asStruct(), Expressions.rewriteNot(mightMatch), true);
+    ParquetMetricsRowGroupFilter filter =
+        new ParquetMetricsRowGroupFilter(SCHEMA, Expressions.or(mightMatch, cannotMatch), true);
+    Expression actual = filter.residualFor(parquetSchema, rowGroupMetadata);
+
+    Assert.assertTrue(
+        String.format("Expected actual: %s, actual: %s", expected.toString(), actual.toString()),
+        actual.isEquivalentTo(expected));
+
+    filter =
+        new ParquetMetricsRowGroupFilter(SCHEMA, Expressions.and(mightMatch, cannotMatch), true);
+    expected = Expressions.alwaysFalse();
+    actual = filter.residualFor(parquetSchema, rowGroupMetadata);
+    Assert.assertTrue(
+        String.format("Expected actual: %s, actual: %s", expected.toString(), actual.toString()),
+        actual.isEquivalentTo(expected));
   }
 
   private boolean shouldRead(Expression expression) {
