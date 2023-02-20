@@ -928,8 +928,8 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
   private static final StructField[] dateStruct = {
     new StructField("id", DataTypes.IntegerType, true, Metadata.empty()),
     new StructField("name", DataTypes.StringType, true, Metadata.empty()),
-    new StructField("dept", DataTypes.StringType, true, Metadata.empty()),
-    new StructField("ts", DataTypes.DateType, true, Metadata.empty())
+    new StructField("ts", DataTypes.DateType, true, Metadata.empty()),
+    new StructField("dept", DataTypes.StringType, true, Metadata.empty())
   };
 
   private static java.sql.Date toDate(String value) {
