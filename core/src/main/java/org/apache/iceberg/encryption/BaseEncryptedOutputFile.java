@@ -25,8 +25,7 @@ class BaseEncryptedOutputFile implements EncryptedOutputFile {
   private final OutputFile encryptingOutputFile;
   private final EncryptionKeyMetadata keyMetadata;
 
-  BaseEncryptedOutputFile(
-      OutputFile encryptingOutputFile, EncryptionKeyMetadata keyMetadata) {
+  BaseEncryptedOutputFile(OutputFile encryptingOutputFile, EncryptionKeyMetadata keyMetadata) {
     this.encryptingOutputFile = encryptingOutputFile;
     this.keyMetadata = keyMetadata;
   }
