@@ -399,7 +399,7 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
     createDatePartitionedFileTable("parquet");
 
     String createIceberg =
-        "CREATE TABLE %s (id Integer, name String, dept String, date Date) USING iceberg PARTITIONED BY (date)";
+        "CREATE TABLE %s (id Integer, name String, date Date) USING iceberg PARTITIONED BY (date)";
 
     sql(createIceberg, tableName);
 
@@ -412,10 +412,8 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
 
     assertEquals(
         "Iceberg table contains correct data",
-        sql(
-            "SELECT id, name, dept, date FROM %s WHERE date = '2021-01-01' ORDER BY id",
-            sourceTableName),
-        sql("SELECT id, name, dept, date FROM %s ORDER BY id", tableName));
+        sql("SELECT id, name, date FROM %s WHERE date = '2021-01-01' ORDER BY id", sourceTableName),
+        sql("SELECT id, name, date FROM %s ORDER BY id", tableName));
   }
 
   @Test
@@ -1027,12 +1025,12 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
 
   private void createDatePartitionedFileTable(String format) {
     String createParquet =
-        "CREATE TABLE %s (id Integer, name String, dept String, date Date) USING %s "
+        "CREATE TABLE %s (id Integer, name String, date Date) USING %s "
             + "PARTITIONED BY (date) LOCATION '%s'";
 
     sql(createParquet, sourceTableName, format, fileTableDir.getAbsolutePath());
 
-    dateDF.write().insertInto(sourceTableName);
+    dateDF.select("id", "name", "ts").write().insertInto(sourceTableName);
   }
 
   private void createTableWithTwoPartitions(String format) {
