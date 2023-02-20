@@ -532,8 +532,8 @@ def _file_to_table(
 
         if positional_deletes is not None:
             # When there are positional deletes, create a filter mask
-            def generator() -> Generator[int, None, None]:
-                itr = iter(positional_deletes)
+            def generator() -> Generator[bool, None, None]:
+                itr = iter(positional_deletes)  # type: ignore
                 next_delete = next(itr)
                 for pos in range(len(arrow_table)):
                     if pos == next_delete:
