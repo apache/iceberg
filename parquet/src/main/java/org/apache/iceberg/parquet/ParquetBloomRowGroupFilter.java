@@ -23,13 +23,14 @@ import java.nio.ByteBuffer;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Supplier;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.Binder;
 import org.apache.iceberg.expressions.Bound;
 import org.apache.iceberg.expressions.BoundReference;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ExpressionVisitors;
-import org.apache.iceberg.expressions.ExpressionVisitors.BoundExpressionVisitor;
+import org.apache.iceberg.expressions.ExpressionVisitors.FindsResidualVisitor;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -59,14 +60,19 @@ public class ParquetBloomRowGroupFilter {
   private final Expression expr;
   private final boolean caseSensitive;
 
-  public ParquetBloomRowGroupFilter(Schema schema, Expression unbound) {
-    this(schema, unbound, true);
+  public ParquetBloomRowGroupFilter(Schema schema, Expression expr) {
+    this(schema, expr, true);
   }
 
-  public ParquetBloomRowGroupFilter(Schema schema, Expression unbound, boolean caseSensitive) {
+  public ParquetBloomRowGroupFilter(Schema schema, Expression expr, boolean caseSensitive) {
     this.schema = schema;
     StructType struct = schema.asStruct();
-    this.expr = Binder.bind(struct, Expressions.rewriteNot(unbound), caseSensitive);
+    if (Binder.isBound(expr)) {
+      this.expr = Expressions.rewriteNot(expr);
+    } else {
+      this.expr = Binder.bind(struct, Expressions.rewriteNot(expr), caseSensitive);
+    }
+
     this.caseSensitive = caseSensitive;
   }
 
@@ -80,13 +86,15 @@ public class ParquetBloomRowGroupFilter {
    */
   public boolean shouldRead(
       MessageType fileSchema, BlockMetaData rowGroup, BloomFilterReader bloomReader) {
+    return residualFor(fileSchema, rowGroup, bloomReader) != Expressions.alwaysFalse();
+  }
+
+  public Expression residualFor(
+      MessageType fileSchema, BlockMetaData rowGroup, BloomFilterReader bloomReader) {
     return new BloomEvalVisitor().eval(fileSchema, rowGroup, bloomReader);
   }
 
-  private static final boolean ROWS_MIGHT_MATCH = true;
-  private static final boolean ROWS_CANNOT_MATCH = false;
-
-  private class BloomEvalVisitor extends BoundExpressionVisitor<Boolean> {
+  private class BloomEvalVisitor extends FindsResidualVisitor {
     private BloomFilterReader bloomReader;
     private Set<Integer> fieldsWithBloomFilter = null;
     private Map<Integer, ColumnChunkMetaData> columnMetaMap = null;
@@ -94,7 +102,7 @@ public class ParquetBloomRowGroupFilter {
     private Map<Integer, PrimitiveType> parquetPrimitiveTypes = null;
     private Map<Integer, Type> types = null;
 
-    private boolean eval(
+    private Expression eval(
         MessageType fileSchema, BlockMetaData rowGroup, BloomFilterReader bloomFilterReader) {
       this.bloomReader = bloomFilterReader;
       this.fieldsWithBloomFilter = Sets.newHashSet();
@@ -122,92 +130,102 @@ public class ParquetBloomRowGroupFilter {
       if (!filterRefs.isEmpty()) {
         Set<Integer> overlappedBloomFilters = Sets.intersection(fieldsWithBloomFilter, filterRefs);
         if (overlappedBloomFilters.isEmpty()) {
-          return ROWS_MIGHT_MATCH;
+          return expr;
         } else {
           LOG.debug("Using Bloom filters for columns with IDs: {}", overlappedBloomFilters);
         }
       }
 
-      return ExpressionVisitors.visitEvaluator(expr, this);
+      return ExpressionVisitors.visit(expr, this);
     }
 
     @Override
-    public Boolean alwaysTrue() {
-      return ROWS_MIGHT_MATCH; // all rows match
+    public Expression alwaysTrue() {
+      return ROWS_ALL_MATCH; // all rows match
     }
 
     @Override
-    public Boolean alwaysFalse() {
+    public Expression alwaysFalse() {
       return ROWS_CANNOT_MATCH; // all rows fail
     }
 
     @Override
-    public Boolean not(Boolean result) {
+    public Expression not(Expression result) {
       // not() should be rewritten by RewriteNot
       // bloom filter is based on hash and cannot eliminate based on not
       throw new UnsupportedOperationException("This path shouldn't be reached.");
     }
 
     @Override
-    public Boolean and(Boolean leftResult, Boolean rightResult) {
-      return leftResult && rightResult;
+    public Expression and(Supplier<Expression> left, Supplier<Expression> right) {
+      Expression leftResult = left.get();
+      if (leftResult == ROWS_CANNOT_MATCH) {
+        return leftResult;
+      }
+
+      return Expressions.and(leftResult, right.get());
     }
 
     @Override
-    public Boolean or(Boolean leftResult, Boolean rightResult) {
-      return leftResult || rightResult;
+    public Expression or(Supplier<Expression> left, Supplier<Expression> right) {
+      Expression leftResult = left.get();
+      if (leftResult == ROWS_ALL_MATCH) {
+        return leftResult;
+      }
+
+      return Expressions.or(leftResult, right.get());
     }
 
     @Override
-    public <T> Boolean isNull(BoundReference<T> ref) {
+    public <T> Expression isNull(BoundReference<T> ref) {
       // bloom filter only contain non-nulls and cannot eliminate based on isNull or NotNull
       return ROWS_MIGHT_MATCH;
     }
 
     @Override
-    public <T> Boolean notNull(BoundReference<T> ref) {
+    public <T> Expression notNull(BoundReference<T> ref) {
       // bloom filter only contain non-nulls and cannot eliminate based on isNull or NotNull
       return ROWS_MIGHT_MATCH;
     }
 
     @Override
-    public <T> Boolean isNaN(BoundReference<T> ref) {
+    public <T> Expression isNaN(BoundReference<T> ref) {
       // bloom filter is based on hash and cannot eliminate based on isNaN or notNaN
       return ROWS_MIGHT_MATCH;
     }
 
     @Override
-    public <T> Boolean notNaN(BoundReference<T> ref) {
+    public <T> Expression notNaN(BoundReference<T> ref) {
       // bloom filter is based on hash and cannot eliminate based on isNaN or notNaN
       return ROWS_MIGHT_MATCH;
     }
 
     @Override
-    public <T> Boolean lt(BoundReference<T> ref, Literal<T> lit) {
+    public <T> Expression lt(BoundReference<T> ref, Literal<T> lit) {
       // bloom filter is based on hash and cannot eliminate based on lt or ltEq or gt or gtEq
       return ROWS_MIGHT_MATCH;
     }
 
     @Override
-    public <T> Boolean ltEq(BoundReference<T> ref, Literal<T> lit) {
+    public <T> Expression ltEq(BoundReference<T> ref, Literal<T> lit) {
       // bloom filter is based on hash and cannot eliminate based on lt or ltEq or gt or gtEq
       return ROWS_MIGHT_MATCH;
     }
 
     @Override
-    public <T> Boolean gt(BoundReference<T> ref, Literal<T> lit) {
+    public <T> Expression gt(BoundReference<T> ref, Literal<T> lit) {
       // bloom filter is based on hash and cannot eliminate based on lt or ltEq or gt or gtEq
       return ROWS_MIGHT_MATCH;
     }
 
     @Override
-    public <T> Boolean gtEq(BoundReference<T> ref, Literal<T> lit) {
+    public <T> Expression gtEq(BoundReference<T> ref, Literal<T> lit) {
       // bloom filter is based on hash and cannot eliminate based on lt or ltEq or gt or gtEq
       return ROWS_MIGHT_MATCH;
     }
 
     @Override
-    public <T> Boolean eq(BoundReference<T> ref, Literal<T> lit) {
+    public <T> Expression eq(BoundReference<T> ref, Literal<T> lit) {
       int id = ref.fieldId();
       if (!fieldsWithBloomFilter.contains(id)) { // no bloom filter
         return ROWS_MIGHT_MATCH;
@@ -216,17 +234,19 @@ public class ParquetBloomRowGroupFilter {
       BloomFilter bloom = loadBloomFilter(id);
       Type type = types.get(id);
       T value = lit.value();
-      return shouldRead(parquetPrimitiveTypes.get(id), value, bloom, type);
+      return shouldRead(parquetPrimitiveTypes.get(id), value, bloom, type)
+          ? ROWS_MIGHT_MATCH
+          : ROWS_CANNOT_MATCH;
     }
 
     @Override
-    public <T> Boolean notEq(BoundReference<T> ref, Literal<T> lit) {
+    public <T> Expression notEq(BoundReference<T> ref, Literal<T> lit) {
       // bloom filter is based on hash and cannot eliminate based on notEq
       return ROWS_MIGHT_MATCH;
     }
 
     @Override
-    public <T> Boolean in(BoundReference<T> ref, Set<T> literalSet) {
+    public <T> Expression in(BoundReference<T> ref, Set<T> literalSet) {
       int id = ref.fieldId();
       if (!fieldsWithBloomFilter.contains(id)) { // no bloom filter
         return ROWS_MIGHT_MATCH;
@@ -242,19 +262,19 @@ public class ParquetBloomRowGroupFilter {
     }
 
     @Override
-    public <T> Boolean notIn(BoundReference<T> ref, Set<T> literalSet) {
+    public <T> Expression notIn(BoundReference<T> ref, Set<T> literalSet) {
       // bloom filter is based on hash and cannot eliminate based on notIn
       return ROWS_MIGHT_MATCH;
     }
 
     @Override
-    public <T> Boolean startsWith(BoundReference<T> ref, Literal<T> lit) {
+    public <T> Expression startsWith(BoundReference<T> ref, Literal<T> lit) {
       // bloom filter is based on hash and cannot eliminate based on startsWith
       return ROWS_MIGHT_MATCH;
     }
 
     @Override
-    public <T> Boolean notStartsWith(BoundReference<T> ref, Literal<T> lit) {
+    public <T> Expression notStartsWith(BoundReference<T> ref, Literal<T> lit) {
       // bloom filter is based on hash and cannot eliminate based on startsWith
       return ROWS_MIGHT_MATCH;
     }
@@ -290,7 +310,7 @@ public class ParquetBloomRowGroupFilter {
               hashValue = bloom.hash(((Number) value).intValue());
               return bloom.findHash(hashValue);
             default:
-              return ROWS_MIGHT_MATCH;
+              return true;
           }
         case INT64:
           switch (type.typeId()) {
@@ -304,7 +324,7 @@ public class ParquetBloomRowGroupFilter {
               hashValue = bloom.hash(((Number) value).longValue());
               return bloom.findHash(hashValue);
             default:
-              return ROWS_MIGHT_MATCH;
+              return true;
           }
         case FLOAT:
           hashValue = bloom.hash(((Number) value).floatValue());
@@ -337,15 +357,15 @@ public class ParquetBloomRowGroupFilter {
               hashValue = bloom.hash(Binary.fromConstantByteArray(UUIDUtil.convert((UUID) value)));
               return bloom.findHash(hashValue);
             default:
-              return ROWS_MIGHT_MATCH;
+              return true;
           }
         default:
-          return ROWS_MIGHT_MATCH;
+          return true;
       }
     }
 
     @Override
-    public <T> Boolean handleNonReference(Bound<T> term) {
+    public <T> Expression handleNonReference(Bound<T> term) {
       return ROWS_MIGHT_MATCH;
     }
   }

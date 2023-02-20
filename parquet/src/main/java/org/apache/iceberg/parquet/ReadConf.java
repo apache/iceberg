@@ -29,6 +29,7 @@ import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -100,15 +101,6 @@ class ReadConf<T> {
     // Fetch all row groups starting positions to compute the row offsets of the filtered row groups
     Map<Long, Long> offsetToStartPos = generateOffsetToStartPos(expectedSchema);
 
-    ParquetMetricsRowGroupFilter statsFilter = null;
-    ParquetDictionaryRowGroupFilter dictFilter = null;
-    ParquetBloomRowGroupFilter bloomFilter = null;
-    if (filter != null) {
-      statsFilter = new ParquetMetricsRowGroupFilter(expectedSchema, filter, caseSensitive);
-      dictFilter = new ParquetDictionaryRowGroupFilter(expectedSchema, filter, caseSensitive);
-      bloomFilter = new ParquetBloomRowGroupFilter(expectedSchema, filter, caseSensitive);
-    }
-
     long computedTotalValues = 0L;
     for (int i = 0; i < shouldSkip.length; i += 1) {
       BlockMetaData rowGroup = rowGroups.get(i);
@@ -116,11 +108,9 @@ class ReadConf<T> {
           offsetToStartPos == null ? 0 : offsetToStartPos.get(rowGroup.getStartingPos());
       boolean shouldRead =
           filter == null
-              || (statsFilter.shouldRead(typeWithIds, rowGroup)
-                  && dictFilter.shouldRead(
-                      typeWithIds, rowGroup, reader.getDictionaryReader(rowGroup))
-                  && bloomFilter.shouldRead(
-                      typeWithIds, rowGroup, reader.getBloomFilterDataReader(rowGroup)));
+              || (findsResidual(filter, expectedSchema, typeWithIds, rowGroup, caseSensitive)
+                  != Expressions.alwaysFalse());
+
       this.shouldSkip[i] = !shouldRead;
       if (shouldRead) {
         computedTotalValues += rowGroup.getRowCount();
@@ -263,5 +253,32 @@ class ReadConf<T> {
       }
     }
     return listBuilder.build();
+  }
+
+  private Expression findsResidual(
+      Expression expr,
+      Schema expectedSchema,
+      MessageType typeWithIds,
+      BlockMetaData rowGroup,
+      boolean caseSensitive) {
+    ParquetMetricsRowGroupFilter metricFilter =
+        new ParquetMetricsRowGroupFilter(expectedSchema, expr, caseSensitive);
+    Expression metricResidual = metricFilter.residualFor(typeWithIds, rowGroup);
+    if (metricResidual == Expressions.alwaysFalse() || metricResidual == Expressions.alwaysTrue()) {
+      return metricResidual;
+    }
+
+    ParquetDictionaryRowGroupFilter dictFilter =
+        new ParquetDictionaryRowGroupFilter(expectedSchema, metricResidual, caseSensitive);
+    Expression dictResidual =
+        dictFilter.residualFor(typeWithIds, rowGroup, reader.getDictionaryReader(rowGroup));
+    if (dictResidual == Expressions.alwaysFalse() || dictResidual == Expressions.alwaysTrue()) {
+      return dictResidual;
+    }
+
+    ParquetBloomRowGroupFilter bloomFilter =
+        new ParquetBloomRowGroupFilter(expectedSchema, dictResidual, caseSensitive);
+    return bloomFilter.residualFor(
+        typeWithIds, rowGroup, reader.getBloomFilterDataReader(rowGroup));
   }
 }

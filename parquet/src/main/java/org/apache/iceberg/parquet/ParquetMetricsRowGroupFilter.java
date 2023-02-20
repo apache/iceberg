@@ -24,6 +24,7 @@ import java.util.Comparator;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.Binder;
@@ -31,7 +32,7 @@ import org.apache.iceberg.expressions.Bound;
 import org.apache.iceberg.expressions.BoundReference;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ExpressionVisitors;
-import org.apache.iceberg.expressions.ExpressionVisitors.BoundExpressionVisitor;
+import org.apache.iceberg.expressions.ExpressionVisitors.FindsResidualVisitor;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -52,14 +53,18 @@ public class ParquetMetricsRowGroupFilter {
   private final Schema schema;
   private final Expression expr;
 
-  public ParquetMetricsRowGroupFilter(Schema schema, Expression unbound) {
-    this(schema, unbound, true);
+  public ParquetMetricsRowGroupFilter(Schema schema, Expression expr) {
+    this(schema, expr, true);
   }
 
-  public ParquetMetricsRowGroupFilter(Schema schema, Expression unbound, boolean caseSensitive) {
+  public ParquetMetricsRowGroupFilter(Schema schema, Expression expr, boolean caseSensitive) {
     this.schema = schema;
     StructType struct = schema.asStruct();
-    this.expr = Binder.bind(struct, Expressions.rewriteNot(unbound), caseSensitive);
+    if (Binder.isBound(expr)) {
+      this.expr = Expressions.rewriteNot(expr);
+    } else {
+      this.expr = Binder.bind(struct, Expressions.rewriteNot(expr), caseSensitive);
+    }
   }
 
   /**
@@ -70,18 +75,19 @@ public class ParquetMetricsRowGroupFilter {
    * @return false if the file cannot contain rows that match the expression, true otherwise.
    */
   public boolean shouldRead(MessageType fileSchema, BlockMetaData rowGroup) {
+    return residualFor(fileSchema, rowGroup) != Expressions.alwaysFalse();
+  }
+
+  public Expression residualFor(MessageType fileSchema, BlockMetaData rowGroup) {
     return new MetricsEvalVisitor().eval(fileSchema, rowGroup);
   }
 
-  private static final boolean ROWS_MIGHT_MATCH = true;
-  private static final boolean ROWS_CANNOT_MATCH = false;
-
-  private class MetricsEvalVisitor extends BoundExpressionVisitor<Boolean> {
+  private class MetricsEvalVisitor extends FindsResidualVisitor {
     private Map<Integer, Statistics<?>> stats = null;
     private Map<Integer, Long> valueCounts = null;
     private Map<Integer, Function<Object, Object>> conversions = null;
 
-    private boolean eval(MessageType fileSchema, BlockMetaData rowGroup) {
+    private Expression eval(MessageType fileSchema, BlockMetaData rowGroup) {
       if (rowGroup.getRowCount() <= 0) {
         return ROWS_CANNOT_MATCH;
       }
@@ -100,36 +106,46 @@ public class ParquetMetricsRowGroupFilter {
         }
       }
 
-      return ExpressionVisitors.visitEvaluator(expr, this);
+      return ExpressionVisitors.visit(expr, this);
     }
 
     @Override
-    public Boolean alwaysTrue() {
-      return ROWS_MIGHT_MATCH; // all rows match
+    public Expression alwaysTrue() {
+      return ROWS_ALL_MATCH; // all rows match
     }
 
     @Override
-    public Boolean alwaysFalse() {
+    public Expression alwaysFalse() {
       return ROWS_CANNOT_MATCH; // all rows fail
     }
 
     @Override
-    public Boolean not(Boolean result) {
-      return !result;
+    public Expression not(Expression result) {
+      throw new UnsupportedOperationException("This path shouldn't be reached.");
     }
 
     @Override
-    public Boolean and(Boolean leftResult, Boolean rightResult) {
-      return leftResult && rightResult;
+    public Expression and(Supplier<Expression> left, Supplier<Expression> right) {
+      Expression leftResult = left.get();
+      if (leftResult == ROWS_CANNOT_MATCH) {
+        return leftResult;
+      }
+
+      return Expressions.and(leftResult, right.get());
     }
 
     @Override
-    public Boolean or(Boolean leftResult, Boolean rightResult) {
-      return leftResult || rightResult;
+    public Expression or(Supplier<Expression> left, Supplier<Expression> right) {
+      Expression leftResult = left.get();
+      if (leftResult == ROWS_ALL_MATCH) {
+        return leftResult;
+      }
+
+      return Expressions.or(leftResult, right.get());
     }
 
     @Override
-    public <T> Boolean isNull(BoundReference<T> ref) {
+    public <T> Expression isNull(BoundReference<T> ref) {
       // no need to check whether the field is required because binding evaluates that case
       // if the column has no null values, the expression cannot match
       int id = ref.fieldId();
@@ -150,7 +166,7 @@ public class ParquetMetricsRowGroupFilter {
     }
 
     @Override
-    public <T> Boolean notNull(BoundReference<T> ref) {
+    public <T> Expression notNull(BoundReference<T> ref) {
       // no need to check whether the field is required because binding evaluates that case
       // if the column has no non-null values, the expression cannot match
       int id = ref.fieldId();
@@ -178,7 +194,7 @@ public class ParquetMetricsRowGroupFilter {
     }
 
     @Override
-    public <T> Boolean isNaN(BoundReference<T> ref) {
+    public <T> Expression isNaN(BoundReference<T> ref) {
       int id = ref.fieldId();
 
       Long valueCount = valueCounts.get(id);
@@ -197,12 +213,12 @@ public class ParquetMetricsRowGroupFilter {
     }
 
     @Override
-    public <T> Boolean notNaN(BoundReference<T> ref) {
+    public <T> Expression notNaN(BoundReference<T> ref) {
       return ROWS_MIGHT_MATCH;
     }
 
     @Override
-    public <T> Boolean lt(BoundReference<T> ref, Literal<T> lit) {
+    public <T> Expression lt(BoundReference<T> ref, Literal<T> lit) {
       int id = ref.fieldId();
 
       Long valueCount = valueCounts.get(id);
@@ -232,7 +248,7 @@ public class ParquetMetricsRowGroupFilter {
     }
 
     @Override
-    public <T> Boolean ltEq(BoundReference<T> ref, Literal<T> lit) {
+    public <T> Expression ltEq(BoundReference<T> ref, Literal<T> lit) {
       int id = ref.fieldId();
 
       Long valueCount = valueCounts.get(id);
@@ -262,7 +278,7 @@ public class ParquetMetricsRowGroupFilter {
     }
 
     @Override
-    public <T> Boolean gt(BoundReference<T> ref, Literal<T> lit) {
+    public <T> Expression gt(BoundReference<T> ref, Literal<T> lit) {
       int id = ref.fieldId();
 
       Long valueCount = valueCounts.get(id);
@@ -292,7 +308,7 @@ public class ParquetMetricsRowGroupFilter {
     }
 
     @Override
-    public <T> Boolean gtEq(BoundReference<T> ref, Literal<T> lit) {
+    public <T> Expression gtEq(BoundReference<T> ref, Literal<T> lit) {
       int id = ref.fieldId();
 
       Long valueCount = valueCounts.get(id);
@@ -322,7 +338,7 @@ public class ParquetMetricsRowGroupFilter {
     }
 
     @Override
-    public <T> Boolean eq(BoundReference<T> ref, Literal<T> lit) {
+    public <T> Expression eq(BoundReference<T> ref, Literal<T> lit) {
       int id = ref.fieldId();
 
       // When filtering nested types notNull() is implicit filter passed even though complex
@@ -365,14 +381,14 @@ public class ParquetMetricsRowGroupFilter {
     }
 
     @Override
-    public <T> Boolean notEq(BoundReference<T> ref, Literal<T> lit) {
+    public <T> Expression notEq(BoundReference<T> ref, Literal<T> lit) {
       // because the bounds are not necessarily a min or max value, this cannot be answered using
       // them. notEq(col, X) with (X, Y) doesn't guarantee that X is a value in col.
       return ROWS_MIGHT_MATCH;
     }
 
     @Override
-    public <T> Boolean in(BoundReference<T> ref, Set<T> literalSet) {
+    public <T> Expression in(BoundReference<T> ref, Set<T> literalSet) {
       int id = ref.fieldId();
 
       // When filtering nested types notNull() is implicit filter passed even though complex
@@ -430,7 +446,7 @@ public class ParquetMetricsRowGroupFilter {
     }
 
     @Override
-    public <T> Boolean notIn(BoundReference<T> ref, Set<T> literalSet) {
+    public <T> Expression notIn(BoundReference<T> ref, Set<T> literalSet) {
       // because the bounds are not necessarily a min or max value, this cannot be answered using
       // them. notIn(col, {X, ...}) with (X, Y) doesn't guarantee that X is a value in col.
       return ROWS_MIGHT_MATCH;
@@ -438,7 +454,7 @@ public class ParquetMetricsRowGroupFilter {
 
     @Override
     @SuppressWarnings("unchecked")
-    public <T> Boolean startsWith(BoundReference<T> ref, Literal<T> lit) {
+    public <T> Expression startsWith(BoundReference<T> ref, Literal<T> lit) {
       int id = ref.fieldId();
 
       Long valueCount = valueCounts.get(id);
@@ -487,7 +503,7 @@ public class ParquetMetricsRowGroupFilter {
 
     @Override
     @SuppressWarnings("unchecked")
-    public <T> Boolean notStartsWith(BoundReference<T> ref, Literal<T> lit) {
+    public <T> Expression notStartsWith(BoundReference<T> ref, Literal<T> lit) {
       int id = ref.fieldId();
       Long valueCount = valueCounts.get(id);
 
@@ -560,7 +576,7 @@ public class ParquetMetricsRowGroupFilter {
     }
 
     @Override
-    public <T> Boolean handleNonReference(Bound<T> term) {
+    public <T> Expression handleNonReference(Bound<T> term) {
       return ROWS_MIGHT_MATCH;
     }
   }
