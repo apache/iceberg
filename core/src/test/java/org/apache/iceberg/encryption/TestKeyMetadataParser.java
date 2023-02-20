@@ -18,26 +18,24 @@
  */
 package org.apache.iceberg.encryption;
 
-import org.apache.iceberg.io.OutputFile;
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
+import org.junit.Assert;
+import org.junit.Test;
 
-class BaseEncryptedOutputFile implements EncryptedOutputFile {
+public class TestKeyMetadataParser {
 
-  private final OutputFile encryptingOutputFile;
-  private final EncryptionKeyMetadata keyMetadata;
+  @Test
+  public void testParser() {
+    String wrappingKeyId = "keyA";
+    ByteBuffer encryptionKey = ByteBuffer.wrap("0123456789012345".getBytes(StandardCharsets.UTF_8));
+    ByteBuffer aadPrefix = ByteBuffer.wrap("1234567890123456".getBytes(StandardCharsets.UTF_8));
+    KeyMetadata metadata = new KeyMetadata(encryptionKey, wrappingKeyId, aadPrefix);
+    ByteBuffer serialized = metadata.buffer();
 
-  BaseEncryptedOutputFile(
-      OutputFile encryptingOutputFile, EncryptionKeyMetadata keyMetadata) {
-    this.encryptingOutputFile = encryptingOutputFile;
-    this.keyMetadata = keyMetadata;
-  }
-
-  @Override
-  public OutputFile encryptingOutputFile() {
-    return encryptingOutputFile;
-  }
-
-  @Override
-  public EncryptionKeyMetadata keyMetadata() {
-    return keyMetadata;
+    KeyMetadata parsedMetadata = KeyMetadata.parse(serialized);
+    Assert.assertEquals(parsedMetadata.wrappingKeyId(), wrappingKeyId);
+    Assert.assertEquals(parsedMetadata.encryptionKey(), encryptionKey);
+    Assert.assertEquals(parsedMetadata.aadPrefix(), aadPrefix);
   }
 }
