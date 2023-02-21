@@ -18,7 +18,10 @@
  */
 package org.apache.iceberg.io;
 
+import java.io.Serializable;
+import java.lang.reflect.Array;
 import org.apache.iceberg.StructLike;
+import org.apache.iceberg.util.SerializationUtil;
 
 /** Copy the StructLike's values into a new one. It does not handle list or map values now. */
 class StructCopy implements StructLike {
@@ -33,13 +36,41 @@ class StructCopy implements StructLike {
 
     for (int i = 0; i < values.length; i += 1) {
       Object value = toCopy.get(i, Object.class);
-
-      if (value instanceof StructLike) {
-        values[i] = copy((StructLike) value);
-      } else {
-        values[i] = value;
+      if (value != null) {
+        values[i] = copyValue(value);
       }
     }
+  }
+
+  private static Object copyValue(Object value) {
+    if (value instanceof StructLike) {
+      return copy((StructLike) value);
+    } else if (value.getClass().isPrimitive() || (value instanceof String)) {
+      return value; // As value is immutable.
+    } else if (value.getClass().isArray()) {
+      int length = Array.getLength(value);
+      final Class<?> componentType = value.getClass().getComponentType();
+      if (componentType != null && componentType.isPrimitive()) {
+        Object copy = Array.newInstance(componentType, length);
+        System.arraycopy(value, 0, copy, 0, length);
+      } else {
+        final Object copy;
+        if (componentType != null) {
+          copy = Array.newInstance(componentType, length);
+        } else {
+          copy = new Object[length];
+        }
+        for (int i = 0; i < length; i++) {
+          Array.set(copy, i, Array.get(value, i));
+        }
+        return copy;
+      }
+    } else if (value instanceof Serializable) {
+      // build a copy
+      byte[] bytes = SerializationUtil.serializeToBytes(value);
+      return SerializationUtil.deserializeFromBytes(bytes);
+    }
+    return value; // other cases
   }
 
   @Override
