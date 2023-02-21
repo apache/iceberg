@@ -29,6 +29,8 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.File;
 import java.io.IOException;
+import java.net.InetAddress;
+import java.net.ServerSocket;
 import java.nio.file.Path;
 import java.util.Map;
 import java.util.Set;
@@ -78,6 +80,8 @@ import org.junit.jupiter.api.io.TempDir;
 import org.mockito.Mockito;
 import org.mockito.stubbing.Answer;
 
+import javax.net.ServerSocketFactory;
+
 public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   private static final ObjectMapper MAPPER = RESTObjectMapper.mapper();
 
@@ -86,6 +90,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   private RESTCatalog restCatalog;
   private JdbcCatalog backendCatalog;
   private Server httpServer;
+  private int port;
 
   @BeforeEach
   public void createCatalog() throws Exception {
@@ -150,7 +155,8 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     servletContext.setVirtualHosts(null);
     servletContext.setGzipHandler(new GzipHandler());
 
-    this.httpServer = new Server(8181);
+    initializePort();
+    this.httpServer = new Server(port);
     httpServer.setHandler(servletContext);
     httpServer.start();
 
@@ -169,7 +175,15 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     restCatalog.initialize(
         "prod",
         ImmutableMap.of(
-            CatalogProperties.URI, "http://localhost:8181/", "credential", "catalog:12345"));
+            CatalogProperties.URI, "http://localhost:"+port+"/", "credential", "catalog:12345"));
+  }
+
+  private void initializePort() {
+    try(ServerSocket s = ServerSocketFactory.getDefault().createServerSocket(0, 1, InetAddress.getByName("localhost"))){
+      this.port = s.getLocalPort();
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
   }
 
   @SuppressWarnings("unchecked")
@@ -1215,7 +1229,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
         "prod",
         ImmutableMap.of(
             CatalogProperties.URI,
-            "http://localhost:8181/",
+            "http://localhost:"+port+"/",
             "credential",
             "catalog:12345",
             CatalogProperties.METRICS_REPORTER_IMPL,
