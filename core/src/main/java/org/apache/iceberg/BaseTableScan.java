@@ -105,7 +105,7 @@ abstract class BaseTableScan extends BaseScan<TableScan, FileScanTask, CombinedS
     Preconditions.checkArgument(
         snapshotId() == null, "Cannot override snapshot, already set snapshot id=%s", snapshotId());
     Preconditions.checkArgument(
-        tableOps().current().snapshot(scanSnapshotId) != null,
+            table().snapshot(scanSnapshotId) != null,
         "Cannot find snapshot with ID %s",
         scanSnapshotId);
     return newRefinedScan(
@@ -185,8 +185,8 @@ abstract class BaseTableScan extends BaseScan<TableScan, FileScanTask, CombinedS
   @Override
   public Snapshot snapshot() {
     return snapshotId() != null
-        ? tableOps().current().snapshot(snapshotId())
-        : tableOps().current().currentSnapshot();
+        ? table().current().snapshot(snapshotId())
+        : table().current().currentSnapshot();
   }
 
   @Override

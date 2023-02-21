@@ -167,27 +167,29 @@ abstract class BaseScan<ThisT, T extends ScanTask, G extends ScanTaskGroup<T>>
 
   @Override
   public long targetSplitSize() {
-    long tableValue =
-        ops.current()
-            .propertyAsLong(TableProperties.SPLIT_SIZE, TableProperties.SPLIT_SIZE_DEFAULT);
+    long tableValue = PropertyUtil.propertyAsLong(
+        table.properties(),
+        TableProperties.SPLIT_SIZE,
+        TableProperties.SPLIT_SIZE_DEFAULT);
     return PropertyUtil.propertyAsLong(context.options(), TableProperties.SPLIT_SIZE, tableValue);
   }
 
   @Override
   public int splitLookback() {
-    int tableValue =
-        ops.current()
-            .propertyAsInt(TableProperties.SPLIT_LOOKBACK, TableProperties.SPLIT_LOOKBACK_DEFAULT);
+    int tableValue = PropertyUtil.propertyAsInt(
+            table.properties(),
+            TableProperties.SPLIT_LOOKBACK,
+            TableProperties.SPLIT_LOOKBACK_DEFAULT);
     return PropertyUtil.propertyAsInt(
         context.options(), TableProperties.SPLIT_LOOKBACK, tableValue);
   }
 
   @Override
   public long splitOpenFileCost() {
-    long tableValue =
-        ops.current()
-            .propertyAsLong(
-                TableProperties.SPLIT_OPEN_FILE_COST, TableProperties.SPLIT_OPEN_FILE_COST_DEFAULT);
+    long tableValue = PropertyUtil.propertyAsLong(
+            table.properties(),
+            TableProperties.SPLIT_OPEN_FILE_COST,
+            TableProperties.SPLIT_OPEN_FILE_COST_DEFAULT);
     return PropertyUtil.propertyAsLong(
         context.options(), TableProperties.SPLIT_OPEN_FILE_COST, tableValue);
   }

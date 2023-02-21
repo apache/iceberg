@@ -31,7 +31,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.util.ThreadPools;
 
 /** Context object with optional arguments for a TableScan. */
-final class TableScanContext {
+public final class TableScanContext {
   private final Long snapshotId;
   private final Expression rowFilter;
   private final boolean ignoreResiduals;
