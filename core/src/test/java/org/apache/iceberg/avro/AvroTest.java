@@ -79,10 +79,7 @@ class AvroTest {
             .createWriterFunc(DataWriter::create)
             .schema(SCHEMA)
             .overwriteIfNeeded()
-            .build()) {
-    } catch (Exception e) {
-      LOG.trace("error building avro writer", e);
-    }
+            .build()) {}
   }
 
   private PositionOutputStream testOutputStream() {
