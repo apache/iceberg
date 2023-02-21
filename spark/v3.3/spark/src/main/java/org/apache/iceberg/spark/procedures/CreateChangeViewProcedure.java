@@ -25,13 +25,13 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.ChangelogIterator;
 import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.source.SparkChangelogTable;
 import org.apache.spark.api.java.function.MapPartitionsFunction;
 import org.apache.spark.sql.Column;
-import org.apache.spark.sql.DataFrameReader;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.InternalRow;
@@ -62,10 +62,12 @@ import scala.runtime.BoxedUnit;
  * data='a', op='DELETE') and (id=1, data='a', op='INSERT'), despite it not being an actual change
  * to the table. The iterator finds the carry-over rows and removes them from the result.
  *
- * <p>An update-row is converted from a pair of delete row and insert row. Identifier columns are
- * needed for identifying whether they refer to the same row. You can either set Identifier Field
- * IDs as the table properties or input them as the procedure parameters. Here is an example of
- * update-row with an identifier column(id). A pair of delete row and insert row with the same id:
+ * <p>An update-row is converted from a pair of a delete row and an insert row. Identifier columns
+ * are used for determining whether an insert and a delete record refer to the same row. If the two
+ * records share the same values for the identity columns they are considered to be before and after
+ * states of the same row. You can either set Identifier Field IDs as the table properties or input
+ * them as the procedure parameters. Here is an example of update-row with an identifier column(id).
+ * A pair of a delete row and an insert row with the same id:
  *
  * <ul>
  *   <li>(id=1, data='a', op='DELETE')
@@ -79,13 +81,13 @@ import scala.runtime.BoxedUnit;
  *   <li>(id=1, data='b', op='UPDATE_AFTER')
  * </ul>
  */
-public class GenerateChangesProcedure extends BaseProcedure {
-  private static final Logger LOG = LoggerFactory.getLogger(GenerateChangesProcedure.class);
+public class CreateChangeViewProcedure extends BaseProcedure {
+  private static final Logger LOG = LoggerFactory.getLogger(CreateChangeViewProcedure.class);
 
   private static final ProcedureParameter[] PARAMETERS =
       new ProcedureParameter[] {
         ProcedureParameter.required("table", DataTypes.StringType),
-        ProcedureParameter.optional("table_change_view", DataTypes.StringType),
+        ProcedureParameter.optional("changelog_view", DataTypes.StringType),
         ProcedureParameter.optional("options", STRING_MAP),
         ProcedureParameter.optional("compute_updates", DataTypes.BooleanType),
         ProcedureParameter.optional("remove_carryovers", DataTypes.BooleanType),
@@ -95,19 +97,19 @@ public class GenerateChangesProcedure extends BaseProcedure {
   private static final StructType OUTPUT_TYPE =
       new StructType(
           new StructField[] {
-            new StructField("view_name", DataTypes.StringType, false, Metadata.empty())
+            new StructField("changelog_view", DataTypes.StringType, false, Metadata.empty())
           });
 
   public static SparkProcedures.ProcedureBuilder builder() {
-    return new BaseProcedure.Builder<GenerateChangesProcedure>() {
+    return new BaseProcedure.Builder<CreateChangeViewProcedure>() {
       @Override
-      protected GenerateChangesProcedure doBuild() {
-        return new GenerateChangesProcedure(tableCatalog());
+      protected CreateChangeViewProcedure doBuild() {
+        return new CreateChangeViewProcedure(tableCatalog());
       }
     };
   }
 
-  private GenerateChangesProcedure(TableCatalog tableCatalog) {
+  private CreateChangeViewProcedure(TableCatalog tableCatalog) {
     super(tableCatalog);
   }
 
@@ -126,24 +128,20 @@ public class GenerateChangesProcedure extends BaseProcedure {
     String tableName = args.getString(0);
 
     // Read data from the table.changes
-    Dataset<Row> df = changelogRecords(tableName, args);
+    Dataset<Row> df = changelogRecords(tableName, readOptions(args));
 
-    // compute updated rows and remove carry-over rows by default
-    boolean computeUpdatedRow = args.isNullAt(3) ? true : args.getBoolean(3);
+    // compute remove carry-over rows by default
     boolean removeCarryoverRow = args.isNullAt(4) ? true : args.getBoolean(4);
 
-    if (computeUpdatedRow) {
+    if (computeUpdatedRow(args)) {
       String[] identifierColumns = identifierColumns(args, tableName);
 
-      if (identifierColumns.length > 0) {
-        Column[] repartitionColumns = getRepartitionExpr(df, identifierColumns);
-        df = transform(df, repartitionColumns);
-      } else {
-        LOG.warn("Cannot compute the update-rows because identifier columns are not set");
-        if (removeCarryoverRow) {
-          df = removeCarryoverRows(df);
-        }
-      }
+      Preconditions.checkArgument(
+          identifierColumns.length > 0,
+          "Cannot compute the update-rows because identifier columns are not set");
+
+      Column[] repartitionColumns = getRepartitionExpr(df, identifierColumns);
+      df = transform(df, repartitionColumns);
     } else if (removeCarryoverRow) {
       df = removeCarryoverRows(df);
     }
@@ -154,6 +152,14 @@ public class GenerateChangesProcedure extends BaseProcedure {
     df.createOrReplaceTempView(viewName);
 
     return toOutputRows(viewName);
+  }
+
+  private boolean computeUpdatedRow(InternalRow args) {
+    if (!args.isNullAt(5)) {
+      return true;
+    }
+
+    return args.isNullAt(3) ? false : args.getBoolean(3);
   }
 
   private Dataset<Row> removeCarryoverRows(Dataset<Row> df) {
@@ -180,11 +186,12 @@ public class GenerateChangesProcedure extends BaseProcedure {
     return identifierColumns;
   }
 
-  private Dataset<Row> changelogRecords(String tableName, InternalRow args) {
+  private Dataset<Row> changelogRecords(String tableName, Map<String, String> readOptions) {
     // no need to validate the read options here since the reader will validate them
-    DataFrameReader reader = spark().read();
-    reader.options(readOptions(args));
-    return reader.table(tableName + "." + SparkChangelogTable.TABLE_NAME);
+    return spark()
+        .read()
+        .options(readOptions)
+        .table(tableName + "." + SparkChangelogTable.TABLE_NAME);
   }
 
   private Map<String, String> readOptions(InternalRow args) {

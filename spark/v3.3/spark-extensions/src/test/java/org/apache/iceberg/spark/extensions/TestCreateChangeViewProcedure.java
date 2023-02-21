@@ -31,13 +31,13 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
-public class TestGenerateChangesProcedure extends SparkExtensionsTestBase {
+public class TestCreateChangeViewProcedure extends SparkExtensionsTestBase {
   private static final String DELETE = ChangelogOperation.DELETE.name();
   private static final String INSERT = ChangelogOperation.INSERT.name();
   private static final String UPDATE_BEFORE = ChangelogOperation.UPDATE_BEFORE.name();
   private static final String UPDATE_AFTER = ChangelogOperation.UPDATE_AFTER.name();
 
-  public TestGenerateChangesProcedure(
+  public TestCreateChangeViewProcedure(
       String catalogName, String implementation, Map<String, String> config) {
     super(catalogName, implementation, config);
   }
@@ -58,10 +58,10 @@ public class TestGenerateChangesProcedure extends SparkExtensionsTestBase {
     Snapshot snap2 = table.currentSnapshot();
 
     sql(
-        "CALL %s.system.generate_changes("
+        "CALL %s.system.create_change_view("
             + "table => '%s',"
             + "options => map('%s','%s','%s','%s'),"
-            + "table_change_view => '%s')",
+            + "changelog_view => '%s')",
         catalogName,
         tableName,
         SparkReadOptions.START_SNAPSHOT_ID,
@@ -90,7 +90,7 @@ public class TestGenerateChangesProcedure extends SparkExtensionsTestBase {
 
     List<Object[]> returns =
         sql(
-            "CALL %s.system.generate_changes(" + "table => '%s')",
+            "CALL %s.system.create_change_view(" + "table => '%s')",
             catalogName, tableName, "cdc_view");
 
     String viewName = (String) returns.get(0)[0];
@@ -124,7 +124,7 @@ public class TestGenerateChangesProcedure extends SparkExtensionsTestBase {
     String afterInsertOverwrite = LocalDateTime.now().toString();
     List<Object[]> returns =
         sql(
-            "CALL %s.system.generate_changes(table => '%s', "
+            "CALL %s.system.create_change_view(table => '%s', "
                 + "options => map('%s', TIMESTAMP '%s','%s', TIMESTAMP '%s'))",
             catalogName,
             tableName,
@@ -145,7 +145,7 @@ public class TestGenerateChangesProcedure extends SparkExtensionsTestBase {
     // query the timestamps starting from the second insert
     returns =
         sql(
-            "CALL %s.system.generate_changes(table => '%s', "
+            "CALL %s.system.create_change_view(table => '%s', "
                 + "options => map('%s', TIMESTAMP '%s', '%s', TIMESTAMP '%s'))",
             catalogName,
             tableName,
@@ -179,7 +179,7 @@ public class TestGenerateChangesProcedure extends SparkExtensionsTestBase {
 
     List<Object[]> returns =
         sql(
-            "CALL %s.system.generate_changes(" + "remove_carryovers => false," + "table => '%s')",
+            "CALL %s.system.create_change_view(" + "remove_carryovers => false," + "table => '%s')",
             catalogName, tableName, "cdc_view");
 
     String viewName = (String) returns.get(0)[0];
@@ -210,7 +210,7 @@ public class TestGenerateChangesProcedure extends SparkExtensionsTestBase {
 
     List<Object[]> returns =
         sql(
-            "CALL %s.system.generate_changes(table => '%s', identifier_columns => 'id')",
+            "CALL %s.system.create_change_view(table => '%s', identifier_columns => 'id')",
             catalogName, tableName);
 
     String viewName = (String) returns.get(0)[0];
@@ -239,7 +239,9 @@ public class TestGenerateChangesProcedure extends SparkExtensionsTestBase {
     Snapshot snap2 = table.currentSnapshot();
 
     List<Object[]> returns =
-        sql("CALL %s.system.generate_changes(table => '%s')", catalogName, tableName);
+        sql(
+            "CALL %s.system.create_change_view(table => '%s', compute_updates => true)",
+            catalogName, tableName);
 
     String viewName = (String) returns.get(0)[0];
     assertEquals(
@@ -267,7 +269,7 @@ public class TestGenerateChangesProcedure extends SparkExtensionsTestBase {
 
     List<Object[]> returns =
         sql(
-            "CALL %s.system.generate_changes(table => '%s', identifier_columns => 'id')",
+            "CALL %s.system.create_change_view(table => '%s', identifier_columns => 'id')",
             catalogName, tableName);
 
     String viewName = (String) returns.get(0)[0];
@@ -298,7 +300,7 @@ public class TestGenerateChangesProcedure extends SparkExtensionsTestBase {
 
     List<Object[]> returns =
         sql(
-            "CALL %s.system.generate_changes("
+            "CALL %s.system.create_change_view("
                 + "identifier_columns => 'id,age',"
                 + "table => '%s')",
             catalogName, tableName);
@@ -332,7 +334,7 @@ public class TestGenerateChangesProcedure extends SparkExtensionsTestBase {
 
     List<Object[]> returns =
         sql(
-            "CALL %s.system.generate_changes("
+            "CALL %s.system.create_change_view("
                 + "identifier_columns => 'id,age',"
                 + "table => '%s')",
             catalogName, tableName);
@@ -367,7 +369,7 @@ public class TestGenerateChangesProcedure extends SparkExtensionsTestBase {
 
     List<Object[]> returns =
         sql(
-            "CALL %s.system.generate_changes(" + "compute_updates => false," + "table => '%s')",
+            "CALL %s.system.create_change_view(" + "compute_updates => false," + "table => '%s')",
             catalogName, tableName);
 
     String viewName = (String) returns.get(0)[0];
@@ -402,7 +404,7 @@ public class TestGenerateChangesProcedure extends SparkExtensionsTestBase {
 
     List<Object[]> returns =
         sql(
-            "CALL %s.system.generate_changes("
+            "CALL %s.system.create_change_view("
                 + "compute_updates => false,"
                 + "remove_carryovers => false,"
                 + "table => '%s')",
