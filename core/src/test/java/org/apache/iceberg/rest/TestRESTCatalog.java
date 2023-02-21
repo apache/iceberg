@@ -38,6 +38,7 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
+import javax.net.ServerSocketFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.CatalogProperties;
@@ -79,8 +80,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.mockito.Mockito;
 import org.mockito.stubbing.Answer;
-
-import javax.net.ServerSocketFactory;
 
 public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   private static final ObjectMapper MAPPER = RESTObjectMapper.mapper();
@@ -175,11 +174,16 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     restCatalog.initialize(
         "prod",
         ImmutableMap.of(
-            CatalogProperties.URI, "http://localhost:"+port+"/", "credential", "catalog:12345"));
+            CatalogProperties.URI,
+            "http://localhost:" + port + "/",
+            "credential",
+            "catalog:12345"));
   }
 
   private void initializePort() {
-    try(ServerSocket s = ServerSocketFactory.getDefault().createServerSocket(0, 1, InetAddress.getByName("localhost"))){
+    try (ServerSocket s =
+        ServerSocketFactory.getDefault()
+            .createServerSocket(0, 1, InetAddress.getByName("localhost"))) {
       this.port = s.getLocalPort();
     } catch (IOException e) {
       throw new RuntimeException(e);
@@ -1229,7 +1233,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
         "prod",
         ImmutableMap.of(
             CatalogProperties.URI,
-            "http://localhost:"+port+"/",
+            "http://localhost:" + port + "/",
             "credential",
             "catalog:12345",
             CatalogProperties.METRICS_REPORTER_IMPL,
