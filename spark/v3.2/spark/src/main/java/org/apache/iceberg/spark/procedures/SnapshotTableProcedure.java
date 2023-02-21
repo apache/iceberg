@@ -23,6 +23,7 @@ import org.apache.iceberg.actions.SnapshotTable;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.actions.SparkActions;
+import org.apache.iceberg.util.ThreadPools;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.apache.spark.sql.connector.iceberg.catalog.ProcedureParameter;
@@ -38,7 +39,8 @@ class SnapshotTableProcedure extends BaseProcedure {
         ProcedureParameter.required("source_table", DataTypes.StringType),
         ProcedureParameter.required("table", DataTypes.StringType),
         ProcedureParameter.optional("location", DataTypes.StringType),
-        ProcedureParameter.optional("properties", STRING_MAP)
+        ProcedureParameter.optional("properties", STRING_MAP),
+        ProcedureParameter.optional("parallelism", DataTypes.IntegerType)
       };
 
   private static final StructType OUTPUT_TYPE =
@@ -93,10 +95,13 @@ class SnapshotTableProcedure extends BaseProcedure {
               });
     }
 
+    int parallelism = (args.isNullAt(4)) ? ThreadPools.WORKER_THREAD_POOL_SIZE : args.getInt(4);
+
     Preconditions.checkArgument(
         !source.equals(dest),
         "Cannot create a snapshot with the same name as the source of the snapshot.");
-    SnapshotTable action = SparkActions.get().snapshotTable(source).as(dest);
+    SnapshotTable action =
+        SparkActions.get().snapshotTable(source).withParallelReads(parallelism).as(dest);
 
     if (snapshotLocation != null) {
       action.tableLocation(snapshotLocation);

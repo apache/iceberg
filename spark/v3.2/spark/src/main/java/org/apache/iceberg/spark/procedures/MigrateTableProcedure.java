@@ -25,6 +25,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.actions.MigrateTableSparkAction;
 import org.apache.iceberg.spark.actions.SparkActions;
 import org.apache.iceberg.spark.procedures.SparkProcedures.ProcedureBuilder;
+import org.apache.iceberg.util.ThreadPools;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.apache.spark.sql.connector.iceberg.catalog.ProcedureParameter;
@@ -39,7 +40,8 @@ class MigrateTableProcedure extends BaseProcedure {
       new ProcedureParameter[] {
         ProcedureParameter.required("table", DataTypes.StringType),
         ProcedureParameter.optional("properties", STRING_MAP),
-        ProcedureParameter.optional("drop_backup", DataTypes.BooleanType)
+        ProcedureParameter.optional("drop_backup", DataTypes.BooleanType),
+        ProcedureParameter.optional("parallelism", DataTypes.IntegerType)
       };
 
   private static final StructType OUTPUT_TYPE =
@@ -99,7 +101,8 @@ class MigrateTableProcedure extends BaseProcedure {
     if (dropBackup) {
       result = migrateTableSparkAction.dropBackup().execute();
     } else {
-      result = migrateTableSparkAction.execute();
+      int parallelism = (args.isNullAt(3)) ? ThreadPools.WORKER_THREAD_POOL_SIZE : args.getInt(3);
+      result = migrateTableSparkAction.withParallelReads(parallelism).execute();
     }
 
     return new InternalRow[] {newInternalRow(result.migratedDataFilesCount())};
