@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.spark;
 
-import java.io.Serializable;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
@@ -26,8 +25,7 @@ import org.apache.iceberg.ChangelogOperation;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.RowFactory;
-import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
-import org.apache.spark.sql.catalyst.expressions.GenericRowWithSchema;
+import org.apache.spark.sql.catalyst.expressions.GenericRow;
 
 /**
  * An iterator that transforms rows from changelog tables within a single Spark task. It assumes
@@ -56,7 +54,7 @@ import org.apache.spark.sql.catalyst.expressions.GenericRowWithSchema;
  *   <li>(id=1, data='b', op='UPDATE_AFTER')
  * </ul>
  */
-public class ChangelogIterator implements Iterator<Row>, Serializable {
+public class ChangelogIterator implements Iterator<Row> {
   private static final String DELETE = ChangelogOperation.DELETE.name();
   private static final String INSERT = ChangelogOperation.INSERT.name();
   private static final String UPDATE_BEFORE = ChangelogOperation.UPDATE_BEFORE.name();
@@ -65,15 +63,19 @@ public class ChangelogIterator implements Iterator<Row>, Serializable {
   private final Iterator<Row> rowIterator;
   private final int changeTypeIndex;
   private final List<Integer> identifierFieldIdx;
+  private final int[] indicesForIdentifySameRow;
 
   private Row cachedRow = null;
-  private int[] indicesForIdentifySameRow = null;
 
   private ChangelogIterator(
-      Iterator<Row> rowIterator, int changeTypeIndex, List<Integer> identifierFieldIdx) {
+      Iterator<Row> rowIterator,
+      int changeTypeIndex,
+      List<Integer> identifierFieldIdx,
+      int columnSize) {
     this.rowIterator = rowIterator;
     this.changeTypeIndex = changeTypeIndex;
     this.identifierFieldIdx = identifierFieldIdx;
+    this.indicesForIdentifySameRow = generateIndicesForIdentifySameRow(columnSize);
   }
 
   /**
@@ -83,12 +85,16 @@ public class ChangelogIterator implements Iterator<Row>, Serializable {
    * @param changeTypeIndex the index of the change type column
    * @param identifierFieldIdx the indices of the identifier columns, which determine if rows are
    *     the same
+   * @param columnSize the number of columns in the table
    * @return a new {@link ChangelogIterator} instance concatenated with the null-removal iterator
    */
-  public static Iterator<Row> iterator(
-      Iterator<Row> rowIterator, int changeTypeIndex, List<Integer> identifierFieldIdx) {
+  public static Iterator<Row> create(
+      Iterator<Row> rowIterator,
+      int changeTypeIndex,
+      List<Integer> identifierFieldIdx,
+      int columnSize) {
     ChangelogIterator changelogIterator =
-        new ChangelogIterator(rowIterator, changeTypeIndex, identifierFieldIdx);
+        new ChangelogIterator(rowIterator, changeTypeIndex, identifierFieldIdx, columnSize);
     return Iterators.filter(changelogIterator, Objects::nonNull);
   }
 
@@ -111,12 +117,8 @@ public class ChangelogIterator implements Iterator<Row>, Serializable {
 
     Row currentRow = currentRow();
 
-    if (indicesForIdentifySameRow == null) {
-      indicesForIdentifySameRow = generateIndicesForIdentifySameRow(currentRow);
-    }
-
     if (currentRow.getString(changeTypeIndex).equals(DELETE) && rowIterator.hasNext()) {
-      GenericRowWithSchema nextRow = (GenericRowWithSchema) rowIterator.next();
+      Row nextRow = rowIterator.next();
       cachedRow = nextRow;
 
       if (isUpdateOrCarryoverRecord(currentRow, nextRow)) {
@@ -125,9 +127,8 @@ public class ChangelogIterator implements Iterator<Row>, Serializable {
           currentRow = null;
           cachedRow = null;
         } else {
-          Row[] rows = createUpdateChangelog((GenericRowWithSchema) currentRow, nextRow);
-          currentRow = rows[0];
-          cachedRow = rows[1];
+          currentRow = modify(currentRow, changeTypeIndex, UPDATE_BEFORE);
+          cachedRow = modify(nextRow, changeTypeIndex, UPDATE_AFTER);
         }
       }
     }
@@ -135,8 +136,23 @@ public class ChangelogIterator implements Iterator<Row>, Serializable {
     return currentRow;
   }
 
-  private int[] generateIndicesForIdentifySameRow(Row row) {
-    int[] indices = new int[row.length() - 1];
+  private Row modify(Row row, int valueIndex, Object value) {
+    if (row instanceof GenericRow) {
+      GenericRow genericRow = (GenericRow) row;
+      genericRow.values()[valueIndex] = value;
+      return genericRow;
+    } else {
+      Object[] values = new Object[row.size()];
+      for (int index = 0; index < row.size(); index++) {
+        values[index] = row.get(index);
+      }
+      values[valueIndex] = value;
+      return RowFactory.create(values);
+    }
+  }
+
+  private int[] generateIndicesForIdentifySameRow(int columnSize) {
+    int[] indices = new int[columnSize - 1];
     for (int i = 0; i < indices.length; i++) {
       if (i < changeTypeIndex) {
         indices[i] = i;
@@ -145,19 +161,6 @@ public class ChangelogIterator implements Iterator<Row>, Serializable {
       }
     }
     return indices;
-  }
-
-  private Row[] createUpdateChangelog(
-      GenericRowWithSchema currentRow, GenericRowWithSchema nextRow) {
-    GenericInternalRow deletedRow = new GenericInternalRow(currentRow.values());
-    GenericInternalRow insertedRow = new GenericInternalRow(nextRow.values());
-
-    deletedRow.update(changeTypeIndex, UPDATE_BEFORE);
-    insertedRow.update(changeTypeIndex, UPDATE_AFTER);
-
-    return new Row[] {
-      RowFactory.create(deletedRow.values()), RowFactory.create(insertedRow.values())
-    };
   }
 
   private boolean isCarryoverRecord(Row currentRow, Row nextRow) {

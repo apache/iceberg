@@ -37,6 +37,7 @@ public class TestChangelogIterator extends SparkTestHelperBase {
 
   private final int changeTypeIndex = 3;
   private final List<Integer> identifierFieldIdx = Lists.newArrayList(0, 1);
+  private final int columnSize = 4;
 
   private enum RowType {
     DELETED,
@@ -69,7 +70,7 @@ public class TestChangelogIterator extends SparkTestHelperBase {
     }
 
     Iterator<Row> iterator =
-        ChangelogIterator.iterator(rows.iterator(), changeTypeIndex, identifierFieldIdx);
+        ChangelogIterator.create(rows.iterator(), changeTypeIndex, identifierFieldIdx, columnSize);
     List<Row> result = Lists.newArrayList(iterator);
     assertEquals("Rows should match", expectedRows, rowsToJava(result));
   }
@@ -143,7 +144,7 @@ public class TestChangelogIterator extends SparkTestHelperBase {
             new GenericRowWithSchema(new Object[] {6, "name", null, INSERT}, null));
 
     Iterator<Row> iterator =
-        ChangelogIterator.iterator(rowsWithNull.iterator(), 3, Lists.newArrayList(0, 1));
+        ChangelogIterator.create(rowsWithNull.iterator(), 3, Lists.newArrayList(0, 1), columnSize);
     List<Row> result = Lists.newArrayList(iterator);
 
     assertEquals(
@@ -176,8 +177,8 @@ public class TestChangelogIterator extends SparkTestHelperBase {
             new GenericRowWithSchema(new Object[] {4, "d", "data", INSERT}, null));
 
     Iterator<Row> iterator =
-        ChangelogIterator.iterator(
-            rowsWithDuplication.iterator(), changeTypeIndex, identifierFieldIdx);
+        ChangelogIterator.create(
+            rowsWithDuplication.iterator(), changeTypeIndex, identifierFieldIdx, columnSize);
     List<Row> result = Lists.newArrayList(iterator);
 
     assertEquals(
