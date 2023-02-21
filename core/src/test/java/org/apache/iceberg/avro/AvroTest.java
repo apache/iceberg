@@ -72,6 +72,7 @@ class AvroTest {
     verify(out, times(1)).createOrOverwrite();
   }
 
+  @SuppressWarnings("EmptyTryBlock")
   private void buildAvroWriter(OutputFile out) throws IOException {
     try (FileAppender<Object> writer =
         Avro.write(out)
