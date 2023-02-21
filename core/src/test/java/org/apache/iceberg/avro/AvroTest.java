@@ -72,7 +72,6 @@ class AvroTest {
     verify(out, times(1)).createOrOverwrite();
   }
 
-  @SuppressWarnings("EmptyTryBlock")
   private void buildAvroWriter(OutputFile out) throws IOException {
     try (FileAppender<Object> writer =
         Avro.write(out)
@@ -80,7 +79,9 @@ class AvroTest {
             .createWriterFunc(DataWriter::create)
             .schema(SCHEMA)
             .overwriteIfNeeded()
-            .build()) {}
+            .build()) {
+      // do nothing, just testing writer build
+    }
   }
 
   private PositionOutputStream testOutputStream() {
