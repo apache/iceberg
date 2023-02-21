@@ -107,11 +107,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
             ? new HadoopFileIO(conf)
             : CatalogUtil.loadFileIO(fileIOImpl, properties, conf);
 
-    this.clients =
-        properties.containsKey(CatalogProperties.CLIENT_POOL_IMPL)
-            ? CatalogUtil.loadClientPool(
-                properties.get(CatalogProperties.CLIENT_POOL_IMPL), properties, conf)
-            : new CachedClientPool(conf, properties);
+    this.clients = new CachedClientPool(conf, properties);
   }
 
   @Override

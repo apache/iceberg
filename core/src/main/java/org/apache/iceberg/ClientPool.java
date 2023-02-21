@@ -18,8 +18,6 @@
  */
 package org.apache.iceberg;
 
-import java.util.Map;
-
 public interface ClientPool<C, E extends Exception> {
   interface Action<R, C, E extends Exception> {
     R run(C client) throws E;
@@ -28,15 +26,4 @@ public interface ClientPool<C, E extends Exception> {
   <R> R run(Action<R, C, E> action) throws E, InterruptedException;
 
   <R> R run(Action<R, C, E> action, boolean retry) throws E, InterruptedException;
-
-  /**
-   * Initialize the client pool with catalog properties.
-   *
-   * <p>A custom ClientPool implementation must have a no-arg constructor. A Catalog using the
-   * ClientPool will first use this constructor to create an instance of the pool, and then call
-   * this method to initialize the pool.
-   *
-   * @param properties catalog properties
-   */
-  default void initialize(Map<String, String> properties) {}
 }

@@ -18,16 +18,12 @@
  */
 package org.apache.iceberg.hive;
 
-import java.util.Map;
+import java.util.Collections;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.conf.HiveConf;
-import org.apache.hadoop.hive.metastore.IMetaStoreClient;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
-import org.apache.iceberg.ClientPool;
-import org.apache.iceberg.hadoop.Configurable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.thrift.TException;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -53,47 +49,57 @@ public class TestLoadHiveCatalog {
   }
 
   @Test
-  public void testCustomClientPool() throws Exception {
-    Map<String, String> properties =
-        ImmutableMap.of(
-            CatalogProperties.CLIENT_POOL_IMPL, CachedClientPoolWrapper.class.getName());
-    HiveCatalog hiveCatalog =
+  public void testCustomCacheKeys() throws Exception {
+    HiveCatalog hiveCatalog1 =
         (HiveCatalog)
             CatalogUtil.loadCatalog(
                 HiveCatalog.class.getName(),
                 CatalogUtil.ICEBERG_CATALOG_TYPE_HIVE,
-                properties,
+                Collections.emptyMap(),
                 metastore.hiveConf());
-    Assert.assertTrue(hiveCatalog.clientPool() instanceof CachedClientPoolWrapper);
-    Assert.assertNotNull(((CachedClientPoolWrapper) hiveCatalog.clientPool()).hadoopConf);
-  }
+    HiveCatalog hiveCatalog2 =
+        (HiveCatalog)
+            CatalogUtil.loadCatalog(
+                HiveCatalog.class.getName(),
+                CatalogUtil.ICEBERG_CATALOG_TYPE_HIVE,
+                Collections.emptyMap(),
+                metastore.hiveConf());
 
-  public static class CachedClientPoolWrapper
-      implements ClientPool<IMetaStoreClient, TException>, Configurable<Configuration> {
+    CachedClientPool clientPool1 = (CachedClientPool) hiveCatalog1.clientPool();
+    CachedClientPool clientPool2 = (CachedClientPool) hiveCatalog2.clientPool();
+    Assert.assertSame(clientPool1.clientPool(), clientPool2.clientPool());
 
-    private CachedClientPool delegate;
-    private Configuration hadoopConf;
+    Configuration conf1 = new Configuration(metastore.hiveConf());
+    Configuration conf2 = new Configuration(metastore.hiveConf());
+    conf1.set("any.key", "any.value");
+    conf2.set("any.key", "any.value");
+    hiveCatalog1 =
+        (HiveCatalog)
+            CatalogUtil.loadCatalog(
+                HiveCatalog.class.getName(),
+                CatalogUtil.ICEBERG_CATALOG_TYPE_HIVE,
+                ImmutableMap.of(CatalogProperties.CLIENT_POOL_CACHE_KEYS, "uri,conf:any.key"),
+                conf1);
+    hiveCatalog2 =
+        (HiveCatalog)
+            CatalogUtil.loadCatalog(
+                HiveCatalog.class.getName(),
+                CatalogUtil.ICEBERG_CATALOG_TYPE_HIVE,
+                ImmutableMap.of(CatalogProperties.CLIENT_POOL_CACHE_KEYS, "uri,conf:any.key"),
+                conf2);
+    clientPool1 = (CachedClientPool) hiveCatalog1.clientPool();
+    clientPool2 = (CachedClientPool) hiveCatalog2.clientPool();
+    Assert.assertSame(clientPool1.clientPool(), clientPool2.clientPool());
 
-    @Override
-    public <R> R run(Action<R, IMetaStoreClient, TException> action)
-        throws TException, InterruptedException {
-      return delegate.run(action);
-    }
-
-    @Override
-    public <R> R run(Action<R, IMetaStoreClient, TException> action, boolean retry)
-        throws TException, InterruptedException {
-      return delegate.run(action, retry);
-    }
-
-    @Override
-    public void initialize(Map<String, String> properties) {
-      delegate = new CachedClientPool(hadoopConf, properties);
-    }
-
-    @Override
-    public void setConf(Configuration conf) {
-      this.hadoopConf = conf;
-    }
+    conf2.set("any.key", "any.value2");
+    hiveCatalog2 =
+        (HiveCatalog)
+            CatalogUtil.loadCatalog(
+                HiveCatalog.class.getName(),
+                CatalogUtil.ICEBERG_CATALOG_TYPE_HIVE,
+                ImmutableMap.of(CatalogProperties.CLIENT_POOL_CACHE_KEYS, "uri,conf:any.key"),
+                conf2);
+    clientPool2 = (CachedClientPool) hiveCatalog2.clientPool();
+    Assert.assertNotSame(clientPool1.clientPool(), clientPool2.clientPool());
   }
 }

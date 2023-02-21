@@ -119,8 +119,26 @@ public class CatalogProperties {
       "client.pool.cache.eviction-interval-ms";
   public static final long CLIENT_POOL_CACHE_EVICTION_INTERVAL_MS_DEFAULT =
       TimeUnit.MINUTES.toMillis(5);
-  /** Name of the custom {@link ClientPool} implementation class. */
-  public static final String CLIENT_POOL_IMPL = "client-pool-impl";
+  /**
+   * A comma separated list of elements that are used to compose the key of the client pool cache.
+   *
+   * <p>The following elements are supported:
+   *
+   * <ul>
+   *   <li>URI - as specified by {@link CatalogProperties#URI}. URI will be the only element when
+   *       this property is not set.
+   *   <li>UGI - the Hadoop UserGroupInformation instance that represents the current user using the
+   *       cache.
+   *   <li>USER_NAME - similar to UGI but only includes the user's name determined by
+   *       UserGroupInformation#getUserName.
+   *   <li>CONF - name of an arbitrary configuration. The value of the configuration will be
+   *       extracted from catalog properties and added to the cache key. A CONF element should start
+   *       with a "conf:" prefix which is followed by the configuration name. E.g. to add a
+   *       configuration named "a.b.c", the element "conf:a.b.c" should be specified. Multiple CONF
+   *       elements can be specified.
+   * </ul>
+   */
+  public static final String CLIENT_POOL_CACHE_KEYS = "client-pool-cache-keys";
 
   public static final String LOCK_IMPL = "lock-impl";
 
