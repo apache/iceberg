@@ -44,9 +44,9 @@ from pyiceberg.expressions import (
     BoundNotIn,
     BoundNotNaN,
     BoundNotNull,
-    BoundStartsWith,
     BoundNotStartsWith,
     BoundReference,
+    BoundStartsWith,
     GreaterThan,
     Not,
     Or,
@@ -534,14 +534,14 @@ def test_expr_not_in_to_pyarrow(bound_reference: BoundReference[str]) -> None:
 def test_expr_starts_with_to_pyarrow(bound_reference: BoundReference[str]) -> None:
     assert (
         repr(expression_to_pyarrow(BoundStartsWith(bound_reference, literal("he"))))
-        == "<pyarrow.compute.Expression starts_with(foo, {pattern=\"he\", ignore_case=false})>"
+        == '<pyarrow.compute.Expression starts_with(foo, {pattern="he", ignore_case=false})>'
     )
 
 
 def test_expr_not_starts_with_to_pyarrow(bound_reference: BoundReference[str]) -> None:
     assert (
         repr(expression_to_pyarrow(BoundNotStartsWith(bound_reference, literal("he"))))
-        == "<pyarrow.compute.Expression invert(starts_with(foo, {pattern=\"he\", ignore_case=false}))>"
+        == '<pyarrow.compute.Expression invert(starts_with(foo, {pattern="he", ignore_case=false}))>'
     )
 
 

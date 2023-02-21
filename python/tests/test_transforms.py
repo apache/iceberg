@@ -33,18 +33,18 @@ from pyiceberg.expressions import (
     BoundLessThanOrEqual,
     BoundNotIn,
     BoundNotNull,
+    BoundNotStartsWith,
     BoundReference,
     BoundStartsWith,
-    BoundNotStartsWith,
     EqualTo,
     GreaterThanOrEqual,
     In,
     LessThanOrEqual,
     NotIn,
     NotNull,
+    NotStartsWith,
     Reference,
     StartsWith,
-    NotStartsWith
 )
 from pyiceberg.expressions.literals import (
     DateLiteral,

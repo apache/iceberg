@@ -505,11 +505,11 @@ class _ExpressionEvaluator(BoundBooleanExpressionVisitor[bool]):
     def visit_less_than_or_equal(self, term: BoundTerm[L], literal: Literal[L]) -> bool:
         return term.eval(self.struct) <= literal.value
 
-    def visit_starts_with(self, term: BoundTerm[L], literal: Literal[L]) -> T:
-        return term.eval(self.struct).startswith(literal.value)
+    def visit_starts_with(self, term: BoundTerm[L], literal: Literal[L]) -> bool:
+        return str(term.eval(self.struct)).startswith(str(literal.value))
 
-    def visit_not_starts_with(self, term: BoundTerm[L], literal: Literal[L]) -> T:
-        return not term.eval(self.struct).startswith(literal.value)
+    def visit_not_starts_with(self, term: BoundTerm[L], literal: Literal[L]) -> bool:
+        return not str(term.eval(self.struct)).startswith(str(literal.value))
 
     def visit_true(self) -> bool:
         return True
@@ -708,12 +708,12 @@ class _ManifestEvalVisitor(BoundBooleanExpressionVisitor[bool]):
         pos = term.ref().accessor.position
         field = self.partition_fields[pos]
 
-        if field.upper_bound is None:
+        if field.lower_bound is None:
             return ROWS_CANNOT_MATCH
 
-        upper = _from_byte_buffer(term.ref().field.field_type, field.upper_bound)
+        lower = _from_byte_buffer(term.ref().field.field_type, field.lower_bound)
 
-        if literal.value.startswith(upper):
+        if lower.startswith(literal.value):
             return ROWS_MIGHT_MATCH
 
         return ROWS_CANNOT_MATCH
@@ -722,12 +722,12 @@ class _ManifestEvalVisitor(BoundBooleanExpressionVisitor[bool]):
         pos = term.ref().accessor.position
         field = self.partition_fields[pos]
 
-        if field.upper_bound is None:
+        if field.lower_bound is None:
             return ROWS_CANNOT_MATCH
 
-        upper = _from_byte_buffer(term.ref().field.field_type, field.upper_bound)
+        lower = _from_byte_buffer(term.ref().field.field_type, field.lower_bound)
 
-        if not literal.value.startswith(upper):
+        if not lower.startswith(literal.value):
             return ROWS_MIGHT_MATCH
 
         return ROWS_CANNOT_MATCH

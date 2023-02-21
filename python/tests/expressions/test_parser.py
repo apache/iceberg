@@ -29,14 +29,14 @@ from pyiceberg.expressions import (
     IsNull,
     LessThan,
     LessThanOrEqual,
-    StartsWith,
-    NotStartsWith,
     Not,
     NotEqualTo,
     NotIn,
     NotNaN,
     NotNull,
+    NotStartsWith,
     Or,
+    StartsWith,
     parser,
 )
 
