@@ -130,7 +130,7 @@ public class SparkScanBuilder
           pushableFilters.add(filter);
         }
 
-        if (expr == null || requiresSparkFiltering(expr)) {
+        if (expr == null || !ExpressionUtil.selectsPartitions(expr, table, caseSensitive)) {
           postScanFilters.add(filter);
         } else {
           LOG.info("Evaluating completely on Iceberg side: {}", filter);
@@ -146,11 +146,6 @@ public class SparkScanBuilder
     this.pushedFilters = pushableFilters.toArray(new Filter[0]);
 
     return postScanFilters.toArray(new Filter[0]);
-  }
-
-  private boolean requiresSparkFiltering(Expression expr) {
-    return table.specs().values().stream()
-        .anyMatch(spec -> !ExpressionUtil.selectsPartitions(expr, spec, caseSensitive));
   }
 
   @Override
