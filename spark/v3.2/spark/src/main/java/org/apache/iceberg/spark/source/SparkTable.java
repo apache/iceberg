@@ -50,6 +50,7 @@ import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkFilters;
 import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkSchemaUtil;
+import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.sql.SparkSession;
@@ -266,13 +267,17 @@ public class SparkTable
       }
     }
 
-    return deleteExpr == Expressions.alwaysTrue() || canDeleteUsingMetadata(deleteExpr);
+    return canDeleteUsingMetadata(deleteExpr);
   }
 
   // a metadata delete is possible iff matching files can be deleted entirely
   private boolean canDeleteUsingMetadata(Expression deleteExpr) {
-    boolean caseSensitive =
-        Boolean.parseBoolean(sparkSession().conf().get("spark.sql.caseSensitive"));
+    boolean caseSensitive = SparkUtil.caseSensitive(sparkSession());
+
+    if (ExpressionUtil.selectsPartitions(deleteExpr, table(), caseSensitive)) {
+      return true;
+    }
+
     TableScan scan =
         table()
             .newScan()

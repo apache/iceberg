@@ -58,7 +58,7 @@ public class SparkReadConf {
   }
 
   public boolean caseSensitive() {
-    return Boolean.parseBoolean(spark.conf().get("spark.sql.caseSensitive"));
+    return SparkUtil.caseSensitive(spark);
   }
 
   public boolean localityEnabled() {
