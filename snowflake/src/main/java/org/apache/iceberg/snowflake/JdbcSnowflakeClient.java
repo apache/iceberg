@@ -22,9 +22,6 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
@@ -35,6 +32,7 @@ import org.apache.iceberg.jdbc.UncheckedSQLException;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 
 /**
  * This implementation of SnowflakeClient builds on top of Snowflake's JDBC driver to interact with
@@ -132,11 +130,11 @@ class JdbcSnowflakeClient implements SnowflakeClient {
   private QueryHarness queryHarness;
 
   protected static final Set<Integer> DATABASE_NOT_FOUND_ERROR_CODES =
-      Collections.unmodifiableSet(new HashSet<>(Arrays.asList(2001, 2003, 2043)));
+      Sets.newHashSet(2001, 2003, 2043);
   protected static final Set<Integer> SCHEMA_NOT_FOUND_ERROR_CODES =
-      Collections.unmodifiableSet(new HashSet<>(Arrays.asList(2001, 2003, 2043)));
+      Sets.newHashSet(2001, 2003, 2043);
   protected static final Set<Integer> TABLE_NOT_FOUND_ERROR_CODES =
-      Collections.unmodifiableSet(new HashSet<>(Arrays.asList(2001, 2003, 2043)));
+      Sets.newHashSet(2001, 2003, 2043);
 
   JdbcSnowflakeClient(JdbcClientPool conn) {
     Preconditions.checkArgument(null != conn, "JdbcClientPool must be non-null");
@@ -362,18 +360,18 @@ class JdbcSnowflakeClient implements SnowflakeClient {
   }
 
   private void tryMapSnowflakeExceptionToIcebergException(
-      SnowflakeIdentifier.Type identifierType, SQLException e) {
+      SnowflakeIdentifier.Type identifierType, SQLException ex) {
     // NoSuchNamespace exception for Database and Schema cases
     if ((identifierType == SnowflakeIdentifier.Type.DATABASE
-            && DATABASE_NOT_FOUND_ERROR_CODES.contains(e.getErrorCode()))
+            && DATABASE_NOT_FOUND_ERROR_CODES.contains(ex.getErrorCode()))
         || (identifierType == SnowflakeIdentifier.Type.SCHEMA
-            && SCHEMA_NOT_FOUND_ERROR_CODES.contains(e.getErrorCode()))) {
-      throw new NoSuchNamespaceException(e, "%s", e.getMessage());
+            && SCHEMA_NOT_FOUND_ERROR_CODES.contains(ex.getErrorCode()))) {
+      throw new NoSuchNamespaceException(ex, "%s", ex.getMessage());
     }
     // NoSuchTable exception for Table cases
     else if (identifierType == SnowflakeIdentifier.Type.TABLE
-        && TABLE_NOT_FOUND_ERROR_CODES.contains(e.getErrorCode())) {
-      throw new NoSuchTableException(e, "%s", e.getMessage());
+        && TABLE_NOT_FOUND_ERROR_CODES.contains(ex.getErrorCode())) {
+      throw new NoSuchTableException(ex, "%s", ex.getMessage());
     }
   }
 }
