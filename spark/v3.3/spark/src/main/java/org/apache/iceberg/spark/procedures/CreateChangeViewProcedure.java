@@ -18,17 +18,13 @@
  */
 package org.apache.iceberg.spark.procedures;
 
-import java.sql.Timestamp;
 import java.util.Arrays;
-import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.ChangelogIterator;
-import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.source.SparkChangelogTable;
 import org.apache.spark.api.java.function.MapPartitionsFunction;
 import org.apache.spark.sql.Column;
@@ -203,21 +199,12 @@ public class CreateChangeViewProcedure extends BaseProcedure {
               DataTypes.StringType,
               DataTypes.StringType,
               (k, v) -> {
-                if (k.toString().equals(SparkReadOptions.START_TIMESTAMP)
-                    || k.toString().equals(SparkReadOptions.END_TIMESTAMP)) {
-                  options.put(k.toString(), toMillis(v.toString()));
-                } else {
-                  options.put(k.toString(), v.toString());
-                }
+                options.put(k.toString(), v.toString());
                 return BoxedUnit.UNIT;
               });
     }
 
     return options;
-  }
-
-  private static String toMillis(String timestamp) {
-    return String.valueOf(Timestamp.valueOf(timestamp).getTime());
   }
 
   @NotNull
@@ -233,20 +220,15 @@ public class CreateChangeViewProcedure extends BaseProcedure {
 
   private Dataset<Row> transform(Dataset<Row> df, Column[] repartitionColumns) {
     Column[] sortSpec = sortSpec(df, repartitionColumns);
-
-    int changeTypeIdx = df.schema().fieldIndex(MetadataColumns.CHANGE_TYPE.name());
-
-    List<Integer> repartitionIdx =
-        Arrays.stream(repartitionColumns)
-            .map(column -> df.schema().fieldIndex(column.toString()))
-            .collect(Collectors.toList());
+    StructType schema = df.schema();
+    String[] identifierFields =
+        Arrays.stream(repartitionColumns).map(Column::toString).toArray(String[]::new);
 
     return df.repartition(repartitionColumns)
         .sortWithinPartitions(sortSpec)
         .mapPartitions(
             (MapPartitionsFunction<Row, Row>)
-                rowIterator ->
-                    ChangelogIterator.iterator(rowIterator, changeTypeIdx, repartitionIdx),
+                rowIterator -> ChangelogIterator.create(rowIterator, schema, identifierFields),
             RowEncoder.apply(df.schema()));
   }
 

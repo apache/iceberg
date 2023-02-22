@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.spark.extensions;
 
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.ChangelogOperation;
@@ -106,12 +105,12 @@ public class TestCreateChangeViewProcedure extends SparkExtensionsTestBase {
 
   @Test
   public void testTimestampsBasedQuery() {
-    String beginning = LocalDateTime.now().toString();
+    long beginning = System.currentTimeMillis();
 
     sql("INSERT INTO %s VALUES (1, 'a')", tableName);
     Table table = validationCatalog.loadTable(tableIdent);
     Snapshot snap0 = table.currentSnapshot();
-    String afterFirstInsert = LocalDateTime.now().toString();
+    long afterFirstInsert = waitUntilAfter(snap0.timestampMillis());
 
     sql("INSERT INTO %s VALUES (2, 'b')", tableName);
     table.refresh();
@@ -121,11 +120,11 @@ public class TestCreateChangeViewProcedure extends SparkExtensionsTestBase {
     table.refresh();
     Snapshot snap2 = table.currentSnapshot();
 
-    String afterInsertOverwrite = LocalDateTime.now().toString();
+    long afterInsertOverwrite = waitUntilAfter(snap2.timestampMillis());
     List<Object[]> returns =
         sql(
             "CALL %s.system.create_change_view(table => '%s', "
-                + "options => map('%s', TIMESTAMP '%s','%s', TIMESTAMP '%s'))",
+                + "options => map('%s', '%s','%s', '%s'))",
             catalogName,
             tableName,
             SparkReadOptions.START_TIMESTAMP,
@@ -146,7 +145,7 @@ public class TestCreateChangeViewProcedure extends SparkExtensionsTestBase {
     returns =
         sql(
             "CALL %s.system.create_change_view(table => '%s', "
-                + "options => map('%s', TIMESTAMP '%s', '%s', TIMESTAMP '%s'))",
+                + "options => map('%s', '%s', '%s', '%s'))",
             catalogName,
             tableName,
             SparkReadOptions.START_TIMESTAMP,
