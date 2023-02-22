@@ -52,6 +52,7 @@ public class Namespace {
   }
 
   private final String[] levels;
+  private transient Namespace parent = null;
 
   private Namespace(String[] levels) {
     this.levels = levels;
@@ -67,6 +68,14 @@ public class Namespace {
 
   public boolean isEmpty() {
     return levels.length == 0;
+  }
+
+  public Namespace parent() {
+    if (parent == null && levels.length > 0) {
+      this.parent = Namespace.of(Arrays.copyOf(levels, levels.length - 1));
+    }
+
+    return parent;
   }
 
   public int length() {

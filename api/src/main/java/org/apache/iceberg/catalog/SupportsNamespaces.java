@@ -66,9 +66,9 @@ public interface SupportsNamespaces {
    *
    * <p>If an object such as a table, view, or function exists, its parent namespaces must also
    * exist and must be returned by this discovery method. For example, if table a.b.t exists, this
-   * method must return ["a"] in the result array.
+   * method must return Namespace.of("a") in the result array.
    *
-   * @return an List of namespace {@link Namespace} names
+   * @return a List of namespace {@link Namespace} names
    */
   default List<Namespace> listNamespaces() {
     return listNamespaces(Namespace.empty());
@@ -78,7 +78,7 @@ public interface SupportsNamespaces {
    * List namespaces from the namespace.
    *
    * <p>For example, if table a.b.t exists, use 'SELECT NAMESPACE IN a' this method must return
-   * Namepace.of("a","b") {@link Namespace}.
+   * Namespace.of("a","b") {@link Namespace}.
    *
    * @return a List of namespace {@link Namespace} names
    * @throws NoSuchNamespaceException If the namespace does not exist (optional)
