@@ -18,6 +18,9 @@
  */
 package org.apache.iceberg.snowflake;
 
+import static org.apache.iceberg.snowflake.JdbcSnowflakeClient.DATABASE_NOT_FOUND_ERROR_CODES;
+import static org.apache.iceberg.snowflake.JdbcSnowflakeClient.SCHEMA_NOT_FOUND_ERROR_CODES;
+import static org.apache.iceberg.snowflake.JdbcSnowflakeClient.TABLE_NOT_FOUND_ERROR_CODES;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
@@ -48,6 +51,37 @@ public class JdbcSnowflakeClientTest {
   @Mock private JdbcClientPool mockClientPool;
   @Mock private JdbcSnowflakeClient.QueryHarness mockQueryHarness;
   @Mock private ResultSet mockResultSet;
+
+  @FunctionalInterface
+  private interface TestHelper {
+    void run();
+  }
+
+  private void generateSqlExceptionAndAssert(
+      TestHelper fn, Class expectedExceptionClass, String reason, int errorCode)
+      throws SQLException, InterruptedException {
+    when(mockClientPool.run(any(ClientPool.Action.class)))
+        .thenThrow(new SQLException(reason, "2000", errorCode, null));
+    Assertions.assertThatExceptionOfType(expectedExceptionClass)
+        .isThrownBy(() -> fn.run())
+        .withStackTraceContaining(reason);
+  }
+
+  private void generateSqlExceptionAndAssert(
+      TestHelper fn, Class expectedExceptionClass, String reason)
+      throws SQLException, InterruptedException {
+    generateSqlExceptionAndAssert(fn, expectedExceptionClass, reason, 0);
+  }
+
+  private void generateInterruptedExceptionAndAssert(
+      TestHelper fn, Class expectedExceptionClass, String reason)
+      throws SQLException, InterruptedException {
+    when(mockClientPool.run(any(ClientPool.Action.class)))
+        .thenThrow(new InterruptedException(reason));
+    Assertions.assertThatExceptionOfType(expectedExceptionClass)
+        .isThrownBy(() -> fn.run())
+        .withStackTraceContaining(reason);
+  }
 
   private JdbcSnowflakeClient snowflakeClient;
 
@@ -106,19 +140,16 @@ public class JdbcSnowflakeClientTest {
             new SQLException("Database does not exist or not authorized", "2000", 2001, null));
 
     // Error code 2003
-    Assertions.assertThatExceptionOfType(NoSuchNamespaceException.class)
-        .isThrownBy(() -> snowflakeClient.databaseExists(SnowflakeIdentifier.ofDatabase("DB_1")))
-        .withStackTraceContaining("Database does not exist");
+    Assertions.assertThat(snowflakeClient.databaseExists(SnowflakeIdentifier.ofDatabase("DB_1")))
+        .isFalse();
 
     // Error code 2043
-    Assertions.assertThatExceptionOfType(NoSuchNamespaceException.class)
-        .isThrownBy(() -> snowflakeClient.databaseExists(SnowflakeIdentifier.ofDatabase("DB_2")))
-        .withStackTraceContaining("Database does not exist, or operation cannot be performed");
+    Assertions.assertThat(snowflakeClient.databaseExists(SnowflakeIdentifier.ofDatabase("DB_1")))
+        .isFalse();
 
     // Error code 2001
-    Assertions.assertThatExceptionOfType(NoSuchNamespaceException.class)
-        .isThrownBy(() -> snowflakeClient.databaseExists(SnowflakeIdentifier.ofDatabase("DB_3")))
-        .withStackTraceContaining("Database does not exist or not authorized");
+    Assertions.assertThat(snowflakeClient.databaseExists(SnowflakeIdentifier.ofDatabase("DB_1")))
+        .isFalse();
   }
 
   @Test
@@ -127,6 +158,15 @@ public class JdbcSnowflakeClientTest {
 
     Assertions.assertThatExceptionOfType(UncheckedSQLException.class)
         .isThrownBy(() -> snowflakeClient.databaseExists(SnowflakeIdentifier.ofDatabase("DB_1")));
+  }
+
+  @Test
+  public void testDatabaseFailureWithInterruptedException()
+      throws SQLException, InterruptedException {
+    generateInterruptedExceptionAndAssert(
+        () -> snowflakeClient.databaseExists(SnowflakeIdentifier.ofDatabase("DB_1")),
+        UncheckedInterruptedException.class,
+        "Fake interrupted exception");
   }
 
   @Test
@@ -180,22 +220,19 @@ public class JdbcSnowflakeClientTest {
     when(mockResultSet.getString("database_name")).thenReturn("DB1");
 
     // Error code 2003
-    Assertions.assertThatExceptionOfType(NoSuchNamespaceException.class)
-        .isThrownBy(
-            () -> snowflakeClient.schemaExists(SnowflakeIdentifier.ofSchema("DB_1", "SCHEMA_2")))
-        .withStackTraceContaining("Schema does not exist");
+    Assertions.assertThat(
+            snowflakeClient.schemaExists(SnowflakeIdentifier.ofSchema("DB_1", "SCHEMA_2")))
+        .isFalse();
 
     // Error code 2043
-    Assertions.assertThatExceptionOfType(NoSuchNamespaceException.class)
-        .isThrownBy(
-            () -> snowflakeClient.schemaExists(SnowflakeIdentifier.ofSchema("DB_1", "SCHEMA_3")))
-        .withStackTraceContaining("Schema does not exist, or operation cannot be performed");
+    Assertions.assertThat(
+            snowflakeClient.schemaExists(SnowflakeIdentifier.ofSchema("DB_1", "SCHEMA_2")))
+        .isFalse();
 
     // Error code 2001
-    Assertions.assertThatExceptionOfType(NoSuchNamespaceException.class)
-        .isThrownBy(
-            () -> snowflakeClient.schemaExists(SnowflakeIdentifier.ofSchema("DB_1", "SCHEMA_4")))
-        .withStackTraceContaining("Schema does not exist or not authorized");
+    Assertions.assertThat(
+            snowflakeClient.schemaExists(SnowflakeIdentifier.ofSchema("DB_1", "SCHEMA_2")))
+        .isFalse();
   }
 
   @Test
@@ -212,6 +249,15 @@ public class JdbcSnowflakeClientTest {
     Assertions.assertThatExceptionOfType(UncheckedSQLException.class)
         .isThrownBy(
             () -> snowflakeClient.schemaExists(SnowflakeIdentifier.ofSchema("DB_1", "SCHEMA_2")));
+  }
+
+  @Test
+  public void testSchemaFailureWithInterruptedException()
+      throws SQLException, InterruptedException {
+    generateInterruptedExceptionAndAssert(
+        () -> snowflakeClient.schemaExists(SnowflakeIdentifier.ofSchema("DB_1", "SCHEMA_2")),
+        UncheckedInterruptedException.class,
+        "Fake Interrupted exception");
   }
 
   @Test
@@ -240,26 +286,13 @@ public class JdbcSnowflakeClientTest {
    */
   @Test
   public void testListDatabasesSQLException() throws SQLException, InterruptedException {
-    // Error Code 2003
-    when(mockClientPool.run(any(ClientPool.Action.class)))
-        .thenThrow(new SQLException("SQL exception with Error Code 2003", "2000", 2003, null));
-    Assertions.assertThatExceptionOfType(NoSuchNamespaceException.class)
-        .isThrownBy(() -> snowflakeClient.listDatabases())
-        .withStackTraceContaining("SQL exception with Error Code 2003");
-
-    // Error Code 2043
-    when(mockClientPool.run(any(ClientPool.Action.class)))
-        .thenThrow(new SQLException("SQL exception with Error Code 2043", "2000", 2043, null));
-    Assertions.assertThatExceptionOfType(NoSuchNamespaceException.class)
-        .isThrownBy(() -> snowflakeClient.listDatabases())
-        .withStackTraceContaining("SQL exception with Error Code 2043");
-
-    // Error Code 2001
-    when(mockClientPool.run(any(ClientPool.Action.class)))
-        .thenThrow(new SQLException("SQL exception with Error Code 2001", "2000", 2001, null));
-    Assertions.assertThatExceptionOfType(NoSuchNamespaceException.class)
-        .isThrownBy(() -> snowflakeClient.listDatabases())
-        .withStackTraceContaining("SQL exception with Error Code 2001");
+    for (Integer errorCode : DATABASE_NOT_FOUND_ERROR_CODES) {
+      generateSqlExceptionAndAssert(
+          () -> snowflakeClient.listDatabases(),
+          NoSuchNamespaceException.class,
+          String.format("SQL exception with Error Code %d", errorCode),
+          errorCode);
+    }
   }
 
   /**
@@ -269,11 +302,8 @@ public class JdbcSnowflakeClientTest {
   @Test
   public void testListDatabasesSQLExceptionWithoutErrorCode()
       throws SQLException, InterruptedException {
-    when(mockClientPool.run(any(ClientPool.Action.class)))
-        .thenThrow(new SQLException("Fake SQL exception"));
-    Assertions.assertThatExceptionOfType(UncheckedSQLException.class)
-        .isThrownBy(() -> snowflakeClient.listDatabases())
-        .withStackTraceContaining("Fake SQL exception");
+    generateSqlExceptionAndAssert(
+        () -> snowflakeClient.listDatabases(), UncheckedSQLException.class, "Fake SQL exception");
   }
 
   /**
@@ -282,11 +312,10 @@ public class JdbcSnowflakeClientTest {
    */
   @Test
   public void testListDatabasesInterruptedException() throws SQLException, InterruptedException {
-    when(mockClientPool.run(any(ClientPool.Action.class)))
-        .thenThrow(new InterruptedException("Fake interrupted exception"));
-    Assertions.assertThatExceptionOfType(UncheckedInterruptedException.class)
-        .isThrownBy(() -> snowflakeClient.listDatabases())
-        .withStackTraceContaining("Fake interrupted exception");
+    generateInterruptedExceptionAndAssert(
+        () -> snowflakeClient.listDatabases(),
+        UncheckedInterruptedException.class,
+        "Fake interrupted exception");
   }
 
   /**
@@ -354,26 +383,13 @@ public class JdbcSnowflakeClientTest {
    */
   @Test
   public void testListSchemasSQLException() throws SQLException, InterruptedException {
-    // Error Code 2003
-    when(mockClientPool.run(any(ClientPool.Action.class)))
-        .thenThrow(new SQLException("SQL exception with Error Code 2003", "2000", 2003, null));
-    Assertions.assertThatExceptionOfType(NoSuchNamespaceException.class)
-        .isThrownBy(() -> snowflakeClient.listSchemas(SnowflakeIdentifier.ofDatabase("DB_1")))
-        .withStackTraceContaining("SQL exception with Error Code 2003");
-
-    // Error Code 2043
-    when(mockClientPool.run(any(ClientPool.Action.class)))
-        .thenThrow(new SQLException("SQL exception with Error Code 2043", "2000", 2043, null));
-    Assertions.assertThatExceptionOfType(NoSuchNamespaceException.class)
-        .isThrownBy(() -> snowflakeClient.listSchemas(SnowflakeIdentifier.ofDatabase("DB_1")))
-        .withStackTraceContaining("SQL exception with Error Code 2043");
-
-    // Error Code 2001
-    when(mockClientPool.run(any(ClientPool.Action.class)))
-        .thenThrow(new SQLException("SQL exception with Error Code 2001", "2000", 2001, null));
-    Assertions.assertThatExceptionOfType(NoSuchNamespaceException.class)
-        .isThrownBy(() -> snowflakeClient.listSchemas(SnowflakeIdentifier.ofDatabase("DB_1")))
-        .withStackTraceContaining("SQL exception with Error Code 2001");
+    for (Integer errorCode : SCHEMA_NOT_FOUND_ERROR_CODES) {
+      generateSqlExceptionAndAssert(
+          () -> snowflakeClient.listSchemas(SnowflakeIdentifier.ofDatabase("DB_1")),
+          NoSuchNamespaceException.class,
+          String.format("SQL exception with Error Code %d", errorCode),
+          errorCode);
+    }
   }
 
   /**
@@ -383,11 +399,10 @@ public class JdbcSnowflakeClientTest {
   @Test
   public void testListSchemasSQLExceptionWithoutErrorCode()
       throws SQLException, InterruptedException {
-    when(mockClientPool.run(any(ClientPool.Action.class)))
-        .thenThrow(new SQLException("Fake SQL exception"));
-    Assertions.assertThatExceptionOfType(UncheckedSQLException.class)
-        .isThrownBy(() -> snowflakeClient.listSchemas(SnowflakeIdentifier.ofDatabase("DB_1")))
-        .withStackTraceContaining("Fake SQL exception");
+    generateSqlExceptionAndAssert(
+        () -> snowflakeClient.listSchemas(SnowflakeIdentifier.ofDatabase("DB_1")),
+        UncheckedSQLException.class,
+        "Fake SQL exception");
   }
 
   /**
@@ -396,11 +411,10 @@ public class JdbcSnowflakeClientTest {
    */
   @Test
   public void testListSchemasInterruptedException() throws SQLException, InterruptedException {
-    when(mockClientPool.run(any(ClientPool.Action.class)))
-        .thenThrow(new InterruptedException("Fake interrupted exception"));
-    Assertions.assertThatExceptionOfType(UncheckedInterruptedException.class)
-        .isThrownBy(() -> snowflakeClient.listSchemas(SnowflakeIdentifier.ofDatabase("DB_1")))
-        .withStackTraceContaining("Fake interrupted exception");
+    generateInterruptedExceptionAndAssert(
+        () -> snowflakeClient.listSchemas(SnowflakeIdentifier.ofDatabase("DB_1")),
+        UncheckedInterruptedException.class,
+        "Fake interrupted exception");
   }
 
   /**
@@ -519,26 +533,13 @@ public class JdbcSnowflakeClientTest {
    */
   @Test
   public void testListIcebergTablesSQLException() throws SQLException, InterruptedException {
-    // Error Code 2003
-    when(mockClientPool.run(any(ClientPool.Action.class)))
-        .thenThrow(new SQLException("SQL exception with Error Code 2003", "2000", 2003, null));
-    Assertions.assertThatExceptionOfType(NoSuchNamespaceException.class)
-        .isThrownBy(() -> snowflakeClient.listIcebergTables(SnowflakeIdentifier.ofDatabase("DB_1")))
-        .withStackTraceContaining("SQL exception with Error Code 2003");
-
-    // Error Code 2043
-    when(mockClientPool.run(any(ClientPool.Action.class)))
-        .thenThrow(new SQLException("SQL exception with Error Code 2043", "2000", 2043, null));
-    Assertions.assertThatExceptionOfType(NoSuchNamespaceException.class)
-        .isThrownBy(() -> snowflakeClient.listIcebergTables(SnowflakeIdentifier.ofDatabase("DB_1")))
-        .withStackTraceContaining("SQL exception with Error Code 2043");
-
-    // Error Code 2001
-    when(mockClientPool.run(any(ClientPool.Action.class)))
-        .thenThrow(new SQLException("SQL exception with Error Code 2001", "2000", 2001, null));
-    Assertions.assertThatExceptionOfType(NoSuchNamespaceException.class)
-        .isThrownBy(() -> snowflakeClient.listIcebergTables(SnowflakeIdentifier.ofDatabase("DB_1")))
-        .withStackTraceContaining("SQL exception with Error Code 2001");
+    for (Integer errorCode : SCHEMA_NOT_FOUND_ERROR_CODES) {
+      generateSqlExceptionAndAssert(
+          () -> snowflakeClient.listIcebergTables(SnowflakeIdentifier.ofDatabase("DB_1")),
+          NoSuchNamespaceException.class,
+          String.format("SQL exception with Error Code %d", errorCode),
+          errorCode);
+    }
   }
 
   /**
@@ -548,11 +549,10 @@ public class JdbcSnowflakeClientTest {
   @Test
   public void testListIcebergTablesSQLExceptionWithoutErrorCode()
       throws SQLException, InterruptedException {
-    when(mockClientPool.run(any(ClientPool.Action.class)))
-        .thenThrow(new SQLException("Fake SQL exception"));
-    Assertions.assertThatExceptionOfType(UncheckedSQLException.class)
-        .isThrownBy(() -> snowflakeClient.listIcebergTables(SnowflakeIdentifier.ofDatabase("DB_1")))
-        .withStackTraceContaining("Fake SQL exception");
+    generateSqlExceptionAndAssert(
+        () -> snowflakeClient.listIcebergTables(SnowflakeIdentifier.ofDatabase("DB_1")),
+        UncheckedSQLException.class,
+        "Fake SQL exception");
   }
 
   /**
@@ -562,11 +562,10 @@ public class JdbcSnowflakeClientTest {
   @Test
   public void testListIcebergTablesInterruptedException()
       throws SQLException, InterruptedException {
-    when(mockClientPool.run(any(ClientPool.Action.class)))
-        .thenThrow(new InterruptedException("Fake interrupted exception"));
-    Assertions.assertThatExceptionOfType(UncheckedInterruptedException.class)
-        .isThrownBy(() -> snowflakeClient.listIcebergTables(SnowflakeIdentifier.ofDatabase("DB_1")))
-        .withStackTraceContaining("Fake interrupted exception");
+    generateInterruptedExceptionAndAssert(
+        () -> snowflakeClient.listIcebergTables(SnowflakeIdentifier.ofDatabase("DB_1")),
+        UncheckedInterruptedException.class,
+        "Fake interrupted exception");
   }
 
   /**
@@ -681,35 +680,15 @@ public class JdbcSnowflakeClientTest {
    */
   @Test
   public void testGetTableMetadataSQLException() throws SQLException, InterruptedException {
-    // Error Code 2003
-    when(mockClientPool.run(any(ClientPool.Action.class)))
-        .thenThrow(new SQLException("SQL exception with Error Code 2003", "2000", 2003, null));
-    Assertions.assertThatExceptionOfType(NoSuchTableException.class)
-        .isThrownBy(
-            () ->
-                snowflakeClient.loadTableMetadata(
-                    SnowflakeIdentifier.ofTable("DB_1", "SCHEMA_1", "TABLE_1")))
-        .withStackTraceContaining("SQL exception with Error Code 2003");
-
-    // Error Code 2043
-    when(mockClientPool.run(any(ClientPool.Action.class)))
-        .thenThrow(new SQLException("SQL exception with Error Code 2043", "2000", 2043, null));
-    Assertions.assertThatExceptionOfType(NoSuchTableException.class)
-        .isThrownBy(
-            () ->
-                snowflakeClient.loadTableMetadata(
-                    SnowflakeIdentifier.ofTable("DB_1", "SCHEMA_1", "TABLE_1")))
-        .withStackTraceContaining("SQL exception with Error Code 2043");
-
-    // Error Code 2001
-    when(mockClientPool.run(any(ClientPool.Action.class)))
-        .thenThrow(new SQLException("SQL exception with Error Code 2001", "2000", 2001, null));
-    Assertions.assertThatExceptionOfType(NoSuchTableException.class)
-        .isThrownBy(
-            () ->
-                snowflakeClient.loadTableMetadata(
-                    SnowflakeIdentifier.ofTable("DB_1", "SCHEMA_1", "TABLE_1")))
-        .withStackTraceContaining("SQL exception with Error Code 2001");
+    for (Integer errorCode : TABLE_NOT_FOUND_ERROR_CODES) {
+      generateSqlExceptionAndAssert(
+          () ->
+              snowflakeClient.loadTableMetadata(
+                  SnowflakeIdentifier.ofTable("DB_1", "SCHEMA_1", "TABLE_1")),
+          NoSuchTableException.class,
+          String.format("SQL exception with Error Code %d", errorCode),
+          errorCode);
+    }
   }
 
   /**
@@ -719,14 +698,12 @@ public class JdbcSnowflakeClientTest {
   @Test
   public void testGetTableMetadataSQLExceptionWithoutErrorCode()
       throws SQLException, InterruptedException {
-    when(mockClientPool.run(any(ClientPool.Action.class)))
-        .thenThrow(new SQLException("Fake SQL exception"));
-    Assertions.assertThatExceptionOfType(UncheckedSQLException.class)
-        .isThrownBy(
-            () ->
-                snowflakeClient.loadTableMetadata(
-                    SnowflakeIdentifier.ofTable("DB_1", "SCHEMA_1", "TABLE_1")))
-        .withStackTraceContaining("Fake SQL exception");
+    generateSqlExceptionAndAssert(
+        () ->
+            snowflakeClient.loadTableMetadata(
+                SnowflakeIdentifier.ofTable("DB_1", "SCHEMA_1", "TABLE_1")),
+        UncheckedSQLException.class,
+        "Fake SQL exception");
   }
 
   /**
@@ -735,14 +712,12 @@ public class JdbcSnowflakeClientTest {
    */
   @Test
   public void testGetTableMetadataInterruptedException() throws SQLException, InterruptedException {
-    when(mockClientPool.run(any(ClientPool.Action.class)))
-        .thenThrow(new InterruptedException("Fake interrupted exception"));
-    Assertions.assertThatExceptionOfType(UncheckedInterruptedException.class)
-        .isThrownBy(
-            () ->
-                snowflakeClient.loadTableMetadata(
-                    SnowflakeIdentifier.ofTable("DB_1", "SCHEMA_1", "TABLE_1")))
-        .withStackTraceContaining("Fake interrupted exception");
+    generateInterruptedExceptionAndAssert(
+        () ->
+            snowflakeClient.loadTableMetadata(
+                SnowflakeIdentifier.ofTable("DB_1", "SCHEMA_1", "TABLE_1")),
+        UncheckedInterruptedException.class,
+        "Fake interrupted exception");
   }
 
   /** Calling close() propagates to closing underlying client pool. */
