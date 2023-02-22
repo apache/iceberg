@@ -723,11 +723,13 @@ public class SparkCatalog extends BaseCatalog {
       Matcher id = SNAPSHOT_ID.matcher(meta);
       if (id.matches()) {
         snapshotId = Long.parseLong(id.group(1));
+        continue;
       }
 
       Matcher branchRef = BRANCH.matcher(meta);
       if (branchRef.matches()) {
         branch = branchRef.group(1);
+        continue;
       }
 
       Matcher tagRef = TAG.matcher(meta);

@@ -150,11 +150,13 @@ public class SparkCachedTableCatalog implements TableCatalog {
       Matcher snapshotBasedMatcher = SNAPSHOT_ID.matcher(meta);
       if (snapshotBasedMatcher.matches()) {
         snapshotId = Long.parseLong(snapshotBasedMatcher.group(1));
+        continue;
       }
 
       Matcher branchBasedMatcher = BRANCH.matcher(meta);
       if (branchBasedMatcher.matches()) {
         branch = branchBasedMatcher.group(1);
+        continue;
       }
 
       Matcher tagBasedMatcher = TAG.matcher(meta);
