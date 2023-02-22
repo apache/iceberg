@@ -45,8 +45,8 @@ public class ReachableFileUtil {
    */
   public static String versionHintLocation(Table table) {
     // only Hadoop tables have a hint file and such tables have a fixed metadata layout
-    Path metadataPath = new Path(table.location(), METADATA_FOLDER_NAME);
-    Path versionHintPath = new Path(metadataPath, Util.VERSION_HINT_FILENAME);
+    Path metadataPath = new Path(table.location() + "/" + METADATA_FOLDER_NAME);
+    Path versionHintPath = new Path(metadataPath + "/" + Util.VERSION_HINT_FILENAME);
     return versionHintPath.toString();
   }
 
