@@ -50,10 +50,10 @@ class ShuffleOperator<T, K> extends AbstractStreamOperator<ShuffleRecordWrapper<
   // keySelector will be used to generate key from data for collecting data statistics
   private final KeySelector<T, K> keySelector;
   private final OperatorEventGateway operatorEventGateway;
-  private final transient DataStatisticsFactory<K> statisticsFactory;
-  private transient DataStatistics<K> localStatistics;
-  private transient DataStatistics<K> globalStatistics;
-  private transient ListState<DataStatistics<K>> globalStatisticsState;
+  private final DataStatisticsFactory<K> statisticsFactory;
+  private DataStatistics<K> localStatistics;
+  private DataStatistics<K> globalStatistics;
+  private ListState<DataStatistics<K>> globalStatisticsState;
 
   public ShuffleOperator(
       KeySelector<T, K> keySelector,
