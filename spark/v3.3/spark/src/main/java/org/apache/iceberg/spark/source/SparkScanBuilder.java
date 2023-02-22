@@ -149,8 +149,7 @@ public class SparkScanBuilder
   }
 
   private boolean requiresSparkFiltering(Expression expr) {
-    return table.specs().values().stream()
-        .anyMatch(spec -> !ExpressionUtil.selectsPartitions(expr, spec, caseSensitive));
+    return !ExpressionUtil.selectsPartitions(expr, table, caseSensitive);
   }
 
   @Override

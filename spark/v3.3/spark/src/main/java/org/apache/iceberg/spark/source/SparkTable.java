@@ -279,8 +279,7 @@ public class SparkTable
   }
 
   private boolean selectsPartitions(Expression expr) {
-    return table().specs().values().stream()
-        .allMatch(spec -> ExpressionUtil.selectsPartitions(expr, spec, isCaseSensitive()));
+    return ExpressionUtil.selectsPartitions(expr, table(), isCaseSensitive());
   }
 
   // a metadata delete is possible iff matching files can be deleted entirely
