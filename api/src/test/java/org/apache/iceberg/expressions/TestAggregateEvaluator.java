@@ -91,7 +91,9 @@ public class TestAggregateEvaluator {
           // upper bounds
           ImmutableMap.of(1, toByteBuffer(IntegerType.get(), 3333)));
 
-  private static final DataFile[] dataFiles = {FILE, MISSING_SOME_NULLS_STATS_1, MISSING_SOME_NULLS_STATS_2};
+  private static final DataFile[] dataFiles = {
+    FILE, MISSING_SOME_NULLS_STATS_1, MISSING_SOME_NULLS_STATS_2
+  };
 
   @Test
   public void testIntAggregate() {
