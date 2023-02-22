@@ -20,7 +20,9 @@ package org.apache.iceberg.spark.source;
 
 import java.util.Arrays;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.stream.Stream;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.spark.PathIdentifier;
@@ -67,6 +69,8 @@ public class IcebergSource implements DataSourceRegister, SupportsCatalogOptions
       "spark.sql.catalog." + DEFAULT_CACHE_CATALOG_NAME;
   private static final String AT_TIMESTAMP = "at_timestamp_";
   private static final String SNAPSHOT_ID = "snapshot_id_";
+  private static final String BRANCH_PREFIX = "branch_";
+  private static final String TAG_PREFIX = "tag_";
   private static final String[] EMPTY_NAMESPACE = new String[0];
 
   private static final SparkTableCache TABLE_CACHE = SparkTableCache.get();
@@ -124,11 +128,15 @@ public class IcebergSource implements DataSourceRegister, SupportsCatalogOptions
 
     Long snapshotId = propertyAsLong(options, SparkReadOptions.SNAPSHOT_ID);
     Long asOfTimestamp = propertyAsLong(options, SparkReadOptions.AS_OF_TIMESTAMP);
+    String branch = options.get(SparkReadOptions.BRANCH);
+    String tag = options.get(SparkReadOptions.TAG);
     Preconditions.checkArgument(
-        asOfTimestamp == null || snapshotId == null,
-        "Cannot specify both snapshot-id (%s) and as-of-timestamp (%s)",
+        Stream.of(snapshotId, asOfTimestamp, branch, tag).filter(Objects::nonNull).count() <= 1,
+        "Can specify only one of snapshot-id (%s), as-of-timestamp (%s), branch (%s), tag (%s)",
         snapshotId,
-        asOfTimestamp);
+        asOfTimestamp,
+        branch,
+        tag);
 
     String selector = null;
 
@@ -138,6 +146,14 @@ public class IcebergSource implements DataSourceRegister, SupportsCatalogOptions
 
     if (asOfTimestamp != null) {
       selector = AT_TIMESTAMP + asOfTimestamp;
+    }
+
+    if (branch != null) {
+      selector = BRANCH_PREFIX + branch;
+    }
+
+    if (tag != null) {
+      selector = TAG_PREFIX + tag;
     }
 
     CatalogManager catalogManager = spark.sessionState().catalogManager();
