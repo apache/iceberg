@@ -275,15 +275,15 @@ public class SparkTable
       }
     }
 
-    return selectsPartitions(deleteExpr) || canDeleteUsingMetadata(deleteExpr);
-  }
-
-  private boolean selectsPartitions(Expression expr) {
-    return ExpressionUtil.selectsPartitions(expr, table(), isCaseSensitive());
+    return canDeleteUsingMetadata(deleteExpr);
   }
 
   // a metadata delete is possible iff matching files can be deleted entirely
   private boolean canDeleteUsingMetadata(Expression deleteExpr) {
+    if (ExpressionUtil.selectsPartitions(deleteExpr, table(), isCaseSensitive())) {
+      return true;
+    }
+
     TableScan scan =
         table()
             .newScan()
