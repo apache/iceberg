@@ -124,6 +124,13 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
               (DeleteFromIcebergTable) OptimizeMetadataOnlyDeleteFromIcebergTable.apply(analyzed);
           Assert.assertTrue("Should discard rewrite plan", optimized.rewritePlan().isEmpty());
         });
+
+    sql("DELETE FROM %s WHERE dep = 'hr'", tableName);
+
+    assertEquals(
+        "Should have expected rows",
+        ImmutableList.of(row(1, "hardware"), row(2, "hardware")),
+        sql("SELECT * FROM %s ORDER BY id", tableName));
   }
 
   @Test
