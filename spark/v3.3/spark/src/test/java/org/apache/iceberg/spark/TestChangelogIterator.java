@@ -23,9 +23,14 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import org.apache.iceberg.ChangelogOperation;
+import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.expressions.GenericRowWithSchema;
+import org.apache.spark.sql.types.DataTypes;
+import org.apache.spark.sql.types.Metadata;
+import org.apache.spark.sql.types.StructField;
+import org.apache.spark.sql.types.StructType;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -35,9 +40,16 @@ public class TestChangelogIterator extends SparkTestHelperBase {
   private static final String UPDATE_BEFORE = ChangelogOperation.UPDATE_BEFORE.name();
   private static final String UPDATE_AFTER = ChangelogOperation.UPDATE_AFTER.name();
 
-  private final int changeTypeIndex = 3;
-  private final List<Integer> identifierFieldIdx = Lists.newArrayList(0, 1);
-  private final int columnSize = 4;
+  private static final StructType SCHEMA =
+      new StructType(
+          new StructField[] {
+            new StructField("id", DataTypes.IntegerType, false, Metadata.empty()),
+            new StructField("name", DataTypes.StringType, false, Metadata.empty()),
+            new StructField("data", DataTypes.StringType, true, Metadata.empty()),
+            new StructField(
+                MetadataColumns.CHANGE_TYPE.name(), DataTypes.StringType, false, Metadata.empty())
+          });
+  private static final String[] IDENTIFIER_FIELDS = new String[] {"id", "name"};
 
   private enum RowType {
     DELETED,
@@ -69,8 +81,7 @@ public class TestChangelogIterator extends SparkTestHelperBase {
       expectedRows.addAll(toExpectedRows((RowType) permutation[i], i));
     }
 
-    Iterator<Row> iterator =
-        ChangelogIterator.create(rows.iterator(), changeTypeIndex, identifierFieldIdx, columnSize);
+    Iterator<Row> iterator = ChangelogIterator.create(rows.iterator(), SCHEMA, IDENTIFIER_FIELDS);
     List<Row> result = Lists.newArrayList(iterator);
     assertEquals("Rows should match", expectedRows, rowsToJava(result));
   }
@@ -144,7 +155,7 @@ public class TestChangelogIterator extends SparkTestHelperBase {
             new GenericRowWithSchema(new Object[] {6, "name", null, INSERT}, null));
 
     Iterator<Row> iterator =
-        ChangelogIterator.create(rowsWithNull.iterator(), 3, Lists.newArrayList(0, 1), columnSize);
+        ChangelogIterator.create(rowsWithNull.iterator(), SCHEMA, IDENTIFIER_FIELDS);
     List<Row> result = Lists.newArrayList(iterator);
 
     assertEquals(
@@ -177,8 +188,7 @@ public class TestChangelogIterator extends SparkTestHelperBase {
             new GenericRowWithSchema(new Object[] {4, "d", "data", INSERT}, null));
 
     Iterator<Row> iterator =
-        ChangelogIterator.create(
-            rowsWithDuplication.iterator(), changeTypeIndex, identifierFieldIdx, columnSize);
+        ChangelogIterator.create(rowsWithDuplication.iterator(), SCHEMA, IDENTIFIER_FIELDS);
     List<Row> result = Lists.newArrayList(iterator);
 
     assertEquals(

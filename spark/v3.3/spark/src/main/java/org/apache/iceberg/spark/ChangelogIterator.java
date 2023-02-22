@@ -18,14 +18,18 @@
  */
 package org.apache.iceberg.spark;
 
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
+import java.util.stream.Collectors;
 import org.apache.iceberg.ChangelogOperation;
+import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.RowFactory;
 import org.apache.spark.sql.catalyst.expressions.GenericRow;
+import org.apache.spark.sql.types.StructType;
 
 /**
  * An iterator that transforms rows from changelog tables within a single Spark task. It assumes
@@ -68,33 +72,29 @@ public class ChangelogIterator implements Iterator<Row> {
   private Row cachedRow = null;
 
   private ChangelogIterator(
-      Iterator<Row> rowIterator,
-      int changeTypeIndex,
-      List<Integer> identifierFieldIdx,
-      int columnSize) {
+      Iterator<Row> rowIterator, StructType rowType, String[] identifierFields) {
     this.rowIterator = rowIterator;
-    this.changeTypeIndex = changeTypeIndex;
-    this.identifierFieldIdx = identifierFieldIdx;
-    this.indicesForIdentifySameRow = generateIndicesForIdentifySameRow(columnSize);
+    this.changeTypeIndex = rowType.fieldIndex(MetadataColumns.CHANGE_TYPE.name());
+    this.identifierFieldIdx =
+        Arrays.stream(identifierFields)
+            .map(column -> rowType.fieldIndex(column.toString()))
+            .collect(Collectors.toList());
+    this.indicesForIdentifySameRow = generateIndicesForIdentifySameRow(rowType.size());
   }
 
   /**
    * Creates an iterator for records of a changelog table.
    *
    * @param rowIterator the iterator of rows from a changelog table
-   * @param changeTypeIndex the index of the change type column
-   * @param identifierFieldIdx the indices of the identifier columns, which determine if rows are
-   *     the same
-   * @param columnSize the number of columns in the table
+   * @param rowType the schema of the rows
+   * @param identifierFields the names of the identifier columns, which determine if rows are the
+   *     same
    * @return a new {@link ChangelogIterator} instance concatenated with the null-removal iterator
    */
   public static Iterator<Row> create(
-      Iterator<Row> rowIterator,
-      int changeTypeIndex,
-      List<Integer> identifierFieldIdx,
-      int columnSize) {
+      Iterator<Row> rowIterator, StructType rowType, String[] identifierFields) {
     ChangelogIterator changelogIterator =
-        new ChangelogIterator(rowIterator, changeTypeIndex, identifierFieldIdx, columnSize);
+        new ChangelogIterator(rowIterator, rowType, identifierFields);
     return Iterators.filter(changelogIterator, Objects::nonNull);
   }
 
