@@ -20,7 +20,7 @@ from typing import (
     Dict,
     List,
     Optional,
-    Union,
+    Union, Iterable, Callable, Generator,
 )
 
 from pydantic import Field, PrivateAttr, root_validator
@@ -61,7 +61,8 @@ class Summary(IcebergBaseModel):
     _additional_properties: Dict[str, str] = PrivateAttr()
 
     @root_validator
-    def check_operation(cls, values: Dict[str, Dict[str, Union[str, Operation]]]) -> Dict[str, Dict[str, Union[str, Operation]]]:
+    def check_operation(cls, values: Dict[str, Dict[str, Union[str, Operation]]]) -> Dict[
+        str, Dict[str, Union[str, Operation]]]:
         if operation := values["__root__"].get(OPERATION):
             if isinstance(operation, str):
                 values["__root__"][OPERATION] = Operation(operation.lower())
@@ -70,11 +71,13 @@ class Summary(IcebergBaseModel):
         return values
 
     def __init__(
-        self, operation: Optional[Operation] = None, __root__: Optional[Dict[str, Union[str, Operation]]] = None, **data: Any
+            self, operation: Optional[Operation] = None, __root__: Optional[Dict[str, Union[str, Operation]]] = None,
+            **data: Any
     ) -> None:
         super().__init__(__root__={"operation": operation, **data} if not __root__ else __root__)
         self._additional_properties = {
-            k: v for k, v in self.__root__.items() if k != OPERATION  # type: ignore # We know that they are all string, and we don't want to check
+            k: v for k, v in self.__root__.items() if k != OPERATION
+            # type: ignore # We know that they are all string, and we don't want to check
         }
 
     @property
@@ -100,7 +103,8 @@ class Snapshot(IcebergBaseModel):
     parent_snapshot_id: Optional[int] = Field(alias="parent-snapshot-id")
     sequence_number: Optional[int] = Field(alias="sequence-number", default=None)
     timestamp_ms: int = Field(alias="timestamp-ms")
-    manifest_list: Optional[str] = Field(alias="manifest-list", description="Location of the snapshot's manifest list file")
+    manifest_list: Optional[str] = Field(alias="manifest-list",
+                                         description="Location of the snapshot's manifest list file")
     summary: Optional[Summary] = Field()
     schema_id: Optional[int] = Field(alias="schema-id", default=None)
 
@@ -126,3 +130,48 @@ class MetadataLogEntry(IcebergBaseModel):
 class SnapshotLogEntry(IcebergBaseModel):
     snapshot_id: str = Field(alias="snapshot-id")
     timestamp_ms: int = Field(alias="timestamp-ms")
+
+
+def ancestors_of(
+    latest_snapshot: Union[int, Snapshot],
+    lookup: Callable[[int], Optional[Snapshot]]
+) -> Iterable[Snapshot]:
+    if isinstance(latest_snapshot, int):
+        start = lookup(latest_snapshot)
+        if start is None:
+            raise ValueError(f"Cannot find snapshot: {latest_snapshot}")
+    else:
+        start = latest_snapshot
+
+    if start is not None:
+        def snapshot_generator() -> Generator[Snapshot, None, None]:
+            next = start
+            while next is not None:
+                yield next
+                next = lookup(next.parent_snapshot_id)
+
+        return snapshot_generator()
+    else:
+        return []
+
+
+
+def ancestors_between(
+        latest_snapshot_id: int,
+        oldest_snapshot_id: Optional[int],
+        lookup: Dict[int, Snapshot]
+) -> Iterable[Snapshot]:
+    if oldest_snapshot_id is not None:
+        if latest_snapshot_id == oldest_snapshot_id:
+            return []
+
+        def lookup(snapshot_id: int) -> Optional[Snapshot]:
+            return lookup.get(snapshot_id) if oldest_snapshot_id != snapshot_id else None
+    else:
+        def lookup(snapshot_id: int) -> Optional[Snapshot]:
+            return lookup.get(snapshot_id)
+
+    return ancestor_of(
+        latest_snapshot_id,
+        lookup
+    )

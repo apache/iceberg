@@ -31,7 +31,7 @@ from typing import (
     Optional,
     Tuple,
     TypeVar,
-    Union,
+    Union, Set,
 )
 
 from pydantic import Field
@@ -45,7 +45,7 @@ from pyiceberg.expressions import (
 )
 from pyiceberg.expressions.visitors import inclusive_projection
 from pyiceberg.io import FileIO, load_file_io
-from pyiceberg.manifest import DataFile, ManifestFile, files
+from pyiceberg.manifest import DataFile, ManifestFile, files, ManifestContent
 from pyiceberg.partitioning import PartitionSpec
 from pyiceberg.schema import Schema
 from pyiceberg.table.metadata import TableMetadata
@@ -299,10 +299,11 @@ class FileScanTask(ScanTask):
         self.length = length or data_file.file_size_in_bytes
 
 
-def _open_manifest(io: FileIO, manifest: ManifestFile, partition_filter: Callable[[DataFile], bool]) -> List[FileScanTask]:
-    all_files = files(io.new_input(manifest.manifest_path))
-    matching_partition_files = filter(partition_filter, all_files)
-    return [FileScanTask(file) for file in matching_partition_files]
+def _open_manifest(io: FileIO, manifest: ManifestFile, partition_filter: Optional[Callable[[DataFile], bool]] = None) -> List[FileScanTask]:
+    result_manifests = files(io.new_input(manifest.manifest_path))
+    if partition_filter is not None:
+        result_manifests = filter(partition_filter, result_manifests)
+    return [FileScanTask(file) for file in result_manifests]
 
 
 class DataScan(TableScan):
@@ -361,6 +362,19 @@ class DataScan(TableScan):
 
         partition_evaluators: Dict[int, Callable[[DataFile], bool]] = KeyDefaultDict(self._build_partition_evaluator)
 
+        data_files = []
+        delete_files = []
+
+        for manifest in manifests:
+            if manifest.content is None or manifest.content == ManifestContent.DATA:
+                data_files.append(manifest)
+            else:
+                delete_files.append(manifest)
+
+        # if delete_files:
+        #     # Start building the index
+
+
         with ThreadPool() as pool:
             return chain(
                 *pool.starmap(
@@ -386,3 +400,39 @@ class DataScan(TableScan):
         con.register(table_name, self.to_arrow())
 
         return con
+
+# def _read_deletes(io: FileIO, file_path: str) -> Dict[str, pa.ChunkedArray]:
+#     _, path = PyArrowFileIO.parse_location(file_path)
+#     table = pq.read_table(
+#         source=path, pre_buffer=True, buffer_size=8 * ONE_MEGABYTE, read_dictionary=["file_path"], filesystem=fs
+#     )
+#     table.unify_dictionaries()
+#     return {
+#         file.as_py(): table.filter(pc.field("file_path") == file).column("pos") for file in table.columns[0].chunks[0].dictionary
+#     }
+
+def validate_history(table: Table, starting_snapshot_id: int, matching_operations: Set[str], content: ManifestContent, parent: Snapshot):
+    pass
+
+class DeleteFileIndex:
+    io: FileIO
+    manifests: Set[ManifestFile]
+    filter: BooleanExpression
+    case_sensitive: bool
+
+    def __init__(self,
+                 io: FileIO,
+                 manifests: Set[ManifestFile],
+                 filter: BooleanExpression,
+                 case_sensitive: bool
+                 ) -> None:
+        self.io = io
+        self.manifests = manifests
+        self.filter = filter
+        self.case_sensitive = case_sensitive
+
+        with ThreadPool() as pool:
+            deletes = pool.starmap(
+                    func=_open_manifest,
+                    iterable=[(io, manifest) for manifest in manifests],
+            )

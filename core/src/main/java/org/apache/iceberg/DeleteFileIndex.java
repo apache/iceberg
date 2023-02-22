@@ -357,7 +357,7 @@ class DeleteFileIndex {
   static class Builder {
     private final FileIO io;
     private final Set<ManifestFile> deleteManifests;
-    private long minSequenceNumber = 0L;
+    private long minSequenceNumber = TableMetadata.INITIAL_SEQUENCE_NUMBER;
     private Map<Integer, PartitionSpec> specsById = null;
     private Expression dataFilter = Expressions.alwaysTrue();
     private Expression partitionFilter = Expressions.alwaysTrue();
@@ -412,7 +412,7 @@ class DeleteFileIndex {
     }
 
     DeleteFileIndex build() {
-      // read all of the matching delete manifests in parallel and accumulate the matching files in
+      // read all the matching delete manifests in parallel and accumulate the matching files in
       // a queue
       Queue<ManifestEntry<DeleteFile>> deleteEntries = new ConcurrentLinkedQueue<>();
       Tasks.foreach(deleteManifestReaders())

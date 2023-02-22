@@ -17,6 +17,10 @@
 # pylint:disable=redefined-outer-name,eval-used
 import pytest
 
+from pyiceberg.partitioning import PartitionSpec
+from pyiceberg.schema import Schema
+from pyiceberg.table import Table, TableMetadata, SortOrder
+from pyiceberg.table.metadata import TableMetadataV2
 from pyiceberg.table.snapshots import Operation, Snapshot, Summary
 
 
@@ -43,6 +47,32 @@ def snapshot_with_properties() -> Snapshot:
         manifest_list="s3:/a/b/c.avro",
         summary=Summary(Operation.APPEND, foo="bar"),
         schema_id=3,
+    )
+
+@pytest.fixture
+def table_with_snapshots(table_schema_simple: Schema) -> Table:
+    return TableMetadataV2(
+        location="s3://bucket/warehouse/table/",
+        table_uuid="9c12d441-03fe-4693-9a96-a0705ddf69c1",
+        last_updated_ms=1602638573590,
+        last_column_id=3,
+        schemas=[
+            table_schema_simple
+        ],
+        current_schema_id=1,
+        last_partition_id=1000,
+        properties={"owner": "javaberg"},
+        partition_specs=[PartitionSpec()],
+        default_spec_id=0,
+        current_snapshot_id=None,
+        snapshots=[],
+        snapshot_log=[],
+        metadata_log=[],
+        sort_orders=[SortOrder(order_id=0)],
+        default_sort_order_id=0,
+        refs={},
+        format_version=2,
+        last_sequence_number=0,
     )
 
 
@@ -119,3 +149,6 @@ def test_snapshot_with_properties_repr(snapshot_with_properties: Snapshot) -> No
         == """Snapshot(snapshot_id=25, parent_snapshot_id=19, sequence_number=200, timestamp_ms=1602638573590, manifest_list='s3:/a/b/c.avro', summary=Summary(Operation.APPEND, **{'foo': 'bar'}), schema_id=3)"""
     )
     assert snapshot_with_properties == eval(repr(snapshot_with_properties))
+
+def test_ancestors_of(table_with_snapshots: TableMetadata) -> None:
+    pass

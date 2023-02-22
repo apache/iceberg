@@ -16,6 +16,7 @@
 # under the License.
 from abc import ABC, abstractmethod
 from functools import singledispatch
+from multiprocessing.pool import ThreadPool
 from typing import (
     Any,
     Callable,
@@ -24,8 +25,10 @@ from typing import (
     Set,
     Tuple,
     TypeVar,
-    Union,
+    Union, Dict,
 )
+
+from pyarrow.filesystem import FileSystem
 
 from pyiceberg.conversions import from_bytes
 from pyiceberg.expressions import (
@@ -986,3 +989,4 @@ def expression_to_plain_format(
     # In the form of expr1 ∨ expr2 ∨ ... ∨ exprN
     visitor = ExpressionToPlainFormat(cast_int_to_datetime)
     return [visit(expression, visitor) for expression in expressions]
+

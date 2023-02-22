@@ -74,7 +74,7 @@ from pyiceberg.io import (
     OutputFile,
     OutputStream,
 )
-from pyiceberg.manifest import DataFileContent
+from pyiceberg.manifest import DataFileContent, ManifestFile
 from pyiceberg.schema import (
     PartnerAccessor,
     Schema,

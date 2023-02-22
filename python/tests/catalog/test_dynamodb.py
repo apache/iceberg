@@ -18,6 +18,7 @@ from typing import List
 
 import pytest
 from moto import mock_dynamodb
+from tests.conftest import BUCKET_NAME, TABLE_METADATA_LOCATION_REGEX
 
 from pyiceberg.catalog import METADATA_LOCATION, TABLE_TYPE
 from pyiceberg.catalog.dynamodb import (
@@ -38,7 +39,6 @@ from pyiceberg.exceptions import (
     TableAlreadyExistsError,
 )
 from pyiceberg.schema import Schema
-from tests.conftest import BUCKET_NAME, TABLE_METADATA_LOCATION_REGEX
 
 
 @mock_dynamodb
