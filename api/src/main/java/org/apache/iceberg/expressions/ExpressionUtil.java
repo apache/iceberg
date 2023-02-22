@@ -30,6 +30,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.transforms.Transforms;
@@ -118,6 +119,22 @@ public class ExpressionUtil {
       Expression left, Expression right, Types.StructType struct, boolean caseSensitive) {
     return Binder.bind(struct, Expressions.rewriteNot(left), caseSensitive)
         .isEquivalentTo(Binder.bind(struct, Expressions.rewriteNot(right), caseSensitive));
+  }
+
+  /**
+   * Returns whether an expression selects whole partitions for all partition specs in a table.
+   *
+   * <p>For example, ts &lt; '2021-03-09T10:00:00.000' selects whole partitions in an hourly spec,
+   * [hours(ts)], but does not select whole partitions in a daily spec, [days(ts)].
+   *
+   * @param expr an unbound expression
+   * @param table a table
+   * @param caseSensitive whether expression binding should be case sensitive
+   * @return true if the expression will select whole partitions in all table specs
+   */
+  public static boolean selectsPartitions(Expression expr, Table table, boolean caseSensitive) {
+    return table.specs().values().stream()
+        .allMatch(spec -> selectsPartitions(expr, spec, caseSensitive));
   }
 
   /**

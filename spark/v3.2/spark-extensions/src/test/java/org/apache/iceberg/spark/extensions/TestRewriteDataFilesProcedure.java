@@ -26,6 +26,7 @@ import java.util.Map;
 import java.util.stream.IntStream;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.SnapshotSummary;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.NamedReference;
@@ -661,8 +662,13 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
 
   private void createPartitionTable() {
     sql(
-        "CREATE TABLE %s (c1 int, c2 string, c3 string) USING iceberg PARTITIONED BY (c2)",
-        tableName);
+        "CREATE TABLE %s (c1 int, c2 string, c3 string) "
+            + "USING iceberg "
+            + "PARTITIONED BY (c2) "
+            + "TBLPROPERTIES ('%s' '%s')",
+        tableName,
+        TableProperties.WRITE_DISTRIBUTION_MODE,
+        TableProperties.WRITE_DISTRIBUTION_MODE_NONE);
   }
 
   private void insertData(int filesCount) {
