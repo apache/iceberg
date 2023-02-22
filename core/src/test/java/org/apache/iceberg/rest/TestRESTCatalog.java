@@ -29,8 +29,6 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.File;
 import java.io.IOException;
-import java.net.InetAddress;
-import java.net.ServerSocket;
 import java.nio.file.Path;
 import java.util.Map;
 import java.util.Set;
@@ -38,7 +36,6 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
-import javax.net.ServerSocketFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.CatalogProperties;
@@ -69,6 +66,7 @@ import org.apache.iceberg.rest.responses.LoadTableResponse;
 import org.apache.iceberg.rest.responses.OAuthTokenResponse;
 import org.apache.iceberg.types.Types;
 import org.eclipse.jetty.server.Server;
+import org.eclipse.jetty.server.ServerConnector;
 import org.eclipse.jetty.server.handler.gzip.GzipHandler;
 import org.eclipse.jetty.servlet.ServletContextHandler;
 import org.eclipse.jetty.servlet.ServletHolder;
@@ -89,7 +87,6 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   private RESTCatalog restCatalog;
   private JdbcCatalog backendCatalog;
   private Server httpServer;
-  private int port;
 
   @BeforeEach
   public void createCatalog() throws Exception {
@@ -154,8 +151,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     servletContext.setVirtualHosts(null);
     servletContext.setGzipHandler(new GzipHandler());
 
-    initializePort();
-    this.httpServer = new Server(port);
+    this.httpServer = new Server(0);
     httpServer.setHandler(servletContext);
     httpServer.start();
 
@@ -175,19 +171,9 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
         "prod",
         ImmutableMap.of(
             CatalogProperties.URI,
-            "http://localhost:" + port + "/",
+            "http://localhost:" + localPort() + "/",
             "credential",
             "catalog:12345"));
-  }
-
-  private void initializePort() {
-    try (ServerSocket s =
-        ServerSocketFactory.getDefault()
-            .createServerSocket(0, 1, InetAddress.getByName("localhost"))) {
-      this.port = s.getLocalPort();
-    } catch (IOException e) {
-      throw new RuntimeException(e);
-    }
   }
 
   @SuppressWarnings("unchecked")
@@ -1233,7 +1219,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
         "prod",
         ImmutableMap.of(
             CatalogProperties.URI,
-            "http://localhost:" + port + "/",
+            "http://localhost:" + localPort() + "/",
             "credential",
             "catalog:12345",
             CatalogProperties.METRICS_REPORTER_IMPL,
@@ -1636,5 +1622,10 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             eq(OAuthTokenResponse.class),
             eq(catalogHeaders),
             any());
+  }
+
+  private int localPort() {
+    assertThat(httpServer.isRunning()).isTrue();
+    return ((ServerConnector) httpServer.getConnectors()[0]).getLocalPort();
   }
 }
