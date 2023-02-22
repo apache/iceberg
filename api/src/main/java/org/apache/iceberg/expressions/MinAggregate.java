@@ -40,10 +40,15 @@ public class MinAggregate<T> extends ValueAggregate<T> {
 
   @Override
   protected boolean hasValue(DataFile file) {
-    return file.lowerBounds().containsKey(fieldId)
-        || (safeGet(file.valueCounts(), fieldId) != null
-            && safeGet(file.valueCounts(), fieldId).longValue()
-                == safeGet(file.nullValueCounts(), fieldId).longValue());
+    boolean hasBound = file.lowerBounds().containsKey(fieldId);
+    Long valueCount = safeGet(file.valueCounts(), fieldId);
+    Long nullCount = safeGet(file.nullValueCounts(), fieldId);
+    boolean boundAllNull =
+        valueCount != null
+            && valueCount > 0
+            && nullCount != null
+            && nullCount.longValue() == valueCount.longValue();
+    return hasBound || boundAllNull;
   }
 
   @Override

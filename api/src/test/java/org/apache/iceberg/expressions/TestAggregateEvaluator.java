@@ -59,7 +59,7 @@ public class TestAggregateEvaluator {
           // upper bounds
           ImmutableMap.of(1, toByteBuffer(IntegerType.get(), 2345)));
 
-  private static final DataFile FILE_2 =
+  private static final DataFile MISSING_SOME_NULLS_STATS_1 =
       new TestDataFile(
           "file_2.avro",
           Row.of(),
@@ -75,7 +75,7 @@ public class TestAggregateEvaluator {
           // upper bounds
           ImmutableMap.of(1, toByteBuffer(IntegerType.get(), 100)));
 
-  private static final DataFile FILE_3 =
+  private static final DataFile MISSING_SOME_NULLS_STATS_2 =
       new TestDataFile(
           "file_3.avro",
           Row.of(),
@@ -91,36 +91,25 @@ public class TestAggregateEvaluator {
           // upper bounds
           ImmutableMap.of(1, toByteBuffer(IntegerType.get(), 3333)));
 
-  private static final DataFile FILE_4 =
-      new TestDataFile(
-          "file_4.avro",
-          Row.of(),
-          20,
-          // any value counts, including nulls
-          ImmutableMap.of(1, 20L, 3, 20L),
-          // null value counts
-          ImmutableMap.of(1, 10L, 3, 20L),
-          // nan value counts
-          null,
-          // lower bounds
-          ImmutableMap.of(1, toByteBuffer(IntegerType.get(), -1000)),
-          // upper bounds
-          ImmutableMap.of(1, toByteBuffer(IntegerType.get(), 1000)));
-
-  private static final DataFile[] dataFiles = {FILE, FILE_2, FILE_3, FILE_4};
+  private static final DataFile[] dataFiles = {FILE, MISSING_SOME_NULLS_STATS_1, MISSING_SOME_NULLS_STATS_2};
 
   @Test
   public void testIntAggregate() {
     List<Expression> list =
-        ImmutableList.of(Expressions.count("id"), Expressions.max("id"), Expressions.min("id"));
+        ImmutableList.of(
+            Expressions.countStar(),
+            Expressions.count("id"),
+            Expressions.max("id"),
+            Expressions.min("id"));
     AggregateEvaluator aggregateEvaluator = AggregateEvaluator.create(SCHEMA, list);
 
     for (DataFile dataFile : dataFiles) {
       aggregateEvaluator.update(dataFile);
     }
 
+    Assert.assertTrue(aggregateEvaluator.allAggregatorsValid());
     StructLike result = aggregateEvaluator.result();
-    Object[] expected = {70L, 3333, -1000};
+    Object[] expected = {90L, 60L, 3333, -33};
     assertEvaluatorResult(result, expected);
   }
 
@@ -128,6 +117,7 @@ public class TestAggregateEvaluator {
   public void testAllNulls() {
     List<Expression> list =
         ImmutableList.of(
+            Expressions.countStar(),
             Expressions.count("all_nulls"),
             Expressions.max("all_nulls"),
             Expressions.min("all_nulls"));
@@ -137,8 +127,9 @@ public class TestAggregateEvaluator {
       aggregateEvaluator.update(dataFile);
     }
 
+    Assert.assertTrue(aggregateEvaluator.allAggregatorsValid());
     StructLike result = aggregateEvaluator.result();
-    Object[] expected = {0L, null, null};
+    Object[] expected = {90L, 0L, null, null};
     assertEvaluatorResult(result, expected);
   }
 
@@ -146,6 +137,7 @@ public class TestAggregateEvaluator {
   public void testSomeNulls() {
     List<Expression> list =
         ImmutableList.of(
+            Expressions.countStar(),
             Expressions.count("some_nulls"),
             Expressions.max("some_nulls"),
             Expressions.min("some_nulls"));
@@ -154,8 +146,9 @@ public class TestAggregateEvaluator {
       aggregateEvaluator.update(dataFile);
     }
 
+    Assert.assertFalse(aggregateEvaluator.allAggregatorsValid());
     StructLike result = aggregateEvaluator.result();
-    Object[] expected = {null, null, null};
+    Object[] expected = {90L, null, null, null};
     assertEvaluatorResult(result, expected);
   }
 
@@ -163,6 +156,7 @@ public class TestAggregateEvaluator {
   public void testNoStats() {
     List<Expression> list =
         ImmutableList.of(
+            Expressions.countStar(),
             Expressions.count("no_stats"),
             Expressions.max("no_stats"),
             Expressions.min("no_stats"));
@@ -171,8 +165,9 @@ public class TestAggregateEvaluator {
       aggregateEvaluator.update(dataFile);
     }
 
+    Assert.assertFalse(aggregateEvaluator.allAggregatorsValid());
     StructLike result = aggregateEvaluator.result();
-    Object[] expected = {null, null, null};
+    Object[] expected = {90L, null, null, null};
     assertEvaluatorResult(result, expected);
   }
 

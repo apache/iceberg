@@ -375,7 +375,20 @@ final class TableScanContext {
         reporter);
   }
 
-  public void setColStats(boolean colStats) {
-    this.colStats = colStats;
+  TableScanContext withColStats(boolean stats) {
+    return new TableScanContext(
+        snapshotId,
+        rowFilter,
+        ignoreResiduals,
+        caseSensitive,
+        stats,
+        projectedSchema,
+        selectedColumns,
+        options,
+        fromSnapshotId,
+        toSnapshotId,
+        planExecutor,
+        fromSnapshotInclusive,
+        metricsReporter);
   }
 }

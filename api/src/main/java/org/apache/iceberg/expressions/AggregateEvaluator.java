@@ -38,6 +38,10 @@ public class AggregateEvaluator {
     return create(schema.asStruct(), aggregates);
   }
 
+  public static AggregateEvaluator create(List<BoundAggregate<?, ?>> aggregates) {
+    return new AggregateEvaluator(aggregates);
+  }
+
   private static AggregateEvaluator create(Types.StructType struct, List<Expression> aggregates) {
     List<BoundAggregate<?, ?>> boundAggregates =
         aggregates.stream()

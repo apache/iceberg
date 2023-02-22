@@ -19,13 +19,11 @@
 package org.apache.iceberg.spark.source;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.BatchScan;
-import org.apache.iceberg.DataTableScan;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.IncrementalAppendScan;
 import org.apache.iceberg.IncrementalChangelogScan;
@@ -59,6 +57,7 @@ import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.InternalRow;
+import org.apache.spark.sql.connector.expressions.aggregate.AggregateFunc;
 import org.apache.spark.sql.connector.expressions.aggregate.Aggregation;
 import org.apache.spark.sql.connector.read.Scan;
 import org.apache.spark.sql.connector.read.ScanBuilder;
@@ -180,26 +179,38 @@ public class SparkScanBuilder
     }
 
     AggregateEvaluator aggregateEvaluator;
-    try {
-      List<Expression> aggregates =
-          Arrays.stream(aggregation.aggregateExpressions())
-              .map(agg -> SparkAggregates.convert(agg))
-              .collect(Collectors.toList());
-      aggregateEvaluator = AggregateEvaluator.create(schema, aggregates);
-    } catch (UnsupportedOperationException | IllegalArgumentException e) {
-      LOG.info("Skipped aggregate pushdown: " + e);
-      return false;
+    List<BoundAggregate<?, ?>> expressions =
+        Lists.newArrayListWithExpectedSize(aggregation.aggregateExpressions().length);
+
+    for (AggregateFunc aggregateFunc : aggregation.aggregateExpressions()) {
+      try {
+        Expression expr = SparkAggregates.convert(aggregateFunc);
+        if (expr != null) {
+          Expression bound = Binder.bind(schema.asStruct(), expr, caseSensitive);
+          expressions.add((BoundAggregate<?, ?>) bound);
+        }
+      } catch (UnsupportedOperationException e) {
+        LOG.info(
+            "Skipping aggregate pushdown: AggregateFunc {} can't be converted to iceberg Expression",
+            aggregateFunc,
+            e);
+        return false;
+      } catch (IllegalArgumentException e) {
+        LOG.info("Skipping aggregate pushdown: Bind failed for AggregateFunc {}", aggregateFunc, e);
+        return false;
+      }
     }
+
+    aggregateEvaluator = AggregateEvaluator.create(expressions);
 
     if (!metricsModeSupportsAggregatePushDown(aggregateEvaluator.aggregates())) {
       return false;
     }
 
-    TableScan scan = table.newScan();
-    ((DataTableScan) scan).setStats(true);
+    TableScan scan = table.newScan().withColStats();
     Snapshot snapshot = readSnapshot();
     if (snapshot == null) {
-      LOG.info("Skipped aggregate pushdown: table snapshot is null");
+      LOG.info("Skipping aggregate pushdown: table snapshot is null");
       return false;
     }
     scan = scan.useSnapshot(snapshot.snapshotId());
@@ -209,14 +220,14 @@ public class SparkScanBuilder
       List<FileScanTask> tasks = ImmutableList.copyOf(fileScanTasks);
       for (FileScanTask task : tasks) {
         if (!task.deletes().isEmpty()) {
-          LOG.info("Skipped aggregate pushdown: detected row level deletes");
+          LOG.info("Skipping aggregate pushdown: detected row level deletes");
           return false;
         }
 
         aggregateEvaluator.update(task.file());
       }
     } catch (IOException e) {
-      LOG.info("Skipped aggregate pushdown: " + e);
+      LOG.info("Skipping aggregate pushdown: ", e);
       return false;
     }
 
@@ -248,7 +259,13 @@ public class SparkScanBuilder
     // be used to calculate min/max/count, will enable aggregate push down in next phase.
     // TODO: enable aggregate push down for partition col group by expression
     if (aggregation.groupByExpressions().length > 0) {
-      LOG.info("Skipped aggregate pushdown: group by aggregation push down is not supported");
+      LOG.info("Skipping aggregate pushdown: group by aggregation push down is not supported");
+      return false;
+    }
+
+    // TODO: enable aggregate push down for partition filter
+    if (filterExpressions != null) {
+      LOG.info("Skipping aggregate pushdown: aggregation push down with filter is not supported");
       return false;
     }
 
@@ -273,13 +290,13 @@ public class SparkScanBuilder
       if (!colName.equals("*")) {
         MetricsModes.MetricsMode mode = config.columnMode(colName);
         if (mode instanceof MetricsModes.None) {
-          LOG.info("Skipped aggregate pushdown: No metrics for column {}", colName);
+          LOG.info("Skipping aggregate pushdown: No metrics for column {}", colName);
           return false;
         } else if (mode instanceof MetricsModes.Counts) {
           if (aggregate.op() == Expression.Operation.MAX
               || aggregate.op() == Expression.Operation.MIN) {
             LOG.info(
-                "Skipped aggregate pushdown: Cannot produce min or max from count for column {}",
+                "Skipping aggregate pushdown: Cannot produce min or max from count for column {}",
                 colName);
             return false;
           }
@@ -289,7 +306,7 @@ public class SparkScanBuilder
             if (aggregate.op() == Expression.Operation.MAX
                 || aggregate.op() == Expression.Operation.MIN) {
               LOG.info(
-                  "Skipped aggregate pushdown: Cannot produce min or max from truncated values for column {}",
+                  "Skipping aggregate pushdown: Cannot produce min or max from truncated values for column {}",
                   colName);
               return false;
             }

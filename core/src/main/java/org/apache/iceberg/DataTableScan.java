@@ -44,7 +44,7 @@ public class DataTableScan extends BaseTableScan {
     this(table, schema, context);
   }
 
-  public DataTableScan(Table table, Schema schema, TableScanContext context) {
+  protected DataTableScan(Table table, Schema schema, TableScanContext context) {
     super(table, schema, context);
   }
 
@@ -111,9 +111,5 @@ public class DataTableScan extends BaseTableScan {
     }
 
     return manifestGroup.planFiles();
-  }
-
-  public void setStats(boolean setStats) {
-    context().setColStats(setStats);
   }
 }

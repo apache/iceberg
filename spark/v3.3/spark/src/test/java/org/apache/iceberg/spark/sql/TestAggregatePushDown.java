@@ -99,6 +99,7 @@ public class TestAggregatePushDown extends SparkCatalogTestBase {
           "CREATE TABLE %s (id LONG, intData INT, booleanData BOOLEAN, floatData FLOAT, doubleData DOUBLE, "
               + "decimalData DECIMAL(14, 2), binaryData binary) USING iceberg";
     }
+
     sql(createTable, tableName);
     sql(
         "INSERT INTO TABLE %s VALUES "
@@ -374,6 +375,54 @@ public class TestAggregatePushDown extends SparkCatalogTestBase {
     List<Object[]> expected3 = Lists.newArrayList();
     expected3.add(new Object[] {6L, "6666"});
     assertEquals("min/max/count push down", expected3, actual3);
+  }
+
+  @Test
+  public void testAggregatePushDownWithDataFilter() {
+    testAggregatePushDownWithFilter(false);
+  }
+
+  @Test
+  public void testAggregatePushDownWithPartitionFilter() {
+    testAggregatePushDownWithFilter(true);
+  }
+
+  private void testAggregatePushDownWithFilter(boolean partitionFilerOnly) {
+    String createTable;
+    if (!partitionFilerOnly) {
+      createTable = "CREATE TABLE %s (id LONG, data INT) USING iceberg";
+    } else {
+      createTable = "CREATE TABLE %s (id LONG, data INT) USING iceberg PARTITIONED BY (id)";
+    }
+
+    sql(createTable, tableName);
+
+    sql(
+        "INSERT INTO TABLE %s VALUES"
+            + " (1, 11),"
+            + " (1, 22),"
+            + " (2, 33),"
+            + " (2, 44),"
+            + " (3, 55),"
+            + " (3, 66) ",
+        tableName);
+
+    String select = "SELECT MIN(data) FROM %s WHERE id > 1";
+
+    List<Object[]> explain = sql("EXPLAIN " + select, tableName);
+    String explainString = explain.get(0)[0].toString();
+    boolean explainContainsPushDownAggregates = false;
+    if (explainString.contains("min(data)")) {
+      explainContainsPushDownAggregates = true;
+    }
+
+    Assert.assertFalse(
+        "explain should not contain the pushed down aggregates", explainContainsPushDownAggregates);
+
+    List<Object[]> actual = sql(select, tableName);
+    List<Object[]> expected = Lists.newArrayList();
+    expected.add(new Object[] {33});
+    assertEquals("expected and actual should equal", expected, actual);
   }
 
   @Test
