@@ -523,6 +523,19 @@ paths:
         table. The configuration key "token" is used to pass an access token to be used as a bearer token
         for table requests. Otherwise, a token may be passed using a RFC 8693 token type as a configuration
         key. For example, "urn:ietf:params:oauth:token-type:jwt=<JWT-token>".
+      parameters:
+        - in: query
+          name: snapshots
+          description:
+            The snapshots to return in the body of the metadata. Setting the value to `all` would
+            return the full set of snapshots currently valid for the table. Setting the value to
+            `refs` would load all snapshots referenced by branches or tags.
+          
+            Default if no param is provided is `all`.
+          required: false
+          schema:
+            type: string
+            enum: [ all, refs ]
       responses:
         200:
           $ref: '#/components/responses/LoadTableResponse'
