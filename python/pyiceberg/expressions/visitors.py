@@ -708,29 +708,19 @@ class _ManifestEvalVisitor(BoundBooleanExpressionVisitor[bool]):
         pos = term.ref().accessor.position
         field = self.partition_fields[pos]
 
-        if field.lower_bound is None:
+        if field.lower_bound is None or field.upper_bound is None:
             return ROWS_CANNOT_MATCH
 
-        lower = _from_byte_buffer(term.ref().field.field_type, field.lower_bound)
-
-        if lower.startswith(literal.value):
-            return ROWS_MIGHT_MATCH
-
-        return ROWS_CANNOT_MATCH
+        return ROWS_MIGHT_MATCH
 
     def visit_not_starts_with(self, term: BoundTerm[L], literal: Literal[L]) -> bool:
         pos = term.ref().accessor.position
         field = self.partition_fields[pos]
 
-        if field.lower_bound is None:
+        if field.lower_bound is None or field.upper_bound is None:
             return ROWS_CANNOT_MATCH
 
-        lower = _from_byte_buffer(term.ref().field.field_type, field.lower_bound)
-
-        if not lower.startswith(literal.value):
-            return ROWS_MIGHT_MATCH
-
-        return ROWS_CANNOT_MATCH
+        return ROWS_MIGHT_MATCH
 
     def visit_true(self) -> bool:
         return ROWS_MIGHT_MATCH

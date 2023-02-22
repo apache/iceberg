@@ -1402,7 +1402,7 @@ def test_string_starts_with(schema: Schema, manifest: ManifestFile) -> None:
         manifest
     ), "Should read: no_nulls_same_value_a starts with a"
 
-    assert not _ManifestEvalVisitor(schema, StartsWith(Reference("no_nulls_same_value_a"), "b"), case_sensitive=True).eval(
+    assert not _ManifestEvalVisitor(schema, StartsWith(Reference("all_nulls_missing_nan"), "a"), case_sensitive=True).eval(
         manifest
     ), "Should read: no_nulls_same_value_a does not start with a"
 
@@ -1412,7 +1412,7 @@ def test_string_not_starts_with(schema: Schema, manifest: ManifestFile) -> None:
         manifest
     ), "Should read: no_nulls_same_value_a does not start with a"
 
-    assert not _ManifestEvalVisitor(schema, NotStartsWith(Reference("no_nulls_same_value_a"), "a"), case_sensitive=True).eval(
+    assert not _ManifestEvalVisitor(schema, NotStartsWith(Reference("all_nulls_missing_nan"), "b"), case_sensitive=True).eval(
         manifest
     ), "Should read: no_nulls_same_value_a starts with a"
 
