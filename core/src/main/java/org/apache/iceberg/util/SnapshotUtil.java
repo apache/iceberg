@@ -397,10 +397,10 @@ public class SnapshotUtil {
   }
 
   /**
-   * Fetch latest snapshot based on the branch tip
+   * Fetch the snapshot at the head of the given branch in the given table
    *
-   * @param table to fetch snapshot from.
-   * @param branch used to fetch snapshot from a branch ref.
+   * @param table a {@link Table}
+   * @param branch branch
    * @return Snapshot
    */
   public static Snapshot latestSnapshot(Table table, String branch) {

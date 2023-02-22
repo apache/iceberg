@@ -50,7 +50,4 @@ public class SparkSQLProperties {
 
   // Controls write distribution mode
   public static final String DISTRIBUTION_MODE = "spark.sql.iceberg.distribution-mode";
-
-  // Branch session write config
-  public static final String BRANCH = "spark.sql.iceberg.write-branch";
 }

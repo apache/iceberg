@@ -36,6 +36,7 @@ import org.apache.iceberg.Files;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.avro.Avro;
@@ -44,6 +45,7 @@ import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkSQLProperties;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkWriteOptions;
@@ -51,6 +53,7 @@ import org.apache.iceberg.spark.data.AvroDataTest;
 import org.apache.iceberg.spark.data.RandomData;
 import org.apache.iceberg.spark.data.SparkAvroReader;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.SparkException;
 import org.apache.spark.TaskContext;
 import org.apache.spark.api.java.JavaRDD;
@@ -156,6 +159,18 @@ public class TestDataFrameWrites extends AvroDataTest {
     writeAndValidateWithLocations(table, location, tablePropertyDataLocation);
   }
 
+  @Test
+  public void testBranchWriteWithCustomDataLocation() throws IOException {
+    File location = createTableFolder();
+    File tablePropertyDataLocation = temp.newFolder("test-table-property-data-dir");
+    Table table = createTable(new Schema(SUPPORTED_PRIMITIVES.fields()), location);
+    table
+        .updateProperties()
+        .set(TableProperties.WRITE_DATA_LOCATION, tablePropertyDataLocation.getAbsolutePath())
+        .commit();
+    writeAndValidateWithLocations(table, location, tablePropertyDataLocation, "test-branch");
+  }
+
   private File createTableFolder() throws IOException {
     File parent = temp.newFolder("parquet");
     File location = new File(parent, "test");
@@ -170,16 +185,21 @@ public class TestDataFrameWrites extends AvroDataTest {
 
   private void writeAndValidateWithLocations(Table table, File location, File expectedDataDir)
       throws IOException {
+    writeAndValidateWithLocations(table, location, expectedDataDir, SnapshotRef.MAIN_BRANCH);
+  }
+
+  private void writeAndValidateWithLocations(
+      Table table, File location, File expectedDataDir, String branch) throws IOException {
     Schema tableSchema = table.schema(); // use the table schema because ids are reassigned
 
     table.updateProperties().set(TableProperties.DEFAULT_FILE_FORMAT, format).commit();
 
     Iterable<Record> expected = RandomData.generate(tableSchema, 100, 0L);
-    writeData(expected, tableSchema, location.toString());
+    writeData(expected, tableSchema, location.toString(), branch);
 
     table.refresh();
 
-    List<Row> actual = readTable(location.toString());
+    List<Row> actual = readTable(location.toString(), branch);
 
     Iterator<Record> expectedIter = expected.iterator();
     Iterator<Row> actualIter = actual.iterator();
@@ -189,8 +209,7 @@ public class TestDataFrameWrites extends AvroDataTest {
     Assert.assertEquals(
         "Both iterators should be exhausted", expectedIter.hasNext(), actualIter.hasNext());
 
-    table
-        .currentSnapshot()
+    SnapshotUtil.latestSnapshot(table, branch)
         .addedDataFiles(table.io())
         .forEach(
             dataFile ->
@@ -204,15 +223,26 @@ public class TestDataFrameWrites extends AvroDataTest {
   }
 
   private List<Row> readTable(String location) {
-    Dataset<Row> result = spark.read().format("iceberg").load(location);
+    return readTable(location, SnapshotRef.MAIN_BRANCH);
+  }
+
+  private List<Row> readTable(String location, String branch) {
+    Dataset<Row> result =
+        spark.read().format("iceberg").option(SparkReadOptions.BRANCH, branch).load(location);
 
     return result.collectAsList();
   }
 
   private void writeData(Iterable<Record> records, Schema schema, String location)
       throws IOException {
+    writeData(records, schema, location, SnapshotRef.MAIN_BRANCH);
+  }
+
+  private void writeData(Iterable<Record> records, Schema schema, String location, String branch)
+      throws IOException {
     Dataset<Row> df = createDataset(records, schema);
-    DataFrameWriter<?> writer = df.write().format("iceberg").mode("append");
+    DataFrameWriter<?> writer =
+        df.write().format("iceberg").option(SparkWriteOptions.BRANCH, branch).mode("append");
     writer.save(location);
   }
 

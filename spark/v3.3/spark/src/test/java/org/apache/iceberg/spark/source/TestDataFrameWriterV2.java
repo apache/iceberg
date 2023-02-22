@@ -24,6 +24,7 @@ import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkTestBaseWithCatalog;
+import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.Dataset;
@@ -191,6 +192,46 @@ public class TestDataFrameWriterV2 extends SparkTestBaseWithCatalog {
         ImmutableList.of(
             row(1L, "a", null), row(2L, "b", null), row(3L, "c", 12.06F), row(4L, "d", 14.41F)),
         sql("select * from %s order by id", tableName));
+  }
+
+  @Test
+  public void testMergeSchemaOnBranch() throws Exception {
+    String branch = "test-branch";
+
+    sql(
+        "ALTER TABLE %s SET TBLPROPERTIES ('%s'='true')",
+        tableName, TableProperties.SPARK_WRITE_ACCEPT_ANY_SCHEMA);
+
+    Dataset<Row> twoColDF =
+        jsonToDF(
+            "id bigint, data string",
+            "{ \"id\": 1, \"data\": \"a\" }",
+            "{ \"id\": 2, \"data\": \"b\" }");
+
+    twoColDF.writeTo(tableName).option(SparkWriteOptions.BRANCH, branch).append();
+
+    assertEquals(
+        "Should have initial 2-column rows",
+        ImmutableList.of(row(1L, "a"), row(2L, "b")),
+        sql("select * from %s version as of '%s' order by id", tableName, branch));
+
+    Dataset<Row> threeColDF =
+        jsonToDF(
+            "id bigint, data string, new_col float",
+            "{ \"id\": 3, \"data\": \"c\", \"new_col\": 12.06 }",
+            "{ \"id\": 4, \"data\": \"d\", \"new_col\": 14.41 }");
+
+    threeColDF
+        .writeTo(tableName)
+        .option("merge-schema", "true")
+        .option(SparkWriteOptions.BRANCH, branch)
+        .append();
+
+    assertEquals(
+        "Should have 3-column rows",
+        ImmutableList.of(
+            row(1L, "a", null), row(2L, "b", null), row(3L, "c", 12.06F), row(4L, "d", 14.41F)),
+        sql("select * from %s version as of '%s' order by id", tableName, branch));
   }
 
   @Test

@@ -22,6 +22,7 @@ import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.IsolationLevel;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.spark.SparkDistributionAndOrderingUtil;
@@ -80,6 +81,11 @@ class SparkPositionDeltaWriteBuilder implements DeltaWriteBuilder {
     Preconditions.checkArgument(
         handleTimestampWithoutZone || !SparkUtil.hasTimestampWithoutZone(table.schema()),
         SparkUtil.TIMESTAMP_WITHOUT_TIMEZONE_ERROR);
+
+    if (!writeConf.branch().equalsIgnoreCase(SnapshotRef.MAIN_BRANCH)) {
+      throw new UnsupportedOperationException(
+          "Row level operations on non-main branches are currently unsupported");
+    }
 
     Schema dataSchema = dataSchema();
     if (dataSchema != null) {
