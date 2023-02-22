@@ -674,6 +674,7 @@ public class SparkCatalog extends BaseCatalog {
           return new SparkTable(table, tagSnapshot.snapshotId(), !cacheEnabled);
         }
       }
+
       // the name wasn't a valid snapshot selector and did not point to the changelog
       // throw the original exception
       throw e;
@@ -737,7 +738,7 @@ public class SparkCatalog extends BaseCatalog {
 
     Preconditions.checkArgument(
         Stream.of(snapshotId, asOfTimestamp, branch, tag).filter(Objects::nonNull).count() <= 1,
-        "Can specify at most one of snapshot-id (%s), as-of-timestamp (%s), branch (%s) and tag (%s)",
+        "Can specify only one of snapshot-id (%s), as-of-timestamp (%s), branch (%s), tag (%s)",
         snapshotId,
         asOfTimestamp,
         branch,
@@ -762,11 +763,13 @@ public class SparkCatalog extends BaseCatalog {
       Preconditions.checkArgument(
           branchSnapshot != null, "Cannot find snapshot associated with branch name: %s", branch);
       return new SparkTable(table, branchSnapshot.snapshotId(), !cacheEnabled);
+
     } else if (tag != null) {
       Snapshot tagSnapshot = table.snapshot(tag);
       Preconditions.checkArgument(
           tagSnapshot != null, "Cannot find snapshot associated with tag name: %s", tag);
       return new SparkTable(table, tagSnapshot.snapshotId(), !cacheEnabled);
+
     } else {
       return new SparkTable(table, snapshotId, !cacheEnabled);
     }

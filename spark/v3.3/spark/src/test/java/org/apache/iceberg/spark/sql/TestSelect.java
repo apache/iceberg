@@ -441,7 +441,7 @@ public class TestSelect extends SparkCatalogTestBase {
         "Should not be able to specify both snapshot id and timestamp",
         IllegalArgumentException.class,
         String.format(
-            "Can specify at most one of snapshot-id (%s), as-of-timestamp (%s)",
+            "Can specify only one of snapshot-id (%s), as-of-timestamp (%s)",
             snapshotId, timestamp),
         () -> {
           spark

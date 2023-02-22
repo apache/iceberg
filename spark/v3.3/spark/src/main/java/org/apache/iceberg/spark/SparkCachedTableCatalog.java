@@ -165,10 +165,11 @@ public class SparkCachedTableCatalog implements TableCatalog {
 
     Preconditions.checkArgument(
         Stream.of(snapshotId, asOfTimestamp, branch, tag).filter(Objects::nonNull).count() <= 1,
-        "Can specify at most one of snapshot-id (%s), as-of-timestamp (%s), and snapshot-ref (%s)",
+        "Can specify only one of snapshot-id (%s), as-of-timestamp (%s), branch (%s), tag (%s)",
         snapshotId,
         asOfTimestamp,
-        branch);
+        branch,
+        tag);
 
     Table table = TABLE_CACHE.get(key);
 

@@ -69,8 +69,8 @@ public class IcebergSource implements DataSourceRegister, SupportsCatalogOptions
       "spark.sql.catalog." + DEFAULT_CACHE_CATALOG_NAME;
   private static final String AT_TIMESTAMP = "at_timestamp_";
   private static final String SNAPSHOT_ID = "snapshot_id_";
-  private static final String BRANCH = "branch_";
-  private static final String TAG = "tag_";
+  private static final String BRANCH_PREFIX = "branch_";
+  private static final String TAG_PREFIX = "tag_";
   private static final String[] EMPTY_NAMESPACE = new String[0];
 
   private static final SparkTableCache TABLE_CACHE = SparkTableCache.get();
@@ -132,7 +132,7 @@ public class IcebergSource implements DataSourceRegister, SupportsCatalogOptions
     String tag = options.get(SparkReadOptions.TAG);
     Preconditions.checkArgument(
         Stream.of(snapshotId, asOfTimestamp, branch, tag).filter(Objects::nonNull).count() <= 1,
-        "Can specify at most one of snapshot-id (%s), as-of-timestamp (%s), branch (%s) and tag (%s)",
+        "Can specify only one of snapshot-id (%s), as-of-timestamp (%s), branch (%s), tag (%s)",
         snapshotId,
         asOfTimestamp,
         branch,
@@ -149,11 +149,11 @@ public class IcebergSource implements DataSourceRegister, SupportsCatalogOptions
     }
 
     if (branch != null) {
-      selector = BRANCH + branch;
+      selector = BRANCH_PREFIX + branch;
     }
 
     if (tag != null) {
-      selector = TAG + tag;
+      selector = TAG_PREFIX + tag;
     }
 
     CatalogManager catalogManager = spark.sessionState().catalogManager();

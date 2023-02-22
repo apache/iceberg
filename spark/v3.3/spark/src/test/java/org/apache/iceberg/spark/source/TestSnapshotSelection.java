@@ -223,7 +223,7 @@ public class TestSnapshotSelection {
                     .option(SparkReadOptions.AS_OF_TIMESTAMP, timestamp)
                     .load(tableLocation))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Can specify at most one of snapshot-id")
+        .hasMessageContaining("Can specify only one of snapshot-id")
         .hasMessageContaining("as-of-timestamp")
         .hasMessageContaining("branch")
         .hasMessageContaining("tag");
@@ -327,7 +327,7 @@ public class TestSnapshotSelection {
                     .load(tableLocation)
                     .show())
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageStartingWith("Can specify at most one of snapshot-id");
+        .hasMessageStartingWith("Can specify only one of snapshot-id");
   }
 
   @Test
@@ -358,7 +358,7 @@ public class TestSnapshotSelection {
                     .load(tableLocation)
                     .show())
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageStartingWith("Can specify at most one of snapshot-id");
+        .hasMessageStartingWith("Can specify only one of snapshot-id");
 
     Assertions.assertThatThrownBy(
             () ->
@@ -370,7 +370,7 @@ public class TestSnapshotSelection {
                     .load(tableLocation)
                     .show())
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageStartingWith("Can specify at most one of snapshot-id");
+        .hasMessageStartingWith("Can specify only one of snapshot-id");
   }
 
   @Test
