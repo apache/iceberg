@@ -64,7 +64,7 @@ import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.catalyst.parser.ParseException;
 import org.apache.spark.sql.catalyst.plans.logical.DeleteFromIcebergTable;
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan;
-import org.apache.spark.sql.execution.datasources.v2.OptimizeMetadataOnlyDeleteFromIcebergTable;
+import org.apache.spark.sql.execution.datasources.v2.OptimizeMetadataOnlyDeleteFromTable;
 import org.apache.spark.sql.internal.SQLConf;
 import org.assertj.core.api.Assertions;
 import org.junit.After;
@@ -121,7 +121,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
           Assert.assertTrue("Should have rewrite plan", analyzed.rewritePlan().isDefined());
 
           DeleteFromIcebergTable optimized =
-              (DeleteFromIcebergTable) OptimizeMetadataOnlyDeleteFromIcebergTable.apply(analyzed);
+              (DeleteFromIcebergTable) OptimizeMetadataOnlyDeleteFromTable.apply(analyzed);
           Assert.assertTrue("Should discard rewrite plan", optimized.rewritePlan().isEmpty());
         });
 
