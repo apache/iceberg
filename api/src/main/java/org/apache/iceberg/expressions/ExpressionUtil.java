@@ -130,7 +130,7 @@ public class ExpressionUtil {
    * @param expr an unbound expression
    * @param table a table
    * @param caseSensitive whether expression binding should be case sensitive
-   * @return true if the expression will select whole partitions in the given spec
+   * @return true if the expression will select whole partitions in all table specs
    */
   public static boolean selectsPartitions(Expression expr, Table table, boolean caseSensitive) {
     return table.specs().values().stream()
