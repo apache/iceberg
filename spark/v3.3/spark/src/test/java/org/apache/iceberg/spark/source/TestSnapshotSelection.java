@@ -178,6 +178,26 @@ public class TestSnapshotSelection {
   }
 
   @Test
+  public void testSnapshotSelectionByInvalidBranch() throws IOException {
+    String tableLocation = temp.newFolder("iceberg-table").toString();
+
+    HadoopTables tables = new HadoopTables(CONF);
+    PartitionSpec spec = PartitionSpec.unpartitioned();
+    tables.create(SCHEMA, spec, tableLocation);
+
+    Dataset<Row> df =
+        spark
+            .read()
+            .format("iceberg")
+            .option(SparkReadOptions.BRANCH, "non-existing-branch")
+            .load(tableLocation);
+
+    Assertions.assertThatThrownBy(df::collectAsList)
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot find ref non-existing-branch");
+  }
+
+  @Test
   public void testSnapshotSelectionByInvalidTimestamp() throws IOException {
     long timestamp = System.currentTimeMillis();
 

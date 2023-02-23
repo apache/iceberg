@@ -760,9 +760,12 @@ public class SparkCatalog extends BaseCatalog {
 
     } else if (branch != null) {
       Snapshot branchSnapshot = table.snapshot(branch);
-      Preconditions.checkArgument(
-          branchSnapshot != null, "Cannot find snapshot associated with branch name: %s", branch);
-      return new SparkTable(table, branchSnapshot.snapshotId(), !cacheEnabled);
+
+      // It's possible that the branch does not exist when performing writes to new branches.
+      // Load table should still succeed when spark is performing the write.
+      // Reads performed on non-existing branches will fail at a later point
+      Long branchSnapshotId = branchSnapshot == null ? null : branchSnapshot.snapshotId();
+      return new SparkTable(table, branchSnapshotId, !cacheEnabled);
 
     } else if (tag != null) {
       Snapshot tagSnapshot = table.snapshot(tag);

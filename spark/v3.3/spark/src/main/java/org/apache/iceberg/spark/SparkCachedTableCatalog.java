@@ -185,9 +185,13 @@ public class SparkCachedTableCatalog implements TableCatalog {
       return Pair.of(table, SnapshotUtil.snapshotIdAsOfTime(table, asOfTimestamp));
     } else if (branch != null) {
       Snapshot branchSnapshot = table.snapshot(branch);
-      Preconditions.checkArgument(
-          branchSnapshot != null, "Cannot find snapshot associated with branch name: %s", branch);
-      return Pair.of(table, branchSnapshot.snapshotId());
+
+      // It's possible that the branch does not exist when performing writes to new branches.
+      // Load table should still succeed when spark is performing the write.
+      // Reads with invalid branches will fail at a later point
+      Long branchSnapshotId = branchSnapshot == null ? null : branchSnapshot.snapshotId();
+
+      return Pair.of(table, branchSnapshotId);
     } else if (tag != null) {
       Snapshot tagSnapshot = table.snapshot(tag);
       Preconditions.checkArgument(
