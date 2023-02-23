@@ -223,7 +223,7 @@ public class TestDataFrameWriterV2 extends SparkTestBaseWithCatalog {
 
     threeColDF
         .writeTo(tableName)
-        .option("merge-schema", "true")
+        .option(SparkWriteOptions.MERGE_SCHEMA, "true")
         .option(SparkWriteOptions.BRANCH, branch)
         .append();
 

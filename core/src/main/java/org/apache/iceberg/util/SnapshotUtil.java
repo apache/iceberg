@@ -397,11 +397,11 @@ public class SnapshotUtil {
   }
 
   /**
-   * Fetch the snapshot at the head of the given branch in the given table
+   * Fetch the snapshot at the head of the given branch in the given table.
    *
    * @param table a {@link Table}
-   * @param branch branch
-   * @return Snapshot
+   * @param branch a branch
+   * @return the latest snapshot for the given branch
    */
   public static Snapshot latestSnapshot(Table table, String branch) {
     if (SnapshotRef.MAIN_BRANCH.equals(branch)) {

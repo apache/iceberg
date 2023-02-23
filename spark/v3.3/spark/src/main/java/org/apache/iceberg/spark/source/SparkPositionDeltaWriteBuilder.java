@@ -84,7 +84,7 @@ class SparkPositionDeltaWriteBuilder implements DeltaWriteBuilder {
 
     if (!writeConf.branch().equalsIgnoreCase(SnapshotRef.MAIN_BRANCH)) {
       throw new UnsupportedOperationException(
-          "Row level operations on non-main branches are currently unsupported");
+          "Row-level operations are currently supported only on the main branch");
     }
 
     Schema dataSchema = dataSchema();

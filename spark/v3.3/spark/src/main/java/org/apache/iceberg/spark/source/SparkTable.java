@@ -52,6 +52,7 @@ import org.apache.iceberg.spark.SparkFilters;
 import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkUtil;
+import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.sql.SparkSession;
@@ -250,7 +251,9 @@ public class SparkTable
   @Override
   public WriteBuilder newWriteBuilder(LogicalWriteInfo info) {
     Preconditions.checkArgument(
-        snapshotId == null, "Cannot write to table at a specific snapshot: %s", snapshotId);
+        snapshotId == null || info.options().get(SparkWriteOptions.BRANCH) != null,
+        "Cannot write to table at a specific snapshot: %s",
+        snapshotId);
 
     return new SparkWriteBuilder(sparkSession(), icebergTable, info);
   }
