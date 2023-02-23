@@ -18,27 +18,30 @@
  */
 package org.apache.iceberg.types;
 
-import org.junit.Assert;
+import org.assertj.core.api.Assertions;
 import org.junit.Test;
 
 public class TestTypes {
 
   @Test
   public void fromPrimitiveString() {
-    Assert.assertSame(Types.BooleanType.get(), Types.fromPrimitiveString("boolean"));
-    Assert.assertSame(Types.BooleanType.get(), Types.fromPrimitiveString("BooLean"));
+    Assertions.assertThat(Types.fromPrimitiveString("boolean")).isSameAs(Types.BooleanType.get());
+    Assertions.assertThat(Types.fromPrimitiveString("BooLean")).isSameAs(Types.BooleanType.get());
 
-    Assert.assertSame(Types.TimestampType.withoutZone(), Types.fromPrimitiveString("timestamp"));
+    Assertions.assertThat(Types.fromPrimitiveString("timestamp"))
+        .isSameAs(Types.TimestampType.withoutZone());
 
-    Assert.assertEquals(Types.FixedType.ofLength(3), Types.fromPrimitiveString("Fixed[ 3 ]"));
+    Assertions.assertThat(Types.fromPrimitiveString("Fixed[ 3 ]"))
+        .isEqualTo(Types.FixedType.ofLength(3));
 
-    Assert.assertEquals(Types.DecimalType.of(2, 3), Types.fromPrimitiveString("Decimal( 2 , 3 )"));
+    Assertions.assertThat(Types.fromPrimitiveString("Decimal( 2 , 3 )"))
+        .isEqualTo(Types.DecimalType.of(2, 3));
 
-    Assert.assertEquals(Types.DecimalType.of(2, 3), Types.fromPrimitiveString("Decimal(2,3)"));
+    Assertions.assertThat(Types.fromPrimitiveString("Decimal(2,3)"))
+        .isEqualTo(Types.DecimalType.of(2, 3));
 
-    IllegalArgumentException exception =
-        Assert.assertThrows(
-            IllegalArgumentException.class, () -> Types.fromPrimitiveString("Unknown"));
-    Assert.assertTrue(exception.getMessage().contains("Unknown"));
+    Assertions.assertThatExceptionOfType(IllegalArgumentException.class)
+        .isThrownBy(() -> Types.fromPrimitiveString("Unknown"))
+        .withMessageContaining("Unknown");
   }
 }
