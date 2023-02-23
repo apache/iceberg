@@ -29,4 +29,3 @@ sitemap.xml
 derby.log
 .python-version
 .*_index.md
-python/dev/data/*.csv
