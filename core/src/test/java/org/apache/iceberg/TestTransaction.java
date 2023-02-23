@@ -764,13 +764,66 @@ public class TestTransaction extends TableTestBase {
   }
 
   @Test
+  public void testSimpleConcurrentTransactionWithCommitRollbackOnBranch() {
+    Assume.assumeTrue(formatVersion == 2);
+    Table table = load();
+    String branchName = "testBranch";
+    // add table property
+    table
+        .updateProperties()
+        .set(TableProperties.COMMIT_ROLLBACK_REPLACE_ON_CONFLICT_ENABLED, "true")
+        .commit();
+
+    table.newAppend().appendFile(FILE_A).commit();
+    // create testBranch
+    table.manageSnapshots().createBranch(branchName, table.currentSnapshot().snapshotId()).commit();
+
+    // start a transaction
+    // apply updates to metadata so that they are not conflicting in themselves on the present base.
+    // on refreshing the base / current and then applying updates on top causes conflict
+    // add a new update to rollback snapshot to parent and then re-apply updates
+    Transaction transaction = table.newTransaction();
+
+    // position delete of FILE_A
+    transaction
+        .newRowDelta()
+        .addDeletes(FILE_A_DELETES)
+        .validateDataFilesExist(ImmutableList.of(FILE_A.path()))
+        .toBranch(branchName)
+        .commit();
+
+    // don't close transaction
+    // remove FILE_A and rewrite FILE_B
+    table
+        .newRewrite()
+        .rewriteFiles(Sets.newHashSet(FILE_A), Sets.newHashSet(FILE_B))
+        .toBranch(branchName)
+        .commit();
+
+    // now commit transaction should conflict as FILE_A is deleted.
+    transaction.commitTransaction();
+
+    table.refresh();
+    Snapshot currentSnapshot = table.snapshot(table.refs().get(branchName).snapshotId());
+    int totalSnapshots = 1;
+    while (currentSnapshot.parentId() != null) {
+      // no snapshot in the hierarchy for REPLACE operations
+      Assert.assertNotEquals(DataOperations.REPLACE, currentSnapshot.operation());
+      currentSnapshot = table.snapshot(currentSnapshot.parentId());
+      totalSnapshots += 1;
+    }
+
+    Assert.assertEquals(totalSnapshots, 2);
+  }
+
+  @Test
   public void testSimpleConcurrentTransactionWithCommitRollback() {
     Assume.assumeTrue(formatVersion == 2);
     Table table = load();
     // add table property
     table
         .updateProperties()
-        .set(TableProperties.ROLLBACK_COMPACTION_ON_CONFLICTS_ENABLED, "true")
+        .set(TableProperties.COMMIT_ROLLBACK_REPLACE_ON_CONFLICT_ENABLED, "true")
         .commit();
     table.newAppend().appendFile(FILE_A).commit();
 

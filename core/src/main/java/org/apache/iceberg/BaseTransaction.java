@@ -72,11 +72,8 @@ public class BaseTransaction implements Transaction {
   private TableMetadata base;
   private TableMetadata current;
   private boolean hasLastOpCommitted;
-<<<<<<< HEAD
   private final MetricsReporter reporter;
   private boolean shouldRollbackCompaction;
-=======
->>>>>>> f51f7d44b (Add table level properties)
 
   BaseTransaction(
       String tableName, TableOperations ops, TransactionType type, TableMetadata start) {

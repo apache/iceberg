@@ -631,10 +631,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
 
   private Long snapshotIdToRollbackToOnConflict(Long parentSnapshotId) {
     Long newParentSnapshotId = parentSnapshotId;
-    if (PropertyUtil.propertyAsBoolean(
-        base.properties(),
-        TableProperties.ROLLBACK_COMPACTION_ON_CONFLICTS_ENABLED,
-        TableProperties.ROLLBACK_COMPACTION_ON_CONFLICTS_ENABLED_DEFAULT)) {
+    if (shouldRollbackReplaceOnConflict()) {
       // add a set snapshot op on top of base to roll back to parent snapshot
       boolean isCommitSuccessfullyApplied = false;
       // Update parentSnapshot to it's grandParent
@@ -668,5 +665,12 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
     } else {
       return null;
     }
+  }
+
+  private Boolean shouldRollbackReplaceOnConflict() {
+    return PropertyUtil.propertyAsBoolean(
+        base.properties(),
+        TableProperties.COMMIT_ROLLBACK_REPLACE_ON_CONFLICT_ENABLED,
+        TableProperties.COMMIT_ROLLBACK_REPLACE_ON_CONFLICT_ENABLED_DEFAULT);
   }
 }
