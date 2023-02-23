@@ -140,4 +140,8 @@ class BatchScanAdapter implements BatchScan {
   public long splitOpenFileCost() {
     return scan.splitOpenFileCost();
   }
+
+  public Scan getScanDelegate() {
+    return scan;
+  }
 }
