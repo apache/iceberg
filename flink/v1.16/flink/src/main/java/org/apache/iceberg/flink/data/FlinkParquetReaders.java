@@ -118,7 +118,7 @@ public class FlinkParquetReaders {
       int defaultMaxDefinitionLevel = type.getMaxDefinitionLevel(currentPath());
       for (Types.NestedField field : expectedFields) {
         int id = field.fieldId();
-        if (idToConstant.containsKey(id)) {
+        if (idToConstant.containsKey(id) && idToConstant.get(id) != null) {
           // containsKey is used because the constant may be null
           int fieldMaxDefinitionLevel =
               maxDefinitionLevelsById.getOrDefault(id, defaultMaxDefinitionLevel);
