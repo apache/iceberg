@@ -16,15 +16,16 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.view;
+package org.apache.iceberg;
 
-public interface ViewRepresentation {
+import org.assertj.core.api.Assertions;
+import org.junit.Test;
 
-  class Type {
-    private Type() {}
+public class TestEnvironmentContext {
 
-    public static final String SQL = "sql";
+  @Test
+  public void testDefaultValue() {
+    Assertions.assertThat(EnvironmentContext.get().get("iceberg-version"))
+        .isEqualTo(IcebergBuild.fullVersion());
   }
-
-  String type();
 }

@@ -19,7 +19,7 @@
 
 # Python API
 
-PyIceberg is based around catalogs to load tables. First step is to instantiate a catalog that loads tables. Let's use the following configuration:
+PyIceberg is based around catalogs to load tables. First step is to instantiate a catalog that loads tables. Let's use the following configuration to define a catalog called `prod`:
 
 ```yaml
 catalog:
@@ -27,6 +27,10 @@ catalog:
     uri: http://rest-catalog/ws/
     credential: t-1234:secret
 ```
+
+These info must be placed inside a file called `.pyiceberg.yaml` located either in the `$HOME` directory or in the `$PYICEBERG_HOME` directory (if var is set).
+
+For more details on possible configurations refer to the [specific page](https://py.iceberg.apache.org/configuration/).
 
 Then load the `prod` catalog:
 
