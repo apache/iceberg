@@ -412,18 +412,25 @@ public class ExpressionUtil {
   }
 
   private static String sanitizeString(CharSequence value, long now, int today) {
-    if (DATE.matcher(value).matches()) {
-      Literal<Integer> date = Literal.of(value).to(Types.DateType.get());
-      return sanitizeDate(date.value(), today);
-    } else if (TIMESTAMP.matcher(value).matches()) {
-      Literal<Long> ts = Literal.of(value).to(Types.TimestampType.withoutZone());
-      return sanitizeTimestamp(ts.value(), now);
-    } else if (TIMESTAMPTZ.matcher(value).matches()) {
-      Literal<Long> ts = Literal.of(value).to(Types.TimestampType.withZone());
-      return sanitizeTimestamp(ts.value(), now);
-    } else if (TIME.matcher(value).matches()) {
-      return "(time)";
-    } else {
+    try {
+      if (DATE.matcher(value).matches()) {
+        Literal<Integer> date = Literal.of(value).to(Types.DateType.get());
+        return sanitizeDate(date.value(), today);
+      } else if (TIMESTAMP.matcher(value).matches()) {
+        Literal<Long> ts = Literal.of(value).to(Types.TimestampType.withoutZone());
+        return sanitizeTimestamp(ts.value(), now);
+      } else if (TIMESTAMPTZ.matcher(value).matches()) {
+        Literal<Long> ts = Literal.of(value).to(Types.TimestampType.withZone());
+        return sanitizeTimestamp(ts.value(), now);
+      } else if (TIME.matcher(value).matches()) {
+        return "(time)";
+      } else {
+        return sanitizeSimpleString(value);
+      }
+    } catch (Exception ex) {
+      // Don't throw when parsing failed in sanitizeString
+      // because user could provide an invalid integer/date/timestamp string
+      // and expect them to be treated as a string instead of specific type
       return sanitizeSimpleString(value);
     }
   }
