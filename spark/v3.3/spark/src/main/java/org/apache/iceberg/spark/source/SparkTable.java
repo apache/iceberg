@@ -239,6 +239,10 @@ public class SparkTable
       return new SparkFilesScanBuilder(sparkSession(), icebergTable, options);
     }
 
+    if (options.containsKey(SparkReadOptions.SCAN_TASK_SET_ID)) {
+      return new SparkStagedScanBuilder(sparkSession(), icebergTable, options);
+    }
+
     if (refreshEagerly) {
       icebergTable.refresh();
     }

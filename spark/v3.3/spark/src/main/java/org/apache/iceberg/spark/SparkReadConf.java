@@ -94,6 +94,10 @@ public class SparkReadConf {
     return confParser.stringConf().option(SparkReadOptions.FILE_SCAN_TASK_SET_ID).parseOptional();
   }
 
+  public String scanTaskSetId() {
+    return confParser.stringConf().option(SparkReadOptions.SCAN_TASK_SET_ID).parseOptional();
+  }
+
   public boolean streamingSkipDeleteSnapshots() {
     return confParser
         .booleanConf()

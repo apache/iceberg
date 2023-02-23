@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 import org.apache.iceberg.DataFile;
@@ -33,6 +34,8 @@ import org.apache.iceberg.MetadataTableUtils;
 import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Partitioning;
+import org.apache.iceberg.PositionDeletesScanTask;
+import org.apache.iceberg.ScanTask;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
@@ -43,9 +46,13 @@ import org.apache.iceberg.data.FileHelpers;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.deletes.PositionDelete;
+import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.spark.ScanTaskSetManager;
+import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkStructLike;
 import org.apache.iceberg.spark.SparkTestBase;
 import org.apache.iceberg.types.Types;
@@ -662,6 +669,49 @@ public class TestPositionDeletesTable extends SparkTestBase {
 
     Assert.assertEquals("Position Delete table should contain expected rows", expectedC, actualC);
     dropTable(tableName);
+  }
+
+  @Test
+  public void testScanTaskSetManager() throws IOException {
+    String tableName = "scan_task_set_manager";
+    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("data").build();
+    Table tab = createTable(tableName, SCHEMA, spec);
+
+    DataFile dataFileA = dataFile(tab, "a");
+    DataFile dataFileB = dataFile(tab, "b");
+    tab.newAppend().appendFile(dataFileA).appendFile(dataFileB).commit();
+
+    // Add position deletes for both partitions
+    Pair<List<PositionDelete<?>>, DeleteFile> deletesA = deleteFile(tab, dataFileA, "a");
+    Pair<List<PositionDelete<?>>, DeleteFile> deletesB = deleteFile(tab, dataFileA, "b");
+    tab.newRowDelta().addDeletes(deletesA.second()).addDeletes(deletesB.second()).commit();
+
+    Table posDeletesTable =
+        MetadataTableUtils.createMetadataTableInstance(tab, MetadataTableType.POSITION_DELETES);
+    String posDeletesTableName = "default." + tableName + ".position_deletes";
+    try (CloseableIterable<ScanTask> tasks = posDeletesTable.newBatchScan().planFiles()) {
+      String fileSetID = UUID.randomUUID().toString();
+
+      ScanTaskSetManager taskSetManager = ScanTaskSetManager.get();
+      taskSetManager.stageTasks(
+          tab,
+          fileSetID,
+          Lists.newArrayList(
+              Iterators.transform(tasks.iterator(), t -> (PositionDeletesScanTask) t)));
+
+      // read and pack original 4 files into 2 splits
+      Dataset<Row> scanDF =
+          spark
+              .read()
+              .format("iceberg")
+              .option(SparkReadOptions.SCAN_TASK_SET_ID, fileSetID)
+              .option(SparkReadOptions.FILE_OPEN_COST, Integer.MAX_VALUE)
+              .load(posDeletesTableName);
+
+      Assert.assertEquals("Num partitions should match", 2, scanDF.javaRDD().getNumPartitions());
+
+      dropTable(tableName);
+    }
   }
 
   private StructLikeSet actual(String tableName, Table table) {

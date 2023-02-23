@@ -65,6 +65,9 @@ public class SparkReadOptions {
   // Set ID that is used to fetch file scan tasks
   public static final String FILE_SCAN_TASK_SET_ID = "file-scan-task-set-id";
 
+  // Set ID that is used to fetch scan tasks
+  public static final String SCAN_TASK_SET_ID = "scan-task-set-id";
+
   // skip snapshots of type delete while reading stream out of iceberg table
   public static final String STREAMING_SKIP_DELETE_SNAPSHOTS = "streaming-skip-delete-snapshots";
   public static final boolean STREAMING_SKIP_DELETE_SNAPSHOTS_DEFAULT = false;
