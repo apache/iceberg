@@ -24,6 +24,7 @@ import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.regex.Pattern;
 import java.util.stream.IntStream;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -594,6 +595,22 @@ public class TestExpressionUtil {
         "Sanitized string should be identical except for descriptive literal",
         "test = (date-7-days-from-now)",
         ExpressionUtil.toSanitizedString(Expressions.equal("test", nextWeek)));
+  }
+
+  @Test
+  public void testSanitizeStringFallback() {
+    Pattern filterPattern = Pattern.compile("^test = \\(hash-[0-9a-fA-F]{8}\\)$");
+    for (String filter :
+        Lists.newArrayList(
+            "2022-20-29",
+            "2022-04-29T40:49:51.123456",
+            "2022-04-29T23:70:51-07:00",
+            "2022-04-29T23:49:51.123456+100:00")) {
+      String sanitizedFilter = ExpressionUtil.toSanitizedString(Expressions.equal("test", filter));
+      Assert.assertTrue(
+          "Invalid date time string should use default sanitize method",
+          filterPattern.matcher(sanitizedFilter).matches());
+    }
   }
 
   @Test
