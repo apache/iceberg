@@ -56,10 +56,7 @@ public class Files {
         throw new AlreadyExistsException("File already exists: %s", file);
       }
 
-      if (!file.getParentFile().isDirectory() && !file.getParentFile().mkdirs()) {
-        throw new FileHandlingException(
-            "Failed to create the file's directory at %s.", file.getParentFile().getAbsolutePath());
-      }
+      file.getParentFile().mkdirs();
 
       try {
         return new PositionFileOutputStream(file, new RandomAccessFile(file, "rw"));

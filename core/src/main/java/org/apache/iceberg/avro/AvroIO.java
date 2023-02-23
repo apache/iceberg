@@ -30,7 +30,6 @@ import org.apache.avro.io.BinaryDecoder;
 import org.apache.avro.io.DecoderFactory;
 import org.apache.iceberg.common.DynClasses;
 import org.apache.iceberg.common.DynConstructors;
-import org.apache.iceberg.exceptions.FileHandlingException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.DelegatingInputStream;
 import org.apache.iceberg.io.SeekableInputStream;
@@ -179,7 +178,7 @@ class AvroIO {
           SYNC_READER.read(decoder, blockSync);
 
           if (!Arrays.equals(fileSync, blockSync)) {
-            throw new FileHandlingException("Invalid sync at %s", nextSyncPos);
+            throw new IOException(String.format("Invalid sync at %s", nextSyncPos));
           }
         }
 
