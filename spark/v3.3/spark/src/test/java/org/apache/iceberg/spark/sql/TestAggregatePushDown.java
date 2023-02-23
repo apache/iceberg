@@ -92,12 +92,12 @@ public class TestAggregatePushDown extends SparkCatalogTestBase {
     String createTable;
     if (hasPartitionCol) {
       createTable =
-          "CREATE TABLE %s (id LONG, intData INT, booleanData BOOLEAN, floatData FLOAT, doubleData DOUBLE, "
-              + "decimalData DECIMAL(14, 2), binaryData binary) USING iceberg PARTITIONED BY (id)";
+          "CREATE TABLE %s (id LONG, int_data INT, boolean_data BOOLEAN, float_data FLOAT, double_data DOUBLE, "
+              + "decimal_data DECIMAL(14, 2), binary_data binary) USING iceberg PARTITIONED BY (id)";
     } else {
       createTable =
-          "CREATE TABLE %s (id LONG, intData INT, booleanData BOOLEAN, floatData FLOAT, doubleData DOUBLE, "
-              + "decimalData DECIMAL(14, 2), binaryData binary) USING iceberg";
+          "CREATE TABLE %s (id LONG, int_data INT, boolean_data BOOLEAN, float_data FLOAT, double_data DOUBLE, "
+              + "decimal_data DECIMAL(14, 2), binary_data binary) USING iceberg";
     }
 
     sql(createTable, tableName);
@@ -113,12 +113,12 @@ public class TestAggregatePushDown extends SparkCatalogTestBase {
 
     String select =
         "SELECT count(*), max(id), min(id), count(id), "
-            + "max(intData), min(intData), count(intData), "
-            + "max(booleanData), min(booleanData), count(booleanData), "
-            + "max(floatData), min(floatData), count(floatData), "
-            + "max(doubleData), min(doubleData), count(doubleData), "
-            + "max(decimalData), min(decimalData), count(decimalData), "
-            + "max(binaryData), min(binaryData), count(binaryData) FROM %s";
+            + "max(int_data), min(int_data), count(int_data), "
+            + "max(boolean_data), min(boolean_data), count(boolean_data), "
+            + "max(float_data), min(float_data), count(float_data), "
+            + "max(double_data), min(double_data), count(double_data), "
+            + "max(decimal_data), min(decimal_data), count(decimal_data), "
+            + "max(binary_data), min(binary_data), count(binary_data) FROM %s";
 
     List<Object[]> explain = sql("EXPLAIN " + select, tableName);
     String explainString = explain.get(0)[0].toString();
@@ -127,24 +127,24 @@ public class TestAggregatePushDown extends SparkCatalogTestBase {
         && explainString.contains("max(id)".toLowerCase(Locale.ROOT))
         && explainString.contains("min(id)".toLowerCase(Locale.ROOT))
         && explainString.contains("count(id)".toLowerCase(Locale.ROOT))
-        && explainString.contains("max(intData)".toLowerCase(Locale.ROOT))
-        && explainString.contains("min(intData)".toLowerCase(Locale.ROOT))
-        && explainString.contains("count(intData)".toLowerCase(Locale.ROOT))
-        && explainString.contains("max(booleanData)".toLowerCase(Locale.ROOT))
-        && explainString.contains("min(booleanData)".toLowerCase(Locale.ROOT))
-        && explainString.contains("count(booleanData)".toLowerCase(Locale.ROOT))
-        && explainString.contains("max(floatData)".toLowerCase(Locale.ROOT))
-        && explainString.contains("min(floatData)".toLowerCase(Locale.ROOT))
-        && explainString.contains("count(floatData)".toLowerCase(Locale.ROOT))
-        && explainString.contains("max(doubleData)".toLowerCase(Locale.ROOT))
-        && explainString.contains("min(doubleData)".toLowerCase(Locale.ROOT))
-        && explainString.contains("count(doubleData)".toLowerCase(Locale.ROOT))
-        && explainString.contains("max(decimalData)".toLowerCase(Locale.ROOT))
-        && explainString.contains("min(decimalData)".toLowerCase(Locale.ROOT))
-        && explainString.contains("count(decimalData)".toLowerCase(Locale.ROOT))
-        && explainString.contains("max(binaryData)".toLowerCase(Locale.ROOT))
-        && explainString.contains("min(binaryData)".toLowerCase(Locale.ROOT))
-        && explainString.contains("count(binaryData)".toLowerCase(Locale.ROOT))) {
+        && explainString.contains("max(int_data)".toLowerCase(Locale.ROOT))
+        && explainString.contains("min(int_data)".toLowerCase(Locale.ROOT))
+        && explainString.contains("count(int_data)".toLowerCase(Locale.ROOT))
+        && explainString.contains("max(boolean_data)".toLowerCase(Locale.ROOT))
+        && explainString.contains("min(boolean_data)".toLowerCase(Locale.ROOT))
+        && explainString.contains("count(boolean_data)".toLowerCase(Locale.ROOT))
+        && explainString.contains("max(float_data)".toLowerCase(Locale.ROOT))
+        && explainString.contains("min(float_data)".toLowerCase(Locale.ROOT))
+        && explainString.contains("count(float_data)".toLowerCase(Locale.ROOT))
+        && explainString.contains("max(double_data)".toLowerCase(Locale.ROOT))
+        && explainString.contains("min(double_data)".toLowerCase(Locale.ROOT))
+        && explainString.contains("count(double_data)".toLowerCase(Locale.ROOT))
+        && explainString.contains("max(decimal_data)".toLowerCase(Locale.ROOT))
+        && explainString.contains("min(decimal_data)".toLowerCase(Locale.ROOT))
+        && explainString.contains("count(decimal_data)".toLowerCase(Locale.ROOT))
+        && explainString.contains("max(binary_data)".toLowerCase(Locale.ROOT))
+        && explainString.contains("min(binary_data)".toLowerCase(Locale.ROOT))
+        && explainString.contains("count(binary_data)".toLowerCase(Locale.ROOT))) {
       explainContainsPushDownAggregates = true;
     }
 
