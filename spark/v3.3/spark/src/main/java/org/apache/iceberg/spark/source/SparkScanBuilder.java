@@ -215,6 +215,7 @@ public class SparkScanBuilder
     }
     scan = scan.useSnapshot(snapshot.snapshotId());
     scan = configureSplitPlanning(scan);
+    scan = scan.filter(filterExpression());
 
     try (CloseableIterable<FileScanTask> fileScanTasks = scan.planFiles()) {
       List<FileScanTask> tasks = ImmutableList.copyOf(fileScanTasks);
@@ -260,12 +261,6 @@ public class SparkScanBuilder
     // TODO: enable aggregate push down for partition col group by expression
     if (aggregation.groupByExpressions().length > 0) {
       LOG.info("Skipping aggregate pushdown: group by aggregation push down is not supported");
-      return false;
-    }
-
-    // TODO: enable aggregate push down for partition filter
-    if (filterExpressions != null) {
-      LOG.info("Skipping aggregate pushdown: aggregation push down with filter is not supported");
       return false;
     }
 

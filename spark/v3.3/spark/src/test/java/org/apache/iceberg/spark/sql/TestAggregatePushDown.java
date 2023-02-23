@@ -22,6 +22,7 @@ import java.math.BigDecimal;
 import java.sql.Date;
 import java.sql.Timestamp;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.TableProperties;
@@ -37,7 +38,6 @@ import org.apache.spark.sql.SparkSession;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.BeforeClass;
-import org.junit.Ignore;
 import org.junit.Test;
 
 public class TestAggregatePushDown extends SparkCatalogTestBase {
@@ -123,28 +123,28 @@ public class TestAggregatePushDown extends SparkCatalogTestBase {
     List<Object[]> explain = sql("EXPLAIN " + select, tableName);
     String explainString = explain.get(0)[0].toString();
     boolean explainContainsPushDownAggregates = false;
-    if (explainString.contains("count(*)")
-        && explainString.contains("max(id)")
-        && explainString.contains("min(id)")
-        && explainString.contains("count(id)")
-        && explainString.contains("max(intData)")
-        && explainString.contains("min(intData)")
-        && explainString.contains("count(intData)")
-        && explainString.contains("max(booleanData)")
-        && explainString.contains("min(booleanData)")
-        && explainString.contains("count(booleanData)")
-        && explainString.contains("max(floatData)")
-        && explainString.contains("min(floatData)")
-        && explainString.contains("count(floatData)")
-        && explainString.contains("max(doubleData)")
-        && explainString.contains("min(doubleData)")
-        && explainString.contains("count(doubleData)")
-        && explainString.contains("max(decimalData)")
-        && explainString.contains("min(decimalData)")
-        && explainString.contains("count(decimalData)")
-        && explainString.contains("max(binaryData)")
-        && explainString.contains("min(binaryData)")
-        && explainString.contains("count(binaryData)")) {
+    if (explainString.contains("count(*)".toLowerCase(Locale.ROOT))
+        && explainString.contains("max(id)".toLowerCase(Locale.ROOT))
+        && explainString.contains("min(id)".toLowerCase(Locale.ROOT))
+        && explainString.contains("count(id)".toLowerCase(Locale.ROOT))
+        && explainString.contains("max(intData)".toLowerCase(Locale.ROOT))
+        && explainString.contains("min(intData)".toLowerCase(Locale.ROOT))
+        && explainString.contains("count(intData)".toLowerCase(Locale.ROOT))
+        && explainString.contains("max(booleanData)".toLowerCase(Locale.ROOT))
+        && explainString.contains("min(booleanData)".toLowerCase(Locale.ROOT))
+        && explainString.contains("count(booleanData)".toLowerCase(Locale.ROOT))
+        && explainString.contains("max(floatData)".toLowerCase(Locale.ROOT))
+        && explainString.contains("min(floatData)".toLowerCase(Locale.ROOT))
+        && explainString.contains("count(floatData)".toLowerCase(Locale.ROOT))
+        && explainString.contains("max(doubleData)".toLowerCase(Locale.ROOT))
+        && explainString.contains("min(doubleData)".toLowerCase(Locale.ROOT))
+        && explainString.contains("count(doubleData)".toLowerCase(Locale.ROOT))
+        && explainString.contains("max(decimalData)".toLowerCase(Locale.ROOT))
+        && explainString.contains("min(decimalData)".toLowerCase(Locale.ROOT))
+        && explainString.contains("count(decimalData)".toLowerCase(Locale.ROOT))
+        && explainString.contains("max(binaryData)".toLowerCase(Locale.ROOT))
+        && explainString.contains("min(binaryData)".toLowerCase(Locale.ROOT))
+        && explainString.contains("count(binaryData)".toLowerCase(Locale.ROOT))) {
       explainContainsPushDownAggregates = true;
     }
 
@@ -199,12 +199,12 @@ public class TestAggregatePushDown extends SparkCatalogTestBase {
     List<Object[]> explain = sql("EXPLAIN " + select, tableName);
     String explainString = explain.get(0)[0].toString();
     boolean explainContainsPushDownAggregates = false;
-    if (explainString.contains("max(d)")
-        && explainString.contains("min(d)")
-        && explainString.contains("count(d)")
-        && explainString.contains("max(ts)")
-        && explainString.contains("min(ts)")
-        && explainString.contains("count(ts)")) {
+    if (explainString.contains("max(d)".toLowerCase(Locale.ROOT))
+        && explainString.contains("min(d)".toLowerCase(Locale.ROOT))
+        && explainString.contains("count(d)".toLowerCase(Locale.ROOT))
+        && explainString.contains("max(ts)".toLowerCase(Locale.ROOT))
+        && explainString.contains("min(ts)".toLowerCase(Locale.ROOT))
+        && explainString.contains("count(ts)".toLowerCase(Locale.ROOT))) {
       explainContainsPushDownAggregates = true;
     }
 
@@ -236,7 +236,7 @@ public class TestAggregatePushDown extends SparkCatalogTestBase {
     List<Object[]> explain = sql("EXPLAIN " + select, tableName);
     String explainString = explain.get(0)[0].toString();
     boolean explainContainsPushDownAggregates = false;
-    if (explainString.contains("COUNT(data)")) {
+    if (explainString.contains("count(data)".toLowerCase(Locale.ROOT))) {
       explainContainsPushDownAggregates = true;
     }
 
@@ -270,7 +270,7 @@ public class TestAggregatePushDown extends SparkCatalogTestBase {
     List<Object[]> explain1 = sql("EXPLAIN " + select1, tableName);
     String explainString1 = explain1.get(0)[0].toString();
     boolean explainContainsPushDownAggregates = false;
-    if (explainString1.contains("count(data)")) {
+    if (explainString1.contains("count(data)".toLowerCase(Locale.ROOT))) {
       explainContainsPushDownAggregates = true;
     }
 
@@ -286,7 +286,7 @@ public class TestAggregatePushDown extends SparkCatalogTestBase {
     String select2 = "SELECT COUNT(id) FROM %s";
     List<Object[]> explain2 = sql("EXPLAIN " + select2, tableName);
     String explainString2 = explain2.get(0)[0].toString();
-    if (explainString2.contains("count(id)")) {
+    if (explainString2.contains("count(id)".toLowerCase(Locale.ROOT))) {
       explainContainsPushDownAggregates = true;
     }
 
@@ -303,7 +303,7 @@ public class TestAggregatePushDown extends SparkCatalogTestBase {
     explainContainsPushDownAggregates = false;
     List<Object[]> explain3 = sql("EXPLAIN " + select3, tableName);
     String explainString3 = explain3.get(0)[0].toString();
-    if (explainString3.contains("count(id)")) {
+    if (explainString3.contains("count(id)".toLowerCase(Locale.ROOT))) {
       explainContainsPushDownAggregates = true;
     }
 
@@ -330,7 +330,7 @@ public class TestAggregatePushDown extends SparkCatalogTestBase {
     List<Object[]> explain1 = sql("EXPLAIN " + select1, tableName);
     String explainString1 = explain1.get(0)[0].toString();
     boolean explainContainsPushDownAggregates = false;
-    if (explainString1.contains("max(id)")) {
+    if (explainString1.contains("max(id)".toLowerCase(Locale.ROOT))) {
       explainContainsPushDownAggregates = true;
     }
 
@@ -345,7 +345,7 @@ public class TestAggregatePushDown extends SparkCatalogTestBase {
     String select2 = "SELECT COUNT(data) FROM %s";
     List<Object[]> explain2 = sql("EXPLAIN " + select2, tableName);
     String explainString2 = explain2.get(0)[0].toString();
-    if (explainString2.contains("count(data)")) {
+    if (explainString2.contains("count(data)".toLowerCase(Locale.ROOT))) {
       explainContainsPushDownAggregates = true;
     }
 
@@ -364,7 +364,8 @@ public class TestAggregatePushDown extends SparkCatalogTestBase {
     String select3 = "SELECT count(data), max(data) FROM %s";
     List<Object[]> explain3 = sql("EXPLAIN " + select3, tableName);
     String explainString3 = explain3.get(0)[0].toString();
-    if (explainString3.contains("count(data)")) {
+    if (explainString3.contains("count(data)".toLowerCase(Locale.ROOT))
+        && explainString3.contains("max(data)".toLowerCase(Locale.ROOT))) {
       explainContainsPushDownAggregates = true;
     }
 
@@ -374,7 +375,7 @@ public class TestAggregatePushDown extends SparkCatalogTestBase {
     List<Object[]> actual3 = sql(select3, tableName);
     List<Object[]> expected3 = Lists.newArrayList();
     expected3.add(new Object[] {6L, "6666"});
-    assertEquals("min/max/count push down", expected3, actual3);
+    assertEquals("expected and actual should equal", expected3, actual3);
   }
 
   @Test
@@ -412,12 +413,20 @@ public class TestAggregatePushDown extends SparkCatalogTestBase {
     List<Object[]> explain = sql("EXPLAIN " + select, tableName);
     String explainString = explain.get(0)[0].toString();
     boolean explainContainsPushDownAggregates = false;
-    if (explainString.contains("min(data)")) {
+    if (explainString.contains("min(data)".toLowerCase(Locale.ROOT))) {
       explainContainsPushDownAggregates = true;
     }
 
-    Assert.assertFalse(
-        "explain should not contain the pushed down aggregates", explainContainsPushDownAggregates);
+    if (!partitionFilerOnly) {
+      // Filters are not completely pushed down, we can't push down aggregates
+      Assert.assertFalse(
+          "explain should not contain the pushed down aggregates",
+          explainContainsPushDownAggregates);
+    } else {
+      // Filters are not completely pushed down, we can push down aggregates
+      Assert.assertTrue(
+          "explain should contain the pushed down aggregates", explainContainsPushDownAggregates);
+    }
 
     List<Object[]> actual = sql(select, tableName);
     List<Object[]> expected = Lists.newArrayList();
@@ -436,7 +445,7 @@ public class TestAggregatePushDown extends SparkCatalogTestBase {
     List<Object[]> explain = sql("EXPLAIN " + select1, tableName);
     String explainString = explain.get(0)[0].toString();
     boolean explainContainsPushDownAggregates = false;
-    if (explainString.contains("count(complex)")) {
+    if (explainString.contains("count(complex)".toLowerCase(Locale.ROOT))) {
       explainContainsPushDownAggregates = true;
     }
 
@@ -452,7 +461,7 @@ public class TestAggregatePushDown extends SparkCatalogTestBase {
     explain = sql("EXPLAIN " + select2, tableName);
     explainString = explain.get(0)[0].toString();
     explainContainsPushDownAggregates = false;
-    if (explainString.contains("max(complex)")) {
+    if (explainString.contains("max(complex)".toLowerCase(Locale.ROOT))) {
       explainContainsPushDownAggregates = true;
     }
 
@@ -471,47 +480,13 @@ public class TestAggregatePushDown extends SparkCatalogTestBase {
     List<Object[]> explain = sql("EXPLAIN " + select, tableName);
     String explainString = explain.get(0)[0].toString();
     boolean explainContainsPushDownAggregates = false;
-    if (explainString.contains("max(data)")
-        && explainString.contains("min(data)")
-        && explainString.contains("count(data)")) {
+    if (explainString.contains("max(data)".toLowerCase(Locale.ROOT))
+        && explainString.contains("min(data)".toLowerCase(Locale.ROOT))
+        && explainString.contains("count(data)".toLowerCase(Locale.ROOT))) {
       explainContainsPushDownAggregates = true;
     }
 
     Assert.assertTrue("min/max/count pushed down for deleted", explainContainsPushDownAggregates);
-
-    List<Object[]> actual = sql(select, tableName);
-    List<Object[]> expected = Lists.newArrayList();
-    expected.add(new Object[] {6666, 2222, 5L});
-    assertEquals("min/max/count push down", expected, actual);
-  }
-
-  @Ignore
-  public void testAggregatePushDownInDeleteMergeOnRead() {
-    sql("CREATE TABLE %s (id LONG, data INT) USING iceberg", tableName);
-    sql(
-        "INSERT INTO TABLE %s VALUES (1, 1111), (1, 2222), (2, 3333), (2, 4444), (3, 5555), (3, 6666) ",
-        tableName);
-    sql(
-        "ALTER TABLE %s SET TBLPROPERTIES('%s' '%s')",
-        tableName, TableProperties.FORMAT_VERSION, "2");
-    sql(
-        "ALTER TABLE %s SET TBLPROPERTIES('%s' '%s')",
-        tableName, TableProperties.DELETE_MODE, "merge-on-read");
-
-    sql("DELETE FROM %s WHERE data = 1111", tableName);
-    String select = "SELECT max(data), min(data), count(data) FROM %s";
-
-    List<Object[]> explain = sql("EXPLAIN " + select, tableName);
-    String explainString = explain.get(0)[0].toString();
-    boolean explainContainsPushDownAggregates = false;
-    if (explainString.contains("MAX(data)")
-        && explainString.contains("MIN(data)")
-        && explainString.contains("COUNT(data)")) {
-      explainContainsPushDownAggregates = true;
-    }
-
-    Assert.assertFalse(
-        "min/max/count not pushed down for deleted", explainContainsPushDownAggregates);
 
     List<Object[]> actual = sql(select, tableName);
     List<Object[]> expected = Lists.newArrayList();
@@ -536,7 +511,7 @@ public class TestAggregatePushDown extends SparkCatalogTestBase {
         sql("EXPLAIN SELECT count(id) FROM %s VERSION AS OF %s", tableName, snapshotId);
     String explainString1 = explain1.get(0)[0].toString();
     boolean explainContainsPushDownAggregates1 = false;
-    if (explainString1.contains("count(id)")) {
+    if (explainString1.contains("count(id)".toLowerCase(Locale.ROOT))) {
       explainContainsPushDownAggregates1 = true;
     }
     Assert.assertTrue("count pushed down", explainContainsPushDownAggregates1);
@@ -548,7 +523,7 @@ public class TestAggregatePushDown extends SparkCatalogTestBase {
     List<Object[]> explain2 = sql("EXPLAIN SELECT count(id) FROM %s", tableName);
     String explainString2 = explain2.get(0)[0].toString();
     boolean explainContainsPushDownAggregates2 = false;
-    if (explainString2.contains("count(id)")) {
+    if (explainString2.contains("count(id)".toLowerCase(Locale.ROOT))) {
       explainContainsPushDownAggregates2 = true;
     }
 
@@ -574,9 +549,9 @@ public class TestAggregatePushDown extends SparkCatalogTestBase {
     List<Object[]> explain = sql("EXPLAIN " + select, tableName);
     String explainString = explain.get(0)[0].toString();
     boolean explainContainsPushDownAggregates = false;
-    if (explainString.contains("max(data)")
-        && explainString.contains("min(data)")
-        && explainString.contains("count(data)")) {
+    if (explainString.contains("max(data)".toLowerCase(Locale.ROOT))
+        && explainString.contains("min(data)".toLowerCase(Locale.ROOT))
+        && explainString.contains("count(data)".toLowerCase(Locale.ROOT))) {
       explainContainsPushDownAggregates = true;
     }
 
@@ -605,9 +580,9 @@ public class TestAggregatePushDown extends SparkCatalogTestBase {
     List<Object[]> explain = sql("EXPLAIN " + select, tableName);
     String explainString = explain.get(0)[0].toString();
     boolean explainContainsPushDownAggregates = false;
-    if (explainString.contains("max(data)")
-        && explainString.contains("min(data)")
-        && explainString.contains("count(data)")) {
+    if (explainString.contains("max(data)".toLowerCase(Locale.ROOT))
+        || explainString.contains("min(data)".toLowerCase(Locale.ROOT))
+        || explainString.contains("count(data)".toLowerCase(Locale.ROOT))) {
       explainContainsPushDownAggregates = true;
     }
 
@@ -617,7 +592,7 @@ public class TestAggregatePushDown extends SparkCatalogTestBase {
     List<Object[]> actual = sql(select, tableName);
     List<Object[]> expected = Lists.newArrayList();
     expected.add(new Object[] {6L, Float.NaN, Float.NaN, 6L});
-    assertEquals("min/max/count push down", expected, actual);
+    assertEquals("expected and actual should equal", expected, actual);
   }
 
   @Test
@@ -636,9 +611,9 @@ public class TestAggregatePushDown extends SparkCatalogTestBase {
     List<Object[]> explain = sql("EXPLAIN " + select, tableName);
     String explainString = explain.get(0)[0].toString();
     boolean explainContainsPushDownAggregates = false;
-    if (explainString.contains("max(data)")
-        && explainString.contains("min(data)")
-        && explainString.contains("count(data)")) {
+    if (explainString.contains("max(data)".toLowerCase(Locale.ROOT))
+        || explainString.contains("min(data)".toLowerCase(Locale.ROOT))
+        || explainString.contains("count(data)".toLowerCase(Locale.ROOT))) {
       explainContainsPushDownAggregates = true;
     }
 
@@ -648,7 +623,7 @@ public class TestAggregatePushDown extends SparkCatalogTestBase {
     List<Object[]> actual = sql(select, tableName);
     List<Object[]> expected = Lists.newArrayList();
     expected.add(new Object[] {6L, Float.NaN, 1.0F, 6L});
-    assertEquals("min/max/count push down", expected, actual);
+    assertEquals("expected and actual should equal", expected, actual);
   }
 
   @Test
@@ -670,15 +645,15 @@ public class TestAggregatePushDown extends SparkCatalogTestBase {
     List<Object[]> explain = sql("EXPLAIN " + select, tableName);
     String explainString = explain.get(0)[0].toString();
     boolean explainContainsPushDownAggregates = false;
-    if (explainString.contains("max(data1)")
-        && explainString.contains("min(data1)")
-        && explainString.contains("count(data1)")
-        && explainString.contains("max(data2)")
-        && explainString.contains("min(data2)")
-        && explainString.contains("count(data2)")
-        && explainString.contains("max(data3)")
-        && explainString.contains("min(data3)")
-        && explainString.contains("count(data3)")) {
+    if (explainString.contains("max(data1)".toLowerCase(Locale.ROOT))
+        && explainString.contains("min(data1)".toLowerCase(Locale.ROOT))
+        && explainString.contains("count(data1)".toLowerCase(Locale.ROOT))
+        && explainString.contains("max(data2)".toLowerCase(Locale.ROOT))
+        && explainString.contains("min(data2)".toLowerCase(Locale.ROOT))
+        && explainString.contains("count(data2)".toLowerCase(Locale.ROOT))
+        && explainString.contains("max(data3)".toLowerCase(Locale.ROOT))
+        && explainString.contains("min(data3)".toLowerCase(Locale.ROOT))
+        && explainString.contains("count(data3)".toLowerCase(Locale.ROOT))) {
       explainContainsPushDownAggregates = true;
     }
 

@@ -107,5 +107,7 @@ public interface TableScan extends Scan<TableScan, FileScanTask, CombinedScanTas
    *
    * @return a new scan based on this with column stats
    */
-  TableScan withColStats();
+  default TableScan withColStats() {
+    throw new UnsupportedOperationException("scan with colStats is not supported");
+  }
 }

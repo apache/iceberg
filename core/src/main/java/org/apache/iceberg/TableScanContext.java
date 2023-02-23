@@ -36,7 +36,7 @@ final class TableScanContext {
   private final Expression rowFilter;
   private final boolean ignoreResiduals;
   private final boolean caseSensitive;
-  private boolean colStats;
+  private final boolean colStats;
   private final Schema projectedSchema;
   private final Collection<String> selectedColumns;
   private final ImmutableMap<String, String> options;

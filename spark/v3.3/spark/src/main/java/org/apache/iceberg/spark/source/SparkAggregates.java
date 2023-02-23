@@ -63,6 +63,7 @@ public class SparkAggregates {
           return Expressions.min(SparkUtil.toColumnName((NamedReference) minAgg.column()));
       }
     }
-    throw new UnsupportedOperationException("Invalid aggregate: " + aggregate);
+
+    throw new UnsupportedOperationException("Unsupported aggregate: " + aggregate);
   }
 }

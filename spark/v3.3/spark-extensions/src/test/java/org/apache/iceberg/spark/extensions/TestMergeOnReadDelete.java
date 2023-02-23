@@ -22,6 +22,8 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
+import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.RowDelta;
@@ -31,10 +33,12 @@ import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.source.SparkTable;
 import org.apache.iceberg.spark.source.TestSparkCatalog;
 import org.apache.spark.SparkException;
 import org.apache.spark.sql.connector.catalog.Identifier;
+import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runners.Parameterized;
 
@@ -117,5 +121,33 @@ public class TestMergeOnReadDelete extends TestDelete {
         "Should have expected rows",
         ImmutableList.of(row(1, "hr", "c1"), row(3, "hr", "c1")),
         sql("SELECT * FROM %s ORDER BY id", "dummy_catalog.default.table"));
+  }
+
+  @Test
+  public void testAggregatePushDownInMergeOnReadDelete() {
+    createAndInitTable("id LONG, data INT");
+    sql(
+        "INSERT INTO TABLE %s VALUES (1, 1111), (1, 2222), (2, 3333), (2, 4444), (3, 5555), (3, 6666) ",
+        tableName);
+
+    sql("DELETE FROM %s WHERE data = 1111", tableName);
+    String select = "SELECT max(data), min(data), count(data) FROM %s";
+
+    List<Object[]> explain = sql("EXPLAIN " + select, tableName);
+    String explainString = explain.get(0)[0].toString();
+    boolean explainContainsPushDownAggregates = false;
+    if (explainString.contains("max(data)".toLowerCase(Locale.ROOT))
+        || explainString.contains("min(data)".toLowerCase(Locale.ROOT))
+        || explainString.contains("count(data)".toLowerCase(Locale.ROOT))) {
+      explainContainsPushDownAggregates = true;
+    }
+
+    Assert.assertFalse(
+        "min/max/count not pushed down for deleted", explainContainsPushDownAggregates);
+
+    List<Object[]> actual = sql(select, tableName);
+    List<Object[]> expected = Lists.newArrayList();
+    expected.add(new Object[] {6666, 2222, 5L});
+    assertEquals("min/max/count push down", expected, actual);
   }
 }
