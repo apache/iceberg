@@ -39,8 +39,10 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DataFile;
+import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.RowLevelOperationMode;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
@@ -59,6 +61,10 @@ import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
+import org.apache.spark.sql.catalyst.parser.ParseException;
+import org.apache.spark.sql.catalyst.plans.logical.DeleteFromIcebergTable;
+import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan;
+import org.apache.spark.sql.execution.datasources.v2.OptimizeMetadataOnlyDeleteFromTable;
 import org.apache.spark.sql.internal.SQLConf;
 import org.assertj.core.api.Assertions;
 import org.junit.After;
@@ -89,6 +95,42 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     sql("DROP TABLE IF EXISTS %s", tableName);
     sql("DROP TABLE IF EXISTS deleted_id");
     sql("DROP TABLE IF EXISTS deleted_dep");
+  }
+
+  @Test
+  public void testDeleteWithoutScanningTable() throws Exception {
+    createAndInitPartitionedTable();
+
+    append(new Employee(1, "hr"), new Employee(3, "hr"));
+    append(new Employee(1, "hardware"), new Employee(2, "hardware"));
+
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    List<String> manifestLocations =
+        table.currentSnapshot().allManifests(table.io()).stream()
+            .map(ManifestFile::path)
+            .collect(Collectors.toList());
+
+    withUnavailableLocations(
+        manifestLocations,
+        () -> {
+          LogicalPlan parsed = parsePlan("DELETE FROM %s WHERE dep = 'hr'", tableName);
+
+          DeleteFromIcebergTable analyzed =
+              (DeleteFromIcebergTable) spark.sessionState().analyzer().execute(parsed);
+          Assert.assertTrue("Should have rewrite plan", analyzed.rewritePlan().isDefined());
+
+          DeleteFromIcebergTable optimized =
+              (DeleteFromIcebergTable) OptimizeMetadataOnlyDeleteFromTable.apply(analyzed);
+          Assert.assertTrue("Should discard rewrite plan", optimized.rewritePlan().isEmpty());
+        });
+
+    sql("DELETE FROM %s WHERE dep = 'hr'", tableName);
+
+    assertEquals(
+        "Should have expected rows",
+        ImmutableList.of(row(1, "hardware"), row(2, "hardware")),
+        sql("SELECT * FROM %s ORDER BY id", tableName));
   }
 
   @Test
@@ -990,5 +1032,13 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
   private RowLevelOperationMode mode(Table table) {
     String modeName = table.properties().getOrDefault(DELETE_MODE, DELETE_MODE_DEFAULT);
     return RowLevelOperationMode.fromName(modeName);
+  }
+
+  private LogicalPlan parsePlan(String query, Object... args) {
+    try {
+      return spark.sessionState().sqlParser().parsePlan(String.format(query, args));
+    } catch (ParseException e) {
+      throw new RuntimeException(e);
+    }
   }
 }
