@@ -607,9 +607,7 @@ public class TestExpressionUtil {
             "2022-04-29T23:70:51-07:00",
             "2022-04-29T23:49:51.123456+100:00")) {
       String sanitizedFilter = ExpressionUtil.toSanitizedString(Expressions.equal("test", filter));
-      Assert.assertTrue(
-          "Invalid date time string should use default sanitize method",
-          filterPattern.matcher(sanitizedFilter).matches());
+      Assertions.assertThat(filterPattern.matcher(sanitizedFilter)).matches();
     }
   }
 
