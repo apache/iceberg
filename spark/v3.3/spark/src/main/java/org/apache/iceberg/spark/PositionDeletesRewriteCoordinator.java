@@ -18,15 +18,16 @@
  */
 package org.apache.iceberg.spark;
 
-import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DeleteFile;
 
-public class FileRewriteCoordinator extends AbstractFileRewriteCoordinator<DataFile> {
+public class PositionDeletesRewriteCoordinator extends AbstractFileRewriteCoordinator<DeleteFile> {
 
-  private static final FileRewriteCoordinator INSTANCE = new FileRewriteCoordinator();
+  private static final PositionDeletesRewriteCoordinator INSTANCE =
+      new PositionDeletesRewriteCoordinator();
 
-  private FileRewriteCoordinator() {}
+  private PositionDeletesRewriteCoordinator() {}
 
-  public static FileRewriteCoordinator get() {
+  public static PositionDeletesRewriteCoordinator get() {
     return INSTANCE;
   }
 }

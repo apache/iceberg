@@ -18,9 +18,13 @@
  */
 package org.apache.iceberg.spark.source;
 
+import static org.apache.spark.sql.connector.write.RowLevelOperation.Command.MERGE;
+import static org.apache.spark.sql.connector.write.RowLevelOperation.Command.UPDATE;
+
 import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.IsolationLevel;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.PositionDeletesTable;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.UpdateSchema;
@@ -166,7 +170,12 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
 
       @Override
       public BatchWrite toBatch() {
-        if (rewrittenFileSetId != null) {
+        if (table instanceof PositionDeletesTable) {
+          Preconditions.checkArgument(
+              writeConf.rewrittenFileSetId() != null,
+              "position_deletes table can only be written by RewriteDeleteFiles");
+          return asPositionDeletesRewrite(rewrittenFileSetId);
+        } else if (rewrittenFileSetId != null) {
           return asRewrite(rewrittenFileSetId);
         } else if (overwriteByFilter) {
           return asOverwriteByFilter(overwriteExpr);
