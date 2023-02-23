@@ -47,4 +47,9 @@ abstract class BaseTableScan extends SnapshotScan<TableScan, FileScanTask, Combi
     return TableScanUtil.planTasks(
         splitFiles, targetSplitSize(), splitLookback(), splitOpenFileCost());
   }
+
+  @Override
+  public TableScan withColStats() {
+    return newRefinedScan(table(), tableSchema(), context().withColStats(true));
+  }
 }

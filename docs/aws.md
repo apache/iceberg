@@ -181,9 +181,10 @@ see more details in [AWS client customization](#aws-client-customization).
 
 #### Skip Archive
 
-By default, Glue stores all the table versions created and user can rollback a table to any historical version if needed.
-However, if you are streaming data to Iceberg, this will easily create a lot of Glue table versions.
-Therefore, it is recommended to turn off the archive feature in Glue by setting `glue.skip-archive` to `true`.
+AWS Glue has the ability to archive older table versions and a user can rollback the table to any historical version if needed.
+By default, the Iceberg Glue Catalog will skip the archival of older table versions.
+If a user wishes to archive older table versions, they can set `glue.skip-archive` to false.
+Do note for streaming ingestion into Iceberg tables, setting `glue.skip-archive` to false will quickly create a lot of Glue table versions.
 For more details, please read [Glue Quotas](https://docs.aws.amazon.com/general/latest/gr/glue.html) and the [UpdateTable API](https://docs.aws.amazon.com/glue/latest/webapi/API_UpdateTable.html).
 
 #### Skip Name Validation
