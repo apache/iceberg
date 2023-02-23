@@ -1315,12 +1315,16 @@ components:
       properties:
         snapshot-id:
           type: integer
+          format: int64
         parent-snapshot-id:
           type: integer
+          format: int64
         sequence-number:
           type: integer
+          format: int64
         timestamp-ms:
           type: integer
+          format: int64
         manifest-list:
           type: string
           description: Location of the snapshot's manifest list file
@@ -1373,8 +1377,10 @@ components:
         properties:
           snapshot-id:
             type: integer
+            format: int64
           timestamp-ms:
             type: integer
+            format: int64
 
     MetadataLog:
       type: array
@@ -1388,6 +1394,7 @@ components:
             type: string
           timestamp-ms:
             type: integer
+            format: int64
 
     TableMetadata:
       type: object
@@ -1405,6 +1412,7 @@ components:
           type: string
         last-updated-ms:
           type: integer
+          format: int64
         properties:
           type: object
           additionalProperties:
