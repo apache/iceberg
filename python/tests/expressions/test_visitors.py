@@ -1398,23 +1398,87 @@ def test_integer_not_in(schema: Schema, manifest: ManifestFile) -> None:
 
 
 def test_string_starts_with(schema: Schema, manifest: ManifestFile) -> None:
-    assert _ManifestEvalVisitor(schema, StartsWith(Reference("no_nulls_same_value_a"), "a"), case_sensitive=True).eval(
+    assert _ManifestEvalVisitor(schema, StartsWith(Reference("some_nulls"), "a"), case_sensitive=False).eval(
         manifest
-    ), "Should read: no_nulls_same_value_a starts with a"
+    ), "Should read: range matches"
 
-    assert not _ManifestEvalVisitor(schema, StartsWith(Reference("all_nulls_missing_nan"), "a"), case_sensitive=True).eval(
+    assert _ManifestEvalVisitor(schema, StartsWith(Reference("some_nulls"), "aa"), case_sensitive=False).eval(
         manifest
-    ), "Should read: no_nulls_same_value_a does not start with a"
+    ), "Should read: range matches"
+
+    assert _ManifestEvalVisitor(schema, StartsWith(Reference("some_nulls"), "dddd"), case_sensitive=False).eval(
+        manifest
+    ), "Should read: range matches"
+
+    assert _ManifestEvalVisitor(schema, StartsWith(Reference("some_nulls"), "z"), case_sensitive=False).eval(
+        manifest
+    ), "Should read: range matches"
+
+    assert _ManifestEvalVisitor(schema, StartsWith(Reference("no_nulls"), "a"), case_sensitive=False).eval(
+        manifest
+    ), "Should read: range matches"
+
+    assert not _ManifestEvalVisitor(schema, StartsWith(Reference("some_nulls"), "zzzz"), case_sensitive=False).eval(
+        manifest
+    ), "Should skip: range doesn't match"
+
+    assert not _ManifestEvalVisitor(schema, StartsWith(Reference("some_nulls"), "1"), case_sensitive=False).eval(
+        manifest
+    ), "Should skip: range doesn't match"
 
 
 def test_string_not_starts_with(schema: Schema, manifest: ManifestFile) -> None:
-    assert _ManifestEvalVisitor(schema, NotStartsWith(Reference("no_nulls_same_value_a"), "b"), case_sensitive=True).eval(
+    assert _ManifestEvalVisitor(schema, NotStartsWith(Reference("some_nulls"), "a"), case_sensitive=False).eval(
         manifest
-    ), "Should read: no_nulls_same_value_a does not start with a"
+    ), "Should read: range matches"
 
-    assert not _ManifestEvalVisitor(schema, NotStartsWith(Reference("all_nulls_missing_nan"), "b"), case_sensitive=True).eval(
+    assert _ManifestEvalVisitor(schema, NotStartsWith(Reference("some_nulls"), "aa"), case_sensitive=False).eval(
         manifest
-    ), "Should read: no_nulls_same_value_a starts with a"
+    ), "Should read: range matches"
+
+    assert _ManifestEvalVisitor(schema, NotStartsWith(Reference("some_nulls"), "dddd"), case_sensitive=False).eval(
+        manifest
+    ), "Should read: range matches"
+
+    assert _ManifestEvalVisitor(schema, NotStartsWith(Reference("some_nulls"), "z"), case_sensitive=False).eval(
+        manifest
+    ), "Should read: range matches"
+
+    assert _ManifestEvalVisitor(schema, NotStartsWith(Reference("no_nulls"), "a"), case_sensitive=False).eval(
+        manifest
+    ), "Should read: range matches"
+
+    assert _ManifestEvalVisitor(schema, NotStartsWith(Reference("some_nulls"), "zzzz"), case_sensitive=False).eval(
+        manifest
+    ), "Should read: range matches"
+
+    assert _ManifestEvalVisitor(schema, NotStartsWith(Reference("some_nulls"), "1"), case_sensitive=False).eval(
+        manifest
+    ), "Should read: range matches"
+
+    assert _ManifestEvalVisitor(schema, NotStartsWith(Reference("all_same_value_or_null"), "a"), case_sensitive=False).eval(
+        manifest
+    ), "Should read: range matches"
+
+    assert _ManifestEvalVisitor(schema, NotStartsWith(Reference("all_same_value_or_null"), "aa"), case_sensitive=False).eval(
+        manifest
+    ), "Should read: range matches"
+
+    assert _ManifestEvalVisitor(schema, NotStartsWith(Reference("all_same_value_or_null"), "A"), case_sensitive=False).eval(
+        manifest
+    ), "Should read: range matches"
+
+    #    Iceberg does not implement SQL's 3-way boolean logic, so the choice of an all null column
+    #    matching is
+    #    by definition in order to surface more values to the query engine to allow it to make its own
+    #    decision.
+    assert _ManifestEvalVisitor(schema, NotStartsWith(Reference("all_nulls_missing_nan"), "A"), case_sensitive=False).eval(
+        manifest
+    ), "Should read: range matches"
+
+    assert not _ManifestEvalVisitor(schema, NotStartsWith(Reference("no_nulls_same_value_a"), "a"), case_sensitive=False).eval(
+        manifest
+    ), "Should not read: all values start with the prefix"
 
 
 def test_rewrite_not_equal_to() -> None:

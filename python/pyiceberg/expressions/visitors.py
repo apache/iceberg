@@ -506,10 +506,11 @@ class _ExpressionEvaluator(BoundBooleanExpressionVisitor[bool]):
         return term.eval(self.struct) <= literal.value
 
     def visit_starts_with(self, term: BoundTerm[L], literal: Literal[L]) -> bool:
-        return str(term.eval(self.struct)).startswith(str(literal.value))
+        eval_res = term.eval(self.struct)
+        return eval_res is not None and str(eval_res).startswith(str(literal.value))
 
     def visit_not_starts_with(self, term: BoundTerm[L], literal: Literal[L]) -> bool:
-        return not str(term.eval(self.struct)).startswith(str(literal.value))
+        return not self.visit_starts_with(term, literal)
 
     def visit_true(self) -> bool:
         return True
@@ -707,8 +708,22 @@ class _ManifestEvalVisitor(BoundBooleanExpressionVisitor[bool]):
     def visit_starts_with(self, term: BoundTerm[L], literal: Literal[L]) -> bool:
         pos = term.ref().accessor.position
         field = self.partition_fields[pos]
+        prefix = str(literal.value)
 
-        if field.lower_bound is None or field.upper_bound is None:
+        # contains_null encodes whether at least one partition value is null,
+        # lowerBound is null if all partition values are null
+        all_null = field.contains_null is True and field.lower_bound is None
+        if all_null or not field.lower_bound or not field.upper_bound:
+            return ROWS_CANNOT_MATCH
+
+        lower = _from_byte_buffer(term.ref().field.field_type, field.lower_bound)
+        # truncate lower bound so that its length is not greater than the length of prefix
+        if lower and lower[: len(str(prefix))] > prefix:
+            return ROWS_CANNOT_MATCH
+
+        upper = _from_byte_buffer(term.ref().field.field_type, field.upper_bound)
+        # truncate upper bound so that its length is not greater than the length of prefix
+        if upper and upper[: len(prefix)] < prefix:
             return ROWS_CANNOT_MATCH
 
         return ROWS_MIGHT_MATCH
@@ -716,9 +731,28 @@ class _ManifestEvalVisitor(BoundBooleanExpressionVisitor[bool]):
     def visit_not_starts_with(self, term: BoundTerm[L], literal: Literal[L]) -> bool:
         pos = term.ref().accessor.position
         field = self.partition_fields[pos]
+        prefix = str(literal.value)
 
-        if field.lower_bound is None or field.upper_bound is None:
-            return ROWS_CANNOT_MATCH
+        if field.contains_null or not field.lower_bound or not field.upper_bound:
+            return ROWS_MIGHT_MATCH
+
+        # not_starts_with will match unless all values must start with the prefix. This happens when
+        # the lower and upper bounds both start with the prefix.
+        lower = _from_byte_buffer(term.ref().field.field_type, field.lower_bound)
+        upper = _from_byte_buffer(term.ref().field.field_type, field.upper_bound)
+
+        if lower and upper:
+            # if lower is shorter than the prefix then lower doesn't start with the prefix
+            if len(lower) < len(prefix):
+                return ROWS_MIGHT_MATCH
+
+            if lower[: len(prefix)] == prefix:
+                # if upper is shorter than the prefix then upper can't start with the prefix
+                if len(upper) < len(prefix):
+                    return ROWS_MIGHT_MATCH
+
+                if upper[: len(prefix)] == prefix:
+                    return ROWS_CANNOT_MATCH
 
         return ROWS_MIGHT_MATCH
 
