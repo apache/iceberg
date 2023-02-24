@@ -211,7 +211,7 @@ public class TestCreateChangelogViewProcedure extends SparkExtensionsTestBase {
 
     List<Object[]> returns =
         sql(
-            "CALL %s.system.create_changelog_view(table => '%s', identifier_columns => 'id')",
+            "CALL %s.system.create_changelog_view(table => '%s', identifier_columns => array('id'))",
             catalogName, tableName);
 
     String viewName = (String) returns.get(0)[0];
@@ -270,7 +270,7 @@ public class TestCreateChangelogViewProcedure extends SparkExtensionsTestBase {
 
     List<Object[]> returns =
         sql(
-            "CALL %s.system.create_changelog_view(table => '%s', identifier_columns => 'id')",
+            "CALL %s.system.create_changelog_view(table => '%s', identifier_columns => array('id'))",
             catalogName, tableName);
 
     String viewName = (String) returns.get(0)[0];
@@ -302,7 +302,7 @@ public class TestCreateChangelogViewProcedure extends SparkExtensionsTestBase {
     List<Object[]> returns =
         sql(
             "CALL %s.system.create_changelog_view("
-                + "identifier_columns => 'id,age',"
+                + "identifier_columns => array('id','age'),"
                 + "table => '%s')",
             catalogName, tableName);
 
@@ -336,7 +336,7 @@ public class TestCreateChangelogViewProcedure extends SparkExtensionsTestBase {
     List<Object[]> returns =
         sql(
             "CALL %s.system.create_changelog_view("
-                + "identifier_columns => 'id,age',"
+                + "identifier_columns => array('id','age'), "
                 + "table => '%s')",
             catalogName, tableName);
 

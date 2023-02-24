@@ -90,7 +90,7 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
         ProcedureParameter.optional("options", STRING_MAP),
         ProcedureParameter.optional("compute_updates", DataTypes.BooleanType),
         ProcedureParameter.optional("remove_carryovers", DataTypes.BooleanType),
-        ProcedureParameter.optional("identifier_columns", DataTypes.StringType),
+        ProcedureParameter.optional("identifier_columns", STRING_ARRAY),
       };
 
   private static final int TABLE_NAME_ORDINAL = 0;
@@ -146,7 +146,7 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
 
       Column[] repartitionColumns = getRepartitionExpr(df, identifierColumns);
       df = transform(df, repartitionColumns);
-    } else if (removeCarryoverRow(args)) {
+    } else if (removeCarryoverRows(args)) {
       df = removeCarryoverRows(df);
     }
 
@@ -170,7 +170,7 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
     return false;
   }
 
-  private boolean removeCarryoverRow(InternalRow args) {
+  private boolean removeCarryoverRows(InternalRow args) {
     return args.isNullAt(REMOVE_CARRYOVERS_ORDINAL)
         ? true
         : args.getBoolean(REMOVE_CARRYOVERS_ORDINAL);
@@ -187,14 +187,17 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
 
   private String[] identifierColumns(InternalRow args) {
     String[] identifierColumns = new String[0];
-    if (!args.isNullAt(IDENTIFIER_COLUMNS_ORDINAL)
-        && !args.getString(IDENTIFIER_COLUMNS_ORDINAL).isEmpty()) {
-      identifierColumns = args.getString(IDENTIFIER_COLUMNS_ORDINAL).split(",");
+
+    if (!args.isNullAt(IDENTIFIER_COLUMNS_ORDINAL)) {
+      identifierColumns =
+          Arrays.stream(args.getArray(IDENTIFIER_COLUMNS_ORDINAL).array())
+              .map(column -> column.toString())
+              .toArray(String[]::new);
     }
 
     if (identifierColumns.length == 0) {
       Identifier tableIdent =
-          toIdentifier(args.getString(TABLE_NAME_ORDINAL), PARAMETERS[0].name());
+          toIdentifier(args.getString(TABLE_NAME_ORDINAL), PARAMETERS[TABLE_NAME_ORDINAL].name());
       Table table = loadSparkTable(tableIdent).table();
       identifierColumns = table.schema().identifierFieldNames().toArray(new String[0]);
     }
