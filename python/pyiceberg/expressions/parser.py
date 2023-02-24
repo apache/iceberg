@@ -73,7 +73,7 @@ IS = CaselessKeyword("is")
 IN = CaselessKeyword("in")
 NULL = CaselessKeyword("null")
 NAN = CaselessKeyword("nan")
-STARTS_WITH = CaselessKeyword("starts_with")
+STARTS_WITH = CaselessKeyword("like")
 
 identifier = Word(alphas, alphanums + "_$").set_results_name("identifier")
 column = delimited_list(identifier, delim=".", combine=True).set_results_name("column")
