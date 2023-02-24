@@ -991,7 +991,7 @@ class ExpressionToPlainFormat(BoundBooleanExpressionVisitor[List[Tuple[str, str,
         return [(term.ref().field.name, "<=", self._cast_if_necessary(term.ref().field.field_type, literal.value))]
 
     def visit_starts_with(self, term: BoundTerm[L], literal: Literal[L]) -> List[Tuple[str, str, Any]]:
-        return [(term.ref().field.name, "starts_with", self._cast_if_necessary(term.ref().field.field_type, literal.value))]
+        return []
 
     def visit_not_starts_with(self, term: BoundTerm[L], literal: Literal[L]) -> List[Tuple[str, str, Any]]:
         return [(term.ref().field.name, "not starts_with", self._cast_if_necessary(term.ref().field.field_type, literal.value))]
