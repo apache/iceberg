@@ -25,7 +25,8 @@ from typing import (
     Set,
     Tuple,
     TypeVar,
-    Union, Dict,
+    Union,
+    Dict,
 )
 
 from pyarrow.filesystem import FileSystem
@@ -989,4 +990,3 @@ def expression_to_plain_format(
     # In the form of expr1 ∨ expr2 ∨ ... ∨ exprN
     visitor = ExpressionToPlainFormat(cast_int_to_datetime)
     return [visit(expression, visitor) for expression in expressions]
-

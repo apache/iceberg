@@ -31,7 +31,8 @@ from typing import (
     Optional,
     Tuple,
     TypeVar,
-    Union, Set,
+    Union,
+    Set,
 )
 
 from pydantic import Field
@@ -106,7 +107,14 @@ class Table:
 
     def schema(self) -> Schema:
         """Return the schema for this table"""
-        return next(schema for schema in self.metadata.schemas if schema.schema_id == self.metadata.current_schema_id)
+        return self.schema_by_id(self.metadata.current_schema_id)
+
+    def schema_by_id(self, schema_id: int) -> Schema:
+        """Return the schema for this table by ID"""
+        try:
+            return next(schema for schema in self.metadata.schemas if schema.schema_id == schema_id)
+        except StopIteration:
+            raise ValueError(f"Schema id not found in table: {schema_id}")
 
     def schemas(self) -> Dict[int, Schema]:
         """Return a dict of the schema of this table"""
@@ -140,12 +148,22 @@ class Table:
             return self.snapshot_by_id(snapshot_id)
         return None
 
-    def snapshot_by_id(self, snapshot_id: int) -> Optional[Snapshot]:
-        """Get the snapshot of this table with the given id, or None if there is no matching snapshot."""
+    def snapshot_by_id(self, snapshot_id: int) -> Snapshot:
+        """Get the snapshot of this table with the given id.
+
+        Args:
+            snapshot_id: The id of the snapshot to lookup in the table
+
+        Returns:
+            The snapshot that corresponds to snapshot_id
+
+        Raises:
+            ValueError: If the snapshot cannot be found
+        """
         try:
             return next(snapshot for snapshot in self.metadata.snapshots if snapshot.snapshot_id == snapshot_id)
         except StopIteration:
-            return None
+            raise ValueError(f"Snapshot id not found in table: {snapshot_id}")
 
     def snapshot_by_name(self, name: str) -> Optional[Snapshot]:
         """Returns the snapshot referenced by the given name or null if no such reference exists."""
@@ -299,7 +317,9 @@ class FileScanTask(ScanTask):
         self.length = length or data_file.file_size_in_bytes
 
 
-def _open_manifest(io: FileIO, manifest: ManifestFile, partition_filter: Optional[Callable[[DataFile], bool]] = None) -> List[FileScanTask]:
+def _open_manifest(
+    io: FileIO, manifest: ManifestFile, partition_filter: Optional[Callable[[DataFile], bool]] = None
+) -> List[FileScanTask]:
     result_manifests = files(io.new_input(manifest.manifest_path))
     if partition_filter is not None:
         result_manifests = filter(partition_filter, result_manifests)
@@ -374,7 +394,6 @@ class DataScan(TableScan):
         # if delete_files:
         #     # Start building the index
 
-
         with ThreadPool() as pool:
             return chain(
                 *pool.starmap(
@@ -401,6 +420,7 @@ class DataScan(TableScan):
 
         return con
 
+
 # def _read_deletes(io: FileIO, file_path: str) -> Dict[str, pa.ChunkedArray]:
 #     _, path = PyArrowFileIO.parse_location(file_path)
 #     table = pq.read_table(
@@ -411,8 +431,12 @@ class DataScan(TableScan):
 #         file.as_py(): table.filter(pc.field("file_path") == file).column("pos") for file in table.columns[0].chunks[0].dictionary
 #     }
 
-def validate_history(table: Table, starting_snapshot_id: int, matching_operations: Set[str], content: ManifestContent, parent: Snapshot):
+
+def validate_history(
+    table: Table, starting_snapshot_id: int, matching_operations: Set[str], content: ManifestContent, parent: Snapshot
+):
     pass
+
 
 class DeleteFileIndex:
     io: FileIO
@@ -420,12 +444,7 @@ class DeleteFileIndex:
     filter: BooleanExpression
     case_sensitive: bool
 
-    def __init__(self,
-                 io: FileIO,
-                 manifests: Set[ManifestFile],
-                 filter: BooleanExpression,
-                 case_sensitive: bool
-                 ) -> None:
+    def __init__(self, io: FileIO, manifests: Set[ManifestFile], filter: BooleanExpression, case_sensitive: bool) -> None:
         self.io = io
         self.manifests = manifests
         self.filter = filter
@@ -433,6 +452,6 @@ class DeleteFileIndex:
 
         with ThreadPool() as pool:
             deletes = pool.starmap(
-                    func=_open_manifest,
-                    iterable=[(io, manifest) for manifest in manifests],
+                func=_open_manifest,
+                iterable=[(io, manifest) for manifest in manifests],
             )
