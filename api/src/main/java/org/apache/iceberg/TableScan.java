@@ -101,13 +101,4 @@ public interface TableScan extends Scan<TableScan, FileScanTask, CombinedScanTas
    * @return the Snapshot this scan will use
    */
   Snapshot snapshot();
-
-  /**
-   * Create a new {@link TableScan} from this scan's configuration that will have column stats
-   *
-   * @return a new scan based on this with column stats
-   */
-  default TableScan withColStats() {
-    throw new UnsupportedOperationException("scan with colStats is not supported");
-  }
 }

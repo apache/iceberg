@@ -18,12 +18,12 @@
  */
 package org.apache.iceberg.spark.source;
 
-import java.util.Arrays;
-import java.util.stream.Collectors;
+import java.util.List;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.spark.Spark3Util;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.connector.read.LocalScan;
-import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 
 class SparkLocalScan implements LocalScan {
@@ -32,10 +32,14 @@ class SparkLocalScan implements LocalScan {
   private final StructType readSchema;
   private final InternalRow[] rows;
 
-  SparkLocalScan(Table table, StructType readSchema, InternalRow[] rows) {
+  private final List<Expression> filterExpressions;
+
+  SparkLocalScan(
+      Table table, StructType readSchema, InternalRow[] rows, List<Expression> filterExpressions) {
     this.table = table;
     this.readSchema = readSchema;
     this.rows = rows;
+    this.filterExpressions = filterExpressions;
   }
 
   @Override
@@ -50,8 +54,11 @@ class SparkLocalScan implements LocalScan {
 
   @Override
   public String description() {
-    String fields =
-        Arrays.stream(readSchema.fields()).map(StructField::name).collect(Collectors.joining(", "));
-    return String.format("%s [%s]", table, fields);
+    return String.format("%s [filters=%s]", table, Spark3Util.describe(filterExpressions));
+  }
+
+  @Override
+  public String toString() {
+    return description();
   }
 }
