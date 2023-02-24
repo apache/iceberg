@@ -32,7 +32,6 @@ class SparkLocalScan implements LocalScan {
   private final Table table;
   private final StructType readSchema;
   private final InternalRow[] rows;
-
   private final List<Expression> filterExpressions;
 
   SparkLocalScan(
@@ -61,7 +60,7 @@ class SparkLocalScan implements LocalScan {
   @Override
   public String toString() {
     return String.format(
-        "IcebergScan(table=%s, type=%s, filters=%s)",
+        "IcebergLocalScan(table=%s, type=%s, filters=%s)",
         table, SparkSchemaUtil.convert(readSchema).asStruct(), filterExpressions);
   }
 }

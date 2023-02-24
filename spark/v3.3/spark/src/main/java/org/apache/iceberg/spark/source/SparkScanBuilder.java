@@ -191,7 +191,7 @@ public class SparkScanBuilder
           expressions.add((BoundAggregate<?, ?>) bound);
         } else {
           LOG.info(
-              "Skipping aggregate pushdown: AggregateFunc {} can't be converted to iceberg Expression",
+              "Skipping aggregate pushdown: AggregateFunc {} can't be converted to iceberg expression",
               aggregateFunc);
           return false;
         }
