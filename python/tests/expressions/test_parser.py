@@ -154,7 +154,7 @@ def test_and_or_with_parens() -> None:
 
 
 def test_starts_with() -> None:
-    assert StartsWith("x", "data") == parser.parse("x starts_with 'data'")
+    assert StartsWith("x", "data") == parser.parse("x LIKE 'data*'")
     assert StartsWith("x", "data") == parser.parse("x STARTS_WITH 'data'")
 
 
