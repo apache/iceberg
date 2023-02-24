@@ -17,7 +17,32 @@
 # pylint:disable=redefined-outer-name,eval-used
 import pytest
 
-from pyiceberg.table.snapshots import Operation, Snapshot, Summary
+from pyiceberg.io import load_file_io
+from pyiceberg.partitioning import PartitionSpec
+from pyiceberg.schema import Schema
+from pyiceberg.table import SortOrder, Table
+from pyiceberg.table.metadata import TableMetadataV2
+from pyiceberg.table.refs import SnapshotRef, SnapshotRefType
+from pyiceberg.table.snapshots import (
+    Operation,
+    Snapshot,
+    Summary,
+    ancestor_ids,
+    ancestors_between,
+    current_ancestor_ids,
+    current_ancestors,
+    is_ancestor_of,
+    is_parent_ancestor_of,
+    new_files,
+    oldest_ancestor,
+    oldest_ancestor_after,
+    oldest_ancestor_of,
+    schema_as_of_time,
+    schema_for,
+    snapshot_after,
+    snapshot_id_as_of_time,
+    snapshots_ids_between,
+)
 
 
 @pytest.fixture
@@ -43,6 +68,78 @@ def snapshot_with_properties() -> Snapshot:
         manifest_list="s3:/a/b/c.avro",
         summary=Summary(Operation.APPEND, foo="bar"),
         schema_id=3,
+    )
+
+
+SNAPSHOT_A_ID = 0xA
+SNAPSHOT_A_TIME = 1677222221000
+
+SNAPSHOT_B_ID = 0xB
+SNAPSHOT_B_TIME = 1677222222000
+
+SNAPSHOT_C_ID = 0xC
+SNAPSHOT_C_TIME = 1677222223000
+
+SNAPSHOT_D_ID = 0xD
+SNAPSHOT_D_TIME = 1677222224000
+
+
+@pytest.fixture
+def table_with_snapshots(table_schema_simple: Schema) -> Table:
+    return Table(
+        identifier=("database", "table"),
+        metadata=TableMetadataV2(
+            location="s3://bucket/warehouse/table/",
+            table_uuid="9c12d441-03fe-4693-9a96-a0705ddf69c1",
+            last_updated_ms=1602638573590,
+            last_column_id=3,
+            schemas=[table_schema_simple],
+            current_schema_id=1,
+            last_partition_id=1000,
+            properties={"owner": "javaberg"},
+            partition_specs=[PartitionSpec()],
+            default_spec_id=0,
+            current_snapshot_id=SNAPSHOT_D_ID,
+            snapshots=[
+                Snapshot(
+                    snapshot_id=SNAPSHOT_A_ID,
+                    parent_snapshot_id=None,
+                    sequence_number=1,
+                    timestamp_ms=SNAPSHOT_A_TIME,
+                    manifest_list="s3://bucket/table/snapshot-a.avro",
+                ),
+                Snapshot(
+                    snapshot_id=SNAPSHOT_B_ID,
+                    parent_snapshot_id=SNAPSHOT_A_ID,
+                    sequence_number=2,
+                    timestamp_ms=SNAPSHOT_B_TIME,
+                    manifest_list="s3://bucket/table/snapshot-b.avro",
+                ),
+                Snapshot(
+                    snapshot_id=SNAPSHOT_D_ID,
+                    parent_snapshot_id=SNAPSHOT_B_ID,
+                    sequence_number=3,
+                    timestamp_ms=SNAPSHOT_D_TIME,
+                    manifest_list="s3://bucket/table/snapshot-c.avro",
+                ),
+                Snapshot(
+                    snapshot_id=SNAPSHOT_C_ID,
+                    parent_snapshot_id=SNAPSHOT_A_ID,
+                    sequence_number=4,
+                    timestamp_ms=SNAPSHOT_C_TIME,
+                    manifest_list="s3://bucket/table/snapshot1.avro",
+                ),
+            ],
+            snapshot_log=[],
+            metadata_log=[],
+            sort_orders=[SortOrder(order_id=0)],
+            default_sort_order_id=0,
+            refs={"b1": SnapshotRef(snapshot_id=SNAPSHOT_C_ID, snapshot_ref_type=SnapshotRefType.BRANCH)},
+            format_version=2,
+            last_sequence_number=0,
+        ),
+        metadata_location="s3://bucket/table/metadata.json",
+        io=load_file_io(),
     )
 
 
@@ -119,3 +216,241 @@ def test_snapshot_with_properties_repr(snapshot_with_properties: Snapshot) -> No
         == """Snapshot(snapshot_id=25, parent_snapshot_id=19, sequence_number=200, timestamp_ms=1602638573590, manifest_list='s3:/a/b/c.avro', summary=Summary(Operation.APPEND, **{'foo': 'bar'}), schema_id=3)"""
     )
     assert snapshot_with_properties == eval(repr(snapshot_with_properties))
+
+
+def test_is_ancestor_of(table_with_snapshots: Table) -> None:
+    assert is_ancestor_of(table_with_snapshots, SNAPSHOT_B_ID, SNAPSHOT_A_ID)
+    assert not is_ancestor_of(table_with_snapshots, SNAPSHOT_C_ID, SNAPSHOT_B_ID)
+
+
+def test_is_parent_ancestor_of(table_with_snapshots: Table) -> None:
+    assert is_parent_ancestor_of(table_with_snapshots, SNAPSHOT_B_ID, SNAPSHOT_A_ID)
+    assert not is_parent_ancestor_of(table_with_snapshots, SNAPSHOT_C_ID, SNAPSHOT_B_ID)
+
+
+def test_current_ancestors(table_with_snapshots: Table) -> None:
+    assert list(current_ancestors(table_with_snapshots)) == [
+        Snapshot(
+            snapshot_id=13,
+            parent_snapshot_id=11,
+            sequence_number=3,
+            timestamp_ms=1677222224000,
+            manifest_list="s3://bucket/table/snapshot-c.avro",
+            summary=None,
+            schema_id=None,
+        ),
+        Snapshot(
+            snapshot_id=11,
+            parent_snapshot_id=10,
+            sequence_number=2,
+            timestamp_ms=1677222222000,
+            manifest_list="s3://bucket/table/snapshot-b.avro",
+            summary=None,
+            schema_id=None,
+        ),
+        Snapshot(
+            snapshot_id=10,
+            parent_snapshot_id=None,
+            sequence_number=1,
+            timestamp_ms=1677222221000,
+            manifest_list="s3://bucket/table/snapshot-a.avro",
+            summary=None,
+            schema_id=None,
+        ),
+    ]
+
+
+def test_current_ancestors_ids(table_with_snapshots: Table) -> None:
+    assert list(current_ancestor_ids(table_with_snapshots)) == [13, 11, 10]
+
+
+def test_oldest_ancestor(table_with_snapshots: Table) -> None:
+    assert oldest_ancestor(table_with_snapshots) == Snapshot(
+        snapshot_id=10,
+        parent_snapshot_id=None,
+        sequence_number=1,
+        timestamp_ms=1677222221000,
+        manifest_list="s3://bucket/table/snapshot-a.avro",
+        summary=None,
+        schema_id=None,
+    )
+
+
+def test_oldest_ancestor_of(table_with_snapshots: Table) -> None:
+    assert oldest_ancestor_of(table_with_snapshots, SNAPSHOT_B_ID) == Snapshot(
+        snapshot_id=10,
+        parent_snapshot_id=None,
+        sequence_number=1,
+        timestamp_ms=1677222221000,
+        manifest_list="s3://bucket/table/snapshot-a.avro",
+        summary=None,
+        schema_id=None,
+    )
+
+
+def test_oldest_ancestor_after(table_with_snapshots: Table) -> None:
+    assert oldest_ancestor_after(table_with_snapshots, SNAPSHOT_B_TIME) == Snapshot(
+        snapshot_id=11,
+        parent_snapshot_id=10,
+        sequence_number=2,
+        timestamp_ms=1677222222000,
+        manifest_list="s3://bucket/table/snapshot-b.avro",
+        summary=None,
+        schema_id=None,
+    )
+
+
+def test_snapshots_ids_between(table_with_snapshots: Table) -> None:
+    assert list(snapshots_ids_between(table_with_snapshots, SNAPSHOT_A_ID, SNAPSHOT_D_ID)) == [SNAPSHOT_D_ID, SNAPSHOT_B_ID]
+
+
+def test_ancestor_ids(table_with_snapshots: Table) -> None:
+    assert list(ancestor_ids(SNAPSHOT_B_ID, table_with_snapshots.snapshot_by_id)) == [SNAPSHOT_B_ID, SNAPSHOT_A_ID]
+
+
+def test_ancestors_between(table_with_snapshots: Table) -> None:
+    assert list(ancestors_between(SNAPSHOT_D_ID, SNAPSHOT_A_ID, table_with_snapshots.snapshot_by_id)) == [
+        Snapshot(
+            snapshot_id=13,
+            parent_snapshot_id=11,
+            sequence_number=3,
+            timestamp_ms=1677222224000,
+            manifest_list="s3://bucket/table/snapshot-c.avro",
+            summary=None,
+            schema_id=None,
+        ),
+        Snapshot(
+            snapshot_id=11,
+            parent_snapshot_id=10,
+            sequence_number=2,
+            timestamp_ms=1677222222000,
+            manifest_list="s3://bucket/table/snapshot-b.avro",
+            summary=None,
+            schema_id=None,
+        ),
+    ]
+
+    assert list(ancestors_between(SNAPSHOT_D_ID, None, table_with_snapshots.snapshot_by_id)) == [
+        Snapshot(
+            snapshot_id=13,
+            parent_snapshot_id=11,
+            sequence_number=3,
+            timestamp_ms=1677222224000,
+            manifest_list="s3://bucket/table/snapshot-c.avro",
+            summary=None,
+            schema_id=None,
+        ),
+        Snapshot(
+            snapshot_id=11,
+            parent_snapshot_id=10,
+            sequence_number=2,
+            timestamp_ms=1677222222000,
+            manifest_list="s3://bucket/table/snapshot-b.avro",
+            summary=None,
+            schema_id=None,
+        ),
+        Snapshot(
+            snapshot_id=10,
+            parent_snapshot_id=None,
+            sequence_number=1,
+            timestamp_ms=1677222221000,
+            manifest_list="s3://bucket/table/snapshot-a.avro",
+            summary=None,
+            schema_id=None,
+        ),
+    ]
+
+
+def test_new_files(table_schema_simple: Schema, generated_manifest_file_file: str) -> None:
+    io = load_file_io()
+    table = Table(
+        identifier=("database", "table"),
+        metadata=TableMetadataV2(
+            location="s3://bucket/warehouse/table/",
+            table_uuid="9c12d441-03fe-4693-9a96-a0705ddf69c1",
+            last_updated_ms=1602638573590,
+            last_column_id=3,
+            schemas=[table_schema_simple],
+            current_schema_id=1,
+            last_partition_id=1000,
+            properties={"owner": "javaberg"},
+            partition_specs=[PartitionSpec()],
+            default_spec_id=0,
+            current_snapshot_id=SNAPSHOT_D_ID,
+            snapshots=[
+                Snapshot(
+                    snapshot_id=SNAPSHOT_A_ID,
+                    parent_snapshot_id=None,
+                    sequence_number=1,
+                    timestamp_ms=SNAPSHOT_A_TIME,
+                    manifest_list=generated_manifest_file_file,
+                ),
+                Snapshot(
+                    snapshot_id=SNAPSHOT_B_ID,
+                    parent_snapshot_id=SNAPSHOT_A_ID,
+                    sequence_number=2,
+                    timestamp_ms=SNAPSHOT_B_TIME,
+                    manifest_list=generated_manifest_file_file,
+                ),
+                Snapshot(
+                    snapshot_id=SNAPSHOT_D_ID,
+                    parent_snapshot_id=SNAPSHOT_B_ID,
+                    sequence_number=3,
+                    timestamp_ms=SNAPSHOT_D_TIME,
+                    manifest_list=generated_manifest_file_file,
+                ),
+                Snapshot(
+                    snapshot_id=SNAPSHOT_C_ID,
+                    parent_snapshot_id=SNAPSHOT_A_ID,
+                    sequence_number=4,
+                    timestamp_ms=SNAPSHOT_C_TIME,
+                    manifest_list=generated_manifest_file_file,
+                ),
+            ],
+            snapshot_log=[],
+            metadata_log=[],
+            sort_orders=[SortOrder(order_id=0)],
+            default_sort_order_id=0,
+            refs={"b1": SnapshotRef(snapshot_id=SNAPSHOT_C_ID, snapshot_ref_type=SnapshotRefType.BRANCH)},
+            format_version=2,
+            last_sequence_number=0,
+        ),
+        metadata_location="s3://bucket/table/metadata.json",
+        io=io,
+    )
+
+    files = list(new_files(SNAPSHOT_A_ID, SNAPSHOT_D_ID, table.snapshot_by_id, io))
+
+    assert len(files) == 4
+    assert (
+        files[0].file_path
+        == "/home/iceberg/warehouse/nyc/taxis_partitioned/data/VendorID=null/00000-633-d8a4223e-dc97-45a1-86e1-adaba6e8abd7-00001.parquet"
+    )
+    assert (
+        files[1].file_path
+        == "/home/iceberg/warehouse/nyc/taxis_partitioned/data/VendorID=1/00000-633-d8a4223e-dc97-45a1-86e1-adaba6e8abd7-00002.parquet"
+    )
+    assert (
+        files[2].file_path
+        == "/home/iceberg/warehouse/nyc/taxis_partitioned/data/VendorID=null/00000-633-d8a4223e-dc97-45a1-86e1-adaba6e8abd7-00001.parquet"
+    )
+    assert (
+        files[3].file_path
+        == "/home/iceberg/warehouse/nyc/taxis_partitioned/data/VendorID=1/00000-633-d8a4223e-dc97-45a1-86e1-adaba6e8abd7-00002.parquet"
+    )
+
+
+def test_snapshot_after(table_with_snapshots: Table) -> None:
+    assert snapshot_after(table_with_snapshots, SNAPSHOT_B_ID).snapshot_id == SNAPSHOT_D_ID
+
+
+def test_snapshot_id_as_of_time(table_with_snapshots: Table) -> None:
+    assert snapshot_id_as_of_time(table_with_snapshots, SNAPSHOT_B_TIME) == SNAPSHOT_A_ID
+
+
+def test_schema_for(table_with_snapshots: Table, table_schema_simple: Schema) -> None:
+    assert schema_for(table_with_snapshots, SNAPSHOT_A_ID) == table_schema_simple
+
+
+def test_schema_as_of_time(table_with_snapshots: Table, table_schema_simple: Schema) -> None:
+    assert schema_as_of_time(table_with_snapshots, SNAPSHOT_B_TIME) == table_schema_simple

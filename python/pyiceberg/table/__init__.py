@@ -111,7 +111,14 @@ class Table:
 
     def schema(self) -> Schema:
         """Return the schema for this table"""
-        return next(schema for schema in self.metadata.schemas if schema.schema_id == self.metadata.current_schema_id)
+        return self.schema_by_id(self.metadata.current_schema_id)
+
+    def schema_by_id(self, schema_id: int) -> Schema:
+        """Return the schema for this table by ID"""
+        try:
+            return next(schema for schema in self.metadata.schemas if schema.schema_id == schema_id)
+        except StopIteration as e:
+            raise ValueError(f"Schema id not found in table: {schema_id}") from e
 
     def schemas(self) -> Dict[int, Schema]:
         """Return a dict of the schema of this table"""
@@ -145,12 +152,22 @@ class Table:
             return self.snapshot_by_id(snapshot_id)
         return None
 
-    def snapshot_by_id(self, snapshot_id: int) -> Optional[Snapshot]:
-        """Get the snapshot of this table with the given id, or None if there is no matching snapshot."""
+    def snapshot_by_id(self, snapshot_id: int) -> Snapshot:
+        """Get the snapshot of this table with the given id.
+
+        Args:
+            snapshot_id: The id of the snapshot to lookup in the table
+
+        Returns:
+            The snapshot that corresponds to snapshot_id
+
+        Raises:
+            ValueError: If the snapshot cannot be found
+        """
         try:
             return next(snapshot for snapshot in self.metadata.snapshots if snapshot.snapshot_id == snapshot_id)
-        except StopIteration:
-            return None
+        except StopIteration as e:
+            raise ValueError(f"Snapshot id not found in table: {snapshot_id}") from e
 
     def snapshot_by_name(self, name: str) -> Optional[Snapshot]:
         """Returns the snapshot referenced by the given name or null if no such reference exists."""
