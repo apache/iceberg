@@ -358,7 +358,7 @@ project(':iceberg-core') {
     testImplementation libs.esotericsoftware.kryo
     testImplementation libs.guava.testlib
     testImplementation libs.awaitility
-    testImplementation libs.zstd.jni
+    testRuntimeOnly libs.zstd.jni
   }
 }
 

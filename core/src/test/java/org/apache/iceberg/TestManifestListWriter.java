@@ -43,32 +43,29 @@ public class TestManifestListWriter extends TableTestBase {
 
   @Test
   public void testWriteManifestListWithCompression() throws IOException {
-    validateManifestListCompressionCodec(
-        compressionCodec -> {
-          ManifestFile manifest = writeManifest(SNAPSHOT_ID, compressionCodec, FILE_A);
-          return writeManifestList(compressionCodec, manifest);
-        });
+    validateManifestListCompressionCodec(false);
   }
 
   @Test
   public void testWriteDeleteManifestListWithCompression() throws IOException {
     Assume.assumeTrue("delete files are only written for format version > 1", formatVersion > 1);
-    validateManifestListCompressionCodec(
-        compressionCodec -> {
-          ManifestFile manifest = writeManifest(SNAPSHOT_ID, compressionCodec, FILE_A);
-          ManifestFile deleteManifest =
-              writeDeleteManifest(formatVersion, SNAPSHOT_ID, compressionCodec, FILE_A_DELETES);
-          return writeManifestList(compressionCodec, manifest, deleteManifest);
-        });
+    validateManifestListCompressionCodec(true);
   }
 
-  void validateManifestListCompressionCodec(
-      CheckedFunction<String, InputFile> createManifestListFunc) throws IOException {
+  void validateManifestListCompressionCodec(boolean testDeletes) throws IOException {
     for (Map.Entry<String, String> entry : AVRO_CODEC_NAME_MAPPING.entrySet()) {
       String codec = entry.getKey();
       String expectedCodecValue = entry.getValue();
 
-      InputFile manifestList = createManifestListFunc.apply(codec);
+      ManifestFile manifest = writeManifest(EXAMPLE_SNAPSHOT_ID, codec, FILE_A);
+      ManifestFile deleteManifest =
+          testDeletes
+              ? writeDeleteManifest(formatVersion, EXAMPLE_SNAPSHOT_ID, codec, FILE_A_DELETES)
+              : null;
+      InputFile manifestList =
+          testDeletes
+              ? writeManifestList(codec, manifest, deleteManifest)
+              : writeManifestList(codec, manifest);
       try (AvroIterable<ManifestFile> reader = ManifestLists.manifestFileIterable(manifestList)) {
         Assertions.assertThat(reader.getMetadata())
             .containsEntry(DataFileConstants.CODEC, expectedCodecValue);

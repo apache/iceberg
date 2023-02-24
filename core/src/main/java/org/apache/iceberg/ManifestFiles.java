@@ -157,13 +157,7 @@ public class ManifestFiles {
    */
   public static ManifestWriter<DataFile> write(
       int formatVersion, PartitionSpec spec, OutputFile outputFile, Long snapshotId) {
-    return write(
-        formatVersion,
-        spec,
-        outputFile,
-        snapshotId,
-        /* compressionCodec */ null,
-        /* compressionLevel */ null);
+    return write(formatVersion, spec, outputFile, snapshotId, null, null);
   }
 
   /**
@@ -227,13 +221,7 @@ public class ManifestFiles {
    */
   public static ManifestWriter<DeleteFile> writeDeleteManifest(
       int formatVersion, PartitionSpec spec, OutputFile outputFile, Long snapshotId) {
-    return writeDeleteManifest(
-        formatVersion,
-        spec,
-        outputFile,
-        snapshotId,
-        /* compressionCodec */ null,
-        /* compressionLevel */ null);
+    return writeDeleteManifest(formatVersion, spec, outputFile, snapshotId, null, null);
   }
 
   /**
