@@ -388,18 +388,13 @@ public class TestManifestWriter extends TableTestBase {
 
   @Test
   public void testWriteManifestWithCompression() throws IOException {
-    validateManifestCompressionCodec(
-        compressionCodec -> writeManifest(SNAPSHOT_ID, compressionCodec, FILE_A),
-        manifest -> ManifestFiles.read(manifest, FILE_IO));
+    validateManifestCompressionCodec(false);
   }
 
   @Test
   public void testWriteDeleteManifestWithCompression() throws IOException {
     Assume.assumeTrue("delete files are only written for format version > 1", formatVersion > 1);
-    validateManifestCompressionCodec(
-        compressionCodec ->
-            writeDeleteManifest(formatVersion, SNAPSHOT_ID, compressionCodec, FILE_A_DELETES),
-        manifest -> ManifestFiles.readDeleteManifest(manifest, FILE_IO, null));
+    validateManifestCompressionCodec(true);
   }
 
   private DataFile newFile(long recordCount) {
@@ -454,16 +449,19 @@ public class TestManifestWriter extends TableTestBase {
     }
   }
 
-  <F extends ContentFile<F>> void validateManifestCompressionCodec(
-      CheckedFunction<String, ManifestFile> createManifestFunc,
-      CheckedFunction<ManifestFile, ManifestReader<F>> manifestReaderFunc)
-      throws IOException {
+  void validateManifestCompressionCodec(boolean testDeletes) throws IOException {
     for (Map.Entry<String, String> entry : AVRO_CODEC_NAME_MAPPING.entrySet()) {
       String codec = entry.getKey();
       String expectedCodecValue = entry.getValue();
 
-      ManifestFile manifest = createManifestFunc.apply(codec);
-      try (ManifestReader<F> reader = manifestReaderFunc.apply(manifest)) {
+      ManifestFile manifest =
+          testDeletes
+              ? writeDeleteManifest(formatVersion, EXAMPLE_SNAPSHOT_ID, codec, FILE_A_DELETES)
+              : writeManifest(EXAMPLE_SNAPSHOT_ID, codec, FILE_A);
+      try (ManifestReader<? extends ContentFile<?>> reader =
+          testDeletes
+              ? ManifestFiles.readDeleteManifest(manifest, FILE_IO, null)
+              : ManifestFiles.read(manifest, FILE_IO)) {
         Assertions.assertThat(reader.metadata())
             .containsEntry(DataFileConstants.CODEC, expectedCodecValue);
       }

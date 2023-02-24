@@ -36,6 +36,7 @@ class ManifestLists {
   static List<ManifestFile> read(InputFile manifestList) {
     try (CloseableIterable<ManifestFile> files = manifestFileIterable(manifestList)) {
       return Lists.newLinkedList(files);
+
     } catch (IOException e) {
       throw new RuntimeIOException(
           e, "Cannot read manifest list file: %s", manifestList.location());
@@ -61,13 +62,7 @@ class ManifestLists {
       Long parentSnapshotId,
       long sequenceNumber) {
     return write(
-        formatVersion,
-        manifestListFile,
-        snapshotId,
-        parentSnapshotId,
-        sequenceNumber,
-        /* compressionCodec */ null,
-        /* compressionLevel */ null);
+        formatVersion, manifestListFile, snapshotId, parentSnapshotId, sequenceNumber, null, null);
   }
 
   static ManifestListWriter write(

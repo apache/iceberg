@@ -181,7 +181,7 @@ public class TableTestBase {
           .put(Avro.Codec.GZIP.name(), DataFileConstants.DEFLATE_CODEC)
           .build();
 
-  static final long SNAPSHOT_ID = 987134631982734L;
+  static final long EXAMPLE_SNAPSHOT_ID = 987134631982734L;
 
   @Rule public TemporaryFolder temp = new TemporaryFolder();
 
@@ -257,7 +257,7 @@ public class TableTestBase {
   }
 
   ManifestFile writeManifest(Long snapshotId, DataFile... files) throws IOException {
-    return writeManifest(snapshotId, /* compressionCodec */ null, files);
+    return writeManifest(snapshotId, null, files);
   }
 
   ManifestFile writeManifest(Long snapshotId, String compressionCodec, DataFile... files)
@@ -272,12 +272,7 @@ public class TableTestBase {
 
     ManifestWriter<DataFile> writer =
         ManifestFiles.write(
-            formatVersion,
-            table.spec(),
-            outputFile,
-            snapshotId,
-            compressionCodec,
-            /* compressionLevel */ null);
+            formatVersion, table.spec(), outputFile, snapshotId, compressionCodec, null);
     try {
       for (DataFile file : files) {
         writer.add(file);
@@ -328,8 +323,7 @@ public class TableTestBase {
 
   ManifestFile writeDeleteManifest(int newFormatVersion, Long snapshotId, DeleteFile... deleteFiles)
       throws IOException {
-    return writeDeleteManifest(
-        newFormatVersion, snapshotId, /* compressionCodec */ null, deleteFiles);
+    return writeDeleteManifest(newFormatVersion, snapshotId, null, deleteFiles);
   }
 
   ManifestFile writeDeleteManifest(
@@ -340,12 +334,7 @@ public class TableTestBase {
             FileFormat.AVRO.addExtension(temp.newFile().toString()));
     ManifestWriter<DeleteFile> writer =
         ManifestFiles.writeDeleteManifest(
-            newFormatVersion,
-            SPEC,
-            manifestFile,
-            snapshotId,
-            compressionCodec,
-            /* compressionLevel */ null);
+            newFormatVersion, SPEC, manifestFile, snapshotId, compressionCodec, null);
     try {
       for (DeleteFile deleteFile : deleteFiles) {
         writer.add(deleteFile);
@@ -368,15 +357,16 @@ public class TableTestBase {
         ManifestLists.write(
             formatVersion,
             outputFile,
-            SNAPSHOT_ID,
-            SNAPSHOT_ID - 1,
+            EXAMPLE_SNAPSHOT_ID,
+            EXAMPLE_SNAPSHOT_ID - 1,
             formatVersion > 1 ? 34L : 0,
             compressionCodec,
-            /* compressionLevel */ null)) {
+            null)) {
       for (ManifestFile manifestFile : manifestFiles) {
         writer.add(manifestFile);
       }
     }
+
     return outputFile.toInputFile();
   }
 
@@ -810,10 +800,5 @@ public class TableTestBase {
   @FunctionalInterface
   protected interface Action {
     void invoke();
-  }
-
-  @FunctionalInterface
-  interface CheckedFunction<T, R> {
-    R apply(T args) throws IOException;
   }
 }
