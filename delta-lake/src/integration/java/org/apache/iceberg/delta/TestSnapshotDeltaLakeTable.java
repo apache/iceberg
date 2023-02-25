@@ -119,13 +119,7 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
     };
   }
 
-  @Rule public TemporaryFolder temp1 = new TemporaryFolder();
-  @Rule public TemporaryFolder temp2 = new TemporaryFolder();
-  @Rule public TemporaryFolder temp3 = new TemporaryFolder();
-  @Rule public TemporaryFolder temp4 = new TemporaryFolder();
-  @Rule public TemporaryFolder temp5 = new TemporaryFolder();
-  @Rule public TemporaryFolder temp6 = new TemporaryFolder();
-  @Rule public TemporaryFolder temp7 = new TemporaryFolder();
+  @Rule public TemporaryFolder temp = new TemporaryFolder();
 
   public TestSnapshotDeltaLakeTable(
       String catalogName, String implementation, Map<String, String> config) {
@@ -135,13 +129,13 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
 
   @Before
   public void before() throws IOException {
-    File partitionedFolder = temp1.newFolder();
-    File unpartitionedFolder = temp2.newFolder();
-    File newIcebergTableFolder = temp3.newFolder();
-    File externalDataFilesTableFolder = temp4.newFolder();
-    File typeTestTableFolder = temp5.newFolder();
-    File vacuumTestTableFolder = temp6.newFolder();
-    File logCleanTestTableFolder = temp7.newFolder();
+    File partitionedFolder = temp.newFolder();
+    File unpartitionedFolder = temp.newFolder();
+    File newIcebergTableFolder = temp.newFolder();
+    File externalDataFilesTableFolder = temp.newFolder();
+    File typeTestTableFolder = temp.newFolder();
+    File vacuumTestTableFolder = temp.newFolder();
+    File logCleanTestTableFolder = temp.newFolder();
     partitionedLocation = partitionedFolder.toURI().toString();
     unpartitionedLocation = unpartitionedFolder.toURI().toString();
     newIcebergTableLocation = newIcebergTableFolder.toURI().toString();
