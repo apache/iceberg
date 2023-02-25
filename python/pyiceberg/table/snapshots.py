@@ -14,6 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+from __future__ import annotations
+
 from enum import Enum
 from typing import (
     TYPE_CHECKING,
@@ -127,7 +129,7 @@ class Snapshot(IcebergBaseModel):
 
     def added_data_files(self, io: FileIO) -> Generator[DataFile, None, None]:
         for manifest in self.manifests(io):
-            yield from [entry.data_file for entry in manifest.fetch_manifest_entry(io)]
+            yield from [entry.data_file for entry in manifest.fetch_manifest_entry(io) if entry.status < 2]
 
 
 class MetadataLogEntry(IcebergBaseModel):
@@ -140,7 +142,7 @@ class SnapshotLogEntry(IcebergBaseModel):
     timestamp_ms: int = Field(alias="timestamp-ms")
 
 
-def is_ancestor_of(table: "Table", snapshot_id: int, ancestor_snapshot_id: int) -> bool:
+def is_ancestor_of(table: Table, snapshot_id: int, ancestor_snapshot_id: int) -> bool:
     """
     Returns whether ancestor_snapshot_id is an ancestor of snapshot_id using the given lookup function.
 
@@ -159,7 +161,7 @@ def is_ancestor_of(table: "Table", snapshot_id: int, ancestor_snapshot_id: int) 
     return False
 
 
-def is_parent_ancestor_of(table: "Table", snapshot_id: int, ancestor_parent_snapshot_id: int) -> bool:
+def is_parent_ancestor_of(table: Table, snapshot_id: int, ancestor_parent_snapshot_id: int) -> bool:
     """
     Returns whether some ancestor of snapshot_id has parent_id matches ancestor_parent_snapshot_id
 
@@ -178,7 +180,7 @@ def is_parent_ancestor_of(table: "Table", snapshot_id: int, ancestor_parent_snap
     return False
 
 
-def current_ancestors(table: "Table") -> Iterable[Snapshot]:
+def current_ancestors(table: Table) -> Iterable[Snapshot]:
     """
     Returns an iterable that traverses the table's snapshots from the current to the last known ancestor.
 
@@ -193,7 +195,7 @@ def current_ancestors(table: "Table") -> Iterable[Snapshot]:
     return []
 
 
-def current_ancestor_ids(table: "Table") -> Iterable[int]:
+def current_ancestor_ids(table: Table) -> Iterable[int]:
     """
     Return the snapshot IDs for the ancestors of the current table state.
 
@@ -211,7 +213,7 @@ def current_ancestor_ids(table: "Table") -> Iterable[int]:
     return []
 
 
-def oldest_ancestor(table: "Table") -> Optional[Snapshot]:
+def oldest_ancestor(table: Table) -> Optional[Snapshot]:
     """
     Traverses the history of the table's current snapshot and finds the oldest Snapshot.
 
@@ -229,7 +231,7 @@ def oldest_ancestor(table: "Table") -> Optional[Snapshot]:
     return oldest_snapshot
 
 
-def oldest_ancestor_of(table: "Table", snapshot_id: int) -> Optional[Snapshot]:
+def oldest_ancestor_of(table: Table, snapshot_id: int) -> Optional[Snapshot]:
     """
     Traverses the history and finds the oldest ancestor of the specified snapshot.
 
@@ -252,7 +254,7 @@ def oldest_ancestor_of(table: "Table", snapshot_id: int) -> Optional[Snapshot]:
     return oldest_snapshot
 
 
-def oldest_ancestor_after(table: "Table", timestamp_ms: int) -> Snapshot:
+def oldest_ancestor_after(table: Table, timestamp_ms: int) -> Snapshot:
     """
     Looks up the snapshot after a given point in time
 
@@ -281,7 +283,7 @@ def oldest_ancestor_after(table: "Table", timestamp_ms: int) -> Snapshot:
     raise ValueError(f"Cannot find snapshot older than: {timestamp_ms}")
 
 
-def snapshots_ids_between(table: "Table", from_snapshot_id: int, to_snapshot_id: int) -> Iterable[int]:
+def snapshots_ids_between(table: Table, from_snapshot_id: int, to_snapshot_id: int) -> Iterable[int]:
     """
     Returns list of snapshot ids in the range - (fromSnapshotId, toSnapshotId]
 
@@ -299,7 +301,10 @@ def snapshots_ids_between(table: "Table", from_snapshot_id: int, to_snapshot_id:
     def lookup(snapshot_id: int) -> Optional[Snapshot]:
         return table.snapshot_by_id(snapshot_id) if snapshot_id != from_snapshot_id else None
 
-    return ancestor_ids(table.snapshot_by_id(snapshot_id=to_snapshot_id), lookup)
+    if to_snapshot := table.snapshot_by_id(snapshot_id=to_snapshot_id):
+        return ancestor_ids(to_snapshot, lookup)
+    else:
+        return []
 
 
 def ancestor_ids(latest_snapshot: Union[int, Snapshot], lookup: Callable[[int], Optional[Snapshot]]) -> Iterable[int]:
@@ -338,22 +343,19 @@ def ancestors_of(latest_snapshot: Union[int, Snapshot], lookup: Callable[[int], 
     else:
         start = latest_snapshot
 
-    def snapshot_generator() -> Generator[Snapshot, None, None]:
-        next_snapshot_id = start.snapshot_id  # type: ignore
-        # https://github.com/apache/iceberg/issues/6930
-        # next = start.parent_snapshot_id
-        while next_snapshot_id is not None:
-            if snap := lookup(next_snapshot_id):
-                yield snap
-                next_snapshot_id = snap.parent_snapshot_id
-            else:
-                break
-
-    return snapshot_generator()
+    next_snapshot_id: Optional[int] = start.snapshot_id
+    # https://github.com/apache/iceberg/issues/6930
+    # next = start.parent_snapshot_id
+    while next_snapshot_id is not None:
+        if snap := lookup(next_snapshot_id):
+            yield snap
+            next_snapshot_id = snap.parent_snapshot_id
+        else:
+            break
 
 
 def ancestors_between(
-    latest_snapshot_id: int, oldest_snapshot_id: Optional[int], lookup: Callable[[int], Snapshot]
+    latest_snapshot_id: int, oldest_snapshot_id: Optional[int], lookup: Callable[[int], Optional[Snapshot]]
 ) -> Iterable[Snapshot]:
     """
     Returns list of snapshot that are ancestor between two IDs
@@ -378,7 +380,7 @@ def ancestors_between(
 
 
 def new_files(
-    base_snapshot_id: int, latest_snapshot_id: int, lookup: Callable[[int], Snapshot], io: FileIO
+    base_snapshot_id: int, latest_snapshot_id: int, lookup: Callable[[int], Optional[Snapshot]], io: FileIO
 ) -> Iterable[DataFile]:
     """
     Returns list of DataFiles that are added along the way
@@ -412,7 +414,7 @@ def new_files(
     return added_files
 
 
-def snapshot_after(table: "Table", snapshot_id: int) -> Snapshot:
+def snapshot_after(table: Table, snapshot_id: int) -> Snapshot:
     """Traverses the history of the table's current snapshot
     and finds the snapshot with the given snapshot id as its parent.
 
@@ -433,7 +435,7 @@ def snapshot_after(table: "Table", snapshot_id: int) -> Snapshot:
     raise ValueError(f"Cannot find snapshot after {snapshot_id}: not an ancestor of table's current snapshot")
 
 
-def snapshot_id_as_of_time(table: "Table", timestamp_ms: int) -> int:
+def snapshot_id_as_of_time(table: Table, timestamp_ms: int) -> int:
     """
     Returns the ID of the most recent snapshot for the table as of the timestamp.
 
@@ -460,7 +462,7 @@ def snapshot_id_as_of_time(table: "Table", timestamp_ms: int) -> int:
     return snapshot_id
 
 
-def schema_for(table: "Table", snapshot_id: int) -> Schema:
+def schema_for(table: Table, snapshot_id: int) -> Schema:
     """Returns the schema of the table for the specified snapshot.
 
     Args:
@@ -470,16 +472,16 @@ def schema_for(table: "Table", snapshot_id: int) -> Schema:
     Returns:
         The schema of the snapshot, if available, otherwise the table schema
     """
-    snapshot = table.snapshot_by_id(snapshot_id)
-    schema_id = snapshot.schema_id
+    if snapshot := table.snapshot_by_id(snapshot_id):
+        schema_id = snapshot.schema_id
 
-    if schema_id is not None:
-        return table.schema_by_id(schema_id)
+        if schema_id is not None:
+            return table.schema_by_id(schema_id)
 
     return table.schema()
 
 
-def schema_as_of_time(table: "Table", timestamp_ms: int) -> Schema:
+def schema_as_of_time(table: Table, timestamp_ms: int) -> Schema:
     """Returns the schema of the table for the specified snapshot.
 
     Args:

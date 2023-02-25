@@ -160,10 +160,7 @@ def test_snapshot_by_id(table: Table) -> None:
 
 
 def test_snapshot_by_id_does_not_exist(table: Table) -> None:
-    with pytest.raises(ValueError) as exc_info:
-        _ = table.snapshot_by_id(-1)
-
-    assert "Snapshot id not found in table: -1" in str(exc_info.value)
+    assert table.snapshot_by_id(-1) is None
 
 
 def test_snapshot_by_name(table: Table) -> None:

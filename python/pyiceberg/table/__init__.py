@@ -147,27 +147,34 @@ class Table:
         return self.metadata.location
 
     def current_snapshot(self) -> Optional[Snapshot]:
-        """Get the current snapshot for this table, or None if there is no current snapshot."""
+        """Get the current snapshot of this table
+
+        Returns:
+            The current snapshot or None if the table doesn't have a current snapshot
+        """
         if snapshot_id := self.metadata.current_snapshot_id:
             return self.snapshot_by_id(snapshot_id)
         return None
 
-    def snapshot_by_id(self, snapshot_id: int) -> Snapshot:
+    def snapshot_by_id(self, snapshot_id: int) -> Optional[Snapshot]:
         """Get the snapshot of this table with the given id.
 
         Args:
             snapshot_id: The id of the snapshot to lookup in the table
 
         Returns:
-            The snapshot that corresponds to snapshot_id
-
-        Raises:
-            ValueError: If the snapshot cannot be found
+            The snapshot that corresponds to snapshot_id or None if the key doesn't exist
         """
-        try:
-            return next(snapshot for snapshot in self.metadata.snapshots if snapshot.snapshot_id == snapshot_id)
-        except StopIteration as e:
-            raise ValueError(f"Snapshot id not found in table: {snapshot_id}") from e
+        return self.snapshots.get(snapshot_id)
+
+    @cached_property
+    def snapshots(self) -> Dict[int, Snapshot]:
+        """Get the snapshot of this table with the given id.
+
+        Returns:
+            A dictionary with all the snapshots
+        """
+        return {snapshot.snapshot_id: snapshot for snapshot in self.metadata.snapshots}
 
     def snapshot_by_name(self, name: str) -> Optional[Snapshot]:
         """Returns the snapshot referenced by the given name or null if no such reference exists."""
