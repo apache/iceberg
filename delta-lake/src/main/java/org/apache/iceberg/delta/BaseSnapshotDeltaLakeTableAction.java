@@ -152,7 +152,7 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
         "Make sure to configure the action with a valid deltaLakeConfiguration");
     Preconditions.checkArgument(
         deltaLog.tableExists(),
-        "Delta lake table does not exist at the given location: %s",
+        "Delta Lake table does not exist at the given location: %s",
         deltaTableLocation);
     io.delta.standalone.Snapshot updatedSnapshot = deltaLog.update();
     Schema schema = convertDeltaLakeSchema(updatedSnapshot.getMetadata().getSchema());
@@ -191,7 +191,7 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
 
     icebergTransaction.commitTransaction();
     LOG.info(
-        "Successfully created Iceberg table {} from delta lake table at {}, total data file count: {}",
+        "Successfully created Iceberg table {} from Delta Lake table at {}, total data file count: {}",
         newTableIdentifier,
         deltaTableLocation,
         totalDataFiles);
@@ -261,7 +261,7 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
     }
 
     throw new ValidationException(
-        "Delta table at %s contains no constructable snapshot", deltaTableLocation);
+        "Delta Lake table at %s contains no constructable snapshot", deltaTableLocation);
   }
 
   /**
@@ -351,6 +351,11 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
 
     FileFormat format = determineFileFormatFromPath(fullFilePath);
     InputFile file = deltaLakeFileIO.newInputFile(fullFilePath);
+    if (!file.exists()) {
+      throw new NotFoundException(
+          "The file %s does not exist in the Delta Lake table at %s",
+          fullFilePath, deltaTableLocation);
+    }
 
     // If the file size is not specified, the size should be read from the file
     if (nullableFileSize != null) {
