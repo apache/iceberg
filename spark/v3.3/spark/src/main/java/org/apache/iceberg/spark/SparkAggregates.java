@@ -48,22 +48,37 @@ public class SparkAggregates {
         case COUNT:
           Count countAgg = (Count) aggregate;
           if (countAgg.isDistinct()) {
+            // manifest file doesn't have count distinct so this can't be pushed down
             return null;
           }
-          assert (countAgg.column() instanceof NamedReference);
-          return Expressions.count(SparkUtil.toColumnName((NamedReference) countAgg.column()));
+
+          if (countAgg.column() instanceof NamedReference) {
+            return Expressions.count(SparkUtil.toColumnName((NamedReference) countAgg.column()));
+          } else {
+            return null;
+          }
+
         case COUNT_STAR:
           return Expressions.countStar();
+
         case MAX:
           Max maxAgg = (Max) aggregate;
-          assert (maxAgg.column() instanceof NamedReference);
-          return Expressions.max(SparkUtil.toColumnName((NamedReference) maxAgg.column()));
+          if (maxAgg.column() instanceof NamedReference) {
+            return Expressions.max(SparkUtil.toColumnName((NamedReference) maxAgg.column()));
+          } else {
+            return null;
+          }
+
         case MIN:
           Min minAgg = (Min) aggregate;
-          assert (minAgg.column() instanceof NamedReference);
-          return Expressions.min(SparkUtil.toColumnName((NamedReference) minAgg.column()));
+          if (minAgg.column() instanceof NamedReference) {
+            return Expressions.min(SparkUtil.toColumnName((NamedReference) minAgg.column()));
+          } else {
+            return null;
+          }
       }
     }
+
     return null;
   }
 }
