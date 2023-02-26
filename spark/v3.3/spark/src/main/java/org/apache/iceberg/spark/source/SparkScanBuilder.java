@@ -47,6 +47,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.Spark3Util;
+import org.apache.iceberg.spark.SparkAggregates;
 import org.apache.iceberg.spark.SparkFilters;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.SparkReadOptions;
@@ -188,13 +189,12 @@ public class SparkScanBuilder
         if (expr != null) {
           Expression bound = Binder.bind(schema.asStruct(), expr, caseSensitive);
           expressions.add((BoundAggregate<?, ?>) bound);
+        } else {
+          LOG.info(
+              "Skipping aggregate pushdown: AggregateFunc {} can't be converted to iceberg expression",
+              aggregateFunc);
+          return false;
         }
-      } catch (UnsupportedOperationException e) {
-        LOG.info(
-            "Skipping aggregate pushdown: AggregateFunc {} can't be converted to iceberg Expression",
-            aggregateFunc,
-            e);
-        return false;
       } catch (IllegalArgumentException e) {
         LOG.info("Skipping aggregate pushdown: Bind failed for AggregateFunc {}", aggregateFunc, e);
         return false;
@@ -207,7 +207,7 @@ public class SparkScanBuilder
       return false;
     }
 
-    TableScan scan = table.newScan().withColStats();
+    TableScan scan = table.newScan().includeColumnStats();
     Snapshot snapshot = readSnapshot();
     if (snapshot == null) {
       LOG.info("Skipping aggregate pushdown: table snapshot is null");
@@ -242,7 +242,8 @@ public class SparkScanBuilder
     StructLike structLike = aggregateEvaluator.result();
     pushedAggregateRows[0] =
         new StructInternalRow(aggregateEvaluator.resultType()).setStruct(structLike);
-    localScan = new SparkLocalScan(table, pushedAggregateSchema, pushedAggregateRows);
+    localScan =
+        new SparkLocalScan(table, pushedAggregateSchema, pushedAggregateRows, filterExpressions);
 
     return true;
   }

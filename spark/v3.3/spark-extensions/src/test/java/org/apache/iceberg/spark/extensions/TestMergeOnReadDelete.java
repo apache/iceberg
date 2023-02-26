@@ -134,11 +134,11 @@ public class TestMergeOnReadDelete extends TestDelete {
     String select = "SELECT max(data), min(data), count(data) FROM %s";
 
     List<Object[]> explain = sql("EXPLAIN " + select, tableName);
-    String explainString = explain.get(0)[0].toString();
+    String explainString = explain.get(0)[0].toString().toLowerCase(Locale.ROOT);
     boolean explainContainsPushDownAggregates = false;
-    if (explainString.contains("max(data)".toLowerCase(Locale.ROOT))
-        || explainString.contains("min(data)".toLowerCase(Locale.ROOT))
-        || explainString.contains("count(data)".toLowerCase(Locale.ROOT))) {
+    if (explainString.contains("max(data)")
+        || explainString.contains("min(data)")
+        || explainString.contains("count(data)")) {
       explainContainsPushDownAggregates = true;
     }
 
