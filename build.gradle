@@ -781,7 +781,7 @@ project(':iceberg-nessie') {
 
     // Only there to prevent "warning: unknown enum constant SchemaType.OBJECT" compile messages
     compileOnly "org.eclipse.microprofile.openapi:microprofile-openapi-api:3.1"
-    testCompileOnly "org.eclipse.microprofile.openapi:microprofile-openapi-api:3.0"
+    testCompileOnly "org.eclipse.microprofile.openapi:microprofile-openapi-api:3.1"
   }
 }
 
