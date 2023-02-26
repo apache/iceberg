@@ -223,8 +223,10 @@ public class TestSnapshotSelection {
                     .option(SparkReadOptions.AS_OF_TIMESTAMP, timestamp)
                     .load(tableLocation))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Cannot specify both snapshot-id")
-        .hasMessageContaining("and as-of-timestamp");
+        .hasMessageContaining("Can specify only one of snapshot-id")
+        .hasMessageContaining("as-of-timestamp")
+        .hasMessageContaining("branch")
+        .hasMessageContaining("tag");
   }
 
   @Test
@@ -325,7 +327,7 @@ public class TestSnapshotSelection {
                     .load(tableLocation)
                     .show())
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageStartingWith("Cannot override ref, already set snapshot id=");
+        .hasMessageStartingWith("Can specify only one of snapshot-id");
   }
 
   @Test
@@ -356,7 +358,7 @@ public class TestSnapshotSelection {
                     .load(tableLocation)
                     .show())
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageStartingWith("Cannot override ref, already set snapshot id=");
+        .hasMessageStartingWith("Can specify only one of snapshot-id");
 
     Assertions.assertThatThrownBy(
             () ->
@@ -368,6 +370,88 @@ public class TestSnapshotSelection {
                     .load(tableLocation)
                     .show())
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageStartingWith("Cannot override ref, already set snapshot id=");
+        .hasMessageStartingWith("Can specify only one of snapshot-id");
+  }
+
+  @Test
+  public void testSnapshotSelectionByBranchWithSchemaChange() throws IOException {
+    String tableLocation = temp.newFolder("iceberg-table").toString();
+
+    HadoopTables tables = new HadoopTables(CONF);
+    PartitionSpec spec = PartitionSpec.unpartitioned();
+    Table table = tables.create(SCHEMA, spec, tableLocation);
+
+    // produce the first snapshot
+    List<SimpleRecord> firstBatchRecords =
+        Lists.newArrayList(
+            new SimpleRecord(1, "a"), new SimpleRecord(2, "b"), new SimpleRecord(3, "c"));
+    Dataset<Row> firstDf = spark.createDataFrame(firstBatchRecords, SimpleRecord.class);
+    firstDf.select("id", "data").write().format("iceberg").mode("append").save(tableLocation);
+
+    table.manageSnapshots().createBranch("branch", table.currentSnapshot().snapshotId()).commit();
+
+    Dataset<Row> branchSnapshotResult =
+        spark.read().format("iceberg").option("branch", "branch").load(tableLocation);
+    List<SimpleRecord> branchSnapshotRecords =
+        branchSnapshotResult.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
+    List<SimpleRecord> expectedRecords = Lists.newArrayList();
+    expectedRecords.addAll(firstBatchRecords);
+    Assert.assertEquals(
+        "Current snapshot rows should match", expectedRecords, branchSnapshotRecords);
+
+    // Deleting a column to indicate schema change
+    table.updateSchema().deleteColumn("data").commit();
+
+    // The data should have the deleted column as it was captured in an earlier snapshot.
+    Dataset<Row> deletedColumnBranchSnapshotResult =
+        spark.read().format("iceberg").option("branch", "branch").load(tableLocation);
+    List<SimpleRecord> deletedColumnBranchSnapshotRecords =
+        deletedColumnBranchSnapshotResult
+            .orderBy("id")
+            .as(Encoders.bean(SimpleRecord.class))
+            .collectAsList();
+    Assert.assertEquals(
+        "Current snapshot rows should match", expectedRecords, deletedColumnBranchSnapshotRecords);
+  }
+
+  @Test
+  public void testSnapshotSelectionByTagWithSchemaChange() throws IOException {
+    String tableLocation = temp.newFolder("iceberg-table").toString();
+
+    HadoopTables tables = new HadoopTables(CONF);
+    PartitionSpec spec = PartitionSpec.unpartitioned();
+    Table table = tables.create(SCHEMA, spec, tableLocation);
+
+    // produce the first snapshot
+    List<SimpleRecord> firstBatchRecords =
+        Lists.newArrayList(
+            new SimpleRecord(1, "a"), new SimpleRecord(2, "b"), new SimpleRecord(3, "c"));
+    Dataset<Row> firstDf = spark.createDataFrame(firstBatchRecords, SimpleRecord.class);
+    firstDf.select("id", "data").write().format("iceberg").mode("append").save(tableLocation);
+
+    table.manageSnapshots().createTag("tag", table.currentSnapshot().snapshotId()).commit();
+
+    List<SimpleRecord> expectedRecords = Lists.newArrayList();
+    expectedRecords.addAll(firstBatchRecords);
+
+    Dataset<Row> tagSnapshotResult =
+        spark.read().format("iceberg").option("tag", "tag").load(tableLocation);
+    List<SimpleRecord> tagSnapshotRecords =
+        tagSnapshotResult.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
+    Assert.assertEquals("Current snapshot rows should match", expectedRecords, tagSnapshotRecords);
+
+    // Deleting a column to indicate schema change
+    table.updateSchema().deleteColumn("data").commit();
+
+    // The data should have the deleted column as it was captured in an earlier snapshot.
+    Dataset<Row> deletedColumnTagSnapshotResult =
+        spark.read().format("iceberg").option("tag", "tag").load(tableLocation);
+    List<SimpleRecord> deletedColumnTagSnapshotRecords =
+        deletedColumnTagSnapshotResult
+            .orderBy("id")
+            .as(Encoders.bean(SimpleRecord.class))
+            .collectAsList();
+    Assert.assertEquals(
+        "Current snapshot rows should match", expectedRecords, deletedColumnTagSnapshotRecords);
   }
 }

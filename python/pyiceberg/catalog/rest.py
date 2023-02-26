@@ -175,11 +175,7 @@ class RestCatalog(Catalog):
     session: Session
     properties: Properties
 
-    def __init__(
-        self,
-        name: str,
-        **properties: str,
-    ):
+    def __init__(self, name: str, **properties: str):
         """Rest Catalog
 
         You either need to provide a client_id and client_secret, or an already valid token.

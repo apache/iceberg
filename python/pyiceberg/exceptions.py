@@ -90,3 +90,15 @@ class SignError(Exception):
 
 class ResolveError(Exception):
     pass
+
+
+class DynamoDbError(Exception):
+    pass
+
+
+class ConditionalCheckFailedException(DynamoDbError):
+    pass
+
+
+class GenericDynamoDbError(DynamoDbError):
+    pass
