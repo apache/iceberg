@@ -930,7 +930,7 @@ def test_all_nulls(schema: Schema, manifest: ManifestFile) -> None:
     ), "Should read: non-null column contains a non-null value"
 
 
-def test_no_nulls_nan(schema: Schema, manifest: ManifestFile) -> None:
+def test_no_nulls(schema: Schema, manifest: ManifestFile) -> None:
     assert _ManifestEvalVisitor(schema, IsNull(Reference("all_nulls_missing_nan")), case_sensitive=True).eval(
         manifest
     ), "Should read: at least one null value in all null column"
@@ -948,7 +948,7 @@ def test_no_nulls_nan(schema: Schema, manifest: ManifestFile) -> None:
     ), "Should read: both_nan_and_null column contains no null values"
 
 
-def test_is_nan_nan(schema: Schema, manifest: ManifestFile) -> None:
+def test_is_nan(schema: Schema, manifest: ManifestFile) -> None:
     assert _ManifestEvalVisitor(schema, IsNaN(Reference("float")), case_sensitive=True).eval(
         manifest
     ), "Should read: no information on if there are nan value in float column"
@@ -978,7 +978,7 @@ def test_is_nan_nan(schema: Schema, manifest: ManifestFile) -> None:
     ), "Should skip: no_nan_or_null column doesn't contain nan value"
 
 
-def test_not_nan_nan(schema: Schema, manifest: ManifestFile) -> None:
+def test_not_nan(schema: Schema, manifest: ManifestFile) -> None:
     assert _ManifestEvalVisitor(schema, NotNaN(Reference("float")), case_sensitive=True).eval(
         manifest
     ), "Should read: no information on if there are nan value in float column"
@@ -1003,6 +1003,14 @@ def test_not_nan_nan(schema: Schema, manifest: ManifestFile) -> None:
         manifest
     ), "Should read: no_nan_or_null column contains non nan value"
 
+    assert _ManifestEvalVisitor(schema, Not(LessThan(Reference("id"), INT_MIN_VALUE - 25)), case_sensitive=True).eval(
+        manifest
+    ), "Should read: not(false)"
+
+    assert not _ManifestEvalVisitor(schema, Not(GreaterThan(Reference("id"), INT_MIN_VALUE - 25)), case_sensitive=True).eval(
+        manifest
+    ), "Should skip: not(true)"
+
 
 def test_manifest_missing_stats(schema: Schema, manifest_no_stats: ManifestFile) -> None:
     expressions: List[BooleanExpression] = [
@@ -1022,16 +1030,6 @@ def test_manifest_missing_stats(schema: Schema, manifest_no_stats: ManifestFile)
         assert _ManifestEvalVisitor(schema, expr, case_sensitive=True).eval(
             manifest_no_stats
         ), f"Should read when missing stats for expr: {expr}"
-
-
-def test_not_nan(schema: Schema, manifest: ManifestFile) -> None:
-    assert _ManifestEvalVisitor(schema, Not(LessThan(Reference("id"), INT_MIN_VALUE - 25)), case_sensitive=True).eval(
-        manifest
-    ), "Should read: not(false)"
-
-    assert not _ManifestEvalVisitor(schema, Not(GreaterThan(Reference("id"), INT_MIN_VALUE - 25)), case_sensitive=True).eval(
-        manifest
-    ), "Should skip: not(true)"
 
 
 def test_and_nan(schema: Schema, manifest: ManifestFile) -> None:
