@@ -31,6 +31,7 @@ import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Partitioning;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableProperties;
@@ -52,7 +53,6 @@ import org.apache.iceberg.spark.SparkFilters;
 import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkUtil;
-import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.sql.SparkSession;
@@ -114,18 +114,26 @@ public class SparkTable
   private final Long snapshotId;
   private final boolean refreshEagerly;
   private final Set<TableCapability> capabilities;
+  private String branch = SnapshotRef.MAIN_BRANCH;
   private StructType lazyTableSchema = null;
   private SparkSession lazySpark = null;
 
   public SparkTable(Table icebergTable, boolean refreshEagerly) {
-    this(icebergTable, null, refreshEagerly);
+    this(icebergTable, (Long) null, refreshEagerly);
+  }
+
+  public SparkTable(Table icebergTable, String branch, boolean refreshEagerly) {
+    this(
+        icebergTable,
+        icebergTable.snapshot(branch) == null ? null : icebergTable.snapshot(branch).snapshotId(),
+        refreshEagerly);
+    this.branch = branch;
   }
 
   public SparkTable(Table icebergTable, Long snapshotId, boolean refreshEagerly) {
     this.icebergTable = icebergTable;
     this.snapshotId = snapshotId;
     this.refreshEagerly = refreshEagerly;
-
     boolean acceptAnySchema =
         PropertyUtil.propertyAsBoolean(
             icebergTable.properties(),
@@ -153,6 +161,10 @@ public class SparkTable
 
   public Long snapshotId() {
     return snapshotId;
+  }
+
+  public String branch() {
+    return branch;
   }
 
   public SparkTable copyWithSnapshotId(long newSnapshotId) {
@@ -245,29 +257,22 @@ public class SparkTable
     }
 
     CaseInsensitiveStringMap scanOptions = addSnapshotId(options, snapshotId);
-    return new SparkScanBuilder(sparkSession(), icebergTable, snapshotSchema(), scanOptions);
+    return new SparkScanBuilder(
+        sparkSession(), icebergTable, snapshotSchema(), scanOptions, branch);
   }
 
   @Override
   public WriteBuilder newWriteBuilder(LogicalWriteInfo info) {
-    Preconditions.checkArgument(
-        snapshotId == null || info.options().get(SparkWriteOptions.BRANCH) != null,
-        "Cannot write to table at a specific snapshot: %s",
-        snapshotId);
-
-    return new SparkWriteBuilder(sparkSession(), icebergTable, info);
+    return new SparkWriteBuilder(sparkSession(), icebergTable, info, branch);
   }
 
   @Override
   public RowLevelOperationBuilder newRowLevelOperationBuilder(RowLevelOperationInfo info) {
-    return new SparkRowLevelOperationBuilder(sparkSession(), icebergTable, info);
+    return new SparkRowLevelOperationBuilder(sparkSession(), icebergTable, info, branch);
   }
 
   @Override
   public boolean canDeleteWhere(Filter[] filters) {
-    Preconditions.checkArgument(
-        snapshotId == null, "Cannot delete from table at a specific snapshot: %s", snapshotId);
-
     Expression deleteExpr = Expressions.alwaysTrue();
 
     for (Filter filter : filters) {
@@ -290,11 +295,16 @@ public class SparkTable
       return true;
     }
 
+    if (!table().refs().containsKey(branch)) {
+      return false;
+    }
+
     TableScan scan =
         table()
             .newScan()
             .filter(deleteExpr)
             .caseSensitive(caseSensitive)
+            .useRef(branch)
             .includeColumnStats()
             .ignoreResiduals();
 
@@ -336,6 +346,7 @@ public class SparkTable
         .newDelete()
         .set("spark.app.id", sparkSession().sparkContext().applicationId())
         .deleteFromRowFilter(deleteExpr)
+        .toBranch(branch)
         .commit();
   }
 

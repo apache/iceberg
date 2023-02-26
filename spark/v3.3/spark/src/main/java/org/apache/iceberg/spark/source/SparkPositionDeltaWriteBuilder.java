@@ -22,7 +22,6 @@ import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.IsolationLevel;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.spark.SparkDistributionAndOrderingUtil;
@@ -56,6 +55,7 @@ class SparkPositionDeltaWriteBuilder implements DeltaWriteBuilder {
   private final boolean handleTimestampWithoutZone;
   private final boolean checkNullability;
   private final boolean checkOrdering;
+  private final String branch;
 
   SparkPositionDeltaWriteBuilder(
       SparkSession spark,
@@ -63,7 +63,8 @@ class SparkPositionDeltaWriteBuilder implements DeltaWriteBuilder {
       Command command,
       Scan scan,
       IsolationLevel isolationLevel,
-      ExtendedLogicalWriteInfo info) {
+      ExtendedLogicalWriteInfo info,
+      String branch) {
     this.spark = spark;
     this.table = table;
     this.command = command;
@@ -74,6 +75,7 @@ class SparkPositionDeltaWriteBuilder implements DeltaWriteBuilder {
     this.handleTimestampWithoutZone = writeConf.handleTimestampWithoutZone();
     this.checkNullability = writeConf.checkNullability();
     this.checkOrdering = writeConf.checkOrdering();
+    this.branch = branch;
   }
 
   @Override
@@ -81,11 +83,6 @@ class SparkPositionDeltaWriteBuilder implements DeltaWriteBuilder {
     Preconditions.checkArgument(
         handleTimestampWithoutZone || !SparkUtil.hasTimestampWithoutZone(table.schema()),
         SparkUtil.TIMESTAMP_WITHOUT_TIMEZONE_ERROR);
-
-    if (!writeConf.branch().equalsIgnoreCase(SnapshotRef.MAIN_BRANCH)) {
-      throw new UnsupportedOperationException(
-          "Row-level operations are currently supported only on the main branch");
-    }
 
     Schema dataSchema = dataSchema();
     if (dataSchema != null) {
@@ -121,7 +118,8 @@ class SparkPositionDeltaWriteBuilder implements DeltaWriteBuilder {
         info,
         dataSchema,
         distribution,
-        ordering);
+        ordering,
+        branch);
   }
 
   private Schema dataSchema() {

@@ -33,6 +33,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.RowLevelOperationMode;
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.data.GenericRecord;
@@ -153,8 +154,8 @@ public class TestCopyOnWriteDelete extends TestDelete {
   public void testRuntimeFilteringWithPreservedDataGrouping() throws NoSuchTableException {
     createAndInitPartitionedTable();
 
-    append(new Employee(1, "hr"), new Employee(3, "hr"));
-    append(new Employee(1, "hardware"), new Employee(2, "hardware"));
+    append(SnapshotRef.MAIN_BRANCH, new Employee(1, "hr"), new Employee(3, "hr"));
+    append(SnapshotRef.MAIN_BRANCH, new Employee(1, "hardware"), new Employee(2, "hardware"));
 
     Map<String, String> sqlConf =
         ImmutableMap.of(

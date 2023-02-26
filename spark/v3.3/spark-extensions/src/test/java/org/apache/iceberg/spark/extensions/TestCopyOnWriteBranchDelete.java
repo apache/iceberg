@@ -18,17 +18,21 @@
  */
 package org.apache.iceberg.spark.extensions;
 
+import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE_NONE;
+
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
-import org.apache.iceberg.SnapshotRef;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.spark.SparkCatalog;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
-import org.junit.After;
-import org.junit.BeforeClass;
 import org.junit.Test;
+import org.junit.runners.Parameterized;
 
-public abstract class TestDelete extends TestDeleteBase {
+public class TestCopyOnWriteBranchDelete extends TestCopyOnWriteDelete {
 
-  public TestDelete(
+  static String TEST_BRANCH = "test_branch";
+
+  public TestCopyOnWriteBranchDelete(
       String catalogName,
       String implementation,
       Map<String, String> config,
@@ -38,156 +42,163 @@ public abstract class TestDelete extends TestDeleteBase {
     super(catalogName, implementation, config, fileFormat, vectorized, distributionMode);
   }
 
-  @BeforeClass
-  public static void setupSparkConf() {
-    spark.conf().set("spark.sql.shuffle.partitions", "4");
-  }
-
-  @After
-  public void removeTables() {
-    sql("DROP TABLE IF EXISTS %s", tableName);
-    sql("DROP TABLE IF EXISTS deleted_id");
-    sql("DROP TABLE IF EXISTS deleted_dep");
+  @Parameterized.Parameters(
+      name =
+          "catalogName = {0}, implementation = {1}, config = {2},"
+              + " format = {3}, vectorized = {4}, distributionMode = {5}")
+  public static Object[][] parameters() {
+    return new Object[][] {
+      {
+        "testhive",
+        SparkCatalog.class.getName(),
+        ImmutableMap.of(
+            "type", "hive",
+            "default-namespace", "default"),
+        "parquet",
+        true,
+        WRITE_DISTRIBUTION_MODE_NONE
+      },
+    };
   }
 
   @Test
   public void testDeleteWithoutScanningTable() throws Exception {
-    testDeleteWithoutScanningTable(SnapshotRef.MAIN_BRANCH);
+    testDeleteWithoutScanningTable(TEST_BRANCH);
   }
 
   @Test
   public void testDeleteFileThenMetadataDelete() throws Exception {
-    testDeleteFileThenMetadataDelete(SnapshotRef.MAIN_BRANCH);
+    testDeleteFileThenMetadataDelete(TEST_BRANCH);
   }
 
   @Test
   public void testDeleteWithFalseCondition() {
-    testDeleteWithFalseCondition(SnapshotRef.MAIN_BRANCH);
+    testDeleteWithFalseCondition(TEST_BRANCH);
   }
 
   @Test
   public void testDeleteFromEmptyTable() {
-    testDeleteFromEmptyTable(SnapshotRef.MAIN_BRANCH);
+    testDeleteFromEmptyTable(TEST_BRANCH);
   }
 
   @Test
   public void testExplain() {
-    testExplain(SnapshotRef.MAIN_BRANCH);
+    testExplain(TEST_BRANCH);
   }
 
   @Test
   public void testDeleteWithAlias() {
-    testDeleteWithAlias(SnapshotRef.MAIN_BRANCH);
+    testDeleteWithAlias(TEST_BRANCH);
   }
 
   @Test
   public void testDeleteWithDynamicFileFiltering() throws NoSuchTableException {
-    testDeleteWithDynamicFileFiltering(SnapshotRef.MAIN_BRANCH);
+    testDeleteWithDynamicFileFiltering(TEST_BRANCH);
   }
 
   @Test
   public void testDeleteNonExistingRecords() {
-    testDeleteNonExistingRecords(SnapshotRef.MAIN_BRANCH);
+    testDeleteNonExistingRecords(TEST_BRANCH);
   }
 
   @Test
   public void testDeleteWithoutCondition() {
-    testDeleteWithoutCondition(SnapshotRef.MAIN_BRANCH);
+    testDeleteWithoutCondition(TEST_BRANCH);
   }
 
   @Test
   public void testDeleteUsingMetadataWithComplexCondition() {
-    testDeleteUsingMetadataWithComplexCondition(SnapshotRef.MAIN_BRANCH);
+    testDeleteUsingMetadataWithComplexCondition(TEST_BRANCH);
   }
 
   @Test
   public void testDeleteWithArbitraryPartitionPredicates() {
-    testDeleteWithArbitraryPartitionPredicates(SnapshotRef.MAIN_BRANCH);
+    testDeleteWithArbitraryPartitionPredicates(TEST_BRANCH);
   }
 
   @Test
   public void testDeleteWithNonDeterministicCondition() {
-    testDeleteWithNonDeterministicCondition(SnapshotRef.MAIN_BRANCH);
+    testDeleteWithNonDeterministicCondition(TEST_BRANCH);
   }
 
   @Test
   public void testDeleteWithFoldableConditions() {
-    testDeleteWithFoldableConditions(SnapshotRef.MAIN_BRANCH);
+    testDeleteWithFoldableConditions(TEST_BRANCH);
   }
 
   @Test
   public void testDeleteWithNullConditions() {
-    testDeleteWithNullConditions(SnapshotRef.MAIN_BRANCH);
+    testDeleteWithNullConditions(TEST_BRANCH);
   }
 
   @Test
   public void testDeleteWithInAndNotInConditions() {
-    testDeleteWithInAndNotInConditions(SnapshotRef.MAIN_BRANCH);
+    testDeleteWithInAndNotInConditions(TEST_BRANCH);
   }
 
   @Test
   public void testDeleteWithMultipleRowGroupsParquet() throws NoSuchTableException {
-    testDeleteWithMultipleRowGroupsParquet(SnapshotRef.MAIN_BRANCH);
+    testDeleteWithMultipleRowGroupsParquet(TEST_BRANCH);
   }
 
   @Test
   public void testDeleteWithConditionOnNestedColumn() {
-    testDeleteWithConditionOnNestedColumn(SnapshotRef.MAIN_BRANCH);
+    testDeleteWithConditionOnNestedColumn(TEST_BRANCH);
   }
 
   @Test
   public void testDeleteWithInSubquery() throws NoSuchTableException {
-    testDeleteWithInSubquery(SnapshotRef.MAIN_BRANCH);
+    testDeleteWithInSubquery(TEST_BRANCH);
   }
 
   @Test
   public void testDeleteWithMultiColumnInSubquery() throws NoSuchTableException {
-    testDeleteWithNotInSubquery(SnapshotRef.MAIN_BRANCH);
+    testDeleteWithNotInSubquery(TEST_BRANCH);
   }
 
   @Test
   public void testDeleteWithNotInSubquery() throws NoSuchTableException {
-    testDeleteWithNotInSubquery(SnapshotRef.MAIN_BRANCH);
+    testDeleteWithNotInSubquery(TEST_BRANCH);
   }
 
   @Test
   public void testDeleteOnNonIcebergTableNotSupported() {
-    testDeleteOnNonIcebergTableNotSupported(SnapshotRef.MAIN_BRANCH);
+    testDeleteOnNonIcebergTableNotSupported(TEST_BRANCH);
   }
 
   @Test
   public void testDeleteWithExistSubquery() throws NoSuchTableException {
-    testDeleteWithExistSubquery(SnapshotRef.MAIN_BRANCH);
+    testDeleteWithExistSubquery(TEST_BRANCH);
   }
 
   @Test
   public void testDeleteWithNotExistsSubquery() throws NoSuchTableException {
-    testDeleteWithNotExistsSubquery(SnapshotRef.MAIN_BRANCH);
+    testDeleteWithNotExistsSubquery(TEST_BRANCH);
   }
 
   @Test
   public void testDeleteWithScalarSubquery() throws NoSuchTableException {
-    testDeleteWithScalarSubquery(SnapshotRef.MAIN_BRANCH);
+    testDeleteWithScalarSubquery(TEST_BRANCH);
   }
 
   @Test
   public synchronized void testDeleteWithSerializableIsolation() throws InterruptedException {
-    testDeleteWithSerializableIsolation(SnapshotRef.MAIN_BRANCH);
+    testDeleteWithSerializableIsolation(TEST_BRANCH);
   }
 
   @Test
   public synchronized void testDeleteWithSnapshotIsolation()
       throws InterruptedException, ExecutionException {
-    testDeleteWithSnapshotIsolation(SnapshotRef.MAIN_BRANCH);
+    testDeleteWithSnapshotIsolation(TEST_BRANCH);
   }
 
   @Test
   public void testDeleteRefreshesRelationCache() throws NoSuchTableException {
-    testDeleteRefreshesRelationCache(SnapshotRef.MAIN_BRANCH);
+    testDeleteRefreshesRelationCache(TEST_BRANCH);
   }
 
   @Test
   public void testDeleteWithMultipleSpecs() {
-    testDeleteWithMultipleSpecs(SnapshotRef.MAIN_BRANCH);
+    testDeleteWithMultipleSpecs(TEST_BRANCH);
   }
 }

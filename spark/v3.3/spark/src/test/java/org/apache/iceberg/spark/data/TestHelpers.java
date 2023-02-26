@@ -806,6 +806,16 @@ public class TestHelpers {
     return dataFiles;
   }
 
+  public static Set<DataFile> dataFiles(Table table, String branch) {
+    Set<DataFile> dataFiles = Sets.newHashSet();
+
+    for (FileScanTask task : table.newScan().useRef(branch).planFiles()) {
+      dataFiles.add(task.file());
+    }
+
+    return dataFiles;
+  }
+
   public static Set<DeleteFile> deleteFiles(Table table) {
     Set<DeleteFile> deleteFiles = Sets.newHashSet();
 

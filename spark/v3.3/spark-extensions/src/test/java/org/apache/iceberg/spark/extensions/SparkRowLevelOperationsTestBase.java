@@ -43,6 +43,7 @@ import java.util.stream.Collectors;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.parquet.GenericParquetWriter;
@@ -173,14 +174,23 @@ public abstract class SparkRowLevelOperationsTestBase extends SparkExtensionsTes
     createAndInitTable(schema, "", jsonData);
   }
 
+  protected void createAndInitTableBranch(String schema, String jsonData, String branch) {
+    createAndInitTableBranch(schema, "", jsonData, branch);
+  }
+
   protected void createAndInitTable(String schema, String partitioning, String jsonData) {
+    createAndInitTableBranch(schema, partitioning, jsonData, SnapshotRef.MAIN_BRANCH);
+  }
+
+  protected void createAndInitTableBranch(
+      String schema, String partitioning, String jsonData, String branch) {
     sql("CREATE TABLE %s (%s) USING iceberg %s", tableName, schema, partitioning);
     initTable();
 
     if (jsonData != null) {
       try {
         Dataset<Row> ds = toDS(schema, jsonData);
-        ds.coalesce(1).writeTo(tableName).append();
+        ds.coalesce(1).writeTo(tableNameWithBranch(branch)).append();
       } catch (NoSuchTableException e) {
         throw new RuntimeException("Failed to write data", e);
       }
@@ -314,5 +324,13 @@ public abstract class SparkRowLevelOperationsTestBase extends SparkExtensionsTes
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }
+  }
+
+  protected String tableNameWithBranch(String branch) {
+    if (branch.equals(SnapshotRef.MAIN_BRANCH)) {
+      return tableName;
+    }
+
+    return tableName + "." + branch;
   }
 }

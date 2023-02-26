@@ -28,11 +28,13 @@ import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.SparkReadConf;
+import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.connector.expressions.Expressions;
 import org.apache.spark.sql.connector.expressions.NamedReference;
@@ -49,6 +51,7 @@ class SparkCopyOnWriteScan extends SparkPartitioningAwareScan<FileScanTask>
   private static final Logger LOG = LoggerFactory.getLogger(SparkCopyOnWriteScan.class);
 
   private final Snapshot snapshot;
+  private final String branch;
   private Set<String> filteredLocations = null;
 
   SparkCopyOnWriteScan(
@@ -57,7 +60,7 @@ class SparkCopyOnWriteScan extends SparkPartitioningAwareScan<FileScanTask>
       SparkReadConf readConf,
       Schema expectedSchema,
       List<Expression> filters) {
-    this(spark, table, null, null, readConf, expectedSchema, filters);
+    this(spark, table, null, null, readConf, expectedSchema, filters, SnapshotRef.MAIN_BRANCH);
   }
 
   SparkCopyOnWriteScan(
@@ -67,15 +70,17 @@ class SparkCopyOnWriteScan extends SparkPartitioningAwareScan<FileScanTask>
       Snapshot snapshot,
       SparkReadConf readConf,
       Schema expectedSchema,
-      List<Expression> filters) {
+      List<Expression> filters,
+      String branch) {
 
     super(spark, table, scan, readConf, expectedSchema, filters);
-
-    this.snapshot = snapshot;
 
     if (scan == null) {
       this.filteredLocations = Collections.emptySet();
     }
+
+    this.branch = branch;
+    this.snapshot = SnapshotUtil.latestSnapshot(table, branch);
   }
 
   Long snapshotId() {
@@ -100,12 +105,12 @@ class SparkCopyOnWriteScan extends SparkPartitioningAwareScan<FileScanTask>
   @Override
   public void filter(Filter[] filters) {
     Preconditions.checkState(
-        Objects.equals(snapshotId(), currentSnapshotId()),
+        Objects.equals(snapshotId(), latestSnapshotId()),
         "Runtime file filtering is not possible: the table has been concurrently modified. "
             + "Row-level operation scan snapshot ID: %s, current table snapshot ID: %s. "
             + "If multiple threads modify the table, use independent Spark sessions in each thread.",
         snapshotId(),
-        currentSnapshotId());
+        latestSnapshotId());
 
     for (Filter filter : filters) {
       // Spark can only pass In filters at the moment
@@ -178,8 +183,8 @@ class SparkCopyOnWriteScan extends SparkPartitioningAwareScan<FileScanTask>
         table(), expectedSchema().asStruct(), filterExpressions(), caseSensitive());
   }
 
-  private Long currentSnapshotId() {
-    Snapshot currentSnapshot = table().currentSnapshot();
-    return currentSnapshot != null ? currentSnapshot.snapshotId() : null;
+  private Long latestSnapshotId() {
+    Snapshot latest = SnapshotUtil.latestSnapshot(table(), branch);
+    return latest == null ? null : latest.snapshotId();
   }
 }

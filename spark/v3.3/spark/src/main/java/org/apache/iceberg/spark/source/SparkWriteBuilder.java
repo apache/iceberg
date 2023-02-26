@@ -72,11 +72,13 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
   private SparkCopyOnWriteScan copyOnWriteScan = null;
   private Command copyOnWriteCommand = null;
   private IsolationLevel copyOnWriteIsolationLevel = null;
+  private final String branch;
 
-  SparkWriteBuilder(SparkSession spark, Table table, LogicalWriteInfo info) {
+  SparkWriteBuilder(SparkSession spark, Table table, LogicalWriteInfo info, String branch) {
     this.spark = spark;
     this.table = table;
     this.writeConf = new SparkWriteConf(spark, table, info.options());
+    this.branch = branch;
     this.writeInfo = info;
     this.dsSchema = info.schema();
     this.overwriteMode = writeConf.overwriteMode();
@@ -162,7 +164,16 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
     }
 
     return new SparkWrite(
-        spark, table, writeConf, writeInfo, appId, writeSchema, dsSchema, distribution, ordering) {
+        spark,
+        table,
+        writeConf,
+        writeInfo,
+        appId,
+        writeSchema,
+        dsSchema,
+        distribution,
+        ordering,
+        branch) {
 
       @Override
       public BatchWrite toBatch() {

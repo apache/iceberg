@@ -657,20 +657,17 @@ public class SparkCatalog extends BaseCatalog {
         return new SparkTable(table, snapshotId, !cacheEnabled);
       }
 
-      Matcher branch = BRANCH.matcher(ident.name());
-      if (branch.matches()) {
-        Snapshot branchSnapshot = table.snapshot(branch.group(1));
-        if (branchSnapshot != null) {
-          return new SparkTable(table, branchSnapshot.snapshotId(), !cacheEnabled);
-        }
-      }
-
       Matcher tag = TAG.matcher(ident.name());
       if (tag.matches()) {
         Snapshot tagSnapshot = table.snapshot(tag.group(1));
         if (tagSnapshot != null) {
           return new SparkTable(table, tagSnapshot.snapshotId(), !cacheEnabled);
         }
+      }
+
+      String branch = ident.name();
+      if (branch != null) {
+        return new SparkTable(table, branch, !cacheEnabled);
       }
 
       // the name wasn't a valid snapshot selector and did not point to the changelog

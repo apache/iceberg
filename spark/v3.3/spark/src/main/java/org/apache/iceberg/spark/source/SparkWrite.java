@@ -112,7 +112,8 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
       Schema writeSchema,
       StructType dsSchema,
       Distribution requiredDistribution,
-      SortOrder[] requiredOrdering) {
+      SortOrder[] requiredOrdering,
+      String branch) {
     this.sparkContext = JavaSparkContext.fromSparkContext(spark.sparkContext());
     this.table = table;
     this.writeConf = writeConf;
@@ -121,7 +122,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
     this.applicationId = applicationId;
     this.wapEnabled = writeConf.wapEnabled();
     this.wapId = writeConf.wapId();
-    this.branch = writeConf.branch();
+    this.branch = branch;
     this.targetFileSize = writeConf.targetDataFileSize();
     this.writeSchema = writeSchema;
     this.dsSchema = dsSchema;

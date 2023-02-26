@@ -41,6 +41,7 @@ class SparkPositionDeltaOperation implements RowLevelOperation, SupportsDelta {
   private final Table table;
   private final Command command;
   private final IsolationLevel isolationLevel;
+  private final String branch;
 
   // lazy vars
   private ScanBuilder lazyScanBuilder;
@@ -48,11 +49,16 @@ class SparkPositionDeltaOperation implements RowLevelOperation, SupportsDelta {
   private DeltaWriteBuilder lazyWriteBuilder;
 
   SparkPositionDeltaOperation(
-      SparkSession spark, Table table, RowLevelOperationInfo info, IsolationLevel isolationLevel) {
+      SparkSession spark,
+      Table table,
+      RowLevelOperationInfo info,
+      IsolationLevel isolationLevel,
+      String branch) {
     this.spark = spark;
     this.table = table;
     this.command = info.command();
     this.isolationLevel = isolationLevel;
+    this.branch = branch;
   }
 
   @Override
@@ -64,10 +70,10 @@ class SparkPositionDeltaOperation implements RowLevelOperation, SupportsDelta {
   public ScanBuilder newScanBuilder(CaseInsensitiveStringMap options) {
     if (lazyScanBuilder == null) {
       this.lazyScanBuilder =
-          new SparkScanBuilder(spark, table, options) {
+          new SparkScanBuilder(spark, table, table.schema(), options, branch) {
             @Override
             public Scan build() {
-              Scan scan = super.buildMergeOnReadScan();
+              Scan scan = super.buildMergeOnReadScan(branch);
               SparkPositionDeltaOperation.this.configuredScan = scan;
               return scan;
             }
@@ -91,7 +97,8 @@ class SparkPositionDeltaOperation implements RowLevelOperation, SupportsDelta {
               command,
               configuredScan,
               isolationLevel,
-              (ExtendedLogicalWriteInfo) info);
+              (ExtendedLogicalWriteInfo) info,
+              branch);
     }
 
     return lazyWriteBuilder;

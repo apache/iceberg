@@ -40,6 +40,7 @@ import org.apache.spark.sql.connector.write.RowLevelOperation;
 import org.apache.spark.sql.connector.write.RowLevelOperation.Command;
 import org.apache.spark.sql.connector.write.RowLevelOperationBuilder;
 import org.apache.spark.sql.connector.write.RowLevelOperationInfo;
+import org.jetbrains.annotations.NotNull;
 
 class SparkRowLevelOperationBuilder implements RowLevelOperationBuilder {
 
@@ -48,22 +49,25 @@ class SparkRowLevelOperationBuilder implements RowLevelOperationBuilder {
   private final RowLevelOperationInfo info;
   private final RowLevelOperationMode mode;
   private final IsolationLevel isolationLevel;
+  private final String branch;
 
-  SparkRowLevelOperationBuilder(SparkSession spark, Table table, RowLevelOperationInfo info) {
+  SparkRowLevelOperationBuilder(
+      SparkSession spark, @NotNull Table table, RowLevelOperationInfo info, String branch) {
     this.spark = spark;
     this.table = table;
     this.info = info;
     this.mode = mode(table.properties(), info.command());
     this.isolationLevel = isolationLevel(table.properties(), info.command());
+    this.branch = branch;
   }
 
   @Override
   public RowLevelOperation build() {
     switch (mode) {
       case COPY_ON_WRITE:
-        return new SparkCopyOnWriteOperation(spark, table, info, isolationLevel);
+        return new SparkCopyOnWriteOperation(spark, table, info, isolationLevel, branch);
       case MERGE_ON_READ:
-        return new SparkPositionDeltaOperation(spark, table, info, isolationLevel);
+        return new SparkPositionDeltaOperation(spark, table, info, isolationLevel, branch);
       default:
         throw new IllegalArgumentException("Unsupported operation mode: " + mode);
     }

@@ -32,6 +32,7 @@ import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.MetricsModes;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
@@ -82,6 +83,7 @@ public class SparkScanBuilder
 
   private static final Logger LOG = LoggerFactory.getLogger(SparkScanBuilder.class);
   private static final Filter[] NO_FILTERS = new Filter[0];
+  private final String branch;
   private StructType pushedAggregateSchema;
   private Scan localScan;
 
@@ -97,17 +99,27 @@ public class SparkScanBuilder
   private Filter[] pushedFilters = NO_FILTERS;
 
   SparkScanBuilder(
-      SparkSession spark, Table table, Schema schema, CaseInsensitiveStringMap options) {
+      SparkSession spark,
+      Table table,
+      Schema schema,
+      CaseInsensitiveStringMap options,
+      String branch) {
     this.spark = spark;
     this.table = table;
     this.schema = schema;
     this.options = options;
     this.readConf = new SparkReadConf(spark, table, options);
     this.caseSensitive = readConf.caseSensitive();
+    this.branch = branch;
+  }
+
+  SparkScanBuilder(
+      SparkSession spark, Table table, Schema schema, CaseInsensitiveStringMap options) {
+    this(spark, table, schema, options, SnapshotRef.MAIN_BRANCH);
   }
 
   SparkScanBuilder(SparkSession spark, Table table, CaseInsensitiveStringMap options) {
-    this(spark, table, table.schema(), options);
+    this(spark, table, table.schema(), options, SnapshotRef.MAIN_BRANCH);
   }
 
   private Expression filterExpression() {
@@ -356,7 +368,8 @@ public class SparkScanBuilder
   }
 
   private Scan buildBatchScan() {
-    Long snapshotId = readConf.snapshotId();
+    Snapshot branchSnapshot = SnapshotUtil.latestSnapshot(table, branch);
+    Long snapshotId = branchSnapshot != null ? branchSnapshot.snapshotId() : null;
     Long asOfTimestamp = readConf.asOfTimestamp();
     String branch = readConf.branch();
     String tag = readConf.tag();
@@ -402,7 +415,7 @@ public class SparkScanBuilder
     }
   }
 
-  private Scan buildBatchScan(Long snapshotId, Long asOfTimestamp, String branch, String tag) {
+  private Scan buildBatchScan(Long snapshotId, Long asOfTimestamp, String readBranch, String tag) {
     Schema expectedSchema = schemaWithMetadataColumns();
 
     BatchScan scan =
@@ -420,8 +433,8 @@ public class SparkScanBuilder
       scan = scan.asOfTime(asOfTimestamp);
     }
 
-    if (branch != null) {
-      scan = scan.useRef(branch);
+    if (readBranch != null) {
+      scan = scan.useRef(readBranch);
     }
 
     if (tag != null) {
@@ -536,6 +549,10 @@ public class SparkScanBuilder
   }
 
   public Scan buildMergeOnReadScan() {
+    return buildMergeOnReadScan(SnapshotRef.MAIN_BRANCH);
+  }
+
+  public Scan buildMergeOnReadScan(String branch) {
     Preconditions.checkArgument(
         readConf.snapshotId() == null
             && readConf.asOfTimestamp() == null
@@ -553,7 +570,7 @@ public class SparkScanBuilder
         SparkReadOptions.START_SNAPSHOT_ID,
         SparkReadOptions.END_SNAPSHOT_ID);
 
-    Snapshot snapshot = table.currentSnapshot();
+    Snapshot snapshot = table.snapshot(branch);
 
     if (snapshot == null) {
       return new SparkBatchQueryScan(
@@ -584,11 +601,22 @@ public class SparkScanBuilder
   }
 
   public Scan buildCopyOnWriteScan() {
-    Snapshot snapshot = table.currentSnapshot();
+    return buildCopyOnWriteScan(SnapshotRef.MAIN_BRANCH);
+  }
+
+  public Scan buildCopyOnWriteScan(String branch) {
+    Snapshot snapshot = SnapshotUtil.latestSnapshot(table, branch);
 
     if (snapshot == null) {
       return new SparkCopyOnWriteScan(
-          spark, table, readConf, schemaWithMetadataColumns(), filterExpressions);
+          spark,
+          table,
+          null,
+          null,
+          readConf,
+          schemaWithMetadataColumns(),
+          filterExpressions,
+          branch);
     }
 
     Schema expectedSchema = schemaWithMetadataColumns();
@@ -605,7 +633,7 @@ public class SparkScanBuilder
     scan = configureSplitPlanning(scan);
 
     return new SparkCopyOnWriteScan(
-        spark, table, scan, snapshot, readConf, expectedSchema, filterExpressions);
+        spark, table, scan, snapshot, readConf, expectedSchema, filterExpressions, branch);
   }
 
   private <T extends org.apache.iceberg.Scan<T, ?, ?>> T configureSplitPlanning(T scan) {

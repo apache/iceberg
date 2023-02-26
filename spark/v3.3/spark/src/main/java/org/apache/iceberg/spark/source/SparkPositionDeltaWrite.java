@@ -100,6 +100,7 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
   private final Map<String, String> extraSnapshotMetadata;
   private final Distribution requiredDistribution;
   private final SortOrder[] requiredOrdering;
+  private final String branch;
 
   private boolean cleanupOnAbort = true;
 
@@ -113,7 +114,8 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
       ExtendedLogicalWriteInfo info,
       Schema dataSchema,
       Distribution requiredDistribution,
-      SortOrder[] requiredOrdering) {
+      SortOrder[] requiredOrdering,
+      String branch) {
     this.sparkContext = JavaSparkContext.fromSparkContext(spark.sparkContext());
     this.table = table;
     this.command = command;
@@ -126,6 +128,7 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
     this.extraSnapshotMetadata = writeConf.extraSnapshotMetadata();
     this.requiredDistribution = requiredDistribution;
     this.requiredOrdering = requiredOrdering;
+    this.branch = branch;
   }
 
   @Override
@@ -275,6 +278,7 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
 
       try {
         long start = System.currentTimeMillis();
+        operation.toBranch(branch);
         operation.commit(); // abort is automatically called if this fails
         long duration = System.currentTimeMillis() - start;
         LOG.info("Committed in {} ms", duration);
