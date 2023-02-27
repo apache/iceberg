@@ -20,29 +20,17 @@ package org.apache.iceberg.spark.extensions;
 
 import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE_NONE;
 
-import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
-import org.apache.iceberg.Snapshot;
-import org.apache.iceberg.Table;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.spark.SparkCatalog;
-import org.apache.iceberg.spark.SparkSQLProperties;
-import org.apache.iceberg.util.SnapshotUtil;
-import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
-import org.apache.spark.sql.internal.SQLConf;
-import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runners.Parameterized;
 
-public class TestCopyOnWriteBranchMerge extends TestCopyOnWriteMerge {
+public class TestMergeOnReadBranchMerge extends TestMergeOnReadMerge {
 
-  static String TEST_BRANCH = "test_branch";
-
-  public TestCopyOnWriteBranchMerge(
+  public TestMergeOnReadBranchMerge(
       String catalogName,
       String implementation,
       Map<String, String> config,
@@ -64,7 +52,7 @@ public class TestCopyOnWriteBranchMerge extends TestCopyOnWriteMerge {
         ImmutableMap.of(
             "type", "hive",
             "default-namespace", "default"),
-        "parquet",
+        "orc",
         true,
         WRITE_DISTRIBUTION_MODE_NONE
       },
@@ -384,48 +372,5 @@ public class TestCopyOnWriteBranchMerge extends TestCopyOnWriteMerge {
   @Test
   public void testMergeEmptyTable() {
     testMergeEmptyTable(TEST_BRANCH);
-  }
-
-  @Test
-  public void testRuntimeFilteringWithReportedPartitioning() {
-    createAndInitTable("id INT, dep STRING");
-    sql("ALTER TABLE %s ADD PARTITION FIELD dep", tableName);
-
-    append(
-        tableNameWithBranch(TEST_BRANCH),
-        "{ \"id\": 1, \"dep\": \"hr\" }\n" + "{ \"id\": 3, \"dep\": \"hr\" }");
-    append(
-        tableNameWithBranch(TEST_BRANCH),
-        "{ \"id\": 1, \"dep\": \"hardware\" }\n" + "{ \"id\": 2, \"dep\": \"hardware\" }");
-
-    createOrReplaceView("source", Collections.singletonList(2), Encoders.INT());
-
-    Map<String, String> sqlConf =
-        ImmutableMap.of(
-            SQLConf.V2_BUCKETING_ENABLED().key(),
-            "true",
-            SparkSQLProperties.PRESERVE_DATA_GROUPING,
-            "true");
-
-    withSQLConf(
-        sqlConf,
-        () ->
-            sql(
-                "MERGE INTO %s t USING source s "
-                    + "ON t.id == s.value "
-                    + "WHEN MATCHED THEN "
-                    + "  UPDATE SET id = -1",
-                tableNameWithBranch(TEST_BRANCH)));
-
-    Table table = validationCatalog.loadTable(tableIdent);
-    Assert.assertEquals("Should have 3 snapshots", 3, Iterables.size(table.snapshots()));
-
-    Snapshot currentSnapshot = SnapshotUtil.latestSnapshot(table, TEST_BRANCH);
-    validateCopyOnWrite(currentSnapshot, "1", "1", "1");
-
-    assertEquals(
-        "Should have expected rows",
-        ImmutableList.of(row(-1, "hardware"), row(1, "hardware"), row(1, "hr"), row(3, "hr")),
-        sql("SELECT * FROM %s ORDER BY id, dep", tableNameWithBranch(TEST_BRANCH)));
   }
 }

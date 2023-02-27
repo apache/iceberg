@@ -67,6 +67,7 @@ import org.junit.runners.Parameterized.Parameters;
 public abstract class SparkRowLevelOperationsTestBase extends SparkExtensionsTestBase {
 
   private static final Random RANDOM = ThreadLocalRandom.current();
+  protected static final String TEST_BRANCH = "test_branch";
 
   protected final String fileFormat;
   protected final boolean vectorized;

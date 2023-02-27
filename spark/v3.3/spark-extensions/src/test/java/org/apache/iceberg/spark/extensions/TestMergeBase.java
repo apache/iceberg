@@ -77,7 +77,8 @@ abstract class TestMergeBase extends SparkRowLevelOperationsTestBase {
     super(catalogName, implementation, config, fileFormat, vectorized, distributionMode);
   }
 
-  protected void testMergeConditionSplitIntoTargetPredicateAndJoinCondition(String branch) {
+  protected synchronized void testMergeConditionSplitIntoTargetPredicateAndJoinCondition(
+      String branch) {
     createAndInitTableBranch(
         "id INT, salary INT, dep STRING, sub_dep STRING",
         "PARTITIONED BY (dep, sub_dep)",
@@ -126,7 +127,7 @@ abstract class TestMergeBase extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY id", tableNameWithBranch(branch)));
   }
 
-  protected void testMergeWithStaticPredicatePushDown(String branch) {
+  protected synchronized void testMergeWithStaticPredicatePushDown(String branch) {
     createAndInitTable("id BIGINT, dep STRING");
 
     sql("ALTER TABLE %s ADD PARTITION FIELD dep", tableName);
@@ -177,7 +178,7 @@ abstract class TestMergeBase extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY id, dep", tableNameWithBranch(branch)));
   }
 
-  protected void testMergeIntoEmptyTargetInsertAllNonMatchingRows(String branch) {
+  protected synchronized void testMergeIntoEmptyTargetInsertAllNonMatchingRows(String branch) {
     createAndInitTable("id INT, dep STRING");
 
     createOrReplaceView(
@@ -206,7 +207,7 @@ abstract class TestMergeBase extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY id", tableNameWithBranch(branch)));
   }
 
-  protected void testMergeIntoEmptyTargetInsertOnlyMatchingRows(String branch) {
+  protected synchronized void testMergeIntoEmptyTargetInsertOnlyMatchingRows(String branch) {
     createAndInitTable("id INT, dep STRING");
 
     createOrReplaceView(
@@ -234,7 +235,7 @@ abstract class TestMergeBase extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY id", tableNameWithBranch(branch)));
   }
 
-  protected void testMergeWithOnlyUpdateClause(String branch) {
+  protected synchronized void testMergeWithOnlyUpdateClause(String branch) {
     createAndInitTableBranch(
         "id INT, dep STRING",
         "{ \"id\": 1, \"dep\": \"emp-id-one\" }\n" + "{ \"id\": 6, \"dep\": \"emp-id-six\" }",
@@ -265,7 +266,7 @@ abstract class TestMergeBase extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY id", tableNameWithBranch(branch)));
   }
 
-  protected void testMergeWithOnlyUpdateClauseAndNullValues(String branch) {
+  protected synchronized void testMergeWithOnlyUpdateClauseAndNullValues(String branch) {
     createAndInitTableBranch(
         "id INT, dep STRING",
         "{ \"id\": null, \"dep\": \"emp-id-one\" }\n"
@@ -298,7 +299,7 @@ abstract class TestMergeBase extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY id", tableNameWithBranch(branch)));
   }
 
-  protected void testMergeWithOnlyDeleteClause(String branch) {
+  protected synchronized void testMergeWithOnlyDeleteClause(String branch) {
     createAndInitTableBranch(
         "id INT, dep STRING",
         "{ \"id\": 1, \"dep\": \"emp-id-one\" }\n" + "{ \"id\": 6, \"dep\": \"emp-id-6\" }",
@@ -328,7 +329,7 @@ abstract class TestMergeBase extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY id", tableNameWithBranch(branch)));
   }
 
-  protected void testMergeWithAllCauses(String branch) {
+  protected synchronized void testMergeWithAllCauses(String branch) {
     createAndInitTableBranch(
         "id INT, dep STRING",
         "{ \"id\": 1, \"dep\": \"emp-id-one\" }\n" + "{ \"id\": 6, \"dep\": \"emp-id-6\" }",
@@ -363,7 +364,7 @@ abstract class TestMergeBase extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY id", tableNameWithBranch(branch)));
   }
 
-  protected void testMergeWithAllCausesWithExplicitColumnSpecification(String branch) {
+  protected synchronized void testMergeWithAllCausesWithExplicitColumnSpecification(String branch) {
     createAndInitTableBranch(
         "id INT, dep STRING",
         "{ \"id\": 1, \"dep\": \"emp-id-one\" }\n" + "{ \"id\": 6, \"dep\": \"emp-id-6\" }",
@@ -398,7 +399,7 @@ abstract class TestMergeBase extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY id", tableNameWithBranch(branch)));
   }
 
-  protected void testMergeWithSourceCTE(String branch) {
+  protected synchronized void testMergeWithSourceCTE(String branch) {
     createAndInitTableBranch(
         "id INT, dep STRING",
         "{ \"id\": 2, \"dep\": \"emp-id-two\" }\n" + "{ \"id\": 6, \"dep\": \"emp-id-6\" }",
@@ -434,7 +435,7 @@ abstract class TestMergeBase extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY id", tableNameWithBranch(branch)));
   }
 
-  protected void testMergeWithSourceFromSetOps(String branch) {
+  protected synchronized void testMergeWithSourceFromSetOps(String branch) {
     createAndInitTableBranch(
         "id INT, dep STRING",
         "{ \"id\": 1, \"dep\": \"emp-id-one\" }\n" + "{ \"id\": 6, \"dep\": \"emp-id-6\" }",
@@ -474,7 +475,8 @@ abstract class TestMergeBase extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY id", tableNameWithBranch(branch)));
   }
 
-  protected void testMergeWithMultipleUpdatesForTargetRowSmallTargetLargeSource(String branch) {
+  protected synchronized void testMergeWithMultipleUpdatesForTargetRowSmallTargetLargeSource(
+      String branch) {
     createAndInitTableBranch(
         "id INT, dep STRING",
         "{ \"id\": 1, \"dep\": \"emp-id-one\" }\n" + "{ \"id\": 6, \"dep\": \"emp-id-6\" }",
@@ -511,7 +513,7 @@ abstract class TestMergeBase extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableNameWithBranch(branch)));
   }
 
-  protected void
+  protected synchronized void
       testMergeWithMultipleUpdatesForTargetRowSmallTargetLargeSourceEnabledHashShuffleJoin(
           String branch) {
     createAndInitTableBranch(
@@ -555,8 +557,9 @@ abstract class TestMergeBase extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableNameWithBranch(branch)));
   }
 
-  protected void testMergeWithMultipleUpdatesForTargetRowSmallTargetLargeSourceNoEqualityCondition(
-      String branch) {
+  protected synchronized void
+      testMergeWithMultipleUpdatesForTargetRowSmallTargetLargeSourceNoEqualityCondition(
+          String branch) {
     createAndInitTableBranch(
         "id INT, dep STRING", "{ \"id\": 1, \"dep\": \"emp-id-one\" }", branch);
 
@@ -596,8 +599,9 @@ abstract class TestMergeBase extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableNameWithBranch(branch)));
   }
 
-  protected void testMergeWithMultipleUpdatesForTargetRowSmallTargetLargeSourceNoNotMatchedActions(
-      String branch) {
+  protected synchronized void
+      testMergeWithMultipleUpdatesForTargetRowSmallTargetLargeSourceNoNotMatchedActions(
+          String branch) {
     createAndInitTableBranch(
         "id INT, dep STRING",
         "{ \"id\": 1, \"dep\": \"emp-id-one\" }\n" + "{ \"id\": 6, \"dep\": \"emp-id-6\" }",
@@ -632,7 +636,7 @@ abstract class TestMergeBase extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableNameWithBranch(branch)));
   }
 
-  protected void
+  protected synchronized void
       testMergeWithMultipleUpdatesForTargetRowSmallTargetLargeSourceNoNotMatchedActionsNoEqualityCondition(
           String branch) {
     createAndInitTableBranch(
@@ -667,7 +671,7 @@ abstract class TestMergeBase extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableNameWithBranch(branch)));
   }
 
-  protected void testMergeWithMultipleUpdatesForTargetRow(String branch) {
+  protected synchronized void testMergeWithMultipleUpdatesForTargetRow(String branch) {
     createAndInitTableBranch(
         "id INT, dep STRING",
         "{ \"id\": 1, \"dep\": \"emp-id-one\" }\n" + "{ \"id\": 6, \"dep\": \"emp-id-6\" }",
@@ -705,7 +709,7 @@ abstract class TestMergeBase extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableNameWithBranch(branch)));
   }
 
-  protected void testMergeWithUnconditionalDelete(String branch) {
+  protected synchronized void testMergeWithUnconditionalDelete(String branch) {
     createAndInitTableBranch(
         "id INT, dep STRING",
         "{ \"id\": 1, \"dep\": \"emp-id-one\" }\n" + "{ \"id\": 6, \"dep\": \"emp-id-6\" }",
@@ -738,7 +742,7 @@ abstract class TestMergeBase extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY id", tableNameWithBranch(branch)));
   }
 
-  protected void testMergeWithSingleConditionalDelete(String branch) {
+  protected synchronized void testMergeWithSingleConditionalDelete(String branch) {
     createAndInitTableBranch(
         "id INT, dep STRING",
         "{ \"id\": 1, \"dep\": \"emp-id-one\" }\n" + "{ \"id\": 6, \"dep\": \"emp-id-6\" }",
@@ -774,7 +778,7 @@ abstract class TestMergeBase extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableNameWithBranch(branch)));
   }
 
-  protected void testMergeWithIdentityTransform(String branch) {
+  protected synchronized void testMergeWithIdentityTransform(String branch) {
     for (DistributionMode mode : DistributionMode.values()) {
       createAndInitTable("id INT, dep STRING");
       sql("ALTER TABLE %s ADD PARTITION FIELD identity(dep)", tableName);
@@ -818,7 +822,7 @@ abstract class TestMergeBase extends SparkRowLevelOperationsTestBase {
     }
   }
 
-  protected void testMergeWithDaysTransform(String branch) {
+  protected synchronized void testMergeWithDaysTransform(String branch) {
     for (DistributionMode mode : DistributionMode.values()) {
       createAndInitTable("id INT, ts TIMESTAMP");
       sql("ALTER TABLE %s ADD PARTITION FIELD days(ts)", tableName);
@@ -864,7 +868,7 @@ abstract class TestMergeBase extends SparkRowLevelOperationsTestBase {
     }
   }
 
-  protected void testMergeWithBucketTransform(String branch) {
+  protected synchronized void testMergeWithBucketTransform(String branch) {
     for (DistributionMode mode : DistributionMode.values()) {
       createAndInitTable("id INT, dep STRING");
       sql("ALTER TABLE %s ADD PARTITION FIELD bucket(2, dep)", tableName);
@@ -908,7 +912,7 @@ abstract class TestMergeBase extends SparkRowLevelOperationsTestBase {
     }
   }
 
-  protected void testMergeWithTruncateTransform(String branch) {
+  protected synchronized void testMergeWithTruncateTransform(String branch) {
     for (DistributionMode mode : DistributionMode.values()) {
       createAndInitTable("id INT, dep STRING");
       sql("ALTER TABLE %s ADD PARTITION FIELD truncate(dep, 2)", tableName);
@@ -952,7 +956,7 @@ abstract class TestMergeBase extends SparkRowLevelOperationsTestBase {
     }
   }
 
-  protected void testMergeIntoPartitionedAndOrderedTable(String branch) {
+  protected synchronized void testMergeIntoPartitionedAndOrderedTable(String branch) {
     for (DistributionMode mode : DistributionMode.values()) {
       createAndInitTable("id INT, dep STRING");
       sql("ALTER TABLE %s ADD PARTITION FIELD dep", tableName);
@@ -997,7 +1001,7 @@ abstract class TestMergeBase extends SparkRowLevelOperationsTestBase {
     }
   }
 
-  protected void testSelfMerge(String branch) {
+  protected synchronized void testSelfMerge(String branch) {
     createAndInitTableBranch(
         "id INT, v STRING",
         "{ \"id\": 1, \"v\": \"v1\" }\n" + "{ \"id\": 2, \"v\": \"v2\" }",
@@ -1023,7 +1027,7 @@ abstract class TestMergeBase extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY id", tableNameWithBranch(branch)));
   }
 
-  protected void testSelfMergeWithCaching(String branch) {
+  protected synchronized void testSelfMergeWithCaching(String branch) {
     createAndInitTableBranch(
         "id INT, v STRING",
         "{ \"id\": 1, \"v\": \"v1\" }\n" + "{ \"id\": 2, \"v\": \"v2\" }",
@@ -1049,9 +1053,11 @@ abstract class TestMergeBase extends SparkRowLevelOperationsTestBase {
         "Output should match",
         expectedRows,
         sql("SELECT * FROM %s ORDER BY id", tableNameWithBranch(branch)));
+
+    sql("UNCACHE TABLE %s", tableNameWithBranch(branch));
   }
 
-  protected void testMergeWithSourceAsSelfSubquery(String branch) {
+  protected synchronized void testMergeWithSourceAsSelfSubquery(String branch) {
     createAndInitTableBranch(
         "id INT, v STRING",
         "{ \"id\": 1, \"v\": \"v1\" }\n" + "{ \"id\": 2, \"v\": \"v2\" }",
@@ -1194,7 +1200,7 @@ abstract class TestMergeBase extends SparkRowLevelOperationsTestBase {
             () -> {
               for (int numOperations = 0; numOperations < 20; numOperations++) {
                 while (barrier.get() < numOperations * 2) {
-                  sleep(10);
+                  sleep(100);
                 }
 
                 sql(
@@ -1221,7 +1227,7 @@ abstract class TestMergeBase extends SparkRowLevelOperationsTestBase {
 
               for (int numOperations = 0; numOperations < 20; numOperations++) {
                 while (shouldAppend.get() && barrier.get() < numOperations * 2) {
-                  sleep(10);
+                  sleep(100);
                 }
 
                 if (!shouldAppend.get()) {
@@ -1231,7 +1237,7 @@ abstract class TestMergeBase extends SparkRowLevelOperationsTestBase {
                 for (int numAppends = 0; numAppends < 5; numAppends++) {
                   DataFile dataFile = writeDataFile(table, ImmutableList.of(record));
                   table.newFastAppend().appendFile(dataFile).toBranch(branch).commit();
-                  sleep(10);
+                  sleep(100);
                 }
 
                 barrier.incrementAndGet();
@@ -1249,7 +1255,7 @@ abstract class TestMergeBase extends SparkRowLevelOperationsTestBase {
     Assert.assertTrue("Timeout", executorService.awaitTermination(2, TimeUnit.MINUTES));
   }
 
-  protected void testMergeWithExtraColumnsInSource(String branch) {
+  protected synchronized void testMergeWithExtraColumnsInSource(String branch) {
     createAndInitTableBranch(
         "id INT, v STRING",
         "{ \"id\": 1, \"v\": \"v1\" }\n" + "{ \"id\": 2, \"v\": \"v2\" }",
@@ -1282,7 +1288,7 @@ abstract class TestMergeBase extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY id", tableNameWithBranch(branch)));
   }
 
-  protected void testMergeWithNullsInTargetAndSource(String branch) {
+  protected synchronized void testMergeWithNullsInTargetAndSource(String branch) {
     createAndInitTableBranch(
         "id INT, v STRING",
         "{ \"id\": null, \"v\": \"v1\" }\n" + "{ \"id\": 2, \"v\": \"v2\" }",
@@ -1313,7 +1319,7 @@ abstract class TestMergeBase extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY v", tableNameWithBranch(branch)));
   }
 
-  protected void testMergeWithNullSafeEquals(String branch) {
+  protected synchronized void testMergeWithNullSafeEquals(String branch) {
     createAndInitTableBranch(
         "id INT, v STRING",
         "{ \"id\": null, \"v\": \"v1\" }\n" + "{ \"id\": 2, \"v\": \"v2\" }",
@@ -1343,7 +1349,7 @@ abstract class TestMergeBase extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY v", tableNameWithBranch(branch)));
   }
 
-  protected void testMergeWithNullCondition(String branch) {
+  protected synchronized void testMergeWithNullCondition(String branch) {
     createAndInitTableBranch(
         "id INT, v STRING",
         "{ \"id\": null, \"v\": \"v1\" }\n" + "{ \"id\": 2, \"v\": \"v2\" }",
@@ -1374,7 +1380,7 @@ abstract class TestMergeBase extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY v", tableNameWithBranch(branch)));
   }
 
-  protected void testMergeWithNullActionConditions(String branch) {
+  protected synchronized void testMergeWithNullActionConditions(String branch) {
     createAndInitTableBranch(
         "id INT, v STRING",
         "{ \"id\": 1, \"v\": \"v1\" }\n" + "{ \"id\": 2, \"v\": \"v2\" }",
@@ -1430,7 +1436,7 @@ abstract class TestMergeBase extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY v", tableNameWithBranch(branch)));
   }
 
-  protected void testMergeWithMultipleMatchingActions(String branch) {
+  protected synchronized void testMergeWithMultipleMatchingActions(String branch) {
     createAndInitTableBranch(
         "id INT, v STRING",
         "{ \"id\": 1, \"v\": \"v1\" }\n" + "{ \"id\": 2, \"v\": \"v2\" }",
@@ -1462,7 +1468,8 @@ abstract class TestMergeBase extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY v", tableNameWithBranch(branch)));
   }
 
-  protected void testMergeWithMultipleRowGroupsParquet(String branch) throws NoSuchTableException {
+  protected synchronized void testMergeWithMultipleRowGroupsParquet(String branch)
+      throws NoSuchTableException {
     Assume.assumeTrue(fileFormat.equalsIgnoreCase("parquet"));
 
     createAndInitTable("id INT, dep STRING");
@@ -1499,7 +1506,7 @@ abstract class TestMergeBase extends SparkRowLevelOperationsTestBase {
     Assert.assertEquals(200, spark.table(tableNameWithBranch(branch)).count());
   }
 
-  protected void testMergeInsertOnly(String branch) {
+  protected synchronized void testMergeInsertOnly(String branch) {
     createAndInitTableBranch(
         "id STRING, v STRING",
         "{ \"id\": \"a\", \"v\": \"v1\" }\n" + "{ \"id\": \"b\", \"v\": \"v2\" }",
@@ -1533,7 +1540,7 @@ abstract class TestMergeBase extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY id", tableNameWithBranch(branch)));
   }
 
-  protected void testMergeInsertOnlyWithCondition(String branch) {
+  protected synchronized void testMergeInsertOnlyWithCondition(String branch) {
     createAndInitTable("id INTEGER, v INTEGER", "{ \"id\": 1, \"v\": 1 }");
     createOrReplaceView(
         "source",
@@ -1560,7 +1567,7 @@ abstract class TestMergeBase extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY id", tableNameWithBranch(branch)));
   }
 
-  protected void testMergeAlignsUpdateAndInsertActions(String branch) {
+  protected synchronized void testMergeAlignsUpdateAndInsertActions(String branch) {
     createAndInitTableBranch(
         "id INT, a INT, b STRING", "{ \"id\": 1, \"a\": 2, \"b\": \"str\" }", branch);
     createOrReplaceView(
@@ -1583,7 +1590,7 @@ abstract class TestMergeBase extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY id", tableNameWithBranch(branch)));
   }
 
-  protected void testMergeMixedCaseAlignsUpdateAndInsertActions(String branch) {
+  protected synchronized void testMergeMixedCaseAlignsUpdateAndInsertActions(String branch) {
     createAndInitTableBranch(
         "id INT, a INT, b STRING", "{ \"id\": 1, \"a\": 2, \"b\": \"str\" }", branch);
     createOrReplaceView(
@@ -1615,7 +1622,7 @@ abstract class TestMergeBase extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s WHERE b = 'new_str_2'ORDER BY id", tableNameWithBranch(branch)));
   }
 
-  protected void testMergeUpdatesNestedStructFields(String branch) {
+  protected synchronized void testMergeUpdatesNestedStructFields(String branch) {
     createAndInitTableBranch(
         "id INT, s STRUCT<c1:INT,c2:STRUCT<a:ARRAY<INT>,m:MAP<STRING, STRING>>>",
         "{ \"id\": 1, \"s\": { \"c1\": 2, \"c2\": { \"a\": [1,2], \"m\": { \"a\": \"b\"} } } } }",
@@ -1662,7 +1669,7 @@ abstract class TestMergeBase extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY id", tableNameWithBranch(branch)));
   }
 
-  protected void testMergeWithInferredCasts(String branch) {
+  protected synchronized void testMergeWithInferredCasts(String branch) {
     createAndInitTableBranch("id INT, s STRING", "{ \"id\": 1, \"s\": \"value\" }", branch);
     createOrReplaceView("source", "{ \"id\": 1, \"c1\": -2}");
 
@@ -1680,7 +1687,7 @@ abstract class TestMergeBase extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY id", tableNameWithBranch(branch)));
   }
 
-  protected void testMergeModifiesNullStruct(String branch) {
+  protected synchronized void testMergeModifiesNullStruct(String branch) {
     createAndInitTableBranch(
         "id INT, s STRUCT<n1:INT,n2:INT>", "{ \"id\": 1, \"s\": null }", branch);
     createOrReplaceView("source", "{ \"id\": 1, \"n1\": -10 }");
@@ -1698,7 +1705,7 @@ abstract class TestMergeBase extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s", tableNameWithBranch(branch)));
   }
 
-  protected void testMergeRefreshesRelationCache(String branch) {
+  protected synchronized void testMergeRefreshesRelationCache(String branch) {
     createAndInitTableBranch("id INT, name STRING", "{ \"id\": 1, \"name\": \"n1\" }", branch);
     createOrReplaceView("source", "{ \"id\": 1, \"name\": \"n2\" }");
 
@@ -1723,7 +1730,7 @@ abstract class TestMergeBase extends SparkRowLevelOperationsTestBase {
     spark.sql("UNCACHE TABLE tmp");
   }
 
-  protected void testMergeWithMultipleNotMatchedActions(String branch) {
+  protected synchronized void testMergeWithMultipleNotMatchedActions(String branch) {
     createAndInitTableBranch("id INT, dep STRING", "{ \"id\": 0, \"dep\": \"emp-id-0\" }", branch);
 
     createOrReplaceView(
@@ -1755,7 +1762,7 @@ abstract class TestMergeBase extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY id", tableNameWithBranch(branch)));
   }
 
-  protected void testMergeWithMultipleConditionalNotMatchedActions(String branch) {
+  protected synchronized void testMergeWithMultipleConditionalNotMatchedActions(String branch) {
     createAndInitTable("id INT, dep STRING", "{ \"id\": 0, \"dep\": \"emp-id-0\" }");
 
     createOrReplaceView(
@@ -1786,7 +1793,7 @@ abstract class TestMergeBase extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY id", tableNameWithBranch(branch)));
   }
 
-  protected void testMergeResolvesColumnsByName(String branch) {
+  protected synchronized void testMergeResolvesColumnsByName(String branch) {
     createAndInitTableBranch(
         "id INT, badge INT, dep STRING",
         "{ \"id\": 1, \"badge\": 1000, \"dep\": \"emp-id-one\" }\n"
@@ -1821,7 +1828,8 @@ abstract class TestMergeBase extends SparkRowLevelOperationsTestBase {
         sql("SELECT id, badge, dep FROM %s ORDER BY id", tableNameWithBranch(branch)));
   }
 
-  protected void testMergeShouldResolveWhenThereAreNoUnresolvedExpressionsOrColumns(String branch) {
+  protected synchronized void testMergeShouldResolveWhenThereAreNoUnresolvedExpressionsOrColumns(
+      String branch) {
     // ensures that MERGE INTO will resolve into the correct action even if no columns
     // or otherwise unresolved expressions exist in the query (testing SPARK-34962)
     createAndInitTable("id INT, dep STRING");
@@ -1854,7 +1862,7 @@ abstract class TestMergeBase extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY id", tableNameWithBranch(branch)));
   }
 
-  protected void testMergeWithTableWithNonNullableColumn(String branch) {
+  protected synchronized void testMergeWithTableWithNonNullableColumn(String branch) {
     createAndInitTableBranch(
         "id INT NOT NULL, dep STRING",
         "{ \"id\": 1, \"dep\": \"emp-id-one\" }\n" + "{ \"id\": 6, \"dep\": \"emp-id-6\" }",
@@ -1888,7 +1896,7 @@ abstract class TestMergeBase extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY id", tableNameWithBranch(branch)));
   }
 
-  protected void testMergeWithNonExistingColumns(String branch) {
+  protected synchronized void testMergeWithNonExistingColumns(String branch) {
     createAndInitTable("id INT, c STRUCT<n1:INT,n2:STRUCT<dn1:INT,dn2:INT>>");
     createOrReplaceView("source", "{ \"c1\": -100, \"c2\": -200 }");
 
@@ -1934,7 +1942,7 @@ abstract class TestMergeBase extends SparkRowLevelOperationsTestBase {
         });
   }
 
-  protected void testMergeWithInvalidColumnsInInsert(String branch) {
+  protected synchronized void testMergeWithInvalidColumnsInInsert(String branch) {
     createAndInitTable("id INT, c STRUCT<n1:INT,n2:STRUCT<dn1:INT,dn2:INT>>");
     createOrReplaceView("source", "{ \"c1\": -100, \"c2\": -200 }");
 
@@ -1982,7 +1990,7 @@ abstract class TestMergeBase extends SparkRowLevelOperationsTestBase {
         });
   }
 
-  protected void testMergeWithInvalidUpdates(String branch) {
+  protected synchronized void testMergeWithInvalidUpdates(String branch) {
     createAndInitTable("id INT, a ARRAY<STRUCT<c1:INT,c2:INT>>, m MAP<STRING,STRING>");
     createOrReplaceView("source", "{ \"c1\": -100, \"c2\": -200 }");
 
@@ -2013,7 +2021,7 @@ abstract class TestMergeBase extends SparkRowLevelOperationsTestBase {
         });
   }
 
-  protected void testMergeWithConflictingUpdates(String branch) {
+  protected synchronized void testMergeWithConflictingUpdates(String branch) {
     createAndInitTable("id INT, c STRUCT<n1:INT,n2:STRUCT<dn1:INT,dn2:INT>>");
     createOrReplaceView("source", "{ \"c1\": -100, \"c2\": -200 }");
 
@@ -2057,7 +2065,7 @@ abstract class TestMergeBase extends SparkRowLevelOperationsTestBase {
         });
   }
 
-  protected void testMergeWithInvalidAssignments(String branch) {
+  protected synchronized void testMergeWithInvalidAssignments(String branch) {
     createAndInitTable(
         "id INT NOT NULL, s STRUCT<n1:INT NOT NULL,n2:STRUCT<dn1:INT,dn2:INT>> NOT NULL");
     createOrReplaceView(
@@ -2137,7 +2145,7 @@ abstract class TestMergeBase extends SparkRowLevelOperationsTestBase {
     }
   }
 
-  protected void testMergeWithNonDeterministicConditions(String branch) {
+  protected synchronized void testMergeWithNonDeterministicConditions(String branch) {
     createAndInitTable("id INT, c STRUCT<n1:INT,n2:STRUCT<dn1:INT,dn2:INT>>");
     createOrReplaceView("source", "{ \"c1\": -100, \"c2\": -200 }");
 
@@ -2194,7 +2202,7 @@ abstract class TestMergeBase extends SparkRowLevelOperationsTestBase {
         });
   }
 
-  protected void testMergeWithAggregateExpressions(String branch) {
+  protected synchronized void testMergeWithAggregateExpressions(String branch) {
     createAndInitTable("id INT, c STRUCT<n1:INT,n2:STRUCT<dn1:INT,dn2:INT>>");
     createOrReplaceView("source", "{ \"c1\": -100, \"c2\": -200 }");
 
@@ -2251,7 +2259,7 @@ abstract class TestMergeBase extends SparkRowLevelOperationsTestBase {
         });
   }
 
-  protected void testMergeWithSubqueriesInConditions(String branch) {
+  protected synchronized void testMergeWithSubqueriesInConditions(String branch) {
     createAndInitTable("id INT, c STRUCT<n1:INT,n2:STRUCT<dn1:INT,dn2:INT>>");
     createOrReplaceView("source", "{ \"c1\": -100, \"c2\": -200 }");
 
@@ -2308,7 +2316,7 @@ abstract class TestMergeBase extends SparkRowLevelOperationsTestBase {
         });
   }
 
-  protected void testMergeWithTargetColumnsInInsertConditions(String branch) {
+  protected synchronized void testMergeWithTargetColumnsInInsertConditions(String branch) {
     createAndInitTable("id INT, c2 INT");
     createOrReplaceView("source", "{ \"id\": 1, \"value\": 11 }");
 
@@ -2326,7 +2334,7 @@ abstract class TestMergeBase extends SparkRowLevelOperationsTestBase {
         });
   }
 
-  protected void testMergeWithNonIcebergTargetTableNotSupported(String branch) {
+  protected synchronized void testMergeWithNonIcebergTargetTableNotSupported(String branch) {
     createOrReplaceView("target", "{ \"c1\": -100, \"c2\": -200 }");
     createOrReplaceView("source", "{ \"c1\": -100, \"c2\": -200 }");
 
@@ -2347,7 +2355,7 @@ abstract class TestMergeBase extends SparkRowLevelOperationsTestBase {
    * Tests a merge where both the source and target are evaluated to be partitioned by
    * SingePartition at planning time but DynamicFileFilterExec will return an empty target.
    */
-  protected void testMergeSinglePartitionPartitioning(String branch) {
+  protected synchronized void testMergeSinglePartitionPartitioning(String branch) {
     // This table will only have a single file and a single partition
     createAndInitTableBranch("id INT", "{\"id\": -1}", branch);
 
@@ -2367,7 +2375,7 @@ abstract class TestMergeBase extends SparkRowLevelOperationsTestBase {
     assertEquals("Should correctly add the non-matching rows", expectedRows, result);
   }
 
-  protected void testMergeEmptyTable(String branch) {
+  protected synchronized void testMergeEmptyTable(String branch) {
     // This table will only have a single file and a single partition
     createAndInitTableBranch("id INT", null, branch);
 
