@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import org.apache.iceberg.BaseMetadataTable;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.BatchScan;
 import org.apache.iceberg.FileScanTask;
@@ -374,7 +375,11 @@ public class SparkScanBuilder
         readConf.branch(),
         branch);
 
-    Snapshot branchSnapshot = SnapshotUtil.latestSnapshot(table, branch);
+    Snapshot branchSnapshot = null;
+    if (!(table instanceof BaseMetadataTable)) {
+      branchSnapshot = SnapshotUtil.latestSnapshot(table, branch);
+    }
+
     Long snapshotId = branchSnapshot != null ? branchSnapshot.snapshotId() : null;
     Long asOfTimestamp = readConf.asOfTimestamp();
     String tag = readConf.tag();
