@@ -1032,7 +1032,7 @@ def test_manifest_missing_stats(schema: Schema, manifest_no_stats: ManifestFile)
         ), f"Should read when missing stats for expr: {expr}"
 
 
-def test_and_nan(schema: Schema, manifest: ManifestFile) -> None:
+def test_and(schema: Schema, manifest: ManifestFile) -> None:
     assert not _ManifestEvalVisitor(
         schema,
         And(
@@ -1061,7 +1061,7 @@ def test_and_nan(schema: Schema, manifest: ManifestFile) -> None:
     ).eval(manifest), "Should read: and(true, true)"
 
 
-def test_or_nan(schema: Schema, manifest: ManifestFile) -> None:
+def test_or(schema: Schema, manifest: ManifestFile) -> None:
     assert not _ManifestEvalVisitor(
         schema,
         Or(
@@ -1081,7 +1081,7 @@ def test_or_nan(schema: Schema, manifest: ManifestFile) -> None:
     ).eval(manifest), "Should read: or(false, true)"
 
 
-def test_integer_lt_nan(schema: Schema, manifest: ManifestFile) -> None:
+def test_integer_lt(schema: Schema, manifest: ManifestFile) -> None:
     assert not _ManifestEvalVisitor(schema, LessThan(Reference("id"), INT_MIN_VALUE - 25), case_sensitive=True).eval(
         manifest
     ), "Should not read: id range below lower bound (5 < 30)"
@@ -1099,7 +1099,7 @@ def test_integer_lt_nan(schema: Schema, manifest: ManifestFile) -> None:
     ), "Should read: may possible ids"
 
 
-def test_integer_lt_eq_nan(schema: Schema, manifest: ManifestFile) -> None:
+def test_integer_lt_eq(schema: Schema, manifest: ManifestFile) -> None:
     assert not _ManifestEvalVisitor(schema, LessThanOrEqual(Reference("id"), INT_MIN_VALUE - 25), case_sensitive=True).eval(
         manifest
     ), "Should not read: id range below lower bound (5 < 30)"
@@ -1117,7 +1117,7 @@ def test_integer_lt_eq_nan(schema: Schema, manifest: ManifestFile) -> None:
     ), "Should read: many possible ids"
 
 
-def test_integer_gt_nan(schema: Schema, manifest: ManifestFile) -> None:
+def test_integer_gt(schema: Schema, manifest: ManifestFile) -> None:
     assert not _ManifestEvalVisitor(schema, GreaterThan(Reference("id"), INT_MAX_VALUE + 6), case_sensitive=True).eval(
         manifest
     ), "Should not read: id range above upper bound (85 < 79)"
@@ -1135,7 +1135,7 @@ def test_integer_gt_nan(schema: Schema, manifest: ManifestFile) -> None:
     ), "Should read: may possible ids"
 
 
-def test_integer_gt_eq_nan(schema: Schema, manifest: ManifestFile) -> None:
+def test_integer_gt_eq(schema: Schema, manifest: ManifestFile) -> None:
     assert not _ManifestEvalVisitor(schema, GreaterThanOrEqual(Reference("id"), INT_MAX_VALUE + 6), case_sensitive=True).eval(
         manifest
     ), "Should not read: id range above upper bound (85 < 79)"
@@ -1153,7 +1153,7 @@ def test_integer_gt_eq_nan(schema: Schema, manifest: ManifestFile) -> None:
     ), "Should read: may possible ids"
 
 
-def test_integer_eq_nan(schema: Schema, manifest: ManifestFile) -> None:
+def test_integer_eq(schema: Schema, manifest: ManifestFile) -> None:
     assert not _ManifestEvalVisitor(schema, EqualTo(Reference("id"), INT_MIN_VALUE - 25), case_sensitive=True).eval(
         manifest
     ), "Should not read: id below lower bound"
@@ -1183,7 +1183,7 @@ def test_integer_eq_nan(schema: Schema, manifest: ManifestFile) -> None:
     ), "Should not read: id above upper bound"
 
 
-def test_integer_not_eq_nan(schema: Schema, manifest: ManifestFile) -> None:
+def test_integer_not_eq(schema: Schema, manifest: ManifestFile) -> None:
     assert _ManifestEvalVisitor(schema, NotEqualTo(Reference("id"), INT_MIN_VALUE - 25), case_sensitive=True).eval(
         manifest
     ), "Should read: id below lower bound"
@@ -1213,7 +1213,7 @@ def test_integer_not_eq_nan(schema: Schema, manifest: ManifestFile) -> None:
     ), "Should read: id above upper bound"
 
 
-def test_integer_not_eq_rewritten_nan(schema: Schema, manifest: ManifestFile) -> None:
+def test_integer_not_eq_rewritten(schema: Schema, manifest: ManifestFile) -> None:
     assert _ManifestEvalVisitor(schema, Not(EqualTo(Reference("id"), INT_MIN_VALUE - 25)), case_sensitive=True).eval(
         manifest
     ), "Should read: id below lower bound"
@@ -1243,7 +1243,7 @@ def test_integer_not_eq_rewritten_nan(schema: Schema, manifest: ManifestFile) ->
     ), "Should read: id above upper bound"
 
 
-def test_integer_not_eq_rewritten_case_insensitive_nan(schema: Schema, manifest: ManifestFile) -> None:
+def test_integer_not_eq_rewritten_case_insensitive(schema: Schema, manifest: ManifestFile) -> None:
     assert _ManifestEvalVisitor(schema, Not(EqualTo(Reference("ID"), INT_MIN_VALUE - 25)), case_sensitive=False).eval(
         manifest
     ), "Should read: id below lower bound"
@@ -1273,7 +1273,7 @@ def test_integer_not_eq_rewritten_case_insensitive_nan(schema: Schema, manifest:
     ), "Should read: id above upper bound"
 
 
-def test_integer_in_nan(schema: Schema, manifest: ManifestFile) -> None:
+def test_integer_in(schema: Schema, manifest: ManifestFile) -> None:
     assert not _ManifestEvalVisitor(
         schema, In(Reference("id"), (INT_MIN_VALUE - 25, INT_MIN_VALUE - 24)), case_sensitive=True
     ).eval(manifest), "Should not read: id below lower bound (5 < 30, 6 < 30)"
@@ -1315,7 +1315,7 @@ def test_integer_in_nan(schema: Schema, manifest: ManifestFile) -> None:
     ), "Should read: in on no nulls column"
 
 
-def test_integer_not_in_nan(schema: Schema, manifest: ManifestFile) -> None:
+def test_integer_not_in(schema: Schema, manifest: ManifestFile) -> None:
     assert _ManifestEvalVisitor(
         schema, NotIn(Reference("id"), (INT_MIN_VALUE - 25, INT_MIN_VALUE - 24)), case_sensitive=True
     ).eval(manifest), "Should read: id below lower bound (5 < 30, 6 < 30)"
@@ -1357,19 +1357,19 @@ def test_integer_not_in_nan(schema: Schema, manifest: ManifestFile) -> None:
     ), "Should read: in on no nulls column"
 
 
-def test_rewrite_not_equal_to_nan() -> None:
+def test_rewrite_not_equal_to() -> None:
     assert rewrite_not(Not(EqualTo(Reference("x"), 34.56))) == NotEqualTo(Reference("x"), 34.56)
 
 
-def test_rewrite_not_not_equal_to_nan() -> None:
+def test_rewrite_not_not_equal_to() -> None:
     assert rewrite_not(Not(NotEqualTo(Reference("x"), 34.56))) == EqualTo(Reference("x"), 34.56)
 
 
-def test_rewrite_not_in_nan() -> None:
+def test_rewrite_not_in() -> None:
     assert rewrite_not(Not(In(Reference("x"), (34.56,)))) == NotIn(Reference("x"), (34.56,))
 
 
-def test_rewrite_and_nan() -> None:
+def test_rewrite_and() -> None:
     assert rewrite_not(
         Not(
             And(
@@ -1383,7 +1383,7 @@ def test_rewrite_and_nan() -> None:
     )
 
 
-def test_rewrite_or_nan() -> None:
+def test_rewrite_or() -> None:
     assert rewrite_not(
         Not(
             Or(
