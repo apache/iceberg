@@ -31,8 +31,8 @@ import org.apache.iceberg.jdbc.UncheckedInterruptedException;
 import org.apache.iceberg.jdbc.UncheckedSQLException;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 
 /**
  * This implementation of SnowflakeClient builds on top of Snowflake's JDBC driver to interact with
@@ -130,11 +130,11 @@ class JdbcSnowflakeClient implements SnowflakeClient {
   private QueryHarness queryHarness;
 
   protected static final Set<Integer> DATABASE_NOT_FOUND_ERROR_CODES =
-      Sets.newHashSet(2001, 2003, 2043);
+      ImmutableSet.of(2001, 2003, 2043);
   protected static final Set<Integer> SCHEMA_NOT_FOUND_ERROR_CODES =
-      Sets.newHashSet(2001, 2003, 2043);
+      ImmutableSet.of(2001, 2003, 2043);
   protected static final Set<Integer> TABLE_NOT_FOUND_ERROR_CODES =
-      Sets.newHashSet(2001, 2003, 2043);
+      ImmutableSet.of(2001, 2003, 2043);
 
   JdbcSnowflakeClient(JdbcClientPool conn) {
     Preconditions.checkArgument(null != conn, "JdbcClientPool must be non-null");
