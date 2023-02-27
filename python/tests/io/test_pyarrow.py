@@ -378,7 +378,7 @@ def test_timestamp_type_to_pyarrow() -> None:
 
 def test_timestamptz_type_to_pyarrow() -> None:
     iceberg_type = TimestamptzType()
-    assert visit(iceberg_type, _ConvertToArrowSchema()) == pa.timestamp(unit="us", tz="UTC")
+    assert visit(iceberg_type, _ConvertToArrowSchema()) == pa.timestamp(unit="us", tz="+00:00")
 
 
 def test_string_type_to_pyarrow() -> None:
