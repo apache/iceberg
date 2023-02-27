@@ -67,7 +67,7 @@ import org.junit.Assume;
 
 abstract class TestMergeBase extends SparkRowLevelOperationsTestBase {
 
-  public TestMergeBase(
+  TestMergeBase(
       String catalogName,
       String implementation,
       Map<String, String> config,
@@ -1200,7 +1200,7 @@ abstract class TestMergeBase extends SparkRowLevelOperationsTestBase {
             () -> {
               for (int numOperations = 0; numOperations < 20; numOperations++) {
                 while (barrier.get() < numOperations * 2) {
-                  sleep(100);
+                  sleep(10);
                 }
 
                 sql(
@@ -1227,7 +1227,7 @@ abstract class TestMergeBase extends SparkRowLevelOperationsTestBase {
 
               for (int numOperations = 0; numOperations < 20; numOperations++) {
                 while (shouldAppend.get() && barrier.get() < numOperations * 2) {
-                  sleep(100);
+                  sleep(10);
                 }
 
                 if (!shouldAppend.get()) {
@@ -1237,7 +1237,7 @@ abstract class TestMergeBase extends SparkRowLevelOperationsTestBase {
                 for (int numAppends = 0; numAppends < 5; numAppends++) {
                   DataFile dataFile = writeDataFile(table, ImmutableList.of(record));
                   table.newFastAppend().appendFile(dataFile).toBranch(branch).commit();
-                  sleep(100);
+                  sleep(10);
                 }
 
                 barrier.incrementAndGet();

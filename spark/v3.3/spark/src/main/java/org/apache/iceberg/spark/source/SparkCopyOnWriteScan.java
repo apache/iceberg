@@ -184,7 +184,7 @@ class SparkCopyOnWriteScan extends SparkPartitioningAwareScan<FileScanTask>
   }
 
   private Long latestSnapshotId() {
-    Snapshot latest = SnapshotUtil.latestSnapshot(table(), branch);
-    return latest != null ? latest.snapshotId() : null;
+    Snapshot latestSnapshot = SnapshotUtil.latestSnapshot(table(), branch);
+    return latestSnapshot != null ? latestSnapshot.snapshotId() : null;
   }
 }

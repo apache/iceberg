@@ -47,6 +47,7 @@ public abstract class TestMerge extends TestMergeBase {
   public void removeTables() {
     sql("DROP TABLE IF EXISTS %s", tableName);
     sql("DROP TABLE IF EXISTS source");
+    validationCatalog.dropTable(tableIdent, true);
   }
 
   @Test

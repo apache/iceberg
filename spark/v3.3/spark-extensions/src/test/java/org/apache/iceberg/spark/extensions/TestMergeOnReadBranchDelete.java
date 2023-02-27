@@ -30,8 +30,6 @@ import org.junit.runners.Parameterized;
 
 public class TestMergeOnReadBranchDelete extends TestMergeOnReadDelete {
 
-  static String TEST_BRANCH = "test_branch";
-
   public TestMergeOnReadBranchDelete(
       String catalogName,
       String implementation,

@@ -368,10 +368,15 @@ public class SparkScanBuilder
   }
 
   private Scan buildBatchScan() {
+    Preconditions.checkArgument(
+        readConf.branch() == null || readConf.branch().equals(branch),
+        "Specified different branch %s in read option and branch %s in identifier",
+        readConf.branch(),
+        branch);
+
     Snapshot branchSnapshot = SnapshotUtil.latestSnapshot(table, branch);
     Long snapshotId = branchSnapshot != null ? branchSnapshot.snapshotId() : null;
     Long asOfTimestamp = readConf.asOfTimestamp();
-    String branch = readConf.branch();
     String tag = readConf.tag();
 
     Preconditions.checkArgument(
@@ -411,11 +416,11 @@ public class SparkScanBuilder
     if (startSnapshotId != null) {
       return buildIncrementalAppendScan(startSnapshotId, endSnapshotId);
     } else {
-      return buildBatchScan(snapshotId, asOfTimestamp, branch, tag);
+      return buildBatchScan(snapshotId, asOfTimestamp, tag);
     }
   }
 
-  private Scan buildBatchScan(Long snapshotId, Long asOfTimestamp, String readBranch, String tag) {
+  private Scan buildBatchScan(Long snapshotId, Long asOfTimestamp, String tag) {
     Schema expectedSchema = schemaWithMetadataColumns();
 
     BatchScan scan =
@@ -433,8 +438,8 @@ public class SparkScanBuilder
       scan = scan.asOfTime(asOfTimestamp);
     }
 
-    if (readBranch != null) {
-      scan = scan.useRef(readBranch);
+    if (branch != null) {
+      scan = scan.useRef(branch);
     }
 
     if (tag != null) {
@@ -552,7 +557,7 @@ public class SparkScanBuilder
     return buildMergeOnReadScan(SnapshotRef.MAIN_BRANCH);
   }
 
-  public Scan buildMergeOnReadScan(String branch) {
+  public Scan buildMergeOnReadScan(String writeBranch) {
     Preconditions.checkArgument(
         readConf.snapshotId() == null
             && readConf.asOfTimestamp() == null
@@ -570,7 +575,7 @@ public class SparkScanBuilder
         SparkReadOptions.START_SNAPSHOT_ID,
         SparkReadOptions.END_SNAPSHOT_ID);
 
-    Snapshot snapshot = table.snapshot(branch);
+    Snapshot snapshot = table.snapshot(writeBranch);
 
     if (snapshot == null) {
       return new SparkBatchQueryScan(
@@ -604,8 +609,8 @@ public class SparkScanBuilder
     return buildCopyOnWriteScan(SnapshotRef.MAIN_BRANCH);
   }
 
-  public Scan buildCopyOnWriteScan(String branch) {
-    Snapshot snapshot = SnapshotUtil.latestSnapshot(table, branch);
+  public Scan buildCopyOnWriteScan(String writeBranch) {
+    Snapshot snapshot = SnapshotUtil.latestSnapshot(table, writeBranch);
 
     if (snapshot == null) {
       return new SparkCopyOnWriteScan(
@@ -616,7 +621,7 @@ public class SparkScanBuilder
           readConf,
           schemaWithMetadataColumns(),
           filterExpressions,
-          branch);
+          writeBranch);
     }
 
     Schema expectedSchema = schemaWithMetadataColumns();
@@ -633,7 +638,7 @@ public class SparkScanBuilder
     scan = configureSplitPlanning(scan);
 
     return new SparkCopyOnWriteScan(
-        spark, table, scan, snapshot, readConf, expectedSchema, filterExpressions, branch);
+        spark, table, scan, snapshot, readConf, expectedSchema, filterExpressions, writeBranch);
   }
 
   private <T extends org.apache.iceberg.Scan<T, ?, ?>> T configureSplitPlanning(T scan) {

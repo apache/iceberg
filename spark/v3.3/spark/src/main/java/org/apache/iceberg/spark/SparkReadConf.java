@@ -82,6 +82,8 @@ public class SparkReadConf {
     return confParser.longConf().option(SparkReadOptions.END_SNAPSHOT_ID).parseOptional();
   }
 
+  /** @deprecated will be removed in 1.3.0; specify read branch in the table identifier */
+  @Deprecated
   public String branch() {
     return confParser.stringConf().option(SparkReadOptions.BRANCH).parseOptional();
   }

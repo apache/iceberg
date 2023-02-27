@@ -40,8 +40,6 @@ import org.junit.runners.Parameterized;
 
 public class TestCopyOnWriteBranchMerge extends TestCopyOnWriteMerge {
 
-  static String TEST_BRANCH = "test_branch";
-
   public TestCopyOnWriteBranchMerge(
       String catalogName,
       String implementation,

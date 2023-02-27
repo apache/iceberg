@@ -30,8 +30,6 @@ import org.junit.runners.Parameterized;
 
 public class TestCopyOnWriteBranchDelete extends TestCopyOnWriteDelete {
 
-  static String TEST_BRANCH = "test_branch";
-
   public TestCopyOnWriteBranchDelete(
       String catalogName,
       String implementation,
