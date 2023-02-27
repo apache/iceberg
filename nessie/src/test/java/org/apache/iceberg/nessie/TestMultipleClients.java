@@ -28,8 +28,12 @@ import java.util.Collections;
 import org.apache.commons.io.FileUtils;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.AfterEach;
@@ -131,6 +135,34 @@ public class TestMultipleClients extends BaseTestIceberg {
 
     Assertions.assertThat(catalog.loadTable(identifier).schema().columns()).hasSize(5);
     Assertions.assertThat(anotherCatalog.loadTable(identifier).schema().columns()).hasSize(5);
+  }
+
+  @Test
+  public void testConcurrentCommitsWithRefresh() {
+    TableIdentifier identifier = TableIdentifier.parse("foo.tbl1");
+    catalog.createTable(identifier, schema);
+
+    String hashBefore = catalog.currentHash();
+
+    TableOperations ops1 = catalog.newTableOps(identifier);
+    TableMetadata current1 =
+        TableMetadata.buildFrom(ops1.current()).setProperties(ImmutableMap.of("k1", "v1")).build();
+
+    // commit should succeed
+    TableOperations ops2 = catalog.newTableOps(identifier);
+    TableMetadata current2 =
+        TableMetadata.buildFrom(ops2.current()).setProperties(ImmutableMap.of("k2", "v2")).build();
+    ops2.commit(ops2.current(), current2);
+
+    // refresh the catalog's client.
+    String hashAfter = catalog.currentHash();
+    Assertions.assertThat(hashBefore).isNotEqualTo(hashAfter);
+
+    // client refresh should not affect the ongoing commits (commit should still fail due staleness)
+    Assertions.assertThatThrownBy(() -> ops1.commit(ops1.current(), current1))
+        .isInstanceOf(CommitFailedException.class)
+        .hasMessageContaining(
+            "Cannot commit: Reference hash is out of date. Update the reference 'multiple-clients-test' and try again");
   }
 
   private static void dropTables(NessieCatalog nessieCatalog) {
