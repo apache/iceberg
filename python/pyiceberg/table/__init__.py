@@ -145,6 +145,13 @@ class Table:
             return self.snapshot_by_id(snapshot_id)
         return None
 
+    def snapshot_by_id(self, snapshot_id: int) -> Optional[Snapshot]:
+        """Get the snapshot of this table with the given id, or None if there is no matching snapshot."""
+        try:
+            return next(snapshot for snapshot in self.metadata.snapshots if snapshot.snapshot_id == snapshot_id)
+        except StopIteration:
+            return None
+
     def snapshot_by_name(self, name: str) -> Optional[Snapshot]:
         """Returns the snapshot referenced by the given name or null if no such reference exists."""
         if ref := self.metadata.refs.get(name):
