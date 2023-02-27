@@ -353,7 +353,7 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
     InputFile file = deltaLakeFileIO.newInputFile(fullFilePath);
     if (!file.exists()) {
       throw new NotFoundException(
-          "The file %s does not exist in the Delta Lake table at %s",
+          "File %s is referenced in the metadata of Delta Lake table at %s, but cannot be found in the storage",
           fullFilePath, deltaTableLocation);
     }
 
