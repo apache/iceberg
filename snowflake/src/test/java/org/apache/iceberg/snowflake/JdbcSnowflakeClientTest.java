@@ -264,21 +264,15 @@ public class JdbcSnowflakeClientTest {
   }
 
   /**
-   * Any unexpected SQLException with specific error codes from the underlying connection will
-   * propagate out as a NoSuchNamespaceException when listing databases.
+   * Any unexpected SQLException from the underlying connection will propagate out as a
+   * UncheckedSQLException when listing databases at Root level.
    */
   @Test
-  public void testListDatabasesSQLException() throws SQLException, InterruptedException {
-    for (Integer errorCode : DATABASE_NOT_FOUND_ERROR_CODES) {
-      generateExceptionAndAssert(
-          () -> snowflakeClient.listDatabases(),
-          new SQLException(
-              String.format("SQL exception with Error Code %d", errorCode),
-              "2000",
-              errorCode,
-              null),
-          NoSuchNamespaceException.class);
-    }
+  public void testListDatabasesSQLExceptionAtRootLevel() throws SQLException, InterruptedException {
+    generateExceptionAndAssert(
+        () -> snowflakeClient.listDatabases(),
+        new SQLException(String.format("SQL exception with Error Code %d", 0), "2000", 0, null),
+        UncheckedSQLException.class);
   }
 
   /**
@@ -366,12 +360,25 @@ public class JdbcSnowflakeClientTest {
   }
 
   /**
-   * Any unexpected SQLException with specific error codes from the underlying connection will
-   * propagate out as a NoSuchNamespaceException when listing schemas.
+   * Any unexpected SQLException from the underlying connection will propagate out as an
+   * UncheckedSQLException when listing schemas at Root level.
    */
   @Test
-  public void testListSchemasSQLException() throws SQLException, InterruptedException {
-    for (Integer errorCode : SCHEMA_NOT_FOUND_ERROR_CODES) {
+  public void testListSchemasSQLExceptionAtRootLevel() throws SQLException, InterruptedException {
+    generateExceptionAndAssert(
+        () -> snowflakeClient.listSchemas(SnowflakeIdentifier.ofRoot()),
+        new SQLException(String.format("SQL exception with Error Code %d", 0), "2000", 0, null),
+        UncheckedSQLException.class);
+  }
+
+  /**
+   * Any unexpected SQLException with specific error codes from the underlying connection will
+   * propagate out as a NoSuchNamespaceException when listing schemas at Database level.
+   */
+  @Test
+  public void testListSchemasSQLExceptionAtDatabaseLevel()
+      throws SQLException, InterruptedException {
+    for (Integer errorCode : DATABASE_NOT_FOUND_ERROR_CODES) {
       generateExceptionAndAssert(
           () -> snowflakeClient.listSchemas(SnowflakeIdentifier.ofDatabase("DB_1")),
           new SQLException(
@@ -381,6 +388,14 @@ public class JdbcSnowflakeClientTest {
               null),
           NoSuchNamespaceException.class);
     }
+  }
+
+  /** List schemas is not supported at Schema level */
+  @Test
+  public void testListSchemasAtSchemaLevel() {
+    Assertions.assertThatExceptionOfType(IllegalArgumentException.class)
+        .isThrownBy(
+            () -> snowflakeClient.listSchemas(SnowflakeIdentifier.ofSchema("DB_1", "SCHEMA_2")));
   }
 
   /**
@@ -519,12 +534,26 @@ public class JdbcSnowflakeClientTest {
   }
 
   /**
-   * Any unexpected SQLException with specific error codes from the underlying connection will
-   * propagate out as a NoSuchNamespaceException when listing tables.
+   * Any unexpected SQLException from the underlying connection will propagate out as an
+   * UncheckedSQLException when listing tables at Root level
    */
   @Test
-  public void testListIcebergTablesSQLException() throws SQLException, InterruptedException {
-    for (Integer errorCode : SCHEMA_NOT_FOUND_ERROR_CODES) {
+  public void testListIcebergTablesSQLExceptionAtRootLevel()
+      throws SQLException, InterruptedException {
+    generateExceptionAndAssert(
+        () -> snowflakeClient.listIcebergTables(SnowflakeIdentifier.ofRoot()),
+        new SQLException(String.format("SQL exception with Error Code %d", 0), "2000", 0, null),
+        UncheckedSQLException.class);
+  }
+
+  /**
+   * Any unexpected SQLException with specific error codes from the underlying connection will
+   * propagate out as a NoSuchNamespaceException when listing tables at Database level
+   */
+  @Test
+  public void testListIcebergTablesSQLExceptionAtDatabaseLevel()
+      throws SQLException, InterruptedException {
+    for (Integer errorCode : DATABASE_NOT_FOUND_ERROR_CODES) {
       generateExceptionAndAssert(
           () -> snowflakeClient.listIcebergTables(SnowflakeIdentifier.ofDatabase("DB_1")),
           new SQLException(
@@ -537,8 +566,27 @@ public class JdbcSnowflakeClientTest {
   }
 
   /**
-   * Any unexpected SQLException from the underlying connection will propagate out as an
-   * UncheckedSQLException when listing tables.
+   * Any unexpected SQLException with specific error codes from the underlying connection will
+   * propagate out as a NoSuchNamespaceException when listing tables at Schema level
+   */
+  @Test
+  public void testListIcebergTablesSQLExceptionAtSchemaLevel()
+      throws SQLException, InterruptedException {
+    for (Integer errorCode : SCHEMA_NOT_FOUND_ERROR_CODES) {
+      generateExceptionAndAssert(
+          () -> snowflakeClient.listIcebergTables(SnowflakeIdentifier.ofSchema("DB_1", "SCHEMA_1")),
+          new SQLException(
+              String.format("SQL exception with Error Code %d", errorCode),
+              "2000",
+              errorCode,
+              null),
+          NoSuchNamespaceException.class);
+    }
+  }
+
+  /**
+   * Any unexpected SQLException without error code from the underlying connection will propagate
+   * out as an UncheckedSQLException when listing tables.
    */
   @Test
   public void testListIcebergTablesSQLExceptionWithoutErrorCode()

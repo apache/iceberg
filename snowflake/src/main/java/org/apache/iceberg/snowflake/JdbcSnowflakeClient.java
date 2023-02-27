@@ -219,7 +219,7 @@ class JdbcSnowflakeClient implements SnowflakeClient {
                   queryHarness.query(
                       conn, "SHOW DATABASES IN ACCOUNT", DATABASE_RESULT_SET_HANDLER));
     } catch (SQLException e) {
-      tryMapSnowflakeExceptionToIcebergException(SnowflakeIdentifier.Type.DATABASE, e);
+      tryMapSnowflakeExceptionToIcebergException(SnowflakeIdentifier.ofRoot(), e);
       throw new UncheckedSQLException(e, "Failed to list databases");
     } catch (InterruptedException e) {
       throw new UncheckedInterruptedException(e, "Interrupted while listing databases");
@@ -262,7 +262,7 @@ class JdbcSnowflakeClient implements SnowflakeClient {
                   queryHarness.query(
                       conn, finalQuery, SCHEMA_RESULT_SET_HANDLER, finalQueryParams));
     } catch (SQLException e) {
-      tryMapSnowflakeExceptionToIcebergException(SnowflakeIdentifier.Type.SCHEMA, e);
+      tryMapSnowflakeExceptionToIcebergException(scope, e);
       throw new UncheckedSQLException(e, "Failed to list schemas for scope '%s'", scope);
     } catch (InterruptedException e) {
       throw new UncheckedInterruptedException(
@@ -311,7 +311,7 @@ class JdbcSnowflakeClient implements SnowflakeClient {
               conn ->
                   queryHarness.query(conn, finalQuery, TABLE_RESULT_SET_HANDLER, finalQueryParams));
     } catch (SQLException e) {
-      tryMapSnowflakeExceptionToIcebergException(SnowflakeIdentifier.Type.SCHEMA, e);
+      tryMapSnowflakeExceptionToIcebergException(scope, e);
       throw new UncheckedSQLException(e, "Failed to list tables for scope '%s'", scope);
     } catch (InterruptedException e) {
       throw new UncheckedInterruptedException(
@@ -345,7 +345,7 @@ class JdbcSnowflakeClient implements SnowflakeClient {
                       TABLE_METADATA_RESULT_SET_HANDLER,
                       tableIdentifier.toIdentifierString()));
     } catch (SQLException e) {
-      tryMapSnowflakeExceptionToIcebergException(SnowflakeIdentifier.Type.TABLE, e);
+      tryMapSnowflakeExceptionToIcebergException(tableIdentifier, e);
       throw new UncheckedSQLException(e, "Failed to get table metadata for '%s'", tableIdentifier);
     } catch (InterruptedException e) {
       throw new UncheckedInterruptedException(
@@ -360,18 +360,26 @@ class JdbcSnowflakeClient implements SnowflakeClient {
   }
 
   private void tryMapSnowflakeExceptionToIcebergException(
-      SnowflakeIdentifier.Type identifierType, SQLException ex) {
+      SnowflakeIdentifier identifier, SQLException ex) {
     // NoSuchNamespace exception for Database and Schema cases
-    if ((identifierType == SnowflakeIdentifier.Type.DATABASE
+    if ((identifier.type() == SnowflakeIdentifier.Type.DATABASE
             && DATABASE_NOT_FOUND_ERROR_CODES.contains(ex.getErrorCode()))
-        || (identifierType == SnowflakeIdentifier.Type.SCHEMA
+        || (identifier.type() == SnowflakeIdentifier.Type.SCHEMA
             && SCHEMA_NOT_FOUND_ERROR_CODES.contains(ex.getErrorCode()))) {
-      throw new NoSuchNamespaceException(ex, "%s", ex.getMessage());
+      throw new NoSuchNamespaceException(
+          ex,
+          "Identifier not found: '%s'. Underlying exception: '%s'",
+          identifier,
+          ex.getMessage());
     }
     // NoSuchTable exception for Table cases
-    else if (identifierType == SnowflakeIdentifier.Type.TABLE
+    else if (identifier.type() == SnowflakeIdentifier.Type.TABLE
         && TABLE_NOT_FOUND_ERROR_CODES.contains(ex.getErrorCode())) {
-      throw new NoSuchTableException(ex, "%s", ex.getMessage());
+      throw new NoSuchTableException(
+          ex,
+          "Identifier not found: '%s'. Underlying exception: '%s'",
+          identifier,
+          ex.getMessage());
     }
   }
 }
