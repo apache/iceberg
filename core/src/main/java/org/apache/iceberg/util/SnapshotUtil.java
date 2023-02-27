@@ -190,10 +190,12 @@ public class SnapshotUtil {
    * <p>This method assumes that fromSnapshotId is an ancestor of toSnapshotId.
    */
   public static List<Long> snapshotIdsBetween(Table table, long fromSnapshotId, long toSnapshotId) {
-    return Lists.newArrayList(
-        ancestorIds(
-            table.snapshot(toSnapshotId),
-            snapshotId -> snapshotId != fromSnapshotId ? table.snapshot(snapshotId) : null));
+    List<Long> snapshotIds =
+            Lists.newArrayList(
+                    ancestorIds(
+                            table.snapshot(toSnapshotId),
+                            snapshotId -> snapshotId != fromSnapshotId ? table.snapshot(snapshotId) : null));
+    return snapshotIds;
   }
 
   public static Iterable<Long> ancestorIdsBetween(

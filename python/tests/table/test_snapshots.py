@@ -38,7 +38,11 @@ from pyiceberg.table.snapshots import (
     snapshots_ids_between,
     ancestor_ids,
     ancestors_between,
-    new_files, snapshot_after, snapshot_id_as_of_time, schema_for, schema_as_of_time,
+    new_files,
+    snapshot_after,
+    snapshot_id_as_of_time,
+    schema_for,
+    schema_as_of_time,
 )
 from pyiceberg.typedef import Record
 
@@ -308,9 +312,15 @@ def test_ancestor_ids(table_with_snapshots: Table):
 
 def test_ancestors_between(table_with_snapshots: Table):
     assert list(ancestors_between(SNAPSHOT_D_ID, SNAPSHOT_A_ID, table_with_snapshots.snapshot_by_id)) == [
-        Snapshot(snapshot_id=13, parent_snapshot_id=11, sequence_number=3, timestamp_ms=1677222224000,
-                 manifest_list='s3://bucket/table/snapshot-c.avro', summary=None, schema_id=None)
-        ,
+        Snapshot(
+            snapshot_id=13,
+            parent_snapshot_id=11,
+            sequence_number=3,
+            timestamp_ms=1677222224000,
+            manifest_list="s3://bucket/table/snapshot-c.avro",
+            summary=None,
+            schema_id=None,
+        ),
         Snapshot(
             snapshot_id=11,
             parent_snapshot_id=10,
@@ -414,19 +424,35 @@ def test_new_files(table_schema_simple: Schema, generated_manifest_file_file: st
     files = list(new_files(SNAPSHOT_A_ID, SNAPSHOT_D_ID, table.snapshot_by_id, io))
 
     assert len(files) == 4
-    assert files[0].file_path == "/home/iceberg/warehouse/nyc/taxis_partitioned/data/VendorID=null/00000-633-d8a4223e-dc97-45a1-86e1-adaba6e8abd7-00001.parquet"
-    assert files[1].file_path == "/home/iceberg/warehouse/nyc/taxis_partitioned/data/VendorID=1/00000-633-d8a4223e-dc97-45a1-86e1-adaba6e8abd7-00002.parquet"
-    assert files[2].file_path == "/home/iceberg/warehouse/nyc/taxis_partitioned/data/VendorID=null/00000-633-d8a4223e-dc97-45a1-86e1-adaba6e8abd7-00001.parquet"
-    assert files[3].file_path == "/home/iceberg/warehouse/nyc/taxis_partitioned/data/VendorID=1/00000-633-d8a4223e-dc97-45a1-86e1-adaba6e8abd7-00002.parquet"
+    assert (
+        files[0].file_path
+        == "/home/iceberg/warehouse/nyc/taxis_partitioned/data/VendorID=null/00000-633-d8a4223e-dc97-45a1-86e1-adaba6e8abd7-00001.parquet"
+    )
+    assert (
+        files[1].file_path
+        == "/home/iceberg/warehouse/nyc/taxis_partitioned/data/VendorID=1/00000-633-d8a4223e-dc97-45a1-86e1-adaba6e8abd7-00002.parquet"
+    )
+    assert (
+        files[2].file_path
+        == "/home/iceberg/warehouse/nyc/taxis_partitioned/data/VendorID=null/00000-633-d8a4223e-dc97-45a1-86e1-adaba6e8abd7-00001.parquet"
+    )
+    assert (
+        files[3].file_path
+        == "/home/iceberg/warehouse/nyc/taxis_partitioned/data/VendorID=1/00000-633-d8a4223e-dc97-45a1-86e1-adaba6e8abd7-00002.parquet"
+    )
+
 
 def test_snapshot_after(table_with_snapshots: Table):
     assert snapshot_after(table_with_snapshots, SNAPSHOT_B_ID).snapshot_id == SNAPSHOT_D_ID
 
+
 def test_snapshot_id_as_of_time(table_with_snapshots: Table):
     assert snapshot_id_as_of_time(table_with_snapshots, SNAPSHOT_B_TIME) == SNAPSHOT_A_ID
 
+
 def test_schema_for(table_with_snapshots: Table, table_schema_simple: Schema):
     assert schema_for(table_with_snapshots, SNAPSHOT_A_ID) == table_schema_simple
+
 
 def test_schema_as_of_time(table_with_snapshots: Table, table_schema_simple: Schema):
     assert schema_as_of_time(table_with_snapshots, SNAPSHOT_B_TIME) == table_schema_simple

@@ -258,6 +258,12 @@ class ManifestFile(Record):
     def __init__(self, *data: Any, **named_data: Any) -> None:
         super().__init__(*data, **{"struct": MANIFEST_FILE_SCHEMA.as_struct(), **named_data})
 
+    def has_added_files(self) -> bool:
+        return self.added_files_count is None or self.added_files_count > 0
+
+    def has_existing_files(self) -> bool:
+        return self.existing_files_count is None or self.existing_files_count > 0
+
     def fetch_manifest_entry(self, io: FileIO) -> List[ManifestEntry]:
         file = io.new_input(self.manifest_path)
         return list(read_manifest_entry(file))

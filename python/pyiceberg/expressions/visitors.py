@@ -16,7 +16,6 @@
 # under the License.
 from abc import ABC, abstractmethod
 from functools import singledispatch
-from multiprocessing.pool import ThreadPool
 from typing import (
     Any,
     Callable,
@@ -26,10 +25,7 @@ from typing import (
     Tuple,
     TypeVar,
     Union,
-    Dict,
 )
-
-from pyarrow.filesystem import FileSystem
 
 from pyiceberg.conversions import from_bytes
 from pyiceberg.expressions import (
