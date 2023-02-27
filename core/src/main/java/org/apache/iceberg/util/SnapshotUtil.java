@@ -191,10 +191,10 @@ public class SnapshotUtil {
    */
   public static List<Long> snapshotIdsBetween(Table table, long fromSnapshotId, long toSnapshotId) {
     List<Long> snapshotIds =
-            Lists.newArrayList(
-                    ancestorIds(
-                            table.snapshot(toSnapshotId),
-                            snapshotId -> snapshotId != fromSnapshotId ? table.snapshot(snapshotId) : null));
+        Lists.newArrayList(
+            ancestorIds(
+                table.snapshot(toSnapshotId),
+                snapshotId -> snapshotId != fromSnapshotId ? table.snapshot(snapshotId) : null));
     return snapshotIds;
   }
 
