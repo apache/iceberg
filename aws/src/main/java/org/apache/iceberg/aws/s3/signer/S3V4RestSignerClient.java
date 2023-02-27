@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import javax.annotation.Nullable;
@@ -72,7 +73,7 @@ public abstract class S3V4RestSignerClient
   private static final ScheduledExecutorService TOKEN_REFRESH_EXECUTOR =
       ThreadPools.newScheduledPool("s3-signer-token-refresh", 1);
   private static final String SCOPE = "sign";
-  private static RESTClient httpClient;
+  private static final AtomicReference<RESTClient> HTTP_CLIENT_REF = new AtomicReference<>();
 
   public abstract Map<String, String> properties();
 
@@ -98,39 +99,39 @@ public abstract class S3V4RestSignerClient
     return properties().get(OAuth2Properties.CREDENTIAL);
   }
 
-  /** A Bearer token which will be used for interaction with the server. */
-  @Nullable
-  @Value.Lazy
-  public String token() {
-    return properties().get(OAuth2Properties.TOKEN);
+  /** A Bearer token supplier which will be used for interaction with the server. */
+  @Value.Default
+  public Supplier<String> token() {
+    return () -> properties().get(OAuth2Properties.TOKEN);
   }
 
   private RESTClient httpClient() {
-    if (null == httpClient) {
+    if (null == HTTP_CLIENT_REF.get()) {
       // TODO: should be closed
-      httpClient =
+      HTTP_CLIENT_REF.compareAndSet(
+          null,
           HTTPClient.builder()
               .uri(baseSignerUri())
               .withObjectMapper(S3ObjectMapper.mapper())
-              .build();
+              .build());
     }
 
-    return httpClient;
+    return HTTP_CLIENT_REF.get();
   }
 
-  @Value.Lazy
-  AuthSession authSession() {
-    if (null != token()) {
+  private AuthSession authSession() {
+    String token = token().get();
+    if (null != token) {
       return AuthSession.fromAccessToken(
           httpClient(),
           TOKEN_REFRESH_EXECUTOR,
-          token(),
+          token,
           expiresAtMillis(properties()),
-          new AuthSession(ImmutableMap.of(), token(), null, credential(), SCOPE));
+          new AuthSession(ImmutableMap.of(), token, null, credential(), SCOPE));
     }
 
     if (credentialProvided()) {
-      AuthSession session = new AuthSession(ImmutableMap.of(), token(), null, credential(), SCOPE);
+      AuthSession session = new AuthSession(ImmutableMap.of(), null, null, credential(), SCOPE);
       long startTimeMillis = System.currentTimeMillis();
       OAuthTokenResponse authResponse =
           OAuth2Util.fetchToken(httpClient(), session.headers(), credential(), SCOPE);

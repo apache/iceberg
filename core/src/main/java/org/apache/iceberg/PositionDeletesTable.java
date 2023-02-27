@@ -24,7 +24,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.ManifestEvaluator;
 import org.apache.iceberg.expressions.ResidualEvaluator;
@@ -43,15 +42,18 @@ import org.apache.iceberg.util.TableScanUtil;
 public class PositionDeletesTable extends BaseMetadataTable {
 
   private final Schema schema;
+  private final int defaultSpecId;
+  private final Map<Integer, PartitionSpec> specs;
 
   PositionDeletesTable(Table table) {
-    super(table, table.name() + ".position_deletes");
-    this.schema = calculateSchema();
+    this(table, table.name() + ".position_deletes");
   }
 
   PositionDeletesTable(Table table, String name) {
     super(table, name);
     this.schema = calculateSchema();
+    this.defaultSpecId = table.spec().specId();
+    this.specs = transformSpecs(schema(), table.specs());
   }
 
   @Override
@@ -73,6 +75,16 @@ public class PositionDeletesTable extends BaseMetadataTable {
   @Override
   public Schema schema() {
     return schema;
+  }
+
+  @Override
+  public PartitionSpec spec() {
+    return specs.get(defaultSpecId);
+  }
+
+  @Override
+  public Map<Integer, PartitionSpec> specs() {
+    return specs;
   }
 
   private Schema calculateSchema() {
@@ -144,10 +156,7 @@ public class PositionDeletesTable extends BaseMetadataTable {
       String schemaString = SchemaParser.toJson(tableSchema());
 
       // prepare transformed partition specs and caches
-      Map<Integer, PartitionSpec> transformedSpecs =
-          table().specs().values().stream()
-              .map(spec -> transformSpec(tableSchema(), spec))
-              .collect(Collectors.toMap(PartitionSpec::specId, spec -> spec));
+      Map<Integer, PartitionSpec> transformedSpecs = transformSpecs(tableSchema(), table().specs());
 
       LoadingCache<Integer, ResidualEvaluator> residualCache =
           partitionCacheOf(

@@ -20,6 +20,7 @@ package org.apache.iceberg.spark.source;
 
 import org.apache.iceberg.ChangelogScanTask;
 import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.PositionDeletesScanTask;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.connector.read.InputPartition;
@@ -45,6 +46,9 @@ class SparkRowReaderFactory implements PartitionReaderFactory {
 
     } else if (partition.allTasksOfType(ChangelogScanTask.class)) {
       return new ChangelogRowReader(partition);
+
+    } else if (partition.allTasksOfType(PositionDeletesScanTask.class)) {
+      return new PositionDeletesRowReader(partition);
 
     } else {
       throw new UnsupportedOperationException(

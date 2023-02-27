@@ -146,7 +146,7 @@ def infer_catalog_type(name: str, catalog_properties: RecursiveDict) -> Optional
     )
 
 
-def load_catalog(name: str, **properties: Optional[str]) -> Catalog:
+def load_catalog(name: Optional[str], **properties: Optional[str]) -> Catalog:
     """Load the catalog based on the properties
 
     Will look up the properties from the config, based on the name
@@ -162,6 +162,10 @@ def load_catalog(name: str, **properties: Optional[str]) -> Catalog:
         ValueError: Raises a ValueError in case properties are missing or malformed,
             or if it could not determine the catalog based on the properties
     """
+
+    if name is None:
+        name = _ENV_CONFIG.get_default_catalog_name()
+
     env = _ENV_CONFIG.get_catalog_config(name)
     conf: RecursiveDict = merge_config(env or {}, cast(RecursiveDict, properties))
 

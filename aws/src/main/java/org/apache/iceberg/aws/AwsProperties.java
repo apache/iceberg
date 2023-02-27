@@ -129,7 +129,7 @@ public class AwsProperties implements Serializable {
    */
   public static final String GLUE_CATALOG_SKIP_ARCHIVE = "glue.skip-archive";
 
-  public static final boolean GLUE_CATALOG_SKIP_ARCHIVE_DEFAULT = false;
+  public static final boolean GLUE_CATALOG_SKIP_ARCHIVE_DEFAULT = true;
 
   /**
    * If Glue should skip name validations It is recommended to stick to Glue best practice in
