@@ -68,30 +68,23 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
   private static final String NAMESPACE = "delta_conversion_test";
   private static final String defaultSparkCatalog = "spark_catalog";
   private static final String icebergCatalogName = "iceberg_hive";
-  private final String partitionedTableName = "partitioned_table";
-  private final String unpartitionedTableName = "unpartitioned_table";
-  private final String externalDataFilesTableName = "external_data_files_table";
-  private final String typeTestTableName = "type_test_table";
-  private final String vacuumTestTableName = "vacuum_test_table";
-  private final String logCleanTestTableName = "log_clean_test_table";
-  private final String snapshotPartitionedTableName = "iceberg_partitioned_table";
-  private final String snapshotUnpartitionedTableName = "iceberg_unpartitioned_table";
-  private final String snapshotExternalDataFilesTableName = "iceberg_external_data_files_table";
-  private final String snapshotNewTableLocationTableName = "iceberg_new_table_location_table";
-  private final String snapshotAdditionalPropertiesTableName =
+  private static final String partitionedTableName = "partitioned_table";
+  private static final String unpartitionedTableName = "unpartitioned_table";
+  private static final String externalDataFilesTableName = "external_data_files_table";
+  private static final String typeTestTableName = "type_test_table";
+  private static final String vacuumTestTableName = "vacuum_test_table";
+  private static final String logCleanTestTableName = "log_clean_test_table";
+  private static final String snapshotPartitionedTableName = "iceberg_partitioned_table";
+  private static final String snapshotUnpartitionedTableName = "iceberg_unpartitioned_table";
+  private static final String snapshotExternalDataFilesTableName =
+      "iceberg_external_data_files_table";
+  private static final String snapshotNewTableLocationTableName =
+      "iceberg_new_table_location_table";
+  private static final String snapshotAdditionalPropertiesTableName =
       "iceberg_additional_properties_table";
-  private final String snapshotVacuumTableName = "iceberg_vacuum_table";
-  private final String snapshotTypeTestTableName = "iceberg_type_test_table";
-  private final String snapshotLogCleanTableName = "iceberg_log_clean_table";
-  private final String partitionedIdentifier = destName(defaultSparkCatalog, partitionedTableName);
-  private final String unpartitionedIdentifier =
-      destName(defaultSparkCatalog, unpartitionedTableName);
-  private final String externalDataFilesIdentifier =
-      destName(defaultSparkCatalog, externalDataFilesTableName);
-  private final String typeTestIdentifier = destName(defaultSparkCatalog, typeTestTableName);
-  private final String vacuumTestIdentifier = destName(defaultSparkCatalog, vacuumTestTableName);
-  private final String logCleanTestIdentifier =
-      destName(defaultSparkCatalog, logCleanTestTableName);
+  private static final String snapshotVacuumTableName = "iceberg_vacuum_table";
+  private static final String snapshotTypeTestTableName = "iceberg_type_test_table";
+  private static final String snapshotLogCleanTableName = "iceberg_log_clean_table";
   private Dataset<Row> typeTestDataFrame;
   private Dataset<Row> nestedDataFrame;
 
@@ -139,6 +132,7 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
 
   @Test
   public void testBasicSnapshotPartitioned() throws IOException {
+    String partitionedIdentifier = destName(defaultSparkCatalog, partitionedTableName);
     String partitionedLocation = temp.newFolder().toURI().toString();
 
     writeDeltaTable(nestedDataFrame, partitionedIdentifier, partitionedLocation, "id");
@@ -157,6 +151,7 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
 
   @Test
   public void testBasicSnapshotUnpartitioned() throws IOException {
+    String unpartitionedIdentifier = destName(defaultSparkCatalog, unpartitionedTableName);
     String unpartitionedLocation = temp.newFolder().toURI().toString();
 
     writeDeltaTable(nestedDataFrame, unpartitionedIdentifier, unpartitionedLocation, null);
@@ -176,6 +171,7 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
 
   @Test
   public void testSnapshotWithNewLocation() throws IOException {
+    String partitionedIdentifier = destName(defaultSparkCatalog, partitionedTableName);
     String partitionedLocation = temp.newFolder().toURI().toString();
     String newIcebergTableLocation = temp.newFolder().toURI().toString();
 
@@ -196,6 +192,7 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
 
   @Test
   public void testSnapshotWithAdditionalProperties() throws IOException {
+    String unpartitionedIdentifier = destName(defaultSparkCatalog, unpartitionedTableName);
     String unpartitionedLocation = temp.newFolder().toURI().toString();
 
     writeDeltaTable(nestedDataFrame, unpartitionedIdentifier, unpartitionedLocation, null);
@@ -231,6 +228,8 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
 
   @Test
   public void testSnapshotTableWithExternalDataFiles() throws IOException {
+    String unpartitionedIdentifier = destName(defaultSparkCatalog, unpartitionedTableName);
+    String externalDataFilesIdentifier = destName(defaultSparkCatalog, externalDataFilesTableName);
     String unpartitionedLocation = temp.newFolder().toURI().toString();
     String externalDataFilesTableLocation = temp.newFolder().toURI().toString();
 
@@ -257,6 +256,7 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
 
   @Test
   public void testSnapshotSupportedTypes() throws IOException {
+    String typeTestIdentifier = destName(defaultSparkCatalog, typeTestTableName);
     String typeTestTableLocation = temp.newFolder().toURI().toString();
 
     writeDeltaTable(typeTestDataFrame, typeTestIdentifier, typeTestTableLocation, "stringCol");
@@ -276,6 +276,7 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
 
   @Test
   public void testSnapshotVacuumTable() throws IOException {
+    String vacuumTestIdentifier = destName(defaultSparkCatalog, vacuumTestTableName);
     String vacuumTestTableLocation = temp.newFolder().toURI().toString();
 
     writeDeltaTable(nestedDataFrame, vacuumTestIdentifier, vacuumTestTableLocation, null);
@@ -309,6 +310,7 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
 
   @Test
   public void testSnapshotLogCleanTable() throws IOException {
+    String logCleanTestIdentifier = destName(defaultSparkCatalog, logCleanTestTableName);
     String logCleanTestTableLocation = temp.newFolder().toURI().toString();
 
     writeDeltaTable(nestedDataFrame, logCleanTestIdentifier, logCleanTestTableLocation, "id");
@@ -354,8 +356,8 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
     Assertions.assertThat(deltaTableContents).hasSize(icebergTableContents.size());
     Assertions.assertThat(deltaLog.update().getAllFiles())
         .hasSize((int) snapshotReport.snapshotDataFilesCount());
-    Assertions.assertThat(icebergTableContents).containsAll(deltaTableContents);
-    Assertions.assertThat(deltaTableContents).containsAll(icebergTableContents);
+    Assertions.assertThat(icebergTableContents)
+        .containsExactlyInAnyOrderElementsOf(deltaTableContents);
   }
 
   private void checkIcebergTableLocation(String icebergTableIdentifier, String expectedLocation) {
