@@ -407,9 +407,10 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     operation.commit(); // abort is automatically called if this fails.
     long durationMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNano);
     LOG.info(
-        "Committed {} to table: {}, checkpointId {} in {} ms",
+        "Committed {} to table: {}, branch: {}, checkpointId {} in {} ms",
         description,
         table.name(),
+        branch,
         checkpointId,
         durationMs);
     committerMetrics.commitDuration(durationMs);
