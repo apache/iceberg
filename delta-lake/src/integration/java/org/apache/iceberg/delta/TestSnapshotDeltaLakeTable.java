@@ -52,8 +52,8 @@ import org.apache.spark.sql.SaveMode;
 import org.apache.spark.sql.connector.catalog.CatalogPlugin;
 import org.apache.spark.sql.delta.catalog.DeltaCatalog;
 import org.assertj.core.api.Assertions;
-import org.junit.After;
-import org.junit.Before;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -68,25 +68,8 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
   private static final String NAMESPACE = "delta_conversion_test";
   private static final String defaultSparkCatalog = "spark_catalog";
   private static final String icebergCatalogName = "iceberg_hive";
-  private static final String partitionedTableName = "partitioned_table";
-  private static final String unpartitionedTableName = "unpartitioned_table";
-  private static final String externalDataFilesTableName = "external_data_files_table";
-  private static final String typeTestTableName = "type_test_table";
-  private static final String vacuumTestTableName = "vacuum_test_table";
-  private static final String logCleanTestTableName = "log_clean_test_table";
-  private static final String snapshotPartitionedTableName = "iceberg_partitioned_table";
-  private static final String snapshotUnpartitionedTableName = "iceberg_unpartitioned_table";
-  private static final String snapshotExternalDataFilesTableName =
-      "iceberg_external_data_files_table";
-  private static final String snapshotNewTableLocationTableName =
-      "iceberg_new_table_location_table";
-  private static final String snapshotAdditionalPropertiesTableName =
-      "iceberg_additional_properties_table";
-  private static final String snapshotVacuumTableName = "iceberg_vacuum_table";
-  private static final String snapshotTypeTestTableName = "iceberg_type_test_table";
-  private static final String snapshotLogCleanTableName = "iceberg_log_clean_table";
-  private Dataset<Row> typeTestDataFrame;
-  private Dataset<Row> nestedDataFrame;
+  private static Dataset<Row> typeTestDataFrame;
+  private static Dataset<Row> nestedDataFrame;
 
   @Parameterized.Parameters(name = "Catalog Name {0} - Options {2}")
   public static Object[][] parameters() {
@@ -116,8 +99,8 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
     spark.conf().set("spark.sql.catalog." + defaultSparkCatalog, DeltaCatalog.class.getName());
   }
 
-  @Before
-  public void before() {
+  @BeforeClass
+  public static void beforeClass() {
     spark.sql(String.format("CREATE DATABASE IF NOT EXISTS %s", NAMESPACE));
 
     // generate the dataframe
@@ -125,21 +108,21 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
     typeTestDataFrame = typeTestDataFrame();
   }
 
-  @After
-  public void after() {
+  @AfterClass
+  public static void afterClass() {
     spark.sql(String.format("DROP DATABASE IF EXISTS %s CASCADE", NAMESPACE));
   }
 
   @Test
   public void testBasicSnapshotPartitioned() throws IOException {
-    String partitionedIdentifier = destName(defaultSparkCatalog, partitionedTableName);
+    String partitionedIdentifier = destName(defaultSparkCatalog, "partitioned_table");
     String partitionedLocation = temp.newFolder().toURI().toString();
 
     writeDeltaTable(nestedDataFrame, partitionedIdentifier, partitionedLocation, "id");
     spark.sql("DELETE FROM " + partitionedIdentifier + " WHERE id=3");
     spark.sql("UPDATE " + partitionedIdentifier + " SET id=3 WHERE id=1");
 
-    String newTableIdentifier = destName(icebergCatalogName, snapshotPartitionedTableName);
+    String newTableIdentifier = destName(icebergCatalogName, "iceberg_partitioned_table");
     SnapshotDeltaLakeTable.Result result =
         DeltaLakeToIcebergMigrationSparkIntegration.snapshotDeltaLakeTable(
                 spark, newTableIdentifier, partitionedLocation)
@@ -151,14 +134,14 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
 
   @Test
   public void testBasicSnapshotUnpartitioned() throws IOException {
-    String unpartitionedIdentifier = destName(defaultSparkCatalog, unpartitionedTableName);
+    String unpartitionedIdentifier = destName(defaultSparkCatalog, "unpartitioned_table");
     String unpartitionedLocation = temp.newFolder().toURI().toString();
 
     writeDeltaTable(nestedDataFrame, unpartitionedIdentifier, unpartitionedLocation, null);
     spark.sql("DELETE FROM " + unpartitionedIdentifier + " WHERE id=3");
     spark.sql("UPDATE " + unpartitionedIdentifier + " SET id=3 WHERE id=1");
 
-    String newTableIdentifier = destName(icebergCatalogName, snapshotUnpartitionedTableName);
+    String newTableIdentifier = destName(icebergCatalogName, "iceberg_unpartitioned_table");
     SnapshotDeltaLakeTable.Result result =
         DeltaLakeToIcebergMigrationSparkIntegration.snapshotDeltaLakeTable(
                 spark, newTableIdentifier, unpartitionedLocation)
@@ -171,7 +154,7 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
 
   @Test
   public void testSnapshotWithNewLocation() throws IOException {
-    String partitionedIdentifier = destName(defaultSparkCatalog, partitionedTableName);
+    String partitionedIdentifier = destName(defaultSparkCatalog, "partitioned_table");
     String partitionedLocation = temp.newFolder().toURI().toString();
     String newIcebergTableLocation = temp.newFolder().toURI().toString();
 
@@ -179,7 +162,7 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
     spark.sql("DELETE FROM " + partitionedIdentifier + " WHERE id=3");
     spark.sql("UPDATE " + partitionedIdentifier + " SET id=3 WHERE id=1");
 
-    String newTableIdentifier = destName(icebergCatalogName, snapshotNewTableLocationTableName);
+    String newTableIdentifier = destName(icebergCatalogName, "iceberg_new_table_location_table");
     SnapshotDeltaLakeTable.Result result =
         DeltaLakeToIcebergMigrationSparkIntegration.snapshotDeltaLakeTable(
                 spark, newTableIdentifier, partitionedLocation)
@@ -192,7 +175,7 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
 
   @Test
   public void testSnapshotWithAdditionalProperties() throws IOException {
-    String unpartitionedIdentifier = destName(defaultSparkCatalog, unpartitionedTableName);
+    String unpartitionedIdentifier = destName(defaultSparkCatalog, "unpartitioned_table");
     String unpartitionedLocation = temp.newFolder().toURI().toString();
 
     writeDeltaTable(nestedDataFrame, unpartitionedIdentifier, unpartitionedLocation, null);
@@ -204,7 +187,8 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
         "ALTER TABLE "
             + unpartitionedIdentifier
             + " SET TBLPROPERTIES ('foo'='bar', 'test0'='test0')");
-    String newTableIdentifier = destName(icebergCatalogName, snapshotAdditionalPropertiesTableName);
+
+    String newTableIdentifier = destName(icebergCatalogName, "iceberg_additional_properties_table");
     SnapshotDeltaLakeTable.Result result =
         DeltaLakeToIcebergMigrationSparkIntegration.snapshotDeltaLakeTable(
                 spark, newTableIdentifier, unpartitionedLocation)
@@ -228,8 +212,8 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
 
   @Test
   public void testSnapshotTableWithExternalDataFiles() throws IOException {
-    String unpartitionedIdentifier = destName(defaultSparkCatalog, unpartitionedTableName);
-    String externalDataFilesIdentifier = destName(defaultSparkCatalog, externalDataFilesTableName);
+    String unpartitionedIdentifier = destName(defaultSparkCatalog, "unpartitioned_table");
+    String externalDataFilesIdentifier = destName(defaultSparkCatalog, "external_data_files_table");
     String unpartitionedLocation = temp.newFolder().toURI().toString();
     String externalDataFilesTableLocation = temp.newFolder().toURI().toString();
 
@@ -243,7 +227,7 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
     // are not at the same location as the table.
     addExternalDatafiles(externalDataFilesTableLocation, unpartitionedLocation);
 
-    String newTableIdentifier = destName(icebergCatalogName, snapshotExternalDataFilesTableName);
+    String newTableIdentifier = destName(icebergCatalogName, "iceberg_external_data_files_table");
     SnapshotDeltaLakeTable.Result result =
         DeltaLakeToIcebergMigrationSparkIntegration.snapshotDeltaLakeTable(
                 spark, newTableIdentifier, externalDataFilesTableLocation)
@@ -256,11 +240,11 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
 
   @Test
   public void testSnapshotSupportedTypes() throws IOException {
-    String typeTestIdentifier = destName(defaultSparkCatalog, typeTestTableName);
+    String typeTestIdentifier = destName(defaultSparkCatalog, "type_test_table");
     String typeTestTableLocation = temp.newFolder().toURI().toString();
 
     writeDeltaTable(typeTestDataFrame, typeTestIdentifier, typeTestTableLocation, "stringCol");
-    String newTableIdentifier = destName(icebergCatalogName, snapshotTypeTestTableName);
+    String newTableIdentifier = destName(icebergCatalogName, "iceberg_type_test_table");
     SnapshotDeltaLakeTable.Result result =
         DeltaLakeToIcebergMigrationSparkIntegration.snapshotDeltaLakeTable(
                 spark, newTableIdentifier, typeTestTableLocation)
@@ -276,7 +260,7 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
 
   @Test
   public void testSnapshotVacuumTable() throws IOException {
-    String vacuumTestIdentifier = destName(defaultSparkCatalog, vacuumTestTableName);
+    String vacuumTestIdentifier = destName(defaultSparkCatalog, "vacuum_test_table");
     String vacuumTestTableLocation = temp.newFolder().toURI().toString();
 
     writeDeltaTable(nestedDataFrame, vacuumTestIdentifier, vacuumTestTableLocation, null);
@@ -298,7 +282,7 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
     Assertions.assertThat(deleteResult).isTrue();
     spark.sql("VACUUM " + vacuumTestIdentifier + " RETAIN 0 HOURS");
 
-    String newTableIdentifier = destName(icebergCatalogName, snapshotVacuumTableName);
+    String newTableIdentifier = destName(icebergCatalogName, "iceberg_vacuum_table");
     SnapshotDeltaLakeTable.Result result =
         DeltaLakeToIcebergMigrationSparkIntegration.snapshotDeltaLakeTable(
                 spark, newTableIdentifier, vacuumTestTableLocation)
@@ -310,7 +294,7 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
 
   @Test
   public void testSnapshotLogCleanTable() throws IOException {
-    String logCleanTestIdentifier = destName(defaultSparkCatalog, logCleanTestTableName);
+    String logCleanTestIdentifier = destName(defaultSparkCatalog, "log_clean_test_table");
     String logCleanTestTableLocation = temp.newFolder().toURI().toString();
 
     writeDeltaTable(nestedDataFrame, logCleanTestIdentifier, logCleanTestTableLocation, "id");
@@ -331,7 +315,7 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
                     logCleanTestTableLocation.concat("/_delta_log/00000000000000000000.json"))));
     Assertions.assertThat(deleteResult).isTrue();
 
-    String newTableIdentifier = destName(icebergCatalogName, snapshotLogCleanTableName);
+    String newTableIdentifier = destName(icebergCatalogName, "iceberg_log_clean_table");
     SnapshotDeltaLakeTable.Result result =
         DeltaLakeToIcebergMigrationSparkIntegration.snapshotDeltaLakeTable(
                 spark, newTableIdentifier, logCleanTestTableLocation)
@@ -468,7 +452,7 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
     }
   }
 
-  private Dataset<Row> typeTestDataFrame() {
+  private static Dataset<Row> typeTestDataFrame() {
     return spark
         .range(0, 5, 1, 5)
         .withColumnRenamed("id", "longCol")
@@ -488,7 +472,7 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
         .withColumn("structCol", expr("STRUCT(mapCol, arrayCol)"));
   }
 
-  private Dataset<Row> nestedDataFrame() {
+  private static Dataset<Row> nestedDataFrame() {
     return spark
         .range(0, 5, 1, 5)
         .withColumn("longCol", expr("id"))
