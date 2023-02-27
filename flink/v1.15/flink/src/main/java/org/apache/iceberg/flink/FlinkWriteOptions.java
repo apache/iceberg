@@ -20,6 +20,7 @@ package org.apache.iceberg.flink;
 
 import org.apache.flink.configuration.ConfigOption;
 import org.apache.flink.configuration.ConfigOptions;
+import org.apache.iceberg.SnapshotRef;
 
 /** Flink sink write options */
 public class FlinkWriteOptions {
@@ -56,4 +57,8 @@ public class FlinkWriteOptions {
   // Overrides the table's write.distribution-mode
   public static final ConfigOption<String> DISTRIBUTION_MODE =
       ConfigOptions.key("distribution-mode").stringType().noDefaultValue();
+
+  // Branch to write to
+  public static final ConfigOption<String> BRANCH =
+      ConfigOptions.key("branch").stringType().defaultValue(SnapshotRef.MAIN_BRANCH);
 }
