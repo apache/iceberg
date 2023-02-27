@@ -66,6 +66,7 @@ import org.apache.iceberg.rest.responses.LoadTableResponse;
 import org.apache.iceberg.rest.responses.OAuthTokenResponse;
 import org.apache.iceberg.types.Types;
 import org.eclipse.jetty.server.Server;
+import org.eclipse.jetty.server.ServerConnector;
 import org.eclipse.jetty.server.handler.gzip.GzipHandler;
 import org.eclipse.jetty.servlet.ServletContextHandler;
 import org.eclipse.jetty.servlet.ServletHolder;
@@ -150,7 +151,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     servletContext.setVirtualHosts(null);
     servletContext.setGzipHandler(new GzipHandler());
 
-    this.httpServer = new Server(8181);
+    this.httpServer = new Server(0);
     httpServer.setHandler(servletContext);
     httpServer.start();
 
@@ -169,7 +170,10 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     restCatalog.initialize(
         "prod",
         ImmutableMap.of(
-            CatalogProperties.URI, "http://localhost:8181/", "credential", "catalog:12345"));
+            CatalogProperties.URI,
+            "http://localhost:" + localPort() + "/",
+            "credential",
+            "catalog:12345"));
   }
 
   @SuppressWarnings("unchecked")
@@ -1215,7 +1219,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
         "prod",
         ImmutableMap.of(
             CatalogProperties.URI,
-            "http://localhost:8181/",
+            "http://localhost:" + localPort() + "/",
             "credential",
             "catalog:12345",
             CatalogProperties.METRICS_REPORTER_IMPL,
@@ -1618,5 +1622,10 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             eq(OAuthTokenResponse.class),
             eq(catalogHeaders),
             any());
+  }
+
+  private int localPort() {
+    assertThat(httpServer.isRunning()).isTrue();
+    return ((ServerConnector) httpServer.getConnectors()[0]).getLocalPort();
   }
 }
