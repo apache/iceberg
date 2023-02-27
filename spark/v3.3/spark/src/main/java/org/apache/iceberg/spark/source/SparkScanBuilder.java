@@ -438,10 +438,6 @@ public class SparkScanBuilder
       scan = scan.asOfTime(asOfTimestamp);
     }
 
-    if (branch != null) {
-      scan = scan.useRef(branch);
-    }
-
     if (tag != null) {
       scan = scan.useRef(tag);
     }
