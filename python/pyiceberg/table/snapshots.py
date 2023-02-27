@@ -73,7 +73,9 @@ class Summary(IcebergBaseModel):
         self, operation: Optional[Operation] = None, __root__: Optional[Dict[str, Union[str, Operation]]] = None, **data: Any
     ) -> None:
         super().__init__(__root__={"operation": operation, **data} if not __root__ else __root__)
-        self._additional_properties = {k: v for k, v in self.__root__.items() if k != OPERATION}  # type: ignore # We know that they are all string, and we don't want to check
+        self._additional_properties = {
+            k: v for k, v in self.__root__.items() if k != OPERATION  # type: ignore # We know that they are all string, and we don't want to check
+        }
 
     @property
     def operation(self) -> Operation:
@@ -122,5 +124,5 @@ class MetadataLogEntry(IcebergBaseModel):
 
 
 class SnapshotLogEntry(IcebergBaseModel):
-    snapshot_id: int = Field(alias="snapshot-id")
+    snapshot_id: str = Field(alias="snapshot-id")
     timestamp_ms: int = Field(alias="timestamp-ms")
