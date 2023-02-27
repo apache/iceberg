@@ -170,10 +170,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     restCatalog.initialize(
         "prod",
         ImmutableMap.of(
-            CatalogProperties.URI,
-            "http://localhost:" + localPort() + "/",
-            "credential",
-            "catalog:12345"));
+            CatalogProperties.URI, httpServer.getURI().toString(), "credential", "catalog:12345"));
   }
 
   @SuppressWarnings("unchecked")
@@ -1219,7 +1216,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
         "prod",
         ImmutableMap.of(
             CatalogProperties.URI,
-            "http://localhost:" + localPort() + "/",
+            httpServer.getURI().toString(),
             "credential",
             "catalog:12345",
             CatalogProperties.METRICS_REPORTER_IMPL,
@@ -1622,10 +1619,5 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             eq(OAuthTokenResponse.class),
             eq(catalogHeaders),
             any());
-  }
-
-  private int localPort() {
-    assertThat(httpServer.isRunning()).isTrue();
-    return ((ServerConnector) httpServer.getConnectors()[0]).getLocalPort();
   }
 }
