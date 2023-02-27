@@ -709,21 +709,22 @@ class _ManifestEvalVisitor(BoundBooleanExpressionVisitor[bool]):
         pos = term.ref().accessor.position
         field = self.partition_fields[pos]
         prefix = str(literal.value)
+        len_prefix = len(prefix)
 
-        # contains_null encodes whether at least one partition value is null,
-        # lowerBound is null if all partition values are null
-        all_null = field.contains_null is True and field.lower_bound is None
-        if all_null or not field.lower_bound or not field.upper_bound:
+        if not field.lower_bound:
             return ROWS_CANNOT_MATCH
 
         lower = _from_byte_buffer(term.ref().field.field_type, field.lower_bound)
         # truncate lower bound so that its length is not greater than the length of prefix
-        if lower and lower[: len(str(prefix))] > prefix:
+        if lower and lower[:len_prefix] > prefix:
+            return ROWS_CANNOT_MATCH
+
+        if not field.upper_bound:
             return ROWS_CANNOT_MATCH
 
         upper = _from_byte_buffer(term.ref().field.field_type, field.upper_bound)
         # truncate upper bound so that its length is not greater than the length of prefix
-        if upper and upper[: len(prefix)] < prefix:
+        if upper and upper[:len_prefix] < prefix:
             return ROWS_CANNOT_MATCH
 
         return ROWS_MIGHT_MATCH
@@ -732,6 +733,7 @@ class _ManifestEvalVisitor(BoundBooleanExpressionVisitor[bool]):
         pos = term.ref().accessor.position
         field = self.partition_fields[pos]
         prefix = str(literal.value)
+        len_prefix = len(prefix)
 
         if field.contains_null or not field.lower_bound or not field.upper_bound:
             return ROWS_MIGHT_MATCH
@@ -741,17 +743,17 @@ class _ManifestEvalVisitor(BoundBooleanExpressionVisitor[bool]):
         lower = _from_byte_buffer(term.ref().field.field_type, field.lower_bound)
         upper = _from_byte_buffer(term.ref().field.field_type, field.upper_bound)
 
-        if lower and upper:
+        if lower is not None and upper is not None:
             # if lower is shorter than the prefix then lower doesn't start with the prefix
-            if len(lower) < len(prefix):
+            if len(lower) < len_prefix:
                 return ROWS_MIGHT_MATCH
 
-            if lower[: len(prefix)] == prefix:
+            if lower[:len_prefix] == prefix:
                 # if upper is shorter than the prefix then upper can't start with the prefix
-                if len(upper) < len(prefix):
+                if len(upper) < len_prefix:
                     return ROWS_MIGHT_MATCH
 
-                if upper[: len(prefix)] == prefix:
+                if upper[:len_prefix] == prefix:
                     return ROWS_CANNOT_MATCH
 
         return ROWS_MIGHT_MATCH
@@ -1028,7 +1030,7 @@ class ExpressionToPlainFormat(BoundBooleanExpressionVisitor[List[Tuple[str, str,
         return []
 
     def visit_not_starts_with(self, term: BoundTerm[L], literal: Literal[L]) -> List[Tuple[str, str, Any]]:
-        return [(term.ref().field.name, "not starts_with", self._cast_if_necessary(term.ref().field.field_type, literal.value))]
+        return []
 
     def visit_true(self) -> List[Tuple[str, str, Any]]:
         return []  # Not supported

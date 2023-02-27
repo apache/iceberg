@@ -73,7 +73,7 @@ IS = CaselessKeyword("is")
 IN = CaselessKeyword("in")
 NULL = CaselessKeyword("null")
 NAN = CaselessKeyword("nan")
-STARTS_WITH = CaselessKeyword("like")
+LIKE = CaselessKeyword("like")
 
 identifier = Word(alphas, alphanums + "_$").set_results_name("identifier")
 column = delimited_list(identifier, delim=".", combine=True).set_results_name("column")
@@ -210,8 +210,8 @@ def _(result: ParseResults) -> BooleanExpression:
     return NotIn(result.column, result.literal_set)
 
 
-starts_with = column + STARTS_WITH + string
-not_starts_with = column + NOT + STARTS_WITH + string
+starts_with = column + LIKE + string
+not_starts_with = column + NOT + LIKE + string
 starts_check = starts_with | not_starts_with
 
 
