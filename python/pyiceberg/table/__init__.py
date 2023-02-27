@@ -32,7 +32,6 @@ from typing import (
     Tuple,
     TypeVar,
     Union,
-    Set,
 )
 
 from pydantic import Field
@@ -46,7 +45,12 @@ from pyiceberg.expressions import (
 )
 from pyiceberg.expressions.visitors import inclusive_projection
 from pyiceberg.io import FileIO, load_file_io
-from pyiceberg.manifest import DataFile, ManifestFile, files, ManifestContent, ManifestEntry
+from pyiceberg.manifest import (
+    DataFile,
+    ManifestContent,
+    ManifestFile,
+    files,
+)
 from pyiceberg.partitioning import PartitionSpec
 from pyiceberg.schema import Schema
 from pyiceberg.table.metadata import TableMetadata

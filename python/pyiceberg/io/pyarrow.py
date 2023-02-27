@@ -74,7 +74,7 @@ from pyiceberg.io import (
     OutputFile,
     OutputStream,
 )
-from pyiceberg.manifest import DataFileContent, ManifestFile
+from pyiceberg.manifest import DataFileContent
 from pyiceberg.schema import (
     PartnerAccessor,
     Schema,
@@ -491,7 +491,7 @@ def _file_to_table(
     projected_schema: Schema,
     projected_field_ids: Set[int],
     case_sensitive: bool,
-    positional_deletes: Optional[pa.ChunkedArray],
+    positional_deletes: Optional[Set[int]],
 ) -> pa.Table:
     _, path = PyArrowFileIO.parse_location(task.file.file_path)
 
@@ -533,14 +533,8 @@ def _file_to_table(
         if positional_deletes is not None:
             # When there are positional deletes, create a filter mask
             def generator() -> Generator[bool, None, None]:
-                itr = iter(positional_deletes)  # type: ignore
-                next_delete = next(itr)
                 for pos in range(len(arrow_table)):
-                    if pos == next_delete:
-                        yield True
-                        next_delete = next(itr)
-                    else:
-                        yield False
+                    yield pos in positional_deletes  # type: ignore
 
             mask = pa.array(generator(), type=pa.bool_())
             arrow_table = arrow_table.filter(mask)
@@ -589,17 +583,18 @@ def project_table(
             raise ValueError(f"Unknown file content: {task.file.content}")
 
     with ThreadPool() as pool:
-        positional_deletes_per_file: Dict[str, pa.ChunkedArray] = {}
+        positional_deletes_per_file: Dict[str, Set[int]] = {}
         if tasks_positional_deletes:
             # If there are any positional deletes, get those first
             for delete_files in pool.starmap(
                 func=_read_deletes,
                 iterable=[(fs, task.file.file_path) for task in tasks_positional_deletes],
             ):
-                for file, buffer in delete_files.items():
+                for file, array in delete_files.items():
                     if file in positional_deletes_per_file:
-                        raise ValueError(f"Duplicate deletes found for {file}")
-                    positional_deletes_per_file[file] = buffer
+                        positional_deletes_per_file[file] |= set(array)
+                    else:
+                        positional_deletes_per_file[file] = set(array)
 
         tables = pool.starmap(
             func=_file_to_table,
