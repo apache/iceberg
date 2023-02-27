@@ -46,19 +46,6 @@ def snapshot_with_properties() -> Snapshot:
     )
 
 
-SNAPSHOT_A_ID = 0xA
-SNAPSHOT_A_TIME = 1677222221000
-
-SNAPSHOT_B_ID = 0xB
-SNAPSHOT_B_TIME = 1677222222000
-
-SNAPSHOT_C_ID = 0xC
-SNAPSHOT_C_TIME = 1677222223000
-
-SNAPSHOT_D_ID = 0xD
-SNAPSHOT_D_TIME = 1677222224000
-
-
 def test_serialize_summary() -> None:
     assert Summary(Operation.APPEND).json() == """{"operation": "append"}"""
 
