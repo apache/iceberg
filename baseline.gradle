@@ -38,7 +38,6 @@ subprojects {
   }
   apply plugin: 'com.palantir.baseline-class-uniqueness'
   apply plugin: 'com.palantir.baseline-reproducibility'
-  apply plugin: 'com.palantir.baseline-exact-dependencies'
   apply plugin: 'com.palantir.baseline-release-compatibility'
   apply plugin: 'com.diffplug.spotless'
 
