@@ -302,7 +302,7 @@ data.writeTo("prod.db.table")
     .createOrReplace()
 ```
 
-You can specify an Iceberg table location such as the `LOCATION` clause in SQL by add the `location` paramter to the `tableProperty`:
+The Iceberg table location can also be specified by the `location` table property:
 
 ```scala
 data.writeTo("prod.db.table")
