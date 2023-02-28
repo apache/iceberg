@@ -36,15 +36,15 @@ import org.apache.iceberg.flink.sink.shuffle.statistics.DataStatisticsFactory;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 
 /**
- * Shuffle operator can help to improve data clustering based on the key.
+ * DataStatisticsOperator can help to improve data clustering based on the key.
  *
- * <p>Shuffle operator collects traffic distribution statistics. A custom partitioner shall be
- * attached to the shuffle operator output. The custom partitioner leverages the statistics to
+ * <p>DataStatisticsOperator collects traffic distribution statistics. A custom partitioner shall be
+ * attached to the DataStatisticsOperator output. The custom partitioner leverages the statistics to
  * shuffle record to improve data clustering while maintaining relative balanced traffic
  * distribution to downstream subtasks.
  */
-class ShuffleOperator<T, K> extends AbstractStreamOperator<ShuffleRecordWrapper<T, K>>
-    implements OneInputStreamOperator<T, ShuffleRecordWrapper<T, K>>, OperatorEventHandler {
+class DataStatisticsOperator<T, K> extends AbstractStreamOperator<DataStatisticsAndRecordWrapper<T, K>>
+    implements OneInputStreamOperator<T, DataStatisticsAndRecordWrapper<T, K>>, OperatorEventHandler {
   private static final long serialVersionUID = 1L;
 
   // keySelector will be used to generate key from data for collecting data statistics
@@ -55,7 +55,7 @@ class ShuffleOperator<T, K> extends AbstractStreamOperator<ShuffleRecordWrapper<
   private DataStatistics<K> globalStatistics;
   private ListState<DataStatistics<K>> globalStatisticsState;
 
-  public ShuffleOperator(
+  public DataStatisticsOperator(
       KeySelector<T, K> keySelector,
       OperatorEventGateway operatorEventGateway,
       DataStatisticsFactory<K> statisticsFactory) {
@@ -93,7 +93,7 @@ class ShuffleOperator<T, K> extends AbstractStreamOperator<ShuffleRecordWrapper<
   @Override
   public void open() throws Exception {
     if (!globalStatistics.isEmpty()) {
-      output.collect(new StreamRecord<>(ShuffleRecordWrapper.fromDataStatistics(globalStatistics)));
+      output.collect(new StreamRecord<>(DataStatisticsAndRecordWrapper.fromDataStatistics(globalStatistics)));
     }
   }
 
@@ -106,13 +106,13 @@ class ShuffleOperator<T, K> extends AbstractStreamOperator<ShuffleRecordWrapper<
   public void processElement(StreamRecord<T> streamRecord) throws Exception {
     final K key = keySelector.getKey(streamRecord.getValue());
     localStatistics.add(key);
-    output.collect(new StreamRecord<>(ShuffleRecordWrapper.fromRecord(streamRecord.getValue())));
+    output.collect(new StreamRecord<>(DataStatisticsAndRecordWrapper.fromRecord(streamRecord.getValue())));
   }
 
   @Override
   public void snapshotState(StateSnapshotContext context) throws Exception {
     long checkpointId = context.getCheckpointId();
-    LOG.debug("Taking shuffle operator snapshot for checkpoint {}", checkpointId);
+    LOG.debug("Taking data statistics operator snapshot for checkpoint {}", checkpointId);
 
     // Update globalStatisticsState with latest global statistics
     if (!globalStatistics.isEmpty()) {

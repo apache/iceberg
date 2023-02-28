@@ -24,36 +24,36 @@ import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
- * The wrapper class for record and data statistics. It is the only way for shuffle operator to send
+ * The wrapper class for data statistics and record. It is the only way for data statistics operator to send
  * global data statistics to custom partitioner to distribute data based on statistics
  *
- * <p>ShuffleRecordWrapper is sent from ShuffleOperator to partitioner. It contain either a record
- * or data statistics(globally aggregated). Once partitioner receives the weight, it will use that
- * to decide the coming record should send to which writer subtask. After shuffling, a filter and
- * mapper are required to filter out the data distribution weight, unwrap the object and extract the
- * original record type T.
+ * <p>DataStatisticsAndRecordWrapper is sent from {@link DataStatisticsOperator} to partitioner. It
+ * contains either data statistics(globally aggregated) or a record. Once partitioner receives the data
+ * statistics, it will use that to decide the coming record should send to which writer subtask. After
+ * shuffling, a filter and mapper are required to filter out the data distribution weight, unwrap the
+ * object and extract the original record type T.
  */
-public class ShuffleRecordWrapper<T, K> implements Serializable {
+public class DataStatisticsAndRecordWrapper<T, K> implements Serializable {
 
   private static final long serialVersionUID = 1L;
 
   private final DataStatistics<K> statistics;
   private final T record;
 
-  private ShuffleRecordWrapper(T record, DataStatistics<K> statistics) {
+  private DataStatisticsAndRecordWrapper(T record, DataStatistics<K> statistics) {
     Preconditions.checkArgument(
         record != null ^ statistics != null,
-        "A ShuffleRecordWrapper contain either record or statistics, not neither or both");
+        "A DataStatisticsAndRecordWrapper contain either statistics or record, not neither or both");
     this.statistics = statistics;
     this.record = record;
   }
 
-  static <T, K> ShuffleRecordWrapper<T, K> fromRecord(T record) {
-    return new ShuffleRecordWrapper<>(record, null);
+  static <T, K> DataStatisticsAndRecordWrapper<T, K> fromRecord(T record) {
+    return new DataStatisticsAndRecordWrapper<>(record, null);
   }
 
-  static <T, K> ShuffleRecordWrapper<T, K> fromDataStatistics(DataStatistics<K> statistics) {
-    return new ShuffleRecordWrapper<>(null, statistics);
+  static <T, K> DataStatisticsAndRecordWrapper<T, K> fromDataStatistics(DataStatistics<K> statistics) {
+    return new DataStatisticsAndRecordWrapper<>(null, statistics);
   }
 
   boolean hasDataStatistics() {

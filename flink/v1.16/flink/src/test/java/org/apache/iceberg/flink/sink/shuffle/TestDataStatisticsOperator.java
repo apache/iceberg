@@ -55,8 +55,8 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-public class TestShuffleOperator {
-  private ShuffleOperator<String, String> operator;
+public class TestDataStatisticsOperator {
+  private DataStatisticsOperator<String, String> operator;
 
   private Environment getTestingEnvironment() {
     return new StreamMockEnvironment(
@@ -83,7 +83,7 @@ public class TestShuffleOperator {
         };
     DataStatisticsFactory<String> dataStatisticsFactory = new MapDataStatisticsFactory<>();
 
-    this.operator = new ShuffleOperator<>(keySelector, mockGateway, dataStatisticsFactory);
+    this.operator = new DataStatisticsOperator<>(keySelector, mockGateway, dataStatisticsFactory);
     Environment env = getTestingEnvironment();
     this.operator.setup(
         new OneInputStreamTask<String, String>(env),
@@ -114,7 +114,7 @@ public class TestShuffleOperator {
 
   @Test
   public void testOperatorOutput() throws Exception {
-    try (OneInputStreamOperatorTestHarness<String, ShuffleRecordWrapper<String, String>>
+    try (OneInputStreamOperatorTestHarness<String, DataStatisticsAndRecordWrapper<String, String>>
         testHarness = createHarness(this.operator)) {
       testHarness.processElement(new StreamRecord<>("a"));
       testHarness.processElement(new StreamRecord<>("b"));
@@ -122,8 +122,8 @@ public class TestShuffleOperator {
 
       List<String> recordsOutput =
           testHarness.extractOutputValues().stream()
-              .filter(ShuffleRecordWrapper::hasRecord)
-              .map(ShuffleRecordWrapper::record)
+              .filter(DataStatisticsAndRecordWrapper::hasRecord)
+              .map(DataStatisticsAndRecordWrapper::record)
               .collect(Collectors.toList());
       assertThat(recordsOutput)
           .containsExactlyInAnyOrderElementsOf(ImmutableList.of("a", "b", "b"));
@@ -144,9 +144,9 @@ public class TestShuffleOperator {
         env, "test-operator", Collections.emptyList(), cancelStreamRegistry);
   }
 
-  private OneInputStreamOperatorTestHarness<String, ShuffleRecordWrapper<String, String>>
-      createHarness(final ShuffleOperator<String, String> operator) throws Exception {
-    OneInputStreamOperatorTestHarness<String, ShuffleRecordWrapper<String, String>> harness =
+  private OneInputStreamOperatorTestHarness<String, DataStatisticsAndRecordWrapper<String, String>>
+      createHarness(final DataStatisticsOperator<String, String> operator) throws Exception {
+    OneInputStreamOperatorTestHarness<String, DataStatisticsAndRecordWrapper<String, String>> harness =
         new OneInputStreamOperatorTestHarness<>(operator, 1, 1, 0);
     harness.setup();
     harness.open();
