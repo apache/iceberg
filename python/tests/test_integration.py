@@ -68,6 +68,7 @@ def test_pyarrow_nan_rewritten(table_test_null_nan_rewritten: Table) -> None:
 
 
 @pytest.mark.integration
+@pytest.mark.skip(reason="Fixing issues with NaN's: https://github.com/apache/arrow/issues/34162")
 def test_pyarrow_not_nan_count(table_test_null_nan: Table) -> None:
     not_nan = table_test_null_nan.scan(row_filter=NotNaN("col_numeric"), selected_fields=("idx",)).to_arrow()
     assert len(not_nan) == 2
