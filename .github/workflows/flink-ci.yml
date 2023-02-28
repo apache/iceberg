@@ -41,7 +41,6 @@ on:
     - 'spark/**'
     - 'pig/**'
     - 'python/**'
-    - 'python_legacy/**'
     - 'docs/**'
     - 'open-api/**'
     - 'format/**'

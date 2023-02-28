@@ -39,7 +39,6 @@ on:
     - 'flink/**'
     - 'pig/**'
     - 'python/**'
-    - 'python_legacy/**'
     - 'docs/**'
     - 'open-api/**'
     - 'format/**'
