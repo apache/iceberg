@@ -32,7 +32,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 import org.apache.iceberg.AllManifestsTable;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.ContentFile;
@@ -275,9 +274,12 @@ abstract class BaseSparkAction<ThisT> {
     return summary;
   }
 
-  private static void deleteFileGroup(List<FileInfo> fileGroup, SupportsBulkOperations io, DeleteSummary summary) {
-    ImmutableListMultimap<String, FileInfo> filesByType = Multimaps.index(fileGroup, FileInfo::getType);
-    ListMultimap<String, String> pathsByType = Multimaps.transformValues(filesByType, FileInfo::getPath);
+  private static void deleteFileGroup(
+      List<FileInfo> fileGroup, SupportsBulkOperations io, DeleteSummary summary) {
+    ImmutableListMultimap<String, FileInfo> filesByType =
+        Multimaps.index(fileGroup, FileInfo::getType);
+    ListMultimap<String, String> pathsByType =
+        Multimaps.transformValues(filesByType, FileInfo::getPath);
     for (Map.Entry<String, Collection<String>> entry : pathsByType.asMap().entrySet()) {
       String type = entry.getKey();
       Collection<String> paths = entry.getValue();

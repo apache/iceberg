@@ -196,8 +196,7 @@ public class HadoopFileIO
     if (executorService == null) {
       synchronized (HadoopFileIO.class) {
         if (executorService == null) {
-          executorService =
-              ThreadPools.newWorkerPool(DELETE_FILE_POOL_NAME, deleteThreads());
+          executorService = ThreadPools.newWorkerPool(DELETE_FILE_POOL_NAME, deleteThreads());
         }
       }
     }

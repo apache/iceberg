@@ -74,9 +74,8 @@ public interface DeleteOrphanFiles extends Action<DeleteOrphanFiles, DeleteOrpha
   /**
    * Passes an alternative executor service that will be used for removing orphaned files. This
    * service will only be used if a custom delete function is provided by {@link
-   * #deleteWith(Consumer)} or if the FileIO does not {@link
-   * SupportsBulkOperations support bulk deletes}. Otherwise, parallelism
-   * should be controlled by the IO specific {@link
+   * #deleteWith(Consumer)} or if the FileIO does not {@link SupportsBulkOperations support bulk
+   * deletes}. Otherwise, parallelism should be controlled by the IO specific {@link
    * SupportsBulkOperations#deleteFiles(Iterable) deleteFiles} method.
    *
    * <p>If this method is not called and bulk deletes are not supported, orphaned manifests and data

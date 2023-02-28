@@ -259,11 +259,11 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
       }
 
       Tasks.foreach(orphanFiles)
-              .noRetry()
-              .executeWith(deleteExecutorService)
-              .suppressFailureWhenFinished()
-              .onFailure((file, exc) -> LOG.warn("Failed to delete file: {}", file, exc))
-              .run(deleteFunc::accept);
+          .noRetry()
+          .executeWith(deleteExecutorService)
+          .suppressFailureWhenFinished()
+          .onFailure((file, exc) -> LOG.warn("Failed to delete file: {}", file, exc))
+          .run(deleteFunc::accept);
     }
 
     return new BaseDeleteOrphanFilesActionResult(orphanFiles);

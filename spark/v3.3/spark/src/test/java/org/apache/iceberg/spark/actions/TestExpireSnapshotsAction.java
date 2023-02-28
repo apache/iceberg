@@ -75,68 +75,56 @@ public class TestExpireSnapshotsAction extends SparkTestBase {
 
   private static final PartitionSpec SPEC = PartitionSpec.builderFor(SCHEMA).identity("c1").build();
 
-  @Rule public TemporaryFolder temp = new TemporaryFolder();
-
-  DataFile FILE_A;
-  DataFile FILE_B;
-  DataFile FILE_C;
-  DataFile FILE_D;
-  DeleteFile FILE_A_POS_DELETES;
-  DeleteFile FILE_A_EQ_DELETES;
-
-  private DataFile
-
+  static final DataFile FILE_A =
       DataFiles.builder(SPEC)
-          .withPath(temp.toString() + "/path/to/data-a.parquet")
+          .withPath("/path/to/data-a.parquet")
           .withFileSizeInBytes(10)
           .withPartitionPath("c1=0") // easy way to set partition data for now
           .withRecordCount(1)
           .build();
-  final DataFile FILE_B =
+  static final DataFile FILE_B =
       DataFiles.builder(SPEC)
-          .withPath(temp.toString() + "/path/to/data-b.parquet")
+          .withPath("/path/to/data-b.parquet")
           .withFileSizeInBytes(10)
           .withPartitionPath("c1=1") // easy way to set partition data for now
           .withRecordCount(1)
           .build();
-  final DataFile FILE_C =
+  static final DataFile FILE_C =
       DataFiles.builder(SPEC)
-          .withPath(temp.toString() + "/path/to/data-c.parquet")
+          .withPath("/path/to/data-c.parquet")
           .withFileSizeInBytes(10)
           .withPartitionPath("c1=2") // easy way to set partition data for now
           .withRecordCount(1)
           .build();
-  final DataFile FILE_D =
+  static final DataFile FILE_D =
       DataFiles.builder(SPEC)
-          .withPath(temp.toString() + "/path/to/data-d.parquet")
+          .withPath("/path/to/data-d.parquet")
           .withFileSizeInBytes(10)
           .withPartitionPath("c1=3") // easy way to set partition data for now
           .withRecordCount(1)
           .build();
-  final DeleteFile FILE_A_POS_DELETES =
+  static final DeleteFile FILE_A_POS_DELETES =
       FileMetadata.deleteFileBuilder(SPEC)
           .ofPositionDeletes()
-          .withPath(temp.toString() + "/path/to/data-a-pos-deletes.parquet")
+          .withPath("/path/to/data-a-pos-deletes.parquet")
           .withFileSizeInBytes(10)
           .withPartitionPath("c1=0") // easy way to set partition data for now
           .withRecordCount(1)
           .build();
-  final DeleteFile FILE_A_EQ_DELETES =
+  static final DeleteFile FILE_A_EQ_DELETES =
       FileMetadata.deleteFileBuilder(SPEC)
           .ofEqualityDeletes()
-          .withPath(temp.toString() + "/path/to/data-a-eq-deletes.parquet")
+          .withPath("/path/to/data-a-eq-deletes.parquet")
           .withFileSizeInBytes(10)
           .withPartitionPath("c1=0") // easy way to set partition data for now
           .withRecordCount(1)
           .build();
+
+  @Rule public TemporaryFolder temp = new TemporaryFolder();
 
   private File tableDir;
   private String tableLocation;
   private Table table;
-
-  private createBackingFiles(List<DataFile>... files){
-    temp.
-  }
 
   @Before
   public void setupTableLocation() throws Exception {
@@ -1363,10 +1351,5 @@ public class TestExpireSnapshotsAction extends SparkTestBase {
     Assert.assertFalse(deletedFiles.contains(FILE_B.path().toString()));
     Assert.assertFalse(deletedFiles.contains(FILE_C.path().toString()));
     Assert.assertFalse(deletedFiles.contains(FILE_D.path().toString()));
-  }
-
-  @Test
-  public void testNonCustomDelete() {
-
   }
 }
