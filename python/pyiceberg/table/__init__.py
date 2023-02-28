@@ -43,7 +43,7 @@ from pyiceberg.expressions import (
     parser,
     visitors,
 )
-from pyiceberg.expressions.visitors import inclusive_projection
+from pyiceberg.expressions.visitors import _InclusiveMetricsEvaluator, inclusive_projection
 from pyiceberg.io import FileIO, load_file_io
 from pyiceberg.manifest import (
     DataFile,
@@ -305,12 +305,16 @@ class FileScanTask(ScanTask):
 
 
 def _open_manifest(
-    io: FileIO, manifest: ManifestFile, partition_filter: Optional[Callable[[DataFile], bool]] = None
+    io: FileIO,
+    manifest: ManifestFile,
+    partition_filter: Callable[[DataFile], bool],
+    metrics_evaluator: Callable[[DataFile], bool],
 ) -> List[FileScanTask]:
     result_manifests = files(io.new_input(manifest.manifest_path))
     if partition_filter is not None:
         result_manifests = filter(partition_filter, result_manifests)
-    return [FileScanTask(file) for file in result_manifests]
+    return [FileScanTask(file) for file in result_manifests if metrics_evaluator(file)]
+
 
 
 class DataScan(TableScan):
@@ -368,7 +372,6 @@ class DataScan(TableScan):
         # this filter depends on the partition spec used to write the manifest file
 
         partition_evaluators: Dict[int, Callable[[DataFile], bool]] = KeyDefaultDict(self._build_partition_evaluator)
-
         data_files = []
         delete_files = []
 
@@ -378,11 +381,20 @@ class DataScan(TableScan):
             elif manifest.content == ManifestContent.DELETES and (manifest.has_added_files() or manifest.has_existing_files()):
                 delete_files.append(manifest)
 
+        metrics_evaluator = _InclusiveMetricsEvaluator(self.table.schema(), self.row_filter, self.case_sensitive).eval
         with ThreadPool() as pool:
             return chain(
                 *pool.starmap(
                     func=_open_manifest,
-                    iterable=[(io, manifest, partition_evaluators[manifest.partition_spec_id]) for manifest in manifests],
+                    iterable=[
+                        (
+                            io,
+                            manifest,
+                            partition_evaluators[manifest.partition_spec_id],
+                            metrics_evaluator,
+                        )
+                        for manifest in manifests
+                    ],
                 )
             )
 

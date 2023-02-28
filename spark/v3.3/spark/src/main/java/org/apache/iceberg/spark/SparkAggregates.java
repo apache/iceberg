@@ -48,7 +48,7 @@ public class SparkAggregates {
         case COUNT:
           Count countAgg = (Count) aggregate;
           if (countAgg.isDistinct()) {
-            // manifest file doesn't have count distinct so this can't be converted to push down
+            // manifest file doesn't have count distinct so this can't be pushed down
             return null;
           }
 
@@ -57,8 +57,10 @@ public class SparkAggregates {
           } else {
             return null;
           }
+
         case COUNT_STAR:
           return Expressions.countStar();
+
         case MAX:
           Max maxAgg = (Max) aggregate;
           if (maxAgg.column() instanceof NamedReference) {
@@ -66,6 +68,7 @@ public class SparkAggregates {
           } else {
             return null;
           }
+
         case MIN:
           Min minAgg = (Min) aggregate;
           if (minAgg.column() instanceof NamedReference) {
@@ -75,6 +78,7 @@ public class SparkAggregates {
           }
       }
     }
+
     return null;
   }
 }

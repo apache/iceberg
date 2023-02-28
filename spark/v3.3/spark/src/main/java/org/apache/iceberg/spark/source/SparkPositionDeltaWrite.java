@@ -26,6 +26,7 @@ import static org.apache.spark.sql.connector.write.RowLevelOperation.Command.UPD
 import java.io.IOException;
 import java.io.Serializable;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
@@ -56,6 +57,7 @@ import org.apache.iceberg.io.OutputFileFactory;
 import org.apache.iceberg.io.PartitioningWriter;
 import org.apache.iceberg.io.PositionDeltaWriter;
 import org.apache.iceberg.io.WriteResult;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.CommitMetadata;
 import org.apache.iceberg.spark.SparkSchemaUtil;
@@ -63,8 +65,6 @@ import org.apache.iceberg.spark.SparkWriteConf;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.CharSequenceSet;
 import org.apache.iceberg.util.StructProjection;
-import org.apache.iceberg.util.Tasks;
-import org.apache.iceberg.util.ThreadPools;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.broadcast.Broadcast;
 import org.apache.spark.sql.SparkSession;
@@ -141,14 +141,6 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
   @Override
   public DeltaBatchWrite toBatch() {
     return new PositionDeltaBatchWrite();
-  }
-
-  private static <T extends ContentFile<T>> void cleanFiles(FileIO io, Iterable<T> files) {
-    Tasks.foreach(files)
-        .executeWith(ThreadPools.getWorkerPool())
-        .throwFailureWhenFinished()
-        .noRetry()
-        .run(file -> io.deleteFile(file.path().toString()));
   }
 
   private class PositionDeltaBatchWrite implements DeltaBatchWrite {
@@ -241,17 +233,25 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
 
     @Override
     public void abort(WriterCommitMessage[] messages) {
-      if (!cleanupOnAbort) {
-        return;
+      if (cleanupOnAbort) {
+        SparkCleanupUtil.deleteFiles("job abort", table.io(), files(messages));
+      } else {
+        LOG.warn("Skipping cleanup of written files");
       }
+    }
+
+    private List<ContentFile<?>> files(WriterCommitMessage[] messages) {
+      List<ContentFile<?>> files = Lists.newArrayList();
 
       for (WriterCommitMessage message : messages) {
         if (message != null) {
           DeltaTaskCommit taskCommit = (DeltaTaskCommit) message;
-          cleanFiles(table.io(), Arrays.asList(taskCommit.dataFiles()));
-          cleanFiles(table.io(), Arrays.asList(taskCommit.deleteFiles()));
+          files.addAll(Arrays.asList(taskCommit.dataFiles()));
+          files.addAll(Arrays.asList(taskCommit.deleteFiles()));
         }
       }
+
+      return files;
     }
 
     private void commitOperation(SnapshotUpdate<?> operation, String description) {
@@ -462,7 +462,7 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
       close();
 
       DeleteWriteResult result = delegate.result();
-      cleanFiles(io, result.deleteFiles());
+      SparkCleanupUtil.deleteTaskFiles(io, result.deleteFiles());
     }
 
     @Override
@@ -541,8 +541,14 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
       close();
 
       WriteResult result = delegate.result();
-      cleanFiles(io, Arrays.asList(result.dataFiles()));
-      cleanFiles(io, Arrays.asList(result.deleteFiles()));
+      SparkCleanupUtil.deleteTaskFiles(io, files(result));
+    }
+
+    private List<ContentFile<?>> files(WriteResult result) {
+      List<ContentFile<?>> files = Lists.newArrayList();
+      files.addAll(Arrays.asList(result.dataFiles()));
+      files.addAll(Arrays.asList(result.deleteFiles()));
+      return files;
     }
 
     @Override

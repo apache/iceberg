@@ -30,6 +30,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.transforms.Transforms;
@@ -121,6 +122,22 @@ public class ExpressionUtil {
   }
 
   /**
+   * Returns whether an expression selects whole partitions for all partition specs in a table.
+   *
+   * <p>For example, ts &lt; '2021-03-09T10:00:00.000' selects whole partitions in an hourly spec,
+   * [hours(ts)], but does not select whole partitions in a daily spec, [days(ts)].
+   *
+   * @param expr an unbound expression
+   * @param table a table
+   * @param caseSensitive whether expression binding should be case sensitive
+   * @return true if the expression will select whole partitions in all table specs
+   */
+  public static boolean selectsPartitions(Expression expr, Table table, boolean caseSensitive) {
+    return table.specs().values().stream()
+        .allMatch(spec -> selectsPartitions(expr, spec, caseSensitive));
+  }
+
+  /**
    * Returns whether an expression selects whole partitions for a partition spec.
    *
    * <p>For example, ts &lt; '2021-03-09T10:00:00.000' selects whole partitions in an hourly spec,
@@ -137,6 +154,26 @@ public class ExpressionUtil {
         Projections.strict(spec, caseSensitive).project(expr),
         spec.partitionType(),
         caseSensitive);
+  }
+
+  public static String describe(Term term) {
+    if (term instanceof UnboundTransform) {
+      return ((UnboundTransform<?, ?>) term).transform()
+          + "("
+          + describe(((UnboundTransform<?, ?>) term).ref())
+          + ")";
+    } else if (term instanceof BoundTransform) {
+      return ((BoundTransform<?, ?>) term).transform()
+          + "("
+          + describe(((BoundTransform<?, ?>) term).ref())
+          + ")";
+    } else if (term instanceof NamedReference) {
+      return ((NamedReference<?>) term).name();
+    } else if (term instanceof BoundReference) {
+      return ((BoundReference<?>) term).name();
+    } else {
+      throw new UnsupportedOperationException("Unsupported term: " + term);
+    }
   }
 
   private static class ExpressionSanitizer
@@ -254,19 +291,9 @@ public class ExpressionUtil {
       throw new UnsupportedOperationException("Cannot sanitize bound predicate: " + pred);
     }
 
-    public String termToString(UnboundTerm<?> term) {
-      if (term instanceof UnboundTransform) {
-        return ((UnboundTransform<?, ?>) term).transform() + "(" + termToString(term.ref()) + ")";
-      } else if (term instanceof NamedReference) {
-        return ((NamedReference<?>) term).name();
-      } else {
-        throw new UnsupportedOperationException("Unsupported term: " + term);
-      }
-    }
-
     @Override
     public <T> String predicate(UnboundPredicate<T> pred) {
-      String term = termToString(pred.term());
+      String term = describe(pred.term());
       switch (pred.op()) {
         case IS_NULL:
           return term + " IS NULL";

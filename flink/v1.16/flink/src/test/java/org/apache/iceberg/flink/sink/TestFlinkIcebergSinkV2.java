@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.flink.sink;
 
+import java.util.List;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.test.util.MiniClusterWithClientResource;
@@ -27,6 +28,7 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.data.Record;
 import org.apache.iceberg.flink.HadoopCatalogResource;
 import org.apache.iceberg.flink.MiniClusterResource;
 import org.apache.iceberg.flink.SimpleDataUtil;
@@ -153,6 +155,25 @@ public class TestFlinkIcebergSinkV2 extends TestFlinkIcebergSinkV2Base {
   @Test
   public void testChangeLogOnIdKey() throws Exception {
     testChangeLogOnIdKey(SnapshotRef.MAIN_BRANCH);
+  }
+
+  @Test
+  public void testUpsertOnlyDeletesOnDataKey() throws Exception {
+    List<List<Row>> elementsPerCheckpoint =
+        ImmutableList.of(
+            ImmutableList.of(row("+I", 1, "aaa")),
+            ImmutableList.of(row("-D", 1, "aaa"), row("-D", 2, "bbb")));
+
+    List<List<Record>> expectedRecords =
+        ImmutableList.of(ImmutableList.of(record(1, "aaa")), ImmutableList.of());
+
+    testChangeLogs(
+        ImmutableList.of("data"),
+        row -> row.getField(ROW_DATA_POS),
+        true,
+        elementsPerCheckpoint,
+        expectedRecords,
+        SnapshotRef.MAIN_BRANCH);
   }
 
   @Test

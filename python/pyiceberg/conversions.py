@@ -38,6 +38,7 @@ from typing import (
     Union,
 )
 
+from pyiceberg.typedef import L
 from pyiceberg.types import (
     BinaryType,
     BooleanType,
@@ -241,7 +242,7 @@ def _(primitive_type: DecimalType, value: Decimal) -> bytes:
 
 
 @singledispatch
-def from_bytes(primitive_type: PrimitiveType, b: bytes) -> Union[bool, bytes, Decimal, float, int, str, uuid.UUID]:
+def from_bytes(primitive_type: PrimitiveType, b: bytes) -> L:
     """A generic function which converts bytes to a built-in python value
 
     Args:

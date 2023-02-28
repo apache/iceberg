@@ -434,7 +434,7 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
     createDatePartitionedFileTable("parquet");
 
     String createIceberg =
-        "CREATE TABLE %s (id Integer, name String, dept String, date Date) USING iceberg PARTITIONED BY (date)";
+        "CREATE TABLE %s (id Integer, name String, date Date) USING iceberg PARTITIONED BY (date)";
 
     sql(createIceberg, tableName);
 
@@ -447,10 +447,29 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
 
     assertEquals(
         "Iceberg table contains correct data",
-        sql(
-            "SELECT id, name, dept, date FROM %s WHERE date = '2021-01-01' ORDER BY id",
-            sourceTableName),
-        sql("SELECT id, name, dept, date FROM %s ORDER BY id", tableName));
+        sql("SELECT id, name, date FROM %s WHERE date = '2021-01-01' ORDER BY id", sourceTableName),
+        sql("SELECT id, name, date FROM %s ORDER BY id", tableName));
+  }
+
+  @Test
+  public void addDataPartitionedVerifyPartitionTypeInferredCorrectly() {
+    createTableWithTwoPartitions("parquet");
+
+    String createIceberg =
+        "CREATE TABLE %s (id Integer, name String, date Date, dept String) USING iceberg PARTITIONED BY (date, dept)";
+
+    sql(createIceberg, tableName);
+
+    sql(
+        "CALL %s.system.add_files('%s', '`parquet`.`%s`', map('date', '2021-01-01'))",
+        catalogName, tableName, fileTableDir.getAbsolutePath());
+
+    String sqlFormat =
+        "SELECT id, name, dept, date FROM %s WHERE date = '2021-01-01' and dept= '01' ORDER BY id";
+    assertEquals(
+        "Iceberg table contains correct data",
+        sql(sqlFormat, sourceTableName),
+        sql(sqlFormat, tableName));
   }
 
   @Test
@@ -942,8 +961,8 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
   private static final StructField[] dateStruct = {
     new StructField("id", DataTypes.IntegerType, true, Metadata.empty()),
     new StructField("name", DataTypes.StringType, true, Metadata.empty()),
+    new StructField("ts", DataTypes.DateType, true, Metadata.empty()),
     new StructField("dept", DataTypes.StringType, true, Metadata.empty()),
-    new StructField("ts", DataTypes.DateType, true, Metadata.empty())
   };
 
   private static java.sql.Date toDate(String value) {
@@ -954,10 +973,10 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
       spark
           .createDataFrame(
               ImmutableList.of(
-                  RowFactory.create(1, "John Doe", "hr", toDate("2021-01-01")),
-                  RowFactory.create(2, "Jane Doe", "hr", toDate("2021-01-01")),
-                  RowFactory.create(3, "Matt Doe", "hr", toDate("2021-01-02")),
-                  RowFactory.create(4, "Will Doe", "facilities", toDate("2021-01-02"))),
+                  RowFactory.create(1, "John Doe", toDate("2021-01-01"), "01"),
+                  RowFactory.create(2, "Jane Doe", toDate("2021-01-01"), "01"),
+                  RowFactory.create(3, "Matt Doe", toDate("2021-01-02"), "02"),
+                  RowFactory.create(4, "Will Doe", toDate("2021-01-02"), "02")),
               new StructType(dateStruct))
           .repartition(2);
 
@@ -1041,8 +1060,18 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
 
   private void createDatePartitionedFileTable(String format) {
     String createParquet =
-        "CREATE TABLE %s (id Integer, name String, dept String, date Date) USING %s "
+        "CREATE TABLE %s (id Integer, name String, date Date) USING %s "
             + "PARTITIONED BY (date) LOCATION '%s'";
+
+    sql(createParquet, sourceTableName, format, fileTableDir.getAbsolutePath());
+
+    dateDF.select("id", "name", "ts").write().insertInto(sourceTableName);
+  }
+
+  private void createTableWithTwoPartitions(String format) {
+    String createParquet =
+        "CREATE TABLE %s (id Integer, name String, date Date, dept String) USING %s "
+            + "PARTITIONED BY (date, dept) LOCATION '%s'";
 
     sql(createParquet, sourceTableName, format, fileTableDir.getAbsolutePath());
 

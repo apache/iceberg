@@ -616,8 +616,10 @@ def project_table(
 
     if len(tables) > 1:
         return pa.concat_tables(tables)
-    else:
+    elif len(tables) == 1:
         return tables[0]
+    else:
+        return pa.Table.from_batches([], schema=schema_to_pyarrow(projected_schema))
 
 
 def to_requested_schema(requested_schema: Schema, file_schema: Schema, table: pa.Table) -> pa.Table:

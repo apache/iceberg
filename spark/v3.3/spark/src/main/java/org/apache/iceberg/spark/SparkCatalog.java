@@ -24,11 +24,13 @@ import static org.apache.iceberg.TableProperties.GC_ENABLED_DEFAULT;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Stream;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.CachingCatalog;
 import org.apache.iceberg.CatalogProperties;
@@ -37,6 +39,7 @@ import org.apache.iceberg.EnvironmentContext;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.catalog.Catalog;
@@ -105,6 +108,8 @@ public class SparkCatalog extends BaseCatalog {
   private static final Splitter COMMA = Splitter.on(",");
   private static final Pattern AT_TIMESTAMP = Pattern.compile("at_timestamp_(\\d+)");
   private static final Pattern SNAPSHOT_ID = Pattern.compile("snapshot_id_(\\d+)");
+  private static final Pattern BRANCH = Pattern.compile("branch_(.*)");
+  private static final Pattern TAG = Pattern.compile("tag_(.*)");
 
   private String catalogName = null;
   private Catalog icebergCatalog = null;
@@ -652,6 +657,22 @@ public class SparkCatalog extends BaseCatalog {
         return new SparkTable(table, snapshotId, !cacheEnabled);
       }
 
+      Matcher branch = BRANCH.matcher(ident.name());
+      if (branch.matches()) {
+        Snapshot branchSnapshot = table.snapshot(branch.group(1));
+        if (branchSnapshot != null) {
+          return new SparkTable(table, branchSnapshot.snapshotId(), !cacheEnabled);
+        }
+      }
+
+      Matcher tag = TAG.matcher(ident.name());
+      if (tag.matches()) {
+        Snapshot tagSnapshot = table.snapshot(tag.group(1));
+        if (tagSnapshot != null) {
+          return new SparkTable(table, tagSnapshot.snapshotId(), !cacheEnabled);
+        }
+      }
+
       // the name wasn't a valid snapshot selector and did not point to the changelog
       // throw the original exception
       throw e;
@@ -676,6 +697,8 @@ public class SparkCatalog extends BaseCatalog {
     String metadataTableName = null;
     Long asOfTimestamp = null;
     Long snapshotId = null;
+    String branch = null;
+    String tag = null;
     boolean isChangelog = false;
 
     for (String meta : parsed.second()) {
@@ -698,13 +721,28 @@ public class SparkCatalog extends BaseCatalog {
       Matcher id = SNAPSHOT_ID.matcher(meta);
       if (id.matches()) {
         snapshotId = Long.parseLong(id.group(1));
+        continue;
+      }
+
+      Matcher branchRef = BRANCH.matcher(meta);
+      if (branchRef.matches()) {
+        branch = branchRef.group(1);
+        continue;
+      }
+
+      Matcher tagRef = TAG.matcher(meta);
+      if (tagRef.matches()) {
+        tag = tagRef.group(1);
       }
     }
 
     Preconditions.checkArgument(
-        asOfTimestamp == null || snapshotId == null,
-        "Cannot specify both snapshot-id and as-of-timestamp: %s",
-        ident.location());
+        Stream.of(snapshotId, asOfTimestamp, branch, tag).filter(Objects::nonNull).count() <= 1,
+        "Can specify only one of snapshot-id (%s), as-of-timestamp (%s), branch (%s), tag (%s)",
+        snapshotId,
+        asOfTimestamp,
+        branch,
+        tag);
 
     Preconditions.checkArgument(
         !isChangelog || (snapshotId == null && asOfTimestamp == null),
@@ -719,6 +757,18 @@ public class SparkCatalog extends BaseCatalog {
     } else if (asOfTimestamp != null) {
       long snapshotIdAsOfTime = SnapshotUtil.snapshotIdAsOfTime(table, asOfTimestamp);
       return new SparkTable(table, snapshotIdAsOfTime, !cacheEnabled);
+
+    } else if (branch != null) {
+      Snapshot branchSnapshot = table.snapshot(branch);
+      Preconditions.checkArgument(
+          branchSnapshot != null, "Cannot find snapshot associated with branch name: %s", branch);
+      return new SparkTable(table, branchSnapshot.snapshotId(), !cacheEnabled);
+
+    } else if (tag != null) {
+      Snapshot tagSnapshot = table.snapshot(tag);
+      Preconditions.checkArgument(
+          tagSnapshot != null, "Cannot find snapshot associated with tag name: %s", tag);
+      return new SparkTable(table, tagSnapshot.snapshotId(), !cacheEnabled);
 
     } else {
       return new SparkTable(table, snapshotId, !cacheEnabled);
