@@ -73,7 +73,6 @@ public class BaseTransaction implements Transaction {
   private TableMetadata current;
   private boolean hasLastOpCommitted;
   private final MetricsReporter reporter;
-  private boolean shouldRollbackCompaction;
 
   BaseTransaction(
       String tableName, TableOperations ops, TransactionType type, TableMetadata start) {

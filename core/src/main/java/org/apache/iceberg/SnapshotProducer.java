@@ -220,13 +220,16 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
     try {
       validate(base, parentSnapshot);
     } catch (ValidationException ve) {
-      parentSnapshotId = snapshotIdToRollbackToOnConflict(parentSnapshotId);
-      // if no snapshot is found, so that roll backing to it avoids conflicts,
-      // then re-throw caught exception
-      if (parentSnapshotId == null) {
+      if (shouldRollbackReplaceOnConflict()) {
+        parentSnapshotId = snapshotIdToRollbackToOnConflict(parentSnapshotId);
+        // re-throw the validation exception, if no snapshot found.
+        if (parentSnapshotId == null) {
+          throw ve;
+        }
+        parentSnapshot = base.snapshot(parentSnapshotId);
+      } else {
         throw ve;
       }
-      parentSnapshot = base.snapshot(parentSnapshotId);
     }
 
     List<ManifestFile> manifests = apply(base, parentSnapshot);
@@ -631,43 +634,41 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
 
   private Long snapshotIdToRollbackToOnConflict(Long parentSnapshotId) {
     Long newParentSnapshotId = parentSnapshotId;
-    if (shouldRollbackReplaceOnConflict()) {
-      // add a set snapshot op on top of base to roll back to parent snapshot
-      boolean isCommitSuccessfullyApplied = false;
-      // Update parentSnapshot to it's grandParent
-      // provided parentSnapshot is of type replace and never rollback beyond startingSnapshotId
-      while (newParentSnapshotId != null
-          && DataOperations.REPLACE.equals(base.snapshot(newParentSnapshotId).operation())
-          && !newParentSnapshotId.equals(startingSnapshotId())) {
-        // create a tempTableOperation to pass base with rollback to validate of update
-        TableOperations tempTableOps = ops.temp(base);
-        newParentSnapshotId = base.snapshot(newParentSnapshotId).parentId();
-        if (newParentSnapshotId == null) {
-          return null;
-        }
-        Snapshot parentSnapshot = base.snapshot(newParentSnapshotId);
-
-        SetSnapshotOperation setSnapshotOp = new SetSnapshotOperation(tempTableOps);
-        setSnapshotOp.rollbackTo(newParentSnapshotId).commit();
-        try {
-          validate(tempTableOps.current(), parentSnapshot);
-          isCommitSuccessfullyApplied = true;
-        } catch (ValidationException validationException) {
-          // swallow the exception for re-trying
-        }
-      }
-
-      if (!isCommitSuccessfullyApplied) {
+    // add a set snapshot op on top of base to roll back to parent snapshot
+    boolean isCommitSuccessfullyApplied = false;
+    // Update parentSnapshot to it's grandParent
+    // provided parentSnapshot is of type replace and never rollback beyond startingSnapshotId
+    while (newParentSnapshotId != null
+        && DataOperations.REPLACE.equals(base.snapshot(newParentSnapshotId).operation())
+        && !newParentSnapshotId.equals(startingSnapshotId())) {
+      // create a tempTableOperation to pass base with rollback to validate of update
+      TableOperations tempTableOps = ops.temp(base);
+      newParentSnapshotId = base.snapshot(newParentSnapshotId).parentId();
+      if (newParentSnapshotId == null) {
         return null;
       }
+      Snapshot parentSnapshot = base.snapshot(newParentSnapshotId);
 
-      return newParentSnapshotId;
-    } else {
+      SetSnapshotOperation setSnapshotOp = new SetSnapshotOperation(tempTableOps);
+      setSnapshotOp.rollbackTo(newParentSnapshotId).commit();
+      try {
+        validate(tempTableOps.current(), parentSnapshot);
+        isCommitSuccessfullyApplied = true;
+      } catch (ValidationException validationException) {
+        // swallow the exception for re-trying
+        LOG.info(
+            "Rollback to {} and commit still failed", newParentSnapshotId, validationException);
+      }
+    }
+
+    if (!isCommitSuccessfullyApplied) {
       return null;
     }
+
+    return newParentSnapshotId;
   }
 
-  private Boolean shouldRollbackReplaceOnConflict() {
+  private boolean shouldRollbackReplaceOnConflict() {
     return PropertyUtil.propertyAsBoolean(
         base.properties(),
         TableProperties.COMMIT_ROLLBACK_REPLACE_ON_CONFLICT_ENABLED,
