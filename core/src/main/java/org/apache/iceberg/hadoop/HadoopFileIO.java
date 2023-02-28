@@ -51,7 +51,8 @@ public class HadoopFileIO
     implements FileIO, HadoopConfigurable, SupportsPrefixOperations, SupportsBulkOperations {
 
   private static final Logger LOG = LoggerFactory.getLogger(HadoopFileIO.class);
-  private static final String DELETE_FILE_PARALLELISM = "iceberg.hadoop.delete_file_parallelism";
+  private static final String DELETE_FILE_PARALLELISM = "iceberg.hadoop.delete-file-parallelism";
+  private static final String DELETE_FILE_POOL_NAME = "iceberg-hadoopfileio-delete";
   private static final int DEFAULT_DELETE_CORE_MULTIPLE = 4;
   private static volatile ExecutorService executorService;
 
@@ -196,7 +197,7 @@ public class HadoopFileIO
       synchronized (HadoopFileIO.class) {
         if (executorService == null) {
           executorService =
-              ThreadPools.newWorkerPool("iceberg-hadoopfileio-delete", deleteThreads());
+              ThreadPools.newWorkerPool(DELETE_FILE_POOL_NAME, deleteThreads());
         }
       }
     }

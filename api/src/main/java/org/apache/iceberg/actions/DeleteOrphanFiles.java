@@ -22,6 +22,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
+import org.apache.iceberg.io.SupportsBulkOperations;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
@@ -74,9 +75,9 @@ public interface DeleteOrphanFiles extends Action<DeleteOrphanFiles, DeleteOrpha
    * Passes an alternative executor service that will be used for removing orphaned files. This
    * service will only be used if a custom delete function is provided by {@link
    * #deleteWith(Consumer)} or if the FileIO does not {@link
-   * org.apache.iceberg.io.SupportsBulkOperations support bulk deletes}. Otherwise, parallelism
+   * SupportsBulkOperations support bulk deletes}. Otherwise, parallelism
    * should be controlled by the IO specific {@link
-   * org.apache.iceberg.io.SupportsBulkOperations#deleteFiles(Iterable) deleteFiles} method.
+   * SupportsBulkOperations#deleteFiles(Iterable) deleteFiles} method.
    *
    * <p>If this method is not called and bulk deletes are not supported, orphaned manifests and data
    * files will still be deleted in the current thread.

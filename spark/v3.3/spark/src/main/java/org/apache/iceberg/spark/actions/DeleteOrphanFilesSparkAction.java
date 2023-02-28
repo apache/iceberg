@@ -247,22 +247,23 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
     List<String> orphanFiles =
         findOrphanFiles(spark(), actualFileIdentDS, validFileIdentDS, prefixMismatchMode);
 
-    if (deleteFunc != null || !(table.io() instanceof SupportsBulkOperations)) {
-      if (deleteFunc == null) {
-        LOG.info("Table IO does not support Bulk Operations. Using non-bulk deletes.");
+    if (deleteFunc == null && table.io() instanceof SupportsBulkOperations) {
+      ((SupportsBulkOperations) table.io()).deleteFiles(orphanFiles);
+
+    } else {
+      if (deleteFunc != null) {
+        LOG.info("Bulk Deletes are not Supported by {}, using non-bulk deletes", table.io());
         deleteFunc = defaultDelete;
       } else {
-        LOG.info("Custom delete function provided.");
+        LOG.info("Custom delete function provided, using non-bulk deletes");
       }
 
       Tasks.foreach(orphanFiles)
-          .noRetry()
-          .executeWith(deleteExecutorService)
-          .suppressFailureWhenFinished()
-          .onFailure((file, exc) -> LOG.warn("Failed to delete file: {}", file, exc))
-          .run(deleteFunc::accept);
-    } else {
-      ((SupportsBulkOperations) table.io()).deleteFiles(orphanFiles);
+              .noRetry()
+              .executeWith(deleteExecutorService)
+              .suppressFailureWhenFinished()
+              .onFailure((file, exc) -> LOG.warn("Failed to delete file: {}", file, exc))
+              .run(deleteFunc::accept);
     }
 
     return new BaseDeleteOrphanFilesActionResult(orphanFiles);

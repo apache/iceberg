@@ -21,6 +21,7 @@ package org.apache.iceberg.actions;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.SupportsBulkOperations;
 
 /**
  * An action that deletes all files referenced by a table metadata file.
@@ -46,9 +47,9 @@ public interface DeleteReachableFiles
   /**
    * Passes an alternative executor service that will be used for files removal. This service will
    * only be used if a custom delete function is provided by {@link #deleteWith(Consumer)} or if the
-   * FileIO does not {@link org.apache.iceberg.io.SupportsBulkOperations support bulk deletes}.
+   * FileIO does not {@link SupportsBulkOperations support bulk deletes}.
    * Otherwise, parallelism should be controlled by the IO specific {@link
-   * org.apache.iceberg.io.SupportsBulkOperations#deleteFiles(Iterable) deleteFiles} method.
+   * SupportsBulkOperations#deleteFiles(Iterable) deleteFiles} method.
    *
    * @param executorService the service to use
    * @return this for method chaining
