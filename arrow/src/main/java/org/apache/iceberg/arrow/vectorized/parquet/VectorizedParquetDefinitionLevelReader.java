@@ -19,6 +19,7 @@
 package org.apache.iceberg.arrow.vectorized.parquet;
 
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.vector.BaseVariableWidthVector;
 import org.apache.arrow.vector.BitVector;
@@ -447,6 +448,42 @@ public final class VectorizedParquetDefinitionLevelReader
     }
   }
 
+  class TimestampInt96Reader extends BaseReader {
+    @Override
+    protected void nextVal(
+        FieldVector vector,
+        int idx,
+        ValuesAsBytesReader valuesReader,
+        int typeWidth,
+        byte[] byteArray) {
+      ByteBuffer buffer = valuesReader.getBuffer(12);
+      long timestampInt96 = TimestampUtil.extractTimestampInt96(buffer);
+      vector.getDataBuffer().setLong((long) idx * typeWidth, timestampInt96);
+    }
+
+    @Override
+    protected void nextDictEncodedVal(
+        FieldVector vector,
+        int idx,
+        VectorizedDictionaryEncodedParquetValuesReader reader,
+        int numValuesToRead,
+        Dictionary dict,
+        NullabilityHolder nullabilityHolder,
+        int typeWidth,
+        Mode mode) {
+      if (Mode.RLE.equals(mode)) {
+        reader
+            .timestampInt96DictEncodedReader()
+            .nextBatch(vector, idx, numValuesToRead, dict, nullabilityHolder, typeWidth);
+      } else if (Mode.PACKED.equals(mode)) {
+        ByteBuffer buffer =
+            dict.decodeToBinary(reader.readInteger()).toByteBuffer().order(ByteOrder.LITTLE_ENDIAN);
+        long timestampInt96 = TimestampUtil.extractTimestampInt96(buffer);
+        vector.getDataBuffer().setLong(idx, timestampInt96);
+      }
+    }
+  }
+
   class FixedWidthBinaryReader extends BaseReader {
     @Override
     protected void nextVal(
@@ -775,6 +812,10 @@ public final class VectorizedParquetDefinitionLevelReader
 
   TimestampMillisReader timestampMillisReader() {
     return new TimestampMillisReader();
+  }
+
+  TimestampInt96Reader timestampInt96Reader() {
+    return new TimestampInt96Reader();
   }
 
   FixedWidthBinaryReader fixedWidthBinaryReader() {

@@ -23,8 +23,11 @@ import static org.apache.iceberg.ManifestContent.DELETES;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.Comparator;
 import java.util.List;
 import java.util.StringJoiner;
@@ -71,12 +74,15 @@ import org.apache.iceberg.spark.data.TestHelpers;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Pair;
 import org.apache.spark.SparkException;
+import org.apache.spark.sql.Column;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.RowFactory;
 import org.apache.spark.sql.SaveMode;
 import org.apache.spark.sql.catalyst.InternalRow;
+import org.apache.spark.sql.functions;
+import org.apache.spark.sql.internal.SQLConf;
 import org.apache.spark.sql.types.StructType;
 import org.junit.Assert;
 import org.junit.Rule;
@@ -111,6 +117,8 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
   public abstract String loadLocation(TableIdentifier ident, String entriesSuffix);
 
   public abstract String loadLocation(TableIdentifier ident);
+
+  public abstract void dropTable(TableIdentifier ident) throws IOException;
 
   @Test
   public synchronized void testTablesSupport() {
@@ -1762,6 +1770,70 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
     for (int i = 0; i < expected.size(); i += 1) {
       TestHelpers.assertEqualsSafe(
           manifestTable.schema().asStruct(), expected.get(i), actual.get(i));
+    }
+  }
+
+  @Test
+  public void testTableWithInt96Timestamp() throws IOException {
+    try {
+      File parquetTableDir = temp.newFolder("table_timestamp_int96");
+      String parquetTableLocation = parquetTableDir.toURI().toString();
+      Schema schema =
+          new Schema(
+              optional(1, "id", Types.LongType.get()),
+              optional(2, "tmp_col", Types.TimestampType.withZone()));
+      spark.conf().set(SQLConf.PARQUET_OUTPUT_TIMESTAMP_TYPE().key(), "INT96");
+
+      LocalDateTime start = LocalDateTime.of(2000, 1, 31, 0, 0, 0);
+      LocalDateTime end = LocalDateTime.of(2100, 1, 1, 0, 0, 0);
+      long startSec = start.toEpochSecond(ZoneOffset.UTC);
+      long endSec = end.toEpochSecond(ZoneOffset.UTC);
+      Column idColumn = functions.expr("id");
+      Column secondsColumn =
+          functions.expr("(id % " + (endSec - startSec) + " + " + startSec + ")").as("seconds");
+      Column timestampColumn = functions.expr("cast( seconds as timestamp) as tmp_col");
+
+      for (Boolean useDict : new Boolean[] {true, false}) {
+        for (Boolean useVectorization : new Boolean[] {true, false}) {
+          spark.sql("DROP TABLE IF EXISTS parquet_table");
+          spark.range(0, 5000, 100, 1)
+              .select(idColumn, secondsColumn)
+              .select(idColumn, timestampColumn)
+              .write()
+              .format("parquet")
+              .option("parquet.enable.dictionary", useDict)
+              .mode("overwrite")
+              .option("path", parquetTableLocation)
+              .saveAsTable("parquet_table");
+          TableIdentifier tableIdentifier = TableIdentifier.of("db", "table_with_timestamp_int96");
+          Table table = createTable(tableIdentifier, schema, PartitionSpec.unpartitioned());
+          table
+              .updateProperties()
+              .set(TableProperties.PARQUET_VECTORIZATION_ENABLED, useVectorization.toString())
+              .commit();
+
+          String stagingLocation = table.location() + "/metadata";
+          SparkTableUtil.importSparkTable(
+              spark,
+              new org.apache.spark.sql.catalyst.TableIdentifier("parquet_table"),
+              table,
+              stagingLocation);
+
+          // validate we get the expected results back
+          List<Row> expected = spark.table("parquet_table").select("tmp_col").collectAsList();
+          List<Row> actual =
+              spark
+                  .read()
+                  .format("iceberg")
+                  .load(loadLocation(tableIdentifier))
+                  .select("tmp_col")
+                  .collectAsList();
+          Assert.assertEquals("Rows must match", expected, actual);
+          dropTable(tableIdentifier);
+        }
+      }
+    } finally {
+      spark.sql("drop table if exists parquet_table");
     }
   }
 

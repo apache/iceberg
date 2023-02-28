@@ -283,6 +283,32 @@ public class VectorizedPageIterator extends BasePageIterator {
     }
   }
 
+  /** Method for reading a batch of values of TimestampInt96 data type. */
+  class TimestampInt96PageReader extends BagePageReader {
+    @Override
+    protected void nextVal(
+        FieldVector vector, int batchSize, int numVals, int typeWidth, NullabilityHolder holder) {
+      vectorizedDefinitionLevelReader
+          .timestampInt96Reader()
+          .nextBatch(vector, numVals, typeWidth, batchSize, holder, plainValuesReader);
+    }
+
+    @Override
+    protected void nextDictEncodedVal(
+        FieldVector vector, int batchSize, int numVals, int typeWidth, NullabilityHolder holder) {
+      vectorizedDefinitionLevelReader
+          .timestampInt96Reader()
+          .nextDictEncodedBatch(
+              vector,
+              numVals,
+              typeWidth,
+              batchSize,
+              holder,
+              dictionaryEncodedValuesReader,
+              dictionary);
+    }
+  }
+
   /** Method for reading a batch of values of FLOAT data type. */
   class FloatPageReader extends BagePageReader {
 
@@ -537,6 +563,10 @@ public class VectorizedPageIterator extends BasePageIterator {
 
   TimestampMillisPageReader timestampMillisPageReader() {
     return new TimestampMillisPageReader();
+  }
+
+  TimestampInt96PageReader timestampInt96PageReader() {
+    return new TimestampInt96PageReader();
   }
 
   FloatPageReader floatPageReader() {

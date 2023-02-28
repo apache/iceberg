@@ -144,6 +144,20 @@ public class VectorizedColumnIterator extends BaseColumnIterator {
     }
   }
 
+  public class TimestampInt96BatchReader extends BatchReader {
+    @Override
+    protected int nextBatchOf(
+        final FieldVector vector,
+        final int expectedBatchSize,
+        final int numValsInVector,
+        final int typeWidth,
+        NullabilityHolder holder) {
+      return vectorizedPageIterator
+          .timestampInt96PageReader()
+          .nextBatch(vector, expectedBatchSize, numValsInVector, typeWidth, holder);
+    }
+  }
+
   public class FloatBatchReader extends BatchReader {
     @Override
     protected int nextBatchOf(
@@ -284,6 +298,10 @@ public class VectorizedColumnIterator extends BaseColumnIterator {
 
   public TimestampMillisBatchReader timestampMillisBatchReader() {
     return new TimestampMillisBatchReader();
+  }
+
+  public TimestampInt96BatchReader timestampInt96BatchReader() {
+    return new TimestampInt96BatchReader();
   }
 
   public FloatBatchReader floatBatchReader() {

@@ -43,17 +43,25 @@ public class TestIcebergSourceHiveTables extends TestIcebergSourceTablesBase {
 
   @After
   public void dropTable() throws IOException {
-    Table table = catalog.loadTable(currentIdentifier);
-    Path tablePath = new Path(table.location());
-    FileSystem fs = tablePath.getFileSystem(spark.sessionState().newHadoopConf());
-    fs.delete(tablePath, true);
-    catalog.dropTable(currentIdentifier, false);
+    if (!catalog.tableExists(currentIdentifier)) {
+      return;
+    }
+    dropTable(currentIdentifier);
   }
 
   @Override
   public Table createTable(TableIdentifier ident, Schema schema, PartitionSpec spec) {
     TestIcebergSourceHiveTables.currentIdentifier = ident;
     return TestIcebergSourceHiveTables.catalog.createTable(ident, schema, spec);
+  }
+
+  @Override
+  public void dropTable(TableIdentifier ident) throws IOException {
+    Table table = catalog.loadTable(ident);
+    Path tablePath = new Path(table.location());
+    FileSystem fs = tablePath.getFileSystem(spark.sessionState().newHadoopConf());
+    fs.delete(tablePath, true);
+    catalog.dropTable(ident, false);
   }
 
   @Override

@@ -112,6 +112,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
     FLOAT,
     DOUBLE,
     TIMESTAMP_MILLIS,
+    TIMESTAMP_INT96,
     TIME_MICROS,
     UUID,
     DICTIONARY
@@ -164,6 +165,11 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
           case FIXED_WIDTH_BINARY:
             vectorizedColumnIterator
                 .fixedWidthTypeBinaryBatchReader()
+                .nextBatch(vec, typeWidth, nullabilityHolder);
+            break;
+          case TIMESTAMP_INT96:
+            vectorizedColumnIterator
+                .timestampInt96BatchReader()
                 .nextBatch(vec, typeWidth, nullabilityHolder);
             break;
           case BOOLEAN:
@@ -333,6 +339,14 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
         vec.setInitialCapacity(batchSize * len);
         vec.allocateNew();
         this.typeWidth = len;
+        break;
+      case INT96:
+        int length = BigIntVector.TYPE_WIDTH;
+        this.readType = ReadType.TIMESTAMP_INT96;
+        this.vec = arrowField.createVector(rootAlloc);
+        vec.setInitialCapacity(batchSize * length);
+        vec.allocateNew();
+        this.typeWidth = length;
         break;
       case BINARY:
         this.vec = arrowField.createVector(rootAlloc);
