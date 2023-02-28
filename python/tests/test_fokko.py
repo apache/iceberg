@@ -1,6 +1,5 @@
-from pyiceberg.expressions import GreaterThan, LessThan
-
 from pyiceberg.catalog import load_catalog
+from pyiceberg.expressions import LessThan
 
 
 def test_vo():
