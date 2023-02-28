@@ -636,7 +636,7 @@ public class ParquetColumnIndexFilter {
                   return Optional.of(new BigDecimal(BigInteger.valueOf(bytes.getLong(0)), decimalType.getScale()));
                 case BINARY:
                 case FIXED_LEN_BYTE_ARRAY:
-                  new BigDecimal(new BigInteger(ByteBuffers.toByteArray(bytes)), decimalType.getScale());
+                  return Optional.of(new BigDecimal(new BigInteger(ByteBuffers.toByteArray(bytes)), decimalType.getScale()));
               }
               return Optional.empty();
             }
