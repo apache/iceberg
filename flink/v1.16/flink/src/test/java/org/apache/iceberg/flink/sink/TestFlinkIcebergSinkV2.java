@@ -156,6 +156,24 @@ public class TestFlinkIcebergSinkV2 extends TestFlinkIcebergSinkV2Base {
   }
 
   @Test
+  public void testUpsertOnlyDeletesOnDataKey() throws Exception {
+    List<List<Row>> elementsPerCheckpoint =
+        ImmutableList.of(
+            ImmutableList.of(row("+I", 1, "aaa")),
+            ImmutableList.of(row("-D", 1, "aaa"), row("-D", 2, "bbb")));
+
+    List<List<Record>> expectedRecords =
+        ImmutableList.of(ImmutableList.of(record(1, "aaa")), ImmutableList.of());
+
+    testChangeLogs(
+        ImmutableList.of("data"),
+        row -> row.getField(ROW_DATA_POS),
+        true,
+        elementsPerCheckpoint,
+        expectedRecords);
+  }
+
+  @Test
   public void testChangeLogOnDataKey() throws Exception {
     testChangeLogOnDataKey(SnapshotRef.MAIN_BRANCH);
   }
