@@ -251,7 +251,7 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
       ((SupportsBulkOperations) table.io()).deleteFiles(orphanFiles);
 
     } else {
-      if (deleteFunc != null) {
+      if (deleteFunc == null) {
         LOG.info("Bulk Deletes are not Supported by {}, using non-bulk deletes", table.io());
         deleteFunc = defaultDelete;
       } else {
