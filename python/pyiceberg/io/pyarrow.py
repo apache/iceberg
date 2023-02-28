@@ -394,7 +394,7 @@ class _ConvertToArrowSchema(SchemaVisitorPerPrimitiveType[pa.DataType], Singleto
         return pa.timestamp(unit="us")
 
     def visit_timestampz(self, _: TimestamptzType) -> pa.DataType:
-        return pa.timestamp(unit="us", tz="+00:00")
+        return pa.timestamp(unit="us", tz="UTC")
 
     def visit_string(self, _: StringType) -> pa.DataType:
         return pa.string()

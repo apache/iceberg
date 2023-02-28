@@ -53,7 +53,7 @@ from pyiceberg.manifest import (
 )
 from pyiceberg.partitioning import PartitionSpec
 from pyiceberg.schema import Schema
-from pyiceberg.table.metadata import TableMetadata
+from pyiceberg.table.metadata import TableMetadata, INITIAL_SEQUENCE_NUMBER
 from pyiceberg.table.snapshots import Snapshot, SnapshotLogEntry
 from pyiceberg.table.sorting import SortOrder
 from pyiceberg.typedef import (
@@ -67,7 +67,6 @@ if TYPE_CHECKING:
     import pandas as pd
     import pyarrow as pa
     from duckdb import DuckDBPyConnection
-
 
 ALWAYS_TRUE = AlwaysTrue()
 
@@ -316,7 +315,6 @@ def _open_manifest(
     return [FileScanTask(file) for file in result_manifests if metrics_evaluator(file)]
 
 
-
 class DataScan(TableScan):
     def __init__(
         self,
@@ -351,6 +349,12 @@ class DataScan(TableScan):
         return lambda data_file: evaluator(data_file.partition)
 
     def plan_files(self) -> Iterator[FileScanTask]:
+        """Plans the relevant files by filtering on the PartitionSpecs
+
+        Returns:
+            List of FileScanTasks that contain both data and delete files
+        """
+
         snapshot = self.snapshot()
         if not snapshot:
             return iter([])
@@ -359,7 +363,6 @@ class DataScan(TableScan):
 
         # step 1: filter manifests using partition summaries
         # the filter depends on the partition spec used to write the manifest file, so create a cache of filters for each spec id
-
         manifest_evaluators: Dict[int, Callable[[ManifestFile], bool]] = KeyDefaultDict(self._build_manifest_evaluator)
 
         manifests = [
@@ -370,18 +373,15 @@ class DataScan(TableScan):
 
         # step 2: filter the data files in each manifest
         # this filter depends on the partition spec used to write the manifest file
-
         partition_evaluators: Dict[int, Callable[[DataFile], bool]] = KeyDefaultDict(self._build_partition_evaluator)
-        data_files = []
-        delete_files = []
-
-        for manifest in manifests:
-            if manifest.content is None or manifest.content == ManifestContent.DATA:
-                data_files.append(manifest)
-            elif manifest.content == ManifestContent.DELETES and (manifest.has_added_files() or manifest.has_existing_files()):
-                delete_files.append(manifest)
-
         metrics_evaluator = _InclusiveMetricsEvaluator(self.table.schema(), self.row_filter, self.case_sensitive).eval
+
+        min_sequence_number = min(
+            manifest.min_sequence_number or INITIAL_SEQUENCE_NUMBER
+            for manifest in manifests
+            if manifest.content == ManifestContent.DATA
+        )
+
         with ThreadPool() as pool:
             return chain(
                 *pool.starmap(
@@ -394,6 +394,12 @@ class DataScan(TableScan):
                             metrics_evaluator,
                         )
                         for manifest in manifests
+                        if manifest.content == ManifestContent.DATA
+                        or (
+                            # Not interested in deletes that are older than the data
+                            manifest.content == ManifestContent.DELETES
+                            and (manifest.sequence_number or INITIAL_SEQUENCE_NUMBER) > min_sequence_number
+                        )
                     ],
                 )
             )
@@ -415,3 +421,10 @@ class DataScan(TableScan):
         con.register(table_name, self.to_arrow())
 
         return con
+
+
+class DeleteFileIndex:
+    delete_manifests: List[ManifestFile]
+
+    def __init__(self, delete_manifests: List[ManifestFile], after_sequence_number: int = INITIAL_SEQUENCE_NUMBER) -> None:
+        self.delete_manifests = delete_manifests
