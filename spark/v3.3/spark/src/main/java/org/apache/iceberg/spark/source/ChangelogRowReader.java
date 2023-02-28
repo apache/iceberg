@@ -151,16 +151,14 @@ class ChangelogRowReader extends BaseRowReader<ChangelogScanTask>
   }
 
   private static Stream<ContentFile<?>> deletedDataFileScanTaskFiles(DeletedDataFileScanTask task) {
-    DeletedDataFileScanTask deletedDataFileScanTask = task;
-    DataFile file = deletedDataFileScanTask.file();
-    List<DeleteFile> existingDeletes = deletedDataFileScanTask.existingDeletes();
+    DataFile file = task.file();
+    List<DeleteFile> existingDeletes = task.existingDeletes();
     return Stream.concat(Stream.of(file), existingDeletes.stream());
   }
 
   private static Stream<ContentFile<?>> addedRowsScanTaskFiles(AddedRowsScanTask task) {
-    AddedRowsScanTask addedRowsScanTask = task;
-    DataFile file = addedRowsScanTask.file();
-    List<DeleteFile> deletes = addedRowsScanTask.deletes();
+    DataFile file = task.file();
+    List<DeleteFile> deletes = task.deletes();
     return Stream.concat(Stream.of(file), deletes.stream());
   }
 }

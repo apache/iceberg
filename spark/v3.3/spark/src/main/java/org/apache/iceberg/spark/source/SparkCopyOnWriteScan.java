@@ -155,9 +155,8 @@ class SparkCopyOnWriteScan extends SparkPartitioningAwareScan<FileScanTask>
 
     SparkCopyOnWriteScan that = (SparkCopyOnWriteScan) o;
     return table().name().equals(that.table().name())
-        && readSchema().equals(that.readSchema())
-        && // compare Spark schemas to ignore field ids
-        filterExpressions().toString().equals(that.filterExpressions().toString())
+        && readSchema().equals(that.readSchema()) // compare Spark schemas to ignore field ids
+        && filterExpressions().toString().equals(that.filterExpressions().toString())
         && Objects.equals(snapshotId(), that.snapshotId())
         && Objects.equals(filteredLocations, that.filteredLocations);
   }

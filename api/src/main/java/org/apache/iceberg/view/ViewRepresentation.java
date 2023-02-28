@@ -18,9 +18,6 @@
  */
 package org.apache.iceberg.view;
 
-import org.immutables.value.Value;
-
-@Value.Immutable
 public interface ViewRepresentation {
 
   class Type {

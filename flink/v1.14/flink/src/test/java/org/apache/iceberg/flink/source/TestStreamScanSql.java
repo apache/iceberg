@@ -30,6 +30,7 @@ import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
 import org.apache.flink.table.api.config.TableConfigOptions;
 import org.apache.flink.types.Row;
 import org.apache.flink.util.CloseableIterator;
+import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TestHelpers;
@@ -212,6 +213,24 @@ public class TestStreamScanSql extends FlinkCatalogTestBase {
   }
 
   @Test
+  public void testConsumeFilesWithBranch() throws Exception {
+    sql("CREATE TABLE %s (id INT, data VARCHAR, dt VARCHAR)", TABLE);
+    Table table = validationCatalog.loadTable(TableIdentifier.of(icebergNamespace, TABLE));
+    Row row1 = Row.of(1, "aaa", "2021-01-01");
+    Row row2 = Row.of(2, "bbb", "2021-01-01");
+    insertRows(table, row1, row2);
+
+    AssertHelpers.assertThrows(
+        "Cannot scan table using ref for stream yet",
+        IllegalArgumentException.class,
+        "Cannot scan table using ref",
+        () ->
+            exec(
+                "SELECT * FROM %s /*+ OPTIONS('streaming'='true', 'monitor-interval'='1s', 'branch'='b1')*/",
+                TABLE));
+  }
+
+  @Test
   public void testConsumeFromStartSnapshotId() throws Exception {
     sql("CREATE TABLE %s (id INT, data VARCHAR, dt VARCHAR)", TABLE);
     Table table = validationCatalog.loadTable(TableIdentifier.of(icebergNamespace, TABLE));
@@ -234,7 +253,7 @@ public class TestStreamScanSql extends FlinkCatalogTestBase {
                 + "'start-snapshot-id'='%d')*/",
             TABLE, startSnapshotId);
     try (CloseableIterator<Row> iterator = result.collect()) {
-      // The row2 in start snapshot will be excluded.
+      // the start snapshot(row2) is exclusive.
       assertRows(ImmutableList.of(row3, row4), iterator);
 
       Row row5 = Row.of(5, "eee", "2021-01-01");
@@ -247,5 +266,55 @@ public class TestStreamScanSql extends FlinkCatalogTestBase {
       assertRows(ImmutableList.of(row7), iterator);
     }
     result.getJobClient().ifPresent(JobClient::cancel);
+  }
+
+  @Test
+  public void testConsumeFromStartTag() throws Exception {
+    sql("CREATE TABLE %s (id INT, data VARCHAR, dt VARCHAR)", TABLE);
+    Table table = validationCatalog.loadTable(TableIdentifier.of(icebergNamespace, TABLE));
+
+    // Produce two snapshots.
+    Row row1 = Row.of(1, "aaa", "2021-01-01");
+    Row row2 = Row.of(2, "bbb", "2021-01-01");
+    insertRows(table, row1);
+    insertRows(table, row2);
+
+    String tagName = "t1";
+    long startSnapshotId = table.currentSnapshot().snapshotId();
+    table.manageSnapshots().createTag(tagName, startSnapshotId).commit();
+
+    Row row3 = Row.of(3, "ccc", "2021-01-01");
+    Row row4 = Row.of(4, "ddd", "2021-01-01");
+    insertRows(table, row3, row4);
+
+    TableResult result =
+        exec(
+            "SELECT * FROM %s /*+ OPTIONS('streaming'='true', 'monitor-interval'='1s', "
+                + "'start-tag'='%s')*/",
+            TABLE, tagName);
+    try (CloseableIterator<Row> iterator = result.collect()) {
+      // the start snapshot(row2) is exclusive.
+      assertRows(ImmutableList.of(row3, row4), iterator);
+
+      Row row5 = Row.of(5, "eee", "2021-01-01");
+      Row row6 = Row.of(6, "fff", "2021-01-01");
+      insertRows(table, row5, row6);
+      assertRows(ImmutableList.of(row5, row6), iterator);
+
+      Row row7 = Row.of(7, "ggg", "2021-01-01");
+      insertRows(table, row7);
+      assertRows(ImmutableList.of(row7), iterator);
+    }
+    result.getJobClient().ifPresent(JobClient::cancel);
+
+    AssertHelpers.assertThrows(
+        "START_SNAPSHOT_ID and START_TAG cannot both be set.",
+        IllegalArgumentException.class,
+        "START_SNAPSHOT_ID and START_TAG cannot both be set.",
+        () ->
+            exec(
+                "SELECT * FROM %s /*+ OPTIONS('streaming'='true', 'monitor-interval'='1s', 'start-tag'='%s', "
+                    + "'start-snapshot-id'='%d' )*/",
+                TABLE, tagName, startSnapshotId));
   }
 }

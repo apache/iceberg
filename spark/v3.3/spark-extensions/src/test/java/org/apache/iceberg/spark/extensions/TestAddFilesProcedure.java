@@ -22,6 +22,8 @@ import java.io.File;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import org.apache.avro.Schema;
 import org.apache.avro.SchemaBuilder;
@@ -32,6 +34,7 @@ import org.apache.avro.generic.GenericRecord;
 import org.apache.avro.io.DatumWriter;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DataFile;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.spark.sql.Dataset;
@@ -87,12 +90,12 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
 
     sql(createIceberg, tableName);
 
-    Object result =
-        scalarSql(
+    List<Object[]> result =
+        sql(
             "CALL %s.system.add_files('%s', '`parquet`.`%s`')",
             catalogName, tableName, fileTableDir.getAbsolutePath());
 
-    Assert.assertEquals(2L, result);
+    assertEquals("Procedure output must match", ImmutableList.of(row(2L, 1L)), result);
 
     assertEquals(
         "Iceberg table contains correct data",
@@ -154,11 +157,11 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
     String createIceberg = "CREATE TABLE %s (id Long, data String) USING iceberg";
     sql(createIceberg, tableName);
 
-    Object result =
-        scalarSql(
+    List<Object[]> result =
+        sql(
             "CALL %s.system.add_files('%s', '`avro`.`%s`')",
             catalogName, tableName, outputFile.getPath());
-    Assert.assertEquals(1L, result);
+    assertEquals("Procedure output must match", ImmutableList.of(row(1L, 1L)), result);
 
     List<Object[]> expected = Lists.newArrayList(new Object[] {1L, "a"}, new Object[] {2L, "b"});
 
@@ -209,10 +212,10 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
 
     sql(createIceberg, tableName);
 
-    Object result =
-        scalarSql("CALL %s.system.add_files('%s', '%s')", catalogName, tableName, sourceTableName);
+    List<Object[]> result =
+        sql("CALL %s.system.add_files('%s', '%s')", catalogName, tableName, sourceTableName);
 
-    Assert.assertEquals(2L, result);
+    assertEquals("Procedure output must match", ImmutableList.of(row(2L, 1L)), result);
 
     assertEquals(
         "Iceberg table contains correct data",
@@ -229,12 +232,12 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
 
     sql(createIceberg, tableName);
 
-    Object result =
-        scalarSql(
+    List<Object[]> result =
+        sql(
             "CALL %s.system.add_files('%s', '`parquet`.`%s`')",
             catalogName, tableName, fileTableDir.getAbsolutePath());
 
-    Assert.assertEquals(2L, result);
+    assertEquals("Procedure output must match", ImmutableList.of(row(2L, 1L)), result);
 
     assertEquals(
         "Iceberg table contains correct data",
@@ -250,12 +253,12 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
 
     sql(createIceberg, tableName);
 
-    Object result =
-        scalarSql(
+    List<Object[]> result =
+        sql(
             "CALL %s.system.add_files('%s', '`parquet`.`%s`')",
             catalogName, tableName, fileTableDir.getAbsolutePath());
 
-    Assert.assertEquals(2L, result);
+    assertEquals("Procedure output must match", ImmutableList.of(row(2L, 1L)), result);
 
     assertEquals(
         "Iceberg table contains correct data",
@@ -272,12 +275,12 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
 
     sql(createIceberg, tableName);
 
-    Object result =
-        scalarSql(
+    List<Object[]> result =
+        sql(
             "CALL %s.system.add_files('%s', '`parquet`.`%s`')",
             catalogName, tableName, fileTableDir.getAbsolutePath());
 
-    Assert.assertEquals(8L, result);
+    assertEquals("Procedure output must match", ImmutableList.of(row(8L, 4L)), result);
 
     assertEquals(
         "Iceberg table contains correct data",
@@ -294,12 +297,12 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
 
     sql(createIceberg, tableName);
 
-    Object result =
-        scalarSql(
+    List<Object[]> result =
+        sql(
             "CALL %s.system.add_files('%s', '`parquet`.`%s`')",
             catalogName, tableName, fileTableDir.getAbsolutePath());
 
-    Assert.assertEquals(8L, result);
+    assertEquals("Procedure output must match", ImmutableList.of(row(8L, 4L)), result);
 
     assertEquals(
         "Iceberg table contains correct data",
@@ -361,10 +364,10 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
 
     sql(createIceberg, tableName);
 
-    Object result =
-        scalarSql("CALL %s.system.add_files('%s', '%s')", catalogName, tableName, sourceTableName);
+    List<Object[]> result =
+        sql("CALL %s.system.add_files('%s', '%s')", catalogName, tableName, sourceTableName);
 
-    Assert.assertEquals(8L, result);
+    assertEquals("Procedure output must match", ImmutableList.of(row(8L, 4L)), result);
 
     assertEquals(
         "Iceberg table contains correct data",
@@ -381,12 +384,12 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
 
     sql(createIceberg, tableName);
 
-    Object result =
-        scalarSql(
+    List<Object[]> result =
+        sql(
             "CALL %s.system.add_files('%s', '`parquet`.`%s`', map('id', 1))",
             catalogName, tableName, fileTableDir.getAbsolutePath());
 
-    Assert.assertEquals(2L, result);
+    assertEquals("Procedure output must match", ImmutableList.of(row(2L, 1L)), result);
 
     assertEquals(
         "Iceberg table contains correct data",
@@ -395,27 +398,78 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
   }
 
   @Test
+  public void addPartitionToPartitionedSnapshotIdInheritanceEnabledInTwoRuns() {
+    createPartitionedFileTable("parquet");
+
+    String createIceberg =
+        "CREATE TABLE %s (id Integer, name String, dept String, subdept String) USING iceberg PARTITIONED BY (id)"
+            + "TBLPROPERTIES ('%s'='true')";
+
+    sql(createIceberg, tableName, TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED);
+
+    sql(
+        "CALL %s.system.add_files('%s', '`parquet`.`%s`', map('id', 1))",
+        catalogName, tableName, fileTableDir.getAbsolutePath());
+
+    sql(
+        "CALL %s.system.add_files('%s', '`parquet`.`%s`', map('id', 2))",
+        catalogName, tableName, fileTableDir.getAbsolutePath());
+
+    assertEquals(
+        "Iceberg table contains correct data",
+        sql("SELECT id, name, dept, subdept FROM %s WHERE id < 3 ORDER BY id", sourceTableName),
+        sql("SELECT id, name, dept, subdept FROM %s ORDER BY id", tableName));
+
+    // verify manifest file name has uuid pattern
+    String manifestPath = (String) sql("select path from %s.manifests", tableName).get(0)[0];
+
+    Pattern uuidPattern = Pattern.compile("[a-f0-9]{8}(?:-[a-f0-9]{4}){4}[a-f0-9]{8}");
+
+    Matcher matcher = uuidPattern.matcher(manifestPath);
+    Assert.assertTrue("verify manifest path has uuid", matcher.find());
+  }
+
+  @Test
   public void addDataPartitionedByDateToPartitioned() {
     createDatePartitionedFileTable("parquet");
 
     String createIceberg =
-        "CREATE TABLE %s (id Integer, name String, dept String, date Date) USING iceberg PARTITIONED BY (date)";
+        "CREATE TABLE %s (id Integer, name String, date Date) USING iceberg PARTITIONED BY (date)";
 
     sql(createIceberg, tableName);
 
-    Object result =
-        scalarSql(
+    List<Object[]> result =
+        sql(
             "CALL %s.system.add_files('%s', '`parquet`.`%s`', map('date', '2021-01-01'))",
             catalogName, tableName, fileTableDir.getAbsolutePath());
 
-    Assert.assertEquals(2L, result);
+    assertEquals("Procedure output must match", ImmutableList.of(row(2L, 1L)), result);
 
     assertEquals(
         "Iceberg table contains correct data",
-        sql(
-            "SELECT id, name, dept, date FROM %s WHERE date = '2021-01-01' ORDER BY id",
-            sourceTableName),
-        sql("SELECT id, name, dept, date FROM %s ORDER BY id", tableName));
+        sql("SELECT id, name, date FROM %s WHERE date = '2021-01-01' ORDER BY id", sourceTableName),
+        sql("SELECT id, name, date FROM %s ORDER BY id", tableName));
+  }
+
+  @Test
+  public void addDataPartitionedVerifyPartitionTypeInferredCorrectly() {
+    createTableWithTwoPartitions("parquet");
+
+    String createIceberg =
+        "CREATE TABLE %s (id Integer, name String, date Date, dept String) USING iceberg PARTITIONED BY (date, dept)";
+
+    sql(createIceberg, tableName);
+
+    sql(
+        "CALL %s.system.add_files('%s', '`parquet`.`%s`', map('date', '2021-01-01'))",
+        catalogName, tableName, fileTableDir.getAbsolutePath());
+
+    String sqlFormat =
+        "SELECT id, name, dept, date FROM %s WHERE date = '2021-01-01' and dept= '01' ORDER BY id";
+    assertEquals(
+        "Iceberg table contains correct data",
+        sql(sqlFormat, sourceTableName),
+        sql(sqlFormat, tableName));
   }
 
   @Test
@@ -428,12 +482,12 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
 
     sql(createIceberg, tableName);
 
-    Object result =
-        scalarSql(
+    List<Object[]> result =
+        sql(
             "CALL %s.system.add_files('%s', '`parquet`.`%s`', map('id', 1))",
             catalogName, tableName, fileTableDir.getAbsolutePath());
 
-    Assert.assertEquals(2L, result);
+    assertEquals("Procedure output must match", ImmutableList.of(row(2L, 1L)), result);
 
     assertEquals(
         "Iceberg table contains correct data",
@@ -451,12 +505,12 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
 
     sql(createIceberg, tableName);
 
-    Object result =
-        scalarSql(
+    List<Object[]> result =
+        sql(
             "CALL %s.system.add_files('%s', '`parquet`.`%s`', map('dept', 'hr'))",
             catalogName, tableName, fileTableDir.getAbsolutePath());
 
-    Assert.assertEquals(6L, result);
+    assertEquals("Procedure output must match", ImmutableList.of(row(6L, 3L)), result);
 
     assertEquals(
         "Iceberg table contains correct data",
@@ -476,12 +530,12 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
 
     sql(createIceberg, tableName);
 
-    Object result =
-        scalarSql(
+    List<Object[]> result =
+        sql(
             "CALL %s.system.add_files('%s', '`parquet`.`%s`', map('id', 1))",
             catalogName, tableName, fileTableDir.getAbsolutePath());
 
-    Assert.assertEquals(2L, result);
+    assertEquals("Procedure output must match", ImmutableList.of(row(2L, 1L)), result);
 
     assertEquals(
         "Iceberg table contains correct data",
@@ -499,12 +553,12 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
 
     sql(createIceberg, tableName);
 
-    Object result =
-        scalarSql(
+    List<Object[]> result =
+        sql(
             "CALL %s.system.add_files('%s', '`parquet`.`%s`', map('dept', 'hr'))",
             catalogName, tableName, fileTableDir.getAbsolutePath());
 
-    Assert.assertEquals(6L, result);
+    assertEquals("Procedure output must match", ImmutableList.of(row(6L, 3L)), result);
 
     assertEquals(
         "Iceberg table contains correct data",
@@ -524,12 +578,12 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
 
     sql(createIceberg, tableName);
 
-    Object result =
-        scalarSql(
+    List<Object[]> result =
+        sql(
             "CALL %s.system.add_files('%s', '%s', map('naMe', 'John Doe'))",
             catalogName, tableName, sourceTableName);
 
-    Assert.assertEquals(2L, result);
+    assertEquals("Procedure output must match", ImmutableList.of(row(2L, 1L)), result);
 
     /*
     While we would like to use
@@ -574,12 +628,12 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
 
     sql(createIceberg, tableName);
 
-    Object result =
-        scalarSql(
+    List<Object[]> result =
+        sql(
             "CALL %s.system.add_files('%s', '%s', map('id', 1))",
             catalogName, tableName, sourceTableName);
 
-    Assert.assertEquals(2L, result);
+    assertEquals("Procedure output must match", ImmutableList.of(row(2L, 1L)), result);
 
     assertEquals(
         "Iceberg table contains correct data",
@@ -652,23 +706,23 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
 
     sql(createIceberg, tableName);
 
-    Object result1 =
-        scalarSql(
+    List<Object[]> result1 =
+        sql(
             "CALL %s.system.add_files("
                 + "table => '%s', "
                 + "source_table => '%s', "
                 + "partition_filter => map('id', 1))",
             catalogName, tableName, sourceTableName);
-    Assert.assertEquals(2L, result1);
+    assertEquals("Procedure output must match", ImmutableList.of(row(2L, 1L)), result1);
 
-    Object result2 =
-        scalarSql(
+    List<Object[]> result2 =
+        sql(
             "CALL %s.system.add_files("
                 + "table => '%s', "
                 + "source_table => '%s', "
                 + "partition_filter => map('id', 2))",
             catalogName, tableName, sourceTableName);
-    Assert.assertEquals(2L, result2);
+    assertEquals("Procedure output must match", ImmutableList.of(row(2L, 1L)), result2);
 
     assertEquals(
         "Iceberg table contains correct data",
@@ -689,7 +743,7 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
 
     sql(createIceberg, tableName);
 
-    scalarSql(
+    sql(
         "CALL %s.system.add_files("
             + "table => '%s', "
             + "source_table => '%s', "
@@ -719,18 +773,18 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
 
     sql(createIceberg, tableName);
 
-    Object result1 =
-        scalarSql(
+    List<Object[]> result1 =
+        sql(
             "CALL %s.system.add_files("
                 + "table => '%s', "
                 + "source_table => '%s', "
                 + "partition_filter => map('id', 1))",
             catalogName, tableName, sourceTableName);
 
-    Assert.assertEquals(2L, result1);
+    assertEquals("Procedure output must match", ImmutableList.of(row(2L, 1L)), result1);
 
-    Object result2 =
-        scalarSql(
+    List<Object[]> result2 =
+        sql(
             "CALL %s.system.add_files("
                 + "table => '%s', "
                 + "source_table => '%s', "
@@ -738,7 +792,7 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
                 + "check_duplicate_files => false)",
             catalogName, tableName, sourceTableName);
 
-    Assert.assertEquals(2L, result2);
+    assertEquals("Procedure output must match", ImmutableList.of(row(2L, 1L)), result2);
 
     assertEquals(
         "Iceberg table contains correct data",
@@ -758,7 +812,7 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
 
     sql(createIceberg, tableName);
 
-    scalarSql("CALL %s.system.add_files('%s', '%s')", catalogName, tableName, sourceTableName);
+    sql("CALL %s.system.add_files('%s', '%s')", catalogName, tableName, sourceTableName);
 
     AssertHelpers.assertThrows(
         "Should not allow adding duplicate files",
@@ -779,18 +833,18 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
 
     sql(createIceberg, tableName);
 
-    Object result1 =
-        scalarSql("CALL %s.system.add_files('%s', '%s')", catalogName, tableName, sourceTableName);
-    Assert.assertEquals(2L, result1);
+    List<Object[]> result1 =
+        sql("CALL %s.system.add_files('%s', '%s')", catalogName, tableName, sourceTableName);
+    assertEquals("Procedure output must match", ImmutableList.of(row(2L, 1L)), result1);
 
-    Object result2 =
-        scalarSql(
+    List<Object[]> result2 =
+        sql(
             "CALL %s.system.add_files("
                 + "table => '%s', "
                 + "source_table => '%s',"
                 + "check_duplicate_files => false)",
             catalogName, tableName, sourceTableName);
-    Assert.assertEquals(2L, result2);
+    assertEquals("Procedure output must match", ImmutableList.of(row(2L, 1L)), result2);
 
     assertEquals(
         "Iceberg table contains correct data",
@@ -808,11 +862,11 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
     sql(createIceberg, tableName);
 
     // Empty path based import
-    Object pathResult =
-        scalarSql(
+    List<Object[]> pathResult =
+        sql(
             "CALL %s.system.add_files('%s', '`parquet`.`%s`')",
             catalogName, tableName, fileTableDir.getAbsolutePath());
-    Assert.assertEquals(0L, pathResult);
+    assertEquals("Procedure output must match", ImmutableList.of(row(0L, 0L)), pathResult);
     assertEquals(
         "Iceberg table contains no added data when importing from an empty path",
         emptyQueryResult,
@@ -823,9 +877,9 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
         "CREATE TABLE %s (id Integer, name String, dept String, subdept String) STORED AS parquet";
     sql(createHive, sourceTableName);
 
-    Object tableResult =
-        scalarSql("CALL %s.system.add_files('%s', '%s')", catalogName, tableName, sourceTableName);
-    Assert.assertEquals(0L, tableResult);
+    List<Object[]> tableResult =
+        sql("CALL %s.system.add_files('%s', '%s')", catalogName, tableName, sourceTableName);
+    assertEquals("Procedure output must match", ImmutableList.of(row(0L, 0L)), tableResult);
     assertEquals(
         "Iceberg table contains no added data when importing from an empty table",
         emptyQueryResult,
@@ -847,15 +901,15 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
 
     sql(createIceberg, tableName);
 
-    Object tableResult =
-        scalarSql(
+    List<Object[]> tableResult =
+        sql(
             "CALL %s.system.add_files("
                 + "table => '%s', "
                 + "source_table => '%s', "
                 + "partition_filter => map('id', %d))",
             catalogName, tableName, sourceTableName, emptyPartitionId);
 
-    Assert.assertEquals(0L, tableResult);
+    assertEquals("Procedure output must match", ImmutableList.of(row(0L, 0L)), tableResult);
     assertEquals(
         "Iceberg table contains no added data when importing from an empty table",
         emptyQueryResult,
@@ -907,8 +961,8 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
   private static final StructField[] dateStruct = {
     new StructField("id", DataTypes.IntegerType, true, Metadata.empty()),
     new StructField("name", DataTypes.StringType, true, Metadata.empty()),
+    new StructField("ts", DataTypes.DateType, true, Metadata.empty()),
     new StructField("dept", DataTypes.StringType, true, Metadata.empty()),
-    new StructField("ts", DataTypes.DateType, true, Metadata.empty())
   };
 
   private static java.sql.Date toDate(String value) {
@@ -919,10 +973,10 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
       spark
           .createDataFrame(
               ImmutableList.of(
-                  RowFactory.create(1, "John Doe", "hr", toDate("2021-01-01")),
-                  RowFactory.create(2, "Jane Doe", "hr", toDate("2021-01-01")),
-                  RowFactory.create(3, "Matt Doe", "hr", toDate("2021-01-02")),
-                  RowFactory.create(4, "Will Doe", "facilities", toDate("2021-01-02"))),
+                  RowFactory.create(1, "John Doe", toDate("2021-01-01"), "01"),
+                  RowFactory.create(2, "Jane Doe", toDate("2021-01-01"), "01"),
+                  RowFactory.create(3, "Matt Doe", toDate("2021-01-02"), "02"),
+                  RowFactory.create(4, "Will Doe", toDate("2021-01-02"), "02")),
               new StructType(dateStruct))
           .repartition(2);
 
@@ -1006,8 +1060,18 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
 
   private void createDatePartitionedFileTable(String format) {
     String createParquet =
-        "CREATE TABLE %s (id Integer, name String, dept String, date Date) USING %s "
+        "CREATE TABLE %s (id Integer, name String, date Date) USING %s "
             + "PARTITIONED BY (date) LOCATION '%s'";
+
+    sql(createParquet, sourceTableName, format, fileTableDir.getAbsolutePath());
+
+    dateDF.select("id", "name", "ts").write().insertInto(sourceTableName);
+  }
+
+  private void createTableWithTwoPartitions(String format) {
+    String createParquet =
+        "CREATE TABLE %s (id Integer, name String, date Date, dept String) USING %s "
+            + "PARTITIONED BY (date, dept) LOCATION '%s'";
 
     sql(createParquet, sourceTableName, format, fileTableDir.getAbsolutePath());
 

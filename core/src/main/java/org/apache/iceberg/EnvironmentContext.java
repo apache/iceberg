@@ -26,11 +26,13 @@ public class EnvironmentContext {
   public static final String ENGINE_NAME = "engine-name";
   public static final String ENGINE_VERSION = "engine-version";
 
-  private EnvironmentContext() {
-    PROPERTIES.put("iceberg-version", IcebergBuild.fullVersion());
-  }
+  private EnvironmentContext() {}
 
   private static final Map<String, String> PROPERTIES = Maps.newConcurrentMap();
+
+  static {
+    PROPERTIES.put("iceberg-version", IcebergBuild.fullVersion());
+  }
 
   /**
    * Returns a {@link Map} of all properties.
