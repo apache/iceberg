@@ -224,7 +224,7 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
       return this;
     }
 
-    public Builder table(Table newTable) {
+    public Builder<T> table(Table newTable) {
       this.table = newTable;
       return this;
     }
