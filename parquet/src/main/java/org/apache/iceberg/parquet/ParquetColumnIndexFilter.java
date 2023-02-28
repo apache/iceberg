@@ -16,8 +16,13 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.parquet;
+
+import static org.apache.iceberg.parquet.PageSkippingHelpers.allPageIndexes;
+import static org.apache.iceberg.parquet.PageSkippingHelpers.allRows;
+import static org.apache.iceberg.parquet.PageSkippingHelpers.filterPageIndexes;
+import static org.apache.iceberg.parquet.PageSkippingHelpers.intersection;
+import static org.apache.iceberg.parquet.PageSkippingHelpers.union;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
@@ -56,12 +61,6 @@ import org.apache.parquet.schema.PrimitiveType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static org.apache.iceberg.parquet.PageSkippingHelpers.allPageIndexes;
-import static org.apache.iceberg.parquet.PageSkippingHelpers.allRows;
-import static org.apache.iceberg.parquet.PageSkippingHelpers.filterPageIndexes;
-import static org.apache.iceberg.parquet.PageSkippingHelpers.intersection;
-import static org.apache.iceberg.parquet.PageSkippingHelpers.union;
-
 public class ParquetColumnIndexFilter {
 
   private static final Logger LOG = LoggerFactory.getLogger(ParquetColumnIndexFilter.class);
@@ -76,13 +75,15 @@ public class ParquetColumnIndexFilter {
 
   /**
    * Calculates the row ranges containing the indexes of the rows might match the expression.
+   *
    * @param fileSchema schema of file
    * @param columnIndexStore the store for providing column/offset indexes
-   * @param rowCount  the total number of rows in the row-group
-   * @return the ranges of the possible matching row indexes; the returned ranges will contain all the rows
-   *          if any of the required offset index is missing
+   * @param rowCount the total number of rows in the row-group
+   * @return the ranges of the possible matching row indexes; the returned ranges will contain all
+   *     the rows if any of the required offset index is missing
    */
-  public RowRanges calculateRowRanges(MessageType fileSchema, ColumnIndexStore columnIndexStore, long rowCount) {
+  public RowRanges calculateRowRanges(
+      MessageType fileSchema, ColumnIndexStore columnIndexStore, long rowCount) {
     try {
       return new ColumnIndexEvalVisitor(fileSchema, columnIndexStore, rowCount).eval();
     } catch (ColumnIndexStore.MissingOffsetIndexException e) {
@@ -95,7 +96,8 @@ public class ParquetColumnIndexFilter {
   private static final boolean ROWS_CANNOT_MATCH = false;
   private static final RowRanges NO_ROWS = PageSkippingHelpers.empty();
 
-  private class ColumnIndexEvalVisitor extends ExpressionVisitors.BoundExpressionVisitor<RowRanges> {
+  private class ColumnIndexEvalVisitor
+      extends ExpressionVisitors.BoundExpressionVisitor<RowRanges> {
 
     private final Map<Integer, ColumnPath> idToColumn = Maps.newHashMap();
     private final Map<Integer, ParquetColumnIndex> idToColumnIndex = Maps.newHashMap();
@@ -107,7 +109,8 @@ public class ParquetColumnIndexFilter {
     private final ColumnIndexStore columnIndexStore;
     private final long rowCount;
 
-    private ColumnIndexEvalVisitor(MessageType fileSchema, ColumnIndexStore columnIndexStore, long rowCount) {
+    private ColumnIndexEvalVisitor(
+        MessageType fileSchema, ColumnIndexStore columnIndexStore, long rowCount) {
       this.allRows = allRows(rowCount);
       this.columnIndexStore = columnIndexStore;
       this.rowCount = rowCount;
@@ -163,14 +166,16 @@ public class ParquetColumnIndexFilter {
     public <T> RowRanges isNull(BoundReference<T> ref) {
       int id = ref.fieldId();
 
-      Function<ParquetColumnIndex, PrimitiveIterator.OfInt> func = columnIndex -> {
-        if (columnIndex.hasNullCounts()) {
-          return filterPageIndexes(columnIndex.pageCount(), columnIndex::containsNull);
-        } else {
-          // Searching for nulls so if we don't have null related statistics we have to return all pages
-          return allPageIndexes(columnIndex.pageCount());
-        }
-      };
+      Function<ParquetColumnIndex, PrimitiveIterator.OfInt> func =
+          columnIndex -> {
+            if (columnIndex.hasNullCounts()) {
+              return filterPageIndexes(columnIndex.pageCount(), columnIndex::containsNull);
+            } else {
+              // Searching for nulls so if we don't have null related statistics we have to return
+              // all pages
+              return allPageIndexes(columnIndex.pageCount());
+            }
+          };
 
       return applyPredicate(id, func, ROWS_MIGHT_MATCH);
     }
@@ -204,7 +209,8 @@ public class ParquetColumnIndexFilter {
 
     @Override
     public <T> RowRanges notNaN(BoundReference<T> ref) {
-      // Parquet column index does not contain statistics about NaN values, so cannot filter out any pages.
+      // Parquet column index does not contain statistics about NaN values, so cannot filter out any
+      // pages.
       return allRows;
     }
 
@@ -212,23 +218,24 @@ public class ParquetColumnIndexFilter {
     public <T> RowRanges lt(BoundReference<T> ref, Literal<T> lit) {
       int id = ref.fieldId();
 
-      Function<ParquetColumnIndex, PrimitiveIterator.OfInt> func = columnIndex -> {
+      Function<ParquetColumnIndex, PrimitiveIterator.OfInt> func =
+          columnIndex -> {
+            IntPredicate filter =
+                pageIndex -> {
+                  if (columnIndex.isNullPage(pageIndex)) {
+                    return ROWS_CANNOT_MATCH;
+                  }
 
-        IntPredicate filter = pageIndex -> {
-          if (columnIndex.isNullPage(pageIndex)) {
-            return ROWS_CANNOT_MATCH;
-          }
+                  T lower = columnIndex.min(pageIndex);
+                  if (lit.comparator().compare(lower, lit.value()) >= 0) {
+                    return ROWS_CANNOT_MATCH;
+                  }
 
-          T lower = columnIndex.min(pageIndex);
-          if (lit.comparator().compare(lower, lit.value()) >= 0) {
-            return ROWS_CANNOT_MATCH;
-          }
+                  return ROWS_MIGHT_MATCH;
+                };
 
-          return ROWS_MIGHT_MATCH;
-        };
-
-        return filterPageIndexes(columnIndex.pageCount(), filter);
-      };
+            return filterPageIndexes(columnIndex.pageCount(), filter);
+          };
 
       return applyPredicate(id, func, ROWS_CANNOT_MATCH);
     }
@@ -237,23 +244,24 @@ public class ParquetColumnIndexFilter {
     public <T> RowRanges ltEq(BoundReference<T> ref, Literal<T> lit) {
       int id = ref.fieldId();
 
-      Function<ParquetColumnIndex, PrimitiveIterator.OfInt> func = columnIndex -> {
+      Function<ParquetColumnIndex, PrimitiveIterator.OfInt> func =
+          columnIndex -> {
+            IntPredicate filter =
+                pageIndex -> {
+                  if (columnIndex.isNullPage(pageIndex)) {
+                    return ROWS_CANNOT_MATCH;
+                  }
 
-        IntPredicate filter = pageIndex -> {
-          if (columnIndex.isNullPage(pageIndex)) {
-            return ROWS_CANNOT_MATCH;
-          }
+                  T lower = columnIndex.min(pageIndex);
+                  if (lit.comparator().compare(lower, lit.value()) > 0) {
+                    return ROWS_CANNOT_MATCH;
+                  }
 
-          T lower = columnIndex.min(pageIndex);
-          if (lit.comparator().compare(lower, lit.value()) > 0) {
-            return ROWS_CANNOT_MATCH;
-          }
+                  return ROWS_MIGHT_MATCH;
+                };
 
-          return ROWS_MIGHT_MATCH;
-        };
-
-        return filterPageIndexes(columnIndex.pageCount(), filter);
-      };
+            return filterPageIndexes(columnIndex.pageCount(), filter);
+          };
 
       return applyPredicate(id, func, ROWS_CANNOT_MATCH);
     }
@@ -262,22 +270,23 @@ public class ParquetColumnIndexFilter {
     public <T> RowRanges gt(BoundReference<T> ref, Literal<T> lit) {
       int id = ref.fieldId();
 
-      Function<ParquetColumnIndex, PrimitiveIterator.OfInt> func = columnIndex -> {
+      Function<ParquetColumnIndex, PrimitiveIterator.OfInt> func =
+          columnIndex -> {
+            IntPredicate filter =
+                pageIndex -> {
+                  if (columnIndex.isNullPage(pageIndex)) {
+                    return ROWS_CANNOT_MATCH;
+                  }
 
-        IntPredicate filter = pageIndex -> {
-          if (columnIndex.isNullPage(pageIndex)) {
-            return ROWS_CANNOT_MATCH;
-          }
+                  T upper = columnIndex.max(pageIndex);
+                  if (lit.comparator().compare(upper, lit.value()) <= 0) {
+                    return ROWS_CANNOT_MATCH;
+                  }
 
-          T upper = columnIndex.max(pageIndex);
-          if (lit.comparator().compare(upper, lit.value()) <= 0) {
-            return ROWS_CANNOT_MATCH;
-          }
-
-          return ROWS_MIGHT_MATCH;
-        };
-        return filterPageIndexes(columnIndex.pageCount(), filter);
-      };
+                  return ROWS_MIGHT_MATCH;
+                };
+            return filterPageIndexes(columnIndex.pageCount(), filter);
+          };
 
       return applyPredicate(id, func, ROWS_CANNOT_MATCH);
     }
@@ -286,22 +295,23 @@ public class ParquetColumnIndexFilter {
     public <T> RowRanges gtEq(BoundReference<T> ref, Literal<T> lit) {
       int id = ref.fieldId();
 
-      Function<ParquetColumnIndex, PrimitiveIterator.OfInt> func = columnIndex -> {
+      Function<ParquetColumnIndex, PrimitiveIterator.OfInt> func =
+          columnIndex -> {
+            IntPredicate filter =
+                pageIndex -> {
+                  if (columnIndex.isNullPage(pageIndex)) {
+                    return ROWS_CANNOT_MATCH;
+                  }
 
-        IntPredicate filter = pageIndex -> {
-          if (columnIndex.isNullPage(pageIndex)) {
-            return ROWS_CANNOT_MATCH;
-          }
+                  T upper = columnIndex.max(pageIndex);
+                  if (lit.comparator().compare(upper, lit.value()) < 0) {
+                    return ROWS_CANNOT_MATCH;
+                  }
 
-          T upper = columnIndex.max(pageIndex);
-          if (lit.comparator().compare(upper, lit.value()) < 0) {
-            return ROWS_CANNOT_MATCH;
-          }
-
-          return ROWS_MIGHT_MATCH;
-        };
-        return filterPageIndexes(columnIndex.pageCount(), filter);
-      };
+                  return ROWS_MIGHT_MATCH;
+                };
+            return filterPageIndexes(columnIndex.pageCount(), filter);
+          };
 
       return applyPredicate(id, func, ROWS_CANNOT_MATCH);
     }
@@ -310,28 +320,29 @@ public class ParquetColumnIndexFilter {
     public <T> RowRanges eq(BoundReference<T> ref, Literal<T> lit) {
       int id = ref.fieldId();
 
-      Function<ParquetColumnIndex, PrimitiveIterator.OfInt> func = columnIndex -> {
+      Function<ParquetColumnIndex, PrimitiveIterator.OfInt> func =
+          columnIndex -> {
+            IntPredicate filter =
+                pageIndex -> {
+                  if (columnIndex.isNullPage(pageIndex)) {
+                    return ROWS_CANNOT_MATCH;
+                  }
 
-        IntPredicate filter = pageIndex -> {
-          if (columnIndex.isNullPage(pageIndex)) {
-            return ROWS_CANNOT_MATCH;
-          }
+                  T lower = columnIndex.min(pageIndex);
+                  if (lit.comparator().compare(lower, lit.value()) > 0) {
+                    return ROWS_CANNOT_MATCH;
+                  }
 
-          T lower = columnIndex.min(pageIndex);
-          if (lit.comparator().compare(lower, lit.value()) > 0) {
-            return ROWS_CANNOT_MATCH;
-          }
+                  T upper = columnIndex.max(pageIndex);
+                  if (lit.comparator().compare(upper, lit.value()) < 0) {
+                    return ROWS_CANNOT_MATCH;
+                  }
 
-          T upper = columnIndex.max(pageIndex);
-          if (lit.comparator().compare(upper, lit.value()) < 0) {
-            return ROWS_CANNOT_MATCH;
-          }
+                  return ROWS_MIGHT_MATCH;
+                };
 
-          return ROWS_MIGHT_MATCH;
-        };
-
-        return filterPageIndexes(columnIndex.pageCount(), filter);
-      };
+            return filterPageIndexes(columnIndex.pageCount(), filter);
+          };
 
       return applyPredicate(id, func, ROWS_CANNOT_MATCH);
     }
@@ -346,28 +357,29 @@ public class ParquetColumnIndexFilter {
       int id = ref.fieldId();
       Pair<T, T> minMax = minMax(ref.comparator(), literalSet);
 
-      Function<ParquetColumnIndex, PrimitiveIterator.OfInt> func = columnIndex -> {
+      Function<ParquetColumnIndex, PrimitiveIterator.OfInt> func =
+          columnIndex -> {
+            IntPredicate filter =
+                pageIndex -> {
+                  if (columnIndex.isNullPage(pageIndex)) {
+                    return ROWS_CANNOT_MATCH;
+                  }
 
-        IntPredicate filter = pageIndex -> {
-          if (columnIndex.isNullPage(pageIndex)) {
-            return ROWS_CANNOT_MATCH;
-          }
+                  T lower = columnIndex.min(pageIndex);
+                  if (ref.comparator().compare(lower, minMax.second()) > 0) {
+                    return ROWS_CANNOT_MATCH;
+                  }
 
-          T lower = columnIndex.min(pageIndex);
-          if (ref.comparator().compare(lower, minMax.second()) > 0) {
-            return ROWS_CANNOT_MATCH;
-          }
+                  T upper = columnIndex.max(pageIndex);
+                  if (ref.comparator().compare(upper, minMax.first()) < 0) {
+                    return ROWS_CANNOT_MATCH;
+                  }
 
-          T upper = columnIndex.max(pageIndex);
-          if (ref.comparator().compare(upper, minMax.first()) < 0) {
-            return ROWS_CANNOT_MATCH;
-          }
+                  return ROWS_MIGHT_MATCH;
+                };
 
-          return ROWS_MIGHT_MATCH;
-        };
-
-        return filterPageIndexes(columnIndex.pageCount(), filter);
-      };
+            return filterPageIndexes(columnIndex.pageCount(), filter);
+          };
 
       return applyPredicate(id, func, ROWS_CANNOT_MATCH);
     }
@@ -401,38 +413,45 @@ public class ParquetColumnIndexFilter {
     public <T> RowRanges startsWith(BoundReference<T> ref, Literal<T> lit) {
       int id = ref.fieldId();
 
-      Function<ParquetColumnIndex, PrimitiveIterator.OfInt> func = columnIndex -> {
+      Function<ParquetColumnIndex, PrimitiveIterator.OfInt> func =
+          columnIndex -> {
+            ByteBuffer prefixAsBytes = lit.toByteBuffer();
+            Comparator<ByteBuffer> comparator = Comparators.unsignedBytes();
 
-        ByteBuffer prefixAsBytes = lit.toByteBuffer();
-        Comparator<ByteBuffer> comparator = Comparators.unsignedBytes();
+            IntPredicate filter =
+                pageIndex -> {
+                  if (columnIndex.isNullPage(pageIndex)) {
+                    return ROWS_CANNOT_MATCH;
+                  }
 
-        IntPredicate filter = pageIndex -> {
-          if (columnIndex.isNullPage(pageIndex)) {
-            return ROWS_CANNOT_MATCH;
-          }
+                  ByteBuffer lower = columnIndex.minBuffer(pageIndex);
 
-          ByteBuffer lower = columnIndex.minBuffer(pageIndex);
+                  // truncate lower bound so that its length in bytes is not greater than the length
+                  // of prefix
+                  int lowerLength = Math.min(prefixAsBytes.remaining(), lower.remaining());
+                  int lowerCmp =
+                      comparator.compare(
+                          BinaryUtil.truncateBinary(lower, lowerLength), prefixAsBytes);
+                  if (lowerCmp > 0) {
+                    return ROWS_CANNOT_MATCH;
+                  }
 
-          // truncate lower bound so that its length in bytes is not greater than the length of prefix
-          int lowerLength = Math.min(prefixAsBytes.remaining(), lower.remaining());
-          int lowerCmp = comparator.compare(BinaryUtil.truncateBinary(lower, lowerLength), prefixAsBytes);
-          if (lowerCmp > 0) {
-            return ROWS_CANNOT_MATCH;
-          }
+                  ByteBuffer upper = columnIndex.maxBuffer(pageIndex);
+                  // truncate upper bound so that its length in bytes is not greater than the length
+                  // of prefix
+                  int upperLength = Math.min(prefixAsBytes.remaining(), upper.remaining());
+                  int upperCmp =
+                      comparator.compare(
+                          BinaryUtil.truncateBinary(upper, upperLength), prefixAsBytes);
+                  if (upperCmp < 0) {
+                    return ROWS_CANNOT_MATCH;
+                  }
 
-          ByteBuffer upper = columnIndex.maxBuffer(pageIndex);
-          // truncate upper bound so that its length in bytes is not greater than the length of prefix
-          int upperLength = Math.min(prefixAsBytes.remaining(), upper.remaining());
-          int upperCmp = comparator.compare(BinaryUtil.truncateBinary(upper, upperLength), prefixAsBytes);
-          if (upperCmp < 0) {
-            return ROWS_CANNOT_MATCH;
-          }
+                  return ROWS_MIGHT_MATCH;
+                };
 
-          return ROWS_MIGHT_MATCH;
-        };
-
-        return filterPageIndexes(columnIndex.pageCount(), filter);
-      };
+            return filterPageIndexes(columnIndex.pageCount(), filter);
+          };
 
       return applyPredicate(id, func, ROWS_CANNOT_MATCH);
     }
@@ -441,58 +460,70 @@ public class ParquetColumnIndexFilter {
     public <T> RowRanges notStartsWith(BoundReference<T> ref, Literal<T> lit) {
       int id = ref.fieldId();
 
-      Function<ParquetColumnIndex, PrimitiveIterator.OfInt> func = columnIndex -> {
-        IntPredicate filter;
-        if (columnIndex.hasNullCounts()) {
-          ByteBuffer prefixAsBytes = lit.toByteBuffer();
-          Comparator<ByteBuffer> comparator = Comparators.unsignedBytes();
+      Function<ParquetColumnIndex, PrimitiveIterator.OfInt> func =
+          columnIndex -> {
+            IntPredicate filter;
+            if (columnIndex.hasNullCounts()) {
+              ByteBuffer prefixAsBytes = lit.toByteBuffer();
+              Comparator<ByteBuffer> comparator = Comparators.unsignedBytes();
 
-          filter = pageIndex -> {
-            if (columnIndex.containsNull(pageIndex)) {
-              return ROWS_MIGHT_MATCH;
+              filter =
+                  pageIndex -> {
+                    if (columnIndex.containsNull(pageIndex)) {
+                      return ROWS_MIGHT_MATCH;
+                    }
+
+                    ByteBuffer lower = columnIndex.minBuffer(pageIndex);
+                    // if lower is shorter than the prefix, it can't start with the prefix
+                    if (lower.remaining() < prefixAsBytes.remaining()) {
+                      return ROWS_MIGHT_MATCH;
+                    }
+
+                    // truncate lower bound so that its length in bytes is not greater than the
+                    // length of prefix
+                    int cmp =
+                        comparator.compare(
+                            BinaryUtil.truncateBinary(lower, prefixAsBytes.remaining()),
+                            prefixAsBytes);
+
+                    if (cmp == 0) {
+                      ByteBuffer upper = columnIndex.maxBuffer(pageIndex);
+                      // the lower bound starts with the prefix; check the upper bound
+                      // if upper is shorter than the prefix, it can't start with the prefix
+                      if (upper.remaining() < prefixAsBytes.remaining()) {
+                        return ROWS_MIGHT_MATCH;
+                      }
+
+                      // truncate upper bound so that its length in bytes is not greater than the
+                      // length of prefix
+                      cmp =
+                          comparator.compare(
+                              BinaryUtil.truncateBinary(upper, prefixAsBytes.remaining()),
+                              prefixAsBytes);
+                      if (cmp == 0) {
+                        // both bounds match the prefix, so all rows must match the prefix and none
+                        // do not match
+                        return ROWS_CANNOT_MATCH;
+                      }
+                    }
+
+                    return ROWS_MIGHT_MATCH;
+                  };
+            } else {
+              // Return all pages if we don't have null counts statistics
+              filter = pageIndex -> ROWS_MIGHT_MATCH;
             }
 
-            ByteBuffer lower = columnIndex.minBuffer(pageIndex);
-            // if lower is shorter than the prefix, it can't start with the prefix
-            if (lower.remaining() < prefixAsBytes.remaining()) {
-              return ROWS_MIGHT_MATCH;
-            }
-
-            // truncate lower bound so that its length in bytes is not greater than the length of prefix
-            int cmp = comparator.compare(BinaryUtil.truncateBinary(lower, prefixAsBytes.remaining()), prefixAsBytes);
-
-            if (cmp == 0) {
-              ByteBuffer upper = columnIndex.maxBuffer(pageIndex);
-              // the lower bound starts with the prefix; check the upper bound
-              // if upper is shorter than the prefix, it can't start with the prefix
-              if (upper.remaining() < prefixAsBytes.remaining()) {
-                return ROWS_MIGHT_MATCH;
-              }
-
-              // truncate upper bound so that its length in bytes is not greater than the length of prefix
-              cmp = comparator.compare(BinaryUtil.truncateBinary(upper, prefixAsBytes.remaining()), prefixAsBytes);
-              if (cmp == 0) {
-                // both bounds match the prefix, so all rows must match the prefix and none do not match
-                return ROWS_CANNOT_MATCH;
-              }
-            }
-
-            return ROWS_MIGHT_MATCH;
+            return filterPageIndexes(columnIndex.pageCount(), filter);
           };
-        } else {
-          // Return all pages if we don't have null counts statistics
-          filter = pageIndex -> ROWS_MIGHT_MATCH;
-        }
-
-        return filterPageIndexes(columnIndex.pageCount(), filter);
-      };
 
       return applyPredicate(id, func, ROWS_MIGHT_MATCH);
     }
 
-    private RowRanges applyPredicate(int columnId,
-                                     Function<ParquetColumnIndex, PrimitiveIterator.OfInt> func,
-                                     boolean missingColumnMightMatch) {
+    private RowRanges applyPredicate(
+        int columnId,
+        Function<ParquetColumnIndex, PrimitiveIterator.OfInt> func,
+        boolean missingColumnMightMatch) {
 
       if (!idToColumn.containsKey(columnId)) {
         return missingColumnMightMatch ? allRows : NO_ROWS;
@@ -504,8 +535,9 @@ public class ParquetColumnIndexFilter {
       OffsetIndex offsetIndex = offsetIndex(columnId);
       ParquetColumnIndex columnIndex = columnIndex(columnId);
       if (columnIndex == null) {
-        LOG.info("No column index for column {} is available; Unable to filter on this column",
-                idToColumn.get(columnId));
+        LOG.info(
+            "No column index for column {} is available; Unable to filter on this column",
+            idToColumn.get(columnId));
         return allRows;
       }
 
@@ -514,7 +546,8 @@ public class ParquetColumnIndexFilter {
 
     // Assumes that the column corresponding to the id exists in the file.
     private OffsetIndex offsetIndex(int columnId) {
-      return idToOffsetIndex.computeIfAbsent(columnId, k -> columnIndexStore.getOffsetIndex(idToColumn.get(k)));
+      return idToOffsetIndex.computeIfAbsent(
+          columnId, k -> columnIndexStore.getOffsetIndex(idToColumn.get(k)));
     }
 
     // Assumes that the column corresponding to the id exists in the file.
@@ -524,7 +557,9 @@ public class ParquetColumnIndexFilter {
       if (wrapper == null) {
         ColumnIndex columnIndex = columnIndexStore.getColumnIndex(idToColumn.get(columnId));
         if (columnIndex != null) {
-          wrapper = new ParquetColumnIndex(columnIndex, parquetTypes.get(columnId), icebergTypes.get(columnId));
+          wrapper =
+              new ParquetColumnIndex(
+                  columnIndex, parquetTypes.get(columnId), icebergTypes.get(columnId));
           idToColumnIndex.put(columnId, wrapper);
         }
       }
@@ -534,7 +569,8 @@ public class ParquetColumnIndexFilter {
   }
 
   /**
-   * A wrapper for ColumnIndex, which will cache statistics data and convert min max buffers to Iceberg type values.
+   * A wrapper for ColumnIndex, which will cache statistics data and convert min max buffers to
+   * Iceberg type values.
    */
   private static class ParquetColumnIndex {
     private final ColumnIndex columnIndex;
@@ -546,7 +582,8 @@ public class ParquetColumnIndexFilter {
     private List<ByteBuffer> maxBuffers;
     private List<Long> nullCounts; // optional field
 
-    private ParquetColumnIndex(ColumnIndex columnIndex, PrimitiveType primitiveType, Type.PrimitiveType icebergType) {
+    private ParquetColumnIndex(
+        ColumnIndex columnIndex, PrimitiveType primitiveType, Type.PrimitiveType icebergType) {
       this.columnIndex = columnIndex;
       this.primitiveType = primitiveType;
       this.icebergType = icebergType;
@@ -613,70 +650,89 @@ public class ParquetColumnIndexFilter {
     }
 
     @SuppressWarnings("unchecked")
-    private <T> T fromBytes(ByteBuffer bytes, PrimitiveType primitiveType, Type.PrimitiveType icebergType) {
+    private <T> T fromBytes(
+        ByteBuffer bytes, PrimitiveType primitiveType, Type.PrimitiveType icebergType) {
       LogicalTypeAnnotation logicalTypeAnnotation = primitiveType.getLogicalTypeAnnotation();
-      Optional<Object> converted = logicalTypeAnnotation == null ? Optional.empty() : logicalTypeAnnotation
-          .accept(new LogicalTypeAnnotation.LogicalTypeAnnotationVisitor<Object>() {
-            @Override
-            public Optional<Object> visit(LogicalTypeAnnotation.StringLogicalTypeAnnotation stringLogicalType) {
-              return Optional.of(StandardCharsets.UTF_8.decode(bytes));
-            }
+      Optional<Object> converted =
+          logicalTypeAnnotation == null
+              ? Optional.empty()
+              : logicalTypeAnnotation.accept(
+                  new LogicalTypeAnnotation.LogicalTypeAnnotationVisitor<Object>() {
+                    @Override
+                    public Optional<Object> visit(
+                        LogicalTypeAnnotation.StringLogicalTypeAnnotation stringLogicalType) {
+                      return Optional.of(StandardCharsets.UTF_8.decode(bytes));
+                    }
 
-            @Override
-            public Optional<Object> visit(LogicalTypeAnnotation.EnumLogicalTypeAnnotation enumLogicalType) {
-              return Optional.of(StandardCharsets.UTF_8.decode(bytes));
-            }
+                    @Override
+                    public Optional<Object> visit(
+                        LogicalTypeAnnotation.EnumLogicalTypeAnnotation enumLogicalType) {
+                      return Optional.of(StandardCharsets.UTF_8.decode(bytes));
+                    }
 
-            @Override
-            public Optional<Object> visit(LogicalTypeAnnotation.DecimalLogicalTypeAnnotation decimalType) {
-              switch (primitiveType.getPrimitiveTypeName()) {
-                case INT32:
-                  return Optional.of(new BigDecimal(BigInteger.valueOf(bytes.getInt(0)), decimalType.getScale()));
-                case INT64:
-                  return Optional.of(new BigDecimal(BigInteger.valueOf(bytes.getLong(0)), decimalType.getScale()));
-                case BINARY:
-                case FIXED_LEN_BYTE_ARRAY:
-                  return Optional.of(new BigDecimal(new BigInteger(ByteBuffers.toByteArray(bytes)), decimalType.getScale()));
-              }
-              return Optional.empty();
-            }
+                    @Override
+                    public Optional<Object> visit(
+                        LogicalTypeAnnotation.DecimalLogicalTypeAnnotation decimalType) {
+                      switch (primitiveType.getPrimitiveTypeName()) {
+                        case INT32:
+                          return Optional.of(
+                              new BigDecimal(
+                                  BigInteger.valueOf(bytes.getInt(0)), decimalType.getScale()));
+                        case INT64:
+                          return Optional.of(
+                              new BigDecimal(
+                                  BigInteger.valueOf(bytes.getLong(0)), decimalType.getScale()));
+                        case BINARY:
+                        case FIXED_LEN_BYTE_ARRAY:
+                          return Optional.of(
+                              new BigDecimal(
+                                  new BigInteger(ByteBuffers.toByteArray(bytes)),
+                                  decimalType.getScale()));
+                      }
+                      return Optional.empty();
+                    }
 
-            @Override
-            public Optional<Object> visit(LogicalTypeAnnotation.TimeLogicalTypeAnnotation timeLogicalType) {
-              switch (timeLogicalType.getUnit()) {
-                case MILLIS:
-                  return Optional.of(((long) bytes.getInt(0)) * 1000L);
-                case MICROS:
-                  return Optional.of(bytes.getLong(0));
-                case NANOS:
-                  return Optional.of(Math.floorDiv(bytes.getLong(0), 1000));
-              }
-              return Optional.empty();
-            }
+                    @Override
+                    public Optional<Object> visit(
+                        LogicalTypeAnnotation.TimeLogicalTypeAnnotation timeLogicalType) {
+                      switch (timeLogicalType.getUnit()) {
+                        case MILLIS:
+                          return Optional.of(((long) bytes.getInt(0)) * 1000L);
+                        case MICROS:
+                          return Optional.of(bytes.getLong(0));
+                        case NANOS:
+                          return Optional.of(Math.floorDiv(bytes.getLong(0), 1000));
+                      }
+                      return Optional.empty();
+                    }
 
-            @Override
-            public Optional<Object> visit(LogicalTypeAnnotation.TimestampLogicalTypeAnnotation timestampLogicalType) {
-              switch (timestampLogicalType.getUnit()) {
-                case MILLIS:
-                  return Optional.of(bytes.getLong(0) * 1000);
-                case MICROS:
-                  return Optional.of(bytes.getLong(0));
-                case NANOS:
-                  return Optional.of(Math.floorDiv(bytes.getLong(0), 1000));
-              }
-              return Optional.empty();
-            }
+                    @Override
+                    public Optional<Object> visit(
+                        LogicalTypeAnnotation.TimestampLogicalTypeAnnotation timestampLogicalType) {
+                      switch (timestampLogicalType.getUnit()) {
+                        case MILLIS:
+                          return Optional.of(bytes.getLong(0) * 1000);
+                        case MICROS:
+                          return Optional.of(bytes.getLong(0));
+                        case NANOS:
+                          return Optional.of(Math.floorDiv(bytes.getLong(0), 1000));
+                      }
+                      return Optional.empty();
+                    }
 
-            @Override
-            public Optional<Object> visit(LogicalTypeAnnotation.JsonLogicalTypeAnnotation jsonLogicalType) {
-              return Optional.of(StandardCharsets.UTF_8.decode(bytes));
-            }
+                    @Override
+                    public Optional<Object> visit(
+                        LogicalTypeAnnotation.JsonLogicalTypeAnnotation jsonLogicalType) {
+                      return Optional.of(StandardCharsets.UTF_8.decode(bytes));
+                    }
 
-            @Override
-            public Optional<Object> visit(LogicalTypeAnnotation.UUIDLogicalTypeAnnotation uuidLogicalType) {
-              return LogicalTypeAnnotation.LogicalTypeAnnotationVisitor.super.visit(uuidLogicalType);
-            }
-          });
+                    @Override
+                    public Optional<Object> visit(
+                        LogicalTypeAnnotation.UUIDLogicalTypeAnnotation uuidLogicalType) {
+                      return LogicalTypeAnnotation.LogicalTypeAnnotationVisitor.super.visit(
+                          uuidLogicalType);
+                    }
+                  });
 
       if (converted.isPresent()) {
         return (T) converted.get();
