@@ -33,6 +33,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.DecimalUtil;
+import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.hadoop.metadata.ColumnPath;
 import org.apache.parquet.internal.column.columnindex.BoundaryOrder;
 import org.apache.parquet.internal.column.columnindex.ColumnIndex;
@@ -286,15 +287,15 @@ public class TestColumnIndexFilter {
   /**            END             **/
 
   private static final MessageType FILE_SCHEMA = ParquetSchemaUtil.convert(SCHEMA_MISSING_COLUMN, "table");
-  private static final RowRanges ALL_ROWS = RowRanges.createSingle(TOTAL_ROW_COUNT);
-  private static final RowRanges NO_ROWS = RowRanges.EMPTY;
+  private static final RowRanges ALL_ROWS = PageSkippingHelpers.allRows(TOTAL_ROW_COUNT);
+  private static final RowRanges NO_ROWS = PageSkippingHelpers.empty();
 
   private static RowRanges selectRowRanges(String path, int... pageIndexes) {
     return selectRowRanges(path, STORE, TOTAL_ROW_COUNT, pageIndexes);
   }
 
   private static RowRanges selectRowRanges(String path, ColumnIndexStore store, long rowCount, int... pageIndexes) {
-    return RowRanges.create(rowCount, new PrimitiveIterator.OfInt() {
+    return PageSkippingHelpers.createRowRanges(rowCount, new PrimitiveIterator.OfInt() {
       int index = -1;
 
       @Override
@@ -465,6 +466,9 @@ public class TestColumnIndexFilter {
     RowRanges expected;
     Expression expr;
 
+    List<ColumnDescriptor> columns = FILE_SCHEMA.getColumns();
+    columns.forEach(System.out::println);
+
     expected = NO_ROWS;
     expr = Expressions.and(equal(INT_COL, 1), equal(INT_COL, 2));
     assertRowRangesEquals(expected, calculateRowRanges(expr));
@@ -473,7 +477,7 @@ public class TestColumnIndexFilter {
     assertRowRangesEquals(expected, calculateRowRanges(expr));
 
     expr = Expressions.and(equal(INT_COL, 2), equal(STR_COL, "Tango"));
-    expected = RowRanges.intersection(selectRowRanges(INT_COL, 1), selectRowRanges(STR_COL, 2));
+    expected = PageSkippingHelpers.intersection(selectRowRanges(INT_COL, 1), selectRowRanges(STR_COL, 2));
     assertRowRangesEquals(expected, calculateRowRanges(expr));
   }
 
@@ -486,12 +490,12 @@ public class TestColumnIndexFilter {
     expr = Expressions.or(equal(INT_COL, 1), equal(INT_COL, 2));
     assertRowRangesEquals(expected, calculateRowRanges(expr));
 
-    expected = RowRanges.union(selectRowRanges(INT_COL, 0), selectRowRanges(STR_COL, 7));
+    expected = PageSkippingHelpers.union(selectRowRanges(INT_COL, 0), selectRowRanges(STR_COL, 7));
     expr = Expressions.or(equal(INT_COL, 1), equal(STR_COL, "Alfa"));
     assertRowRangesEquals(expected, calculateRowRanges(expr));
 
     expr = Expressions.or(equal(INT_COL, 2), equal(STR_COL, "Tango"));
-    expected = RowRanges.union(selectRowRanges(INT_COL, 1), selectRowRanges(STR_COL, 2));
+    expected = PageSkippingHelpers.union(selectRowRanges(INT_COL, 1), selectRowRanges(STR_COL, 2));
     assertRowRangesEquals(expected, calculateRowRanges(expr));
   }
 
@@ -817,8 +821,6 @@ public class TestColumnIndexFilter {
       nullCounts.add(nullCount);
       minValues.add(ByteBuffer.allocate(Integer.BYTES).order(ByteOrder.LITTLE_ENDIAN).putInt(0, min));
       maxValues.add(ByteBuffer.allocate(Integer.BYTES).order(ByteOrder.LITTLE_ENDIAN).putInt(0, max));
-//      minValues.add(ByteBuffer.wrap(BytesUtils.intToBytes(min)));
-//      maxValues.add(ByteBuffer.wrap(BytesUtils.intToBytes(max)));
       return this;
     }
 
@@ -848,8 +850,6 @@ public class TestColumnIndexFilter {
       nullCounts.add(nullCount);
       minValues.add(ByteBuffer.allocate(Double.BYTES).order(ByteOrder.LITTLE_ENDIAN).putDouble(0, min));
       maxValues.add(ByteBuffer.allocate(Double.BYTES).order(ByteOrder.LITTLE_ENDIAN).putDouble(0, max));
-//      minValues.add(ByteBuffer.wrap(BytesUtils.longToBytes(Double.doubleToLongBits(min))));
-//      maxValues.add(ByteBuffer.wrap(BytesUtils.longToBytes(Double.doubleToLongBits(max))));
       return this;
     }
 
