@@ -36,7 +36,6 @@ on:
     - '.asf.yml'
     - 'dev/**'
     - 'python/**'
-    - 'python_legacy/**'
     - 'docs/**'
     - 'open-api/**'
     - 'format/**'
