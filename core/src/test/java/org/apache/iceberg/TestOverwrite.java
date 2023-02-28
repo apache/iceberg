@@ -23,6 +23,7 @@ import static org.apache.iceberg.expressions.Expressions.equal;
 import static org.apache.iceberg.expressions.Expressions.lessThan;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.apache.iceberg.util.SnapshotUtil.latestSnapshot;
 
 import java.io.File;
 import java.io.IOException;
@@ -32,7 +33,6 @@ import org.apache.iceberg.ManifestEntry.Status;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types;
-import org.apache.iceberg.util.SnapshotUtil;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -140,20 +140,20 @@ public class TestOverwrite extends TableTestBase {
   @Test
   public void testOverwriteWithoutAppend() {
     TableMetadata base = TestTables.readMetadata(TABLE_NAME);
-    long baseId = SnapshotUtil.latestSnapshot(base, branch).snapshotId();
+    long baseId = latestSnapshot(base, branch).snapshotId();
 
     commit(table, table.newOverwrite().overwriteByRowFilter(equal("date", "2018-06-08")), branch);
 
-    long overwriteId = SnapshotUtil.latestSnapshot(table, branch).snapshotId();
+    long overwriteId = latestSnapshot(table, branch).snapshotId();
 
     Assert.assertNotEquals("Should create a new snapshot", baseId, overwriteId);
     Assert.assertEquals(
         "Table should have one manifest",
         1,
-        SnapshotUtil.latestSnapshot(table, branch).allManifests(table.io()).size());
+        latestSnapshot(table, branch).allManifests(table.io()).size());
 
     validateManifestEntries(
-        SnapshotUtil.latestSnapshot(table, branch).allManifests(table.io()).get(0),
+        latestSnapshot(table, branch).allManifests(table.io()).get(0),
         ids(overwriteId, baseId),
         files(FILE_0_TO_4, FILE_5_TO_9),
         statuses(Status.DELETED, Status.EXISTING));
@@ -163,9 +163,7 @@ public class TestOverwrite extends TableTestBase {
   public void testOverwriteFailsDelete() {
     TableMetadata base = TestTables.readMetadata(TABLE_NAME);
     long baseId =
-        SnapshotUtil.latestSnapshot(base, branch) == null
-            ? -1
-            : SnapshotUtil.latestSnapshot(base, branch).snapshotId();
+        latestSnapshot(base, branch) == null ? -1 : latestSnapshot(base, branch).snapshotId();
 
     OverwriteFiles overwrite =
         table
@@ -179,15 +177,13 @@ public class TestOverwrite extends TableTestBase {
         () -> commit(table, overwrite, branch));
 
     Assert.assertEquals(
-        "Should not create a new snapshot",
-        baseId,
-        SnapshotUtil.latestSnapshot(base, branch).snapshotId());
+        "Should not create a new snapshot", baseId, latestSnapshot(base, branch).snapshotId());
   }
 
   @Test
   public void testOverwriteWithAppendOutsideOfDelete() {
     TableMetadata base = TestTables.readMetadata(TABLE_NAME);
-    Snapshot latestSnapshot = SnapshotUtil.latestSnapshot(base, branch);
+    Snapshot latestSnapshot = latestSnapshot(base, branch);
     long baseId = latestSnapshot == null ? -1 : latestSnapshot.snapshotId();
 
     commit(
@@ -198,23 +194,23 @@ public class TestOverwrite extends TableTestBase {
             .addFile(FILE_10_TO_14), // in 2018-06-09, NOT in 2018-06-08
         branch);
 
-    long overwriteId = SnapshotUtil.latestSnapshot(table, branch).snapshotId();
+    long overwriteId = latestSnapshot(table, branch).snapshotId();
 
     Assert.assertNotEquals("Should create a new snapshot", baseId, overwriteId);
     Assert.assertEquals(
         "Table should have 2 manifests",
         2,
-        SnapshotUtil.latestSnapshot(table, branch).allManifests(table.io()).size());
+        latestSnapshot(table, branch).allManifests(table.io()).size());
 
     // manifest is not merged because it is less than the minimum
     validateManifestEntries(
-        SnapshotUtil.latestSnapshot(table, branch).allManifests(table.io()).get(0),
+        latestSnapshot(table, branch).allManifests(table.io()).get(0),
         ids(overwriteId),
         files(FILE_10_TO_14),
         statuses(Status.ADDED));
 
     validateManifestEntries(
-        SnapshotUtil.latestSnapshot(table, branch).allManifests(table.io()).get(1),
+        latestSnapshot(table, branch).allManifests(table.io()).get(1),
         ids(overwriteId, baseId),
         files(FILE_0_TO_4, FILE_5_TO_9),
         statuses(Status.DELETED, Status.EXISTING));
@@ -227,9 +223,7 @@ public class TestOverwrite extends TableTestBase {
 
     TableMetadata base = TestTables.readMetadata(TABLE_NAME);
     long baseId =
-        SnapshotUtil.latestSnapshot(base, branch) == null
-            ? -1
-            : SnapshotUtil.latestSnapshot(base, branch).snapshotId();
+        latestSnapshot(base, branch) == null ? -1 : latestSnapshot(base, branch).snapshotId();
 
     commit(
         table,
@@ -239,16 +233,16 @@ public class TestOverwrite extends TableTestBase {
             .addFile(FILE_10_TO_14),
         branch); // in 2018-06-09, NOT in 2018-06-08
 
-    long overwriteId = SnapshotUtil.latestSnapshot(table, branch).snapshotId();
+    long overwriteId = latestSnapshot(table, branch).snapshotId();
 
     Assert.assertNotEquals("Should create a new snapshot", baseId, overwriteId);
     Assert.assertEquals(
         "Table should have one merged manifest",
         1,
-        SnapshotUtil.latestSnapshot(table, branch).allManifests(table.io()).size());
+        latestSnapshot(table, branch).allManifests(table.io()).size());
 
     validateManifestEntries(
-        SnapshotUtil.latestSnapshot(table, branch).allManifests(table.io()).get(0),
+        latestSnapshot(table, branch).allManifests(table.io()).get(0),
         ids(overwriteId, overwriteId, baseId),
         files(FILE_10_TO_14, FILE_0_TO_4, FILE_5_TO_9),
         statuses(Status.ADDED, Status.DELETED, Status.EXISTING));
@@ -261,9 +255,7 @@ public class TestOverwrite extends TableTestBase {
 
     TableMetadata base = TestTables.readMetadata(TABLE_NAME);
     long baseId =
-        SnapshotUtil.latestSnapshot(base, branch) == null
-            ? -1
-            : SnapshotUtil.latestSnapshot(base, branch).snapshotId();
+        latestSnapshot(base, branch) == null ? -1 : latestSnapshot(base, branch).snapshotId();
 
     OverwriteFiles overwrite =
         table
@@ -279,18 +271,14 @@ public class TestOverwrite extends TableTestBase {
         () -> commit(table, overwrite, branch));
 
     Assert.assertEquals(
-        "Should not create a new snapshot",
-        baseId,
-        SnapshotUtil.latestSnapshot(table, branch).snapshotId());
+        "Should not create a new snapshot", baseId, latestSnapshot(table, branch).snapshotId());
   }
 
   @Test
   public void testValidatedOverwriteWithAppendOutsideOfDeleteMetrics() {
     TableMetadata base = TestTables.readMetadata(TABLE_NAME);
     long baseId =
-        SnapshotUtil.latestSnapshot(base, branch) == null
-            ? -1
-            : SnapshotUtil.latestSnapshot(base, branch).snapshotId();
+        latestSnapshot(base, branch) == null ? -1 : latestSnapshot(base, branch).snapshotId();
 
     OverwriteFiles overwrite =
         table
@@ -306,18 +294,14 @@ public class TestOverwrite extends TableTestBase {
         () -> commit(table, overwrite, branch));
 
     Assert.assertEquals(
-        "Should not create a new snapshot",
-        baseId,
-        SnapshotUtil.latestSnapshot(base, branch).snapshotId());
+        "Should not create a new snapshot", baseId, latestSnapshot(base, branch).snapshotId());
   }
 
   @Test
   public void testValidatedOverwriteWithAppendSuccess() {
     TableMetadata base = TestTables.readMetadata(TABLE_NAME);
     long baseId =
-        SnapshotUtil.latestSnapshot(base, branch) == null
-            ? -1
-            : SnapshotUtil.latestSnapshot(base, branch).snapshotId();
+        latestSnapshot(base, branch) == null ? -1 : latestSnapshot(base, branch).snapshotId();
 
     OverwriteFiles overwrite =
         table
@@ -333,8 +317,6 @@ public class TestOverwrite extends TableTestBase {
         () -> commit(table, overwrite, branch));
 
     Assert.assertEquals(
-        "Should not create a new snapshot",
-        baseId,
-        SnapshotUtil.latestSnapshot(base, branch).snapshotId());
+        "Should not create a new snapshot", baseId, latestSnapshot(base, branch).snapshotId());
   }
 }
