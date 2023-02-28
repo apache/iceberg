@@ -86,7 +86,7 @@ public class TestS3RestSigner {
   @Before
   public void before() throws Exception {
     if (null == httpServer) {
-      httpServer = initHttpServer(8181);
+      httpServer = initHttpServer();
     }
 
     ValidatingSigner validatingSigner =
@@ -126,7 +126,7 @@ public class TestS3RestSigner {
         CreateMultipartUploadRequest.builder().bucket(BUCKET).key("random/multipart-key").build());
   }
 
-  private Server initHttpServer(int port) throws Exception {
+  private Server initHttpServer() throws Exception {
     S3SignerServlet servlet = new S3SignerServlet(S3ObjectMapper.mapper());
     ServletContextHandler servletContext =
         new ServletContextHandler(ServletContextHandler.NO_SESSIONS);
@@ -137,7 +137,7 @@ public class TestS3RestSigner {
     servletContext.setVirtualHosts(null);
     servletContext.setGzipHandler(new GzipHandler());
 
-    Server server = new Server(port);
+    Server server = new Server(0);
     server.setHandler(servletContext);
     server.start();
     return server;
