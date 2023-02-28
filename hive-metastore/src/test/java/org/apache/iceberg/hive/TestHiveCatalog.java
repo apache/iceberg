@@ -261,7 +261,7 @@ public class TestHiveCatalog extends HiveMetastoreTest {
         DB_NAME,
         "tbl_default_owner",
         ImmutableMap.of(),
-        UserGroupInformation.getCurrentUser().getUserName());
+        UserGroupInformation.getCurrentUser().getShortUserName());
   }
 
   private void createTableAndVerifyOwner(
