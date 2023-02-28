@@ -492,7 +492,7 @@ def _file_to_table(
     projected_field_ids: Set[int],
     case_sensitive: bool,
     positional_deletes: Optional[Set[int]],
-) -> pa.Table:
+) -> Optional[pa.Table]:
     _, path = PyArrowFileIO.parse_location(task.file.file_path)
 
     # Get the schema
@@ -527,9 +527,6 @@ def _file_to_table(
             columns=[col.name for col in file_project_schema.columns],
         )
 
-        if pyarrow_filter is not None:
-            arrow_table = arrow_table.filter(pyarrow_filter)
-
         if positional_deletes is not None:
             # When there are positional deletes, create a filter mask
             def generator() -> Generator[bool, None, None]:
@@ -539,7 +536,11 @@ def _file_to_table(
             mask = pa.array(generator(), type=pa.bool_())
             arrow_table = arrow_table.filter(mask)
 
-        return to_requested_schema(projected_schema, file_project_schema, arrow_table)
+        # If there is no data, we don't have to go through the schema
+        if len(arrow_table) > 0:
+            return to_requested_schema(projected_schema, file_project_schema, arrow_table)
+        else:
+            return None
 
 
 def project_table(
@@ -583,36 +584,15 @@ def project_table(
             raise ValueError(f"Unknown file content: {task.file.content}")
 
     with ThreadPool() as pool:
-        positional_deletes_per_file: Dict[str, Set[int]] = {}
-        if tasks_positional_deletes:
-            # If there are any positional deletes, get those first
-            for delete_files in pool.starmap(
-                func=_read_deletes,
-                iterable=[(fs, task.file.file_path) for task in tasks_positional_deletes],
-            ):
-                for file, array in delete_files.items():
-                    if file in positional_deletes_per_file:
-                        positional_deletes_per_file[file] |= set(array)
-                    else:
-                        positional_deletes_per_file[file] = set(array)
-
-        tables = pool.starmap(
-            func=_file_to_table,
-            iterable=[
-                (
-                    fs,
-                    task,
-                    bound_row_filter,
-                    projected_schema,
-                    projected_field_ids,
-                    case_sensitive,
-                    positional_deletes_per_file.get(task.file.file_path),
-                )
-                for task in tasks_data_files
-            ],
-            chunksize=None,
-            # we could use this to control how to materialize the generator of tasks (we should also make the expression above lazy)
-        )
+        tables = [
+            table
+            for table in pool.starmap(
+                func=_file_to_table,
+                iterable=[(fs, task, bound_row_filter, projected_schema, projected_field_ids, case_sensitive) for task in tasks],
+                chunksize=None,  # we could use this to control how to materialize the generator of tasks (we should also make the expression above lazy)
+            )
+            if table is not None
+        ]
 
     if len(tables) > 1:
         return pa.concat_tables(tables)
