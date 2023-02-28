@@ -455,11 +455,7 @@ public class TestColumnIndexFilter {
   }
 
   private RowRanges calculateRowRanges(Expression expr, boolean caseSensitive) {
-    return calculateRowRanges(SCHEMA, FILE_SCHEMA, expr, caseSensitive);
-  }
-
-  private RowRanges calculateRowRanges(Schema schema, MessageType messageType, Expression expr, boolean caseSensitive) {
-    return calculateRowRanges(schema, messageType, expr, caseSensitive, STORE, TOTAL_ROW_COUNT);
+    return calculateRowRanges(SCHEMA, FILE_SCHEMA, expr, caseSensitive, STORE, TOTAL_ROW_COUNT);
   }
 
   private RowRanges calculateRowRanges(Schema schema, MessageType messageType, Expression expr,
