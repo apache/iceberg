@@ -23,11 +23,15 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.List;
+import java.util.Set;
+import org.apache.iceberg.exceptions.NoSuchNamespaceException;
+import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.jdbc.JdbcClientPool;
 import org.apache.iceberg.jdbc.UncheckedInterruptedException;
 import org.apache.iceberg.jdbc.UncheckedSQLException;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 /**
@@ -125,6 +129,13 @@ class JdbcSnowflakeClient implements SnowflakeClient {
   private final JdbcClientPool connectionPool;
   private QueryHarness queryHarness;
 
+  protected static final Set<Integer> DATABASE_NOT_FOUND_ERROR_CODES =
+      ImmutableSet.of(2001, 2003, 2043);
+  protected static final Set<Integer> SCHEMA_NOT_FOUND_ERROR_CODES =
+      ImmutableSet.of(2001, 2003, 2043);
+  protected static final Set<Integer> TABLE_NOT_FOUND_ERROR_CODES =
+      ImmutableSet.of(2001, 2003, 2043);
+
   JdbcSnowflakeClient(JdbcClientPool conn) {
     Preconditions.checkArgument(null != conn, "JdbcClientPool must be non-null");
     connectionPool = conn;
@@ -153,7 +164,7 @@ class JdbcSnowflakeClient implements SnowflakeClient {
                   queryHarness.query(
                       conn, finalQuery, SCHEMA_RESULT_SET_HANDLER, database.databaseName()));
     } catch (SQLException e) {
-      if (e.getErrorCode() == 2003 && e.getMessage().contains("does not exist")) {
+      if (DATABASE_NOT_FOUND_ERROR_CODES.contains(e.getErrorCode())) {
         return false;
       }
       throw new UncheckedSQLException(e, "Failed to check if database '%s' exists", database);
@@ -186,7 +197,7 @@ class JdbcSnowflakeClient implements SnowflakeClient {
                   queryHarness.query(
                       conn, finalQuery, TABLE_RESULT_SET_HANDLER, schema.toIdentifierString()));
     } catch (SQLException e) {
-      if (e.getErrorCode() == 2003 && e.getMessage().contains("does not exist")) {
+      if (SCHEMA_NOT_FOUND_ERROR_CODES.contains(e.getErrorCode())) {
         return false;
       }
       throw new UncheckedSQLException(e, "Failed to check if schema '%s' exists", schema);
@@ -208,6 +219,7 @@ class JdbcSnowflakeClient implements SnowflakeClient {
                   queryHarness.query(
                       conn, "SHOW DATABASES IN ACCOUNT", DATABASE_RESULT_SET_HANDLER));
     } catch (SQLException e) {
+      tryMapSnowflakeExceptionToIcebergException(SnowflakeIdentifier.ofRoot(), e);
       throw new UncheckedSQLException(e, "Failed to list databases");
     } catch (InterruptedException e) {
       throw new UncheckedInterruptedException(e, "Interrupted while listing databases");
@@ -250,6 +262,7 @@ class JdbcSnowflakeClient implements SnowflakeClient {
                   queryHarness.query(
                       conn, finalQuery, SCHEMA_RESULT_SET_HANDLER, finalQueryParams));
     } catch (SQLException e) {
+      tryMapSnowflakeExceptionToIcebergException(scope, e);
       throw new UncheckedSQLException(e, "Failed to list schemas for scope '%s'", scope);
     } catch (InterruptedException e) {
       throw new UncheckedInterruptedException(
@@ -298,6 +311,7 @@ class JdbcSnowflakeClient implements SnowflakeClient {
               conn ->
                   queryHarness.query(conn, finalQuery, TABLE_RESULT_SET_HANDLER, finalQueryParams));
     } catch (SQLException e) {
+      tryMapSnowflakeExceptionToIcebergException(scope, e);
       throw new UncheckedSQLException(e, "Failed to list tables for scope '%s'", scope);
     } catch (InterruptedException e) {
       throw new UncheckedInterruptedException(
@@ -331,6 +345,7 @@ class JdbcSnowflakeClient implements SnowflakeClient {
                       TABLE_METADATA_RESULT_SET_HANDLER,
                       tableIdentifier.toIdentifierString()));
     } catch (SQLException e) {
+      tryMapSnowflakeExceptionToIcebergException(tableIdentifier, e);
       throw new UncheckedSQLException(e, "Failed to get table metadata for '%s'", tableIdentifier);
     } catch (InterruptedException e) {
       throw new UncheckedInterruptedException(
@@ -342,5 +357,29 @@ class JdbcSnowflakeClient implements SnowflakeClient {
   @Override
   public void close() {
     connectionPool.close();
+  }
+
+  private void tryMapSnowflakeExceptionToIcebergException(
+      SnowflakeIdentifier identifier, SQLException ex) {
+    // NoSuchNamespace exception for Database and Schema cases
+    if ((identifier.type() == SnowflakeIdentifier.Type.DATABASE
+            && DATABASE_NOT_FOUND_ERROR_CODES.contains(ex.getErrorCode()))
+        || (identifier.type() == SnowflakeIdentifier.Type.SCHEMA
+            && SCHEMA_NOT_FOUND_ERROR_CODES.contains(ex.getErrorCode()))) {
+      throw new NoSuchNamespaceException(
+          ex,
+          "Identifier not found: '%s'. Underlying exception: '%s'",
+          identifier,
+          ex.getMessage());
+    }
+    // NoSuchTable exception for Table cases
+    else if (identifier.type() == SnowflakeIdentifier.Type.TABLE
+        && TABLE_NOT_FOUND_ERROR_CODES.contains(ex.getErrorCode())) {
+      throw new NoSuchTableException(
+          ex,
+          "Identifier not found: '%s'. Underlying exception: '%s'",
+          identifier,
+          ex.getMessage());
+    }
   }
 }
