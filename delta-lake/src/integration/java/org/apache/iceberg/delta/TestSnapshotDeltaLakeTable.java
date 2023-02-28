@@ -103,9 +103,53 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
   public static void beforeClass() {
     spark.sql(String.format("CREATE DATABASE IF NOT EXISTS %s", NAMESPACE));
 
-    // generate the dataframe
-    nestedDataFrame = nestedDataFrame();
-    typeTestDataFrame = typeTestDataFrame();
+    typeTestDataFrame =
+        spark
+            .range(0, 5, 1, 5)
+            .withColumnRenamed("id", "longCol")
+            .withColumn("intCol", expr("CAST(longCol AS INT)"))
+            .withColumn("floatCol", expr("CAST(longCol AS FLOAT)"))
+            .withColumn("doubleCol", expr("CAST(longCol AS DOUBLE)"))
+            .withColumn("dateCol", date_add(current_date(), 1))
+            .withColumn("timestampCol", expr("TO_TIMESTAMP(dateCol)"))
+            .withColumn("stringCol", expr("CAST(timestampCol AS STRING)"))
+            .withColumn("booleanCol", expr("longCol > 5"))
+            .withColumn("binaryCol", expr("CAST(longCol AS BINARY)"))
+            .withColumn("byteCol", expr("CAST(longCol AS BYTE)"))
+            .withColumn("decimalCol", expr("CAST(longCol AS DECIMAL(10, 2))"))
+            .withColumn("shortCol", expr("CAST(longCol AS SHORT)"))
+            .withColumn("mapCol", expr("MAP(longCol, decimalCol)"))
+            .withColumn("arrayCol", expr("ARRAY(longCol)"))
+            .withColumn("structCol", expr("STRUCT(mapCol, arrayCol)"));
+    nestedDataFrame =
+        spark
+            .range(0, 5, 1, 5)
+            .withColumn("longCol", expr("id"))
+            .withColumn("decimalCol", expr("CAST(longCol AS DECIMAL(10, 2))"))
+            .withColumn("magic_number", expr("rand(5) * 100"))
+            .withColumn("dateCol", date_add(current_date(), 1))
+            .withColumn("dateString", expr("CAST(dateCol AS STRING)"))
+            .withColumn("random1", expr("CAST(rand(5) * 100 as LONG)"))
+            .withColumn("random2", expr("CAST(rand(51) * 100 as LONG)"))
+            .withColumn("random3", expr("CAST(rand(511) * 100 as LONG)"))
+            .withColumn("random4", expr("CAST(rand(15) * 100 as LONG)"))
+            .withColumn("random5", expr("CAST(rand(115) * 100 as LONG)"))
+            .withColumn("innerStruct1", expr("STRUCT(random1, random2)"))
+            .withColumn("innerStruct2", expr("STRUCT(random3, random4)"))
+            .withColumn("structCol1", expr("STRUCT(innerStruct1, innerStruct2)"))
+            .withColumn(
+                "innerStruct3",
+                expr("STRUCT(SHA1(CAST(random5 AS BINARY)), SHA1(CAST(random1 AS BINARY)))"))
+            .withColumn(
+                "structCol2",
+                expr(
+                    "STRUCT(innerStruct3, STRUCT(SHA1(CAST(random2 AS BINARY)), SHA1(CAST(random3 AS BINARY))))"))
+            .withColumn("arrayCol", expr("ARRAY(random1, random2, random3, random4, random5)"))
+            .withColumn("arrayStructCol", expr("ARRAY(innerStruct1, innerStruct1, innerStruct1)"))
+            .withColumn("mapCol1", expr("MAP(structCol1, structCol2)"))
+            .withColumn("mapCol2", expr("MAP(longCol, dateString)"))
+            .withColumn("mapCol3", expr("MAP(dateCol, arrayCol)"))
+            .withColumn("structCol3", expr("STRUCT(structCol2, mapCol3, arrayCol)"));
   }
 
   @AfterClass
@@ -450,57 +494,6 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
     } catch (DecoderException e) {
       throw new IllegalArgumentException(String.format("Cannot decode path %s", path), e);
     }
-  }
-
-  private static Dataset<Row> typeTestDataFrame() {
-    return spark
-        .range(0, 5, 1, 5)
-        .withColumnRenamed("id", "longCol")
-        .withColumn("intCol", expr("CAST(longCol AS INT)"))
-        .withColumn("floatCol", expr("CAST(longCol AS FLOAT)"))
-        .withColumn("doubleCol", expr("CAST(longCol AS DOUBLE)"))
-        .withColumn("dateCol", date_add(current_date(), 1))
-        .withColumn("timestampCol", expr("TO_TIMESTAMP(dateCol)"))
-        .withColumn("stringCol", expr("CAST(timestampCol AS STRING)"))
-        .withColumn("booleanCol", expr("longCol > 5"))
-        .withColumn("binaryCol", expr("CAST(longCol AS BINARY)"))
-        .withColumn("byteCol", expr("CAST(longCol AS BYTE)"))
-        .withColumn("decimalCol", expr("CAST(longCol AS DECIMAL(10, 2))"))
-        .withColumn("shortCol", expr("CAST(longCol AS SHORT)"))
-        .withColumn("mapCol", expr("MAP(longCol, decimalCol)"))
-        .withColumn("arrayCol", expr("ARRAY(longCol)"))
-        .withColumn("structCol", expr("STRUCT(mapCol, arrayCol)"));
-  }
-
-  private static Dataset<Row> nestedDataFrame() {
-    return spark
-        .range(0, 5, 1, 5)
-        .withColumn("longCol", expr("id"))
-        .withColumn("decimalCol", expr("CAST(longCol AS DECIMAL(10, 2))"))
-        .withColumn("magic_number", expr("rand(5) * 100"))
-        .withColumn("dateCol", date_add(current_date(), 1))
-        .withColumn("dateString", expr("CAST(dateCol AS STRING)"))
-        .withColumn("random1", expr("CAST(rand(5) * 100 as LONG)"))
-        .withColumn("random2", expr("CAST(rand(51) * 100 as LONG)"))
-        .withColumn("random3", expr("CAST(rand(511) * 100 as LONG)"))
-        .withColumn("random4", expr("CAST(rand(15) * 100 as LONG)"))
-        .withColumn("random5", expr("CAST(rand(115) * 100 as LONG)"))
-        .withColumn("innerStruct1", expr("STRUCT(random1, random2)"))
-        .withColumn("innerStruct2", expr("STRUCT(random3, random4)"))
-        .withColumn("structCol1", expr("STRUCT(innerStruct1, innerStruct2)"))
-        .withColumn(
-            "innerStruct3",
-            expr("STRUCT(SHA1(CAST(random5 AS BINARY)), SHA1(CAST(random1 AS BINARY)))"))
-        .withColumn(
-            "structCol2",
-            expr(
-                "STRUCT(innerStruct3, STRUCT(SHA1(CAST(random2 AS BINARY)), SHA1(CAST(random3 AS BINARY))))"))
-        .withColumn("arrayCol", expr("ARRAY(random1, random2, random3, random4, random5)"))
-        .withColumn("arrayStructCol", expr("ARRAY(innerStruct1, innerStruct1, innerStruct1)"))
-        .withColumn("mapCol1", expr("MAP(structCol1, structCol2)"))
-        .withColumn("mapCol2", expr("MAP(longCol, dateString)"))
-        .withColumn("mapCol3", expr("MAP(dateCol, arrayCol)"))
-        .withColumn("structCol3", expr("STRUCT(structCol2, mapCol3, arrayCol)"));
   }
 
   private void writeDeltaTable(
