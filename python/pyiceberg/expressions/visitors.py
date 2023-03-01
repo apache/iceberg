@@ -711,20 +711,20 @@ class _ManifestEvalVisitor(BoundBooleanExpressionVisitor[bool]):
         prefix = str(literal.value)
         len_prefix = len(prefix)
 
-        if not field.lower_bound:
+        if field.lower_bound is None:
             return ROWS_CANNOT_MATCH
 
         lower = _from_byte_buffer(term.ref().field.field_type, field.lower_bound)
         # truncate lower bound so that its length is not greater than the length of prefix
-        if lower and lower[:len_prefix] > prefix:
+        if lower is not None and lower[:len_prefix] > prefix:
             return ROWS_CANNOT_MATCH
 
-        if not field.upper_bound:
+        if field.upper_bound is None:
             return ROWS_CANNOT_MATCH
 
         upper = _from_byte_buffer(term.ref().field.field_type, field.upper_bound)
         # truncate upper bound so that its length is not greater than the length of prefix
-        if upper and upper[:len_prefix] < prefix:
+        if upper is not None and upper[:len_prefix] < prefix:
             return ROWS_CANNOT_MATCH
 
         return ROWS_MIGHT_MATCH
