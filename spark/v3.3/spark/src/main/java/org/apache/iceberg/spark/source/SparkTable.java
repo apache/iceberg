@@ -24,6 +24,7 @@ import static org.apache.iceberg.TableProperties.FORMAT_VERSION;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Set;
+import org.apache.iceberg.BaseMetadataTable;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileScanTask;
@@ -165,7 +166,11 @@ public class SparkTable
   @Override
   public StructType schema() {
     if (lazyTableSchema == null) {
-      this.lazyTableSchema = SparkSchemaUtil.convert(snapshotSchema());
+      if (icebergTable instanceof BaseMetadataTable) {
+        this.lazyTableSchema = SparkSchemaUtil.convert(icebergTable.schema());
+      } else {
+        this.lazyTableSchema = SparkSchemaUtil.convert(snapshotSchema());
+      }
     }
 
     return lazyTableSchema;
@@ -244,7 +249,11 @@ public class SparkTable
     }
 
     CaseInsensitiveStringMap scanOptions = addSnapshotId(options, snapshotId);
-    return new SparkScanBuilder(sparkSession(), icebergTable, snapshotSchema(), scanOptions);
+    if (icebergTable instanceof BaseMetadataTable) {
+      return new SparkScanBuilder(sparkSession(), icebergTable, options);
+    } else {
+      return new SparkScanBuilder(sparkSession(), icebergTable, snapshotSchema(), scanOptions);
+    }
   }
 
   @Override
