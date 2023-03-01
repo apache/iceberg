@@ -888,7 +888,7 @@ public class TestColumnIndexFilter {
                     .named(binaryDecimal),
                 ASCENDING)
             .addPage(0, decimalToBytes("12.34"), decimalToBytes("12.35"))
-            .addPage(0, decimalToBytes("123456789.87654321"), decimalToBytes("123456789.87654323"))
+            .addPage(0, decimalToBytes("1234567890.987654321"), decimalToBytes("1234567890.987654323"))
             .build();
 
     OffsetIndex binaryDecimalOI = new OIBuilder().addPage(5).addPage(4).build();
@@ -932,14 +932,14 @@ public class TestColumnIndexFilter {
     Expression expr =
         or(
             lessThan(binaryDecimal, new BigDecimal("12.34")),
-            greaterThanOrEqual(binaryDecimal, new BigDecimal("123456789.87654322")));
+            greaterThanOrEqual(binaryDecimal, new BigDecimal("1234567890.987654322")));
 
     RowRanges expected = selectRowRanges(binaryDecimal, columnIndexStore, rowCount, 1);
     RowRanges actual =
         calculateRowRanges(schema, messageType, expr, true, columnIndexStore, rowCount);
     assertRowRangesEquals(expected, actual);
 
-    expr = greaterThan(binaryDecimal, new BigDecimal("123456789.87654323"));
+    expr = greaterThan(binaryDecimal, new BigDecimal("1234567890.987654323"));
     expected = NO_ROWS;
     actual = calculateRowRanges(schema, messageType, expr, true, columnIndexStore, rowCount);
     assertRowRangesEquals(expected, actual);
