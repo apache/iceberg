@@ -48,6 +48,7 @@ import org.apache.iceberg.actions.BaseDeleteOrphanFilesActionResult;
 import org.apache.iceberg.actions.DeleteOrphanFiles;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.HiddenPathFilter;
+import org.apache.iceberg.io.BulkDeletionFailureException;
 import org.apache.iceberg.io.SupportsBulkOperations;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -112,14 +113,6 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
   private final SerializableConfiguration hadoopConf;
   private final int listingParallelism;
   private final Table table;
-  private final Consumer<String> defaultDelete =
-      new Consumer<String>() {
-        @Override
-        public void accept(String file) {
-          table.io().deleteFile(file);
-        }
-      };
-
   private Map<String, String> equalSchemes = flattenMap(EQUAL_SCHEMES_DEFAULT);
   private Map<String, String> equalAuthorities = Collections.emptyMap();
   private PrefixMismatchMode prefixMismatchMode = PrefixMismatchMode.ERROR;
@@ -240,6 +233,16 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
     return String.format("Deleting orphan files (%s) from %s", optionsAsString, table.name());
   }
 
+  private void deleteFiles(SupportsBulkOperations io, List<String> paths) {
+    try {
+      io.deleteFiles(paths);
+      LOG.info("Deleted {} files using bulk deletes", paths.size());
+    } catch (BulkDeletionFailureException e) {
+      int deletedFilesCount = paths.size() - e.numberFailedObjects();
+      LOG.warn("Deleted only {} of {} files using bulk deletes", deletedFilesCount, paths.size());
+    }
+  }
+
   private DeleteOrphanFiles.Result doExecute() {
     Dataset<FileURI> actualFileIdentDS = actualFileIdentDS();
     Dataset<FileURI> validFileIdentDS = validFileIdentDS();
@@ -248,22 +251,24 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
         findOrphanFiles(spark(), actualFileIdentDS, validFileIdentDS, prefixMismatchMode);
 
     if (deleteFunc == null && table.io() instanceof SupportsBulkOperations) {
-      ((SupportsBulkOperations) table.io()).deleteFiles(orphanFiles);
-
+      deleteFiles((SupportsBulkOperations) table.io(), orphanFiles);
     } else {
-      if (deleteFunc == null) {
-        LOG.info("Bulk Deletes are not Supported by {}, using non-bulk deletes", table.io());
-        deleteFunc = defaultDelete;
-      } else {
-        LOG.info("Custom delete function provided, using non-bulk deletes");
-      }
 
-      Tasks.foreach(orphanFiles)
-          .noRetry()
-          .executeWith(deleteExecutorService)
-          .suppressFailureWhenFinished()
-          .onFailure((file, exc) -> LOG.warn("Failed to delete file: {}", file, exc))
-          .run(deleteFunc::accept);
+      Tasks.Builder<String> deleteTasks =
+          Tasks.foreach(orphanFiles)
+              .noRetry()
+              .executeWith(deleteExecutorService)
+              .suppressFailureWhenFinished()
+              .onFailure((file, exc) -> LOG.warn("Failed to delete file: {}", file, exc));
+
+      if (deleteFunc == null) {
+        LOG.info(
+            "Table IO {} does not support bulk operations. Using non-bulk deletes.", table.io());
+        deleteTasks.run(table.io()::deleteFile);
+      } else {
+        LOG.info("Custom delete function provided. Using non-bulk deletes");
+        deleteTasks.run(deleteFunc::accept);
+      }
     }
 
     return new BaseDeleteOrphanFilesActionResult(orphanFiles);

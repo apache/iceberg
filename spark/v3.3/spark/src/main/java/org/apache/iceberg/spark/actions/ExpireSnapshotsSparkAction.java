@@ -267,17 +267,18 @@ public class ExpireSnapshotsSparkAction extends BaseSparkAction<ExpireSnapshotsS
 
   private ExpireSnapshots.Result deleteFiles(Iterator<FileInfo> files) {
     DeleteSummary summary;
-    if (deleteFunc != null || !(table.io() instanceof SupportsBulkOperations)) {
-      if (deleteFunc == null) {
-        LOG.info("Table IO does not support Bulk Operations. Using non-bulk deletes.");
-        deleteFunc = defaultDelete;
-      } else {
-        LOG.info("Custom delete function provided.");
-      }
-
-      summary = deleteFiles(deleteExecutorService, deleteFunc, files);
-    } else {
+    if (deleteFunc == null && table.io() instanceof SupportsBulkOperations) {
       summary = deleteFiles((SupportsBulkOperations) table.io(), files);
+    } else {
+
+      if (deleteFunc == null) {
+        LOG.info(
+            "Table IO {} does not support bulk operations. Using non-bulk deletes.", table.io());
+        summary = deleteFiles(deleteExecutorService, table.io()::deleteFile, files);
+      } else {
+        LOG.info("Custom delete function provided. Using non-bulk deletes");
+        summary = deleteFiles(deleteExecutorService, deleteFunc, files);
+      }
     }
 
     LOG.info("Deleted {} total files", summary.totalFilesCount());

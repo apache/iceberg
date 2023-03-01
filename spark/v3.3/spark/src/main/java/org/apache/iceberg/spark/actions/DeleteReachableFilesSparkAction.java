@@ -56,15 +56,6 @@ public class DeleteReachableFilesSparkAction
 
   private final String metadataFileLocation;
 
-  @Deprecated
-  private final Consumer<String> defaultDelete =
-      new Consumer<String>() {
-        @Override
-        public void accept(String file) {
-          io.deleteFile(file);
-        }
-      };
-
   private Consumer<String> deleteFunc = null;
   private ExecutorService deleteExecutorService = null;
   private FileIO io = new HadoopFileIO(spark().sessionState().newHadoopConf());
@@ -136,17 +127,17 @@ public class DeleteReachableFilesSparkAction
 
   private DeleteReachableFiles.Result deleteFiles(Iterator<FileInfo> files) {
     DeleteSummary summary;
-    if (deleteFunc != null || !(io instanceof SupportsBulkOperations)) {
-      if (deleteFunc == null) {
-        LOG.info("Table IO does not support Bulk Operations. Using non-bulk deletes.");
-        deleteFunc = defaultDelete;
-      } else {
-        LOG.info("Custom delete function provided.");
-      }
-
-      summary = deleteFiles(deleteExecutorService, deleteFunc, files);
-    } else {
+    if (deleteFunc == null && io instanceof SupportsBulkOperations) {
       summary = deleteFiles((SupportsBulkOperations) io, files);
+    } else {
+
+      if (deleteFunc == null) {
+        LOG.info("Table IO {} does not support bulk operations. Using non-bulk deletes.", io);
+        summary = deleteFiles(deleteExecutorService, io::deleteFile, files);
+      } else {
+        LOG.info("Custom delete function provided. Using non-bulk deletes");
+        summary = deleteFiles(deleteExecutorService, deleteFunc, files);
+      }
     }
 
     LOG.info("Deleted {} total files", summary.totalFilesCount());

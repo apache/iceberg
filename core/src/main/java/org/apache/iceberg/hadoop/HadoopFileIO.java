@@ -53,6 +53,7 @@ public class HadoopFileIO
   private static final Logger LOG = LoggerFactory.getLogger(HadoopFileIO.class);
   private static final String DELETE_FILE_PARALLELISM = "iceberg.hadoop.delete-file-parallelism";
   private static final String DELETE_FILE_POOL_NAME = "iceberg-hadoopfileio-delete";
+  private static final int DELETE_RETRY_ATTEMPTS = 3;
   private static final int DEFAULT_DELETE_CORE_MULTIPLE = 4;
   private static volatile ExecutorService executorService;
 
@@ -170,7 +171,7 @@ public class HadoopFileIO
     AtomicInteger failureCount = new AtomicInteger(0);
     Tasks.foreach(pathsToDelete)
         .executeWith(executorService())
-        .retry(3)
+        .retry(DELETE_RETRY_ATTEMPTS)
         .stopRetryOn(FileNotFoundException.class)
         .suppressFailureWhenFinished()
         .onFailure(
@@ -186,10 +187,8 @@ public class HadoopFileIO
   }
 
   private int deleteThreads() {
-    return conf()
-        .getInt(
-            DELETE_FILE_PARALLELISM,
-            Runtime.getRuntime().availableProcessors() * DEFAULT_DELETE_CORE_MULTIPLE);
+    int defaultValue = Runtime.getRuntime().availableProcessors() * DEFAULT_DELETE_CORE_MULTIPLE;
+    return conf().getInt(DELETE_FILE_PARALLELISM, defaultValue);
   }
 
   private ExecutorService executorService() {

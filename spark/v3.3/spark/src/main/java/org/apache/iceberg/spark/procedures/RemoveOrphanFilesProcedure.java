@@ -23,6 +23,7 @@ import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.DeleteOrphanFiles;
 import org.apache.iceberg.actions.DeleteOrphanFiles.PrefixMismatchMode;
+import org.apache.iceberg.io.SupportsBulkOperations;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -101,13 +102,6 @@ public class RemoveOrphanFilesProcedure extends BaseProcedure {
     String location = args.isNullAt(2) ? null : args.getString(2);
     boolean dryRun = args.isNullAt(3) ? false : args.getBoolean(3);
     Integer maxConcurrentDeletes = args.isNullAt(4) ? null : args.getInt(4);
-    if (maxConcurrentDeletes != null) {
-      LOG.warn(
-          "Setting {} disables FileIO bulk deletes if they are supported. Parallelism for bulk deletes should "
-              + "be configured in the FileIO bulk operations. Check the configured FileIO for more information",
-          PARAMETERS[4].name());
-    }
-
     String fileListView = args.isNullAt(5) ? null : args.getString(5);
 
     Preconditions.checkArgument(
@@ -164,7 +158,17 @@ public class RemoveOrphanFilesProcedure extends BaseProcedure {
           }
 
           if (maxConcurrentDeletes != null) {
-            action.executeDeleteWith(executorService(maxConcurrentDeletes, "remove-orphans"));
+            if (table.io() instanceof SupportsBulkOperations) {
+              LOG.warn(
+                  "max_concurrent_deletes only works with FileIOs that do not support bulk deletes. This"
+                      + "table is currently using {} which supports bulk deletes so the parameter will be ignored. "
+                      + "See that IO's documentation to learn how to adjust parallelism for that particular "
+                      + "IO's bulk delete.",
+                  table.io());
+            } else {
+
+              action.executeDeleteWith(executorService(maxConcurrentDeletes, "remove-orphans"));
+            }
           }
 
           if (fileListView != null) {

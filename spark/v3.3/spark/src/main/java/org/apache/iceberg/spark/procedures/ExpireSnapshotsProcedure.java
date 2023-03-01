@@ -20,6 +20,7 @@ package org.apache.iceberg.spark.procedures;
 
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.ExpireSnapshots;
+import org.apache.iceberg.io.SupportsBulkOperations;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.spark.actions.ExpireSnapshotsSparkAction;
 import org.apache.iceberg.spark.actions.SparkActions;
@@ -97,12 +98,6 @@ public class ExpireSnapshotsProcedure extends BaseProcedure {
     Long olderThanMillis = args.isNullAt(1) ? null : DateTimeUtil.microsToMillis(args.getLong(1));
     Integer retainLastNum = args.isNullAt(2) ? null : args.getInt(2);
     Integer maxConcurrentDeletes = args.isNullAt(3) ? null : args.getInt(3);
-    if (maxConcurrentDeletes != null) {
-      LOG.warn(
-          "Setting {} disables FileIO bulk deletes if they are supported. Parallelism for bulk deletes should "
-              + "be configured in the FileIO bulk operations. Check the configured FileIO for more information",
-          PARAMETERS[3].name());
-    }
     Boolean streamResult = args.isNullAt(4) ? null : args.getBoolean(4);
 
     Preconditions.checkArgument(
@@ -124,7 +119,17 @@ public class ExpireSnapshotsProcedure extends BaseProcedure {
           }
 
           if (maxConcurrentDeletes != null) {
-            action.executeDeleteWith(executorService(maxConcurrentDeletes, "expire-snapshots"));
+            if (table.io() instanceof SupportsBulkOperations) {
+              LOG.warn(
+                  "max_concurrent_deletes only works with FileIOs that do not support bulk deletes. This"
+                      + "table is currently using {} which supports bulk deletes so the parameter will be ignored. "
+                      + "See that IO's documentation to learn how to adjust parallelism for that particular "
+                      + "IO's bulk delete.",
+                  table.io());
+            } else {
+
+              action.executeDeleteWith(executorService(maxConcurrentDeletes, "expire-snapshots"));
+            }
           }
 
           if (streamResult != null) {

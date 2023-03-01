@@ -55,7 +55,6 @@ import org.apache.iceberg.io.SupportsBulkOperations;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableListMultimap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
 import org.apache.iceberg.relocated.com.google.common.collect.ListMultimap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -269,27 +268,26 @@ abstract class BaseSparkAction<ThisT> {
         .suppressFailureWhenFinished()
         .run(fileGroup -> deleteFileGroup(fileGroup, io, summary));
 
-    LOG.info("Deleted {} total files with bulk deletes", summary.totalFilesCount());
-
     return summary;
   }
 
   private static void deleteFileGroup(
       List<FileInfo> fileGroup, SupportsBulkOperations io, DeleteSummary summary) {
-    ImmutableListMultimap<String, FileInfo> filesByType =
-        Multimaps.index(fileGroup, FileInfo::getType);
+
+    ListMultimap<String, FileInfo> filesByType = Multimaps.index(fileGroup, FileInfo::getType);
     ListMultimap<String, String> pathsByType =
         Multimaps.transformValues(filesByType, FileInfo::getPath);
+
     for (Map.Entry<String, Collection<String>> entry : pathsByType.asMap().entrySet()) {
       String type = entry.getKey();
       Collection<String> paths = entry.getValue();
       int failures = 0;
       try {
         io.deleteFiles(paths);
-      } catch (BulkDeletionFailureException bulkDeletionFailureException) {
-        failures = bulkDeletionFailureException.numberFailedObjects();
+      } catch (BulkDeletionFailureException e) {
+        failures = e.numberFailedObjects();
       }
-      summary.deletedFiles(entry.getKey(), paths.size() - failures);
+      summary.deletedFiles(type, paths.size() - failures);
     }
   }
 
