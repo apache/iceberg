@@ -401,8 +401,8 @@ public class SnapshotUtil {
    * Fetch the snapshot at the head of the given branch in the given table.
    *
    * <p>This method calls {@link Table#currentSnapshot()} instead of using branch API {@link
-   * Table#snapshot(String)} for the main branch to ensure existing tests still goes through the old
-   * code path.
+   * Table#snapshot(String)} for the main branch so that existing code still goes through the
+   * old code path to ensure backwards compatibility.
    *
    * @param table a {@link Table}
    * @param branch branch name of the table
@@ -420,8 +420,8 @@ public class SnapshotUtil {
    * Fetch the snapshot at the head of the given branch in the given table.
    *
    * <p>This method calls {@link TableMetadata#currentSnapshot()} instead of using branch API {@link
-   * TableMetadata#ref(String)}} for the main branch to ensure existing tests still goes through the
-   * old code path.
+   * TableMetadata#ref(String)}} for the main branch so that existing code still goes through the
+   * old code path to ensure backwards compatibility.
    *
    * @param metadata a {@link TableMetadata}
    * @param branch branch name of the table metadata
