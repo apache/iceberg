@@ -167,7 +167,6 @@ subprojects {
 
   dependencies {
     implementation 'org.slf4j:slf4j-api'
-    implementation 'com.github.stephenc.findbugs:findbugs-annotations'
 
     testImplementation 'org.junit.vintage:junit-vintage-engine'
     testImplementation 'org.junit.jupiter:junit-jupiter-engine'
@@ -237,7 +236,6 @@ project(':iceberg-bundled-guava') {
     }
 
     dependencies {
-      exclude(dependency('com.github.stephenc.findbugs:findbugs-annotations'))
       exclude(dependency('org.slf4j:slf4j-api'))
       exclude(dependency('org.checkerframework:checker-qual'))
     }
@@ -256,6 +254,7 @@ project(':iceberg-api') {
   dependencies {
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     compileOnly "com.google.errorprone:error_prone_annotations"
+    compileOnly "com.google.code.findbugs:jsr305"
     annotationProcessor "org.immutables:value"
     compileOnly "org.immutables:value"
     testImplementation "org.apache.avro:avro"

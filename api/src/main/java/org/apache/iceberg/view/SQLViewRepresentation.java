@@ -18,8 +18,8 @@
  */
 package org.apache.iceberg.view;
 
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
+import javax.annotation.Nullable;
 import org.apache.iceberg.catalog.Namespace;
 import org.immutables.value.Value;
 
