@@ -98,9 +98,6 @@ def data_file() -> DataFile:
         record_count=50,
         file_size_in_bytes=3,
         value_counts={
-            1: 50,
-            2: 50,
-            3: 50,
             4: 50,
             5: 50,
             6: 50,
@@ -201,17 +198,17 @@ def test_all_null(schema_data_file: Schema, data_file: DataFile) -> None:
     should_read = _InclusiveMetricsEvaluator(schema_data_file, EqualTo("all_nulls", "a")).eval(data_file)
     assert not should_read, "Should skip: equal on all null column"
 
-    should_read = _InclusiveMetricsEvaluator(schema_data_file, StartsWith("all_nulls", "a")).eval(data_file)
-    assert not should_read, "Should skip: startsWith on all null column"
-
-    should_read = _InclusiveMetricsEvaluator(schema_data_file, NotStartsWith("all_nulls", "a")).eval(data_file)
-    assert not should_read, "Should skip: notStartsWith on all null column"
-
     should_read = _InclusiveMetricsEvaluator(schema_data_file, NotNull("some_nulls")).eval(data_file)
     assert should_read, "Should read: column with some nulls contains a non-null value"
 
     should_read = _InclusiveMetricsEvaluator(schema_data_file, NotNull("no_nulls")).eval(data_file)
     assert should_read, "Should read: non-null column contains a non-null value"
+
+    should_read = _InclusiveMetricsEvaluator(schema_data_file, StartsWith("all_nulls", "asad")).eval(data_file)
+    assert not should_read, "Should skip: startsWith on all null column"
+
+    should_read = _InclusiveMetricsEvaluator(schema_data_file, NotStartsWith("all_nulls", "asad")).eval(data_file)
+    assert should_read, "Should read: notStartsWith on all null column"
 
 
 def test_no_nulls(schema_data_file: Schema, data_file: DataFile) -> None:

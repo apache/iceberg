@@ -1111,6 +1111,9 @@ class _InclusiveMetricsEvaluator(BoundBooleanExpressionVisitor[bool]):
 
         return visit(self.expr, self)
 
+    def _may_contain_null(self, field_id: int) -> bool:
+        return self.null_counts is None or (field_id in self.null_counts and self.null_counts.get(field_id) is not None)
+
     def _contains_nulls_only(self, field_id: int) -> bool:
         if (value_count := self.value_counts.get(field_id)) and (null_count := self.null_counts.get(field_id)):
             return value_count == null_count
@@ -1341,4 +1344,60 @@ class _InclusiveMetricsEvaluator(BoundBooleanExpressionVisitor[bool]):
     def visit_not_in(self, term: BoundTerm[L], literals: Set[L]) -> bool:
         # because the bounds are not necessarily a min or max value, this cannot be answered using
         # them. notIn(col, {X, ...}) with (X, Y) doesn't guarantee that X is a value in col.
+        return ROWS_MIGHT_MATCH
+
+    def visit_starts_with(self, term: BoundTerm[L], literal: Literal[L]) -> bool:
+        field = term.ref().field
+        field_id = field.field_id
+
+        if self._contains_nulls_only(field_id):
+            return ROWS_CANNOT_MATCH
+
+        prefix = str(literal.value)
+        len_prefix = len(prefix)
+
+        if self.lower_bounds and field_id in self.lower_bounds:
+            lower_bound = str(from_bytes(field.field_type, self.lower_bounds.get(field_id)))  # type: ignore
+
+            # truncate lower bound so that its length is not greater than the length of prefix
+            if lower_bound and lower_bound[:len_prefix] > prefix:
+                return ROWS_CANNOT_MATCH
+
+        if self.upper_bounds and field_id in self.upper_bounds:
+            upper_bound = str(from_bytes(field.field_type, self.upper_bounds.get(field_id)))  # type: ignore
+
+            # truncate upper bound so that its length is not greater than the length of prefix
+            if upper_bound and upper_bound[:len_prefix] < prefix:
+                return ROWS_CANNOT_MATCH
+
+        return ROWS_MIGHT_MATCH
+
+    def visit_not_starts_with(self, term: BoundTerm[L], literal: Literal[L]) -> bool:
+        field = term.ref().field
+        field_id = field.field_id
+
+        if self._may_contain_null(field_id):
+            return ROWS_MIGHT_MATCH
+
+        prefix = str(literal.value)
+        len_prefix = len(prefix)
+
+        # not_starts_with will match unless all values must start with the prefix. This happens when
+        # the lower and upper bounds both start with the prefix.
+        if self.lower_bounds and self.upper_bounds and field_id in self.lower_bounds and field_id in self.upper_bounds:
+            lower_bound = str(from_bytes(field.field_type, self.lower_bounds.get(field_id)))  # type: ignore
+            upper_bound = str(from_bytes(field.field_type, self.upper_bounds.get(field_id)))  # type: ignore
+
+            # if lower is shorter than the prefix then lower doesn't start with the prefix
+            if len(lower_bound) < len_prefix:
+                return ROWS_MIGHT_MATCH
+
+            if lower_bound[:len_prefix] == prefix:
+                # if upper is shorter than the prefix then upper can't start with the prefix
+                if len(upper_bound) < len_prefix:
+                    return ROWS_MIGHT_MATCH
+
+                if upper_bound[:len_prefix] == prefix:
+                    return ROWS_CANNOT_MATCH
+
         return ROWS_MIGHT_MATCH
