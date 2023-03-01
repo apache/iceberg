@@ -153,7 +153,9 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
       Optional<RowRanges> rowRanges = Optional.ofNullable(rowRangesArr[nextRowGroup]);
       try {
         if (rowRanges.isPresent()) {
-          pages = PageSkippingHelpers.internalReadFilteredRowGroup(reader, nextRowGroup, rowRanges.get());
+          pages =
+              PageSkippingHelpers.internalReadFilteredRowGroup(
+                  reader, nextRowGroup, rowRanges.get());
         } else {
           pages = reader.readRowGroup(nextRowGroup);
         }

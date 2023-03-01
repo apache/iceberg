@@ -115,7 +115,8 @@ public class ParquetValueReaders {
     }
 
     @Override
-    public void setPageSource(PageReadStore pageStore, long rowPosition, Optional<RowRanges> rowRanges) {}
+    public void setPageSource(
+        PageReadStore pageStore, long rowPosition, Optional<RowRanges> rowRanges) {}
   }
 
   static class ConstantReader<C> implements ParquetValueReader<C> {
@@ -178,7 +179,8 @@ public class ParquetValueReaders {
     }
 
     @Override
-    public void setPageSource(PageReadStore pageStore, long rowPosition, Optional<RowRanges> rowRanges) {}
+    public void setPageSource(
+        PageReadStore pageStore, long rowPosition, Optional<RowRanges> rowRanges) {}
   }
 
   static class PositionReader implements ParquetValueReader<Long> {
@@ -202,24 +204,26 @@ public class ParquetValueReaders {
     }
 
     @Override
-    public void setPageSource(PageReadStore pageStore, long rowPosition, Optional<RowRanges> rowRanges) {
+    public void setPageSource(
+        PageReadStore pageStore, long rowPosition, Optional<RowRanges> rowRanges) {
       this.rowGroupStart = rowPosition;
       this.rowOffset = -1;
       if (rowRanges.isPresent()) {
         this.rowIndexes = rowRanges.get().iterator();
       } else {
-        this.rowIndexes = new PrimitiveIterator.OfLong() {
-          @Override
-          public long nextLong() {
-            rowOffset = rowOffset + 1;
-            return rowOffset;
-          }
+        this.rowIndexes =
+            new PrimitiveIterator.OfLong() {
+              @Override
+              public long nextLong() {
+                rowOffset = rowOffset + 1;
+                return rowOffset;
+              }
 
-          @Override
-          public boolean hasNext() {
-            return false;
-          }
-        };
+              @Override
+              public boolean hasNext() {
+                return false;
+              }
+            };
       }
     }
   }
@@ -239,7 +243,8 @@ public class ParquetValueReaders {
     }
 
     @Override
-    public void setPageSource(PageReadStore pageStore, long rowPosition, Optional<RowRanges> rowRanges) {
+    public void setPageSource(
+        PageReadStore pageStore, long rowPosition, Optional<RowRanges> rowRanges) {
       column.setPageSource(pageStore.getPageReader(desc), rowRanges);
     }
 
@@ -423,7 +428,8 @@ public class ParquetValueReaders {
     }
 
     @Override
-    public void setPageSource(PageReadStore pageStore, long rowPosition, Optional<RowRanges> rowRanges) {
+    public void setPageSource(
+        PageReadStore pageStore, long rowPosition, Optional<RowRanges> rowRanges) {
       reader.setPageSource(pageStore, rowPosition, rowRanges);
     }
 
@@ -468,7 +474,8 @@ public class ParquetValueReaders {
     }
 
     @Override
-    public void setPageSource(PageReadStore pageStore, long rowPosition, Optional<RowRanges> rowRanges) {
+    public void setPageSource(
+        PageReadStore pageStore, long rowPosition, Optional<RowRanges> rowRanges) {
       reader.setPageSource(pageStore, rowPosition, rowRanges);
     }
 
@@ -587,7 +594,8 @@ public class ParquetValueReaders {
     }
 
     @Override
-    public void setPageSource(PageReadStore pageStore, long rowPosition, Optional<RowRanges> rowRanges) {
+    public void setPageSource(
+        PageReadStore pageStore, long rowPosition, Optional<RowRanges> rowRanges) {
       keyReader.setPageSource(pageStore, rowPosition, rowRanges);
       valueReader.setPageSource(pageStore, rowPosition, rowRanges);
     }
@@ -745,7 +753,8 @@ public class ParquetValueReaders {
     }
 
     @Override
-    public final void setPageSource(PageReadStore pageStore, long rowPosition, Optional<RowRanges> rowRanges) {
+    public final void setPageSource(
+        PageReadStore pageStore, long rowPosition, Optional<RowRanges> rowRanges) {
       for (ParquetValueReader<?> reader : readers) {
         reader.setPageSource(pageStore, rowPosition, rowRanges);
       }

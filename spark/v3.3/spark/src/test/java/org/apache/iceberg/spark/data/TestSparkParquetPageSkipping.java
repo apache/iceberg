@@ -16,8 +16,15 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.data;
+
+import static org.apache.iceberg.TableProperties.PARQUET_DICT_SIZE_BYTES;
+import static org.apache.iceberg.TableProperties.PARQUET_PAGE_SIZE_BYTES;
+import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_CHECK_MAX_RECORD_COUNT;
+import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_CHECK_MIN_RECORD_COUNT;
+import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES;
+import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.apache.iceberg.types.Types.NestedField.required;
 
 import java.io.File;
 import java.io.IOException;
@@ -30,7 +37,6 @@ import java.util.stream.Collectors;
 import org.apache.avro.generic.GenericData;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.common.DynFields;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
@@ -48,7 +54,6 @@ import org.apache.iceberg.util.Pair;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
 import org.junit.Assert;
-import org.junit.Assume;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -56,52 +61,47 @@ import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
-import static org.apache.iceberg.TableProperties.PARQUET_DICT_SIZE_BYTES;
-import static org.apache.iceberg.TableProperties.PARQUET_PAGE_SIZE_BYTES;
-import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_CHECK_MAX_RECORD_COUNT;
-import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_CHECK_MIN_RECORD_COUNT;
-import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES;
-import static org.apache.iceberg.types.Types.NestedField.optional;
-import static org.apache.iceberg.types.Types.NestedField.required;
-
 @RunWith(Parameterized.class)
 public class TestSparkParquetPageSkipping {
 
-  private static final Types.StructType PRIMITIVES = Types.StructType.of(
-      required(0, "_long", Types.LongType.get()),
-      optional(1, "_string", Types.StringType.get()), // var width
-      required(2, "_bool", Types.BooleanType.get()),
-      optional(3, "_int", Types.IntegerType.get()),
-      optional(4, "_float", Types.FloatType.get()),
-      required(5, "_double", Types.DoubleType.get()),
-      optional(6, "_date", Types.DateType.get()),
-      required(7, "_ts", Types.TimestampType.withZone()),
-      required(8, "_fixed", Types.FixedType.ofLength(7)),
-      optional(9, "_bytes", Types.BinaryType.get()), // var width
-      required(10, "_dec_9_0", Types.DecimalType.of(9, 0)), // int
-      required(11, "_dec_11_2", Types.DecimalType.of(11, 2)), // long
-      required(12, "_dec_38_10", Types.DecimalType.of(38, 10)) // fixed
-  );
+  private static final Types.StructType PRIMITIVES =
+      Types.StructType.of(
+          required(0, "_long", Types.LongType.get()),
+          optional(1, "_string", Types.StringType.get()), // var width
+          required(2, "_bool", Types.BooleanType.get()),
+          optional(3, "_int", Types.IntegerType.get()),
+          optional(4, "_float", Types.FloatType.get()),
+          required(5, "_double", Types.DoubleType.get()),
+          optional(6, "_date", Types.DateType.get()),
+          required(7, "_ts", Types.TimestampType.withZone()),
+          required(8, "_fixed", Types.FixedType.ofLength(7)),
+          optional(9, "_bytes", Types.BinaryType.get()), // var width
+          required(10, "_dec_9_0", Types.DecimalType.of(9, 0)), // int
+          required(11, "_dec_11_2", Types.DecimalType.of(11, 2)), // long
+          required(12, "_dec_38_10", Types.DecimalType.of(38, 10)) // fixed
+          );
 
   private static final Schema PRIMITIVES_SCHEMA = new Schema(PRIMITIVES.fields());
 
-  private static final Types.StructType LIST = Types.StructType.of(
-      optional(13, "_list", Types.ListType.ofOptional(14, Types.StringType.get())));
-  private static final Types.StructType MAP = Types.StructType.of(
-      optional(15, "_map", Types.MapType.ofOptional(16, 17,
-          Types.StringType.get(),
-          Types.StringType.get())));
-  private static final Schema COMPLEX_SCHEMA = new Schema(
-      Lists.newArrayList(
-          Iterables.concat(PRIMITIVES.fields(), LIST.fields(), MAP.fields())));
+  private static final Types.StructType LIST =
+      Types.StructType.of(
+          optional(13, "_list", Types.ListType.ofOptional(14, Types.StringType.get())));
+  private static final Types.StructType MAP =
+      Types.StructType.of(
+          optional(
+              15,
+              "_map",
+              Types.MapType.ofOptional(16, 17, Types.StringType.get(), Types.StringType.get())));
+  private static final Schema COMPLEX_SCHEMA =
+      new Schema(
+          Lists.newArrayList(Iterables.concat(PRIMITIVES.fields(), LIST.fields(), MAP.fields())));
 
-  @Rule
-  public TemporaryFolder temp = new TemporaryFolder();
+  @Rule public TemporaryFolder temp = new TemporaryFolder();
 
   private File testFile;
   private List<GenericData.Record> allRecords = Lists.newArrayList();
 
-/* Column and offset indexes info of `_long` column in `testFile` printed by parquet-cli's column-index command:
+  /* Column and offset indexes info of `_long` column in `testFile` printed by parquet-cli's column-index command:
   row-group 0:
   column index for column _long:
   Boudary order: ASCENDING
@@ -159,49 +159,51 @@ public class TestSparkParquetPageSkipping {
   */
 
   private long index = -1;
-  private final static int ABOVE_INT_COL_MAX_VALUE = Integer.MAX_VALUE;
+  private static final int ABOVE_INT_COL_MAX_VALUE = Integer.MAX_VALUE;
 
   @Before
   public void generateFile() throws IOException {
     testFile = temp.newFile();
     Assert.assertTrue("Delete should succeed", testFile.delete());
 
-    Function<GenericData.Record, GenericData.Record> transform = record -> {
-      index += 1;
-      if (record.get("_long") != null) {
-        record.put("_long", index);
-      }
+    Function<GenericData.Record, GenericData.Record> transform =
+        record -> {
+          index += 1;
+          if (record.get("_long") != null) {
+            record.put("_long", index);
+          }
 
-      if (Objects.equals(record.get("_int"), ABOVE_INT_COL_MAX_VALUE)) {
-        record.put("_int", ABOVE_INT_COL_MAX_VALUE - 1);
-      }
+          if (Objects.equals(record.get("_int"), ABOVE_INT_COL_MAX_VALUE)) {
+            record.put("_int", ABOVE_INT_COL_MAX_VALUE - 1);
+          }
 
-      return record;
-    };
+          return record;
+        };
 
     int numRecords = 1000;
-    allRecords = RandomData.generateList(COMPLEX_SCHEMA, numRecords, 0)
-        .stream()
-        .map(transform)
-        .collect(Collectors.toList());
+    allRecords =
+        RandomData.generateList(COMPLEX_SCHEMA, numRecords, 0).stream()
+            .map(transform)
+            .collect(Collectors.toList());
 
-    try (FileAppender<GenericData.Record> writer = Parquet.write(Files.localOutput(testFile))
-        .createWriterFunc(ParquetAvroWriter::buildWriter)
-        .schema(COMPLEX_SCHEMA)
-        .set(PARQUET_PAGE_SIZE_BYTES, "500")
-        .set(PARQUET_ROW_GROUP_SIZE_BYTES, "500000") // 2 row groups
-        .set(PARQUET_ROW_GROUP_CHECK_MIN_RECORD_COUNT, "1")
-        .set(PARQUET_ROW_GROUP_CHECK_MAX_RECORD_COUNT, "1")
-        .set(PARQUET_DICT_SIZE_BYTES, "1")
-        .named("pages_unaligned_file")
-        .build()) {
+    try (FileAppender<GenericData.Record> writer =
+        Parquet.write(Files.localOutput(testFile))
+            .createWriterFunc(ParquetAvroWriter::buildWriter)
+            .schema(COMPLEX_SCHEMA)
+            .set(PARQUET_PAGE_SIZE_BYTES, "500")
+            .set(PARQUET_ROW_GROUP_SIZE_BYTES, "500000") // 2 row groups
+            .set(PARQUET_ROW_GROUP_CHECK_MIN_RECORD_COUNT, "1")
+            .set(PARQUET_ROW_GROUP_CHECK_MAX_RECORD_COUNT, "1")
+            .set(PARQUET_DICT_SIZE_BYTES, "1")
+            .named("pages_unaligned_file")
+            .build()) {
       writer.addAll(allRecords);
     }
   }
 
   @Parameterized.Parameters(name = "vectorized = {0}")
   public static Object[] parameters() {
-    return new Object[] { false };
+    return new Object[] {false};
   }
 
   private final boolean vectorized;
@@ -212,9 +214,10 @@ public class TestSparkParquetPageSkipping {
 
   @Test
   public void testSinglePageMatch() {
-    Expression filter = Expressions.and(
-        Expressions.greaterThanOrEqual("_long", 57),
-        Expressions.lessThan("_long", 114)); // exactly page-1  -> row ranges: [57, 113]
+    Expression filter =
+        Expressions.and(
+            Expressions.greaterThanOrEqual("_long", 57),
+            Expressions.lessThan("_long", 114)); // exactly page-1  -> row ranges: [57, 113]
 
     List<GenericData.Record> expected = selectRecords(allRecords, Pair.of(57, 114));
     readAndValidate(filter, expected);
@@ -222,56 +225,52 @@ public class TestSparkParquetPageSkipping {
 
   @Test
   public void testMultiplePagesMatch() {
-    Expression filter = Expressions.or(
-        // page-1  -> row ranges: [57, 113]
-        Expressions.and(
-            Expressions.greaterThanOrEqual("_long", 57),
-            Expressions.lessThan("_long", 114)),
+    Expression filter =
+        Expressions.or(
+            // page-1  -> row ranges: [57, 113]
+            Expressions.and(
+                Expressions.greaterThanOrEqual("_long", 57), Expressions.lessThan("_long", 114)),
 
-        // page-3, page-4 in row group 0  -> row ranges[171, 284]
-        Expressions.and(
-            Expressions.greaterThanOrEqual("_long", 173),
-            Expressions.lessThan("_long", 260))
-    );
+            // page-3, page-4 in row group 0  -> row ranges[171, 284]
+            Expressions.and(
+                Expressions.greaterThanOrEqual("_long", 173), Expressions.lessThan("_long", 260)));
 
-    List<GenericData.Record> expected = selectRecords(allRecords, Pair.of(57, 114), Pair.of(171, 285));
+    List<GenericData.Record> expected =
+        selectRecords(allRecords, Pair.of(57, 114), Pair.of(171, 285));
     readAndValidate(filter, expected);
   }
 
   @Test
   public void testMultipleRowGroupsMatch() {
-    Expression filter = Expressions.or(
-        // page-1  -> row ranges: [57, 113]
-        Expressions.and(
-            Expressions.greaterThanOrEqual("_long", 57),
-            Expressions.lessThan("_long", 114)),
+    Expression filter =
+        Expressions.or(
+            // page-1  -> row ranges: [57, 113]
+            Expressions.and(
+                Expressions.greaterThanOrEqual("_long", 57), Expressions.lessThan("_long", 114)),
 
-        // page-3, page-4 in row group 0  -> row ranges[171, 284]
-        Expressions.and(
-            Expressions.greaterThanOrEqual("_long", 173),
-            Expressions.lessThan("_long", 260))
-    );
+            // page-3, page-4 in row group 0  -> row ranges[171, 284]
+            Expressions.and(
+                Expressions.greaterThanOrEqual("_long", 173), Expressions.lessThan("_long", 260)));
 
-    filter = Expressions.or(
-        filter,
-        // page-10 in row group 0 and page-0, page-1 in row group 1 -> row ranges: [570, 706]
-        Expressions.and(
-            Expressions.greaterThanOrEqual("_long", 572),
-            Expressions.lessThan("_long", 663))
-    );
+    filter =
+        Expressions.or(
+            filter,
+            // page-10 in row group 0 and page-0, page-1 in row group 1 -> row ranges: [570, 706]
+            Expressions.and(
+                Expressions.greaterThanOrEqual("_long", 572), Expressions.lessThan("_long", 663)));
 
-    List<GenericData.Record> expected = selectRecords(allRecords,
-        Pair.of(57, 114), Pair.of(171, 285), Pair.of(570, 707));
+    List<GenericData.Record> expected =
+        selectRecords(allRecords, Pair.of(57, 114), Pair.of(171, 285), Pair.of(570, 707));
     readAndValidate(filter, expected);
   }
 
   @Test
   public void testNoRowsMatch() {
-    Expression filter = Expressions.and(
+    Expression filter =
         Expressions.and(
-            Expressions.greaterThan("_long", 40),
-            Expressions.lessThan("_long", 46)),
-        Expressions.equal("_int", ABOVE_INT_COL_MAX_VALUE));
+            Expressions.and(
+                Expressions.greaterThan("_long", 40), Expressions.lessThan("_long", 46)),
+            Expressions.equal("_int", ABOVE_INT_COL_MAX_VALUE));
 
     readAndValidate(filter, ImmutableList.of());
   }
@@ -289,29 +288,33 @@ public class TestSparkParquetPageSkipping {
   private void readAndValidate(Expression filter, List<GenericData.Record> expected) {
     Schema projected = readSchema();
 
-    Parquet.ReadBuilder builder = Parquet.read(Files.localInput(testFile))
-        .project(projected)
-        .filter(filter)
-        .useColumnIndexFilter(true);
+    Parquet.ReadBuilder builder =
+        Parquet.read(Files.localInput(testFile))
+            .project(projected)
+            .filter(filter)
+            .useColumnIndexFilter(true);
 
     Types.StructType struct = projected.asStruct();
 
     if (vectorized) {
-      CloseableIterable<ColumnarBatch> batches = builder.createBatchedReaderFunc(
-              type ->
-                  VectorizedSparkParquetReaders.buildReader(projected, type, true))
-          .build();
+      CloseableIterable<ColumnarBatch> batches =
+          builder
+              .createBatchedReaderFunc(
+                  type -> VectorizedSparkParquetReaders.buildReader(projected, type, true))
+              .build();
 
       Iterator<GenericData.Record> expectedIterator = expected.iterator();
       for (ColumnarBatch batch : batches) {
         TestHelpers.assertEqualsBatch(struct, expectedIterator, batch, true);
       }
 
-      Assert.assertFalse("The expected records is more than the actual result", expectedIterator.hasNext());
+      Assert.assertFalse(
+          "The expected records is more than the actual result", expectedIterator.hasNext());
     } else {
-      CloseableIterable<InternalRow> reader = builder.createReaderFunc(
-              type -> SparkParquetReaders.buildReader(projected, type))
-          .build();
+      CloseableIterable<InternalRow> reader =
+          builder
+              .createReaderFunc(type -> SparkParquetReaders.buildReader(projected, type))
+              .build();
       CloseableIterator<InternalRow> actualRows = reader.iterator();
 
       for (GenericData.Record record : expected) {
@@ -323,7 +326,8 @@ public class TestSparkParquetPageSkipping {
     }
   }
 
-  private List<GenericData.Record> selectRecords(List<GenericData.Record> records, Pair<Integer, Integer>... ranges) {
+  private List<GenericData.Record> selectRecords(
+      List<GenericData.Record> records, Pair<Integer, Integer>... ranges) {
     return Arrays.stream(ranges)
         .map(range -> records.subList(range.first(), range.second()))
         .flatMap(Collection::stream)

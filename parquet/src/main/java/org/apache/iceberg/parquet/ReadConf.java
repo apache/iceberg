@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.parquet;
 
+import static org.apache.iceberg.parquet.PageSkippingHelpers.getColumnIndexStore;
+
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
@@ -43,8 +45,6 @@ import org.apache.parquet.hadoop.metadata.ColumnPath;
 import org.apache.parquet.internal.filter2.columnindex.ColumnIndexStore;
 import org.apache.parquet.internal.filter2.columnindex.RowRanges;
 import org.apache.parquet.schema.MessageType;
-
-import static org.apache.iceberg.parquet.PageSkippingHelpers.getColumnIndexStore;
 
 /**
  * Configuration for Parquet readers.
@@ -136,7 +136,8 @@ class ReadConf<T> {
       if (useColumnIndexFilter && filter != null && shouldRead) {
         ColumnIndexStore columnIndexStore = getColumnIndexStore(reader, i);
         RowRanges rowRanges =
-            columnIndexFilter.calculateRowRanges(typeWithIds, columnIndexStore, rowGroup.getRowCount());
+            columnIndexFilter.calculateRowRanges(
+                typeWithIds, columnIndexStore, rowGroup.getRowCount());
 
         if (rowRanges.getRanges().size() == 0) {
           shouldRead = false;
@@ -147,7 +148,8 @@ class ReadConf<T> {
 
       this.shouldSkip[i] = !shouldRead;
       if (shouldRead) {
-        computedTotalValues += rowRangesArr[i] == null ? rowGroup.getRowCount() : rowRangesArr[i].rowCount();
+        computedTotalValues +=
+            rowRangesArr[i] == null ? rowGroup.getRowCount() : rowRangesArr[i].rowCount();
       }
     }
 

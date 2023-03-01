@@ -85,9 +85,12 @@ public abstract class BaseColumnIterator {
           this.advanceNextPageCount += pageIterator.currentPageCount();
 
           if (synchronizing) {
-            long firstRowIndex = page.getFirstRowIndex()
-                .orElseThrow(() ->
-                    new IllegalArgumentException("Missing page first row index for synchronizing values"));
+            long firstRowIndex =
+                page.getFirstRowIndex()
+                    .orElseThrow(
+                        () ->
+                            new IllegalArgumentException(
+                                "Missing page first row index for synchronizing values"));
             this.skipValues = 0;
             this.currentRowIndex = firstRowIndex - 1;
           }
