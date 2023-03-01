@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg;
 
+import static org.apache.iceberg.util.SnapshotUtil.latestSnapshot;
+
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.List;

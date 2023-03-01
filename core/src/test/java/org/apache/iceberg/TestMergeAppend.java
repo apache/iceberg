@@ -19,6 +19,7 @@
 package org.apache.iceberg;
 
 import static org.apache.iceberg.relocated.com.google.common.collect.Iterators.concat;
+import static org.apache.iceberg.util.SnapshotUtil.latestSnapshot;
 
 import java.io.File;
 import java.io.IOException;
