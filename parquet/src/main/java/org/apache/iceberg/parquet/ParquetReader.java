@@ -19,6 +19,7 @@
 package org.apache.iceberg.parquet;
 
 import java.io.IOException;
+import java.util.Optional;
 import java.util.function.Function;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.exceptions.RuntimeIOException;
@@ -32,6 +33,7 @@ import org.apache.iceberg.mapping.NameMapping;
 import org.apache.parquet.ParquetReadOptions;
 import org.apache.parquet.column.page.PageReadStore;
 import org.apache.parquet.hadoop.ParquetFileReader;
+import org.apache.parquet.internal.filter2.columnindex.RowRanges;
 import org.apache.parquet.schema.MessageType;
 
 public class ParquetReader<T> extends CloseableGroup implements CloseableIterable<T> {
@@ -43,6 +45,7 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
   private final boolean reuseContainers;
   private final boolean caseSensitive;
   private final NameMapping nameMapping;
+  private final boolean useColumnIndexFilter;
 
   public ParquetReader(
       InputFile input,
@@ -52,7 +55,8 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
       NameMapping nameMapping,
       Expression filter,
       boolean reuseContainers,
-      boolean caseSensitive) {
+      boolean caseSensitive,
+      boolean useColumnIndexFilter) {
     this.input = input;
     this.expectedSchema = expectedSchema;
     this.options = options;
@@ -62,6 +66,7 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
     this.reuseContainers = reuseContainers;
     this.caseSensitive = caseSensitive;
     this.nameMapping = nameMapping;
+    this.useColumnIndexFilter = useColumnIndexFilter;
   }
 
   private ReadConf<T> conf = null;
@@ -79,7 +84,8 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
               nameMapping,
               reuseContainers,
               caseSensitive,
-              null);
+              null,
+              useColumnIndexFilter);
       this.conf = readConf.copy();
       return readConf;
     }
@@ -100,6 +106,7 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
     private final long totalValues;
     private final boolean reuseContainers;
     private final long[] rowGroupsStartRowPos;
+    private final RowRanges[] rowRangesArr;
 
     private int nextRowGroup = 0;
     private long nextRowGroupStart = 0;
@@ -113,6 +120,7 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
       this.totalValues = conf.totalValues();
       this.reuseContainers = conf.reuseContainers();
       this.rowGroupsStartRowPos = conf.startRowPositions();
+      this.rowRangesArr = conf.rowRangesArr();
     }
 
     @Override
@@ -139,12 +147,16 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
     private void advance() {
       while (shouldSkip[nextRowGroup]) {
         nextRowGroup += 1;
-        reader.skipNextRowGroup();
       }
 
       PageReadStore pages;
+      Optional<RowRanges> rowRanges = Optional.ofNullable(rowRangesArr[nextRowGroup]);
       try {
-        pages = reader.readNextRowGroup();
+        if (rowRanges.isPresent()) {
+          pages = PageSkippingHelpers.internalReadFilteredRowGroup(reader, nextRowGroup, rowRanges.get());
+        } else {
+          pages = reader.readRowGroup(nextRowGroup);
+        }
       } catch (IOException e) {
         throw new RuntimeIOException(e);
       }
@@ -153,7 +165,7 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
       nextRowGroupStart += pages.getRowCount();
       nextRowGroup += 1;
 
-      model.setPageSource(pages, rowPosition);
+      model.setPageSource(pages, rowPosition, rowRanges);
     }
 
     @Override

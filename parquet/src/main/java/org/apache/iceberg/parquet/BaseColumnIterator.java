@@ -18,14 +18,18 @@
  */
 package org.apache.iceberg.parquet;
 
+import java.util.Optional;
+import java.util.PrimitiveIterator;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.Dictionary;
 import org.apache.parquet.column.page.DataPage;
 import org.apache.parquet.column.page.PageReader;
+import org.apache.parquet.internal.filter2.columnindex.RowRanges;
 
 @SuppressWarnings("checkstyle:VisibilityModifier")
 public abstract class BaseColumnIterator {
   protected final ColumnDescriptor desc;
+  protected final int definitionLevel;
 
   // state reset for each row group
   protected PageReader pageSource = null;
@@ -34,23 +38,42 @@ public abstract class BaseColumnIterator {
   protected long advanceNextPageCount = 0L;
   protected Dictionary dictionary;
 
+  // state for page skipping
+  protected boolean synchronizing = false;
+  protected PrimitiveIterator.OfLong rowIndexes;
+  protected long targetRowIndex;
+  protected long currentRowIndex;
+  protected int skipValues;
+
   protected BaseColumnIterator(ColumnDescriptor descriptor) {
     this.desc = descriptor;
+    this.definitionLevel = desc.getMaxDefinitionLevel() - 1;
   }
 
-  public void setPageSource(PageReader source) {
+  public void setPageSource(PageReader source, Optional<RowRanges> rowRanges) {
     this.pageSource = source;
     this.triplesCount = source.getTotalValueCount();
     this.triplesRead = 0L;
     this.advanceNextPageCount = 0L;
+    if (rowRanges.isPresent()) {
+      this.synchronizing = true;
+      this.rowIndexes = rowRanges.get().iterator();
+      this.targetRowIndex = Long.MIN_VALUE;
+    }
+
     BasePageIterator pageIterator = pageIterator();
     pageIterator.reset();
     dictionary = ParquetUtil.readDictionary(desc, pageSource);
     pageIterator.setDictionary(dictionary);
     advance();
+    skip();
   }
 
   protected abstract BasePageIterator pageIterator();
+
+  protected void skip() {
+    throw new UnsupportedOperationException();
+  }
 
   protected void advance() {
     if (triplesRead >= advanceNextPageCount) {
@@ -60,6 +83,14 @@ public abstract class BaseColumnIterator {
         if (page != null) {
           pageIterator.setPage(page);
           this.advanceNextPageCount += pageIterator.currentPageCount();
+
+          if (synchronizing) {
+            long firstRowIndex = page.getFirstRowIndex()
+                .orElseThrow(() ->
+                    new IllegalArgumentException("Missing page first row index for synchronizing values"));
+            this.skipValues = 0;
+            this.currentRowIndex = firstRowIndex - 1;
+          }
         } else {
           return;
         }

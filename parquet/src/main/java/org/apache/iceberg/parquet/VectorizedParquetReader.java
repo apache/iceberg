@@ -87,7 +87,8 @@ public class VectorizedParquetReader<T> extends CloseableGroup implements Closea
               nameMapping,
               reuseContainers,
               caseSensitive,
-              batchSize);
+              batchSize,
+              false);
       this.conf = readConf.copy();
       return readConf;
     }

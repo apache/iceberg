@@ -189,7 +189,12 @@ abstract class PageIterator<T> extends BasePageIterator implements TripleIterato
     return null;
   }
 
-  private void advance() {
+  @Override
+  protected void skip(int skipValues) {
+    values.skip(skipValues);
+  }
+
+  protected void advance() {
     if (triplesRead < triplesCount) {
       this.currentDL = definitionLevels.nextInt();
       this.currentRL = repetitionLevels.nextInt();

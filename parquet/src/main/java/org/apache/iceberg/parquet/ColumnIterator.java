@@ -111,53 +111,98 @@ public abstract class ColumnIterator<T> extends BaseColumnIterator implements Tr
   public boolean nextBoolean() {
     this.triplesRead += 1;
     advance();
-    return pageIterator.nextBoolean();
+    boolean value = pageIterator.nextBoolean();
+    skip();
+    return value;
   }
 
   @Override
   public int nextInteger() {
     this.triplesRead += 1;
     advance();
-    return pageIterator.nextInteger();
+    int value = pageIterator.nextInteger();
+    skip();
+    return value;
   }
 
   @Override
   public long nextLong() {
     this.triplesRead += 1;
     advance();
-    return pageIterator.nextLong();
+    long value = pageIterator.nextLong();
+    skip();
+    return value;
   }
 
   @Override
   public float nextFloat() {
     this.triplesRead += 1;
     advance();
-    return pageIterator.nextFloat();
+    float value = pageIterator.nextFloat();
+    skip();
+    return value;
   }
 
   @Override
   public double nextDouble() {
     this.triplesRead += 1;
     advance();
-    return pageIterator.nextDouble();
+    double value = pageIterator.nextDouble();
+    skip();
+    return value;
   }
 
   @Override
   public Binary nextBinary() {
     this.triplesRead += 1;
     advance();
-    return pageIterator.nextBinary();
+    Binary value = pageIterator.nextBinary();
+    skip();
+    return value;
   }
 
   @Override
   public <N> N nextNull() {
     this.triplesRead += 1;
     advance();
-    return pageIterator.nextNull();
+    N value = pageIterator.nextNull();
+    skip();
+    return value;
   }
 
   @Override
   protected BasePageIterator pageIterator() {
     return pageIterator;
+  }
+
+  @Override
+  protected void skip() {
+    if (!synchronizing) {
+      return;
+    }
+
+    skipValues = 0;
+    while (hasNext()) {
+      advance();
+      if (pageIterator.currentRepetitionLevel() == 0) {
+        currentRowIndex += 1;
+        if (currentRowIndex > targetRowIndex) {
+          targetRowIndex = rowIndexes.hasNext() ? rowIndexes.nextLong() : Long.MAX_VALUE;
+        }
+      }
+
+      if (currentRowIndex < targetRowIndex) {
+        triplesRead += 1;
+        if (pageIterator.currentDefinitionLevel() > definitionLevel) {
+          skipValues += 1;
+        }
+
+        pageIterator.advance();
+      } else {
+        break;
+      }
+    }
+
+    pageIterator.skip(skipValues);
   }
 }

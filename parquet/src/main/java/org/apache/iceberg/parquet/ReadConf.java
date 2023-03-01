@@ -40,7 +40,11 @@ import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnPath;
+import org.apache.parquet.internal.filter2.columnindex.ColumnIndexStore;
+import org.apache.parquet.internal.filter2.columnindex.RowRanges;
 import org.apache.parquet.schema.MessageType;
+
+import static org.apache.iceberg.parquet.PageSkippingHelpers.getColumnIndexStore;
 
 /**
  * Configuration for Parquet readers.
@@ -60,11 +64,12 @@ class ReadConf<T> {
   private final boolean reuseContainers;
   private final Integer batchSize;
   private final long[] startRowPositions;
+  private final RowRanges[] rowRangesArr;
 
   // List of column chunk metadata for each row group
   private final List<Map<ColumnPath, ColumnChunkMetaData>> columnChunkMetaDataForRowGroups;
 
-  @SuppressWarnings("unchecked")
+  @SuppressWarnings({"unchecked", "CyclomaticComplexity"})
   ReadConf(
       InputFile file,
       ParquetReadOptions options,
@@ -75,7 +80,8 @@ class ReadConf<T> {
       NameMapping nameMapping,
       boolean reuseContainers,
       boolean caseSensitive,
-      Integer bSize) {
+      Integer bSize,
+      boolean useColumnIndexFilter) {
     this.file = file;
     this.options = options;
     this.reader = newReader(file, options);
@@ -96,6 +102,7 @@ class ReadConf<T> {
     this.rowGroups = reader.getRowGroups();
     this.shouldSkip = new boolean[rowGroups.size()];
     this.startRowPositions = new long[rowGroups.size()];
+    this.rowRangesArr = new RowRanges[rowGroups.size()];
 
     // Fetch all row groups starting positions to compute the row offsets of the filtered row groups
     Map<Long, Long> offsetToStartPos = generateOffsetToStartPos(expectedSchema);
@@ -103,10 +110,14 @@ class ReadConf<T> {
     ParquetMetricsRowGroupFilter statsFilter = null;
     ParquetDictionaryRowGroupFilter dictFilter = null;
     ParquetBloomRowGroupFilter bloomFilter = null;
+    ParquetColumnIndexFilter columnIndexFilter = null;
     if (filter != null) {
       statsFilter = new ParquetMetricsRowGroupFilter(expectedSchema, filter, caseSensitive);
       dictFilter = new ParquetDictionaryRowGroupFilter(expectedSchema, filter, caseSensitive);
       bloomFilter = new ParquetBloomRowGroupFilter(expectedSchema, filter, caseSensitive);
+      if (useColumnIndexFilter) {
+        columnIndexFilter = new ParquetColumnIndexFilter(expectedSchema, filter, caseSensitive);
+      }
     }
 
     long computedTotalValues = 0L;
@@ -121,9 +132,22 @@ class ReadConf<T> {
                       typeWithIds, rowGroup, reader.getDictionaryReader(rowGroup))
                   && bloomFilter.shouldRead(
                       typeWithIds, rowGroup, reader.getBloomFilterDataReader(rowGroup)));
+
+      if (useColumnIndexFilter && filter != null && shouldRead) {
+        ColumnIndexStore columnIndexStore = getColumnIndexStore(reader, i);
+        RowRanges rowRanges =
+            columnIndexFilter.calculateRowRanges(typeWithIds, columnIndexStore, rowGroup.getRowCount());
+
+        if (rowRanges.getRanges().size() == 0) {
+          shouldRead = false;
+        } else if (rowRanges.rowCount() != rowGroup.getRowCount()) {
+          rowRangesArr[i] = rowRanges;
+        }
+      }
+
       this.shouldSkip[i] = !shouldRead;
       if (shouldRead) {
-        computedTotalValues += rowGroup.getRowCount();
+        computedTotalValues += rowRangesArr[i] == null ? rowGroup.getRowCount() : rowRangesArr[i].rowCount();
       }
     }
 
@@ -156,6 +180,7 @@ class ReadConf<T> {
     this.vectorizedModel = toCopy.vectorizedModel;
     this.columnChunkMetaDataForRowGroups = toCopy.columnChunkMetaDataForRowGroups;
     this.startRowPositions = toCopy.startRowPositions;
+    this.rowRangesArr = toCopy.rowRangesArr;
   }
 
   ParquetFileReader reader() {
@@ -179,6 +204,10 @@ class ReadConf<T> {
 
   boolean[] shouldSkip() {
     return shouldSkip;
+  }
+
+  RowRanges[] rowRangesArr() {
+    return rowRangesArr;
   }
 
   private Map<Long, Long> generateOffsetToStartPos(Schema schema) {
