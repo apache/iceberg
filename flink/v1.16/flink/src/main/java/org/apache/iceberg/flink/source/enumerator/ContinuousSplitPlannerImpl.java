@@ -47,23 +47,13 @@ public class ContinuousSplitPlannerImpl implements ContinuousSplitPlanner {
   private final ScanContext scanContext;
   private final boolean isSharedPool;
   private final ExecutorService workerPool;
-  private TableLoader tableLoader;
+  private final TableLoader tableLoader;
 
   /**
+   * @param tableLoader A cloned tableLoader.
    * @param threadName thread name prefix for worker pool to run the split planning. If null, a
    *     shared worker pool will be used.
    */
-  public ContinuousSplitPlannerImpl(Table table, ScanContext scanContext, String threadName) {
-    this.table = table;
-    this.scanContext = scanContext;
-    this.isSharedPool = threadName == null;
-    this.workerPool =
-        isSharedPool
-            ? ThreadPools.getWorkerPool()
-            : ThreadPools.newWorkerPool(
-                "iceberg-plan-worker-pool-" + threadName, scanContext.planParallelism());
-  }
-
   public ContinuousSplitPlannerImpl(
       TableLoader tableLoader, ScanContext scanContext, String threadName) {
     this.tableLoader = tableLoader;

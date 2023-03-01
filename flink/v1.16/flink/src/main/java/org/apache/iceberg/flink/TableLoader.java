@@ -40,8 +40,8 @@ public interface TableLoader extends Closeable, Serializable, Cloneable {
 
   Table loadTable();
 
-  /** By shallow cloning, clone a tableLoader. */
-  @SuppressWarnings("checkstyle:NoClone")
+  /** Clone a TableLoader */
+  @SuppressWarnings({"checkstyle:NoClone", "checkstyle:SuperClone"})
   TableLoader clone();
 
   static TableLoader fromCatalog(CatalogLoader catalogLoader, TableIdentifier identifier) {
@@ -81,14 +81,9 @@ public interface TableLoader extends Closeable, Serializable, Cloneable {
     }
 
     @Override
-    @SuppressWarnings("checkstyle:NoClone")
+    @SuppressWarnings({"checkstyle:NoClone", "checkstyle:SuperClone"})
     public TableLoader clone() {
-      try {
-        return (TableLoader) super.clone();
-      } catch (CloneNotSupportedException e) {
-        // should not happen as this class is cloneable
-        return null;
-      }
+      return new HadoopTableLoader(location, new Configuration(hadoopConf.get()));
     }
 
     @Override
@@ -131,14 +126,9 @@ public interface TableLoader extends Closeable, Serializable, Cloneable {
     }
 
     @Override
-    @SuppressWarnings("checkstyle:NoClone")
+    @SuppressWarnings({"checkstyle:NoClone", "checkstyle:SuperClone"})
     public TableLoader clone() {
-      try {
-        return (TableLoader) super.clone();
-      } catch (Exception e) {
-        // should not happen as this class is cloneable
-        return null;
-      }
+      return new CatalogTableLoader(catalogLoader.clone(), TableIdentifier.parse(identifier));
     }
 
     @Override
