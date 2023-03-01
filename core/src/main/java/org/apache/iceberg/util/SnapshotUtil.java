@@ -401,8 +401,8 @@ public class SnapshotUtil {
    * Fetch the snapshot at the head of the given branch in the given table.
    *
    * <p>This method calls {@link Table#currentSnapshot()} instead of using branch API {@link
-   * Table#snapshot(String)} for the main branch so that existing code still goes through the
-   * old code path to ensure backwards compatibility.
+   * Table#snapshot(String)} for the main branch so that existing code still goes through the old
+   * code path to ensure backwards compatibility.
    *
    * @param table a {@link Table}
    * @param branch branch name of the table
