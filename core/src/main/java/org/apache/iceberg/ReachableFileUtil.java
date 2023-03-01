@@ -20,6 +20,8 @@ package org.apache.iceberg;
 
 import java.util.List;
 import java.util.Set;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.TableMetadata.MetadataLogEntry;
 import org.apache.iceberg.hadoop.Util;
@@ -137,25 +139,21 @@ public class ReachableFileUtil {
    * @return the location of statistics files
    */
   public static List<String> statisticsFilesLocations(Table table) {
-    return statisticsFilesLocations(table, null);
+    return statisticsFilesLocations(table, statisticsFile -> true);
   }
 
   /**
-   * Returns locations of statistics files matching the given snapshotIds in a table.
+   * Returns locations of statistics files for a table matching the given predicate .
    *
    * @param table table for which statistics files needs to be listed
-   * @param snapshotIds ids of snapshots for which statistics files will be returned. When null,
-   *     returns location of all the statistics files in a table.
+   * @param predicate predicate for filtering the statistics files
    * @return the location of statistics files
    */
-  public static List<String> statisticsFilesLocations(Table table, Set<Long> snapshotIds) {
-    List<String> statisticsFilesLocations = Lists.newArrayList();
-    for (StatisticsFile statisticsFile : table.statisticsFiles()) {
-      if (snapshotIds == null || snapshotIds.contains(statisticsFile.snapshotId())) {
-        statisticsFilesLocations.add(statisticsFile.path());
-      }
-    }
-
-    return statisticsFilesLocations;
+  public static List<String> statisticsFilesLocations(
+      Table table, Predicate<StatisticsFile> predicate) {
+    return table.statisticsFiles().stream()
+        .filter(predicate)
+        .map(StatisticsFile::path)
+        .collect(Collectors.toList());
   }
 }
