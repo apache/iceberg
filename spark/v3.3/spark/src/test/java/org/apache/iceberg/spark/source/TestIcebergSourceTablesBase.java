@@ -1796,7 +1796,8 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
       for (Boolean useDict : new Boolean[] {true, false}) {
         for (Boolean useVectorization : new Boolean[] {true, false}) {
           spark.sql("DROP TABLE IF EXISTS parquet_table");
-          spark.range(0, 5000, 100, 1)
+          spark
+              .range(0, 5000, 100, 1)
               .select(idColumn, secondsColumn)
               .select(idColumn, timestampColumn)
               .write()
