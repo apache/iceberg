@@ -68,7 +68,9 @@ public abstract class BaseColumnIterator {
     dictionary = ParquetUtil.readDictionary(desc, pageSource);
     pageIterator.setDictionary(dictionary);
     advance();
-    skip();
+    if (synchronizing) {
+      skip();
+    }
   }
 
   protected abstract BasePageIterator pageIterator();
