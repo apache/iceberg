@@ -888,7 +888,8 @@ public class TestColumnIndexFilter {
                     .named(binaryDecimal),
                 ASCENDING)
             .addPage(0, decimalToBytes("12.34"), decimalToBytes("12.35"))
-            .addPage(0, decimalToBytes("1234567890.987654321"), decimalToBytes("1234567890.987654323"))
+            .addPage(
+                0, decimalToBytes("1234567890.987654321"), decimalToBytes("1234567890.987654323"))
             .build();
 
     OffsetIndex binaryDecimalOI = new OIBuilder().addPage(5).addPage(4).build();
