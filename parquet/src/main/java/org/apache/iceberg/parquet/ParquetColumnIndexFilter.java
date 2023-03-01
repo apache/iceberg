@@ -530,8 +530,8 @@ public class ParquetColumnIndexFilter {
       }
 
       // If the column index of a column is not available, we cannot filter on this column.
-      // If the offset index of a column is not available, we cannot filter on this row group.
-      // Get the offset index first so that the MissingOffsetIndexException (if any) is thrown ASAP.
+      // If the offset index of a column is not available, a MissingOffsetIndexException will
+      // be thrown out, and we cannot filter on this row group.
       OffsetIndex offsetIndex = offsetIndex(columnId);
       ParquetColumnIndex columnIndex = columnIndex(columnId);
       if (columnIndex == null) {
