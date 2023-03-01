@@ -101,7 +101,9 @@ public class TestSparkParquetPageSkipping {
   private File testFile;
   private List<GenericData.Record> allRecords = Lists.newArrayList();
 
-  /* Column and offset indexes info of `_long` column in `testFile` printed by parquet-cli's column-index command:
+  /* Column and offset indexes info of `_long` column in `testFile` copied from text printed by parquet-cli's
+  column-index command:
+
   row-group 0:
   column index for column _long:
   Boudary order: ASCENDING
@@ -261,6 +263,27 @@ public class TestSparkParquetPageSkipping {
 
     List<GenericData.Record> expected =
         selectRecords(allRecords, Pair.of(57, 114), Pair.of(171, 285), Pair.of(570, 707));
+    readAndValidate(filter, expected);
+  }
+
+  @Test
+  public void testOnlyFilterPagesOnOneRowGroup() {
+    Expression filter =
+        Expressions.and(
+            Expressions.greaterThanOrEqual("_long", 57),
+            Expressions.lessThan("_long", 114)); // exactly page-1  -> row ranges: [57, 113]
+
+    filter =
+        Expressions.or(
+            filter,
+            // page-9, page-10 in row group 0 -> row ranges: [513, 592]
+            // and all pages in row group 1
+            Expressions.greaterThanOrEqual("_long", 569));
+
+    // some pages of row group 0 and all pages of row group 1
+    List<GenericData.Record> expected =
+        selectRecords(allRecords, Pair.of(57, 114), Pair.of(513, 593), Pair.of(593, 1000));
+
     readAndValidate(filter, expected);
   }
 

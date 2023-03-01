@@ -59,6 +59,8 @@ public abstract class BaseColumnIterator {
       this.synchronizing = true;
       this.rowIndexes = rowRanges.get().iterator();
       this.targetRowIndex = Long.MIN_VALUE;
+    } else {
+      this.synchronizing = false;
     }
 
     BasePageIterator pageIterator = pageIterator();
