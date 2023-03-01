@@ -43,10 +43,12 @@ from urllib.parse import urlparse
 import pyarrow as pa
 import pyarrow.compute as pc
 import pyarrow.parquet as pq
+from pyarrow._fs import PyFileSystem
 from pyarrow.fs import (
     FileInfo,
     FileSystem,
     FileType,
+    FSSpecHandler,
     LocalFileSystem,
     S3FileSystem,
 )
@@ -72,6 +74,7 @@ from pyiceberg.io import (
     OutputFile,
     OutputStream,
 )
+from pyiceberg.io.fsspec import FsspecFileIO
 from pyiceberg.schema import (
     PartnerAccessor,
     Schema,
@@ -535,11 +538,13 @@ def project_table(
         ResolveError: When an incompatible query is done
     """
 
+    scheme, _ = PyArrowFileIO.parse_location(table.location())
     if isinstance(table.io, PyArrowFileIO):
-        scheme, _ = PyArrowFileIO.parse_location(table.location())
         fs = table.io.get_fs(scheme)
+    elif isinstance(table.io, FsspecFileIO):
+        fs = PyFileSystem(FSSpecHandler(table.io.get_fs(scheme)))
     else:
-        raise ValueError(f"Expected PyArrowFileIO, got: {table.io}")
+        raise ValueError(f"Expected PyArrowFileIO or FsspecFileIO, got: {table.io}")
 
     bound_row_filter = bind(table.schema(), row_filter, case_sensitive=case_sensitive)
 
