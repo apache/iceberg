@@ -68,7 +68,9 @@ public class SimpleExtraColumnRecord {
     }
 
     SimpleExtraColumnRecord record = (SimpleExtraColumnRecord) o;
-    return Objects.equal(id, record.id) && Objects.equal(data, record.data) && Objects.equal(data2, record.data2);
+    return Objects.equal(id, record.id)
+        && Objects.equal(data, record.data)
+        && Objects.equal(data2, record.data2);
   }
 
   @Override
