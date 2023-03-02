@@ -20,12 +20,10 @@ package org.apache.iceberg.nessie;
 
 import static org.apache.iceberg.types.Types.NestedField.required;
 
-import java.io.File;
 import java.io.IOException;
 import java.net.URI;
 import java.util.AbstractMap;
 import java.util.Collections;
-import org.apache.commons.io.FileUtils;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
@@ -63,13 +61,8 @@ public class TestMultipleClients extends BaseTestIceberg {
     anotherCatalog = initCatalog(branch);
   }
 
-  @Override
   @AfterEach
   public void afterEach() throws Exception {
-    dropTables(catalog);
-    dropTables(anotherCatalog);
-
-    super.afterEach();
     anotherCatalog.close();
   }
 
@@ -145,48 +138,23 @@ public class TestMultipleClients extends BaseTestIceberg {
     String hashBefore = catalog.currentHash();
 
     TableOperations ops1 = catalog.newTableOps(identifier);
-    TableMetadata current1 =
+    TableMetadata metadata1 =
         TableMetadata.buildFrom(ops1.current()).setProperties(ImmutableMap.of("k1", "v1")).build();
 
     // commit should succeed
     TableOperations ops2 = catalog.newTableOps(identifier);
-    TableMetadata current2 =
+    TableMetadata metadata2 =
         TableMetadata.buildFrom(ops2.current()).setProperties(ImmutableMap.of("k2", "v2")).build();
-    ops2.commit(ops2.current(), current2);
+    ops2.commit(ops2.current(), metadata2);
 
     // refresh the catalog's client.
     String hashAfter = catalog.currentHash();
     Assertions.assertThat(hashBefore).isNotEqualTo(hashAfter);
 
     // client refresh should not affect the ongoing commits (commit should still fail due staleness)
-    Assertions.assertThatThrownBy(() -> ops1.commit(ops1.current(), current1))
+    Assertions.assertThatThrownBy(() -> ops1.commit(ops1.current(), metadata1))
         .isInstanceOf(CommitFailedException.class)
         .hasMessageContaining(
             "Cannot commit: Reference hash is out of date. Update the reference 'multiple-clients-test' and try again");
-  }
-
-  private static void dropTables(NessieCatalog nessieCatalog) {
-    nessieCatalog
-        .listNamespaces()
-        .forEach(
-            namespace ->
-                nessieCatalog
-                    .listTables(namespace)
-                    .forEach(identifier -> dropTable(nessieCatalog, identifier)));
-  }
-
-  private static void dropTable(NessieCatalog nessieCatalog, TableIdentifier identifier) {
-    Table table = nessieCatalog.loadTable(identifier);
-    File tableLocation = tableLocation(table);
-    nessieCatalog.dropTable(identifier, false);
-    try {
-      FileUtils.deleteDirectory(tableLocation);
-    } catch (IOException e) {
-      throw new RuntimeException(e);
-    }
-  }
-
-  private static File tableLocation(Table table) {
-    return new File(table.location().replaceFirst("file:", ""));
   }
 }
