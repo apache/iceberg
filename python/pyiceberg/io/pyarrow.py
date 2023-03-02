@@ -450,6 +450,12 @@ class _ConvertToArrowExpression(BoundBooleanExpressionVisitor[pc.Expression]):
     def visit_less_than_or_equal(self, term: BoundTerm[Any], literal: Literal[Any]) -> pc.Expression:
         return pc.field(term.ref().field.name) <= _convert_scalar(literal.value, term.ref().field.field_type)
 
+    def visit_starts_with(self, term: BoundTerm[Any], literal: Literal[Any]) -> pc.Expression:
+        return pc.starts_with(pc.field(term.ref().field.name), literal.value)
+
+    def visit_not_starts_with(self, term: BoundTerm[Any], literal: Literal[Any]) -> pc.Expression:
+        return ~pc.starts_with(pc.field(term.ref().field.name), literal.value)
+
     def visit_true(self) -> pc.Expression:
         return pc.scalar(True)
 
