@@ -31,7 +31,6 @@ from typing import (
     TYPE_CHECKING,
     Any,
     Callable,
-    Dict,
     Generator,
     Iterable,
     List,
@@ -74,7 +73,7 @@ from pyiceberg.io import (
     OutputFile,
     OutputStream,
 )
-from pyiceberg.manifest import DataFileContent
+from pyiceberg.manifest import DataFile
 from pyiceberg.schema import (
     PartnerAccessor,
     Schema,
@@ -473,15 +472,18 @@ def expression_to_pyarrow(expr: BooleanExpression) -> pc.Expression:
     return boolean_expression_visit(expr, _ConvertToArrowExpression())
 
 
-def _read_deletes(fs: FileSystem, file_path: str) -> Dict[str, pa.ChunkedArray]:
+def _read_deletes(fs: FileSystem, file_path: str, deletes: List[DataFile]) -> pa.Array:
     _, path = PyArrowFileIO.parse_location(file_path)
+    delete_files = [PyArrowFileIO.parse_location(delete_file.file_path)[1] for delete_file in deletes]
     table = pq.read_table(
-        source=path, pre_buffer=True, buffer_size=8 * ONE_MEGABYTE, read_dictionary=["file_path"], filesystem=fs
+        source=delete_files,
+        pre_buffer=True,
+        buffer_size=8 * ONE_MEGABYTE,
+        filesystem=fs,
+        filters=pc.field("file_path") == file_path,
+        columns=["pos"],
     )
-    table.unify_dictionaries()
-    return {
-        file.as_py(): table.filter(pc.field("file_path") == file).column("pos") for file in table.columns[0].chunks[0].dictionary
-    }
+    return table["pos"].combine_chunks().sort()
 
 
 def _file_to_table(
@@ -491,9 +493,12 @@ def _file_to_table(
     projected_schema: Schema,
     projected_field_ids: Set[int],
     case_sensitive: bool,
-    positional_deletes: Optional[Set[int]],
 ) -> Optional[pa.Table]:
     _, path = PyArrowFileIO.parse_location(task.file.file_path)
+
+    positional_deletes = None
+    if len(task.delete_files) > 0:
+        positional_deletes = _read_deletes(fs, task.file.file_path, task.delete_files)
 
     # Get the schema
     with fs.open_input_file(path) as fout:
@@ -570,18 +575,6 @@ def project_table(
     projected_field_ids = {
         id for id in projected_schema.field_ids if not isinstance(projected_schema.find_type(id), (MapType, ListType))
     }.union(extract_field_ids(bound_row_filter))
-
-    tasks_data_files: List[FileScanTask] = []
-    tasks_positional_deletes: List[FileScanTask] = []
-    for task in tasks:
-        if task.file.content is None or task.file.content == DataFileContent.DATA:
-            tasks_data_files.append(task)
-        elif task.file.content == DataFileContent.POSITION_DELETES:
-            tasks_positional_deletes.append(task)
-        elif task.file.content == DataFileContent.EQUALITY_DELETES:
-            raise ValueError("PyIceberg does not yet support equality deletes: https://github.com/apache/iceberg/issues/6568")
-        else:
-            raise ValueError(f"Unknown file content: {task.file.content}")
 
     with ThreadPool() as pool:
         tables = [

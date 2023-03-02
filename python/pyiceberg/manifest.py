@@ -237,6 +237,10 @@ MANIFEST_FILE_SCHEMA: Schema = Schema(
     NestedField(519, "key_metadata", BinaryType(), required=False),
 )
 
+POSITIONAL_DELETE_SCHEMA = Schema(
+    NestedField(2147483546, "file_path", StringType()), NestedField(2147483545, "pos", IntegerType())
+)
+
 
 class ManifestFile(Record):
     manifest_path: str

@@ -24,7 +24,7 @@ from unittest.mock import MagicMock, patch
 import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
-from pyarrow.fs import FileType
+from pyarrow.fs import FileType, LocalFileSystem
 
 from pyiceberg.avro.resolver import ResolveError
 from pyiceberg.expressions import (
@@ -1137,6 +1137,7 @@ def deletes_file(tmp_path: str) -> str:
 
 def test_read_deletes(deletes_file: str) -> None:
     # None filesystem will default to a local filesystem
-    deletes = _read_deletes(None, deletes_file)
-    assert set(deletes.keys()) == {"s3://bucket/default.db/table/data.parquet"}
-    assert list(deletes.values())[0] == pa.chunked_array([[19, 22, 25]])
+    deletes = _read_deletes(LocalFileSystem(), "s3://bucket/default.db/table/data.parquet", [DataFile(
+        file_path=deletes_file
+    )])
+    assert list(deletes) == {19, 22, 25}
