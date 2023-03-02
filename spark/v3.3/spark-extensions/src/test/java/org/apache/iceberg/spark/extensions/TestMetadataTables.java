@@ -494,7 +494,7 @@ public class TestMetadataTables extends SparkExtensionsTestBase {
   }
 
   @Test
-  public void testFilesVersionAsOf() throws Exception {
+  public void testFilesTableTimeTravelWithSchemaEvolution() throws Exception {
     // Create table and insert data
     sql(
         "CREATE TABLE %s (id bigint, data string) "
@@ -545,6 +545,11 @@ public class TestMetadataTables extends SparkExtensionsTestBase {
 
     TestHelpers.assertEqualsSafe(
         TestHelpers.nonDerivedSchema(actualFilesDs), expectedFiles.get(0), actualFiles.get(0));
+
+    Assert.assertEquals(
+        "expectedFiles and actualFiles size should be the same",
+        actualFiles.size(),
+        expectedFiles.size());
   }
 
   @Test
