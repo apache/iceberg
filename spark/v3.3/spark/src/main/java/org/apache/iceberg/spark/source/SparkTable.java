@@ -160,17 +160,17 @@ public class SparkTable
   }
 
   private Schema snapshotSchema() {
-    return SnapshotUtil.schemaFor(icebergTable, snapshotId, null);
+    if (icebergTable instanceof BaseMetadataTable) {
+      return icebergTable.schema();
+    } else {
+      return SnapshotUtil.schemaFor(icebergTable, snapshotId, null);
+    }
   }
 
   @Override
   public StructType schema() {
     if (lazyTableSchema == null) {
-      if (icebergTable instanceof BaseMetadataTable) {
-        this.lazyTableSchema = SparkSchemaUtil.convert(icebergTable.schema());
-      } else {
-        this.lazyTableSchema = SparkSchemaUtil.convert(snapshotSchema());
-      }
+      this.lazyTableSchema = SparkSchemaUtil.convert(snapshotSchema());
     }
 
     return lazyTableSchema;
@@ -249,11 +249,7 @@ public class SparkTable
     }
 
     CaseInsensitiveStringMap scanOptions = addSnapshotId(options, snapshotId);
-    if (icebergTable instanceof BaseMetadataTable) {
-      return new SparkScanBuilder(sparkSession(), icebergTable, options);
-    } else {
-      return new SparkScanBuilder(sparkSession(), icebergTable, snapshotSchema(), scanOptions);
-    }
+    return new SparkScanBuilder(sparkSession(), icebergTable, snapshotSchema(), scanOptions);
   }
 
   @Override

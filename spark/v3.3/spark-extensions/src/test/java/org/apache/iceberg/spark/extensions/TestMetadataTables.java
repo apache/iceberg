@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.spark.extensions;
 
+import static org.apache.iceberg.types.Types.NestedField.optional;
+
 import java.io.IOException;
 import java.util.Comparator;
 import java.util.List;
@@ -41,12 +43,14 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.data.TestHelpers;
-import org.apache.iceberg.spark.source.SimpleExtraColumnRecord;
 import org.apache.iceberg.spark.source.SimpleRecord;
+import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
+import org.apache.spark.sql.RowFactory;
 import org.apache.spark.sql.catalyst.util.DateTimeUtils;
+import org.apache.spark.sql.types.StructType;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Test;
@@ -509,42 +513,38 @@ public class TestMetadataTables extends SparkExtensionsTestBase {
         .append();
 
     Table table = Spark3Util.loadIcebergTable(spark, tableName);
-    Long olderSnapshotId = table.currentSnapshot().snapshotId();
 
-    sql("ALTER TABLE %s ADD COLUMNS (data2 string)", tableName);
+    table.updateSchema().addColumn("category", Types.StringType.get()).commit();
 
-    List<SimpleExtraColumnRecord> recordsB =
-        Lists.newArrayList(
-            new SimpleExtraColumnRecord(1, "b", "c"), new SimpleExtraColumnRecord(2, "b", "c"));
-    spark
-        .createDataset(recordsB, Encoders.bean(SimpleExtraColumnRecord.class))
-        .coalesce(1)
-        .writeTo(tableName)
-        .append();
+    List<Row> newRecords =
+        Lists.newArrayList(RowFactory.create(3, "b", "c"), RowFactory.create(4, "b", "c"));
 
-    List<Object[]> res1 =
-        sql("SELECT * from %s.files VERSION AS OF %s", tableName, olderSnapshotId);
+    StructType newSparkSchema =
+        SparkSchemaUtil.convert(
+            new Schema(
+                optional(1, "id", Types.IntegerType.get()),
+                optional(2, "data", Types.StringType.get()),
+                optional(3, "category", Types.StringType.get())));
 
-    Dataset<Row> ds =
-        spark
-            .read()
-            .format("iceberg")
-            .option("snapshot-id", olderSnapshotId)
-            .load(tableName + ".files");
-    List<Row> res2 = ds.collectAsList();
+    spark.createDataFrame(newRecords, newSparkSchema).coalesce(1).writeTo(tableName).append();
 
     Long currentSnapshotId = table.currentSnapshot().snapshotId();
 
-    List<Object[]> res3 =
-        sql("SELECT * from %s.files VERSION AS OF %s", tableName, currentSnapshotId);
+    Dataset<Row> actualFilesDs =
+        spark.sql(
+            "SELECT * FROM "
+                + tableName
+                + ".files VERSION AS OF "
+                + currentSnapshotId
+                + " ORDER BY content");
+    List<Row> actualFiles = TestHelpers.selectNonDerived(actualFilesDs).collectAsList();
+    Schema entriesTableSchema = Spark3Util.loadIcebergTable(spark, tableName + ".entries").schema();
+    List<ManifestFile> expectedDataManifests = TestHelpers.dataManifests(table);
+    List<Record> expectedFiles =
+        expectedEntries(table, FileContent.DATA, entriesTableSchema, expectedDataManifests, null);
 
-    Dataset<Row> ds2 =
-        spark
-            .read()
-            .format("iceberg")
-            .option("snapshot-id", currentSnapshotId)
-            .load(tableName + ".files");
-    List<Row> res4 = ds2.collectAsList();
+    TestHelpers.assertEqualsSafe(
+        TestHelpers.nonDerivedSchema(actualFilesDs), expectedFiles.get(0), actualFiles.get(0));
   }
 
   @Test
