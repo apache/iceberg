@@ -41,8 +41,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.data.TestHelpers;
-import org.apache.iceberg.spark.source.SimpleRecord;
 import org.apache.iceberg.spark.source.SimpleExtraColumnRecord;
+import org.apache.iceberg.spark.source.SimpleRecord;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
@@ -493,47 +493,57 @@ public class TestMetadataTables extends SparkExtensionsTestBase {
   public void testFilesVersionAsOf() throws Exception {
     // Create table and insert data
     sql(
-            "CREATE TABLE %s (id bigint, data string) "
-                    + "USING iceberg "
-                    + "PARTITIONED BY (data) "
-                    + "TBLPROPERTIES"
-                    + "('format-version'='2', 'write.delete.mode'='merge-on-read')",
-            tableName);
+        "CREATE TABLE %s (id bigint, data string) "
+            + "USING iceberg "
+            + "PARTITIONED BY (data) "
+            + "TBLPROPERTIES"
+            + "('format-version'='2', 'write.delete.mode'='merge-on-read')",
+        tableName);
 
     List<SimpleRecord> recordsA =
-            Lists.newArrayList(new SimpleRecord(1, "a"), new SimpleRecord(2, "a"));
+        Lists.newArrayList(new SimpleRecord(1, "a"), new SimpleRecord(2, "a"));
     spark
-            .createDataset(recordsA, Encoders.bean(SimpleRecord.class))
-            .coalesce(1)
-            .writeTo(tableName)
-            .append();
+        .createDataset(recordsA, Encoders.bean(SimpleRecord.class))
+        .coalesce(1)
+        .writeTo(tableName)
+        .append();
 
     Table table = Spark3Util.loadIcebergTable(spark, tableName);
     Long olderSnapshotId = table.currentSnapshot().snapshotId();
 
-    sql(
-            "ALTER TABLE %s ADD COLUMNS (data2 string)",
-            tableName);
+    sql("ALTER TABLE %s ADD COLUMNS (data2 string)", tableName);
 
     List<SimpleExtraColumnRecord> recordsB =
-            Lists.newArrayList(new SimpleExtraColumnRecord(1, "b", "c"), new SimpleExtraColumnRecord (2, "b", "c"));
+        Lists.newArrayList(
+            new SimpleExtraColumnRecord(1, "b", "c"), new SimpleExtraColumnRecord(2, "b", "c"));
     spark
-            .createDataset(recordsB, Encoders.bean(SimpleExtraColumnRecord.class))
-            .coalesce(1)
-            .writeTo(tableName)
-            .append();
+        .createDataset(recordsB, Encoders.bean(SimpleExtraColumnRecord.class))
+        .coalesce(1)
+        .writeTo(tableName)
+        .append();
 
+    List<Object[]> res1 =
+        sql("SELECT * from %s.files VERSION AS OF %s", tableName, olderSnapshotId);
 
-    List<Object[]> res1 = sql("SELECT * from %s.files VERSION AS OF %s", tableName, olderSnapshotId );
-
-    Dataset<Row> ds = spark.read().format("iceberg").option("snapshot-id", olderSnapshotId ).load(tableName + ".files");
+    Dataset<Row> ds =
+        spark
+            .read()
+            .format("iceberg")
+            .option("snapshot-id", olderSnapshotId)
+            .load(tableName + ".files");
     List<Row> res2 = ds.collectAsList();
 
     Long currentSnapshotId = table.currentSnapshot().snapshotId();
 
-    List<Object[]> res3 = sql("SELECT * from %s.files VERSION AS OF %s", tableName, currentSnapshotId);
+    List<Object[]> res3 =
+        sql("SELECT * from %s.files VERSION AS OF %s", tableName, currentSnapshotId);
 
-    Dataset<Row> ds2 = spark.read().format("iceberg").option("snapshot-id", currentSnapshotId ).load(tableName + ".files");
+    Dataset<Row> ds2 =
+        spark
+            .read()
+            .format("iceberg")
+            .option("snapshot-id", currentSnapshotId)
+            .load(tableName + ".files");
     List<Row> res4 = ds2.collectAsList();
   }
 
