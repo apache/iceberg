@@ -1348,23 +1348,26 @@ class _InclusiveMetricsEvaluator(BoundBooleanExpressionVisitor[bool]):
 
     def visit_starts_with(self, term: BoundTerm[L], literal: Literal[L]) -> bool:
         field = term.ref().field
-        field_id = field.field_id
+        field_id: int = field.field_id
 
         if self._contains_nulls_only(field_id):
             return ROWS_CANNOT_MATCH
 
+        if not isinstance(field.field_type, PrimitiveType):
+            raise ValueError(f"Expected PrimitiveType: {field.field_type}")
+
         prefix = str(literal.value)
         len_prefix = len(prefix)
 
-        if lower_bound_bytes : = self.lower_bounds.get(field_id):
-            lower_bound = str(from_bytes(field.field_type, self.lower_bounds.get(field_id)))  # type: ignore
+        if lower_bound_bytes := self.lower_bounds.get(field_id):
+            lower_bound = str(from_bytes(field.field_type, lower_bound_bytes))
 
             # truncate lower bound so that its length is not greater than the length of prefix
             if lower_bound and lower_bound[:len_prefix] > prefix:
                 return ROWS_CANNOT_MATCH
 
         if upper_bound_bytes := self.upper_bounds.get(field_id):
-            upper_bound = str(from_bytes(field.field_type, self.upper_bounds.get(field_id)))  # type: ignore
+            upper_bound = str(from_bytes(field.field_type, upper_bound_bytes))  # type: ignore
 
             # truncate upper bound so that its length is not greater than the length of prefix
             if upper_bound is not None and upper_bound[:len_prefix] < prefix:
@@ -1374,19 +1377,22 @@ class _InclusiveMetricsEvaluator(BoundBooleanExpressionVisitor[bool]):
 
     def visit_not_starts_with(self, term: BoundTerm[L], literal: Literal[L]) -> bool:
         field = term.ref().field
-        field_id = field.field_id
+        field_id: int = field.field_id
 
         if self._may_contain_null(field_id):
             return ROWS_MIGHT_MATCH
+
+        if not isinstance(field.field_type, PrimitiveType):
+            raise ValueError(f"Expected PrimitiveType: {field.field_type}")
 
         prefix = str(literal.value)
         len_prefix = len(prefix)
 
         # not_starts_with will match unless all values must start with the prefix. This happens when
         # the lower and upper bounds both start with the prefix.
-        if self.lower_bounds and self.upper_bounds and field_id in self.lower_bounds and field_id in self.upper_bounds:
-            lower_bound = str(from_bytes(field.field_type, self.lower_bounds.get(field_id)))  # type: ignore
-            upper_bound = str(from_bytes(field.field_type, self.upper_bounds.get(field_id)))  # type: ignore
+        if (lower_bound_bytes := self.lower_bounds.get(field_id)) and (upper_bound_bytes := self.upper_bounds.get(field_id)):
+            lower_bound = str(from_bytes(field.field_type, lower_bound_bytes))
+            upper_bound = str(from_bytes(field.field_type, upper_bound_bytes))
 
             # if lower is shorter than the prefix then lower doesn't start with the prefix
             if len(lower_bound) < len_prefix:
