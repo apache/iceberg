@@ -507,10 +507,11 @@ public class TestExpireSnapshotsProcedure extends SparkExtensionsTestBase {
         table.statisticsFiles().stream()
             .filter(statisticsFile -> statisticsFile.snapshotId() == statisticsFile1.snapshotId())
             .collect(Collectors.toList());
-    Assertions.assertThat(statsWithSnapshotId1.isEmpty())
+    Assertions.assertThat(statsWithSnapshotId1)
         .as(
             "Statistics file entry in TableMetadata should be deleted for the snapshot %s",
-            statisticsFile1.snapshotId());
+            statisticsFile1.snapshotId())
+        .isEmpty();
     Assertions.assertThat(table.statisticsFiles())
         .as(
             "Statistics file entry in TableMetadata should be present for the snapshot %s",
@@ -518,11 +519,13 @@ public class TestExpireSnapshotsProcedure extends SparkExtensionsTestBase {
         .extracting(StatisticsFile::snapshotId)
         .containsExactly(statisticsFile2.snapshotId());
 
-    Assertions.assertThat(new File(statsFileLocation1).exists())
+    Assertions.assertThat(new File(statsFileLocation1))
         .as("Statistics file should not exist for snapshot %s", statisticsFile1.snapshotId())
-        .isFalse();
-    Assertions.assertThat(new File(statsFileLocation2).exists())
-        .as("Statistics file should exist for snapshot %s", statisticsFile2.snapshotId());
+        .doesNotExist();
+
+    Assertions.assertThat(new File(statsFileLocation2))
+        .as("Statistics file should exist for snapshot %s", statisticsFile2.snapshotId())
+        .exists();
   }
 
   private StatisticsFile writeStatsFile(
@@ -551,6 +554,6 @@ public class TestExpireSnapshotsProcedure extends SparkExtensionsTestBase {
 
   private String statsFileLocation(String tableLocation) {
     String statsFileName = "stats-file-" + UUID.randomUUID();
-    return tableLocation + "/metadata/" + statsFileName;
+    return tableLocation.replaceFirst("file:", "") + "/metadata/" + statsFileName;
   }
 }

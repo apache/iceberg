@@ -115,6 +115,8 @@ public interface ExpireSnapshots extends Action<ExpireSnapshots, ExpireSnapshots
     long deletedManifestListsCount();
 
     /** Returns the number of deleted statistics files. */
-    long deletedStatisticsFilesCount();
+    default long deletedStatisticsFilesCount() {
+      return 0L;
+    }
   }
 }
