@@ -455,7 +455,8 @@ public class TestAggregatePushDown extends SparkCatalogTestBase {
             + " (3, 22, null) ",
         tableName);
 
-    String select = "SELECT id1, MIN(data), MAX(data), COUNT(data), COUNT(*) FROM %s GROUP BY id1";
+    String select =
+        "SELECT id1, MIN(data), MAX(data), COUNT(data), COUNT(*) FROM %s GROUP BY id1 ORDER BY id1";
 
     List<Object[]> explain = sql("EXPLAIN " + select, tableName);
     String explainString = explain.get(0)[0].toString().toLowerCase(Locale.ROOT);
@@ -471,8 +472,8 @@ public class TestAggregatePushDown extends SparkCatalogTestBase {
 
     List<Object[]> actual = sql(select, tableName);
     List<Object[]> expected = Lists.newArrayList();
-    expected.add(new Object[] {3L, 777, 888, 2L, 3L});
     expected.add(new Object[] {2L, 444, 666, 2L, 3L});
+    expected.add(new Object[] {3L, 777, 888, 2L, 3L});
     expected.add(new Object[] {4L, 222, 333, 2L, 3L});
     assertEquals("expected and actual should equal", expected, actual);
   }
@@ -497,7 +498,7 @@ public class TestAggregatePushDown extends SparkCatalogTestBase {
         tableName);
 
     String select =
-        "SELECT ts, id, MIN(data), MAX(data), COUNT(data), COUNT(*) FROM %s GROUP BY id, ts";
+        "SELECT ts, id, MIN(data), MAX(data), COUNT(data), COUNT(*) FROM %s GROUP BY id, ts ORDER BY ts, id";
 
     List<Object[]> explain = sql("EXPLAIN " + select, tableName);
     String explainString = explain.get(0)[0].toString().toLowerCase(Locale.ROOT);
@@ -513,12 +514,12 @@ public class TestAggregatePushDown extends SparkCatalogTestBase {
 
     List<Object[]> actual = sql(select, tableName);
     List<Object[]> expected = Lists.newArrayList();
-    expected.add(new Object[] {Timestamp.valueOf("2021-11-11 22:22:22.0"), 3L, 888, 888, 1L, 2L});
-    expected.add(new Object[] {Timestamp.valueOf("2021-11-12 22:22:22.0"), 2L, 555, 666, 2L, 2L});
-    expected.add(new Object[] {Timestamp.valueOf("2021-11-11 22:22:22.0"), 4L, 111, 111, 1L, 2L});
-    expected.add(new Object[] {Timestamp.valueOf("2021-11-12 22:22:22.0"), 4L, 333, 333, 1L, 1L});
-    expected.add(new Object[] {Timestamp.valueOf("2021-11-12 22:22:22.0"), 3L, 999, 999, 1L, 1L});
     expected.add(new Object[] {Timestamp.valueOf("2021-11-11 22:22:22.0"), 2L, 444, 444, 1L, 1L});
+    expected.add(new Object[] {Timestamp.valueOf("2021-11-11 22:22:22.0"), 3L, 888, 888, 1L, 2L});
+    expected.add(new Object[] {Timestamp.valueOf("2021-11-11 22:22:22.0"), 4L, 111, 111, 1L, 2L});
+    expected.add(new Object[] {Timestamp.valueOf("2021-11-12 22:22:22.0"), 2L, 555, 666, 2L, 2L});
+    expected.add(new Object[] {Timestamp.valueOf("2021-11-12 22:22:22.0"), 3L, 999, 999, 1L, 1L});
+    expected.add(new Object[] {Timestamp.valueOf("2021-11-12 22:22:22.0"), 4L, 333, 333, 1L, 1L});
     assertEquals("expected and actual should equal", expected, actual);
   }
 
@@ -541,7 +542,7 @@ public class TestAggregatePushDown extends SparkCatalogTestBase {
             + " (3, 22, null) ",
         tableName);
 
-    String select = "SELECT id1, MIN(data) FROM %s GROUP BY id1, id2";
+    String select = "SELECT id1, MIN(data) FROM %s GROUP BY id1, id2 ORDER BY id1";
 
     List<Object[]> explain = sql("EXPLAIN " + select, tableName);
     String explainString = explain.get(0)[0].toString().toLowerCase(Locale.ROOT);
@@ -555,10 +556,10 @@ public class TestAggregatePushDown extends SparkCatalogTestBase {
 
     List<Object[]> actual = sql(select, tableName);
     List<Object[]> expected = Lists.newArrayList();
-    expected.add(new Object[] {3L, 777});
-    expected.add(new Object[] {3L, 888});
     expected.add(new Object[] {2L, 444});
     expected.add(new Object[] {2L, 666});
+    expected.add(new Object[] {3L, 777});
+    expected.add(new Object[] {3L, 888});
     expected.add(new Object[] {4L, 222});
     expected.add(new Object[] {4L, 333});
     assertEquals("expected and actual should equal", expected, actual);
