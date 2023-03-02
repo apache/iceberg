@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.flink.source;
 
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -29,7 +28,8 @@ import org.apache.flink.configuration.ReadableConfig;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.DataStreamSource;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
-import org.apache.flink.table.api.TableSchema;
+import org.apache.flink.table.catalog.Column;
+import org.apache.flink.table.catalog.ResolvedSchema;
 import org.apache.flink.table.connector.ChangelogMode;
 import org.apache.flink.table.connector.ProviderContext;
 import org.apache.flink.table.connector.source.DataStreamScanProvider;
@@ -40,7 +40,6 @@ import org.apache.flink.table.connector.source.abilities.SupportsLimitPushDown;
 import org.apache.flink.table.connector.source.abilities.SupportsProjectionPushDown;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.expressions.ResolvedExpression;
-import org.apache.flink.table.types.DataType;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.flink.FlinkConfigOptions;
 import org.apache.iceberg.flink.FlinkFilters;
@@ -63,7 +62,7 @@ public class IcebergTableSource
   private List<Expression> filters;
 
   private final TableLoader loader;
-  private final TableSchema schema;
+  private final ResolvedSchema schema;
   private final Map<String, String> properties;
   private final boolean isLimitPushDown;
   private final ReadableConfig readableConfig;
@@ -81,7 +80,7 @@ public class IcebergTableSource
 
   public IcebergTableSource(
       TableLoader loader,
-      TableSchema schema,
+      ResolvedSchema schema,
       Map<String, String> properties,
       ReadableConfig readableConfig) {
     this(loader, schema, properties, null, false, null, ImmutableList.of(), readableConfig);
@@ -89,7 +88,7 @@ public class IcebergTableSource
 
   private IcebergTableSource(
       TableLoader loader,
-      TableSchema schema,
+      ResolvedSchema schema,
       Map<String, String> properties,
       int[] projectedFields,
       boolean isLimitPushDown,
@@ -150,17 +149,12 @@ public class IcebergTableSource
     return stream;
   }
 
-  private TableSchema getProjectedSchema() {
+  private ResolvedSchema getProjectedSchema() {
     if (projectedFields == null) {
       return schema;
     } else {
-      String[] fullNames = schema.getFieldNames();
-      DataType[] fullTypes = schema.getFieldDataTypes();
-      return TableSchema.builder()
-          .fields(
-              Arrays.stream(projectedFields).mapToObj(i -> fullNames[i]).toArray(String[]::new),
-              Arrays.stream(projectedFields).mapToObj(i -> fullTypes[i]).toArray(DataType[]::new))
-          .build();
+      List<Column> columns = schema.getColumns();
+      return ResolvedSchema.of(columns);
     }
   }
 

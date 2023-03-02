@@ -21,6 +21,10 @@ package org.apache.iceberg.flink;
 import java.util.List;
 import java.util.Set;
 import org.apache.flink.table.api.TableSchema;
+import org.apache.flink.table.catalog.CatalogBaseTable;
+import org.apache.flink.table.catalog.Column;
+import org.apache.flink.table.catalog.ResolvedCatalogBaseTable;
+import org.apache.flink.table.catalog.ResolvedSchema;
 import org.apache.flink.table.types.logical.LogicalType;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.table.types.utils.TypeConversions;
@@ -55,9 +59,17 @@ public class FlinkSchemaUtil {
 
   private FlinkSchemaUtil() {}
 
+  public static Schema convert(CatalogBaseTable table) {
+    if (table instanceof ResolvedCatalogBaseTable) {
+      ResolvedCatalogBaseTable catalogBaseTable = (ResolvedCatalogBaseTable) table;
+      return convert(catalogBaseTable.getResolvedSchema());
+    }
+    throw new IllegalArgumentException("Unknown kind of catalog base table: " + table.getClass());
+  }
+
   /** Convert the flink table schema to apache iceberg schema. */
-  public static Schema convert(TableSchema schema) {
-    LogicalType schemaType = schema.toRowDataType().getLogicalType();
+  public static Schema convert(ResolvedSchema schema) {
+    LogicalType schemaType = schema.toPhysicalRowDataType().getLogicalType();
     Preconditions.checkArgument(
         schemaType instanceof RowType, "Schema logical type should be RowType.");
 
@@ -68,7 +80,7 @@ public class FlinkSchemaUtil {
     return freshIdentifierFieldIds(iSchema, schema);
   }
 
-  private static Schema freshIdentifierFieldIds(Schema iSchema, TableSchema schema) {
+  private static Schema freshIdentifierFieldIds(Schema iSchema, ResolvedSchema schema) {
     // Locate the identifier field id list.
     Set<Integer> identifierFieldIds = Sets.newHashSet();
     if (schema.getPrimaryKey().isPresent()) {
@@ -99,7 +111,7 @@ public class FlinkSchemaUtil {
    * @return the equivalent Schema
    * @throws IllegalArgumentException if the type cannot be converted or there are missing ids
    */
-  public static Schema convert(Schema baseSchema, TableSchema flinkSchema) {
+  public static Schema convert(Schema baseSchema, ResolvedSchema flinkSchema) {
     // convert to a type with fresh ids
     Types.StructType struct = convert(flinkSchema).asStruct();
     // reassign ids to match the base schema
@@ -140,12 +152,14 @@ public class FlinkSchemaUtil {
    * @param rowType a RowType
    * @return Flink TableSchema
    */
-  public static TableSchema toSchema(RowType rowType) {
-    TableSchema.Builder builder = TableSchema.builder();
+  public static ResolvedSchema toSchema(RowType rowType) {
+    List<Column> columns = Lists.newArrayList();
     for (RowType.RowField field : rowType.getFields()) {
-      builder.field(field.getName(), TypeConversions.fromLogicalToDataType(field.getType()));
+      Column column =
+          Column.physical(field.getName(), TypeConversions.fromLogicalToDataType(field.getType()));
+      columns.add(column);
     }
-    return builder.build();
+    return ResolvedSchema.of(columns);
   }
 
   /**

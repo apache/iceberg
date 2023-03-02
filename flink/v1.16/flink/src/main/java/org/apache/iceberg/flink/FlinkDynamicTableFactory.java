@@ -23,19 +23,18 @@ import java.util.Set;
 import org.apache.flink.configuration.ConfigOption;
 import org.apache.flink.configuration.ConfigOptions;
 import org.apache.flink.configuration.Configuration;
-import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.catalog.CatalogBaseTable;
 import org.apache.flink.table.catalog.CatalogDatabaseImpl;
-import org.apache.flink.table.catalog.CatalogTable;
 import org.apache.flink.table.catalog.ObjectIdentifier;
 import org.apache.flink.table.catalog.ObjectPath;
+import org.apache.flink.table.catalog.ResolvedCatalogBaseTable;
+import org.apache.flink.table.catalog.ResolvedSchema;
 import org.apache.flink.table.catalog.exceptions.DatabaseAlreadyExistException;
 import org.apache.flink.table.catalog.exceptions.TableAlreadyExistException;
 import org.apache.flink.table.connector.sink.DynamicTableSink;
 import org.apache.flink.table.connector.source.DynamicTableSource;
 import org.apache.flink.table.factories.DynamicTableSinkFactory;
 import org.apache.flink.table.factories.DynamicTableSourceFactory;
-import org.apache.flink.table.utils.TableSchemaUtils;
 import org.apache.flink.util.Preconditions;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
@@ -84,9 +83,9 @@ public class FlinkDynamicTableFactory
   @Override
   public DynamicTableSource createDynamicTableSource(Context context) {
     ObjectIdentifier objectIdentifier = context.getObjectIdentifier();
-    CatalogTable catalogTable = context.getCatalogTable();
+    ResolvedCatalogBaseTable catalogTable = context.getCatalogTable();
     Map<String, String> tableProps = catalogTable.getOptions();
-    TableSchema tableSchema = TableSchemaUtils.getPhysicalSchema(catalogTable.getSchema());
+    ResolvedSchema tableSchema = catalogTable.getResolvedSchema();
 
     TableLoader tableLoader;
     if (catalog != null) {
@@ -106,9 +105,9 @@ public class FlinkDynamicTableFactory
   @Override
   public DynamicTableSink createDynamicTableSink(Context context) {
     ObjectPath objectPath = context.getObjectIdentifier().toObjectPath();
-    CatalogTable catalogTable = context.getCatalogTable();
+    ResolvedCatalogBaseTable catalogTable = context.getCatalogTable();
     Map<String, String> writeProps = catalogTable.getOptions();
-    TableSchema tableSchema = TableSchemaUtils.getPhysicalSchema(catalogTable.getSchema());
+    ResolvedSchema tableSchema = catalogTable.getResolvedSchema();
 
     TableLoader tableLoader;
     if (catalog != null) {
