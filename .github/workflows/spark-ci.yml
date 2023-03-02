@@ -56,7 +56,7 @@ concurrency:
 
 jobs:
   spark2-tests:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     env:
       SPARK_LOCAL_IP: localhost
     steps:
@@ -82,7 +82,7 @@ jobs:
           **/build/testlogs
 
   spark-3x-scala-2-12-tests:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     strategy:
       matrix:
         jvm: [8, 11]
@@ -112,7 +112,7 @@ jobs:
             **/build/testlogs
 
   spark-3x-scala-2-13-tests:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     strategy:
       matrix:
         jvm: [8, 11]

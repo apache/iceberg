@@ -58,7 +58,7 @@ jobs:
 
   # Only test the latest flink version with scala 2.11 for saving testing time.
   flink-scala-2-11-tests:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     strategy:
       matrix:
         jvm: [ 8, 11 ]
@@ -89,7 +89,7 @@ jobs:
 
   # Test all flink versions with scala 2.12 for general validation.
   flink-scala-2-12-tests:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     strategy:
       matrix:
         jvm: [8, 11]
