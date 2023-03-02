@@ -322,6 +322,7 @@ project(':iceberg-core') {
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
     testImplementation "com.esotericsoftware:kryo"
     testImplementation "com.google.guava:guava-testlib"
+    testImplementation 'org.awaitility:awaitility'
   }
 }
 
