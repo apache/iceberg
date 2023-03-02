@@ -39,7 +39,7 @@ public class TestDynamoDbV2SchemaCatalog extends TestDynamoDbCatalog {
         ImmutableMap.of(
             AwsProperties.DYNAMODB_TABLE_NAME,
             catalogTableName,
-            AwsProperties.DYNAMODB_CATALOG_SCHEMA_FORMAT,
+            AwsProperties.DYNAMODB_CATALOG_SCHEMA_VERSION,
             AwsProperties.DynamoDbSchemaVersion.V2.version(),
             CatalogProperties.WAREHOUSE_LOCATION,
             "s3://" + testBucket + "/" + genRandomName()));

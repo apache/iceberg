@@ -44,7 +44,7 @@ public class TestAwsProperties {
   public void testDynamoDbWithSchemaOverride() {
     Map<String, String> properties = Maps.newHashMap();
     properties.put(
-        AwsProperties.DYNAMODB_CATALOG_SCHEMA_FORMAT,
+        AwsProperties.DYNAMODB_CATALOG_SCHEMA_VERSION,
         AwsProperties.DynamoDbSchemaVersion.V2.version());
     AwsProperties awsProperties = new AwsProperties(properties);
     Assert.assertEquals(
@@ -57,7 +57,7 @@ public class TestAwsProperties {
         awsProperties.dynamoDbTableName());
 
     // with v1 schema version
-    properties.put(AwsProperties.DYNAMODB_CATALOG_SCHEMA_FORMAT, "v1");
+    properties.put(AwsProperties.DYNAMODB_CATALOG_SCHEMA_VERSION, "v1");
     awsProperties = new AwsProperties(properties);
     Assert.assertEquals(
         "DynamoDb schema version should be V1",
@@ -69,7 +69,7 @@ public class TestAwsProperties {
         awsProperties.dynamoDbTableName());
 
     // invalid schema version
-    properties.put(AwsProperties.DYNAMODB_CATALOG_SCHEMA_FORMAT, "v0");
+    properties.put(AwsProperties.DYNAMODB_CATALOG_SCHEMA_VERSION, "v0");
     AssertHelpers.assertThrows(
         "Should fail as invalid dynamodb schema version specified",
         IllegalArgumentException.class,
@@ -82,7 +82,7 @@ public class TestAwsProperties {
     String tableName = "dynamo-catalog-table";
     Map<String, String> properties = Maps.newHashMap();
     properties.put(
-        AwsProperties.DYNAMODB_CATALOG_SCHEMA_FORMAT,
+        AwsProperties.DYNAMODB_CATALOG_SCHEMA_VERSION,
         AwsProperties.DynamoDbSchemaVersion.V2.version());
     properties.put(AwsProperties.DYNAMODB_TABLE_NAME, tableName);
     AwsProperties awsProperties = new AwsProperties(properties);

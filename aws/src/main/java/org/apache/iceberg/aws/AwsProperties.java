@@ -303,8 +303,7 @@ public class AwsProperties implements Serializable {
 
   public static final String DYNAMODB_V2_SCHEMA_DEFAULT_TABLE_NAME = "iceberg_v2";
 
-  public static final String DYNAMODB_CATALOG_SCHEMA_FORMAT =
-      "dynamodb.catalog.schema.format-version";
+  public static final String DYNAMODB_CATALOG_SCHEMA_VERSION = "dynamodb.catalog.schema-version";
 
   public static final DynamoDbSchemaVersion DYNAMODB_DEFAULT_SCHEMA_VERSION =
       DynamoDbSchemaVersion.V1;
@@ -955,7 +954,7 @@ public class AwsProperties implements Serializable {
         DynamoDbSchemaVersion.fromString(
             PropertyUtil.propertyAsString(
                 properties,
-                DYNAMODB_CATALOG_SCHEMA_FORMAT,
+                DYNAMODB_CATALOG_SCHEMA_VERSION,
                 DYNAMODB_DEFAULT_SCHEMA_VERSION.version()));
 
     String defaultDynamoDbTableName =

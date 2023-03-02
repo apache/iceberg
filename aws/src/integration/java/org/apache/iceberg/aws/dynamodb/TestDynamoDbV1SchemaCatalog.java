@@ -38,7 +38,7 @@ public class TestDynamoDbV1SchemaCatalog extends TestDynamoDbCatalog {
         "test",
         ImmutableMap.of(
             AwsProperties.DYNAMODB_TABLE_NAME,
-            AwsProperties.DYNAMODB_CATALOG_SCHEMA_FORMAT,
+            AwsProperties.DYNAMODB_CATALOG_SCHEMA_VERSION,
             AwsProperties.DynamoDbSchemaVersion.V1.version(),
             catalogTableName,
             CatalogProperties.WAREHOUSE_LOCATION,
