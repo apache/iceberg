@@ -76,13 +76,13 @@ import software.amazon.awssdk.services.dynamodb.model.ProjectionType;
 import software.amazon.awssdk.services.dynamodb.model.Put;
 import software.amazon.awssdk.services.dynamodb.model.PutItemRequest;
 import software.amazon.awssdk.services.dynamodb.model.QueryRequest;
-import software.amazon.awssdk.services.dynamodb.model.QueryResponse;
 import software.amazon.awssdk.services.dynamodb.model.ResourceNotFoundException;
 import software.amazon.awssdk.services.dynamodb.model.ScalarAttributeType;
 import software.amazon.awssdk.services.dynamodb.model.TableStatus;
 import software.amazon.awssdk.services.dynamodb.model.TransactWriteItem;
 import software.amazon.awssdk.services.dynamodb.model.TransactWriteItemsRequest;
 import software.amazon.awssdk.services.dynamodb.model.UpdateItemRequest;
+import software.amazon.awssdk.services.dynamodb.paginators.QueryIterable;
 
 /** DynamoDB implementation of Iceberg catalog */
 public class DynamoDbCatalog extends BaseMetastoreCatalog
@@ -217,8 +217,6 @@ public class DynamoDbCatalog extends BaseMetastoreCatalog
 
   private List<Namespace> listNamespacesForV2(Namespace namespace) throws NoSuchNamespaceException {
     validateNamespace(namespace);
-    List<Namespace> namespaces = Lists.newArrayList();
-    Map<String, AttributeValue> lastEvaluatedKey = null;
     String condition = COL_NAMESPACE + " = :namespace";
     Map<String, AttributeValue> conditionValues = Maps.newHashMap();
     conditionValues.put(":namespace", AttributeValue.builder().s(COL_IDENTIFIER_NAMESPACE).build());
@@ -226,34 +224,22 @@ public class DynamoDbCatalog extends BaseMetastoreCatalog
       condition += " AND " + "begins_with(" + COL_IDENTIFIER + ",:identifier)";
       conditionValues.put(":identifier", AttributeValue.builder().s(namespace.toString()).build());
     }
-    do {
-      QueryResponse response =
-          dynamo.query(
-              QueryRequest.builder()
-                  .tableName(awsProperties.dynamoDbTableName())
-                  .indexName(GSI_NAMESPACE_IDENTIFIER)
-                  .keyConditionExpression(condition)
-                  .expressionAttributeValues(conditionValues)
-                  .exclusiveStartKey(lastEvaluatedKey)
-                  .build());
-
-      if (response.hasItems()) {
-        for (Map<String, AttributeValue> item : response.items()) {
-          String ns = item.get(COL_IDENTIFIER).s();
-          namespaces.add(Namespace.of(ns.split("\\.")));
-        }
-      }
-
-      lastEvaluatedKey = response.lastEvaluatedKey();
-    } while (!lastEvaluatedKey.isEmpty());
-
-    return namespaces;
+    QueryIterable iterable =
+        dynamo.queryPaginator(
+            QueryRequest.builder()
+                .tableName(awsProperties.dynamoDbTableName())
+                .indexName(GSI_NAMESPACE_IDENTIFIER)
+                .keyConditionExpression(condition)
+                .expressionAttributeValues(conditionValues)
+                .build());
+    return iterable.items().stream()
+        .map(item -> item.get(COL_IDENTIFIER).s())
+        .map(ns -> Namespace.of(ns.split("\\.")))
+        .collect(Collectors.toList());
   }
 
   private List<Namespace> listNamespacesForV1(Namespace namespace) throws NoSuchNamespaceException {
     validateNamespace(namespace);
-    List<Namespace> namespaces = Lists.newArrayList();
-    Map<String, AttributeValue> lastEvaluatedKey = null;
     String condition = COL_IDENTIFIER + " = :identifier";
     Map<String, AttributeValue> conditionValues = Maps.newHashMap();
     conditionValues.put(
@@ -262,28 +248,18 @@ public class DynamoDbCatalog extends BaseMetastoreCatalog
       condition += " AND " + "begins_with(" + COL_NAMESPACE + ",:ns)";
       conditionValues.put(":ns", AttributeValue.builder().s(namespace.toString()).build());
     }
-    do {
-      QueryResponse response =
-          dynamo.query(
-              QueryRequest.builder()
-                  .tableName(awsProperties.dynamoDbTableName())
-                  .consistentRead(true)
-                  .keyConditionExpression(condition)
-                  .expressionAttributeValues(conditionValues)
-                  .exclusiveStartKey(lastEvaluatedKey)
-                  .build());
-
-      if (response.hasItems()) {
-        for (Map<String, AttributeValue> item : response.items()) {
-          String ns = item.get(COL_NAMESPACE).s();
-          namespaces.add(Namespace.of(ns.split("\\.")));
-        }
-      }
-
-      lastEvaluatedKey = response.lastEvaluatedKey();
-    } while (!lastEvaluatedKey.isEmpty());
-
-    return namespaces;
+    QueryIterable iterable =
+        dynamo.queryPaginator(
+            QueryRequest.builder()
+                .tableName(awsProperties.dynamoDbTableName())
+                .consistentRead(true)
+                .keyConditionExpression(condition)
+                .expressionAttributeValues(conditionValues)
+                .build());
+    return iterable.items().stream()
+        .map(item -> item.get(COL_NAMESPACE).s())
+        .map(ns -> Namespace.of(ns.split("\\.")))
+        .collect(Collectors.toList());
   }
 
   @Override
@@ -371,34 +347,22 @@ public class DynamoDbCatalog extends BaseMetastoreCatalog
 
   @Override
   public List<TableIdentifier> listTables(Namespace namespace) {
-    List<TableIdentifier> identifiers = Lists.newArrayList();
-    Map<String, AttributeValue> lastEvaluatedKey = null;
     String condition = COL_NAMESPACE + " = :ns";
     Map<String, AttributeValue> conditionValues =
         ImmutableMap.of(":ns", AttributeValue.builder().s(namespace.toString()).build());
-    do {
-      QueryResponse response =
-          dynamo.query(
-              QueryRequest.builder()
-                  .tableName(awsProperties.dynamoDbTableName())
-                  .indexName(GSI_NAMESPACE_IDENTIFIER)
-                  .keyConditionExpression(condition)
-                  .expressionAttributeValues(conditionValues)
-                  .exclusiveStartKey(lastEvaluatedKey)
-                  .build());
-
-      if (response.hasItems()) {
-        for (Map<String, AttributeValue> item : response.items()) {
-          String identifier = item.get(COL_IDENTIFIER).s();
-          if (!COL_IDENTIFIER_NAMESPACE.equals(identifier)) {
-            identifiers.add(TableIdentifier.of(identifier.split("\\.")));
-          }
-        }
-      }
-
-      lastEvaluatedKey = response.lastEvaluatedKey();
-    } while (!lastEvaluatedKey.isEmpty());
-    return identifiers;
+    QueryIterable iterable =
+        dynamo.queryPaginator(
+            QueryRequest.builder()
+                .tableName(awsProperties.dynamoDbTableName())
+                .indexName(GSI_NAMESPACE_IDENTIFIER)
+                .keyConditionExpression(condition)
+                .expressionAttributeValues(conditionValues)
+                .build());
+    return iterable.items().stream()
+        .map(item -> item.get(COL_IDENTIFIER).s())
+        .filter(attributeValue -> !COL_IDENTIFIER_NAMESPACE.equals(attributeValue))
+        .map(identifier -> TableIdentifier.of(identifier.split("\\.")))
+        .collect(Collectors.toList());
   }
 
   @Override
