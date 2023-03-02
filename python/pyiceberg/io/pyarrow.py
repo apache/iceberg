@@ -26,11 +26,13 @@ from __future__ import annotations
 
 import os
 from functools import lru_cache
+from itertools import chain
 from multiprocessing.pool import ThreadPool
 from typing import (
     TYPE_CHECKING,
     Any,
     Callable,
+    Dict,
     Generator,
     Iterable,
     List,
@@ -44,6 +46,7 @@ from urllib.parse import urlparse
 import pyarrow as pa
 import pyarrow.compute as pc
 import pyarrow.parquet as pq
+from pyarrow import ChunkedArray
 from pyarrow.fs import (
     FileInfo,
     FileSystem,
@@ -73,7 +76,6 @@ from pyiceberg.io import (
     OutputFile,
     OutputStream,
 )
-from pyiceberg.manifest import DataFile
 from pyiceberg.schema import (
     PartnerAccessor,
     Schema,
@@ -472,18 +474,15 @@ def expression_to_pyarrow(expr: BooleanExpression) -> pc.Expression:
     return boolean_expression_visit(expr, _ConvertToArrowExpression())
 
 
-def _read_deletes(fs: FileSystem, file_path: str, deletes: List[DataFile]) -> pa.Array:
+def _read_deletes(fs: FileSystem, file_path: str) -> Dict[str, pa.ChunkedArray]:
     _, path = PyArrowFileIO.parse_location(file_path)
-    delete_files = [PyArrowFileIO.parse_location(delete_file.file_path)[1] for delete_file in deletes]
     table = pq.read_table(
-        source=delete_files,
-        pre_buffer=True,
-        buffer_size=8 * ONE_MEGABYTE,
-        filesystem=fs,
-        filters=pc.field("file_path") == file_path,
-        columns=["pos"],
+        source=path, pre_buffer=True, buffer_size=8 * ONE_MEGABYTE, read_dictionary=["file_path"], filesystem=fs
     )
-    return table["pos"].combine_chunks().sort()
+    table.unify_dictionaries()
+    return {
+        file.as_py(): table.filter(pc.field("file_path") == file).column("pos") for file in table.columns[0].chunks[0].dictionary
+    }
 
 
 def _file_to_table(
@@ -492,13 +491,10 @@ def _file_to_table(
     bound_row_filter: BooleanExpression,
     projected_schema: Schema,
     projected_field_ids: Set[int],
+    positional_deletes: Optional[ChunkedArray],
     case_sensitive: bool,
 ) -> Optional[pa.Table]:
     _, path = PyArrowFileIO.parse_location(task.file.file_path)
-
-    positional_deletes = None
-    if len(task.delete_files) > 0:
-        positional_deletes = _read_deletes(fs, task.file.file_path, task.delete_files)
 
     # Get the schema
     with fs.open_input_file(path) as fout:
@@ -534,9 +530,19 @@ def _file_to_table(
 
         if positional_deletes is not None:
             # When there are positional deletes, create a filter mask
+            sorted_deleted = iter(positional_deletes.combine_chunks().sort())
+
             def generator() -> Generator[bool, None, None]:
+                deleted_pos = next(sorted_deleted).as_py()
                 for pos in range(len(arrow_table)):
-                    yield pos in positional_deletes  # type: ignore
+                    if deleted_pos == pos:
+                        yield True
+                        try:
+                            deleted_pos = next(sorted_deleted).as_py()
+                        except:
+                            deleted_pos = -1
+                    else:
+                        yield False
 
             mask = pa.array(generator(), type=pa.bool_())
             arrow_table = arrow_table.filter(mask)
@@ -577,12 +583,35 @@ def project_table(
     }.union(extract_field_ids(bound_row_filter))
 
     with ThreadPool() as pool:
+        deletes_per_file: Dict[str, ChunkedArray] = {}
+        unique_deletes = set(chain.from_iterable([{delete_file.file_path for delete_file in task.delete_files} for task in tasks]))
+        deletes_per_files: List[Dict[str, ChunkedArray]] = pool.starmap(
+            func=_read_deletes, iterable=[(fs, delete) for delete in unique_deletes]
+        )
+
+        for delete in deletes_per_files:
+            for file, arr in delete.items():
+                if first_arr := deletes_per_file.get(file):
+                    deletes_per_file[file] = pa.chunked_array([first_arr, arr], first_arr.type)
+                else:
+                    deletes_per_file[file] = arr
+
         tables = [
             table
             for table in pool.starmap(
                 func=_file_to_table,
-                iterable=[(fs, task, bound_row_filter, projected_schema, projected_field_ids, case_sensitive) for task in tasks],
-                chunksize=None,  # we could use this to control how to materialize the generator of tasks (we should also make the expression above lazy)
+                iterable=[
+                    (
+                        fs,
+                        task,
+                        bound_row_filter,
+                        projected_schema,
+                        projected_field_ids,
+                        deletes_per_file.get(task.file.file_path),
+                        case_sensitive,
+                    )
+                    for task in tasks
+                ],
             )
             if table is not None
         ]

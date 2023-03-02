@@ -27,9 +27,9 @@ from typing import (
     Callable,
     Dict,
     Iterable,
-    Iterator,
     List,
     Optional,
+    Set,
     Tuple,
     TypeVar,
     Union,
@@ -298,19 +298,19 @@ class ScanTask(ABC):
 @dataclass(init=False)
 class FileScanTask(ScanTask):
     file: DataFile
-    delete_files: List[DataFile]
+    delete_files: Set[DataFile]
     start: int
     length: int
 
     def __init__(
         self,
         data_file: DataFile,
-        delete_files: Optional[List[DataFile]] = None,
+        delete_files: Optional[Set[DataFile]] = None,
         start: Optional[int] = None,
         length: Optional[int] = None,
     ):
         self.file = data_file
-        self.delete_files = delete_files or []
+        self.delete_files = delete_files or set()
         self.start = start or 0
         self.length = length or data_file.file_size_in_bytes
 
@@ -434,8 +434,8 @@ class DataScan(TableScan):
             for data_file in data_datafiles
         ]
 
-    def _match_deletes_to_datafile(self, data_file: DataFile, positional_delete_files: List[DataFile]) -> List[DataFile]:
-        return list(
+    def _match_deletes_to_datafile(self, data_file: DataFile, positional_delete_files: List[DataFile]) -> Set[DataFile]:
+        return set(
             filter(
                 _InclusiveMetricsEvaluator(POSITIONAL_DELETE_SCHEMA, EqualTo("file_path", data_file.file_path)).eval,
                 positional_delete_files,
@@ -459,10 +459,3 @@ class DataScan(TableScan):
         con.register(table_name, self.to_arrow())
 
         return con
-
-
-class DeleteFileIndex:
-    delete_manifests: List[ManifestFile]
-
-    def __init__(self, delete_manifests: List[ManifestFile], after_sequence_number: int = INITIAL_SEQUENCE_NUMBER) -> None:
-        self.delete_manifests = delete_manifests

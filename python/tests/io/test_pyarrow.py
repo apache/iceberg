@@ -1137,7 +1137,5 @@ def deletes_file(tmp_path: str) -> str:
 
 def test_read_deletes(deletes_file: str) -> None:
     # None filesystem will default to a local filesystem
-    deletes = _read_deletes(LocalFileSystem(), "s3://bucket/default.db/table/data.parquet", [DataFile(
-        file_path=deletes_file
-    )])
+    deletes = _read_deletes(LocalFileSystem(), "s3://bucket/default.db/table/data.parquet", [DataFile(file_path=deletes_file)])
     assert list(deletes) == {19, 22, 25}

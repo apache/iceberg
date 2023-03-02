@@ -180,6 +180,12 @@ class DataFile(Record):
     def __init__(self, *data: Any, **named_data: Any) -> None:
         super().__init__(*data, **{"struct": DATA_FILE_TYPE, **named_data})
 
+    def __hash__(self) -> int:
+        return hash(self.file_path)
+
+    def __eq__(self, other: Any) -> bool:
+        return self.file_path == other.file_path if isinstance(other, DataFile) else False
+
 
 MANIFEST_ENTRY_SCHEMA = Schema(
     NestedField(0, "status", IntegerType(), required=True),
