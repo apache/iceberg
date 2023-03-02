@@ -87,7 +87,7 @@ jobs:
       with:
         distribution: zulu
         java-version: 8
-    - run: ./gradlew -DallVersions build -x test -x javadoc -x integrationTest
+    - run: ./gradlew -DallVersions build -x test -x javadoc -x integrationTest --info --stacktrace
 
   build-javadoc:
     runs-on: ubuntu-22.04
