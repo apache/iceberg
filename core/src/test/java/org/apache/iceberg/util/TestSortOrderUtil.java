@@ -24,7 +24,6 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 
 import java.io.File;
 import java.io.IOException;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
@@ -32,6 +31,7 @@ import org.apache.iceberg.TestTables;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.types.Types;
+import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -313,11 +313,9 @@ public class TestSortOrderUtil {
             tableDir, "test", SCHEMA, PartitionSpec.unpartitioned(), SortOrder.unsorted(), 1);
     table.replaceSortOrder().asc("ts").commit();
 
-    AssertHelpers.assertThrows(
-        "Should complain about dropping a column from the current sort order",
-        ValidationException.class,
-        "Cannot find source column for sort field: identity(3) ASC NULLS FIRST",
-        () -> table.updateSchema().deleteColumn("ts").commit());
+    Assertions.assertThatThrownBy(() -> table.updateSchema().deleteColumn("ts").commit())
+        .isInstanceOf(ValidationException.class)
+        .hasMessage("Cannot find source column for sort field: identity(3) ASC NULLS FIRST");
   }
 
   @Test
