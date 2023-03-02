@@ -47,12 +47,9 @@ public class PartitionsTable extends BaseMetadataTable {
             Types.NestedField.required(1, "partition", Partitioning.partitionType(table)),
             Types.NestedField.required(4, "spec_id", Types.IntegerType.get()),
             Types.NestedField.required(
-                2,
-                "record_count",
-                Types.LongType.get(),
-                "data record count without applying the deletes"),
+                2, "record_count", Types.LongType.get(), "count of records in data files"),
             Types.NestedField.required(
-                3, "file_count", Types.IntegerType.get(), "data file count"));
+                3, "file_count", Types.IntegerType.get(), "count of data files"));
   }
 
   @Override
