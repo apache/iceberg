@@ -420,7 +420,7 @@ public class TableMetadataParser {
       defaultSortOrderId = JsonUtil.getInt(DEFAULT_SORT_ORDER_ID, node);
       ImmutableList.Builder<SortOrder> sortOrdersBuilder = ImmutableList.builder();
       for (JsonNode sortOrder : sortOrderArray) {
-        sortOrdersBuilder.add(SortOrderParser.fromJson(schema, sortOrder, defaultSortOrderId));
+        sortOrdersBuilder.add(SortOrderParser.fromJson(schema, sortOrder));
       }
       sortOrders = sortOrdersBuilder.build();
     } else {
