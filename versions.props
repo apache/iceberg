@@ -32,12 +32,12 @@ net.snowflake:snowflake-jdbc = 3.13.22
 io.delta:delta-standalone_* = 0.6.0
 
 # test deps
-org.junit.vintage:junit-vintage-engine = 5.8.2
-org.junit.jupiter:* = 5.8.2
-org.mockito:* = 4.6.1
+org.junit.vintage:junit-vintage-engine = 5.9.2
+org.junit.jupiter:* = 5.9.2
+org.mockito:* = 4.11.0
 org.apache.tez:* = 0.8.4
 com.adobe.testing:s3mock-junit4 = 2.1.28
-org.assertj:assertj-core = 3.23.1
+org.assertj:assertj-core = 3.24.2
 org.xerial:sqlite-jdbc = 3.34.0
 com.fasterxml.jackson.dataformat:jackson-dataformat-xml = 2.9.9
 org.springframework:* = 5.3.9
@@ -46,5 +46,5 @@ org.mock-server:mockserver-netty = 5.13.2
 org.mock-server:mockserver-client-java = 5.13.2
 com.esotericsoftware:kryo = 4.0.2
 org.eclipse.jetty:* = 9.4.43.v20210629
-org.testcontainers:* = 1.17.5
+org.testcontainers:* = 1.17.6
 io.delta:delta-core_* = 2.2.0
