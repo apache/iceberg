@@ -75,13 +75,6 @@ public class ExpireSnapshotsSparkAction extends BaseSparkAction<ExpireSnapshotsS
 
   private final Table table;
   private final TableOperations ops;
-  private final Consumer<String> defaultDelete =
-      new Consumer<String>() {
-        @Override
-        public void accept(String file) {
-          ops.io().deleteFile(file);
-        }
-      };
 
   private final Set<Long> expiredSnapshotIds = Sets.newHashSet();
   private Long expireOlderThanValue = null;
@@ -273,7 +266,8 @@ public class ExpireSnapshotsSparkAction extends BaseSparkAction<ExpireSnapshotsS
 
       if (deleteFunc == null) {
         LOG.info(
-            "Table IO {} does not support bulk operations. Using non-bulk deletes.", table.io());
+            "Table IO {} does not support bulk operations. Using non-bulk deletes.",
+            table.io().getClass().getName());
         summary = deleteFiles(deleteExecutorService, table.io()::deleteFile, files);
       } else {
         LOG.info("Custom delete function provided. Using non-bulk deletes");

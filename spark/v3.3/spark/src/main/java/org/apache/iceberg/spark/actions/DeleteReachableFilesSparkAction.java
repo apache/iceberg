@@ -132,7 +132,9 @@ public class DeleteReachableFilesSparkAction
     } else {
 
       if (deleteFunc == null) {
-        LOG.info("Table IO {} does not support bulk operations. Using non-bulk deletes.", io);
+        LOG.info(
+            "Table IO {} does not support bulk operations. Using non-bulk deletes.",
+            io.getClass().getName());
         summary = deleteFiles(deleteExecutorService, io::deleteFile, files);
       } else {
         LOG.info("Custom delete function provided. Using non-bulk deletes");

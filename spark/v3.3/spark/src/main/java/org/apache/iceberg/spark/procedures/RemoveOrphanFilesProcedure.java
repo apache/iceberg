@@ -164,7 +164,7 @@ public class RemoveOrphanFilesProcedure extends BaseProcedure {
                       + "table is currently using {} which supports bulk deletes so the parameter will be ignored. "
                       + "See that IO's documentation to learn how to adjust parallelism for that particular "
                       + "IO's bulk delete.",
-                  table.io());
+                  table.io().getClass().getName());
             } else {
 
               action.executeDeleteWith(executorService(maxConcurrentDeletes, "remove-orphans"));
