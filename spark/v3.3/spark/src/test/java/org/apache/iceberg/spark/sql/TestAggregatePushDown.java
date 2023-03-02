@@ -437,6 +437,134 @@ public class TestAggregatePushDown extends SparkCatalogTestBase {
   }
 
   @Test
+  public void testAggregatePushDownWithGroupByOneKey() {
+    sql(
+        "CREATE TABLE %s (id1 LONG, id2 LONG, data INT) USING iceberg PARTITIONED BY (id1, id2)",
+        tableName);
+
+    sql(
+        "INSERT INTO TABLE %s VALUES"
+            + " (4, 11, null),"
+            + " (4, 11, 222),"
+            + " (4, 22, 333),"
+            + " (2, 11, 444),"
+            + " (2, 22, null),"
+            + " (2, 22, 666),"
+            + " (3, 11, 777),"
+            + " (3, 22, 888),"
+            + " (3, 22, null) ",
+        tableName);
+
+    String select = "SELECT id1, MIN(data), MAX(data), COUNT(data), COUNT(*) FROM %s GROUP BY id1";
+
+    List<Object[]> explain = sql("EXPLAIN " + select, tableName);
+    String explainString = explain.get(0)[0].toString().toLowerCase(Locale.ROOT);
+    boolean explainContainsPushDownAggregates = false;
+    if (explainString.contains("min(data)")
+        && explainString.contains("max(data)")
+        && explainString.contains("count(data)")) {
+      explainContainsPushDownAggregates = true;
+    }
+
+    Assert.assertTrue(
+        "explain should contain the pushed down aggregates", explainContainsPushDownAggregates);
+
+    List<Object[]> actual = sql(select, tableName);
+    List<Object[]> expected = Lists.newArrayList();
+    expected.add(new Object[] {3L, 777, 888, 2L, 3L});
+    expected.add(new Object[] {2L, 444, 666, 2L, 3L});
+    expected.add(new Object[] {4L, 222, 333, 2L, 3L});
+    assertEquals("expected and actual should equal", expected, actual);
+  }
+
+  @Test
+  public void testAggregatePushDownWithGroupByMultipleKeys() {
+    sql(
+        "CREATE TABLE %s (id LONG, data INT, ts timestamp) USING iceberg PARTITIONED BY (id, ts)",
+        tableName);
+
+    sql(
+        "INSERT INTO TABLE %s VALUES"
+            + " (4, 111, timestamp('2021-11-11 22:22:22')),"
+            + " (4, null, timestamp('2021-11-11 22:22:22')),"
+            + " (4, 333, timestamp('2021-11-12 22:22:22')),"
+            + " (2, 444, timestamp('2021-11-11 22:22:22')),"
+            + " (2, 555, timestamp('2021-11-12 22:22:22')),"
+            + " (2, 666, timestamp('2021-11-12 22:22:22')),"
+            + " (3, null, timestamp('2021-11-11 22:22:22')),"
+            + " (3, 888, timestamp('2021-11-11 22:22:22')),"
+            + " (3, 999, timestamp('2021-11-12 22:22:22'))",
+        tableName);
+
+    String select =
+        "SELECT ts, id, MIN(data), MAX(data), COUNT(data), COUNT(*) FROM %s GROUP BY id, ts";
+
+    List<Object[]> explain = sql("EXPLAIN " + select, tableName);
+    String explainString = explain.get(0)[0].toString().toLowerCase(Locale.ROOT);
+    boolean explainContainsPushDownAggregates = false;
+    if (explainString.contains("min(data)")
+        && explainString.contains("max(data)")
+        && explainString.contains("count(data)")) {
+      explainContainsPushDownAggregates = true;
+    }
+
+    Assert.assertTrue(
+        "explain should contain the pushed down aggregates", explainContainsPushDownAggregates);
+
+    List<Object[]> actual = sql(select, tableName);
+    List<Object[]> expected = Lists.newArrayList();
+    expected.add(new Object[] {Timestamp.valueOf("2021-11-11 22:22:22.0"), 3L, 888, 888, 1L, 2L});
+    expected.add(new Object[] {Timestamp.valueOf("2021-11-12 22:22:22.0"), 2L, 555, 666, 2L, 2L});
+    expected.add(new Object[] {Timestamp.valueOf("2021-11-11 22:22:22.0"), 4L, 111, 111, 1L, 2L});
+    expected.add(new Object[] {Timestamp.valueOf("2021-11-12 22:22:22.0"), 4L, 333, 333, 1L, 1L});
+    expected.add(new Object[] {Timestamp.valueOf("2021-11-12 22:22:22.0"), 3L, 999, 999, 1L, 1L});
+    expected.add(new Object[] {Timestamp.valueOf("2021-11-11 22:22:22.0"), 2L, 444, 444, 1L, 1L});
+    assertEquals("expected and actual should equal", expected, actual);
+  }
+
+  @Test
+  public void testAggregatePushDownWithNonPartitionGroupBy() {
+    sql(
+        "CREATE TABLE %s (id1 LONG, id2 LONG, data INT) USING iceberg PARTITIONED BY (id1)",
+        tableName);
+
+    sql(
+        "INSERT INTO TABLE %s VALUES"
+            + " (4, 11, null),"
+            + " (4, 11, 222),"
+            + " (4, 22, 333),"
+            + " (2, 11, 444),"
+            + " (2, 22, null),"
+            + " (2, 22, 666),"
+            + " (3, 11, 777),"
+            + " (3, 22, 888),"
+            + " (3, 22, null) ",
+        tableName);
+
+    String select = "SELECT id1, MIN(data) FROM %s GROUP BY id1, id2";
+
+    List<Object[]> explain = sql("EXPLAIN " + select, tableName);
+    String explainString = explain.get(0)[0].toString().toLowerCase(Locale.ROOT);
+    boolean explainContainsPushDownAggregates = false;
+    if (explainString.contains("min(data)")) {
+      explainContainsPushDownAggregates = true;
+    }
+
+    Assert.assertFalse(
+        "explain should not contain the pushed down aggregates", explainContainsPushDownAggregates);
+
+    List<Object[]> actual = sql(select, tableName);
+    List<Object[]> expected = Lists.newArrayList();
+    expected.add(new Object[] {3L, 777});
+    expected.add(new Object[] {3L, 888});
+    expected.add(new Object[] {2L, 444});
+    expected.add(new Object[] {2L, 666});
+    expected.add(new Object[] {4L, 222});
+    expected.add(new Object[] {4L, 333});
+    assertEquals("expected and actual should equal", expected, actual);
+  }
+
+  @Test
   public void testAggregateWithComplexType() {
     sql("CREATE TABLE %s (id INT, complex STRUCT<c1:INT,c2:STRING>) USING iceberg", tableName);
     sql(

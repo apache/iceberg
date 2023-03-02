@@ -63,6 +63,14 @@ public class ExpressionVisitors {
     public <T> R aggregate(UnboundAggregate<T> agg) {
       throw new UnsupportedOperationException("Cannot visit aggregate expression");
     }
+
+    public <T, C> R groupBy(BoundGroupBy<T, C> groupBy) {
+      throw new UnsupportedOperationException("Cannot visit groupBy expression");
+    }
+
+    public <T> R groupBy(UnboundGroupBy<T> groupBy) {
+      throw new UnsupportedOperationException("Cannot visit groupBy expression");
+    }
   }
 
   public abstract static class BoundExpressionVisitor<R> extends ExpressionVisitor<R> {
@@ -351,6 +359,12 @@ public class ExpressionVisitors {
         return visitor.aggregate((BoundAggregate<?, ?>) expr);
       } else {
         return visitor.aggregate((UnboundAggregate<?>) expr);
+      }
+    } else if (expr instanceof GroupBy) {
+      if (expr instanceof BoundGroupBy) {
+        return visitor.groupBy((BoundGroupBy<?, ?>) expr);
+      } else {
+        return visitor.groupBy((UnboundGroupBy<?>) expr);
       }
     } else {
       switch (expr.op()) {

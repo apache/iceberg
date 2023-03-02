@@ -22,12 +22,14 @@ import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
+import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
@@ -154,6 +156,19 @@ public class ExpressionUtil {
         Projections.strict(spec, caseSensitive).project(expr),
         spec.partitionType(),
         caseSensitive);
+  }
+
+  public static boolean isPartitionCol(BoundGroupBy expr, Table table) {
+    return table.specs().values().stream().allMatch(spec -> isPartitionCol(expr, spec));
+  }
+
+  public static boolean isPartitionCol(BoundGroupBy expr, PartitionSpec spec) {
+    Collection<PartitionField> parts = spec.getFieldsBySourceId(expr.ref().fieldId());
+    if (parts.isEmpty()) {
+      return false;
+    }
+
+    return true;
   }
 
   public static String describe(Term term) {

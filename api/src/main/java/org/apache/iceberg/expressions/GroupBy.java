@@ -18,22 +18,16 @@
  */
 package org.apache.iceberg.expressions;
 
-/**
- * The aggregate functions that can be pushed and evaluated in Iceberg. Currently only three
- * aggregate functions Max, Min and Count are supported.
- */
-public abstract class Aggregate<C extends Term> implements Expression {
-  private final Operation op;
+public abstract class GroupBy<C extends Term> implements Expression {
   private final C term;
 
-  Aggregate(Operation op, C term) {
-    this.op = op;
+  GroupBy(C term) {
     this.term = term;
   }
 
   @Override
   public Operation op() {
-    return op;
+    throw new UnsupportedOperationException("Not implemented");
   }
 
   public C term() {
@@ -42,17 +36,6 @@ public abstract class Aggregate<C extends Term> implements Expression {
 
   @Override
   public String toString() {
-    switch (op()) {
-      case COUNT:
-        return "count(" + term() + ")";
-      case COUNT_STAR:
-        return "count(*)";
-      case MAX:
-        return "max(" + term() + ")";
-      case MIN:
-        return "min(" + term() + ")";
-      default:
-        throw new UnsupportedOperationException("Unsupported aggregate: " + op());
-    }
+    return "group by " + term;
   }
 }

@@ -39,6 +39,7 @@ import org.apache.iceberg.TableScan;
 import org.apache.iceberg.expressions.AggregateEvaluator;
 import org.apache.iceberg.expressions.Binder;
 import org.apache.iceberg.expressions.BoundAggregate;
+import org.apache.iceberg.expressions.BoundGroupBy;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ExpressionUtil;
 import org.apache.iceberg.expressions.Expressions;
@@ -52,12 +53,14 @@ import org.apache.iceberg.spark.SparkFilters;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkSchemaUtil;
+import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.InternalRow;
+import org.apache.spark.sql.connector.expressions.NamedReference;
 import org.apache.spark.sql.connector.expressions.aggregate.AggregateFunc;
 import org.apache.spark.sql.connector.expressions.aggregate.Aggregation;
 import org.apache.spark.sql.connector.read.Scan;
@@ -179,29 +182,22 @@ public class SparkScanBuilder
       return false;
     }
 
-    AggregateEvaluator aggregateEvaluator;
     List<BoundAggregate<?, ?>> expressions =
         Lists.newArrayListWithExpectedSize(aggregation.aggregateExpressions().length);
-
-    for (AggregateFunc aggregateFunc : aggregation.aggregateExpressions()) {
-      try {
-        Expression expr = SparkAggregates.convert(aggregateFunc);
-        if (expr != null) {
-          Expression bound = Binder.bind(schema.asStruct(), expr, caseSensitive);
-          expressions.add((BoundAggregate<?, ?>) bound);
-        } else {
-          LOG.info(
-              "Skipping aggregate pushdown: AggregateFunc {} can't be converted to iceberg expression",
-              aggregateFunc);
-          return false;
-        }
-      } catch (IllegalArgumentException e) {
-        LOG.info("Skipping aggregate pushdown: Bind failed for AggregateFunc {}", aggregateFunc, e);
-        return false;
-      }
+    boolean pushAggregates = pushAggregates(expressions, aggregation);
+    if (!pushAggregates || expressions.isEmpty()) {
+      return false;
     }
 
-    aggregateEvaluator = AggregateEvaluator.create(expressions);
+    List<BoundGroupBy<?, ?>> groupByExpressions =
+        Lists.newArrayListWithExpectedSize(aggregation.groupByExpressions().length);
+    boolean pushGroupBy = pushGroupBy(groupByExpressions, aggregation);
+    if (!pushGroupBy) {
+      return false;
+    }
+
+    AggregateEvaluator aggregateEvaluator =
+        AggregateEvaluator.create(expressions, groupByExpressions);
 
     if (!metricsModeSupportsAggregatePushDown(aggregateEvaluator.aggregates())) {
       return false;
@@ -213,6 +209,7 @@ public class SparkScanBuilder
       LOG.info("Skipping aggregate pushdown: table snapshot is null");
       return false;
     }
+
     scan = scan.useSnapshot(snapshot.snapshotId());
     scan = configureSplitPlanning(scan);
     scan = scan.filter(filterExpression());
@@ -238,10 +235,13 @@ public class SparkScanBuilder
 
     pushedAggregateSchema =
         SparkSchemaUtil.convert(new Schema(aggregateEvaluator.resultType().fields()));
-    InternalRow[] pushedAggregateRows = new InternalRow[1];
-    StructLike structLike = aggregateEvaluator.result();
-    pushedAggregateRows[0] =
-        new StructInternalRow(aggregateEvaluator.resultType()).setStruct(structLike);
+    StructLike[] structLike = aggregateEvaluator.result();
+    InternalRow[] pushedAggregateRows = new InternalRow[structLike.length];
+    for (int i = 0; i < structLike.length; i++) {
+      pushedAggregateRows[i] =
+          new StructInternalRow(aggregateEvaluator.resultType()).setStruct(structLike[i]);
+    }
+
     localScan =
         new SparkLocalScan(table, pushedAggregateSchema, pushedAggregateRows, filterExpressions);
 
@@ -254,14 +254,6 @@ public class SparkScanBuilder
     }
 
     if (!readConf.aggregatePushDownEnabled()) {
-      return false;
-    }
-
-    // If group by expression is the same as the partition, the statistics information can still
-    // be used to calculate min/max/count, will enable aggregate push down in next phase.
-    // TODO: enable aggregate push down for partition col group by expression
-    if (aggregation.groupByExpressions().length > 0) {
-      LOG.info("Skipping aggregate pushdown: group by aggregation push down is not supported");
       return false;
     }
 
@@ -308,6 +300,66 @@ public class SparkScanBuilder
             }
           }
         }
+      }
+    }
+
+    return true;
+  }
+
+  private boolean pushAggregates(List<BoundAggregate<?, ?>> expressions, Aggregation aggregation) {
+    for (AggregateFunc aggregateFunc : aggregation.aggregateExpressions()) {
+      try {
+        Expression expr = SparkAggregates.convert(aggregateFunc);
+        if (expr != null) {
+          Expression bound = Binder.bind(schema.asStruct(), expr, caseSensitive);
+          expressions.add((BoundAggregate<?, ?>) bound);
+        } else {
+          LOG.info(
+              "Skipping aggregate pushdown: AggregateFunc {} can't be converted to iceberg expression",
+              aggregateFunc);
+          return false;
+        }
+      } catch (Exception e) {
+        LOG.info("Skipping aggregate pushdown: Bind failed for AggregateFunc {}", aggregateFunc, e);
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  private boolean pushGroupBy(
+      List<BoundGroupBy<?, ?>> groupByExpressions, Aggregation aggregation) {
+    for (org.apache.spark.sql.connector.expressions.Expression groupby :
+        aggregation.groupByExpressions()) {
+      try {
+        if (groupby instanceof NamedReference) {
+          Expression groupByExpr =
+              Expressions.groupBy(SparkUtil.toColumnName((NamedReference) groupby));
+
+          if (groupByExpr != null) {
+            Expression bound = Binder.bind(schema.asStruct(), groupByExpr, caseSensitive);
+            if (!ExpressionUtil.isPartitionCol((BoundGroupBy) bound, table)) {
+              return false;
+            }
+
+            groupByExpressions.add((BoundGroupBy) bound);
+          } else {
+            LOG.info(
+                "Skipping aggregate pushdown: groupby {} can't be converted to iceberg expression",
+                groupby);
+            return false;
+          }
+        } else {
+          LOG.info(
+              "Skipping aggregate pushdown: groupby {} can't be converted to iceberg expression",
+              groupby);
+          return false;
+        }
+
+      } catch (Exception e) {
+        LOG.info("Skipping aggregate pushdown: Bind failed for groupby {}", groupby, e);
+        return false;
       }
     }
 

@@ -19,7 +19,11 @@
 package org.apache.iceberg.expressions;
 
 import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
 import org.apache.iceberg.DataFile;
+import org.apache.iceberg.StructLike;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Type.PrimitiveType;
@@ -57,16 +61,18 @@ public class MaxAggregate<T> extends ValueAggregate<T> {
   }
 
   @Override
-  public Aggregator<T> newAggregator() {
-    return new MaxAggregator<>(this, comparator);
+  public Aggregator<T> newAggregator(List<BoundGroupBy<?, ?>> groupBys) {
+    return new MaxAggregator<>(this, comparator, groupBys);
   }
 
   private static class MaxAggregator<T> extends NullSafeAggregator<T, T> {
     private final Comparator<T> comparator;
     private T max = null;
+    private Map<StructLike, T> maxP = Maps.newHashMap();
 
-    MaxAggregator(MaxAggregate<T> aggregate, Comparator<T> comparator) {
-      super(aggregate);
+    MaxAggregator(
+        MaxAggregate<T> aggregate, Comparator<T> comparator, List<BoundGroupBy<?, ?>> groupBys) {
+      super(aggregate, groupBys);
       this.comparator = comparator;
     }
 
@@ -78,8 +84,20 @@ public class MaxAggregate<T> extends ValueAggregate<T> {
     }
 
     @Override
+    protected void update(T value, StructLike partitionKey) {
+      if (maxP.get(partitionKey) == null || comparator.compare(value, maxP.get(partitionKey)) > 0) {
+        maxP.put(partitionKey, value);
+      }
+    }
+
+    @Override
     protected T current() {
       return max;
+    }
+
+    @Override
+    protected Map<StructLike, T> currentPartition() {
+      return maxP;
     }
   }
 }

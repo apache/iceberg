@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.expressions;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 import org.apache.iceberg.DataFile;
@@ -34,41 +35,59 @@ import org.apache.iceberg.types.Types;
  */
 public class AggregateEvaluator {
 
-  public static AggregateEvaluator create(Schema schema, List<Expression> aggregates) {
-    return create(schema.asStruct(), aggregates);
+  public static AggregateEvaluator create(
+      Schema schema, List<Expression> aggregates, List<Expression> groupBys) {
+    return create(schema.asStruct(), aggregates, groupBys);
   }
 
-  public static AggregateEvaluator create(List<BoundAggregate<?, ?>> aggregates) {
-    return new AggregateEvaluator(aggregates);
+  public static AggregateEvaluator create(
+      List<BoundAggregate<?, ?>> aggregates, List<BoundGroupBy<?, ?>> groupBys) {
+    return new AggregateEvaluator(aggregates, groupBys);
   }
 
-  private static AggregateEvaluator create(Types.StructType struct, List<Expression> aggregates) {
+  private static AggregateEvaluator create(
+      Types.StructType struct, List<Expression> aggregates, List<Expression> groupBys) {
     List<BoundAggregate<?, ?>> boundAggregates =
         aggregates.stream()
             .map(expr -> Binder.bind(struct, expr))
             .map(bound -> (BoundAggregate<?, ?>) bound)
             .collect(Collectors.toList());
 
-    return new AggregateEvaluator(boundAggregates);
+    List<BoundGroupBy<?, ?>> boundGroupBys =
+        groupBys.stream()
+            .map(expr -> Binder.bind(struct, expr))
+            .map(bound -> (BoundGroupBy<?, ?>) bound)
+            .collect(Collectors.toList());
+
+    return new AggregateEvaluator(boundAggregates, boundGroupBys);
   }
 
   private final List<Aggregator<?>> aggregators;
   private final Types.StructType resultType;
   private final List<BoundAggregate<?, ?>> aggregates;
+  private final List<BoundGroupBy<?, ?>> groupBys;
 
-  private AggregateEvaluator(List<BoundAggregate<?, ?>> aggregates) {
+  private AggregateEvaluator(
+      List<BoundAggregate<?, ?>> aggregates, List<BoundGroupBy<?, ?>> groupBys) {
     ImmutableList.Builder<Aggregator<?>> aggregatorsBuilder = ImmutableList.builder();
     List<Types.NestedField> resultFields = Lists.newArrayList();
 
-    for (int pos = 0; pos < aggregates.size(); pos += 1) {
-      BoundAggregate<?, ?> aggregate = aggregates.get(pos);
-      aggregatorsBuilder.add(aggregate.newAggregator());
+    for (int pos = 0; pos < groupBys.size(); pos += 1) {
+      BoundGroupBy<?, ?> groupBy = groupBys.get(pos);
+      Types.NestedField field = groupBy.ref().field();
+      resultFields.add(Types.NestedField.optional(pos, field.name(), field.type()));
+    }
+
+    for (int pos = groupBys.size(); pos < aggregates.size() + groupBys.size(); pos += 1) {
+      BoundAggregate<?, ?> aggregate = aggregates.get(pos - groupBys.size());
+      aggregatorsBuilder.add(aggregate.newAggregator(groupBys));
       resultFields.add(Types.NestedField.optional(pos, aggregate.describe(), aggregate.type()));
     }
 
     this.aggregators = aggregatorsBuilder.build();
     this.resultType = Types.StructType.of(resultFields);
     this.aggregates = aggregates;
+    this.groupBys = groupBys;
   }
 
   public void update(StructLike struct) {
@@ -91,20 +110,51 @@ public class AggregateEvaluator {
     return aggregators.stream().allMatch(BoundAggregate.Aggregator::isValid);
   }
 
-  public StructLike result() {
-    Object[] results =
-        aggregators.stream().map(BoundAggregate.Aggregator::result).toArray(Object[]::new);
-    return new ArrayStructLike(results);
+  public StructLike[] result() {
+    if (groupBys.isEmpty()) {
+      ArrayStructLike[] result = new ArrayStructLike[1];
+      result[0] =
+          new ArrayStructLike(
+              aggregators.stream().map(BoundAggregate.Aggregator::result).toArray(Object[]::new));
+      return result;
+    }
+
+    int numRows = aggregators.get(0).numOfPartitions();
+    int numCols = groupBys.size() + aggregators.size();
+
+    Object[][] res = new Object[numRows][numCols];
+
+    Object[] keys = aggregators.get(0).partitionResult().keySet().toArray();
+    if (!groupBys.isEmpty()) {
+      for (int i = 0; i < numRows; i++) {
+        for (int j = 0; j < groupBys.size(); j++) {
+          res[i][j] = ((StructLike) keys[i]).get(j, Object.class);
+        }
+      }
+    }
+
+    for (int i = 0; i < numRows; i++) {
+      for (int j = groupBys.size(); j < numCols; j++) {
+        res[i][j] = aggregators.get(j - groupBys.size()).partitionResult().get(keys[i]);
+      }
+    }
+
+    StructLike[] arrayStructLikeArray = new StructLike[numRows];
+    for (int i = 0; i < numRows; i++) {
+      arrayStructLikeArray[i] = new ArrayStructLike(res[i]);
+    }
+
+    return arrayStructLikeArray;
   }
 
   public List<BoundAggregate<?, ?>> aggregates() {
     return aggregates;
   }
 
-  private static class ArrayStructLike implements StructLike {
+  public static class ArrayStructLike implements StructLike {
     private final Object[] values;
 
-    private ArrayStructLike(Object[] values) {
+    public ArrayStructLike(Object[] values) {
       this.values = values;
     }
 
@@ -120,6 +170,25 @@ public class AggregateEvaluator {
     @Override
     public <T> void set(int pos, T value) {
       values[pos] = value;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+      if (this == o) {
+        return true;
+      }
+
+      if (o == null || getClass() != o.getClass()) {
+        return false;
+      }
+
+      ArrayStructLike that = (ArrayStructLike) o;
+      return Arrays.equals(values, that.values);
+    }
+
+    @Override
+    public int hashCode() {
+      return Arrays.hashCode(values);
     }
   }
 }

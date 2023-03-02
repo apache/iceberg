@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.expressions;
 
+import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.StructLike;
@@ -46,7 +47,7 @@ public class BoundAggregate<T, C> extends Aggregate<BoundTerm<T>> implements Bou
         this.getClass().getName() + " does not implement hasValue(DataFile)");
   }
 
-  Aggregator<C> newAggregator() {
+  Aggregator<C> newAggregator(List<BoundGroupBy<?, ?>> groupBys) {
     throw new UnsupportedOperationException(
         this.getClass().getName() + " does not implement newAggregator()");
   }
@@ -108,20 +109,30 @@ public class BoundAggregate<T, C> extends Aggregate<BoundTerm<T>> implements Bou
 
     R result();
 
+    Map<StructLike, R> partitionResult();
+
+    int numOfPartitions();
+
     boolean isValid();
   }
 
   abstract static class NullSafeAggregator<T, R> implements Aggregator<R> {
     private final BoundAggregate<T, R> aggregate;
     private boolean isValid = true;
+    private final List<BoundGroupBy<?, ?>> groupBys;
 
-    NullSafeAggregator(BoundAggregate<T, R> aggregate) {
+    NullSafeAggregator(BoundAggregate<T, R> aggregate, List<BoundGroupBy<?, ?>> groupBys) {
       this.aggregate = aggregate;
+      this.groupBys = groupBys;
     }
 
     protected abstract void update(R value);
 
+    protected abstract void update(R value, StructLike partitionKey);
+
     protected abstract R current();
+
+    protected abstract Map<StructLike, R> currentPartition();
 
     @Override
     public void update(StructLike struct) {
@@ -142,7 +153,18 @@ public class BoundAggregate<T, C> extends Aggregate<BoundTerm<T>> implements Bou
         if (hasValue(file)) {
           R value = aggregate.eval(file);
           if (value != null) {
-            update(value);
+            if (groupBys.isEmpty()) {
+              update(value);
+            } else {
+              Object[] keys = new Object[file.partition().size()];
+              for (int i = 0; i < file.partition().size(); i++) {
+                keys[i] = file.partition().get(i, Object.class);
+              }
+
+              StructLike keysStruct = new AggregateEvaluator.ArrayStructLike(keys);
+
+              update(value, keysStruct);
+            }
           }
         } else {
           this.isValid = false;
@@ -157,6 +179,24 @@ public class BoundAggregate<T, C> extends Aggregate<BoundTerm<T>> implements Bou
       }
 
       return current();
+    }
+
+    @Override
+    public Map<StructLike, R> partitionResult() {
+      if (!isValid) {
+        return null;
+      }
+
+      return currentPartition();
+    }
+
+    @Override
+    public int numOfPartitions() {
+      if (!isValid) {
+        return 0;
+      }
+
+      return currentPartition().size();
     }
 
     @Override

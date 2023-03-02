@@ -18,8 +18,11 @@
  */
 package org.apache.iceberg.expressions;
 
+import java.util.List;
+import java.util.Map;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.StructLike;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 public class CountAggregate<T> extends BoundAggregate<T, Long> {
   protected CountAggregate(Operation op, BoundTerm<T> term) {
@@ -47,15 +50,16 @@ public class CountAggregate<T> extends BoundAggregate<T, Long> {
   }
 
   @Override
-  public Aggregator<Long> newAggregator() {
-    return new CountAggregator<>(this);
+  public Aggregator<Long> newAggregator(List<BoundGroupBy<?, ?>> groupBys) {
+    return new CountAggregator<>(this, groupBys);
   }
 
   private static class CountAggregator<T> extends NullSafeAggregator<T, Long> {
     private Long count = 0L;
+    private Map<StructLike, Long> countP = Maps.newHashMap();
 
-    CountAggregator(BoundAggregate<T, Long> aggregate) {
-      super(aggregate);
+    CountAggregator(BoundAggregate<T, Long> aggregate, List<BoundGroupBy<?, ?>> groupBys) {
+      super(aggregate, groupBys);
     }
 
     @Override
@@ -64,8 +68,22 @@ public class CountAggregate<T> extends BoundAggregate<T, Long> {
     }
 
     @Override
+    protected void update(Long value, StructLike partitionKey) {
+      if (countP.get(partitionKey) == null) {
+        countP.put(partitionKey, value);
+      } else {
+        countP.put(partitionKey, countP.get(partitionKey) + value);
+      }
+    }
+
+    @Override
     protected Long current() {
       return count;
+    }
+
+    @Override
+    protected Map<StructLike, Long> currentPartition() {
+      return countP;
     }
   }
 }

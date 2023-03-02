@@ -22,6 +22,7 @@ import static org.apache.iceberg.types.Conversions.toByteBuffer;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
+import java.time.LocalDate;
 import java.util.List;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.Schema;
@@ -30,8 +31,11 @@ import org.apache.iceberg.TestHelpers.Row;
 import org.apache.iceberg.TestHelpers.TestDataFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.types.Types.DateType;
 import org.apache.iceberg.types.Types.IntegerType;
 import org.apache.iceberg.types.Types.StringType;
+import org.apache.iceberg.util.DateTimeUtil;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -41,12 +45,14 @@ public class TestAggregateEvaluator {
           required(1, "id", IntegerType.get()),
           optional(2, "no_stats", IntegerType.get()),
           optional(3, "all_nulls", StringType.get()),
-          optional(4, "some_nulls", StringType.get()));
+          optional(4, "some_nulls", StringType.get()),
+          optional(5, "partition_col_date", DateType.get()),
+          optional(6, "partition_col_int", IntegerType.get()));
 
   private static final DataFile FILE =
       new TestDataFile(
           "file.avro",
-          Row.of(),
+          Row.of(DateTimeUtil.daysFromDate(LocalDate.parse("2000-01-01")), 1),
           50,
           // any value counts, including nulls
           ImmutableMap.of(1, 50L, 3, 50L, 4, 50L),
@@ -62,7 +68,7 @@ public class TestAggregateEvaluator {
   private static final DataFile MISSING_SOME_NULLS_STATS_1 =
       new TestDataFile(
           "file_2.avro",
-          Row.of(),
+          Row.of(DateTimeUtil.daysFromDate(LocalDate.parse("2000-01-02")), 2),
           20,
           // any value counts, including nulls
           ImmutableMap.of(1, 20L, 3, 20L),
@@ -78,7 +84,7 @@ public class TestAggregateEvaluator {
   private static final DataFile MISSING_SOME_NULLS_STATS_2 =
       new TestDataFile(
           "file_3.avro",
-          Row.of(),
+          Row.of(DateTimeUtil.daysFromDate(LocalDate.parse("2000-01-01")), 1),
           20,
           // any value counts, including nulls
           ImmutableMap.of(1, 20L, 3, 20L),
@@ -91,8 +97,24 @@ public class TestAggregateEvaluator {
           // upper bounds
           ImmutableMap.of(1, toByteBuffer(IntegerType.get(), 3333)));
 
+  private static final DataFile MISSING_SOME_NULLS_STATS_3 =
+      new TestDataFile(
+          "file_3.avro",
+          Row.of(DateTimeUtil.daysFromDate(LocalDate.parse("2000-01-02")), 2),
+          20,
+          // any value counts, including nulls
+          ImmutableMap.of(1, 20L, 3, 20L),
+          // null value counts
+          ImmutableMap.of(1, 20L, 3, 20L),
+          // nan value counts
+          null,
+          // lower bounds
+          ImmutableMap.of(1, toByteBuffer(IntegerType.get(), -1)),
+          // upper bounds
+          ImmutableMap.of(1, toByteBuffer(IntegerType.get(), 1000)));
+
   private static final DataFile[] dataFiles = {
-    FILE, MISSING_SOME_NULLS_STATS_1, MISSING_SOME_NULLS_STATS_2
+    FILE, MISSING_SOME_NULLS_STATS_1, MISSING_SOME_NULLS_STATS_2, MISSING_SOME_NULLS_STATS_3
   };
 
   @Test
@@ -103,15 +125,41 @@ public class TestAggregateEvaluator {
             Expressions.count("id"),
             Expressions.max("id"),
             Expressions.min("id"));
-    AggregateEvaluator aggregateEvaluator = AggregateEvaluator.create(SCHEMA, list);
+    AggregateEvaluator aggregateEvaluator =
+        AggregateEvaluator.create(SCHEMA, list, Lists.newArrayList());
 
     for (DataFile dataFile : dataFiles) {
       aggregateEvaluator.update(dataFile);
     }
 
     Assert.assertTrue(aggregateEvaluator.allAggregatorsValid());
-    StructLike result = aggregateEvaluator.result();
-    Object[] expected = {90L, 60L, 3333, -33};
+    StructLike[] result = aggregateEvaluator.result();
+    Object[][] expected = {{110L, 60L, 3333, -33}};
+    assertEvaluatorResult(result, expected);
+  }
+
+  @Test
+  public void testIntAggregateWithPartition() {
+    List<Expression> list =
+        ImmutableList.of(
+            Expressions.countStar(),
+            Expressions.count("id"),
+            Expressions.max("id"),
+            Expressions.min("id"));
+
+    List<Expression> groupBys =
+        ImmutableList.of(
+            Expressions.groupBy("partition_col_date"), Expressions.groupBy("partition_col_date"));
+
+    AggregateEvaluator aggregateEvaluator = AggregateEvaluator.create(SCHEMA, list, groupBys);
+
+    for (DataFile dataFile : dataFiles) {
+      aggregateEvaluator.update(dataFile);
+    }
+
+    Assert.assertTrue(aggregateEvaluator.allAggregatorsValid());
+    StructLike[] result = aggregateEvaluator.result();
+    Object[][] expected = {{10957, 1, 70L, 40L, 3333, -33}, {10958, 2, 40L, 20L, 1000, -1}};
     assertEvaluatorResult(result, expected);
   }
 
@@ -123,15 +171,16 @@ public class TestAggregateEvaluator {
             Expressions.count("all_nulls"),
             Expressions.max("all_nulls"),
             Expressions.min("all_nulls"));
-    AggregateEvaluator aggregateEvaluator = AggregateEvaluator.create(SCHEMA, list);
+    AggregateEvaluator aggregateEvaluator =
+        AggregateEvaluator.create(SCHEMA, list, Lists.newArrayList());
 
     for (DataFile dataFile : dataFiles) {
       aggregateEvaluator.update(dataFile);
     }
 
     Assert.assertTrue(aggregateEvaluator.allAggregatorsValid());
-    StructLike result = aggregateEvaluator.result();
-    Object[] expected = {90L, 0L, null, null};
+    StructLike[] result = aggregateEvaluator.result();
+    Object[][] expected = {{110L, 0L, null, null}};
     assertEvaluatorResult(result, expected);
   }
 
@@ -143,14 +192,15 @@ public class TestAggregateEvaluator {
             Expressions.count("some_nulls"),
             Expressions.max("some_nulls"),
             Expressions.min("some_nulls"));
-    AggregateEvaluator aggregateEvaluator = AggregateEvaluator.create(SCHEMA, list);
+    AggregateEvaluator aggregateEvaluator =
+        AggregateEvaluator.create(SCHEMA, list, Lists.newArrayList());
     for (DataFile dataFile : dataFiles) {
       aggregateEvaluator.update(dataFile);
     }
 
     Assert.assertFalse(aggregateEvaluator.allAggregatorsValid());
-    StructLike result = aggregateEvaluator.result();
-    Object[] expected = {90L, null, null, null};
+    StructLike[] result = aggregateEvaluator.result();
+    Object[][] expected = {{110L, null, null, null}};
     assertEvaluatorResult(result, expected);
   }
 
@@ -162,15 +212,22 @@ public class TestAggregateEvaluator {
             Expressions.count("no_stats"),
             Expressions.max("no_stats"),
             Expressions.min("no_stats"));
-    AggregateEvaluator aggregateEvaluator = AggregateEvaluator.create(SCHEMA, list);
+    AggregateEvaluator aggregateEvaluator =
+        AggregateEvaluator.create(SCHEMA, list, Lists.newArrayList());
     for (DataFile dataFile : dataFiles) {
       aggregateEvaluator.update(dataFile);
     }
 
     Assert.assertFalse(aggregateEvaluator.allAggregatorsValid());
-    StructLike result = aggregateEvaluator.result();
-    Object[] expected = {90L, null, null, null};
+    StructLike[] result = aggregateEvaluator.result();
+    Object[][] expected = {{110L, null, null, null}};
     assertEvaluatorResult(result, expected);
+  }
+
+  private void assertEvaluatorResult(StructLike[] result, Object[][] expected) {
+    for (int i = 0; i < result.length; i++) {
+      assertEvaluatorResult(result[i], expected[i]);
+    }
   }
 
   private void assertEvaluatorResult(StructLike result, Object[] expected) {

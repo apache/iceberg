@@ -18,41 +18,22 @@
  */
 package org.apache.iceberg.expressions;
 
-/**
- * The aggregate functions that can be pushed and evaluated in Iceberg. Currently only three
- * aggregate functions Max, Min and Count are supported.
- */
-public abstract class Aggregate<C extends Term> implements Expression {
-  private final Operation op;
-  private final C term;
+import org.apache.iceberg.StructLike;
 
-  Aggregate(Operation op, C term) {
-    this.op = op;
-    this.term = term;
+public class BoundGroupBy<T, C> extends GroupBy<BoundTerm<T>> implements Bound<C> {
+
+  protected BoundGroupBy(BoundTerm<T> term) {
+    super(term);
   }
 
   @Override
-  public Operation op() {
-    return op;
-  }
-
-  public C term() {
-    return term;
+  public C eval(StructLike struct) {
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " does not implement eval(StructLike)");
   }
 
   @Override
-  public String toString() {
-    switch (op()) {
-      case COUNT:
-        return "count(" + term() + ")";
-      case COUNT_STAR:
-        return "count(*)";
-      case MAX:
-        return "max(" + term() + ")";
-      case MIN:
-        return "min(" + term() + ")";
-      default:
-        throw new UnsupportedOperationException("Unsupported aggregate: " + op());
-    }
+  public BoundReference<?> ref() {
+    return term().ref();
   }
 }

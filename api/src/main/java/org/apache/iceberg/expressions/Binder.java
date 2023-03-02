@@ -168,6 +168,16 @@ public class Binder {
     public <T, C> Expression aggregate(BoundAggregate<T, C> agg) {
       throw new IllegalStateException("Found already bound aggregate: " + agg);
     }
+
+    @Override
+    public Expression groupBy(UnboundGroupBy groupBy) {
+      return groupBy.bind(struct, caseSensitive);
+    }
+
+    @Override
+    public Expression groupBy(BoundGroupBy groupBy) {
+      throw new IllegalStateException("Found already bound groupBy: " + groupBy);
+    }
   }
 
   private static class ReferenceVisitor extends ExpressionVisitor<Set<Integer>> {

@@ -19,7 +19,11 @@
 package org.apache.iceberg.expressions;
 
 import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
 import org.apache.iceberg.DataFile;
+import org.apache.iceberg.StructLike;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Type.PrimitiveType;
@@ -57,16 +61,19 @@ public class MinAggregate<T> extends ValueAggregate<T> {
   }
 
   @Override
-  public Aggregator<T> newAggregator() {
-    return new MinAggregator<>(this, comparator);
+  public Aggregator<T> newAggregator(List<BoundGroupBy<?, ?>> groupBys) {
+    return new MinAggregate.MinAggregator<>(this, comparator, groupBys);
   }
 
   private static class MinAggregator<T> extends NullSafeAggregator<T, T> {
     private final Comparator<T> comparator;
     private T min = null;
 
-    MinAggregator(MinAggregate<T> aggregate, Comparator<T> comparator) {
-      super(aggregate);
+    private Map<StructLike, T> minP = Maps.newHashMap();
+
+    MinAggregator(
+        MinAggregate<T> aggregate, Comparator<T> comparator, List<BoundGroupBy<?, ?>> groupBys) {
+      super(aggregate, groupBys);
       this.comparator = comparator;
     }
 
@@ -78,8 +85,20 @@ public class MinAggregate<T> extends ValueAggregate<T> {
     }
 
     @Override
+    protected void update(T value, StructLike partitionKey) {
+      if (minP.get(partitionKey) == null || comparator.compare(value, minP.get(partitionKey)) < 0) {
+        minP.put(partitionKey, value);
+      }
+    }
+
+    @Override
     protected T current() {
       return min;
+    }
+
+    @Override
+    protected Map<StructLike, T> currentPartition() {
+      return minP;
     }
   }
 }
