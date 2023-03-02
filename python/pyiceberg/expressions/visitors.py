@@ -735,7 +735,7 @@ class _ManifestEvalVisitor(BoundBooleanExpressionVisitor[bool]):
         prefix = str(literal.value)
         len_prefix = len(prefix)
 
-        if field.contains_null or not field.lower_bound or not field.upper_bound:
+        if field.contains_null or field.lower_bound is None or field.upper_bound is None:
             return ROWS_MIGHT_MATCH
 
         # not_starts_with will match unless all values must start with the prefix. This happens when
@@ -1356,18 +1356,18 @@ class _InclusiveMetricsEvaluator(BoundBooleanExpressionVisitor[bool]):
         prefix = str(literal.value)
         len_prefix = len(prefix)
 
-        if self.lower_bounds and field_id in self.lower_bounds:
+        if lower_bound_bytes : = self.lower_bounds.get(field_id):
             lower_bound = str(from_bytes(field.field_type, self.lower_bounds.get(field_id)))  # type: ignore
 
             # truncate lower bound so that its length is not greater than the length of prefix
             if lower_bound and lower_bound[:len_prefix] > prefix:
                 return ROWS_CANNOT_MATCH
 
-        if self.upper_bounds and field_id in self.upper_bounds:
+        if upper_bound_bytes := self.upper_bounds.get(field_id):
             upper_bound = str(from_bytes(field.field_type, self.upper_bounds.get(field_id)))  # type: ignore
 
             # truncate upper bound so that its length is not greater than the length of prefix
-            if upper_bound and upper_bound[:len_prefix] < prefix:
+            if upper_bound is not None and upper_bound[:len_prefix] < prefix:
                 return ROWS_CANNOT_MATCH
 
         return ROWS_MIGHT_MATCH
