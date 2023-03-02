@@ -40,7 +40,7 @@ public class TestDynamoDbV2SchemaCatalog extends TestDynamoDbCatalog {
             AwsProperties.DYNAMODB_TABLE_NAME,
             catalogTableName,
             AwsProperties.DYNAMODB_CATALOG_SCHEMA_VERSION,
-            AwsProperties.DynamoDbSchemaVersion.V2.version(),
+            "2",
             CatalogProperties.WAREHOUSE_LOCATION,
             "s3://" + testBucket + "/" + genRandomName()));
   }
@@ -53,9 +53,7 @@ public class TestDynamoDbV2SchemaCatalog extends TestDynamoDbCatalog {
         dynamo.getItem(
             GetItemRequest.builder()
                 .tableName(catalogTableName)
-                .key(
-                    DynamoDbCatalog.namespacePrimaryKey(
-                        namespace, AwsProperties.DynamoDbSchemaVersion.V2))
+                .key(DynamoDbCatalog.namespacePrimaryKey(namespace, 2))
                 .build());
     Assert.assertTrue("namespace must exist", response.hasItem());
     Assert.assertEquals(
@@ -79,9 +77,7 @@ public class TestDynamoDbV2SchemaCatalog extends TestDynamoDbCatalog {
         dynamo.getItem(
             GetItemRequest.builder()
                 .tableName(catalogTableName)
-                .key(
-                    DynamoDbCatalog.namespacePrimaryKey(
-                        namespace, AwsProperties.DynamoDbSchemaVersion.V2))
+                .key(DynamoDbCatalog.namespacePrimaryKey(namespace, 2))
                 .build());
     Assert.assertFalse("namespace must not exist", response.hasItem());
   }

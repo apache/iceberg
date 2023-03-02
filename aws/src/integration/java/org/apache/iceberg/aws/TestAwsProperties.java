@@ -43,33 +43,27 @@ public class TestAwsProperties {
   @Test
   public void testDynamoDbWithSchemaOverride() {
     Map<String, String> properties = Maps.newHashMap();
-    properties.put(
-        AwsProperties.DYNAMODB_CATALOG_SCHEMA_VERSION,
-        AwsProperties.DynamoDbSchemaVersion.V2.version());
+    properties.put(AwsProperties.DYNAMODB_CATALOG_SCHEMA_VERSION, "2");
     AwsProperties awsProperties = new AwsProperties(properties);
     Assert.assertEquals(
-        "DynamoDb schema version should be V2",
-        AwsProperties.DynamoDbSchemaVersion.V2,
-        awsProperties.dynamoDbSchemaVersion());
+        "DynamoDb schema version should be 2", 2, awsProperties.dynamoDbSchemaVersion());
     Assert.assertEquals(
-        "DynamoDb table name should be default name for v2",
+        "DynamoDb table name should be default name for 2",
         AwsProperties.DYNAMODB_V2_SCHEMA_DEFAULT_TABLE_NAME,
         awsProperties.dynamoDbTableName());
 
     // with v1 schema version
-    properties.put(AwsProperties.DYNAMODB_CATALOG_SCHEMA_VERSION, "v1");
+    properties.put(AwsProperties.DYNAMODB_CATALOG_SCHEMA_VERSION, "1");
     awsProperties = new AwsProperties(properties);
     Assert.assertEquals(
-        "DynamoDb schema version should be V1",
-        AwsProperties.DynamoDbSchemaVersion.V1,
-        awsProperties.dynamoDbSchemaVersion());
+        "DynamoDb schema version should be 1", 1, awsProperties.dynamoDbSchemaVersion());
     Assert.assertEquals(
-        "DynamoDb table name should be default name for v1",
+        "DynamoDb table name should be default name for 1",
         AwsProperties.DYNAMODB_TABLE_NAME_DEFAULT,
         awsProperties.dynamoDbTableName());
 
     // invalid schema version
-    properties.put(AwsProperties.DYNAMODB_CATALOG_SCHEMA_VERSION, "v0");
+    properties.put(AwsProperties.DYNAMODB_CATALOG_SCHEMA_VERSION, "3");
     AssertHelpers.assertThrows(
         "Should fail as invalid dynamodb schema version specified",
         IllegalArgumentException.class,
@@ -81,15 +75,11 @@ public class TestAwsProperties {
   public void testDynamoDbWithTableName() {
     String tableName = "dynamo-catalog-table";
     Map<String, String> properties = Maps.newHashMap();
-    properties.put(
-        AwsProperties.DYNAMODB_CATALOG_SCHEMA_VERSION,
-        AwsProperties.DynamoDbSchemaVersion.V2.version());
+    properties.put(AwsProperties.DYNAMODB_CATALOG_SCHEMA_VERSION, "2");
     properties.put(AwsProperties.DYNAMODB_TABLE_NAME, tableName);
     AwsProperties awsProperties = new AwsProperties(properties);
     Assert.assertEquals(
-        "DynamoDb schema version should be V2",
-        AwsProperties.DynamoDbSchemaVersion.V2,
-        awsProperties.dynamoDbSchemaVersion());
+        "DynamoDb schema version should be 2", 2, awsProperties.dynamoDbSchemaVersion());
     Assert.assertEquals(
         "DynamoDb table name should be specified table name",
         tableName,

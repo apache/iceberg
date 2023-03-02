@@ -21,7 +21,6 @@ package org.apache.iceberg.aws;
 import java.io.Serializable;
 import java.net.URI;
 import java.util.Collections;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -305,8 +304,7 @@ public class AwsProperties implements Serializable {
 
   public static final String DYNAMODB_CATALOG_SCHEMA_VERSION = "dynamodb.catalog.schema-version";
 
-  public static final DynamoDbSchemaVersion DYNAMODB_DEFAULT_SCHEMA_VERSION =
-      DynamoDbSchemaVersion.V1;
+  public static final int DYNAMODB_DEFAULT_SCHEMA_VERSION = 1;
 
   /**
    * The implementation class of {@link AwsClientFactory} to customize AWS client configurations. If
@@ -758,7 +756,7 @@ public class AwsProperties implements Serializable {
 
   private String dynamoDbTableName;
   private String dynamoDbEndpoint;
-  private DynamoDbSchemaVersion dynamodbCatalogSchemaVersion;
+  private int dynamodbCatalogSchemaVersion;
 
   private final boolean s3RemoteSigningEnabled;
   private final Map<String, String> allProperties;
@@ -950,15 +948,11 @@ public class AwsProperties implements Serializable {
             properties, S3_PRELOAD_CLIENT_ENABLED, S3_PRELOAD_CLIENT_ENABLED_DEFAULT);
 
     this.dynamoDbEndpoint = properties.get(DYNAMODB_ENDPOINT);
-    this.dynamodbCatalogSchemaVersion =
-        DynamoDbSchemaVersion.fromString(
-            PropertyUtil.propertyAsString(
-                properties,
-                DYNAMODB_CATALOG_SCHEMA_VERSION,
-                DYNAMODB_DEFAULT_SCHEMA_VERSION.version()));
+
+    this.dynamodbCatalogSchemaVersion = parseDynamoDbCatalogSchemaVersion(properties);
 
     String defaultDynamoDbTableName =
-        this.dynamodbCatalogSchemaVersion == DynamoDbSchemaVersion.V1
+        this.dynamodbCatalogSchemaVersion == 1
             ? DYNAMODB_TABLE_NAME_DEFAULT
             : DYNAMODB_V2_SCHEMA_DEFAULT_TABLE_NAME;
     this.dynamoDbTableName =
@@ -1120,7 +1114,7 @@ public class AwsProperties implements Serializable {
     return dynamoDbTableName;
   }
 
-  public DynamoDbSchemaVersion dynamoDbSchemaVersion() {
+  public int dynamoDbSchemaVersion() {
     return dynamodbCatalogSchemaVersion;
   }
 
@@ -1128,12 +1122,9 @@ public class AwsProperties implements Serializable {
     this.dynamoDbTableName = name;
   }
 
-  public void setDynamoDbSchemaVersion(DynamoDbSchemaVersion dynamoDbSchemaVersion) {
+  public void setDynamoDbSchemaVersion(int dynamoDbSchemaVersion) {
+    validateDynamoDbCatalogSchemaVersion(dynamoDbSchemaVersion);
     this.dynamodbCatalogSchemaVersion = dynamoDbSchemaVersion;
-  }
-
-  public void setDynamoDbSchemaVersion(String version) {
-    this.dynamodbCatalogSchemaVersion = DynamoDbSchemaVersion.fromString(version);
   }
 
   public boolean isS3ChecksumEnabled() {
@@ -1480,28 +1471,19 @@ public class AwsProperties implements Serializable {
     }
   }
 
-  public enum DynamoDbSchemaVersion {
-    V1("V1"),
-    V2("V2");
+  private int parseDynamoDbCatalogSchemaVersion(Map<String, String> properties) {
+    Preconditions.checkArgument(properties != null, "Properties is expected to be non null");
+    int version =
+        PropertyUtil.propertyAsInt(
+            properties, DYNAMODB_CATALOG_SCHEMA_VERSION, DYNAMODB_DEFAULT_SCHEMA_VERSION);
+    validateDynamoDbCatalogSchemaVersion(version);
+    return version;
+  }
 
-    private final String version;
-
-    public static DynamoDbSchemaVersion fromString(String version) {
-      Preconditions.checkArgument(null != version, "Invalid dynamoDb catalog schema version: null");
-      try {
-        return valueOf(version.toUpperCase(Locale.ROOT));
-      } catch (IllegalArgumentException e) {
-        throw new IllegalArgumentException(
-            String.format("Invalid dynamodb catalog schema version: %s", version));
-      }
-    }
-
-    DynamoDbSchemaVersion(String version) {
-      this.version = version;
-    }
-
-    public String version() {
-      return this.version;
-    }
+  private void validateDynamoDbCatalogSchemaVersion(int version) {
+    Preconditions.checkArgument(
+        1 <= version && version <= 2,
+        "Illegal  value %s for DynamoDb catalog schema version",
+        version);
   }
 }

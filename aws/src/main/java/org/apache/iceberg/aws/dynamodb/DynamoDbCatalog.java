@@ -210,7 +210,7 @@ public class DynamoDbCatalog extends BaseMetastoreCatalog
 
   @Override
   public List<Namespace> listNamespaces(Namespace namespace) throws NoSuchNamespaceException {
-    return awsProperties.dynamoDbSchemaVersion() == AwsProperties.DynamoDbSchemaVersion.V1
+    return awsProperties.dynamoDbSchemaVersion() == 1
         ? listNamespacesForV1(namespace)
         : listNamespacesForV2(namespace);
   }
@@ -559,10 +559,9 @@ public class DynamoDbCatalog extends BaseMetastoreCatalog
     return namespacePrimaryKey(namespace, AwsProperties.DYNAMODB_DEFAULT_SCHEMA_VERSION);
   }
 
-  static Map<String, AttributeValue> namespacePrimaryKey(
-      Namespace namespace, AwsProperties.DynamoDbSchemaVersion version) {
+  static Map<String, AttributeValue> namespacePrimaryKey(Namespace namespace, int version) {
     Map<String, AttributeValue> key = Maps.newHashMap();
-    if (version == AwsProperties.DynamoDbSchemaVersion.V1) {
+    if (version == 1) {
       key.put(COL_IDENTIFIER, AttributeValue.builder().s(COL_IDENTIFIER_NAMESPACE).build());
       key.put(COL_NAMESPACE, AttributeValue.builder().s(namespace.toString()).build());
     } else {
