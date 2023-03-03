@@ -30,7 +30,6 @@ import org.apache.flink.table.api.DataTypes;
 import org.apache.flink.table.api.ValidationException;
 import org.apache.flink.table.catalog.Column;
 import org.apache.flink.table.catalog.ObjectPath;
-import org.apache.flink.table.catalog.ResolvedCatalogBaseTable;
 import org.apache.flink.table.catalog.ResolvedCatalogTable;
 import org.apache.flink.table.catalog.ResolvedSchema;
 import org.apache.flink.table.catalog.UniqueConstraint;
@@ -126,7 +125,7 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
         table.schema().asStruct());
     Assert.assertEquals(Maps.newHashMap(), table.properties());
 
-    ResolvedCatalogBaseTable catalogTable = catalogTable("tl");
+    ResolvedCatalogTable catalogTable = catalogTable("tl");
 
     Assert.assertEquals(
         ResolvedSchema.of(Column.physical("id", DataTypes.BIGINT())),
@@ -144,7 +143,7 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
         Sets.newHashSet(table.schema().findField("key").fieldId()),
         table.schema().identifierFieldIds());
 
-    ResolvedCatalogBaseTable catalogTable = catalogTable("tl");
+    ResolvedCatalogTable catalogTable = catalogTable("tl");
     Optional<UniqueConstraint> uniqueConstraintOptional =
         catalogTable.getResolvedSchema().getPrimaryKey();
     Assert.assertTrue(
@@ -167,7 +166,7 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
             table.schema().findField("id").fieldId(), table.schema().findField("data").fieldId()),
         table.schema().identifierFieldIds());
 
-    ResolvedCatalogBaseTable catalogTable = catalogTable("tl");
+    ResolvedCatalogTable catalogTable = catalogTable("tl");
     Optional<UniqueConstraint> uniqueConstraintOptional =
         catalogTable.getResolvedSchema().getPrimaryKey();
     Assert.assertTrue(
@@ -215,7 +214,7 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
         table.schema().asStruct());
     Assert.assertEquals(Maps.newHashMap(), table.properties());
 
-    ResolvedCatalogBaseTable catalogTable = catalogTable("tl2");
+    ResolvedCatalogTable catalogTable = catalogTable("tl2");
     ResolvedSchema expectSchema = ResolvedSchema.of(Column.physical("id", DataTypes.BIGINT()));
     Assert.assertEquals(expectSchema, catalogTable.getResolvedSchema());
     Assert.assertEquals(Maps.newHashMap(), catalogTable.getOptions());
@@ -251,14 +250,14 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
         PartitionSpec.builderFor(table.schema()).identity("dt").build(), table.spec());
     Assert.assertEquals(Maps.newHashMap(), table.properties());
 
-    ResolvedCatalogBaseTable catalogTable = catalogTable("tl");
+    ResolvedCatalogTable catalogTable = catalogTable("tl");
     ResolvedSchema resolvedSchema =
         ResolvedSchema.of(
             Column.physical("id", DataTypes.BIGINT()), Column.physical("dt", DataTypes.STRING()));
     Assert.assertEquals(resolvedSchema, catalogTable.getResolvedSchema());
     Assert.assertEquals(Maps.newHashMap(), catalogTable.getOptions());
-    List<String> keys = catalogTable.getResolvedSchema().getPrimaryKey().get().getColumns();
-    //Assert.assertEquals(Collections.singletonList("dt"), keys);
+    List<String> keys = catalogTable.getPartitionKeys();
+    Assert.assertEquals(Collections.singletonList("dt"), keys);
   }
 
   @Test
@@ -307,11 +306,11 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
         schema,
         PartitionSpec.builderFor(schema).bucket("id", 100).build());
 
-    ResolvedCatalogBaseTable catalogTable = catalogTable("tl");
+    ResolvedCatalogTable catalogTable = catalogTable("tl");
     ResolvedSchema expectSchema = ResolvedSchema.of(Column.physical("id", DataTypes.BIGINT()));
     Assert.assertEquals(expectSchema, catalogTable.getResolvedSchema());
     Assert.assertEquals(Maps.newHashMap(), catalogTable.getOptions());
-    List<String> keys = catalogTable.getResolvedSchema().getPrimaryKey().get().getColumns();
+    List<String> keys = catalogTable.getPartitionKeys();
     Assert.assertEquals(Collections.emptyList(), keys);
   }
 
