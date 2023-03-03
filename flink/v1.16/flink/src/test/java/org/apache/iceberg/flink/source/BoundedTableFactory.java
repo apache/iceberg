@@ -23,7 +23,9 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.java.typeutils.RowTypeInfo;
 import org.apache.flink.configuration.ConfigOption;
 import org.apache.flink.configuration.ConfigOptions;
@@ -40,7 +42,7 @@ import org.apache.flink.table.connector.source.ScanTableSource;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.util.DataFormatConverters;
 import org.apache.flink.table.factories.DynamicTableSourceFactory;
-import org.apache.flink.table.runtime.typeutils.InternalTypeInfo;
+import org.apache.flink.table.runtime.typeutils.ExternalTypeInfo;
 import org.apache.flink.table.types.DataType;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.types.Row;
@@ -141,11 +143,16 @@ public class BoundedTableFactory implements DynamicTableSourceFactory {
           SourceFunction<Row> source =
               new BoundedTestSource<>(elementsPerCheckpoint, checkpointEnabled);
           RowType rowType = (RowType) tableSchema.toPhysicalRowDataType().getLogicalType();
+          List<DataType> columnDataTypes = tableSchema.getColumnDataTypes();
+
           // Converter to convert the Row to RowData.
           DataFormatConverters.RowConverter rowConverter =
-              new DataFormatConverters.RowConverter(
-                  tableSchema.getColumnDataTypes().toArray(new DataType[0]));
-          return env.addSource(source, new RowTypeInfo(InternalTypeInfo.of(rowType)))
+              new DataFormatConverters.RowConverter(columnDataTypes.toArray(new DataType[0]));
+
+          List<ExternalTypeInfo<Object>> collect =
+              columnDataTypes.stream().map(ExternalTypeInfo::of).collect(Collectors.toList());
+
+          return env.addSource(source, new RowTypeInfo(collect.toArray(new TypeInformation[0])))
               .map(rowConverter::toInternal, FlinkCompatibilityUtil.toTypeInfo(rowType));
         }
 
