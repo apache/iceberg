@@ -543,7 +543,7 @@ public class TestMetadataTables extends SparkExtensionsTestBase {
     List<Record> expectedFiles =
         expectedEntries(table, FileContent.DATA, entriesTableSchema, expectedDataManifests, null);
 
-    Assert.assertEquals("actualFiles size should be 1", 2, actualFiles.size());
+    Assert.assertEquals("actualFiles size should be 2", 2, actualFiles.size());
 
     TestHelpers.assertEqualsSafe(
         TestHelpers.nonDerivedSchema(actualFilesDs), expectedFiles.get(0), actualFiles.get(0));
