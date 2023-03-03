@@ -125,6 +125,10 @@ public class CachingCatalog implements Catalog {
     }
   }
 
+  public Catalog catalog() {
+    return catalog;
+  }
+
   @Override
   public String name() {
     return catalog.name();
