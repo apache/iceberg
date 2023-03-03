@@ -16,7 +16,6 @@ org.apache.arrow:arrow-vector = 11.0.0
 org.apache.arrow:arrow-memory-netty = 11.0.0
 org.roaringbitmap:RoaringBitmap = 0.9.22
 io.airlift:aircompressor = 0.21
-io.netty:netty-buffer = 4.1.89.Final
 com.aliyun.oss:aliyun-sdk-oss = 3.10.2
 javax.xml.bind:jaxb-api = 2.3.1
 javax.activation:activation = 1.1.1

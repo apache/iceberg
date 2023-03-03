@@ -705,8 +705,6 @@ project(':iceberg-arrow') {
       exclude group: 'io.netty', module: 'netty-buffer'
     }
 
-    runtimeOnly("io.netty:netty-buffer")
-
     implementation("org.apache.parquet:parquet-avro") {
       exclude group: 'org.apache.avro', module: 'avro'
       // already shaded by Parquet
