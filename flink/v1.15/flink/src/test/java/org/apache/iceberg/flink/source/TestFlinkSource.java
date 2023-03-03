@@ -62,6 +62,10 @@ public abstract class TestFlinkSource extends TestFlinkScan {
     FlinkSource.Builder builder = FlinkSource.forRowData();
     Optional.ofNullable(options.get("snapshot-id"))
         .ifPresent(value -> builder.snapshotId(Long.parseLong(value)));
+    Optional.ofNullable(options.get("tag")).ifPresent(value -> builder.tag(value));
+    Optional.ofNullable(options.get("branch")).ifPresent(value -> builder.branch(value));
+    Optional.ofNullable(options.get("start-tag")).ifPresent(value -> builder.startTag(value));
+    Optional.ofNullable(options.get("end-tag")).ifPresent(value -> builder.endTag(value));
     Optional.ofNullable(options.get("start-snapshot-id"))
         .ifPresent(value -> builder.startSnapshotId(Long.parseLong(value)));
     Optional.ofNullable(options.get("end-snapshot-id"))

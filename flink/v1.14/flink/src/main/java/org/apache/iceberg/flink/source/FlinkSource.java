@@ -145,6 +145,16 @@ public class FlinkSource {
       return this;
     }
 
+    public Builder branch(String branch) {
+      readOptions.put(FlinkReadOptions.BRANCH.key(), branch);
+      return this;
+    }
+
+    public Builder tag(String tag) {
+      readOptions.put(FlinkReadOptions.TAG.key(), tag);
+      return this;
+    }
+
     public Builder startSnapshotId(Long startSnapshotId) {
       readOptions.put(FlinkReadOptions.START_SNAPSHOT_ID.key(), Long.toString(startSnapshotId));
       return this;
@@ -152,6 +162,16 @@ public class FlinkSource {
 
     public Builder endSnapshotId(Long endSnapshotId) {
       readOptions.put(FlinkReadOptions.END_SNAPSHOT_ID.key(), Long.toString(endSnapshotId));
+      return this;
+    }
+
+    public Builder startTag(String startTag) {
+      readOptions.put(FlinkReadOptions.START_TAG.key(), startTag);
+      return this;
+    }
+
+    public Builder endTag(String endTag) {
+      readOptions.put(FlinkReadOptions.END_TAG.key(), endTag);
       return this;
     }
 

@@ -61,7 +61,6 @@ public class GlueTestBase {
 
   // iceberg
   static GlueCatalog glueCatalog;
-  static GlueCatalog glueCatalogWithSkip;
   static GlueCatalog glueCatalogWithSkipNameValidation;
 
   static Schema schema =
@@ -75,24 +74,15 @@ public class GlueTestBase {
           TableProperties.WRITE_FOLDER_STORAGE_LOCATION,
               "s3://" + testBucketName + "/writeFolderStorageLoc");
 
+  static final String testBucketPath = "s3://" + testBucketName + "/" + testPathPrefix;
+  static final S3FileIO fileIO = new S3FileIO(clientFactory::s3);
+
   @BeforeClass
   public static void beforeClass() {
-    String testBucketPath = "s3://" + testBucketName + "/" + testPathPrefix;
-    S3FileIO fileIO = new S3FileIO(clientFactory::s3);
     glueCatalog = new GlueCatalog();
-    glueCatalog.initialize(
-        catalogName,
-        testBucketPath,
-        new AwsProperties(),
-        glue,
-        LockManagers.defaultLockManager(),
-        fileIO,
-        ImmutableMap.of());
     AwsProperties properties = new AwsProperties();
-    properties.setGlueCatalogSkipArchive(true);
     properties.setS3FileIoDeleteBatchSize(10);
-    glueCatalogWithSkip = new GlueCatalog();
-    glueCatalogWithSkip.initialize(
+    glueCatalog.initialize(
         catalogName,
         testBucketPath,
         properties,
@@ -100,6 +90,7 @@ public class GlueTestBase {
         LockManagers.defaultLockManager(),
         fileIO,
         ImmutableMap.of());
+
     glueCatalogWithSkipNameValidation = new GlueCatalog();
     AwsProperties propertiesSkipNameValidation = new AwsProperties();
     propertiesSkipNameValidation.setGlueCatalogSkipNameValidation(true);

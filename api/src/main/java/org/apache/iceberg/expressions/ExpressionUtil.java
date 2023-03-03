@@ -156,6 +156,26 @@ public class ExpressionUtil {
         caseSensitive);
   }
 
+  public static String describe(Term term) {
+    if (term instanceof UnboundTransform) {
+      return ((UnboundTransform<?, ?>) term).transform()
+          + "("
+          + describe(((UnboundTransform<?, ?>) term).ref())
+          + ")";
+    } else if (term instanceof BoundTransform) {
+      return ((BoundTransform<?, ?>) term).transform()
+          + "("
+          + describe(((BoundTransform<?, ?>) term).ref())
+          + ")";
+    } else if (term instanceof NamedReference) {
+      return ((NamedReference<?>) term).name();
+    } else if (term instanceof BoundReference) {
+      return ((BoundReference<?>) term).name();
+    } else {
+      throw new UnsupportedOperationException("Unsupported term: " + term);
+    }
+  }
+
   private static class ExpressionSanitizer
       extends ExpressionVisitors.ExpressionVisitor<Expression> {
     private final long now;
@@ -271,19 +291,9 @@ public class ExpressionUtil {
       throw new UnsupportedOperationException("Cannot sanitize bound predicate: " + pred);
     }
 
-    public String termToString(UnboundTerm<?> term) {
-      if (term instanceof UnboundTransform) {
-        return ((UnboundTransform<?, ?>) term).transform() + "(" + termToString(term.ref()) + ")";
-      } else if (term instanceof NamedReference) {
-        return ((NamedReference<?>) term).name();
-      } else {
-        throw new UnsupportedOperationException("Unsupported term: " + term);
-      }
-    }
-
     @Override
     public <T> String predicate(UnboundPredicate<T> pred) {
-      String term = termToString(pred.term());
+      String term = describe(pred.term());
       switch (pred.op()) {
         case IS_NULL:
           return term + " IS NULL";
@@ -412,18 +422,25 @@ public class ExpressionUtil {
   }
 
   private static String sanitizeString(CharSequence value, long now, int today) {
-    if (DATE.matcher(value).matches()) {
-      Literal<Integer> date = Literal.of(value).to(Types.DateType.get());
-      return sanitizeDate(date.value(), today);
-    } else if (TIMESTAMP.matcher(value).matches()) {
-      Literal<Long> ts = Literal.of(value).to(Types.TimestampType.withoutZone());
-      return sanitizeTimestamp(ts.value(), now);
-    } else if (TIMESTAMPTZ.matcher(value).matches()) {
-      Literal<Long> ts = Literal.of(value).to(Types.TimestampType.withZone());
-      return sanitizeTimestamp(ts.value(), now);
-    } else if (TIME.matcher(value).matches()) {
-      return "(time)";
-    } else {
+    try {
+      if (DATE.matcher(value).matches()) {
+        Literal<Integer> date = Literal.of(value).to(Types.DateType.get());
+        return sanitizeDate(date.value(), today);
+      } else if (TIMESTAMP.matcher(value).matches()) {
+        Literal<Long> ts = Literal.of(value).to(Types.TimestampType.withoutZone());
+        return sanitizeTimestamp(ts.value(), now);
+      } else if (TIMESTAMPTZ.matcher(value).matches()) {
+        Literal<Long> ts = Literal.of(value).to(Types.TimestampType.withZone());
+        return sanitizeTimestamp(ts.value(), now);
+      } else if (TIME.matcher(value).matches()) {
+        return "(time)";
+      } else {
+        return sanitizeSimpleString(value);
+      }
+    } catch (Exception ex) {
+      // Don't throw when parsing failed in sanitizeString
+      // because user could provide an invalid integer/date/timestamp string
+      // and expect them to be treated as a string instead of specific type
       return sanitizeSimpleString(value);
     }
   }

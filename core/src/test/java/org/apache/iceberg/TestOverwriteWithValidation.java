@@ -25,6 +25,7 @@ import static org.apache.iceberg.expressions.Expressions.greaterThanOrEqual;
 import static org.apache.iceberg.expressions.Expressions.lessThanOrEqual;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.apache.iceberg.util.SnapshotUtil.latestSnapshot;
 
 import java.io.File;
 import java.io.IOException;

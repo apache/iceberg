@@ -27,10 +27,12 @@ import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Random;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.TestHelpers;
+import org.apache.iceberg.io.BulkDeletionFailureException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -121,6 +123,26 @@ public class HadoopFileIOTest {
   }
 
   @Test
+  public void testDeleteFiles() {
+    Path parent = new Path(tempDir.toURI());
+    List<Path> filesCreated = createRandomFiles(parent, 10);
+    hadoopFileIO.deleteFiles(
+        filesCreated.stream().map(Path::toString).collect(Collectors.toList()));
+    filesCreated.forEach(
+        file -> Assert.assertFalse(hadoopFileIO.newInputFile(file.toString()).exists()));
+  }
+
+  @Test
+  public void testDeleteFilesErrorHandling() {
+    List<String> filesCreated =
+        random.ints(2).mapToObj(x -> "fakefsnotreal://file-" + x).collect(Collectors.toList());
+    Assert.assertThrows(
+        "Should throw a BulkDeletionFailure Exceptions when files can't be deleted",
+        BulkDeletionFailureException.class,
+        () -> hadoopFileIO.deleteFiles(filesCreated));
+  }
+
+  @Test
   public void testHadoopFileIOKryoSerialization() throws IOException {
     FileIO testHadoopFileIO = new HadoopFileIO();
 
@@ -142,17 +164,21 @@ public class HadoopFileIOTest {
     Assert.assertEquals(testHadoopFileIO.properties(), roundTripSerializedFileIO.properties());
   }
 
-  private void createRandomFiles(Path parent, int count) {
+  private List<Path> createRandomFiles(Path parent, int count) {
+    List<Path> paths = Lists.newArrayList();
     random
         .ints(count)
         .parallel()
         .forEach(
             i -> {
               try {
-                fs.createNewFile(new Path(parent, "file-" + i));
+                Path path = new Path(parent, "file-" + i);
+                paths.add(path);
+                fs.createNewFile(path);
               } catch (IOException e) {
                 throw new UncheckedIOException(e);
               }
             });
+    return paths;
   }
 }

@@ -391,7 +391,7 @@ class _ConvertToArrowSchema(SchemaVisitorPerPrimitiveType[pa.DataType], Singleto
         return pa.timestamp(unit="us")
 
     def visit_timestampz(self, _: TimestamptzType) -> pa.DataType:
-        return pa.timestamp(unit="us", tz="+00:00")
+        return pa.timestamp(unit="us", tz="UTC")
 
     def visit_string(self, _: StringType) -> pa.DataType:
         return pa.string()
@@ -450,6 +450,12 @@ class _ConvertToArrowExpression(BoundBooleanExpressionVisitor[pc.Expression]):
     def visit_less_than_or_equal(self, term: BoundTerm[Any], literal: Literal[Any]) -> pc.Expression:
         return pc.field(term.ref().field.name) <= _convert_scalar(literal.value, term.ref().field.field_type)
 
+    def visit_starts_with(self, term: BoundTerm[Any], literal: Literal[Any]) -> pc.Expression:
+        return pc.starts_with(pc.field(term.ref().field.name), literal.value)
+
+    def visit_not_starts_with(self, term: BoundTerm[Any], literal: Literal[Any]) -> pc.Expression:
+        return ~pc.starts_with(pc.field(term.ref().field.name), literal.value)
+
     def visit_true(self) -> pc.Expression:
         return pc.scalar(True)
 
@@ -477,7 +483,7 @@ def _file_to_table(
     projected_schema: Schema,
     projected_field_ids: Set[int],
     case_sensitive: bool,
-) -> pa.Table:
+) -> Optional[pa.Table]:
     _, path = PyArrowFileIO.parse_location(task.file.file_path)
 
     # Get the schema
@@ -512,7 +518,11 @@ def _file_to_table(
             columns=[col.name for col in file_project_schema.columns],
         )
 
-        return to_requested_schema(projected_schema, file_project_schema, arrow_table)
+        # If there is no data, we don't have to go through the schema
+        if len(arrow_table) > 0:
+            return to_requested_schema(projected_schema, file_project_schema, arrow_table)
+        else:
+            return None
 
 
 def project_table(
@@ -544,16 +554,22 @@ def project_table(
     }.union(extract_field_ids(bound_row_filter))
 
     with ThreadPool() as pool:
-        tables = pool.starmap(
-            func=_file_to_table,
-            iterable=[(fs, task, bound_row_filter, projected_schema, projected_field_ids, case_sensitive) for task in tasks],
-            chunksize=None,  # we could use this to control how to materialize the generator of tasks (we should also make the expression above lazy)
-        )
+        tables = [
+            table
+            for table in pool.starmap(
+                func=_file_to_table,
+                iterable=[(fs, task, bound_row_filter, projected_schema, projected_field_ids, case_sensitive) for task in tasks],
+                chunksize=None,  # we could use this to control how to materialize the generator of tasks (we should also make the expression above lazy)
+            )
+            if table is not None
+        ]
 
     if len(tables) > 1:
         return pa.concat_tables(tables)
-    else:
+    elif len(tables) == 1:
         return tables[0]
+    else:
+        return pa.Table.from_batches([], schema=schema_to_pyarrow(projected_schema))
 
 
 def to_requested_schema(requested_schema: Schema, file_schema: Schema, table: pa.Table) -> pa.Table:

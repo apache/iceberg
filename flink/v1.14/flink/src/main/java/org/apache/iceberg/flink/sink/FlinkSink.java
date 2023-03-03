@@ -132,10 +132,7 @@ public class FlinkSink {
     private TableLoader tableLoader;
     private Table table;
     private TableSchema tableSchema;
-    private boolean overwrite = false;
-    private DistributionMode distributionMode = null;
     private Integer writeParallelism = null;
-    private boolean upsert = false;
     private List<String> equalityFieldColumns = null;
     private String uidPrefix = null;
     private final Map<String, String> snapshotProperties = Maps.newHashMap();
@@ -319,6 +316,11 @@ public class FlinkSink {
       return this;
     }
 
+    public Builder toBranch(String branch) {
+      writeOptions.put(FlinkWriteOptions.BRANCH.key(), branch);
+      return this;
+    }
+
     private <T> DataStreamSink<T> chainIcebergOperators() {
       Preconditions.checkArgument(
           inputCreator != null,
@@ -425,7 +427,8 @@ public class FlinkSink {
               tableLoader,
               flinkWriteConf.overwriteMode(),
               snapshotProperties,
-              flinkWriteConf.workerPoolSize());
+              flinkWriteConf.workerPoolSize(),
+              flinkWriteConf.branch());
       SingleOutputStreamOperator<Void> committerStream =
           writerStream
               .transform(operatorName(ICEBERG_FILES_COMMITTER_NAME), Types.VOID, filesCommitter)

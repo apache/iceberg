@@ -384,23 +384,6 @@ public class TableTestBase {
     }
   }
 
-  @SuppressWarnings("checkstyle:HiddenField")
-  Snapshot latestSnapshot(Table table, String branch) {
-    if (branch.equals(SnapshotRef.MAIN_BRANCH)) {
-      return table.currentSnapshot();
-    }
-
-    return table.snapshot(branch);
-  }
-
-  Snapshot latestSnapshot(TableMetadata metadata, String branch) {
-    if (branch.equals(SnapshotRef.MAIN_BRANCH)) {
-      return metadata.currentSnapshot();
-    }
-
-    return metadata.snapshot(metadata.ref(branch).snapshotId());
-  }
-
   void validateSnapshot(Snapshot old, Snapshot snap, Long sequenceNumber, DataFile... newFiles) {
     Assert.assertEquals(
         "Should not change delete manifests",

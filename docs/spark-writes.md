@@ -302,6 +302,14 @@ data.writeTo("prod.db.table")
     .createOrReplace()
 ```
 
+The Iceberg table location can also be specified by the `location` table property:
+
+```scala
+data.writeTo("prod.db.table")
+    .tableProperty("location", "/path/to/location")
+    .createOrReplace()
+```
+
 ## Writing to partitioned tables
 
 Iceberg requires the data to be sorted according to the partition spec per task (Spark partition) in prior to write
