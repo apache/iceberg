@@ -26,7 +26,10 @@ PYICEBERG = "pyiceberg_"
 DEFAULT = "default"
 CATALOG = "catalog"
 DEFAULT_CATALOG = f"{DEFAULT}-{CATALOG}"
-HOME = "HOME"
+if os.name == 'nt':
+    HOME = "USERPROFILE"
+else:
+    HOME = "HOME"
 PYICEBERG_HOME = "PYICEBERG_HOME"
 PYICEBERG_YML = ".pyiceberg.yaml"
 
