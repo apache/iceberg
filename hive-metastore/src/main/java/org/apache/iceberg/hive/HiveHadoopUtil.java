@@ -30,12 +30,11 @@ public class HiveHadoopUtil {
   private HiveHadoopUtil() {}
 
   public static String currentUser() {
-    String username = null;
     try {
-      username = UserGroupInformation.getCurrentUser().getShortUserName();
+      return UserGroupInformation.getCurrentUser().getShortUserName();
     } catch (IOException e) {
       LOG.warn("Failed to get Hadoop user", e);
+      return System.getProperty("user.name");
     }
-    return username != null ? username : System.getProperty("user.name");
   }
 }
