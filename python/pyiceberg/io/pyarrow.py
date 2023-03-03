@@ -45,6 +45,7 @@ from urllib.parse import urlparse
 
 import pyarrow as pa
 import pyarrow.compute as pc
+import pyarrow.dataset as ds
 import pyarrow.parquet as pq
 from pyarrow import ChunkedArray
 from pyarrow.fs import (
@@ -76,6 +77,7 @@ from pyiceberg.io import (
     OutputFile,
     OutputStream,
 )
+from pyiceberg.manifest import DataFile, FileFormat
 from pyiceberg.schema import (
     PartnerAccessor,
     Schema,
@@ -474,18 +476,34 @@ def expression_to_pyarrow(expr: BooleanExpression) -> pc.Expression:
     return boolean_expression_visit(expr, _ConvertToArrowExpression())
 
 
-def _read_deletes(fs: FileSystem, file_path: str) -> Dict[str, pa.ChunkedArray]:
-    _, path = PyArrowFileIO.parse_location(file_path)
-    table = pq.read_table(
-        source=path, pre_buffer=True, buffer_size=8 * ONE_MEGABYTE, read_dictionary=["file_path"], filesystem=fs
+@lru_cache
+def _get_file_format(file_format: FileFormat, **kwargs: Dict[str, Any]) -> ds.FileFormat:
+    if file_format == FileFormat.PARQUET:
+        return ds.ParquetFileFormat(**kwargs)
+    else:
+        raise ValueError(f"Unsupported file format: {file_format}")
+
+
+def _construct_fragment(fs: FileSystem, data_file: DataFile, file_format_kwargs: Dict[str, Any] = EMPTY_DICT) -> ds.Fragment:
+    _, path = PyArrowFileIO.parse_location(data_file.file_path)
+    return _get_file_format(data_file.file_format, **file_format_kwargs).make_fragment(path, fs)
+
+
+def _read_deletes(fs: FileSystem, data_file: DataFile) -> Dict[str, pa.ChunkedArray]:
+    delete_fragment = _construct_fragment(
+        fs, data_file, file_format_kwargs={"dictionary_columns": ("file_path",), "pre_buffer": True, "buffer_size": ONE_MEGABYTE}
     )
+    table = ds.Scanner.from_fragment(
+        fragment=delete_fragment,
+    ).to_table()
     table.unify_dictionaries()
     return {
-        file.as_py(): table.filter(pc.field("file_path") == file).column("pos") for file in table.columns[0].chunks[0].dictionary
+        file.as_py(): table.filter(pc.field("file_path") == file).column("pos")
+        for file in table.column("file_path").chunks[0].dictionary
     }
 
 
-def _file_to_table(
+def _task_to_table(
     fs: FileSystem,
     task: FileScanTask,
     bound_row_filter: BooleanExpression,
@@ -530,6 +548,9 @@ def _file_to_table(
 
         if positional_deletes is not None:
             # When there are positional deletes, create a filter mask
+            # there is room for optimization here, maybe we can sort
+            # them earlier at insertion, but then you might need to do
+            # additional copying
             sorted_deleted = iter(positional_deletes.combine_chunks().sort())
 
             def generator() -> Generator[bool, None, None]:
@@ -539,7 +560,7 @@ def _file_to_table(
                         yield True
                         try:
                             deleted_pos = next(sorted_deleted).as_py()
-                        except:
+                        except StopIteration:
                             deleted_pos = -1
                     else:
                         yield False
@@ -583,23 +604,25 @@ def project_table(
     }.union(extract_field_ids(bound_row_filter))
 
     with ThreadPool() as pool:
+        # Fetch the deletes
         deletes_per_file: Dict[str, ChunkedArray] = {}
-        unique_deletes = set(chain.from_iterable([{delete_file.file_path for delete_file in task.delete_files} for task in tasks]))
-        deletes_per_files: List[Dict[str, ChunkedArray]] = pool.starmap(
-            func=_read_deletes, iterable=[(fs, delete) for delete in unique_deletes]
-        )
+        unique_deletes = set(chain.from_iterable([task.delete_files for task in tasks]))
+        if len(unique_deletes) > 0:
+            deletes_per_files: List[Dict[str, ChunkedArray]] = pool.starmap(
+                func=_read_deletes, iterable=[(fs, delete) for delete in unique_deletes]
+            )
+            for delete in deletes_per_files:
+                for file, arr in delete.items():
+                    if first_arr := deletes_per_file.get(file):
+                        deletes_per_file[file] = pa.chunked_array([first_arr, arr], first_arr.type)
+                    else:
+                        deletes_per_file[file] = arr
 
-        for delete in deletes_per_files:
-            for file, arr in delete.items():
-                if first_arr := deletes_per_file.get(file):
-                    deletes_per_file[file] = pa.chunked_array([first_arr, arr], first_arr.type)
-                else:
-                    deletes_per_file[file] = arr
-
+        # Fetch teh data
         tables = [
             table
             for table in pool.starmap(
-                func=_file_to_table,
+                func=_task_to_table,
                 iterable=[
                     (
                         fs,
