@@ -434,8 +434,6 @@ public class TestCreateChangelogViewProcedure extends SparkExtensionsTestBase {
 
     String viewName = (String) returns.get(0)[0];
 
-    // the carry-over rows (2, 'e', 12, 'DELETE', 1), (2, 'e', 12, 'INSERT', 1) are removed, even
-    // though update-row is not computed
     assertEquals(
         "Rows should match",
         ImmutableList.of(
