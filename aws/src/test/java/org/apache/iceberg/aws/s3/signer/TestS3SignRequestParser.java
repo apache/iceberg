@@ -126,7 +126,7 @@ public class TestS3SignRequestParser {
                     "Content-Type",
                     Arrays.asList("application/json"),
                     "User-Agent",
-                    Arrays.asList("aws-sdk-java/2.17.257", "Linux/5.4.0-126")))
+                    Arrays.asList("aws-sdk-java/2.20.16", "Linux/5.4.0-126")))
             .build();
 
     String json = S3SignRequestParser.toJson(s3SignRequest, true);
@@ -141,7 +141,7 @@ public class TestS3SignRequestParser {
                 + "    \"amz-sdk-request\" : [ \"attempt=1\", \"max=4\" ],\n"
                 + "    \"Content-Length\" : [ \"191\" ],\n"
                 + "    \"Content-Type\" : [ \"application/json\" ],\n"
-                + "    \"User-Agent\" : [ \"aws-sdk-java/2.17.257\", \"Linux/5.4.0-126\" ]\n"
+                + "    \"User-Agent\" : [ \"aws-sdk-java/2.20.16\", \"Linux/5.4.0-126\" ]\n"
                 + "  }\n"
                 + "}");
   }
@@ -162,7 +162,7 @@ public class TestS3SignRequestParser {
                     "Content-Type",
                     Arrays.asList("application/json"),
                     "User-Agent",
-                    Arrays.asList("aws-sdk-java/2.17.257", "Linux/5.4.0-126")))
+                    Arrays.asList("aws-sdk-java/2.20.16", "Linux/5.4.0-126")))
             .properties(ImmutableMap.of("k1", "v1"))
             .build();
 
@@ -178,7 +178,7 @@ public class TestS3SignRequestParser {
                 + "    \"amz-sdk-request\" : [ \"attempt=1\", \"max=4\" ],\n"
                 + "    \"Content-Length\" : [ \"191\" ],\n"
                 + "    \"Content-Type\" : [ \"application/json\" ],\n"
-                + "    \"User-Agent\" : [ \"aws-sdk-java/2.17.257\", \"Linux/5.4.0-126\" ]\n"
+                + "    \"User-Agent\" : [ \"aws-sdk-java/2.20.16\", \"Linux/5.4.0-126\" ]\n"
                 + "  },\n"
                 + "  \"properties\" : {\n"
                 + "    \"k1\" : \"v1\"\n"
