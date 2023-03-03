@@ -86,7 +86,7 @@ class Config:
         if pyiceberg_home_config := _load_yaml(os.environ.get(PYICEBERG_HOME)):
             return pyiceberg_home_config
         # Look into the home directory
-        if pyiceberg_home_config := _load_yaml(os.path.expanduser('~')):
+        if pyiceberg_home_config := _load_yaml(os.path.expanduser("~")):
             return pyiceberg_home_config
         # Didn't find a config
         return None
