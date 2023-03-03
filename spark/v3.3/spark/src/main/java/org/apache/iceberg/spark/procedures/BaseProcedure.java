@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.spark.procedures;
 
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -31,6 +32,8 @@ import org.apache.iceberg.spark.Spark3Util.CatalogAndIdentifier;
 import org.apache.iceberg.spark.actions.SparkActions;
 import org.apache.iceberg.spark.procedures.SparkProcedures.ProcedureBuilder;
 import org.apache.iceberg.spark.source.SparkTable;
+import org.apache.spark.sql.Dataset;
+import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
@@ -143,6 +146,12 @@ abstract class BaseProcedure implements Procedure {
           String.format("Couldn't load table '%s' in catalog '%s'", ident, tableCatalog.name());
       throw new RuntimeException(errMsg, e);
     }
+  }
+
+  protected Dataset<Row> loadDataSetFromTable(Identifier tableIdent, Map<String, String> options) {
+    String tableName = Spark3Util.quotedFullIdentifier(tableCatalog().name(), tableIdent);
+    // no need to validate the read options here since the reader will validate them
+    return spark().read().options(options).table(tableName);
   }
 
   protected void refreshSparkCache(Identifier ident, Table table) {

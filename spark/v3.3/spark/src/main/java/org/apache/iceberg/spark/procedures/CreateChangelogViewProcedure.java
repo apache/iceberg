@@ -27,7 +27,6 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.ChangelogIterator;
-import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.source.SparkChangelogTable;
 import org.apache.spark.api.java.function.MapPartitionsFunction;
 import org.apache.spark.sql.Column;
@@ -43,7 +42,6 @@ import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.unsafe.types.UTF8String;
-import org.jetbrains.annotations.NotNull;
 import scala.runtime.BoxedUnit;
 
 /**
@@ -134,19 +132,13 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
     Identifier tableIdent =
         toIdentifier(args.getString(TABLE_NAME_ORDINAL), PARAMETERS[TABLE_NAME_ORDINAL].name());
 
-    // Read data from the table.changes
-    Dataset<Row> df = changelogRecords(changelogTableName(tableIdent), readOptions(args));
+    // load insert and deletes from the changelog table
+    Identifier changelogTableIdent = changelogTableIdent(tableIdent);
+    Dataset<Row> df = loadDataSetFromTable(changelogTableIdent, options(args));
 
-    if (computeUpdateImages(args)) {
-      String[] identifierColumns = identifierColumns(args);
-
-      Preconditions.checkArgument(
-          identifierColumns.length > 0,
-          "Cannot compute the update-rows because identifier columns are not set");
-
-      Column[] repartitionColumns = getRepartitionExpr(df, identifierColumns);
-      df = transform(df, repartitionColumns);
-    } else if (removeCarryoverRows(args)) {
+    if (shouldComputeUpdateImages(args)) {
+      df = computeUpdateImages(identifierColumns(args, tableIdent), df);
+    } else if (shouldRemoveCarryoverRows(args)) {
       df = removeCarryoverRows(df);
     }
 
@@ -157,23 +149,36 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
     return toOutputRows(viewName);
   }
 
-  private boolean computeUpdateImages(InternalRow args) {
-    if (!args.isNullAt(COMPUTE_UPDATES_ORDINAL)) {
-      return args.getBoolean(COMPUTE_UPDATES_ORDINAL);
-    }
+  private Dataset<Row> computeUpdateImages(String[] identifierColumns, Dataset<Row> df) {
+    Preconditions.checkArgument(
+        identifierColumns.length > 0,
+        "Cannot compute the update-rows because identifier columns are not set");
 
-    // If the identifier columns are set, we compute pre/post update images by default.
-    if (!args.isNullAt(IDENTIFIER_COLUMNS_ORDINAL)) {
-      return true;
+    Column[] repartitionColumns = new Column[identifierColumns.length + 1];
+    for (int i = 0; i < identifierColumns.length; i++) {
+      repartitionColumns[i] = df.col(identifierColumns[i]);
     }
+    repartitionColumns[repartitionColumns.length - 1] =
+        df.col(MetadataColumns.CHANGE_ORDINAL.name());
 
-    return false;
+    return applyChangelogIterator(df, repartitionColumns);
   }
 
-  private boolean removeCarryoverRows(InternalRow args) {
-    return args.isNullAt(REMOVE_CARRYOVERS_ORDINAL)
-        ? true
-        : args.getBoolean(REMOVE_CARRYOVERS_ORDINAL);
+  private boolean shouldComputeUpdateImages(InternalRow args) {
+    if (!args.isNullAt(COMPUTE_UPDATES_ORDINAL)) {
+      return args.getBoolean(COMPUTE_UPDATES_ORDINAL);
+    } else {
+      // If the identifier columns are set, we compute pre/post update images by default.
+      return !args.isNullAt(IDENTIFIER_COLUMNS_ORDINAL);
+    }
+  }
+
+  private boolean shouldRemoveCarryoverRows(InternalRow args) {
+    if (args.isNullAt(REMOVE_CARRYOVERS_ORDINAL)) {
+      return true;
+    } else {
+      return args.getBoolean(REMOVE_CARRYOVERS_ORDINAL);
+    }
   }
 
   private Dataset<Row> removeCarryoverRows(Dataset<Row> df) {
@@ -182,44 +187,28 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
             .filter(c -> !c.equals(MetadataColumns.CHANGE_TYPE.name()))
             .map(df::col)
             .toArray(Column[]::new);
-    return transform(df, repartitionColumns);
+    return applyChangelogIterator(df, repartitionColumns);
   }
 
-  private String[] identifierColumns(InternalRow args) {
-    String[] identifierColumns = new String[0];
-
+  private String[] identifierColumns(InternalRow args, Identifier tableIdent) {
     if (!args.isNullAt(IDENTIFIER_COLUMNS_ORDINAL)) {
-      identifierColumns =
-          Arrays.stream(args.getArray(IDENTIFIER_COLUMNS_ORDINAL).array())
-              .map(column -> column.toString())
-              .toArray(String[]::new);
-    }
-
-    if (identifierColumns.length == 0) {
-      Identifier tableIdent =
-          toIdentifier(args.getString(TABLE_NAME_ORDINAL), PARAMETERS[TABLE_NAME_ORDINAL].name());
+      return Arrays.stream(args.getArray(IDENTIFIER_COLUMNS_ORDINAL).array())
+          .map(column -> column.toString())
+          .toArray(String[]::new);
+    } else {
       Table table = loadSparkTable(tableIdent).table();
-      identifierColumns = table.schema().identifierFieldNames().toArray(new String[0]);
+      return table.schema().identifierFieldNames().toArray(new String[0]);
     }
-
-    return identifierColumns;
   }
 
-  private Dataset<Row> changelogRecords(String tableName, Map<String, String> readOptions) {
-    // no need to validate the read options here since the reader will validate them
-    return spark().read().options(readOptions).table(tableName);
-  }
-
-  private String changelogTableName(Identifier tableIdent) {
+  private Identifier changelogTableIdent(Identifier tableIdent) {
     List<String> namespace = Lists.newArrayList();
     namespace.addAll(Arrays.asList(tableIdent.namespace()));
     namespace.add(tableIdent.name());
-    Identifier changelogTableIdent =
-        Identifier.of(namespace.toArray(new String[0]), SparkChangelogTable.TABLE_NAME);
-    return Spark3Util.quotedFullIdentifier(tableCatalog().name(), changelogTableIdent);
+    return Identifier.of(namespace.toArray(new String[0]), SparkChangelogTable.TABLE_NAME);
   }
 
-  private Map<String, String> readOptions(InternalRow args) {
+  private Map<String, String> options(InternalRow args) {
     Map<String, String> options = Maps.newHashMap();
 
     if (!args.isNullAt(OPTIONS_ORDINAL)) {
@@ -236,21 +225,15 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
     return options;
   }
 
-  @NotNull
   private static String viewName(InternalRow args, String tableName) {
-    String viewName =
-        args.isNullAt(CHANGELOG_VIEW_NAME_ORDINAL)
-            ? null
-            : args.getString(CHANGELOG_VIEW_NAME_ORDINAL);
-    if (viewName == null) {
-      String shortTableName =
-          tableName.contains(".") ? tableName.substring(tableName.lastIndexOf(".") + 1) : tableName;
-      viewName = shortTableName + "_changes";
+    if (args.isNullAt(CHANGELOG_VIEW_NAME_ORDINAL)) {
+      return String.format("`%s_changes`", tableName);
+    } else {
+      return args.getString(CHANGELOG_VIEW_NAME_ORDINAL);
     }
-    return viewName;
   }
 
-  private Dataset<Row> transform(Dataset<Row> df, Column[] repartitionColumns) {
+  private Dataset<Row> applyChangelogIterator(Dataset<Row> df, Column[] repartitionColumns) {
     Column[] sortSpec = sortSpec(df, repartitionColumns);
     StructType schema = df.schema();
     String[] identifierFields =
@@ -261,25 +244,9 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
         .mapPartitions(
             (MapPartitionsFunction<Row, Row>)
                 rowIterator -> ChangelogIterator.create(rowIterator, schema, identifierFields),
-            RowEncoder.apply(df.schema()));
+            RowEncoder.apply(schema));
   }
 
-  @NotNull
-  private static Column[] getRepartitionExpr(Dataset<Row> df, String[] identifiers) {
-    Column[] repartitionSpec = new Column[identifiers.length + 1];
-    for (int i = 0; i < identifiers.length; i++) {
-      try {
-        repartitionSpec[i] = df.col(identifiers[i]);
-      } catch (Exception e) {
-        throw new IllegalArgumentException(
-            String.format("Identifier column '%s' does not exist in the table", identifiers[i]), e);
-      }
-    }
-    repartitionSpec[repartitionSpec.length - 1] = df.col(MetadataColumns.CHANGE_ORDINAL.name());
-    return repartitionSpec;
-  }
-
-  @NotNull
   private static Column[] sortSpec(Dataset<Row> df, Column[] repartitionSpec) {
     Column[] sortSpec = new Column[repartitionSpec.length + 1];
     System.arraycopy(repartitionSpec, 0, sortSpec, 0, repartitionSpec.length);

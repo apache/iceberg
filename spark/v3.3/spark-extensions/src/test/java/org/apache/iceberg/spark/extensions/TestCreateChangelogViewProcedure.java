@@ -27,7 +27,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.spark.SparkReadOptions;
 import org.junit.After;
 import org.junit.Assert;
-import org.junit.Before;
 import org.junit.Test;
 
 public class TestCreateChangelogViewProcedure extends SparkExtensionsTestBase {
@@ -41,8 +40,32 @@ public class TestCreateChangelogViewProcedure extends SparkExtensionsTestBase {
     super(catalogName, implementation, config);
   }
 
+  @After
+  public void removeTable() {
+    sql("DROP TABLE IF EXISTS %s", tableName);
+  }
+
+  public void createTableWith2Columns() {
+    sql("CREATE TABLE %s (id INT, data STRING) USING iceberg", tableName);
+    sql("ALTER TABLE %s SET TBLPROPERTIES ('format-version'='%d')", tableName, 1);
+    sql("ALTER TABLE %s ADD PARTITION FIELD data", tableName);
+  }
+
+  private void createTableWith3Columns() {
+    sql("CREATE TABLE %s (id INT, data STRING, age INT) USING iceberg", tableName);
+    sql("ALTER TABLE %s SET TBLPROPERTIES ('format-version'='%d')", tableName, 1);
+    sql("ALTER TABLE %s ADD PARTITION FIELD id", tableName);
+  }
+
+  private void createTableWithIdentifierField() {
+    sql("CREATE TABLE %s (id INT NOT NULL, data STRING) USING iceberg", tableName);
+    sql("ALTER TABLE %s SET TBLPROPERTIES ('format-version'='%d')", tableName, 1);
+    sql("ALTER TABLE %s SET IDENTIFIER FIELDS id", tableName);
+  }
+
   @Test
   public void testCustomizedViewName() {
+    createTableWith2Columns();
     sql("INSERT INTO %s VALUES (1, 'a')", tableName);
     sql("INSERT INTO %s VALUES (2, 'b')", tableName);
 
@@ -75,6 +98,7 @@ public class TestCreateChangelogViewProcedure extends SparkExtensionsTestBase {
 
   @Test
   public void testNoSnapshotIdInput() {
+    createTableWith2Columns();
     sql("INSERT INTO %s VALUES (1, 'a')", tableName);
     Table table = validationCatalog.loadTable(tableIdent);
     Snapshot snap0 = table.currentSnapshot();
@@ -105,6 +129,7 @@ public class TestCreateChangelogViewProcedure extends SparkExtensionsTestBase {
 
   @Test
   public void testTimestampsBasedQuery() {
+    createTableWith2Columns();
     long beginning = System.currentTimeMillis();
 
     sql("INSERT INTO %s VALUES (1, 'a')", tableName);
@@ -164,6 +189,7 @@ public class TestCreateChangelogViewProcedure extends SparkExtensionsTestBase {
 
   @Test
   public void testWithCarryovers() {
+    createTableWith2Columns();
     sql("INSERT INTO %s VALUES (1, 'a')", tableName);
     Table table = validationCatalog.loadTable(tableIdent);
     Snapshot snap0 = table.currentSnapshot();
@@ -198,6 +224,7 @@ public class TestCreateChangelogViewProcedure extends SparkExtensionsTestBase {
 
   @Test
   public void testUpdate() {
+    createTableWith2Columns();
     sql("ALTER TABLE %s DROP PARTITION FIELD data", tableName);
     sql("ALTER TABLE %s ADD PARTITION FIELD id", tableName);
 
@@ -228,7 +255,6 @@ public class TestCreateChangelogViewProcedure extends SparkExtensionsTestBase {
 
   @Test
   public void testUpdateWithIdentifierField() {
-    removeTables();
     createTableWithIdentifierField();
 
     sql("INSERT INTO %s VALUES (2, 'b')", tableName);
@@ -257,6 +283,7 @@ public class TestCreateChangelogViewProcedure extends SparkExtensionsTestBase {
 
   @Test
   public void testUpdateWithFilter() {
+    createTableWith2Columns();
     sql("ALTER TABLE %s DROP PARTITION FIELD data", tableName);
     sql("ALTER TABLE %s ADD PARTITION FIELD id", tableName);
 
@@ -288,7 +315,6 @@ public class TestCreateChangelogViewProcedure extends SparkExtensionsTestBase {
 
   @Test
   public void testUpdateWithMultipleIdentifierColumns() {
-    removeTables();
     createTableWith3Columns();
 
     sql("INSERT INTO %s VALUES (1, 'a', 12), (2, 'b', 11)", tableName);
@@ -321,7 +347,6 @@ public class TestCreateChangelogViewProcedure extends SparkExtensionsTestBase {
 
   @Test
   public void testRemoveCarryOvers() {
-    removeTables();
     createTableWith3Columns();
 
     sql("INSERT INTO %s VALUES (1, 'a', 12), (2, 'b', 11), (2, 'e', 12)", tableName);
@@ -356,7 +381,6 @@ public class TestCreateChangelogViewProcedure extends SparkExtensionsTestBase {
 
   @Test
   public void testRemoveCarryOversWithoutUpdatedRows() {
-    removeTables();
     createTableWith3Columns();
 
     sql("INSERT INTO %s VALUES (1, 'a', 12), (2, 'b', 11), (2, 'e', 12)", tableName);
@@ -369,11 +393,7 @@ public class TestCreateChangelogViewProcedure extends SparkExtensionsTestBase {
     Snapshot snap2 = table.currentSnapshot();
 
     List<Object[]> returns =
-        sql(
-            "CALL %s.system.create_changelog_view("
-                + "compute_updates => false,"
-                + "table => '%s')",
-            catalogName, tableName);
+        sql("CALL %s.system.create_changelog_view(table => '%s')", catalogName, tableName);
 
     String viewName = (String) returns.get(0)[0];
 
@@ -393,7 +413,6 @@ public class TestCreateChangelogViewProcedure extends SparkExtensionsTestBase {
 
   @Test
   public void testNotRemoveCarryOvers() {
-    removeTables();
     createTableWith3Columns();
 
     sql("INSERT INTO %s VALUES (1, 'a', 12), (2, 'b', 11), (2, 'e', 12)", tableName);
@@ -429,29 +448,5 @@ public class TestCreateChangelogViewProcedure extends SparkExtensionsTestBase {
             row(2, "e", 12, INSERT, 1, snap2.snapshotId()),
             row(3, "c", 13, INSERT, 1, snap2.snapshotId())),
         sql("select * from %s order by _change_ordinal, id, data, _change_type", viewName));
-  }
-
-  @Before
-  public void setupTable() {
-    sql("CREATE TABLE %s (id INT, data STRING) USING iceberg", tableName);
-    sql("ALTER TABLE %s SET TBLPROPERTIES ('format-version'='%d')", tableName, 1);
-    sql("ALTER TABLE %s ADD PARTITION FIELD data", tableName);
-  }
-
-  @After
-  public void removeTables() {
-    sql("DROP TABLE IF EXISTS %s", tableName);
-  }
-
-  private void createTableWith3Columns() {
-    sql("CREATE TABLE %s (id INT, data STRING, age INT) USING iceberg", tableName);
-    sql("ALTER TABLE %s SET TBLPROPERTIES ('format-version'='%d')", tableName, 1);
-    sql("ALTER TABLE %s ADD PARTITION FIELD id", tableName);
-  }
-
-  private void createTableWithIdentifierField() {
-    sql("CREATE TABLE %s (id INT NOT NULL, data STRING) USING iceberg", tableName);
-    sql("ALTER TABLE %s SET TBLPROPERTIES ('format-version'='%d')", tableName, 1);
-    sql("ALTER TABLE %s SET IDENTIFIER FIELDS id", tableName);
   }
 }
