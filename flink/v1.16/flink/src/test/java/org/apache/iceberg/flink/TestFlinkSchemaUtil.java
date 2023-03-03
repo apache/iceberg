@@ -270,7 +270,7 @@ public class TestFlinkSchemaUtil {
                             DataTypes.FIELD(
                                 "field_timestamp_with_local_time_zone",
                                 DataTypes.TIMESTAMP_WITH_LOCAL_TIME_ZONE())))
-                    .notNull()), /* Required */
+                    .nullable()), /* Required */
             Column.physical(
                 "list_map_fields",
                 DataTypes.ARRAY(

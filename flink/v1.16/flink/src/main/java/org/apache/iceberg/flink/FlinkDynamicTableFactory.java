@@ -27,7 +27,7 @@ import org.apache.flink.table.catalog.CatalogBaseTable;
 import org.apache.flink.table.catalog.CatalogDatabaseImpl;
 import org.apache.flink.table.catalog.ObjectIdentifier;
 import org.apache.flink.table.catalog.ObjectPath;
-import org.apache.flink.table.catalog.ResolvedCatalogBaseTable;
+import org.apache.flink.table.catalog.ResolvedCatalogTable;
 import org.apache.flink.table.catalog.ResolvedSchema;
 import org.apache.flink.table.catalog.exceptions.DatabaseAlreadyExistException;
 import org.apache.flink.table.catalog.exceptions.TableAlreadyExistException;
@@ -83,7 +83,7 @@ public class FlinkDynamicTableFactory
   @Override
   public DynamicTableSource createDynamicTableSource(Context context) {
     ObjectIdentifier objectIdentifier = context.getObjectIdentifier();
-    ResolvedCatalogBaseTable catalogTable = context.getCatalogTable();
+    ResolvedCatalogTable catalogTable = context.getCatalogTable();
     Map<String, String> tableProps = catalogTable.getOptions();
     ResolvedSchema tableSchema = catalogTable.getResolvedSchema();
 
@@ -105,7 +105,7 @@ public class FlinkDynamicTableFactory
   @Override
   public DynamicTableSink createDynamicTableSink(Context context) {
     ObjectPath objectPath = context.getObjectIdentifier().toObjectPath();
-    ResolvedCatalogBaseTable catalogTable = context.getCatalogTable();
+    ResolvedCatalogTable catalogTable = context.getCatalogTable();
     Map<String, String> writeProps = catalogTable.getOptions();
     ResolvedSchema tableSchema = catalogTable.getResolvedSchema();
 

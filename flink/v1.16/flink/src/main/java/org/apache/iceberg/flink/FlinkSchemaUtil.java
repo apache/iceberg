@@ -24,7 +24,7 @@ import java.util.Set;
 import java.util.UUID;
 import org.apache.flink.table.catalog.CatalogBaseTable;
 import org.apache.flink.table.catalog.Column;
-import org.apache.flink.table.catalog.ResolvedCatalogBaseTable;
+import org.apache.flink.table.catalog.ResolvedCatalogTable;
 import org.apache.flink.table.catalog.ResolvedSchema;
 import org.apache.flink.table.catalog.UniqueConstraint;
 import org.apache.flink.table.types.logical.LogicalType;
@@ -62,8 +62,8 @@ public class FlinkSchemaUtil {
   private FlinkSchemaUtil() {}
 
   public static Schema convert(CatalogBaseTable table) {
-    if (table instanceof ResolvedCatalogBaseTable) {
-      ResolvedCatalogBaseTable catalogBaseTable = (ResolvedCatalogBaseTable) table;
+    if (table instanceof ResolvedCatalogTable) {
+      ResolvedCatalogTable catalogBaseTable = (ResolvedCatalogTable) table;
       return convert(catalogBaseTable.getResolvedSchema());
     }
     throw new IllegalArgumentException("Unknown kind of catalog base table: " + table.getClass());
