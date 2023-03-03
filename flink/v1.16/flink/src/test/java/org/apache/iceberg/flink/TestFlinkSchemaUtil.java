@@ -22,7 +22,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import org.apache.flink.table.api.DataTypes;
-import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.api.ValidationException;
 import org.apache.flink.table.catalog.Column;
 import org.apache.flink.table.catalog.ResolvedSchema;
@@ -377,9 +376,10 @@ public class TestFlinkSchemaUtil {
 
     List<Column> columns = Lists.newArrayList();
     Column intColumn = Column.physical("int", DataTypes.INT().notNull());
-    Column stringColumn = Column.physical("string", DataTypes.STRING().notNull());
+    Column stringColumn = Column.physical("string", DataTypes.STRING().nullable());
     columns.add(intColumn);
     columns.add(stringColumn);
+
     UniqueConstraint primaryKey = UniqueConstraint.primaryKey("name", Arrays.asList("int"));
     ResolvedSchema projectedSchema =
         new ResolvedSchema(columns, Collections.emptyList(), primaryKey);
@@ -398,7 +398,7 @@ public class TestFlinkSchemaUtil {
                 Types.NestedField.required(2, "string", Types.StringType.get())),
             Sets.newHashSet(1, 2));
 
-    TableSchema tableSchema = FlinkSchemaUtil.toSchema(icebergSchema);
+    ResolvedSchema tableSchema = FlinkSchemaUtil.toSchema(icebergSchema);
     Assert.assertTrue(tableSchema.getPrimaryKey().isPresent());
     Assert.assertEquals(
         ImmutableSet.of("int", "string"),

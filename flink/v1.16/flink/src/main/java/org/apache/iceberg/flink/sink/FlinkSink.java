@@ -101,7 +101,7 @@ public class FlinkSink {
   /**
    * Initialize a {@link Builder} to export the data from input data stream with {@link Row}s into
    * iceberg table. We use {@link RowData} inside the sink connector, so users need to provide a
-   * {@link TableSchema} for builder to convert those {@link Row}s to a {@link RowData} DataStream.
+   * {@link ResolvedSchema} for builder to convert those {@link Row}s to a {@link RowData} DataStream.
    *
    * @param input the source input data stream with {@link Row}s.
    * @param tableSchema defines the {@link TypeInformation} for input data.
