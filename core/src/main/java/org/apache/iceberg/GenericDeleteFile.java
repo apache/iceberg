@@ -19,6 +19,7 @@
 package org.apache.iceberg;
 
 import java.nio.ByteBuffer;
+import java.util.List;
 import org.apache.avro.Schema;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -40,6 +41,7 @@ class GenericDeleteFile extends BaseFile<DeleteFile> implements DeleteFile {
       Metrics metrics,
       int[] equalityFieldIds,
       Integer sortOrderId,
+      List<Long> splitOffsets,
       ByteBuffer keyMetadata) {
     super(
         specId,
@@ -55,7 +57,7 @@ class GenericDeleteFile extends BaseFile<DeleteFile> implements DeleteFile {
         metrics.nanValueCounts(),
         metrics.lowerBounds(),
         metrics.upperBounds(),
-        null,
+        splitOffsets,
         equalityFieldIds,
         sortOrderId,
         keyMetadata);
