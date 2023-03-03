@@ -21,10 +21,12 @@ package org.apache.iceberg;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.Tasks;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -82,5 +84,26 @@ abstract class FileCleanupStrategy {
         .onFailure(
             (file, thrown) -> LOG.warn("Delete failed for {} file: {}", fileType, file, thrown))
         .run(deleteFunc::accept);
+  }
+
+  protected Set<String> expiredStatisticsFilesLocations(
+      TableMetadata beforeExpiration, TableMetadata afterExpiration) {
+    Set<String> statsFileLocationsBeforeExpiration = statsFileLocations(beforeExpiration);
+    Set<String> statsFileLocationsAfterExpiration = statsFileLocations(afterExpiration);
+
+    return Sets.difference(statsFileLocationsBeforeExpiration, statsFileLocationsAfterExpiration);
+  }
+
+  private Set<String> statsFileLocations(TableMetadata tableMetadata) {
+    Set<String> statsFileLocations = Sets.newHashSet();
+
+    if (tableMetadata.statisticsFiles() != null) {
+      statsFileLocations =
+          tableMetadata.statisticsFiles().stream()
+              .map(StatisticsFile::path)
+              .collect(Collectors.toSet());
+    }
+
+    return statsFileLocations;
   }
 }

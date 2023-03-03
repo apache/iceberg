@@ -29,6 +29,8 @@ import java.util.function.Function;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.transforms.Transforms;
@@ -83,6 +85,24 @@ public class ExpressionUtil {
   }
 
   /**
+   * Extracts an expression that references only the given column IDs from the given expression.
+   *
+   * <p>The result is inclusive. If a row would match the original filter, it must match the result
+   * filter.
+   *
+   * @param expression a filter Expression
+   * @param schema a Schema
+   * @param caseSensitive whether binding is case sensitive
+   * @param ids field IDs used to match predicates to extract from the expression
+   * @return an Expression that selects at least the same rows as the original using only the IDs
+   */
+  public static Expression extractByIdInclusive(
+      Expression expression, Schema schema, boolean caseSensitive, int... ids) {
+    PartitionSpec spec = identitySpec(schema, ids);
+    return Projections.inclusive(spec, caseSensitive).project(Expressions.rewriteNot(expression));
+  }
+
+  /**
    * Returns whether two unbound expressions will accept the same inputs.
    *
    * <p>If this returns true, the expressions are guaranteed to return the same evaluation for the
@@ -102,6 +122,22 @@ public class ExpressionUtil {
   }
 
   /**
+   * Returns whether an expression selects whole partitions for all partition specs in a table.
+   *
+   * <p>For example, ts &lt; '2021-03-09T10:00:00.000' selects whole partitions in an hourly spec,
+   * [hours(ts)], but does not select whole partitions in a daily spec, [days(ts)].
+   *
+   * @param expr an unbound expression
+   * @param table a table
+   * @param caseSensitive whether expression binding should be case sensitive
+   * @return true if the expression will select whole partitions in all table specs
+   */
+  public static boolean selectsPartitions(Expression expr, Table table, boolean caseSensitive) {
+    return table.specs().values().stream()
+        .allMatch(spec -> selectsPartitions(expr, spec, caseSensitive));
+  }
+
+  /**
    * Returns whether an expression selects whole partitions for a partition spec.
    *
    * <p>For example, ts &lt; '2021-03-09T10:00:00.000' selects whole partitions in an hourly spec,
@@ -118,6 +154,26 @@ public class ExpressionUtil {
         Projections.strict(spec, caseSensitive).project(expr),
         spec.partitionType(),
         caseSensitive);
+  }
+
+  public static String describe(Term term) {
+    if (term instanceof UnboundTransform) {
+      return ((UnboundTransform<?, ?>) term).transform()
+          + "("
+          + describe(((UnboundTransform<?, ?>) term).ref())
+          + ")";
+    } else if (term instanceof BoundTransform) {
+      return ((BoundTransform<?, ?>) term).transform()
+          + "("
+          + describe(((BoundTransform<?, ?>) term).ref())
+          + ")";
+    } else if (term instanceof NamedReference) {
+      return ((NamedReference<?>) term).name();
+    } else if (term instanceof BoundReference) {
+      return ((BoundReference<?>) term).name();
+    } else {
+      throw new UnsupportedOperationException("Unsupported term: " + term);
+    }
   }
 
   private static class ExpressionSanitizer
@@ -235,19 +291,9 @@ public class ExpressionUtil {
       throw new UnsupportedOperationException("Cannot sanitize bound predicate: " + pred);
     }
 
-    public String termToString(UnboundTerm<?> term) {
-      if (term instanceof UnboundTransform) {
-        return ((UnboundTransform<?, ?>) term).transform() + "(" + termToString(term.ref()) + ")";
-      } else if (term instanceof NamedReference) {
-        return ((NamedReference<?>) term).name();
-      } else {
-        throw new UnsupportedOperationException("Unsupported term: " + term);
-      }
-    }
-
     @Override
     public <T> String predicate(UnboundPredicate<T> pred) {
-      String term = termToString(pred.term());
+      String term = describe(pred.term());
       switch (pred.op()) {
         case IS_NULL:
           return term + " IS NULL";
@@ -376,18 +422,25 @@ public class ExpressionUtil {
   }
 
   private static String sanitizeString(CharSequence value, long now, int today) {
-    if (DATE.matcher(value).matches()) {
-      Literal<Integer> date = Literal.of(value).to(Types.DateType.get());
-      return sanitizeDate(date.value(), today);
-    } else if (TIMESTAMP.matcher(value).matches()) {
-      Literal<Long> ts = Literal.of(value).to(Types.TimestampType.withoutZone());
-      return sanitizeTimestamp(ts.value(), now);
-    } else if (TIMESTAMPTZ.matcher(value).matches()) {
-      Literal<Long> ts = Literal.of(value).to(Types.TimestampType.withZone());
-      return sanitizeTimestamp(ts.value(), now);
-    } else if (TIME.matcher(value).matches()) {
-      return "(time)";
-    } else {
+    try {
+      if (DATE.matcher(value).matches()) {
+        Literal<Integer> date = Literal.of(value).to(Types.DateType.get());
+        return sanitizeDate(date.value(), today);
+      } else if (TIMESTAMP.matcher(value).matches()) {
+        Literal<Long> ts = Literal.of(value).to(Types.TimestampType.withoutZone());
+        return sanitizeTimestamp(ts.value(), now);
+      } else if (TIMESTAMPTZ.matcher(value).matches()) {
+        Literal<Long> ts = Literal.of(value).to(Types.TimestampType.withZone());
+        return sanitizeTimestamp(ts.value(), now);
+      } else if (TIME.matcher(value).matches()) {
+        return "(time)";
+      } else {
+        return sanitizeSimpleString(value);
+      }
+    } catch (Exception ex) {
+      // Don't throw when parsing failed in sanitizeString
+      // because user could provide an invalid integer/date/timestamp string
+      // and expect them to be treated as a string instead of specific type
       return sanitizeSimpleString(value);
     }
   }
@@ -395,5 +448,15 @@ public class ExpressionUtil {
   private static String sanitizeSimpleString(CharSequence value) {
     // hash the value and return the hash as hex
     return String.format("(hash-%08x)", HASH_FUNC.apply(value));
+  }
+
+  private static PartitionSpec identitySpec(Schema schema, int... ids) {
+    PartitionSpec.Builder specBuilder = PartitionSpec.builderFor(schema);
+
+    for (int id : ids) {
+      specBuilder.identity(schema.findColumnName(id));
+    }
+
+    return specBuilder.build();
   }
 }

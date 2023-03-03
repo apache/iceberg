@@ -254,10 +254,10 @@ FSSPEC_FILE_IO = "pyiceberg.io.fsspec.FsspecFileIO"
 # Mappings from the Java FileIO impl to a Python one. The list is ordered by preference.
 # If an implementation isn't installed, it will fall back to the next one.
 SCHEMA_TO_FILE_IO: Dict[str, List[str]] = {
-    "s3": [FSSPEC_FILE_IO, ARROW_FILE_IO],
-    "s3a": [FSSPEC_FILE_IO, ARROW_FILE_IO],
-    "s3n": [FSSPEC_FILE_IO, ARROW_FILE_IO],
-    "gcs": [ARROW_FILE_IO],
+    "s3": [ARROW_FILE_IO, FSSPEC_FILE_IO],
+    "s3a": [ARROW_FILE_IO, FSSPEC_FILE_IO],
+    "s3n": [ARROW_FILE_IO, FSSPEC_FILE_IO],
+    "gs": [ARROW_FILE_IO],
     "file": [ARROW_FILE_IO],
     "hdfs": [ARROW_FILE_IO],
     "abfs": [FSSPEC_FILE_IO],

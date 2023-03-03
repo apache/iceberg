@@ -462,16 +462,27 @@ will then treat these files as if they are part of the set of files  owned by Ic
 
 #### Usage
 
-| Argument Name | Required? | Type | Description |
-|---------------|-----------|------|-------------|
-| `table`       | ✔️  | string | Table which will have files added to|
-| `source_table`| ✔️  | string | Table where files should come from, paths are also possible in the form of \`file_format\`.\`path\` |
-| `partition_filter`  | ️   | map<string, string> | A map of partitions in the source table to import from |
+| Argument Name           | Required? | Type                | Description                                                                                         |
+|-------------------------|-----------|---------------------|-----------------------------------------------------------------------------------------------------|
+| `table`                 | ✔️        | string              | Table which will have files added to                                                                |
+| `source_table`          | ✔️        | string              | Table where files should come from, paths are also possible in the form of \`file_format\`.\`path\` |
+| `partition_filter`      | ️         | map<string, string> | A map of partitions in the source table to import from                                              |
+| `check_duplicate_files` | ️         | boolean             | Whether to prevent files existing in the table from being added (defaults to true)                  |
 
 Warning : Schema is not validated, adding files with different schema to the Iceberg table will cause issues.
 
 Warning : Files added by this method can be physically deleted by Iceberg operations
 
+#### Output
+
+| Output Name               | Type | Description                                       |
+|---------------------------|------|---------------------------------------------------|
+| `added_files_count`       | long | The number of files added by this command         |
+| `changed_partition_count` | long | The number of partitioned changed by this command |
+
+{{< hint warning >}}
+changed_partition_count will be 0 when table property `compatibility.snapshot-id-inheritance.enabled` is set to true
+{{< /hint >}}
 #### Examples
 
 Add the files from table `db.src_table`, a Hive or Spark table registered in the session Catalog, to Iceberg table

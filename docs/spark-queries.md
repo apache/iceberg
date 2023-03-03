@@ -360,7 +360,9 @@ SELECT * FROM prod.db.table.partitions;
 |  {20211002, 10}|           1|         1|         0|
 
 Note:
-For unpartitioned tables, the partitions table will contain only the record_count and file_count columns.
+1. For unpartitioned tables, the partitions table will contain only the record_count and file_count columns.
+
+2. The partitions metadata table shows partitions with data files or delete files in the current snapshot. However, delete files are not applied, and so in some cases partitions may be shown even though all their data rows are marked deleted by delete files.
 
 ### All Metadata Tables
 

@@ -720,6 +720,24 @@ class BoundLessThanOrEqual(BoundLiteralPredicate[L]):
         return LessThanOrEqual[L]
 
 
+class BoundStartsWith(BoundLiteralPredicate[L]):
+    def __invert__(self) -> BoundNotStartsWith[L]:
+        return BoundNotStartsWith[L](self.term, self.literal)
+
+    @property
+    def as_unbound(self) -> Type[StartsWith[L]]:
+        return StartsWith[L]
+
+
+class BoundNotStartsWith(BoundLiteralPredicate[L]):
+    def __invert__(self) -> BoundStartsWith[L]:
+        return BoundStartsWith[L](self.term, self.literal)
+
+    @property
+    def as_unbound(self) -> Type[NotStartsWith[L]]:
+        return NotStartsWith[L]
+
+
 class EqualTo(LiteralPredicate[L]):
     def __invert__(self) -> NotEqualTo[L]:
         return NotEqualTo[L](self.term, self.literal)
@@ -772,3 +790,21 @@ class LessThanOrEqual(LiteralPredicate[L]):
     @property
     def as_bound(self) -> Type[BoundLessThanOrEqual[L]]:
         return BoundLessThanOrEqual[L]
+
+
+class StartsWith(LiteralPredicate[L]):
+    def __invert__(self) -> NotStartsWith[L]:
+        return NotStartsWith[L](self.term, self.literal)
+
+    @property
+    def as_bound(self) -> Type[BoundStartsWith[L]]:
+        return BoundStartsWith[L]
+
+
+class NotStartsWith(LiteralPredicate[L]):
+    def __invert__(self) -> NotStartsWith[L]:
+        return NotStartsWith[L](self.term, self.literal)
+
+    @property
+    def as_bound(self) -> Type[BoundNotStartsWith[L]]:
+        return BoundNotStartsWith[L]

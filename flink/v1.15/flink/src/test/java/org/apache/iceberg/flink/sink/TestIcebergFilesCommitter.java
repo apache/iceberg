@@ -76,22 +76,24 @@ public class TestIcebergFilesCommitter extends TableTestBase {
   private File flinkManifestFolder;
 
   private final FileFormat format;
+  private final String branch;
 
-  @Parameterized.Parameters(name = "FileFormat = {0}, FormatVersion={1}")
+  @Parameterized.Parameters(name = "FileFormat = {0}, FormatVersion = {1}, branch = {2}")
   public static Object[][] parameters() {
     return new Object[][] {
-      new Object[] {"avro", 1},
-      new Object[] {"avro", 2},
-      new Object[] {"parquet", 1},
-      new Object[] {"parquet", 2},
-      new Object[] {"orc", 1},
-      new Object[] {"orc", 2}
+      new Object[] {"avro", 1, "main"},
+      new Object[] {"avro", 2, "test-branch"},
+      new Object[] {"parquet", 1, "main"},
+      new Object[] {"parquet", 2, "test-branch"},
+      new Object[] {"orc", 1, "main"},
+      new Object[] {"orc", 2, "test-branch"}
     };
   }
 
-  public TestIcebergFilesCommitter(String format, int formatVersion) {
+  public TestIcebergFilesCommitter(String format, int formatVersion, String branch) {
     super(formatVersion);
     this.format = FileFormat.fromString(format);
+    this.branch = branch;
   }
 
   @Override
@@ -125,7 +127,7 @@ public class TestIcebergFilesCommitter extends TableTestBase {
       harness.open();
       operatorId = harness.getOperator().getOperatorID();
 
-      SimpleDataUtil.assertTableRows(table, Lists.newArrayList());
+      SimpleDataUtil.assertTableRows(table, Lists.newArrayList(), branch);
       assertSnapshotSize(0);
       assertMaxCommittedCheckpointId(jobId, operatorId, -1L);
 
@@ -204,12 +206,12 @@ public class TestIcebergFilesCommitter extends TableTestBase {
         harness.notifyOfCompletedCheckpoint(i);
         assertFlinkManifests(0);
 
-        SimpleDataUtil.assertTableRows(table, ImmutableList.copyOf(rows));
+        SimpleDataUtil.assertTableRows(table, ImmutableList.copyOf(rows), branch);
         assertSnapshotSize(i);
         assertMaxCommittedCheckpointId(jobID, operatorId, i);
         Assert.assertEquals(
             TestIcebergFilesCommitter.class.getName(),
-            table.currentSnapshot().summary().get("flink.test"));
+            SimpleDataUtil.latestSnapshot(table, branch).summary().get("flink.test"));
       }
     }
   }
@@ -255,13 +257,13 @@ public class TestIcebergFilesCommitter extends TableTestBase {
 
       // 3. notifyCheckpointComplete for checkpoint#1
       harness.notifyOfCompletedCheckpoint(firstCheckpointId);
-      SimpleDataUtil.assertTableRows(table, ImmutableList.of(row1));
+      SimpleDataUtil.assertTableRows(table, ImmutableList.of(row1), branch);
       assertMaxCommittedCheckpointId(jobId, operatorId, firstCheckpointId);
       assertFlinkManifests(1);
 
       // 4. notifyCheckpointComplete for checkpoint#2
       harness.notifyOfCompletedCheckpoint(secondCheckpointId);
-      SimpleDataUtil.assertTableRows(table, ImmutableList.of(row1, row2));
+      SimpleDataUtil.assertTableRows(table, ImmutableList.of(row1, row2), branch);
       assertMaxCommittedCheckpointId(jobId, operatorId, secondCheckpointId);
       assertFlinkManifests(0);
     }
@@ -308,13 +310,13 @@ public class TestIcebergFilesCommitter extends TableTestBase {
 
       // 3. notifyCheckpointComplete for checkpoint#2
       harness.notifyOfCompletedCheckpoint(secondCheckpointId);
-      SimpleDataUtil.assertTableRows(table, ImmutableList.of(row1, row2));
+      SimpleDataUtil.assertTableRows(table, ImmutableList.of(row1, row2), branch);
       assertMaxCommittedCheckpointId(jobId, operatorId, secondCheckpointId);
       assertFlinkManifests(0);
 
       // 4. notifyCheckpointComplete for checkpoint#1
       harness.notifyOfCompletedCheckpoint(firstCheckpointId);
-      SimpleDataUtil.assertTableRows(table, ImmutableList.of(row1, row2));
+      SimpleDataUtil.assertTableRows(table, ImmutableList.of(row1, row2), branch);
       assertMaxCommittedCheckpointId(jobId, operatorId, secondCheckpointId);
       assertFlinkManifests(0);
     }
@@ -348,7 +350,7 @@ public class TestIcebergFilesCommitter extends TableTestBase {
       harness.notifyOfCompletedCheckpoint(checkpointId);
       assertFlinkManifests(0);
 
-      SimpleDataUtil.assertTableRows(table, ImmutableList.of(row));
+      SimpleDataUtil.assertTableRows(table, ImmutableList.of(row), branch);
       assertSnapshotSize(1);
       assertMaxCommittedCheckpointId(jobId, operatorId, checkpointId);
     }
@@ -360,7 +362,7 @@ public class TestIcebergFilesCommitter extends TableTestBase {
       harness.initializeState(snapshot);
       harness.open();
 
-      SimpleDataUtil.assertTableRows(table, expectedRows);
+      SimpleDataUtil.assertTableRows(table, expectedRows, branch);
       assertSnapshotSize(1);
       assertMaxCommittedCheckpointId(jobId, operatorId, checkpointId);
 
@@ -375,7 +377,7 @@ public class TestIcebergFilesCommitter extends TableTestBase {
       harness.notifyOfCompletedCheckpoint(checkpointId);
       assertFlinkManifests(0);
 
-      SimpleDataUtil.assertTableRows(table, expectedRows);
+      SimpleDataUtil.assertTableRows(table, expectedRows, branch);
       assertSnapshotSize(2);
       assertMaxCommittedCheckpointId(jobId, operatorId, checkpointId);
     }
@@ -406,7 +408,7 @@ public class TestIcebergFilesCommitter extends TableTestBase {
       harness.processElement(of(dataFile), ++timestamp);
 
       snapshot = harness.snapshot(++checkpointId, ++timestamp);
-      SimpleDataUtil.assertTableRows(table, ImmutableList.of());
+      SimpleDataUtil.assertTableRows(table, ImmutableList.of(), branch);
       assertMaxCommittedCheckpointId(jobId, operatorId, -1L);
       assertFlinkManifests(1);
     }
@@ -421,7 +423,7 @@ public class TestIcebergFilesCommitter extends TableTestBase {
       // transaction.
       assertFlinkManifests(0);
 
-      SimpleDataUtil.assertTableRows(table, expectedRows);
+      SimpleDataUtil.assertTableRows(table, expectedRows, branch);
       assertMaxCommittedCheckpointId(jobId, operatorId, checkpointId);
 
       harness.snapshot(++checkpointId, ++timestamp);
@@ -431,7 +433,7 @@ public class TestIcebergFilesCommitter extends TableTestBase {
       harness.notifyOfCompletedCheckpoint(checkpointId);
       assertFlinkManifests(0);
 
-      SimpleDataUtil.assertTableRows(table, expectedRows);
+      SimpleDataUtil.assertTableRows(table, expectedRows, branch);
       assertSnapshotSize(2);
       assertMaxCommittedCheckpointId(jobId, operatorId, checkpointId);
 
@@ -459,7 +461,7 @@ public class TestIcebergFilesCommitter extends TableTestBase {
 
       assertMaxCommittedCheckpointId(newJobId, operatorId, -1);
       assertMaxCommittedCheckpointId(jobId, operatorId, checkpointId);
-      SimpleDataUtil.assertTableRows(table, expectedRows);
+      SimpleDataUtil.assertTableRows(table, expectedRows, branch);
       assertSnapshotSize(3);
 
       RowData row = SimpleDataUtil.createRowData(3, "foo");
@@ -473,7 +475,7 @@ public class TestIcebergFilesCommitter extends TableTestBase {
       harness.notifyOfCompletedCheckpoint(checkpointId);
       assertFlinkManifests(0);
 
-      SimpleDataUtil.assertTableRows(table, expectedRows);
+      SimpleDataUtil.assertTableRows(table, expectedRows, branch);
       assertSnapshotSize(4);
       assertMaxCommittedCheckpointId(newJobId, operatorId, checkpointId);
     }
@@ -509,7 +511,7 @@ public class TestIcebergFilesCommitter extends TableTestBase {
         harness.notifyOfCompletedCheckpoint(checkpointId);
         assertFlinkManifests(0);
 
-        SimpleDataUtil.assertTableRows(table, tableRows);
+        SimpleDataUtil.assertTableRows(table, tableRows, branch);
         assertSnapshotSize(i);
         assertMaxCommittedCheckpointId(oldJobId, oldOperatorId, checkpointId);
       }
@@ -540,7 +542,7 @@ public class TestIcebergFilesCommitter extends TableTestBase {
 
       harness.notifyOfCompletedCheckpoint(checkpointId);
       assertFlinkManifests(0);
-      SimpleDataUtil.assertTableRows(table, tableRows);
+      SimpleDataUtil.assertTableRows(table, tableRows, branch);
       assertSnapshotSize(4);
       assertMaxCommittedCheckpointId(newJobId, newOperatorId, checkpointId);
     }
@@ -577,7 +579,7 @@ public class TestIcebergFilesCommitter extends TableTestBase {
 
         harness.notifyOfCompletedCheckpoint(checkpointId + 1);
         assertFlinkManifests(0);
-        SimpleDataUtil.assertTableRows(table, tableRows);
+        SimpleDataUtil.assertTableRows(table, tableRows, branch);
         assertSnapshotSize(i + 1);
         assertMaxCommittedCheckpointId(jobId, operatorId, checkpointId + 1);
       }
@@ -628,7 +630,7 @@ public class TestIcebergFilesCommitter extends TableTestBase {
       assertFlinkManifests(1);
 
       // Only the first row is committed at this point
-      SimpleDataUtil.assertTableRows(table, ImmutableList.of(row1));
+      SimpleDataUtil.assertTableRows(table, ImmutableList.of(row1), branch);
       assertSnapshotSize(1);
       assertMaxCommittedCheckpointId(jobId, operatorId1, checkpointId);
       assertMaxCommittedCheckpointId(jobId, operatorId2, -1);
@@ -651,7 +653,7 @@ public class TestIcebergFilesCommitter extends TableTestBase {
       // transaction.
       assertFlinkManifests(0);
 
-      SimpleDataUtil.assertTableRows(table, expectedRows);
+      SimpleDataUtil.assertTableRows(table, expectedRows, branch);
       assertSnapshotSize(2);
       assertMaxCommittedCheckpointId(jobId, operatorId1, checkpointId);
       assertMaxCommittedCheckpointId(jobId, operatorId2, checkpointId);
@@ -675,7 +677,7 @@ public class TestIcebergFilesCommitter extends TableTestBase {
       harness2.notifyOfCompletedCheckpoint(checkpointId);
       assertFlinkManifests(0);
 
-      SimpleDataUtil.assertTableRows(table, expectedRows);
+      SimpleDataUtil.assertTableRows(table, expectedRows, branch);
       assertSnapshotSize(4);
       assertMaxCommittedCheckpointId(jobId, operatorId1, checkpointId);
       assertMaxCommittedCheckpointId(jobId, operatorId2, checkpointId);
@@ -702,12 +704,12 @@ public class TestIcebergFilesCommitter extends TableTestBase {
       ((BoundedOneInput) harness.getOneInputOperator()).endInput();
 
       assertFlinkManifests(0);
-      SimpleDataUtil.assertTableRows(table, tableRows);
+      SimpleDataUtil.assertTableRows(table, tableRows, branch);
       assertSnapshotSize(1);
       assertMaxCommittedCheckpointId(jobId, operatorId, Long.MAX_VALUE);
       Assert.assertEquals(
           TestIcebergFilesCommitter.class.getName(),
-          table.currentSnapshot().summary().get("flink.test"));
+          SimpleDataUtil.latestSnapshot(table, branch).summary().get("flink.test"));
     }
   }
 
@@ -748,7 +750,7 @@ public class TestIcebergFilesCommitter extends TableTestBase {
 
       // 3. notifyCheckpointComplete for checkpoint#1
       harness.notifyOfCompletedCheckpoint(checkpoint);
-      SimpleDataUtil.assertTableRows(table, ImmutableList.of(row1));
+      SimpleDataUtil.assertTableRows(table, ImmutableList.of(row1), branch);
       assertMaxCommittedCheckpointId(jobId, operatorId, checkpoint);
       assertFlinkManifests(0);
     }
@@ -794,7 +796,7 @@ public class TestIcebergFilesCommitter extends TableTestBase {
 
       // 3. notifyCheckpointComplete for checkpoint#1
       harness.notifyOfCompletedCheckpoint(checkpoint);
-      SimpleDataUtil.assertTableRows(table, ImmutableList.of(row1));
+      SimpleDataUtil.assertTableRows(table, ImmutableList.of(row1), branch);
       assertMaxCommittedCheckpointId(jobId, operatorId, checkpoint);
       assertFlinkManifests(0);
 
@@ -816,7 +818,7 @@ public class TestIcebergFilesCommitter extends TableTestBase {
 
       // 6. notifyCheckpointComplete for checkpoint#2
       harness.notifyOfCompletedCheckpoint(checkpoint);
-      SimpleDataUtil.assertTableRows(table, ImmutableList.of(row2));
+      SimpleDataUtil.assertTableRows(table, ImmutableList.of(row2), branch);
       assertMaxCommittedCheckpointId(jobId, operatorId, checkpoint);
       assertFlinkManifests(0);
     }
@@ -867,7 +869,7 @@ public class TestIcebergFilesCommitter extends TableTestBase {
 
       // Notify the 2nd snapshot to complete.
       harness.notifyOfCompletedCheckpoint(checkpoint);
-      SimpleDataUtil.assertTableRows(table, ImmutableList.of(insert1, insert4));
+      SimpleDataUtil.assertTableRows(table, ImmutableList.of(insert1, insert4), branch);
       assertMaxCommittedCheckpointId(jobId, operatorId, checkpoint);
       assertFlinkManifests(0);
       Assert.assertEquals(
@@ -951,7 +953,7 @@ public class TestIcebergFilesCommitter extends TableTestBase {
     table.refresh();
     long actualId =
         IcebergFilesCommitter.getMaxCommittedCheckpointId(
-            table, jobID.toString(), operatorID.toHexString());
+            table, jobID.toString(), operatorID.toHexString(), branch);
     Assert.assertEquals(expectedId, actualId);
   }
 
@@ -962,7 +964,7 @@ public class TestIcebergFilesCommitter extends TableTestBase {
 
   private OneInputStreamOperatorTestHarness<WriteResult, Void> createStreamSink(JobID jobID)
       throws Exception {
-    TestOperatorFactory factory = TestOperatorFactory.of(table.location());
+    TestOperatorFactory factory = TestOperatorFactory.of(table.location(), branch);
     return new OneInputStreamOperatorTestHarness<>(factory, createEnvironment(jobID));
   }
 
@@ -982,13 +984,15 @@ public class TestIcebergFilesCommitter extends TableTestBase {
   private static class TestOperatorFactory extends AbstractStreamOperatorFactory<Void>
       implements OneInputStreamOperatorFactory<WriteResult, Void> {
     private final String tablePath;
+    private final String branch;
 
-    private TestOperatorFactory(String tablePath) {
+    private TestOperatorFactory(String tablePath, String branch) {
       this.tablePath = tablePath;
+      this.branch = branch;
     }
 
-    private static TestOperatorFactory of(String tablePath) {
-      return new TestOperatorFactory(tablePath);
+    private static TestOperatorFactory of(String tablePath, String branch) {
+      return new TestOperatorFactory(tablePath, branch);
     }
 
     @Override
@@ -1000,7 +1004,8 @@ public class TestIcebergFilesCommitter extends TableTestBase {
               new TestTableLoader(tablePath),
               false,
               Collections.singletonMap("flink.test", TestIcebergFilesCommitter.class.getName()),
-              ThreadPools.WORKER_THREAD_POOL_SIZE);
+              ThreadPools.WORKER_THREAD_POOL_SIZE,
+              branch);
       committer.setup(param.getContainingTask(), param.getStreamConfig(), param.getOutput());
       return (T) committer;
     }

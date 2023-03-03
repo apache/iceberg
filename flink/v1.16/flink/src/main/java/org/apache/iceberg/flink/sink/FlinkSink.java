@@ -316,6 +316,11 @@ public class FlinkSink {
       return this;
     }
 
+    public Builder toBranch(String branch) {
+      writeOptions.put(FlinkWriteOptions.BRANCH.key(), branch);
+      return this;
+    }
+
     private <T> DataStreamSink<T> chainIcebergOperators() {
       Preconditions.checkArgument(
           inputCreator != null,
@@ -422,7 +427,8 @@ public class FlinkSink {
               tableLoader,
               flinkWriteConf.overwriteMode(),
               snapshotProperties,
-              flinkWriteConf.workerPoolSize());
+              flinkWriteConf.workerPoolSize(),
+              flinkWriteConf.branch());
       SingleOutputStreamOperator<Void> committerStream =
           writerStream
               .transform(operatorName(ICEBERG_FILES_COMMITTER_NAME), Types.VOID, filesCommitter)

@@ -35,7 +35,25 @@ export PYICEBERG_CATALOG__DEFAULT__URI=thrift://localhost:9083
 
 The environment variable picked up by Iceberg starts with `PYICEBERG_` and then follows the yaml structure below, where a double underscore `__` represents a nested field.
 
+## FileIO
+
+Iceberg works with the concept of a FileIO which is a pluggable module for reading, writing, and deleting files. By default, PyIceberg will try to initialize the FileIO that's suitable for the scheme (`s3://`, `gs://`, etc.) and will use the first one that's installed.
+
+- **s3**, **s3a**, **s3n**: `PyArrowFileIO`, `FsspecFileIO`
+- **gs**: `PyArrowFileIO`
+- **file**: `PyArrowFileIO`
+- **hdfs**: `PyArrowFileIO`
+- **abfs**, **abfss**: `FsspecFileIO`
+
+You can also set the FileIO explicitly:
+
+| Key                  | Example                          | Description                                                                                     |
+|----------------------|----------------------------------|-------------------------------------------------------------------------------------------------|
+| py-io-impl           | pyiceberg.io.fsspec.FsspecFileIO | Sets the FileIO explicitly to an implementation, and will fail explicitly if it can't be loaded |
+
 For the FileIO there are several configuration options available:
+
+### S3
 
 | Key                      | Example             | Description                                                                                                                                                                                                                                               |
 |--------------------------|---------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -43,6 +61,11 @@ For the FileIO there are several configuration options available:
 | s3.access-key-id         | admin               | Configure the static secret access key used to access the FileIO.                                                                                                                                                                                         |
 | s3.secret-access-key     | password            | Configure the static session token used to access the FileIO.                                                                                                                                                                                             |
 | s3.signer                | bearer              | Configure the signature version of the FileIO.                                                                                                                                                                                                            |
+
+### Azure Data lake
+
+| Key                      | Example             | Description                                                                                                                                                                                                                                               |
+|--------------------------|---------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | adlfs.endpoint           | http://127.0.0.1/   | Configure an alternative endpoint of the ADLFS service for the FileIO to access. This could be used to use FileIO with any adlfs-compatible object storage service that has a different endpoint (like [azurite](https://github.com/azure/azurite)).      |
 | adlfs.account-name       | devstoreaccount1    | Configure the static storage account name used to access the FileIO.                                                                                                                                                                                      |
 | adlfs.account-key        | Eby8vdM02xNOcqF...  | Configure the static storage account key used to access the FileIO.                                                                                                                                                                                       |
@@ -84,4 +107,17 @@ If you want to use AWS Glue as the catalog, you can use the last two ways to con
 catalog:
   default:
     type: glue
+```
+
+## DynamoDB Catalog
+
+If you want to use AWS DynamoDB as the catalog, you can use the last two ways to configure the pyiceberg and refer
+[How to configure AWS credentials](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-configure.html)
+to set your AWS account credentials locally.
+
+```yaml
+catalog:
+  default:
+    type: dynamodb
+    table-name: iceberg
 ```

@@ -25,6 +25,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.PartitionField;
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
@@ -67,7 +68,8 @@ class AddFilesProcedure extends BaseProcedure {
   private static final StructType OUTPUT_TYPE =
       new StructType(
           new StructField[] {
-            new StructField("added_files_count", DataTypes.LongType, false, Metadata.empty())
+            new StructField("added_files_count", DataTypes.LongType, false, Metadata.empty()),
+            new StructField("changed_partition_count", DataTypes.LongType, false, Metadata.empty()),
           });
 
   private AddFilesProcedure(TableCatalog tableCatalog) {
@@ -120,9 +122,16 @@ class AddFilesProcedure extends BaseProcedure {
       checkDuplicateFiles = args.getBoolean(3);
     }
 
-    long addedFilesCount =
-        importToIceberg(tableIdent, sourceIdent, partitionFilter, checkDuplicateFiles);
-    return new InternalRow[] {newInternalRow(addedFilesCount)};
+    return importToIceberg(tableIdent, sourceIdent, partitionFilter, checkDuplicateFiles);
+  }
+
+  private InternalRow[] toOutputRows(Snapshot snapshot) {
+    Map<String, String> summary = snapshot.summary();
+    return new InternalRow[] {
+      newInternalRow(
+          Long.parseLong(summary.getOrDefault(SnapshotSummary.ADDED_FILES_PROP, "0")),
+          Long.parseLong(summary.getOrDefault(SnapshotSummary.CHANGED_PARTITION_COUNT_PROP, "0")))
+    };
   }
 
   private boolean isFileIdentifier(Identifier ident) {
@@ -133,7 +142,7 @@ class AddFilesProcedure extends BaseProcedure {
             || namespace[0].equalsIgnoreCase("avro"));
   }
 
-  private long importToIceberg(
+  private InternalRow[] importToIceberg(
       Identifier destIdent,
       Identifier sourceIdent,
       Map<String, String> partitionFilter,
@@ -147,14 +156,14 @@ class AddFilesProcedure extends BaseProcedure {
           if (isFileIdentifier(sourceIdent)) {
             Path sourcePath = new Path(sourceIdent.name());
             String format = sourceIdent.namespace()[0];
-            importFileTable(table, sourcePath, format, partitionFilter, checkDuplicateFiles);
+            importFileTable(
+                table, sourcePath, format, partitionFilter, checkDuplicateFiles, table.spec());
           } else {
             importCatalogTable(table, sourceIdent, partitionFilter, checkDuplicateFiles);
           }
 
           Snapshot snapshot = table.currentSnapshot();
-          return Long.parseLong(
-              snapshot.summary().getOrDefault(SnapshotSummary.ADDED_FILES_PROP, "0"));
+          return toOutputRows(snapshot);
         });
   }
 
@@ -172,10 +181,11 @@ class AddFilesProcedure extends BaseProcedure {
       Path tableLocation,
       String format,
       Map<String, String> partitionFilter,
-      boolean checkDuplicateFiles) {
+      boolean checkDuplicateFiles,
+      PartitionSpec spec) {
     // List Partitions via Spark InMemory file search interface
     List<SparkPartition> partitions =
-        Spark3Util.getPartitions(spark(), tableLocation, format, partitionFilter);
+        Spark3Util.getPartitions(spark(), tableLocation, format, partitionFilter, spec);
 
     if (table.spec().isUnpartitioned()) {
       Preconditions.checkArgument(

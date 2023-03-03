@@ -58,7 +58,7 @@ public class SparkReadConf {
   }
 
   public boolean caseSensitive() {
-    return Boolean.parseBoolean(spark.conf().get("spark.sql.caseSensitive"));
+    return SparkUtil.caseSensitive(spark);
   }
 
   public boolean localityEnabled() {
@@ -230,6 +230,15 @@ public class SparkReadConf {
         .booleanConf()
         .sessionConf(SparkSQLProperties.PRESERVE_DATA_GROUPING)
         .defaultValue(SparkSQLProperties.PRESERVE_DATA_GROUPING_DEFAULT)
+        .parse();
+  }
+
+  public boolean aggregatePushDownEnabled() {
+    return confParser
+        .booleanConf()
+        .option(SparkReadOptions.AGGREGATE_PUSH_DOWN_ENABLED)
+        .sessionConf(SparkSQLProperties.AGGREGATE_PUSH_DOWN_ENABLED)
+        .defaultValue(SparkSQLProperties.AGGREGATE_PUSH_DOWN_ENABLED_DEFAULT)
         .parse();
   }
 }

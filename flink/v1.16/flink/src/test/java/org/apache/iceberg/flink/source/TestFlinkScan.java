@@ -28,6 +28,7 @@ import java.util.Map;
 import org.apache.flink.test.util.MiniClusterWithClientResource;
 import org.apache.flink.types.Row;
 import org.apache.iceberg.AppendFiles;
+import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
@@ -227,6 +228,149 @@ public abstract class TestFlinkScan {
         runWithOptions(ImmutableMap.of("as-of-timestamp", Long.toString(timestampMillis))),
         expectedRecords,
         TestFixtures.SCHEMA);
+  }
+
+  @Test
+  public void testTagReads() throws Exception {
+    Table table =
+        catalogResource.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, TestFixtures.SCHEMA);
+
+    GenericAppenderHelper helper = new GenericAppenderHelper(table, fileFormat, TEMPORARY_FOLDER);
+
+    List<Record> expectedRecords1 = RandomGenericData.generate(TestFixtures.SCHEMA, 1, 0L);
+    helper.appendToTable(expectedRecords1);
+    long snapshotId = table.currentSnapshot().snapshotId();
+
+    table.manageSnapshots().createTag("t1", snapshotId).commit();
+
+    TestHelpers.assertRecords(
+        runWithOptions(ImmutableMap.of("tag", "t1")), expectedRecords1, TestFixtures.SCHEMA);
+
+    List<Record> expectedRecords2 = RandomGenericData.generate(TestFixtures.SCHEMA, 1, 0L);
+    helper.appendToTable(expectedRecords2);
+    snapshotId = table.currentSnapshot().snapshotId();
+
+    table.manageSnapshots().replaceTag("t1", snapshotId).commit();
+
+    List<Record> expectedRecords = Lists.newArrayList();
+    expectedRecords.addAll(expectedRecords1);
+    expectedRecords.addAll(expectedRecords2);
+    TestHelpers.assertRecords(
+        runWithOptions(ImmutableMap.of("tag", "t1")), expectedRecords, TestFixtures.SCHEMA);
+  }
+
+  @Test
+  public void testBranchReads() throws Exception {
+    Table table =
+        catalogResource.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, TestFixtures.SCHEMA);
+
+    GenericAppenderHelper helper = new GenericAppenderHelper(table, fileFormat, TEMPORARY_FOLDER);
+
+    List<Record> expectedRecordsBase = RandomGenericData.generate(TestFixtures.SCHEMA, 1, 0L);
+    helper.appendToTable(expectedRecordsBase);
+    long snapshotId = table.currentSnapshot().snapshotId();
+
+    String branchName = "b1";
+    table.manageSnapshots().createBranch(branchName, snapshotId).commit();
+
+    List<Record> expectedRecordsForBranch = RandomGenericData.generate(TestFixtures.SCHEMA, 1, 0L);
+    helper.appendToTable(branchName, expectedRecordsForBranch);
+
+    List<Record> expectedRecordsForMain = RandomGenericData.generate(TestFixtures.SCHEMA, 1, 0L);
+    helper.appendToTable(expectedRecordsForMain);
+
+    List<Record> branchExpectedRecords = Lists.newArrayList();
+    branchExpectedRecords.addAll(expectedRecordsBase);
+    branchExpectedRecords.addAll(expectedRecordsForBranch);
+
+    TestHelpers.assertRecords(
+        runWithOptions(ImmutableMap.of("branch", branchName)),
+        branchExpectedRecords,
+        TestFixtures.SCHEMA);
+
+    List<Record> mainExpectedRecords = Lists.newArrayList();
+    mainExpectedRecords.addAll(expectedRecordsBase);
+    mainExpectedRecords.addAll(expectedRecordsForMain);
+
+    TestHelpers.assertRecords(run(), mainExpectedRecords, TestFixtures.SCHEMA);
+  }
+
+  @Test
+  public void testIncrementalReadViaTag() throws Exception {
+    Table table =
+        catalogResource.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, TestFixtures.SCHEMA);
+
+    GenericAppenderHelper helper = new GenericAppenderHelper(table, fileFormat, TEMPORARY_FOLDER);
+
+    List<Record> records1 = RandomGenericData.generate(TestFixtures.SCHEMA, 1, 0L);
+    helper.appendToTable(records1);
+    long snapshotId1 = table.currentSnapshot().snapshotId();
+    String startTag = "t1";
+    table.manageSnapshots().createTag(startTag, snapshotId1).commit();
+
+    List<Record> records2 = RandomGenericData.generate(TestFixtures.SCHEMA, 1, 1L);
+    helper.appendToTable(records2);
+
+    List<Record> records3 = RandomGenericData.generate(TestFixtures.SCHEMA, 1, 2L);
+    helper.appendToTable(records3);
+    long snapshotId3 = table.currentSnapshot().snapshotId();
+    String endTag = "t2";
+    table.manageSnapshots().createTag(endTag, snapshotId3).commit();
+
+    helper.appendToTable(RandomGenericData.generate(TestFixtures.SCHEMA, 1, 3L));
+
+    List<Record> expected = Lists.newArrayList();
+    expected.addAll(records2);
+    expected.addAll(records3);
+
+    TestHelpers.assertRecords(
+        runWithOptions(
+            ImmutableMap.<String, String>builder()
+                .put("start-tag", startTag)
+                .put("end-tag", endTag)
+                .buildOrThrow()),
+        expected,
+        TestFixtures.SCHEMA);
+
+    TestHelpers.assertRecords(
+        runWithOptions(
+            ImmutableMap.<String, String>builder()
+                .put("start-snapshot-id", Long.toString(snapshotId1))
+                .put("end-tag", endTag)
+                .buildOrThrow()),
+        expected,
+        TestFixtures.SCHEMA);
+
+    TestHelpers.assertRecords(
+        runWithOptions(
+            ImmutableMap.<String, String>builder()
+                .put("start-tag", startTag)
+                .put("end-snapshot-id", Long.toString(snapshotId3))
+                .buildOrThrow()),
+        expected,
+        TestFixtures.SCHEMA);
+
+    AssertHelpers.assertThrows(
+        "START_SNAPSHOT_ID and START_TAG cannot both be set.",
+        Exception.class,
+        () ->
+            runWithOptions(
+                ImmutableMap.<String, String>builder()
+                    .put("start-tag", startTag)
+                    .put("end-tag", endTag)
+                    .put("start-snapshot-id", Long.toString(snapshotId1))
+                    .buildOrThrow()));
+
+    AssertHelpers.assertThrows(
+        "END_SNAPSHOT_ID and END_TAG cannot both be set.",
+        Exception.class,
+        () ->
+            runWithOptions(
+                ImmutableMap.<String, String>builder()
+                    .put("start-tag", startTag)
+                    .put("end-tag", endTag)
+                    .put("end-snapshot-id", Long.toString(snapshotId3))
+                    .buildOrThrow()));
   }
 
   @Test

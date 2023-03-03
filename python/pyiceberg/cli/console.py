@@ -50,13 +50,13 @@ def catch_exception() -> Callable:  # type: ignore
 
 
 @click.group()
-@click.option("--catalog", default="default")
+@click.option("--catalog")
 @click.option("--verbose", type=click.BOOL)
 @click.option("--output", type=click.Choice(["text", "json"]), default="text")
 @click.option("--uri")
 @click.option("--credential")
 @click.pass_context
-def run(ctx: Context, catalog: str, verbose: bool, output: str, uri: Optional[str], credential: Optional[str]) -> None:
+def run(ctx: Context, catalog: Optional[str], verbose: bool, output: str, uri: Optional[str], credential: Optional[str]) -> None:
     properties = {}
     if uri:
         properties["uri"] = uri
