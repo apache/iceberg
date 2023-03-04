@@ -427,7 +427,6 @@ public class TestCreateChangelogViewProcedure extends SparkExtensionsTestBase {
     List<Object[]> returns =
         sql(
             "CALL %s.system.create_changelog_view("
-                + "compute_updates => false,"
                 + "remove_carryovers => false,"
                 + "table => '%s')",
             catalogName, tableName);
@@ -442,6 +441,7 @@ public class TestCreateChangelogViewProcedure extends SparkExtensionsTestBase {
             row(2, "e", 12, INSERT, 0, snap1.snapshotId()),
             row(2, "b", 11, DELETE, 1, snap2.snapshotId()),
             row(2, "d", 11, INSERT, 1, snap2.snapshotId()),
+            // the following two rows are carry-over rows
             row(2, "e", 12, DELETE, 1, snap2.snapshotId()),
             row(2, "e", 12, INSERT, 1, snap2.snapshotId()),
             row(3, "c", 13, INSERT, 1, snap2.snapshotId())),
