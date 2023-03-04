@@ -43,8 +43,8 @@ import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTest
  * shuffle record to improve data clustering while maintaining relative balanced traffic
  * distribution to downstream subtasks.
  */
-class DataStatisticsOperator<T, K> extends AbstractStreamOperator<DataStatisticsAndRecordWrapper<T, K>>
-    implements OneInputStreamOperator<T, DataStatisticsAndRecordWrapper<T, K>>, OperatorEventHandler {
+class DataStatisticsOperator<T, K> extends AbstractStreamOperator<DataStatisticsOrRecord<T, K>>
+    implements OneInputStreamOperator<T, DataStatisticsOrRecord<T, K>>, OperatorEventHandler {
   private static final long serialVersionUID = 1L;
 
   // keySelector will be used to generate key from data for collecting data statistics
@@ -93,7 +93,7 @@ class DataStatisticsOperator<T, K> extends AbstractStreamOperator<DataStatistics
   @Override
   public void open() throws Exception {
     if (!globalStatistics.isEmpty()) {
-      output.collect(new StreamRecord<>(DataStatisticsAndRecordWrapper.fromDataStatistics(globalStatistics)));
+      output.collect(new StreamRecord<>(DataStatisticsOrRecord.fromDataStatistics(globalStatistics)));
     }
   }
 
@@ -106,7 +106,7 @@ class DataStatisticsOperator<T, K> extends AbstractStreamOperator<DataStatistics
   public void processElement(StreamRecord<T> streamRecord) throws Exception {
     final K key = keySelector.getKey(streamRecord.getValue());
     localStatistics.add(key);
-    output.collect(new StreamRecord<>(DataStatisticsAndRecordWrapper.fromRecord(streamRecord.getValue())));
+    output.collect(new StreamRecord<>(DataStatisticsOrRecord.fromRecord(streamRecord.getValue())));
   }
 
   @Override

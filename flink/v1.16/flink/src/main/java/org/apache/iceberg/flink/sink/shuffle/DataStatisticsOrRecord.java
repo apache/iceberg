@@ -27,33 +27,33 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
  * The wrapper class for data statistics and record. It is the only way for data statistics operator to send
  * global data statistics to custom partitioner to distribute data based on statistics
  *
- * <p>DataStatisticsAndRecordWrapper is sent from {@link DataStatisticsOperator} to partitioner. It
+ * <p>DataStatisticsOrRecord is sent from {@link DataStatisticsOperator} to partitioner. It
  * contains either data statistics(globally aggregated) or a record. Once partitioner receives the data
  * statistics, it will use that to decide the coming record should send to which writer subtask. After
  * shuffling, a filter and mapper are required to filter out the data distribution weight, unwrap the
  * object and extract the original record type T.
  */
-public class DataStatisticsAndRecordWrapper<T, K> implements Serializable {
+public class DataStatisticsOrRecord<T, K> implements Serializable {
 
   private static final long serialVersionUID = 1L;
 
   private final DataStatistics<K> statistics;
   private final T record;
 
-  private DataStatisticsAndRecordWrapper(T record, DataStatistics<K> statistics) {
+  private DataStatisticsOrRecord(T record, DataStatistics<K> statistics) {
     Preconditions.checkArgument(
         record != null ^ statistics != null,
-        "A DataStatisticsAndRecordWrapper contain either statistics or record, not neither or both");
+        "A DataStatisticsOrRecord contain either statistics or record, not neither or both");
     this.statistics = statistics;
     this.record = record;
   }
 
-  static <T, K> DataStatisticsAndRecordWrapper<T, K> fromRecord(T record) {
-    return new DataStatisticsAndRecordWrapper<>(record, null);
+  static <T, K> DataStatisticsOrRecord<T, K> fromRecord(T record) {
+    return new DataStatisticsOrRecord<>(record, null);
   }
 
-  static <T, K> DataStatisticsAndRecordWrapper<T, K> fromDataStatistics(DataStatistics<K> statistics) {
-    return new DataStatisticsAndRecordWrapper<>(null, statistics);
+  static <T, K> DataStatisticsOrRecord<T, K> fromDataStatistics(DataStatistics<K> statistics) {
+    return new DataStatisticsOrRecord<>(null, statistics);
   }
 
   boolean hasDataStatistics() {

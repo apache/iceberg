@@ -37,7 +37,7 @@ public class MapDataStatistics<K> implements DataStatistics<K> {
   @Override
   public void add(K key) {
     // increase count of occurrence by one in the dataStatistics map
-    statistics.put(key, statistics.getOrDefault(key, 0L) + 1L);
+    statistics.merge(key, 1L, Long::sum);
   }
 
   @Override
@@ -47,7 +47,7 @@ public class MapDataStatistics<K> implements DataStatistics<K> {
         "Can not merge this type of statistics: " + otherStatistics);
     MapDataStatistics<K> mapDataStatistic = (MapDataStatistics<K>) otherStatistics;
     mapDataStatistic.statistics.forEach(
-        (key, count) -> statistics.put(key, statistics.getOrDefault(key, 0L) + count));
+        (key, count) -> statistics.merge(key, count, Long::sum));
   }
 
   public Map<K, Long> dataStatistics() {
