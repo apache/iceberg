@@ -548,9 +548,9 @@ def project_table(
                 fs = PyFileSystem(FSSpecHandler(table.io.get_fs(scheme)))
             else:
                 raise ValueError(f"Expected PyArrowFileIO or FsspecFileIO, got: {table.io}")
-        except ModuleNotFoundError:
+        except ModuleNotFoundError as e:
             # When FsSpec is not installed
-            raise ValueError(f"Expected PyArrowFileIO or FsspecFileIO, got: {table.io}")
+            raise ValueError(f"Expected PyArrowFileIO or FsspecFileIO, got: {table.io}") from e
 
     bound_row_filter = bind(table.schema(), row_filter, case_sensitive=case_sensitive)
 
