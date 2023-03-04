@@ -26,7 +26,7 @@ from __future__ import annotations
 
 import os
 from abc import ABC, abstractmethod
-from functools import lru_cache
+from functools import lru_cache, singledispatch
 from multiprocessing.pool import ThreadPool
 from typing import (
     TYPE_CHECKING,
@@ -492,76 +492,72 @@ def expression_to_pyarrow(expr: BooleanExpression) -> pc.Expression:
 
 
 def pyarrow_to_schema(schema: pa.Schema) -> Schema:
-    return visit_arrow_schema(schema, _ConvertToIceberg())
-
-
-def visit_arrow_schema(obj: pa.Schema, visitor: ArrowSchemaVisitor[T]) -> Schema:
+    visitor = _ConvertToIceberg()
     struct_results = []
-    for i in range(len(obj.names)):
-        field = obj.field(i)
+    for i in range(len(schema.names)):
+        field = schema.field(i)
         visitor.before_field(field)
-        struct_result = visit_arrow(field.type, visitor)
+        struct_result = visit_pyarrow(field.type, visitor)
         visitor.after_field(field)
         struct_results.append(struct_result)
-
-    return visitor.schema(obj, struct_results)
-
-
-def visit_arrow(obj: pa.DataType, visitor: ArrowSchemaVisitor[T]) -> T:
-    if pa.types.is_struct(obj):
-        return visit_arrow_struct(obj, visitor)
-    elif pa.types.is_list(obj):
-        return visit_arrow_list(obj, visitor)
-    elif pa.types.is_map(obj):
-        return visit_arrow_map(obj, visitor)
-    else:
-        return visit_arrow_primitive(obj, visitor)
+    return visitor.schema(schema, struct_results)
 
 
-def visit_arrow_struct(obj: pa.DataType, visitor: ArrowSchemaVisitor[T]) -> T:
-    if not pa.types.is_struct(obj):
-        raise TypeError(f"Expected struct type, got {type(obj)}")
-    obj = cast(pa.StructType, obj)
+@singledispatch
+def visit_pyarrow(obj: pa.DataType, visitor: PyarrowSchemaVisitor[T]) -> T:
+    """A generic function for applying a pyarrow schema visitor to any point within a schema
+
+    The function traverses the schema in post-order fashion
+
+    Args:
+        obj(Schema | IcebergType): An instance of a Schema or an IcebergType
+        visitor (PyarrowSchemaVisitor[T]): An instance of an implementation of the generic PyarrowSchemaVisitor base class
+
+    Raises:
+        NotImplementedError: If attempting to visit an unrecognized object type
+    """
+    raise NotImplementedError("Cannot visit non-type: %s" % obj)
+
+
+@visit_pyarrow.register(pa.StructType)
+def _(obj: pa.StructType, visitor: PyarrowSchemaVisitor[T]) -> T:
     struct_results = []
     for field in obj:
         visitor.before_field(field)
-        struct_result = visit_arrow(field.type, visitor)
+        struct_result = visit_pyarrow(field.type, visitor)
         visitor.after_field(field)
         struct_results.append(struct_result)
 
     return visitor.struct(obj, struct_results)
 
 
-def visit_arrow_list(obj: pa.DataType, visitor: ArrowSchemaVisitor[T]) -> T:
-    if not pa.types.is_list(obj):
-        raise TypeError(f"Expected list type, got {type(obj)}")
-    obj = cast(pa.ListType, obj)
+@visit_pyarrow.register(pa.ListType)
+def _(obj: pa.ListType, visitor: PyarrowSchemaVisitor[T]) -> T:
     visitor.before_list_element(obj.value_field)
-    list_result = visit_arrow(obj.value_field.type, visitor)
+    list_result = visit_pyarrow(obj.value_field.type, visitor)
     visitor.after_list_element(obj.value_field)
     return visitor.list(obj, list_result)
 
 
-def visit_arrow_map(obj: pa.DataType, visitor: ArrowSchemaVisitor[T]) -> T:
-    if not pa.types.is_map(obj):
-        raise TypeError(f"Expected map type, got {type(obj)}")
-    obj = cast(pa.MapType, obj)
+@visit_pyarrow.register(pa.MapType)
+def _(obj: pa.MapType, visitor: PyarrowSchemaVisitor[T]) -> T:
     visitor.before_map_key(obj.key_field)
-    key_result = visit_arrow(obj.key_field.type, visitor)
+    key_result = visit_pyarrow(obj.key_field.type, visitor)
     visitor.after_map_key(obj.key_field)
     visitor.before_map_value(obj.item_field)
-    value_result = visit_arrow(obj.item_field.type, visitor)
+    value_result = visit_pyarrow(obj.item_field.type, visitor)
     visitor.after_map_value(obj.item_field)
     return visitor.map(obj, key_result, value_result)
 
 
-def visit_arrow_primitive(obj: pa.DataType, visitor: ArrowSchemaVisitor[T]) -> T:
+@visit_pyarrow.register(pa.DataType)
+def _(obj: pa.DataType, visitor: PyarrowSchemaVisitor[T]) -> T:
     if pa.types.is_nested(obj):
         raise TypeError(f"Expected primitive type, got {type(obj)}")
     return visitor.primitive(obj)
 
 
-class ArrowSchemaVisitor(Generic[T], ABC):
+class PyarrowSchemaVisitor(Generic[T], ABC):
     def before_field(self, field: pa.Field) -> None:
         """Override this method to perform an action immediately before visiting a field."""
 
@@ -614,7 +610,7 @@ def _get_field_id(field: pa.Field) -> int:
     raise ValueError(f"Field {field.name} does not have a field_id")
 
 
-class _ConvertToIceberg(ArrowSchemaVisitor[IcebergType], ABC):
+class _ConvertToIceberg(PyarrowSchemaVisitor[IcebergType], ABC):
     def schema(self, schema: pa.Schema, field_results: List[IcebergType]) -> Schema:
         fields = []
         for i in range(len(schema.names)):
