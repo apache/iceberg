@@ -36,7 +36,7 @@ import org.apache.flink.api.connector.source.SplitEnumeratorContext;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.configuration.ReadableConfig;
 import org.apache.flink.core.io.SimpleVersionedSerializer;
-import org.apache.flink.table.api.TableSchema;
+import org.apache.flink.table.catalog.ResolvedSchema;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.util.Preconditions;
 import org.apache.iceberg.BaseMetadataTable;
@@ -212,7 +212,7 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
     private ReaderFunction<T> readerFunction;
     private ReadableConfig flinkConfig = new Configuration();
     private final ScanContext.Builder contextBuilder = ScanContext.builder();
-    private TableSchema projectedFlinkSchema;
+    private ResolvedSchema projectedFlinkSchema;
     private Boolean exposeLocality;
 
     private final Map<String, String> readOptions = Maps.newHashMap();
@@ -356,7 +356,7 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
       return this;
     }
 
-    public Builder<T> project(TableSchema newProjectedFlinkSchema) {
+    public Builder<T> project(ResolvedSchema newProjectedFlinkSchema) {
       this.projectedFlinkSchema = newProjectedFlinkSchema;
       return this;
     }

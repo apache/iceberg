@@ -18,9 +18,19 @@
  */
 package org.apache.iceberg.flink;
 
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
-import org.apache.flink.table.api.TableSchema;
+import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import org.apache.flink.table.api.ValidationException;
+import org.apache.flink.table.catalog.CatalogBaseTable;
+import org.apache.flink.table.catalog.Column;
+import org.apache.flink.table.catalog.ResolvedCatalogTable;
+import org.apache.flink.table.catalog.ResolvedSchema;
+import org.apache.flink.table.catalog.UniqueConstraint;
 import org.apache.flink.table.types.logical.LogicalType;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.table.types.utils.TypeConversions;
@@ -55,9 +65,17 @@ public class FlinkSchemaUtil {
 
   private FlinkSchemaUtil() {}
 
+  public static Schema convert(CatalogBaseTable table) {
+    if (table instanceof ResolvedCatalogTable) {
+      ResolvedCatalogTable catalogBaseTable = (ResolvedCatalogTable) table;
+      return convert(catalogBaseTable.getResolvedSchema());
+    }
+    throw new IllegalArgumentException("Unknown kind of catalog base table: " + table.getClass());
+  }
+
   /** Convert the flink table schema to apache iceberg schema. */
-  public static Schema convert(TableSchema schema) {
-    LogicalType schemaType = schema.toRowDataType().getLogicalType();
+  public static Schema convert(ResolvedSchema schema) {
+    LogicalType schemaType = schema.toPhysicalRowDataType().getLogicalType();
     Preconditions.checkArgument(
         schemaType instanceof RowType, "Schema logical type should be RowType.");
 
@@ -68,7 +86,7 @@ public class FlinkSchemaUtil {
     return freshIdentifierFieldIds(iSchema, schema);
   }
 
-  private static Schema freshIdentifierFieldIds(Schema iSchema, TableSchema schema) {
+  private static Schema freshIdentifierFieldIds(Schema iSchema, ResolvedSchema schema) {
     // Locate the identifier field id list.
     Set<Integer> identifierFieldIds = Sets.newHashSet();
     if (schema.getPrimaryKey().isPresent()) {
@@ -87,7 +105,7 @@ public class FlinkSchemaUtil {
   }
 
   /**
-   * Convert a Flink {@link TableSchema} to a {@link Schema} based on the given schema.
+   * Convert a Flink {@link ResolvedSchema} to a {@link Schema} based on the given schema.
    *
    * <p>This conversion does not assign new ids; it uses ids from the base schema.
    *
@@ -95,11 +113,11 @@ public class FlinkSchemaUtil {
    * return a schema that is not compatible with base schema.
    *
    * @param baseSchema a Schema on which conversion is based
-   * @param flinkSchema a Flink TableSchema
+   * @param flinkSchema a Flink ResolvedSchema
    * @return the equivalent Schema
    * @throws IllegalArgumentException if the type cannot be converted or there are missing ids
    */
-  public static Schema convert(Schema baseSchema, TableSchema flinkSchema) {
+  public static Schema convert(Schema baseSchema, ResolvedSchema flinkSchema) {
     // convert to a type with fresh ids
     Types.StructType struct = convert(flinkSchema).asStruct();
     // reassign ids to match the base schema
@@ -135,47 +153,80 @@ public class FlinkSchemaUtil {
   }
 
   /**
-   * Convert a {@link RowType} to a {@link TableSchema}.
+   * Convert a {@link RowType} to a {@link ResolvedSchema}.
    *
    * @param rowType a RowType
-   * @return Flink TableSchema
+   * @return Flink ResolvedSchema
    */
-  public static TableSchema toSchema(RowType rowType) {
-    TableSchema.Builder builder = TableSchema.builder();
+  public static ResolvedSchema toSchema(RowType rowType) {
+    List<Column> columns = Lists.newArrayList();
     for (RowType.RowField field : rowType.getFields()) {
-      builder.field(field.getName(), TypeConversions.fromLogicalToDataType(field.getType()));
+      Column column =
+          Column.physical(field.getName(), TypeConversions.fromLogicalToDataType(field.getType()));
+      columns.add(column);
     }
-    return builder.build();
+    return ResolvedSchema.of(columns);
   }
 
   /**
-   * Convert a {@link Schema} to a {@link TableSchema}.
+   * Convert a {@link Schema} to a {@link ResolvedSchema}.
    *
    * @param schema iceberg schema to convert.
-   * @return Flink TableSchema.
+   * @return Flink ResolvedSchema.
    */
-  public static TableSchema toSchema(Schema schema) {
-    TableSchema.Builder builder = TableSchema.builder();
+  public static ResolvedSchema toSchema(Schema schema) {
 
     // Add columns.
+    List<Column> schemaColumns = Lists.newArrayList();
     for (RowType.RowField field : convert(schema).getFields()) {
-      builder.field(field.getName(), TypeConversions.fromLogicalToDataType(field.getType()));
+      schemaColumns.add(
+          Column.physical(field.getName(), TypeConversions.fromLogicalToDataType(field.getType())));
     }
 
     // Add primary key.
     Set<Integer> identifierFieldIds = schema.identifierFieldIds();
+    UniqueConstraint primaryKey = null;
     if (!identifierFieldIds.isEmpty()) {
       List<String> columns = Lists.newArrayListWithExpectedSize(identifierFieldIds.size());
       for (Integer identifierFieldId : identifierFieldIds) {
         String columnName = schema.findColumnName(identifierFieldId);
         Preconditions.checkNotNull(
             columnName, "Cannot find field with id %s in schema %s", identifierFieldId, schema);
-
         columns.add(columnName);
       }
-      builder.primaryKey(columns.toArray(new String[0]));
+      primaryKey = UniqueConstraint.primaryKey(UUID.randomUUID().toString(), columns);
     }
 
-    return builder.build();
+    validatePrimaryKey(schemaColumns, primaryKey);
+    return new ResolvedSchema(schemaColumns, Collections.emptyList(), primaryKey);
+  }
+
+  private static void validatePrimaryKey(List<Column> columns, UniqueConstraint primaryKey) {
+    Map<String, Column> columnsByNameLookup =
+        columns.stream().collect(Collectors.toMap(Column::getName, Function.identity()));
+
+    for (String columnName : primaryKey.getColumns()) {
+      Column column = columnsByNameLookup.get(columnName);
+      if (column == null) {
+        throw new ValidationException(
+            String.format(
+                "Could not create a PRIMARY KEY '%s'. Column '%s' does not exist.",
+                primaryKey.getName(), columnName));
+      }
+
+      if (!column.isPhysical()) {
+        throw new ValidationException(
+            String.format(
+                "Could not create a PRIMARY KEY '%s'. Column '%s' is not a physical column.",
+                primaryKey.getName(), columnName));
+      }
+
+      if (column.getDataType().getLogicalType().isNullable()) {
+        throw new ValidationException(
+            String.format(
+                "Could not create a PRIMARY KEY '%s'. Column '%s' is nullable.",
+                primaryKey.getName(), columnName));
+      }
+    }
   }
 }
