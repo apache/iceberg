@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=redefined-outer-name,arguments-renamed
+# pylint: disable=W0511
 """FileIO implementation for reading and writing table files that uses pyarrow.fs
 
 This file contains a FileIO implementation that relies on the filesystem interface provided
@@ -126,7 +127,6 @@ BUFFER_SIZE = "buffer-size"
 ICEBERG_SCHEMA = b"iceberg.schema"
 
 T = TypeVar("T")
-P = TypeVar("P")
 
 
 class PyArrowFile(InputFile, OutputFile):
@@ -617,11 +617,8 @@ class _ConvertToIceberg(PyarrowSchemaVisitor[IcebergType], ABC):
             field = schema.field(i)
             field_id = _get_field_id(field)
             field_type = field_results[i]
-            if field_id is not None and field_type is not None:
-                if field.nullable:
-                    fields.append(NestedField(field_id, field.name, field_type, False))
-                else:
-                    fields.append(NestedField(field_id, field.name, field_type, True))
+            if field_type is not None:
+                fields.append(NestedField(field_id, field.name, field_type, required=not field.nullable))
         return Schema(*fields)
 
     def struct(self, struct: pa.StructType, field_results: List[IcebergType]) -> IcebergType:
@@ -631,34 +628,25 @@ class _ConvertToIceberg(PyarrowSchemaVisitor[IcebergType], ABC):
             field_id = _get_field_id(field)
             # may need to check doc strings
             field_type = field_results[i]
-            if field_id is not None and field_type is not None:
-                if field.nullable:
-                    fields.append(NestedField(field_id, field.name, field_type, False))
-                else:
-                    fields.append(NestedField(field_id, field.name, field_type, True))
+            if field_type is not None:
+                fields.append(NestedField(field_id, field.name, field_type, required=not field.nullable))
         return StructType(*fields)
 
     def list(self, list_type: pa.ListType, element_result: IcebergType) -> IcebergType:
         element_field = list_type.value_field
         element_id = _get_field_id(element_field)
-        if element_id is not None and element_result is not None:
-            if element_field.nullable:
-                return ListType(element_id, element_result, False)
-            else:
-                return ListType(element_id, element_result, True)
-        raise ValueError("List type must have element field")
+        if element_result is not None:
+            return ListType(element_id, element_result, element_required=not element_field.nullable)
+        raise ValueError(f"List type must have element field: {list_type}")
 
     def map(self, map_type: pa.MapType, key_result: IcebergType, value_result: IcebergType) -> IcebergType:
         key_field = map_type.key_field
         key_id = _get_field_id(key_field)
         value_field = map_type.item_field
         value_id = _get_field_id(value_field)
-        if key_id is not None and key_result is not None and value_id is not None and value_result is not None:
-            if key_field.nullable and value_field.nullable:
-                return MapType(key_id, key_result, value_id, value_result, False)
-            else:
-                return MapType(key_id, key_result, value_id, value_result, True)
-        raise ValueError("Map type must have key and value fields")
+        if key_result is not None and value_result is not None:
+            return MapType(key_id, key_result, value_id, value_result, value_required=not value_field.nullable)
+        raise ValueError(f"Map type must have key and value fields: {map_type}")
 
     def primitive(self, primitive: pa.DataType) -> IcebergType:
         if pa.types.is_boolean(primitive):
@@ -714,6 +702,7 @@ def _file_to_table(
         schema_raw = None
         if metadata := parquet_schema.metadata:
             schema_raw = metadata.get(ICEBERG_SCHEMA)
+        # TODO: if field_ids are not present, another fallback level should be implemented to look them up in the table schema
         file_schema = Schema.parse_raw(schema_raw) if schema_raw is not None else pyarrow_to_schema(parquet_schema)
 
         pyarrow_filter = None
