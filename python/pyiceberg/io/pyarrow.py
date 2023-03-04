@@ -776,8 +776,7 @@ def project_table(
             for table in pool.starmap(
                 func=_file_to_table,
                 iterable=[(fs, task, bound_row_filter, projected_schema, projected_field_ids, case_sensitive) for task in tasks],
-                chunksize=None,
-                # we could use this to control how to materialize the generator of tasks (we should also make the expression above lazy)
+                chunksize=None,  # we could use this to control how to materialize the generator of tasks (we should also make the expression above lazy)
             )
             if table is not None
         ]
