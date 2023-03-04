@@ -197,7 +197,9 @@ public class FlinkSchemaUtil {
       primaryKey = UniqueConstraint.primaryKey(UUID.randomUUID().toString(), columns);
     }
 
-    validatePrimaryKey(schemaColumns, primaryKey);
+    if (primaryKey != null) {
+      validatePrimaryKey(schemaColumns, primaryKey);
+    }
     return new ResolvedSchema(schemaColumns, Collections.emptyList(), primaryKey);
   }
 
