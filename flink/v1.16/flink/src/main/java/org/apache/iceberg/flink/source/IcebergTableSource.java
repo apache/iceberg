@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.flink.source;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -154,7 +155,8 @@ public class IcebergTableSource
       return schema;
     } else {
       List<Column> columns = schema.getColumns();
-      return ResolvedSchema.of(columns);
+      return ResolvedSchema.of(
+          Arrays.stream(projectedFields).mapToObj(columns::get).toArray(Column[]::new));
     }
   }
 
