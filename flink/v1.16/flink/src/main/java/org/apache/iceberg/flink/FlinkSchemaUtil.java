@@ -20,8 +20,12 @@ package org.apache.iceberg.flink;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import org.apache.flink.table.api.ValidationException;
 import org.apache.flink.table.catalog.CatalogBaseTable;
 import org.apache.flink.table.catalog.Column;
 import org.apache.flink.table.catalog.ResolvedCatalogTable;
@@ -193,6 +197,36 @@ public class FlinkSchemaUtil {
       primaryKey = UniqueConstraint.primaryKey(UUID.randomUUID().toString(), columns);
     }
 
+    validatePrimaryKey(schemaColumns, primaryKey);
     return new ResolvedSchema(schemaColumns, Collections.emptyList(), primaryKey);
+  }
+
+  private static void validatePrimaryKey(List<Column> columns, UniqueConstraint primaryKey) {
+    Map<String, Column> columnsByNameLookup =
+        columns.stream().collect(Collectors.toMap(Column::getName, Function.identity()));
+
+    for (String columnName : primaryKey.getColumns()) {
+      Column column = columnsByNameLookup.get(columnName);
+      if (column == null) {
+        throw new ValidationException(
+            String.format(
+                "Could not create a PRIMARY KEY '%s'. Column '%s' does not exist.",
+                primaryKey.getName(), columnName));
+      }
+
+      if (!column.isPhysical()) {
+        throw new ValidationException(
+            String.format(
+                "Could not create a PRIMARY KEY '%s'. Column '%s' is not a physical column.",
+                primaryKey.getName(), columnName));
+      }
+
+      if (column.getDataType().getLogicalType().isNullable()) {
+        throw new ValidationException(
+            String.format(
+                "Could not create a PRIMARY KEY '%s'. Column '%s' is nullable.",
+                primaryKey.getName(), columnName));
+      }
+    }
   }
 }
