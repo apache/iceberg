@@ -610,7 +610,7 @@ class ArrowSchemaVisitor(Generic[T], ABC):
 def _get_field_id(field: pa.Field) -> int:
     field_metadata = {k.decode(): v.decode() for k, v in field.metadata.items()}
     if field_id := field_metadata.get("PARQUET:field_id"):
-        return field_id
+        return int(field_id)
     raise ValueError(f"Field {field.name} does not have a field_id")
 
 

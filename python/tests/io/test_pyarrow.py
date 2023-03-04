@@ -59,6 +59,7 @@ from pyiceberg.io.pyarrow import (
     _ConvertToArrowSchema,
     expression_to_pyarrow,
     project_table,
+    pyarrow_to_schema,
     schema_to_pyarrow,
 )
 from pyiceberg.manifest import DataFile, FileFormat
@@ -1125,6 +1126,39 @@ def test_projection_filter_on_unknown_field(schema_int_str: Schema, file_int_str
 
     assert "Could not find field with name unknown_field, case_sensitive=True" in str(exc_info.value)
 
+def test_pyarrow_wrap_fsspec(example_task: FileScanTask, table_schema_simple: Schema) -> None:
+    metadata_location = "file://a/b/c.json"
+    projection = project_table(
+        [example_task],
+        Table(
+            ("namespace", "table"),
+            metadata=TableMetadataV2(
+                location=metadata_location,
+                last_column_id=1,
+                format_version=2,
+                current_schema_id=1,
+                schemas=[table_schema_simple],
+                partition_specs=[PartitionSpec()],
+            ),
+            metadata_location=metadata_location,
+            io=load_file_io(properties={"py-io-impl": "pyiceberg.io.fsspec.FsspecFileIO"}, location=metadata_location),
+        ),
+        case_sensitive=True,
+        projected_schema=table_schema_simple,
+        row_filter=AlwaysTrue(),
+    )
+
+    assert (
+        str(projection)
+        == """pyarrow.Table
+foo: string
+bar: int64 not null
+baz: bool
+----
+foo: [["a","b","c"]]
+bar: [[1,2,3]]
+baz: [[true,false,null]]"""
+    )
 
 def test_pyarrow_wrap_fsspec(example_task: FileScanTask, table_schema_simple: Schema) -> None:
     metadata_location = "file://a/b/c.json"
