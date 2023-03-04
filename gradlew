@@ -80,14 +80,15 @@ do
     esac
 done
 
+# This is normally unused
+# shellcheck disable=SC2034
+APP_BASE_NAME=${0##*/}
 APP_HOME=$( cd "${APP_HOME:-./}" && pwd -P ) || exit
 
-if [ ! -e $APP_HOME/gradle/wrapper/gradle-wrapper.jar ]; then
-    curl -o $APP_HOME/gradle/wrapper/gradle-wrapper.jar https://raw.githubusercontent.com/gradle/gradle/v8.0.0/gradle/wrapper/gradle-wrapper.jar
+WRAPPER_JAR_SHA="91941f522fbfd4431cf57e445fc3d5200c85f957bda2de5251353cf11174f4b5"
+if [ ! -e "$APP_HOME"/gradle/wrapper/gradle-wrapper.jar ] || [ "$(sha256sum --binary "$APP_HOME"/gradle/wrapper/gradle-wrapper.jar | cut -d\  -f1)" != "$WRAPPER_JAR_SHA" ]; then
+    curl -o "$APP_HOME"/gradle/wrapper/gradle-wrapper.jar https://raw.githubusercontent.com/gradle/gradle/v8.0.2/gradle/wrapper/gradle-wrapper.jar
 fi
-
-APP_NAME="Gradle"
-APP_BASE_NAME=${0##*/}
 
 # Add default JVM options here. You can also use JAVA_OPTS and GRADLE_OPTS to pass JVM options to this script.
 DEFAULT_JVM_OPTS='"-Xmx64m" "-Xms64m"'
