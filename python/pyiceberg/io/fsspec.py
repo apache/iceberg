@@ -31,6 +31,7 @@ import requests
 from botocore import UNSIGNED
 from botocore.awsrequest import AWSRequest
 from fsspec import AbstractFileSystem
+from pyarrow.filesystem import LocalFileSystem
 from requests import HTTPError
 
 from pyiceberg.catalog import TOKEN
@@ -78,6 +79,10 @@ def s3v4_rest_signer(properties: Properties, request: AWSRequest, **_: Any) -> A
 SIGNERS: Dict[str, Callable[[Properties, AWSRequest], AWSRequest]] = {"S3V4RestSigner": s3v4_rest_signer}
 
 
+def _file(_: Properties) -> LocalFileSystem:
+    return LocalFileSystem()
+
+
 def _s3(properties: Properties) -> AbstractFileSystem:
     from s3fs import S3FileSystem
 
@@ -117,6 +122,7 @@ def _adlfs(properties: Properties) -> AbstractFileSystem:
 
 
 SCHEME_TO_FS = {
+    "file": _file,
     "s3": _s3,
     "s3a": _s3,
     "s3n": _s3,

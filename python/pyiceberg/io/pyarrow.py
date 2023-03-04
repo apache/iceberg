@@ -47,7 +47,9 @@ from pyarrow.fs import (
     FileInfo,
     FileSystem,
     FileType,
+    FSSpecHandler,
     LocalFileSystem,
+    PyFileSystem,
     S3FileSystem,
 )
 
@@ -541,11 +543,20 @@ def project_table(
         ResolveError: When an incompatible query is done
     """
 
+    scheme, _ = PyArrowFileIO.parse_location(table.location())
     if isinstance(table.io, PyArrowFileIO):
-        scheme, _ = PyArrowFileIO.parse_location(table.location())
         fs = table.io.get_fs(scheme)
     else:
-        raise ValueError(f"Expected PyArrowFileIO, got: {table.io}")
+        try:
+            from pyiceberg.io.fsspec import FsspecFileIO
+
+            if isinstance(table.io, FsspecFileIO):
+                fs = PyFileSystem(FSSpecHandler(table.io.get_fs(scheme)))
+            else:
+                raise ValueError(f"Expected PyArrowFileIO or FsspecFileIO, got: {table.io}")
+        except ModuleNotFoundError as e:
+            # When FsSpec is not installed
+            raise ValueError(f"Expected PyArrowFileIO or FsspecFileIO, got: {table.io}") from e
 
     bound_row_filter = bind(table.schema(), row_filter, case_sensitive=case_sensitive)
 

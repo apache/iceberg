@@ -49,16 +49,20 @@ import aiohttp.typedefs
 import boto3
 import botocore.awsrequest
 import botocore.model
+import pyarrow as pa
 import pytest
 from moto import mock_dynamodb, mock_glue, mock_s3
+from pyarrow import parquet as pq
 
 from pyiceberg import schema
 from pyiceberg.catalog import Catalog
 from pyiceberg.io import OutputFile, OutputStream, fsspec
 from pyiceberg.io.fsspec import FsspecFileIO
 from pyiceberg.io.pyarrow import PyArrowFile, PyArrowFileIO
+from pyiceberg.manifest import DataFile, FileFormat
 from pyiceberg.schema import Schema
 from pyiceberg.serializers import ToOutputFile
+from pyiceberg.table import FileScanTask
 from pyiceberg.table.metadata import TableMetadataV2
 from pyiceberg.types import (
     BinaryType,
@@ -1368,3 +1372,22 @@ def clean_up(test_catalog: Catalog) -> None:
             for identifier in test_catalog.list_tables(database_name):
                 test_catalog.purge_table(identifier)
             test_catalog.drop_namespace(database_name)
+
+
+@pytest.fixture
+def data_file(table_schema_simple: Schema, tmp_path: str) -> str:
+    table = pa.table(
+        {"foo": ["a", "b", "c"], "bar": [1, 2, 3], "baz": [True, False, None]},
+        metadata={"iceberg.schema": table_schema_simple.json()},
+    )
+
+    file_path = f"{tmp_path}/0000-data.parquet"
+    pq.write_table(table=table, where=file_path)
+    return file_path
+
+
+@pytest.fixture
+def example_task(data_file: str) -> FileScanTask:
+    return FileScanTask(
+        data_file=DataFile(file_path=data_file, file_format=FileFormat.PARQUET, file_size_in_bytes=1925),
+    )
