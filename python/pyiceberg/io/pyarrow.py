@@ -43,13 +43,13 @@ from urllib.parse import urlparse
 import pyarrow as pa
 import pyarrow.compute as pc
 import pyarrow.parquet as pq
-from pyarrow._fs import PyFileSystem
 from pyarrow.fs import (
     FileInfo,
     FileSystem,
     FileType,
     FSSpecHandler,
     LocalFileSystem,
+    PyFileSystem,
     S3FileSystem,
 )
 
@@ -74,7 +74,6 @@ from pyiceberg.io import (
     OutputFile,
     OutputStream,
 )
-from pyiceberg.io.fsspec import FsspecFileIO
 from pyiceberg.schema import (
     PartnerAccessor,
     Schema,
@@ -541,10 +540,17 @@ def project_table(
     scheme, _ = PyArrowFileIO.parse_location(table.location())
     if isinstance(table.io, PyArrowFileIO):
         fs = table.io.get_fs(scheme)
-    elif isinstance(table.io, FsspecFileIO):
-        fs = PyFileSystem(FSSpecHandler(table.io.get_fs(scheme)))
     else:
-        raise ValueError(f"Expected PyArrowFileIO or FsspecFileIO, got: {table.io}")
+        try:
+            from pyiceberg.io.fsspec import FsspecFileIO
+
+            if isinstance(table.io, FsspecFileIO):
+                fs = PyFileSystem(FSSpecHandler(table.io.get_fs(scheme)))
+            else:
+                raise ValueError(f"Expected PyArrowFileIO or FsspecFileIO, got: {table.io}")
+        except ModuleNotFoundError:
+            # When FsSpec is not installed
+            raise ValueError(f"Expected PyArrowFileIO or FsspecFileIO, got: {table.io}")
 
     bound_row_filter = bind(table.schema(), row_filter, case_sensitive=case_sensitive)
 

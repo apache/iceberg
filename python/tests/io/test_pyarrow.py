@@ -50,7 +50,7 @@ from pyiceberg.expressions import (
     Or,
     literal,
 )
-from pyiceberg.io import InputStream, OutputStream
+from pyiceberg.io import InputStream, OutputStream, load_file_io
 from pyiceberg.io.pyarrow import (
     PyArrowFile,
     PyArrowFileIO,
@@ -526,6 +526,20 @@ def test_expr_not_in_to_pyarrow(bound_reference: BoundReference[str]) -> None:
   "hello",
   "world"
 ], skip_nulls=false}))>""",
+    )
+
+
+def test_expr_starts_with_to_pyarrow(bound_reference: BoundReference[str]) -> None:
+    assert (
+        repr(expression_to_pyarrow(BoundStartsWith(bound_reference, literal("he"))))
+        == '<pyarrow.compute.Expression starts_with(foo, {pattern="he", ignore_case=false})>'
+    )
+
+
+def test_expr_not_starts_with_to_pyarrow(bound_reference: BoundReference[str]) -> None:
+    assert (
+        repr(expression_to_pyarrow(BoundNotStartsWith(bound_reference, literal("he"))))
+        == '<pyarrow.compute.Expression invert(starts_with(foo, {pattern="he", ignore_case=false}))>'
     )
 
 
@@ -1114,3 +1128,38 @@ def test_projection_filter_on_unknown_field(schema_int_str: Schema, file_int_str
         _ = project(schema, [file_int_str], GreaterThan("unknown_field", "1"), schema_int_str)
 
     assert "Could not find field with name unknown_field, case_sensitive=True" in str(exc_info.value)
+
+
+def test_pyarrow_wrap_fsspec(example_task: FileScanTask, table_schema_simple: Schema) -> None:
+    metadata_location = "file://a/b/c.json"
+    projection = project_table(
+        [example_task],
+        Table(
+            ("namespace", "table"),
+            metadata=TableMetadataV2(
+                location=metadata_location,
+                last_column_id=1,
+                format_version=2,
+                current_schema_id=1,
+                schemas=[table_schema_simple],
+                partition_specs=[PartitionSpec()],
+            ),
+            metadata_location=metadata_location,
+            io=load_file_io(properties={"py-io-impl": "pyiceberg.io.fsspec.FsspecFileIO"}, location=metadata_location),
+        ),
+        case_sensitive=True,
+        projected_schema=table_schema_simple,
+        row_filter=AlwaysTrue(),
+    )
+
+    assert (
+        str(projection)
+        == """pyarrow.Table
+foo: string
+bar: int64 not null
+baz: bool
+----
+foo: [["a","b","c"]]
+bar: [[1,2,3]]
+baz: [[true,false,null]]"""
+    )
