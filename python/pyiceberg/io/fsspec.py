@@ -117,8 +117,15 @@ def _s3(properties: Properties) -> AbstractFileSystem:
 def _adlfs(properties: Properties) -> AbstractFileSystem:
     from adlfs import AzureBlobFileSystem
 
-    fs = AzureBlobFileSystem(**properties)
-    return fs
+    return AzureBlobFileSystem(
+        connection_string=properties.get("adlfs.connection-string"),
+        account_name=properties.get("adlfs.account-name"),
+        account_key=properties.get("adlfs.account-key"),
+        sas_token=properties.get("adlfs.sas-token"),
+        tenant_id=properties.get("adlfs.tenant-id"),
+        client_id=properties.get("adlfs.client-id"),
+        client_secret=properties.get("adlfs.client-secret"),
+    )
 
 
 SCHEME_TO_FS = {

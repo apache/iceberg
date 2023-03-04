@@ -1281,8 +1281,8 @@ def adlfs_fsspec_fileio(request: pytest.FixtureRequest) -> Generator[FsspecFileI
     azurite_account_key = request.config.getoption("--adlfs.account-key")
     azurite_connection_string = f"DefaultEndpointsProtocol=http;AccountName={azurite_account_name};AccountKey={azurite_account_key};BlobEndpoint={azurite_url}/{azurite_account_name};"
     properties = {
-        "connection_string": azurite_connection_string,
-        "account_name": azurite_account_name,
+        "adlfs.connection-string": azurite_connection_string,
+        "adlfs.account-name": azurite_account_name,
     }
 
     bbs = BlobServiceClient.from_connection_string(conn_str=azurite_connection_string)
