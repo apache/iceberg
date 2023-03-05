@@ -433,6 +433,8 @@ project(':iceberg-aws') {
       exclude group: 'com.google.code.gson', module: 'gson'
     }
 
+    compileOnly 'org.apache.httpcomponents.client5:httpclient5'
+
     testImplementation 'software.amazon.awssdk:iam'
     testImplementation 'software.amazon.awssdk:s3control'
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
@@ -445,6 +447,8 @@ project(':iceberg-aws') {
     testImplementation "org.xerial:sqlite-jdbc"
     testImplementation "org.testcontainers:testcontainers"
     testImplementation "org.apache.httpcomponents.client5:httpclient5"
+    testImplementation 'org.mock-server:mockserver-netty'
+    testImplementation 'org.mock-server:mockserver-client-java'
     testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
   }
 
