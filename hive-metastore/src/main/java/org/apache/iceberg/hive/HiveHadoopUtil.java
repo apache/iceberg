@@ -31,7 +31,12 @@ public class HiveHadoopUtil {
 
   public static String currentUser() {
     try {
-      return UserGroupInformation.getCurrentUser().getShortUserName();
+      String username = UserGroupInformation.getCurrentUser().getShortUserName();
+      if (username != null) {
+        return username;
+      } else {
+        throw new IOException("Hadoop user is null");
+      }
     } catch (IOException e) {
       LOG.warn("Failed to get Hadoop user", e);
       return System.getProperty("user.name");
