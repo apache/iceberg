@@ -228,6 +228,12 @@ Remove snapshots older than specific day and time, but retain the last 100 snaps
 CALL hive_prod.system.expire_snapshots('db.sample', TIMESTAMP '2021-06-30 00:00:00.000', 100)
 ```
 
+Remove snapshots with snapshot ID `123` (note that this snapshot ID should not be the current snapshot):
+
+```sql
+CALL hive_prod.system.expire_snapshots(table => 'db.sample', snapshot_ids => ARRAY(123))
+```
+
 ### `remove_orphan_files`
 
 Used to remove files which are not referenced in any metadata files of an Iceberg table and can thus be considered "orphaned".
