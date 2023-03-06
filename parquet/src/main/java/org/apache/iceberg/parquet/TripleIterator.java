@@ -132,14 +132,13 @@ interface TripleIterator<T> extends Iterator<T> {
 
   /**
    * Returns true when some triples in this iterator might need to be skipped.
-   * @return
+   *
+   * @return whether this iterator needs to be synchronized
    */
   default boolean needsSynchronize() {
     return false;
   }
 
-  /**
-   * Skips triples to synchronize the row reading.
-   */
+  /** Skips triples to synchronize the row reading. */
   default void synchronize() {}
 }
