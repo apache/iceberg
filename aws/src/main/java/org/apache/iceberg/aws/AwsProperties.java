@@ -48,6 +48,8 @@ import software.amazon.awssdk.awscore.client.builder.AwsSyncClientBuilder;
 import software.amazon.awssdk.core.client.builder.SdkClientBuilder;
 import software.amazon.awssdk.core.client.config.SdkAdvancedClientOption;
 import software.amazon.awssdk.core.signer.Signer;
+import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.regions.providers.DefaultAwsRegionProviderChain;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClientBuilder;
 import software.amazon.awssdk.services.glue.GlueClientBuilder;
 import software.amazon.awssdk.services.s3.S3ClientBuilder;
@@ -628,6 +630,41 @@ public class AwsProperties implements Serializable {
    */
   public static final String LAKE_FORMATION_DB_NAME = "lakeformation.db-name";
 
+  /** Region to be used by the SigV4 protocol for signing requests. */
+  public static final String REST_SIGNER_REGION = "rest.signing-region";
+
+  /** The service name to be used by the SigV4 protocol for signing requests. */
+  public static final String REST_SIGNING_NAME = "rest.signing-name";
+
+  /** The default service name (API Gateway and lambda) used during SigV4 signing. */
+  public static final String REST_SIGNING_NAME_DEFAULT = "execute-api";
+
+  /**
+   * Configure the static access key ID used for SigV4 signing.
+   *
+   * <p>When set, the default client factory will use the basic or session credentials provided
+   * instead of reading the default credential chain to create S3 access credentials. If {@link
+   * #REST_SESSION_TOKEN} is set, session credential is used, otherwise basic credential is used.
+   */
+  public static final String REST_ACCESS_KEY_ID = "rest.access-key-id";
+
+  /**
+   * Configure the static secret access key used for SigV4 signing.
+   *
+   * <p>When set, the default client factory will use the basic or session credentials provided
+   * instead of reading the default credential chain to create S3 access credentials. If {@link
+   * #REST_SESSION_TOKEN} is set, session credential is used, otherwise basic credential is used.
+   */
+  public static final String REST_SECRET_ACCESS_KEY = "rest.secret-access-key";
+
+  /**
+   * Configure the static session token used for SigV4.
+   *
+   * <p>When set, the default client factory will use the session credentials provided instead of
+   * reading the default credential chain to create access credentials.
+   */
+  public static final String REST_SESSION_TOKEN = "rest.session-token";
+
   private static final String HTTP_CLIENT_PREFIX = "http-client.";
   private String httpClientType;
   private final Map<String, String> httpClientProperties;
@@ -678,6 +715,12 @@ public class AwsProperties implements Serializable {
   private final String s3SignerImpl;
   private final Map<String, String> allProperties;
 
+  private String restSigningRegion;
+  private String restSigningName;
+  private String restAccessKeyId;
+  private String restSecretAccessKey;
+  private String restSessionToken;
+
   public AwsProperties() {
     this.httpClientType = HTTP_CLIENT_TYPE_DEFAULT;
     this.httpClientProperties = Collections.emptyMap();
@@ -727,6 +770,8 @@ public class AwsProperties implements Serializable {
 
     this.s3SignerImpl = null;
     this.allProperties = Maps.newHashMap();
+
+    this.restSigningName = REST_SIGNING_NAME_DEFAULT;
 
     ValidationException.check(
         s3KeyIdAccessKeyBothConfigured(),
@@ -855,6 +900,12 @@ public class AwsProperties implements Serializable {
 
     this.s3SignerImpl = properties.get(S3_SIGNER_IMPL);
     this.allProperties = SerializableMap.copyOf(properties);
+
+    this.restSigningRegion = properties.get(REST_SIGNER_REGION);
+    this.restSigningName = properties.getOrDefault(REST_SIGNING_NAME, REST_SIGNING_NAME_DEFAULT);
+    this.restAccessKeyId = properties.get(REST_ACCESS_KEY_ID);
+    this.restSecretAccessKey = properties.get(REST_SECRET_ACCESS_KEY);
+    this.restSessionToken = properties.get(REST_SESSION_TOKEN);
 
     ValidationException.check(
         s3KeyIdAccessKeyBothConfigured(),
@@ -1225,6 +1276,23 @@ public class AwsProperties implements Serializable {
    */
   public <T extends DynamoDbClientBuilder> void applyDynamoDbEndpointConfigurations(T builder) {
     configureEndpoint(builder, dynamoDbEndpoint);
+  }
+
+  public Region restSigningRegion() {
+    if (restSigningRegion == null) {
+      this.restSigningRegion = DefaultAwsRegionProviderChain.builder().build().getRegion().id();
+    }
+
+    return Region.of(restSigningRegion);
+  }
+
+  public String restSigningName() {
+    return restSigningName;
+  }
+
+  public AwsCredentialsProvider restCredentialsProvider() {
+    return credentialsProvider(
+        this.restAccessKeyId, this.restSecretAccessKey, this.restSessionToken);
   }
 
   private Set<Tag> toS3Tags(Map<String, String> properties, String prefix) {
