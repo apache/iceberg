@@ -18,7 +18,11 @@
  */
 package org.apache.iceberg.parquet;
 
+import java.util.Optional;
+import java.util.PrimitiveIterator;
 import org.apache.parquet.column.ColumnDescriptor;
+import org.apache.parquet.column.page.PageReader;
+import org.apache.parquet.internal.filter2.columnindex.RowRanges;
 import org.apache.parquet.io.api.Binary;
 
 public abstract class ColumnIterator<T> extends BaseColumnIterator implements TripleIterator<T> {
@@ -89,6 +93,8 @@ public abstract class ColumnIterator<T> extends BaseColumnIterator implements Tr
   }
 
   private final PageIterator<T> pageIterator;
+  private PrimitiveIterator.OfLong rowIndexes;
+  private long targetRowIndex = Long.MIN_VALUE;
 
   private ColumnIterator(ColumnDescriptor desc, String writerVersion) {
     super(desc);
@@ -111,63 +117,49 @@ public abstract class ColumnIterator<T> extends BaseColumnIterator implements Tr
   public boolean nextBoolean() {
     this.triplesRead += 1;
     advance();
-    boolean value = pageIterator.nextBoolean();
-    skip();
-    return value;
+    return pageIterator.nextBoolean();
   }
 
   @Override
   public int nextInteger() {
     this.triplesRead += 1;
     advance();
-    int value = pageIterator.nextInteger();
-    skip();
-    return value;
+    return pageIterator.nextInteger();
   }
 
   @Override
   public long nextLong() {
     this.triplesRead += 1;
     advance();
-    long value = pageIterator.nextLong();
-    skip();
-    return value;
+    return pageIterator.nextLong();
   }
 
   @Override
   public float nextFloat() {
     this.triplesRead += 1;
     advance();
-    float value = pageIterator.nextFloat();
-    skip();
-    return value;
+    return pageIterator.nextFloat();
   }
 
   @Override
   public double nextDouble() {
     this.triplesRead += 1;
     advance();
-    double value = pageIterator.nextDouble();
-    skip();
-    return value;
+    return pageIterator.nextDouble();
   }
 
   @Override
   public Binary nextBinary() {
     this.triplesRead += 1;
     advance();
-    Binary value = pageIterator.nextBinary();
-    skip();
-    return value;
+    return pageIterator.nextBinary();
   }
 
   @Override
   public <N> N nextNull() {
     this.triplesRead += 1;
     advance();
-    N value = pageIterator.nextNull();
-    skip();
-    return value;
+    return pageIterator.nextNull();
   }
 
   @Override
@@ -176,11 +168,21 @@ public abstract class ColumnIterator<T> extends BaseColumnIterator implements Tr
   }
 
   @Override
-  protected void skip() {
-    if (!synchronizing) {
-      return;
+  public void setPageSource(PageReader source, Optional<RowRanges> rowRanges) {
+    super.setPageSource(source, rowRanges);
+    if (rowRanges.isPresent()) {
+      this.rowIndexes = rowRanges.get().iterator();
+      this.targetRowIndex = Long.MIN_VALUE;
     }
+  }
 
+  @Override
+  public boolean needsSynchronize() {
+    return needsSynchronize;
+  }
+
+  @Override
+  public void synchronize() {
     skipValues = 0;
     while (hasNext()) {
       advance();

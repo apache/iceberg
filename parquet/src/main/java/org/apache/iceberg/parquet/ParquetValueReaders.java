@@ -731,6 +731,8 @@ public class ParquetValueReaders {
     private final TripleIterator<?> column;
     private final List<TripleIterator<?>> children;
 
+    private boolean topLevel = false;
+
     @SuppressWarnings("unchecked")
     protected StructReader(List<Type> types, List<ParquetValueReader<?>> readers) {
       this.readers =
@@ -752,6 +754,10 @@ public class ParquetValueReaders {
       this.column = firstNonNullColumn(children);
     }
 
+    public final void topLevel() {
+      this.topLevel = true;
+    }
+
     @Override
     public final void setPageSource(
         PageReadStore pageStore, long rowPosition, Optional<RowRanges> rowRanges) {
@@ -767,6 +773,12 @@ public class ParquetValueReaders {
 
     @Override
     public final T read(T reuse) {
+      if (topLevel && column.needsSynchronize()) {
+        for (TripleIterator<?> child : children) {
+          child.synchronize();
+        }
+      }
+
       I intermediate = newStructData(reuse);
 
       for (int i = 0; i < readers.length; i += 1) {

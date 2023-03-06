@@ -19,7 +19,6 @@
 package org.apache.iceberg.parquet;
 
 import java.util.Optional;
-import java.util.PrimitiveIterator;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.Dictionary;
 import org.apache.parquet.column.page.DataPage;
@@ -39,9 +38,7 @@ public abstract class BaseColumnIterator {
   protected Dictionary dictionary;
 
   // state for page skipping
-  protected boolean synchronizing = false;
-  protected PrimitiveIterator.OfLong rowIndexes;
-  protected long targetRowIndex;
+  protected boolean needsSynchronize;
   protected long currentRowIndex;
   protected int skipValues;
 
@@ -55,29 +52,16 @@ public abstract class BaseColumnIterator {
     this.triplesCount = source.getTotalValueCount();
     this.triplesRead = 0L;
     this.advanceNextPageCount = 0L;
-    if (rowRanges.isPresent()) {
-      this.synchronizing = true;
-      this.rowIndexes = rowRanges.get().iterator();
-      this.targetRowIndex = Long.MIN_VALUE;
-    } else {
-      this.synchronizing = false;
-    }
+    this.needsSynchronize = rowRanges.isPresent();
 
     BasePageIterator pageIterator = pageIterator();
     pageIterator.reset();
     dictionary = ParquetUtil.readDictionary(desc, pageSource);
     pageIterator.setDictionary(dictionary);
     advance();
-    if (synchronizing) {
-      skip();
-    }
   }
 
   protected abstract BasePageIterator pageIterator();
-
-  protected void skip() {
-    throw new UnsupportedOperationException();
-  }
 
   protected void advance() {
     if (triplesRead >= advanceNextPageCount) {
@@ -88,7 +72,7 @@ public abstract class BaseColumnIterator {
           pageIterator.setPage(page);
           this.advanceNextPageCount += pageIterator.currentPageCount();
 
-          if (synchronizing) {
+          if (needsSynchronize) {
             long firstRowIndex =
                 page.getFirstRowIndex()
                     .orElseThrow(
