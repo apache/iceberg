@@ -1252,8 +1252,8 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
 
     Types.StructType expectedSchema =
         Types.StructType.of(
-            required(2, "record_count", Types.LongType.get(), "count of records in data files"),
-            required(3, "file_count", Types.IntegerType.get(), "count of data files"));
+            required(2, "record_count", Types.LongType.get(), "Count of records in data files"),
+            required(3, "file_count", Types.IntegerType.get(), "Count of data files"));
 
     Table partitionsTable = loadTable(tableIdentifier, "partitions");
 
