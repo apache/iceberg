@@ -18,8 +18,6 @@
  */
 package org.apache.iceberg.parquet;
 
-import static org.apache.iceberg.parquet.PageSkippingHelpers.getColumnIndexStore;
-
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
@@ -134,7 +132,7 @@ class ReadConf<T> {
                       typeWithIds, rowGroup, reader.getBloomFilterDataReader(rowGroup)));
 
       if (useColumnIndexFilter && filter != null && shouldRead) {
-        ColumnIndexStore columnIndexStore = getColumnIndexStore(reader, i);
+        ColumnIndexStore columnIndexStore = PageSkippingHelpers.getColumnIndexStore(reader, i);
         RowRanges rowRanges =
             columnIndexFilter.calculateRowRanges(
                 typeWithIds, columnIndexStore, rowGroup.getRowCount());
