@@ -24,6 +24,7 @@ from pyiceberg.io import (
     ARROW_FILE_IO,
     PY_IO_IMPL,
     _import_file_io,
+    _infer_file_io_from_scheme,
     load_file_io,
 )
 from pyiceberg.io.pyarrow import PyArrowFileIO
@@ -302,3 +303,11 @@ def test_mock_table_location_file_io() -> None:
 def test_gibberish_table_location_file_io() -> None:
     # For testing the selection logic
     assert isinstance(load_file_io({}, "gibberish"), PyArrowFileIO)
+
+
+def test_infer_file_io_from_schema_unknown() -> None:
+    # When we have an unknown scheme, we would like to know
+    with pytest.warns(UserWarning) as w:
+        _infer_file_io_from_scheme("unknown://bucket/path/", {})
+
+    assert str(w[0].message) == "No preferred file implementation for scheme: unknown"
