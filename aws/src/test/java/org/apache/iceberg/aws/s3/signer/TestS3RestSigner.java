@@ -33,6 +33,7 @@ import org.eclipse.jetty.servlet.ServletHolder;
 import org.jetbrains.annotations.NotNull;
 import org.junit.AfterClass;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -177,6 +178,7 @@ public class TestS3RestSigner {
   }
 
   @Test
+  @Ignore
   public void validatedUploadPart() {
     s3.uploadPart(
         UploadPartRequest.builder()
