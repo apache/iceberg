@@ -101,6 +101,7 @@ public interface TableLoader extends Closeable, Serializable, Cloneable {
 
     private final CatalogLoader catalogLoader;
     private final String identifier;
+
     private transient Catalog catalog;
 
     private CatalogTableLoader(CatalogLoader catalogLoader, TableIdentifier tableIdentifier) {
