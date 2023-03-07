@@ -183,6 +183,7 @@ public class TestS3RestSigner {
             .bucket(BUCKET)
             .key("some/multipart-key")
             .uploadId("1234")
+            .partNumber(1)
             .build(),
         RequestBody.fromString("content"));
   }
