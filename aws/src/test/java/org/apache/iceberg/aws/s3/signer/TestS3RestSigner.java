@@ -33,7 +33,6 @@ import org.eclipse.jetty.servlet.ServletHolder;
 import org.jetbrains.annotations.NotNull;
 import org.junit.AfterClass;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -178,13 +177,19 @@ public class TestS3RestSigner {
   }
 
   @Test
-  @Ignore
   public void validatedUploadPart() {
+    String multipartUploadId =
+        s3.createMultipartUpload(
+                CreateMultipartUploadRequest.builder()
+                    .bucket(BUCKET)
+                    .key("some/multipart-key")
+                    .build())
+            .uploadId();
     s3.uploadPart(
         UploadPartRequest.builder()
             .bucket(BUCKET)
             .key("some/multipart-key")
-            .uploadId("1234")
+            .uploadId(multipartUploadId)
             .partNumber(1)
             .build(),
         RequestBody.fromString("content"));
