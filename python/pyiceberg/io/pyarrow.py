@@ -31,6 +31,7 @@ from typing import (
     TYPE_CHECKING,
     Any,
     Callable,
+    Dict,
     Iterable,
     List,
     Optional,
@@ -42,7 +43,7 @@ from urllib.parse import urlparse
 
 import pyarrow as pa
 import pyarrow.compute as pc
-import pyarrow.parquet as pq
+import pyarrow.dataset as ds
 from pyarrow.fs import (
     FileInfo,
     FileSystem,
@@ -67,6 +68,7 @@ from pyiceberg.expressions.visitors import (
     translate_column_names,
 )
 from pyiceberg.expressions.visitors import visit as boolean_expression_visit
+from pyiceberg.files import FileFormat
 from pyiceberg.io import (
     FileIO,
     InputFile,
@@ -478,6 +480,16 @@ def expression_to_pyarrow(expr: BooleanExpression) -> pc.Expression:
     return boolean_expression_visit(expr, _ConvertToArrowExpression())
 
 
+@lru_cache
+def _get_file_format(file_format: FileFormat, **kwargs: Dict[str, Any]) -> ds.FileFormat:
+    if file_format == FileFormat.PARQUET.value:
+        return ds.ParquetFileFormat(**kwargs)
+    elif file_format == FileFormat.ORC.value:
+        return ds.OrcFileFormat()
+    else:
+        raise ValueError(f"Unsupported file format: {file_format}")
+
+
 def _file_to_table(
     fs: FileSystem,
     task: FileScanTask,
@@ -487,12 +499,12 @@ def _file_to_table(
     case_sensitive: bool,
 ) -> Optional[pa.Table]:
     _, path = PyArrowFileIO.parse_location(task.file.file_path)
-
-    # Get the schema
-    with fs.open_input_file(path) as fout:
-        parquet_schema = pq.read_schema(fout)
+    arrow_format = _get_file_format(task.file.file_format, **{"pre_buffer": True, "buffer_size": ONE_MEGABYTE * 8})
+    with fs.open_input_file(path) as fin:
+        fragment = arrow_format.make_fragment(fin)
+        physical_schema = fragment.physical_schema
         schema_raw = None
-        if metadata := parquet_schema.metadata:
+        if metadata := physical_schema.metadata:
             schema_raw = metadata.get(ICEBERG_SCHEMA)
         if schema_raw is None:
             raise ValueError(
@@ -511,14 +523,12 @@ def _file_to_table(
         if file_schema is None:
             raise ValueError(f"Missing Iceberg schema in Metadata for file: {path}")
 
-        arrow_table = pq.read_table(
-            source=fout,
-            schema=parquet_schema,
-            pre_buffer=True,
-            buffer_size=8 * ONE_MEGABYTE,
-            filters=pyarrow_filter,
+        arrow_table = ds.Scanner.from_fragment(
+            fragment=fragment,
+            schema=physical_schema,
+            filter=pyarrow_filter,
             columns=[col.name for col in file_project_schema.columns],
-        )
+        ).to_table()
 
         # If there is no data, we don't have to go through the schema
         if len(arrow_table) > 0:
