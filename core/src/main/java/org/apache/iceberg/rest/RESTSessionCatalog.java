@@ -176,15 +176,16 @@ public class RESTSessionCatalog extends BaseSessionCatalog
     this.client = clientBuilder.apply(mergedProps);
     this.paths = ResourcePaths.forCatalogProperties(mergedProps);
 
+    String token = mergedProps.get(OAuth2Properties.TOKEN);
     this.catalogAuth = new AuthSession(baseHeaders, null, null, credential, scope);
     if (authResponse != null) {
       this.catalogAuth =
           AuthSession.fromTokenResponse(
               client, tokenRefreshExecutor(), authResponse, startTimeMillis, catalogAuth);
-    } else if (initToken != null) {
+    } else if (token != null) {
       this.catalogAuth =
           AuthSession.fromAccessToken(
-              client, tokenRefreshExecutor(), initToken, expiresAtMillis(mergedProps), catalogAuth);
+              client, tokenRefreshExecutor(), token, expiresAtMillis(mergedProps), catalogAuth);
     }
 
     String ioImpl = mergedProps.get(CatalogProperties.FILE_IO_IMPL);
