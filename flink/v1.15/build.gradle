@@ -33,6 +33,7 @@ project(":iceberg-flink:iceberg-flink-${flinkMajorVersion}") {
     implementation project(':iceberg-parquet')
     implementation project(':iceberg-hive-metastore')
 
+    compileOnly "org.apache.flink:flink-avro:${flinkVersion}"
     // for dropwizard histogram metrics implementation
     compileOnly "org.apache.flink:flink-metrics-dropwizard:${flinkVersion}"
     compileOnly "org.apache.flink:flink-streaming-java:${flinkVersion}"
@@ -231,7 +232,7 @@ project(":iceberg-flink:iceberg-flink-runtime-${flinkMajorVersion}") {
     relocate 'org.threeten.extra', 'org.apache.iceberg.shaded.org.threeten.extra'
     relocate 'org.apache.httpcomponents.client5', 'org.apache.iceberg.shaded.org.apache.httpcomponents.client5'
 
-    classifier null
+    archiveClassifier.set(null)
   }
 
   task integrationTest(type: Test) {

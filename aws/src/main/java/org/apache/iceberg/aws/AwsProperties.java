@@ -20,7 +20,6 @@ package org.apache.iceberg.aws;
 
 import java.io.Serializable;
 import java.net.URI;
-import java.time.Duration;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
@@ -29,12 +28,17 @@ import org.apache.iceberg.aws.dynamodb.DynamoDbCatalog;
 import org.apache.iceberg.aws.glue.GlueCatalog;
 import org.apache.iceberg.aws.lakeformation.LakeFormationAwsClientFactory;
 import org.apache.iceberg.aws.s3.S3FileIO;
+import org.apache.iceberg.common.DynConstructors;
+import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.exceptions.ValidationException;
-import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.PropertyUtil;
+import org.apache.iceberg.util.SerializableMap;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
@@ -42,8 +46,10 @@ import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.awscore.client.builder.AwsSyncClientBuilder;
 import software.amazon.awssdk.core.client.builder.SdkClientBuilder;
-import software.amazon.awssdk.http.apache.ApacheHttpClient;
-import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
+import software.amazon.awssdk.core.client.config.SdkAdvancedClientOption;
+import software.amazon.awssdk.core.signer.Signer;
+import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.regions.providers.DefaultAwsRegionProviderChain;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClientBuilder;
 import software.amazon.awssdk.services.glue.GlueClientBuilder;
 import software.amazon.awssdk.services.s3.S3ClientBuilder;
@@ -52,6 +58,8 @@ import software.amazon.awssdk.services.s3.model.ObjectCannedACL;
 import software.amazon.awssdk.services.s3.model.Tag;
 
 public class AwsProperties implements Serializable {
+
+  private static final Logger LOG = LoggerFactory.getLogger(AwsProperties.class);
 
   /**
    * Type of S3 Server side encryption used, default to {@link
@@ -123,7 +131,7 @@ public class AwsProperties implements Serializable {
    */
   public static final String GLUE_CATALOG_SKIP_ARCHIVE = "glue.skip-archive";
 
-  public static final boolean GLUE_CATALOG_SKIP_ARCHIVE_DEFAULT = false;
+  public static final boolean GLUE_CATALOG_SKIP_ARCHIVE_DEFAULT = true;
 
   /**
    * If Glue should skip name validations It is recommended to stick to Glue best practice in
@@ -261,6 +269,8 @@ public class AwsProperties implements Serializable {
 
   public static final boolean S3_CHECKSUM_ENABLED_DEFAULT = false;
 
+  public static final String S3_SIGNER_IMPL = "s3.signer-impl";
+
   /** Configure the batch size used when deleting multiple files from a given S3 bucket */
   public static final String S3FILEIO_DELETE_BATCH_SIZE = "s3.delete.batch-size";
 
@@ -365,8 +375,8 @@ public class AwsProperties implements Serializable {
 
   /**
    * Used to configure the connection timeout in milliseconds for {@link
-   * UrlConnectionHttpClient.Builder}. This flag only works when {@link #HTTP_CLIENT_TYPE} is set to
-   * {@link #HTTP_CLIENT_TYPE_URLCONNECTION}
+   * software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient.Builder}. This flag only
+   * works when {@link #HTTP_CLIENT_TYPE} is set to {@link #HTTP_CLIENT_TYPE_URLCONNECTION}
    *
    * <p>For more details, see
    * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/urlconnection/UrlConnectionHttpClient.Builder.html
@@ -376,8 +386,8 @@ public class AwsProperties implements Serializable {
 
   /**
    * Used to configure the socket timeout in milliseconds for {@link
-   * UrlConnectionHttpClient.Builder}. This flag only works when {@link #HTTP_CLIENT_TYPE} is set to
-   * {@link #HTTP_CLIENT_TYPE_URLCONNECTION}
+   * software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient.Builder}. This flag only
+   * works when {@link #HTTP_CLIENT_TYPE} is set to {@link #HTTP_CLIENT_TYPE_URLCONNECTION}
    *
    * <p>For more details, see
    * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/urlconnection/UrlConnectionHttpClient.Builder.html
@@ -620,18 +630,44 @@ public class AwsProperties implements Serializable {
    */
   public static final String LAKE_FORMATION_DB_NAME = "lakeformation.db-name";
 
+  /** Region to be used by the SigV4 protocol for signing requests. */
+  public static final String REST_SIGNER_REGION = "rest.signing-region";
+
+  /** The service name to be used by the SigV4 protocol for signing requests. */
+  public static final String REST_SIGNING_NAME = "rest.signing-name";
+
+  /** The default service name (API Gateway and lambda) used during SigV4 signing. */
+  public static final String REST_SIGNING_NAME_DEFAULT = "execute-api";
+
+  /**
+   * Configure the static access key ID used for SigV4 signing.
+   *
+   * <p>When set, the default client factory will use the basic or session credentials provided
+   * instead of reading the default credential chain to create S3 access credentials. If {@link
+   * #REST_SESSION_TOKEN} is set, session credential is used, otherwise basic credential is used.
+   */
+  public static final String REST_ACCESS_KEY_ID = "rest.access-key-id";
+
+  /**
+   * Configure the static secret access key used for SigV4 signing.
+   *
+   * <p>When set, the default client factory will use the basic or session credentials provided
+   * instead of reading the default credential chain to create S3 access credentials. If {@link
+   * #REST_SESSION_TOKEN} is set, session credential is used, otherwise basic credential is used.
+   */
+  public static final String REST_SECRET_ACCESS_KEY = "rest.secret-access-key";
+
+  /**
+   * Configure the static session token used for SigV4.
+   *
+   * <p>When set, the default client factory will use the session credentials provided instead of
+   * reading the default credential chain to create access credentials.
+   */
+  public static final String REST_SESSION_TOKEN = "rest.session-token";
+
+  private static final String HTTP_CLIENT_PREFIX = "http-client.";
   private String httpClientType;
-  private Long httpClientUrlConnectionConnectionTimeoutMs;
-  private Long httpClientUrlConnectionSocketTimeoutMs;
-  private Long httpClientApacheConnectionAcquisitionTimeoutMs;
-  private Long httpClientApacheConnectionMaxIdleTimeMs;
-  private Long httpClientApacheConnectionTimeToLiveMs;
-  private Long httpClientApacheConnectionTimeoutMs;
-  private Boolean httpClientApacheExpectContinueEnabled;
-  private Integer httpClientApacheMaxConnections;
-  private Long httpClientApacheSocketTimeoutMs;
-  private Boolean httpClientApacheTcpKeepAliveEnabled;
-  private Boolean httpClientApacheUseIdleConnectionReaperEnabled;
+  private final Map<String, String> httpClientProperties;
   private final Set<software.amazon.awssdk.services.sts.model.Tag> stsClientAssumeRoleTags;
 
   private String clientAssumeRoleArn;
@@ -676,19 +712,18 @@ public class AwsProperties implements Serializable {
   private String dynamoDbTableName;
   private String dynamoDbEndpoint;
 
+  private final String s3SignerImpl;
+  private final Map<String, String> allProperties;
+
+  private String restSigningRegion;
+  private String restSigningName;
+  private String restAccessKeyId;
+  private String restSecretAccessKey;
+  private String restSessionToken;
+
   public AwsProperties() {
     this.httpClientType = HTTP_CLIENT_TYPE_DEFAULT;
-    this.httpClientUrlConnectionConnectionTimeoutMs = null;
-    this.httpClientUrlConnectionSocketTimeoutMs = null;
-    this.httpClientApacheConnectionAcquisitionTimeoutMs = null;
-    this.httpClientApacheConnectionMaxIdleTimeMs = null;
-    this.httpClientApacheConnectionTimeToLiveMs = null;
-    this.httpClientApacheConnectionTimeoutMs = null;
-    this.httpClientApacheExpectContinueEnabled = null;
-    this.httpClientApacheMaxConnections = null;
-    this.httpClientApacheSocketTimeoutMs = null;
-    this.httpClientApacheTcpKeepAliveEnabled = null;
-    this.httpClientApacheUseIdleConnectionReaperEnabled = null;
+    this.httpClientProperties = Collections.emptyMap();
     this.stsClientAssumeRoleTags = Sets.newHashSet();
 
     this.clientAssumeRoleArn = null;
@@ -732,44 +767,23 @@ public class AwsProperties implements Serializable {
 
     this.dynamoDbEndpoint = null;
     this.dynamoDbTableName = DYNAMODB_TABLE_NAME_DEFAULT;
+
+    this.s3SignerImpl = null;
+    this.allProperties = Maps.newHashMap();
+
+    this.restSigningName = REST_SIGNING_NAME_DEFAULT;
+
     ValidationException.check(
         s3KeyIdAccessKeyBothConfigured(),
         "S3 client access key ID and secret access key must be set at the same time");
   }
 
+  @SuppressWarnings("MethodLength")
   public AwsProperties(Map<String, String> properties) {
     this.httpClientType =
         PropertyUtil.propertyAsString(properties, HTTP_CLIENT_TYPE, HTTP_CLIENT_TYPE_DEFAULT);
-    this.httpClientUrlConnectionConnectionTimeoutMs =
-        PropertyUtil.propertyAsNullableLong(
-            properties, HTTP_CLIENT_URLCONNECTION_CONNECTION_TIMEOUT_MS);
-    this.httpClientUrlConnectionSocketTimeoutMs =
-        PropertyUtil.propertyAsNullableLong(
-            properties, HTTP_CLIENT_URLCONNECTION_SOCKET_TIMEOUT_MS);
-    this.httpClientApacheConnectionAcquisitionTimeoutMs =
-        PropertyUtil.propertyAsNullableLong(
-            properties, HTTP_CLIENT_APACHE_CONNECTION_ACQUISITION_TIMEOUT_MS);
-    this.httpClientApacheConnectionMaxIdleTimeMs =
-        PropertyUtil.propertyAsNullableLong(
-            properties, HTTP_CLIENT_APACHE_CONNECTION_MAX_IDLE_TIME_MS);
-    this.httpClientApacheConnectionTimeToLiveMs =
-        PropertyUtil.propertyAsNullableLong(
-            properties, HTTP_CLIENT_APACHE_CONNECTION_TIME_TO_LIVE_MS);
-    this.httpClientApacheConnectionTimeoutMs =
-        PropertyUtil.propertyAsNullableLong(properties, HTTP_CLIENT_APACHE_CONNECTION_TIMEOUT_MS);
-    this.httpClientApacheExpectContinueEnabled =
-        PropertyUtil.propertyAsNullableBoolean(
-            properties, HTTP_CLIENT_APACHE_EXPECT_CONTINUE_ENABLED);
-    this.httpClientApacheMaxConnections =
-        PropertyUtil.propertyAsNullableInt(properties, HTTP_CLIENT_APACHE_MAX_CONNECTIONS);
-    this.httpClientApacheSocketTimeoutMs =
-        PropertyUtil.propertyAsNullableLong(properties, HTTP_CLIENT_APACHE_SOCKET_TIMEOUT_MS);
-    this.httpClientApacheTcpKeepAliveEnabled =
-        PropertyUtil.propertyAsNullableBoolean(
-            properties, HTTP_CLIENT_APACHE_TCP_KEEP_ALIVE_ENABLED);
-    this.httpClientApacheUseIdleConnectionReaperEnabled =
-        PropertyUtil.propertyAsNullableBoolean(
-            properties, HTTP_CLIENT_APACHE_USE_IDLE_CONNECTION_REAPER_ENABLED);
+    this.httpClientProperties =
+        PropertyUtil.filterProperties(properties, key -> key.startsWith(HTTP_CLIENT_PREFIX));
     this.stsClientAssumeRoleTags = toStsTags(properties, CLIENT_ASSUME_ROLE_TAGS_PREFIX);
     this.clientAssumeRoleArn = properties.get(CLIENT_ASSUME_ROLE_ARN);
     this.clientAssumeRoleTimeoutSec =
@@ -883,6 +897,16 @@ public class AwsProperties implements Serializable {
     this.dynamoDbEndpoint = properties.get(DYNAMODB_ENDPOINT);
     this.dynamoDbTableName =
         PropertyUtil.propertyAsString(properties, DYNAMODB_TABLE_NAME, DYNAMODB_TABLE_NAME_DEFAULT);
+
+    this.s3SignerImpl = properties.get(S3_SIGNER_IMPL);
+    this.allProperties = SerializableMap.copyOf(properties);
+
+    this.restSigningRegion = properties.get(REST_SIGNER_REGION);
+    this.restSigningName = properties.getOrDefault(REST_SIGNING_NAME, REST_SIGNING_NAME_DEFAULT);
+    this.restAccessKeyId = properties.get(REST_ACCESS_KEY_ID);
+    this.restSecretAccessKey = properties.get(REST_SECRET_ACCESS_KEY);
+    this.restSessionToken = properties.get(REST_SESSION_TOKEN);
+
     ValidationException.check(
         s3KeyIdAccessKeyBothConfigured(),
         "S3 client access key ID and secret access key must be set at the same time");
@@ -1084,6 +1108,10 @@ public class AwsProperties implements Serializable {
     return s3BucketToAccessPointMapping;
   }
 
+  public Map<String, String> httpClientProperties() {
+    return httpClientProperties;
+  }
+
   /**
    * Configure the credentials for an S3 client.
    *
@@ -1120,6 +1148,66 @@ public class AwsProperties implements Serializable {
   }
 
   /**
+   * Configure a signer for an S3 client.
+   *
+   * <p>Sample usage:
+   *
+   * <pre>
+   *     S3Client.builder().applyMutation(awsProperties::applyS3SignerConfiguration)
+   * </pre>
+   */
+  public <T extends S3ClientBuilder> void applyS3SignerConfiguration(T builder) {
+    if (null != s3SignerImpl) {
+      builder.overrideConfiguration(
+          c -> c.putAdvancedOption(SdkAdvancedClientOption.SIGNER, loadS3SignerDynamically()));
+    }
+  }
+
+  private Signer loadS3SignerDynamically() {
+    // load the signer implementation dynamically
+    Object signer = null;
+    try {
+      signer =
+          DynMethods.builder("create")
+              .impl(s3SignerImpl, Map.class)
+              .buildStaticChecked()
+              .invoke(allProperties);
+    } catch (NoSuchMethodException e) {
+      LOG.warn(
+          "Cannot find static method create(Map<String, String> properties) for signer {}",
+          s3SignerImpl,
+          e);
+    }
+
+    if (null == signer) {
+      try {
+        signer = DynMethods.builder("create").impl(s3SignerImpl).buildChecked().invoke(null);
+      } catch (NoSuchMethodException e) {
+        LOG.warn("Cannot find static method create() for signer {}", s3SignerImpl, e);
+      }
+    }
+
+    if (null == signer) {
+      // try via default no-arg constructor
+      try {
+        signer = DynConstructors.builder().impl(s3SignerImpl).buildChecked().newInstance();
+      } catch (NoSuchMethodException e) {
+        LOG.warn("Cannot find no-arg constructor for signer {}", s3SignerImpl, e);
+      }
+    }
+
+    Preconditions.checkArgument(
+        null != signer, "Cannot instantiate custom signer: %s", s3SignerImpl);
+
+    Preconditions.checkArgument(
+        signer instanceof Signer,
+        "Custom signer %s must be an instance of %s",
+        s3SignerImpl,
+        Signer.class.getName());
+    return (Signer) signer;
+  }
+
+  /**
    * Configure the httpClient for a client according to the HttpClientType. The two supported
    * HttpClientTypes are urlconnection and apache
    *
@@ -1135,13 +1223,16 @@ public class AwsProperties implements Serializable {
     }
     switch (httpClientType) {
       case HTTP_CLIENT_TYPE_URLCONNECTION:
-        builder.httpClientBuilder(
-            UrlConnectionHttpClient.builder()
-                .applyMutation(this::configureUrlConnectionHttpClientBuilder));
+        UrlConnectionHttpClientConfigurations urlConnectionHttpClientConfigurations =
+            (UrlConnectionHttpClientConfigurations)
+                loadHttpClientConfigurations(UrlConnectionHttpClientConfigurations.class.getName());
+        urlConnectionHttpClientConfigurations.configureHttpClientBuilder(builder);
         break;
       case HTTP_CLIENT_TYPE_APACHE:
-        builder.httpClientBuilder(
-            ApacheHttpClient.builder().applyMutation(this::configureApacheHttpClientBuilder));
+        ApacheHttpClientConfigurations apacheHttpClientConfigurations =
+            (ApacheHttpClientConfigurations)
+                loadHttpClientConfigurations(ApacheHttpClientConfigurations.class.getName());
+        apacheHttpClientConfigurations.configureHttpClientBuilder(builder);
         break;
       default:
         throw new IllegalArgumentException("Unrecognized HTTP client type " + httpClientType);
@@ -1187,6 +1278,23 @@ public class AwsProperties implements Serializable {
     configureEndpoint(builder, dynamoDbEndpoint);
   }
 
+  public Region restSigningRegion() {
+    if (restSigningRegion == null) {
+      this.restSigningRegion = DefaultAwsRegionProviderChain.builder().build().getRegion().id();
+    }
+
+    return Region.of(restSigningRegion);
+  }
+
+  public String restSigningName() {
+    return restSigningName;
+  }
+
+  public AwsCredentialsProvider restCredentialsProvider() {
+    return credentialsProvider(
+        this.restAccessKeyId, this.restSecretAccessKey, this.restSessionToken);
+  }
+
   private Set<Tag> toS3Tags(Map<String, String> properties, String prefix) {
     return PropertyUtil.propertiesWithPrefix(properties, prefix).entrySet().stream()
         .map(e -> Tag.builder().key(e.getKey()).value(e.getValue()).build())
@@ -1230,55 +1338,25 @@ public class AwsProperties implements Serializable {
     }
   }
 
-  @VisibleForTesting
-  <T extends UrlConnectionHttpClient.Builder> void configureUrlConnectionHttpClientBuilder(
-      T builder) {
-    if (httpClientUrlConnectionConnectionTimeoutMs != null) {
-      builder.connectionTimeout(Duration.ofMillis(httpClientUrlConnectionConnectionTimeoutMs));
-    }
-
-    if (httpClientUrlConnectionSocketTimeoutMs != null) {
-      builder.socketTimeout(Duration.ofMillis(httpClientUrlConnectionSocketTimeoutMs));
-    }
-  }
-
-  @VisibleForTesting
-  <T extends ApacheHttpClient.Builder> void configureApacheHttpClientBuilder(T builder) {
-    if (httpClientApacheConnectionTimeoutMs != null) {
-      builder.connectionTimeout(Duration.ofMillis(httpClientApacheConnectionTimeoutMs));
-    }
-
-    if (httpClientApacheSocketTimeoutMs != null) {
-      builder.socketTimeout(Duration.ofMillis(httpClientApacheSocketTimeoutMs));
-    }
-
-    if (httpClientApacheConnectionAcquisitionTimeoutMs != null) {
-      builder.connectionAcquisitionTimeout(
-          Duration.ofMillis(httpClientApacheConnectionAcquisitionTimeoutMs));
-    }
-
-    if (httpClientApacheConnectionMaxIdleTimeMs != null) {
-      builder.connectionMaxIdleTime(Duration.ofMillis(httpClientApacheConnectionMaxIdleTimeMs));
-    }
-
-    if (httpClientApacheConnectionTimeToLiveMs != null) {
-      builder.connectionTimeToLive(Duration.ofMillis(httpClientApacheConnectionTimeToLiveMs));
-    }
-
-    if (httpClientApacheExpectContinueEnabled != null) {
-      builder.expectContinueEnabled(httpClientApacheExpectContinueEnabled);
-    }
-
-    if (httpClientApacheMaxConnections != null) {
-      builder.maxConnections(httpClientApacheMaxConnections);
-    }
-
-    if (httpClientApacheTcpKeepAliveEnabled != null) {
-      builder.tcpKeepAlive(httpClientApacheTcpKeepAliveEnabled);
-    }
-
-    if (httpClientApacheUseIdleConnectionReaperEnabled != null) {
-      builder.useIdleConnectionReaper(httpClientApacheUseIdleConnectionReaperEnabled);
+  /**
+   * Dynamically load the http client builder to avoid runtime deps requirements of both {@link
+   * software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient} and {@link
+   * software.amazon.awssdk.http.apache.ApacheHttpClient}, since including both will cause error
+   * described in <a href="https://github.com/apache/iceberg/issues/6715">issue#6715</a>
+   */
+  private Object loadHttpClientConfigurations(String impl) {
+    Object httpClientConfigurations;
+    try {
+      httpClientConfigurations =
+          DynMethods.builder("create")
+              .hiddenImpl(impl, Map.class)
+              .buildStaticChecked()
+              .invoke(httpClientProperties);
+      return httpClientConfigurations;
+    } catch (NoSuchMethodException e) {
+      throw new IllegalArgumentException(
+          String.format("Cannot create %s to generate and configure the http client builder", impl),
+          e);
     }
   }
 }

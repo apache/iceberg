@@ -85,10 +85,14 @@ public abstract class SparkTestBase {
   @AfterClass
   public static void stopMetastoreAndSpark() throws Exception {
     SparkTestBase.catalog = null;
-    metastore.stop();
-    SparkTestBase.metastore = null;
-    spark.stop();
-    SparkTestBase.spark = null;
+    if (metastore != null) {
+      metastore.stop();
+      SparkTestBase.metastore = null;
+    }
+    if (spark != null) {
+      spark.stop();
+      SparkTestBase.spark = null;
+    }
   }
 
   protected long waitUntilAfter(long timestampMillis) {
@@ -161,7 +165,7 @@ public abstract class SparkTestBase {
     }
   }
 
-  private void assertEquals(String context, Object[] expectedRow, Object[] actualRow) {
+  protected void assertEquals(String context, Object[] expectedRow, Object[] actualRow) {
     Assert.assertEquals("Number of columns should match", expectedRow.length, actualRow.length);
     for (int col = 0; col < actualRow.length; col += 1) {
       Object expectedValue = expectedRow[col];

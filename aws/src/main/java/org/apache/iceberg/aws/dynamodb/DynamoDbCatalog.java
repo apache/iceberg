@@ -111,11 +111,13 @@ public class DynamoDbCatalog extends BaseMetastoreCatalog
   private AwsProperties awsProperties;
   private FileIO fileIO;
   private CloseableGroup closeableGroup;
+  private Map<String, String> catalogProperties;
 
   public DynamoDbCatalog() {}
 
   @Override
   public void initialize(String name, Map<String, String> properties) {
+    this.catalogProperties = ImmutableMap.copyOf(properties);
     initialize(
         name,
         properties.get(CatalogProperties.WAREHOUSE_LOCATION),
@@ -327,7 +329,7 @@ public class DynamoDbCatalog extends BaseMetastoreCatalog
   @Override
   public List<TableIdentifier> listTables(Namespace namespace) {
     List<TableIdentifier> identifiers = Lists.newArrayList();
-    Map<String, AttributeValue> lastEvaluatedKey;
+    Map<String, AttributeValue> lastEvaluatedKey = null;
     String condition = COL_NAMESPACE + " = :ns";
     Map<String, AttributeValue> conditionValues =
         ImmutableMap.of(":ns", AttributeValue.builder().s(namespace.toString()).build());
@@ -339,6 +341,7 @@ public class DynamoDbCatalog extends BaseMetastoreCatalog
                   .indexName(GSI_NAMESPACE_IDENTIFIER)
                   .keyConditionExpression(condition)
                   .expressionAttributeValues(conditionValues)
+                  .exclusiveStartKey(lastEvaluatedKey)
                   .build());
 
       if (response.hasItems()) {
@@ -685,5 +688,10 @@ public class DynamoDbCatalog extends BaseMetastoreCatalog
     } catch (ConditionalCheckFailedException e) {
       return false;
     }
+  }
+
+  @Override
+  protected Map<String, String> properties() {
+    return catalogProperties == null ? ImmutableMap.of() : catalogProperties;
   }
 }

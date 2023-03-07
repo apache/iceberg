@@ -46,7 +46,6 @@ class Bin(Generic[T]):
 
 
 class PackingIterator(Generic[T]):
-
     bins: List[Bin[T]]
 
     def __init__(

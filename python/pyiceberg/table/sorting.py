@@ -29,8 +29,8 @@ from pydantic import Field, root_validator
 
 from pyiceberg.schema import Schema
 from pyiceberg.transforms import IdentityTransform, Transform
+from pyiceberg.typedef import IcebergBaseModel
 from pyiceberg.types import IcebergType
-from pyiceberg.utils.iceberg_base_model import IcebergBaseModel
 
 
 class SortDirection(Enum):
@@ -96,7 +96,7 @@ class SortField(IcebergBaseModel):
     direction: SortDirection = Field()
     null_order: NullOrder = Field(alias="null-order")
 
-    def __str__(self):
+    def __str__(self) -> str:
         if type(self.transform) == IdentityTransform:
             # In the case of an identity transform, we can omit the transform
             return f"{self.source_id} {self.direction} {self.null_order}"
@@ -138,7 +138,7 @@ class SortOrder(IcebergBaseModel):
         result_str += "]"
         return result_str
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         fields = f"{', '.join(repr(column) for column in self.fields)}, " if self.fields else ""
         return f"SortOrder({fields}order_id={self.order_id})"
 

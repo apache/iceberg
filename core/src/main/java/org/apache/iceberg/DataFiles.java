@@ -41,6 +41,8 @@ public class DataFiles {
 
   static PartitionData copyPartitionData(
       PartitionSpec spec, StructLike partitionData, PartitionData reuse) {
+    Preconditions.checkArgument(
+        spec.isPartitioned(), "Can't copy partition data to a unpartitioned table");
     PartitionData data = reuse;
     if (data == null) {
       data = newPartitionData(spec);
@@ -136,7 +138,7 @@ public class DataFiles {
     public Builder(PartitionSpec spec) {
       this.spec = spec;
       this.specId = spec.specId();
-      this.isPartitioned = spec.fields().size() > 0;
+      this.isPartitioned = spec.isPartitioned();
       this.partitionData = isPartitioned ? newPartitionData(spec) : null;
     }
 
@@ -219,7 +221,9 @@ public class DataFiles {
     }
 
     public Builder withPartition(StructLike newPartition) {
-      this.partitionData = copyPartitionData(spec, newPartition, partitionData);
+      if (isPartitioned) {
+        this.partitionData = copyPartitionData(spec, newPartition, partitionData);
+      }
       return this;
     }
 

@@ -170,13 +170,17 @@ public abstract class SparkRowLevelOperationsTestBase extends SparkExtensionsTes
   }
 
   protected void createAndInitTable(String schema, String jsonData) {
-    sql("CREATE TABLE %s (%s) USING iceberg", tableName, schema);
+    createAndInitTable(schema, "", jsonData);
+  }
+
+  protected void createAndInitTable(String schema, String partitioning, String jsonData) {
+    sql("CREATE TABLE %s (%s) USING iceberg %s", tableName, schema, partitioning);
     initTable();
 
     if (jsonData != null) {
       try {
         Dataset<Row> ds = toDS(schema, jsonData);
-        ds.writeTo(tableName).append();
+        ds.coalesce(1).writeTo(tableName).append();
       } catch (NoSuchTableException e) {
         throw new RuntimeException("Failed to write data", e);
       }

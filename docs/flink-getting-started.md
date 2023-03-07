@@ -425,10 +425,7 @@ SELECT * FROM sample /*+ OPTIONS('streaming'='true', 'monitor-interval'='1s')*/ 
 SELECT * FROM sample /*+ OPTIONS('streaming'='true', 'monitor-interval'='1s', 'start-snapshot-id'='3821550127947089987')*/ ;
 ```
 
-Those are the options that could be set in flink SQL hint options for streaming job:
-
-* monitor-interval: time interval for consecutively monitoring newly committed data files (default value: '10s').
-* start-snapshot-id: the snapshot id that streaming job starts from.
+There are some options that could be set in flink SQL hint options for streaming job, see [read options](#Read-options) for details.
 
 ### FLIP-27 source for SQL
 
@@ -616,6 +613,38 @@ env.execute("Test Iceberg Streaming Read");
 There are other options that we could set by Java API, please see the 
 [IcebergSource#Builder](../../../javadoc/{{% icebergVersion %}}/org/apache/iceberg/flink/source/IcebergSource.html).
 
+### Read as Avro GenericRecord
+
+FLIP-27 Iceberg source provides `AvroGenericRecordReaderFunction` that converts
+Flink `RowData` Avro `GenericRecord`. You can use the convert to read from
+Iceberg table as Avro GenericRecord DataStream.
+
+Please make sure `flink-avro` jar is included in the classpath.
+Also `iceberg-flink-runtime` shaded bundle jar can't be used
+because the runtime jar shades the avro package.
+Please use non-shaded `iceberg-flink` jar instead.
+
+```java
+TableLoader tableLoader = ...;
+Table table;
+try (TableLoader loader = tableLoader) {
+    loader.open();
+    table = loader.loadTable();
+}
+
+AvroGenericRecordReaderFunction readerFunction = AvroGenericRecordReaderFunction.fromTable(table);
+
+IcebergSource<GenericRecord> source =
+    IcebergSource.<GenericRecord>builder()
+        .tableLoader(tableLoader)
+        .readerFunction(readerFunction)
+        .assignerFactory(new SimpleSplitAssignerFactory())
+        ...
+        .build();
+
+DataStream<Row> stream = env.fromSource(source, WatermarkStrategy.noWatermarks(),
+    "Iceberg Source as Avro GenericRecord", new GenericRecordAvroTypeInfo(avroSchema));
+```
 
 ## Writing with DataStream
 
@@ -684,7 +713,137 @@ env.execute("Test Iceberg DataStream");
 OVERWRITE and UPSERT can't be set together. In UPSERT mode, if the table is partitioned, the partition fields should be included in equality fields.
 {{< /hint >}}
 
-## Write options
+### Write with Avro GenericRecord
+
+Flink Iceberg sink provides `AvroGenericRecordToRowDataMapper` that converts
+Avro `GenericRecord` to Flink `RowData`. You can use the mapper to write 
+Avro GenericRecord DataStream to Iceberg.
+
+Please make sure `flink-avro` jar is included in the classpath.
+Also `iceberg-flink-runtime` shaded bundle jar can't be used
+because the runtime jar shades the avro package.
+Please use non-shaded `iceberg-flink` jar instead.
+
+```java
+DataStream<org.apache.avro.generic.GenericRecord> dataStream = ...;
+
+Schema icebergSchema = table.schema();
+
+// if the Iceberg table schema contains time fields, we can't use
+// Avro schema converted from Iceberg schema via AvroSchemaUtil.
+// Instead, use the Avro schema defined directly.
+// See AvroGenericRecordToRowDataMapper Javadoc for more details.
+org.apache.avro.Schema avroSchema = AvroSchemaUtil.convert(icebergSchema, table.name());
+
+GenericRecordAvroTypeInfo avroTypeInfo = new GenericRecordAvroTypeInfo(avroSchema);
+RowType rowType = FlinkSchemaUtil.convert(icebergSchema);
+
+FlinkSink.builderFor(
+    dataStream,
+    AvroGenericRecordToRowDataMapper.forAvroSchema(avroSchema),
+    FlinkCompatibilityUtil.toTypeInfo(rowType))
+  .table(table)
+  .tableLoader(tableLoader)
+  .append();
+```
+
+### monitoring metrics
+
+The following Flink metrics are provided by the Flink Iceberg sink.
+
+Parallel writer metrics are added under the sub group of `IcebergStreamWriter`. 
+They should have the following key-value tags.
+* table: full table name (like iceberg.my_db.my_table)
+* subtask_index: writer subtask index starting from 0
+
+ Metric name                | Metric type | Description                                                                                         |
+| ------------------------- |------------|-----------------------------------------------------------------------------------------------------|
+| lastFlushDurationMs       | Gague      | The duration (in milli) that writer subtasks take to flush and upload the files during checkpoint.  |
+| flushedDataFiles          | Counter    | Number of data files flushed and uploaded.                                                          |
+| flushedDeleteFiles        | Counter    | Number of delete files flushed and uploaded.                                                        |
+| flushedReferencedDataFiles| Counter    | Number of data files referenced by the flushed delete files.                                        |
+| dataFilesSizeHistogram    | Histogram  | Histogram distribution of data file sizes (in bytes).                                               |
+| deleteFilesSizeHistogram  | Histogram  | Histogram distribution of delete file sizes (in bytes).                                             |
+
+Committer metrics are added under the sub group of `IcebergFilesCommitter`.
+They should have the following key-value tags.
+* table: full table name (like iceberg.my_db.my_table)
+
+ Metric name                      | Metric type | Description                                                                |
+|---------------------------------|--------|----------------------------------------------------------------------------|
+| lastCheckpointDurationMs        | Gague  | The duration (in milli) that the committer operator checkpoints its state. |
+| lastCommitDurationMs            | Gague  | The duration (in milli) that the Iceberg table commit takes.               |
+| committedDataFilesCount         | Counter | Number of data files committed.                                            |
+| committedDataFilesRecordCount   | Counter | Number of records contained in the committed data files.                   |
+| committedDataFilesByteCount     | Counter | Number of bytes contained in the committed data files.                     |
+| committedDeleteFilesCount       | Counter | Number of delete files committed.                                          |
+| committedDeleteFilesRecordCount | Counter | Number of records contained in the committed delete files.                 |
+| committedDeleteFilesByteCount   | Counter | Number of bytes contained in the committed delete files.                   |
+| elapsedSecondsSinceLastSuccessfulCommit| Gague  | Elapsed time (in seconds) since last successful Iceberg commit.            |
+
+`elapsedSecondsSinceLastSuccessfulCommit` is an ideal alerting metric
+to detect failed or missing Iceberg commits.
+* Iceberg commit happened after successful Flink checkpoint in the `notifyCheckpointComplete` callback.
+It could happen that Iceberg commits failed (for whatever reason), while Flink checkpoints succeeding.
+* It could also happen that `notifyCheckpointComplete` wasn't triggered (for whatever bug).
+As a result, there won't be any Iceberg commits attempted.
+
+If the checkpoint interval (and expected Iceberg commit interval) is 5 minutes,
+we can set up alert with rule like `elapsedSecondsSinceLastSuccessfulCommit > 60 minutes`.
+Then we can detect failed or missing Iceberg commits in 60 minutes.
+
+## Options
+### Read options
+
+Flink read options are passed when configuring the Flink IcebergSource, like this:
+
+```
+IcebergSource.forRowData()
+    .tableLoader(TableLoader.fromCatalog(...))
+    .assignerFactory(new SimpleSplitAssignerFactory())
+    .streaming(true)
+    .streamingStartingStrategy(StreamingStartingStrategy.INCREMENTAL_FROM_LATEST_SNAPSHOT)
+    .startSnapshotId(3821550127947089987L)
+    .monitorInterval(Duration.ofMillis(10L)) // or .set("monitor-interval", "10s") \ set(FlinkReadOptions.MONITOR_INTERVAL, "10s")
+    .build()
+```
+For Flink SQL, read options can be passed in via SQL hints like this:
+```
+SELECT * FROM tableName /*+ OPTIONS('monitor-interval'='10s') */
+...
+```
+
+Options can be passed in via Flink configuration, which will be applied to current session. Note that not all options support this mode.
+
+```
+env.getConfig()
+    .getConfiguration()
+    .set(FlinkReadOptions.SPLIT_FILE_OPEN_COST_OPTION, 1000L);
+...
+```
+
+`Read option` has the highest priority, followed by `Flink configuration` and then `Table property`.
+
+| Read option                 | Flink configuration                           | Table property               | Default                          | Description                                                  |
+| --------------------------- | --------------------------------------------- | ---------------------------- | -------------------------------- | ------------------------------------------------------------ |
+| snapshot-id                 | N/A                                           | N/A                          | null                             | For time travel in batch mode. Read data from the specified snapshot-id. |
+| case-sensitive              | connector.iceberg.case-sensitive              | N/A                          | false                            | If true, match column name in a case sensitive way.          |
+| as-of-timestamp             | N/A                                           | N/A                          | null                             | For time travel in batch mode. Read data from the most recent snapshot as of the given time in milliseconds. |
+| starting-strategy           | connector.iceberg.starting-strategy           | N/A                          | INCREMENTAL_FROM_LATEST_SNAPSHOT | Starting strategy for streaming execution. TABLE_SCAN_THEN_INCREMENTAL: Do a regular table scan then switch to the incremental mode. The incremental mode starts from the current snapshot exclusive. INCREMENTAL_FROM_LATEST_SNAPSHOT: Start incremental mode from the latest snapshot inclusive. If it is an empty map, all future append snapshots should be discovered. INCREMENTAL_FROM_EARLIEST_SNAPSHOT: Start incremental mode from the earliest snapshot inclusive. If it is an empty map, all future append snapshots should be discovered. INCREMENTAL_FROM_SNAPSHOT_ID: Start incremental mode from a snapshot with a specific id inclusive. INCREMENTAL_FROM_SNAPSHOT_TIMESTAMP: Start incremental mode from a snapshot with a specific timestamp inclusive. If the timestamp is between two snapshots, it should start from the snapshot after the timestamp. Just for FIP27 Source. |
+| start-snapshot-timestamp    | N/A                                           | N/A                          | null                             | Start to read data from the most recent snapshot as of the given time in milliseconds. |
+| start-snapshot-id           | N/A                                           | N/A                          | null                             | Start to read data from the specified snapshot-id.           |
+| end-snapshot-id             | N/A                                           | N/A                          | The latest snapshot id           | Specifies the end snapshot.                                  |
+| split-size                  | connector.iceberg.split-size                  | read.split.target-size       | 128 MB                           | Target size when combining input splits.                     |
+| split-lookback              | connector.iceberg.split-file-open-cost        | read.split.planning-lookback | 10                               | Number of bins to consider when combining input splits.      |
+| split-file-open-cost        | connector.iceberg.split-file-open-cost        | read.split.open-file-cost    | 4MB                              | The estimated cost to open a file, used as a minimum weight when combining splits. |
+| streaming                   | connector.iceberg.streaming                   | N/A                          | false                            | Sets whether the current task runs in streaming or batch mode. |
+| monitor-interval            | connector.iceberg.monitor-interval            | N/A                          | 60s                              | Monitor interval to discover splits from new snapshots. Applicable only for streaming read. |
+| include-column-stats        | connector.iceberg.include-column-stats        | N/A                          | false                            | Create a new scan from this that loads the column stats with each data file. Column stats include: value count, null value count, lower bounds, and upper bounds. |
+| max-planning-snapshot-count | connector.iceberg.max-planning-snapshot-count | N/A                          | Integer.MAX_VALUE                | Max number of snapshots limited per split enumeration. Applicable only to streaming read. |
+| limit                       | connector.iceberg.limit                       | N/A                          | -1                               | Limited output number of rows.                               |
+
+
+### Write options
 
 Flink write options are passed when configuring the FlinkSink, like this:
 
@@ -713,9 +872,188 @@ INSERT INTO tableName /*+ OPTIONS('upsert-enabled'='true') */
 | compression-strategy   | Table write.orc.compression-strategy       | Overrides this table's compression strategy for ORC tables for this write                                  |
 
 
-## Inspecting tables.
+## Inspecting tables
 
-Iceberg does not support inspecting table in flink sql now, we need to use [iceberg's Java API](../api) to read iceberg's meta data to get those table information.
+To inspect a table's history, snapshots, and other metadata, Iceberg supports metadata tables.
+
+Metadata tables are identified by adding the metadata table name after the original table name. For example, history for `db.table` is read using `db.table$history`.
+
+### History
+
+To show table history:
+
+```sql
+SELECT * FROM prod.db.table$history;
+```
+
+| made_current_at         | snapshot_id         | parent_id           | is_current_ancestor |
+| ----------------------- | ------------------- | ------------------- | ------------------- |
+| 2019-02-08 03:29:51.215 | 5781947118336215154 | NULL                | true                |
+| 2019-02-08 03:47:55.948 | 5179299526185056830 | 5781947118336215154 | true                |
+| 2019-02-09 16:24:30.13  | 296410040247533544  | 5179299526185056830 | false               |
+| 2019-02-09 16:32:47.336 | 2999875608062437330 | 5179299526185056830 | true                |
+| 2019-02-09 19:42:03.919 | 8924558786060583479 | 2999875608062437330 | true                |
+| 2019-02-09 19:49:16.343 | 6536733823181975045 | 8924558786060583479 | true                |
+
+{{< hint info >}}
+**This shows a commit that was rolled back.** In this example, snapshot 296410040247533544 and 2999875608062437330 have the same parent snapshot 5179299526185056830. Snapshot 296410040247533544 was rolled back and is *not* an ancestor of the current table state.
+{{< /hint >}}
+
+### Metadata Log Entries
+
+To show table metadata log entries:
+
+```sql
+SELECT * from prod.db.table$metadata_log_entries;
+```
+
+| timestamp               | file                                                         | latest_snapshot_id | latest_schema_id | latest_sequence_number |
+| ----------------------- | ------------------------------------------------------------ | ------------------ | ---------------- | ---------------------- |
+| 2022-07-28 10:43:52.93  | s3://.../table/metadata/00000-9441e604-b3c2-498a-a45a-6320e8ab9006.metadata.json | null               | null             | null                   |
+| 2022-07-28 10:43:57.487 | s3://.../table/metadata/00001-f30823df-b745-4a0a-b293-7532e0c99986.metadata.json | 170260833677645300 | 0                | 1                      |
+| 2022-07-28 10:43:58.25  | s3://.../table/metadata/00002-2cc2837a-02dc-4687-acc1-b4d86ea486f4.metadata.json | 958906493976709774 | 0                | 2                      |
+
+### Snapshots
+
+To show the valid snapshots for a table:
+
+```sql
+SELECT * FROM prod.db.table$snapshots;
+```
+
+| committed_at            | snapshot_id    | parent_id | operation | manifest_list                                      | summary                                                      |
+| ----------------------- | -------------- | --------- | --------- | -------------------------------------------------- | ------------------------------------------------------------ |
+| 2019-02-08 03:29:51.215 | 57897183625154 | null      | append    | s3://.../table/metadata/snap-57897183625154-1.avro | { added-records -> 2478404, total-records -> 2478404, added-data-files -> 438, total-data-files -> 438, flink.job-id -> 2e274eecb503d85369fb390e8956c813 } |
+
+You can also join snapshots to table history. For example, this query will show table history, with the application ID that wrote each snapshot:
+
+```sql
+select
+    h.made_current_at,
+    s.operation,
+    h.snapshot_id,
+    h.is_current_ancestor,
+    s.summary['flink.job-id']
+from prod.db.table$history h
+join prod.db.table$snapshots s
+  on h.snapshot_id = s.snapshot_id
+order by made_current_at
+```
+
+| made_current_at         | operation | snapshot_id    | is_current_ancestor | summary[flink.job-id]            |
+| ----------------------- | --------- | -------------- | ------------------- | -------------------------------- |
+| 2019-02-08 03:29:51.215 | append    | 57897183625154 | true                | 2e274eecb503d85369fb390e8956c813 |
+
+### Files
+
+To show a table's current data files:
+
+```sql
+SELECT * FROM prod.db.table$files;
+```
+
+| content | file_path                                                    | file_format | spec_id | partition        | record_count | file_size_in_bytes | column_sizes       | value_counts     | null_value_counts | nan_value_counts | lower_bounds    | upper_bounds    | key_metadata | split_offsets | equality_ids | sort_order_id |
+| ------- | ------------------------------------------------------------ | ----------- | ------- | ---------------- | ------------ | ------------------ | ------------------ | ---------------- | ----------------- | ---------------- | --------------- | --------------- | ------------ | ------------- | ------------ | ------------- |
+| 0       | s3:/.../table/data/00000-3-8d6d60e8-d427-4809-bcf0-f5d45a4aad96.parquet | PARQUET     | 0       | {1999-01-01, 01} | 1            | 597                | [1 -> 90, 2 -> 62] | [1 -> 1, 2 -> 1] | [1 -> 0, 2 -> 0]  | []               | [1 -> , 2 -> c] | [1 -> , 2 -> c] | null         | [4]           | null         | null          |
+| 0       | s3:/.../table/data/00001-4-8d6d60e8-d427-4809-bcf0-f5d45a4aad96.parquet | PARQUET     | 0       | {1999-01-01, 02} | 1            | 597                | [1 -> 90, 2 -> 62] | [1 -> 1, 2 -> 1] | [1 -> 0, 2 -> 0]  | []               | [1 -> , 2 -> b] | [1 -> , 2 -> b] | null         | [4]           | null         | null          |
+| 0       | s3:/.../table/data/00002-5-8d6d60e8-d427-4809-bcf0-f5d45a4aad96.parquet | PARQUET     | 0       | {1999-01-01, 03} | 1            | 597                | [1 -> 90, 2 -> 62] | [1 -> 1, 2 -> 1] | [1 -> 0, 2 -> 0]  | []               | [1 -> , 2 -> a] | [1 -> , 2 -> a] | null         | [4]           | null         | null          |
+
+### Manifests
+
+To show a table's current file manifests:
+
+```sql
+SELECT * FROM prod.db.table$manifests;
+```
+
+| path                                                         | length | partition_spec_id | added_snapshot_id   | added_data_files_count | existing_data_files_count | deleted_data_files_count | partition_summaries                  |
+| ------------------------------------------------------------ | ------ | ----------------- | ------------------- | ---------------------- | ------------------------- | ------------------------ | ------------------------------------ |
+| s3://.../table/metadata/45b5290b-ee61-4788-b324-b1e2735c0e10-m0.avro | 4479   | 0                 | 6668963634911763636 | 8                      | 0                         | 0                        | [[false,null,2019-05-13,2019-05-15]] |
+
+Note:
+
+1. Fields within `partition_summaries` column of the manifests table correspond to `field_summary` structs within [manifest list](../../../spec#manifest-lists), with the following order:
+   - `contains_null`
+   - `contains_nan`
+   - `lower_bound`
+   - `upper_bound`
+2. `contains_nan` could return null, which indicates that this information is not available from the file's metadata.
+   This usually occurs when reading from V1 table, where `contains_nan` is not populated.
+
+### Partitions
+
+To show a table's current partitions:
+
+```sql
+SELECT * FROM prod.db.table$partitions;
+```
+
+| partition      | record_count | file_count | spec_id |
+| -------------- | ------------ | ---------- | ------- |
+| {20211001, 11} | 1            | 1          | 0       |
+| {20211002, 11} | 1            | 1          | 0       |
+| {20211001, 10} | 1            | 1          | 0       |
+| {20211002, 10} | 1            | 1          | 0       |
+
+Note:
+For unpartitioned tables, the partitions table will contain only the record_count and file_count columns.
+
+### All Metadata Tables
+
+These tables are unions of the metadata tables specific to the current snapshot, and return metadata across all snapshots.
+
+{{< hint danger >}}
+The "all" metadata tables may produce more than one row per data file or manifest file because metadata files may be part of more than one table snapshot.
+{{< /hint >}}
+
+#### All Data Files
+
+To show all of the table's data files and each file's metadata:
+
+```sql
+SELECT * FROM prod.db.table$all_data_files;
+```
+
+| content | file_path                                                    | file_format | partition  | record_count | file_size_in_bytes | column_sizes       | value_counts       | null_value_counts | nan_value_counts | lower_bounds            | upper_bounds            | key_metadata | split_offsets | equality_ids | sort_order_id |
+| ------- | ------------------------------------------------------------ | ----------- | ---------- | ------------ | ------------------ | ------------------ | ------------------ | ----------------- | ---------------- | ----------------------- | ----------------------- | ------------ | ------------- | ------------ | ------------- |
+| 0       | s3://.../dt=20210102/00000-0-756e2512-49ae-45bb-aae3-c0ca475e7879-00001.parquet | PARQUET     | {20210102} | 14           | 2444               | {1 -> 94, 2 -> 17} | {1 -> 14, 2 -> 14} | {1 -> 0, 2 -> 0}  | {}               | {1 -> 1, 2 -> 20210102} | {1 -> 2, 2 -> 20210102} | null         | [4]           | null         | 0             |
+| 0       | s3://.../dt=20210103/00000-0-26222098-032f-472b-8ea5-651a55b21210-00001.parquet | PARQUET     | {20210103} | 14           | 2444               | {1 -> 94, 2 -> 17} | {1 -> 14, 2 -> 14} | {1 -> 0, 2 -> 0}  | {}               | {1 -> 1, 2 -> 20210103} | {1 -> 3, 2 -> 20210103} | null         | [4]           | null         | 0             |
+| 0       | s3://.../dt=20210104/00000-0-a3bb1927-88eb-4f1c-bc6e-19076b0d952e-00001.parquet | PARQUET     | {20210104} | 14           | 2444               | {1 -> 94, 2 -> 17} | {1 -> 14, 2 -> 14} | {1 -> 0, 2 -> 0}  | {}               | {1 -> 1, 2 -> 20210104} | {1 -> 3, 2 -> 20210104} | null         | [4]           | null         | 0             |
+
+#### All Manifests
+
+To show all of the table's manifest files:
+
+```sql
+SELECT * FROM prod.db.table$all_manifests;
+```
+
+| path                                                         | length | partition_spec_id | added_snapshot_id   | added_data_files_count | existing_data_files_count | deleted_data_files_count | partition_summaries                  |
+| ------------------------------------------------------------ | ------ | ----------------- | ------------------- | ---------------------- | ------------------------- | ------------------------ | ------------------------------------ |
+| s3://.../metadata/a85f78c5-3222-4b37-b7e4-faf944425d48-m0.avro | 6376   | 0                 | 6272782676904868561 | 2                      | 0                         | 0                        | [{false, false, 20210101, 20210101}] |
+
+Note:
+
+1. Fields within `partition_summaries` column of the manifests table correspond to `field_summary` structs within [manifest list](../../../spec#manifest-lists), with the following order:
+   - `contains_null`
+   - `contains_nan`
+   - `lower_bound`
+   - `upper_bound`
+2. `contains_nan` could return null, which indicates that this information is not available from the file's metadata.
+   This usually occurs when reading from V1 table, where `contains_nan` is not populated.
+
+### References
+
+To show a table's known snapshot references:
+
+```sql
+SELECT * FROM prod.db.table$refs;
+```
+
+| name    | type   | snapshot_id         | max_reference_age_in_ms | min_snapshots_to_keep | max_snapshot_age_in_ms |
+| ------- | ------ | ------------------- | ----------------------- | --------------------- | ---------------------- |
+| main    | BRANCH | 4686954189838128572 | 10                      | 20                    | 30                     |
+| testTag | TAG    | 4686954189838128572 | 10                      | null                  | null                   |
 
 ## Rewrite files action.
 

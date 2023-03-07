@@ -25,10 +25,11 @@ from pyiceberg.expressions import (
     EqualTo,
     In,
 )
-from pyiceberg.io import load_file_io
+from pyiceberg.io import PY_IO_IMPL, load_file_io
+from pyiceberg.manifest import DataFile, ManifestContent
 from pyiceberg.partitioning import PartitionField, PartitionSpec
 from pyiceberg.schema import Schema
-from pyiceberg.table import Table
+from pyiceberg.table import StaticTable, Table, _check_content
 from pyiceberg.table.metadata import TableMetadataV2
 from pyiceberg.table.snapshots import (
     Operation,
@@ -43,6 +44,7 @@ from pyiceberg.table.sorting import (
     SortOrder,
 )
 from pyiceberg.transforms import BucketTransform, IdentityTransform
+from pyiceberg.typedef import Record
 from pyiceberg.types import LongType, NestedField
 
 
@@ -57,53 +59,66 @@ def table(example_table_metadata_v2: Dict[str, Any]) -> Table:
     )
 
 
-def test_schema(table):
+@pytest.fixture
+def static_table(metadata_location: str) -> StaticTable:
+    return StaticTable.from_metadata(metadata_location)
+
+
+def test_schema(table: Table) -> None:
     assert table.schema() == Schema(
-        fields=(
-            NestedField(field_id=1, name="x", field_type=LongType(), required=True),
-            NestedField(field_id=2, name="y", field_type=LongType(), required=True, doc="comment"),
-            NestedField(field_id=3, name="z", field_type=LongType(), required=True),
-        ),
+        NestedField(field_id=1, name="x", field_type=LongType(), required=True),
+        NestedField(field_id=2, name="y", field_type=LongType(), required=True, doc="comment"),
+        NestedField(field_id=3, name="z", field_type=LongType(), required=True),
         schema_id=1,
         identifier_field_ids=[1, 2],
     )
 
 
-def test_schemas(table):
+def test_schemas(table: Table) -> None:
     assert table.schemas() == {
         0: Schema(
-            fields=(NestedField(field_id=1, name="x", field_type=LongType(), required=True),),
+            NestedField(field_id=1, name="x", field_type=LongType(), required=True),
             schema_id=0,
             identifier_field_ids=[],
         ),
         1: Schema(
-            fields=(
-                NestedField(field_id=1, name="x", field_type=LongType(), required=True),
-                NestedField(field_id=2, name="y", field_type=LongType(), required=True, doc="comment"),
-                NestedField(field_id=3, name="z", field_type=LongType(), required=True),
-            ),
+            NestedField(field_id=1, name="x", field_type=LongType(), required=True),
+            NestedField(field_id=2, name="y", field_type=LongType(), required=True, doc="comment"),
+            NestedField(field_id=3, name="z", field_type=LongType(), required=True),
             schema_id=1,
             identifier_field_ids=[1, 2],
         ),
     }
 
 
-def test_spec(table):
+def test_spec(table: Table) -> None:
     assert table.spec() == PartitionSpec(
         PartitionField(source_id=1, field_id=1000, transform=IdentityTransform(), name="x"), spec_id=0
     )
 
 
-def test_specs(table):
+def test_specs(table: Table) -> None:
     assert table.specs() == {
         0: PartitionSpec(PartitionField(source_id=1, field_id=1000, transform=IdentityTransform(), name="x"), spec_id=0)
     }
 
 
-def test_sort_order(table):
+def test_sort_order(table: Table) -> None:
     assert table.sort_order() == SortOrder(
+        SortField(source_id=2, transform=IdentityTransform(), direction=SortDirection.ASC, null_order=NullOrder.NULLS_FIRST),
+        SortField(
+            source_id=3,
+            transform=BucketTransform(num_buckets=4),
+            direction=SortDirection.DESC,
+            null_order=NullOrder.NULLS_LAST,
+        ),
         order_id=3,
-        fields=[
+    )
+
+
+def test_sort_orders(table: Table) -> None:
+    assert table.sort_orders() == {
+        3: SortOrder(
             SortField(source_id=2, transform=IdentityTransform(), direction=SortDirection.ASC, null_order=NullOrder.NULLS_FIRST),
             SortField(
                 source_id=3,
@@ -111,34 +126,16 @@ def test_sort_order(table):
                 direction=SortDirection.DESC,
                 null_order=NullOrder.NULLS_LAST,
             ),
-        ],
-    )
-
-
-def test_sort_orders(table):
-    assert table.sort_orders() == {
-        3: SortOrder(
             order_id=3,
-            fields=[
-                SortField(
-                    source_id=2, transform=IdentityTransform(), direction=SortDirection.ASC, null_order=NullOrder.NULLS_FIRST
-                ),
-                SortField(
-                    source_id=3,
-                    transform=BucketTransform(num_buckets=4),
-                    direction=SortDirection.DESC,
-                    null_order=NullOrder.NULLS_LAST,
-                ),
-            ],
         )
     }
 
 
-def test_location(table):
+def test_location(table: Table) -> None:
     assert table.location() == "s3://bucket/test/location"
 
 
-def test_current_snapshot(table):
+def test_current_snapshot(table: Table) -> None:
     assert table.current_snapshot() == Snapshot(
         snapshot_id=3055729675574597004,
         parent_snapshot_id=3051729675574597004,
@@ -150,7 +147,7 @@ def test_current_snapshot(table):
     )
 
 
-def test_snapshot_by_id(table):
+def test_snapshot_by_id(table: Table) -> None:
     assert table.snapshot_by_id(3055729675574597004) == Snapshot(
         snapshot_id=3055729675574597004,
         parent_snapshot_id=3051729675574597004,
@@ -162,11 +159,11 @@ def test_snapshot_by_id(table):
     )
 
 
-def test_snapshot_by_id_does_not_exist(table):
+def test_snapshot_by_id_does_not_exist(table: Table) -> None:
     assert table.snapshot_by_id(-1) is None
 
 
-def test_snapshot_by_name(table):
+def test_snapshot_by_name(table: Table) -> None:
     assert table.snapshot_by_name("test") == Snapshot(
         snapshot_id=3051729675574597004,
         parent_snapshot_id=None,
@@ -178,37 +175,37 @@ def test_snapshot_by_name(table):
     )
 
 
-def test_snapshot_by_name_does_not_exist(table):
+def test_snapshot_by_name_does_not_exist(table: Table) -> None:
     assert table.snapshot_by_name("doesnotexist") is None
 
 
-def test_history(table):
+def test_history(table: Table) -> None:
     assert table.history() == [
         SnapshotLogEntry(snapshot_id="3051729675574597004", timestamp_ms=1515100955770),
         SnapshotLogEntry(snapshot_id="3055729675574597004", timestamp_ms=1555100955770),
     ]
 
 
-def test_table_scan_select(table: Table):
+def test_table_scan_select(table: Table) -> None:
     scan = table.scan()
     assert scan.selected_fields == ("*",)
     assert scan.select("a", "b").selected_fields == ("a", "b")
     assert scan.select("a", "c").select("a").selected_fields == ("a",)
 
 
-def test_table_scan_row_filter(table: Table):
+def test_table_scan_row_filter(table: Table) -> None:
     scan = table.scan()
     assert scan.row_filter == AlwaysTrue()
     assert scan.filter(EqualTo("x", 10)).row_filter == EqualTo("x", 10)
     assert scan.filter(EqualTo("x", 10)).filter(In("y", (10, 11))).row_filter == And(EqualTo("x", 10), In("y", (10, 11)))
 
 
-def test_table_scan_ref(table: Table):
+def test_table_scan_ref(table: Table) -> None:
     scan = table.scan()
     assert scan.use_ref("test").snapshot_id == 3051729675574597004
 
 
-def test_table_scan_ref_does_not_exists(table: Table):
+def test_table_scan_ref_does_not_exists(table: Table) -> None:
     scan = table.scan()
 
     with pytest.raises(ValueError) as exc_info:
@@ -217,7 +214,7 @@ def test_table_scan_ref_does_not_exists(table: Table):
     assert "Cannot scan unknown ref=boom" in str(exc_info.value)
 
 
-def test_table_scan_projection_full_schema(table: Table):
+def test_table_scan_projection_full_schema(table: Table) -> None:
     scan = table.scan()
     assert scan.select("x", "y", "z").projection() == Schema(
         NestedField(field_id=1, name="x", field_type=LongType(), required=True),
@@ -228,7 +225,7 @@ def test_table_scan_projection_full_schema(table: Table):
     )
 
 
-def test_table_scan_projection_single_column(table: Table):
+def test_table_scan_projection_single_column(table: Table) -> None:
     scan = table.scan()
     assert scan.select("y").projection() == Schema(
         NestedField(field_id=2, name="y", field_type=LongType(), required=True, doc="comment"),
@@ -237,7 +234,7 @@ def test_table_scan_projection_single_column(table: Table):
     )
 
 
-def test_table_scan_projection_single_column_case_sensitive(table: Table):
+def test_table_scan_projection_single_column_case_sensitive(table: Table) -> None:
     scan = table.scan()
     assert scan.with_case_sensitive(False).select("Y").projection() == Schema(
         NestedField(field_id=2, name="y", field_type=LongType(), required=True, doc="comment"),
@@ -246,10 +243,40 @@ def test_table_scan_projection_single_column_case_sensitive(table: Table):
     )
 
 
-def test_table_scan_projection_unknown_column(table: Table):
+def test_table_scan_projection_unknown_column(table: Table) -> None:
     scan = table.scan()
 
     with pytest.raises(ValueError) as exc_info:
         _ = scan.select("a").projection()
 
     assert "Could not find column: 'a'" in str(exc_info.value)
+
+
+def test_check_content_deletes() -> None:
+    with pytest.raises(ValueError) as exc_info:
+        _check_content(
+            DataFile(
+                content=ManifestContent.DELETES,
+            )
+        )
+    assert "PyIceberg does not support deletes: https://github.com/apache/iceberg/issues/6568" in str(exc_info.value)
+
+
+def test_check_content_data() -> None:
+    manifest_file = DataFile(content=ManifestContent.DATA)
+    assert _check_content(manifest_file) == manifest_file
+
+
+def test_check_content_missing_attr() -> None:
+    r = Record(*([None] * 15))
+    assert _check_content(r) == r  # type: ignore
+
+
+def test_static_table_same_as_table(table: Table, static_table: StaticTable) -> None:
+    assert isinstance(static_table, Table)
+    assert static_table.metadata == table.metadata
+
+
+def test_static_table_io_does_not_exist(metadata_location: str) -> None:
+    with pytest.raises(ValueError):
+        StaticTable.from_metadata(metadata_location, {PY_IO_IMPL: "pyiceberg.does.not.exist.FileIO"})

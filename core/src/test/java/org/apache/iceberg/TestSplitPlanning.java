@@ -180,7 +180,7 @@ public class TestSplitPlanning extends TableTestBase {
     AssertHelpers.assertThrows(
         "User provided split size should be validated",
         IllegalArgumentException.class,
-        "Invalid split size (negative or 0): -10",
+        "Split size must be > 0: -10",
         () -> {
           table.newScan().option(TableProperties.SPLIT_SIZE, String.valueOf(-10)).planTasks();
         });
@@ -188,7 +188,7 @@ public class TestSplitPlanning extends TableTestBase {
     AssertHelpers.assertThrows(
         "User provided split planning lookback should be validated",
         IllegalArgumentException.class,
-        "Invalid split planning lookback (negative or 0): -10",
+        "Split planning lookback must be > 0: -10",
         () -> {
           table.newScan().option(TableProperties.SPLIT_LOOKBACK, String.valueOf(-10)).planTasks();
         });
@@ -196,7 +196,7 @@ public class TestSplitPlanning extends TableTestBase {
     AssertHelpers.assertThrows(
         "User provided split open file cost should be validated",
         IllegalArgumentException.class,
-        "Invalid file open cost (negative): -10",
+        "File open cost must be >= 0: -10",
         () -> {
           table
               .newScan()
@@ -232,6 +232,21 @@ public class TestSplitPlanning extends TableTestBase {
             .option(TableProperties.SPLIT_SIZE, String.valueOf(4L * 1024 * 1024));
     Assert.assertEquals(
         "We should still only get 2 tasks per file", 32, Iterables.size(scan.planTasks()));
+  }
+
+  @Test
+  public void testBasicSplitPlanningDeleteFiles() {
+    table.updateProperties().set(TableProperties.FORMAT_VERSION, "2").commit();
+    List<DeleteFile> files128Mb = newDeleteFiles(4, 128 * 1024 * 1024);
+    appendDeleteFiles(files128Mb);
+
+    PositionDeletesTable posDeletesTable = new PositionDeletesTable(table);
+    // we expect 4 bins since split size is 128MB and we have 4 files 128MB each
+    Assert.assertEquals(4, Iterables.size(posDeletesTable.newBatchScan().planTasks()));
+    List<DeleteFile> files32Mb = newDeleteFiles(16, 32 * 1024 * 1024);
+    appendDeleteFiles(files32Mb);
+    // we expect 8 bins after we add 16 files 32MB each as they will form additional 4 bins
+    Assert.assertEquals(8, Iterables.size(posDeletesTable.newBatchScan().planTasks()));
   }
 
   private void appendFiles(Iterable<DataFile> files) {
@@ -278,6 +293,36 @@ public class TestSplitPlanning extends TableTestBase {
               .collect(Collectors.toList());
       builder.withSplitOffsets(offsets);
     }
+
+    return builder.build();
+  }
+
+  private void appendDeleteFiles(List<DeleteFile> files) {
+    RowDelta rowDelta = table.newRowDelta();
+    files.forEach(rowDelta::addDeletes);
+    rowDelta.commit();
+  }
+
+  private List<DeleteFile> newDeleteFiles(int numFiles, long sizeInBytes) {
+    return newDeleteFiles(numFiles, sizeInBytes, FileFormat.PARQUET);
+  }
+
+  private List<DeleteFile> newDeleteFiles(int numFiles, long sizeInBytes, FileFormat fileFormat) {
+    List<DeleteFile> files = Lists.newArrayList();
+    for (int fileNum = 0; fileNum < numFiles; fileNum++) {
+      files.add(newDeleteFile(sizeInBytes, fileFormat));
+    }
+    return files;
+  }
+
+  private DeleteFile newDeleteFile(long sizeInBytes, FileFormat fileFormat) {
+    String fileName = UUID.randomUUID().toString();
+    FileMetadata.Builder builder =
+        FileMetadata.deleteFileBuilder(PartitionSpec.unpartitioned())
+            .ofPositionDeletes()
+            .withPath(fileFormat.addExtension(fileName))
+            .withFileSizeInBytes(sizeInBytes)
+            .withRecordCount(2);
 
     return builder.build();
   }

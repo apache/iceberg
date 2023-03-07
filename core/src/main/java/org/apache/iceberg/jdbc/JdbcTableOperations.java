@@ -102,7 +102,8 @@ class JdbcTableOperations extends BaseMetastoreTableOperations {
 
   @Override
   public void doCommit(TableMetadata base, TableMetadata metadata) {
-    String newMetadataLocation = writeNewMetadata(metadata, currentVersion() + 1);
+    boolean newTable = base == null;
+    String newMetadataLocation = writeNewMetadataIfRequired(newTable, metadata);
     try {
       Map<String, String> table = getTable();
 

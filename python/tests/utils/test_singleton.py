@@ -18,13 +18,13 @@ from pyiceberg.avro.reader import BooleanReader, FixedReader
 from pyiceberg.transforms import VoidTransform
 
 
-def test_singleton():
+def test_singleton() -> None:
     """We want to reuse the readers to avoid creating a gazillion of them"""
     assert id(BooleanReader()) == id(BooleanReader())
     assert id(FixedReader(22)) == id(FixedReader(22))
     assert id(FixedReader(19)) != id(FixedReader(25))
 
 
-def test_singleton_transform():
+def test_singleton_transform() -> None:
     """We want to reuse VoidTransform since it doesn't carry any state"""
     assert id(VoidTransform()) == id(VoidTransform())

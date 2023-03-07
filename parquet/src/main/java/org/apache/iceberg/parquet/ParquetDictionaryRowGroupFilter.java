@@ -172,6 +172,10 @@ public class ParquetDictionaryRowGroupFilter {
     public <T> Boolean notNaN(BoundReference<T> ref) {
       int id = ref.fieldId();
 
+      if (mayContainNulls.get(id)) {
+        return ROWS_MIGHT_MATCH;
+      }
+
       Boolean hasNonDictPage = isFallback.get(id);
       if (hasNonDictPage == null || hasNonDictPage) {
         return ROWS_MIGHT_MATCH;

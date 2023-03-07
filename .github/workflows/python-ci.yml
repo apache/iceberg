@@ -36,10 +36,10 @@ concurrency:
 
 jobs:
   lint-and-test:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     strategy:
       matrix:
-        python: ['3.8', '3.9', '3.10']
+        python: ['3.8', '3.9', '3.10', '3.11']
 
     steps:
     - uses: actions/checkout@v3
@@ -57,6 +57,9 @@ jobs:
     - name: Linters
       working-directory: ./python
       run: make lint
-    - name: Tests
+    - name: Tests S3
       working-directory: ./python
       run: make test-s3
+    - name: Tests Adlfs
+      working-directory: ./python
+      run: make test-adlfs

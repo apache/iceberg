@@ -47,6 +47,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.SparkReadOptions;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.TableScanUtil;
@@ -64,6 +65,7 @@ import org.slf4j.LoggerFactory;
 public class SparkMicroBatchStream implements MicroBatchStream {
   private static final Joiner SLASH = Joiner.on("/");
   private static final Logger LOG = LoggerFactory.getLogger(SparkMicroBatchStream.class);
+  private static final Types.StructType EMPTY_GROUPING_KEY_TYPE = Types.StructType.of();
 
   private final Table table;
   private final boolean caseSensitive;
@@ -116,9 +118,8 @@ public class SparkMicroBatchStream implements MicroBatchStream {
     Snapshot latestSnapshot = table.currentSnapshot();
     long addedFilesCount =
         PropertyUtil.propertyAsLong(latestSnapshot.summary(), SnapshotSummary.ADDED_FILES_PROP, -1);
-    // If snapshotSummary doesn't have SnapshotSummary.ADDED_FILES_PROP, iterate through addedFiles
-    // iterator to find
-    // addedFilesCount.
+    // if the latest snapshot summary doesn't contain SnapshotSummary.ADDED_FILES_PROP,
+    // iterate through addedDataFiles to compute addedFilesCount
     addedFilesCount =
         addedFilesCount == -1
             ? Iterables.size(latestSnapshot.addedDataFiles(table.io()))
@@ -160,6 +161,7 @@ public class SparkMicroBatchStream implements MicroBatchStream {
             index ->
                 partitions[index] =
                     new SparkInputPartition(
+                        EMPTY_GROUPING_KEY_TYPE,
                         combinedScanTasks.get(index),
                         tableBroadcast,
                         expectedSchema,

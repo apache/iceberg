@@ -84,6 +84,10 @@ subprojects {
           // Enforce hashCode over hash
           '-Xep:ObjectsHashCodeUnnecessaryVarargs:ERROR',
           '-Xep:PreferSafeLogger:OFF',
+          // Enforce safe string splitting
+          '-Xep:StringSplitter:ERROR',
+          // Enforce missing override
+          '-Xep:MissingOverride:ERROR',
       )
     }
   }

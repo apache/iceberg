@@ -71,11 +71,20 @@ public class TestStaticTable extends HadoopTableTestBase {
 
     for (MetadataTableType type : MetadataTableType.values()) {
       Table staticTable = getStaticTable(type);
-      AssertHelpers.assertThrows(
-          "Static tables do not support incremental scans",
-          UnsupportedOperationException.class,
-          String.format("Cannot incrementally scan table of type %s", type),
-          () -> staticTable.newScan().appendsAfter(1));
+
+      if (type.equals(MetadataTableType.POSITION_DELETES)) {
+        AssertHelpers.assertThrows(
+            "POSITION_DELETES table does not support TableScan",
+            UnsupportedOperationException.class,
+            "Cannot create TableScan from table of type POSITION_DELETES",
+            staticTable::newScan);
+      } else {
+        AssertHelpers.assertThrows(
+            "Static tables do not support incremental scans",
+            UnsupportedOperationException.class,
+            String.format("Cannot incrementally scan table of type %s", type),
+            () -> staticTable.newScan().appendsAfter(1));
+      }
     }
   }
 

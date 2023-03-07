@@ -27,6 +27,7 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
@@ -372,7 +373,9 @@ public class SparkTableUtil {
       FileIO io = new HadoopFileIO(conf.get());
       TaskContext ctx = TaskContext.get();
       String suffix =
-          String.format("stage-%d-task-%d-manifest", ctx.stageId(), ctx.taskAttemptId());
+          String.format(
+              "stage-%d-task-%d-manifest-%s",
+              ctx.stageId(), ctx.taskAttemptId(), UUID.randomUUID());
       Path location = new Path(basePath, suffix);
       String outputPath = FileFormat.AVRO.addExtension(location.toString());
       OutputFile outputFile = io.newOutputFile(outputPath);
@@ -531,7 +534,7 @@ public class SparkTableUtil {
                 .createDataset(Lists.transform(files, f -> f.path().toString()), Encoders.STRING())
                 .toDF("file_path");
         Dataset<Row> existingFiles =
-            loadMetadataTable(spark, targetTable, MetadataTableType.ENTRIES);
+            loadMetadataTable(spark, targetTable, MetadataTableType.ENTRIES).filter("status != 2");
         Column joinCond =
             existingFiles.col("data_file.file_path").equalTo(importedFiles.col("file_path"));
         Dataset<String> duplicates =
@@ -602,7 +605,8 @@ public class SparkTableUtil {
           filesToImport
               .map((MapFunction<DataFile, String>) f -> f.path().toString(), Encoders.STRING())
               .toDF("file_path");
-      Dataset<Row> existingFiles = loadMetadataTable(spark, targetTable, MetadataTableType.ENTRIES);
+      Dataset<Row> existingFiles =
+          loadMetadataTable(spark, targetTable, MetadataTableType.ENTRIES).filter("status != 2");
       Column joinCond =
           existingFiles.col("data_file.file_path").equalTo(importedFiles.col("file_path"));
       Dataset<String> duplicates =

@@ -28,17 +28,29 @@ buildscript {
   dependencies {
     classpath 'gradle.plugin.com.github.jengelman.gradle.plugins:shadow:7.0.0'
     classpath 'com.palantir.baseline:gradle-baseline-java:4.42.0'
-    classpath 'com.diffplug.spotless:spotless-plugin-gradle:6.12.0'
+    // com.palantir.baseline:gradle-baseline-java:4.42.0 (the last version supporting Java 8) pulls
+    // in an old version of the errorprone, which doesn't work w/ Gradle 8, so bump errorpone as
+    // well.
+    classpath "net.ltgt.gradle:gradle-errorprone-plugin:3.0.1"
+    // com.palantir.baseline:gradle-baseline-java:4.42.0 (the last version supporting Java 8) pulls
+    // in an old version of the checkstyle(9.1), which has this OutOfMemory bug https://github.com/checkstyle/checkstyle/issues/10934
+    // So, bump checkstyle to the latest java 8 supported version(9.3) which contains the fix.
+    classpath "com.puppycrawl.tools:checkstyle:9.3"
+
+    classpath 'com.diffplug.spotless:spotless-plugin-gradle:6.13.0'
     classpath 'gradle.plugin.org.inferred:gradle-processors:3.7.0'
-    classpath 'me.champeau.jmh:jmh-gradle-plugin:0.6.8'
+    classpath 'me.champeau.jmh:jmh-gradle-plugin:0.7.0'
+    classpath 'gradle.plugin.io.morethan.jmhreport:gradle-jmh-report:0.9.0'
     classpath "com.github.alisiikh:gradle-scalastyle-plugin:3.4.1"
     classpath 'com.palantir.gradle.revapi:gradle-revapi:1.7.0'
     classpath 'com.gorylenko.gradle-git-properties:gradle-git-properties:2.4.1'
-    classpath 'com.palantir.gradle.gitversion:gradle-git-version:0.15.0'
-    classpath ('org.eclipse.jgit:org.eclipse.jgit:5.13.1.202206130422-r') {
+    classpath 'com.palantir.gradle.gitversion:gradle-git-version:1.0.0'
+    classpath ('org.eclipse.jgit:org.eclipse.jgit') {
       // gradle-git-version automatically uses a jgit version that requires JDK11
       // so we need to enforce the latest jgit version that works with JDK8
-      force = true
+      version {
+        strictly('5.13.1.202206130422-r')
+      }
     }
   }
 }
@@ -46,6 +58,10 @@ buildscript {
 plugins {
   id 'nebula.dependency-recommender' version '11.0.0'
 }
+
+String scalaVersion = System.getProperty("scalaVersion") != null ? System.getProperty("scalaVersion") : System.getProperty("defaultScalaVersion")
+String sparkVersionsString = System.getProperty("sparkVersions") != null ? System.getProperty("sparkVersions") : System.getProperty("defaultSparkVersions")
+List<String> sparkVersions = sparkVersionsString != null && !sparkVersionsString.isEmpty() ? sparkVersionsString.split(",") : []
 
 try {
   // apply these plugins in a try-catch block so that we can handle cases without .git directory
@@ -113,6 +129,26 @@ subprojects {
       oldName = project.name
       oldVersion = "1.1.0"
     }
+
+    tasks.register('showDeprecationRulesOnRevApiFailure') {
+      doLast {
+        throw new RuntimeException("==================================================================================" +
+                "\nAPI/ABI breaks detected.\n" +
+                "Adding RevAPI breaks should only be done after going through a deprecation cycle." +
+                "\nPlease make sure to follow the deprecation rules defined in\n" +
+                "https://github.com/apache/iceberg/blob/master/CONTRIBUTING.md#semantic-versioning.\n" +
+                "==================================================================================")
+      }
+      onlyIf {
+        tasks.revapi.state.failure != null
+      }
+    }
+
+    tasks.configureEach { rootTask ->
+      if (rootTask.name == 'revapi') {
+        rootTask.finalizedBy showDeprecationRulesOnRevApiFailure
+      }
+    }
   }
 
   configurations {
@@ -155,7 +191,6 @@ subprojects {
 
   dependencies {
     implementation 'org.slf4j:slf4j-api'
-    implementation 'com.github.stephenc.findbugs:findbugs-annotations'
 
     testImplementation 'org.junit.vintage:junit-vintage-engine'
     testImplementation 'org.junit.jupiter:junit-jupiter-engine'
@@ -214,7 +249,7 @@ project(':iceberg-bundled-guava') {
   }
 
   shadowJar {
-    classifier null
+    archiveClassifier.set(null)
     configurations = [project.configurations.compileClasspath]
     zip64 true
 
@@ -225,7 +260,6 @@ project(':iceberg-bundled-guava') {
     }
 
     dependencies {
-      exclude(dependency('com.github.stephenc.findbugs:findbugs-annotations'))
       exclude(dependency('org.slf4j:slf4j-api'))
       exclude(dependency('org.checkerframework:checker-qual'))
     }
@@ -236,7 +270,7 @@ project(':iceberg-bundled-guava') {
   }
 
   jar {
-    archiveClassifier = 'empty'
+    archiveClassifier.set('empty')
   }
 }
 
@@ -244,6 +278,7 @@ project(':iceberg-api') {
   dependencies {
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     compileOnly "com.google.errorprone:error_prone_annotations"
+    compileOnly "com.google.code.findbugs:jsr305"
     annotationProcessor "org.immutables:value"
     compileOnly "org.immutables:value"
     testImplementation "org.apache.avro:avro"
@@ -251,6 +286,16 @@ project(':iceberg-api') {
   }
 
   tasks.processTestResources.dependsOn rootProject.tasks.buildInfo
+
+  // Workaround to prevent:
+  // Task ':iceberg-api:processTestResources' uses this output of task
+  // ':spotlessInternalRegisterDependencies' without declaring an explicit or implicit dependency.
+  // This can lead to incorrect results being produced, depending on what order the tasks are executed.
+  rootProject.tasks.configureEach { rootTask ->
+    if (rootTask.name == 'spotlessInternalRegisterDependencies') {
+      tasks.processTestResources.dependsOn rootTask
+    }
+  }
 
   sourceSets {
     test {
@@ -301,6 +346,7 @@ project(':iceberg-core') {
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
     testImplementation "com.esotericsoftware:kryo"
     testImplementation "com.google.guava:guava-testlib"
+    testImplementation 'org.awaitility:awaitility'
   }
 }
 
@@ -388,9 +434,15 @@ project(':iceberg-aws') {
     api project(':iceberg-api')
     implementation project(':iceberg-common')
     implementation project(':iceberg-core')
+    annotationProcessor "org.immutables:value"
+    compileOnly "org.immutables:value"
+    implementation "com.github.ben-manes.caffeine:caffeine"
+    implementation "com.fasterxml.jackson.core:jackson-databind"
+    implementation "com.fasterxml.jackson.core:jackson-core"
 
     compileOnly 'software.amazon.awssdk:url-connection-client'
     compileOnly 'software.amazon.awssdk:apache-client'
+    compileOnly 'software.amazon.awssdk:auth'
     compileOnly 'software.amazon.awssdk:s3'
     compileOnly 'software.amazon.awssdk:kms'
     compileOnly 'software.amazon.awssdk:glue'
@@ -405,6 +457,8 @@ project(':iceberg-aws') {
       exclude group: 'com.google.code.gson', module: 'gson'
     }
 
+    compileOnly 'org.apache.httpcomponents.client5:httpclient5'
+
     testImplementation 'software.amazon.awssdk:iam'
     testImplementation 'software.amazon.awssdk:s3control'
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
@@ -415,6 +469,11 @@ project(':iceberg-aws') {
     }
     testImplementation "com.esotericsoftware:kryo"
     testImplementation "org.xerial:sqlite-jdbc"
+    testImplementation "org.testcontainers:testcontainers"
+    testImplementation "org.apache.httpcomponents.client5:httpclient5"
+    testImplementation 'org.mock-server:mockserver-netty'
+    testImplementation 'org.mock-server:mockserver-client-java'
+    testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
   }
 
   sourceSets {
@@ -434,6 +493,76 @@ project(':iceberg-aws') {
   task integrationTest(type: Test) {
     testClassesDirs = sourceSets.integration.output.classesDirs
     classpath = sourceSets.integration.runtimeClasspath
+  }
+}
+
+project(':iceberg-delta-lake') {
+  // use integration test since we can take advantages of spark 3.3 to read datafiles of delta lake table
+  // and create some tests involving sql query.
+  configurations {
+    integrationImplementation.extendsFrom testImplementation
+    integrationRuntime.extendsFrom testRuntimeOnly
+  }
+
+  dependencies {
+    implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
+    api project(':iceberg-api')
+    implementation project(':iceberg-common')
+    implementation project(':iceberg-core')
+    implementation project(':iceberg-parquet')
+    implementation "com.fasterxml.jackson.core:jackson-databind"
+
+    compileOnly "io.delta:delta-standalone_${scalaVersion}"
+
+    compileOnly("org.apache.hadoop:hadoop-common") {
+      exclude group: 'org.apache.avro', module: 'avro'
+      exclude group: 'org.slf4j', module: 'slf4j-log4j12'
+      exclude group: 'javax.servlet', module: 'servlet-api'
+      exclude group: 'com.google.code.gson', module: 'gson'
+    }
+
+    // The newest version of delta-core uses Spark 3.3.*. Since its only for test, we do
+    // not need to include older version of delta-core
+    if (sparkVersions.contains("3.3")) {
+      integrationImplementation "io.delta:delta-core_${scalaVersion}"
+      integrationImplementation project(path: ":iceberg-spark:iceberg-spark-3.3_${scalaVersion}")
+      integrationImplementation("org.apache.hadoop:hadoop-minicluster") {
+        exclude group: 'org.apache.avro', module: 'avro'
+        // to make sure netty libs only come from project(':iceberg-arrow')
+        exclude group: 'io.netty', module: 'netty-buffer'
+        exclude group: 'io.netty', module: 'netty-common'
+      }
+      integrationImplementation project(path: ':iceberg-hive-metastore')
+      integrationImplementation project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
+      integrationImplementation("org.apache.spark:spark-hive_${scalaVersion}:3.3.1") {
+        exclude group: 'org.apache.avro', module: 'avro'
+        exclude group: 'org.apache.arrow'
+        exclude group: 'org.apache.parquet'
+        // to make sure netty libs only come from project(':iceberg-arrow')
+        exclude group: 'io.netty', module: 'netty-buffer'
+        exclude group: 'io.netty', module: 'netty-common'
+        exclude group: 'org.roaringbitmap'
+      }
+    }
+  }
+
+  // The newest version of delta-core uses Spark 3.3.*. The integration test should only be built
+  // if iceberg-spark-3.3 is available
+  if (sparkVersions.contains("3.3")) {
+    sourceSets {
+      integration {
+        java.srcDir "$projectDir/src/integration/java"
+        resources.srcDir "$projectDir/src/integration/resources"
+        compileClasspath += main.output + test.output
+        runtimeClasspath += main.output + test.output
+      }
+    }
+
+    task integrationTest(type: Test) {
+      testClassesDirs = sourceSets.integration.output.classesDirs
+      classpath = sourceSets.integration.runtimeClasspath
+    }
+    check.dependsOn integrationTest
   }
 }
 
@@ -667,6 +796,8 @@ project(':iceberg-nessie') {
     implementation "com.fasterxml.jackson.core:jackson-core"
 
     testImplementation "org.projectnessie:nessie-jaxrs-testextension"
+    testImplementation "org.projectnessie:nessie-versioned-persist-in-memory"
+    testImplementation "org.projectnessie:nessie-versioned-persist-in-memory-test"
     // Need to "pull in" el-api explicitly :(
     testImplementation "jakarta.el:jakarta.el-api"
 
@@ -693,6 +824,24 @@ project(':iceberg-dell') {
     testImplementation "javax.xml.bind:jaxb-api"
     testImplementation "javax.activation:activation"
     testImplementation "org.glassfish.jaxb:jaxb-runtime"
+  }
+}
+
+project(':iceberg-snowflake') {
+  test {
+    useJUnitPlatform()
+  }
+
+  dependencies {
+    implementation project(':iceberg-core')
+    implementation project(':iceberg-common')
+    implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
+    implementation "com.fasterxml.jackson.core:jackson-databind"
+    implementation "com.fasterxml.jackson.core:jackson-core"
+
+    runtimeOnly("net.snowflake:snowflake-jdbc")
+
+    testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
   }
 }
 

@@ -36,15 +36,22 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Stream;
 import org.apache.arrow.vector.ValueVector;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericData.Record;
+import org.apache.iceberg.FileContent;
+import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.data.vectorized.IcebergArrowColumnVector;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.orc.storage.serde2.io.DateWritable;
+import org.apache.spark.sql.Column;
+import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.expressions.GenericRow;
@@ -109,7 +116,7 @@ public class TestHelpers {
     }
   }
 
-  private static void assertEqualsSafe(Types.ListType list, Collection<?> expected, List actual) {
+  public static void assertEqualsSafe(Types.ListType list, Collection<?> expected, List actual) {
     Type elementType = list.elementType();
     List<?> expectedElements = Lists.newArrayList(expected);
     for (int i = 0; i < expectedElements.size(); i += 1) {
@@ -144,7 +151,7 @@ public class TestHelpers {
   private static final LocalDate EPOCH_DAY = EPOCH.toLocalDate();
 
   @SuppressWarnings("unchecked")
-  private static void assertEqualsSafe(Type type, Object expected, Object actual) {
+  public static void assertEqualsSafe(Type type, Object expected, Object actual) {
     if (expected == null && actual == null) {
       return;
     }
@@ -766,5 +773,27 @@ public class TestHelpers {
           expectedValues.isNullAt(i) ? null : expectedValues.get(i, valueType),
           actualValues.isNullAt(i) ? null : actualValues.get(i, valueType));
     }
+  }
+
+  public static void asMetadataRecord(GenericData.Record file, FileContent content) {
+    file.put(0, content.id());
+    file.put(3, 0); // specId
+  }
+
+  public static List<ManifestFile> dataManifests(Table table) {
+    return table.currentSnapshot().dataManifests(table.io());
+  }
+
+  public static Dataset<Row> selectNonDerived(Dataset<Row> metadataTable) {
+    StructField[] fields = metadataTable.schema().fields();
+    return metadataTable.select(
+        Stream.of(fields)
+            .filter(f -> !f.name().equals("readable_metrics")) // derived field
+            .map(f -> new Column(f.name()))
+            .toArray(Column[]::new));
+  }
+
+  public static Types.StructType nonDerivedSchema(Dataset<Row> metadataTable) {
+    return SparkSchemaUtil.convert(TestHelpers.selectNonDerived(metadataTable).schema()).asStruct();
   }
 }

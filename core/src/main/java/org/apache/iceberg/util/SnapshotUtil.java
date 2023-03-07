@@ -27,7 +27,9 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.HistoryEntry;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -149,8 +151,8 @@ public class SnapshotUtil {
   }
 
   /**
-   * Traverses the history of the table's current snapshot and finds the first snapshot committed
-   * after the given time.
+   * Traverses the history of the table's current snapshot, finds the oldest snapshot that was
+   * committed either at or after a given time.
    *
    * @param table a table
    * @param timestampMillis a timestamp in milliseconds
@@ -393,5 +395,43 @@ public class SnapshotUtil {
     }
 
     return table.schema();
+  }
+
+  /**
+   * Fetch the snapshot at the head of the given branch in the given table.
+   *
+   * <p>This method calls {@link Table#currentSnapshot()} instead of using branch API {@link
+   * Table#snapshot(String)} for the main branch so that existing code still goes through the old
+   * code path to ensure backwards compatibility.
+   *
+   * @param table a {@link Table}
+   * @param branch branch name of the table
+   * @return the latest snapshot for the given branch
+   */
+  public static Snapshot latestSnapshot(Table table, String branch) {
+    if (branch.equals(SnapshotRef.MAIN_BRANCH)) {
+      return table.currentSnapshot();
+    }
+
+    return table.snapshot(branch);
+  }
+
+  /**
+   * Fetch the snapshot at the head of the given branch in the given table.
+   *
+   * <p>This method calls {@link TableMetadata#currentSnapshot()} instead of using branch API {@link
+   * TableMetadata#ref(String)}} for the main branch so that existing code still goes through the
+   * old code path to ensure backwards compatibility.
+   *
+   * @param metadata a {@link TableMetadata}
+   * @param branch branch name of the table metadata
+   * @return the latest snapshot for the given branch
+   */
+  public static Snapshot latestSnapshot(TableMetadata metadata, String branch) {
+    if (branch.equals(SnapshotRef.MAIN_BRANCH)) {
+      return metadata.currentSnapshot();
+    }
+
+    return metadata.snapshot(metadata.ref(branch).snapshotId());
   }
 }

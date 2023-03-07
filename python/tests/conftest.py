@@ -25,13 +25,18 @@ and the built-in pytest fixture request should be used as an additional argument
 retrieved using `request.getfixturevalue(fixture_name)`.
 """
 import os
+import re
+import string
+import uuid
+from random import choice
 from tempfile import TemporaryDirectory
 from typing import (
     Any,
     Callable,
     Dict,
     Generator,
-    Union,
+    List,
+    Optional,
 )
 from unittest.mock import MagicMock
 from urllib.parse import urlparse
@@ -44,21 +49,25 @@ import aiohttp.typedefs
 import boto3
 import botocore.awsrequest
 import botocore.model
+import pyarrow as pa
 import pytest
-from moto import mock_glue, mock_s3
+from moto import mock_dynamodb, mock_glue, mock_s3
+from pyarrow import parquet as pq
 
 from pyiceberg import schema
-from pyiceberg.io import (
-    FileIO,
-    InputFile,
-    OutputFile,
-    OutputStream,
-    fsspec,
-)
+from pyiceberg.catalog import Catalog
+from pyiceberg.io import OutputFile, OutputStream, fsspec
+from pyiceberg.io.fsspec import FsspecFileIO
+from pyiceberg.io.pyarrow import PyArrowFile, PyArrowFileIO
+from pyiceberg.manifest import DataFile, FileFormat
 from pyiceberg.schema import Schema
+from pyiceberg.serializers import ToOutputFile
+from pyiceberg.table import FileScanTask
+from pyiceberg.table.metadata import TableMetadataV2
 from pyiceberg.types import (
     BinaryType,
     BooleanType,
+    DateType,
     DoubleType,
     FloatType,
     IntegerType,
@@ -69,11 +78,10 @@ from pyiceberg.types import (
     StringType,
     StructType,
 )
-from tests.catalog.test_base import InMemoryCatalog
-from tests.io.test_io import LocalInputFile
 
 
-def pytest_addoption(parser):
+def pytest_addoption(parser: pytest.Parser) -> None:
+    # S3 options
     parser.addoption(
         "--s3.endpoint", action="store", default="http://localhost:9000", help="The S3 endpoint URL for tests marked as s3"
     )
@@ -81,23 +89,28 @@ def pytest_addoption(parser):
     parser.addoption(
         "--s3.secret-access-key", action="store", default="password", help="The AWS secret access key ID for tests marked as s3"
     )
-
-
-class FooStruct:
-    """An example of an object that abides by StructProtocol"""
-
-    def __init__(self):
-        self.content = {}
-
-    def get(self, pos: int) -> Any:
-        return self.content[pos]
-
-    def set(self, pos: int, value) -> None:
-        self.content[pos] = value
+    # ADLFS options
+    # Azurite provides default account name and key.  Those can be customized using env variables.
+    # For more information, see README file at https://github.com/azure/azurite#default-storage-account
+    parser.addoption(
+        "--adlfs.endpoint",
+        action="store",
+        default="http://127.0.0.1:10000",
+        help="The ADLS endpoint URL for tests marked as adlfs",
+    )
+    parser.addoption(
+        "--adlfs.account-name", action="store", default="devstoreaccount1", help="The ADLS account key for tests marked as adlfs"
+    )
+    parser.addoption(
+        "--adlfs.account-key",
+        action="store",
+        default="Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==",
+        help="The ADLS secret account key for tests marked as adlfs",
+    )
 
 
 @pytest.fixture(scope="session")
-def table_schema_simple():
+def table_schema_simple() -> Schema:
     return schema.Schema(
         NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
         NestedField(field_id=2, name="bar", field_type=IntegerType(), required=True),
@@ -108,7 +121,7 @@ def table_schema_simple():
 
 
 @pytest.fixture(scope="session")
-def table_schema_nested():
+def table_schema_nested() -> Schema:
     return schema.Schema(
         NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
         NestedField(field_id=2, name="bar", field_type=IntegerType(), required=True),
@@ -156,11 +169,6 @@ def table_schema_nested():
         schema_id=1,
         identifier_field_ids=[1],
     )
-
-
-@pytest.fixture(scope="session")
-def foo_struct():
-    return FooStruct()
 
 
 @pytest.fixture(scope="session")
@@ -314,9 +322,12 @@ def example_table_metadata_v2() -> Dict[str, Any]:
     return EXAMPLE_TABLE_METADATA_V2
 
 
-@pytest.fixture
-def catalog() -> InMemoryCatalog:
-    return InMemoryCatalog("test.in.memory.catalog", **{"test.key": "test.value"})
+@pytest.fixture(scope="session")
+def metadata_location(tmp_path_factory: pytest.TempPathFactory) -> str:
+    metadata_location = str(tmp_path_factory.mktemp("metadata") / f"{uuid.uuid4()}.metadata.json")
+    metadata = TableMetadataV2(**EXAMPLE_TABLE_METADATA_V2)
+    ToOutputFile.table_metadata(metadata, PyArrowFileIO().new_output(location=metadata_location), overwrite=True)
+    return metadata_location
 
 
 manifest_entry_records = [
@@ -326,7 +337,7 @@ manifest_entry_records = [
         "data_file": {
             "file_path": "/home/iceberg/warehouse/nyc/taxis_partitioned/data/VendorID=null/00000-633-d8a4223e-dc97-45a1-86e1-adaba6e8abd7-00001.parquet",
             "file_format": "PARQUET",
-            "partition": {"VendorID": None},
+            "partition": {"VendorID": 1, "tpep_pickup_datetime": 1925},
             "record_count": 19513,
             "file_size_in_bytes": 388872,
             "block_size_in_bytes": 67108864,
@@ -446,7 +457,7 @@ manifest_entry_records = [
         "data_file": {
             "file_path": "/home/iceberg/warehouse/nyc/taxis_partitioned/data/VendorID=1/00000-633-d8a4223e-dc97-45a1-86e1-adaba6e8abd7-00002.parquet",
             "file_format": "PARQUET",
-            "partition": {"VendorID": 1},
+            "partition": {"VendorID": 1, "tpep_pickup_datetime": 1925},
             "record_count": 95050,
             "file_size_in_bytes": 1265950,
             "block_size_in_bytes": 67108864,
@@ -719,7 +730,15 @@ def avro_schema_manifest_entry() -> Dict[str, Any]:
                             "type": {
                                 "type": "record",
                                 "name": "r102",
-                                "fields": [{"name": "VendorID", "type": ["null", "int"], "default": None, "field-id": 1000}],
+                                "fields": [
+                                    {"field-id": 1000, "default": None, "name": "VendorID", "type": ["null", "int"]},
+                                    {
+                                        "field-id": 1001,
+                                        "default": None,
+                                        "name": "tpep_pickup_datetime",
+                                        "type": ["null", {"type": "int", "logicalType": "date"}],
+                                    },
+                                ],
                             },
                             "field-id": 102,
                         },
@@ -882,7 +901,7 @@ def avro_schema_manifest_entry() -> Dict[str, Any]:
 
 
 @pytest.fixture(scope="session")
-def simple_struct():
+def simple_struct() -> StructType:
     return StructType(
         NestedField(id=1, name="required_field", field_type=StringType(), required=True, doc="this is a doc"),
         NestedField(id=2, name="optional_field", field_type=IntegerType()),
@@ -890,21 +909,23 @@ def simple_struct():
 
 
 @pytest.fixture(scope="session")
-def simple_list():
+def simple_list() -> ListType:
     return ListType(element_id=22, element=StringType(), element_required=True)
 
 
 @pytest.fixture(scope="session")
-def simple_map():
+def simple_map() -> MapType:
     return MapType(key_id=19, key_type=StringType(), value_id=25, value_type=DoubleType(), value_required=False)
 
 
 class LocalOutputFile(OutputFile):
     """An OutputFile implementation for local files (for test use only)"""
 
-    def __init__(self, location: str):
+    def __init__(self, location: str) -> None:
         parsed_location = urlparse(location)  # Create a ParseResult from the uri
-        if parsed_location.scheme and parsed_location.scheme != "file":  # Validate that a uri is provided with a scheme of `file`
+        if (
+            parsed_location.scheme and parsed_location.scheme != "file"
+        ):  # Validate that an uri is provided with a scheme of `file`
             raise ValueError("LocalOutputFile location must have a scheme of `file`")
         elif parsed_location.netloc:
             raise ValueError(f"Network location is not allowed for LocalOutputFile: {parsed_location.netloc}")
@@ -912,39 +933,20 @@ class LocalOutputFile(OutputFile):
         super().__init__(location=location)
         self._path = parsed_location.path
 
-    def __len__(self):
+    def __len__(self) -> int:
         return os.path.getsize(self._path)
 
-    def exists(self):
+    def exists(self) -> bool:
         return os.path.exists(self._path)
 
-    def to_input_file(self):
-        return LocalInputFile(location=self.location)
+    def to_input_file(self) -> PyArrowFile:
+        return PyArrowFileIO().new_input(location=self.location)
 
     def create(self, overwrite: bool = False) -> OutputStream:
         output_file = open(self._path, "wb" if overwrite else "xb")
         if not issubclass(type(output_file), OutputStream):
             raise TypeError("Object returned from LocalOutputFile.create(...) does not match the OutputStream protocol.")
         return output_file
-
-
-class LocalFileIO(FileIO):
-    """A FileIO implementation for local files (for test use only)"""
-
-    def new_input(self, location: str):
-        return LocalInputFile(location=location)
-
-    def new_output(self, location: str):
-        return LocalOutputFile(location=location)
-
-    def delete(self, location: Union[str, InputFile, OutputFile]):
-        location = location.location if isinstance(location, (InputFile, OutputFile)) else location
-        os.remove(location)
-
-
-@pytest.fixture(scope="session", autouse=True)
-def LocalFileIOFixture():
-    return LocalFileIO
 
 
 @pytest.fixture(scope="session")
@@ -1009,6 +1011,12 @@ def iceberg_manifest_entry_schema() -> Schema:
                             field_id=1000,
                             name="VendorID",
                             field_type=IntegerType(),
+                            required=False,
+                        ),
+                        NestedField(
+                            field_id=1001,
+                            name="tpep_pickup_datetime",
+                            field_type=DateType(),
                             required=False,
                         ),
                     ),
@@ -1146,7 +1154,7 @@ def iceberg_manifest_entry_schema() -> Schema:
 
 
 @pytest.fixture
-def fsspec_fileio(request):
+def fsspec_fileio(request: pytest.FixtureRequest) -> FsspecFileIO:
     properties = {
         "s3.endpoint": request.config.getoption("--s3.endpoint"),
         "s3.access-key-id": request.config.getoption("--s3.access-key-id"),
@@ -1161,7 +1169,7 @@ class MockAWSResponse(aiobotocore.awsrequest.AioAWSResponse):
     See https://github.com/aio-libs/aiobotocore/issues/755
     """
 
-    def __init__(self, response: botocore.awsrequest.AWSResponse):
+    def __init__(self, response: botocore.awsrequest.AWSResponse) -> None:
         self._moto_response = response
         self.status_code = response.status_code
         self.raw = MockHttpClientResponse(response)
@@ -1180,8 +1188,8 @@ class MockHttpClientResponse(aiohttp.client_reqrep.ClientResponse):
     See https://github.com/aio-libs/aiobotocore/issues/755
     """
 
-    def __init__(self, response: botocore.awsrequest.AWSResponse):
-        async def read(*_) -> bytes:
+    def __init__(self, response: botocore.awsrequest.AWSResponse) -> None:
+        async def read(*_: Any) -> bytes:
             # streaming/range requests. used by s3fs
             return response.content
 
@@ -1195,14 +1203,14 @@ class MockHttpClientResponse(aiohttp.client_reqrep.ClientResponse):
         return {k.encode("utf-8"): str(v).encode("utf-8") for k, v in self.response.headers.items()}.items()
 
 
-def patch_aiobotocore():
+def patch_aiobotocore() -> None:
     """
     Patch aiobotocore to work with moto
     See https://github.com/aio-libs/aiobotocore/issues/755
     """
 
-    def factory(original: Callable) -> Callable:
-        def patched_convert_to_response_dict(
+    def factory(original: Callable) -> Callable:  # type: ignore
+        def patched_convert_to_response_dict(  # type: ignore
             http_response: botocore.awsrequest.AWSResponse, operation_model: botocore.model.OperationModel
         ):
             return original(MockAWSResponse(http_response), operation_model)
@@ -1213,7 +1221,7 @@ def patch_aiobotocore():
 
 
 @pytest.fixture(name="_patch_aiobotocore")
-def fixture_aiobotocore():
+def fixture_aiobotocore():  # type: ignore
     """
     Patch aiobotocore to work with moto
     pending close of this issue: https://github.com/aio-libs/aiobotocore/issues/755
@@ -1224,7 +1232,7 @@ def fixture_aiobotocore():
     aiobotocore.endpoint.convert_to_response_dict = stored_method
 
 
-def aws_credentials():
+def aws_credentials() -> None:
     os.environ["AWS_ACCESS_KEY_ID"] = "testing"
     os.environ["AWS_SECRET_ACCESS_KEY"] = "testing"
     os.environ["AWS_SECURITY_TOKEN"] = "testing"
@@ -1233,9 +1241,9 @@ def aws_credentials():
 
 
 @pytest.fixture(name="_aws_credentials")
-def fixture_aws_credentials():
+def fixture_aws_credentials() -> Generator[None, None, None]:
     """Mocked AWS Credentials for moto."""
-    yield aws_credentials()
+    yield aws_credentials()  # type: ignore
     os.environ.pop("AWS_ACCESS_KEY_ID")
     os.environ.pop("AWS_SECRET_ACCESS_KEY")
     os.environ.pop("AWS_SECURITY_TOKEN")
@@ -1244,14 +1252,142 @@ def fixture_aws_credentials():
 
 
 @pytest.fixture(name="_s3")
-def fixture_s3(_aws_credentials):
+def fixture_s3(_aws_credentials: None) -> Generator[boto3.client, None, None]:
     """Mocked S3 client"""
     with mock_s3():
         yield boto3.client("s3", region_name="us-east-1")
 
 
 @pytest.fixture(name="_glue")
-def fixture_glue(_aws_credentials):
+def fixture_glue(_aws_credentials: None) -> Generator[boto3.client, None, None]:
     """Mocked glue client"""
     with mock_glue():
         yield boto3.client("glue", region_name="us-east-1")
+
+
+@pytest.fixture(name="_dynamodb")
+def fixture_dynamodb(_aws_credentials: None) -> Generator[boto3.client, None, None]:
+    """Mocked DynamoDB client"""
+    with mock_dynamodb():
+        yield boto3.client("dynamodb", region_name="us-east-1")
+
+
+@pytest.fixture
+def adlfs_fsspec_fileio(request: pytest.FixtureRequest) -> Generator[FsspecFileIO, None, None]:
+    from azure.storage.blob import BlobServiceClient
+
+    azurite_url = request.config.getoption("--adlfs.endpoint")
+    azurite_account_name = request.config.getoption("--adlfs.account-name")
+    azurite_account_key = request.config.getoption("--adlfs.account-key")
+    azurite_connection_string = f"DefaultEndpointsProtocol=http;AccountName={azurite_account_name};AccountKey={azurite_account_key};BlobEndpoint={azurite_url}/{azurite_account_name};"
+    properties = {
+        "adlfs.connection-string": azurite_connection_string,
+        "adlfs.account-name": azurite_account_name,
+    }
+
+    bbs = BlobServiceClient.from_connection_string(conn_str=azurite_connection_string)
+    bbs.create_container("tests")
+    yield fsspec.FsspecFileIO(properties=properties)
+    bbs.delete_container("tests")
+
+
+@pytest.fixture(scope="session")
+def empty_home_dir_path(tmp_path_factory: pytest.TempPathFactory) -> str:
+    home_path = str(tmp_path_factory.mktemp("home"))
+    return home_path
+
+
+RANDOM_LENGTH = 20
+NUM_TABLES = 2
+
+
+@pytest.fixture()
+def table_name() -> str:
+    prefix = "my_iceberg_table-"
+    random_tag = "".join(choice(string.ascii_letters) for _ in range(RANDOM_LENGTH))
+    return (prefix + random_tag).lower()
+
+
+@pytest.fixture()
+def table_list(table_name: str) -> List[str]:
+    return [f"{table_name}_{idx}" for idx in range(NUM_TABLES)]
+
+
+@pytest.fixture()
+def database_name() -> str:
+    prefix = "my_iceberg_database-"
+    random_tag = "".join(choice(string.ascii_letters) for _ in range(RANDOM_LENGTH))
+    return (prefix + random_tag).lower()
+
+
+@pytest.fixture()
+def database_list(database_name: str) -> List[str]:
+    return [f"{database_name}_{idx}" for idx in range(NUM_TABLES)]
+
+
+BUCKET_NAME = "test_bucket"
+TABLE_METADATA_LOCATION_REGEX = re.compile(
+    r"""s3://test_bucket/my_iceberg_database-[a-z]{20}.db/
+    my_iceberg_table-[a-z]{20}/metadata/
+    00000-[a-f0-9]{8}-?[a-f0-9]{4}-?4[a-f0-9]{3}-?[89ab][a-f0-9]{3}-?[a-f0-9]{12}.metadata.json""",
+    re.X,
+)
+
+
+@pytest.fixture(name="_bucket_initialize")
+def fixture_s3_bucket(_s3) -> None:  # type: ignore
+    _s3.create_bucket(Bucket=BUCKET_NAME)
+
+
+def get_bucket_name() -> str:
+    """
+    Set the environment variable AWS_TEST_BUCKET for a default bucket to test
+    """
+    bucket_name = os.getenv("AWS_TEST_BUCKET")
+    if bucket_name is None:
+        raise ValueError("Please specify a bucket to run the test by setting environment variable AWS_TEST_BUCKET")
+    return bucket_name
+
+
+def get_s3_path(bucket_name: str, database_name: Optional[str] = None, table_name: Optional[str] = None) -> str:
+    result_path = f"s3://{bucket_name}"
+    if database_name is not None:
+        result_path += f"/{database_name}.db"
+
+    if table_name is not None:
+        result_path += f"/{table_name}"
+    return result_path
+
+
+@pytest.fixture(name="s3", scope="module")
+def fixture_s3_client() -> boto3.client:
+    yield boto3.client("s3")
+
+
+def clean_up(test_catalog: Catalog) -> None:
+    """Clean all databases and tables created during the integration test"""
+    for database_tuple in test_catalog.list_namespaces():
+        database_name = database_tuple[0]
+        if "my_iceberg_database-" in database_name:
+            for identifier in test_catalog.list_tables(database_name):
+                test_catalog.purge_table(identifier)
+            test_catalog.drop_namespace(database_name)
+
+
+@pytest.fixture
+def data_file(table_schema_simple: Schema, tmp_path: str) -> str:
+    table = pa.table(
+        {"foo": ["a", "b", "c"], "bar": [1, 2, 3], "baz": [True, False, None]},
+        metadata={"iceberg.schema": table_schema_simple.json()},
+    )
+
+    file_path = f"{tmp_path}/0000-data.parquet"
+    pq.write_table(table=table, where=file_path)
+    return file_path
+
+
+@pytest.fixture
+def example_task(data_file: str) -> FileScanTask:
+    return FileScanTask(
+        data_file=DataFile(file_path=data_file, file_format=FileFormat.PARQUET, file_size_in_bytes=1925),
+    )

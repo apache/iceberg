@@ -50,6 +50,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.spark.SparkTestBase;
+import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.iceberg.spark.source.ThreeColumnRecord;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Dataset;
@@ -341,6 +342,10 @@ public class TestRewriteManifestsAction extends SparkTestBase {
       SparkTableUtil.importSparkTable(
           spark, new TableIdentifier("parquet_table"), table, stagingDir.toString());
 
+      // add some more data to create more than one manifest for the rewrite
+      inputDF.select("c1", "c2", "c3").write().format("iceberg").mode("append").save(tableLocation);
+      table.refresh();
+
       Snapshot snapshot = table.currentSnapshot();
 
       SparkActions actions = SparkActions.get();
@@ -431,6 +436,8 @@ public class TestRewriteManifestsAction extends SparkTestBase {
             new ThreeColumnRecord(1, null, "AAAA"), new ThreeColumnRecord(1, "BBBBBBBBBB", "BBBB"));
     writeRecords(records1);
 
+    writeRecords(records1);
+
     List<ThreeColumnRecord> records2 =
         Lists.newArrayList(
             new ThreeColumnRecord(2, "CCCCCCCCCC", "CCCC"),
@@ -440,7 +447,7 @@ public class TestRewriteManifestsAction extends SparkTestBase {
     table.refresh();
 
     List<ManifestFile> manifests = table.currentSnapshot().allManifests(table.io());
-    Assert.assertEquals("Should have 2 manifests before rewrite", 2, manifests.size());
+    Assert.assertEquals("Should have 3 manifests before rewrite", 3, manifests.size());
 
     SparkActions actions = SparkActions.get();
 
@@ -448,13 +455,16 @@ public class TestRewriteManifestsAction extends SparkTestBase {
     RewriteManifests.Result result =
         actions
             .rewriteManifests(table)
-            .rewriteIf(manifest -> manifest.path().equals(manifests.get(0).path()))
+            .rewriteIf(
+                manifest ->
+                    (manifest.path().equals(manifests.get(0).path())
+                        || (manifest.path().equals(manifests.get(1).path()))))
             .stagingLocation(temp.newFolder().toString())
             .option("use-caching", "false")
             .execute();
 
     Assert.assertEquals(
-        "Action should rewrite 1 manifest", 1, Iterables.size(result.rewrittenManifests()));
+        "Action should rewrite 2 manifest", 2, Iterables.size(result.rewrittenManifests()));
     Assert.assertEquals(
         "Action should add 1 manifests", 1, Iterables.size(result.addedManifests()));
 
@@ -464,11 +474,16 @@ public class TestRewriteManifestsAction extends SparkTestBase {
     Assert.assertEquals("Should have 2 manifests after rewrite", 2, newManifests.size());
 
     Assert.assertFalse("First manifest must be rewritten", newManifests.contains(manifests.get(0)));
+    Assert.assertFalse(
+        "Second manifest must be rewritten", newManifests.contains(manifests.get(1)));
     Assert.assertTrue(
-        "Second manifest must not be rewritten", newManifests.contains(manifests.get(1)));
+        "Third manifest must not be rewritten", newManifests.contains(manifests.get(2)));
 
     List<ThreeColumnRecord> expectedRecords = Lists.newArrayList();
-    expectedRecords.addAll(records1);
+    expectedRecords.add(records1.get(0));
+    expectedRecords.add(records1.get(0));
+    expectedRecords.add(records1.get(1));
+    expectedRecords.add(records1.get(1));
     expectedRecords.addAll(records2);
 
     Dataset<Row> resultDF = spark.read().format("iceberg").load(tableLocation);
@@ -545,7 +560,12 @@ public class TestRewriteManifestsAction extends SparkTestBase {
   }
 
   private void writeDF(Dataset<Row> df) {
-    df.select("c1", "c2", "c3").write().format("iceberg").mode("append").save(tableLocation);
+    df.select("c1", "c2", "c3")
+        .write()
+        .format("iceberg")
+        .option(SparkWriteOptions.DISTRIBUTION_MODE, TableProperties.WRITE_DISTRIBUTION_MODE_NONE)
+        .mode("append")
+        .save(tableLocation);
   }
 
   private long computeManifestEntrySizeBytes(List<ManifestFile> manifests) {

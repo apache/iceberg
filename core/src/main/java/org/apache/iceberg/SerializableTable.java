@@ -258,6 +258,11 @@ public class SerializableTable implements Table, Serializable {
   }
 
   @Override
+  public BatchScan newBatchScan() {
+    return lazyTable().newBatchScan();
+  }
+
+  @Override
   public Snapshot currentSnapshot() {
     return lazyTable().currentSnapshot();
   }
@@ -374,6 +379,10 @@ public class SerializableTable implements Table, Serializable {
     @Override
     protected Table newTable(TableOperations ops, String tableName) {
       return MetadataTableUtils.createMetadataTableInstance(ops, baseTableName, tableName, type);
+    }
+
+    public MetadataTableType type() {
+      return type;
     }
   }
 

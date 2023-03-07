@@ -49,6 +49,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.NestedField;
+import org.apache.iceberg.util.LockManagers;
 import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
@@ -130,6 +131,29 @@ public class TestGlueCatalogTable extends GlueTestBase {
         () ->
             glueCatalog.createTable(
                 TableIdentifier.of(namespace, "table-1"), schema, partitionSpec));
+  }
+
+  @Test
+  public void testCreateAndLoadTableWithoutWarehouseLocation() {
+    GlueCatalog glueCatalogWithoutWarehouse = new GlueCatalog();
+    glueCatalogWithoutWarehouse.initialize(
+        catalogName,
+        null,
+        new AwsProperties(),
+        glue,
+        LockManagers.defaultLockManager(),
+        new S3FileIO(clientFactory::s3),
+        ImmutableMap.of());
+    String namespace = createNamespace();
+    String tableName = getRandomName();
+    TableIdentifier identifier = TableIdentifier.of(namespace, tableName);
+    try {
+      glueCatalog.createTable(identifier, schema, partitionSpec, tableLocationProperties);
+      glueCatalog.loadTable(identifier);
+    } catch (RuntimeException e) {
+      throw new RuntimeException(
+          "Create and load table without warehouse location should succeed", e);
+    }
   }
 
   @Test
@@ -352,6 +376,16 @@ public class TestGlueCatalogTable extends GlueTestBase {
     Schema schema = new Schema(Types.NestedField.required(1, "c1", Types.StringType.get(), "c1"));
     PartitionSpec partitionSpec = PartitionSpec.builderFor(schema).build();
     String tableName = getRandomName();
+    AwsProperties properties = new AwsProperties();
+    properties.setGlueCatalogSkipArchive(false);
+    glueCatalog.initialize(
+        catalogName,
+        testBucketPath,
+        properties,
+        glue,
+        LockManagers.defaultLockManager(),
+        fileIO,
+        ImmutableMap.of());
     glueCatalog.createTable(TableIdentifier.of(namespace, tableName), schema, partitionSpec);
     Table table = glueCatalog.loadTable(TableIdentifier.of(namespace, tableName));
     DataFile dataFile =
@@ -372,9 +406,9 @@ public class TestGlueCatalogTable extends GlueTestBase {
             .size());
     // create table and commit with skip
     tableName = getRandomName();
-    glueCatalogWithSkip.createTable(
-        TableIdentifier.of(namespace, tableName), schema, partitionSpec);
-    table = glueCatalogWithSkip.loadTable(TableIdentifier.of(namespace, tableName));
+    glueCatalog.initialize(catalogName, ImmutableMap.of());
+    glueCatalog.createTable(TableIdentifier.of(namespace, tableName), schema, partitionSpec);
+    table = glueCatalog.loadTable(TableIdentifier.of(namespace, tableName));
     table.newAppend().appendFile(dataFile).commit();
     Assert.assertEquals(
         "skipArchive should not create new version",
@@ -536,7 +570,11 @@ public class TestGlueCatalogTable extends GlueTestBase {
     Table table = glueCatalog.loadTable(identifier);
     String metadataLocation = ((BaseTable) table).operations().current().metadataFileLocation();
     Assertions.assertThat(glueCatalog.dropTable(identifier, false)).isTrue();
-    Assertions.assertThat(glueCatalog.registerTable(identifier, metadataLocation)).isNotNull();
+    Table registeredTable = glueCatalog.registerTable(identifier, metadataLocation);
+    Assertions.assertThat(registeredTable).isNotNull();
+    String expectedMetadataLocation =
+        ((BaseTable) table).operations().current().metadataFileLocation();
+    Assertions.assertThat(metadataLocation).isEqualTo(expectedMetadataLocation);
     Assertions.assertThat(glueCatalog.loadTable(identifier)).isNotNull();
     Assertions.assertThat(glueCatalog.dropTable(identifier, true)).isTrue();
     Assertions.assertThat(glueCatalog.dropNamespace(Namespace.of(namespace))).isTrue();

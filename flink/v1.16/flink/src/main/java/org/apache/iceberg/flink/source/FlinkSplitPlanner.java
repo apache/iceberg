@@ -34,6 +34,7 @@ import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
 import org.apache.iceberg.hadoop.Util;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.Tasks;
 
@@ -86,11 +87,31 @@ public class FlinkSplitPlanner {
       IncrementalAppendScan scan = table.newIncrementalAppendScan();
       scan = refineScanWithBaseConfigs(scan, context, workerPool);
 
+      if (context.startTag() != null) {
+        Preconditions.checkArgument(
+            table.snapshot(context.startTag()) != null,
+            "Cannot find snapshot with tag %s",
+            context.startTag());
+        scan = scan.fromSnapshotExclusive(table.snapshot(context.startTag()).snapshotId());
+      }
+
       if (context.startSnapshotId() != null) {
+        Preconditions.checkArgument(
+            context.startTag() == null, "START_SNAPSHOT_ID and START_TAG cannot both be set");
         scan = scan.fromSnapshotExclusive(context.startSnapshotId());
       }
 
+      if (context.endTag() != null) {
+        Preconditions.checkArgument(
+            table.snapshot(context.endTag()) != null,
+            "Cannot find snapshot with tag %s",
+            context.endTag());
+        scan = scan.toSnapshot(table.snapshot(context.endTag()).snapshotId());
+      }
+
       if (context.endSnapshotId() != null) {
+        Preconditions.checkArgument(
+            context.endTag() == null, "END_SNAPSHOT_ID and END_TAG cannot both be set");
         scan = scan.toSnapshot(context.endSnapshotId());
       }
 
@@ -101,6 +122,10 @@ public class FlinkSplitPlanner {
 
       if (context.snapshotId() != null) {
         scan = scan.useSnapshot(context.snapshotId());
+      } else if (context.tag() != null) {
+        scan = scan.useRef(context.tag());
+      } else if (context.branch() != null) {
+        scan = scan.useRef(context.branch());
       }
 
       if (context.asOfTimestamp() != null) {
@@ -119,7 +144,9 @@ public class FlinkSplitPlanner {
   private static ScanMode checkScanMode(ScanContext context) {
     if (context.isStreaming()
         || context.startSnapshotId() != null
-        || context.endSnapshotId() != null) {
+        || context.endSnapshotId() != null
+        || context.startTag() != null
+        || context.endTag() != null) {
       return ScanMode.INCREMENTAL_APPEND_SCAN;
     } else {
       return ScanMode.BATCH;
@@ -136,20 +163,14 @@ public class FlinkSplitPlanner {
       refinedScan = refinedScan.includeColumnStats();
     }
 
-    if (context.splitSize() != null) {
-      refinedScan = refinedScan.option(TableProperties.SPLIT_SIZE, context.splitSize().toString());
-    }
+    refinedScan = refinedScan.option(TableProperties.SPLIT_SIZE, context.splitSize().toString());
 
-    if (context.splitLookback() != null) {
-      refinedScan =
-          refinedScan.option(TableProperties.SPLIT_LOOKBACK, context.splitLookback().toString());
-    }
+    refinedScan =
+        refinedScan.option(TableProperties.SPLIT_LOOKBACK, context.splitLookback().toString());
 
-    if (context.splitOpenFileCost() != null) {
-      refinedScan =
-          refinedScan.option(
-              TableProperties.SPLIT_OPEN_FILE_COST, context.splitOpenFileCost().toString());
-    }
+    refinedScan =
+        refinedScan.option(
+            TableProperties.SPLIT_OPEN_FILE_COST, context.splitOpenFileCost().toString());
 
     if (context.filters() != null) {
       for (Expression filter : context.filters()) {

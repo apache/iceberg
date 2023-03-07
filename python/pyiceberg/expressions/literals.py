@@ -25,6 +25,7 @@ import struct
 from abc import ABC, abstractmethod
 from decimal import ROUND_HALF_UP, Decimal
 from functools import singledispatchmethod
+from math import isnan
 from typing import Any, Generic, Type
 from uuid import UUID
 
@@ -65,6 +66,8 @@ class Literal(Generic[L], ABC):
     def __init__(self, value: L, value_type: Type[L]):
         if value is None or not isinstance(value, value_type):
             raise TypeError(f"Invalid literal value: {value!r} (not a {value_type})")
+        if isinstance(value, float) and isnan(value):
+            raise ValueError("Cannot create expression literal from NaN.")
         self._value = value
 
     @property
@@ -90,28 +93,28 @@ class Literal(Generic[L], ABC):
             return False
         return self.value == other.value
 
-    def __ne__(self, other) -> bool:
+    def __ne__(self, other: Any) -> bool:
         return not self.__eq__(other)
 
-    def __lt__(self, other) -> bool:
+    def __lt__(self, other: Any) -> bool:
         return self.value < other.value
 
-    def __gt__(self, other) -> bool:
+    def __gt__(self, other: Any) -> bool:
         return self.value > other.value
 
-    def __le__(self, other) -> bool:
+    def __le__(self, other: Any) -> bool:
         return self.value <= other.value
 
-    def __ge__(self, other) -> bool:
+    def __ge__(self, other: Any) -> bool:
         return self.value >= other.value
 
 
 def literal(value: L) -> Literal[L]:
     """
-    A generic Literal factory to construct an iceberg Literal based on python primitive data type
+    A generic Literal factory to construct an Iceberg Literal based on Python primitive data type
 
     Args:
-        value(python primitive type): the value to be associated with literal
+        value(Python primitive type): the value to be associated with literal
 
     Example:
         from pyiceberg.expressions.literals import literal
@@ -153,7 +156,7 @@ class BelowMin(Literal[L]):
 
 
 class FloatAboveMax(AboveMax[float], Singleton):
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(FloatType.max, float)
 
     @singledispatchmethod
@@ -166,7 +169,7 @@ class FloatAboveMax(AboveMax[float], Singleton):
 
 
 class FloatBelowMin(BelowMin[float], Singleton):
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(FloatType.min, float)
 
     @singledispatchmethod
@@ -179,7 +182,7 @@ class FloatBelowMin(BelowMin[float], Singleton):
 
 
 class IntAboveMax(AboveMax[int], Singleton):
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(IntegerType.max, int)
 
     @singledispatchmethod
@@ -192,7 +195,7 @@ class IntAboveMax(AboveMax[int], Singleton):
 
 
 class IntBelowMin(BelowMin[int], Singleton):
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(IntegerType.min, int)
 
     @singledispatchmethod
@@ -205,7 +208,7 @@ class IntBelowMin(BelowMin[int], Singleton):
 
 
 class LongAboveMax(AboveMax[int], Singleton):
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(LongType.max, int)
 
     @singledispatchmethod
@@ -218,7 +221,7 @@ class LongAboveMax(AboveMax[int], Singleton):
 
 
 class LongBelowMin(BelowMin[int], Singleton):
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(LongType.min, int)
 
     @singledispatchmethod
@@ -231,7 +234,7 @@ class LongBelowMin(BelowMin[int], Singleton):
 
 
 class BooleanLiteral(Literal[bool]):
-    def __init__(self, value: bool):
+    def __init__(self, value: bool) -> None:
         super().__init__(value, bool)
 
     @singledispatchmethod
@@ -244,7 +247,7 @@ class BooleanLiteral(Literal[bool]):
 
 
 class LongLiteral(Literal[int]):
-    def __init__(self, value: int):
+    def __init__(self, value: int) -> None:
         super().__init__(value, int)
 
     @singledispatchmethod
@@ -306,24 +309,27 @@ class LongLiteral(Literal[int]):
 
 
 class FloatLiteral(Literal[float]):
-    def __init__(self, value: float):
+    def __init__(self, value: float) -> None:
         super().__init__(value, float)
         self._value32 = struct.unpack("<f", struct.pack("<f", value))[0]
 
-    def __eq__(self, other) -> bool:
+    def __eq__(self, other: Any) -> bool:
         return self._value32 == other
 
-    def __lt__(self, other) -> bool:
+    def __lt__(self, other: Any) -> bool:
         return self._value32 < other
 
-    def __gt__(self, other) -> bool:
+    def __gt__(self, other: Any) -> bool:
         return self._value32 > other
 
-    def __le__(self, other) -> bool:
+    def __le__(self, other: Any) -> bool:
         return self._value32 <= other
 
-    def __ge__(self, other) -> bool:
+    def __ge__(self, other: Any) -> bool:
         return self._value32 >= other
+
+    def __hash__(self) -> int:
+        return hash(self._value32)
 
     @singledispatchmethod
     def to(self, type_var: IcebergType) -> Literal:  # type: ignore
@@ -343,7 +349,7 @@ class FloatLiteral(Literal[float]):
 
 
 class DoubleLiteral(Literal[float]):
-    def __init__(self, value: float):
+    def __init__(self, value: float) -> None:
         super().__init__(value, float)
 
     @singledispatchmethod
@@ -368,7 +374,7 @@ class DoubleLiteral(Literal[float]):
 
 
 class DateLiteral(Literal[int]):
-    def __init__(self, value: int):
+    def __init__(self, value: int) -> None:
         super().__init__(value, int)
 
     def increment(self) -> Literal[int]:
@@ -387,7 +393,7 @@ class DateLiteral(Literal[int]):
 
 
 class TimeLiteral(Literal[int]):
-    def __init__(self, value: int):
+    def __init__(self, value: int) -> None:
         super().__init__(value, int)
 
     @singledispatchmethod
@@ -400,7 +406,7 @@ class TimeLiteral(Literal[int]):
 
 
 class TimestampLiteral(Literal[int]):
-    def __init__(self, value: int):
+    def __init__(self, value: int) -> None:
         super().__init__(value, int)
 
     def increment(self) -> Literal[int]:
@@ -417,13 +423,17 @@ class TimestampLiteral(Literal[int]):
     def _(self, _: TimestampType) -> Literal[int]:
         return self
 
+    @to.register(TimestamptzType)
+    def _(self, _: TimestamptzType) -> Literal[int]:
+        return self
+
     @to.register(DateType)
     def _(self, _: DateType) -> Literal[int]:
         return DateLiteral(micros_to_days(self.value))
 
 
 class DecimalLiteral(Literal[Decimal]):
-    def __init__(self, value: Decimal):
+    def __init__(self, value: Decimal) -> None:
         super().__init__(value, Decimal)
 
     def increment(self) -> Literal[Decimal]:
@@ -467,7 +477,7 @@ class DecimalLiteral(Literal[Decimal]):
             return LongLiteral(value_int)
 
     @to.register(FloatType)
-    def _(self, _: FloatType):
+    def _(self, _: FloatType) -> Literal[float]:
         value_float = float(self.value)
         if value_float > FloatType.max:
             return FloatAboveMax()
@@ -477,12 +487,12 @@ class DecimalLiteral(Literal[Decimal]):
             return FloatLiteral(value_float)
 
     @to.register(DoubleType)
-    def _(self, _: DoubleLiteral):
+    def _(self, _: DoubleLiteral) -> Literal[float]:
         return DoubleLiteral(float(self.value))
 
 
 class StringLiteral(Literal[str]):
-    def __init__(self, value: str):
+    def __init__(self, value: str) -> None:
         super().__init__(value, str)
 
     @singledispatchmethod
@@ -555,12 +565,20 @@ class StringLiteral(Literal[str]):
                 f"Could not convert {self.value} into a {type_var}, scales differ {type_var.scale} <> {abs(dec.as_tuple().exponent)}"
             )
 
+    @to.register(BooleanType)
+    def _(self, type_var: BooleanType) -> Literal[bool]:
+        value_upper = self.value.upper()
+        if value_upper in ["TRUE", "FALSE"]:
+            return BooleanLiteral(value_upper == "TRUE")
+        else:
+            raise ValueError(f"Could not convert {self.value} into a {type_var}")
+
     def __repr__(self) -> str:
         return f"literal({repr(self.value)})"
 
 
 class UUIDLiteral(Literal[UUID]):
-    def __init__(self, value: UUID):
+    def __init__(self, value: UUID) -> None:
         super().__init__(value, UUID)
 
     @singledispatchmethod
@@ -573,7 +591,7 @@ class UUIDLiteral(Literal[UUID]):
 
 
 class FixedLiteral(Literal[bytes]):
-    def __init__(self, value: bytes):
+    def __init__(self, value: bytes) -> None:
         super().__init__(value, bytes)
 
     @singledispatchmethod
@@ -595,7 +613,7 @@ class FixedLiteral(Literal[bytes]):
 
 
 class BinaryLiteral(Literal[bytes]):
-    def __init__(self, value: bytes):
+    def __init__(self, value: bytes) -> None:
         super().__init__(value, bytes)
 
     @singledispatchmethod

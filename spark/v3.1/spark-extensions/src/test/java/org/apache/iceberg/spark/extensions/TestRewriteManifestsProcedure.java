@@ -20,13 +20,18 @@ package org.apache.iceberg.spark.extensions;
 
 import static org.apache.iceberg.TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED;
 
+import java.sql.Date;
+import java.sql.Timestamp;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.spark.sql.AnalysisException;
+import org.apache.spark.sql.RowFactory;
 import org.apache.spark.sql.catalyst.analysis.NoSuchProcedureException;
+import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Test;
@@ -71,6 +76,115 @@ public class TestRewriteManifestsProcedure extends SparkExtensionsTestBase {
 
     Assert.assertEquals(
         "Must have 4 manifests", 4, table.currentSnapshot().allManifests(table.io()).size());
+  }
+
+  @Test
+  public void testRewriteManifestsNoOp() {
+    sql(
+        "CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg PARTITIONED BY (data)",
+        tableName);
+    sql("INSERT INTO TABLE %s VALUES (1, 'a'), (2, 'b'), (3, 'c'), (4, 'd')", tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    Assert.assertEquals(
+        "Must have 1 manifest", 1, table.currentSnapshot().allManifests(table.io()).size());
+
+    List<Object[]> output = sql("CALL %s.system.rewrite_manifests('%s')", catalogName, tableIdent);
+    // should not rewrite any manifests for no-op (output of rewrite is same as before and after)
+    assertEquals("Procedure output must match", ImmutableList.of(row(0, 0)), output);
+
+    table.refresh();
+
+    Assert.assertEquals(
+        "Must have 1 manifests", 1, table.currentSnapshot().allManifests(table.io()).size());
+  }
+
+  @Test
+  public void testRewriteLargeManifestsOnDatePartitionedTableWithJava8APIEnabled() {
+    sql(
+        "CREATE TABLE %s (id INTEGER, name STRING, dept STRING, ts DATE) USING iceberg PARTITIONED BY (ts)",
+        tableName);
+    try {
+      spark
+          .createDataFrame(
+              ImmutableList.of(
+                  RowFactory.create(1, "John Doe", "hr", Date.valueOf("2021-01-01")),
+                  RowFactory.create(2, "Jane Doe", "hr", Date.valueOf("2021-01-02")),
+                  RowFactory.create(3, "Matt Doe", "hr", Date.valueOf("2021-01-03")),
+                  RowFactory.create(4, "Will Doe", "facilities", Date.valueOf("2021-01-04"))),
+              spark.table(tableName).schema())
+          .writeTo(tableName)
+          .append();
+    } catch (NoSuchTableException e) {
+      // not possible as we already created the table above.
+      throw new RuntimeException(e);
+    }
+    withSQLConf(
+        ImmutableMap.of("spark.sql.datetime.java8API.enabled", "true"),
+        () -> {
+          Table table = validationCatalog.loadTable(tableIdent);
+
+          Assert.assertEquals(
+              "Must have 1 manifest", 1, table.currentSnapshot().allManifests(table.io()).size());
+
+          sql(
+              "ALTER TABLE %s SET TBLPROPERTIES ('commit.manifest.target-size-bytes' '1')",
+              tableName);
+
+          List<Object[]> output =
+              sql("CALL %s.system.rewrite_manifests('%s')", catalogName, tableIdent);
+          assertEquals("Procedure output must match", ImmutableList.of(row(1, 4)), output);
+
+          table.refresh();
+
+          Assert.assertEquals(
+              "Must have 4 manifests", 4, table.currentSnapshot().allManifests(table.io()).size());
+        });
+  }
+
+  @Test
+  public void testRewriteLargeManifestsOnTimestampPartitionedTableWithJava8APIEnabled() {
+    sql(
+        "CREATE TABLE %s (id INTEGER, name STRING, dept STRING, ts TIMESTAMP) USING iceberg PARTITIONED BY (ts)",
+        tableName);
+    try {
+      spark
+          .createDataFrame(
+              ImmutableList.of(
+                  RowFactory.create(1, "John Doe", "hr", Timestamp.valueOf("2021-01-01 00:00:00")),
+                  RowFactory.create(2, "Jane Doe", "hr", Timestamp.valueOf("2021-01-02 00:00:00")),
+                  RowFactory.create(3, "Matt Doe", "hr", Timestamp.valueOf("2021-01-03 00:00:00")),
+                  RowFactory.create(
+                      4, "Will Doe", "facilities", Timestamp.valueOf("2021-01-04 00:00:00"))),
+              spark.table(tableName).schema())
+          .writeTo(tableName)
+          .append();
+    } catch (NoSuchTableException e) {
+      // not possible as we already created the table above.
+      throw new RuntimeException(e);
+    }
+    withSQLConf(
+        ImmutableMap.of("spark.sql.datetime.java8API.enabled", "true"),
+        () -> {
+          Table table = validationCatalog.loadTable(tableIdent);
+
+          Assert.assertEquals(
+              "Must have 1 manifest", 1, table.currentSnapshot().allManifests(table.io()).size());
+
+          sql(
+              "ALTER TABLE %s SET TBLPROPERTIES ('commit.manifest.target-size-bytes' '1')",
+              tableName);
+
+          List<Object[]> output =
+              sql("CALL %s.system.rewrite_manifests('%s')", catalogName, tableIdent);
+          assertEquals("Procedure output must match", ImmutableList.of(row(1, 4)), output);
+
+          table.refresh();
+
+          Assert.assertEquals(
+              "Must have 4 manifests", 4, table.currentSnapshot().allManifests(table.io()).size());
+        });
   }
 
   @Test

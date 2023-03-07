@@ -27,8 +27,8 @@ from pydantic import Field
 
 from pyiceberg.schema import Schema
 from pyiceberg.transforms import Transform
+from pyiceberg.typedef import IcebergBaseModel
 from pyiceberg.types import NestedField, StructType
-from pyiceberg.utils.iceberg_base_model import IcebergBaseModel
 
 INITIAL_PARTITION_SPEC_ID = 0
 _PARTITION_DATA_ID_START: int = 1000
@@ -69,7 +69,7 @@ class PartitionField(IcebergBaseModel):
             data["name"] = name
         super().__init__(**data)
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"{self.field_id}: {self.name}: {self.transform}({self.source_id})"
 
 
@@ -105,7 +105,7 @@ class PartitionSpec(IcebergBaseModel):
             return False
         return self.spec_id == other.spec_id and self.fields == other.fields
 
-    def __str__(self):
+    def __str__(self) -> str:
         """
         Produce a human-readable string representation of PartitionSpec
 

@@ -20,12 +20,18 @@ import struct
 from abc import ABC, abstractmethod
 from enum import IntEnum
 from functools import singledispatch
-from typing import Any, Callable, Generic
+from typing import (
+    Any,
+    Callable,
+    Generator,
+    Generic,
+)
 from typing import Literal as LiteralType
 from typing import Optional, TypeVar
 
 import mmh3
 from pydantic import Field, PositiveInt, PrivateAttr
+from pydantic.typing import AnyCallable
 
 from pyiceberg.expressions import (
     BoundEqualTo,
@@ -36,14 +42,18 @@ from pyiceberg.expressions import (
     BoundLessThanOrEqual,
     BoundLiteralPredicate,
     BoundNotIn,
+    BoundNotStartsWith,
     BoundPredicate,
     BoundSetPredicate,
+    BoundStartsWith,
     BoundTerm,
     BoundUnaryPredicate,
     EqualTo,
     GreaterThanOrEqual,
     LessThanOrEqual,
+    NotStartsWith,
     Reference,
+    StartsWith,
     UnboundPredicate,
 )
 from pyiceberg.expressions.literals import (
@@ -54,7 +64,7 @@ from pyiceberg.expressions.literals import (
     TimestampLiteral,
     literal,
 )
-from pyiceberg.typedef import L
+from pyiceberg.typedef import IcebergBaseModel, L
 from pyiceberg.types import (
     BinaryType,
     DateType,
@@ -71,7 +81,6 @@ from pyiceberg.types import (
 )
 from pyiceberg.utils import datetime
 from pyiceberg.utils.decimal import decimal_to_bytes, truncate_decimal
-from pyiceberg.utils.iceberg_base_model import IcebergBaseModel
 from pyiceberg.utils.parsing import ParseNumberFromBrackets
 from pyiceberg.utils.singleton import Singleton
 
@@ -106,14 +115,14 @@ class Transform(IcebergBaseModel, ABC, Generic[S, T]):
     __root__: str = Field()
 
     @classmethod
-    def __get_validators__(cls):
+    def __get_validators__(cls) -> Generator[AnyCallable, None, None]:
         # one or more validators may be yielded which will be called in the
         # order to validate the input, each validator will receive as an input
         # the value returned from the previous validator
         yield cls.validate
 
     @classmethod
-    def validate(cls, v: Any):
+    def validate(cls, v: Any) -> IcebergBaseModel:
         # When Pydantic is unable to determine the subtype
         # In this case we'll help pydantic a bit by parsing the transform type ourselves
         if isinstance(v, str):
@@ -157,7 +166,7 @@ class Transform(IcebergBaseModel, ABC, Generic[S, T]):
     def preserves_order(self) -> bool:
         return False
 
-    def satisfies_order_of(self, other) -> bool:
+    def satisfies_order_of(self, other: Any) -> bool:
         return self == other
 
     def to_human_string(self, _: IcebergType, value: Optional[S]) -> str:
@@ -188,7 +197,7 @@ class BucketTransform(Transform[S, int]):
 
     _num_buckets: PositiveInt = PrivateAttr()
 
-    def __init__(self, num_buckets: int, **data: Any):
+    def __init__(self, num_buckets: int, **data: Any) -> None:
         super().__init__(__root__=f"bucket[{num_buckets}]", **data)
         self._num_buckets = num_buckets
 
@@ -241,22 +250,22 @@ class BucketTransform(Transform[S, int]):
         source_type = type(source)
         if source_type in {IntegerType, LongType, DateType, TimeType, TimestampType, TimestamptzType}:
 
-            def hash_func(v):
+            def hash_func(v: Any) -> int:
                 return mmh3.hash(struct.pack("<q", v))
 
         elif source_type == DecimalType:
 
-            def hash_func(v):
+            def hash_func(v: Any) -> int:
                 return mmh3.hash(decimal_to_bytes(v))
 
         elif source_type in {StringType, FixedType, BinaryType}:
 
-            def hash_func(v):
+            def hash_func(v: Any) -> int:
                 return mmh3.hash(v)
 
         elif source_type == UUIDType:
 
-            def hash_func(v):
+            def hash_func(v: Any) -> int:
                 return mmh3.hash(
                     struct.pack(
                         ">QQ",
@@ -339,12 +348,12 @@ class YearTransform(TimeTransform[S]):
         source_type = type(source)
         if source_type == DateType:
 
-            def year_func(v):
+            def year_func(v: Any) -> int:
                 return datetime.days_to_years(v)
 
         elif source_type in {TimestampType, TimestamptzType}:
 
-            def year_func(v):
+            def year_func(v: Any) -> int:
                 return datetime.micros_to_years(v)
 
         else:
@@ -385,12 +394,12 @@ class MonthTransform(TimeTransform[S]):
         source_type = type(source)
         if source_type == DateType:
 
-            def month_func(v):
+            def month_func(v: Any) -> int:
                 return datetime.days_to_months(v)
 
         elif source_type in {TimestampType, TimestamptzType}:
 
-            def month_func(v):
+            def month_func(v: Any) -> int:
                 return datetime.micros_to_months(v)
 
         else:
@@ -431,12 +440,12 @@ class DayTransform(TimeTransform[S]):
         source_type = type(source)
         if source_type == DateType:
 
-            def day_func(v):
+            def day_func(v: Any) -> int:
                 return v
 
         elif source_type in {TimestampType, TimestamptzType}:
 
-            def day_func(v):
+            def day_func(v: Any) -> int:
                 return datetime.micros_to_days(v)
 
         else:
@@ -479,7 +488,7 @@ class HourTransform(TimeTransform[S]):
     def transform(self, source: IcebergType) -> Callable[[Optional[S]], Optional[int]]:
         if type(source) in {TimestampType, TimestamptzType}:
 
-            def hour_func(v):
+            def hour_func(v: Any) -> int:
                 return datetime.micros_to_hours(v)
 
         else:
@@ -595,9 +604,6 @@ class TruncateTransform(Transform[S, S]):
         if isinstance(pred.term, BoundTransform):
             return _project_transform_predicate(self, name, pred)
 
-        # Implement startswith and notstartswith for string (and probably binary)
-        # https://github.com/apache/iceberg/issues/6112
-
         if isinstance(pred, BoundUnaryPredicate):
             return pred.as_unbound(Reference(name))
         elif isinstance(pred, BoundIn):
@@ -618,17 +624,17 @@ class TruncateTransform(Transform[S, S]):
         source_type = type(source)
         if source_type in {IntegerType, LongType}:
 
-            def truncate_func(v):
+            def truncate_func(v: Any) -> Any:
                 return v - v % self._width
 
         elif source_type in {StringType, BinaryType}:
 
-            def truncate_func(v):
+            def truncate_func(v: Any) -> Any:
                 return v[0 : min(self._width, len(v))]
 
         elif source_type == DecimalType:
 
-            def truncate_func(v):
+            def truncate_func(v: Any) -> Any:
                 return truncate_decimal(v, self._width)
 
         else:
@@ -789,6 +795,10 @@ def _truncate_array(
         return GreaterThanOrEqual(Reference(name), _transform_literal(transform, boundary))
     if isinstance(pred, BoundEqualTo):
         return EqualTo(Reference(name), _transform_literal(transform, boundary))
+    elif isinstance(pred, BoundStartsWith):
+        return StartsWith(Reference(name), _transform_literal(transform, boundary))
+    elif isinstance(pred, BoundNotStartsWith):
+        return NotStartsWith(Reference(name), _transform_literal(transform, boundary))
     else:
         return None
 
@@ -802,7 +812,7 @@ def _project_transform_predicate(
     return None
 
 
-def _remove_transform(partition_name: str, pred: BoundPredicate[L]):
+def _remove_transform(partition_name: str, pred: BoundPredicate[L]) -> UnboundPredicate[Any]:
     if isinstance(pred, BoundUnaryPredicate):
         return pred.as_unbound(Reference(partition_name))
     elif isinstance(pred, BoundLiteralPredicate):

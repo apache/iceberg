@@ -119,26 +119,22 @@ public class SparkSortStrategy extends SortStrategy {
       tableCache.add(groupID, table);
       manager.stageTasks(table, groupID, filesToRewrite);
 
-      // Disable Adaptive Query Execution as this may change the output partitioning of our write
-      SparkSession cloneSession = spark.cloneSession();
-      cloneSession.conf().set(SQLConf.ADAPTIVE_EXECUTION_ENABLED().key(), false);
-
       // Reset Shuffle Partitions for our sort
       long numOutputFiles =
           numOutputFiles((long) (inputFileSize(filesToRewrite) * sizeEstimateMultiple));
-      cloneSession.conf().set(SQLConf.SHUFFLE_PARTITIONS().key(), Math.max(1, numOutputFiles));
+      spark.conf().set(SQLConf.SHUFFLE_PARTITIONS().key(), Math.max(1, numOutputFiles));
 
       Dataset<Row> scanDF =
-          cloneSession
+          spark
               .read()
               .format("iceberg")
               .option(SparkReadOptions.FILE_SCAN_TASK_SET_ID, groupID)
               .load(groupID);
 
       // write the packed data into new files where each split becomes a new file
-      SQLConf sqlConf = cloneSession.sessionState().conf();
+      SQLConf sqlConf = spark.sessionState().conf();
       LogicalPlan sortPlan = sortPlan(distribution, ordering, scanDF.logicalPlan(), sqlConf);
-      Dataset<Row> sortedDf = new Dataset<>(cloneSession, sortPlan, scanDF.encoder());
+      Dataset<Row> sortedDf = new Dataset<>(spark, sortPlan, scanDF.encoder());
 
       sortedDf
           .write()

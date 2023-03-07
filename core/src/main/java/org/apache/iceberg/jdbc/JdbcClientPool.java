@@ -27,12 +27,12 @@ import java.util.Properties;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.ClientPoolImpl;
 
-class JdbcClientPool extends ClientPoolImpl<Connection, SQLException> {
+public class JdbcClientPool extends ClientPoolImpl<Connection, SQLException> {
 
   private final String dbUrl;
   private final Map<String, String> properties;
 
-  JdbcClientPool(String dbUrl, Map<String, String> props) {
+  public JdbcClientPool(String dbUrl, Map<String, String> props) {
     this(
         Integer.parseInt(
             props.getOrDefault(
@@ -42,7 +42,7 @@ class JdbcClientPool extends ClientPoolImpl<Connection, SQLException> {
         props);
   }
 
-  JdbcClientPool(int poolSize, String dbUrl, Map<String, String> props) {
+  public JdbcClientPool(int poolSize, String dbUrl, Map<String, String> props) {
     super(poolSize, SQLNonTransientConnectionException.class, true);
     properties = props;
     this.dbUrl = dbUrl;

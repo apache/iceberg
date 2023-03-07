@@ -46,7 +46,6 @@ CORE:
   - core/**/*
 PYTHON:
   - python/**/*
-  - python_legacy/**/*
 PARQUET:
   - parquet/**/*
 ARROW:
@@ -82,3 +81,5 @@ GCP:
   - gcp/**/*
 DELL:
   - dell/**/*
+SNOWFLAKE:
+  - snowflake/**/*

@@ -98,38 +98,6 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
   private Evaluator lazyEvaluator = null;
   private InclusiveMetricsEvaluator lazyMetricsEvaluator = null;
 
-  /**
-   * @deprecated Will be removed in 1.2.0, use {@link ManifestReader#ManifestReader(InputFile, int,
-   *     Map, InheritableMetadata, FileType)}.
-   */
-  @Deprecated
-  protected ManifestReader(
-      InputFile file,
-      Map<Integer, PartitionSpec> specsById,
-      InheritableMetadata inheritableMetadata,
-      FileType content) {
-    this.file = file;
-    this.inheritableMetadata = inheritableMetadata;
-    this.content = content;
-
-    Map<String, String> metadata = readMetadata(file);
-    int specId = TableMetadata.INITIAL_SPEC_ID;
-    String specProperty = metadata.get("partition-spec-id");
-    if (specProperty != null) {
-      specId = Integer.parseInt(specProperty);
-    }
-
-    if (specsById != null) {
-      this.spec = specsById.get(specId);
-    } else {
-      Schema schema = SchemaParser.fromJson(metadata.get("schema"));
-      this.spec =
-          PartitionSpecParser.fromJsonFields(schema, specId, metadata.get("partition-spec"));
-    }
-
-    this.fileSchema = new Schema(DataFile.getType(spec.partitionType()).fields());
-  }
-
   protected ManifestReader(
       InputFile file,
       int specId,

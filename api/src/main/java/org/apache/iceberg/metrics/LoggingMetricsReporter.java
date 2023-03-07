@@ -28,6 +28,11 @@ import org.slf4j.LoggerFactory;
  */
 public class LoggingMetricsReporter implements MetricsReporter {
   private static final Logger LOG = LoggerFactory.getLogger(LoggingMetricsReporter.class);
+  private static final LoggingMetricsReporter INSTANCE = new LoggingMetricsReporter();
+
+  public static LoggingMetricsReporter instance() {
+    return INSTANCE;
+  }
 
   @Override
   public void report(MetricsReport report) {

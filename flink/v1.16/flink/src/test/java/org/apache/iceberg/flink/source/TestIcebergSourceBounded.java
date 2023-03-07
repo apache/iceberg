@@ -103,6 +103,7 @@ public class TestIcebergSourceBounded extends TestFlinkScan {
     IcebergSource.Builder<RowData> sourceBuilder =
         IcebergSource.forRowData()
             .tableLoader(tableLoader())
+            .table(table)
             .assignerFactory(new SimpleSplitAssignerFactory())
             .flinkConfig(config);
     if (projectedSchema != null) {

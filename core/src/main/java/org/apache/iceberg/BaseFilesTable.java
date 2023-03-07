@@ -40,8 +40,8 @@ import org.apache.iceberg.types.Types.StructType;
 /** Base class logic for files metadata tables */
 abstract class BaseFilesTable extends BaseMetadataTable {
 
-  BaseFilesTable(TableOperations ops, Table table, String name) {
-    super(ops, table, name);
+  BaseFilesTable(Table table, String name) {
+    super(table, name);
   }
 
   @Override
@@ -94,18 +94,13 @@ abstract class BaseFilesTable extends BaseMetadataTable {
 
   abstract static class BaseFilesTableScan extends BaseMetadataTableScan {
 
-    protected BaseFilesTableScan(
-        TableOperations ops, Table table, Schema schema, MetadataTableType tableType) {
-      super(ops, table, schema, tableType);
+    protected BaseFilesTableScan(Table table, Schema schema, MetadataTableType tableType) {
+      super(table, schema, tableType);
     }
 
     protected BaseFilesTableScan(
-        TableOperations ops,
-        Table table,
-        Schema schema,
-        MetadataTableType tableType,
-        TableScanContext context) {
-      super(ops, table, schema, tableType, context);
+        Table table, Schema schema, MetadataTableType tableType, TableScanContext context) {
+      super(table, schema, tableType, context);
     }
 
     /** Returns an iterable of manifest files to explore for this files metadata table scan */
@@ -119,18 +114,13 @@ abstract class BaseFilesTable extends BaseMetadataTable {
 
   abstract static class BaseAllFilesTableScan extends BaseAllMetadataTableScan {
 
-    protected BaseAllFilesTableScan(
-        TableOperations ops, Table table, Schema schema, MetadataTableType tableType) {
-      super(ops, table, schema, tableType);
+    protected BaseAllFilesTableScan(Table table, Schema schema, MetadataTableType tableType) {
+      super(table, schema, tableType);
     }
 
     protected BaseAllFilesTableScan(
-        TableOperations ops,
-        Table table,
-        Schema schema,
-        MetadataTableType tableType,
-        TableScanContext context) {
-      super(ops, table, schema, tableType, context);
+        Table table, Schema schema, MetadataTableType tableType, TableScanContext context) {
+      super(table, schema, tableType, context);
     }
 
     /** Returns an iterable of manifest files to explore for this all files metadata table scan */
@@ -176,6 +166,7 @@ abstract class BaseFilesTable extends BaseMetadataTable {
         // used to create those columns are part of the file projection
         Set<Integer> readableMetricsIds = TypeUtil.getProjectedIds(readableMetricsField.type());
         Schema fileProjection = TypeUtil.selectNot(projection, readableMetricsIds);
+        int metricsPosition = projection.columns().indexOf(readableMetricsField);
 
         Schema projectionForReadableMetrics =
             new Schema(
@@ -184,7 +175,8 @@ abstract class BaseFilesTable extends BaseMetadataTable {
                     .collect(Collectors.toList()));
 
         Schema projectionForMetrics = TypeUtil.join(fileProjection, projectionForReadableMetrics);
-        return CloseableIterable.transform(files(projectionForMetrics), this::withReadableMetrics);
+        return CloseableIterable.transform(
+            files(projectionForMetrics), f -> withReadableMetrics(f, metricsPosition));
       }
     }
 
@@ -200,13 +192,14 @@ abstract class BaseFilesTable extends BaseMetadataTable {
       }
     }
 
-    private StructLike withReadableMetrics(ContentFile<?> file) {
-      int expectedSize = projection.columns().size();
+    private StructLike withReadableMetrics(ContentFile<?> file, int metricsPosition) {
+      int columnCount = projection.columns().size();
       StructType projectedMetricType =
           projection.findField(MetricsUtil.READABLE_METRICS).type().asStructType();
       MetricsUtil.ReadableMetricsStruct readableMetrics =
           MetricsUtil.readableMetricsStruct(dataTableSchema, file, projectedMetricType);
-      return new ContentFileStructWithMetrics(expectedSize, (StructLike) file, readableMetrics);
+      return new ContentFileStructWithMetrics(
+          columnCount, metricsPosition, (StructLike) file, readableMetrics);
     }
 
     @Override
@@ -223,34 +216,36 @@ abstract class BaseFilesTable extends BaseMetadataTable {
   static class ContentFileStructWithMetrics implements StructLike {
     private final StructLike fileAsStruct;
     private final MetricsUtil.ReadableMetricsStruct readableMetrics;
-    private final int expectedSize;
+    private final int columnCount;
+    private final int metricsPosition;
 
     ContentFileStructWithMetrics(
-        int expectedSize,
+        int columnCount,
+        int metricsPosition,
         StructLike fileAsStruct,
         MetricsUtil.ReadableMetricsStruct readableMetrics) {
       this.fileAsStruct = fileAsStruct;
       this.readableMetrics = readableMetrics;
-      this.expectedSize = expectedSize;
+      this.columnCount = columnCount;
+      this.metricsPosition = metricsPosition;
     }
 
     @Override
     public int size() {
-      return expectedSize;
+      return columnCount;
     }
 
     @Override
     public <T> T get(int pos, Class<T> javaClass) {
-      int lastExpectedIndex = expectedSize - 1;
-      if (pos < lastExpectedIndex) {
+      if (pos < metricsPosition) {
         return fileAsStruct.get(pos, javaClass);
-      } else if (pos == lastExpectedIndex) {
+      } else if (pos == metricsPosition) {
         return javaClass.cast(readableMetrics);
       } else {
-        throw new IllegalArgumentException(
-            String.format(
-                "Illegal position access for ContentFileStructWithMetrics: %d, max allowed is %d",
-                pos, lastExpectedIndex));
+        // columnCount = fileAsStruct column count + the readable metrics field.
+        // When pos is greater than metricsPosition, the actual position of the field in
+        // fileAsStruct should be subtracted by 1.
+        return fileAsStruct.get(pos - 1, javaClass);
       }
     }
 

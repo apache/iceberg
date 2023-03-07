@@ -16,6 +16,7 @@
 # under the License.
 from enum import Enum
 from typing import (
+    Any,
     Dict,
     List,
     Optional,
@@ -26,7 +27,7 @@ from pydantic import Field, PrivateAttr, root_validator
 
 from pyiceberg.io import FileIO
 from pyiceberg.manifest import ManifestFile, read_manifest_list
-from pyiceberg.utils.iceberg_base_model import IcebergBaseModel
+from pyiceberg.typedef import IcebergBaseModel
 
 OPERATION = "operation"
 
@@ -69,8 +70,8 @@ class Summary(IcebergBaseModel):
         return values
 
     def __init__(
-        self, operation: Optional[Operation] = None, __root__: Optional[Dict[str, Union[str, Operation]]] = None, **data
-    ):
+        self, operation: Optional[Operation] = None, __root__: Optional[Dict[str, Union[str, Operation]]] = None, **data: Any
+    ) -> None:
         super().__init__(__root__={"operation": operation, **data} if not __root__ else __root__)
         self._additional_properties = {
             k: v for k, v in self.__root__.items() if k != OPERATION  # type: ignore # We know that they are all string, and we don't want to check

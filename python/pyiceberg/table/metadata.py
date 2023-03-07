@@ -39,9 +39,8 @@ from pyiceberg.table.sorting import (
     SortOrder,
     assign_fresh_sort_order_ids,
 )
-from pyiceberg.typedef import EMPTY_DICT, Properties
+from pyiceberg.typedef import EMPTY_DICT, IcebergBaseModel, Properties
 from pyiceberg.utils.datetime import datetime_to_micros
-from pyiceberg.utils.iceberg_base_model import IcebergBaseModel
 
 CURRENT_SNAPSHOT_ID = "current_snapshot_id"
 CURRENT_SCHEMA_ID = "current_schema_id"
@@ -99,7 +98,7 @@ class TableMetadataCommonFields(IcebergBaseModel):
     spec (https://iceberg.apache.org/spec/#iceberg-table-spec)"""
 
     @root_validator(skip_on_failure=True)
-    def cleanup_snapshot_id(cls, data: Dict[str, Any]):
+    def cleanup_snapshot_id(cls, data: Dict[str, Any]) -> Dict[str, Any]:
         if data[CURRENT_SNAPSHOT_ID] == -1:
             # We treat -1 and None the same, by cleaning this up
             # in a pre-validator, we can simplify the logic later on
@@ -107,7 +106,7 @@ class TableMetadataCommonFields(IcebergBaseModel):
         return data
 
     @root_validator(skip_on_failure=True)
-    def construct_refs(cls, data: Dict[str, Any]):
+    def construct_refs(cls, data: Dict[str, Any]) -> Dict[str, Any]:
         # This is going to be much nicer as soon as refs is an actual pydantic object
         if current_snapshot_id := data.get(CURRENT_SNAPSHOT_ID):
             if MAIN_BRANCH not in data[REFS]:
@@ -277,7 +276,7 @@ class TableMetadataV1(TableMetadataCommonFields, IcebergBaseModel):
         return data
 
     @root_validator(skip_on_failure=True)
-    def set_sort_orders(cls, data: Dict[str, Any]):
+    def set_sort_orders(cls, data: Dict[str, Any]) -> Dict[str, Any]:
         """Sets the sort_orders if not provided
 
         For V1 sort_orders is optional, and if they aren't set, we'll set them
@@ -329,15 +328,15 @@ class TableMetadataV2(TableMetadataCommonFields, IcebergBaseModel):
     """
 
     @root_validator(skip_on_failure=True)
-    def check_schemas(cls, values: Dict[str, Any]):
+    def check_schemas(cls, values: Dict[str, Any]) -> Dict[str, Any]:
         return check_schemas(values)
 
     @root_validator
-    def check_partition_specs(cls, values: Dict[str, Any]):
+    def check_partition_specs(cls, values: Dict[str, Any]) -> Dict[str, Any]:
         return check_partition_specs(values)
 
     @root_validator(skip_on_failure=True)
-    def check_sort_orders(cls, values: Dict[str, Any]):
+    def check_sort_orders(cls, values: Dict[str, Any]) -> Dict[str, Any]:
         return check_sort_orders(values)
 
     format_version: Literal[2] = Field(alias="format-version", default=2)

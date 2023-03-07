@@ -205,7 +205,17 @@ class IcebergSparkSqlExtensionsParser(delegate: ParserInterface) extends ParserI
             normalized.contains("write distributed by") ||
             normalized.contains("write unordered") ||
             normalized.contains("set identifier fields") ||
-            normalized.contains("drop identifier fields")))
+            normalized.contains("drop identifier fields") ||
+            isSnapshotRefDdl(normalized)))
+  }
+
+  private def isSnapshotRefDdl(normalized: String): Boolean = {
+    normalized.contains("create branch") ||
+      normalized.contains("replace branch") ||
+      normalized.contains("create tag") ||
+      normalized.contains("replace tag") ||
+      normalized.contains("drop branch") ||
+      normalized.contains("drop tag")
   }
 
   protected def parse[T](command: String)(toResult: IcebergSqlExtensionsParser => T): T = {

@@ -105,7 +105,13 @@ public class BaseOverwriteFiles extends MergingSnapshotProducer<OverwriteFiles>
   }
 
   @Override
-  protected void validate(TableMetadata base, Snapshot snapshot) {
+  public BaseOverwriteFiles toBranch(String branch) {
+    targetBranch(branch);
+    return this;
+  }
+
+  @Override
+  protected void validate(TableMetadata base, Snapshot parent) {
     if (validateAddedFilesMatchOverwriteFilter) {
       PartitionSpec spec = dataSpec();
       Expression rowFilter = rowFilter();
@@ -133,19 +139,19 @@ public class BaseOverwriteFiles extends MergingSnapshotProducer<OverwriteFiles>
     }
 
     if (validateNewDataFiles) {
-      validateAddedDataFiles(base, startingSnapshotId, dataConflictDetectionFilter());
+      validateAddedDataFiles(base, startingSnapshotId, dataConflictDetectionFilter(), parent);
     }
 
     if (validateNewDeletes) {
       if (rowFilter() != Expressions.alwaysFalse()) {
         Expression filter = conflictDetectionFilter != null ? conflictDetectionFilter : rowFilter();
-        validateNoNewDeleteFiles(base, startingSnapshotId, filter);
-        validateDeletedDataFiles(base, startingSnapshotId, filter);
+        validateNoNewDeleteFiles(base, startingSnapshotId, filter, parent);
+        validateDeletedDataFiles(base, startingSnapshotId, filter, parent);
       }
 
       if (deletedDataFiles.size() > 0) {
         validateNoNewDeletesForDataFiles(
-            base, startingSnapshotId, conflictDetectionFilter, deletedDataFiles);
+            base, startingSnapshotId, conflictDetectionFilter, deletedDataFiles, parent);
       }
     }
   }

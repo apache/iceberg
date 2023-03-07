@@ -86,3 +86,19 @@ class NotInstalledError(Exception):
 
 class SignError(Exception):
     """Raises when unable to sign a S3 request"""
+
+
+class ResolveError(Exception):
+    pass
+
+
+class DynamoDbError(Exception):
+    pass
+
+
+class ConditionalCheckFailedException(DynamoDbError):
+    pass
+
+
+class GenericDynamoDbError(DynamoDbError):
+    pass

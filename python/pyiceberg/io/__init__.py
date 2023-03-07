@@ -22,15 +22,20 @@ as check if a file exists. An implementation of the FileIO abstract base class i
 for returning an InputFile instance, an OutputFile instance, and deleting a file given
 its location.
 """
+from __future__ import annotations
+
 import importlib
 import logging
+import warnings
 from abc import ABC, abstractmethod
 from io import SEEK_SET
+from types import TracebackType
 from typing import (
     Dict,
     List,
     Optional,
     Protocol,
+    Type,
     Union,
     runtime_checkable,
 )
@@ -65,12 +70,13 @@ class InputStream(Protocol):
     def close(self) -> None:
         ...
 
-    @abstractmethod
-    def __enter__(self):
+    def __enter__(self) -> InputStream:
         ...
 
     @abstractmethod
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(
+        self, exctype: Optional[Type[BaseException]], excinst: Optional[BaseException], exctb: Optional[TracebackType]
+    ) -> None:
         ...
 
 
@@ -91,11 +97,13 @@ class OutputStream(Protocol):  # pragma: no cover
         ...
 
     @abstractmethod
-    def __enter__(self):
+    def __enter__(self) -> OutputStream:
         ...
 
     @abstractmethod
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(
+        self, exctype: Optional[Type[BaseException]], excinst: Optional[BaseException], exctb: Optional[TracebackType]
+    ) -> None:
         ...
 
 
@@ -132,8 +140,11 @@ class InputFile(ABC):
         """
 
     @abstractmethod
-    def open(self) -> InputStream:
+    def open(self, seekable: bool = True) -> InputStream:
         """This method should return an object that matches the InputStream protocol
+
+        Args:
+            seekable: If the stream should support seek, or if it is consumed sequential
 
         Returns:
             InputStream: An object that matches the InputStream protocol
@@ -244,12 +255,14 @@ FSSPEC_FILE_IO = "pyiceberg.io.fsspec.FsspecFileIO"
 # Mappings from the Java FileIO impl to a Python one. The list is ordered by preference.
 # If an implementation isn't installed, it will fall back to the next one.
 SCHEMA_TO_FILE_IO: Dict[str, List[str]] = {
-    "s3": [FSSPEC_FILE_IO, ARROW_FILE_IO],
-    "s3a": [FSSPEC_FILE_IO, ARROW_FILE_IO],
-    "s3n": [FSSPEC_FILE_IO, ARROW_FILE_IO],
-    "gcs": [ARROW_FILE_IO],
+    "s3": [ARROW_FILE_IO, FSSPEC_FILE_IO],
+    "s3a": [ARROW_FILE_IO, FSSPEC_FILE_IO],
+    "s3n": [ARROW_FILE_IO, FSSPEC_FILE_IO],
+    "gs": [ARROW_FILE_IO],
     "file": [ARROW_FILE_IO],
     "hdfs": [ARROW_FILE_IO],
+    "abfs": [FSSPEC_FILE_IO],
+    "abfss": [FSSPEC_FILE_IO],
 }
 
 
@@ -263,21 +276,22 @@ def _import_file_io(io_impl: str, properties: Properties) -> Optional[FileIO]:
         class_ = getattr(module, class_name)
         return class_(properties)
     except ModuleNotFoundError:
-        logger.warning("Could not initialize FileIO: %s", io_impl)
+        warnings.warn(f"Could not initialize FileIO: {io_impl}")
         return None
 
 
 PY_IO_IMPL = "py-io-impl"
 
 
-def _infer_file_io_from_schema(path: str, properties: Properties) -> Optional[FileIO]:
+def _infer_file_io_from_scheme(path: str, properties: Properties) -> Optional[FileIO]:
     parsed_url = urlparse(path)
-    if file_ios := SCHEMA_TO_FILE_IO.get(parsed_url.scheme):
-        for file_io_path in file_ios:
-            if file_io := _import_file_io(file_io_path, properties):
-                return file_io
-    else:
-        logger.warning("No preferred file implementation for schema: %s", parsed_url.scheme)
+    if parsed_url.scheme:
+        if file_ios := SCHEMA_TO_FILE_IO.get(parsed_url.scheme):
+            for file_io_path in file_ios:
+                if file_io := _import_file_io(file_io_path, properties):
+                    return file_io
+        else:
+            warnings.warn(f"No preferred file implementation for scheme: {parsed_url.scheme}")
     return None
 
 
@@ -292,12 +306,12 @@ def load_file_io(properties: Properties = EMPTY_DICT, location: Optional[str] = 
 
     # Check the table location
     if location:
-        if file_io := _infer_file_io_from_schema(location, properties):
+        if file_io := _infer_file_io_from_scheme(location, properties):
             return file_io
 
     # Look at the schema of the warehouse
     if warehouse_location := properties.get(WAREHOUSE):
-        if file_io := _infer_file_io_from_schema(warehouse_location, properties):
+        if file_io := _infer_file_io_from_scheme(warehouse_location, properties):
             return file_io
 
     try:

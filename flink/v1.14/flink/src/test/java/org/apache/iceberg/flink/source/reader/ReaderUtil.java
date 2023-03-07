@@ -107,10 +107,10 @@ public class ReaderUtil {
       GenericAppenderFactory appenderFactory)
       throws IOException {
     List<FileScanTask> fileTasks = Lists.newArrayListWithCapacity(recordBatchList.size());
-    for (int i = 0; i < recordBatchList.size(); ++i) {
+    for (List<Record> recordBatch : recordBatchList) {
       FileScanTask fileTask =
           ReaderUtil.createFileTask(
-              recordBatchList.get(i), temporaryFolder.newFile(), fileFormat, appenderFactory);
+              recordBatch, temporaryFolder.newFile(), fileFormat, appenderFactory);
       fileTasks.add(fileTask);
     }
 

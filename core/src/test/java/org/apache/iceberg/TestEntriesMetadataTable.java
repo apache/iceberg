@@ -44,7 +44,7 @@ public class TestEntriesMetadataTable extends TableTestBase {
   public void testEntriesTable() {
     table.newAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
-    Table entriesTable = new ManifestEntriesTable(table.ops(), table);
+    Table entriesTable = new ManifestEntriesTable(table);
 
     Schema expectedSchema = ManifestEntry.getSchema(table.spec().partitionType());
 
@@ -58,7 +58,7 @@ public class TestEntriesMetadataTable extends TableTestBase {
   public void testEntriesTableScan() {
     table.newAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
-    Table entriesTable = new ManifestEntriesTable(table.ops(), table);
+    Table entriesTable = new ManifestEntriesTable(table);
     TableScan scan = entriesTable.newScan();
 
     Schema expectedSchema = ManifestEntry.getSchema(table.spec().partitionType());
@@ -88,7 +88,7 @@ public class TestEntriesMetadataTable extends TableTestBase {
         .set(TableProperties.METADATA_SPLIT_SIZE, String.valueOf(128 * 1024 * 1024))
         .commit();
 
-    Table entriesTable = new ManifestEntriesTable(table.ops(), table);
+    Table entriesTable = new ManifestEntriesTable(table);
 
     Assert.assertEquals(1, Iterables.size(entriesTable.newScan().planTasks()));
 
@@ -113,7 +113,7 @@ public class TestEntriesMetadataTable extends TableTestBase {
     int splitSize =
         (int) TableProperties.METADATA_SPLIT_SIZE_DEFAULT; // default split size is 32 MB
 
-    Table entriesTable = new ManifestEntriesTable(table.ops(), table);
+    Table entriesTable = new ManifestEntriesTable(table);
     Assert.assertEquals(1, entriesTable.currentSnapshot().allManifests(table.io()).size());
 
     int expectedSplits =
@@ -134,7 +134,7 @@ public class TestEntriesMetadataTable extends TableTestBase {
 
     table.newRowDelta().addDeletes(FILE_A_DELETES).commit();
 
-    Table entriesTable = new ManifestEntriesTable(table.ops(), table);
+    Table entriesTable = new ManifestEntriesTable(table);
     TableScan scan = entriesTable.newScan();
 
     Schema expectedSchema = ManifestEntry.getSchema(table.spec().partitionType());

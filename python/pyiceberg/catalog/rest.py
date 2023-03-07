@@ -16,6 +16,7 @@
 #  under the License.
 from json import JSONDecodeError
 from typing import (
+    Any,
     Dict,
     List,
     Literal,
@@ -56,8 +57,7 @@ from pyiceberg.partitioning import UNPARTITIONED_PARTITION_SPEC, PartitionSpec
 from pyiceberg.schema import Schema
 from pyiceberg.table import Table, TableMetadata
 from pyiceberg.table.sorting import UNSORTED_SORT_ORDER, SortOrder
-from pyiceberg.typedef import EMPTY_DICT
-from pyiceberg.utils.iceberg_base_model import IcebergBaseModel
+from pyiceberg.typedef import EMPTY_DICT, IcebergBaseModel
 
 ICEBERG_REST_SPEC_VERSION = "0.14.1"
 
@@ -175,11 +175,7 @@ class RestCatalog(Catalog):
     session: Session
     properties: Properties
 
-    def __init__(
-        self,
-        name: str,
-        **properties: str,
-    ):
+    def __init__(self, name: str, **properties: str):
         """Rest Catalog
 
         You either need to provide a client_id and client_secret, or an already valid token.
@@ -227,7 +223,7 @@ class RestCatalog(Catalog):
             raise NoSuchNamespaceError(f"Empty namespace identifier: {identifier}")
         return identifier_tuple
 
-    def url(self, endpoint: str, prefixed: bool = True, **kwargs) -> str:
+    def url(self, endpoint: str, prefixed: bool = True, **kwargs: Any) -> str:
         """Constructs the endpoint
 
         Args:
@@ -291,7 +287,7 @@ class RestCatalog(Catalog):
             raise NoSuchTableError(f"Missing namespace or invalid identifier: {identifier_tuple}")
         return {"namespace": identifier_tuple[:-1], "name": identifier_tuple[-1]}
 
-    def _handle_non_200_response(self, exc: HTTPError, error_handler: Dict[int, Type[Exception]]):
+    def _handle_non_200_response(self, exc: HTTPError, error_handler: Dict[int, Type[Exception]]) -> None:
         exception: Type[Exception]
         code = exc.response.status_code
         if code in error_handler:
@@ -373,7 +369,9 @@ class RestCatalog(Catalog):
             identifier=(self.name,) + self.identifier_to_tuple(identifier),
             metadata_location=table_response.metadata_location,
             metadata=table_response.metadata,
-            io=self._load_file_io({**table_response.metadata.properties, **table_response.config}),
+            io=self._load_file_io(
+                {**table_response.metadata.properties, **table_response.config}, table_response.metadata_location
+            ),
         )
 
     def list_tables(self, namespace: Union[str, Identifier]) -> List[Identifier]:
@@ -403,7 +401,9 @@ class RestCatalog(Catalog):
             identifier=(self.name,) + identifier_tuple if self.name else identifier_tuple,
             metadata_location=table_response.metadata_location,
             metadata=table_response.metadata,
-            io=self._load_file_io({**table_response.metadata.properties, **table_response.config}),
+            io=self._load_file_io(
+                {**table_response.metadata.properties, **table_response.config}, table_response.metadata_location
+            ),
         )
 
     def drop_table(self, identifier: Union[str, Identifier], purge_requested: bool = False) -> None:
@@ -418,7 +418,7 @@ class RestCatalog(Catalog):
     def purge_table(self, identifier: Union[str, Identifier]) -> None:
         self.drop_table(identifier=identifier, purge_requested=True)
 
-    def rename_table(self, from_identifier: Union[str, Identifier], to_identifier: Union[str, Identifier]):
+    def rename_table(self, from_identifier: Union[str, Identifier], to_identifier: Union[str, Identifier]) -> Table:
         payload = {
             "source": self._split_identifier_for_json(from_identifier),
             "destination": self._split_identifier_for_json(to_identifier),
@@ -428,6 +428,8 @@ class RestCatalog(Catalog):
             response.raise_for_status()
         except HTTPError as exc:
             self._handle_non_200_response(exc, {404: NoSuchTableError, 409: TableAlreadyExistsError})
+
+        return self.load_table(to_identifier)
 
     def create_namespace(self, namespace: Union[str, Identifier], properties: Properties = EMPTY_DICT) -> None:
         namespace_tuple = self._check_valid_namespace_identifier(namespace)

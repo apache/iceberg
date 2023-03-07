@@ -65,6 +65,309 @@ acceptedBreaks:
     - code: "java.method.removed"
       old: "method void org.apache.iceberg.io.DataWriter<T>::add(T)"
       justification: "Removing deprecated method"
+  "1.1.0":
+    org.apache.iceberg:iceberg-core:
+    - code: "java.class.removed"
+      old: "class org.apache.iceberg.rest.HTTPClientFactory"
+      justification: "Removing deprecations for 1.2.0"
+    - code: "java.method.exception.checkedAdded"
+      old: "method T com.fasterxml.jackson.databind.JsonDeserializer<T>::deserialize(com.fasterxml.jackson.core.JsonParser,\
+        \ com.fasterxml.jackson.databind.DeserializationContext, T) throws java.io.IOException\
+        \ @ org.apache.iceberg.rest.RESTSerializers.ErrorResponseDeserializer"
+      new: "method T com.fasterxml.jackson.databind.JsonDeserializer<T>::deserialize(com.fasterxml.jackson.core.JsonParser,\
+        \ com.fasterxml.jackson.databind.DeserializationContext, T) throws java.io.IOException,\
+        \ com.fasterxml.jackson.core.JacksonException @ org.apache.iceberg.rest.RESTSerializers.ErrorResponseDeserializer"
+      justification: "False positive - JacksonException is a subclass of IOException"
+    - code: "java.method.exception.checkedAdded"
+      old: "method T com.fasterxml.jackson.databind.JsonDeserializer<T>::deserialize(com.fasterxml.jackson.core.JsonParser,\
+        \ com.fasterxml.jackson.databind.DeserializationContext, T) throws java.io.IOException\
+        \ @ org.apache.iceberg.rest.RESTSerializers.MetadataUpdateDeserializer"
+      new: "method T com.fasterxml.jackson.databind.JsonDeserializer<T>::deserialize(com.fasterxml.jackson.core.JsonParser,\
+        \ com.fasterxml.jackson.databind.DeserializationContext, T) throws java.io.IOException,\
+        \ com.fasterxml.jackson.core.JacksonException @ org.apache.iceberg.rest.RESTSerializers.MetadataUpdateDeserializer"
+      justification: "False positive - JacksonException is a subclass of IOException"
+    - code: "java.method.exception.checkedAdded"
+      old: "method T com.fasterxml.jackson.databind.JsonDeserializer<T>::deserialize(com.fasterxml.jackson.core.JsonParser,\
+        \ com.fasterxml.jackson.databind.DeserializationContext, T) throws java.io.IOException\
+        \ @ org.apache.iceberg.rest.RESTSerializers.NamespaceDeserializer"
+      new: "method T com.fasterxml.jackson.databind.JsonDeserializer<T>::deserialize(com.fasterxml.jackson.core.JsonParser,\
+        \ com.fasterxml.jackson.databind.DeserializationContext, T) throws java.io.IOException,\
+        \ com.fasterxml.jackson.core.JacksonException @ org.apache.iceberg.rest.RESTSerializers.NamespaceDeserializer"
+      justification: "False positive - JacksonException is a subclass of IOException"
+    - code: "java.method.exception.checkedAdded"
+      old: "method T com.fasterxml.jackson.databind.JsonDeserializer<T>::deserialize(com.fasterxml.jackson.core.JsonParser,\
+        \ com.fasterxml.jackson.databind.DeserializationContext, T) throws java.io.IOException\
+        \ @ org.apache.iceberg.rest.RESTSerializers.OAuthTokenResponseDeserializer"
+      new: "method T com.fasterxml.jackson.databind.JsonDeserializer<T>::deserialize(com.fasterxml.jackson.core.JsonParser,\
+        \ com.fasterxml.jackson.databind.DeserializationContext, T) throws java.io.IOException,\
+        \ com.fasterxml.jackson.core.JacksonException @ org.apache.iceberg.rest.RESTSerializers.OAuthTokenResponseDeserializer"
+      justification: "False positive - JacksonException is a subclass of IOException"
+    - code: "java.method.exception.checkedAdded"
+      old: "method T com.fasterxml.jackson.databind.JsonDeserializer<T>::deserialize(com.fasterxml.jackson.core.JsonParser,\
+        \ com.fasterxml.jackson.databind.DeserializationContext, T) throws java.io.IOException\
+        \ @ org.apache.iceberg.rest.RESTSerializers.ReportMetricsRequestDeserializer<T\
+        \ extends org.apache.iceberg.rest.requests.ReportMetricsRequest>"
+      new: "method T com.fasterxml.jackson.databind.JsonDeserializer<T>::deserialize(com.fasterxml.jackson.core.JsonParser,\
+        \ com.fasterxml.jackson.databind.DeserializationContext, T) throws java.io.IOException,\
+        \ com.fasterxml.jackson.core.JacksonException @ org.apache.iceberg.rest.RESTSerializers.ReportMetricsRequestDeserializer<T\
+        \ extends org.apache.iceberg.rest.requests.ReportMetricsRequest>"
+      justification: "False positive - JacksonException is a subclass of IOException"
+    - code: "java.method.exception.checkedAdded"
+      old: "method T com.fasterxml.jackson.databind.JsonDeserializer<T>::deserialize(com.fasterxml.jackson.core.JsonParser,\
+        \ com.fasterxml.jackson.databind.DeserializationContext, T) throws java.io.IOException\
+        \ @ org.apache.iceberg.rest.RESTSerializers.SchemaDeserializer"
+      new: "method T com.fasterxml.jackson.databind.JsonDeserializer<T>::deserialize(com.fasterxml.jackson.core.JsonParser,\
+        \ com.fasterxml.jackson.databind.DeserializationContext, T) throws java.io.IOException,\
+        \ com.fasterxml.jackson.core.JacksonException @ org.apache.iceberg.rest.RESTSerializers.SchemaDeserializer"
+      justification: "False positive - JacksonException is a subclass of IOException"
+    - code: "java.method.exception.checkedAdded"
+      old: "method T com.fasterxml.jackson.databind.JsonDeserializer<T>::deserialize(com.fasterxml.jackson.core.JsonParser,\
+        \ com.fasterxml.jackson.databind.DeserializationContext, T) throws java.io.IOException\
+        \ @ org.apache.iceberg.rest.RESTSerializers.TableIdentifierDeserializer"
+      new: "method T com.fasterxml.jackson.databind.JsonDeserializer<T>::deserialize(com.fasterxml.jackson.core.JsonParser,\
+        \ com.fasterxml.jackson.databind.DeserializationContext, T) throws java.io.IOException,\
+        \ com.fasterxml.jackson.core.JacksonException @ org.apache.iceberg.rest.RESTSerializers.TableIdentifierDeserializer"
+      justification: "False positive - JacksonException is a subclass of IOException"
+    - code: "java.method.exception.checkedAdded"
+      old: "method T com.fasterxml.jackson.databind.JsonDeserializer<T>::deserialize(com.fasterxml.jackson.core.JsonParser,\
+        \ com.fasterxml.jackson.databind.DeserializationContext, T) throws java.io.IOException\
+        \ @ org.apache.iceberg.rest.RESTSerializers.TableMetadataDeserializer"
+      new: "method T com.fasterxml.jackson.databind.JsonDeserializer<T>::deserialize(com.fasterxml.jackson.core.JsonParser,\
+        \ com.fasterxml.jackson.databind.DeserializationContext, T) throws java.io.IOException,\
+        \ com.fasterxml.jackson.core.JacksonException @ org.apache.iceberg.rest.RESTSerializers.TableMetadataDeserializer"
+      justification: "False positive - JacksonException is a subclass of IOException"
+    - code: "java.method.exception.checkedAdded"
+      old: "method T com.fasterxml.jackson.databind.JsonDeserializer<T>::deserialize(com.fasterxml.jackson.core.JsonParser,\
+        \ com.fasterxml.jackson.databind.DeserializationContext, T) throws java.io.IOException\
+        \ @ org.apache.iceberg.rest.RESTSerializers.UnboundPartitionSpecDeserializer"
+      new: "method T com.fasterxml.jackson.databind.JsonDeserializer<T>::deserialize(com.fasterxml.jackson.core.JsonParser,\
+        \ com.fasterxml.jackson.databind.DeserializationContext, T) throws java.io.IOException,\
+        \ com.fasterxml.jackson.core.JacksonException @ org.apache.iceberg.rest.RESTSerializers.UnboundPartitionSpecDeserializer"
+      justification: "False positive - JacksonException is a subclass of IOException"
+    - code: "java.method.exception.checkedAdded"
+      old: "method T com.fasterxml.jackson.databind.JsonDeserializer<T>::deserialize(com.fasterxml.jackson.core.JsonParser,\
+        \ com.fasterxml.jackson.databind.DeserializationContext, T) throws java.io.IOException\
+        \ @ org.apache.iceberg.rest.RESTSerializers.UnboundSortOrderDeserializer"
+      new: "method T com.fasterxml.jackson.databind.JsonDeserializer<T>::deserialize(com.fasterxml.jackson.core.JsonParser,\
+        \ com.fasterxml.jackson.databind.DeserializationContext, T) throws java.io.IOException,\
+        \ com.fasterxml.jackson.core.JacksonException @ org.apache.iceberg.rest.RESTSerializers.UnboundSortOrderDeserializer"
+      justification: "False positive - JacksonException is a subclass of IOException"
+    - code: "java.method.exception.checkedAdded"
+      old: "method T com.fasterxml.jackson.databind.JsonDeserializer<T>::deserialize(com.fasterxml.jackson.core.JsonParser,\
+        \ com.fasterxml.jackson.databind.DeserializationContext, T) throws java.io.IOException\
+        \ @ org.apache.iceberg.rest.RESTSerializers.UpdateRequirementDeserializer"
+      new: "method T com.fasterxml.jackson.databind.JsonDeserializer<T>::deserialize(com.fasterxml.jackson.core.JsonParser,\
+        \ com.fasterxml.jackson.databind.DeserializationContext, T) throws java.io.IOException,\
+        \ com.fasterxml.jackson.core.JacksonException @ org.apache.iceberg.rest.RESTSerializers.UpdateRequirementDeserializer"
+      justification: "False positive - JacksonException is a subclass of IOException"
+    - code: "java.method.exception.checkedAdded"
+      old: "method java.lang.Object com.fasterxml.jackson.databind.JsonDeserializer<T>::deserializeWithType(com.fasterxml.jackson.core.JsonParser,\
+        \ com.fasterxml.jackson.databind.DeserializationContext, com.fasterxml.jackson.databind.jsontype.TypeDeserializer,\
+        \ T) throws java.io.IOException @ org.apache.iceberg.rest.RESTSerializers.ErrorResponseDeserializer"
+      new: "method java.lang.Object com.fasterxml.jackson.databind.JsonDeserializer<T>::deserializeWithType(com.fasterxml.jackson.core.JsonParser,\
+        \ com.fasterxml.jackson.databind.DeserializationContext, com.fasterxml.jackson.databind.jsontype.TypeDeserializer,\
+        \ T) throws java.io.IOException, com.fasterxml.jackson.core.JacksonException\
+        \ @ org.apache.iceberg.rest.RESTSerializers.ErrorResponseDeserializer"
+      justification: "False positive - JacksonException is a subclass of IOException"
+    - code: "java.method.exception.checkedAdded"
+      old: "method java.lang.Object com.fasterxml.jackson.databind.JsonDeserializer<T>::deserializeWithType(com.fasterxml.jackson.core.JsonParser,\
+        \ com.fasterxml.jackson.databind.DeserializationContext, com.fasterxml.jackson.databind.jsontype.TypeDeserializer,\
+        \ T) throws java.io.IOException @ org.apache.iceberg.rest.RESTSerializers.MetadataUpdateDeserializer"
+      new: "method java.lang.Object com.fasterxml.jackson.databind.JsonDeserializer<T>::deserializeWithType(com.fasterxml.jackson.core.JsonParser,\
+        \ com.fasterxml.jackson.databind.DeserializationContext, com.fasterxml.jackson.databind.jsontype.TypeDeserializer,\
+        \ T) throws java.io.IOException, com.fasterxml.jackson.core.JacksonException\
+        \ @ org.apache.iceberg.rest.RESTSerializers.MetadataUpdateDeserializer"
+      justification: "False positive - JacksonException is a subclass of IOException"
+    - code: "java.method.exception.checkedAdded"
+      old: "method java.lang.Object com.fasterxml.jackson.databind.JsonDeserializer<T>::deserializeWithType(com.fasterxml.jackson.core.JsonParser,\
+        \ com.fasterxml.jackson.databind.DeserializationContext, com.fasterxml.jackson.databind.jsontype.TypeDeserializer,\
+        \ T) throws java.io.IOException @ org.apache.iceberg.rest.RESTSerializers.NamespaceDeserializer"
+      new: "method java.lang.Object com.fasterxml.jackson.databind.JsonDeserializer<T>::deserializeWithType(com.fasterxml.jackson.core.JsonParser,\
+        \ com.fasterxml.jackson.databind.DeserializationContext, com.fasterxml.jackson.databind.jsontype.TypeDeserializer,\
+        \ T) throws java.io.IOException, com.fasterxml.jackson.core.JacksonException\
+        \ @ org.apache.iceberg.rest.RESTSerializers.NamespaceDeserializer"
+      justification: "False positive - JacksonException is a subclass of IOException"
+    - code: "java.method.exception.checkedAdded"
+      old: "method java.lang.Object com.fasterxml.jackson.databind.JsonDeserializer<T>::deserializeWithType(com.fasterxml.jackson.core.JsonParser,\
+        \ com.fasterxml.jackson.databind.DeserializationContext, com.fasterxml.jackson.databind.jsontype.TypeDeserializer,\
+        \ T) throws java.io.IOException @ org.apache.iceberg.rest.RESTSerializers.OAuthTokenResponseDeserializer"
+      new: "method java.lang.Object com.fasterxml.jackson.databind.JsonDeserializer<T>::deserializeWithType(com.fasterxml.jackson.core.JsonParser,\
+        \ com.fasterxml.jackson.databind.DeserializationContext, com.fasterxml.jackson.databind.jsontype.TypeDeserializer,\
+        \ T) throws java.io.IOException, com.fasterxml.jackson.core.JacksonException\
+        \ @ org.apache.iceberg.rest.RESTSerializers.OAuthTokenResponseDeserializer"
+      justification: "False positive - JacksonException is a subclass of IOException"
+    - code: "java.method.exception.checkedAdded"
+      old: "method java.lang.Object com.fasterxml.jackson.databind.JsonDeserializer<T>::deserializeWithType(com.fasterxml.jackson.core.JsonParser,\
+        \ com.fasterxml.jackson.databind.DeserializationContext, com.fasterxml.jackson.databind.jsontype.TypeDeserializer,\
+        \ T) throws java.io.IOException @ org.apache.iceberg.rest.RESTSerializers.ReportMetricsRequestDeserializer<T\
+        \ extends org.apache.iceberg.rest.requests.ReportMetricsRequest>"
+      new: "method java.lang.Object com.fasterxml.jackson.databind.JsonDeserializer<T>::deserializeWithType(com.fasterxml.jackson.core.JsonParser,\
+        \ com.fasterxml.jackson.databind.DeserializationContext, com.fasterxml.jackson.databind.jsontype.TypeDeserializer,\
+        \ T) throws java.io.IOException, com.fasterxml.jackson.core.JacksonException\
+        \ @ org.apache.iceberg.rest.RESTSerializers.ReportMetricsRequestDeserializer<T\
+        \ extends org.apache.iceberg.rest.requests.ReportMetricsRequest>"
+      justification: "False positive - JacksonException is a subclass of IOException"
+    - code: "java.method.exception.checkedAdded"
+      old: "method java.lang.Object com.fasterxml.jackson.databind.JsonDeserializer<T>::deserializeWithType(com.fasterxml.jackson.core.JsonParser,\
+        \ com.fasterxml.jackson.databind.DeserializationContext, com.fasterxml.jackson.databind.jsontype.TypeDeserializer,\
+        \ T) throws java.io.IOException @ org.apache.iceberg.rest.RESTSerializers.SchemaDeserializer"
+      new: "method java.lang.Object com.fasterxml.jackson.databind.JsonDeserializer<T>::deserializeWithType(com.fasterxml.jackson.core.JsonParser,\
+        \ com.fasterxml.jackson.databind.DeserializationContext, com.fasterxml.jackson.databind.jsontype.TypeDeserializer,\
+        \ T) throws java.io.IOException, com.fasterxml.jackson.core.JacksonException\
+        \ @ org.apache.iceberg.rest.RESTSerializers.SchemaDeserializer"
+      justification: "False positive - JacksonException is a subclass of IOException"
+    - code: "java.method.exception.checkedAdded"
+      old: "method java.lang.Object com.fasterxml.jackson.databind.JsonDeserializer<T>::deserializeWithType(com.fasterxml.jackson.core.JsonParser,\
+        \ com.fasterxml.jackson.databind.DeserializationContext, com.fasterxml.jackson.databind.jsontype.TypeDeserializer,\
+        \ T) throws java.io.IOException @ org.apache.iceberg.rest.RESTSerializers.TableIdentifierDeserializer"
+      new: "method java.lang.Object com.fasterxml.jackson.databind.JsonDeserializer<T>::deserializeWithType(com.fasterxml.jackson.core.JsonParser,\
+        \ com.fasterxml.jackson.databind.DeserializationContext, com.fasterxml.jackson.databind.jsontype.TypeDeserializer,\
+        \ T) throws java.io.IOException, com.fasterxml.jackson.core.JacksonException\
+        \ @ org.apache.iceberg.rest.RESTSerializers.TableIdentifierDeserializer"
+      justification: "False positive - JacksonException is a subclass of IOException"
+    - code: "java.method.exception.checkedAdded"
+      old: "method java.lang.Object com.fasterxml.jackson.databind.JsonDeserializer<T>::deserializeWithType(com.fasterxml.jackson.core.JsonParser,\
+        \ com.fasterxml.jackson.databind.DeserializationContext, com.fasterxml.jackson.databind.jsontype.TypeDeserializer,\
+        \ T) throws java.io.IOException @ org.apache.iceberg.rest.RESTSerializers.TableMetadataDeserializer"
+      new: "method java.lang.Object com.fasterxml.jackson.databind.JsonDeserializer<T>::deserializeWithType(com.fasterxml.jackson.core.JsonParser,\
+        \ com.fasterxml.jackson.databind.DeserializationContext, com.fasterxml.jackson.databind.jsontype.TypeDeserializer,\
+        \ T) throws java.io.IOException, com.fasterxml.jackson.core.JacksonException\
+        \ @ org.apache.iceberg.rest.RESTSerializers.TableMetadataDeserializer"
+      justification: "False positive - JacksonException is a subclass of IOException"
+    - code: "java.method.exception.checkedAdded"
+      old: "method java.lang.Object com.fasterxml.jackson.databind.JsonDeserializer<T>::deserializeWithType(com.fasterxml.jackson.core.JsonParser,\
+        \ com.fasterxml.jackson.databind.DeserializationContext, com.fasterxml.jackson.databind.jsontype.TypeDeserializer,\
+        \ T) throws java.io.IOException @ org.apache.iceberg.rest.RESTSerializers.UnboundPartitionSpecDeserializer"
+      new: "method java.lang.Object com.fasterxml.jackson.databind.JsonDeserializer<T>::deserializeWithType(com.fasterxml.jackson.core.JsonParser,\
+        \ com.fasterxml.jackson.databind.DeserializationContext, com.fasterxml.jackson.databind.jsontype.TypeDeserializer,\
+        \ T) throws java.io.IOException, com.fasterxml.jackson.core.JacksonException\
+        \ @ org.apache.iceberg.rest.RESTSerializers.UnboundPartitionSpecDeserializer"
+      justification: "False positive - JacksonException is a subclass of IOException"
+    - code: "java.method.exception.checkedAdded"
+      old: "method java.lang.Object com.fasterxml.jackson.databind.JsonDeserializer<T>::deserializeWithType(com.fasterxml.jackson.core.JsonParser,\
+        \ com.fasterxml.jackson.databind.DeserializationContext, com.fasterxml.jackson.databind.jsontype.TypeDeserializer,\
+        \ T) throws java.io.IOException @ org.apache.iceberg.rest.RESTSerializers.UnboundSortOrderDeserializer"
+      new: "method java.lang.Object com.fasterxml.jackson.databind.JsonDeserializer<T>::deserializeWithType(com.fasterxml.jackson.core.JsonParser,\
+        \ com.fasterxml.jackson.databind.DeserializationContext, com.fasterxml.jackson.databind.jsontype.TypeDeserializer,\
+        \ T) throws java.io.IOException, com.fasterxml.jackson.core.JacksonException\
+        \ @ org.apache.iceberg.rest.RESTSerializers.UnboundSortOrderDeserializer"
+      justification: "False positive - JacksonException is a subclass of IOException"
+    - code: "java.method.exception.checkedAdded"
+      old: "method java.lang.Object com.fasterxml.jackson.databind.JsonDeserializer<T>::deserializeWithType(com.fasterxml.jackson.core.JsonParser,\
+        \ com.fasterxml.jackson.databind.DeserializationContext, com.fasterxml.jackson.databind.jsontype.TypeDeserializer,\
+        \ T) throws java.io.IOException @ org.apache.iceberg.rest.RESTSerializers.UpdateRequirementDeserializer"
+      new: "method java.lang.Object com.fasterxml.jackson.databind.JsonDeserializer<T>::deserializeWithType(com.fasterxml.jackson.core.JsonParser,\
+        \ com.fasterxml.jackson.databind.DeserializationContext, com.fasterxml.jackson.databind.jsontype.TypeDeserializer,\
+        \ T) throws java.io.IOException, com.fasterxml.jackson.core.JacksonException\
+        \ @ org.apache.iceberg.rest.RESTSerializers.UpdateRequirementDeserializer"
+      justification: "False positive - JacksonException is a subclass of IOException"
+    - code: "java.method.removed"
+      old: "method <T> org.apache.iceberg.io.CloseableIterable<T> org.apache.iceberg.deletes.Deletes::filterDeleted(org.apache.iceberg.io.CloseableIterable<T>,\
+        \ java.util.function.Predicate<T>)"
+      justification: "Removing deprecations for 1.2.0"
+    - code: "java.method.removed"
+      old: "method boolean org.apache.iceberg.BaseTableScan::colStats() @ org.apache.iceberg.AllDataFilesTable.AllDataFilesTableScan"
+      justification: "Removing deprecations for 1.2.0"
+    - code: "java.method.removed"
+      old: "method boolean org.apache.iceberg.BaseTableScan::colStats() @ org.apache.iceberg.AllDeleteFilesTable.AllDeleteFilesTableScan"
+      justification: "Removing deprecations for 1.2.0"
+    - code: "java.method.removed"
+      old: "method boolean org.apache.iceberg.BaseTableScan::colStats() @ org.apache.iceberg.AllFilesTable.AllFilesTableScan"
+      justification: "Removing deprecations for 1.2.0"
+    - code: "java.method.removed"
+      old: "method boolean org.apache.iceberg.BaseTableScan::colStats() @ org.apache.iceberg.AllManifestsTable.AllManifestsTableScan"
+      justification: "Removing deprecations for 1.2.0"
+    - code: "java.method.removed"
+      old: "method boolean org.apache.iceberg.BaseTableScan::colStats() @ org.apache.iceberg.DataFilesTable.DataFilesTableScan"
+      justification: "Removing deprecations for 1.2.0"
+    - code: "java.method.removed"
+      old: "method boolean org.apache.iceberg.BaseTableScan::colStats() @ org.apache.iceberg.DataTableScan"
+      justification: "Removing deprecations for 1.2.0"
+    - code: "java.method.removed"
+      old: "method boolean org.apache.iceberg.BaseTableScan::colStats() @ org.apache.iceberg.DeleteFilesTable.DeleteFilesTableScan"
+      justification: "Removing deprecations for 1.2.0"
+    - code: "java.method.removed"
+      old: "method boolean org.apache.iceberg.BaseTableScan::colStats() @ org.apache.iceberg.FilesTable.FilesTableScan"
+      justification: "Removing deprecations for 1.2.0"
+    - code: "java.method.removed"
+      old: "method java.lang.String[] org.apache.iceberg.hadoop.Util::blockLocations(org.apache.iceberg.io.FileIO,\
+        \ org.apache.iceberg.CombinedScanTask)"
+      justification: "Removing deprecations for 1.2.0"
+    - code: "java.method.removed"
+      old: "method java.util.List<org.apache.iceberg.ManifestFile> org.apache.iceberg.BaseReplacePartitions::apply(org.apache.iceberg.TableMetadata)"
+      justification: "Removing deprecations for 1.2.0"
+    - code: "java.method.removed"
+      old: "method java.util.List<org.apache.iceberg.ManifestFile> org.apache.iceberg.BaseRewriteManifests::apply(org.apache.iceberg.TableMetadata)"
+      justification: "Removing deprecations for 1.2.0"
+    - code: "java.method.removed"
+      old: "method java.util.List<org.apache.iceberg.ManifestFile> org.apache.iceberg.MergingSnapshotProducer<ThisT>::apply(org.apache.iceberg.TableMetadata)\
+        \ @ org.apache.iceberg.BaseOverwriteFiles"
+      justification: "Removing deprecations for 1.2.0"
+    - code: "java.method.removed"
+      old: "method java.util.List<org.apache.iceberg.ManifestFile> org.apache.iceberg.MergingSnapshotProducer<ThisT>::apply(org.apache.iceberg.TableMetadata)\
+        \ @ org.apache.iceberg.StreamingDelete"
+      justification: "Removing deprecations for 1.2.0"
+    - code: "java.method.removed"
+      old: "method java.util.Map<java.lang.Integer, ?> org.apache.iceberg.util.PartitionUtil::constantsMap(org.apache.iceberg.FileScanTask)"
+      justification: "Removing deprecations for 1.2.0"
+    - code: "java.method.removed"
+      old: "method java.util.Map<java.lang.Integer, ?> org.apache.iceberg.util.PartitionUtil::constantsMap(org.apache.iceberg.FileScanTask,\
+        \ java.util.function.BiFunction<org.apache.iceberg.types.Type, java.lang.Object,\
+        \ java.lang.Object>)"
+      justification: "Removing deprecations for 1.2.0"
+    - code: "java.method.removed"
+      old: "method java.util.Map<java.lang.Integer, ?> org.apache.iceberg.util.PartitionUtil::constantsMap(org.apache.iceberg.FileScanTask,\
+        \ org.apache.iceberg.types.Types.StructType, java.util.function.BiFunction<org.apache.iceberg.types.Type,\
+        \ java.lang.Object, java.lang.Object>)"
+      justification: "Removing deprecations for 1.2.0"
+    - code: "java.method.removed"
+      old: "method void org.apache.iceberg.BaseReplacePartitions::validate(org.apache.iceberg.TableMetadata)"
+      justification: "Removing deprecations for 1.2.0"
+    - code: "java.method.removed"
+      old: "method void org.apache.iceberg.ManifestReader<F extends org.apache.iceberg.ContentFile<F\
+        \ extends org.apache.iceberg.ContentFile<F>>>::<init>(org.apache.iceberg.io.InputFile,\
+        \ java.util.Map<java.lang.Integer, org.apache.iceberg.PartitionSpec>, org.apache.iceberg.InheritableMetadata,\
+        \ org.apache.iceberg.ManifestReader.FileType)"
+      justification: "Removing deprecations for 1.2.0"
+    - code: "java.method.removed"
+      old: "method void org.apache.iceberg.ManifestWriter<F extends org.apache.iceberg.ContentFile<F\
+        \ extends org.apache.iceberg.ContentFile<F>>>::delete(F)"
+      justification: "Removing deprecations for 1.2.0"
+    - code: "java.method.removed"
+      old: "method void org.apache.iceberg.ManifestWriter<F extends org.apache.iceberg.ContentFile<F\
+        \ extends org.apache.iceberg.ContentFile<F>>>::existing(F, long, long)"
+      justification: "Removing deprecations for 1.2.0"
+    - code: "java.method.removed"
+      old: "method void org.apache.iceberg.SnapshotProducer<ThisT>::validate(org.apache.iceberg.TableMetadata)\
+        \ @ org.apache.iceberg.BaseOverwriteFiles"
+      justification: "Removing deprecations for 1.2.0"
+    - code: "java.method.removed"
+      old: "method void org.apache.iceberg.SnapshotProducer<ThisT>::validate(org.apache.iceberg.TableMetadata)\
+        \ @ org.apache.iceberg.BaseRewriteManifests"
+      justification: "Removing deprecations for 1.2.0"
+    - code: "java.method.removed"
+      old: "method void org.apache.iceberg.SnapshotProducer<ThisT>::validate(org.apache.iceberg.TableMetadata)\
+        \ @ org.apache.iceberg.StreamingDelete"
+      justification: "Removing deprecations for 1.2.0"
+    - code: "java.method.returnTypeChangedCovariantly"
+      old: "method org.apache.iceberg.Table org.apache.iceberg.BaseMetadataTable::table()"
+      new: "method org.apache.iceberg.BaseTable org.apache.iceberg.BaseMetadataTable::table()"
+      justification: "Returning more specific subclass"
+    - code: "java.method.returnTypeChangedCovariantly"
+      old: "method ThisT org.apache.iceberg.SnapshotUpdate<ThisT>::toBranch(java.lang.String)\
+        \ @ org.apache.iceberg.BaseOverwriteFiles"
+      new: "method org.apache.iceberg.BaseOverwriteFiles org.apache.iceberg.BaseOverwriteFiles::toBranch(java.lang.String)"
+      justification: "Introducing branch snapshot operations on BaseOverwrite"
+    - code: "java.method.returnTypeChangedCovariantly"
+      old: "method ThisT org.apache.iceberg.SnapshotUpdate<ThisT>::toBranch(java.lang.String)\
+        \ @ org.apache.iceberg.BaseReplacePartitions"
+      new: "method org.apache.iceberg.BaseReplacePartitions org.apache.iceberg.BaseReplacePartitions::toBranch(java.lang.String)"
+      justification: "Introducing branch snapshot operations for BaseReplacePartitions"
+    org.apache.iceberg:iceberg-orc:
+    - code: "java.method.removed"
+      old: "method org.apache.iceberg.orc.ORC.WriteBuilder org.apache.iceberg.orc.ORC.WriteBuilder::config(java.lang.String,\
+        \ java.lang.String)"
+      justification: "Removing deprecations for 1.2.0"
   apache-iceberg-0.14.0:
     org.apache.iceberg:iceberg-api:
     - code: "java.class.defaultSerializationChanged"

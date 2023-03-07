@@ -37,6 +37,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.spark.SparkDistributionAndOrderingUtil;
 import org.apache.iceberg.spark.SparkReadOptions;
+import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.NestedField;
@@ -154,7 +155,7 @@ public class SparkZOrderStrategy extends SparkSortStrategy {
   }
 
   private void validateColumnsExistence(Table table, SparkSession spark, List<String> colNames) {
-    boolean caseSensitive = Boolean.parseBoolean(spark.conf().get("spark.sql.caseSensitive"));
+    boolean caseSensitive = SparkUtil.caseSensitive(spark);
     Schema schema = table.schema();
     colNames.forEach(
         col -> {
@@ -202,17 +203,16 @@ public class SparkZOrderStrategy extends SparkSortStrategy {
       tableCache().add(groupID, table());
       manager().stageTasks(table(), groupID, filesToRewrite);
 
-      // Disable Adaptive Query Execution as this may change the output partitioning of our write
-      SparkSession cloneSession = spark().cloneSession();
-      cloneSession.conf().set(SQLConf.ADAPTIVE_EXECUTION_ENABLED().key(), false);
+      // spark session from parent
+      SparkSession spark = spark();
 
       // Reset Shuffle Partitions for our sort
       long numOutputFiles =
           numOutputFiles((long) (inputFileSize(filesToRewrite) * sizeEstimateMultiple()));
-      cloneSession.conf().set(SQLConf.SHUFFLE_PARTITIONS().key(), Math.max(1, numOutputFiles));
+      spark.conf().set(SQLConf.SHUFFLE_PARTITIONS().key(), Math.max(1, numOutputFiles));
 
       Dataset<Row> scanDF =
-          cloneSession
+          spark
               .read()
               .format("iceberg")
               .option(SparkReadOptions.FILE_SCAN_TASK_SET_ID, groupID)
@@ -235,9 +235,9 @@ public class SparkZOrderStrategy extends SparkSortStrategy {
 
       Dataset<Row> zvalueDF = scanDF.withColumn(Z_COLUMN, zOrderUDF.interleaveBytes(zvalueArray));
 
-      SQLConf sqlConf = cloneSession.sessionState().conf();
+      SQLConf sqlConf = spark.sessionState().conf();
       LogicalPlan sortPlan = sortPlan(distribution, ordering, zvalueDF.logicalPlan(), sqlConf);
-      Dataset<Row> sortedDf = new Dataset<>(cloneSession, sortPlan, zvalueDF.encoder());
+      Dataset<Row> sortedDf = new Dataset<>(spark, sortPlan, zvalueDF.encoder());
       sortedDf
           .select(originalColumns)
           .write()

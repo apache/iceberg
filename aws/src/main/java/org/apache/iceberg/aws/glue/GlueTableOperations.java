@@ -44,6 +44,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.awscore.exception.AwsServiceException;
 import software.amazon.awssdk.services.glue.GlueClient;
+import software.amazon.awssdk.services.glue.model.AccessDeniedException;
 import software.amazon.awssdk.services.glue.model.ConcurrentModificationException;
 import software.amazon.awssdk.services.glue.model.CreateTableRequest;
 import software.amazon.awssdk.services.glue.model.DeleteTableRequest;
@@ -147,7 +148,8 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
     try {
       glueTempTableCreated = createGlueTempTableIfNecessary(base, metadata.location());
 
-      newMetadataLocation = writeNewMetadata(metadata, currentVersion() + 1);
+      boolean newTable = base == null;
+      newMetadataLocation = writeNewMetadataIfRequired(newTable, metadata);
       lock(newMetadataLocation);
       Table glueTable = getGlueTable();
       checkMetadataLocation(glueTable, base);
@@ -167,7 +169,7 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
     } catch (EntityNotFoundException e) {
       throw new NotFoundException(
           e, "Cannot commit %s because Glue cannot find the requested entity", tableName());
-    } catch (software.amazon.awssdk.services.glue.model.AccessDeniedException e) {
+    } catch (AccessDeniedException e) {
       throw new ForbiddenException(
           e, "Cannot commit %s because Glue cannot access the requested resources", tableName());
     } catch (software.amazon.awssdk.services.glue.model.ValidationException e) {

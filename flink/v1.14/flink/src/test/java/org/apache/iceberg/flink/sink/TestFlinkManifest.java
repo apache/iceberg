@@ -57,7 +57,6 @@ public class TestFlinkManifest {
 
   @Rule public TemporaryFolder tempFolder = new TemporaryFolder();
 
-  private String tablePath;
   private Table table;
   private FileAppenderFactory<RowData> appenderFactory;
   private final AtomicInteger fileCount = new AtomicInteger(0);
@@ -67,7 +66,7 @@ public class TestFlinkManifest {
     File folder = tempFolder.newFolder();
     String warehouse = folder.getAbsolutePath();
 
-    tablePath = warehouse.concat("/test");
+    String tablePath = warehouse.concat("/test");
     Assert.assertTrue("Should create the table directory correctly.", new File(tablePath).mkdir());
 
     // Construct the iceberg table.
@@ -79,6 +78,7 @@ public class TestFlinkManifest {
         };
     this.appenderFactory =
         new FlinkAppenderFactory(
+            table,
             table.schema(),
             FlinkSchemaUtil.convert(table.schema()),
             table.properties(),
@@ -255,23 +255,24 @@ public class TestFlinkManifest {
 
   private DataFile writeDataFile(String filename, List<RowData> rows) throws IOException {
     return SimpleDataUtil.writeFile(
+        table,
         table.schema(),
         table.spec(),
         CONF,
-        tablePath,
+        table.location(),
         FileFormat.PARQUET.addExtension(filename),
         rows);
   }
 
   private DeleteFile writeEqDeleteFile(String filename, List<RowData> deletes) throws IOException {
     return SimpleDataUtil.writeEqDeleteFile(
-        table, FileFormat.PARQUET, tablePath, filename, appenderFactory, deletes);
+        table, FileFormat.PARQUET, filename, appenderFactory, deletes);
   }
 
   private DeleteFile writePosDeleteFile(String filename, List<Pair<CharSequence, Long>> positions)
       throws IOException {
     return SimpleDataUtil.writePosDeleteFile(
-        table, FileFormat.PARQUET, tablePath, filename, appenderFactory, positions);
+        table, FileFormat.PARQUET, filename, appenderFactory, positions);
   }
 
   private List<DataFile> generateDataFiles(int fileNum) throws IOException {

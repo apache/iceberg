@@ -206,6 +206,7 @@ the `expire_snapshots` procedure will never remove files which are still require
 | `retain_last` |    | int       | Number of ancestor snapshots to preserve regardless of `older_than` (defaults to 1) |
 | `max_concurrent_deletes` |    | int       | Size of the thread pool used for delete file actions (by default, no thread pool is used) |
 | `stream_results` |    | boolean       | When true, deletion files will be sent to Spark driver by RDD partition (by default, all the files will be sent to Spark driver). This option is recommended to set to `true` to prevent Spark driver OOM from large file size |
+| `snapshot_ids` |   | array of long       | Array of snapshot IDs to expire. |
 
 If `older_than` and `retain_last` are omitted, the table's [expiration properties](../configuration/#table-behavior-properties) will be used.
 
@@ -225,6 +226,12 @@ Remove snapshots older than specific day and time, but retain the last 100 snaps
 
 ```sql
 CALL hive_prod.system.expire_snapshots('db.sample', TIMESTAMP '2021-06-30 00:00:00.000', 100)
+```
+
+Remove snapshots with snapshot ID `123` (note that this snapshot ID should not be the current snapshot):
+
+```sql
+CALL hive_prod.system.expire_snapshots(table => 'db.sample', snapshot_ids => ARRAY(123))
 ```
 
 ### `remove_orphan_files`
@@ -271,7 +278,7 @@ Iceberg can compact data files in parallel using Spark with the `rewriteDataFile
 |---------------|-----------|------|-------------|
 | `table`       | ✔️  | string | Name of the table to update |
 | `strategy`    |    | string | Name of the strategy - binpack or sort. Defaults to binpack strategy |
-| `sort_order`  |    | string | If Zorder, then comma separated column names within zorder() text. Example: zorder(c1,c2,c3). <br/>Else, Comma separated sort_order_column. Where sort_order_column is a space separated sort order info per column (ColumnName SortDirection NullOrder). <br/> SortDirection can be ASC or DESC. NullOrder can be NULLS FIRST or NULLS LAST |
+| `sort_order`  |    | string | For Zorder use a comma separated list of columns within zorder(). (Supported in Spark 3.2 and Above) Example: zorder(c1,c2,c3). <br/>Else, Comma separated sort orders in the format (ColumnName SortDirection NullOrder). <br/>Where SortDirection can be ASC or DESC. NullOrder can be NULLS FIRST or NULLS LAST. <br/>Defaults to the table's sort order |
 | `options`     | ️   | map<string, string> | Options to be used for actions|
 | `where`       | ️   | string | predicate as a string used for filtering the files. Note that all files that may contain data matching the filter will be selected for rewriting|
 
@@ -462,16 +469,27 @@ will then treat these files as if they are part of the set of files  owned by Ic
 
 #### Usage
 
-| Argument Name | Required? | Type | Description |
-|---------------|-----------|------|-------------|
-| `table`       | ✔️  | string | Table which will have files added to|
-| `source_table`| ✔️  | string | Table where files should come from, paths are also possible in the form of \`file_format\`.\`path\` |
-| `partition_filter`  | ️   | map<string, string> | A map of partitions in the source table to import from |
+| Argument Name           | Required? | Type                | Description                                                                                         |
+|-------------------------|-----------|---------------------|-----------------------------------------------------------------------------------------------------|
+| `table`                 | ✔️        | string              | Table which will have files added to                                                                |
+| `source_table`          | ✔️        | string              | Table where files should come from, paths are also possible in the form of \`file_format\`.\`path\` |
+| `partition_filter`      | ️         | map<string, string> | A map of partitions in the source table to import from                                              |
+| `check_duplicate_files` | ️         | boolean             | Whether to prevent files existing in the table from being added (defaults to true)                  |
 
 Warning : Schema is not validated, adding files with different schema to the Iceberg table will cause issues.
 
 Warning : Files added by this method can be physically deleted by Iceberg operations
 
+#### Output
+
+| Output Name               | Type | Description                                       |
+|---------------------------|------|---------------------------------------------------|
+| `added_files_count`       | long | The number of files added by this command         |
+| `changed_partition_count` | long | The number of partitioned changed by this command |
+
+{{< hint warning >}}
+changed_partition_count will be 0 when table property `compatibility.snapshot-id-inheritance.enabled` is set to true
+{{< /hint >}}
 #### Examples
 
 Add the files from table `db.src_table`, a Hive or Spark table registered in the session Catalog, to Iceberg table
@@ -493,7 +511,41 @@ CALL spark_catalog.system.add_files(
 )
 ```
 
-## `Metadata information`
+### `register_table`
+
+Creates a catalog entry for a metadata.json file which already exists but does not have a corresponding catalog identifier.
+
+#### Usage
+
+| Argument Name | Required? | Type | Description |
+|---------------|-----------|------|-------------|
+| `table`       | ✔️  | string | Table which is to be registered |
+| `metadata_file`| ✔️  | string | Metadata file which is to be registered as a new catalog identifier |
+
+{{< hint warning >}}
+Having the same metadata.json registered in more than one catalog can lead to missing updates, loss of data, and table corruption.
+Only use this procedure when the table is no longer registered in an existing catalog, or you are moving a table between catalogs.
+{{< /hint >}}
+
+#### Output
+
+| Output Name | Type | Description |
+| ------------|------|-------------|
+| `current_snapshot_id` | long | The current snapshot ID of the newly registered Iceberg table |
+| `total_records_count` | long | Total records count of the newly registered Iceberg table |
+| `total_data_files_count` | long | Total data files count of the newly registered Iceberg table |
+
+#### Examples
+
+Register a new table as `db.tbl` to `spark_catalog` pointing to metadata.json file `path/to/metadata/file.json`.
+```sql
+CALL spark_catalog.system.register_table(
+  table => 'db.tbl',
+  metadata_file => 'path/to/metadata/file.json'
+)
+```
+
+## Metadata information
 
 ### `ancestors_of`
 
