@@ -158,3 +158,4 @@ INSERT INTO tableName /*+ OPTIONS('upsert-enabled'='true') */
 | compression-codec      | Table write.(fileformat).compression-codec | Overrides this table's compression codec for this write      |
 | compression-level      | Table write.(fileformat).compression-level | Overrides this table's compression level for Parquet and Avro tables for this write |
 | compression-strategy   | Table write.orc.compression-strategy       | Overrides this table's compression strategy for ORC tables for this write |
+| write-parallelism      | Upstream operator parallelism              | Overrides the writer parallelism                             |
