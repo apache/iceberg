@@ -791,13 +791,13 @@ project(':iceberg-nessie') {
     implementation project(':iceberg-common')
     implementation project(':iceberg-core')
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
-    implementation "org.projectnessie:nessie-client"
+    implementation "org.projectnessie.nessie:nessie-client"
     implementation "com.fasterxml.jackson.core:jackson-databind"
     implementation "com.fasterxml.jackson.core:jackson-core"
 
-    testImplementation "org.projectnessie:nessie-jaxrs-testextension"
-    testImplementation "org.projectnessie:nessie-versioned-persist-in-memory"
-    testImplementation "org.projectnessie:nessie-versioned-persist-in-memory-test"
+    testImplementation "org.projectnessie.nessie:nessie-jaxrs-testextension"
+    testImplementation "org.projectnessie.nessie:nessie-versioned-persist-in-memory"
+    testImplementation "org.projectnessie.nessie:nessie-versioned-persist-in-memory-test"
     // Need to "pull in" el-api explicitly :(
     testImplementation "jakarta.el:jakarta.el-api"
 
