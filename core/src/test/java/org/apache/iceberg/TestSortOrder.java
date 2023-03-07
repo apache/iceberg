@@ -321,7 +321,6 @@ public class TestSortOrder {
     Assert.assertEquals(
         "Schema must have one less column", initialColSize - 1, table.schema().columns().size());
 
-
     // ensure that the table metadata can be serialized and reloaded with an invalid order
     TableMetadataParser.fromJson(TableMetadataParser.toJson(table.ops().current()));
   }
