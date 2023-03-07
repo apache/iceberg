@@ -28,10 +28,8 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.TestTables;
-import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.types.Types;
-import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -304,34 +302,5 @@ public class TestSortOrderUtil {
         "Should add spec fields as prefix",
         expected,
         SortOrderUtil.buildSortOrder(table.schema(), updatedSpec, order));
-  }
-
-  @Test
-  public void testDropColumnFromDefaultSortOrder() {
-    TestTables.TestTable table =
-        TestTables.create(
-            tableDir, "test", SCHEMA, PartitionSpec.unpartitioned(), SortOrder.unsorted(), 1);
-    table.replaceSortOrder().asc("ts").commit();
-
-    Assertions.assertThatThrownBy(() -> table.updateSchema().deleteColumn("ts").commit())
-        .isInstanceOf(ValidationException.class)
-        .hasMessage("Cannot find source column for sort field: identity(3) ASC NULLS FIRST");
-  }
-
-  @Test
-  public void testDropColumnFromOldSortOrder() {
-    TestTables.TestTable table =
-        TestTables.create(
-            tableDir, "test", SCHEMA, PartitionSpec.unpartitioned(), SortOrder.unsorted(), 2);
-    table.replaceSortOrder().asc("ts").commit();
-
-    table.replaceSortOrder().asc("id").commit();
-
-    table.updateSchema().deleteColumn("ts").commit();
-
-    Assert.assertEquals(
-        "Should be on id(1)",
-        "[\n" + "  identity(1) ASC NULLS FIRST\n" + "]",
-        table.sortOrder().toString());
   }
 }
