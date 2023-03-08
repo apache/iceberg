@@ -47,6 +47,7 @@ class BatchDataReader extends BaseBatchReader<FileScanTask>
   BatchDataReader(SparkInputPartition partition, int batchSize) {
     this(
         partition.table(),
+        partition.branch(),
         partition.taskGroup(),
         partition.expectedSchema(),
         partition.isCaseSensitive(),
@@ -55,11 +56,12 @@ class BatchDataReader extends BaseBatchReader<FileScanTask>
 
   BatchDataReader(
       Table table,
+      String branch,
       ScanTaskGroup<FileScanTask> taskGroup,
       Schema expectedSchema,
       boolean caseSensitive,
       int size) {
-    super(table, taskGroup, expectedSchema, caseSensitive, size);
+    super(table, branch, taskGroup, expectedSchema, caseSensitive, size);
 
     numSplits = taskGroup.tasks().size();
     LOG.debug("Reading {} file split(s) for table {}", numSplits, table.name());

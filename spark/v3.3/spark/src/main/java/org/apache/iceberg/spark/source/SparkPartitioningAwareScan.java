@@ -44,6 +44,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.types.Types.StructType;
+import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.StructLikeSet;
 import org.apache.iceberg.util.TableScanUtil;
 import org.apache.spark.sql.SparkSession;
@@ -140,7 +141,8 @@ abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends S
               .map(field -> fieldsById.get(field.fieldId()))
               .collect(Collectors.toList());
 
-      this.groupingKeyTransforms = Spark3Util.toTransforms(table().schema(), groupingKeyFields);
+      this.groupingKeyTransforms =
+          Spark3Util.toTransforms(SnapshotUtil.schemaFor(table(), branch()), groupingKeyFields);
     }
 
     return groupingKeyTransforms;

@@ -53,104 +53,130 @@ public class TestPartitionedWrites extends SparkCatalogTestBase {
 
   @Test
   public void testInsertAppend() {
-    Assert.assertEquals("Should have 3 rows", 3L, scalarSql("SELECT count(*) FROM %s", tableName));
+    Assert.assertEquals(
+        "Should have 3 rows", 3L, scalarSql("SELECT count(*) FROM %s", selectTarget()));
 
-    sql("INSERT INTO %s VALUES (4, 'd'), (5, 'e')", tableName);
+    sql("INSERT INTO %s VALUES (4, 'd'), (5, 'e')", commitTarget());
 
     Assert.assertEquals(
-        "Should have 5 rows after insert", 5L, scalarSql("SELECT count(*) FROM %s", tableName));
+        "Should have 5 rows after insert",
+        5L,
+        scalarSql("SELECT count(*) FROM %s", selectTarget()));
 
     List<Object[]> expected =
         ImmutableList.of(row(1L, "a"), row(2L, "b"), row(3L, "c"), row(4L, "d"), row(5L, "e"));
 
     assertEquals(
-        "Row data should match expected", expected, sql("SELECT * FROM %s ORDER BY id", tableName));
+        "Row data should match expected",
+        expected,
+        sql("SELECT * FROM %s ORDER BY id", selectTarget()));
   }
 
   @Test
   public void testInsertOverwrite() {
-    Assert.assertEquals("Should have 3 rows", 3L, scalarSql("SELECT count(*) FROM %s", tableName));
+    Assert.assertEquals(
+        "Should have 3 rows", 3L, scalarSql("SELECT count(*) FROM %s", selectTarget()));
 
     // 4 and 5 replace 3 in the partition (id - (id % 3)) = 3
-    sql("INSERT OVERWRITE %s VALUES (4, 'd'), (5, 'e')", tableName);
+    sql("INSERT OVERWRITE %s VALUES (4, 'd'), (5, 'e')", commitTarget());
 
     Assert.assertEquals(
-        "Should have 4 rows after overwrite", 4L, scalarSql("SELECT count(*) FROM %s", tableName));
+        "Should have 4 rows after overwrite",
+        4L,
+        scalarSql("SELECT count(*) FROM %s", selectTarget()));
 
     List<Object[]> expected =
         ImmutableList.of(row(1L, "a"), row(2L, "b"), row(4L, "d"), row(5L, "e"));
 
     assertEquals(
-        "Row data should match expected", expected, sql("SELECT * FROM %s ORDER BY id", tableName));
+        "Row data should match expected",
+        expected,
+        sql("SELECT * FROM %s ORDER BY id", selectTarget()));
   }
 
   @Test
   public void testDataFrameV2Append() throws NoSuchTableException {
-    Assert.assertEquals("Should have 3 rows", 3L, scalarSql("SELECT count(*) FROM %s", tableName));
+    Assert.assertEquals(
+        "Should have 3 rows", 3L, scalarSql("SELECT count(*) FROM %s", selectTarget()));
 
     List<SimpleRecord> data = ImmutableList.of(new SimpleRecord(4, "d"), new SimpleRecord(5, "e"));
     Dataset<Row> ds = spark.createDataFrame(data, SimpleRecord.class);
 
-    ds.writeTo(tableName).append();
+    ds.writeTo(commitTarget()).append();
 
     Assert.assertEquals(
-        "Should have 5 rows after insert", 5L, scalarSql("SELECT count(*) FROM %s", tableName));
+        "Should have 5 rows after insert",
+        5L,
+        scalarSql("SELECT count(*) FROM %s", selectTarget()));
 
     List<Object[]> expected =
         ImmutableList.of(row(1L, "a"), row(2L, "b"), row(3L, "c"), row(4L, "d"), row(5L, "e"));
 
     assertEquals(
-        "Row data should match expected", expected, sql("SELECT * FROM %s ORDER BY id", tableName));
+        "Row data should match expected",
+        expected,
+        sql("SELECT * FROM %s ORDER BY id", selectTarget()));
   }
 
   @Test
   public void testDataFrameV2DynamicOverwrite() throws NoSuchTableException {
-    Assert.assertEquals("Should have 3 rows", 3L, scalarSql("SELECT count(*) FROM %s", tableName));
+    Assert.assertEquals(
+        "Should have 3 rows", 3L, scalarSql("SELECT count(*) FROM %s", selectTarget()));
 
     List<SimpleRecord> data = ImmutableList.of(new SimpleRecord(4, "d"), new SimpleRecord(5, "e"));
     Dataset<Row> ds = spark.createDataFrame(data, SimpleRecord.class);
 
-    ds.writeTo(tableName).overwritePartitions();
+    ds.writeTo(commitTarget()).overwritePartitions();
 
     Assert.assertEquals(
-        "Should have 4 rows after overwrite", 4L, scalarSql("SELECT count(*) FROM %s", tableName));
+        "Should have 4 rows after overwrite",
+        4L,
+        scalarSql("SELECT count(*) FROM %s", selectTarget()));
 
     List<Object[]> expected =
         ImmutableList.of(row(1L, "a"), row(2L, "b"), row(4L, "d"), row(5L, "e"));
 
     assertEquals(
-        "Row data should match expected", expected, sql("SELECT * FROM %s ORDER BY id", tableName));
+        "Row data should match expected",
+        expected,
+        sql("SELECT * FROM %s ORDER BY id", selectTarget()));
   }
 
   @Test
   public void testDataFrameV2Overwrite() throws NoSuchTableException {
-    Assert.assertEquals("Should have 3 rows", 3L, scalarSql("SELECT count(*) FROM %s", tableName));
+    Assert.assertEquals(
+        "Should have 3 rows", 3L, scalarSql("SELECT count(*) FROM %s", selectTarget()));
 
     List<SimpleRecord> data = ImmutableList.of(new SimpleRecord(4, "d"), new SimpleRecord(5, "e"));
     Dataset<Row> ds = spark.createDataFrame(data, SimpleRecord.class);
 
-    ds.writeTo(tableName).overwrite(functions.col("id").$less(3));
+    ds.writeTo(commitTarget()).overwrite(functions.col("id").$less(3));
 
     Assert.assertEquals(
-        "Should have 3 rows after overwrite", 3L, scalarSql("SELECT count(*) FROM %s", tableName));
+        "Should have 3 rows after overwrite",
+        3L,
+        scalarSql("SELECT count(*) FROM %s", selectTarget()));
 
     List<Object[]> expected = ImmutableList.of(row(3L, "c"), row(4L, "d"), row(5L, "e"));
 
     assertEquals(
-        "Row data should match expected", expected, sql("SELECT * FROM %s ORDER BY id", tableName));
+        "Row data should match expected",
+        expected,
+        sql("SELECT * FROM %s ORDER BY id", selectTarget()));
   }
 
   @Test
   public void testViewsReturnRecentResults() {
-    Assert.assertEquals("Should have 3 rows", 3L, scalarSql("SELECT count(*) FROM %s", tableName));
+    Assert.assertEquals(
+        "Should have 3 rows", 3L, scalarSql("SELECT count(*) FROM %s", selectTarget()));
 
-    Dataset<Row> query = spark.sql("SELECT * FROM " + tableName + " WHERE id = 1");
+    Dataset<Row> query = spark.sql("SELECT * FROM " + commitTarget() + " WHERE id = 1");
     query.createOrReplaceTempView("tmp");
 
     assertEquals(
         "View should have expected rows", ImmutableList.of(row(1L, "a")), sql("SELECT * FROM tmp"));
 
-    sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
+    sql("INSERT INTO TABLE %s VALUES (1, 'a')", commitTarget());
 
     assertEquals(
         "View should have expected rows",

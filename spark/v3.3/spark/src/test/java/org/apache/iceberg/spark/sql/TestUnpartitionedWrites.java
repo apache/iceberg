@@ -30,6 +30,7 @@ import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.functions;
 import org.junit.After;
 import org.junit.Assert;
+import org.junit.Assume;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -52,37 +53,48 @@ public class TestUnpartitionedWrites extends SparkCatalogTestBase {
 
   @Test
   public void testInsertAppend() {
-    Assert.assertEquals("Should have 3 rows", 3L, scalarSql("SELECT count(*) FROM %s", tableName));
+    Assert.assertEquals(
+        "Should have 3 rows", 3L, scalarSql("SELECT count(*) FROM %s", selectTarget()));
 
-    sql("INSERT INTO %s VALUES (4, 'd'), (5, 'e')", tableName);
+    sql("INSERT INTO %s VALUES (4, 'd'), (5, 'e')", commitTarget());
 
     Assert.assertEquals(
-        "Should have 5 rows after insert", 5L, scalarSql("SELECT count(*) FROM %s", tableName));
+        "Should have 5 rows after insert",
+        5L,
+        scalarSql("SELECT count(*) FROM %s", selectTarget()));
 
     List<Object[]> expected =
         ImmutableList.of(row(1L, "a"), row(2L, "b"), row(3L, "c"), row(4L, "d"), row(5L, "e"));
 
     assertEquals(
-        "Row data should match expected", expected, sql("SELECT * FROM %s ORDER BY id", tableName));
+        "Row data should match expected",
+        expected,
+        sql("SELECT * FROM %s ORDER BY id", selectTarget()));
   }
 
   @Test
   public void testInsertOverwrite() {
-    Assert.assertEquals("Should have 3 rows", 3L, scalarSql("SELECT count(*) FROM %s", tableName));
+    Assert.assertEquals(
+        "Should have 3 rows", 3L, scalarSql("SELECT count(*) FROM %s", selectTarget()));
 
-    sql("INSERT OVERWRITE %s VALUES (4, 'd'), (5, 'e')", tableName);
+    sql("INSERT OVERWRITE %s VALUES (4, 'd'), (5, 'e')", commitTarget());
 
     Assert.assertEquals(
-        "Should have 2 rows after overwrite", 2L, scalarSql("SELECT count(*) FROM %s", tableName));
+        "Should have 2 rows after overwrite",
+        2L,
+        scalarSql("SELECT count(*) FROM %s", selectTarget()));
 
     List<Object[]> expected = ImmutableList.of(row(4L, "d"), row(5L, "e"));
 
     assertEquals(
-        "Row data should match expected", expected, sql("SELECT * FROM %s ORDER BY id", tableName));
+        "Row data should match expected",
+        expected,
+        sql("SELECT * FROM %s ORDER BY id", selectTarget()));
   }
 
   @Test
   public void testInsertAppendAtSnapshot() {
+    Assume.assumeTrue(tableName.equals(commitTarget()));
     long snapshotId = validationCatalog.loadTable(tableIdent).currentSnapshot().snapshotId();
     String prefix = "snapshot_id_";
     AssertHelpers.assertThrows(
@@ -94,6 +106,7 @@ public class TestUnpartitionedWrites extends SparkCatalogTestBase {
 
   @Test
   public void testInsertOverwriteAtSnapshot() {
+    Assume.assumeTrue(tableName.equals(commitTarget()));
     long snapshotId = validationCatalog.loadTable(tableIdent).currentSnapshot().snapshotId();
     String prefix = "snapshot_id_";
     AssertHelpers.assertThrows(
@@ -108,56 +121,71 @@ public class TestUnpartitionedWrites extends SparkCatalogTestBase {
 
   @Test
   public void testDataFrameV2Append() throws NoSuchTableException {
-    Assert.assertEquals("Should have 3 rows", 3L, scalarSql("SELECT count(*) FROM %s", tableName));
+    Assert.assertEquals(
+        "Should have 3 rows", 3L, scalarSql("SELECT count(*) FROM %s", selectTarget()));
 
     List<SimpleRecord> data = ImmutableList.of(new SimpleRecord(4, "d"), new SimpleRecord(5, "e"));
     Dataset<Row> ds = spark.createDataFrame(data, SimpleRecord.class);
 
-    ds.writeTo(tableName).append();
+    ds.writeTo(commitTarget()).append();
 
     Assert.assertEquals(
-        "Should have 5 rows after insert", 5L, scalarSql("SELECT count(*) FROM %s", tableName));
+        "Should have 5 rows after insert",
+        5L,
+        scalarSql("SELECT count(*) FROM %s", selectTarget()));
 
     List<Object[]> expected =
         ImmutableList.of(row(1L, "a"), row(2L, "b"), row(3L, "c"), row(4L, "d"), row(5L, "e"));
 
     assertEquals(
-        "Row data should match expected", expected, sql("SELECT * FROM %s ORDER BY id", tableName));
+        "Row data should match expected",
+        expected,
+        sql("SELECT * FROM %s ORDER BY id", selectTarget()));
   }
 
   @Test
   public void testDataFrameV2DynamicOverwrite() throws NoSuchTableException {
-    Assert.assertEquals("Should have 3 rows", 3L, scalarSql("SELECT count(*) FROM %s", tableName));
+    Assert.assertEquals(
+        "Should have 3 rows", 3L, scalarSql("SELECT count(*) FROM %s", selectTarget()));
 
     List<SimpleRecord> data = ImmutableList.of(new SimpleRecord(4, "d"), new SimpleRecord(5, "e"));
     Dataset<Row> ds = spark.createDataFrame(data, SimpleRecord.class);
 
-    ds.writeTo(tableName).overwritePartitions();
+    ds.writeTo(commitTarget()).overwritePartitions();
 
     Assert.assertEquals(
-        "Should have 2 rows after overwrite", 2L, scalarSql("SELECT count(*) FROM %s", tableName));
+        "Should have 2 rows after overwrite",
+        2L,
+        scalarSql("SELECT count(*) FROM %s", selectTarget()));
 
     List<Object[]> expected = ImmutableList.of(row(4L, "d"), row(5L, "e"));
 
     assertEquals(
-        "Row data should match expected", expected, sql("SELECT * FROM %s ORDER BY id", tableName));
+        "Row data should match expected",
+        expected,
+        sql("SELECT * FROM %s ORDER BY id", selectTarget()));
   }
 
   @Test
   public void testDataFrameV2Overwrite() throws NoSuchTableException {
-    Assert.assertEquals("Should have 3 rows", 3L, scalarSql("SELECT count(*) FROM %s", tableName));
+    Assert.assertEquals(
+        "Should have 3 rows", 3L, scalarSql("SELECT count(*) FROM %s", selectTarget()));
 
     List<SimpleRecord> data = ImmutableList.of(new SimpleRecord(4, "d"), new SimpleRecord(5, "e"));
     Dataset<Row> ds = spark.createDataFrame(data, SimpleRecord.class);
 
-    ds.writeTo(tableName).overwrite(functions.col("id").$less$eq(3));
+    ds.writeTo(commitTarget()).overwrite(functions.col("id").$less$eq(3));
 
     Assert.assertEquals(
-        "Should have 2 rows after overwrite", 2L, scalarSql("SELECT count(*) FROM %s", tableName));
+        "Should have 2 rows after overwrite",
+        2L,
+        scalarSql("SELECT count(*) FROM %s", selectTarget()));
 
     List<Object[]> expected = ImmutableList.of(row(4L, "d"), row(5L, "e"));
 
     assertEquals(
-        "Row data should match expected", expected, sql("SELECT * FROM %s ORDER BY id", tableName));
+        "Row data should match expected",
+        expected,
+        sql("SELECT * FROM %s ORDER BY id", selectTarget()));
   }
 }

@@ -37,6 +37,7 @@ import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.ManifestFiles;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
@@ -46,12 +47,14 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.SparkException;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SaveMode;
 import org.apache.spark.sql.SparkSession;
+import org.assertj.core.api.Assertions;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.Assume;
@@ -66,6 +69,7 @@ import org.junit.runners.Parameterized;
 public class TestSparkDataWrite {
   private static final Configuration CONF = new Configuration();
   private final FileFormat format;
+  private final String branch;
   private static SparkSession spark = null;
   private static final Schema SCHEMA =
       new Schema(
@@ -73,9 +77,15 @@ public class TestSparkDataWrite {
 
   @Rule public TemporaryFolder temp = new TemporaryFolder();
 
-  @Parameterized.Parameters(name = "format = {0}")
+  @Parameterized.Parameters(name = "format = {0}, branch = {1}")
   public static Object[] parameters() {
-    return new Object[] {"parquet", "avro", "orc"};
+    return new Object[] {
+      new Object[] {"parquet", null},
+      new Object[] {"parquet", "main"},
+      new Object[] {"parquet", "testBranch"},
+      new Object[] {"avro", null},
+      new Object[] {"orc", "testBranch"}
+    };
   }
 
   @BeforeClass
@@ -95,14 +105,16 @@ public class TestSparkDataWrite {
     currentSpark.stop();
   }
 
-  public TestSparkDataWrite(String format) {
+  public TestSparkDataWrite(String format, String branch) {
     this.format = FileFormat.fromString(format);
+    this.branch = branch;
   }
 
   @Test
   public void testBasicWrite() throws IOException {
     File parent = temp.newFolder(format.toString());
     File location = new File(parent, "test");
+    String targetLocation = locationWithBranch(location);
 
     HadoopTables tables = new HadoopTables(CONF);
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("data").build();
@@ -121,15 +133,17 @@ public class TestSparkDataWrite {
         .mode(SaveMode.Append)
         .save(location.toString());
 
+    createBranch(table);
     table.refresh();
 
-    Dataset<Row> result = spark.read().format("iceberg").load(location.toString());
+    Dataset<Row> result = spark.read().format("iceberg").load(targetLocation);
 
     List<SimpleRecord> actual =
         result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
     Assert.assertEquals("Number of rows should match", expected.size(), actual.size());
     Assert.assertEquals("Result rows should match", expected, actual);
-    for (ManifestFile manifest : table.currentSnapshot().allManifests(table.io())) {
+    for (ManifestFile manifest :
+        SnapshotUtil.latestSnapshot(table, branch).allManifests(table.io())) {
       for (DataFile file : ManifestFiles.read(manifest, table.io())) {
         // TODO: avro not support split
         if (!format.equals(FileFormat.AVRO)) {
@@ -152,6 +166,7 @@ public class TestSparkDataWrite {
   public void testAppend() throws IOException {
     File parent = temp.newFolder(format.toString());
     File location = new File(parent, "test");
+    String targetLocation = locationWithBranch(location);
 
     HadoopTables tables = new HadoopTables(CONF);
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("data").build();
@@ -179,17 +194,19 @@ public class TestSparkDataWrite {
         .mode(SaveMode.Append)
         .save(location.toString());
 
+    createBranch(table);
+
     df.withColumn("id", df.col("id").plus(3))
         .select("id", "data")
         .write()
         .format("iceberg")
         .option(SparkWriteOptions.WRITE_FORMAT, format.toString())
         .mode(SaveMode.Append)
-        .save(location.toString());
+        .save(targetLocation);
 
     table.refresh();
 
-    Dataset<Row> result = spark.read().format("iceberg").load(location.toString());
+    Dataset<Row> result = spark.read().format("iceberg").load(targetLocation);
 
     List<SimpleRecord> actual =
         result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
@@ -201,6 +218,7 @@ public class TestSparkDataWrite {
   public void testEmptyOverwrite() throws IOException {
     File parent = temp.newFolder(format.toString());
     File location = new File(parent, "test");
+    String targetLocation = locationWithBranch(location);
 
     HadoopTables tables = new HadoopTables(CONF);
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("id").build();
@@ -220,6 +238,8 @@ public class TestSparkDataWrite {
         .mode(SaveMode.Append)
         .save(location.toString());
 
+    createBranch(table);
+
     Dataset<Row> empty = spark.createDataFrame(ImmutableList.of(), SimpleRecord.class);
     empty
         .select("id", "data")
@@ -228,11 +248,11 @@ public class TestSparkDataWrite {
         .option(SparkWriteOptions.WRITE_FORMAT, format.toString())
         .mode(SaveMode.Overwrite)
         .option("overwrite-mode", "dynamic")
-        .save(location.toString());
+        .save(targetLocation);
 
     table.refresh();
 
-    Dataset<Row> result = spark.read().format("iceberg").load(location.toString());
+    Dataset<Row> result = spark.read().format("iceberg").load(targetLocation);
 
     List<SimpleRecord> actual =
         result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
@@ -244,6 +264,7 @@ public class TestSparkDataWrite {
   public void testOverwrite() throws IOException {
     File parent = temp.newFolder(format.toString());
     File location = new File(parent, "test");
+    String targetLocation = locationWithBranch(location);
 
     HadoopTables tables = new HadoopTables(CONF);
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("id").build();
@@ -270,6 +291,8 @@ public class TestSparkDataWrite {
         .mode(SaveMode.Append)
         .save(location.toString());
 
+    createBranch(table);
+
     // overwrite with 2*id to replace record 2, append 4 and 6
     df.withColumn("id", df.col("id").multiply(2))
         .select("id", "data")
@@ -278,11 +301,11 @@ public class TestSparkDataWrite {
         .option(SparkWriteOptions.WRITE_FORMAT, format.toString())
         .mode(SaveMode.Overwrite)
         .option("overwrite-mode", "dynamic")
-        .save(location.toString());
+        .save(targetLocation);
 
     table.refresh();
 
-    Dataset<Row> result = spark.read().format("iceberg").load(location.toString());
+    Dataset<Row> result = spark.read().format("iceberg").load(targetLocation);
 
     List<SimpleRecord> actual =
         result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
@@ -294,6 +317,7 @@ public class TestSparkDataWrite {
   public void testUnpartitionedOverwrite() throws IOException {
     File parent = temp.newFolder(format.toString());
     File location = new File(parent, "test");
+    String targetLocation = locationWithBranch(location);
 
     HadoopTables tables = new HadoopTables(CONF);
     PartitionSpec spec = PartitionSpec.unpartitioned();
@@ -312,17 +336,19 @@ public class TestSparkDataWrite {
         .mode(SaveMode.Append)
         .save(location.toString());
 
+    createBranch(table);
+
     // overwrite with the same data; should not produce two copies
     df.select("id", "data")
         .write()
         .format("iceberg")
         .option(SparkWriteOptions.WRITE_FORMAT, format.toString())
         .mode(SaveMode.Overwrite)
-        .save(location.toString());
+        .save(targetLocation);
 
     table.refresh();
 
-    Dataset<Row> result = spark.read().format("iceberg").load(location.toString());
+    Dataset<Row> result = spark.read().format("iceberg").load(targetLocation);
 
     List<SimpleRecord> actual =
         result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
@@ -334,6 +360,7 @@ public class TestSparkDataWrite {
   public void testUnpartitionedCreateWithTargetFileSizeViaTableProperties() throws IOException {
     File parent = temp.newFolder(format.toString());
     File location = new File(parent, "test");
+    String targetLocation = locationWithBranch(location);
 
     HadoopTables tables = new HadoopTables(CONF);
     PartitionSpec spec = PartitionSpec.unpartitioned();
@@ -358,9 +385,10 @@ public class TestSparkDataWrite {
         .mode(SaveMode.Append)
         .save(location.toString());
 
+    createBranch(table);
     table.refresh();
 
-    Dataset<Row> result = spark.read().format("iceberg").load(location.toString());
+    Dataset<Row> result = spark.read().format("iceberg").load(targetLocation);
 
     List<SimpleRecord> actual =
         result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
@@ -368,7 +396,8 @@ public class TestSparkDataWrite {
     Assert.assertEquals("Result rows should match", expected, actual);
 
     List<DataFile> files = Lists.newArrayList();
-    for (ManifestFile manifest : table.currentSnapshot().allManifests(table.io())) {
+    for (ManifestFile manifest :
+        SnapshotUtil.latestSnapshot(table, branch).allManifests(table.io())) {
       for (DataFile file : ManifestFiles.read(manifest, table.io())) {
         files.add(file);
       }
@@ -402,6 +431,7 @@ public class TestSparkDataWrite {
 
     File parent = temp.newFolder(format.toString());
     File location = new File(parent, "test");
+    String targetLocation = locationWithBranch(location);
 
     HadoopTables tables = new HadoopTables(CONF);
     PartitionSpec spec = PartitionSpec.unpartitioned();
@@ -420,9 +450,10 @@ public class TestSparkDataWrite {
         .mode(SaveMode.Append)
         .save(location.toString());
 
+    createBranch(table);
     table.refresh();
 
-    Dataset<Row> result = spark.read().format("iceberg").load(location.toString());
+    Dataset<Row> result = spark.read().format("iceberg").load(targetLocation);
 
     List<SimpleRecord> actual =
         result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
@@ -438,6 +469,7 @@ public class TestSparkDataWrite {
 
     File parent = temp.newFolder(format.toString());
     File location = new File(parent, "test");
+    String targetLocation = locationWithBranch(location);
 
     HadoopTables tables = new HadoopTables(CONF);
     PartitionSpec spec = PartitionSpec.unpartitioned();
@@ -463,9 +495,10 @@ public class TestSparkDataWrite {
         .mode(SaveMode.Append)
         .save(location.toString());
 
+    createBranch(table);
     table.refresh();
 
-    Dataset<Row> result = spark.read().format("iceberg").load(location.toString());
+    Dataset<Row> result = spark.read().format("iceberg").load(targetLocation);
 
     List<ThreeColumnRecord> actual =
         result.orderBy("c1").as(Encoders.bean(ThreeColumnRecord.class)).collectAsList();
@@ -477,6 +510,7 @@ public class TestSparkDataWrite {
   public void testViewsReturnRecentResults() throws IOException {
     File parent = temp.newFolder(format.toString());
     File location = new File(parent, "test");
+    String targetLocation = locationWithBranch(location);
 
     HadoopTables tables = new HadoopTables(CONF);
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("data").build();
@@ -495,7 +529,10 @@ public class TestSparkDataWrite {
         .mode(SaveMode.Append)
         .save(location.toString());
 
-    Dataset<Row> query = spark.read().format("iceberg").load(location.toString()).where("id = 1");
+    Table table = tables.load(location.toString());
+    createBranch(table);
+
+    Dataset<Row> query = spark.read().format("iceberg").load(targetLocation).where("id = 1");
     query.createOrReplaceTempView("tmp");
 
     List<SimpleRecord> actual1 =
@@ -509,7 +546,7 @@ public class TestSparkDataWrite {
         .format("iceberg")
         .option(SparkWriteOptions.WRITE_FORMAT, format.toString())
         .mode(SaveMode.Append)
-        .save(location.toString());
+        .save(targetLocation);
 
     List<SimpleRecord> actual2 =
         spark.table("tmp").as(Encoders.bean(SimpleRecord.class)).collectAsList();
@@ -523,6 +560,7 @@ public class TestSparkDataWrite {
       throws IOException {
     File parent = temp.newFolder(format.toString());
     File location = new File(parent, "test");
+    String targetLocation = locationWithBranch(location);
 
     HadoopTables tables = new HadoopTables(CONF);
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("data").build();
@@ -576,9 +614,10 @@ public class TestSparkDataWrite {
         break;
     }
 
+    createBranch(table);
     table.refresh();
 
-    Dataset<Row> result = spark.read().format("iceberg").load(location.toString());
+    Dataset<Row> result = spark.read().format("iceberg").load(targetLocation);
 
     List<SimpleRecord> actual =
         result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
@@ -586,7 +625,8 @@ public class TestSparkDataWrite {
     Assert.assertEquals("Result rows should match", expected, actual);
 
     List<DataFile> files = Lists.newArrayList();
-    for (ManifestFile manifest : table.currentSnapshot().allManifests(table.io())) {
+    for (ManifestFile manifest :
+        SnapshotUtil.latestSnapshot(table, branch).allManifests(table.io())) {
       for (DataFile file : ManifestFiles.read(manifest, table.io())) {
         files.add(file);
       }
@@ -601,6 +641,7 @@ public class TestSparkDataWrite {
   public void testCommitUnknownException() throws IOException {
     File parent = temp.newFolder(format.toString());
     File location = new File(parent, "commitunknown");
+    String targetLocation = locationWithBranch(location);
 
     HadoopTables tables = new HadoopTables(CONF);
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("data").build();
@@ -612,7 +653,27 @@ public class TestSparkDataWrite {
 
     Dataset<Row> df = spark.createDataFrame(records, SimpleRecord.class);
 
+    df.select("id", "data")
+        .write()
+        .format("iceberg")
+        .option(SparkWriteOptions.WRITE_FORMAT, format.toString())
+        .mode(SaveMode.Append)
+        .save(location.toString());
+
+    createBranch(table);
+    table.refresh();
+
+    List<SimpleRecord> records2 =
+        Lists.newArrayList(
+            new SimpleRecord(4, "d"), new SimpleRecord(5, "e"), new SimpleRecord(6, "f"));
+
+    Dataset<Row> df2 = spark.createDataFrame(records2, SimpleRecord.class);
+
     AppendFiles append = table.newFastAppend();
+    if (branch != null) {
+      append.toBranch(branch);
+    }
+
     AppendFiles spyAppend = spy(append);
     doAnswer(
             invocation -> {
@@ -637,25 +698,47 @@ public class TestSparkDataWrite {
         CommitStateUnknownException.class,
         "Datacenter on Fire",
         () ->
-            df.select("id", "data")
+            df2.select("id", "data")
                 .sort("data")
                 .write()
                 .format("org.apache.iceberg.spark.source.ManualSource")
                 .option(ManualSource.TABLE_NAME, manualTableName)
                 .mode(SaveMode.Append)
-                .save(location.toString()));
+                .save(targetLocation));
 
     // Since write and commit succeeded, the rows should be readable
-    Dataset<Row> result = spark.read().format("iceberg").load(location.toString());
+    Dataset<Row> result = spark.read().format("iceberg").load(targetLocation);
     List<SimpleRecord> actual =
         result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
-    Assert.assertEquals("Number of rows should match", records.size(), actual.size());
-    Assert.assertEquals("Result rows should match", records, actual);
+    Assert.assertEquals(
+        "Number of rows should match", records.size() + records2.size(), actual.size());
+    Assertions.assertThat(actual)
+        .describedAs("Result rows should match")
+        .containsExactlyInAnyOrder(
+            ImmutableList.<SimpleRecord>builder()
+                .addAll(records)
+                .addAll(records2)
+                .build()
+                .toArray(new SimpleRecord[0]));
   }
 
   public enum IcebergOptionsType {
     NONE,
     TABLE,
     JOB
+  }
+
+  private String locationWithBranch(File location) {
+    if (branch == null) {
+      return location.toString();
+    }
+
+    return location + "#branch_" + branch;
+  }
+
+  private void createBranch(Table table) {
+    if (branch != null && !branch.equals(SnapshotRef.MAIN_BRANCH)) {
+      table.manageSnapshots().createBranch(branch, table.currentSnapshot().snapshotId()).commit();
+    }
   }
 }

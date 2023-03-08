@@ -50,6 +50,7 @@ class ChangelogRowReader extends BaseRowReader<ChangelogScanTask>
   ChangelogRowReader(SparkInputPartition partition) {
     this(
         partition.table(),
+        partition.branch(),
         partition.taskGroup(),
         partition.expectedSchema(),
         partition.isCaseSensitive());
@@ -57,10 +58,16 @@ class ChangelogRowReader extends BaseRowReader<ChangelogScanTask>
 
   ChangelogRowReader(
       Table table,
+      String branch,
       ScanTaskGroup<ChangelogScanTask> taskGroup,
       Schema expectedSchema,
       boolean caseSensitive) {
-    super(table, taskGroup, ChangelogUtil.dropChangelogMetadata(expectedSchema), caseSensitive);
+    super(
+        table,
+        branch,
+        taskGroup,
+        ChangelogUtil.dropChangelogMetadata(expectedSchema),
+        caseSensitive);
   }
 
   @Override

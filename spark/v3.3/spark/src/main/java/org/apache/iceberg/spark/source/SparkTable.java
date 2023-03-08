@@ -27,15 +27,18 @@ import java.util.Set;
 import org.apache.iceberg.BaseMetadataTable;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DeleteFiles;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Partitioning;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TableScan;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Evaluator;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ExpressionUtil;
@@ -114,11 +117,22 @@ public class SparkTable
   private final Long snapshotId;
   private final boolean refreshEagerly;
   private final Set<TableCapability> capabilities;
+  private String branch;
   private StructType lazyTableSchema = null;
   private SparkSession lazySpark = null;
 
   public SparkTable(Table icebergTable, boolean refreshEagerly) {
-    this(icebergTable, null, refreshEagerly);
+    this(icebergTable, (Long) null, refreshEagerly);
+  }
+
+  public SparkTable(Table icebergTable, String branch, boolean refreshEagerly) {
+    this(icebergTable, refreshEagerly);
+    this.branch = branch;
+    ValidationException.check(
+        branch != null
+            && (SnapshotRef.MAIN_BRANCH.equals(branch) || table().snapshot(branch) != null),
+        "Cannot operate against non-existing branch: %s",
+        branch);
   }
 
   public SparkTable(Table icebergTable, Long snapshotId, boolean refreshEagerly) {
@@ -159,9 +173,15 @@ public class SparkTable
     return new SparkTable(icebergTable, newSnapshotId, refreshEagerly);
   }
 
+  public SparkTable copyWithBranch(String targetBranch) {
+    return new SparkTable(icebergTable, targetBranch, refreshEagerly);
+  }
+
   private Schema snapshotSchema() {
     if (icebergTable instanceof BaseMetadataTable) {
       return icebergTable.schema();
+    } else if (branch != null) {
+      return SnapshotUtil.schemaFor(icebergTable, branch);
     } else {
       return SnapshotUtil.schemaFor(icebergTable, snapshotId, null);
     }
@@ -248,21 +268,24 @@ public class SparkTable
       icebergTable.refresh();
     }
 
-    CaseInsensitiveStringMap scanOptions = addSnapshotId(options, snapshotId);
+    CaseInsensitiveStringMap scanOptions =
+        branch != null ? options : addSnapshotId(options, snapshotId);
     return new SparkScanBuilder(sparkSession(), icebergTable, snapshotSchema(), scanOptions);
   }
 
   @Override
   public WriteBuilder newWriteBuilder(LogicalWriteInfo info) {
     Preconditions.checkArgument(
-        snapshotId == null, "Cannot write to table at a specific snapshot: %s", snapshotId);
+        branch != null || snapshotId == null,
+        "Cannot write to table at a specific snapshot: %s",
+        snapshotId);
 
-    return new SparkWriteBuilder(sparkSession(), icebergTable, info);
+    return new SparkWriteBuilder(sparkSession(), icebergTable, branch, info);
   }
 
   @Override
   public RowLevelOperationBuilder newRowLevelOperationBuilder(RowLevelOperationInfo info) {
-    return new SparkRowLevelOperationBuilder(sparkSession(), icebergTable, info);
+    return new SparkRowLevelOperationBuilder(sparkSession(), icebergTable, branch, info);
   }
 
   @Override
@@ -300,10 +323,14 @@ public class SparkTable
             .includeColumnStats()
             .ignoreResiduals();
 
+    if (branch != null) {
+      scan.useRef(branch);
+    }
+
     try (CloseableIterable<FileScanTask> tasks = scan.planFiles()) {
       Map<Integer, Evaluator> evaluators = Maps.newHashMap();
       StrictMetricsEvaluator metricsEvaluator =
-          new StrictMetricsEvaluator(table().schema(), deleteExpr);
+          new StrictMetricsEvaluator(SnapshotUtil.schemaFor(table(), branch), deleteExpr);
 
       return Iterables.all(
           tasks,
@@ -334,11 +361,17 @@ public class SparkTable
       return;
     }
 
-    icebergTable
-        .newDelete()
-        .set("spark.app.id", sparkSession().sparkContext().applicationId())
-        .deleteFromRowFilter(deleteExpr)
-        .commit();
+    DeleteFiles deleteFiles =
+        icebergTable
+            .newDelete()
+            .set("spark.app.id", sparkSession().sparkContext().applicationId())
+            .deleteFromRowFilter(deleteExpr);
+
+    if (branch != null) {
+      deleteFiles.toBranch(branch);
+    }
+
+    deleteFiles.commit();
   }
 
   @Override

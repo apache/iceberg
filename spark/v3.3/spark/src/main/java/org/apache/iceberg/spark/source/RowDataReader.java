@@ -47,6 +47,7 @@ class RowDataReader extends BaseRowReader<FileScanTask> implements PartitionRead
   RowDataReader(SparkInputPartition partition) {
     this(
         partition.table(),
+        partition.branch(),
         partition.taskGroup(),
         partition.expectedSchema(),
         partition.isCaseSensitive());
@@ -54,11 +55,12 @@ class RowDataReader extends BaseRowReader<FileScanTask> implements PartitionRead
 
   RowDataReader(
       Table table,
+      String branch,
       ScanTaskGroup<FileScanTask> taskGroup,
       Schema expectedSchema,
       boolean caseSensitive) {
 
-    super(table, taskGroup, expectedSchema, caseSensitive);
+    super(table, branch, taskGroup, expectedSchema, caseSensitive);
 
     numSplits = taskGroup.tasks().size();
     LOG.debug("Reading {} file split(s) for table {}", numSplits, table.name());

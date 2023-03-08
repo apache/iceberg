@@ -47,6 +47,7 @@ class PositionDeletesRowReader extends BaseRowReader<PositionDeletesScanTask>
   PositionDeletesRowReader(SparkInputPartition partition) {
     this(
         partition.table(),
+        partition.branch(),
         partition.taskGroup(),
         partition.expectedSchema(),
         partition.isCaseSensitive());
@@ -54,11 +55,12 @@ class PositionDeletesRowReader extends BaseRowReader<PositionDeletesScanTask>
 
   PositionDeletesRowReader(
       Table table,
+      String branch,
       ScanTaskGroup<PositionDeletesScanTask> taskGroup,
       Schema expectedSchema,
       boolean caseSensitive) {
 
-    super(table, taskGroup, expectedSchema, caseSensitive);
+    super(table, branch, taskGroup, expectedSchema, caseSensitive);
 
     int numSplits = taskGroup.tasks().size();
     LOG.debug("Reading {} position delete file split(s) for table {}", numSplits, table.name());

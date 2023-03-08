@@ -87,6 +87,7 @@ class SparkBatch implements Batch {
                         groupingKeyType,
                         taskGroups.get(index),
                         tableBroadcast,
+                        readConf.branch(),
                         expectedSchemaString,
                         caseSensitive,
                         localityEnabled));

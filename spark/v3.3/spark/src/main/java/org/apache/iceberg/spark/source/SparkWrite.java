@@ -202,6 +202,11 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
       operation.stageOnly();
     }
 
+    String branch = writeConf.branch();
+    if (branch != null) {
+      operation.toBranch(branch);
+    }
+
     try {
       long start = System.currentTimeMillis();
       operation.commit(); // abort is automatically called if this fails

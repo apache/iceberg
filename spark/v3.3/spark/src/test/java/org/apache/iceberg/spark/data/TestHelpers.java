@@ -50,6 +50,7 @@ import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableScan;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
@@ -797,9 +798,17 @@ public class TestHelpers {
   }
 
   public static Set<DataFile> dataFiles(Table table) {
-    Set<DataFile> dataFiles = Sets.newHashSet();
+    return dataFiles(table, null);
+  }
 
-    for (FileScanTask task : table.newScan().planFiles()) {
+  public static Set<DataFile> dataFiles(Table table, String branch) {
+    Set<DataFile> dataFiles = Sets.newHashSet();
+    TableScan scan = table.newScan();
+    if (branch != null) {
+      scan.useRef(branch);
+    }
+
+    for (FileScanTask task : scan.planFiles()) {
       dataFiles.add(task.file());
     }
 
