@@ -14,8 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=redefined-outer-name,arguments-renamed
-# pylint: disable=W0511
+# pylint: disable=redefined-outer-name,arguments-renamed,fixme
 """FileIO implementation for reading and writing table files that uses pyarrow.fs
 
 This file contains a FileIO implementation that relies on the filesystem interface provided
@@ -507,14 +506,14 @@ def pyarrow_to_schema(schema: pa.Schema) -> Schema:
 
 
 @singledispatch
-def visit_pyarrow(obj: pa.DataType, visitor: PyarrowSchemaVisitor[T]) -> T:
+def visit_pyarrow(obj: pa.DataType, visitor: PyArrowSchemaVisitor[T]) -> T:
     """A generic function for applying a pyarrow schema visitor to any point within a schema
 
     The function traverses the schema in post-order fashion
 
     Args:
-        obj(Schema | IcebergType): An instance of a Schema or an IcebergType
-        visitor (PyarrowSchemaVisitor[T]): An instance of an implementation of the generic PyarrowSchemaVisitor base class
+        obj(Schema | pa.DataType): An instance of a Schema or an IcebergType
+        visitor (PyArrowSchemaVisitor[T]): An instance of an implementation of the generic PyarrowSchemaVisitor base class
 
     Raises:
         NotImplementedError: If attempting to visit an unrecognized object type
@@ -523,7 +522,7 @@ def visit_pyarrow(obj: pa.DataType, visitor: PyarrowSchemaVisitor[T]) -> T:
 
 
 @visit_pyarrow.register(pa.StructType)
-def _(obj: pa.StructType, visitor: PyarrowSchemaVisitor[T]) -> T:
+def _(obj: pa.StructType, visitor: PyArrowSchemaVisitor[T]) -> T:
     struct_results = []
     for field in obj:
         visitor.before_field(field)
@@ -535,7 +534,7 @@ def _(obj: pa.StructType, visitor: PyarrowSchemaVisitor[T]) -> T:
 
 
 @visit_pyarrow.register(pa.ListType)
-def _(obj: pa.ListType, visitor: PyarrowSchemaVisitor[T]) -> T:
+def _(obj: pa.ListType, visitor: PyArrowSchemaVisitor[T]) -> T:
     visitor.before_list_element(obj.value_field)
     list_result = visit_pyarrow(obj.value_field.type, visitor)
     visitor.after_list_element(obj.value_field)
@@ -543,7 +542,7 @@ def _(obj: pa.ListType, visitor: PyarrowSchemaVisitor[T]) -> T:
 
 
 @visit_pyarrow.register(pa.MapType)
-def _(obj: pa.MapType, visitor: PyarrowSchemaVisitor[T]) -> T:
+def _(obj: pa.MapType, visitor: PyArrowSchemaVisitor[T]) -> T:
     visitor.before_map_key(obj.key_field)
     key_result = visit_pyarrow(obj.key_field.type, visitor)
     visitor.after_map_key(obj.key_field)
@@ -554,13 +553,13 @@ def _(obj: pa.MapType, visitor: PyarrowSchemaVisitor[T]) -> T:
 
 
 @visit_pyarrow.register(pa.DataType)
-def _(obj: pa.DataType, visitor: PyarrowSchemaVisitor[T]) -> T:
+def _(obj: pa.DataType, visitor: PyArrowSchemaVisitor[T]) -> T:
     if pa.types.is_nested(obj):
         raise TypeError(f"Expected primitive type, got {type(obj)}")
     return visitor.primitive(obj)
 
 
-class PyarrowSchemaVisitor(Generic[T], ABC):
+class PyArrowSchemaVisitor(Generic[T], ABC):
     def before_field(self, field: pa.Field) -> None:
         """Override this method to perform an action immediately before visiting a field."""
 
@@ -612,10 +611,10 @@ def _get_field_id(field: pa.Field) -> int:
             key = k.decode()
             if key.endswith("field_id"):
                 return int(v.decode())
-    raise ValueError(f"Field {field.name} does not have a field_id")
+    raise ValueError(f"Field does not have a field_id: {field.name}")
 
 
-class _ConvertToIceberg(PyarrowSchemaVisitor[IcebergType], ABC):
+class _ConvertToIceberg(PyArrowSchemaVisitor[IcebergType], ABC):
     def schema(self, schema: pa.Schema, field_results: List[IcebergType]) -> Schema:
         fields = []
         for i in range(len(schema.names)):
