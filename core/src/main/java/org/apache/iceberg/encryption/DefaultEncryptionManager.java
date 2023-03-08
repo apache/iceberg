@@ -27,16 +27,6 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.PropertyUtil;
 
 public class DefaultEncryptionManager implements EncryptionManager {
-  public static final String ENCRYPTION_TABLE_KEY = "encryption.table.key.id";
-
-  public static final String ENCRYPTION_DEK_LENGTH = "encryption.data.key.length";
-  public static final int ENCRYPTION_DEK_LENGTH_DEFAULT = 16;
-
-  public static final int ENCRYPTION_AAD_LENGTH_DEFAULT = 16;
-
-  /** Implementation of the KMS client for envelope encryption */
-  public static final String ENCRYPTION_KMS_CLIENT_IMPL = "encryption.kms.client-impl";
-
   private final KeyManagementClient kmsClient;
   private String tableKeyId;
   private int dataKeyLength;
@@ -65,19 +55,21 @@ public class DefaultEncryptionManager implements EncryptionManager {
 
     this.dataKeyLength =
         PropertyUtil.propertyAsInt(
-            encryptionProperties, ENCRYPTION_DEK_LENGTH, ENCRYPTION_DEK_LENGTH_DEFAULT);
+            encryptionProperties,
+            EncryptionProperties.ENCRYPTION_DEK_LENGTH,
+            EncryptionProperties.ENCRYPTION_DEK_LENGTH_DEFAULT);
   }
 
   @Override
   public EncryptedOutputFile encrypt(OutputFile rawOutput) {
     if (null == workerRNG) {
-      workerRNG = new SecureRandom();
+      createSecureRandomGenerator();
     }
 
     ByteBuffer fileDek = ByteBuffer.allocate(dataKeyLength);
     workerRNG.nextBytes(fileDek.array());
 
-    ByteBuffer aadPrefix = ByteBuffer.allocate(ENCRYPTION_AAD_LENGTH_DEFAULT);
+    ByteBuffer aadPrefix = ByteBuffer.allocate(EncryptionProperties.ENCRYPTION_AAD_LENGTH_DEFAULT);
     workerRNG.nextBytes(aadPrefix.array());
 
     KeyMetadata fileEnvelopeMetadata = new KeyMetadata(fileDek, null, aadPrefix);
@@ -91,6 +83,13 @@ public class DefaultEncryptionManager implements EncryptionManager {
       throw new RuntimeException(
           "Unencrypted file " + encrypted.encryptedInputFile().location() + " in encrypted table");
     }
+
+    // Native decryption: simply return the input file. Parquet decryption will get the key from key
+    // metadata.
     return encrypted.encryptedInputFile();
+  }
+
+  private void createSecureRandomGenerator() {
+    workerRNG = new SecureRandom();
   }
 }
