@@ -242,7 +242,7 @@ class HiveCatalog(Catalog):
             identifier=(table.dbName, table.tableName),
             metadata=metadata,
             metadata_location=metadata_location,
-            io=self._load_file_io(metadata.properties),
+            io=self._load_file_io(metadata.properties, metadata_location),
         )
 
     def create_table(

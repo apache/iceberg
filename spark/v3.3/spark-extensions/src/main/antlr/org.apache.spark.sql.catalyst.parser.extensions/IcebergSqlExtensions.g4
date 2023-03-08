@@ -160,6 +160,7 @@ transformArgument
 expression
     : constant
     | stringMap
+    | stringArray
     ;
 
 constant
@@ -171,6 +172,10 @@ constant
 
 stringMap
     : MAP '(' constant (',' constant)* ')'
+    ;
+
+stringArray
+    : ARRAY '(' constant (',' constant)* ')'
     ;
 
 booleanValue
@@ -274,6 +279,7 @@ TRUE: 'TRUE';
 FALSE: 'FALSE';
 
 MAP: 'MAP';
+ARRAY: 'ARRAY';
 
 PLUS: '+';
 MINUS: '-';

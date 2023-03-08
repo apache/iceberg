@@ -35,6 +35,7 @@ import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.Configurable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.SupportsBulkOperations;
+import org.apache.iceberg.metrics.LoggingMetricsReporter;
 import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -407,12 +408,18 @@ public class CatalogUtil {
    *
    * <p>The implementation must have a no-arg constructor.
    *
-   * @param impl full class name of a custom {@link MetricsReporter} implementation
+   * @param properties catalog properties which contains class name of a custom {@link
+   *     MetricsReporter} implementation
    * @return An initialized {@link MetricsReporter}.
    * @throws IllegalArgumentException if class path not found or right constructor not found or the
    *     loaded class cannot be cast to the given interface type
    */
-  public static MetricsReporter loadMetricsReporter(String impl) {
+  public static MetricsReporter loadMetricsReporter(Map<String, String> properties) {
+    String impl = properties.get(CatalogProperties.METRICS_REPORTER_IMPL);
+    if (impl == null) {
+      return LoggingMetricsReporter.instance();
+    }
+
     LOG.info("Loading custom MetricsReporter implementation: {}", impl);
     DynConstructors.Ctor<MetricsReporter> ctor;
     try {
@@ -436,6 +443,8 @@ public class CatalogUtil {
               "Cannot initialize MetricsReporter, %s does not implement MetricsReporter.", impl),
           e);
     }
+
+    reporter.initialize(properties);
 
     return reporter;
   }

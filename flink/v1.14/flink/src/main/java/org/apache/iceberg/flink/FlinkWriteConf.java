@@ -172,4 +172,12 @@ public class FlinkWriteConf {
         .defaultValue(FlinkConfigOptions.TABLE_EXEC_ICEBERG_WORKER_POOL_SIZE.defaultValue())
         .parse();
   }
+
+  public String branch() {
+    return confParser
+        .stringConf()
+        .option(FlinkWriteOptions.BRANCH.key())
+        .defaultValue(FlinkWriteOptions.BRANCH.defaultValue())
+        .parse();
+  }
 }

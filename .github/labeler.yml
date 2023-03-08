@@ -46,7 +46,6 @@ CORE:
   - core/**/*
 PYTHON:
   - python/**/*
-  - python_legacy/**/*
 PARQUET:
   - parquet/**/*
 ARROW:

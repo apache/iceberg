@@ -108,6 +108,7 @@ public class AggregateEvaluator {
       this.values = values;
     }
 
+    @Override
     public int size() {
       return values.length;
     }

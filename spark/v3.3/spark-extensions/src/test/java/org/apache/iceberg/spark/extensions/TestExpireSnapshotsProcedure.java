@@ -359,6 +359,59 @@ public class TestExpireSnapshotsProcedure extends SparkExtensionsTestBase {
   }
 
   @Test
+  public void testExpireSnapshotsWithSnapshotId() {
+    sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
+
+    sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
+    sql("INSERT INTO TABLE %s VALUES (2, 'b')", tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    Assert.assertEquals("Should be 2 snapshots", 2, Iterables.size(table.snapshots()));
+
+    // Expiring the snapshot specified by snapshot_id should keep only a single snapshot.
+    long firstSnapshotId = table.currentSnapshot().parentId();
+    sql(
+        "CALL %s.system.expire_snapshots(" + "table => '%s'," + "snapshot_ids => ARRAY(%d))",
+        catalogName, tableIdent, firstSnapshotId);
+
+    // There should only be one single snapshot left.
+    table.refresh();
+    Assert.assertEquals("Should be 1 snapshots", 1, Iterables.size(table.snapshots()));
+    Assert.assertEquals(
+        "Snapshot ID should not be present",
+        0,
+        Iterables.size(
+            Iterables.filter(
+                table.snapshots(), snapshot -> snapshot.snapshotId() == firstSnapshotId)));
+  }
+
+  @Test
+  public void testExpireSnapshotShouldFailForCurrentSnapshot() {
+    sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
+
+    sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
+    sql("INSERT INTO TABLE %s VALUES (2, 'b')", tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    Assert.assertEquals("Should be 2 snapshots", 2, Iterables.size(table.snapshots()));
+
+    AssertHelpers.assertThrows(
+        "Should reject call",
+        IllegalArgumentException.class,
+        "Cannot expire",
+        () ->
+            sql(
+                "CALL %s.system.expire_snapshots("
+                    + "table => '%s',"
+                    + "snapshot_ids => ARRAY(%d, %d))",
+                catalogName,
+                tableIdent,
+                table.currentSnapshot().snapshotId(),
+                table.currentSnapshot().parentId()));
+  }
+
+  @Test
   public void testExpireSnapshotsProcedureWorksWithSqlComments() {
     // Ensure that systems such as dbt, that inject comments into the generated SQL files, will
     // work with Iceberg-specific DDL

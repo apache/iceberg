@@ -35,6 +35,7 @@ import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.actions.BaseExpireSnapshotsActionResult;
 import org.apache.iceberg.actions.ExpireSnapshots;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.io.SupportsBulkOperations;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -74,18 +75,11 @@ public class ExpireSnapshotsSparkAction extends BaseSparkAction<ExpireSnapshotsS
 
   private final Table table;
   private final TableOperations ops;
-  private final Consumer<String> defaultDelete =
-      new Consumer<String>() {
-        @Override
-        public void accept(String file) {
-          ops.io().deleteFile(file);
-        }
-      };
 
   private final Set<Long> expiredSnapshotIds = Sets.newHashSet();
   private Long expireOlderThanValue = null;
   private Integer retainLastValue = null;
-  private Consumer<String> deleteFunc = defaultDelete;
+  private Consumer<String> deleteFunc = null;
   private ExecutorService deleteExecutorService = null;
   private Dataset<FileInfo> expiredFileDS = null;
 
@@ -265,7 +259,22 @@ public class ExpireSnapshotsSparkAction extends BaseSparkAction<ExpireSnapshotsS
   }
 
   private ExpireSnapshots.Result deleteFiles(Iterator<FileInfo> files) {
-    DeleteSummary summary = deleteFiles(deleteExecutorService, deleteFunc, files);
+    DeleteSummary summary;
+    if (deleteFunc == null && table.io() instanceof SupportsBulkOperations) {
+      summary = deleteFiles((SupportsBulkOperations) table.io(), files);
+    } else {
+
+      if (deleteFunc == null) {
+        LOG.info(
+            "Table IO {} does not support bulk operations. Using non-bulk deletes.",
+            table.io().getClass().getName());
+        summary = deleteFiles(deleteExecutorService, table.io()::deleteFile, files);
+      } else {
+        LOG.info("Custom delete function provided. Using non-bulk deletes");
+        summary = deleteFiles(deleteExecutorService, deleteFunc, files);
+      }
+    }
+
     LOG.info("Deleted {} total files", summary.totalFilesCount());
 
     return new BaseExpireSnapshotsActionResult(

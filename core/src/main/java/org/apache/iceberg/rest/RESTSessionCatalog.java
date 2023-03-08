@@ -57,7 +57,6 @@ import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.hadoop.Configurable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.ResolvingFileIO;
-import org.apache.iceberg.metrics.LoggingMetricsReporter;
 import org.apache.iceberg.metrics.MetricsReport;
 import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -123,7 +122,7 @@ public class RESTSessionCatalog extends BaseSessionCatalog
   }
 
   public RESTSessionCatalog() {
-    this(config -> HTTPClient.builder().uri(config.get(CatalogProperties.URI)).build());
+    this(config -> HTTPClient.builder(config).uri(config.get(CatalogProperties.URI)).build());
   }
 
   RESTSessionCatalog(Function<Map<String, String>, RESTClient> clientBuilder) {
@@ -176,15 +175,16 @@ public class RESTSessionCatalog extends BaseSessionCatalog
     this.client = clientBuilder.apply(mergedProps);
     this.paths = ResourcePaths.forCatalogProperties(mergedProps);
 
+    String token = mergedProps.get(OAuth2Properties.TOKEN);
     this.catalogAuth = new AuthSession(baseHeaders, null, null, credential, scope);
     if (authResponse != null) {
       this.catalogAuth =
           AuthSession.fromTokenResponse(
               client, tokenRefreshExecutor(), authResponse, startTimeMillis, catalogAuth);
-    } else if (initToken != null) {
+    } else if (token != null) {
       this.catalogAuth =
           AuthSession.fromAccessToken(
-              client, tokenRefreshExecutor(), initToken, expiresAtMillis(mergedProps), catalogAuth);
+              client, tokenRefreshExecutor(), token, expiresAtMillis(mergedProps), catalogAuth);
     }
 
     String ioImpl = mergedProps.get(CatalogProperties.FILE_IO_IMPL);
@@ -198,11 +198,7 @@ public class RESTSessionCatalog extends BaseSessionCatalog
                     mergedProps, REST_SNAPSHOT_LOADING_MODE, SnapshotMode.ALL.name())
                 .toUpperCase(Locale.US));
 
-    String metricsReporterImpl = mergedProps.get(CatalogProperties.METRICS_REPORTER_IMPL);
-    this.reporter =
-        null != metricsReporterImpl
-            ? CatalogUtil.loadMetricsReporter(metricsReporterImpl)
-            : LoggingMetricsReporter.instance();
+    this.reporter = CatalogUtil.loadMetricsReporter(mergedProps);
 
     this.reportingViaRestEnabled =
         PropertyUtil.propertyAsBoolean(mergedProps, REST_METRICS_REPORTING_ENABLED, true);
