@@ -331,6 +331,9 @@ abstract class BaseSparkAction<ThisT> {
       } else if (MANIFEST_LIST.equalsIgnoreCase(type)) {
         manifestListsCount.addAndGet(numFiles);
 
+      } else if (STATISTICS_FILES.equalsIgnoreCase(type)) {
+        statisticsFilesCount.addAndGet(numFiles);
+
       } else if (OTHERS.equalsIgnoreCase(type)) {
         otherFilesCount.addAndGet(numFiles);
 

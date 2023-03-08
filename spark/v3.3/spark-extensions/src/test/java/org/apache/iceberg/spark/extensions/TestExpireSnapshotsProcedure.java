@@ -47,7 +47,6 @@ import org.apache.iceberg.puffin.PuffinWriter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkCatalog;
 import org.apache.iceberg.spark.data.TestHelpers;
 import org.apache.iceberg.spark.source.SimpleRecord;
@@ -153,10 +152,7 @@ public class TestExpireSnapshotsProcedure extends SparkExtensionsTestBase {
 
     List<Object[]> output =
         sql(
-            "CALL %s.system.expire_snapshots("
-                + "older_than => TIMESTAMP '%s',"
-                + "table => '%s',"
-                + "retain_last => 1)",
+            "CALL %s.system.expire_snapshots(older_than => TIMESTAMP '%s',table => '%s')",
             catalogName, currentTimestamp, tableIdent);
     assertEquals(
         "Procedure output must match", ImmutableList.of(row(0L, 0L, 0L, 0L, 1L, 0L)), output);
@@ -248,8 +244,7 @@ public class TestExpireSnapshotsProcedure extends SparkExtensionsTestBase {
             "CALL %s.system.expire_snapshots("
                 + "older_than => TIMESTAMP '%s',"
                 + "table => '%s',"
-                + "max_concurrent_deletes => %s,"
-                + "retain_last => 1)",
+                + "max_concurrent_deletes => %s)",
             catalogName, currentTimestamp, tableIdent, 4);
     assertEquals(
         "Expiring snapshots concurrently should succeed",
@@ -300,7 +295,7 @@ public class TestExpireSnapshotsProcedure extends SparkExtensionsTestBase {
         .append();
     sql("DELETE FROM %s WHERE id=1", tableName);
 
-    Table table = Spark3Util.loadIcebergTable(spark, tableName);
+    Table table = validationCatalog.loadTable(tableIdent);
 
     Assert.assertEquals(
         "Should have 1 delete manifest", 1, TestHelpers.deleteManifests(table).size());
@@ -335,10 +330,7 @@ public class TestExpireSnapshotsProcedure extends SparkExtensionsTestBase {
     Timestamp currentTimestamp = Timestamp.from(Instant.ofEpochMilli(System.currentTimeMillis()));
     List<Object[]> output =
         sql(
-            "CALL %s.system.expire_snapshots("
-                + "older_than => TIMESTAMP '%s',"
-                + "table => '%s',"
-                + "retain_last => 1)",
+            "CALL %s.system.expire_snapshots(older_than => TIMESTAMP '%s',table => '%s')",
             catalogName, currentTimestamp, tableIdent);
 
     assertEquals(
@@ -369,7 +361,6 @@ public class TestExpireSnapshotsProcedure extends SparkExtensionsTestBase {
             "CALL %s.system.expire_snapshots("
                 + "older_than => TIMESTAMP '%s',"
                 + "table => '%s',"
-                + "retain_last => 1, "
                 + "stream_results => true)",
             catalogName, currentTimestamp, tableIdent);
     assertEquals(
@@ -452,8 +443,7 @@ public class TestExpireSnapshotsProcedure extends SparkExtensionsTestBase {
             + "/* And comments that span *multiple* \n"
             + " lines */ CALL /* this is the actual CALL */ %s.system.expire_snapshots("
             + "   older_than => TIMESTAMP '%s',"
-            + "   table => '%s',"
-            + "   retain_last => 1)";
+            + "   table => '%s')";
     List<Object[]> output = sql(callStatement, catalogName, currentTimestamp, tableIdent);
     assertEquals(
         "Procedure output must match", ImmutableList.of(row(0L, 0L, 0L, 0L, 1L, 0L)), output);
@@ -465,12 +455,9 @@ public class TestExpireSnapshotsProcedure extends SparkExtensionsTestBase {
 
   @Test
   public void testExpireSnapshotsWithStatisticFiles() throws Exception {
-    sql(
-        "CREATE TABLE %s USING iceberg "
-            + "TBLPROPERTIES('format-version'='2') "
-            + "AS SELECT 10 int, 'abc' data",
-        tableName);
-    Table table = Spark3Util.loadIcebergTable(spark, tableName);
+    sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
+    sql("INSERT INTO TABLE %s VALUES (10, 'abc')", tableName);
+    Table table = validationCatalog.loadTable(tableIdent);
     String statsFileLocation1 = statsFileLocation(table.location());
     StatisticsFile statisticsFile1 =
         writeStatsFile(
@@ -481,7 +468,7 @@ public class TestExpireSnapshotsProcedure extends SparkExtensionsTestBase {
     table.updateStatistics().setStatistics(statisticsFile1.snapshotId(), statisticsFile1).commit();
 
     sql("INSERT INTO %s SELECT 20, 'def'", tableName);
-    table = Spark3Util.loadIcebergTable(spark, tableName);
+    table.refresh();
     String statsFileLocation2 = statsFileLocation(table.location());
     StatisticsFile statisticsFile2 =
         writeStatsFile(
@@ -491,18 +478,16 @@ public class TestExpireSnapshotsProcedure extends SparkExtensionsTestBase {
             table.io());
     table.updateStatistics().setStatistics(statisticsFile2.snapshotId(), statisticsFile2).commit();
 
+    waitUntilAfter(table.currentSnapshot().timestampMillis());
+
     Timestamp currentTimestamp = Timestamp.from(Instant.ofEpochMilli(System.currentTimeMillis()));
     List<Object[]> output =
         sql(
-            "CALL %s.system.expire_snapshots("
-                + "older_than => TIMESTAMP '%s',"
-                + "table => '%s',"
-                + "retain_last => 1, "
-                + "stream_results => true)",
+            "CALL %s.system.expire_snapshots(older_than => TIMESTAMP '%s',table => '%s')",
             catalogName, currentTimestamp, tableIdent);
     Assertions.assertThat(output.get(0)[5]).as("should be 1 deleted statistics file").isEqualTo(1L);
 
-    table = Spark3Util.loadIcebergTable(spark, tableName);
+    table.refresh();
     List<StatisticsFile> statsWithSnapshotId1 =
         table.statisticsFiles().stream()
             .filter(statisticsFile -> statisticsFile.snapshotId() == statisticsFile1.snapshotId())
