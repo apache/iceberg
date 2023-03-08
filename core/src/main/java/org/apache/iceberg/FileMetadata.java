@@ -58,7 +58,6 @@ public class FileMetadata {
     private Map<Integer, ByteBuffer> upperBounds = null;
     private ByteBuffer keyMetadata = null;
     private Integer sortOrderId = null;
-
     private List<Long> splitOffsets = null;
 
     Builder(PartitionSpec spec) {
