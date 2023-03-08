@@ -141,8 +141,8 @@ abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends S
               .map(field -> fieldsById.get(field.fieldId()))
               .collect(Collectors.toList());
 
-      this.groupingKeyTransforms =
-          Spark3Util.toTransforms(SnapshotUtil.schemaFor(table(), branch()), groupingKeyFields);
+      Schema schema = SnapshotUtil.schemaFor(table(), branch());
+      this.groupingKeyTransforms = Spark3Util.toTransforms(schema, groupingKeyFields);
     }
 
     return groupingKeyTransforms;
