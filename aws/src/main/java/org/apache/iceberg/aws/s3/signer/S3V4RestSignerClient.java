@@ -70,8 +70,8 @@ public abstract class S3V4RestSignerClient
   private static final Cache<Key, SignedComponent> SIGNED_COMPONENT_CACHE =
       Caffeine.newBuilder().expireAfterWrite(30, TimeUnit.SECONDS).maximumSize(100).build();
 
-  private static final ScheduledExecutorService TOKEN_REFRESH_EXECUTOR =
-      ThreadPools.newScheduledPool("s3-signer-token-refresh", 1);
+  private static final AtomicReference<ScheduledExecutorService> TOKEN_REFRESH_EXECUTOR =
+      new AtomicReference<>();
   private static final String SCOPE = "sign";
   private static final AtomicReference<RESTClient> HTTP_CLIENT_REF = new AtomicReference<>();
 
@@ -113,6 +113,19 @@ public abstract class S3V4RestSignerClient
         OAuth2Properties.TOKEN_REFRESH_ENABLED_DEFAULT);
   }
 
+  private ScheduledExecutorService tokenRefreshExecutor() {
+    if (!keepTokenRefreshed()) {
+      return null;
+    }
+
+    if (null == TOKEN_REFRESH_EXECUTOR.get()) {
+      TOKEN_REFRESH_EXECUTOR.compareAndSet(
+          null, ThreadPools.newScheduledPool("s3-signer-token-refresh", 1));
+    }
+
+    return TOKEN_REFRESH_EXECUTOR.get();
+  }
+
   private RESTClient httpClient() {
     if (null == HTTP_CLIENT_REF.get()) {
       // TODO: should be closed
@@ -132,7 +145,7 @@ public abstract class S3V4RestSignerClient
     if (null != token) {
       return AuthSession.fromAccessToken(
           httpClient(),
-          keepTokenRefreshed() ? TOKEN_REFRESH_EXECUTOR : null,
+          tokenRefreshExecutor(),
           token,
           expiresAtMillis(properties()),
           new AuthSession(ImmutableMap.of(), token, null, credential(), SCOPE));
@@ -144,11 +157,7 @@ public abstract class S3V4RestSignerClient
       OAuthTokenResponse authResponse =
           OAuth2Util.fetchToken(httpClient(), session.headers(), credential(), SCOPE);
       return AuthSession.fromTokenResponse(
-          httpClient(),
-          keepTokenRefreshed() ? TOKEN_REFRESH_EXECUTOR : null,
-          authResponse,
-          startTimeMillis,
-          session);
+          httpClient(), tokenRefreshExecutor(), authResponse, startTimeMillis, session);
     }
 
     return AuthSession.empty();
