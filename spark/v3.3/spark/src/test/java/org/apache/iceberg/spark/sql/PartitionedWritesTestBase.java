@@ -58,7 +58,6 @@ public abstract class PartitionedWritesTestBase extends SparkCatalogTestBase {
 
     sql("INSERT INTO %s VALUES (4, 'd'), (5, 'e')", commitTarget());
 
-    sql("REFRESH TABLE " + commitTarget());
     Assert.assertEquals(
         "Should have 5 rows after insert",
         5L,
