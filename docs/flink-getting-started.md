@@ -212,7 +212,7 @@ CREATE CATALOG <catalog_name> WITH (
 The following properties can be set globally and are not limited to a specific catalog implementation:
 
 * `type`: Must be `iceberg`. (required)
-* `catalog-type`: `hive` or `hadoop` for built-in catalogs, or left unset for custom catalog implementations using catalog-impl. (Optional)
+* `catalog-type`: `hive`, `hadoop` or `rest` for built-in catalogs, or left unset for custom catalog implementations using catalog-impl. (Optional)
 * `catalog-impl`: The fully-qualified class name of a custom catalog implementation. Must be set if `catalog-type` is unset. (Optional)
 * `property-version`: Version number to describe the property version. This property can be used for backwards compatibility in case the property format changes. The current property version is `1`. (Optional)
 * `cache-enabled`: Whether to enable catalog cache, default value is `true`. (Optional)
@@ -259,6 +259,24 @@ The following properties can be set if using the Hadoop catalog:
 * `warehouse`: The HDFS directory to store metadata files and data files. (Required)
 
 We could execute the sql command `USE CATALOG hive_catalog` to set the current catalog.
+
+### REST catalog
+
+This creates an iceberg catalog named `rest_catalog` that can be configured using `'catalog-type'='rest'`, which loads tables from a REST catalog:
+
+```sql
+CREATE CATALOG rest_catalog WITH (
+  'type'='iceberg',
+  'catalog-type'='rest',
+  'uri'='https://localhost/'
+);
+```
+
+The following properties can be set if using the REST catalog:
+
+* `uri`: The URL to the REST Catalog (Required)
+* `credential`: A credential to authenticate against the REST catalog (Optional)
+* `token`: A token to interact with the REST catalog (Optional)
 
 ### Custom catalog
 
