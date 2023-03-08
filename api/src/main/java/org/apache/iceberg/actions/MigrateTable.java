@@ -52,6 +52,15 @@ public interface MigrateTable extends Action<MigrateTable, MigrateTable.Result> 
     throw new UnsupportedOperationException("Dropping a backup is not supported");
   }
 
+  /**
+   * if true, skip files which cannot be migrated into Iceberg
+   *
+   * @return this for method chaining
+   */
+  default MigrateTable skipOnError() {
+    throw new UnsupportedOperationException("Skip on error is not supported");
+  }
+
   /** The action result that contains a summary of the execution. */
   @Value.Immutable
   interface Result {

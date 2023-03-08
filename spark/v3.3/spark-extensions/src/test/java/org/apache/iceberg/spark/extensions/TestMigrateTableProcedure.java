@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.spark.extensions;
 
+import java.io.File;
 import java.io.IOException;
 import java.util.Map;
 import org.apache.iceberg.AssertHelpers;
@@ -200,5 +201,41 @@ public class TestMigrateTableProcedure extends SparkExtensionsTestBase {
         "Should have expected rows",
         ImmutableList.of(row(1L, "2023/05/30", java.sql.Date.valueOf("2023-05-30"))),
         sql("SELECT * FROM %s ORDER BY id", tableName));
+  }
+
+  @Test
+  public void testMigrateSkipOnError() throws IOException {
+    Assume.assumeTrue(catalogName.equals("spark_catalog"));
+
+    String location = temp.newFolder().toString();
+    sql(
+        "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'",
+        tableName, location);
+
+    sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
+    sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
+
+    File[] expectedFiles =
+        new File(location)
+            .listFiles((dir, name) -> !name.endsWith("crc") && !name.contains("_SUCCESS"));
+
+    Assert.assertEquals("Expected number of source files", 2, expectedFiles.length);
+
+    // Corrupt the second file
+    Assume.assumeTrue("Delete source file!", expectedFiles[1].delete());
+    Assume.assumeTrue("Create a empty source file!", expectedFiles[1].createNewFile());
+
+    AssertHelpers.assertThrows(
+        "Expected an exception",
+        RuntimeException.class,
+        "not a Parquet file (length is too low: 0)",
+        () -> scalarSql("CALL %s.system.migrate(table => '%s')", catalogName, tableName));
+
+    Object result =
+        scalarSql(
+            "CALL %s.system.migrate(" + "table => '%s', " + "skip_on_error => true)",
+            catalogName, tableName);
+
+    Assert.assertEquals(1L, result);
   }
 }

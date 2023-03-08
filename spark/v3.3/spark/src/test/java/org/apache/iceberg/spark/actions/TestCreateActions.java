@@ -28,9 +28,11 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.filefilter.TrueFileFilter;
 import org.apache.hadoop.fs.Path;
+import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.MigrateTable;
@@ -67,6 +69,7 @@ import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
+import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Assume;
@@ -404,6 +407,72 @@ public class TestCreateActions extends SparkCatalogTestBase {
     String dest = source;
     createSourceTable(CREATE_PARQUET, source);
     assertMigratedFileCount(SparkActions.get().migrateTable(source), source, dest);
+  }
+
+  @Test
+  public void testMigrateSkipOnError() throws Exception {
+    Assume.assumeTrue("Cannot migrate to a hadoop based catalog", !type.equals("hadoop"));
+    Assume.assumeTrue(
+        "Can only migrate from Spark Session Catalog", catalog.name().equals("spark_catalog"));
+    String source = sourceName("test_migrate_skip_on_error_table");
+    String dest = source;
+
+    File location = temp.newFolder();
+    spark.sql(String.format(CREATE_PARQUET, source, location));
+    CatalogTable table = loadSessionTable(source);
+    Seq<String> partitionColumns = table.partitionColumnNames();
+    String format = table.provider().get();
+
+    spark
+        .table(baseTableName)
+        .write()
+        .mode(SaveMode.Append)
+        .format(format)
+        .partitionBy(partitionColumns.toSeq())
+        .saveAsTable(source);
+
+    spark
+        .table(baseTableName)
+        .write()
+        .mode(SaveMode.Append)
+        .format(format)
+        .partitionBy(partitionColumns.toSeq())
+        .saveAsTable(source);
+
+    List<File> expectedFiles = expectedFiles(source).collect(Collectors.toList());
+
+    Assertions.assertThat(expectedFiles).hasSize(2);
+
+    // Corrupt the second file
+    File file = expectedFiles.get(1);
+    Assert.assertTrue("Delete source file!", file.delete());
+    Assert.assertTrue("Create a empty source file!", file.createNewFile());
+
+    MigrateTable migrateAction = SparkActions.get().migrateTable(source);
+
+    AssertHelpers.assertThrows(
+        "Expected an exception",
+        RuntimeException.class,
+        "not a Parquet file (length is too low: 0)",
+        migrateAction::execute);
+
+    // skip files which cannot be imported into Iceberg
+    migrateAction = SparkActions.get().migrateTable(source).skipOnError();
+
+    MigrateTable.Result migratedFiles = migrateAction.execute();
+    validateTables(source, dest);
+
+    SparkTable destTable = loadTable(dest);
+    Assert.assertEquals(
+        "Provider should be iceberg",
+        "iceberg",
+        destTable.properties().get(TableCatalog.PROP_PROVIDER));
+    List<Row> actual = spark.table(dest).collectAsList();
+
+    Assertions.assertThat(actual).hasSize(3);
+
+    Assert.assertEquals(
+        "Expected number of migrated files", 1, migratedFiles.migratedDataFilesCount());
   }
 
   @Test
@@ -978,6 +1047,11 @@ public class TestCreateActions extends SparkCatalogTestBase {
 
   private long expectedFilesCount(String source)
       throws NoSuchDatabaseException, NoSuchTableException, ParseException {
+    return expectedFiles(source).count();
+  }
+
+  private Stream<File> expectedFiles(String source)
+      throws NoSuchDatabaseException, NoSuchTableException, ParseException {
     CatalogTable sourceTable = loadSessionTable(source);
     List<URI> uris;
     if (sourceTable.partitionColumnNames().size() == 0) {
@@ -1000,8 +1074,7 @@ public class TestCreateActions extends SparkCatalogTestBase {
                 FileUtils.listFiles(
                     Paths.get(uri).toFile(), TrueFileFilter.INSTANCE, TrueFileFilter.INSTANCE)
                     .stream())
-        .filter(file -> !file.toString().endsWith("crc") && !file.toString().contains("_SUCCESS"))
-        .count();
+        .filter(file -> !file.toString().endsWith("crc") && !file.toString().contains("_SUCCESS"));
   }
 
   // Insert records into the destination, makes sure those records exist and source table is
