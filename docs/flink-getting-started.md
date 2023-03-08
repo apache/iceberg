@@ -1135,6 +1135,19 @@ Iceberg types are converted to Flink types according to the following table:
 | binary                     | varbinary(2147483647) |
 | decimal(P, S)              | decimal(P, S)         |
 
+
+## Configuration Options
+
+| Key                                             | Default                             | Type    | Description                                                                                                                                                        |
+|-------------------------------------------------|-------------------------------------|---------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| table.exec.iceberg.infer-source-parallelism     | true                                | boolean | If is false, parallelism of source are set by config. If is true, source parallelism is inferred according to splits number.                                       |
+| table.exec.iceberg.infer-source-parallelism.max | 100                                 | integer | Sets max infer parallelism for source operator.                                                                                                                    |
+| table.exec.iceberg.expose-split-locality-info   | (none)                              | boolean | Expose split host information to use Flink's locality aware split assigner.                                                                                        |
+| table.exec.iceberg.fetch-batch-record-count     | 2048                                | integer | The target number of records for Iceberg reader fetch batch.                                                                                                       |
+| table.exec.iceberg.worker-pool-size             | ThreadPools.WORKER_THREAD_POOL_SIZE | integer | The size of workers pool used to plan or scan manifests.                                                                                                           |
+| table.exec.iceberg.use-flip27-source            | false                               | boolean | Use the FLIP-27 based Iceberg source implementation.                                                                                                               |
+| table.exec.iceberg.split-assigner-type          | SIMPLE                              | enum    | Split assigner type that determine how splits are assigned to readers. <br/><br/> SIMPLE: simple assigner that doesn't provide any guarantee on order or locality. |
+
 ## Future improvement.
 
 There are some features that we do not yet support in the current flink iceberg integration work:
