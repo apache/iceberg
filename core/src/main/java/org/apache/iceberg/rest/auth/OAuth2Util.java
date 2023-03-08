@@ -566,7 +566,7 @@ public class OAuth2Util {
         expiresAtMillis = defaultExpiresAtMillis;
       }
 
-      if (null != expiresAtMillis) {
+      if (null != executor && null != expiresAtMillis) {
         scheduleTokenRefresh(client, executor, session, expiresAtMillis);
       }
 
@@ -614,7 +614,7 @@ public class OAuth2Util {
         expiresAtMillis = startTimeMillis + TimeUnit.SECONDS.toMillis(response.expiresInSeconds());
       }
 
-      if (null != expiresAtMillis) {
+      if (null != executor && null != expiresAtMillis) {
         scheduleTokenRefresh(client, executor, session, expiresAtMillis);
       }
 

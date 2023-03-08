@@ -16,32 +16,28 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.hive;
+package org.apache.iceberg.inmemory;
 
-import java.io.IOException;
-import org.apache.hadoop.security.UserGroupInformation;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.apache.iceberg.catalog.CatalogTests;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.junit.jupiter.api.BeforeEach;
 
-public class HiveHadoopUtil {
+public class TestInMemoryCatalog extends CatalogTests<InMemoryCatalog> {
+  private InMemoryCatalog catalog;
 
-  private static final Logger LOG = LoggerFactory.getLogger(HiveHadoopUtil.class);
+  @BeforeEach
+  public void before() {
+    this.catalog = new InMemoryCatalog();
+    this.catalog.initialize("in-memory-catalog", ImmutableMap.of());
+  }
 
-  private HiveHadoopUtil() {}
+  @Override
+  protected InMemoryCatalog catalog() {
+    return catalog;
+  }
 
-  public static String currentUser() {
-    String username = null;
-    try {
-      username = UserGroupInformation.getCurrentUser().getShortUserName();
-    } catch (IOException e) {
-      LOG.warn("Failed to get Hadoop user", e);
-    }
-
-    if (username != null) {
-      return username;
-    } else {
-      LOG.warn("Hadoop user is null, defaulting to user.name");
-      return System.getProperty("user.name");
-    }
+  @Override
+  protected boolean requiresNamespaceCreate() {
+    return true;
   }
 }

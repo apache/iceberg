@@ -57,7 +57,6 @@ import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.hadoop.Configurable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.ResolvingFileIO;
-import org.apache.iceberg.metrics.LoggingMetricsReporter;
 import org.apache.iceberg.metrics.MetricsReport;
 import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -101,7 +100,7 @@ public class RESTSessionCatalog extends BaseSessionCatalog
   private final Function<Map<String, String>, RESTClient> clientBuilder;
   private Cache<String, AuthSession> sessions = null;
   private AuthSession catalogAuth = null;
-  private boolean refreshAuthByDefault = false;
+  private boolean keepTokenRefreshed = true;
   private RESTClient client = null;
   private ResourcePaths paths = null;
   private SnapshotMode snapshotMode = null;
@@ -123,7 +122,7 @@ public class RESTSessionCatalog extends BaseSessionCatalog
   }
 
   public RESTSessionCatalog() {
-    this(config -> HTTPClient.builder().uri(config.get(CatalogProperties.URI)).build());
+    this(config -> HTTPClient.builder(config).uri(config.get(CatalogProperties.URI)).build());
   }
 
   RESTSessionCatalog(Function<Map<String, String>, RESTClient> clientBuilder) {
@@ -168,23 +167,24 @@ public class RESTSessionCatalog extends BaseSessionCatalog
     Map<String, String> baseHeaders = configHeaders(mergedProps);
 
     this.sessions = newSessionCache(mergedProps);
-    this.refreshAuthByDefault =
+    this.keepTokenRefreshed =
         PropertyUtil.propertyAsBoolean(
             mergedProps,
-            CatalogProperties.AUTH_DEFAULT_REFRESH_ENABLED,
-            CatalogProperties.AUTH_DEFAULT_REFRESH_ENABLED_DEFAULT);
+            OAuth2Properties.TOKEN_REFRESH_ENABLED,
+            OAuth2Properties.TOKEN_REFRESH_ENABLED_DEFAULT);
     this.client = clientBuilder.apply(mergedProps);
     this.paths = ResourcePaths.forCatalogProperties(mergedProps);
 
+    String token = mergedProps.get(OAuth2Properties.TOKEN);
     this.catalogAuth = new AuthSession(baseHeaders, null, null, credential, scope);
     if (authResponse != null) {
       this.catalogAuth =
           AuthSession.fromTokenResponse(
               client, tokenRefreshExecutor(), authResponse, startTimeMillis, catalogAuth);
-    } else if (initToken != null) {
+    } else if (token != null) {
       this.catalogAuth =
           AuthSession.fromAccessToken(
-              client, tokenRefreshExecutor(), initToken, expiresAtMillis(mergedProps), catalogAuth);
+              client, tokenRefreshExecutor(), token, expiresAtMillis(mergedProps), catalogAuth);
     }
 
     String ioImpl = mergedProps.get(CatalogProperties.FILE_IO_IMPL);
@@ -198,11 +198,7 @@ public class RESTSessionCatalog extends BaseSessionCatalog
                     mergedProps, REST_SNAPSHOT_LOADING_MODE, SnapshotMode.ALL.name())
                 .toUpperCase(Locale.US));
 
-    String metricsReporterImpl = mergedProps.get(CatalogProperties.METRICS_REPORTER_IMPL);
-    this.reporter =
-        null != metricsReporterImpl
-            ? CatalogUtil.loadMetricsReporter(metricsReporterImpl)
-            : LoggingMetricsReporter.instance();
+    this.reporter = CatalogUtil.loadMetricsReporter(mergedProps);
 
     this.reportingViaRestEnabled =
         PropertyUtil.propertyAsBoolean(mergedProps, REST_METRICS_REPORTING_ENABLED, true);
@@ -476,6 +472,10 @@ public class RESTSessionCatalog extends BaseSessionCatalog
   }
 
   private ScheduledExecutorService tokenRefreshExecutor() {
+    if (!keepTokenRefreshed) {
+      return null;
+    }
+
     if (refreshExecutor == null) {
       synchronized (this) {
         if (refreshExecutor == null) {
@@ -830,7 +830,7 @@ public class RESTSessionCatalog extends BaseSessionCatalog
   }
 
   private Long expiresAtMillis(Map<String, String> properties) {
-    if (refreshAuthByDefault || properties.containsKey(OAuth2Properties.TOKEN_EXPIRES_IN_MS)) {
+    if (properties.containsKey(OAuth2Properties.TOKEN_EXPIRES_IN_MS)) {
       long expiresInMillis =
           PropertyUtil.propertyAsLong(
               properties,
