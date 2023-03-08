@@ -473,6 +473,7 @@ project(':iceberg-aws') {
     testImplementation "org.apache.httpcomponents.client5:httpclient5"
     testImplementation 'org.mock-server:mockserver-netty'
     testImplementation 'org.mock-server:mockserver-client-java'
+    testImplementation 'javax.xml.bind:jaxb-api'
     testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
   }
 

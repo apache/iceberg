@@ -73,6 +73,7 @@ import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.BucketAlreadyExistsException;
 import software.amazon.awssdk.services.s3.model.CreateBucketRequest;
 import software.amazon.awssdk.services.s3.model.DeleteObjectsRequest;
 import software.amazon.awssdk.services.s3.model.DeleteObjectsResponse;
@@ -88,6 +89,7 @@ public class TestS3FileIO {
   private final String batchDeletionBucketPrefix = "batch-delete-";
   private final int batchDeletionSize = 5;
   private S3FileIO s3FileIO;
+
   private final Map<String, String> properties =
       ImmutableMap.of(
           "s3.write.tags.tagKey1",
@@ -99,11 +101,9 @@ public class TestS3FileIO {
   public void before() {
     s3FileIO = new S3FileIO(() -> s3mock);
     s3FileIO.initialize(properties);
-    s3.get().createBucket(CreateBucketRequest.builder().bucket("bucket").build());
+    createBucket("bucket");
     for (int i = 1; i <= numBucketsForBatchDeletion; i++) {
-      s3.get()
-          .createBucket(
-              CreateBucketRequest.builder().bucket(batchDeletionBucketPrefix + i).build());
+      createBucket(batchDeletionBucketPrefix + i);
     }
     StaticClientFactory.client = s3mock;
   }
@@ -368,5 +368,13 @@ public class TestS3FileIO {
                 s3mock.putObject(
                     builder -> builder.bucket(s3URI.bucket()).key(s3URI.key() + i).build(),
                     RequestBody.empty()));
+  }
+
+  private void createBucket(String bucketName) {
+    try {
+      s3.get().createBucket(CreateBucketRequest.builder().bucket(bucketName).build());
+    } catch (BucketAlreadyExistsException e) {
+      // do nothing
+    }
   }
 }
