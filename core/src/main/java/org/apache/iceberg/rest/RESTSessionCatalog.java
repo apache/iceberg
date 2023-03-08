@@ -57,7 +57,6 @@ import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.hadoop.Configurable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.ResolvingFileIO;
-import org.apache.iceberg.metrics.LoggingMetricsReporter;
 import org.apache.iceberg.metrics.MetricsReport;
 import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -199,11 +198,7 @@ public class RESTSessionCatalog extends BaseSessionCatalog
                     mergedProps, REST_SNAPSHOT_LOADING_MODE, SnapshotMode.ALL.name())
                 .toUpperCase(Locale.US));
 
-    String metricsReporterImpl = mergedProps.get(CatalogProperties.METRICS_REPORTER_IMPL);
-    this.reporter =
-        null != metricsReporterImpl
-            ? CatalogUtil.loadMetricsReporter(metricsReporterImpl)
-            : LoggingMetricsReporter.instance();
+    this.reporter = CatalogUtil.loadMetricsReporter(mergedProps);
 
     this.reportingViaRestEnabled =
         PropertyUtil.propertyAsBoolean(mergedProps, REST_METRICS_REPORTING_ENABLED, true);
