@@ -517,13 +517,55 @@ def _read_deletes(fs: FileSystem, data_file: DataFile) -> Dict[str, pa.ChunkedAr
     }
 
 
+class _OrderedChunkedArrayConsumer:
+    """
+    A wrapper to consume multiple individually ordered chunked-arrays
+    simultaneously as an ordered iterator
+    """
+
+    arrays: Tuple[pa.ChunkedArray, ...]
+    arrays_len: Tuple[int, ...]
+    arrays_pos: List[int]
+
+    def _reset(self) -> None:
+        self.arrays_pos = [0] * len(self.arrays)
+        self.arrays_len = tuple(len(array) for array in self.arrays)
+
+    def __init__(self, *arrays: pa.ChunkedArray) -> None:
+        self.arrays = arrays
+        self._reset()
+
+    def __iter__(self) -> _OrderedChunkedArrayConsumer:
+        self._reset()
+        return self
+
+    def __next__(self) -> int:
+        next_val = None
+        next_pos = None
+        for peek_pos in range(len(self.arrays)):
+            array_pos = self.arrays_pos[peek_pos]
+            if array_pos < self.arrays_len[peek_pos]:
+                peek_val = self.arrays[peek_pos][array_pos].as_py()
+                if next_val is None or peek_val < next_val:  # type: ignore
+                    next_val = peek_val
+                    next_pos = peek_pos
+
+        if next_val is not None:
+            # Increment the consumed array with one
+            self.arrays_pos[next_pos] = self.arrays_pos[next_pos] + 1  # type: ignore
+
+            return next_val
+        else:
+            raise StopIteration
+
+
 def _task_to_table(
     fs: FileSystem,
     task: FileScanTask,
     bound_row_filter: BooleanExpression,
     projected_schema: Schema,
     projected_field_ids: Set[int],
-    positional_deletes: Optional[ChunkedArray],
+    positional_deletes: Optional[List[ChunkedArray]],
     case_sensitive: bool,
 ) -> Optional[pa.Table]:
     _, path = PyArrowFileIO.parse_location(task.file.file_path)
@@ -556,31 +598,37 @@ def _task_to_table(
             schema=parquet_schema,
             pre_buffer=True,
             buffer_size=8 * ONE_MEGABYTE,
-            filters=pyarrow_filter,
+            # We only want to filter when there are no positional deletes,
+            # Otherwise we'll mess up the positions
+            filters=pyarrow_filter if positional_deletes is None else None,
             columns=[col.name for col in file_project_schema.columns],
         )
 
         if positional_deletes is not None:
-            # When there are positional deletes, create a filter mask
-            # there is room for optimization here, maybe we can sort
-            # them earlier at insertion, but then you might need to do
-            # additional copying
-            sorted_deleted = iter(positional_deletes.combine_chunks().sort())
+            # It can be that there are multiple delete files on top,
+            # since the delete files themselves are sorted, we need to
+            # weave them together using the _OrderedChunkedArrayConsumer
+            sorted_deleted = _OrderedChunkedArrayConsumer(*positional_deletes)
 
             def generator() -> Generator[bool, None, None]:
-                deleted_pos = next(sorted_deleted).as_py()
+                deleted_pos = next(sorted_deleted)
                 for pos in range(len(arrow_table)):
                     if deleted_pos == pos:
-                        yield True
+                        yield False
                         try:
-                            deleted_pos = next(sorted_deleted).as_py()
+                            deleted_pos = next(sorted_deleted)
                         except StopIteration:
                             deleted_pos = -1
                     else:
-                        yield False
+                        yield True
 
+            # Filter on the positions
             mask = pa.array(generator(), type=pa.bool_())
             arrow_table = arrow_table.filter(mask)
+
+            # Apply the user filter
+            if pyarrow_filter is not None:
+                arrow_table.filter(pyarrow_filter)
 
         # If there is no data, we don't have to go through the schema
         if len(arrow_table) > 0:
@@ -628,7 +676,7 @@ def project_table(
 
     with ThreadPool() as pool:
         # Fetch the deletes
-        deletes_per_file: Dict[str, ChunkedArray] = {}
+        deletes_per_file: Dict[str, List[ChunkedArray]] = {}
         unique_deletes = set(chain.from_iterable([task.delete_files for task in tasks]))
         if len(unique_deletes) > 0:
             deletes_per_files: List[Dict[str, ChunkedArray]] = pool.starmap(
@@ -636,10 +684,10 @@ def project_table(
             )
             for delete in deletes_per_files:
                 for file, arr in delete.items():
-                    if first_arr := deletes_per_file.get(file):
-                        deletes_per_file[file] = pa.chunked_array([first_arr, arr], first_arr.type)
+                    if file in deletes_per_file:
+                        deletes_per_file[file].append(arr)
                     else:
-                        deletes_per_file[file] = arr
+                        deletes_per_file[file] = [arr]
 
         # Fetch teh data
         tables = [

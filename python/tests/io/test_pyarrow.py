@@ -57,6 +57,7 @@ from pyiceberg.io.pyarrow import (
     PyArrowFile,
     PyArrowFileIO,
     _ConvertToArrowSchema,
+    _OrderedChunkedArrayConsumer,
     _read_deletes,
     expression_to_pyarrow,
     project_table,
@@ -1141,9 +1142,9 @@ def test_projection_filter_on_unknown_field(schema_int_str: Schema, file_int_str
 
 
 @pytest.fixture
-def deletes_file(tmp_path: str) -> str:
-    path = "s3://bucket/default.db/table/data.parquet"
-    table = pa.table({"file_path": [path, path, path], "pos": [19, 22, 25]})
+def deletes_file(tmp_path: str, example_task: FileScanTask) -> str:
+    path = example_task.file.file_path
+    table = pa.table({"file_path": [path, path, path], "pos": [1, 3, 5]})
 
     deletes_file_path = f"{tmp_path}/deletes.parquet"
     pq.write_table(table, deletes_file_path)
@@ -1151,10 +1152,51 @@ def deletes_file(tmp_path: str) -> str:
     return deletes_file_path
 
 
-def test_read_deletes(deletes_file: str) -> None:
+def test_read_deletes(deletes_file: str, example_task: FileScanTask) -> None:
     deletes = _read_deletes(LocalFileSystem(), DataFile(file_path=deletes_file, file_format=FileFormat.PARQUET))
-    assert set(deletes.keys()) == {"s3://bucket/default.db/table/data.parquet"}
-    assert list(deletes.values())[0] == pa.chunked_array([[19, 22, 25]])
+    assert set(deletes.keys()) == {example_task.file.file_path}
+    assert list(deletes.values())[0] == pa.chunked_array([[1, 3, 5]])
+
+
+def test_delete(deletes_file: str, example_task: FileScanTask, table_schema_simple: Schema) -> None:
+    metadata_location = "file://a/b/c.json"
+    example_task_with_delete = FileScanTask(
+        data_file=example_task.file,
+        delete_files={DataFile(content=DataFileContent.POSITION_DELETES, file_path=deletes_file, file_format=FileFormat.PARQUET)},
+    )
+
+    with_deletes = project_table(
+        tasks=[example_task_with_delete],
+        table=Table(
+            ("namespace", "table"),
+            metadata=TableMetadataV2(
+                location=metadata_location,
+                last_column_id=1,
+                format_version=2,
+                current_schema_id=1,
+                schemas=[table_schema_simple],
+                partition_specs=[PartitionSpec()],
+            ),
+            metadata_location=metadata_location,
+            io=load_file_io(),
+        ),
+        row_filter=AlwaysTrue(),
+        projected_schema=table_schema_simple,
+        case_sensitive=True,
+    )
+
+    assert (
+        str(with_deletes)
+        == """pyarrow.Table
+foo: string
+bar: int64 not null
+baz: bool
+----
+foo: [["a","c"]]
+bar: [[1,3]]
+baz: [[true,null]]"""
+    )
+
 
 def test_pyarrow_wrap_fsspec(example_task: FileScanTask, table_schema_simple: Schema) -> None:
     metadata_location = "file://a/b/c.json"
@@ -1189,3 +1231,29 @@ foo: [["a","b","c"]]
 bar: [[1,2,3]]
 baz: [[true,false,null]]"""
     )
+
+
+def test_ordered_chunked_array_consumer() -> None:
+    con = _OrderedChunkedArrayConsumer(pa.chunked_array([[1, 4, 6]]), pa.chunked_array([[3, 5, 8]]))
+
+    assert list(con) == [1, 3, 4, 5, 6, 8]
+
+
+def test_ordered_chunked_array_consumer_single_array() -> None:
+    con = _OrderedChunkedArrayConsumer(
+        pa.chunked_array([[1, 4, 6]]),
+    )
+
+    assert list(con) == [1, 4, 6]
+
+
+def test_ordered_chunked_array_consumer_empty_array() -> None:
+    con = _OrderedChunkedArrayConsumer()
+
+    assert list(con) == []
+
+
+def test_ordered_chunked_array_consumer_one_empty_array() -> None:
+    con = _OrderedChunkedArrayConsumer(pa.chunked_array([[1, 4, 6]]), pa.chunked_array([[]]))
+
+    assert list(con) == [1, 4, 6]

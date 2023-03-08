@@ -322,9 +322,20 @@ def _open_manifest(
     metrics_evaluator: Callable[[DataFile], bool],
 ) -> List[DataFile]:
     result_manifests = files(io.new_input(manifest.manifest_path))
-    if partition_filter is not None:
-        result_manifests = filter(partition_filter, result_manifests)
+    result_manifests = filter(partition_filter, result_manifests)
     return [file for file in result_manifests if metrics_evaluator(file)]
+
+
+def _min_sequence_number(manifests: List[ManifestFile]) -> int:
+    try:
+        return min(
+            manifest.min_sequence_number or INITIAL_SEQUENCE_NUMBER
+            for manifest in manifests
+            if manifest.content is None or manifest.content == ManifestContent.DATA
+        )
+    except ValueError:
+        # In case of an empty iterator
+        return INITIAL_SEQUENCE_NUMBER
 
 
 class DataScan(TableScan):
@@ -388,11 +399,7 @@ class DataScan(TableScan):
         partition_evaluators: Dict[int, Callable[[DataFile], bool]] = KeyDefaultDict(self._build_partition_evaluator)
         metrics_evaluator = _InclusiveMetricsEvaluator(self.table.schema(), self.row_filter, self.case_sensitive).eval
 
-        min_sequence_number = min(
-            manifest.min_sequence_number or INITIAL_SEQUENCE_NUMBER
-            for manifest in manifests
-            if manifest.content is None or manifest.content == ManifestContent.DATA
-        )
+        min_sequence_number = _min_sequence_number(manifests)
 
         data_datafiles = []
         deletes_positional = []
