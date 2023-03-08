@@ -23,32 +23,33 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import org.apache.avro.message.MessageDecoder;
-import org.apache.avro.message.MessageEncoder;
+import org.apache.avro.generic.IndexedRecord;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
-import org.apache.iceberg.data.avro.IcebergDecoder;
-import org.apache.iceberg.data.avro.IcebergEncoder;
 import org.apache.iceberg.types.Types;
 
-public class KeyMetadata implements EncryptionKeyMetadata {
+public class KeyMetadata implements EncryptionKeyMetadata, IndexedRecord {
+  private static final ThreadLocal<KeyMetadataEncoder<Record>> ENCODER = new ThreadLocal<>();
+  private static final ThreadLocal<KeyMetadataDecoder<Record>> DECODER = new ThreadLocal<>();
 
-  private static final int encryptionKeyPos = 0;
-  private static final int wrappingKeyIdPos = 1;
-  private static final int aadPrefixPos = 2;
+  private static final String encryptionKeyField = "encryption_key";
+  private static final String wrappingKeyIdField = "wrapping_key_id";
+  private static final String aadPrefixField = "aad_prefix";
 
+  static final byte V1 = 1;
   private static final Schema SCHEMA_V1 =
       new Schema(
-          required(encryptionKeyPos, "encryptionKey", Types.BinaryType.get()),
-          optional(wrappingKeyIdPos, "wrappingKeyId", Types.StringType.get()),
-          optional(aadPrefixPos, "aadPrefix", Types.BinaryType.get()));
+          required(0, encryptionKeyField, Types.BinaryType.get()),
+          optional(1, wrappingKeyIdField, Types.StringType.get()),
+          optional(2, aadPrefixField, Types.BinaryType.get()));
 
-  private final String wrappingKeyId;
-  private final ByteBuffer encryptionKey;
-  private final ByteBuffer aadPrefix;
+  private String wrappingKeyId;
+  private ByteBuffer encryptionKey;
+  private ByteBuffer aadPrefix;
 
-  public KeyMetadata(ByteBuffer encryptionKey, String wrappingKeyId, ByteBuffer aadPrefix) {
+  KeyMetadata(ByteBuffer encryptionKey, String wrappingKeyId, ByteBuffer aadPrefix) {
     this.wrappingKeyId = wrappingKeyId;
     this.encryptionKey = encryptionKey;
     this.aadPrefix = aadPrefix;
@@ -66,14 +67,35 @@ public class KeyMetadata implements EncryptionKeyMetadata {
     return aadPrefix;
   }
 
+  public static KeyMetadata parse(ByteBuffer buffer) {
+    KeyMetadataDecoder<Record> decoder = DECODER.get();
+    if (decoder == null) {
+      decoder = new KeyMetadataDecoder<>(V1, SCHEMA_V1);
+      DECODER.set(decoder);
+    }
+    try {
+      Record rec = decoder.decode(buffer);
+      return new KeyMetadata(
+          (ByteBuffer) rec.getField(encryptionKeyField),
+          (String) rec.getField(wrappingKeyIdField),
+          (ByteBuffer) rec.getField(aadPrefixField));
+    } catch (IOException e) {
+      throw new RuntimeException("Failed to parse envelope encryption metadata", e);
+    }
+  }
+
   @Override
   public ByteBuffer buffer() {
     Record rec = GenericRecord.create(SCHEMA_V1.asStruct());
-    rec.set(encryptionKeyPos, encryptionKey);
-    rec.set(wrappingKeyIdPos, wrappingKeyId);
-    rec.set(aadPrefixPos, aadPrefix);
+    rec.setField(encryptionKeyField, encryptionKey);
+    rec.setField(wrappingKeyIdField, wrappingKeyId);
+    rec.setField(aadPrefixField, aadPrefix);
 
-    MessageEncoder<Record> encoder = new IcebergEncoder<>(SCHEMA_V1);
+    KeyMetadataEncoder<Record> encoder = ENCODER.get();
+    if (encoder == null) {
+      encoder = new KeyMetadataEncoder<>(V1, SCHEMA_V1);
+      ENCODER.set(encoder);
+    }
 
     try {
       return encoder.encode(rec);
@@ -88,16 +110,39 @@ public class KeyMetadata implements EncryptionKeyMetadata {
     return metadata;
   }
 
-  public static KeyMetadata parse(ByteBuffer buffer) {
-    MessageDecoder<Record> decoder = new IcebergDecoder<>(SCHEMA_V1);
-    try {
-      Record rec = decoder.decode(buffer);
-      return new KeyMetadata(
-          rec.get(encryptionKeyPos, ByteBuffer.class),
-          rec.get(wrappingKeyIdPos, String.class),
-          rec.get(aadPrefixPos, ByteBuffer.class));
-    } catch (IOException e) {
-      throw new RuntimeException("Failed to parse envelope encryption metadata", e);
+  @Override
+  public void put(int i, Object v) {
+    switch (i) {
+      case 0:
+        this.encryptionKey = (ByteBuffer) v;
+        return;
+      case 1:
+        this.wrappingKeyId = v.toString();
+        return;
+      case 2:
+        this.aadPrefix = (ByteBuffer) v;
+        return;
+      default:
+        // ignore the object, it must be from a newer version of the format
     }
+  }
+
+  @Override
+  public Object get(int i) {
+    switch (i) {
+      case 0:
+        return encryptionKey;
+      case 1:
+        return wrappingKeyId;
+      case 2:
+        return aadPrefix;
+      default:
+        throw new UnsupportedOperationException("Unknown field ordinal: " + i);
+    }
+  }
+
+  @Override
+  public org.apache.avro.Schema getSchema() {
+    return AvroSchemaUtil.convert(SCHEMA_V1, "key_metadata");
   }
 }
