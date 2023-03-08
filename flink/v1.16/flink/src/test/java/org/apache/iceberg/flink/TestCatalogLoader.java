@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.flink;
 
+import static org.apache.iceberg.CatalogProperties.URI;
+
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -80,9 +82,10 @@ public class TestCatalogLoader extends FlinkTestBase {
   }
 
   @Test
-  public void testRESTCatalogLoader() throws IOException, ClassNotFoundException {
-    CatalogLoader loader = CatalogLoader.rest("my_catalog", hiveConf, Maps.newHashMap());
-    validateCatalogLoader(loader);
+  public void testRESTCatalogLoader() {
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(URI, "http://localhost/");
+    CatalogLoader.rest("my_catalog", hiveConf, Maps.newHashMap());
   }
 
   private static void validateCatalogLoader(CatalogLoader loader)

@@ -275,8 +275,8 @@ CREATE CATALOG rest_catalog WITH (
 The following properties can be set if using the REST catalog:
 
 * `uri`: The URL to the REST Catalog (Required)
-* `credential`: A credential to authenticate against the REST catalog (Optional)
-* `token`: A token to interact with the REST catalog (Optional)
+* `credential`: A credential to exchange for a token in the OAuth2 client credentials flow (Optional)
+* `token`: A token which will be used to interact with the server (Optional)
 
 ### Custom catalog
 

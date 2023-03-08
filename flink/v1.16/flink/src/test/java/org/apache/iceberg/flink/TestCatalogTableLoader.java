@@ -79,7 +79,7 @@ public class TestCatalogTableLoader extends FlinkTestBase {
 
   private static void validateTableLoader(TableLoader loader)
       throws IOException, ClassNotFoundException {
-    TableLoader copied = javaSerAndDeSer(loader);
+    TableLoader copied = javaSerdes(loader);
     copied.open();
     try {
       validateHadoopConf(copied.loadTable());
@@ -98,7 +98,7 @@ public class TestCatalogTableLoader extends FlinkTestBase {
   }
 
   @SuppressWarnings("unchecked")
-  private static <T> T javaSerAndDeSer(T object) throws IOException, ClassNotFoundException {
+  private static <T> T javaSerdes(T object) throws IOException, ClassNotFoundException {
     ByteArrayOutputStream bytes = new ByteArrayOutputStream();
     try (ObjectOutputStream out = new ObjectOutputStream(bytes)) {
       out.writeObject(object);
