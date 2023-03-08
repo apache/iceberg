@@ -24,7 +24,7 @@ import org.apache.iceberg.exceptions.ValidationException;
 import org.assertj.core.api.Assertions;
 import org.junit.Test;
 
-public class TestUnpartitionedWritesToBranch extends TestUnpartitionedWrites {
+public class TestUnpartitionedWritesToBranch extends UnpartitionedWritesTestBase {
 
   private static final String BRANCH = "test";
 

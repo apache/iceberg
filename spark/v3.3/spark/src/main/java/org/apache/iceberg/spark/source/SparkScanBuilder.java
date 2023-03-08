@@ -111,10 +111,6 @@ public class SparkScanBuilder
     this.caseSensitive = readConf.caseSensitive();
   }
 
-  SparkScanBuilder(SparkSession spark, Table table, CaseInsensitiveStringMap options) {
-    this(spark, table, (String) null, options);
-  }
-
   SparkScanBuilder(
       SparkSession spark, Table table, String branch, CaseInsensitiveStringMap options) {
     this(spark, table, branch, SnapshotUtil.schemaFor(table, branch), options);

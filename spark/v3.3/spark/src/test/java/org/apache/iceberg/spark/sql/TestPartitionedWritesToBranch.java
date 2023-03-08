@@ -22,7 +22,7 @@ import java.util.Map;
 import org.apache.iceberg.Table;
 import org.junit.Before;
 
-public class TestPartitionedWritesToBranch extends TestPartitionedWrites {
+public class TestPartitionedWritesToBranch extends PartitionedWritesTestBase {
 
   private static final String BRANCH = "test";
 

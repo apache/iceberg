@@ -270,7 +270,8 @@ public class SparkTable
 
     CaseInsensitiveStringMap scanOptions =
         branch != null ? options : addSnapshotId(options, snapshotId);
-    return new SparkScanBuilder(sparkSession(), icebergTable, snapshotSchema(), scanOptions);
+    return new SparkScanBuilder(
+        sparkSession(), icebergTable, branch, snapshotSchema(), scanOptions);
   }
 
   @Override
