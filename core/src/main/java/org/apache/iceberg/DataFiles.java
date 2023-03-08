@@ -27,9 +27,9 @@ import org.apache.iceberg.encryption.EncryptionKeyMetadata;
 import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.util.ByteBuffers;
-import org.apache.iceberg.util.KryoUtil;
 
 public class DataFiles {
 
@@ -179,7 +179,7 @@ public class DataFiles {
       this.keyMetadata =
           toCopy.keyMetadata() == null ? null : ByteBuffers.copy(toCopy.keyMetadata());
       this.splitOffsets =
-          toCopy.splitOffsets() == null ? null : KryoUtil.copyList(toCopy.splitOffsets());
+          toCopy.splitOffsets() == null ? null : ImmutableList.copyOf(toCopy.splitOffsets());
       this.sortOrderId = toCopy.sortOrderId();
       return this;
     }
@@ -262,7 +262,7 @@ public class DataFiles {
 
     public Builder withSplitOffsets(List<Long> offsets) {
       if (offsets != null) {
-        this.splitOffsets = KryoUtil.copyList(offsets);
+        this.splitOffsets = ImmutableList.copyOf(offsets);
       } else {
         this.splitOffsets = null;
       }

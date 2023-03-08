@@ -27,8 +27,8 @@ import org.apache.iceberg.encryption.EncryptionKeyMetadata;
 import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.util.ByteBuffers;
-import org.apache.iceberg.util.KryoUtil;
 
 public class FileMetadata {
   private FileMetadata() {}
@@ -197,7 +197,7 @@ public class FileMetadata {
 
     public Builder withSplitOffsets(List<Long> offsets) {
       if (offsets != null) {
-        this.splitOffsets = KryoUtil.copyList(offsets);
+        this.splitOffsets = ImmutableList.copyOf(offsets);
       } else {
         this.splitOffsets = null;
       }
