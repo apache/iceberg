@@ -120,10 +120,10 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
 
   @Test
   public void testUpdateEmptyTable() {
+    Assume.assumeFalse("Custom branch does not exist for empty table", "test".equals(branch));
     createAndInitTable("id INT, dep STRING");
 
-    sql("UPDATE %s SET dep = 'invalid' WHERE id IN (1)", tableName);
-    createBranch();
+    sql("UPDATE %s SET dep = 'invalid' WHERE id IN (1)", commitTarget());
     sql("UPDATE %s SET id = -1 WHERE dep = 'hr'", commitTarget());
 
     Table table = validationCatalog.loadTable(tableIdent);
@@ -133,6 +133,17 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
         "Should have expected rows",
         ImmutableList.of(),
         sql("SELECT * FROM %s ORDER BY id", selectTarget()));
+  }
+
+  @Test
+  public void testUpdateNonExistingCustomBranch() {
+    Assume.assumeTrue("Test only applicable to custom branch", "test".equals(branch));
+    createAndInitTable("id INT, dep STRING");
+
+    Assertions.assertThatThrownBy(
+            () -> sql("UPDATE %s SET dep = 'invalid' WHERE id IN (1)", commitTarget()))
+        .isInstanceOf(ValidationException.class)
+        .hasMessage("Cannot operate against non-existing branch: test");
   }
 
   @Test

@@ -2430,6 +2430,24 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
     assertEquals("Should correctly add the non-matching rows", expectedRows, result);
   }
 
+  @Test
+  public void testMergeNonExistingBranch() {
+    Assume.assumeTrue("Test only applicable to custom branch", "test".equals(branch));
+    createAndInitTable("id INT", null);
+
+    // Coalesce forces our source into a SinglePartition distribution
+    spark.range(0, 5).coalesce(1).createOrReplaceTempView("source");
+    Assertions.assertThatThrownBy(
+            () ->
+                sql(
+                    "MERGE INTO %s t USING source s ON t.id = s.id "
+                        + "WHEN MATCHED THEN UPDATE SET *"
+                        + "WHEN NOT MATCHED THEN INSERT *",
+                    commitTarget()))
+        .isInstanceOf(ValidationException.class)
+        .hasMessage("Cannot operate against non-existing branch: test");
+  }
+
   private void checkJoinAndFilterConditions(String query, String join, String icebergFilters) {
     // disable runtime filtering for easier validation
     withSQLConf(

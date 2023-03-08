@@ -200,6 +200,16 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
   }
 
   @Test
+  public void testDeleteFromNonExistingCustomBranch() {
+    Assume.assumeTrue("Test only applicable to custom branch", "test".equals(branch));
+    createAndInitUnpartitionedTable();
+
+    Assertions.assertThatThrownBy(() -> sql("DELETE FROM %s WHERE id IN (1)", commitTarget()))
+        .isInstanceOf(ValidationException.class)
+        .hasMessage("Cannot operate against non-existing branch: test");
+  }
+
+  @Test
   public void testExplain() {
     createAndInitUnpartitionedTable();
 
