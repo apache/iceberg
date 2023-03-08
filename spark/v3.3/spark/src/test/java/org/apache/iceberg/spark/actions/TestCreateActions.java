@@ -32,7 +32,6 @@ import java.util.stream.Stream;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.filefilter.TrueFileFilter;
 import org.apache.hadoop.fs.Path;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.MigrateTable;
@@ -450,11 +449,9 @@ public class TestCreateActions extends SparkCatalogTestBase {
 
     MigrateTable migrateAction = SparkActions.get().migrateTable(source);
 
-    AssertHelpers.assertThrows(
-        "Expected an exception",
-        RuntimeException.class,
-        "not a Parquet file (length is too low: 0)",
-        migrateAction::execute);
+    Assertions.assertThatThrownBy(migrateAction::execute)
+        .isInstanceOf(RuntimeException.class)
+        .hasMessageContaining("not a Parquet file (length is too low: 0)");
 
     // skip files which cannot be imported into Iceberg
     migrateAction = SparkActions.get().migrateTable(source).skipOnError();

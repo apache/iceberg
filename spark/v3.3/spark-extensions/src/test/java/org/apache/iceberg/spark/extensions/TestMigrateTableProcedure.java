@@ -26,6 +26,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.spark.sql.AnalysisException;
+import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Assume;
@@ -225,11 +226,10 @@ public class TestMigrateTableProcedure extends SparkExtensionsTestBase {
     Assume.assumeTrue("Delete source file!", expectedFiles[1].delete());
     Assume.assumeTrue("Create a empty source file!", expectedFiles[1].createNewFile());
 
-    AssertHelpers.assertThrows(
-        "Expected an exception",
-        RuntimeException.class,
-        "not a Parquet file (length is too low: 0)",
-        () -> scalarSql("CALL %s.system.migrate(table => '%s')", catalogName, tableName));
+    Assertions.assertThatThrownBy(
+            () -> scalarSql("CALL %s.system.migrate(table => '%s')", catalogName, tableName))
+        .isInstanceOf(RuntimeException.class)
+        .hasMessageContaining("not a Parquet file (length is too low: 0)");
 
     Object result =
         scalarSql(
@@ -244,22 +244,20 @@ public class TestMigrateTableProcedure extends SparkExtensionsTestBase {
     Assume.assumeTrue(catalogName.equals("spark_catalog"));
 
     String location = temp.newFolder().toString();
-    sql(
-        "CREATE TABLE %s (id bigint NOT NULL, data string) LOCATION '%s'",
-        tableName, location);
+    sql("CREATE TABLE %s (id bigint NOT NULL, data string) LOCATION '%s'", tableName, location);
 
     sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
     sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
 
-    AssertHelpers.assertThrows(
-        "Expected an exception",
-        RuntimeException.class,
-        "Unknown partition format: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe",
-        () -> scalarSql("CALL %s.system.migrate(table => '%s')", catalogName, tableName));
+    Assertions.assertThatThrownBy(
+            () -> scalarSql("CALL %s.system.migrate(table => '%s')", catalogName, tableName))
+        .isInstanceOf(RuntimeException.class)
+        .hasMessageContaining(
+            "Unknown partition format: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe");
 
     Object result =
         scalarSql(
-            "CALL %s.system.migrate(" + "table => '%s', " + "skip_on_error => true)",
+            "CALL %s.system.migrate(" + "table => '%s', skip_on_error => true)",
             catalogName, tableName);
 
     Assert.assertEquals(0L, result);

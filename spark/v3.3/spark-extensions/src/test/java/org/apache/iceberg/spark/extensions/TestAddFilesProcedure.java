@@ -44,6 +44,7 @@ import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
+import org.assertj.core.api.Assertions;
 import org.joda.time.DateTime;
 import org.junit.After;
 import org.junit.Assert;
@@ -986,26 +987,24 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
     // Create an empty(considered corrupted) file.
     Assert.assertTrue(new File(fileTableDir + File.separator + "corrupt.parquet").createNewFile());
 
-    AssertHelpers.assertThrows(
-        "Throws an exception when a corrupted file is encountered",
-        RuntimeException.class,
-        "not a Parquet file (length is too low: 0)",
-        () ->
-            sql(
-                "CALL %s.system.add_files(" + "table => '%s', " + "source_table => '%s')",
-                catalogName, tableName, sourceTableName));
+    Assertions.assertThatThrownBy(
+            () ->
+                sql(
+                    "CALL %s.system.add_files(" + "table => '%s', " + "source_table => '%s')",
+                    catalogName, tableName, sourceTableName))
+        .isInstanceOf(RuntimeException.class)
+        .hasMessageContaining("not a Parquet file (length is too low: 0)");
 
-    AssertHelpers.assertThrows(
-        "Throws an exception when a corrupted file is encountered",
-        RuntimeException.class,
-        "not a Parquet file (length is too low: 0)",
-        () ->
-            sql(
-                "CALL %s.system.add_files("
-                    + "table => '%s', "
-                    + "source_table => '%s',"
-                    + "skip_on_error => false)",
-                catalogName, tableName, sourceTableName));
+    Assertions.assertThatThrownBy(
+            () ->
+                sql(
+                    "CALL %s.system.add_files("
+                        + "table => '%s', "
+                        + "source_table => '%s',"
+                        + "skip_on_error => false)",
+                    catalogName, tableName, sourceTableName))
+        .isInstanceOf(RuntimeException.class)
+        .hasMessageContaining("not a Parquet file (length is too low: 0)");
 
     List<Object[]> result =
         sql(
