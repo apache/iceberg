@@ -495,7 +495,7 @@ def expression_to_pyarrow(expr: BooleanExpression) -> pc.Expression:
 
 def pyarrow_to_schema(schema: pa.Schema) -> Schema:
     visitor = _ConvertToIceberg()
-    struct_results = []
+    struct_results: List[Optional[IcebergType]] = []
     for i in range(len(schema.names)):
         field = schema.field(i)
         visitor.before_field(field)
@@ -523,7 +523,7 @@ def visit_pyarrow(obj: pa.DataType, visitor: PyArrowSchemaVisitor[T]) -> T:
 
 @visit_pyarrow.register(pa.StructType)
 def _(obj: pa.StructType, visitor: PyArrowSchemaVisitor[T]) -> T:
-    struct_results = []
+    struct_results: List[Optional[T]] = []
     for field in obj:
         visitor.before_field(field)
         struct_result = visit_pyarrow(field.type, visitor)
@@ -534,7 +534,7 @@ def _(obj: pa.StructType, visitor: PyArrowSchemaVisitor[T]) -> T:
 
 
 @visit_pyarrow.register(pa.ListType)
-def _(obj: pa.ListType, visitor: PyArrowSchemaVisitor[T]) -> T:
+def _(obj: pa.ListType, visitor: PyArrowSchemaVisitor[T]) -> Optional[T]:
     visitor.before_list_element(obj.value_field)
     list_result = visit_pyarrow(obj.value_field.type, visitor)
     visitor.after_list_element(obj.value_field)
@@ -542,7 +542,7 @@ def _(obj: pa.ListType, visitor: PyArrowSchemaVisitor[T]) -> T:
 
 
 @visit_pyarrow.register(pa.MapType)
-def _(obj: pa.MapType, visitor: PyArrowSchemaVisitor[T]) -> T:
+def _(obj: pa.MapType, visitor: PyArrowSchemaVisitor[T]) -> Optional[T]:
     visitor.before_map_key(obj.key_field)
     key_result = visit_pyarrow(obj.key_field.type, visitor)
     visitor.after_map_key(obj.key_field)
@@ -585,19 +585,19 @@ class PyArrowSchemaVisitor(Generic[T], ABC):
         """Override this method to perform an action immediately after visiting a map value."""
 
     @abstractmethod
-    def schema(self, schema: pa.Schema, field_results: List[T]) -> Schema:
+    def schema(self, schema: pa.Schema, field_results: List[Optional[T]]) -> Schema:
         """visit a schema"""
 
     @abstractmethod
-    def struct(self, struct: pa.StructType, field_results: List[T]) -> T:
+    def struct(self, struct: pa.StructType, field_results: List[Optional[T]]) -> T:
         """visit a struct"""
 
     @abstractmethod
-    def list(self, list_type: pa.ListType, element_result: T) -> T:
+    def list(self, list_type: pa.ListType, element_result: Optional[T]) -> Optional[T]:
         """visit a list"""
 
     @abstractmethod
-    def map(self, map_type: pa.MapType, key_result: T, value_result: T) -> T:
+    def map(self, map_type: pa.MapType, key_result: Optional[T], value_result: Optional[T]) -> Optional[T]:
         """visit a map"""
 
     @abstractmethod
@@ -605,52 +605,57 @@ class PyArrowSchemaVisitor(Generic[T], ABC):
         """visit a primitive type"""
 
 
-def _get_field_id(field: pa.Field) -> int:
+def _get_field_id_and_doc(field: pa.Field) -> Tuple[Optional[int], Optional[str]]:
+    field_id = None
+    doc = None
     if field.metadata is not None:
         for k, v in field.metadata.items():
             key = k.decode()
             if key.endswith("field_id"):
-                return int(v.decode())
-    raise ValueError(f"Field does not have a field_id: {field.name}")
+                field_id = int(v.decode())
+            elif key.endswith("doc"):
+                doc = v.decode()
+    return field_id, doc
 
 
 class _ConvertToIceberg(PyArrowSchemaVisitor[IcebergType], ABC):
-    def schema(self, schema: pa.Schema, field_results: List[IcebergType]) -> Schema:
+    def schema(self, schema: pa.Schema, field_results: List[Optional[IcebergType]]) -> Schema:
         fields = []
         for i in range(len(schema.names)):
             field = schema.field(i)
-            field_id = _get_field_id(field)
+            field_id, field_doc = _get_field_id_and_doc(field)
             field_type = field_results[i]
-            if field_type is not None:
-                fields.append(NestedField(field_id, field.name, field_type, required=not field.nullable))
+            if field_type is not None and field_id is not None:
+                fields.append(NestedField(field_id, field.name, field_type, required=not field.nullable, doc=field_doc))
         return Schema(*fields)
 
-    def struct(self, struct: pa.StructType, field_results: List[IcebergType]) -> IcebergType:
+    def struct(self, struct: pa.StructType, field_results: List[Optional[IcebergType]]) -> IcebergType:
         fields = []
         for i in range(struct.num_fields):
             field = struct[i]
-            field_id = _get_field_id(field)
-            # may need to check doc strings
+            field_id, field_doc = _get_field_id_and_doc(field)
             field_type = field_results[i]
-            if field_type is not None:
-                fields.append(NestedField(field_id, field.name, field_type, required=not field.nullable))
+            if field_type is not None and field_id is not None:
+                fields.append(NestedField(field_id, field.name, field_type, required=not field.nullable, doc=field_doc))
         return StructType(*fields)
 
-    def list(self, list_type: pa.ListType, element_result: IcebergType) -> IcebergType:
+    def list(self, list_type: pa.ListType, element_result: Optional[IcebergType]) -> Optional[IcebergType]:
         element_field = list_type.value_field
-        element_id = _get_field_id(element_field)
-        if element_result is not None:
+        element_id, _ = _get_field_id_and_doc(element_field)
+        if element_result is not None and element_id is not None:
             return ListType(element_id, element_result, element_required=not element_field.nullable)
-        raise ValueError(f"List type must have element field: {list_type}")
+        return None
 
-    def map(self, map_type: pa.MapType, key_result: IcebergType, value_result: IcebergType) -> IcebergType:
+    def map(
+        self, map_type: pa.MapType, key_result: Optional[IcebergType], value_result: Optional[IcebergType]
+    ) -> Optional[IcebergType]:
         key_field = map_type.key_field
-        key_id = _get_field_id(key_field)
+        key_id, _ = _get_field_id_and_doc(key_field)
         value_field = map_type.item_field
-        value_id = _get_field_id(value_field)
-        if key_result is not None and value_result is not None:
+        value_id, _ = _get_field_id_and_doc(value_field)
+        if key_result is not None and value_result is not None and key_id is not None and value_id is not None:
             return MapType(key_id, key_result, value_id, value_result, value_required=not value_field.nullable)
-        raise ValueError(f"Map type must have key and value fields: {map_type}")
+        return None
 
     def primitive(self, primitive: pa.DataType) -> IcebergType:
         if pa.types.is_boolean(primitive):
