@@ -238,4 +238,30 @@ public class TestMigrateTableProcedure extends SparkExtensionsTestBase {
 
     Assert.assertEquals(1L, result);
   }
+
+  @Test
+  public void testMigrateUnknownFormatTableSkipOnError() throws IOException {
+    Assume.assumeTrue(catalogName.equals("spark_catalog"));
+
+    String location = temp.newFolder().toString();
+    sql(
+        "CREATE TABLE %s (id bigint NOT NULL, data string) LOCATION '%s'",
+        tableName, location);
+
+    sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
+    sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
+
+    AssertHelpers.assertThrows(
+        "Expected an exception",
+        RuntimeException.class,
+        "Unknown partition format: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe",
+        () -> scalarSql("CALL %s.system.migrate(table => '%s')", catalogName, tableName));
+
+    Object result =
+        scalarSql(
+            "CALL %s.system.migrate(" + "table => '%s', " + "skip_on_error => true)",
+            catalogName, tableName);
+
+    Assert.assertEquals(0L, result);
+  }
 }
