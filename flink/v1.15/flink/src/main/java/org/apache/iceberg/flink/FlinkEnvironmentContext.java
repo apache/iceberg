@@ -16,32 +16,17 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.hive;
+package org.apache.iceberg.flink;
 
-import java.io.IOException;
-import org.apache.hadoop.security.UserGroupInformation;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.apache.iceberg.EnvironmentContext;
+import org.apache.iceberg.flink.util.FlinkPackage;
 
-public class HiveHadoopUtil {
+class FlinkEnvironmentContext {
 
-  private static final Logger LOG = LoggerFactory.getLogger(HiveHadoopUtil.class);
+  private FlinkEnvironmentContext() {}
 
-  private HiveHadoopUtil() {}
-
-  public static String currentUser() {
-    String username = null;
-    try {
-      username = UserGroupInformation.getCurrentUser().getShortUserName();
-    } catch (IOException e) {
-      LOG.warn("Failed to get Hadoop user", e);
-    }
-
-    if (username != null) {
-      return username;
-    } else {
-      LOG.warn("Hadoop user is null, defaulting to user.name");
-      return System.getProperty("user.name");
-    }
+  public static void init() {
+    EnvironmentContext.put(EnvironmentContext.ENGINE_NAME, "flink");
+    EnvironmentContext.put(EnvironmentContext.ENGINE_VERSION, FlinkPackage.version());
   }
 }

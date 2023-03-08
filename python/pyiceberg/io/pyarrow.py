@@ -47,7 +47,9 @@ from pyarrow.fs import (
     FileInfo,
     FileSystem,
     FileType,
+    FSSpecHandler,
     LocalFileSystem,
+    PyFileSystem,
     S3FileSystem,
 )
 
@@ -66,6 +68,11 @@ from pyiceberg.expressions.visitors import (
 )
 from pyiceberg.expressions.visitors import visit as boolean_expression_visit
 from pyiceberg.io import (
+    S3_ACCESS_KEY_ID,
+    S3_ENDPOINT,
+    S3_REGION,
+    S3_SECRET_ACCESS_KEY,
+    S3_SESSION_TOKEN,
     FileIO,
     InputFile,
     InputStream,
@@ -264,10 +271,11 @@ class PyArrowFileIO(FileIO):
     def _get_fs(self, scheme: str) -> FileSystem:
         if scheme in {"s3", "s3a", "s3n"}:
             client_kwargs = {
-                "endpoint_override": self.properties.get("s3.endpoint"),
-                "access_key": self.properties.get("s3.access-key-id"),
-                "secret_key": self.properties.get("s3.secret-access-key"),
-                "session_token": self.properties.get("s3.session-token"),
+                "endpoint_override": self.properties.get(S3_ENDPOINT),
+                "access_key": self.properties.get(S3_ACCESS_KEY_ID),
+                "secret_key": self.properties.get(S3_SECRET_ACCESS_KEY),
+                "session_token": self.properties.get(S3_SESSION_TOKEN),
+                "region": self.properties.get(S3_REGION),
             }
             return S3FileSystem(**client_kwargs)
         elif scheme == "file":
@@ -541,11 +549,20 @@ def project_table(
         ResolveError: When an incompatible query is done
     """
 
+    scheme, _ = PyArrowFileIO.parse_location(table.location())
     if isinstance(table.io, PyArrowFileIO):
-        scheme, _ = PyArrowFileIO.parse_location(table.location())
         fs = table.io.get_fs(scheme)
     else:
-        raise ValueError(f"Expected PyArrowFileIO, got: {table.io}")
+        try:
+            from pyiceberg.io.fsspec import FsspecFileIO
+
+            if isinstance(table.io, FsspecFileIO):
+                fs = PyFileSystem(FSSpecHandler(table.io.get_fs(scheme)))
+            else:
+                raise ValueError(f"Expected PyArrowFileIO or FsspecFileIO, got: {table.io}")
+        except ModuleNotFoundError as e:
+            # When FsSpec is not installed
+            raise ValueError(f"Expected PyArrowFileIO or FsspecFileIO, got: {table.io}") from e
 
     bound_row_filter = bind(table.schema(), row_filter, case_sensitive=case_sensitive)
 

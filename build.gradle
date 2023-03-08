@@ -32,6 +32,10 @@ buildscript {
     // in an old version of the errorprone, which doesn't work w/ Gradle 8, so bump errorpone as
     // well.
     classpath "net.ltgt.gradle:gradle-errorprone-plugin:3.0.1"
+    // com.palantir.baseline:gradle-baseline-java:4.42.0 (the last version supporting Java 8) pulls
+    // in an old version of the checkstyle(9.1), which has this OutOfMemory bug https://github.com/checkstyle/checkstyle/issues/10934
+    // So, bump checkstyle to the latest java 8 supported version(9.3) which contains the fix.
+    classpath "com.puppycrawl.tools:checkstyle:9.3"
 
     classpath 'com.diffplug.spotless:spotless-plugin-gradle:6.13.0'
     classpath 'gradle.plugin.org.inferred:gradle-processors:3.7.0'
@@ -124,6 +128,26 @@ subprojects {
       oldGroup = project.group
       oldName = project.name
       oldVersion = "1.1.0"
+    }
+
+    tasks.register('showDeprecationRulesOnRevApiFailure') {
+      doLast {
+        throw new RuntimeException("==================================================================================" +
+                "\nAPI/ABI breaks detected.\n" +
+                "Adding RevAPI breaks should only be done after going through a deprecation cycle." +
+                "\nPlease make sure to follow the deprecation rules defined in\n" +
+                "https://github.com/apache/iceberg/blob/master/CONTRIBUTING.md#semantic-versioning.\n" +
+                "==================================================================================")
+      }
+      onlyIf {
+        tasks.revapi.state.failure != null
+      }
+    }
+
+    tasks.configureEach { rootTask ->
+      if (rootTask.name == 'revapi') {
+        rootTask.finalizedBy showDeprecationRulesOnRevApiFailure
+      }
     }
   }
 
@@ -433,6 +457,8 @@ project(':iceberg-aws') {
       exclude group: 'com.google.code.gson', module: 'gson'
     }
 
+    compileOnly 'org.apache.httpcomponents.client5:httpclient5'
+
     testImplementation 'software.amazon.awssdk:iam'
     testImplementation 'software.amazon.awssdk:s3control'
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
@@ -445,6 +471,8 @@ project(':iceberg-aws') {
     testImplementation "org.xerial:sqlite-jdbc"
     testImplementation "org.testcontainers:testcontainers"
     testImplementation "org.apache.httpcomponents.client5:httpclient5"
+    testImplementation 'org.mock-server:mockserver-netty'
+    testImplementation 'org.mock-server:mockserver-client-java'
     testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
   }
 
@@ -763,13 +791,13 @@ project(':iceberg-nessie') {
     implementation project(':iceberg-common')
     implementation project(':iceberg-core')
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
-    implementation "org.projectnessie:nessie-client"
+    implementation "org.projectnessie.nessie:nessie-client"
     implementation "com.fasterxml.jackson.core:jackson-databind"
     implementation "com.fasterxml.jackson.core:jackson-core"
 
-    testImplementation "org.projectnessie:nessie-jaxrs-testextension"
-    testImplementation "org.projectnessie:nessie-versioned-persist-in-memory"
-    testImplementation "org.projectnessie:nessie-versioned-persist-in-memory-test"
+    testImplementation "org.projectnessie.nessie:nessie-jaxrs-testextension"
+    testImplementation "org.projectnessie.nessie:nessie-versioned-persist-in-memory"
+    testImplementation "org.projectnessie.nessie:nessie-versioned-persist-in-memory-test"
     // Need to "pull in" el-api explicitly :(
     testImplementation "jakarta.el:jakarta.el-api"
 

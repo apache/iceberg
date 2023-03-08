@@ -250,8 +250,8 @@ class Catalog(ABC):
         self.name = name
         self.properties = properties
 
-    def _load_file_io(self, properties: Properties = EMPTY_DICT) -> FileIO:
-        return load_file_io({**self.properties, **properties})
+    def _load_file_io(self, properties: Properties = EMPTY_DICT, location: Optional[str] = None) -> FileIO:
+        return load_file_io({**self.properties, **properties}, location)
 
     @abstractmethod
     def create_table(

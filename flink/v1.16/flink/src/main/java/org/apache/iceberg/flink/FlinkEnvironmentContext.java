@@ -16,28 +16,16 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.metrics;
+package org.apache.iceberg.flink;
 
-import java.util.Map;
+import org.apache.iceberg.EnvironmentContext;
+import org.apache.iceberg.flink.util.FlinkPackage;
 
-/** This interface defines the basic API for reporting metrics for operations to a Table. */
-@FunctionalInterface
-public interface MetricsReporter {
+class FlinkEnvironmentContext {
+  private FlinkEnvironmentContext() {}
 
-  /**
-   * A custom MetricsReporter implementation must have a no-arg constructor, which will be called
-   * first. {@link MetricsReporter#initialize(Map properties)} is called to complete the
-   * initialization.
-   *
-   * @param properties properties
-   */
-  default void initialize(Map<String, String> properties) {}
-
-  /**
-   * Indicates that an operation is done by reporting a {@link MetricsReport}. A {@link
-   * MetricsReport} is usually directly derived from a {@link MetricsReport} instance.
-   *
-   * @param report The {@link MetricsReport} to report.
-   */
-  void report(MetricsReport report);
+  public static void init() {
+    EnvironmentContext.put(EnvironmentContext.ENGINE_NAME, "flink");
+    EnvironmentContext.put(EnvironmentContext.ENGINE_VERSION, FlinkPackage.version());
+  }
 }

@@ -24,6 +24,7 @@ import static org.apache.iceberg.TableProperties.FORMAT_VERSION;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Set;
+import org.apache.iceberg.BaseMetadataTable;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileScanTask;
@@ -159,7 +160,11 @@ public class SparkTable
   }
 
   private Schema snapshotSchema() {
-    return SnapshotUtil.schemaFor(icebergTable, snapshotId, null);
+    if (icebergTable instanceof BaseMetadataTable) {
+      return icebergTable.schema();
+    } else {
+      return SnapshotUtil.schemaFor(icebergTable, snapshotId, null);
+    }
   }
 
   @Override
