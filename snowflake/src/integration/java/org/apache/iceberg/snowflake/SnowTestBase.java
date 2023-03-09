@@ -20,9 +20,12 @@ package org.apache.iceberg.snowflake;
 
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
+import java.util.Map;
+import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.jdbc.JdbcClientPool;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.util.EnvironmentUtil;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 
@@ -33,37 +36,67 @@ class SnowTestBase {
 
   static JdbcClientPool clientPool;
 
+  static Map<String, String> catalogProperties;
+
   protected SnowTestBase() {}
 
   @BeforeAll
   public static void beforeAll() {
     snowflakeCatalog = new SnowflakeCatalog();
-    TestConfigurations configs = TestConfigurations.getInstance();
+    Map<String, String> props = Maps.newHashMap();
+    // add catalog properties
+    props.put(CatalogProperties.URI, "env:" + "SNOW_URI");
+
+    // add jdbc properties, env: prefix is added to annotate that these variables should be
+    // resolved by EnvironmentUtil.
+    props.put("jdbc." + CatalogProperties.URI, "env:" + "SNOW_URI");
+    props.put("jdbc." + CatalogProperties.USER, "env:" + "SNOW_USER");
+    props.put("jdbc.password", "env:" + "SNOW_PASSWORD");
+    props.put("jdbc.database", "env:" + "SNOW_TEST_DB_NAME");
+
+    catalogProperties = EnvironmentUtil.resolveAll(props);
+
     // Check required arguments for test
     Preconditions.checkNotNull(
-        configs.getURI(),
+        getURI(),
         "URI is required argument and should be resolved from environment variable SNOW_URI");
     // Ensure that environment variable resolution was attempted and the variable was resolved.
     Preconditions.checkArgument(
-        !configs.getURI().isEmpty() && !configs.getURI().contains("env"),
+        !getURI().isEmpty() && !getURI().contains("env"),
         "URI is required argument and should be resolved from environment variable SNOW_URI");
     Preconditions.checkNotNull(
-        configs.getDatabase(),
+        getDatabase(),
         "Database is required argument, please set environment variable SNOW_TEST_DB_NAME");
 
-    snowflakeCatalog.initialize("testCatalog", Maps.newHashMap(configs.getProperties()));
-    clientPool = new JdbcClientPool(configs.getURI(), configs.getProperties());
+    snowflakeCatalog.initialize("testCatalog", Maps.newHashMap(getCatalogProperties()));
+    clientPool = new JdbcClientPool(getURI(), getCatalogProperties());
     try {
-      createOrReplaceDatabase(configs.getDatabase());
+      createOrReplaceDatabase(getDatabase());
     } catch (SQLException | InterruptedException e) {
       throw new RuntimeException(e);
     }
   }
 
+  static String getURI() {
+    return catalogProperties.get(CatalogProperties.URI);
+  }
+
+  static String getUser() {
+    return catalogProperties.get("jdbc." + CatalogProperties.USER);
+  }
+
+  static String getDatabase() {
+    return catalogProperties.get("jdbc.database");
+  }
+
+  static Map<String, String> getCatalogProperties() {
+    return catalogProperties;
+  }
+
   @AfterAll
   public static void afterAll() {
     try {
-      dropDatabaseIfExists(TestConfigurations.getInstance().getDatabase());
+      dropDatabaseIfExists(getDatabase());
     } catch (SQLException | InterruptedException e) {
       throw new RuntimeException(e);
     }

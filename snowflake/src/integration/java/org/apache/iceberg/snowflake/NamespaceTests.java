@@ -21,11 +21,11 @@ package org.apache.iceberg.snowflake;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.Arrays;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -53,7 +53,7 @@ public class NamespaceTests extends SnowTestBase {
   public void testListNamespacesAtDatabaseLevel() throws SQLException, InterruptedException {
     String schema1 = "Schema_1";
     String schema2 = "Schema_2";
-    String dbName = TestConfigurations.getInstance().getDatabase().toUpperCase();
+    String dbName = getDatabase().toUpperCase();
     try {
       clientPool.run(conn -> conn.createStatement().execute("use " + dbName));
       createOrReplaceSchema(schema1);
@@ -76,14 +76,12 @@ public class NamespaceTests extends SnowTestBase {
   public void testListNamespacesAtSchemaLevelIsNotAllowed()
       throws SQLException, InterruptedException {
     String schema = "Schema_1";
-    String dbName = TestConfigurations.getInstance().getDatabase().toUpperCase();
+    String dbName = getDatabase().toUpperCase();
     try {
       clientPool.run(conn -> conn.createStatement().execute("use " + dbName));
       createOrReplaceSchema(schema);
       Assertions.assertThatThrownBy(
-              () -> {
-                snowflakeCatalog.listNamespaces(Namespace.of(dbName, schema));
-              })
+              () -> snowflakeCatalog.listNamespaces(Namespace.of(dbName, schema)))
           .isInstanceOf(IllegalArgumentException.class)
           .hasMessageContaining("listNamespaces must be at either ROOT or DATABASE level");
     } finally {
@@ -95,48 +93,44 @@ public class NamespaceTests extends SnowTestBase {
   public void testLoadNonExistingRootLevelNamespace() {
     String nonExistingDb = "IDontExist";
     Assertions.assertThatThrownBy(
-            () -> {
-              snowflakeCatalog.loadNamespaceMetadata(Namespace.of(nonExistingDb));
-            })
-        .isInstanceOf(NoSuchNamespaceException.class);
+            () -> snowflakeCatalog.loadNamespaceMetadata(Namespace.of(nonExistingDb)))
+        .isInstanceOf(NoSuchNamespaceException.class)
+        .hasMessageContainingAll("snowflake identifier", "doesn't exist");
   }
 
   @Test
   public void testLoadNonExistingDBLevelNamespace() {
     String nonExistingSchema = "IDontExist";
-    String db = TestConfigurations.getInstance().getDatabase();
+    String db = getDatabase();
     Assertions.assertThatThrownBy(
-            () -> {
-              snowflakeCatalog.loadNamespaceMetadata(Namespace.of(db, nonExistingSchema));
-            })
-        .isInstanceOf(NoSuchNamespaceException.class);
+            () -> snowflakeCatalog.loadNamespaceMetadata(Namespace.of(db, nonExistingSchema)))
+        .isInstanceOf(NoSuchNamespaceException.class)
+        .hasMessageContainingAll("snowflake identifier", "doesn't exist");
   }
 
   @Test
   public void testLoadNamespaceThatExceedMaxSupportedHierarchy() {
     String nonExistingSchema = "IDontExist";
-    String db = TestConfigurations.getInstance().getDatabase();
+    String db = getDatabase();
     Assertions.assertThatThrownBy(
-            () -> {
-              snowflakeCatalog.loadNamespaceMetadata(
-                  Namespace.of(db, nonExistingSchema, "UnSupportedLevel"));
-            })
-        .isInstanceOf(IllegalArgumentException.class);
+            () ->
+                snowflakeCatalog.loadNamespaceMetadata(
+                    Namespace.of(db, nonExistingSchema, "UnSupportedLevel")))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Snowflake max namespace level is");
   }
 
   @ParameterizedTest
   @ValueSource(strings = {"Schema", "schema", "_schema", "Schema123", "schema$", "_Schema$_123"})
   public void testLoadNamespaceWithValidUnquotedIdentifier(String schema)
       throws SQLException, InterruptedException {
-    String dbName = TestConfigurations.getInstance().getDatabase();
+    String dbName = getDatabase();
     try {
       clientPool.run(conn -> conn.createStatement().execute("use " + dbName));
       createOrReplaceSchema(schema);
-      Assertions.assertThatNoException()
-          .isThrownBy(
-              () -> {
-                snowflakeCatalog.loadNamespaceMetadata(Namespace.of(dbName, schema));
-              });
+      Assertions.assertThat(
+              snowflakeCatalog.loadNamespaceMetadata(Namespace.of(dbName, schema)).isEmpty())
+          .isTrue();
     } finally {
       dropSchemaIfExists(schema);
     }
@@ -146,17 +140,21 @@ public class NamespaceTests extends SnowTestBase {
   public void testLoadNamespaceWithUnquotedIdentifierIsCaseInsensitive()
       throws SQLException, InterruptedException {
     String schema = "Schema123";
-    String dbName = TestConfigurations.getInstance().getDatabase();
+    String dbName = getDatabase();
     try {
       clientPool.run(conn -> conn.createStatement().execute("use " + dbName));
       createOrReplaceSchema(schema);
-      Assertions.assertThatNoException()
-          .isThrownBy(
-              () -> {
-                snowflakeCatalog.loadNamespaceMetadata(Namespace.of(dbName, schema));
-                snowflakeCatalog.loadNamespaceMetadata(Namespace.of(dbName, schema.toUpperCase()));
-                snowflakeCatalog.loadNamespaceMetadata(Namespace.of(dbName, "schEmA123"));
-              });
+      Assertions.assertThat(
+              snowflakeCatalog.loadNamespaceMetadata(Namespace.of(dbName, schema)).isEmpty())
+          .isTrue();
+      Assertions.assertThat(
+              snowflakeCatalog
+                  .loadNamespaceMetadata(Namespace.of(dbName, schema.toUpperCase()))
+                  .isEmpty())
+          .isTrue();
+      Assertions.assertThat(
+              snowflakeCatalog.loadNamespaceMetadata(Namespace.of(dbName, "schEmA123")).isEmpty())
+          .isTrue();
     } finally {
       dropSchemaIfExists(schema);
     }
@@ -166,14 +164,14 @@ public class NamespaceTests extends SnowTestBase {
   public void testLoadNamespaceWithQuotedIdentifierIsCaseSensitive()
       throws SQLException, InterruptedException {
     String schema = "\"Schema123\"";
-    String dbName = TestConfigurations.getInstance().getDatabase();
+    String dbName = getDatabase();
     try {
       clientPool.run(conn -> conn.createStatement().execute("use " + dbName));
       createOrReplaceSchema(schema);
       Assertions.assertThatThrownBy(
-              () -> {
-                snowflakeCatalog.loadNamespaceMetadata(Namespace.of(dbName, schema.toUpperCase()));
-              })
+              () ->
+                  snowflakeCatalog.loadNamespaceMetadata(
+                      Namespace.of(dbName, schema.toUpperCase())))
           .isInstanceOf(NoSuchNamespaceException.class)
           .hasMessageContainingAll("snowflake identifier", "doesn't exist");
     } finally {
@@ -196,15 +194,13 @@ public class NamespaceTests extends SnowTestBase {
       })
   public void testLoadNamespaceWithQuotedIdentifier(String schema)
       throws SQLException, InterruptedException {
-    String dbName = TestConfigurations.getInstance().getDatabase();
+    String dbName = getDatabase();
     try {
       clientPool.run(conn -> conn.createStatement().execute("use " + dbName));
       createOrReplaceSchema(schema);
-      Assertions.assertThatNoException()
-          .isThrownBy(
-              () -> {
-                snowflakeCatalog.loadNamespaceMetadata(Namespace.of(dbName, schema));
-              });
+      Assertions.assertThat(
+              snowflakeCatalog.loadNamespaceMetadata(Namespace.of(dbName, schema)).isEmpty())
+          .isTrue();
     } finally {
       dropSchemaIfExists(schema);
     }
@@ -213,14 +209,12 @@ public class NamespaceTests extends SnowTestBase {
   @Test
   public void testDropNamespaceNotSupported() throws SQLException, InterruptedException {
     String schema = "Schema123";
-    String dbName = TestConfigurations.getInstance().getDatabase();
+    String dbName = getDatabase();
     try {
       clientPool.run(conn -> conn.createStatement().execute("use " + dbName));
       createOrReplaceSchema(schema);
       Assertions.assertThatThrownBy(
-              () -> {
-                snowflakeCatalog.dropNamespace(Namespace.of(dbName, schema));
-              })
+              () -> snowflakeCatalog.dropNamespace(Namespace.of(dbName, schema)))
           .isInstanceOf(UnsupportedOperationException.class)
           .hasMessageContaining("SnowflakeCatalog does not currently support dropNamespace");
     } finally {
@@ -231,15 +225,12 @@ public class NamespaceTests extends SnowTestBase {
   @Test
   public void testSetPropertiesNotSupported() throws SQLException, InterruptedException {
     String schema = "Schema123";
-    String dbName = TestConfigurations.getInstance().getDatabase();
+    String dbName = getDatabase();
     try {
       clientPool.run(conn -> conn.createStatement().execute("use " + dbName));
       createOrReplaceSchema(schema);
       Assertions.assertThatThrownBy(
-              () -> {
-                snowflakeCatalog.setProperties(
-                    Namespace.of(dbName, schema), new HashMap<String, String>());
-              })
+              () -> snowflakeCatalog.setProperties(Namespace.of(dbName, schema), Maps.newHashMap()))
           .isInstanceOf(UnsupportedOperationException.class)
           .hasMessageContaining("SnowflakeCatalog does not currently support setProperties");
     } finally {
@@ -250,15 +241,14 @@ public class NamespaceTests extends SnowTestBase {
   @Test
   public void testRemovePropertiesNotSupported() throws SQLException, InterruptedException {
     String schema = "Schema123";
-    String dbName = TestConfigurations.getInstance().getDatabase();
+    String dbName = getDatabase();
     try {
       clientPool.run(conn -> conn.createStatement().execute("use " + dbName));
       createOrReplaceSchema(schema);
       Assertions.assertThatThrownBy(
-              () -> {
-                snowflakeCatalog.removeProperties(
-                    Namespace.of(dbName, schema), new HashSet<String>());
-              })
+              () ->
+                  snowflakeCatalog.removeProperties(
+                      Namespace.of(dbName, schema), Sets.newHashSet()))
           .isInstanceOf(UnsupportedOperationException.class)
           .hasMessageContaining("SnowflakeCatalog does not currently support removeProperties");
     } finally {
