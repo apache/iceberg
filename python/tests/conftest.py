@@ -127,17 +127,6 @@ def table_schema_simple() -> Schema:
 
 
 @pytest.fixture(scope="session")
-def pyarrow_schema_simple() -> pa.Schema:
-    return pa.schema(
-        [
-            pa.field("foo", pa.string(), nullable=True, metadata={"PARQUET:field_id": "1"}),
-            pa.field("bar", pa.int32(), nullable=False, metadata={"PARQUET:field_id": "2"}),
-            pa.field("baz", pa.bool_(), nullable=True, metadata={"PARQUET:field_id": "3"}),
-        ]
-    )
-
-
-@pytest.fixture(scope="session")
 def table_schema_nested() -> Schema:
     return schema.Schema(
         NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
@@ -185,69 +174,6 @@ def table_schema_nested() -> Schema:
         ),
         schema_id=1,
         identifier_field_ids=[1],
-    )
-
-
-@pytest.fixture(scope="session")
-def pyarrow_schema_nested() -> pa.Schema:
-    return pa.schema(
-        [
-            pa.field("foo", pa.string(), nullable=True, metadata={"PARQUET:field_id": "1"}),
-            pa.field("bar", pa.int32(), nullable=False, metadata={"PARQUET:field_id": "2"}),
-            pa.field("baz", pa.bool_(), nullable=True, metadata={"PARQUET:field_id": "3"}),
-            pa.field(
-                "qux",
-                pa.list_(pa.field("element", pa.string(), nullable=False, metadata={"PARQUET:field_id": "5"})),
-                nullable=False,
-                metadata={"PARQUET:field_id": "4"},
-            ),
-            pa.field(
-                "quux",
-                pa.map_(
-                    pa.field("key", pa.string(), nullable=False, metadata={"PARQUET:field_id": "7"}),
-                    pa.field(
-                        "value",
-                        pa.map_(
-                            pa.field("key", pa.string(), nullable=False, metadata={"PARQUET:field_id": "9"}),
-                            pa.field("value", pa.int32(), nullable=False, metadata={"PARQUET:field_id": "10"}),
-                        ),
-                        nullable=False,
-                        metadata={"PARQUET:field_id": "8"},
-                    ),
-                ),
-                nullable=False,
-                metadata={"PARQUET:field_id": "6"},
-            ),
-            pa.field(
-                "location",
-                pa.list_(
-                    pa.field(
-                        "element",
-                        pa.struct(
-                            [
-                                pa.field("latitude", pa.float32(), nullable=True, metadata={"PARQUET:field_id": "13"}),
-                                pa.field("longitude", pa.float32(), nullable=True, metadata={"PARQUET:field_id": "14"}),
-                            ]
-                        ),
-                        nullable=False,
-                        metadata={"PARQUET:field_id": "12"},
-                    )
-                ),
-                nullable=False,
-                metadata={"PARQUET:field_id": "11"},
-            ),
-            pa.field(
-                "person",
-                pa.struct(
-                    [
-                        pa.field("name", pa.string(), nullable=True, metadata={"PARQUET:field_id": "16"}),
-                        pa.field("age", pa.int32(), nullable=False, metadata={"PARQUET:field_id": "17"}),
-                    ]
-                ),
-                nullable=True,
-                metadata={"PARQUET:field_id": "15"},
-            ),
-        ]
     )
 
 
