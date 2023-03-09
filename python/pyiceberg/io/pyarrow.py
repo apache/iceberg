@@ -606,15 +606,13 @@ class PyArrowSchemaVisitor(Generic[T], ABC):
 
 
 def _get_field_id_and_doc(field: pa.Field) -> Tuple[Optional[int], Optional[str]]:
+    field_metadata = {k.decode(): v.decode() for k, v in field.metadata.items()}
     field_id = None
-    doc = None
-    if field.metadata is not None:
-        for k, v in field.metadata.items():
-            key = k.decode()
-            if key.endswith("field_id"):
-                field_id = int(v.decode())
-            elif key.endswith("doc"):
-                doc = v.decode()
+    doc = field_metadata.get("PARQUET:doc", field_metadata.get("doc"))
+
+    if field_id_str := field_metadata.get("PARQUET:field_id", field_metadata.get("field_id")):
+        field_id = int(field_id_str)
+
     return field_id, doc
 
 
@@ -782,7 +780,8 @@ def project_table(
             for table in pool.starmap(
                 func=_file_to_table,
                 iterable=[(fs, task, bound_row_filter, projected_schema, projected_field_ids, case_sensitive) for task in tasks],
-                chunksize=None,  # we could use this to control how to materialize the generator of tasks (we should also make the expression above lazy)
+                chunksize=None,
+                # we could use this to control how to materialize the generator of tasks (we should also make the expression above lazy)
             )
             if table is not None
         ]
