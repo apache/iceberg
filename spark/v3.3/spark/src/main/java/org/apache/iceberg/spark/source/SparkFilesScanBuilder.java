@@ -25,7 +25,7 @@ import org.apache.spark.sql.connector.read.Scan;
 import org.apache.spark.sql.connector.read.ScanBuilder;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 
-/** @deprecated use {@link SparkStagedScanBuilder} instead */
+/** @deprecated will be removed in 1.3.0, use {@link SparkStagedScanBuilder} instead */
 @Deprecated
 class SparkFilesScanBuilder implements ScanBuilder {
 

@@ -34,7 +34,6 @@ import org.apache.iceberg.MetadataTableUtils;
 import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Partitioning;
-import org.apache.iceberg.PositionDeletesScanTask;
 import org.apache.iceberg.ScanTask;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
@@ -49,7 +48,6 @@ import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
-import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.ScanTaskSetManager;
 import org.apache.iceberg.spark.SparkReadOptions;
@@ -693,11 +691,7 @@ public class TestPositionDeletesTable extends SparkTestBase {
       String fileSetID = UUID.randomUUID().toString();
 
       ScanTaskSetManager taskSetManager = ScanTaskSetManager.get();
-      taskSetManager.stageTasks(
-          tab,
-          fileSetID,
-          Lists.newArrayList(
-              Iterators.transform(tasks.iterator(), t -> (PositionDeletesScanTask) t)));
+      taskSetManager.stageTasks(tab, fileSetID, Lists.newArrayList(tasks));
 
       // read and pack original 4 files into 2 splits
       Dataset<Row> scanDF =

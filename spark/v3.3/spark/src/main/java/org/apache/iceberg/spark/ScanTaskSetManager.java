@@ -34,7 +34,8 @@ public class ScanTaskSetManager {
 
   private static final ScanTaskSetManager INSTANCE = new ScanTaskSetManager();
 
-  private final Map<Pair<String, String>, List<ScanTask>> tasksMap = Maps.newConcurrentMap();
+  private final Map<Pair<String, String>, List<? extends ScanTask>> tasksMap =
+      Maps.newConcurrentMap();
 
   private ScanTaskSetManager() {}
 
@@ -42,24 +43,26 @@ public class ScanTaskSetManager {
     return INSTANCE;
   }
 
-  public void stageTasks(Table table, String setID, List<ScanTask> tasks) {
+  public <T extends ScanTask> void stageTasks(Table table, String setID, List<T> tasks) {
     Preconditions.checkArgument(
         tasks != null && tasks.size() > 0, "Cannot stage null or empty tasks");
-    Pair<String, String> id = toID(table, setID);
+    Pair<String, String> id = toId(table, setID);
     tasksMap.put(id, tasks);
   }
 
-  public List<ScanTask> fetchTasks(Table table, String setID) {
-    Pair<String, String> id = toID(table, setID);
-    return tasksMap.get(id);
+  @SuppressWarnings("unchecked")
+  public <T extends ScanTask> List<T> fetchTasks(Table table, String setId) {
+    Pair<String, String> id = toId(table, setId);
+    return (List<T>) tasksMap.get(id);
   }
 
-  public List<ScanTask> removeTasks(Table table, String setID) {
-    Pair<String, String> id = toID(table, setID);
-    return tasksMap.remove(id);
+  @SuppressWarnings("unchecked")
+  public <T extends ScanTask> List<T> removeTasks(Table table, String setID) {
+    Pair<String, String> id = toId(table, setID);
+    return (List<T>) tasksMap.remove(id);
   }
 
-  public Set<String> fetchSetIDs(Table table) {
+  public Set<String> fetchSetIds(Table table) {
     return tasksMap.keySet().stream()
         .filter(e -> e.first().equals(tableUUID(table)))
         .map(Pair::second)
@@ -71,7 +74,7 @@ public class ScanTaskSetManager {
     return ops.current().uuid();
   }
 
-  private Pair<String, String> toID(Table table, String setID) {
-    return Pair.of(tableUUID(table), setID);
+  private Pair<String, String> toId(Table table, String setId) {
+    return Pair.of(tableUUID(table), setId);
   }
 }

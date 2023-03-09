@@ -32,52 +32,34 @@ import org.apache.spark.sql.SparkSession;
 
 class SparkStagedScan extends SparkScan {
 
-  private final String taskSetID;
+  private final String taskSetId;
   private final long splitSize;
   private final int splitLookback;
-  private final long splitOpenFileCost;
+  private final long openFileCost;
 
   private List<ScanTaskGroup<ScanTask>> taskGroups = null; // lazy cache of tasks
 
   SparkStagedScan(SparkSession spark, Table table, SparkReadConf readConf) {
     super(spark, table, readConf, table.schema(), ImmutableList.of());
 
-    this.taskSetID = readConf.scanTaskSetId();
+    this.taskSetId = readConf.scanTaskSetId();
     this.splitSize = readConf.splitSize();
     this.splitLookback = readConf.splitLookback();
-    this.splitOpenFileCost = readConf.splitOpenFileCost();
-  }
-
-  protected String taskSetID() {
-    return taskSetID;
-  }
-
-  protected long splitSize() {
-    return splitSize;
-  }
-
-  protected int splitLookback() {
-    return splitLookback;
-  }
-
-  protected long splitOpenFileCost() {
-    return splitOpenFileCost;
+    this.openFileCost = readConf.splitOpenFileCost();
   }
 
   @Override
   protected List<ScanTaskGroup<ScanTask>> taskGroups() {
     if (taskGroups == null) {
-
       ScanTaskSetManager taskSetManager = ScanTaskSetManager.get();
-      List<ScanTask> tasks = taskSetManager.fetchTasks(table(), taskSetID);
+      List<ScanTask> tasks = taskSetManager.fetchTasks(table(), taskSetId);
       ValidationException.check(
           tasks != null,
-          "Task set manager has no tasks for table %s with id %s",
+          "Task set manager has no tasks for table %s with task set ID %s",
           table(),
-          taskSetID);
+          taskSetId);
 
-      this.taskGroups =
-          TableScanUtil.planTaskGroups(tasks, splitSize, splitLookback, splitOpenFileCost);
+      this.taskGroups = TableScanUtil.planTaskGroups(tasks, splitSize, splitLookback, openFileCost);
     }
     return taskGroups;
   }
@@ -94,21 +76,21 @@ class SparkStagedScan extends SparkScan {
 
     SparkStagedScan that = (SparkStagedScan) other;
     return table().name().equals(that.table().name())
-        && Objects.equals(taskSetID, that.taskSetID())
-        && Objects.equals(splitSize, that.splitSize())
-        && Objects.equals(splitLookback, that.splitLookback())
-        && Objects.equals(splitOpenFileCost, that.splitOpenFileCost());
+        && Objects.equals(taskSetId, that.taskSetId)
+        && Objects.equals(splitSize, that.splitSize)
+        && Objects.equals(splitLookback, that.splitLookback)
+        && Objects.equals(openFileCost, that.openFileCost);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(table().name(), taskSetID, splitSize, splitSize, splitOpenFileCost);
+    return Objects.hash(table().name(), taskSetId, splitSize, splitSize, openFileCost);
   }
 
   @Override
   public String toString() {
     return String.format(
-        "SparkStagedScan(table=%s, type=%s, taskSetID=%s, caseSensitive=%s)",
-        table(), expectedSchema().asStruct(), taskSetID, caseSensitive());
+        "IcebergStagedScan(table=%s, type=%s, taskSetID=%s, caseSensitive=%s)",
+        table(), expectedSchema().asStruct(), taskSetId, caseSensitive());
   }
 }
