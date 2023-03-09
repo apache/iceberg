@@ -128,8 +128,8 @@ public class NamespaceTests extends SnowTestBase {
     try {
       clientPool.run(conn -> conn.createStatement().execute("use " + dbName));
       createOrReplaceSchema(schema);
-      Assertions.assertThat(
-              snowflakeCatalog.loadNamespaceMetadata(Namespace.of(dbName, schema))).isEmpty();
+      Assertions.assertThat(snowflakeCatalog.loadNamespaceMetadata(Namespace.of(dbName, schema)))
+          .isEmpty();
     } finally {
       dropSchemaIfExists(schema);
     }
@@ -143,13 +143,14 @@ public class NamespaceTests extends SnowTestBase {
     try {
       clientPool.run(conn -> conn.createStatement().execute("use " + dbName));
       createOrReplaceSchema(schema);
+      Assertions.assertThat(snowflakeCatalog.loadNamespaceMetadata(Namespace.of(dbName, schema)))
+          .isEmpty();
       Assertions.assertThat(
-              snowflakeCatalog.loadNamespaceMetadata(Namespace.of(dbName, schema))).isEmpty();
+              snowflakeCatalog.loadNamespaceMetadata(Namespace.of(dbName, schema.toUpperCase())))
+          .isEmpty();
       Assertions.assertThat(
-              snowflakeCatalog
-                  .loadNamespaceMetadata(Namespace.of(dbName, schema.toUpperCase()))).isEmpty();
-      Assertions.assertThat(
-              snowflakeCatalog.loadNamespaceMetadata(Namespace.of(dbName, "schEmA123"))).isEmpty();
+              snowflakeCatalog.loadNamespaceMetadata(Namespace.of(dbName, "schEmA123")))
+          .isEmpty();
     } finally {
       dropSchemaIfExists(schema);
     }
@@ -193,8 +194,8 @@ public class NamespaceTests extends SnowTestBase {
     try {
       clientPool.run(conn -> conn.createStatement().execute("use " + dbName));
       createOrReplaceSchema(schema);
-      Assertions.assertThat(
-              snowflakeCatalog.loadNamespaceMetadata(Namespace.of(dbName, schema))).isEmpty();
+      Assertions.assertThat(snowflakeCatalog.loadNamespaceMetadata(Namespace.of(dbName, schema)))
+          .isEmpty();
     } finally {
       dropSchemaIfExists(schema);
     }
