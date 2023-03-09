@@ -165,6 +165,12 @@ public interface CatalogLoader extends Serializable {
     }
 
     @Override
+    @SuppressWarnings({"checkstyle:NoClone", "checkstyle:SuperClone"})
+    public CatalogLoader clone() {
+      return new RESTCatalogLoader(catalogName, new Configuration(hadoopConf.get()), properties);
+    }
+
+    @Override
     public String toString() {
       return MoreObjects.toStringHelper(this)
           .add("catalogName", catalogName)
