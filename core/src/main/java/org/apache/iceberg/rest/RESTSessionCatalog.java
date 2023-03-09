@@ -98,6 +98,7 @@ public class RESTSessionCatalog extends BaseSessionCatalog
           OAuth2Properties.SAML1_TOKEN_TYPE);
 
   private final Function<Map<String, String>, RESTClient> clientBuilder;
+  private Function<Map<String, String>, FileIO> ioBuilder;
   private Cache<String, AuthSession> sessions = null;
   private AuthSession catalogAuth = null;
   private boolean keepTokenRefreshed = true;
@@ -187,10 +188,7 @@ public class RESTSessionCatalog extends BaseSessionCatalog
               client, tokenRefreshExecutor(), token, expiresAtMillis(mergedProps), catalogAuth);
     }
 
-    String ioImpl = mergedProps.get(CatalogProperties.FILE_IO_IMPL);
-    this.io =
-        CatalogUtil.loadFileIO(
-            ioImpl != null ? ioImpl : ResolvingFileIO.class.getName(), mergedProps, conf);
+    this.io = newFileIO(mergedProps);
 
     this.snapshotMode =
         SnapshotMode.valueOf(
@@ -203,6 +201,11 @@ public class RESTSessionCatalog extends BaseSessionCatalog
     this.reportingViaRestEnabled =
         PropertyUtil.propertyAsBoolean(mergedProps, REST_METRICS_REPORTING_ENABLED, true);
     super.initialize(name, mergedProps);
+  }
+
+  public void setFileIOBuilder(Function<Map<String, String>, FileIO> ioBuilder) {
+    Preconditions.checkState(null == io, "Cannot set IO builder after calling initialize");
+    this.ioBuilder = ioBuilder;
   }
 
   private AuthSession session(SessionContext context) {
@@ -762,16 +765,25 @@ public class RESTSessionCatalog extends BaseSessionCatalog
     return String.format("%s.%s", name(), ident);
   }
 
+  private FileIO newFileIO(Map<String, String> properties) {
+    if (null != ioBuilder) {
+      return ioBuilder.apply(properties);
+    } else {
+      String ioImpl = properties.get(CatalogProperties.FILE_IO_IMPL);
+      return
+          CatalogUtil.loadFileIO(
+              ioImpl != null ? ioImpl : ResolvingFileIO.class.getName(), properties, conf);
+    }
+  }
+
   private FileIO tableFileIO(Map<String, String> config) {
     if (config.isEmpty()) {
       return io; // reuse client and io since config is the same
     }
 
     Map<String, String> fullConf = RESTUtil.merge(properties(), config);
-    String ioImpl = fullConf.get(CatalogProperties.FILE_IO_IMPL);
 
-    return CatalogUtil.loadFileIO(
-        ioImpl != null ? ioImpl : ResolvingFileIO.class.getName(), fullConf, this.conf);
+    return newFileIO(fullConf);
   }
 
   private AuthSession tableSession(Map<String, String> tableConf, AuthSession parent) {
