@@ -24,8 +24,13 @@ from unittest.mock import MagicMock, patch
 import pytest
 from pyarrow.fs import FileType
 
-from pyiceberg.io import InputStream, OutputStream
-from pyiceberg.io.pyarrow import PyArrowFile, PyArrowFileIO
+from pyiceberg.expressions import AlwaysTrue
+from pyiceberg.io import InputStream, OutputStream, load_file_io
+from pyiceberg.io.pyarrow import PyArrowFile, PyArrowFileIO, project_table
+from pyiceberg.partitioning import PartitionSpec
+from pyiceberg.schema import Schema
+from pyiceberg.table import FileScanTask, Table
+from pyiceberg.table.metadata import TableMetadataV2
 
 
 def test_pyarrow_input_file() -> None:
@@ -239,3 +244,38 @@ def test_deleting_s3_file_not_found() -> None:
             PyArrowFileIO().delete("s3://foo/bar.txt")
 
         assert "Cannot delete file, does not exist:" in str(exc_info.value)
+
+
+def test_pyarrow_wrap_fsspec(example_task: FileScanTask, table_schema_simple: Schema) -> None:
+    metadata_location = "file://a/b/c.json"
+    projection = project_table(
+        [example_task],
+        Table(
+            ("namespace", "table"),
+            metadata=TableMetadataV2(
+                location=metadata_location,
+                last_column_id=1,
+                format_version=2,
+                current_schema_id=1,
+                schemas=[table_schema_simple],
+                partition_specs=[PartitionSpec()],
+            ),
+            metadata_location=metadata_location,
+            io=load_file_io(properties={"py-io-impl": "pyiceberg.io.fsspec.FsspecFileIO"}, location=metadata_location),
+        ),
+        case_sensitive=True,
+        projected_schema=table_schema_simple,
+        row_filter=AlwaysTrue(),
+    )
+
+    assert (
+        str(projection)
+        == """pyarrow.Table
+foo: string
+bar: int64 not null
+baz: bool
+----
+foo: [["a","b","c"]]
+bar: [[1,2,3]]
+baz: [[true,false,null]]"""
+    )
