@@ -41,6 +41,7 @@ class SparkBatch implements Batch {
 
   private final JavaSparkContext sparkContext;
   private final Table table;
+  private final String branch;
   private final SparkReadConf readConf;
   private final Types.StructType groupingKeyType;
   private final List<? extends ScanTaskGroup<?>> taskGroups;
@@ -59,6 +60,7 @@ class SparkBatch implements Batch {
       int scanHashCode) {
     this.sparkContext = sparkContext;
     this.table = table;
+    this.branch = readConf.branch();
     this.readConf = readConf;
     this.groupingKeyType = groupingKeyType;
     this.taskGroups = taskGroups;
@@ -87,7 +89,7 @@ class SparkBatch implements Batch {
                         groupingKeyType,
                         taskGroups.get(index),
                         tableBroadcast,
-                        readConf.branch(),
+                        branch,
                         expectedSchemaString,
                         caseSensitive,
                         localityEnabled));

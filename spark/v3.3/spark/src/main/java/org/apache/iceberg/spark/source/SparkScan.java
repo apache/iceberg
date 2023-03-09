@@ -71,8 +71,8 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
       SparkReadConf readConf,
       Schema expectedSchema,
       List<Expression> filters) {
-    SparkSchemaUtil.validateMetadataColumnReferences(
-        SnapshotUtil.schemaFor(table, readConf.branch()), expectedSchema);
+    Schema snapshotSchema = SnapshotUtil.schemaFor(table, readConf.branch());
+    SparkSchemaUtil.validateMetadataColumnReferences(snapshotSchema, expectedSchema);
 
     this.sparkContext = JavaSparkContext.fromSparkContext(spark.sparkContext());
     this.table = table;
@@ -173,7 +173,7 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
             .collect(Collectors.joining(", "));
 
     return String.format(
-        "%s(branch=%s) [filters=%s, groupedBy=%s]",
+        "%s (branch=%s) [filters=%s, groupedBy=%s]",
         table(), branch(), Spark3Util.describe(filterExpressions), groupingKeyFieldNamesAsString);
   }
 
