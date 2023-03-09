@@ -61,7 +61,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class JdbcCatalog extends BaseMetastoreCatalog
-    implements Configurable<Configuration>, SupportsNamespaces, Closeable {
+    implements Configurable<Object>, SupportsNamespaces, Closeable {
 
   public static final String PROPERTY_PREFIX = "jdbc.";
   private static final String NAMESPACE_EXISTS_PROPERTY = "exists";
@@ -252,8 +252,14 @@ public class JdbcCatalog extends BaseMetastoreCatalog
   }
 
   @Override
-  public void setConf(Configuration conf) {
+  public void setConf(Object conf) {
     this.conf = conf;
+  }
+
+  /** @deprecated will be removed in 1.3.0; use {@link #setConf(Object)} */
+  @Deprecated
+  public void setConf(Configuration conf) {
+    setConf((Object) conf);
   }
 
   @Override

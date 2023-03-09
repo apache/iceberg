@@ -85,7 +85,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class RESTSessionCatalog extends BaseSessionCatalog
-    implements Configurable<Configuration>, Closeable {
+    implements Configurable<Object>, Closeable {
   private static final Logger LOG = LoggerFactory.getLogger(RESTSessionCatalog.class);
   private static final String REST_METRICS_REPORTING_ENABLED = "rest-metrics-reporting-enabled";
   private static final String REST_SNAPSHOT_LOADING_MODE = "snapshot-loading-mode";
@@ -219,8 +219,14 @@ public class RESTSessionCatalog extends BaseSessionCatalog
   }
 
   @Override
-  public void setConf(Configuration newConf) {
+  public void setConf(Object newConf) {
     this.conf = newConf;
+  }
+
+  /** @deprecated will be removed in 1.3.0; use {@link #setConf(Object)} */
+  @Deprecated
+  public void setConf(Configuration newConf) {
+    setConf((Object) newConf);
   }
 
   @Override
