@@ -66,7 +66,11 @@ class AddFilesProcedure extends BaseProcedure {
 
   private static final ProcedureParameter[] PARAMETERS =
       new ProcedureParameter[] {
-        TABLE_PARAM, SOURCE_TABLE_PARAM, PARTITION_FILTER_PARAM, CHECK_DUPLICATE_FILES_PARAM, SKIP_ON_ERROR_PARAM
+        TABLE_PARAM,
+        SOURCE_TABLE_PARAM,
+        PARTITION_FILTER_PARAM,
+        CHECK_DUPLICATE_FILES_PARAM,
+        SKIP_ON_ERROR_PARAM
       };
 
   private static final StructType OUTPUT_TYPE =
@@ -113,12 +117,7 @@ class AddFilesProcedure extends BaseProcedure {
 
     boolean checkDuplicateFiles = input.asBoolean(CHECK_DUPLICATE_FILES_PARAM, true);
 
-    boolean skipOnError;
-    if (args.isNullAt(4)) {
-      skipOnError = false;
-    } else {
-      skipOnError = args.getBoolean(4);
-    }
+    boolean skipOnError = input.asBoolean(SKIP_ON_ERROR_PARAM, false);
 
     return importToIceberg(
         tableIdent, sourceIdent, partitionFilter, checkDuplicateFiles, skipOnError);

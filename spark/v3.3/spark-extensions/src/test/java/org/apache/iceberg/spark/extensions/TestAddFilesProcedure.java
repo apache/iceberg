@@ -1013,7 +1013,6 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
                 + "source_table => '%s',"
                 + "skip_on_error => true)",
             catalogName, tableName, sourceTableName);
-
     assertEquals("Procedure output must match", ImmutableList.of(row(2L, 1L)), result);
 
     assertEquals(

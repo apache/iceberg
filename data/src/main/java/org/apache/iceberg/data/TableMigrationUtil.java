@@ -69,26 +69,26 @@ public class TableMigrationUtil {
    * not file footers, will not be populated.
    *
    * @param partition map of column names to column values for the partition
-   * @param uri partition location URI
+   * @param partitionUri partition location URI
    * @param format partition format, avro, parquet or orc
    * @param spec a partition spec
    * @param conf a Hadoop conf
-   * @param metricsConfig a metrics conf
+   * @param metricsSpec a metrics conf
    * @param mapping a name mapping
    * @param skipOnError if true, skip files which cannot be imported into Iceberg
    * @return a List of DataFile
    */
   public static List<DataFile> listPartition(
-      Map<String, String> partition,
-      String uri,
+      Map<String, String> partitionPath,
+      String partitionUri,
       String format,
       PartitionSpec spec,
       Configuration conf,
-      MetricsConfig metricsConfig,
+      MetricsConfig metricsSpec,
       NameMapping mapping,
       boolean skipOnError) {
     return listPartition(
-        partition, uri, format, spec, conf, metricsConfig, mapping, 1, skipOnError);
+        partitionPath, partitionUri, format, spec, conf, metricsSpec, mapping, 1, skipOnError);
   }
 
   /**
@@ -100,33 +100,33 @@ public class TableMigrationUtil {
    * <p>Note: certain metrics, like NaN counts, that are only supported by iceberg file writers but
    * not file footers, will not be populated.
    *
-   * @param partition partition key, e.g., "a=1/b=2"
-   * @param uri partition location URI
+   * @param partitionPath partition key, e.g., "a=1/b=2"
+   * @param partitionUri partition location URI
    * @param format partition format, avro, parquet or orc
    * @param spec a partition spec
    * @param conf a Hadoop conf
-   * @param metricsConfig a metrics conf
+   * @param metricsSpec a metrics conf
    * @param mapping a name mapping
    * @return a List of DataFile
    */
   public static List<DataFile> listPartition(
-      Map<String, String> partition,
-      String uri,
+      Map<String, String> partitionPath,
+      String partitionUri,
       String format,
       PartitionSpec spec,
       Configuration conf,
-      MetricsConfig metricsConfig,
+      MetricsConfig metricsSpec,
       NameMapping mapping) {
     return listPartition(
-        partition,
-        uri,
+        partitionPath,
+        partitionUri,
         format,
         spec,
         conf,
-        metricsConfig,
+        metricsSpec,
         mapping,
         1,
-        false /* skipOnErrorOrNot */);
+        false /* skip on error or not */);
   }
 
   /**
@@ -168,9 +168,29 @@ public class TableMigrationUtil {
         metricsSpec,
         mapping,
         parallelism,
-        false /* skipOnErrorOrNot */);
+        false /* skip on error or not */);
   }
 
+  /**
+   * Returns the data files in a partition by listing the partition location.
+   *
+   * <p>For Parquet and ORC partitions, this will read metrics from the file footer. For Avro
+   * partitions, metrics are set to null.
+   *
+   * <p>Note: certain metrics, like NaN counts, that are only supported by iceberg file writers but
+   * not file footers, will not be populated.
+   *
+   * @param partitionPath partition key, e.g., "a=1/b=2"
+   * @param partitionUri partition location URI
+   * @param format partition format, avro, parquet or orc
+   * @param spec a partition spec
+   * @param conf a Hadoop conf
+   * @param metricsSpec a metrics conf
+   * @param mapping a name mapping
+   * @param parallelism size of the thread pool
+   * @param skipOnError if true, skip files which cannot be imported into Iceberg
+   * @return a List of DataFile
+   */
   public static List<DataFile> listPartition(
       Map<String, String> partitionPath,
       String partitionUri,
@@ -199,7 +219,10 @@ public class TableMigrationUtil {
       Tasks.Builder<Integer> task = Tasks.range(fileStatus.size());
 
       if (skipOnError) {
-        task.suppressFailureWhenFinished();
+        task.onFailure(
+                (index, exc) ->
+                    LOG.warn("Failed to build data file from: {}", fileStatus.get(index), exc))
+            .suppressFailureWhenFinished();
       } else {
         task.stopOnFailure().throwFailureWhenFinished();
       }
@@ -237,9 +260,7 @@ public class TableMigrationUtil {
           LOG.warn("Skipping unknown partition format: {} - {}", format, partitionUri);
         } else {
           throw new UnsupportedOperationException(
-              String.format(
-                  "Unknown partition format: %s - %s, set skip_on_error=true to skip it.",
-                  format, partitionUri));
+              String.format("Unknown partition format: %s - %s", format, partitionUri));
         }
       }
       return Arrays.stream(datafiles).filter(Objects::nonNull).collect(Collectors.toList());

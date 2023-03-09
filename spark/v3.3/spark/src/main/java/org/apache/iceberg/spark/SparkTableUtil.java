@@ -515,7 +515,7 @@ public class SparkTableUtil {
         stagingDir,
         Collections.emptyMap(),
         checkDuplicateFiles,
-        false /* skipOnErrorOrNot */);
+        false /* skip on error or not */);
   }
 
   /**
@@ -568,7 +568,7 @@ public class SparkTableUtil {
         stagingDir,
         Collections.emptyMap(),
         false,
-        false /* skipOnErrorOrNot */);
+        false /* skip on error or not */);
   }
 
   private static void importUnpartitionedSparkTable(
@@ -774,7 +774,7 @@ public class SparkTableUtil {
       PartitionSpec spec,
       String stagingDir) {
     importSparkPartitions(
-        spark, partitions, targetTable, spec, stagingDir, false, false /* skipOnErrorOrNot */);
+        spark, partitions, targetTable, spec, stagingDir, false, false /* skip on error or not */);
   }
 
   public static List<SparkPartition> filterPartitions(
