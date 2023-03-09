@@ -27,6 +27,7 @@ import static org.apache.iceberg.TableProperties.UPDATE_MODE_DEFAULT;
 
 import java.util.Map;
 import java.util.Set;
+import org.apache.iceberg.BaseMetadataTable;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Partitioning;
 import org.apache.iceberg.RowLevelOperationMode;
@@ -124,7 +125,11 @@ public class SparkTable
   }
 
   private Schema snapshotSchema() {
-    return SnapshotUtil.schemaFor(icebergTable, snapshotId, null);
+    if (icebergTable instanceof BaseMetadataTable) {
+      return icebergTable.schema();
+    } else {
+      return SnapshotUtil.schemaFor(icebergTable, snapshotId, null);
+    }
   }
 
   @Override

@@ -38,8 +38,10 @@ from pyiceberg.expressions import (
     BoundNotIn,
     BoundNotNaN,
     BoundNotNull,
+    BoundNotStartsWith,
     BoundPredicate,
     BoundReference,
+    BoundStartsWith,
     BoundTerm,
     EqualTo,
     GreaterThan,
@@ -54,8 +56,10 @@ from pyiceberg.expressions import (
     NotIn,
     NotNaN,
     NotNull,
+    NotStartsWith,
     Or,
     Reference,
+    StartsWith,
     UnboundPredicate,
 )
 from pyiceberg.expressions.literals import Literal, literal
@@ -203,6 +207,14 @@ class FooBoundBooleanExpressionVisitor(BoundBooleanExpressionVisitor[List[str]])
 
     def visit_or(self, left_result: List[str], right_result: List[str]) -> List[str]:
         self.visit_history.append("OR")
+        return self.visit_history
+
+    def visit_starts_with(self, term: BoundTerm[Any], literal: Literal[Any]) -> List[str]:
+        self.visit_history.append("STARTS_WITH")
+        return self.visit_history
+
+    def visit_not_starts_with(self, term: BoundTerm[Any], literal: Literal[Any]) -> List[str]:
+        self.visit_history.append("NOT_STARTS_WITH")
         return self.visit_history
 
 
@@ -778,6 +790,32 @@ def test_bound_boolean_expression_visitor_raise_on_unbound_predicate() -> None:
     with pytest.raises(TypeError) as exc_info:
         visit(bound_expression, visitor=visitor)
     assert "Not a bound predicate" in str(exc_info.value)
+
+
+def test_bound_boolean_expression_visitor_starts_with() -> None:
+    bound_expression = BoundStartsWith(
+        term=BoundReference(
+            field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
+            accessor=Accessor(position=0, inner=None),
+        ),
+        literal=literal("foo"),
+    )
+    visitor = FooBoundBooleanExpressionVisitor()
+    result = visit(bound_expression, visitor=visitor)
+    assert result == ["STARTS_WITH"]
+
+
+def test_bound_boolean_expression_visitor_not_starts_with() -> None:
+    bound_expression = BoundNotStartsWith(
+        term=BoundReference(
+            field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
+            accessor=Accessor(position=0, inner=None),
+        ),
+        literal=literal("foo"),
+    )
+    visitor = FooBoundBooleanExpressionVisitor()
+    result = visit(bound_expression, visitor=visitor)
+    assert result == ["NOT_STARTS_WITH"]
 
 
 def _to_byte_buffer(field_type: IcebergType, val: Any) -> bytes:
@@ -1357,6 +1395,90 @@ def test_integer_not_in(schema: Schema, manifest: ManifestFile) -> None:
     assert _ManifestEvalVisitor(schema, NotIn(Reference("no_nulls"), ("abc", "def")), case_sensitive=True).eval(
         manifest
     ), "Should read: in on no nulls column"
+
+
+def test_string_starts_with(schema: Schema, manifest: ManifestFile) -> None:
+    assert _ManifestEvalVisitor(schema, StartsWith(Reference("some_nulls"), "a"), case_sensitive=False).eval(
+        manifest
+    ), "Should read: range matches"
+
+    assert _ManifestEvalVisitor(schema, StartsWith(Reference("some_nulls"), "aa"), case_sensitive=False).eval(
+        manifest
+    ), "Should read: range matches"
+
+    assert _ManifestEvalVisitor(schema, StartsWith(Reference("some_nulls"), "dddd"), case_sensitive=False).eval(
+        manifest
+    ), "Should read: range matches"
+
+    assert _ManifestEvalVisitor(schema, StartsWith(Reference("some_nulls"), "z"), case_sensitive=False).eval(
+        manifest
+    ), "Should read: range matches"
+
+    assert _ManifestEvalVisitor(schema, StartsWith(Reference("no_nulls"), "a"), case_sensitive=False).eval(
+        manifest
+    ), "Should read: range matches"
+
+    assert not _ManifestEvalVisitor(schema, StartsWith(Reference("some_nulls"), "zzzz"), case_sensitive=False).eval(
+        manifest
+    ), "Should skip: range doesn't match"
+
+    assert not _ManifestEvalVisitor(schema, StartsWith(Reference("some_nulls"), "1"), case_sensitive=False).eval(
+        manifest
+    ), "Should skip: range doesn't match"
+
+
+def test_string_not_starts_with(schema: Schema, manifest: ManifestFile) -> None:
+    assert _ManifestEvalVisitor(schema, NotStartsWith(Reference("some_nulls"), "a"), case_sensitive=False).eval(
+        manifest
+    ), "Should read: range matches"
+
+    assert _ManifestEvalVisitor(schema, NotStartsWith(Reference("some_nulls"), "aa"), case_sensitive=False).eval(
+        manifest
+    ), "Should read: range matches"
+
+    assert _ManifestEvalVisitor(schema, NotStartsWith(Reference("some_nulls"), "dddd"), case_sensitive=False).eval(
+        manifest
+    ), "Should read: range matches"
+
+    assert _ManifestEvalVisitor(schema, NotStartsWith(Reference("some_nulls"), "z"), case_sensitive=False).eval(
+        manifest
+    ), "Should read: range matches"
+
+    assert _ManifestEvalVisitor(schema, NotStartsWith(Reference("no_nulls"), "a"), case_sensitive=False).eval(
+        manifest
+    ), "Should read: range matches"
+
+    assert _ManifestEvalVisitor(schema, NotStartsWith(Reference("some_nulls"), "zzzz"), case_sensitive=False).eval(
+        manifest
+    ), "Should read: range matches"
+
+    assert _ManifestEvalVisitor(schema, NotStartsWith(Reference("some_nulls"), "1"), case_sensitive=False).eval(
+        manifest
+    ), "Should read: range matches"
+
+    assert _ManifestEvalVisitor(schema, NotStartsWith(Reference("all_same_value_or_null"), "a"), case_sensitive=False).eval(
+        manifest
+    ), "Should read: range matches"
+
+    assert _ManifestEvalVisitor(schema, NotStartsWith(Reference("all_same_value_or_null"), "aa"), case_sensitive=False).eval(
+        manifest
+    ), "Should read: range matches"
+
+    assert _ManifestEvalVisitor(schema, NotStartsWith(Reference("all_same_value_or_null"), "A"), case_sensitive=False).eval(
+        manifest
+    ), "Should read: range matches"
+
+    #    Iceberg does not implement SQL's 3-way boolean logic, so the choice of an all null column
+    #    matching is
+    #    by definition in order to surface more values to the query engine to allow it to make its own
+    #    decision.
+    assert _ManifestEvalVisitor(schema, NotStartsWith(Reference("all_nulls_missing_nan"), "A"), case_sensitive=False).eval(
+        manifest
+    ), "Should read: range matches"
+
+    assert not _ManifestEvalVisitor(schema, NotStartsWith(Reference("no_nulls_same_value_a"), "a"), case_sensitive=False).eval(
+        manifest
+    ), "Should not read: all values start with the prefix"
 
 
 def test_rewrite_not_equal_to() -> None:

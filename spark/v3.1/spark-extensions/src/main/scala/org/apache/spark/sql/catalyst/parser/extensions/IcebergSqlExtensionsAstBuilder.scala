@@ -19,6 +19,8 @@
 
 package org.apache.spark.sql.catalyst.parser.extensions
 
+import java.util.Locale
+import java.util.concurrent.TimeUnit
 import org.antlr.v4.runtime._
 import org.antlr.v4.runtime.misc.Interval
 import org.antlr.v4.runtime.tree.ParseTree
@@ -35,8 +37,11 @@ import org.apache.spark.sql.catalyst.parser.ParserInterface
 import org.apache.spark.sql.catalyst.parser.extensions.IcebergParserUtils.withOrigin
 import org.apache.spark.sql.catalyst.parser.extensions.IcebergSqlExtensionsParser._
 import org.apache.spark.sql.catalyst.plans.logical.AddPartitionField
+import org.apache.spark.sql.catalyst.plans.logical.BranchOptions
 import org.apache.spark.sql.catalyst.plans.logical.CallArgument
 import org.apache.spark.sql.catalyst.plans.logical.CallStatement
+import org.apache.spark.sql.catalyst.plans.logical.CreateOrReplaceBranch
+import org.apache.spark.sql.catalyst.plans.logical.DropBranch
 import org.apache.spark.sql.catalyst.plans.logical.DropIdentifierFields
 import org.apache.spark.sql.catalyst.plans.logical.DropPartitionField
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
@@ -85,6 +90,50 @@ class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface) extends IcebergS
       typedVisit[Transform](ctx.transform))
   }
 
+  /**
+   * Create a CREATE OR REPLACE BRANCH logical command.
+   */
+  override def visitCreateOrReplaceBranch(ctx: CreateOrReplaceBranchContext): CreateOrReplaceBranch = withOrigin(ctx) {
+    val createOrReplaceBranchClause = ctx.createReplaceBranchClause()
+
+    val branchName = createOrReplaceBranchClause.identifier()
+    val branchOptionsContext = Option(createOrReplaceBranchClause.branchOptions())
+    val snapshotId = branchOptionsContext.flatMap(branchOptions => Option(branchOptions.snapshotId()))
+      .map(_.getText.toLong)
+    val snapshotRetention = branchOptionsContext.flatMap(branchOptions => Option(branchOptions.snapshotRetention()))
+    val minSnapshotsToKeep = snapshotRetention.flatMap(retention => Option(retention.minSnapshotsToKeep()))
+      .map(minSnapshots => minSnapshots.number().getText.toLong)
+    val maxSnapshotAgeMs = snapshotRetention
+      .flatMap(retention => Option(retention.maxSnapshotAge()))
+      .map(retention => TimeUnit.valueOf(retention.timeUnit().getText.toUpperCase(Locale.ENGLISH))
+        .toMillis(retention.number().getText.toLong))
+    val branchRetention = branchOptionsContext.flatMap(branchOptions => Option(branchOptions.refRetain()))
+    val branchRefAgeMs = branchRetention.map(retain =>
+      TimeUnit.valueOf(retain.timeUnit().getText.toUpperCase(Locale.ENGLISH)).toMillis(retain.number().getText.toLong))
+    val replace = ctx.createReplaceBranchClause().REPLACE() != null
+    val ifNotExists = createOrReplaceBranchClause.EXISTS() != null
+
+    val branchOptions = BranchOptions(
+      snapshotId,
+      minSnapshotsToKeep,
+      maxSnapshotAgeMs,
+      branchRefAgeMs
+    )
+
+    CreateOrReplaceBranch(
+      typedVisit[Seq[String]](ctx.multipartIdentifier),
+      branchName.getText,
+      branchOptions,
+      replace,
+      ifNotExists)
+  }
+
+  /**
+   * Create an DROP BRANCH logical command.
+   */
+  override def visitDropBranch(ctx: DropBranchContext): DropBranch = withOrigin(ctx) {
+    DropBranch(typedVisit[Seq[String]](ctx.multipartIdentifier), ctx.identifier().getText, ctx.EXISTS() != null)
+  }
 
   /**
    * Create an REPLACE PARTITION FIELD logical command.

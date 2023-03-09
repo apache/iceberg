@@ -48,8 +48,10 @@ from pyiceberg.expressions import (
     BoundNotIn,
     BoundNotNaN,
     BoundNotNull,
+    BoundNotStartsWith,
     BoundPredicate,
     BoundSetPredicate,
+    BoundStartsWith,
     BoundTerm,
     BoundUnaryPredicate,
     L,
@@ -320,6 +322,14 @@ class BoundBooleanExpressionVisitor(BooleanExpressionVisitor[T], ABC):
     def visit_or(self, left_result: T, right_result: T) -> T:
         """Visit a bound Or predicate"""
 
+    @abstractmethod
+    def visit_starts_with(self, term: BoundTerm[L], literal: Literal[L]) -> T:
+        """Visit bound StartsWith predicate"""
+
+    @abstractmethod
+    def visit_not_starts_with(self, term: BoundTerm[L], literal: Literal[L]) -> T:
+        """Visit bound NotStartsWith predicate"""
+
     def visit_unbound_predicate(self, predicate: UnboundPredicate[L]) -> T:
         """Visit an unbound predicate
         Args:
@@ -403,6 +413,16 @@ def _(expr: BoundLessThanOrEqual[L], visitor: BoundBooleanExpressionVisitor[T]) 
     return visitor.visit_less_than_or_equal(term=expr.term, literal=expr.literal)
 
 
+@visit_bound_predicate.register(BoundStartsWith)
+def _(expr: BoundStartsWith[L], visitor: BoundBooleanExpressionVisitor[T]) -> T:
+    return visitor.visit_starts_with(term=expr.term, literal=expr.literal)
+
+
+@visit_bound_predicate.register(BoundNotStartsWith)
+def _(expr: BoundNotStartsWith[L], visitor: BoundBooleanExpressionVisitor[T]) -> T:
+    return visitor.visit_not_starts_with(term=expr.term, literal=expr.literal)
+
+
 def rewrite_not(expr: BooleanExpression) -> BooleanExpression:
     return visit(expr, _RewriteNotVisitor())
 
@@ -484,6 +504,13 @@ class _ExpressionEvaluator(BoundBooleanExpressionVisitor[bool]):
 
     def visit_less_than_or_equal(self, term: BoundTerm[L], literal: Literal[L]) -> bool:
         return term.eval(self.struct) <= literal.value
+
+    def visit_starts_with(self, term: BoundTerm[L], literal: Literal[L]) -> bool:
+        eval_res = term.eval(self.struct)
+        return eval_res is not None and str(eval_res).startswith(str(literal.value))
+
+    def visit_not_starts_with(self, term: BoundTerm[L], literal: Literal[L]) -> bool:
+        return not self.visit_starts_with(term, literal)
 
     def visit_true(self) -> bool:
         return True
@@ -675,6 +702,59 @@ class _ManifestEvalVisitor(BoundBooleanExpressionVisitor[bool]):
 
         if literal.value < lower:
             return ROWS_CANNOT_MATCH
+
+        return ROWS_MIGHT_MATCH
+
+    def visit_starts_with(self, term: BoundTerm[L], literal: Literal[L]) -> bool:
+        pos = term.ref().accessor.position
+        field = self.partition_fields[pos]
+        prefix = str(literal.value)
+        len_prefix = len(prefix)
+
+        if field.lower_bound is None:
+            return ROWS_CANNOT_MATCH
+
+        lower = _from_byte_buffer(term.ref().field.field_type, field.lower_bound)
+        # truncate lower bound so that its length is not greater than the length of prefix
+        if lower is not None and lower[:len_prefix] > prefix:
+            return ROWS_CANNOT_MATCH
+
+        if field.upper_bound is None:
+            return ROWS_CANNOT_MATCH
+
+        upper = _from_byte_buffer(term.ref().field.field_type, field.upper_bound)
+        # truncate upper bound so that its length is not greater than the length of prefix
+        if upper is not None and upper[:len_prefix] < prefix:
+            return ROWS_CANNOT_MATCH
+
+        return ROWS_MIGHT_MATCH
+
+    def visit_not_starts_with(self, term: BoundTerm[L], literal: Literal[L]) -> bool:
+        pos = term.ref().accessor.position
+        field = self.partition_fields[pos]
+        prefix = str(literal.value)
+        len_prefix = len(prefix)
+
+        if field.contains_null or field.lower_bound is None or field.upper_bound is None:
+            return ROWS_MIGHT_MATCH
+
+        # not_starts_with will match unless all values must start with the prefix. This happens when
+        # the lower and upper bounds both start with the prefix.
+        lower = _from_byte_buffer(term.ref().field.field_type, field.lower_bound)
+        upper = _from_byte_buffer(term.ref().field.field_type, field.upper_bound)
+
+        if lower is not None and upper is not None:
+            # if lower is shorter than the prefix then lower doesn't start with the prefix
+            if len(lower) < len_prefix:
+                return ROWS_MIGHT_MATCH
+
+            if lower[:len_prefix] == prefix:
+                # if upper is shorter than the prefix then upper can't start with the prefix
+                if len(upper) < len_prefix:
+                    return ROWS_MIGHT_MATCH
+
+                if upper[:len_prefix] == prefix:
+                    return ROWS_CANNOT_MATCH
 
         return ROWS_MIGHT_MATCH
 
@@ -946,6 +1026,12 @@ class ExpressionToPlainFormat(BoundBooleanExpressionVisitor[List[Tuple[str, str,
     def visit_less_than_or_equal(self, term: BoundTerm[L], literal: Literal[L]) -> List[Tuple[str, str, Any]]:
         return [(term.ref().field.name, "<=", self._cast_if_necessary(term.ref().field.field_type, literal.value))]
 
+    def visit_starts_with(self, term: BoundTerm[L], literal: Literal[L]) -> List[Tuple[str, str, Any]]:
+        return []
+
+    def visit_not_starts_with(self, term: BoundTerm[L], literal: Literal[L]) -> List[Tuple[str, str, Any]]:
+        return []
+
     def visit_true(self) -> List[Tuple[str, str, Any]]:
         return []  # Not supported
 
@@ -1024,6 +1110,9 @@ class _InclusiveMetricsEvaluator(BoundBooleanExpressionVisitor[bool]):
         self.upper_bounds = file.upper_bounds or EMPTY_DICT
 
         return visit(self.expr, self)
+
+    def _may_contain_null(self, field_id: int) -> bool:
+        return self.null_counts is None or (field_id in self.null_counts and self.null_counts.get(field_id) is not None)
 
     def _contains_nulls_only(self, field_id: int) -> bool:
         if (value_count := self.value_counts.get(field_id)) and (null_count := self.null_counts.get(field_id)):
@@ -1255,4 +1344,66 @@ class _InclusiveMetricsEvaluator(BoundBooleanExpressionVisitor[bool]):
     def visit_not_in(self, term: BoundTerm[L], literals: Set[L]) -> bool:
         # because the bounds are not necessarily a min or max value, this cannot be answered using
         # them. notIn(col, {X, ...}) with (X, Y) doesn't guarantee that X is a value in col.
+        return ROWS_MIGHT_MATCH
+
+    def visit_starts_with(self, term: BoundTerm[L], literal: Literal[L]) -> bool:
+        field = term.ref().field
+        field_id: int = field.field_id
+
+        if self._contains_nulls_only(field_id):
+            return ROWS_CANNOT_MATCH
+
+        if not isinstance(field.field_type, PrimitiveType):
+            raise ValueError(f"Expected PrimitiveType: {field.field_type}")
+
+        prefix = str(literal.value)
+        len_prefix = len(prefix)
+
+        if lower_bound_bytes := self.lower_bounds.get(field_id):
+            lower_bound = str(from_bytes(field.field_type, lower_bound_bytes))
+
+            # truncate lower bound so that its length is not greater than the length of prefix
+            if lower_bound and lower_bound[:len_prefix] > prefix:
+                return ROWS_CANNOT_MATCH
+
+        if upper_bound_bytes := self.upper_bounds.get(field_id):
+            upper_bound = str(from_bytes(field.field_type, upper_bound_bytes))  # type: ignore
+
+            # truncate upper bound so that its length is not greater than the length of prefix
+            if upper_bound is not None and upper_bound[:len_prefix] < prefix:
+                return ROWS_CANNOT_MATCH
+
+        return ROWS_MIGHT_MATCH
+
+    def visit_not_starts_with(self, term: BoundTerm[L], literal: Literal[L]) -> bool:
+        field = term.ref().field
+        field_id: int = field.field_id
+
+        if self._may_contain_null(field_id):
+            return ROWS_MIGHT_MATCH
+
+        if not isinstance(field.field_type, PrimitiveType):
+            raise ValueError(f"Expected PrimitiveType: {field.field_type}")
+
+        prefix = str(literal.value)
+        len_prefix = len(prefix)
+
+        # not_starts_with will match unless all values must start with the prefix. This happens when
+        # the lower and upper bounds both start with the prefix.
+        if (lower_bound_bytes := self.lower_bounds.get(field_id)) and (upper_bound_bytes := self.upper_bounds.get(field_id)):
+            lower_bound = str(from_bytes(field.field_type, lower_bound_bytes))
+            upper_bound = str(from_bytes(field.field_type, upper_bound_bytes))
+
+            # if lower is shorter than the prefix then lower doesn't start with the prefix
+            if len(lower_bound) < len_prefix:
+                return ROWS_MIGHT_MATCH
+
+            if lower_bound[:len_prefix] == prefix:
+                # if upper is shorter than the prefix then upper can't start with the prefix
+                if len(upper_bound) < len_prefix:
+                    return ROWS_MIGHT_MATCH
+
+                if upper_bound[:len_prefix] == prefix:
+                    return ROWS_CANNOT_MATCH
+
         return ROWS_MIGHT_MATCH

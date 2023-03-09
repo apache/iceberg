@@ -49,7 +49,7 @@ public class RESTCatalog
   public RESTCatalog() {
     this(
         SessionCatalog.SessionContext.createEmpty(),
-        config -> HTTPClient.builder().uri(config.get(CatalogProperties.URI)).build());
+        config -> HTTPClient.builder(config).uri(config.get(CatalogProperties.URI)).build());
   }
 
   public RESTCatalog(Function<Map<String, String>, RESTClient> clientBuilder) {

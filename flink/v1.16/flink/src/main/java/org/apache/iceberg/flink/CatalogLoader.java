@@ -30,6 +30,7 @@ import org.apache.iceberg.hive.HiveCatalog;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.rest.RESTCatalog;
 
 /** Serializable loader to load an Iceberg {@link Catalog}. */
 public interface CatalogLoader extends Serializable {
@@ -55,6 +56,10 @@ public interface CatalogLoader extends Serializable {
 
   static CatalogLoader hive(String name, Configuration hadoopConf, Map<String, String> properties) {
     return new HiveCatalogLoader(name, hadoopConf, properties);
+  }
+
+  static CatalogLoader rest(String name, Configuration hadoopConf, Map<String, String> properties) {
+    return new RESTCatalogLoader(name, hadoopConf, properties);
   }
 
   static CatalogLoader custom(
@@ -137,6 +142,33 @@ public interface CatalogLoader extends Serializable {
           .add("uri", uri)
           .add("warehouse", warehouse)
           .add("clientPoolSize", clientPoolSize)
+          .toString();
+    }
+  }
+
+  class RESTCatalogLoader implements CatalogLoader {
+    private final String catalogName;
+    private final SerializableConfiguration hadoopConf;
+    private final Map<String, String> properties;
+
+    private RESTCatalogLoader(
+        String catalogName, Configuration conf, Map<String, String> properties) {
+      this.catalogName = catalogName;
+      this.hadoopConf = new SerializableConfiguration(conf);
+      this.properties = Maps.newHashMap(properties);
+    }
+
+    @Override
+    public Catalog loadCatalog() {
+      return CatalogUtil.loadCatalog(
+          RESTCatalog.class.getName(), catalogName, properties, hadoopConf.get());
+    }
+
+    @Override
+    public String toString() {
+      return MoreObjects.toStringHelper(this)
+          .add("catalogName", catalogName)
+          .add("properties", properties)
           .toString();
     }
   }

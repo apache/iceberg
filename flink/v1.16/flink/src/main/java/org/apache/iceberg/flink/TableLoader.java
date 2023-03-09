@@ -77,6 +77,7 @@ public interface TableLoader extends Closeable, Serializable, Cloneable {
 
     @Override
     public Table loadTable() {
+      FlinkEnvironmentContext.init();
       return tables.load(location);
     }
 
@@ -116,6 +117,7 @@ public interface TableLoader extends Closeable, Serializable, Cloneable {
 
     @Override
     public Table loadTable() {
+      FlinkEnvironmentContext.init();
       return catalog.loadTable(TableIdentifier.parse(identifier));
     }
 

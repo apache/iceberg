@@ -86,6 +86,8 @@ subprojects {
           '-Xep:PreferSafeLogger:OFF',
           // Enforce safe string splitting
           '-Xep:StringSplitter:ERROR',
+          // Enforce missing override
+          '-Xep:MissingOverride:ERROR',
       )
     }
   }

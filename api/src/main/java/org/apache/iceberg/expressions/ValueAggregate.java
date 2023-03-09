@@ -33,6 +33,7 @@ class ValueAggregate<T> extends BoundAggregate<T, T> {
     return term().eval(struct);
   }
 
+  @Override
   public T eval(DataFile file) {
     valueStruct.setValue(evaluateRef(file));
     return term().eval(valueStruct);

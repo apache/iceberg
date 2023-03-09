@@ -26,7 +26,6 @@ PYICEBERG = "pyiceberg_"
 DEFAULT = "default"
 CATALOG = "catalog"
 DEFAULT_CATALOG = f"{DEFAULT}-{CATALOG}"
-HOME = "HOME"
 PYICEBERG_HOME = "PYICEBERG_HOME"
 PYICEBERG_YML = ".pyiceberg.yaml"
 
@@ -75,7 +74,7 @@ class Config:
 
         def _load_yaml(directory: Optional[str]) -> Optional[RecursiveDict]:
             if directory:
-                path = f"{directory.rstrip('/')}/{PYICEBERG_YML}"
+                path = os.path.join(directory, PYICEBERG_YML)
                 if os.path.isfile(path):
                     with open(path, encoding="utf-8") as f:
                         file_config = yaml.safe_load(f)
@@ -87,7 +86,7 @@ class Config:
         if pyiceberg_home_config := _load_yaml(os.environ.get(PYICEBERG_HOME)):
             return pyiceberg_home_config
         # Look into the home directory
-        if pyiceberg_home_config := _load_yaml(os.environ.get(HOME)):
+        if pyiceberg_home_config := _load_yaml(os.path.expanduser("~")):
             return pyiceberg_home_config
         # Didn't find a config
         return None

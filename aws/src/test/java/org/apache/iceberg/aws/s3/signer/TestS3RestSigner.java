@@ -52,6 +52,7 @@ import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.http.SdkHttpFullRequest;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.S3Configuration;
 import software.amazon.awssdk.services.s3.model.CreateBucketRequest;
 import software.amazon.awssdk.services.s3.model.CreateMultipartUploadRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
@@ -86,7 +87,7 @@ public class TestS3RestSigner {
   @Before
   public void before() throws Exception {
     if (null == httpServer) {
-      httpServer = initHttpServer(8181);
+      httpServer = initHttpServer();
     }
 
     ValidatingSigner validatingSigner =
@@ -109,6 +110,7 @@ public class TestS3RestSigner {
                 s3ClientBuilder ->
                     s3ClientBuilder.httpClientBuilder(
                         software.amazon.awssdk.http.apache.ApacheHttpClient.builder()))
+            .serviceConfiguration(S3Configuration.builder().pathStyleAccessEnabled(true).build())
             .endpointOverride(minioContainer.getURI())
             .overrideConfiguration(
                 c -> c.putAdvancedOption(SdkAdvancedClientOption.SIGNER, validatingSigner))
@@ -126,7 +128,7 @@ public class TestS3RestSigner {
         CreateMultipartUploadRequest.builder().bucket(BUCKET).key("random/multipart-key").build());
   }
 
-  private Server initHttpServer(int port) throws Exception {
+  private Server initHttpServer() throws Exception {
     S3SignerServlet servlet = new S3SignerServlet(S3ObjectMapper.mapper());
     ServletContextHandler servletContext =
         new ServletContextHandler(ServletContextHandler.NO_SESSIONS);
@@ -137,7 +139,7 @@ public class TestS3RestSigner {
     servletContext.setVirtualHosts(null);
     servletContext.setGzipHandler(new GzipHandler());
 
-    Server server = new Server(port);
+    Server server = new Server(0);
     server.setHandler(servletContext);
     server.start();
     return server;
@@ -176,11 +178,19 @@ public class TestS3RestSigner {
 
   @Test
   public void validatedUploadPart() {
+    String multipartUploadId =
+        s3.createMultipartUpload(
+                CreateMultipartUploadRequest.builder()
+                    .bucket(BUCKET)
+                    .key("some/multipart-key")
+                    .build())
+            .uploadId();
     s3.uploadPart(
         UploadPartRequest.builder()
             .bucket(BUCKET)
             .key("some/multipart-key")
-            .uploadId("1234")
+            .uploadId(multipartUploadId)
+            .partNumber(1)
             .build(),
         RequestBody.fromString("content"));
   }
