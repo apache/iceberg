@@ -19,7 +19,13 @@
 
 import pyarrow as pa
 
-from pyiceberg.io.pyarrow import _ConvertToArrowSchema, pyarrow_to_schema, schema_to_pyarrow
+from pyiceberg.io.pyarrow import (
+    _ConvertToArrowSchema,
+    _ConvertToIceberg,
+    pyarrow_to_schema,
+    schema_to_pyarrow,
+    visit_pyarrow,
+)
 from pyiceberg.schema import Schema, visit
 from pyiceberg.types import (
     BinaryType,
@@ -33,7 +39,9 @@ from pyiceberg.types import (
     ListType,
     LongType,
     MapType,
+    NestedField,
     StringType,
+    StructType,
     TimestampType,
     TimestamptzType,
     TimeType,
@@ -202,19 +210,134 @@ def test_list_type_to_pyarrow() -> None:
     )
 
 
-def test_pyarrow_to_schema_simple(table_schema_simple: Schema, pyarrow_schema_simple: pa.Schema) -> None:
-    actual = str(pyarrow_to_schema(pyarrow_schema_simple))
-    expected = str(table_schema_simple)
+def test_pyarrow_binary_to_iceberg() -> None:
+    length = 23
+    pyarrow_type = pa.binary(length)
+    assert visit_pyarrow(pyarrow_type, _ConvertToIceberg()) == FixedType(length)
+
+
+def test_pyarrow_decimal_to_iceberg() -> None:
+    precision = 26
+    scale = 20
+    pyarrow_type = pa.decimal128(precision, scale)
+    assert visit_pyarrow(pyarrow_type, _ConvertToIceberg()) == DecimalType(precision, scale)
+
+
+def test_pyarrow_boolean_to_iceberg() -> None:
+    pyarrow_type = pa.bool_()
+    assert visit_pyarrow(pyarrow_type, _ConvertToIceberg()) == BooleanType()
+
+
+def test_pyarrow_int32_to_iceberg() -> None:
+    pyarrow_type = pa.int32()
+    assert visit_pyarrow(pyarrow_type, _ConvertToIceberg()) == IntegerType()
+
+
+def test_pyarrow_int64_to_iceberg() -> None:
+    pyarrow_type = pa.int64()
+    assert visit_pyarrow(pyarrow_type, _ConvertToIceberg()) == LongType()
+
+
+def test_pyarrow_float32_to_iceberg() -> None:
+    pyarrow_type = pa.float32()
+    assert visit_pyarrow(pyarrow_type, _ConvertToIceberg()) == FloatType()
+
+
+def test_pyarrow_float64_to_iceberg() -> None:
+    pyarrow_type = pa.float64()
+    assert visit_pyarrow(pyarrow_type, _ConvertToIceberg()) == DoubleType()
+
+
+def test_pyarrow_date32_to_iceberg() -> None:
+    pyarrow_type = pa.date32()
+    assert visit_pyarrow(pyarrow_type, _ConvertToIceberg()) == DateType()
+
+
+def test_pyarrow_time64_to_iceberg() -> None:
+    pyarrow_type = pa.time64("us")
+    assert visit_pyarrow(pyarrow_type, _ConvertToIceberg()) == TimeType()
+
+
+def test_pyarrow_timestamp_to_iceberg() -> None:
+    pyarrow_type = pa.timestamp(unit="us")
+    assert visit_pyarrow(pyarrow_type, _ConvertToIceberg()) == TimestampType()
+
+
+def test_pyarrow_timestamp_tz_to_iceberg() -> None:
+    pyarrow_type = pa.timestamp(unit="us", tz="UTC")
+    assert visit_pyarrow(pyarrow_type, _ConvertToIceberg()) == TimestamptzType()
+
+
+def test_pyarrow_string_to_iceberg() -> None:
+    pyarrow_type = pa.string()
+    assert visit_pyarrow(pyarrow_type, _ConvertToIceberg()) == StringType()
+
+
+def test_pyarrow_variable_binary_to_iceberg() -> None:
+    pyarrow_type = pa.binary()
+    assert visit_pyarrow(pyarrow_type, _ConvertToIceberg()) == BinaryType()
+
+
+def test_pyarrow_struct_to_iceberg() -> None:
+    pyarrow_struct = pa.struct(
+        [
+            pa.field("foo", pa.string(), nullable=True, metadata={"field_id": "1"}),
+            pa.field("bar", pa.int32(), nullable=False, metadata={"field_id": "2"}),
+            pa.field("baz", pa.bool_(), nullable=True, metadata={"field_id": "3"}),
+        ]
+    )
+    expected = StructType(
+        NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
+        NestedField(field_id=2, name="bar", field_type=IntegerType(), required=True),
+        NestedField(field_id=3, name="baz", field_type=BooleanType(), required=False),
+    )
+    assert visit_pyarrow(pyarrow_struct, _ConvertToIceberg()) == expected
+
+
+def test_pyarrow_list_to_iceberg() -> None:
+    pyarrow_list = pa.list_(pa.field("element", pa.int32(), nullable=False, metadata={"field_id": "1"}))
+    expected = ListType(
+        element_id=1,
+        element_type=IntegerType(),
+        element_required=True,
+    )
+    assert visit_pyarrow(pyarrow_list, _ConvertToIceberg()) == expected
+
+
+def test_pyarrow_map_to_iceberg() -> None:
+    pyarrow_map = pa.map_(
+        pa.field("key", pa.int32(), nullable=False, metadata={"field_id": "1"}),
+        pa.field("value", pa.string(), nullable=False, metadata={"field_id": "2"}),
+    )
+    expected = MapType(
+        key_id=1,
+        key_type=IntegerType(),
+        value_id=2,
+        value_type=StringType(),
+        value_required=True,
+    )
+    assert visit_pyarrow(pyarrow_map, _ConvertToIceberg()) == expected
+
+
+def test_round_schema_conversion_simple(table_schema_simple: Schema) -> None:
+    actual = str(pyarrow_to_schema(schema_to_pyarrow(table_schema_simple)))
+    expected = """table {
+  1: foo: optional string
+  2: bar: required int
+  3: baz: optional boolean
+}"""
     assert actual == expected
 
 
-def test_pyarrow_to_schema_nested(table_schema_nested: Schema, pyarrow_schema_nested: pa.Schema) -> None:
-    actual = str(pyarrow_to_schema(pyarrow_schema_nested))
-    expected = str(table_schema_nested)
-    assert actual == expected
-
-
-def test_round_conversion_nested(table_schema_nested: Schema) -> None:
+def test_round_schema_conversion_nested(table_schema_nested: Schema) -> None:
     actual = str(pyarrow_to_schema(schema_to_pyarrow(table_schema_nested)))
-    expected = str(table_schema_nested)
+    expected = """table {
+  1: foo: optional string
+  2: bar: required int
+  3: baz: optional boolean
+  4: qux: required list<string>
+  6: quux: required map<string, map<string, int>>
+  11: location: required list<struct<13: latitude: optional float, 14: longitude: optional float>>
+  15: person: optional struct<16: name: optional string, 17: age: required int>
+}"""
     assert actual == expected
