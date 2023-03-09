@@ -21,6 +21,7 @@ package org.apache.iceberg.snowflake;
 import java.util.HashMap;
 import java.util.Map;
 import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.EnvironmentUtil;
 
 class TestConfigurations {
@@ -28,7 +29,7 @@ class TestConfigurations {
   private Map<String, String> properties;
 
   private TestConfigurations() {
-    Map<String, String> props = new HashMap<String, String>();
+    Map<String, String> props = Maps.newHashMap();
     // add catalog properties
     props.put(CatalogProperties.URI, "env:" + "SNOW_URI");
 

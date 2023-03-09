@@ -855,6 +855,10 @@ project(':iceberg-snowflake') {
     testClassesDirs = sourceSets.integration.output.classesDirs
     classpath = sourceSets.integration.runtimeClasspath
   }
+
+  integrationTest{
+    useJUnitPlatform()
+  }
 }
 
 @Memoized

@@ -22,8 +22,9 @@ import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import org.apache.iceberg.jdbc.JdbcClientPool;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.junit.BeforeClass;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
 
 @SuppressWarnings("VisibilityModifier")
 class SnowTestBase {
@@ -34,7 +35,7 @@ class SnowTestBase {
 
   protected SnowTestBase() {}
 
-  @BeforeClass
+  @BeforeAll
   public static void beforeAll() {
     snowflakeCatalog = new SnowflakeCatalog();
     TestConfigurations configs = TestConfigurations.getInstance();
@@ -50,7 +51,7 @@ class SnowTestBase {
         configs.getDatabase(),
         "Database is required argument, please set environment variable SNOW_TEST_DB_NAME");
 
-    snowflakeCatalog.initialize("testCatalog", configs.getProperties());
+    snowflakeCatalog.initialize("testCatalog", Maps.newHashMap(configs.getProperties()));
     clientPool = new JdbcClientPool(configs.getURI(), configs.getProperties());
     try {
       createOrReplaceDatabase(configs.getDatabase());
@@ -60,7 +61,7 @@ class SnowTestBase {
   }
 
   @AfterAll
-  public void afterAll() {
+  public static void afterAll() {
     try {
       dropDatabaseIfExists(TestConfigurations.getInstance().getDatabase());
     } catch (SQLException | InterruptedException e) {
