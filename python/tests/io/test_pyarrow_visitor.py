@@ -15,9 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=protected-access,unused-argument,redefined-outer-name
-
+import re
 
 import pyarrow as pa
+import pytest
 
 from pyiceberg.io.pyarrow import (
     _ConvertToArrowSchema,
@@ -216,11 +217,19 @@ def test_pyarrow_binary_to_iceberg() -> None:
     assert visit_pyarrow(pyarrow_type, _ConvertToIceberg()) == FixedType(length)
 
 
-def test_pyarrow_decimal_to_iceberg() -> None:
+def test_pyarrow_decimal128_to_iceberg() -> None:
     precision = 26
     scale = 20
     pyarrow_type = pa.decimal128(precision, scale)
     assert visit_pyarrow(pyarrow_type, _ConvertToIceberg()) == DecimalType(precision, scale)
+
+
+def test_pyarrow_decimal256_to_iceberg() -> None:
+    precision = 26
+    scale = 20
+    pyarrow_type = pa.decimal256(precision, scale)
+    with pytest.raises(TypeError, match=re.escape("Unsupported type: decimal256(26, 20)")):
+        visit_pyarrow(pyarrow_type, _ConvertToIceberg())
 
 
 def test_pyarrow_boolean_to_iceberg() -> None:
@@ -253,9 +262,30 @@ def test_pyarrow_date32_to_iceberg() -> None:
     assert visit_pyarrow(pyarrow_type, _ConvertToIceberg()) == DateType()
 
 
-def test_pyarrow_time64_to_iceberg() -> None:
+def test_pyarrow_date64_to_iceberg() -> None:
+    pyarrow_type = pa.date64()
+    with pytest.raises(TypeError, match=re.escape("Unsupported type: date64")):
+        visit_pyarrow(pyarrow_type, _ConvertToIceberg())
+
+
+def test_pyarrow_time32_to_iceberg() -> None:
+    pyarrow_type = pa.time32("ms")
+    with pytest.raises(TypeError, match=re.escape("Unsupported type: time32[ms]")):
+        visit_pyarrow(pyarrow_type, _ConvertToIceberg())
+    pyarrow_type = pa.time32("s")
+    with pytest.raises(TypeError, match=re.escape("Unsupported type: time32[s]")):
+        visit_pyarrow(pyarrow_type, _ConvertToIceberg())
+
+
+def test_pyarrow_time64_us_to_iceberg() -> None:
     pyarrow_type = pa.time64("us")
     assert visit_pyarrow(pyarrow_type, _ConvertToIceberg()) == TimeType()
+
+
+def test_pyarrow_time64_ns_to_iceberg() -> None:
+    pyarrow_type = pa.time64("ns")
+    with pytest.raises(TypeError, match=re.escape("Unsupported type: time64[ns]")):
+        visit_pyarrow(pyarrow_type, _ConvertToIceberg())
 
 
 def test_pyarrow_timestamp_to_iceberg() -> None:
@@ -263,9 +293,39 @@ def test_pyarrow_timestamp_to_iceberg() -> None:
     assert visit_pyarrow(pyarrow_type, _ConvertToIceberg()) == TimestampType()
 
 
+def test_pyarrow_timestamp_invalid_units() -> None:
+    pyarrow_type = pa.timestamp(unit="ms")
+    with pytest.raises(TypeError, match=re.escape("Unsupported type: timestamp[ms]")):
+        visit_pyarrow(pyarrow_type, _ConvertToIceberg())
+    pyarrow_type = pa.timestamp(unit="s")
+    with pytest.raises(TypeError, match=re.escape("Unsupported type: timestamp[s]")):
+        visit_pyarrow(pyarrow_type, _ConvertToIceberg())
+    pyarrow_type = pa.timestamp(unit="ns")
+    with pytest.raises(TypeError, match=re.escape("Unsupported type: timestamp[ns]")):
+        visit_pyarrow(pyarrow_type, _ConvertToIceberg())
+
+
 def test_pyarrow_timestamp_tz_to_iceberg() -> None:
     pyarrow_type = pa.timestamp(unit="us", tz="UTC")
     assert visit_pyarrow(pyarrow_type, _ConvertToIceberg()) == TimestamptzType()
+
+
+def test_pyarrow_timestamp_tz_invalid_units() -> None:
+    pyarrow_type = pa.timestamp(unit="ms", tz="UTC")
+    with pytest.raises(TypeError, match=re.escape("Unsupported type: timestamp[ms, tz=UTC]")):
+        visit_pyarrow(pyarrow_type, _ConvertToIceberg())
+    pyarrow_type = pa.timestamp(unit="s", tz="UTC")
+    with pytest.raises(TypeError, match=re.escape("Unsupported type: timestamp[s, tz=UTC]")):
+        visit_pyarrow(pyarrow_type, _ConvertToIceberg())
+    pyarrow_type = pa.timestamp(unit="ns", tz="UTC")
+    with pytest.raises(TypeError, match=re.escape("Unsupported type: timestamp[ns, tz=UTC]")):
+        visit_pyarrow(pyarrow_type, _ConvertToIceberg())
+
+
+def test_pyarrow_timestamp_tz_invalid_tz() -> None:
+    pyarrow_type = pa.timestamp(unit="us", tz="US/Pacific")
+    with pytest.raises(TypeError, match=re.escape("Unsupported type: timestamp[us, tz=US/Pacific]")):
+        visit_pyarrow(pyarrow_type, _ConvertToIceberg())
 
 
 def test_pyarrow_string_to_iceberg() -> None:

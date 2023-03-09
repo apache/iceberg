@@ -668,31 +668,32 @@ class _ConvertToIceberg(PyArrowSchemaVisitor[IcebergType], ABC):
             return FloatType()
         elif pa.types.is_float64(primitive):
             return DoubleType()
-        elif pa.types.is_decimal(primitive):
-            if isinstance(primitive, pa.Decimal256Type):
-                primitive = cast(pa.Decimal256Type, primitive)
-            else:
-                primitive = cast(pa.Decimal128Type, primitive)
+        elif pa.types.is_decimal(primitive) and isinstance(primitive, pa.Decimal128Type):
+            primitive = cast(pa.Decimal128Type, primitive)
             return DecimalType(primitive.precision, primitive.scale)
         elif pa.types.is_string(primitive):
             return StringType()
-        elif pa.types.is_date(primitive):
+        elif pa.types.is_date32(primitive):
             return DateType()
         elif pa.types.is_time(primitive):
-            return TimeType()
+            if isinstance(primitive, pa.Time64Type):
+                primitive = cast(pa.Time64Type, primitive)
+                if primitive.unit == "us":
+                    return TimeType()
         elif pa.types.is_timestamp(primitive):
             primitive = cast(pa.TimestampType, primitive)
-            if primitive.tz is not None:
-                return TimestamptzType()
-            else:
-                return TimestampType()
+            if primitive.unit == "us":
+                if primitive.tz == "UTC":
+                    return TimestamptzType()
+                elif primitive.tz is None:
+                    return TimestampType()
         elif pa.types.is_binary(primitive):
             return BinaryType()
         elif pa.types.is_fixed_size_binary(primitive):
             primitive = cast(pa.FixedSizeBinaryType, primitive)
             return FixedType(primitive.byte_width)
-        else:
-            raise TypeError(f"Unsupported type: {primitive}")
+
+        raise TypeError(f"Unsupported type: {primitive}")
 
 
 def _file_to_table(
