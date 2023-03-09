@@ -41,11 +41,11 @@ import org.apache.spark.sql.catalyst.InternalRow;
 abstract class BaseRowReader<T extends ScanTask> extends BaseReader<InternalRow, T> {
   BaseRowReader(
       Table table,
-      String branch,
       ScanTaskGroup<T> taskGroup,
+      Schema tableSchema,
       Schema expectedSchema,
       boolean caseSensitive) {
-    super(table, branch, taskGroup, expectedSchema, caseSensitive);
+    super(table, taskGroup, tableSchema, expectedSchema, caseSensitive);
   }
 
   protected CloseableIterable<InternalRow> newIterable(

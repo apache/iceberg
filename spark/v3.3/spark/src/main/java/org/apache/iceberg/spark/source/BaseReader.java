@@ -56,7 +56,6 @@ import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.ByteBuffers;
 import org.apache.iceberg.util.PartitionUtil;
-import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.rdd.InputFileBlockHolder;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
@@ -74,7 +73,7 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
   private static final Logger LOG = LoggerFactory.getLogger(BaseReader.class);
 
   private final Table table;
-  private final String branch;
+  private final Schema tableSchema;
   private final Schema expectedSchema;
   private final boolean caseSensitive;
   private final NameMapping nameMapping;
@@ -89,15 +88,15 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
 
   BaseReader(
       Table table,
-      String branch,
       ScanTaskGroup<TaskT> taskGroup,
+      Schema tableSchema,
       Schema expectedSchema,
       boolean caseSensitive) {
     this.table = table;
-    this.branch = branch;
     this.taskGroup = taskGroup;
     this.tasks = taskGroup.tasks().iterator();
     this.currentIterator = CloseableIterator.empty();
+    this.tableSchema = tableSchema;
     this.expectedSchema = expectedSchema;
     this.caseSensitive = caseSensitive;
     String nameMappingString = table.properties().get(TableProperties.DEFAULT_NAME_MAPPING);
@@ -259,7 +258,7 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
     private final InternalRowWrapper asStructLike;
 
     SparkDeleteFilter(String filePath, List<DeleteFile> deletes, DeleteCounter counter) {
-      super(filePath, deletes, SnapshotUtil.schemaFor(table, branch), expectedSchema, counter);
+      super(filePath, deletes, tableSchema, expectedSchema, counter);
       this.asStructLike = new InternalRowWrapper(SparkSchemaUtil.convert(requiredSchema()));
     }
 

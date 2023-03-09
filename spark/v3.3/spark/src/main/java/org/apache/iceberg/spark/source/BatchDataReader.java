@@ -30,6 +30,7 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.spark.source.metrics.TaskNumDeletes;
 import org.apache.iceberg.spark.source.metrics.TaskNumSplits;
+import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.rdd.InputFileBlockHolder;
 import org.apache.spark.sql.connector.metric.CustomTaskMetric;
 import org.apache.spark.sql.connector.read.PartitionReader;
@@ -47,8 +48,8 @@ class BatchDataReader extends BaseBatchReader<FileScanTask>
   BatchDataReader(SparkInputPartition partition, int batchSize) {
     this(
         partition.table(),
-        partition.branch(),
         partition.taskGroup(),
+        SnapshotUtil.schemaFor(partition.table(), partition.branch()),
         partition.expectedSchema(),
         partition.isCaseSensitive(),
         batchSize);
@@ -56,12 +57,12 @@ class BatchDataReader extends BaseBatchReader<FileScanTask>
 
   BatchDataReader(
       Table table,
-      String branch,
       ScanTaskGroup<FileScanTask> taskGroup,
+      Schema tableSchema,
       Schema expectedSchema,
       boolean caseSensitive,
       int size) {
-    super(table, branch, taskGroup, expectedSchema, caseSensitive, size);
+    super(table, taskGroup, tableSchema, expectedSchema, caseSensitive, size);
 
     numSplits = taskGroup.tasks().size();
     LOG.debug("Reading {} file split(s) for table {}", numSplits, table.name());
