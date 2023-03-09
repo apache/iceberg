@@ -129,8 +129,7 @@ public class NamespaceTests extends SnowTestBase {
       clientPool.run(conn -> conn.createStatement().execute("use " + dbName));
       createOrReplaceSchema(schema);
       Assertions.assertThat(
-              snowflakeCatalog.loadNamespaceMetadata(Namespace.of(dbName, schema)).isEmpty())
-          .isTrue();
+              snowflakeCatalog.loadNamespaceMetadata(Namespace.of(dbName, schema))).isEmpty();
     } finally {
       dropSchemaIfExists(schema);
     }
@@ -145,16 +144,12 @@ public class NamespaceTests extends SnowTestBase {
       clientPool.run(conn -> conn.createStatement().execute("use " + dbName));
       createOrReplaceSchema(schema);
       Assertions.assertThat(
-              snowflakeCatalog.loadNamespaceMetadata(Namespace.of(dbName, schema)).isEmpty())
-          .isTrue();
+              snowflakeCatalog.loadNamespaceMetadata(Namespace.of(dbName, schema))).isEmpty();
       Assertions.assertThat(
               snowflakeCatalog
-                  .loadNamespaceMetadata(Namespace.of(dbName, schema.toUpperCase()))
-                  .isEmpty())
-          .isTrue();
+                  .loadNamespaceMetadata(Namespace.of(dbName, schema.toUpperCase()))).isEmpty();
       Assertions.assertThat(
-              snowflakeCatalog.loadNamespaceMetadata(Namespace.of(dbName, "schEmA123")).isEmpty())
-          .isTrue();
+              snowflakeCatalog.loadNamespaceMetadata(Namespace.of(dbName, "schEmA123"))).isEmpty();
     } finally {
       dropSchemaIfExists(schema);
     }
@@ -199,8 +194,7 @@ public class NamespaceTests extends SnowTestBase {
       clientPool.run(conn -> conn.createStatement().execute("use " + dbName));
       createOrReplaceSchema(schema);
       Assertions.assertThat(
-              snowflakeCatalog.loadNamespaceMetadata(Namespace.of(dbName, schema)).isEmpty())
-          .isTrue();
+              snowflakeCatalog.loadNamespaceMetadata(Namespace.of(dbName, schema))).isEmpty();
     } finally {
       dropSchemaIfExists(schema);
     }
