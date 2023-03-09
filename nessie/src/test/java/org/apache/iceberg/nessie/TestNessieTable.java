@@ -94,7 +94,7 @@ public class TestNessieTable extends BaseTestIceberg {
       throws IOException {
     super.beforeEach(clientFactory, nessieUri);
     this.tableLocation =
-        catalog.createTable(TABLE_IDENTIFIER, schema).location().replaceFirst("file:", "");
+        createTable(TABLE_IDENTIFIER, schema).location().replaceFirst("file:", "");
   }
 
   @Override
@@ -326,6 +326,7 @@ public class TestNessieTable extends BaseTestIceberg {
     Assertions.assertThat(log)
         .isNotNull()
         .isNotEmpty()
+        .filteredOn(e -> !e.getCommitMeta().getMessage().startsWith("create namespace "))
         .allSatisfy(
             logEntry -> {
               CommitMeta commit = logEntry.getCommitMeta();
@@ -418,6 +419,7 @@ public class TestNessieTable extends BaseTestIceberg {
   }
 
   private void validateRegister(TableIdentifier identifier, String metadataVersionFiles) {
+    createMissingNamespaces(identifier);
     Assertions.assertThat(catalog.registerTable(identifier, "file:" + metadataVersionFiles))
         .isNotNull();
     Table newTable = catalog.loadTable(identifier);

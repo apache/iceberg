@@ -23,6 +23,7 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import org.apache.avro.generic.GenericData.Record;
 import org.apache.hadoop.conf.Configuration;
@@ -35,7 +36,9 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.avro.Avro;
+import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -153,6 +156,7 @@ public abstract class BaseTestIceberg {
 
   protected Table createTable(TableIdentifier tableIdentifier, int count) {
     try {
+      createMissingNamespaces(tableIdentifier);
       return catalog.createTable(tableIdentifier, schema(count));
     } catch (Throwable t) {
       LOG.error("unable to do create " + tableIdentifier.toString(), t);
@@ -161,8 +165,34 @@ public abstract class BaseTestIceberg {
   }
 
   protected void createTable(TableIdentifier tableIdentifier) {
+    createMissingNamespaces(tableIdentifier);
     Schema schema = new Schema(StructType.of(required(1, "id", LongType.get())).fields());
     catalog.createTable(tableIdentifier, schema).location();
+  }
+
+  protected Table createTable(TableIdentifier tableIdentifier, Schema schema) {
+    createMissingNamespaces(tableIdentifier);
+    return catalog.createTable(tableIdentifier, schema);
+  }
+
+  protected void createMissingNamespaces(TableIdentifier tableIdentifier) {
+    createMissingNamespaces(catalog, tableIdentifier);
+  }
+
+  protected static void createMissingNamespaces(NessieCatalog catalog, TableIdentifier tableIdentifier) {
+    createMissingNamespaces(catalog, tableIdentifier.namespace());
+  }
+
+  protected static void createMissingNamespaces(NessieCatalog catalog, Namespace namespace) {
+    List<String> elements = new ArrayList<>();
+    for (int i = 0; i < namespace.length(); i++) {
+      elements.add(namespace.level(i));
+      try {
+        catalog.createNamespace(Namespace.of(elements.toArray(new String[0])));
+      } catch (AlreadyExistsException ignore) {
+        // ignore
+      }
+    }
   }
 
   protected static Schema schema(int count) {

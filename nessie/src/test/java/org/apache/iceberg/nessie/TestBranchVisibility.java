@@ -20,6 +20,7 @@ package org.apache.iceberg.nessie;
 
 import static org.apache.iceberg.types.Types.NestedField.required;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
 import org.apache.avro.generic.GenericRecordBuilder;
@@ -455,6 +456,7 @@ public class TestBranchVisibility extends BaseTestIceberg {
     Namespace namespace = Namespace.of("a", "b");
     Assertions.assertThat(nessieCatalog.listNamespaces(namespace)).isEmpty();
 
+    createMissingNamespaces(nessieCatalog, Namespace.of(Arrays.copyOf(namespace.levels(), namespace.length() - 1)));
     nessieCatalog.createNamespace(namespace);
     Assertions.assertThat(nessieCatalog.listNamespaces(namespace)).isNotEmpty();
     Assertions.assertThat(nessieCatalog.listTables(namespace)).isEmpty();
@@ -503,10 +505,13 @@ public class TestBranchVisibility extends BaseTestIceberg {
     TableIdentifier identifier = TableIdentifier.of("db", "table1");
 
     NessieCatalog nessieCatalog = initCatalog(branch1);
+
+    createMissingNamespaces(nessieCatalog, identifier);
     Table table1 = nessieCatalog.createTable(identifier, schema1);
     Assertions.assertThat(table1.schema().asStruct()).isEqualTo(schema1.asStruct());
 
     nessieCatalog = initCatalog(branch2);
+    createMissingNamespaces(nessieCatalog, identifier);
     Table table2 = nessieCatalog.createTable(identifier, schema2);
     Assertions.assertThat(table2.schema().asStruct()).isEqualTo(schema2.asStruct());
 

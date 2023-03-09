@@ -135,6 +135,16 @@ public class TestNessieCatalog extends CatalogTests<NessieCatalog> {
   }
 
   @Override
+  protected boolean requiresNamespaceCreate() {
+    return true;
+  }
+
+  @Override
+  protected boolean supportsNestedNamespaces() {
+    return true;
+  }
+
+  @Override
   protected boolean supportsNamespaceProperties() {
     return true;
   }
