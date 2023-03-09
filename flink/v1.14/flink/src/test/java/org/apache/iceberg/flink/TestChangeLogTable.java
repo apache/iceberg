@@ -151,9 +151,11 @@ public class TestChangeLogTable extends ChangeLogTableTestBase {
             ImmutableList.of(insertRow(1, "aaa"), insertRow(1, "bbb"), insertRow(1, "ccc")),
             ImmutableList.of(
                 insertRow(1, "aaa"),
-                insertRow(1, "ccc"),
+                insertRow(2, "bbb"),
+                insertRow(2, "ccc"),
                 insertRow(2, "aaa"),
-                insertRow(2, "ccc")));
+                insertRow(1, "bbb"),
+                insertRow(1, "ccc")));
 
     testSqlChangeLog(TABLE_NAME, ImmutableList.of("data"), elementsPerCheckpoint, expectedRecords);
   }

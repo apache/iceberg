@@ -17,7 +17,7 @@
  * under the License.
  */
 
-String flinkVersion = '1.14.0'
+String flinkVersion = '1.14.6'
 String flinkMajorVersion = '1.14'
 String scalaVersion = System.getProperty("scalaVersion") != null ? System.getProperty("scalaVersion") : System.getProperty("defaultScalaVersion")
 
