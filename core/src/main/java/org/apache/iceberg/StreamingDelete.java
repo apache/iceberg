@@ -55,6 +55,12 @@ public class StreamingDelete extends MergingSnapshotProducer<DeleteFiles> implem
   }
 
   @Override
+  public StreamingDelete deleteFile(DeleteFile file) {
+    delete(file);
+    return this;
+  }
+
+  @Override
   public StreamingDelete deleteFromRowFilter(Expression expr) {
     deleteByRowFilter(expr);
     return this;
