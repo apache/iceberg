@@ -660,9 +660,9 @@ class _ConvertToIceberg(PyArrowSchemaVisitor[IcebergType], ABC):
     def primitive(self, primitive: pa.DataType) -> IcebergType:
         if pa.types.is_boolean(primitive):
             return BooleanType()
-        elif pa.types.is_int32(primitive) or pa.types.is_uint32(primitive):
+        elif pa.types.is_int32(primitive):
             return IntegerType()
-        elif pa.types.is_int64(primitive) or pa.types.is_uint64(primitive):
+        elif pa.types.is_int64(primitive):
             return LongType()
         elif pa.types.is_float32(primitive):
             return FloatType()
@@ -709,7 +709,7 @@ def _file_to_table(
         schema_raw = None
         if metadata := parquet_schema.metadata:
             schema_raw = metadata.get(ICEBERG_SCHEMA)
-        # TODO: if field_ids are not present, another fallback level should be implemented to look them up in the table schema
+        # TODO: if field_ids are not present, Name Mapping should be implemented to look them up in the table schema
         file_schema = Schema.parse_raw(schema_raw) if schema_raw is not None else pyarrow_to_schema(parquet_schema)
 
         pyarrow_filter = None

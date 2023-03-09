@@ -214,14 +214,18 @@ def test_list_type_to_pyarrow() -> None:
 def test_pyarrow_binary_to_iceberg() -> None:
     length = 23
     pyarrow_type = pa.binary(length)
-    assert visit_pyarrow(pyarrow_type, _ConvertToIceberg()) == FixedType(length)
+    converted_iceberg_type = visit_pyarrow(pyarrow_type, _ConvertToIceberg())
+    assert converted_iceberg_type == FixedType(length)
+    assert visit(converted_iceberg_type, _ConvertToArrowSchema()) == pyarrow_type
 
 
 def test_pyarrow_decimal128_to_iceberg() -> None:
     precision = 26
     scale = 20
     pyarrow_type = pa.decimal128(precision, scale)
-    assert visit_pyarrow(pyarrow_type, _ConvertToIceberg()) == DecimalType(precision, scale)
+    converted_iceberg_type = visit_pyarrow(pyarrow_type, _ConvertToIceberg())
+    assert converted_iceberg_type == DecimalType(precision, scale)
+    assert visit(converted_iceberg_type, _ConvertToArrowSchema()) == pyarrow_type
 
 
 def test_pyarrow_decimal256_to_iceberg() -> None:
@@ -234,32 +238,44 @@ def test_pyarrow_decimal256_to_iceberg() -> None:
 
 def test_pyarrow_boolean_to_iceberg() -> None:
     pyarrow_type = pa.bool_()
-    assert visit_pyarrow(pyarrow_type, _ConvertToIceberg()) == BooleanType()
+    converted_iceberg_type = visit_pyarrow(pyarrow_type, _ConvertToIceberg())
+    assert converted_iceberg_type == BooleanType()
+    assert visit(converted_iceberg_type, _ConvertToArrowSchema()) == pyarrow_type
 
 
 def test_pyarrow_int32_to_iceberg() -> None:
     pyarrow_type = pa.int32()
-    assert visit_pyarrow(pyarrow_type, _ConvertToIceberg()) == IntegerType()
+    converted_iceberg_type = visit_pyarrow(pyarrow_type, _ConvertToIceberg())
+    assert converted_iceberg_type == IntegerType()
+    assert visit(converted_iceberg_type, _ConvertToArrowSchema()) == pyarrow_type
 
 
 def test_pyarrow_int64_to_iceberg() -> None:
     pyarrow_type = pa.int64()
-    assert visit_pyarrow(pyarrow_type, _ConvertToIceberg()) == LongType()
+    converted_iceberg_type = visit_pyarrow(pyarrow_type, _ConvertToIceberg())
+    assert converted_iceberg_type == LongType()
+    assert visit(converted_iceberg_type, _ConvertToArrowSchema()) == pyarrow_type
 
 
 def test_pyarrow_float32_to_iceberg() -> None:
     pyarrow_type = pa.float32()
-    assert visit_pyarrow(pyarrow_type, _ConvertToIceberg()) == FloatType()
+    converted_iceberg_type = visit_pyarrow(pyarrow_type, _ConvertToIceberg())
+    assert converted_iceberg_type == FloatType()
+    assert visit(converted_iceberg_type, _ConvertToArrowSchema()) == pyarrow_type
 
 
 def test_pyarrow_float64_to_iceberg() -> None:
     pyarrow_type = pa.float64()
-    assert visit_pyarrow(pyarrow_type, _ConvertToIceberg()) == DoubleType()
+    converted_iceberg_type = visit_pyarrow(pyarrow_type, _ConvertToIceberg())
+    assert converted_iceberg_type == DoubleType()
+    assert visit(converted_iceberg_type, _ConvertToArrowSchema()) == pyarrow_type
 
 
 def test_pyarrow_date32_to_iceberg() -> None:
     pyarrow_type = pa.date32()
-    assert visit_pyarrow(pyarrow_type, _ConvertToIceberg()) == DateType()
+    converted_iceberg_type = visit_pyarrow(pyarrow_type, _ConvertToIceberg())
+    assert converted_iceberg_type == DateType()
+    assert visit(converted_iceberg_type, _ConvertToArrowSchema()) == pyarrow_type
 
 
 def test_pyarrow_date64_to_iceberg() -> None:
@@ -279,7 +295,9 @@ def test_pyarrow_time32_to_iceberg() -> None:
 
 def test_pyarrow_time64_us_to_iceberg() -> None:
     pyarrow_type = pa.time64("us")
-    assert visit_pyarrow(pyarrow_type, _ConvertToIceberg()) == TimeType()
+    converted_iceberg_type = visit_pyarrow(pyarrow_type, _ConvertToIceberg())
+    assert converted_iceberg_type == TimeType()
+    assert visit(converted_iceberg_type, _ConvertToArrowSchema()) == pyarrow_type
 
 
 def test_pyarrow_time64_ns_to_iceberg() -> None:
@@ -290,7 +308,9 @@ def test_pyarrow_time64_ns_to_iceberg() -> None:
 
 def test_pyarrow_timestamp_to_iceberg() -> None:
     pyarrow_type = pa.timestamp(unit="us")
-    assert visit_pyarrow(pyarrow_type, _ConvertToIceberg()) == TimestampType()
+    converted_iceberg_type = visit_pyarrow(pyarrow_type, _ConvertToIceberg())
+    assert converted_iceberg_type == TimestampType()
+    assert visit(converted_iceberg_type, _ConvertToArrowSchema()) == pyarrow_type
 
 
 def test_pyarrow_timestamp_invalid_units() -> None:
@@ -307,7 +327,9 @@ def test_pyarrow_timestamp_invalid_units() -> None:
 
 def test_pyarrow_timestamp_tz_to_iceberg() -> None:
     pyarrow_type = pa.timestamp(unit="us", tz="UTC")
-    assert visit_pyarrow(pyarrow_type, _ConvertToIceberg()) == TimestamptzType()
+    converted_iceberg_type = visit_pyarrow(pyarrow_type, _ConvertToIceberg())
+    assert converted_iceberg_type == TimestamptzType()
+    assert visit(converted_iceberg_type, _ConvertToArrowSchema()) == pyarrow_type
 
 
 def test_pyarrow_timestamp_tz_invalid_units() -> None:
@@ -330,12 +352,16 @@ def test_pyarrow_timestamp_tz_invalid_tz() -> None:
 
 def test_pyarrow_string_to_iceberg() -> None:
     pyarrow_type = pa.string()
-    assert visit_pyarrow(pyarrow_type, _ConvertToIceberg()) == StringType()
+    converted_iceberg_type = visit_pyarrow(pyarrow_type, _ConvertToIceberg())
+    assert converted_iceberg_type == StringType()
+    assert visit(converted_iceberg_type, _ConvertToArrowSchema()) == pyarrow_type
 
 
 def test_pyarrow_variable_binary_to_iceberg() -> None:
     pyarrow_type = pa.binary()
-    assert visit_pyarrow(pyarrow_type, _ConvertToIceberg()) == BinaryType()
+    converted_iceberg_type = visit_pyarrow(pyarrow_type, _ConvertToIceberg())
+    assert converted_iceberg_type == BinaryType()
+    assert visit(converted_iceberg_type, _ConvertToArrowSchema()) == pyarrow_type
 
 
 def test_pyarrow_struct_to_iceberg() -> None:
