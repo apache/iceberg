@@ -67,6 +67,12 @@ class ProcedureInput {
     return args.isNullAt(ordinal) ? defaultValue : args.getBoolean(ordinal);
   }
 
+  public String string(ProcedureParameter param) {
+    String value = string(param, null);
+    Preconditions.checkArgument(value != null, "Parameter '%s' is not set", param.name());
+    return value;
+  }
+
   public String string(ProcedureParameter param, String defaultValue) {
     validateParamType(param, DataTypes.StringType);
     int ordinal = ordinal(param);
@@ -75,7 +81,7 @@ class ProcedureInput {
 
   public String[] stringArray(ProcedureParameter param) {
     String[] value = stringArray(param, null);
-    Preconditions.checkArgument(value != null, "Param %s is not set", param.name());
+    Preconditions.checkArgument(value != null, "Parameter '%s' is not set", param.name());
     return value;
   }
 
@@ -147,36 +153,29 @@ class ProcedureInput {
   }
 
   public Identifier ident(ProcedureParameter param) {
-    validateParamType(param, DataTypes.StringType);
-    int ordinal = ordinal(param);
-    String identifierAsString = args.getString(ordinal);
-    return toIdentifier(identifierAsString, param.name());
-  }
-
-  private Identifier toIdentifier(String identifierAsString, String paramName) {
-    CatalogAndIdentifier catalogAndIdentifier =
-        toCatalogAndIdentifier(identifierAsString, paramName, catalog);
+    String identAsString = string(param);
+    CatalogAndIdentifier catalogAndIdent = toCatalogAndIdent(identAsString, param.name(), catalog);
 
     Preconditions.checkArgument(
-        catalogAndIdentifier.catalog().equals(catalog),
+        catalogAndIdent.catalog().equals(catalog),
         "Cannot run procedure in catalog '%s': '%s' is a table in catalog '%s'",
         catalog.name(),
-        identifierAsString,
-        catalogAndIdentifier.catalog().name());
+        identAsString,
+        catalogAndIdent.catalog().name());
 
-    return catalogAndIdentifier.identifier();
+    return catalogAndIdent.identifier();
   }
 
-  private CatalogAndIdentifier toCatalogAndIdentifier(
-      String identifierAsString, String paramName, CatalogPlugin defaultCatalog) {
+  private CatalogAndIdentifier toCatalogAndIdent(
+      String identAsString, String paramName, CatalogPlugin defaultCatalog) {
 
     Preconditions.checkArgument(
-        identifierAsString != null && !identifierAsString.isEmpty(),
-        "Cannot handle an empty identifier for parameter %s",
+        identAsString != null && !identAsString.isEmpty(),
+        "Cannot handle an empty identifier for parameter '%s'",
         paramName);
 
-    String desc = "identifier for param " + paramName;
-    return Spark3Util.catalogAndIdentifier(desc, spark, identifierAsString, defaultCatalog);
+    String desc = String.format("identifier for parameter '%s'", paramName);
+    return Spark3Util.catalogAndIdentifier(desc, spark, identAsString, defaultCatalog);
   }
 
   private int ordinal(ProcedureParameter param) {
@@ -185,16 +184,25 @@ class ProcedureInput {
 
   private Map<String, Integer> computeParamOrdinals(ProcedureParameter[] params) {
     Map<String, Integer> ordinals = Maps.newHashMap();
+
     for (int index = 0; index < params.length; index++) {
-      ordinals.put(params[index].name(), index);
+      String paramName = params[index].name();
+
+      Preconditions.checkArgument(
+          !ordinals.containsKey(paramName),
+          "Detected multiple parameters named as '%s'",
+          paramName);
+
+      ordinals.put(paramName, index);
     }
+
     return ordinals;
   }
 
   private void validateParamType(ProcedureParameter param, DataType expectedDataType) {
     Preconditions.checkArgument(
         expectedDataType.sameType(param.dataType()),
-        "Param %s must be of type %s",
+        "Parameter '%s' must be of type %s",
         param.name(),
         expectedDataType.catalogString());
   }
