@@ -67,7 +67,9 @@ public class ExpireSnapshotsProcedure extends BaseProcedure {
             new StructField(
                 "deleted_manifest_files_count", DataTypes.LongType, true, Metadata.empty()),
             new StructField(
-                "deleted_manifest_lists_count", DataTypes.LongType, true, Metadata.empty())
+                "deleted_manifest_lists_count", DataTypes.LongType, true, Metadata.empty()),
+            new StructField(
+                "deleted_statistics_files_count", DataTypes.LongType, true, Metadata.empty())
           });
 
   public static ProcedureBuilder builder() {
@@ -159,7 +161,8 @@ public class ExpireSnapshotsProcedure extends BaseProcedure {
             result.deletedPositionDeleteFilesCount(),
             result.deletedEqualityDeleteFilesCount(),
             result.deletedManifestsCount(),
-            result.deletedManifestListsCount());
+            result.deletedManifestListsCount(),
+            result.deletedStatisticsFilesCount());
     return new InternalRow[] {row};
   }
 
