@@ -140,7 +140,7 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
 
     // load insert and deletes from the changelog table
     Identifier changelogTableIdent = changelogTableIdent(tableIdent);
-    Dataset<Row> df = loadDataSetFromTable(changelogTableIdent, options(input));
+    Dataset<Row> df = loadRows(changelogTableIdent, options(input));
 
     if (shouldComputeUpdateImages(input)) {
       df = computeUpdateImages(identifierColumns(input, tableIdent), df);
@@ -158,16 +158,15 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
   private Dataset<Row> computeUpdateImages(String[] identifierColumns, Dataset<Row> df) {
     Preconditions.checkArgument(
         identifierColumns.length > 0,
-        "Cannot compute the update-rows because identifier columns are not set");
+        "Cannot compute the update images because identifier columns are not set");
 
-    Column[] repartitionColumns = new Column[identifierColumns.length + 1];
+    Column[] repartitionSpec = new Column[identifierColumns.length + 1];
     for (int i = 0; i < identifierColumns.length; i++) {
-      repartitionColumns[i] = df.col(identifierColumns[i]);
+      repartitionSpec[i] = df.col(identifierColumns[i]);
     }
-    repartitionColumns[repartitionColumns.length - 1] =
-        df.col(MetadataColumns.CHANGE_ORDINAL.name());
+    repartitionSpec[repartitionSpec.length - 1] = df.col(MetadataColumns.CHANGE_ORDINAL.name());
 
-    return applyChangelogIterator(df, repartitionColumns);
+    return applyChangelogIterator(df, repartitionSpec);
   }
 
   private boolean shouldComputeUpdateImages(ProcedureInput input) {
@@ -181,12 +180,12 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
   }
 
   private Dataset<Row> removeCarryoverRows(Dataset<Row> df) {
-    Column[] repartitionColumns =
+    Column[] repartitionSpec =
         Arrays.stream(df.columns())
             .filter(c -> !c.equals(MetadataColumns.CHANGE_TYPE.name()))
             .map(df::col)
             .toArray(Column[]::new);
-    return applyChangelogIterator(df, repartitionColumns);
+    return applyChangelogIterator(df, repartitionSpec);
   }
 
   private String[] identifierColumns(ProcedureInput input, Identifier tableIdent) {
@@ -214,13 +213,13 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
     return input.string(CHANGELOG_VIEW_PARAM, defaultValue);
   }
 
-  private Dataset<Row> applyChangelogIterator(Dataset<Row> df, Column[] repartitionColumns) {
-    Column[] sortSpec = sortSpec(df, repartitionColumns);
+  private Dataset<Row> applyChangelogIterator(Dataset<Row> df, Column[] repartitionSpec) {
+    Column[] sortSpec = sortSpec(df, repartitionSpec);
     StructType schema = df.schema();
     String[] identifierFields =
-        Arrays.stream(repartitionColumns).map(Column::toString).toArray(String[]::new);
+        Arrays.stream(repartitionSpec).map(Column::toString).toArray(String[]::new);
 
-    return df.repartition(repartitionColumns)
+    return df.repartition(repartitionSpec)
         .sortWithinPartitions(sortSpec)
         .mapPartitions(
             (MapPartitionsFunction<Row, Row>)
