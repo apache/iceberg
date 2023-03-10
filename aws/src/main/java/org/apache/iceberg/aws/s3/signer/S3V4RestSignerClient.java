@@ -26,7 +26,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import javax.annotation.Nullable;
@@ -70,10 +69,13 @@ public abstract class S3V4RestSignerClient
   private static final Cache<Key, SignedComponent> SIGNED_COMPONENT_CACHE =
       Caffeine.newBuilder().expireAfterWrite(30, TimeUnit.SECONDS).maximumSize(100).build();
 
-  private static final AtomicReference<ScheduledExecutorService> TOKEN_REFRESH_EXECUTOR =
-      new AtomicReference<>();
   private static final String SCOPE = "sign";
-  private static final AtomicReference<RESTClient> HTTP_CLIENT_REF = new AtomicReference<>();
+
+  @SuppressWarnings("immutables:incompat")
+  private static volatile ScheduledExecutorService tokenRefreshExecutor;
+
+  @SuppressWarnings("immutables:incompat")
+  private static volatile RESTClient httpClient;
 
   public abstract Map<String, String> properties();
 
@@ -118,26 +120,31 @@ public abstract class S3V4RestSignerClient
       return null;
     }
 
-    if (null == TOKEN_REFRESH_EXECUTOR.get()) {
-      TOKEN_REFRESH_EXECUTOR.compareAndSet(
-          null, ThreadPools.newScheduledPool("s3-signer-token-refresh", 1));
+    if (null == tokenRefreshExecutor) {
+      synchronized (S3V4RestSignerClient.class) {
+        if (null == tokenRefreshExecutor) {
+          tokenRefreshExecutor = ThreadPools.newScheduledPool("s3-signer-token-refresh", 1);
+        }
+      }
     }
 
-    return TOKEN_REFRESH_EXECUTOR.get();
+    return tokenRefreshExecutor;
   }
 
   private RESTClient httpClient() {
-    if (null == HTTP_CLIENT_REF.get()) {
-      // TODO: should be closed
-      HTTP_CLIENT_REF.compareAndSet(
-          null,
-          HTTPClient.builder()
-              .uri(baseSignerUri())
-              .withObjectMapper(S3ObjectMapper.mapper())
-              .build());
+    if (null == httpClient) {
+      synchronized (S3V4RestSignerClient.class) {
+        if (null == httpClient) {
+          httpClient =
+              HTTPClient.builder()
+                  .uri(baseSignerUri())
+                  .withObjectMapper(S3ObjectMapper.mapper())
+                  .build();
+        }
+      }
     }
 
-    return HTTP_CLIENT_REF.get();
+    return httpClient;
   }
 
   private AuthSession authSession() {
