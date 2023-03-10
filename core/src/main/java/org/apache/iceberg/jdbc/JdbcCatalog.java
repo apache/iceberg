@@ -75,7 +75,7 @@ public class JdbcCatalog extends BaseMetastoreCatalog
   private Object conf;
   private JdbcClientPool connections;
   private Map<String, String> catalogProperties;
-  private Function<Map<String, String>, FileIO> ioBuilder;
+  private Function<Map<String, String>, FileIO> ioBuilder = null;
 
   public JdbcCatalog() {}
 

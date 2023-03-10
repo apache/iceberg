@@ -98,7 +98,7 @@ public class RESTSessionCatalog extends BaseSessionCatalog
           OAuth2Properties.SAML1_TOKEN_TYPE);
 
   private final Function<Map<String, String>, RESTClient> clientBuilder;
-  private Function<Map<String, String>, FileIO> ioBuilder;
+  private Function<Map<String, String>, FileIO> ioBuilder = null;
   private Cache<String, AuthSession> sessions = null;
   private AuthSession catalogAuth = null;
   private boolean keepTokenRefreshed = true;
