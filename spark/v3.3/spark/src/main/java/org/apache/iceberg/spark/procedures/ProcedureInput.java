@@ -167,6 +167,11 @@ class ProcedureInput {
     return catalogAndIdent.identifier();
   }
 
+  public Identifier ident(ProcedureParameter param, CatalogPlugin defaultCatalog) {
+    String identAsString = string(param);
+    return toCatalogAndIdent(identAsString, param.name(), defaultCatalog).identifier();
+  }
+
   private CatalogAndIdentifier toCatalogAndIdent(
       String identAsString, String paramName, CatalogPlugin defaultCatalog) {
 
