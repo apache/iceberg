@@ -24,8 +24,8 @@ import java.util.Map;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.ChangelogIterator;
 import org.apache.iceberg.spark.source.SparkChangelogTable;
 import org.apache.spark.api.java.function.MapPartitionsFunction;
@@ -42,7 +42,6 @@ import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.unsafe.types.UTF8String;
-import scala.runtime.BoxedUnit;
 
 /**
  * A procedure that creates a view for changed rows.
@@ -81,22 +80,28 @@ import scala.runtime.BoxedUnit;
  */
 public class CreateChangelogViewProcedure extends BaseProcedure {
 
+  private static final ProcedureParameter TABLE_PARAM =
+      ProcedureParameter.required("table", DataTypes.StringType);
+  private static final ProcedureParameter CHANGELOG_VIEW_PARAM =
+      ProcedureParameter.optional("changelog_view", DataTypes.StringType);
+  private static final ProcedureParameter OPTIONS_PARAM =
+      ProcedureParameter.optional("options", STRING_MAP);
+  private static final ProcedureParameter COMPUTE_UPDATES_PARAM =
+      ProcedureParameter.optional("compute_updates", DataTypes.BooleanType);
+  private static final ProcedureParameter REMOVE_CARRYOVERS_PARAM =
+      ProcedureParameter.optional("remove_carryovers", DataTypes.BooleanType);
+  private static final ProcedureParameter IDENTIFIER_COLUMNS_PARAM =
+      ProcedureParameter.optional("identifier_columns", STRING_ARRAY);
+
   private static final ProcedureParameter[] PARAMETERS =
       new ProcedureParameter[] {
-        ProcedureParameter.required("table", DataTypes.StringType),
-        ProcedureParameter.optional("changelog_view", DataTypes.StringType),
-        ProcedureParameter.optional("options", STRING_MAP),
-        ProcedureParameter.optional("compute_updates", DataTypes.BooleanType),
-        ProcedureParameter.optional("remove_carryovers", DataTypes.BooleanType),
-        ProcedureParameter.optional("identifier_columns", STRING_ARRAY),
+        TABLE_PARAM,
+        CHANGELOG_VIEW_PARAM,
+        OPTIONS_PARAM,
+        COMPUTE_UPDATES_PARAM,
+        REMOVE_CARRYOVERS_PARAM,
+        IDENTIFIER_COLUMNS_PARAM,
       };
-
-  private static final int TABLE_NAME_ORDINAL = 0;
-  private static final int CHANGELOG_VIEW_NAME_ORDINAL = 1;
-  private static final int OPTIONS_ORDINAL = 2;
-  private static final int COMPUTE_UPDATES_ORDINAL = 3;
-  private static final int REMOVE_CARRYOVERS_ORDINAL = 4;
-  private static final int IDENTIFIER_COLUMNS_ORDINAL = 5;
 
   private static final StructType OUTPUT_TYPE =
       new StructType(
@@ -129,20 +134,21 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
 
   @Override
   public InternalRow[] call(InternalRow args) {
-    Identifier tableIdent =
-        toIdentifier(args.getString(TABLE_NAME_ORDINAL), PARAMETERS[TABLE_NAME_ORDINAL].name());
+    ProcedureInput input = new ProcedureInput(spark(), tableCatalog(), PARAMETERS, args);
+
+    Identifier tableIdent = input.ident(TABLE_PARAM);
 
     // load insert and deletes from the changelog table
     Identifier changelogTableIdent = changelogTableIdent(tableIdent);
-    Dataset<Row> df = loadDataSetFromTable(changelogTableIdent, options(args));
+    Dataset<Row> df = loadDataSetFromTable(changelogTableIdent, options(input));
 
-    if (shouldComputeUpdateImages(args)) {
-      df = computeUpdateImages(identifierColumns(args, tableIdent), df);
-    } else if (shouldRemoveCarryoverRows(args)) {
+    if (shouldComputeUpdateImages(input)) {
+      df = computeUpdateImages(identifierColumns(input, tableIdent), df);
+    } else if (shouldRemoveCarryoverRows(input)) {
       df = removeCarryoverRows(df);
     }
 
-    String viewName = viewName(args, tableIdent.name());
+    String viewName = viewName(input, tableIdent.name());
 
     df.createOrReplaceTempView(viewName);
 
@@ -164,21 +170,14 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
     return applyChangelogIterator(df, repartitionColumns);
   }
 
-  private boolean shouldComputeUpdateImages(InternalRow args) {
-    if (!args.isNullAt(COMPUTE_UPDATES_ORDINAL)) {
-      return args.getBoolean(COMPUTE_UPDATES_ORDINAL);
-    } else {
-      // If the identifier columns are set, we compute pre/post update images by default.
-      return !args.isNullAt(IDENTIFIER_COLUMNS_ORDINAL);
-    }
+  private boolean shouldComputeUpdateImages(ProcedureInput input) {
+    // If the identifier columns are set, we compute pre/post update images by default.
+    boolean defaultValue = input.isProvided(IDENTIFIER_COLUMNS_PARAM);
+    return input.bool(COMPUTE_UPDATES_PARAM, defaultValue);
   }
 
-  private boolean shouldRemoveCarryoverRows(InternalRow args) {
-    if (args.isNullAt(REMOVE_CARRYOVERS_ORDINAL)) {
-      return true;
-    } else {
-      return args.getBoolean(REMOVE_CARRYOVERS_ORDINAL);
-    }
+  private boolean shouldRemoveCarryoverRows(ProcedureInput input) {
+    return input.bool(REMOVE_CARRYOVERS_PARAM, true);
   }
 
   private Dataset<Row> removeCarryoverRows(Dataset<Row> df) {
@@ -190,11 +189,9 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
     return applyChangelogIterator(df, repartitionColumns);
   }
 
-  private String[] identifierColumns(InternalRow args, Identifier tableIdent) {
-    if (!args.isNullAt(IDENTIFIER_COLUMNS_ORDINAL)) {
-      return Arrays.stream(args.getArray(IDENTIFIER_COLUMNS_ORDINAL).array())
-          .map(column -> column.toString())
-          .toArray(String[]::new);
+  private String[] identifierColumns(ProcedureInput input, Identifier tableIdent) {
+    if (input.isProvided(IDENTIFIER_COLUMNS_PARAM)) {
+      return input.stringArray(IDENTIFIER_COLUMNS_PARAM);
     } else {
       Table table = loadSparkTable(tableIdent).table();
       return table.schema().identifierFieldNames().toArray(new String[0]);
@@ -208,29 +205,13 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
     return Identifier.of(namespace.toArray(new String[0]), SparkChangelogTable.TABLE_NAME);
   }
 
-  private Map<String, String> options(InternalRow args) {
-    Map<String, String> options = Maps.newHashMap();
-
-    if (!args.isNullAt(OPTIONS_ORDINAL)) {
-      args.getMap(OPTIONS_ORDINAL)
-          .foreach(
-              DataTypes.StringType,
-              DataTypes.StringType,
-              (k, v) -> {
-                options.put(k.toString(), v.toString());
-                return BoxedUnit.UNIT;
-              });
-    }
-
-    return options;
+  private Map<String, String> options(ProcedureInput input) {
+    return input.stringMap(OPTIONS_PARAM, ImmutableMap.of());
   }
 
-  private static String viewName(InternalRow args, String tableName) {
-    if (args.isNullAt(CHANGELOG_VIEW_NAME_ORDINAL)) {
-      return String.format("`%s_changes`", tableName);
-    } else {
-      return args.getString(CHANGELOG_VIEW_NAME_ORDINAL);
-    }
+  private String viewName(ProcedureInput input, String tableName) {
+    String defaultValue = String.format("`%s_changes`", tableName);
+    return input.string(CHANGELOG_VIEW_PARAM, defaultValue);
   }
 
   private Dataset<Row> applyChangelogIterator(Dataset<Row> df, Column[] repartitionColumns) {
