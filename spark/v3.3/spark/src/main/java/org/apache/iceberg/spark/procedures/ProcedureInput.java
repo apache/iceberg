@@ -154,28 +154,34 @@ class ProcedureInput {
   }
 
   public Identifier ident(ProcedureParameter param) {
-    String identAsString = string(param);
-    CatalogAndIdentifier catalogAndIdent = toCatalogAndIdent(identAsString, param.name(), catalog);
+    CatalogAndIdentifier catalogAndIdent = catalogAndIdent(param, catalog);
 
     Preconditions.checkArgument(
         catalogAndIdent.catalog().equals(catalog),
         "Cannot run procedure in catalog '%s': '%s' is a table in catalog '%s'",
         catalog.name(),
-        identAsString,
+        catalogAndIdent.identifier(),
         catalogAndIdent.catalog().name());
 
     return catalogAndIdent.identifier();
   }
 
-  private CatalogAndIdentifier toCatalogAndIdent(
-      String identAsString, String paramName, CatalogPlugin defaultCatalog) {
+  public Identifier ident(ProcedureParameter param, CatalogPlugin defaultCatalog) {
+    CatalogAndIdentifier catalogAndIdent = catalogAndIdent(param, defaultCatalog);
+    return catalogAndIdent.identifier();
+  }
+
+  private CatalogAndIdentifier catalogAndIdent(
+      ProcedureParameter param, CatalogPlugin defaultCatalog) {
+
+    String identAsString = string(param);
 
     Preconditions.checkArgument(
         StringUtils.isNotBlank(identAsString),
         "Cannot handle an empty identifier for parameter '%s'",
-        paramName);
+        param.name());
 
-    String desc = String.format("identifier for parameter '%s'", paramName);
+    String desc = String.format("identifier for parameter '%s'", param.name());
     return Spark3Util.catalogAndIdentifier(desc, spark, identAsString, defaultCatalog);
   }
 
