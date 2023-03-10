@@ -43,10 +43,10 @@ public class ScanTaskSetManager {
     return INSTANCE;
   }
 
-  public <T extends ScanTask> void stageTasks(Table table, String setID, List<T> tasks) {
+  public <T extends ScanTask> void stageTasks(Table table, String setId, List<T> tasks) {
     Preconditions.checkArgument(
         tasks != null && tasks.size() > 0, "Cannot stage null or empty tasks");
-    Pair<String, String> id = toId(table, setID);
+    Pair<String, String> id = toId(table, setId);
     tasksMap.put(id, tasks);
   }
 
@@ -57,8 +57,8 @@ public class ScanTaskSetManager {
   }
 
   @SuppressWarnings("unchecked")
-  public <T extends ScanTask> List<T> removeTasks(Table table, String setID) {
-    Pair<String, String> id = toId(table, setID);
+  public <T extends ScanTask> List<T> removeTasks(Table table, String setId) {
+    Pair<String, String> id = toId(table, setId);
     return (List<T>) tasksMap.remove(id);
   }
 
