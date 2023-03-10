@@ -211,8 +211,8 @@ abstract class BaseSparkAction<ThisT> {
       predicate = statisticsFile -> snapshotIds.contains(statisticsFile.snapshotId());
     }
 
-    return toFileInfoDS(
-        ReachableFileUtil.statisticsFilesLocations(table, predicate), STATISTICS_FILES);
+    List<String> statisticsFiles = ReachableFileUtil.statisticsFilesLocations(table, predicate);
+    return toFileInfoDS(statisticsFiles, STATISTICS_FILES);
   }
 
   protected Dataset<FileInfo> otherMetadataFileDS(Table table) {

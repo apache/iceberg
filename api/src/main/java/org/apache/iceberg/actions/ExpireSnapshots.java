@@ -30,6 +30,7 @@ import org.immutables.value.Value;
  * <p>Similar to {@link org.apache.iceberg.ExpireSnapshots} but may use a query engine to distribute
  * parts of the work.
  */
+@Value.Enclosing
 public interface ExpireSnapshots extends Action<ExpireSnapshots, ExpireSnapshots.Result> {
   /**
    * Expires a specific {@link Snapshot} identified by id.

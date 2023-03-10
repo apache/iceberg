@@ -33,7 +33,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.actions.ExpireSnapshots;
-import org.apache.iceberg.actions.ImmutableResult;
+import org.apache.iceberg.actions.ImmutableExpireSnapshots;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.io.SupportsBulkOperations;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -277,7 +277,8 @@ public class ExpireSnapshotsSparkAction extends BaseSparkAction<ExpireSnapshotsS
     }
 
     LOG.info("Deleted {} total files", summary.totalFilesCount());
-    return ImmutableResult.builder()
+
+    return ImmutableExpireSnapshots.Result.builder()
         .deletedDataFilesCount(summary.dataFilesCount())
         .deletedPositionDeleteFilesCount(summary.positionDeleteFilesCount())
         .deletedEqualityDeleteFilesCount(summary.equalityDeleteFilesCount())
