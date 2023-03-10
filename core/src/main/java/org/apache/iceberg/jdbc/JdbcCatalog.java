@@ -33,6 +33,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.hadoop.conf.Configuration;
@@ -68,12 +69,13 @@ public class JdbcCatalog extends BaseMetastoreCatalog
   private static final Logger LOG = LoggerFactory.getLogger(JdbcCatalog.class);
   private static final Joiner SLASH = Joiner.on("/");
 
-  private FileIO io;
+  private FileIO io = null;
   private String catalogName = "jdbc";
   private String warehouseLocation;
   private Object conf;
   private JdbcClientPool connections;
   private Map<String, String> catalogProperties;
+  private Function<Map<String, String>, FileIO> ioBuilder;
 
   public JdbcCatalog() {}
 
@@ -95,10 +97,14 @@ public class JdbcCatalog extends BaseMetastoreCatalog
       this.catalogName = name;
     }
 
-    String fileIOImpl =
-        properties.getOrDefault(
-            CatalogProperties.FILE_IO_IMPL, "org.apache.iceberg.hadoop.HadoopFileIO");
-    this.io = CatalogUtil.loadFileIO(fileIOImpl, properties, conf);
+    if (null != ioBuilder) {
+      this.io = ioBuilder.apply(properties);
+    } else {
+      String ioImpl =
+          properties.getOrDefault(
+              CatalogProperties.FILE_IO_IMPL, "org.apache.iceberg.hadoop.HadoopFileIO");
+      this.io = CatalogUtil.loadFileIO(ioImpl, properties, conf);
+    }
 
     try {
       LOG.debug("Connecting to JDBC database {}", properties.get(CatalogProperties.URI));
@@ -114,6 +120,11 @@ public class JdbcCatalog extends BaseMetastoreCatalog
       Thread.currentThread().interrupt();
       throw new UncheckedInterruptedException(e, "Interrupted in call to initialize");
     }
+  }
+
+  public void setFileIOBuilder(Function<Map<String, String>, FileIO> ioBuilder) {
+    Preconditions.checkState(null == io, "Cannot set IO builder after calling initialize");
+    this.ioBuilder = ioBuilder;
   }
 
   private void initializeCatalogTables() throws InterruptedException, SQLException {

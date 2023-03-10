@@ -769,9 +769,9 @@ public class RESTSessionCatalog extends BaseSessionCatalog
     if (null != ioBuilder) {
       return ioBuilder.apply(properties);
     } else {
-      String ioImpl = properties.get(CatalogProperties.FILE_IO_IMPL);
-      return CatalogUtil.loadFileIO(
-          ioImpl != null ? ioImpl : ResolvingFileIO.class.getName(), properties, conf);
+      String ioImpl =
+          properties.getOrDefault(CatalogProperties.FILE_IO_IMPL, ResolvingFileIO.class.getName());
+      return CatalogUtil.loadFileIO(ioImpl, properties, conf);
     }
   }
 
