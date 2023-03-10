@@ -91,7 +91,7 @@ jobs:
     - name: Setup gradle.properties
       run: |
         mkdir -p ~/.gradle
-        echo "org.gradle.jvmargs=-Xmx2048m org.gradle.parallel=true" >> ~/.gradle/gradle.properties
+        echo "org.gradle.jvmargs=-Xmx2048m" >> ~/.gradle/gradle.properties
     - run: ./gradlew -DallVersions build -x test -x javadoc -x integrationTest
 
   build-javadoc:
