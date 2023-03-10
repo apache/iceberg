@@ -122,9 +122,9 @@ public class JdbcCatalog extends BaseMetastoreCatalog
     }
   }
 
-  public void setFileIOBuilder(Function<Map<String, String>, FileIO> ioBuilder) {
+  public void setFileIOBuilder(Function<Map<String, String>, FileIO> newIOBuilder) {
     Preconditions.checkState(null == io, "Cannot set IO builder after calling initialize");
-    this.ioBuilder = ioBuilder;
+    this.ioBuilder = newIOBuilder;
   }
 
   private void initializeCatalogTables() throws InterruptedException, SQLException {

@@ -203,9 +203,9 @@ public class RESTSessionCatalog extends BaseSessionCatalog
     super.initialize(name, mergedProps);
   }
 
-  public void setFileIOBuilder(Function<Map<String, String>, FileIO> ioBuilder) {
+  public void setFileIOBuilder(Function<Map<String, String>, FileIO> newIOBuilder) {
     Preconditions.checkState(null == io, "Cannot set IO builder after calling initialize");
-    this.ioBuilder = ioBuilder;
+    this.ioBuilder = newIOBuilder;
   }
 
   private AuthSession session(SessionContext context) {
