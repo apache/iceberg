@@ -148,9 +148,8 @@ abstract class BaseProcedure implements Procedure {
     }
   }
 
-  protected Dataset<Row> loadDataSetFromTable(Identifier tableIdent, Map<String, String> options) {
+  protected Dataset<Row> loadRows(Identifier tableIdent, Map<String, String> options) {
     String tableName = Spark3Util.quotedFullIdentifier(tableCatalog().name(), tableIdent);
-    // no need to validate the read options here since the reader will validate them
     return spark().read().options(options).table(tableName);
   }
 
