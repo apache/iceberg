@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.procedures;
 import java.lang.reflect.Array;
 import java.util.Map;
 import java.util.function.BiFunction;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.Spark3Util;
@@ -170,7 +171,7 @@ class ProcedureInput {
       String identAsString, String paramName, CatalogPlugin defaultCatalog) {
 
     Preconditions.checkArgument(
-        identAsString != null && !identAsString.isEmpty(),
+        StringUtils.isNotBlank(identAsString),
         "Cannot handle an empty identifier for parameter '%s'",
         paramName);
 
