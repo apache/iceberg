@@ -249,6 +249,14 @@ public class AwsProperties implements Serializable {
   public static final String S3FILEIO_SESSION_TOKEN = "s3.session-token";
 
   /**
+   * Configure the aws credentials provider used to access S3FileIO.
+   *
+   * <p>When set, the default client factory will use this provider to get AWS credentials provided
+   * instead of reading the default credential chain to create S3 access credentials.
+   */
+  public static final String S3FILEIO_CREDENTIALS_PROVIDER = "s3.credentials-provider";
+
+  /**
    * Enable to make S3FileIO, to make cross-region call to the region specified in the ARN of an
    * access point.
    *
@@ -338,6 +346,12 @@ public class AwsProperties implements Serializable {
    * For more details, see https://docs.aws.amazon.com/general/latest/gr/rande.html
    */
   public static final String CLIENT_ASSUME_ROLE_REGION = "client.assume-role.region";
+
+  /**
+   * Used by {@link org.apache.iceberg.aws.AwsClientFactories.DefaultAwsClientFactory}. If set, all
+   * AWS clients except STS client will use * the given region instead of the default region chain.
+   */
+  public static final String AWS_REGION = "aws.region";
 
   /**
    * Used by {@link AssumeRoleAwsClientFactory}. Optional session name used to assume an IAM role.
@@ -645,6 +659,7 @@ public class AwsProperties implements Serializable {
   private String s3AccessKeyId;
   private String s3SecretAccessKey;
   private String s3SessionToken;
+  private String s3CredentialsProvider;
   private int s3FileIoMultipartUploadThreads;
   private int s3FileIoMultiPartSize;
   private int s3FileIoDeleteBatchSize;
@@ -678,6 +693,8 @@ public class AwsProperties implements Serializable {
   private final String s3SignerImpl;
   private final Map<String, String> allProperties;
 
+  private String awsRegion;
+
   public AwsProperties() {
     this.httpClientType = HTTP_CLIENT_TYPE_DEFAULT;
     this.httpClientProperties = Collections.emptyMap();
@@ -695,6 +712,7 @@ public class AwsProperties implements Serializable {
     this.s3AccessKeyId = null;
     this.s3SecretAccessKey = null;
     this.s3SessionToken = null;
+    this.s3CredentialsProvider = null;
     this.s3FileIoAcl = null;
     this.s3Endpoint = null;
     this.s3FileIoMultipartUploadThreads = Runtime.getRuntime().availableProcessors();
@@ -727,6 +745,7 @@ public class AwsProperties implements Serializable {
 
     this.s3SignerImpl = null;
     this.allProperties = Maps.newHashMap();
+    this.awsRegion = null;
 
     ValidationException.check(
         s3KeyIdAccessKeyBothConfigured(),
@@ -746,6 +765,7 @@ public class AwsProperties implements Serializable {
             properties, CLIENT_ASSUME_ROLE_TIMEOUT_SEC, CLIENT_ASSUME_ROLE_TIMEOUT_SEC_DEFAULT);
     this.clientAssumeRoleExternalId = properties.get(CLIENT_ASSUME_ROLE_EXTERNAL_ID);
     this.clientAssumeRoleRegion = properties.get(CLIENT_ASSUME_ROLE_REGION);
+    this.awsRegion = properties.get(AWS_REGION);
     this.clientAssumeRoleSessionName = properties.get(CLIENT_ASSUME_ROLE_SESSION_NAME);
 
     this.s3FileIoSseType = properties.getOrDefault(S3FILEIO_SSE_TYPE, S3FILEIO_SSE_TYPE_NONE);
@@ -754,6 +774,7 @@ public class AwsProperties implements Serializable {
     this.s3AccessKeyId = properties.get(S3FILEIO_ACCESS_KEY_ID);
     this.s3SecretAccessKey = properties.get(S3FILEIO_SECRET_ACCESS_KEY);
     this.s3SessionToken = properties.get(S3FILEIO_SESSION_TOKEN);
+    this.s3CredentialsProvider = properties.get(S3FILEIO_CREDENTIALS_PROVIDER);
     if (S3FILEIO_SSE_TYPE_CUSTOM.equals(s3FileIoSseType)) {
       Preconditions.checkNotNull(
           s3FileIoSseKey, "Cannot initialize SSE-C S3FileIO with null encryption key");
@@ -1061,6 +1082,13 @@ public class AwsProperties implements Serializable {
     return httpClientProperties;
   }
 
+  public String awsRegion() {
+    return awsRegion;
+  }
+
+  public void setAwsRegion(String awsRegion) {
+    this.awsRegion = awsRegion;
+  }
   /**
    * Configure the credentials for an S3 client.
    *
@@ -1071,8 +1099,12 @@ public class AwsProperties implements Serializable {
    * </pre>
    */
   public <T extends S3ClientBuilder> void applyS3CredentialConfigurations(T builder) {
-    builder.credentialsProvider(
-        credentialsProvider(s3AccessKeyId, s3SecretAccessKey, s3SessionToken));
+    if (this.s3CredentialsProvider != null && this.s3CredentialsProvider.trim().length() > 0) {
+      builder.credentialsProvider(credentialsProvider(this.s3CredentialsProvider.trim()));
+    } else {
+      builder.credentialsProvider(
+          credentialsProvider(s3AccessKeyId, s3SecretAccessKey, s3SessionToken));
+    }
   }
 
   /**
@@ -1173,14 +1205,12 @@ public class AwsProperties implements Serializable {
     switch (httpClientType) {
       case HTTP_CLIENT_TYPE_URLCONNECTION:
         UrlConnectionHttpClientConfigurations urlConnectionHttpClientConfigurations =
-            (UrlConnectionHttpClientConfigurations)
-                loadHttpClientConfigurations(UrlConnectionHttpClientConfigurations.class.getName());
+            loadHttpClientConfigurations(UrlConnectionHttpClientConfigurations.class.getName());
         urlConnectionHttpClientConfigurations.configureHttpClientBuilder(builder);
         break;
       case HTTP_CLIENT_TYPE_APACHE:
         ApacheHttpClientConfigurations apacheHttpClientConfigurations =
-            (ApacheHttpClientConfigurations)
-                loadHttpClientConfigurations(ApacheHttpClientConfigurations.class.getName());
+            loadHttpClientConfigurations(ApacheHttpClientConfigurations.class.getName());
         apacheHttpClientConfigurations.configureHttpClientBuilder(builder);
         break;
       default:
@@ -1249,6 +1279,22 @@ public class AwsProperties implements Serializable {
     return (s3AccessKeyId == null) == (s3SecretAccessKey == null);
   }
 
+  private AwsCredentialsProvider credentialsProvider(String credentialsProviderClazz) {
+    try {
+      AwsCredentialsProvider provider =
+          DynMethods.builder("create").impl(credentialsProviderClazz).buildChecked().invoke(null);
+      return provider;
+    } catch (NoSuchMethodException e) {
+      throw new IllegalArgumentException(
+          String.format(
+              "The creation of an instance of %s failed. Please ensure that the "
+                  + "implementation class of software.amazon.awssdk.auth.credentials.AwsCredentialsProvider is used, "
+                  + "which should have a static 'create' method for instance creation.",
+              credentialsProviderClazz),
+          e);
+    }
+  }
+
   private AwsCredentialsProvider credentialsProvider(
       String accessKeyId, String secretAccessKey, String sessionToken) {
     if (accessKeyId != null) {
@@ -1276,7 +1322,7 @@ public class AwsProperties implements Serializable {
    * software.amazon.awssdk.http.apache.ApacheHttpClient}, since including both will cause error
    * described in <a href="https://github.com/apache/iceberg/issues/6715">issue#6715</a>
    */
-  private Object loadHttpClientConfigurations(String impl) {
+  private <T> T loadHttpClientConfigurations(String impl) {
     Object httpClientConfigurations;
     try {
       httpClientConfigurations =
@@ -1284,7 +1330,7 @@ public class AwsProperties implements Serializable {
               .hiddenImpl(impl, Map.class)
               .buildStaticChecked()
               .invoke(httpClientProperties);
-      return httpClientConfigurations;
+      return (T) httpClientConfigurations;
     } catch (NoSuchMethodException e) {
       throw new IllegalArgumentException(
           String.format("Cannot create %s to generate and configure the http client builder", impl),

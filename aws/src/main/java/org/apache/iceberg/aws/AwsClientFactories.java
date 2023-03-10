@@ -33,6 +33,7 @@ import software.amazon.awssdk.core.client.builder.SdkClientBuilder;
 import software.amazon.awssdk.http.SdkHttpClient;
 import software.amazon.awssdk.http.apache.ApacheHttpClient;
 import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
+import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClientBuilder;
 import software.amazon.awssdk.services.glue.GlueClient;
@@ -91,6 +92,8 @@ public class AwsClientFactories {
   static class DefaultAwsClientFactory implements AwsClientFactory {
     private AwsProperties awsProperties;
 
+    private Region region;
+
     DefaultAwsClientFactory() {
       awsProperties = new AwsProperties();
     }
@@ -98,6 +101,7 @@ public class AwsClientFactories {
     @Override
     public S3Client s3() {
       return S3Client.builder()
+          .region(this.region)
           .applyMutation(awsProperties::applyHttpClientConfigurations)
           .applyMutation(awsProperties::applyS3EndpointConfigurations)
           .applyMutation(awsProperties::applyS3ServiceConfigurations)
@@ -109,6 +113,7 @@ public class AwsClientFactories {
     @Override
     public GlueClient glue() {
       return GlueClient.builder()
+          .region(this.region)
           .applyMutation(awsProperties::applyHttpClientConfigurations)
           .applyMutation(awsProperties::applyGlueEndpointConfigurations)
           .build();
@@ -117,6 +122,7 @@ public class AwsClientFactories {
     @Override
     public KmsClient kms() {
       return KmsClient.builder()
+          .region(this.region)
           .applyMutation(awsProperties::applyHttpClientConfigurations)
           .build();
     }
@@ -124,6 +130,7 @@ public class AwsClientFactories {
     @Override
     public DynamoDbClient dynamo() {
       return DynamoDbClient.builder()
+          .region(this.region)
           .applyMutation(awsProperties::applyHttpClientConfigurations)
           .applyMutation(awsProperties::applyDynamoDbEndpointConfigurations)
           .build();
@@ -132,6 +139,7 @@ public class AwsClientFactories {
     @Override
     public void initialize(Map<String, String> properties) {
       this.awsProperties = new AwsProperties(properties);
+      this.region = awsProperties.awsRegion() != null ? Region.of(awsProperties.awsRegion()) : null;
     }
   }
 
