@@ -18,6 +18,10 @@
  */
 package org.apache.iceberg.flink;
 
+import static org.apache.iceberg.DistributionMode.HASH;
+import static org.apache.iceberg.DistributionMode.NONE;
+import static org.apache.iceberg.DistributionMode.RANGE;
+
 import java.util.Map;
 import org.apache.flink.configuration.ReadableConfig;
 import org.apache.iceberg.DistributionMode;
@@ -46,10 +50,12 @@ import org.apache.iceberg.TableProperties;
 public class FlinkWriteConf {
 
   private final FlinkConfParser confParser;
+  private final Table table;
 
   public FlinkWriteConf(
       Table table, Map<String, String> writeOptions, ReadableConfig readableConfig) {
     this.confParser = new FlinkConfParser(table, writeOptions, readableConfig);
+    this.table = table;
   }
 
   public boolean overwriteMode() {
@@ -160,9 +166,23 @@ public class FlinkWriteConf {
             .option(FlinkWriteOptions.DISTRIBUTION_MODE.key())
             .flinkConfig(FlinkWriteOptions.DISTRIBUTION_MODE)
             .tableProperty(TableProperties.WRITE_DISTRIBUTION_MODE)
-            .defaultValue(TableProperties.WRITE_DISTRIBUTION_MODE_NONE)
-            .parse();
-    return DistributionMode.fromName(modeName);
+            .parseOptional();
+
+    if (modeName != null) {
+      return DistributionMode.fromName(modeName);
+    } else {
+      return defaultWriteDistributionMode();
+    }
+  }
+
+  private DistributionMode defaultWriteDistributionMode() {
+    if (table.sortOrder().isSorted()) {
+      return RANGE;
+    } else if (table.spec().isPartitioned()) {
+      return HASH;
+    } else {
+      return NONE;
+    }
   }
 
   public int workerPoolSize() {
