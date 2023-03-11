@@ -42,10 +42,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.JobGroupInfo;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.spark.sql.Dataset;
-import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
-import org.apache.spark.sql.catalyst.encoders.RowEncoder;
-import org.apache.spark.sql.execution.QueryExecution;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -130,23 +127,6 @@ public class ExpireSnapshotsSparkAction extends BaseSparkAction<ExpireSnapshotsS
   public ExpireSnapshotsSparkAction deleteWith(Consumer<String> newDeleteFunc) {
     this.deleteFunc = newDeleteFunc;
     return this;
-  }
-
-  /**
-   * Expires snapshots and commits the changes to the table, returning a Dataset of files to delete.
-   *
-   * <p>This does not delete data files. To delete data files, run {@link #execute()}.
-   *
-   * <p>This may be called before or after {@link #execute()} to return the expired files.
-   *
-   * @return a Dataset of files that are no longer referenced by the table
-   * @deprecated since 1.0.0, will be removed in 1.1.0; use {@link #expireFiles()} instead.
-   */
-  @Deprecated
-  public Dataset<Row> expire() {
-    // rely on the same query execution to reuse shuffles
-    QueryExecution queryExecution = expireFiles().queryExecution();
-    return new Dataset<>(queryExecution, RowEncoder.apply(queryExecution.analyzed().schema()));
   }
 
   /**
