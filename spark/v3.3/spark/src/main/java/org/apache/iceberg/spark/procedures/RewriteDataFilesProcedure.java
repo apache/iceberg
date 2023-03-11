@@ -132,12 +132,14 @@ class RewriteDataFilesProcedure extends BaseProcedure {
     if (where != null) {
       try {
         Option<Expression> expressionOption =
-                SparkExpressionConverter.collectResolvedSparkExpressionOption(spark(), tableName, where);
+            SparkExpressionConverter.collectResolvedSparkExpressionOption(
+                spark(), tableName, where);
         if (expressionOption.isEmpty()) {
           return action.filter(Expressions.alwaysFalse());
         }
 
-        return action.filter(SparkExpressionConverter.convertToIcebergExpression(expressionOption.get()));
+        return action.filter(
+            SparkExpressionConverter.convertToIcebergExpression(expressionOption.get()));
       } catch (AnalysisException e) {
         throw new IllegalArgumentException("Cannot parse predicates in where option: " + where);
       }
