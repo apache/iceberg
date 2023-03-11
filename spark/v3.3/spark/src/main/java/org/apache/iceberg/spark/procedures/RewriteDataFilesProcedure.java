@@ -130,8 +130,7 @@ class RewriteDataFilesProcedure extends BaseProcedure {
       RewriteDataFiles action, String where, String tableName) {
     if (where != null) {
       Option<Expression> expressionOption =
-          SparkExpressionConverter.collectResolvedSparkExpressionOption(
-              spark(), tableName, where);
+          SparkExpressionConverter.collectResolvedSparkExpressionOption(spark(), tableName, where);
       if (expressionOption.isEmpty()) {
         return action.filter(Expressions.alwaysFalse());
       }
