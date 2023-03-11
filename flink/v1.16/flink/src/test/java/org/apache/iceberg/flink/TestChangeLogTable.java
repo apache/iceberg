@@ -222,7 +222,7 @@ public class TestChangeLogTable extends ChangeLogTableTestBase {
   private Table createTable(String tableName, List<String> key, boolean isPartitioned) {
     String partitionByCause = isPartitioned ? "PARTITIONED BY (data)" : "";
     sql(
-        "CREATE TABLE %s(id INT, data VARCHAR, PRIMARY KEY(%s) NOT ENFORCED) %s WITH ('write.distribution-mode'='none')",
+        "CREATE TABLE %s(id INT, data VARCHAR, PRIMARY KEY(%s) NOT ENFORCED) %s",
         tableName, Joiner.on(',').join(key), partitionByCause);
 
     // Upgrade the iceberg table to format v2.
