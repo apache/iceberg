@@ -297,22 +297,22 @@ def test_projection_add_column(file_int: str) -> None:
 list: list<element: int32>
   child 0, element: int32
     -- field metadata --
-    field_id: '21'
+    PYTHON:field_id: '21'
 map: map<int32, string>
   child 0, entries: struct<key: int32 not null, value: string> not null
       child 0, key: int32 not null
       -- field metadata --
-      field_id: '31'
+      PYTHON:field_id: '31'
       child 1, value: string
       -- field metadata --
-      field_id: '32'
+      PYTHON:field_id: '32'
 location: struct<lat: double, lon: double>
   child 0, lat: double
     -- field metadata --
-    field_id: '41'
+    PYTHON:field_id: '41'
   child 1, lon: double
     -- field metadata --
-    field_id: '42'"""
+    PYTHON:field_id: '42'"""
     )
 
 
@@ -363,10 +363,10 @@ def test_projection_add_column_struct(schema_int: Schema, file_int: str) -> None
   child 0, entries: struct<key: int32 not null, value: string> not null
       child 0, key: int32 not null
       -- field metadata --
-      field_id: '3'
+      PYTHON:field_id: '3'
       child 1, value: string
       -- field metadata --
-      field_id: '4'"""
+      PYTHON:field_id: '4'"""
     )
 
 
@@ -414,7 +414,7 @@ def test_projection_filter(schema_int: Schema, file_int: str) -> None:
         repr(result_table.schema)
         == """id: int32
   -- field metadata --
-  field_id: '1'"""
+  PYTHON:field_id: '1'"""
     )
 
 
@@ -592,10 +592,10 @@ def test_projection_nested_struct_different_parent_id(file_struct: str) -> None:
         == """location: struct<lat: double, long: double>
   child 0, lat: double
     -- field metadata --
-    field_id: '41'
+    PYTHON:field_id: '41'
   child 1, long: double
     -- field metadata --
-    field_id: '42'"""
+    PYTHON:field_id: '42'"""
     )
 
 

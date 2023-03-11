@@ -53,57 +53,57 @@ def test_schema_to_pyarrow_schema(table_schema_nested: Schema) -> None:
     actual = schema_to_pyarrow(table_schema_nested)
     expected = """foo: string
   -- field metadata --
-  field_id: '1'
+  PYTHON:field_id: '1'
 bar: int32 not null
   -- field metadata --
-  field_id: '2'
+  PYTHON:field_id: '2'
 baz: bool
   -- field metadata --
-  field_id: '3'
+  PYTHON:field_id: '3'
 qux: list<element: string not null> not null
   child 0, element: string not null
     -- field metadata --
-    field_id: '5'
+    PYTHON:field_id: '5'
   -- field metadata --
-  field_id: '4'
+  PYTHON:field_id: '4'
 quux: map<string, map<string, int32>> not null
   child 0, entries: struct<key: string not null, value: map<string, int32> not null> not null
       child 0, key: string not null
       -- field metadata --
-      field_id: '7'
+      PYTHON:field_id: '7'
       child 1, value: map<string, int32> not null
           child 0, entries: struct<key: string not null, value: int32 not null> not null
               child 0, key: string not null
           -- field metadata --
-          field_id: '9'
+          PYTHON:field_id: '9'
               child 1, value: int32 not null
           -- field metadata --
-          field_id: '10'
+          PYTHON:field_id: '10'
       -- field metadata --
-      field_id: '8'
+      PYTHON:field_id: '8'
   -- field metadata --
-  field_id: '6'
+  PYTHON:field_id: '6'
 location: list<element: struct<latitude: float, longitude: float> not null> not null
   child 0, element: struct<latitude: float, longitude: float> not null
       child 0, latitude: float
       -- field metadata --
-      field_id: '13'
+      PYTHON:field_id: '13'
       child 1, longitude: float
       -- field metadata --
-      field_id: '14'
+      PYTHON:field_id: '14'
     -- field metadata --
-    field_id: '12'
+    PYTHON:field_id: '12'
   -- field metadata --
-  field_id: '11'
+  PYTHON:field_id: '11'
 person: struct<name: string, age: int32 not null>
   child 0, name: string
     -- field metadata --
-    field_id: '16'
+    PYTHON:field_id: '16'
   child 1, age: int32 not null
     -- field metadata --
-    field_id: '17'
+    PYTHON:field_id: '17'
   -- field metadata --
-  field_id: '15'"""
+  PYTHON:field_id: '15'"""
     assert repr(actual) == expected
 
 
@@ -367,13 +367,13 @@ def test_pyarrow_variable_binary_to_iceberg() -> None:
 def test_pyarrow_struct_to_iceberg() -> None:
     pyarrow_struct = pa.struct(
         [
-            pa.field("foo", pa.string(), nullable=True, metadata={"field_id": "1"}),
-            pa.field("bar", pa.int32(), nullable=False, metadata={"field_id": "2"}),
-            pa.field("baz", pa.bool_(), nullable=True, metadata={"field_id": "3"}),
+            pa.field("foo", pa.string(), nullable=True, metadata={"PYTHON:field_id": "1", "PYTHON:field_doc": "foo doc"}),
+            pa.field("bar", pa.int32(), nullable=False, metadata={"PYTHON:field_id": "2"}),
+            pa.field("baz", pa.bool_(), nullable=True, metadata={"PYTHON:field_id": "3"}),
         ]
     )
     expected = StructType(
-        NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
+        NestedField(field_id=1, name="foo", field_type=StringType(), required=False, doc="foo doc"),
         NestedField(field_id=2, name="bar", field_type=IntegerType(), required=True),
         NestedField(field_id=3, name="baz", field_type=BooleanType(), required=False),
     )
@@ -381,7 +381,7 @@ def test_pyarrow_struct_to_iceberg() -> None:
 
 
 def test_pyarrow_list_to_iceberg() -> None:
-    pyarrow_list = pa.list_(pa.field("element", pa.int32(), nullable=False, metadata={"field_id": "1"}))
+    pyarrow_list = pa.list_(pa.field("element", pa.int32(), nullable=False, metadata={"PYTHON:field_id": "1"}))
     expected = ListType(
         element_id=1,
         element_type=IntegerType(),
@@ -392,8 +392,8 @@ def test_pyarrow_list_to_iceberg() -> None:
 
 def test_pyarrow_map_to_iceberg() -> None:
     pyarrow_map = pa.map_(
-        pa.field("key", pa.int32(), nullable=False, metadata={"field_id": "1"}),
-        pa.field("value", pa.string(), nullable=False, metadata={"field_id": "2"}),
+        pa.field("key", pa.int32(), nullable=False, metadata={"PYTHON:field_id": "1"}),
+        pa.field("value", pa.string(), nullable=False, metadata={"PYTHON:field_id": "2"}),
     )
     expected = MapType(
         key_id=1,
