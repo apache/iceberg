@@ -36,7 +36,6 @@ object SparkExpressionConverter {
     SparkFilters.convert(DataSourceStrategy.translateFilter(sparkExpression, supportNestedPredicatePushdown = true).get)
   }
 
-  @throws[AnalysisException]
   def collectResolvedSparkExpressionOption(session: SparkSession,
                                            tableName: String, where: String): Option[Expression] = {
     val tableAttrs = session.table(tableName).queryExecution.analyzed.output
