@@ -71,7 +71,7 @@ public abstract class AvroDataTest {
   @Rule public TemporaryFolder temp = new TemporaryFolder();
 
   @BeforeClass
-  public void init() {
+  public static void init() {
     ValuesReaderFactory.initUnsafeReaderIfAbsent(UnsafeValuesAsBytesReader::new);
   }
 
