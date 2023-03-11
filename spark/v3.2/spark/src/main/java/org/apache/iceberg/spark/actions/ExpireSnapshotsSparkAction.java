@@ -32,8 +32,8 @@ import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
-import org.apache.iceberg.actions.BaseExpireSnapshotsActionResult;
 import org.apache.iceberg.actions.ExpireSnapshots;
+import org.apache.iceberg.actions.ImmutableExpireSnapshots;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.io.SupportsBulkOperations;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -245,7 +245,8 @@ public class ExpireSnapshotsSparkAction extends BaseSparkAction<ExpireSnapshotsS
     Table staticTable = newStaticTable(metadata, table.io());
     return contentFileDS(staticTable, snapshotIds)
         .union(manifestDS(staticTable, snapshotIds))
-        .union(manifestListDS(staticTable, snapshotIds));
+        .union(manifestListDS(staticTable, snapshotIds))
+        .union(statisticsFileDS(staticTable, snapshotIds));
   }
 
   private Set<Long> findExpiredSnapshotIds(
@@ -277,11 +278,13 @@ public class ExpireSnapshotsSparkAction extends BaseSparkAction<ExpireSnapshotsS
 
     LOG.info("Deleted {} total files", summary.totalFilesCount());
 
-    return new BaseExpireSnapshotsActionResult(
-        summary.dataFilesCount(),
-        summary.positionDeleteFilesCount(),
-        summary.equalityDeleteFilesCount(),
-        summary.manifestsCount(),
-        summary.manifestListsCount());
+    return ImmutableExpireSnapshots.Result.builder()
+        .deletedDataFilesCount(summary.dataFilesCount())
+        .deletedPositionDeleteFilesCount(summary.positionDeleteFilesCount())
+        .deletedEqualityDeleteFilesCount(summary.equalityDeleteFilesCount())
+        .deletedManifestsCount(summary.manifestsCount())
+        .deletedManifestListsCount(summary.manifestListsCount())
+        .deletedStatisticsFilesCount(summary.statisticsFilesCount())
+        .build();
   }
 }
