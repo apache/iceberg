@@ -46,9 +46,9 @@ Apache Iceberg supports both [Apache Flink](https://flink.apache.org/)'s DataStr
 
 ## Preparation when using Flink SQL Client
 
-To create Iceberg table in Flink, recommended is to use [Flink SQL Client](https://ci.apache.org/projects/flink/flink-docs-stable/dev/table/sqlClient.html) as it's easier for users to understand the concepts.
+To create Iceberg table in Flink, it is recommended to use [Flink SQL Client](https://ci.apache.org/projects/flink/flink-docs-stable/dev/table/sqlClient.html) as it's easier for users to understand the concepts.
 
-Download the Flink 1.16.1 binary package from the Apache Flink [download page](https://flink.apache.org/downloads.html). Iceberg uses Scala 2.12 when compiling the Apache `iceberg-flink-runtime` jar, so it's recommended to use Flink 1.16 bundled with Scala 2.12.
+Download Flink from the [Apache download page](https://flink.apache.org/downloads.html). Iceberg uses Scala 2.12 when compiling the Apache `iceberg-flink-runtime` jar, so it's recommended to use Flink 1.16 bundled with Scala 2.12.
 
 ```bash
 FLINK_VERSION=1.16.1
@@ -324,7 +324,7 @@ CREATE TABLE `hive_catalog`.`default`.`sample` (
 );
 ```
 
-Table create commands support the commonly used [Flink create clauses](https://nightlies.apache.org/flink/flink-docs-release-1.16/docs/dev/table/sql/create/) including: 
+Table create commands support the commonly used [Flink create clauses](https://nightlies.apache.org/flink/flink-docs-master/docs/dev/table/sql/create/) including: 
 
 * `PARTITION BY (column1, column2, ...)` to configure partitioning, Flink does not yet support hidden partitioning.
 * `COMMENT 'table document'` to set a table description.
@@ -668,7 +668,7 @@ The iceberg API also allows users to write generic `DataStream<T>` to iceberg ta
 
 ### Overwrite data
 
-To overwrite the data in existing iceberg table dynamically, set the `overwrite` flag in FlinkSink builder.
+Set the `overwrite` flag in FlinkSink builder to overwrite the data in existing iceberg tables:
 
 ```java
 StreamExecutionEnvironment env = ...;
@@ -687,7 +687,7 @@ env.execute("Test Iceberg DataStream");
 
 ### Upsert data
 
-To upsert the data in existing iceberg table, set the `upsert` flag in FlinkSink builder. The table must use v2 table format and have a primary key.
+Set the `upsert` flag in FlinkSink builder to upsert the data in existing iceberg table. The table must use v2 table format and have a primary key.
 
 ```java
 StreamExecutionEnvironment env = ...;
@@ -724,8 +724,10 @@ DataStream<org.apache.avro.generic.GenericRecord> dataStream = ...;
 
 Schema icebergSchema = table.schema();
 
-// if the Iceberg table schema contains time fields, and can't use
-// the Avro schema converted from Iceberg schema via AvroSchemaUtil.
+
+// The Avro schema converted from Iceberg schema can't be used
+// due to precision difference between how Iceberg schema (micro)
+// and Flink AvroToRowDataConverters (milli) deal with time type.
 // Instead, use the Avro schema defined directly.
 // See AvroGenericRecordToRowDataMapper Javadoc for more details.
 org.apache.avro.Schema avroSchema = AvroSchemaUtil.convert(icebergSchema, table.name());
