@@ -125,9 +125,9 @@ ONE_MEGABYTE = 1024 * 1024
 BUFFER_SIZE = "buffer-size"
 ICEBERG_SCHEMA = b"iceberg.schema"
 PARQUET_FIELD_ID = b"PARQUET:field_id"
-PARQUET_DOC = b"PARQUET:field_doc"
-PYTHON_FIELD_ID = b"PYTHON:field_id"
-PYTHON_DOC = b"PYTHON:field_doc"
+PARQUET_DOC = b"PARQUET:doc"
+PYTHON_FIELD_ID = b"field_id"
+PYTHON_DOC = b"doc"
 
 T = TypeVar("T")
 
@@ -366,9 +366,7 @@ class _ConvertToArrowSchema(SchemaVisitorPerPrimitiveType[pa.DataType], Singleto
             name=field.name,
             type=field_result,
             nullable=field.optional,
-            metadata={PYTHON_DOC.decode(): field.doc, PYTHON_FIELD_ID.decode(): str(field.field_id)}
-            if field.doc
-            else {PYTHON_FIELD_ID.decode(): str(field.field_id)},
+            metadata={PYTHON_DOC.decode(): field.doc, PYTHON_FIELD_ID.decode(): str(field.field_id)} if field.doc else {PYTHON_FIELD_ID.decode(): str(field.field_id)},
         )
 
     def list(self, list_type: ListType, element_result: pa.DataType) -> pa.DataType:
