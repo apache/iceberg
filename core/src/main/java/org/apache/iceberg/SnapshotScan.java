@@ -50,7 +50,7 @@ import org.slf4j.LoggerFactory;
  * @param <G> type of ScanTaskGroup returned
  */
 public abstract class SnapshotScan<ThisT, T extends ScanTask, G extends ScanTaskGroup<T>>
-    extends BaseScan<ThisT, T, G> implements HasScanMetrics {
+    extends BaseScan<ThisT, T, G> {
 
   private static final Logger LOG = LoggerFactory.getLogger(SnapshotScan.class);
 
@@ -66,8 +66,7 @@ public abstract class SnapshotScan<ThisT, T extends ScanTask, G extends ScanTask
 
   protected abstract CloseableIterable<T> doPlanFiles();
 
-  @Override
-  public ScanMetrics scanMetrics() {
+  protected ScanMetrics scanMetrics() {
     if (scanMetrics == null) {
       this.scanMetrics = ScanMetrics.of(new DefaultMetricsContext());
     }
