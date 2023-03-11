@@ -250,17 +250,19 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
     createTable();
     List<Object[]> expectedRecords = currentData();
     // select only 0 files for compaction
-    List<Object[]> output = sql(
-            "CALL %s.system.rewrite_data_files(table => '%s', where => '0=1')", catalogName, tableIdent);
+    List<Object[]> output =
+        sql(
+            "CALL %s.system.rewrite_data_files(table => '%s', where => '0=1')",
+            catalogName, tableIdent);
     assertEquals(
-            "Action should rewrite 0 data files and add 0 data files",
-            row(0, 0),
-            Arrays.copyOf(output.get(0), 2));
+        "Action should rewrite 0 data files and add 0 data files",
+        row(0, 0),
+        Arrays.copyOf(output.get(0), 2));
     // verify rewritten bytes separately
     assertThat(output.get(0)).hasSize(3);
     assertThat(output.get(0)[2])
-            .isInstanceOf(Long.class)
-            .isEqualTo(Long.valueOf(snapshotSummary().get(SnapshotSummary.REMOVED_FILE_SIZE_PROP)));
+        .isInstanceOf(Long.class)
+        .isEqualTo(Long.valueOf(snapshotSummary().get(SnapshotSummary.REMOVED_FILE_SIZE_PROP)));
     List<Object[]> actualRecords = currentData();
     assertEquals("Data after compaction should not change", expectedRecords, actualRecords);
   }
