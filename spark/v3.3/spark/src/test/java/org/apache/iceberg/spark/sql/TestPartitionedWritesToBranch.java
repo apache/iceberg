@@ -19,11 +19,34 @@
 package org.apache.iceberg.spark.sql;
 
 import java.util.Map;
+import org.apache.iceberg.Table;
+import org.junit.Before;
 
-public class TestPartitionedWrites extends PartitionedWritesTestBase {
+public class TestPartitionedWritesToBranch extends PartitionedWritesTestBase {
 
-  public TestPartitionedWrites(
+  private static final String BRANCH = "test";
+
+  public TestPartitionedWritesToBranch(
       String catalogName, String implementation, Map<String, String> config) {
     super(catalogName, implementation, config);
+  }
+
+  @Before
+  @Override
+  public void createTables() {
+    super.createTables();
+    Table table = validationCatalog.loadTable(tableIdent);
+    table.manageSnapshots().createBranch(BRANCH, table.currentSnapshot().snapshotId()).commit();
+    sql("REFRESH TABLE " + tableName);
+  }
+
+  @Override
+  protected String commitTarget() {
+    return String.format("%s.branch_%s", tableName, BRANCH);
+  }
+
+  @Override
+  protected String selectTarget() {
+    return String.format("%s VERSION AS OF '%s'", tableName, BRANCH);
   }
 }
