@@ -23,8 +23,8 @@ import java.util.Map;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.actions.BaseRewriteDataFilesResult;
 import org.apache.iceberg.actions.RewriteDataFiles;
-import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.NamedReference;
 import org.apache.iceberg.expressions.Zorder;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -118,7 +118,16 @@ class RewriteDataFilesProcedure extends BaseProcedure {
           }
 
           String where = args.isNullAt(4) ? null : args.getString(4);
-          action = checkAndApplyFilter(action, where, quotedFullIdentifier);
+          if (where != null) {
+            Expression sparkExpression = filter(where, quotedFullIdentifier);
+            if (sparkExpression == null) {
+              // terminate immediately
+              RewriteDataFiles.Result result = new BaseRewriteDataFilesResult(Lists.newArrayList());
+              return toOutputRows(result);
+            }
+            action =
+                action.filter(SparkExpressionConverter.convertToIcebergExpression(sparkExpression));
+          }
 
           RewriteDataFiles.Result result = action.execute();
 
@@ -126,19 +135,13 @@ class RewriteDataFilesProcedure extends BaseProcedure {
         });
   }
 
-  private RewriteDataFiles checkAndApplyFilter(
-      RewriteDataFiles action, String where, String tableName) {
-    if (where != null) {
-      Option<Expression> expressionOption =
-          SparkExpressionConverter.collectResolvedSparkExpressionOption(spark(), tableName, where);
-      if (expressionOption.isEmpty()) {
-        return action.filter(Expressions.alwaysFalse());
-      }
-
-      return action.filter(
-          SparkExpressionConverter.convertToIcebergExpression(expressionOption.get()));
+  private Expression filter(String where, String tableName) {
+    Option<Expression> expressionOption =
+        SparkExpressionConverter.collectResolvedSparkExpressionOption(spark(), tableName, where);
+    if (expressionOption.isEmpty()) {
+      return null;
     }
-    return action;
+    return expressionOption.get();
   }
 
   private RewriteDataFiles checkAndApplyOptions(InternalRow args, RewriteDataFiles action) {
