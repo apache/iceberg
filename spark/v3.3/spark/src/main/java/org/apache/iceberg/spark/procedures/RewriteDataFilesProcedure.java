@@ -32,7 +32,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.ExtendedParser;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.procedures.SparkProcedures.ProcedureBuilder;
-import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.expressions.Expression;
 import org.apache.spark.sql.connector.catalog.Identifier;
@@ -130,19 +129,15 @@ class RewriteDataFilesProcedure extends BaseProcedure {
   private RewriteDataFiles checkAndApplyFilter(
       RewriteDataFiles action, String where, String tableName) {
     if (where != null) {
-      try {
-        Option<Expression> expressionOption =
-            SparkExpressionConverter.collectResolvedSparkExpressionOption(
-                spark(), tableName, where);
-        if (expressionOption.isEmpty()) {
-          return action.filter(Expressions.alwaysFalse());
-        }
-
-        return action.filter(
-            SparkExpressionConverter.convertToIcebergExpression(expressionOption.get()));
-      } catch (AnalysisException e) {
-        throw new IllegalArgumentException("Cannot parse predicates in where option: " + where);
+      Option<Expression> expressionOption =
+          SparkExpressionConverter.collectResolvedSparkExpressionOption(
+              spark(), tableName, where);
+      if (expressionOption.isEmpty()) {
+        return action.filter(Expressions.alwaysFalse());
       }
+
+      return action.filter(
+          SparkExpressionConverter.convertToIcebergExpression(expressionOption.get()));
     }
     return action;
   }
