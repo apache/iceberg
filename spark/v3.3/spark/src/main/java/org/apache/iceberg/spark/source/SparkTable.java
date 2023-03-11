@@ -131,7 +131,7 @@ public class SparkTable
     ValidationException.check(
         branch != null
             && (SnapshotRef.MAIN_BRANCH.equals(branch) || table().snapshot(branch) != null),
-        "Cannot operate against non-existing branch: %s",
+        "Cannot use branch (does not exist): %s",
         branch);
   }
 
@@ -277,9 +277,7 @@ public class SparkTable
   @Override
   public WriteBuilder newWriteBuilder(LogicalWriteInfo info) {
     Preconditions.checkArgument(
-        branch != null || snapshotId == null,
-        "Cannot write to table at a specific snapshot: %s",
-        snapshotId);
+        snapshotId == null, "Cannot write to table at a specific snapshot: %s", snapshotId);
 
     return new SparkWriteBuilder(sparkSession(), icebergTable, branch, info);
   }

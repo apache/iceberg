@@ -150,7 +150,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
 
     // add a data file to the 'software' partition
     append(tableName, "{ \"id\": 1, \"dep\": \"software\" }");
-    createBranch();
+    createBranchIfNeeded();
 
     // add a data file to the 'hr' partition
     append(commitTarget(), "{ \"id\": 1, \"dep\": \"hr\" }");
@@ -804,7 +804,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
       append(
           tableName,
           "{ \"id\": 1, \"dep\": \"emp-id-one\" }\n" + "{ \"id\": 6, \"dep\": \"emp-id-6\" }");
-      createBranch();
+      createBranchIfNeeded();
 
       createOrReplaceView(
           "source",
@@ -852,7 +852,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
           "id INT, ts TIMESTAMP",
           "{ \"id\": 1, \"ts\": \"2000-01-01 00:00:00\" }\n"
               + "{ \"id\": 6, \"ts\": \"2000-01-06 00:00:00\" }");
-      createBranch();
+      createBranchIfNeeded();
 
       createOrReplaceView(
           "source",
@@ -898,7 +898,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
       append(
           tableName,
           "{ \"id\": 1, \"dep\": \"emp-id-one\" }\n" + "{ \"id\": 6, \"dep\": \"emp-id-6\" }");
-      createBranch();
+      createBranchIfNeeded();
 
       createOrReplaceView(
           "source",
@@ -944,7 +944,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
       append(
           tableName,
           "{ \"id\": 1, \"dep\": \"emp-id-one\" }\n" + "{ \"id\": 6, \"dep\": \"emp-id-6\" }");
-      createBranch();
+      createBranchIfNeeded();
 
       createOrReplaceView(
           "source",
@@ -991,7 +991,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
       append(
           tableName,
           "{ \"id\": 1, \"dep\": \"emp-id-one\" }\n" + "{ \"id\": 6, \"dep\": \"emp-id-6\" }");
-      createBranch();
+      createBranchIfNeeded();
 
       createOrReplaceView(
           "source",
@@ -1111,7 +1111,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         tableName, MERGE_ISOLATION_LEVEL, "serializable");
 
     sql("INSERT INTO TABLE %s VALUES (1, 'hr')", tableName);
-    createBranch();
+    createBranchIfNeeded();
 
     ExecutorService executorService =
         MoreExecutors.getExitingExecutorService(
@@ -1205,7 +1205,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         tableName, MERGE_ISOLATION_LEVEL, "snapshot");
 
     sql("INSERT INTO TABLE %s VALUES (1, 'hr')", tableName);
-    createBranch();
+    createBranchIfNeeded();
 
     ExecutorService executorService =
         MoreExecutors.getExitingExecutorService(
@@ -1497,7 +1497,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
             .withColumnRenamed("value", "id")
             .withColumn("dep", lit("hr"));
     df.coalesce(1).writeTo(tableName).append();
-    createBranch();
+    createBranchIfNeeded();
 
     Assert.assertEquals(200, spark.table(commitTarget()).count());
 
@@ -1856,7 +1856,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
             + "WHEN NOT MATCHED THEN "
             + "  INSERT *",
         tableName);
-    createBranch();
+    createBranchIfNeeded();
 
     ImmutableList<Object[]> expectedRows =
         ImmutableList.of(
@@ -2445,7 +2445,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                         + "WHEN NOT MATCHED THEN INSERT *",
                     commitTarget()))
         .isInstanceOf(ValidationException.class)
-        .hasMessage("Cannot operate against non-existing branch: test");
+        .hasMessage("Cannot use branch (does not exist): test");
   }
 
   private void checkJoinAndFilterConditions(String query, String join, String icebergFilters) {

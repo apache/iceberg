@@ -85,7 +85,7 @@ public class TestCopyOnWriteDelete extends TestDelete {
         tableName, DELETE_ISOLATION_LEVEL, "snapshot");
 
     sql("INSERT INTO TABLE %s VALUES (1, 'hr')", tableName);
-    createBranch();
+    createBranchIfNeeded();
 
     Table table = Spark3Util.loadIcebergTable(spark, tableName);
 
@@ -105,7 +105,7 @@ public class TestCopyOnWriteDelete extends TestDelete {
                   sleep(10);
                 }
 
-                sql("DELETE FROM %s WHERE id IN (SELECT * FROM deleted_id)", tableName);
+                sql("DELETE FROM %s WHERE id IN (SELECT * FROM deleted_id)", commitTarget());
 
                 barrier.incrementAndGet();
               }
@@ -160,11 +160,10 @@ public class TestCopyOnWriteDelete extends TestDelete {
 
   @Test
   public void testRuntimeFilteringWithPreservedDataGrouping() throws NoSuchTableException {
-    Assume.assumeTrue("test".equals(branch));
     createAndInitPartitionedTable();
 
     append(tableName, new Employee(1, "hr"), new Employee(3, "hr"));
-    createBranch();
+    createBranchIfNeeded();
     append(new Employee(1, "hardware"), new Employee(2, "hardware"));
 
     Map<String, String> sqlConf =

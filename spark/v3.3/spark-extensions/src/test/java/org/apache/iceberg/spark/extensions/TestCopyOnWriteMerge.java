@@ -83,7 +83,7 @@ public class TestCopyOnWriteMerge extends TestMerge {
         tableName, MERGE_ISOLATION_LEVEL, "snapshot");
 
     sql("INSERT INTO TABLE %s VALUES (1, 'hr')", tableName);
-    createBranch();
+    createBranchIfNeeded();
 
     Table table = Spark3Util.loadIcebergTable(spark, tableName);
 
@@ -162,7 +162,7 @@ public class TestCopyOnWriteMerge extends TestMerge {
     sql("ALTER TABLE %s ADD PARTITION FIELD dep", tableName);
 
     append(tableName, "{ \"id\": 1, \"dep\": \"hr\" }\n" + "{ \"id\": 3, \"dep\": \"hr\" }");
-    createBranch();
+    createBranchIfNeeded();
     append(
         commitTarget(),
         "{ \"id\": 1, \"dep\": \"hardware\" }\n" + "{ \"id\": 2, \"dep\": \"hardware\" }");

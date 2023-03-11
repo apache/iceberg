@@ -75,7 +75,7 @@ public class TestMergeOnReadDelete extends TestDelete {
 
     // write unpartitioned files
     append(tableName, "{ \"id\": 1, \"dep\": \"hr\", \"category\": \"c1\"}");
-    createBranch();
+    createBranchIfNeeded();
     append(
         commitTarget(),
         "{ \"id\": 2, \"dep\": \"hr\", \"category\": \"c1\" }\n"
@@ -136,7 +136,7 @@ public class TestMergeOnReadDelete extends TestDelete {
     sql(
         "INSERT INTO TABLE %s VALUES (1, 1111), (1, 2222), (2, 3333), (2, 4444), (3, 5555), (3, 6666) ",
         tableName);
-    createBranch();
+    createBranchIfNeeded();
 
     sql("DELETE FROM %s WHERE data = 1111", commitTarget());
     String select = "SELECT max(data), min(data), count(data) FROM %s";

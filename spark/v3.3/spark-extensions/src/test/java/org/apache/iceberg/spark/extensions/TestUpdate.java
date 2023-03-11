@@ -103,7 +103,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
     createAndInitTable("id INT, dep STRING");
 
     sql("INSERT INTO TABLE %s VALUES (1, 'hr'), (2, 'hardware'), (null, 'hr')", tableName);
-    createBranch();
+    createBranchIfNeeded();
 
     sql("EXPLAIN UPDATE %s SET dep = 'invalid' WHERE id <=> 1", commitTarget());
 
@@ -143,7 +143,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
     Assertions.assertThatThrownBy(
             () -> sql("UPDATE %s SET dep = 'invalid' WHERE id IN (1)", commitTarget()))
         .isInstanceOf(ValidationException.class)
-        .hasMessage("Cannot operate against non-existing branch: test");
+        .hasMessage("Cannot use branch (does not exist): test");
   }
 
   @Test
@@ -167,7 +167,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
     createAndInitTable("id INT, c1 INT, c2 INT");
 
     sql("INSERT INTO TABLE %s VALUES (1, 11, 111), (2, 22, 222)", tableName);
-    createBranch();
+    createBranchIfNeeded();
 
     sql("UPDATE %s SET `c2` = c2 - 2, c1 = `c1` - 1 WHERE id <=> 1", commitTarget());
 
@@ -183,7 +183,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
     sql("ALTER TABLE %s ADD PARTITION FIELD dep", tableName);
 
     sql("INSERT INTO TABLE %s VALUES (1, 'software'), (2, 'hr')", tableName);
-    createBranch();
+    createBranchIfNeeded();
 
     sql("UPDATE %s t SET `t`.`id` = -1 WHERE t.dep LIKE '%%r' ", commitTarget());
 
@@ -199,7 +199,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
     sql("ALTER TABLE %s ADD PARTITION FIELD dep", tableName);
 
     append(tableName, "{ \"id\": 1, \"dep\": \"hr\" }\n" + "{ \"id\": 3, \"dep\": \"hr\" }");
-    createBranch();
+    createBranchIfNeeded();
     append(
         commitTarget(),
         "{ \"id\": 1, \"dep\": \"hardware\" }\n" + "{ \"id\": 2, \"dep\": \"hardware\" }");
@@ -228,7 +228,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
     sql("ALTER TABLE %s ADD PARTITION FIELD dep", tableName);
 
     sql("INSERT INTO TABLE %s VALUES (1, 'hr'), (2, 'hardware'), (null, 'hr')", tableName);
-    createBranch();
+    createBranchIfNeeded();
 
     sql("UPDATE %s SET id = -1 WHERE id > 10", commitTarget());
 
@@ -256,7 +256,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
     sql("ALTER TABLE %s WRITE DISTRIBUTED BY PARTITION", tableName);
 
     sql("INSERT INTO TABLE %s VALUES (1, 'hr')", tableName);
-    createBranch();
+    createBranchIfNeeded();
     sql("INSERT INTO TABLE %s VALUES (2, 'hardware')", commitTarget());
     sql("INSERT INTO TABLE %s VALUES (null, 'hr')", commitTarget());
 
@@ -299,7 +299,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
         "{ \"id\": 0, \"dep\": null }\n"
             + "{ \"id\": 1, \"dep\": \"hr\" }\n"
             + "{ \"id\": 2, \"dep\": \"hardware\" }");
-    createBranch();
+    createBranchIfNeeded();
 
     // should not update any rows as null is never equal to null
     sql("UPDATE %s SET id = -1 WHERE dep = NULL", commitTarget());
@@ -332,7 +332,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
         "{ \"id\": 1, \"dep\": \"hr\" }\n"
             + "{ \"id\": 2, \"dep\": \"hardware\" }\n"
             + "{ \"id\": null, \"dep\": \"hr\" }");
-    createBranch();
+    createBranchIfNeeded();
 
     sql("UPDATE %s SET id = -1 WHERE id IN (1, null)", commitTarget());
     assertEquals(
@@ -375,7 +375,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
             .withColumnRenamed("value", "id")
             .withColumn("dep", lit("hr"));
     df.coalesce(1).writeTo(tableName).append();
-    createBranch();
+    createBranchIfNeeded();
 
     Assert.assertEquals(200, spark.table(commitTarget()).count());
 
@@ -428,7 +428,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
         "{ \"id\": 1, \"c2\": 11, \"c3\": 1 }\n"
             + "{ \"id\": 2, \"c2\": 22, \"c3\": 1 }\n"
             + "{ \"id\": 3, \"c2\": 33, \"c3\": 1 }");
-    createBranch();
+    createBranchIfNeeded();
 
     // request a global sort
     sql("ALTER TABLE %s WRITE ORDERED BY c2", tableName);
@@ -467,7 +467,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
         tableName, UPDATE_ISOLATION_LEVEL, "serializable");
 
     sql("INSERT INTO TABLE %s VALUES (1, 'hr')", tableName);
-    createBranch();
+    createBranchIfNeeded();
 
     ExecutorService executorService =
         MoreExecutors.getExitingExecutorService(
@@ -556,7 +556,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
         tableName, UPDATE_ISOLATION_LEVEL, "snapshot");
 
     sql("INSERT INTO TABLE %s VALUES (1, 'hr')", tableName);
-    createBranch();
+    createBranchIfNeeded();
 
     ExecutorService executorService =
         MoreExecutors.getExitingExecutorService(
@@ -656,7 +656,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
     sql("ALTER TABLE %s ADD PARTITION FIELD dep", tableName);
 
     append(tableName, "{ \"id\": 1, \"dep\": \"hr\" }\n" + "{ \"id\": 3, \"dep\": \"hr\" }");
-    createBranch();
+    createBranchIfNeeded();
 
     append(
         commitTarget(),
@@ -706,7 +706,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
         "{ \"id\": 1, \"dep\": \"hr\" }\n"
             + "{ \"id\": 2, \"dep\": \"hardware\" }\n"
             + "{ \"id\": null, \"dep\": \"hr\" }");
-    createBranch();
+    createBranchIfNeeded();
 
     createOrReplaceView("updated_id", Arrays.asList(0, 1, null), Encoders.INT());
     createOrReplaceView("updated_dep", Arrays.asList("software", "hr"), Encoders.STRING());
@@ -755,7 +755,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
     sql("ALTER TABLE %s WRITE DISTRIBUTED BY PARTITION", tableName);
 
     append(tableName, "{ \"id\": 1, \"dep\": \"hr\" }\n" + "{ \"id\": 3, \"dep\": \"hr\" }");
-    createBranch();
+    createBranchIfNeeded();
     append(
         commitTarget(),
         "{ \"id\": 1, \"dep\": \"hardware\" }\n" + "{ \"id\": 2, \"dep\": \"hardware\" }");
@@ -785,7 +785,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
     createAndInitTable("id INT, dep STRING");
 
     append(tableName, "{ \"id\": 1, \"dep\": \"hr\" }\n" + "{ \"id\": 2, \"dep\": \"hr\" }");
-    createBranch();
+    createBranchIfNeeded();
 
     sql(
         "UPDATE %s SET dep = 'x' WHERE id IN (SELECT id + 1 FROM %s)",
@@ -825,7 +825,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
         "{ \"id\": 1, \"dep\": \"hr\" }\n"
             + "{ \"id\": 2, \"dep\": \"hardware\" }\n"
             + "{ \"id\": null, \"dep\": \"hr\" }");
-    createBranch();
+    createBranchIfNeeded();
 
     List<Employee> deletedEmployees =
         Arrays.asList(new Employee(null, "hr"), new Employee(1, "hr"));
@@ -849,7 +849,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
         "{ \"id\": 1, \"dep\": \"hr\" }\n"
             + "{ \"id\": 2, \"dep\": \"hardware\" }\n"
             + "{ \"id\": null, \"dep\": \"hr\" }");
-    createBranch();
+    createBranchIfNeeded();
 
     createOrReplaceView("updated_id", Arrays.asList(-1, -2, null), Encoders.INT());
     createOrReplaceView("updated_dep", Arrays.asList("software", "hr"), Encoders.STRING());
@@ -887,7 +887,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
         "{ \"id\": 1, \"dep\": \"hr\" }\n"
             + "{ \"id\": 2, \"dep\": \"hardware\" }\n"
             + "{ \"id\": null, \"dep\": \"hr\" }");
-    createBranch();
+    createBranchIfNeeded();
 
     createOrReplaceView("updated_id", Arrays.asList(-1, -2, null), Encoders.INT());
     createOrReplaceView("updated_dep", Arrays.asList("hr", null), Encoders.STRING());
@@ -939,7 +939,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
         "{ \"id\": 1, \"dep\": \"hr\" }\n"
             + "{ \"id\": 2, \"dep\": \"hardware\" }\n"
             + "{ \"id\": null, \"dep\": \"hr\" }");
-    createBranch();
+    createBranchIfNeeded();
 
     createOrReplaceView("updated_id", Arrays.asList(-1, -2, null), Encoders.INT());
     createOrReplaceView("updated_dep", Arrays.asList("hr", "software"), Encoders.STRING());
@@ -982,7 +982,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
         "{ \"id\": 1, \"dep\": \"hr\" }\n"
             + "{ \"id\": 2, \"dep\": \"hardware\" }\n"
             + "{ \"id\": null, \"dep\": \"hr\" }");
-    createBranch();
+    createBranchIfNeeded();
 
     createOrReplaceView("updated_id", Arrays.asList(1, 100, null), Encoders.INT());
 
@@ -1010,7 +1010,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
         "{ \"id\": 0, \"dep\": \"hr\" }\n"
             + "{ \"id\": 1, \"dep\": \"hr\" }\n"
             + "{ \"id\": 2, \"dep\": \"hr\" }");
-    createBranch();
+    createBranchIfNeeded();
 
     append(
         commitTarget(),
@@ -1054,7 +1054,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
         "{ \"id\": 0, \"dep\": \"hr\" }\n"
             + "{ \"id\": 1, \"dep\": \"hr\" }\n"
             + "{ \"id\": 2, \"dep\": \"hr\" }");
-    createBranch();
+    createBranchIfNeeded();
 
     withSQLConf(
         ImmutableMap.of(SparkSQLProperties.VECTORIZATION_ENABLED, "true"),
@@ -1087,7 +1087,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
             .withColumn("dep", lit("hr"))
             .withColumn("country", lit("usa"));
     df1.coalesce(1).writeTo(tableName).append();
-    createBranch();
+    createBranchIfNeeded();
 
     Dataset<Row> df2 =
         spark
@@ -1119,7 +1119,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
 
     // add a data file to the 'software' partition
     append(tableName, "{ \"id\": 1, \"dep\": \"software\" }");
-    createBranch();
+    createBranchIfNeeded();
 
     // add a data file to the 'hr' partition
     append(commitTarget(), "{ \"id\": 1, \"dep\": \"hr\" }");

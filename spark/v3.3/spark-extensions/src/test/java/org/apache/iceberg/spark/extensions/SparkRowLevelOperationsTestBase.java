@@ -189,7 +189,7 @@ public abstract class SparkRowLevelOperationsTestBase extends SparkExtensionsTes
       try {
         Dataset<Row> ds = toDS(schema, jsonData);
         ds.coalesce(1).writeTo(tableName).append();
-        createBranch();
+        createBranchIfNeeded();
       } catch (NoSuchTableException e) {
         throw new RuntimeException("Failed to write data", e);
       }
@@ -335,7 +335,7 @@ public abstract class SparkRowLevelOperationsTestBase extends SparkExtensionsTes
     return branch == null ? tableName : String.format("%s VERSION AS OF '%s'", tableName, branch);
   }
 
-  protected void createBranch() {
+  protected void createBranchIfNeeded() {
     if (branch != null && !branch.equals(SnapshotRef.MAIN_BRANCH)) {
       sql("ALTER TABLE %s CREATE BRANCH %s", tableName, branch);
     }

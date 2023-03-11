@@ -105,7 +105,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     createAndInitPartitionedTable();
 
     append(tableName, new Employee(1, "hr"), new Employee(3, "hr"));
-    createBranch();
+    createBranchIfNeeded();
     append(new Employee(1, "hardware"), new Employee(2, "hardware"));
 
     Table table = validationCatalog.loadTable(tableIdent);
@@ -143,7 +143,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     createAndInitUnpartitionedTable();
 
     sql("INSERT INTO TABLE %s VALUES (1, 'hr'), (2, 'hardware'), (null, 'hr')", tableName);
-    createBranch();
+    createBranchIfNeeded();
 
     // MOR mode: writes a delete file as null cannot be deleted by metadata
     sql("DELETE FROM %s AS t WHERE t.id IS NULL", commitTarget());
@@ -169,7 +169,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     createAndInitUnpartitionedTable();
 
     sql("INSERT INTO TABLE %s VALUES (1, 'hr'), (2, 'hardware')", tableName);
-    createBranch();
+    createBranchIfNeeded();
 
     sql("DELETE FROM %s WHERE id = 1 AND id > 20", commitTarget());
 
@@ -206,7 +206,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
 
     Assertions.assertThatThrownBy(() -> sql("DELETE FROM %s WHERE id IN (1)", commitTarget()))
         .isInstanceOf(ValidationException.class)
-        .hasMessage("Cannot operate against non-existing branch: test");
+        .hasMessage("Cannot use branch (does not exist): test");
   }
 
   @Test
@@ -214,7 +214,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     createAndInitUnpartitionedTable();
 
     sql("INSERT INTO TABLE %s VALUES (1, 'hr'), (2, 'hardware'), (null, 'hr')", tableName);
-    createBranch();
+    createBranchIfNeeded();
 
     sql("EXPLAIN DELETE FROM %s WHERE id <=> 1", commitTarget());
 
@@ -234,7 +234,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     createAndInitUnpartitionedTable();
 
     sql("INSERT INTO TABLE %s VALUES (1, 'hr'), (2, 'hardware'), (null, 'hr')", tableName);
-    createBranch();
+    createBranchIfNeeded();
 
     sql("DELETE FROM %s AS t WHERE t.id IS NULL", commitTarget());
 
@@ -249,7 +249,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     createAndInitPartitionedTable();
 
     append(tableName, new Employee(1, "hr"), new Employee(3, "hr"));
-    createBranch();
+    createBranchIfNeeded();
     append(new Employee(1, "hardware"), new Employee(2, "hardware"));
 
     sql("DELETE FROM %s WHERE id = 2", commitTarget());
@@ -275,7 +275,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     createAndInitPartitionedTable();
 
     sql("INSERT INTO TABLE %s VALUES (1, 'hr'), (2, 'hardware'), (null, 'hr')", tableName);
-    createBranch();
+    createBranchIfNeeded();
 
     sql("DELETE FROM %s AS t WHERE t.id > 10", commitTarget());
 
@@ -305,7 +305,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     createAndInitPartitionedTable();
 
     sql("INSERT INTO TABLE %s VALUES (1, 'hr')", tableName);
-    createBranch();
+    createBranchIfNeeded();
     sql("INSERT INTO TABLE %s VALUES (2, 'hardware')", commitTarget());
     sql("INSERT INTO TABLE %s VALUES (null, 'hr')", commitTarget());
 
@@ -327,7 +327,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     createAndInitPartitionedTable();
 
     sql("INSERT INTO %s VALUES (1, 'dep1')", tableName);
-    createBranch();
+    createBranchIfNeeded();
     sql("INSERT INTO %s VALUES (2, 'dep2')", commitTarget());
     sql("INSERT INTO %s VALUES (null, 'dep3')", commitTarget());
 
@@ -353,7 +353,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     createAndInitPartitionedTable();
 
     sql("INSERT INTO TABLE %s VALUES (1, 'hr')", tableName);
-    createBranch();
+    createBranchIfNeeded();
     sql("INSERT INTO TABLE %s VALUES (2, 'hardware')", commitTarget());
     sql("INSERT INTO TABLE %s VALUES (null, 'hr')", commitTarget());
 
@@ -382,7 +382,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     createAndInitPartitionedTable();
 
     sql("INSERT INTO TABLE %s VALUES (1, 'hr'), (2, 'hardware')", tableName);
-    createBranch();
+    createBranchIfNeeded();
 
     AssertHelpers.assertThrows(
         "Should complain about non-deterministic expressions",
@@ -396,7 +396,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     createAndInitPartitionedTable();
 
     sql("INSERT INTO TABLE %s VALUES (1, 'hr'), (2, 'hardware')", tableName);
-    createBranch();
+    createBranchIfNeeded();
 
     // should keep all rows and don't trigger execution
     sql("DELETE FROM %s WHERE false", commitTarget());
@@ -437,7 +437,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     sql(
         "INSERT INTO TABLE %s VALUES (0, null), (1, 'hr'), (2, 'hardware'), (null, 'hr')",
         tableName);
-    createBranch();
+    createBranchIfNeeded();
 
     // should keep all rows as null is never equal to null
     sql("DELETE FROM %s WHERE dep = null", commitTarget());
@@ -473,7 +473,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     createAndInitUnpartitionedTable();
 
     sql("INSERT INTO TABLE %s VALUES (1, 'hr'), (2, 'hardware'), (null, 'hr')", tableName);
-    createBranch();
+    createBranchIfNeeded();
 
     sql("DELETE FROM %s WHERE id IN (1, null)", commitTarget());
     assertEquals(
@@ -515,7 +515,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
             .withColumnRenamed("value", "id")
             .withColumn("dep", lit("hr"));
     df.coalesce(1).writeTo(tableName).append();
-    createBranch();
+    createBranchIfNeeded();
 
     Assert.assertEquals(200, spark.table(commitTarget()).count());
 
@@ -530,7 +530,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     createAndInitNestedColumnsTable();
 
     sql("INSERT INTO TABLE %s VALUES (1, named_struct(\"c1\", 3, \"c2\", \"v1\"))", tableName);
-    createBranch();
+    createBranchIfNeeded();
     sql("INSERT INTO TABLE %s VALUES (2, named_struct(\"c1\", 2, \"c2\", \"v2\"))", commitTarget());
 
     sql("DELETE FROM %s WHERE complex.c1 = id + 2", commitTarget());
@@ -549,7 +549,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     createAndInitUnpartitionedTable();
 
     sql("INSERT INTO TABLE %s VALUES (1, 'hr'), (2, 'hardware'), (null, 'hr')", tableName);
-    createBranch();
+    createBranchIfNeeded();
 
     createOrReplaceView("deleted_id", Arrays.asList(0, 1, null), Encoders.INT());
     createOrReplaceView("deleted_dep", Arrays.asList("software", "hr"), Encoders.STRING());
@@ -596,7 +596,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     createAndInitUnpartitionedTable();
 
     append(tableName, new Employee(1, "hr"), new Employee(2, "hardware"), new Employee(null, "hr"));
-    createBranch();
+    createBranchIfNeeded();
 
     List<Employee> deletedEmployees =
         Arrays.asList(new Employee(null, "hr"), new Employee(1, "hr"));
@@ -614,7 +614,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     createAndInitUnpartitionedTable();
 
     append(tableName, new Employee(1, "hr"), new Employee(2, "hardware"), new Employee(null, "hr"));
-    createBranch();
+    createBranchIfNeeded();
 
     createOrReplaceView("deleted_id", Arrays.asList(-1, -2, null), Encoders.INT());
     createOrReplaceView("deleted_dep", Arrays.asList("software", "hr"), Encoders.STRING());
@@ -685,7 +685,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     createAndInitUnpartitionedTable();
 
     append(tableName, new Employee(1, "hr"), new Employee(2, "hardware"), new Employee(null, "hr"));
-    createBranch();
+    createBranchIfNeeded();
 
     createOrReplaceView("deleted_id", Arrays.asList(-1, -2, null), Encoders.INT());
     createOrReplaceView("deleted_dep", Arrays.asList("software", "hr"), Encoders.STRING());
@@ -730,7 +730,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     createAndInitUnpartitionedTable();
 
     append(tableName, new Employee(1, "hr"), new Employee(2, "hardware"), new Employee(null, "hr"));
-    createBranch();
+    createBranchIfNeeded();
 
     createOrReplaceView("deleted_id", Arrays.asList(-1, -2, null), Encoders.INT());
     createOrReplaceView("deleted_dep", Arrays.asList("software", "hr"), Encoders.STRING());
@@ -766,7 +766,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     createAndInitUnpartitionedTable();
 
     append(tableName, new Employee(1, "hr"), new Employee(2, "hardware"), new Employee(null, "hr"));
-    createBranch();
+    createBranchIfNeeded();
 
     createOrReplaceView("deleted_id", Arrays.asList(1, 100, null), Encoders.INT());
 
@@ -787,7 +787,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     createAndInitPartitionedTable();
 
     append(tableName, new Employee(0, "hr"), new Employee(1, "hr"), new Employee(2, "hr"));
-    createBranch();
+    createBranchIfNeeded();
     append(new Employee(0, "ops"), new Employee(1, "ops"), new Employee(2, "ops"));
     append(new Employee(0, "hr"), new Employee(1, "hr"), new Employee(2, "hr"));
     append(new Employee(0, "ops"), new Employee(1, "ops"), new Employee(2, "ops"));
@@ -820,7 +820,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
         tableName, DELETE_ISOLATION_LEVEL, "serializable");
 
     sql("INSERT INTO TABLE %s VALUES (1, 'hr')", tableName);
-    createBranch();
+    createBranchIfNeeded();
 
     ExecutorService executorService =
         MoreExecutors.getExitingExecutorService(
@@ -910,7 +910,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
         tableName, DELETE_ISOLATION_LEVEL, "snapshot");
 
     sql("INSERT INTO TABLE %s VALUES (1, 'hr')", tableName);
-    createBranch();
+    createBranchIfNeeded();
 
     ExecutorService executorService =
         MoreExecutors.getExitingExecutorService(
@@ -985,7 +985,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     createAndInitPartitionedTable();
 
     append(tableName, new Employee(1, "hr"), new Employee(3, "hr"));
-    createBranch();
+    createBranchIfNeeded();
     append(new Employee(1, "hardware"), new Employee(2, "hardware"));
 
     Dataset<Row> query = spark.sql("SELECT * FROM " + commitTarget() + " WHERE id = 1");
@@ -1028,7 +1028,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
 
     // write an unpartitioned file
     append(tableName, "{ \"id\": 1, \"dep\": \"hr\", \"category\": \"c1\"}");
-    createBranch();
+    createBranchIfNeeded();
 
     // write a file partitioned by dep
     sql("ALTER TABLE %s ADD PARTITION FIELD dep", tableName);

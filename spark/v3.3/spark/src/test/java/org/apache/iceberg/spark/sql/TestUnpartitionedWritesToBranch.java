@@ -56,6 +56,6 @@ public class TestUnpartitionedWritesToBranch extends UnpartitionedWritesTestBase
     Assertions.assertThatThrownBy(
             () -> sql("INSERT INTO %s.branch_not_exist VALUES (4, 'd'), (5, 'e')", tableName))
         .isInstanceOf(ValidationException.class)
-        .hasMessage("Cannot operate against non-existing branch: not_exist");
+        .hasMessage("Cannot use branch (does not exist): not_exist");
   }
 }

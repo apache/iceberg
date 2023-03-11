@@ -206,7 +206,7 @@ public class TestFilteredScan {
     CaseInsensitiveStringMap options =
         new CaseInsensitiveStringMap(ImmutableMap.of("path", unpartitioned.toString()));
     SparkScanBuilder builder =
-        new SparkScanBuilder(spark, TABLES.load(options.get("path")), (String) null, options);
+        new SparkScanBuilder(spark, TABLES.load(options.get("path")), options);
 
     for (int i = 0; i < 10; i += 1) {
       pushFilters(builder, EqualTo.apply("id", i));
@@ -234,7 +234,7 @@ public class TestFilteredScan {
 
       for (int i = 0; i < 10; i += 1) {
         SparkScanBuilder builder =
-            new SparkScanBuilder(spark, TABLES.load(options.get("path")), (String) null, options)
+            new SparkScanBuilder(spark, TABLES.load(options.get("path")), options)
                 .caseSensitive(false);
 
         pushFilters(
@@ -263,7 +263,7 @@ public class TestFilteredScan {
         new CaseInsensitiveStringMap(ImmutableMap.of("path", unpartitioned.toString()));
 
     SparkScanBuilder builder =
-        new SparkScanBuilder(spark, TABLES.load(options.get("path")), (String) null, options);
+        new SparkScanBuilder(spark, TABLES.load(options.get("path")), options);
 
     pushFilters(builder, LessThan.apply("ts", "2017-12-22T00:00:00+00:00"));
     Batch scan = builder.build().toBatch();
@@ -287,15 +287,13 @@ public class TestFilteredScan {
         new CaseInsensitiveStringMap(ImmutableMap.of("path", table.location()));
 
     Batch unfiltered =
-        new SparkScanBuilder(spark, TABLES.load(options.get("path")), (String) null, options)
-            .build()
-            .toBatch();
+        new SparkScanBuilder(spark, TABLES.load(options.get("path")), options).build().toBatch();
     Assert.assertEquals(
         "Unfiltered table should created 4 read tasks", 4, unfiltered.planInputPartitions().length);
 
     for (int i = 0; i < 10; i += 1) {
       SparkScanBuilder builder =
-          new SparkScanBuilder(spark, TABLES.load(options.get("path")), (String) null, options);
+          new SparkScanBuilder(spark, TABLES.load(options.get("path")), options);
 
       pushFilters(builder, EqualTo.apply("id", i));
       Batch scan = builder.build().toBatch();
@@ -318,16 +316,14 @@ public class TestFilteredScan {
     CaseInsensitiveStringMap options =
         new CaseInsensitiveStringMap(ImmutableMap.of("path", table.location()));
     Batch unfiltered =
-        new SparkScanBuilder(spark, TABLES.load(options.get("path")), (String) null, options)
-            .build()
-            .toBatch();
+        new SparkScanBuilder(spark, TABLES.load(options.get("path")), options).build().toBatch();
 
     Assert.assertEquals(
         "Unfiltered table should created 2 read tasks", 2, unfiltered.planInputPartitions().length);
 
     {
       SparkScanBuilder builder =
-          new SparkScanBuilder(spark, TABLES.load(options.get("path")), (String) null, options);
+          new SparkScanBuilder(spark, TABLES.load(options.get("path")), options);
 
       pushFilters(builder, LessThan.apply("ts", "2017-12-22T00:00:00+00:00"));
       Batch scan = builder.build().toBatch();
@@ -344,7 +340,7 @@ public class TestFilteredScan {
 
     {
       SparkScanBuilder builder =
-          new SparkScanBuilder(spark, TABLES.load(options.get("path")), (String) null, options);
+          new SparkScanBuilder(spark, TABLES.load(options.get("path")), options);
 
       pushFilters(
           builder,
@@ -375,16 +371,14 @@ public class TestFilteredScan {
     CaseInsensitiveStringMap options =
         new CaseInsensitiveStringMap(ImmutableMap.of("path", table.location()));
     Batch unfiltered =
-        new SparkScanBuilder(spark, TABLES.load(options.get("path")), (String) null, options)
-            .build()
-            .toBatch();
+        new SparkScanBuilder(spark, TABLES.load(options.get("path")), options).build().toBatch();
 
     Assert.assertEquals(
         "Unfiltered table should created 9 read tasks", 9, unfiltered.planInputPartitions().length);
 
     {
       SparkScanBuilder builder =
-          new SparkScanBuilder(spark, TABLES.load(options.get("path")), (String) null, options);
+          new SparkScanBuilder(spark, TABLES.load(options.get("path")), options);
 
       pushFilters(builder, LessThan.apply("ts", "2017-12-22T00:00:00+00:00"));
       Batch scan = builder.build().toBatch();
@@ -401,7 +395,7 @@ public class TestFilteredScan {
 
     {
       SparkScanBuilder builder =
-          new SparkScanBuilder(spark, TABLES.load(options.get("path")), (String) null, options);
+          new SparkScanBuilder(spark, TABLES.load(options.get("path")), options);
 
       pushFilters(
           builder,
@@ -474,7 +468,7 @@ public class TestFilteredScan {
         new CaseInsensitiveStringMap(ImmutableMap.of("path", table.location()));
 
     SparkScanBuilder builder =
-        new SparkScanBuilder(spark, TABLES.load(options.get("path")), (String) null, options);
+        new SparkScanBuilder(spark, TABLES.load(options.get("path")), options);
 
     pushFilters(builder, new StringStartsWith("data", "junc"));
     Batch scan = builder.build().toBatch();
@@ -490,7 +484,7 @@ public class TestFilteredScan {
         new CaseInsensitiveStringMap(ImmutableMap.of("path", table.location()));
 
     SparkScanBuilder builder =
-        new SparkScanBuilder(spark, TABLES.load(options.get("path")), (String) null, options);
+        new SparkScanBuilder(spark, TABLES.load(options.get("path")), options);
 
     pushFilters(builder, new Not(new StringStartsWith("data", "junc")));
     Batch scan = builder.build().toBatch();
@@ -506,7 +500,7 @@ public class TestFilteredScan {
         new CaseInsensitiveStringMap(ImmutableMap.of("path", table.location()));
 
     SparkScanBuilder builder =
-        new SparkScanBuilder(spark, TABLES.load(options.get("path")), (String) null, options);
+        new SparkScanBuilder(spark, TABLES.load(options.get("path")), options);
 
     pushFilters(builder, new StringStartsWith("data", "junc"));
     Batch scan = builder.build().toBatch();
@@ -522,7 +516,7 @@ public class TestFilteredScan {
         new CaseInsensitiveStringMap(ImmutableMap.of("path", table.location()));
 
     SparkScanBuilder builder =
-        new SparkScanBuilder(spark, TABLES.load(options.get("path")), (String) null, options);
+        new SparkScanBuilder(spark, TABLES.load(options.get("path")), options);
 
     pushFilters(builder, new Not(new StringStartsWith("data", "junc")));
     Batch scan = builder.build().toBatch();

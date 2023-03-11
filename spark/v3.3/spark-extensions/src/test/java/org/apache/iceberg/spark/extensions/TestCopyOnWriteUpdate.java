@@ -81,7 +81,7 @@ public class TestCopyOnWriteUpdate extends TestUpdate {
         tableName, UPDATE_ISOLATION_LEVEL, "snapshot");
 
     sql("INSERT INTO TABLE %s VALUES (1, 'hr')", tableName);
-    createBranch();
+    createBranchIfNeeded();
 
     Table table = Spark3Util.loadIcebergTable(spark, tableName);
 
@@ -101,7 +101,7 @@ public class TestCopyOnWriteUpdate extends TestUpdate {
                   sleep(10);
                 }
 
-                sql("UPDATE %s SET id = -1 WHERE id = 1", tableName);
+                sql("UPDATE %s SET id = -1 WHERE id = 1", commitTarget());
 
                 barrier.incrementAndGet();
               }
@@ -160,7 +160,7 @@ public class TestCopyOnWriteUpdate extends TestUpdate {
     sql("ALTER TABLE %s ADD PARTITION FIELD dep", tableName);
 
     append(tableName, "{ \"id\": 1, \"dep\": \"hr\" }\n" + "{ \"id\": 3, \"dep\": \"hr\" }");
-    createBranch();
+    createBranchIfNeeded();
     append(
         commitTarget(),
         "{ \"id\": 1, \"dep\": \"hardware\" }\n" + "{ \"id\": 2, \"dep\": \"hardware\" }");

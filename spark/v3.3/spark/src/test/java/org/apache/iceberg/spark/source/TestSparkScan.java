@@ -70,7 +70,7 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
 
     Table table = validationCatalog.loadTable(tableIdent);
     SparkScanBuilder scanBuilder =
-        new SparkScanBuilder(spark, table, (String) null, CaseInsensitiveStringMap.empty());
+        new SparkScanBuilder(spark, table, CaseInsensitiveStringMap.empty());
     SparkScan scan = (SparkScan) scanBuilder.build();
     Statistics stats = scan.estimateStatistics();
 
