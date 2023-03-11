@@ -36,24 +36,16 @@ object SparkExpressionConverter {
     SparkFilters.convert(DataSourceStrategy.translateFilter(sparkExpression, supportNestedPredicatePushdown = true).get)
   }
 
-  def checkWhereAlwaysFalse(session: SparkSession, tableName: String, where: String): Boolean ={
-    // check if where expression is always false
-    val tableAttrs = session.table(tableName).queryExecution.analyzed.output
-    val unresolvedExpression = session.sessionState.sqlParser.parseExpression(where)
-    val filter = Filter(unresolvedExpression, DummyRelation(tableAttrs))
-    val optimizedLogicalPlan = session.sessionState.executePlan(filter).optimizedPlan
-    optimizedLogicalPlan.deterministic && optimizedLogicalPlan.resolved && optimizedLogicalPlan.containsChild.isEmpty
-  }
-
   @throws[AnalysisException]
-  def collectResolvedSparkExpression(session: SparkSession, tableName: String, where: String): Expression = {
+  def collectResolvedSparkExpressionOption(session: SparkSession,
+                                           tableName: String, where: String): Option[Expression] = {
     val tableAttrs = session.table(tableName).queryExecution.analyzed.output
     val unresolvedExpression = session.sessionState.sqlParser.parseExpression(where)
     val filter = Filter(unresolvedExpression, DummyRelation(tableAttrs))
     val optimizedLogicalPlan = session.sessionState.executePlan(filter).optimizedPlan
     optimizedLogicalPlan.collectFirst {
-      case filter: Filter => filter.condition
-    }.getOrElse(throw new AnalysisException("Failed to find filter expression"))
+      case filter: Filter => Some(filter.condition)
+    }.getOrElse(Option.empty)
   }
 
   case class DummyRelation(output: Seq[Attribute]) extends LeafNode
