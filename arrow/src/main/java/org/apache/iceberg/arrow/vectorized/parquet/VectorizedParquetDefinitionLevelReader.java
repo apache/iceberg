@@ -307,15 +307,18 @@ public final class VectorizedParquetDefinitionLevelReader
         switch (mode) {
           case RLE:
             if (currentValue == maxDefLevel) {
-              for (int i = 0; i < numValues; i++) {
-                nextVal(vector, bufferIdx, valuesReader, typeWidth, byteArray);
-                nullabilityHolder.setNotNull(bufferIdx);
-                bufferIdx++;
-              }
+              nextBatchVal(
+                  vector,
+                  bufferIdx,
+                  valuesReader,
+                  typeWidth,
+                  byteArray,
+                  nullabilityHolder,
+                  numValues);
             } else {
               setNulls(nullabilityHolder, bufferIdx, numValues, vector.getValidityBuffer());
-              bufferIdx += numValues;
             }
+            bufferIdx += numValues;
             break;
           case PACKED:
             for (int i = 0; i < numValues; i++) {
@@ -401,6 +404,20 @@ public final class VectorizedParquetDefinitionLevelReader
         ValuesAsBytesReader valuesReader,
         int typeWidth,
         byte[] byteArray);
+
+    protected void nextBatchVal(
+        FieldVector vector,
+        int idx,
+        ValuesAsBytesReader valuesReader,
+        int typeWidth,
+        byte[] byteArray,
+        NullabilityHolder nullabilityHolder,
+        int length) {
+      for (int i = idx; i < idx + length; i++) {
+        nextVal(vector, i, valuesReader, typeWidth, byteArray);
+        nullabilityHolder.setNotNull(i);
+      }
+    }
 
     protected abstract void nextDictEncodedVal(
         FieldVector vector,
@@ -610,6 +627,31 @@ public final class VectorizedParquetDefinitionLevelReader
     }
 
     @Override
+    protected void nextBatchVal(
+        FieldVector vector,
+        int idx,
+        ValuesAsBytesReader valuesReader,
+        int typeWidth,
+        byte[] byteArray,
+        NullabilityHolder nullabilityHolder,
+        int length) {
+      ByteBuffer buffer = valuesReader.getBuffer(Integer.BYTES * length);
+      if (valuesReader.supportUnsafe() && buffer.hasArray()) {
+        long offset = buffer.arrayOffset() + buffer.position() + valuesReader.getByteArrayOffset();
+        for (int i = idx; i < idx + length; ++i, offset += Integer.BYTES) {
+          int data = valuesReader.getUnsafeInt(buffer.array(), offset);
+          ((DecimalVector) vector).set(i, data);
+          nullabilityHolder.setNotNull(i);
+        }
+      } else {
+        for (int i = idx; i < idx + length; i++) {
+          ((DecimalVector) vector).set(i, buffer.getInt());
+          nullabilityHolder.setNotNull(i);
+        }
+      }
+    }
+
+    @Override
     protected void nextDictEncodedVal(
         FieldVector vector,
         int idx,
@@ -638,6 +680,31 @@ public final class VectorizedParquetDefinitionLevelReader
         int typeWidth,
         byte[] byteArray) {
       ((DecimalVector) vector).set(idx, valuesReader.getBuffer(Long.BYTES).getLong());
+    }
+
+    @Override
+    protected void nextBatchVal(
+        FieldVector vector,
+        int idx,
+        ValuesAsBytesReader valuesReader,
+        int typeWidth,
+        byte[] byteArray,
+        NullabilityHolder nullabilityHolder,
+        int length) {
+      ByteBuffer buffer = valuesReader.getBuffer(Long.BYTES * length);
+      if (valuesReader.supportUnsafe() && buffer.hasArray()) {
+        long offset = buffer.arrayOffset() + buffer.position() + valuesReader.getByteArrayOffset();
+        for (int i = idx; i < idx + length; ++i, offset += Long.BYTES) {
+          long data = valuesReader.getUnsafeLong(buffer.array(), offset);
+          ((DecimalVector) vector).set(i, data);
+          nullabilityHolder.setNotNull(i);
+        }
+      } else {
+        for (int i = idx; i < idx + length; i++) {
+          ((DecimalVector) vector).set(i, buffer.getLong());
+          nullabilityHolder.setNotNull(i);
+        }
+      }
     }
 
     @Override

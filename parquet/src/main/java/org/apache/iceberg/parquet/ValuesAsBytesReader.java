@@ -56,12 +56,12 @@ public class ValuesAsBytesReader extends ValuesReader {
   }
 
   @Override
-  public final int readInteger() {
+  public int readInteger() {
     return getBuffer(4).getInt();
   }
 
   @Override
-  public final long readLong() {
+  public long readLong() {
     return getBuffer(8).getLong();
   }
 
@@ -108,5 +108,21 @@ public class ValuesAsBytesReader extends ValuesReader {
     } catch (IOException e) {
       throw new ParquetDecodingException("Failed to read a byte", e);
     }
+  }
+
+  public boolean supportUnsafe() {
+    return false;
+  }
+
+  public int getByteArrayOffset() {
+    throw new UnsupportedOperationException("Unsupported unsafe operation.");
+  }
+
+  public int getUnsafeInt(Object object, long offset) {
+    throw new UnsupportedOperationException("Unsupported unsafe operation.");
+  }
+
+  public long getUnsafeLong(Object object, long offset) {
+    throw new UnsupportedOperationException("Unsupported unsafe operation.");
   }
 }

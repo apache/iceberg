@@ -25,10 +25,12 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.parquet.ValuesReaderFactory;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.SparkSQLProperties;
+import org.apache.iceberg.spark.data.vectorized.UnsafeValuesAsBytesReader;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.ListType;
@@ -36,6 +38,7 @@ import org.apache.iceberg.types.Types.LongType;
 import org.apache.iceberg.types.Types.MapType;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.spark.sql.internal.SQLConf;
+import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -66,6 +69,11 @@ public abstract class AvroDataTest {
           );
 
   @Rule public TemporaryFolder temp = new TemporaryFolder();
+
+  @BeforeClass
+  public void init() {
+    ValuesReaderFactory.initUnsafeReaderIfAbsent(UnsafeValuesAsBytesReader::new);
+  }
 
   @Test
   public void testSimpleStruct() throws IOException {

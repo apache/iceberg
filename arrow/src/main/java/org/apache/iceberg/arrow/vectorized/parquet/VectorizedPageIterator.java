@@ -27,6 +27,7 @@ import org.apache.iceberg.arrow.vectorized.NullabilityHolder;
 import org.apache.iceberg.parquet.BasePageIterator;
 import org.apache.iceberg.parquet.ParquetUtil;
 import org.apache.iceberg.parquet.ValuesAsBytesReader;
+import org.apache.iceberg.parquet.ValuesReaderFactory;
 import org.apache.parquet.CorruptDeltaByteArrays;
 import org.apache.parquet.bytes.ByteBufferInputStream;
 import org.apache.parquet.bytes.BytesUtils;
@@ -105,7 +106,8 @@ public class VectorizedPageIterator extends BasePageIterator {
                 + dataEncoding
                 + ". Disable vectorized reads to read this table/file");
       }
-      plainValuesReader = new ValuesAsBytesReader();
+      plainValuesReader = ValuesReaderFactory.getReader();
+
       plainValuesReader.initFromPage(valueCount, in);
       dictionaryDecodeMode = DictionaryDecodeMode.NONE;
     }
