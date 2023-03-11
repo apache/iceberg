@@ -129,8 +129,9 @@ public class SparkTable
     this(icebergTable, refreshEagerly);
     this.branch = branch;
     ValidationException.check(
-        branch != null
-            && (SnapshotRef.MAIN_BRANCH.equals(branch) || table().snapshot(branch) != null),
+        branch == null
+            || SnapshotRef.MAIN_BRANCH.equals(branch)
+            || icebergTable.snapshot(branch) != null,
         "Cannot use branch (does not exist): %s",
         branch);
   }
