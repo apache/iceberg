@@ -366,7 +366,7 @@ class _ConvertToArrowSchema(SchemaVisitorPerPrimitiveType[pa.DataType], Singleto
             name=field.name,
             type=field_result,
             nullable=field.optional,
-            metadata={"doc": field.doc, "field_id": str(field.field_id)} if field.doc else {"field_id": str(field.field_id)},
+            metadata={PYTHON_DOC.decode(): field.doc, PYTHON_FIELD_ID.decode(): str(field.field_id)} if field.doc else {PYTHON_FIELD_ID.decode(): str(field.field_id)},
         )
 
     def list(self, list_type: ListType, element_result: pa.DataType) -> pa.DataType:
