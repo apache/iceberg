@@ -76,6 +76,8 @@ public class JdbcCatalog extends BaseMetastoreCatalog
   private JdbcClientPool connections;
   private Map<String, String> catalogProperties;
   private Function<Map<String, String>, FileIO> ioBuilder = null;
+  private Function<Map<String, String>, JdbcClientPool> clientPoolBuilder;
+  private boolean initializeCatalogTables = true;
 
   public JdbcCatalog() {}
 
@@ -106,10 +108,17 @@ public class JdbcCatalog extends BaseMetastoreCatalog
       this.io = CatalogUtil.loadFileIO(ioImpl, properties, conf);
     }
 
+    LOG.debug("Connecting to JDBC database {}", properties.get(CatalogProperties.URI));
+    if (null != clientPoolBuilder) {
+      this.connections = clientPoolBuilder.apply(properties);
+    } else {
+      this.connections = new JdbcClientPool(uri, properties);
+    }
+
     try {
-      LOG.debug("Connecting to JDBC database {}", properties.get(CatalogProperties.URI));
-      connections = new JdbcClientPool(uri, properties);
-      initializeCatalogTables();
+      if (initializeCatalogTables) {
+        initializeCatalogTables();
+      }
     } catch (SQLTimeoutException e) {
       throw new UncheckedSQLException(e, "Cannot initialize JDBC catalog: Query timed out");
     } catch (SQLTransientConnectionException | SQLNonTransientConnectionException e) {
@@ -125,6 +134,19 @@ public class JdbcCatalog extends BaseMetastoreCatalog
   public void setFileIOBuilder(Function<Map<String, String>, FileIO> newIOBuilder) {
     Preconditions.checkState(null == io, "Cannot set IO builder after calling initialize");
     this.ioBuilder = newIOBuilder;
+  }
+
+  public void setClientPoolBuilder(
+      Function<Map<String, String>, JdbcClientPool> newClientPoolBuilder) {
+    Preconditions.checkState(
+        null == connections, "Cannot set client pool builder after calling initialize");
+    this.clientPoolBuilder = newClientPoolBuilder;
+  }
+
+  public void setInitializeCatalogTables(boolean initializeCatalogTables) {
+    Preconditions.checkState(
+        null == connections, "Cannot set initialize client tables after calling initialize");
+    this.initializeCatalogTables = initializeCatalogTables;
   }
 
   private void initializeCatalogTables() throws InterruptedException, SQLException {
