@@ -20,58 +20,48 @@ package org.apache.iceberg.spark.source;
 
 import java.util.List;
 import java.util.Objects;
-import org.apache.iceberg.CombinedScanTask;
-import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.ScanTask;
+import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.exceptions.ValidationException;
-import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.spark.FileScanTaskSetManager;
+import org.apache.iceberg.spark.ScanTaskSetManager;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.util.TableScanUtil;
 import org.apache.spark.sql.SparkSession;
 
-/** @deprecated will be removed in 1.3.0, use {@link SparkStagedScan} instead */
-@Deprecated
-class SparkFilesScan extends SparkScan {
-  private final String taskSetID;
+class SparkStagedScan extends SparkScan {
+
+  private final String taskSetId;
   private final long splitSize;
   private final int splitLookback;
-  private final long splitOpenFileCost;
+  private final long openFileCost;
 
-  private List<CombinedScanTask> tasks = null; // lazy cache of tasks
+  private List<ScanTaskGroup<ScanTask>> taskGroups = null; // lazy cache of tasks
 
-  SparkFilesScan(SparkSession spark, Table table, SparkReadConf readConf) {
+  SparkStagedScan(SparkSession spark, Table table, SparkReadConf readConf) {
     super(spark, table, readConf, table.schema(), ImmutableList.of());
 
-    this.taskSetID = readConf.fileScanTaskSetId();
+    this.taskSetId = readConf.scanTaskSetId();
     this.splitSize = readConf.splitSize();
     this.splitLookback = readConf.splitLookback();
-    this.splitOpenFileCost = readConf.splitOpenFileCost();
+    this.openFileCost = readConf.splitOpenFileCost();
   }
 
   @Override
-  protected List<CombinedScanTask> taskGroups() {
-    if (tasks == null) {
-      FileScanTaskSetManager taskSetManager = FileScanTaskSetManager.get();
-      List<FileScanTask> files = taskSetManager.fetchTasks(table(), taskSetID);
+  protected List<ScanTaskGroup<ScanTask>> taskGroups() {
+    if (taskGroups == null) {
+      ScanTaskSetManager taskSetManager = ScanTaskSetManager.get();
+      List<ScanTask> tasks = taskSetManager.fetchTasks(table(), taskSetId);
       ValidationException.check(
-          files != null,
-          "Task set manager has no tasks for table %s with id %s",
+          tasks != null,
+          "Task set manager has no tasks for table %s with task set ID %s",
           table(),
-          taskSetID);
+          taskSetId);
 
-      CloseableIterable<FileScanTask> splitFiles =
-          TableScanUtil.splitFiles(CloseableIterable.withNoopClose(files), splitSize);
-      CloseableIterable<CombinedScanTask> scanTasks =
-          TableScanUtil.planTasks(
-              splitFiles, splitSize,
-              splitLookback, splitOpenFileCost);
-      this.tasks = Lists.newArrayList(scanTasks);
+      this.taskGroups = TableScanUtil.planTaskGroups(tasks, splitSize, splitLookback, openFileCost);
     }
-
-    return tasks;
+    return taskGroups;
   }
 
   @Override
@@ -84,23 +74,23 @@ class SparkFilesScan extends SparkScan {
       return false;
     }
 
-    SparkFilesScan that = (SparkFilesScan) other;
+    SparkStagedScan that = (SparkStagedScan) other;
     return table().name().equals(that.table().name())
-        && Objects.equals(taskSetID, that.taskSetID)
+        && Objects.equals(taskSetId, that.taskSetId)
         && Objects.equals(splitSize, that.splitSize)
         && Objects.equals(splitLookback, that.splitLookback)
-        && Objects.equals(splitOpenFileCost, that.splitOpenFileCost);
+        && Objects.equals(openFileCost, that.openFileCost);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(table().name(), taskSetID, splitSize, splitSize, splitOpenFileCost);
+    return Objects.hash(table().name(), taskSetId, splitSize, splitSize, openFileCost);
   }
 
   @Override
   public String toString() {
     return String.format(
-        "IcebergFilesScan(table=%s, type=%s, taskSetID=%s, caseSensitive=%s)",
-        table(), expectedSchema().asStruct(), taskSetID, caseSensitive());
+        "IcebergStagedScan(table=%s, type=%s, taskSetID=%s, caseSensitive=%s)",
+        table(), expectedSchema().asStruct(), taskSetId, caseSensitive());
   }
 }

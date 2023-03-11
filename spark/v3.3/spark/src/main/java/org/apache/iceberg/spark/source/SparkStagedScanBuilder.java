@@ -25,15 +25,13 @@ import org.apache.spark.sql.connector.read.Scan;
 import org.apache.spark.sql.connector.read.ScanBuilder;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 
-/** @deprecated will be removed in 1.3.0, use {@link SparkStagedScanBuilder} instead */
-@Deprecated
-class SparkFilesScanBuilder implements ScanBuilder {
+class SparkStagedScanBuilder implements ScanBuilder {
 
   private final SparkSession spark;
   private final Table table;
   private final SparkReadConf readConf;
 
-  SparkFilesScanBuilder(SparkSession spark, Table table, CaseInsensitiveStringMap options) {
+  SparkStagedScanBuilder(SparkSession spark, Table table, CaseInsensitiveStringMap options) {
     this.spark = spark;
     this.table = table;
     this.readConf = new SparkReadConf(spark, table, options);
@@ -41,6 +39,6 @@ class SparkFilesScanBuilder implements ScanBuilder {
 
   @Override
   public Scan build() {
-    return new SparkFilesScan(spark, table, readConf);
+    return new SparkStagedScan(spark, table, readConf);
   }
 }
