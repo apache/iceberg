@@ -24,8 +24,6 @@ import org.apache.spark.unsafe.Platform;
 
 public class UnsafeValuesAsBytesReader extends ValuesAsBytesReader {
 
-  private static int BYTE_ARRAY_OFFSET = Platform.BYTE_ARRAY_OFFSET;
-
   @Override
   public int readInteger() {
     ByteBuffer buffer = getBuffer(4);
@@ -53,7 +51,7 @@ public class UnsafeValuesAsBytesReader extends ValuesAsBytesReader {
   }
 
   public int getByteArrayOffset() {
-    return BYTE_ARRAY_OFFSET;
+    return Platform.BYTE_ARRAY_OFFSET;
   }
 
   public int getUnsafeInt(Object object, long offset) {
