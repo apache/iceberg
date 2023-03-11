@@ -635,8 +635,7 @@ class _ConvertToIceberg(PyArrowSchemaVisitor[IcebergType], ABC):
 
     def struct(self, struct: pa.StructType, field_results: List[Optional[IcebergType]]) -> IcebergType:
         fields = []
-        for i in range(struct.num_fields):
-            field = struct[i]
+        for i, field in enumerate(struct):
             field_id, field_doc = _get_field_id_and_doc(field)
             field_type = field_results[i]
             if field_type is not None and field_id is not None:
