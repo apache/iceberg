@@ -405,6 +405,44 @@ data.sortWithinPartitions(expr("iceberg_bucket16(id)"))
     .append()
 ```
 
+## Distribution Modes
+
+Iceberg in Spark supports different modes of distribution for reading and writing data, which can help optimize performance and resource usage. These modes include:
+
+```scala
+import org.apache.spark.sql.functions.hash
+
+val data: DataFrame = ...
+
+data.writeTo("prod.db.table")
+    .partitionedBy(hash($"id"))
+    .create()
+```
+
+To partition a table using range-based distribution on the ts column, you can use the following code:
+
+```scala
+import org.apache.spark.sql.functions.{year, month, dayofmonth}
+
+val data: DataFrame = ...
+
+data.writeTo("prod.db.table")
+    .partitionedBy(year($"ts"), month($"ts"), dayofmonth($"ts"))
+    .create()
+```
+
+Note that you can specify multiple columns for hash-based distribution, and that range-based distribution requires the partitioning columns to be ordered from most significant to least significant.
+
+When reading from a partitioned Iceberg table, Spark will automatically use the appropriate distribution mode based on the partitioning scheme of the table. However, you can also explicitly specify a distribution mode using the option method. For example, to read from a hash-partitioned table, you can use the following code:
+
+```scala
+val df = spark.read
+    .format("iceberg")
+    .load("prod.db.table")
+    .option("distribution", "hash")
+```
+
+Overall, distribution modes can be a powerful tool for optimizing the performance and resource usage of Iceberg tables in Spark. By choosing the appropriate distribution mode based on your data and query patterns, you can ensure that your Spark jobs run efficiently and reliably.
 
 ## Type compatibility
 
