@@ -21,6 +21,8 @@ package org.apache.iceberg.actions;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 
+/** @deprecated will be removed in 1.3.0. */
+@Deprecated
 public class BaseRewriteManifestsActionResult implements RewriteManifests.Result {
 
   private final Iterable<ManifestFile> rewrittenManifests;

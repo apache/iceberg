@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.actions;
 
+/** @deprecated will be removed in 1.3.0. */
+@Deprecated
 public class BaseDeleteOrphanFilesActionResult implements DeleteOrphanFiles.Result {
 
   private final Iterable<String> orphanFileLocations;

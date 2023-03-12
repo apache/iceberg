@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.actions;
 
+/** @deprecated will be removed in 1.3.0. */
+@Deprecated
 public class BaseMigrateTableActionResult implements MigrateTable.Result {
 
   private final long migratedDataFilesCount;
