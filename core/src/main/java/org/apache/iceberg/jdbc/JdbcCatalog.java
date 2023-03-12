@@ -33,6 +33,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.hadoop.conf.Configuration;
@@ -61,19 +62,20 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class JdbcCatalog extends BaseMetastoreCatalog
-    implements Configurable<Configuration>, SupportsNamespaces, Closeable {
+    implements Configurable<Object>, SupportsNamespaces, Closeable {
 
   public static final String PROPERTY_PREFIX = "jdbc.";
   private static final String NAMESPACE_EXISTS_PROPERTY = "exists";
   private static final Logger LOG = LoggerFactory.getLogger(JdbcCatalog.class);
   private static final Joiner SLASH = Joiner.on("/");
 
-  private FileIO io;
+  private FileIO io = null;
   private String catalogName = "jdbc";
   private String warehouseLocation;
   private Object conf;
   private JdbcClientPool connections;
   private Map<String, String> catalogProperties;
+  private Function<Map<String, String>, FileIO> ioBuilder = null;
 
   public JdbcCatalog() {}
 
@@ -95,10 +97,14 @@ public class JdbcCatalog extends BaseMetastoreCatalog
       this.catalogName = name;
     }
 
-    String fileIOImpl =
-        properties.getOrDefault(
-            CatalogProperties.FILE_IO_IMPL, "org.apache.iceberg.hadoop.HadoopFileIO");
-    this.io = CatalogUtil.loadFileIO(fileIOImpl, properties, conf);
+    if (null != ioBuilder) {
+      this.io = ioBuilder.apply(properties);
+    } else {
+      String ioImpl =
+          properties.getOrDefault(
+              CatalogProperties.FILE_IO_IMPL, "org.apache.iceberg.hadoop.HadoopFileIO");
+      this.io = CatalogUtil.loadFileIO(ioImpl, properties, conf);
+    }
 
     try {
       LOG.debug("Connecting to JDBC database {}", properties.get(CatalogProperties.URI));
@@ -114,6 +120,11 @@ public class JdbcCatalog extends BaseMetastoreCatalog
       Thread.currentThread().interrupt();
       throw new UncheckedInterruptedException(e, "Interrupted in call to initialize");
     }
+  }
+
+  public void setFileIOBuilder(Function<Map<String, String>, FileIO> newIOBuilder) {
+    Preconditions.checkState(null == io, "Cannot set IO builder after calling initialize");
+    this.ioBuilder = newIOBuilder;
   }
 
   private void initializeCatalogTables() throws InterruptedException, SQLException {
@@ -252,8 +263,14 @@ public class JdbcCatalog extends BaseMetastoreCatalog
   }
 
   @Override
-  public void setConf(Configuration conf) {
+  public void setConf(Object conf) {
     this.conf = conf;
+  }
+
+  /** @deprecated will be removed in 1.3.0; use {@link #setConf(Object)} */
+  @Deprecated
+  public void setConf(Configuration conf) {
+    setConf((Object) conf);
   }
 
   @Override

@@ -42,6 +42,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkSQLProperties;
+import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.internal.SQLConf;
 import org.assertj.core.api.Assertions;
@@ -57,8 +58,9 @@ public class TestCopyOnWriteMerge extends TestMerge {
       Map<String, String> config,
       String fileFormat,
       boolean vectorized,
-      String distributionMode) {
-    super(catalogName, implementation, config, fileFormat, vectorized, distributionMode);
+      String distributionMode,
+      String branch) {
+    super(catalogName, implementation, config, fileFormat, vectorized, distributionMode, branch);
   }
 
   @Override
@@ -81,6 +83,7 @@ public class TestCopyOnWriteMerge extends TestMerge {
         tableName, MERGE_ISOLATION_LEVEL, "snapshot");
 
     sql("INSERT INTO TABLE %s VALUES (1, 'hr')", tableName);
+    createBranchIfNeeded();
 
     Table table = Spark3Util.loadIcebergTable(spark, tableName);
 
@@ -159,8 +162,9 @@ public class TestCopyOnWriteMerge extends TestMerge {
     sql("ALTER TABLE %s ADD PARTITION FIELD dep", tableName);
 
     append(tableName, "{ \"id\": 1, \"dep\": \"hr\" }\n" + "{ \"id\": 3, \"dep\": \"hr\" }");
+    createBranchIfNeeded();
     append(
-        tableName,
+        commitTarget(),
         "{ \"id\": 1, \"dep\": \"hardware\" }\n" + "{ \"id\": 2, \"dep\": \"hardware\" }");
 
     createOrReplaceView("source", Collections.singletonList(2), Encoders.INT());
@@ -180,17 +184,17 @@ public class TestCopyOnWriteMerge extends TestMerge {
                     + "ON t.id == s.value "
                     + "WHEN MATCHED THEN "
                     + "  UPDATE SET id = -1",
-                tableName));
+                commitTarget()));
 
     Table table = validationCatalog.loadTable(tableIdent);
     Assert.assertEquals("Should have 3 snapshots", 3, Iterables.size(table.snapshots()));
 
-    Snapshot currentSnapshot = table.currentSnapshot();
+    Snapshot currentSnapshot = SnapshotUtil.latestSnapshot(table, branch);
     validateCopyOnWrite(currentSnapshot, "1", "1", "1");
 
     assertEquals(
         "Should have expected rows",
         ImmutableList.of(row(-1, "hardware"), row(1, "hardware"), row(1, "hr"), row(3, "hr")),
-        sql("SELECT * FROM %s ORDER BY id, dep", tableName));
+        sql("SELECT * FROM %s ORDER BY id, dep", selectTarget()));
   }
 }

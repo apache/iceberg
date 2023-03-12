@@ -40,6 +40,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
+import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.ManifestFile;
@@ -55,6 +56,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.data.TestHelpers;
+import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.SparkException;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.Dataset;
@@ -81,8 +83,9 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
       Map<String, String> config,
       String fileFormat,
       Boolean vectorized,
-      String distributionMode) {
-    super(catalogName, implementation, config, fileFormat, vectorized, distributionMode);
+      String distributionMode,
+      String branch) {
+    super(catalogName, implementation, config, fileFormat, vectorized, distributionMode, branch);
   }
 
   @BeforeClass
@@ -101,20 +104,21 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
   public void testDeleteWithoutScanningTable() throws Exception {
     createAndInitPartitionedTable();
 
-    append(new Employee(1, "hr"), new Employee(3, "hr"));
+    append(tableName, new Employee(1, "hr"), new Employee(3, "hr"));
+    createBranchIfNeeded();
     append(new Employee(1, "hardware"), new Employee(2, "hardware"));
 
     Table table = validationCatalog.loadTable(tableIdent);
 
     List<String> manifestLocations =
-        table.currentSnapshot().allManifests(table.io()).stream()
+        SnapshotUtil.latestSnapshot(table, branch).allManifests(table.io()).stream()
             .map(ManifestFile::path)
             .collect(Collectors.toList());
 
     withUnavailableLocations(
         manifestLocations,
         () -> {
-          LogicalPlan parsed = parsePlan("DELETE FROM %s WHERE dep = 'hr'", tableName);
+          LogicalPlan parsed = parsePlan("DELETE FROM %s WHERE dep = 'hr'", commitTarget());
 
           DeleteFromIcebergTable analyzed =
               (DeleteFromIcebergTable) spark.sessionState().analyzer().execute(parsed);
@@ -125,12 +129,12 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
           Assert.assertTrue("Should discard rewrite plan", optimized.rewritePlan().isEmpty());
         });
 
-    sql("DELETE FROM %s WHERE dep = 'hr'", tableName);
+    sql("DELETE FROM %s WHERE dep = 'hr'", commitTarget());
 
     assertEquals(
         "Should have expected rows",
         ImmutableList.of(row(1, "hardware"), row(2, "hardware")),
-        sql("SELECT * FROM %s ORDER BY id", tableName));
+        sql("SELECT * FROM %s ORDER BY id", selectTarget()));
   }
 
   @Test
@@ -139,24 +143,25 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     createAndInitUnpartitionedTable();
 
     sql("INSERT INTO TABLE %s VALUES (1, 'hr'), (2, 'hardware'), (null, 'hr')", tableName);
+    createBranchIfNeeded();
 
     // MOR mode: writes a delete file as null cannot be deleted by metadata
-    sql("DELETE FROM %s AS t WHERE t.id IS NULL", tableName);
+    sql("DELETE FROM %s AS t WHERE t.id IS NULL", commitTarget());
 
     // Metadata Delete
     Table table = Spark3Util.loadIcebergTable(spark, tableName);
-    Set<DataFile> dataFilesBefore = TestHelpers.dataFiles(table);
+    Set<DataFile> dataFilesBefore = TestHelpers.dataFiles(table, branch);
 
-    sql("DELETE FROM %s AS t WHERE t.id = 1", tableName);
+    sql("DELETE FROM %s AS t WHERE t.id = 1", commitTarget());
 
-    Set<DataFile> dataFilesAfter = TestHelpers.dataFiles(table);
+    Set<DataFile> dataFilesAfter = TestHelpers.dataFiles(table, branch);
     Assert.assertTrue(
         "Data file should have been removed", dataFilesBefore.size() > dataFilesAfter.size());
 
     assertEquals(
         "Should have expected rows",
         ImmutableList.of(row(2, "hardware")),
-        sql("SELECT * FROM %s ORDER BY id", tableName));
+        sql("SELECT * FROM %s ORDER BY id", selectTarget()));
   }
 
   @Test
@@ -164,8 +169,9 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     createAndInitUnpartitionedTable();
 
     sql("INSERT INTO TABLE %s VALUES (1, 'hr'), (2, 'hardware')", tableName);
+    createBranchIfNeeded();
 
-    sql("DELETE FROM %s WHERE id = 1 AND id > 20", tableName);
+    sql("DELETE FROM %s WHERE id = 1 AND id > 20", commitTarget());
 
     Table table = validationCatalog.loadTable(tableIdent);
     Assert.assertEquals("Should have 2 snapshots", 2, Iterables.size(table.snapshots()));
@@ -173,15 +179,16 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     assertEquals(
         "Should have expected rows",
         ImmutableList.of(row(1, "hr"), row(2, "hardware")),
-        sql("SELECT * FROM %s ORDER BY id", tableName));
+        sql("SELECT * FROM %s ORDER BY id", selectTarget()));
   }
 
   @Test
   public void testDeleteFromEmptyTable() {
+    Assume.assumeFalse("Custom branch does not exist for empty table", "test".equals(branch));
     createAndInitUnpartitionedTable();
 
-    sql("DELETE FROM %s WHERE id IN (1)", tableName);
-    sql("DELETE FROM %s WHERE dep = 'hr'", tableName);
+    sql("DELETE FROM %s WHERE id IN (1)", commitTarget());
+    sql("DELETE FROM %s WHERE dep = 'hr'", commitTarget());
 
     Table table = validationCatalog.loadTable(tableIdent);
     Assert.assertEquals("Should have 2 snapshots", 2, Iterables.size(table.snapshots()));
@@ -189,7 +196,17 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     assertEquals(
         "Should have expected rows",
         ImmutableList.of(),
-        sql("SELECT * FROM %s ORDER BY id", tableName));
+        sql("SELECT * FROM %s ORDER BY id", selectTarget()));
+  }
+
+  @Test
+  public void testDeleteFromNonExistingCustomBranch() {
+    Assume.assumeTrue("Test only applicable to custom branch", "test".equals(branch));
+    createAndInitUnpartitionedTable();
+
+    Assertions.assertThatThrownBy(() -> sql("DELETE FROM %s WHERE id IN (1)", commitTarget()))
+        .isInstanceOf(ValidationException.class)
+        .hasMessage("Cannot use branch (does not exist): test");
   }
 
   @Test
@@ -197,10 +214,11 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     createAndInitUnpartitionedTable();
 
     sql("INSERT INTO TABLE %s VALUES (1, 'hr'), (2, 'hardware'), (null, 'hr')", tableName);
+    createBranchIfNeeded();
 
-    sql("EXPLAIN DELETE FROM %s WHERE id <=> 1", tableName);
+    sql("EXPLAIN DELETE FROM %s WHERE id <=> 1", commitTarget());
 
-    sql("EXPLAIN DELETE FROM %s WHERE true", tableName);
+    sql("EXPLAIN DELETE FROM %s WHERE true", commitTarget());
 
     Table table = validationCatalog.loadTable(tableIdent);
     Assert.assertEquals("Should have 1 snapshot", 1, Iterables.size(table.snapshots()));
@@ -208,7 +226,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     assertEquals(
         "Should have expected rows",
         ImmutableList.of(row(1, "hr"), row(2, "hardware"), row(null, "hr")),
-        sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableName));
+        sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", commitTarget()));
   }
 
   @Test
@@ -216,28 +234,30 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     createAndInitUnpartitionedTable();
 
     sql("INSERT INTO TABLE %s VALUES (1, 'hr'), (2, 'hardware'), (null, 'hr')", tableName);
+    createBranchIfNeeded();
 
-    sql("DELETE FROM %s AS t WHERE t.id IS NULL", tableName);
+    sql("DELETE FROM %s AS t WHERE t.id IS NULL", commitTarget());
 
     assertEquals(
         "Should have expected rows",
         ImmutableList.of(row(1, "hr"), row(2, "hardware")),
-        sql("SELECT * FROM %s ORDER BY id", tableName));
+        sql("SELECT * FROM %s ORDER BY id", selectTarget()));
   }
 
   @Test
   public void testDeleteWithDynamicFileFiltering() throws NoSuchTableException {
     createAndInitPartitionedTable();
 
-    append(new Employee(1, "hr"), new Employee(3, "hr"));
+    append(tableName, new Employee(1, "hr"), new Employee(3, "hr"));
+    createBranchIfNeeded();
     append(new Employee(1, "hardware"), new Employee(2, "hardware"));
 
-    sql("DELETE FROM %s WHERE id = 2", tableName);
+    sql("DELETE FROM %s WHERE id = 2", commitTarget());
 
     Table table = validationCatalog.loadTable(tableIdent);
     Assert.assertEquals("Should have 3 snapshots", 3, Iterables.size(table.snapshots()));
 
-    Snapshot currentSnapshot = table.currentSnapshot();
+    Snapshot currentSnapshot = SnapshotUtil.latestSnapshot(table, branch);
     if (mode(table) == COPY_ON_WRITE) {
       validateCopyOnWrite(currentSnapshot, "1", "1", "1");
     } else {
@@ -247,7 +267,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     assertEquals(
         "Should have expected rows",
         ImmutableList.of(row(1, "hardware"), row(1, "hr"), row(3, "hr")),
-        sql("SELECT * FROM %s ORDER BY id, dep", tableName));
+        sql("SELECT * FROM %s ORDER BY id, dep", selectTarget()));
   }
 
   @Test
@@ -255,13 +275,14 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     createAndInitPartitionedTable();
 
     sql("INSERT INTO TABLE %s VALUES (1, 'hr'), (2, 'hardware'), (null, 'hr')", tableName);
+    createBranchIfNeeded();
 
-    sql("DELETE FROM %s AS t WHERE t.id > 10", tableName);
+    sql("DELETE FROM %s AS t WHERE t.id > 10", commitTarget());
 
     Table table = validationCatalog.loadTable(tableIdent);
     Assert.assertEquals("Should have 2 snapshots", 2, Iterables.size(table.snapshots()));
 
-    Snapshot currentSnapshot = table.currentSnapshot();
+    Snapshot currentSnapshot = SnapshotUtil.latestSnapshot(table, branch);
 
     if (fileFormat.equals("orc") || fileFormat.equals("parquet")) {
       validateDelete(currentSnapshot, "0", null);
@@ -276,7 +297,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     assertEquals(
         "Should have expected rows",
         ImmutableList.of(row(1, "hr"), row(2, "hardware"), row(null, "hr")),
-        sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableName));
+        sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", selectTarget()));
   }
 
   @Test
@@ -284,43 +305,47 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     createAndInitPartitionedTable();
 
     sql("INSERT INTO TABLE %s VALUES (1, 'hr')", tableName);
-    sql("INSERT INTO TABLE %s VALUES (2, 'hardware')", tableName);
-    sql("INSERT INTO TABLE %s VALUES (null, 'hr')", tableName);
+    createBranchIfNeeded();
+    sql("INSERT INTO TABLE %s VALUES (2, 'hardware')", commitTarget());
+    sql("INSERT INTO TABLE %s VALUES (null, 'hr')", commitTarget());
 
-    sql("DELETE FROM %s", tableName);
+    sql("DELETE FROM %s", commitTarget());
 
     Table table = validationCatalog.loadTable(tableIdent);
     Assert.assertEquals("Should have 4 snapshots", 4, Iterables.size(table.snapshots()));
 
     // should be a delete instead of an overwrite as it is done through a metadata operation
-    Snapshot currentSnapshot = table.currentSnapshot();
+    Snapshot currentSnapshot = SnapshotUtil.latestSnapshot(table, branch);
     validateDelete(currentSnapshot, "2", "3");
 
     assertEquals(
-        "Should have expected rows", ImmutableList.of(), sql("SELECT * FROM %s", tableName));
+        "Should have expected rows", ImmutableList.of(), sql("SELECT * FROM %s", commitTarget()));
   }
 
   @Test
   public void testDeleteUsingMetadataWithComplexCondition() {
     createAndInitPartitionedTable();
 
-    sql("INSERT INTO TABLE %s VALUES (1, 'dep1')", tableName);
-    sql("INSERT INTO TABLE %s VALUES (2, 'dep2')", tableName);
-    sql("INSERT INTO TABLE %s VALUES (null, 'dep3')", tableName);
+    sql("INSERT INTO %s VALUES (1, 'dep1')", tableName);
+    createBranchIfNeeded();
+    sql("INSERT INTO %s VALUES (2, 'dep2')", commitTarget());
+    sql("INSERT INTO %s VALUES (null, 'dep3')", commitTarget());
 
-    sql("DELETE FROM %s WHERE dep > 'dep2' OR dep = CAST(4 AS STRING) OR dep = 'dep2'", tableName);
+    sql(
+        "DELETE FROM %s WHERE dep > 'dep2' OR dep = CAST(4 AS STRING) OR dep = 'dep2'",
+        commitTarget());
 
     Table table = validationCatalog.loadTable(tableIdent);
     Assert.assertEquals("Should have 4 snapshots", 4, Iterables.size(table.snapshots()));
 
     // should be a delete instead of an overwrite as it is done through a metadata operation
-    Snapshot currentSnapshot = table.currentSnapshot();
+    Snapshot currentSnapshot = SnapshotUtil.latestSnapshot(table, branch);
     validateDelete(currentSnapshot, "2", "2");
 
     assertEquals(
         "Should have expected rows",
         ImmutableList.of(row(1, "dep1")),
-        sql("SELECT * FROM %s", tableName));
+        sql("SELECT * FROM %s", selectTarget()));
   }
 
   @Test
@@ -328,17 +353,18 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     createAndInitPartitionedTable();
 
     sql("INSERT INTO TABLE %s VALUES (1, 'hr')", tableName);
-    sql("INSERT INTO TABLE %s VALUES (2, 'hardware')", tableName);
-    sql("INSERT INTO TABLE %s VALUES (null, 'hr')", tableName);
+    createBranchIfNeeded();
+    sql("INSERT INTO TABLE %s VALUES (2, 'hardware')", commitTarget());
+    sql("INSERT INTO TABLE %s VALUES (null, 'hr')", commitTarget());
 
     // %% is an escaped version of %
-    sql("DELETE FROM %s WHERE id = 10 OR dep LIKE '%%ware'", tableName);
+    sql("DELETE FROM %s WHERE id = 10 OR dep LIKE '%%ware'", commitTarget());
 
     Table table = validationCatalog.loadTable(tableIdent);
     Assert.assertEquals("Should have 4 snapshots", 4, Iterables.size(table.snapshots()));
 
     // should be an overwrite since cannot be executed using a metadata operation
-    Snapshot currentSnapshot = table.currentSnapshot();
+    Snapshot currentSnapshot = SnapshotUtil.latestSnapshot(table, branch);
     if (mode(table) == COPY_ON_WRITE) {
       validateCopyOnWrite(currentSnapshot, "1", "1", null);
     } else {
@@ -348,7 +374,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     assertEquals(
         "Should have expected rows",
         ImmutableList.of(row(1, "hr"), row(null, "hr")),
-        sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableName));
+        sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", selectTarget()));
   }
 
   @Test
@@ -356,12 +382,13 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     createAndInitPartitionedTable();
 
     sql("INSERT INTO TABLE %s VALUES (1, 'hr'), (2, 'hardware')", tableName);
+    createBranchIfNeeded();
 
     AssertHelpers.assertThrows(
         "Should complain about non-deterministic expressions",
         AnalysisException.class,
         "nondeterministic expressions are only allowed",
-        () -> sql("DELETE FROM %s WHERE id = 1 AND rand() > 0.5", tableName));
+        () -> sql("DELETE FROM %s WHERE id = 1 AND rand() > 0.5", commitTarget()));
   }
 
   @Test
@@ -369,34 +396,35 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     createAndInitPartitionedTable();
 
     sql("INSERT INTO TABLE %s VALUES (1, 'hr'), (2, 'hardware')", tableName);
+    createBranchIfNeeded();
 
     // should keep all rows and don't trigger execution
-    sql("DELETE FROM %s WHERE false", tableName);
+    sql("DELETE FROM %s WHERE false", commitTarget());
     assertEquals(
         "Should have expected rows",
         ImmutableList.of(row(1, "hr"), row(2, "hardware")),
-        sql("SELECT * FROM %s ORDER BY id", tableName));
+        sql("SELECT * FROM %s ORDER BY id", selectTarget()));
 
     // should keep all rows and don't trigger execution
-    sql("DELETE FROM %s WHERE 50 <> 50", tableName);
+    sql("DELETE FROM %s WHERE 50 <> 50", commitTarget());
     assertEquals(
         "Should have expected rows",
         ImmutableList.of(row(1, "hr"), row(2, "hardware")),
-        sql("SELECT * FROM %s ORDER BY id", tableName));
+        sql("SELECT * FROM %s ORDER BY id", selectTarget()));
 
     // should keep all rows and don't trigger execution
-    sql("DELETE FROM %s WHERE 1 > null", tableName);
+    sql("DELETE FROM %s WHERE 1 > null", commitTarget());
     assertEquals(
         "Should have expected rows",
         ImmutableList.of(row(1, "hr"), row(2, "hardware")),
-        sql("SELECT * FROM %s ORDER BY id", tableName));
+        sql("SELECT * FROM %s ORDER BY id", selectTarget()));
 
     // should remove all rows
-    sql("DELETE FROM %s WHERE 21 = 21", tableName);
+    sql("DELETE FROM %s WHERE 21 = 21", commitTarget());
     assertEquals(
         "Should have expected rows",
         ImmutableList.of(),
-        sql("SELECT * FROM %s ORDER BY id", tableName));
+        sql("SELECT * FROM %s ORDER BY id", selectTarget()));
 
     Table table = validationCatalog.loadTable(tableIdent);
     Assert.assertEquals("Should have 2 snapshots", 2, Iterables.size(table.snapshots()));
@@ -409,33 +437,34 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     sql(
         "INSERT INTO TABLE %s VALUES (0, null), (1, 'hr'), (2, 'hardware'), (null, 'hr')",
         tableName);
+    createBranchIfNeeded();
 
     // should keep all rows as null is never equal to null
-    sql("DELETE FROM %s WHERE dep = null", tableName);
+    sql("DELETE FROM %s WHERE dep = null", commitTarget());
     assertEquals(
         "Should have expected rows",
         ImmutableList.of(row(0, null), row(1, "hr"), row(2, "hardware"), row(null, "hr")),
-        sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableName));
+        sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", selectTarget()));
 
     // null = 'software' -> null
     // should delete using metadata operation only
-    sql("DELETE FROM %s WHERE dep = 'software'", tableName);
+    sql("DELETE FROM %s WHERE dep = 'software'", commitTarget());
     assertEquals(
         "Should have expected rows",
         ImmutableList.of(row(0, null), row(1, "hr"), row(2, "hardware"), row(null, "hr")),
-        sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableName));
+        sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", selectTarget()));
 
     // should delete using metadata operation only
-    sql("DELETE FROM %s WHERE dep <=> NULL", tableName);
+    sql("DELETE FROM %s WHERE dep <=> NULL", commitTarget());
     assertEquals(
         "Should have expected rows",
         ImmutableList.of(row(1, "hr"), row(2, "hardware"), row(null, "hr")),
-        sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableName));
+        sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", selectTarget()));
 
     Table table = validationCatalog.loadTable(tableIdent);
     Assert.assertEquals("Should have 3 snapshots", 3, Iterables.size(table.snapshots()));
 
-    Snapshot currentSnapshot = table.currentSnapshot();
+    Snapshot currentSnapshot = SnapshotUtil.latestSnapshot(table, branch);
     validateDelete(currentSnapshot, "1", "1");
   }
 
@@ -444,24 +473,25 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     createAndInitUnpartitionedTable();
 
     sql("INSERT INTO TABLE %s VALUES (1, 'hr'), (2, 'hardware'), (null, 'hr')", tableName);
+    createBranchIfNeeded();
 
-    sql("DELETE FROM %s WHERE id IN (1, null)", tableName);
+    sql("DELETE FROM %s WHERE id IN (1, null)", commitTarget());
     assertEquals(
         "Should have expected rows",
         ImmutableList.of(row(2, "hardware"), row(null, "hr")),
-        sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableName));
+        sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", selectTarget()));
 
-    sql("DELETE FROM %s WHERE id NOT IN (null, 1)", tableName);
+    sql("DELETE FROM %s WHERE id NOT IN (null, 1)", commitTarget());
     assertEquals(
         "Should have expected rows",
         ImmutableList.of(row(2, "hardware"), row(null, "hr")),
-        sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableName));
+        sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", selectTarget()));
 
-    sql("DELETE FROM %s WHERE id NOT IN (1, 10)", tableName);
+    sql("DELETE FROM %s WHERE id NOT IN (1, 10)", commitTarget());
     assertEquals(
         "Should have expected rows",
         ImmutableList.of(row(null, "hr")),
-        sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableName));
+        sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", selectTarget()));
   }
 
   @Test
@@ -485,13 +515,14 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
             .withColumnRenamed("value", "id")
             .withColumn("dep", lit("hr"));
     df.coalesce(1).writeTo(tableName).append();
+    createBranchIfNeeded();
 
-    Assert.assertEquals(200, spark.table(tableName).count());
+    Assert.assertEquals(200, spark.table(commitTarget()).count());
 
     // delete a record from one of two row groups and copy over the second one
-    sql("DELETE FROM %s WHERE id IN (200, 201)", tableName);
+    sql("DELETE FROM %s WHERE id IN (200, 201)", commitTarget());
 
-    Assert.assertEquals(199, spark.table(tableName).count());
+    Assert.assertEquals(199, spark.table(commitTarget()).count());
   }
 
   @Test
@@ -499,15 +530,18 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     createAndInitNestedColumnsTable();
 
     sql("INSERT INTO TABLE %s VALUES (1, named_struct(\"c1\", 3, \"c2\", \"v1\"))", tableName);
-    sql("INSERT INTO TABLE %s VALUES (2, named_struct(\"c1\", 2, \"c2\", \"v2\"))", tableName);
+    createBranchIfNeeded();
+    sql("INSERT INTO TABLE %s VALUES (2, named_struct(\"c1\", 2, \"c2\", \"v2\"))", commitTarget());
 
-    sql("DELETE FROM %s WHERE complex.c1 = id + 2", tableName);
+    sql("DELETE FROM %s WHERE complex.c1 = id + 2", commitTarget());
     assertEquals(
-        "Should have expected rows", ImmutableList.of(row(2)), sql("SELECT id FROM %s", tableName));
+        "Should have expected rows",
+        ImmutableList.of(row(2)),
+        sql("SELECT id FROM %s", selectTarget()));
 
-    sql("DELETE FROM %s t WHERE t.complex.c1 = id", tableName);
+    sql("DELETE FROM %s t WHERE t.complex.c1 = id", commitTarget());
     assertEquals(
-        "Should have expected rows", ImmutableList.of(), sql("SELECT id FROM %s", tableName));
+        "Should have expected rows", ImmutableList.of(), sql("SELECT id FROM %s", selectTarget()));
   }
 
   @Test
@@ -515,117 +549,124 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     createAndInitUnpartitionedTable();
 
     sql("INSERT INTO TABLE %s VALUES (1, 'hr'), (2, 'hardware'), (null, 'hr')", tableName);
+    createBranchIfNeeded();
 
     createOrReplaceView("deleted_id", Arrays.asList(0, 1, null), Encoders.INT());
     createOrReplaceView("deleted_dep", Arrays.asList("software", "hr"), Encoders.STRING());
 
     sql(
         "DELETE FROM %s WHERE id IN (SELECT * FROM deleted_id) AND dep IN (SELECT * from deleted_dep)",
-        tableName);
+        commitTarget());
     assertEquals(
         "Should have expected rows",
         ImmutableList.of(row(2, "hardware"), row(null, "hr")),
-        sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableName));
+        sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", selectTarget()));
 
     append(new Employee(1, "hr"), new Employee(-1, "hr"));
     assertEquals(
         "Should have expected rows",
         ImmutableList.of(row(-1, "hr"), row(1, "hr"), row(2, "hardware"), row(null, "hr")),
-        sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableName));
+        sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", selectTarget()));
 
-    sql("DELETE FROM %s WHERE id IS NULL OR id IN (SELECT value + 2 FROM deleted_id)", tableName);
+    sql(
+        "DELETE FROM %s WHERE id IS NULL OR id IN (SELECT value + 2 FROM deleted_id)",
+        commitTarget());
     assertEquals(
         "Should have expected rows",
         ImmutableList.of(row(-1, "hr"), row(1, "hr")),
-        sql("SELECT * FROM %s ORDER BY id", tableName));
+        sql("SELECT * FROM %s ORDER BY id", selectTarget()));
 
     append(new Employee(null, "hr"), new Employee(2, "hr"));
     assertEquals(
         "Should have expected rows",
         ImmutableList.of(row(-1, "hr"), row(1, "hr"), row(2, "hr"), row(null, "hr")),
-        sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableName));
+        sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", selectTarget()));
 
-    sql("DELETE FROM %s WHERE id IN (SELECT value + 2 FROM deleted_id) AND dep = 'hr'", tableName);
+    sql(
+        "DELETE FROM %s WHERE id IN (SELECT value + 2 FROM deleted_id) AND dep = 'hr'",
+        commitTarget());
     assertEquals(
         "Should have expected rows",
         ImmutableList.of(row(-1, "hr"), row(1, "hr"), row(null, "hr")),
-        sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableName));
+        sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", selectTarget()));
   }
 
   @Test
   public void testDeleteWithMultiColumnInSubquery() throws NoSuchTableException {
     createAndInitUnpartitionedTable();
 
-    append(new Employee(1, "hr"), new Employee(2, "hardware"), new Employee(null, "hr"));
+    append(tableName, new Employee(1, "hr"), new Employee(2, "hardware"), new Employee(null, "hr"));
+    createBranchIfNeeded();
 
     List<Employee> deletedEmployees =
         Arrays.asList(new Employee(null, "hr"), new Employee(1, "hr"));
     createOrReplaceView("deleted_employee", deletedEmployees, Encoders.bean(Employee.class));
 
-    sql("DELETE FROM %s WHERE (id, dep) IN (SELECT id, dep FROM deleted_employee)", tableName);
+    sql("DELETE FROM %s WHERE (id, dep) IN (SELECT id, dep FROM deleted_employee)", commitTarget());
     assertEquals(
         "Should have expected rows",
         ImmutableList.of(row(2, "hardware"), row(null, "hr")),
-        sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableName));
+        sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", selectTarget()));
   }
 
   @Test
   public void testDeleteWithNotInSubquery() throws NoSuchTableException {
     createAndInitUnpartitionedTable();
 
-    append(new Employee(1, "hr"), new Employee(2, "hardware"), new Employee(null, "hr"));
+    append(tableName, new Employee(1, "hr"), new Employee(2, "hardware"), new Employee(null, "hr"));
+    createBranchIfNeeded();
 
     createOrReplaceView("deleted_id", Arrays.asList(-1, -2, null), Encoders.INT());
     createOrReplaceView("deleted_dep", Arrays.asList("software", "hr"), Encoders.STRING());
 
     // the file filter subquery (nested loop lef-anti join) returns 0 records
-    sql("DELETE FROM %s WHERE id NOT IN (SELECT * FROM deleted_id)", tableName);
+    sql("DELETE FROM %s WHERE id NOT IN (SELECT * FROM deleted_id)", commitTarget());
     assertEquals(
         "Should have expected rows",
         ImmutableList.of(row(1, "hr"), row(2, "hardware"), row(null, "hr")),
-        sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableName));
+        sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", selectTarget()));
 
     sql(
         "DELETE FROM %s WHERE id NOT IN (SELECT * FROM deleted_id WHERE value IS NOT NULL)",
-        tableName);
+        commitTarget());
     assertEquals(
         "Should have expected rows",
         ImmutableList.of(row(null, "hr")),
-        sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableName));
+        sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", selectTarget()));
 
-    sql("INSERT INTO TABLE %s VALUES (1, 'hr'), (2, 'hardware'), (null, 'hr')", tableName);
+    sql("INSERT INTO TABLE %s VALUES (1, 'hr'), (2, 'hardware'), (null, 'hr')", commitTarget());
     assertEquals(
         "Should have expected rows",
         ImmutableList.of(row(1, "hr"), row(2, "hardware"), row(null, "hr"), row(null, "hr")),
-        sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableName));
+        sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", selectTarget()));
 
     sql(
         "DELETE FROM %s WHERE id NOT IN (SELECT * FROM deleted_id) OR dep IN ('software', 'hr')",
-        tableName);
+        commitTarget());
     assertEquals(
         "Should have expected rows",
         ImmutableList.of(row(2, "hardware")),
-        sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableName));
+        sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", selectTarget()));
 
     sql(
         "DELETE FROM %s t WHERE "
             + "id NOT IN (SELECT * FROM deleted_id WHERE value IS NOT NULL) AND "
             + "EXISTS (SELECT 1 FROM FROM deleted_dep WHERE t.dep = deleted_dep.value)",
-        tableName);
+        commitTarget());
     assertEquals(
         "Should have expected rows",
         ImmutableList.of(row(2, "hardware")),
-        sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableName));
+        sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", selectTarget()));
 
     sql(
         "DELETE FROM %s t WHERE "
             + "id NOT IN (SELECT * FROM deleted_id WHERE value IS NOT NULL) OR "
             + "EXISTS (SELECT 1 FROM FROM deleted_dep WHERE t.dep = deleted_dep.value)",
-        tableName);
+        commitTarget());
     assertEquals(
         "Should have expected rows",
         ImmutableList.of(),
-        sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableName));
+        sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", selectTarget()));
   }
 
   @Test
@@ -643,51 +684,53 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
   public void testDeleteWithExistSubquery() throws NoSuchTableException {
     createAndInitUnpartitionedTable();
 
-    append(new Employee(1, "hr"), new Employee(2, "hardware"), new Employee(null, "hr"));
+    append(tableName, new Employee(1, "hr"), new Employee(2, "hardware"), new Employee(null, "hr"));
+    createBranchIfNeeded();
 
     createOrReplaceView("deleted_id", Arrays.asList(-1, -2, null), Encoders.INT());
     createOrReplaceView("deleted_dep", Arrays.asList("software", "hr"), Encoders.STRING());
 
     sql(
         "DELETE FROM %s t WHERE EXISTS (SELECT 1 FROM deleted_id d WHERE t.id = d.value)",
-        tableName);
+        commitTarget());
     assertEquals(
         "Should have expected rows",
         ImmutableList.of(row(1, "hr"), row(2, "hardware"), row(null, "hr")),
-        sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableName));
+        sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", selectTarget()));
 
     sql(
         "DELETE FROM %s t WHERE EXISTS (SELECT 1 FROM deleted_id d WHERE t.id = d.value + 2)",
-        tableName);
+        commitTarget());
     assertEquals(
         "Should have expected rows",
         ImmutableList.of(row(2, "hardware"), row(null, "hr")),
-        sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableName));
+        sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", selectTarget()));
 
     sql(
         "DELETE FROM %s t WHERE EXISTS (SELECT 1 FROM deleted_id d WHERE t.id = d.value) OR t.id IS NULL",
-        tableName);
+        commitTarget());
     assertEquals(
         "Should have expected rows",
         ImmutableList.of(row(2, "hardware")),
-        sql("SELECT * FROM %s", tableName));
+        sql("SELECT * FROM %s", selectTarget()));
 
     sql(
         "DELETE FROM %s t WHERE "
             + "EXISTS (SELECT 1 FROM deleted_id di WHERE t.id = di.value) AND "
             + "EXISTS (SELECT 1 FROM deleted_dep dd WHERE t.dep = dd.value)",
-        tableName);
+        commitTarget());
     assertEquals(
         "Should have expected rows",
         ImmutableList.of(row(2, "hardware")),
-        sql("SELECT * FROM %s", tableName));
+        sql("SELECT * FROM %s", selectTarget()));
   }
 
   @Test
   public void testDeleteWithNotExistsSubquery() throws NoSuchTableException {
     createAndInitUnpartitionedTable();
 
-    append(new Employee(1, "hr"), new Employee(2, "hardware"), new Employee(null, "hr"));
+    append(tableName, new Employee(1, "hr"), new Employee(2, "hardware"), new Employee(null, "hr"));
+    createBranchIfNeeded();
 
     createOrReplaceView("deleted_id", Arrays.asList(-1, -2, null), Encoders.INT());
     createOrReplaceView("deleted_dep", Arrays.asList("software", "hr"), Encoders.STRING());
@@ -696,33 +739,34 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
         "DELETE FROM %s t WHERE "
             + "NOT EXISTS (SELECT 1 FROM deleted_id di WHERE t.id = di.value + 2) AND "
             + "NOT EXISTS (SELECT 1 FROM deleted_dep dd WHERE t.dep = dd.value)",
-        tableName);
+        commitTarget());
     assertEquals(
         "Should have expected rows",
         ImmutableList.of(row(1, "hr"), row(null, "hr")),
-        sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableName));
+        sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", selectTarget()));
 
     sql(
         "DELETE FROM %s t WHERE NOT EXISTS (SELECT 1 FROM deleted_id d WHERE t.id = d.value + 2)",
-        tableName);
+        commitTarget());
     assertEquals(
         "Should have expected rows",
         ImmutableList.of(row(1, "hr")),
-        sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableName));
+        sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", selectTarget()));
 
     String subquery = "SELECT 1 FROM deleted_id d WHERE t.id = d.value + 2";
-    sql("DELETE FROM %s t WHERE NOT EXISTS (%s) OR t.id = 1", tableName, subquery);
+    sql("DELETE FROM %s t WHERE NOT EXISTS (%s) OR t.id = 1", commitTarget(), subquery);
     assertEquals(
         "Should have expected rows",
         ImmutableList.of(),
-        sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableName));
+        sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", selectTarget()));
   }
 
   @Test
   public void testDeleteWithScalarSubquery() throws NoSuchTableException {
     createAndInitUnpartitionedTable();
 
-    append(new Employee(1, "hr"), new Employee(2, "hardware"), new Employee(null, "hr"));
+    append(tableName, new Employee(1, "hr"), new Employee(2, "hardware"), new Employee(null, "hr"));
+    createBranchIfNeeded();
 
     createOrReplaceView("deleted_id", Arrays.asList(1, 100, null), Encoders.INT());
 
@@ -730,11 +774,11 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     withSQLConf(
         ImmutableMap.of(SQLConf.ADAPTIVE_EXECUTION_ENABLED().key(), "false"),
         () -> {
-          sql("DELETE FROM %s t WHERE id <= (SELECT min(value) FROM deleted_id)", tableName);
+          sql("DELETE FROM %s t WHERE id <= (SELECT min(value) FROM deleted_id)", commitTarget());
           assertEquals(
               "Should have expected rows",
               ImmutableList.of(row(2, "hardware"), row(null, "hr")),
-              sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableName));
+              sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", selectTarget()));
         });
   }
 
@@ -742,7 +786,8 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
   public void testDeleteThatRequiresGroupingBeforeWrite() throws NoSuchTableException {
     createAndInitPartitionedTable();
 
-    append(new Employee(0, "hr"), new Employee(1, "hr"), new Employee(2, "hr"));
+    append(tableName, new Employee(0, "hr"), new Employee(1, "hr"), new Employee(2, "hr"));
+    createBranchIfNeeded();
     append(new Employee(0, "ops"), new Employee(1, "ops"), new Employee(2, "ops"));
     append(new Employee(0, "hr"), new Employee(1, "hr"), new Employee(2, "hr"));
     append(new Employee(0, "ops"), new Employee(1, "ops"), new Employee(2, "ops"));
@@ -754,8 +799,9 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
       // set the num of shuffle partitions to 1 to ensure we have only 1 writing task
       spark.conf().set("spark.sql.shuffle.partitions", "1");
 
-      sql("DELETE FROM %s t WHERE id IN (SELECT * FROM deleted_id)", tableName);
-      Assert.assertEquals("Should have expected num of rows", 8L, spark.table(tableName).count());
+      sql("DELETE FROM %s t WHERE id IN (SELECT * FROM deleted_id)", commitTarget());
+      Assert.assertEquals(
+          "Should have expected num of rows", 8L, spark.table(commitTarget()).count());
     } finally {
       spark.conf().set("spark.sql.shuffle.partitions", originalNumOfShufflePartitions);
     }
@@ -774,6 +820,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
         tableName, DELETE_ISOLATION_LEVEL, "serializable");
 
     sql("INSERT INTO TABLE %s VALUES (1, 'hr')", tableName);
+    createBranchIfNeeded();
 
     ExecutorService executorService =
         MoreExecutors.getExitingExecutorService(
@@ -791,7 +838,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
                   sleep(10);
                 }
 
-                sql("DELETE FROM %s WHERE id IN (SELECT * FROM deleted_id)", tableName);
+                sql("DELETE FROM %s WHERE id IN (SELECT * FROM deleted_id)", commitTarget());
 
                 barrier.incrementAndGet();
               }
@@ -804,7 +851,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
               // load the table via the validation catalog to use another table instance
               Table table = validationCatalog.loadTable(tableIdent);
 
-              GenericRecord record = GenericRecord.create(table.schema());
+              GenericRecord record = GenericRecord.create(SnapshotUtil.schemaFor(table, branch));
               record.set(0, 1); // id
               record.set(1, "hr"); // dep
 
@@ -819,7 +866,12 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
 
                 for (int numAppends = 0; numAppends < 5; numAppends++) {
                   DataFile dataFile = writeDataFile(table, ImmutableList.of(record));
-                  table.newFastAppend().appendFile(dataFile).commit();
+                  AppendFiles appendFiles = table.newFastAppend().appendFile(dataFile);
+                  if (branch != null) {
+                    appendFiles.toBranch(branch);
+                  }
+
+                  appendFiles.commit();
                   sleep(10);
                 }
 
@@ -858,6 +910,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
         tableName, DELETE_ISOLATION_LEVEL, "snapshot");
 
     sql("INSERT INTO TABLE %s VALUES (1, 'hr')", tableName);
+    createBranchIfNeeded();
 
     ExecutorService executorService =
         MoreExecutors.getExitingExecutorService(
@@ -875,7 +928,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
                   sleep(10);
                 }
 
-                sql("DELETE FROM %s WHERE id IN (SELECT * FROM deleted_id)", tableName);
+                sql("DELETE FROM %s WHERE id IN (SELECT * FROM deleted_id)", commitTarget());
 
                 barrier.incrementAndGet();
               }
@@ -888,7 +941,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
               // load the table via the validation catalog to use another table instance for inserts
               Table table = validationCatalog.loadTable(tableIdent);
 
-              GenericRecord record = GenericRecord.create(table.schema());
+              GenericRecord record = GenericRecord.create(SnapshotUtil.schemaFor(table, branch));
               record.set(0, 1); // id
               record.set(1, "hr"); // dep
 
@@ -903,7 +956,12 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
 
                 for (int numAppends = 0; numAppends < 5; numAppends++) {
                   DataFile dataFile = writeDataFile(table, ImmutableList.of(record));
-                  table.newFastAppend().appendFile(dataFile).commit();
+                  AppendFiles appendFiles = table.newFastAppend().appendFile(dataFile);
+                  if (branch != null) {
+                    appendFiles.toBranch(branch);
+                  }
+
+                  appendFiles.commit();
                   sleep(10);
                 }
 
@@ -926,10 +984,11 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
   public void testDeleteRefreshesRelationCache() throws NoSuchTableException {
     createAndInitPartitionedTable();
 
-    append(new Employee(1, "hr"), new Employee(3, "hr"));
+    append(tableName, new Employee(1, "hr"), new Employee(3, "hr"));
+    createBranchIfNeeded();
     append(new Employee(1, "hardware"), new Employee(2, "hardware"));
 
-    Dataset<Row> query = spark.sql("SELECT * FROM " + tableName + " WHERE id = 1");
+    Dataset<Row> query = spark.sql("SELECT * FROM " + commitTarget() + " WHERE id = 1");
     query.createOrReplaceTempView("tmp");
 
     spark.sql("CACHE TABLE tmp");
@@ -939,12 +998,12 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
         ImmutableList.of(row(1, "hardware"), row(1, "hr")),
         sql("SELECT * FROM tmp ORDER BY id, dep"));
 
-    sql("DELETE FROM %s WHERE id = 1", tableName);
+    sql("DELETE FROM %s WHERE id = 1", commitTarget());
 
     Table table = validationCatalog.loadTable(tableIdent);
     Assert.assertEquals("Should have 3 snapshots", 3, Iterables.size(table.snapshots()));
 
-    Snapshot currentSnapshot = table.currentSnapshot();
+    Snapshot currentSnapshot = SnapshotUtil.latestSnapshot(table, branch);
     if (mode(table) == COPY_ON_WRITE) {
       validateCopyOnWrite(currentSnapshot, "2", "2", "2");
     } else {
@@ -953,7 +1012,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     assertEquals(
         "Should have expected rows",
         ImmutableList.of(row(2, "hardware"), row(3, "hr")),
-        sql("SELECT * FROM %s ORDER BY id, dep", tableName));
+        sql("SELECT * FROM %s ORDER BY id, dep", commitTarget()));
 
     assertEquals(
         "Should refresh the relation cache",
@@ -969,28 +1028,29 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
 
     // write an unpartitioned file
     append(tableName, "{ \"id\": 1, \"dep\": \"hr\", \"category\": \"c1\"}");
+    createBranchIfNeeded();
 
     // write a file partitioned by dep
     sql("ALTER TABLE %s ADD PARTITION FIELD dep", tableName);
     append(
-        tableName,
+        commitTarget(),
         "{ \"id\": 2, \"dep\": \"hr\", \"category\": \"c1\" }\n"
             + "{ \"id\": 3, \"dep\": \"hr\", \"category\": \"c1\" }");
 
     // write a file partitioned by dep and category
     sql("ALTER TABLE %s ADD PARTITION FIELD category", tableName);
-    append(tableName, "{ \"id\": 5, \"dep\": \"hr\", \"category\": \"c1\"}");
+    append(commitTarget(), "{ \"id\": 5, \"dep\": \"hr\", \"category\": \"c1\"}");
 
     // write another file partitioned by dep
     sql("ALTER TABLE %s DROP PARTITION FIELD category", tableName);
-    append(tableName, "{ \"id\": 7, \"dep\": \"hr\", \"category\": \"c1\"}");
+    append(commitTarget(), "{ \"id\": 7, \"dep\": \"hr\", \"category\": \"c1\"}");
 
-    sql("DELETE FROM %s WHERE id IN (1, 3, 5, 7)", tableName);
+    sql("DELETE FROM %s WHERE id IN (1, 3, 5, 7)", commitTarget());
 
     Table table = validationCatalog.loadTable(tableIdent);
     Assert.assertEquals("Should have 5 snapshots", 5, Iterables.size(table.snapshots()));
 
-    Snapshot currentSnapshot = table.currentSnapshot();
+    Snapshot currentSnapshot = SnapshotUtil.latestSnapshot(table, branch);
     if (mode(table) == COPY_ON_WRITE) {
       // copy-on-write is tested against v1 and such tables have different partition evolution
       // behavior
@@ -1003,7 +1063,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     assertEquals(
         "Should have expected rows",
         ImmutableList.of(row(2, "hr", "c1")),
-        sql("SELECT * FROM %s ORDER BY id", tableName));
+        sql("SELECT * FROM %s ORDER BY id", selectTarget()));
   }
 
   // TODO: multiple stripes for ORC
@@ -1024,9 +1084,13 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
   }
 
   protected void append(Employee... employees) throws NoSuchTableException {
+    append(commitTarget(), employees);
+  }
+
+  protected void append(String target, Employee... employees) throws NoSuchTableException {
     List<Employee> input = Arrays.asList(employees);
     Dataset<Row> inputDF = spark.createDataFrame(input, Employee.class);
-    inputDF.coalesce(1).writeTo(tableName).append();
+    inputDF.coalesce(1).writeTo(target).append();
   }
 
   private RowLevelOperationMode mode(Table table) {

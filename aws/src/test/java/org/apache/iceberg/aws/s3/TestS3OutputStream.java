@@ -63,6 +63,7 @@ import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.core.sync.ResponseTransformer;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.AbortMultipartUploadRequest;
+import software.amazon.awssdk.services.s3.model.BucketAlreadyExistsException;
 import software.amazon.awssdk.services.s3.model.CompleteMultipartUploadRequest;
 import software.amazon.awssdk.services.s3.model.CreateBucketRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
@@ -105,7 +106,7 @@ public class TestS3OutputStream {
   @Before
   public void before() {
     properties.setS3ChecksumEnabled(false);
-    s3.createBucket(CreateBucketRequest.builder().bucket(BUCKET).build());
+    createBucket(BUCKET);
   }
 
   @After
@@ -334,5 +335,13 @@ public class TestS3OutputStream {
 
   private S3URI randomURI() {
     return new S3URI(String.format("s3://%s/data/%s.dat", BUCKET, UUID.randomUUID()));
+  }
+
+  private void createBucket(String bucketName) {
+    try {
+      s3.createBucket(CreateBucketRequest.builder().bucket(bucketName).build());
+    } catch (BucketAlreadyExistsException e) {
+      // do nothing
+    }
   }
 }
