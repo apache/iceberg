@@ -53,57 +53,57 @@ def test_schema_to_pyarrow_schema(table_schema_nested: Schema) -> None:
     actual = schema_to_pyarrow(table_schema_nested)
     expected = """foo: string
   -- field metadata --
-  field_id: '1'
+  id: '1'
 bar: int32 not null
   -- field metadata --
-  field_id: '2'
+  id: '2'
 baz: bool
   -- field metadata --
-  field_id: '3'
+  id: '3'
 qux: list<element: string not null> not null
   child 0, element: string not null
     -- field metadata --
-    field_id: '5'
+    id: '5'
   -- field metadata --
-  field_id: '4'
+  id: '4'
 quux: map<string, map<string, int32>> not null
   child 0, entries: struct<key: string not null, value: map<string, int32> not null> not null
       child 0, key: string not null
       -- field metadata --
-      field_id: '7'
+      id: '7'
       child 1, value: map<string, int32> not null
           child 0, entries: struct<key: string not null, value: int32 not null> not null
               child 0, key: string not null
           -- field metadata --
-          field_id: '9'
+          id: '9'
               child 1, value: int32 not null
           -- field metadata --
-          field_id: '10'
+          id: '10'
       -- field metadata --
-      field_id: '8'
+      id: '8'
   -- field metadata --
-  field_id: '6'
+  id: '6'
 location: list<element: struct<latitude: float, longitude: float> not null> not null
   child 0, element: struct<latitude: float, longitude: float> not null
       child 0, latitude: float
       -- field metadata --
-      field_id: '13'
+      id: '13'
       child 1, longitude: float
       -- field metadata --
-      field_id: '14'
+      id: '14'
     -- field metadata --
-    field_id: '12'
+    id: '12'
   -- field metadata --
-  field_id: '11'
+  id: '11'
 person: struct<name: string, age: int32 not null>
   child 0, name: string
     -- field metadata --
-    field_id: '16'
+    id: '16'
   child 1, age: int32 not null
     -- field metadata --
-    field_id: '17'
+    id: '17'
   -- field metadata --
-  field_id: '15'"""
+  id: '15'"""
     assert repr(actual) == expected
 
 
