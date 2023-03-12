@@ -32,19 +32,17 @@ import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
-import org.apache.iceberg.actions.BaseExpireSnapshotsActionResult;
 import org.apache.iceberg.actions.ExpireSnapshots;
+import org.apache.iceberg.actions.ImmutableExpireSnapshots;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.io.SupportsBulkOperations;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.JobGroupInfo;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.spark.sql.Dataset;
-import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
-import org.apache.spark.sql.catalyst.encoders.RowEncoder;
-import org.apache.spark.sql.execution.QueryExecution;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -74,18 +72,11 @@ public class ExpireSnapshotsSparkAction extends BaseSparkAction<ExpireSnapshotsS
 
   private final Table table;
   private final TableOperations ops;
-  private final Consumer<String> defaultDelete =
-      new Consumer<String>() {
-        @Override
-        public void accept(String file) {
-          ops.io().deleteFile(file);
-        }
-      };
 
   private final Set<Long> expiredSnapshotIds = Sets.newHashSet();
   private Long expireOlderThanValue = null;
   private Integer retainLastValue = null;
-  private Consumer<String> deleteFunc = defaultDelete;
+  private Consumer<String> deleteFunc = null;
   private ExecutorService deleteExecutorService = null;
   private Dataset<FileInfo> expiredFileDS = null;
 
@@ -136,23 +127,6 @@ public class ExpireSnapshotsSparkAction extends BaseSparkAction<ExpireSnapshotsS
   public ExpireSnapshotsSparkAction deleteWith(Consumer<String> newDeleteFunc) {
     this.deleteFunc = newDeleteFunc;
     return this;
-  }
-
-  /**
-   * Expires snapshots and commits the changes to the table, returning a Dataset of files to delete.
-   *
-   * <p>This does not delete data files. To delete data files, run {@link #execute()}.
-   *
-   * <p>This may be called before or after {@link #execute()} to return the expired files.
-   *
-   * @return a Dataset of files that are no longer referenced by the table
-   * @deprecated since 1.0.0, will be removed in 1.1.0; use {@link #expireFiles()} instead.
-   */
-  @Deprecated
-  public Dataset<Row> expire() {
-    // rely on the same query execution to reuse shuffles
-    QueryExecution queryExecution = expireFiles().queryExecution();
-    return new Dataset<>(queryExecution, RowEncoder.apply(queryExecution.analyzed().schema()));
   }
 
   /**
@@ -251,7 +225,8 @@ public class ExpireSnapshotsSparkAction extends BaseSparkAction<ExpireSnapshotsS
     Table staticTable = newStaticTable(metadata, table.io());
     return contentFileDS(staticTable, snapshotIds)
         .union(manifestDS(staticTable, snapshotIds))
-        .union(manifestListDS(staticTable, snapshotIds));
+        .union(manifestListDS(staticTable, snapshotIds))
+        .union(statisticsFileDS(staticTable, snapshotIds));
   }
 
   private Set<Long> findExpiredSnapshotIds(
@@ -265,14 +240,31 @@ public class ExpireSnapshotsSparkAction extends BaseSparkAction<ExpireSnapshotsS
   }
 
   private ExpireSnapshots.Result deleteFiles(Iterator<FileInfo> files) {
-    DeleteSummary summary = deleteFiles(deleteExecutorService, deleteFunc, files);
+    DeleteSummary summary;
+    if (deleteFunc == null && table.io() instanceof SupportsBulkOperations) {
+      summary = deleteFiles((SupportsBulkOperations) table.io(), files);
+    } else {
+
+      if (deleteFunc == null) {
+        LOG.info(
+            "Table IO {} does not support bulk operations. Using non-bulk deletes.",
+            table.io().getClass().getName());
+        summary = deleteFiles(deleteExecutorService, table.io()::deleteFile, files);
+      } else {
+        LOG.info("Custom delete function provided. Using non-bulk deletes");
+        summary = deleteFiles(deleteExecutorService, deleteFunc, files);
+      }
+    }
+
     LOG.info("Deleted {} total files", summary.totalFilesCount());
 
-    return new BaseExpireSnapshotsActionResult(
-        summary.dataFilesCount(),
-        summary.positionDeleteFilesCount(),
-        summary.equalityDeleteFilesCount(),
-        summary.manifestsCount(),
-        summary.manifestListsCount());
+    return ImmutableExpireSnapshots.Result.builder()
+        .deletedDataFilesCount(summary.dataFilesCount())
+        .deletedPositionDeleteFilesCount(summary.positionDeleteFilesCount())
+        .deletedEqualityDeleteFilesCount(summary.equalityDeleteFilesCount())
+        .deletedManifestsCount(summary.manifestsCount())
+        .deletedManifestListsCount(summary.manifestListsCount())
+        .deletedStatisticsFilesCount(summary.statisticsFilesCount())
+        .build();
   }
 }

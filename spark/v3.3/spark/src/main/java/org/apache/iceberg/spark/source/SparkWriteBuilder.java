@@ -73,10 +73,10 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
   private Command copyOnWriteCommand = null;
   private IsolationLevel copyOnWriteIsolationLevel = null;
 
-  SparkWriteBuilder(SparkSession spark, Table table, LogicalWriteInfo info) {
+  SparkWriteBuilder(SparkSession spark, Table table, String branch, LogicalWriteInfo info) {
     this.spark = spark;
     this.table = table;
-    this.writeConf = new SparkWriteConf(spark, table, info.options());
+    this.writeConf = new SparkWriteConf(spark, table, branch, info.options());
     this.writeInfo = info;
     this.dsSchema = info.schema();
     this.overwriteMode = writeConf.overwriteMode();

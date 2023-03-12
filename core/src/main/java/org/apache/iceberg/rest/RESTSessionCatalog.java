@@ -85,7 +85,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class RESTSessionCatalog extends BaseSessionCatalog
-    implements Configurable<Configuration>, Closeable {
+    implements Configurable<Object>, Closeable {
   private static final Logger LOG = LoggerFactory.getLogger(RESTSessionCatalog.class);
   private static final String REST_METRICS_REPORTING_ENABLED = "rest-metrics-reporting-enabled";
   private static final String REST_SNAPSHOT_LOADING_MODE = "snapshot-loading-mode";
@@ -98,9 +98,10 @@ public class RESTSessionCatalog extends BaseSessionCatalog
           OAuth2Properties.SAML1_TOKEN_TYPE);
 
   private final Function<Map<String, String>, RESTClient> clientBuilder;
+  private Function<Map<String, String>, FileIO> ioBuilder = null;
   private Cache<String, AuthSession> sessions = null;
   private AuthSession catalogAuth = null;
-  private boolean refreshAuthByDefault = false;
+  private boolean keepTokenRefreshed = true;
   private RESTClient client = null;
   private ResourcePaths paths = null;
   private SnapshotMode snapshotMode = null;
@@ -167,11 +168,11 @@ public class RESTSessionCatalog extends BaseSessionCatalog
     Map<String, String> baseHeaders = configHeaders(mergedProps);
 
     this.sessions = newSessionCache(mergedProps);
-    this.refreshAuthByDefault =
+    this.keepTokenRefreshed =
         PropertyUtil.propertyAsBoolean(
             mergedProps,
-            CatalogProperties.AUTH_DEFAULT_REFRESH_ENABLED,
-            CatalogProperties.AUTH_DEFAULT_REFRESH_ENABLED_DEFAULT);
+            OAuth2Properties.TOKEN_REFRESH_ENABLED,
+            OAuth2Properties.TOKEN_REFRESH_ENABLED_DEFAULT);
     this.client = clientBuilder.apply(mergedProps);
     this.paths = ResourcePaths.forCatalogProperties(mergedProps);
 
@@ -187,10 +188,7 @@ public class RESTSessionCatalog extends BaseSessionCatalog
               client, tokenRefreshExecutor(), token, expiresAtMillis(mergedProps), catalogAuth);
     }
 
-    String ioImpl = mergedProps.get(CatalogProperties.FILE_IO_IMPL);
-    this.io =
-        CatalogUtil.loadFileIO(
-            ioImpl != null ? ioImpl : ResolvingFileIO.class.getName(), mergedProps, conf);
+    this.io = newFileIO(mergedProps);
 
     this.snapshotMode =
         SnapshotMode.valueOf(
@@ -203,6 +201,11 @@ public class RESTSessionCatalog extends BaseSessionCatalog
     this.reportingViaRestEnabled =
         PropertyUtil.propertyAsBoolean(mergedProps, REST_METRICS_REPORTING_ENABLED, true);
     super.initialize(name, mergedProps);
+  }
+
+  public void setFileIOBuilder(Function<Map<String, String>, FileIO> newIOBuilder) {
+    Preconditions.checkState(null == io, "Cannot set IO builder after calling initialize");
+    this.ioBuilder = newIOBuilder;
   }
 
   private AuthSession session(SessionContext context) {
@@ -219,8 +222,14 @@ public class RESTSessionCatalog extends BaseSessionCatalog
   }
 
   @Override
-  public void setConf(Configuration newConf) {
+  public void setConf(Object newConf) {
     this.conf = newConf;
+  }
+
+  /** @deprecated will be removed in 1.3.0; use {@link #setConf(Object)} */
+  @Deprecated
+  public void setConf(Configuration newConf) {
+    setConf((Object) newConf);
   }
 
   @Override
@@ -324,6 +333,7 @@ public class RESTSessionCatalog extends BaseSessionCatalog
     if (snapshotMode == SnapshotMode.REFS) {
       tableMetadata =
           TableMetadata.buildFrom(response.tableMetadata())
+              .withMetadataLocation(response.metadataLocation())
               .setSnapshotsSupplier(
                   () ->
                       loadInternal(context, identifier, SnapshotMode.ALL)
@@ -472,6 +482,10 @@ public class RESTSessionCatalog extends BaseSessionCatalog
   }
 
   private ScheduledExecutorService tokenRefreshExecutor() {
+    if (!keepTokenRefreshed) {
+      return null;
+    }
+
     if (refreshExecutor == null) {
       synchronized (this) {
         if (refreshExecutor == null) {
@@ -751,16 +765,24 @@ public class RESTSessionCatalog extends BaseSessionCatalog
     return String.format("%s.%s", name(), ident);
   }
 
+  private FileIO newFileIO(Map<String, String> properties) {
+    if (null != ioBuilder) {
+      return ioBuilder.apply(properties);
+    } else {
+      String ioImpl =
+          properties.getOrDefault(CatalogProperties.FILE_IO_IMPL, ResolvingFileIO.class.getName());
+      return CatalogUtil.loadFileIO(ioImpl, properties, conf);
+    }
+  }
+
   private FileIO tableFileIO(Map<String, String> config) {
     if (config.isEmpty()) {
       return io; // reuse client and io since config is the same
     }
 
     Map<String, String> fullConf = RESTUtil.merge(properties(), config);
-    String ioImpl = fullConf.get(CatalogProperties.FILE_IO_IMPL);
 
-    return CatalogUtil.loadFileIO(
-        ioImpl != null ? ioImpl : ResolvingFileIO.class.getName(), fullConf, this.conf);
+    return newFileIO(fullConf);
   }
 
   private AuthSession tableSession(Map<String, String> tableConf, AuthSession parent) {
@@ -826,7 +848,7 @@ public class RESTSessionCatalog extends BaseSessionCatalog
   }
 
   private Long expiresAtMillis(Map<String, String> properties) {
-    if (refreshAuthByDefault || properties.containsKey(OAuth2Properties.TOKEN_EXPIRES_IN_MS)) {
+    if (properties.containsKey(OAuth2Properties.TOKEN_EXPIRES_IN_MS)) {
       long expiresInMillis =
           PropertyUtil.propertyAsLong(
               properties,

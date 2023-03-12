@@ -99,6 +99,12 @@ public class TableScanUtil {
         BaseCombinedScanTask::new);
   }
 
+  public static <T extends ScanTask> List<ScanTaskGroup<T>> planTaskGroups(
+      List<T> tasks, long splitSize, int lookback, long openFileCost) {
+    return Lists.newArrayList(
+        planTaskGroups(CloseableIterable.withNoopClose(tasks), splitSize, lookback, openFileCost));
+  }
+
   @SuppressWarnings("unchecked")
   public static <T extends ScanTask> CloseableIterable<ScanTaskGroup<T>> planTaskGroups(
       CloseableIterable<T> tasks, long splitSize, int lookback, long openFileCost) {
