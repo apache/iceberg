@@ -1280,6 +1280,10 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
               "Should have expected num of rows when reading WAP branch",
               2L,
               sql("SELECT * FROM %s.branch_wap WHERE dep='hr'", tableName).size());
+          Assert.assertEquals(
+              "Should not modify main branch",
+              1L,
+              sql("SELECT * FROM %s.branch_main WHERE dep='hr'", tableName).size());
         });
 
     withSQLConf(
@@ -1294,6 +1298,10 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
               "Should have expected num of rows when reading WAP branch with multiple writes",
               2L,
               sql("SELECT * FROM %s.branch_wap WHERE dep='b'", tableName).size());
+          Assert.assertEquals(
+              "Should not modify main branch with multiple writes",
+              0L,
+              sql("SELECT * FROM %s.branch_main WHERE dep='b'", tableName).size());
         });
   }
 

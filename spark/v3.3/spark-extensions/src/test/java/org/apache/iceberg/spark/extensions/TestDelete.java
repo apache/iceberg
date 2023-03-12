@@ -1090,6 +1090,8 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
               "Should have expected num of rows when reading WAP branch",
               2L,
               spark.table(tableName + ".branch_wap").count());
+          Assert.assertEquals(
+              "Should not modify main branch", 3L, spark.table(tableName + ".branch_main").count());
         });
 
     withSQLConf(
@@ -1104,6 +1106,10 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
               "Should have expected num of rows when reading WAP branch with multiple writes",
               1L,
               spark.table(tableName + ".branch_wap").count());
+          Assert.assertEquals(
+              "Should not modify main branch with multiple writes",
+              3L,
+              spark.table(tableName + ".branch_main").count());
         });
   }
 

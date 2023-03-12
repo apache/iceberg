@@ -2455,6 +2455,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
     Assume.assumeTrue("WAP branch only works for table identifier without branch", branch == null);
 
     createAndInitTable("id INT", "{\"id\": -1}");
+    ImmutableList<Object[]> originalRows = ImmutableList.of(row(-1));
     sql(
         "ALTER TABLE %s SET TBLPROPERTIES ('%s' = 'true')",
         tableName, TableProperties.WRITE_AUDIT_PUBLISH_ENABLED);
@@ -2478,6 +2479,10 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
               "Should have expected rows when reading WAP branch",
               expectedRows,
               sql("SELECT * FROM %s.branch_wap ORDER BY id", tableName));
+          assertEquals(
+              "Should not modify main branch",
+              originalRows,
+              sql("SELECT * FROM %s.branch_main ORDER BY id", tableName));
         });
 
     spark.range(3, 6).coalesce(1).createOrReplaceTempView("source2");
@@ -2499,6 +2504,10 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
               "Should have expected rows when reading WAP branch with multiple writes",
               expectedRows2,
               sql("SELECT * FROM %s.branch_wap ORDER BY id", tableName));
+          assertEquals(
+              "Should not modify main branch with multiple writes",
+              originalRows,
+              sql("SELECT * FROM %s.branch_main ORDER BY id", tableName));
         });
   }
 
