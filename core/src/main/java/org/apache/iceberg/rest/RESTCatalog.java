@@ -40,8 +40,7 @@ import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.hadoop.Configurable;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
-public class RESTCatalog
-    implements Catalog, SupportsNamespaces, Configurable<Configuration>, Closeable {
+public class RESTCatalog implements Catalog, SupportsNamespaces, Configurable<Object>, Closeable {
   private final RESTSessionCatalog sessionCatalog;
   private final Catalog delegate;
   private final SupportsNamespaces nsDelegate;
@@ -49,7 +48,7 @@ public class RESTCatalog
   public RESTCatalog() {
     this(
         SessionCatalog.SessionContext.createEmpty(),
-        config -> HTTPClient.builder().uri(config.get(CatalogProperties.URI)).build());
+        config -> HTTPClient.builder(config).uri(config.get(CatalogProperties.URI)).build());
   }
 
   public RESTCatalog(Function<Map<String, String>, RESTClient> clientBuilder) {
@@ -242,8 +241,14 @@ public class RESTCatalog
   }
 
   @Override
-  public void setConf(Configuration conf) {
+  public void setConf(Object conf) {
     sessionCatalog.setConf(conf);
+  }
+
+  /** @deprecated will be removed in 1.3.0; use {@link #setConf(Object)} */
+  @Deprecated
+  public void setConf(Configuration conf) {
+    setConf((Object) conf);
   }
 
   @Override

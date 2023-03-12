@@ -73,6 +73,7 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
   private static final Logger LOG = LoggerFactory.getLogger(BaseReader.class);
 
   private final Table table;
+  private final Schema tableSchema;
   private final Schema expectedSchema;
   private final boolean caseSensitive;
   private final NameMapping nameMapping;
@@ -86,11 +87,16 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
   private TaskT currentTask = null;
 
   BaseReader(
-      Table table, ScanTaskGroup<TaskT> taskGroup, Schema expectedSchema, boolean caseSensitive) {
+      Table table,
+      ScanTaskGroup<TaskT> taskGroup,
+      Schema tableSchema,
+      Schema expectedSchema,
+      boolean caseSensitive) {
     this.table = table;
     this.taskGroup = taskGroup;
     this.tasks = taskGroup.tasks().iterator();
     this.currentIterator = CloseableIterator.empty();
+    this.tableSchema = tableSchema;
     this.expectedSchema = expectedSchema;
     this.caseSensitive = caseSensitive;
     String nameMappingString = table.properties().get(TableProperties.DEFAULT_NAME_MAPPING);
@@ -252,7 +258,7 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
     private final InternalRowWrapper asStructLike;
 
     SparkDeleteFilter(String filePath, List<DeleteFile> deletes, DeleteCounter counter) {
-      super(filePath, deletes, table.schema(), expectedSchema, counter);
+      super(filePath, deletes, tableSchema, expectedSchema, counter);
       this.asStructLike = new InternalRowWrapper(SparkSchemaUtil.convert(requiredSchema()));
     }
 

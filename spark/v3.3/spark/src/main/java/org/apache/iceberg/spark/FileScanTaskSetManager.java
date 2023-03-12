@@ -30,6 +30,8 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.Pair;
 
+/** @deprecated will be removed in 1.3.0, use {@link ScanTaskSetManager} instead */
+@Deprecated
 public class FileScanTaskSetManager {
 
   private static final FileScanTaskSetManager INSTANCE = new FileScanTaskSetManager();

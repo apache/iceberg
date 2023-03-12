@@ -457,6 +457,8 @@ project(':iceberg-aws') {
       exclude group: 'com.google.code.gson', module: 'gson'
     }
 
+    compileOnly 'org.apache.httpcomponents.client5:httpclient5'
+
     testImplementation 'software.amazon.awssdk:iam'
     testImplementation 'software.amazon.awssdk:s3control'
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
@@ -469,6 +471,9 @@ project(':iceberg-aws') {
     testImplementation "org.xerial:sqlite-jdbc"
     testImplementation "org.testcontainers:testcontainers"
     testImplementation "org.apache.httpcomponents.client5:httpclient5"
+    testImplementation 'org.mock-server:mockserver-netty'
+    testImplementation 'org.mock-server:mockserver-client-java'
+    testImplementation 'javax.xml.bind:jaxb-api'
     testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
   }
 
@@ -787,13 +792,13 @@ project(':iceberg-nessie') {
     implementation project(':iceberg-common')
     implementation project(':iceberg-core')
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
-    implementation "org.projectnessie:nessie-client"
+    implementation "org.projectnessie.nessie:nessie-client"
     implementation "com.fasterxml.jackson.core:jackson-databind"
     implementation "com.fasterxml.jackson.core:jackson-core"
 
-    testImplementation "org.projectnessie:nessie-jaxrs-testextension"
-    testImplementation "org.projectnessie:nessie-versioned-persist-in-memory"
-    testImplementation "org.projectnessie:nessie-versioned-persist-in-memory-test"
+    testImplementation "org.projectnessie.nessie:nessie-jaxrs-testextension"
+    testImplementation "org.projectnessie.nessie:nessie-versioned-persist-in-memory"
+    testImplementation "org.projectnessie.nessie:nessie-versioned-persist-in-memory-test"
     // Need to "pull in" el-api explicitly :(
     testImplementation "jakarta.el:jakarta.el-api"
 
