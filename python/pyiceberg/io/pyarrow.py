@@ -124,10 +124,8 @@ if TYPE_CHECKING:
 ONE_MEGABYTE = 1024 * 1024
 BUFFER_SIZE = "buffer-size"
 ICEBERG_SCHEMA = b"iceberg.schema"
-PARQUET_FIELD_ID = b"PARQUET:field_id"
-PARQUET_DOC = b"PARQUET:doc"
-PYTHON_FIELD_ID = b"field_id"
-PYTHON_DOC = b"doc"
+FIELD_ID = "field_id"
+FIELD_DOC = "doc"
 
 T = TypeVar("T")
 
@@ -366,7 +364,7 @@ class _ConvertToArrowSchema(SchemaVisitorPerPrimitiveType[pa.DataType], Singleto
             name=field.name,
             type=field_result,
             nullable=field.optional,
-            metadata={PYTHON_DOC.decode(): field.doc, PYTHON_FIELD_ID.decode(): str(field.field_id)} if field.doc else {PYTHON_FIELD_ID.decode(): str(field.field_id)},
+            metadata={FIELD_DOC: field.doc, FIELD_ID: str(field.field_id)} if field.doc else {FIELD_ID: str(field.field_id)},
         )
 
     def list(self, list_type: ListType, element_result: pa.DataType) -> pa.DataType:
@@ -613,11 +611,11 @@ def _get_field_id_and_doc(field: pa.Field) -> Tuple[Optional[int], Optional[str]
     field_id = None
     doc = None
 
-    if field_id_binary := field.metadata.get(PARQUET_FIELD_ID, field.metadata.get(PYTHON_FIELD_ID)):
-        field_id = int(field_id_binary.decode())
-
-    if doc_binary := field.metadata.get(PARQUET_DOC, field.metadata.get(PYTHON_DOC)):
-        doc = doc_binary.decode()
+    for key, value in field.metadata.items():
+        if key.decode().endswith(FIELD_ID) and field_id is None:
+            field_id = int(value.decode())
+        elif key.decode().endswith(FIELD_DOC) and doc is None:
+            doc = value.decode()
 
     return field_id, doc
 
