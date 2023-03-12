@@ -2471,11 +2471,11 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                   + "WHEN NOT MATCHED THEN INSERT *",
               tableName);
           assertEquals(
-              "Should have expected num of rows when reading table",
+              "Should have expected rows when reading table",
               expectedRows,
               sql("SELECT * FROM %s ORDER BY id", tableName));
           assertEquals(
-              "Should have expected num of rows when reading WAP branch",
+              "Should have expected rows when reading WAP branch",
               expectedRows,
               sql("SELECT * FROM %s.branch_wap ORDER BY id", tableName));
         });
@@ -2492,11 +2492,11 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                   + "WHEN NOT MATCHED THEN INSERT *",
               tableName);
           assertEquals(
-              "Should have expected num of rows when reading table with multiple writes",
+              "Should have expected rows when reading table with multiple writes",
               expectedRows2,
               sql("SELECT * FROM %s ORDER BY id", tableName));
           assertEquals(
-              "Should have expected num of rows when reading WAP branch with multiple writes",
+              "Should have expected rows when reading WAP branch with multiple writes",
               expectedRows2,
               sql("SELECT * FROM %s.branch_wap ORDER BY id", tableName));
         });
