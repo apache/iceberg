@@ -354,10 +354,10 @@ public class OAuth2Util {
     private static int tokenRefreshNumRetries = 5;
     private static final long MAX_REFRESH_WINDOW_MILLIS = 300_000; // 5 minutes
     private static final long MIN_REFRESH_WAIT_MILLIS = 10;
-    private Map<String, String> headers;
-    private String token;
-    private String tokenType;
-    private Long expiresAtMillis;
+    private volatile Map<String, String> headers;
+    private volatile String token;
+    private volatile String tokenType;
+    private volatile Long expiresAtMillis;
     private final String credential;
     private final String scope;
     private volatile boolean keepRefreshed = true;
@@ -566,7 +566,7 @@ public class OAuth2Util {
         expiresAtMillis = defaultExpiresAtMillis;
       }
 
-      if (null != expiresAtMillis) {
+      if (null != executor && null != expiresAtMillis) {
         scheduleTokenRefresh(client, executor, session, expiresAtMillis);
       }
 
@@ -614,7 +614,7 @@ public class OAuth2Util {
         expiresAtMillis = startTimeMillis + TimeUnit.SECONDS.toMillis(response.expiresInSeconds());
       }
 
-      if (null != expiresAtMillis) {
+      if (null != executor && null != expiresAtMillis) {
         scheduleTokenRefresh(client, executor, session, expiresAtMillis);
       }
 

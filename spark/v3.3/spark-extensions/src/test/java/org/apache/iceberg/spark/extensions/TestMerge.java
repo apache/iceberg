@@ -39,6 +39,7 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DistributionMode;
@@ -52,6 +53,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
+import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.SparkException;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.Dataset;
@@ -75,8 +77,9 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
       Map<String, String> config,
       String fileFormat,
       boolean vectorized,
-      String distributionMode) {
-    super(catalogName, implementation, config, fileFormat, vectorized, distributionMode);
+      String distributionMode,
+      String branch) {
+    super(catalogName, implementation, config, fileFormat, vectorized, distributionMode, branch);
   }
 
   @BeforeClass
@@ -113,7 +116,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                 + "  UPDATE SET salary = s.salary "
                 + "WHEN NOT MATCHED THEN "
                 + "  INSERT *",
-            tableName);
+            commitTarget());
 
     Table table = validationCatalog.loadTable(tableIdent);
 
@@ -136,7 +139,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
             row(2, 200, "d2", "sd2"), // new
             row(3, 300, "d3", "sd3"), // new
             row(6, 600, "d6", "sd6")), // existing
-        sql("SELECT * FROM %s ORDER BY id", tableName));
+        sql("SELECT * FROM %s ORDER BY id", selectTarget()));
   }
 
   @Test
@@ -147,13 +150,14 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
 
     // add a data file to the 'software' partition
     append(tableName, "{ \"id\": 1, \"dep\": \"software\" }");
+    createBranchIfNeeded();
 
     // add a data file to the 'hr' partition
-    append(tableName, "{ \"id\": 1, \"dep\": \"hr\" }");
+    append(commitTarget(), "{ \"id\": 1, \"dep\": \"hr\" }");
 
     Table table = validationCatalog.loadTable(tableIdent);
 
-    Snapshot snapshot = table.currentSnapshot();
+    Snapshot snapshot = SnapshotUtil.latestSnapshot(table, branch);
     String dataFilesCount = snapshot.summary().get(SnapshotSummary.TOTAL_DATA_FILES_PROP);
     Assert.assertEquals("Must have 2 files before MERGE", "2", dataFilesCount);
 
@@ -175,7 +179,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                         + "  UPDATE SET dep = source.dep "
                         + "WHEN NOT MATCHED THEN "
                         + "  INSERT (dep, id) VALUES (source.dep, source.id)",
-                    tableName);
+                    commitTarget());
               });
         });
 
@@ -186,11 +190,14 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
             row(2L, "hardware") // new
             );
     assertEquals(
-        "Output should match", expectedRows, sql("SELECT * FROM %s ORDER BY id, dep", tableName));
+        "Output should match",
+        expectedRows,
+        sql("SELECT * FROM %s ORDER BY id, dep", selectTarget()));
   }
 
   @Test
   public void testMergeIntoEmptyTargetInsertAllNonMatchingRows() {
+    Assume.assumeFalse("Custom branch does not exist for empty table", "test".equals(branch));
     createAndInitTable("id INT, dep STRING");
 
     createOrReplaceView(
@@ -214,11 +221,14 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
             row(3, "emp-id-3") // new
             );
     assertEquals(
-        "Should have expected rows", expectedRows, sql("SELECT * FROM %s ORDER BY id", tableName));
+        "Should have expected rows",
+        expectedRows,
+        sql("SELECT * FROM %s ORDER BY id", selectTarget()));
   }
 
   @Test
   public void testMergeIntoEmptyTargetInsertOnlyMatchingRows() {
+    Assume.assumeFalse("Custom branch does not exist for empty table", "test".equals(branch));
     createAndInitTable("id INT, dep STRING");
 
     createOrReplaceView(
@@ -241,7 +251,9 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
             row(3, "emp-id-3") // new
             );
     assertEquals(
-        "Should have expected rows", expectedRows, sql("SELECT * FROM %s ORDER BY id", tableName));
+        "Should have expected rows",
+        expectedRows,
+        sql("SELECT * FROM %s ORDER BY id", selectTarget()));
   }
 
   @Test
@@ -262,7 +274,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
             + "ON t.id == s.id "
             + "WHEN MATCHED AND t.id = 1 THEN "
             + "  UPDATE SET *",
-        tableName);
+        commitTarget());
 
     ImmutableList<Object[]> expectedRows =
         ImmutableList.of(
@@ -270,7 +282,9 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
             row(6, "emp-id-six") // kept
             );
     assertEquals(
-        "Should have expected rows", expectedRows, sql("SELECT * FROM %s ORDER BY id", tableName));
+        "Should have expected rows",
+        expectedRows,
+        sql("SELECT * FROM %s ORDER BY id", selectTarget()));
   }
 
   @Test
@@ -293,7 +307,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
             + "ON t.id == s.id AND t.id < 3 "
             + "WHEN MATCHED THEN "
             + "  UPDATE SET *",
-        tableName);
+        commitTarget());
 
     ImmutableList<Object[]> expectedRows =
         ImmutableList.of(
@@ -301,7 +315,9 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
             row(1, "emp-id-1"), // updated
             row(6, "emp-id-six")); // kept
     assertEquals(
-        "Should have expected rows", expectedRows, sql("SELECT * FROM %s ORDER BY id", tableName));
+        "Should have expected rows",
+        expectedRows,
+        sql("SELECT * FROM %s ORDER BY id", selectTarget()));
   }
 
   @Test
@@ -322,14 +338,16 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
             + "ON t.id == s.id "
             + "WHEN MATCHED AND t.id = 6 THEN "
             + "  DELETE",
-        tableName);
+        commitTarget());
 
     ImmutableList<Object[]> expectedRows =
         ImmutableList.of(
             row(1, "emp-id-one") // kept
             );
     assertEquals(
-        "Should have expected rows", expectedRows, sql("SELECT * FROM %s ORDER BY id", tableName));
+        "Should have expected rows",
+        expectedRows,
+        sql("SELECT * FROM %s ORDER BY id", selectTarget()));
   }
 
   @Test
@@ -354,7 +372,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
             + "  DELETE "
             + "WHEN NOT MATCHED AND s.id = 2 THEN "
             + "  INSERT *",
-        tableName);
+        commitTarget());
 
     ImmutableList<Object[]> expectedRows =
         ImmutableList.of(
@@ -362,7 +380,9 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
             row(2, "emp-id-2") // new
             );
     assertEquals(
-        "Should have expected rows", expectedRows, sql("SELECT * FROM %s ORDER BY id", tableName));
+        "Should have expected rows",
+        expectedRows,
+        sql("SELECT * FROM %s ORDER BY id", selectTarget()));
   }
 
   @Test
@@ -387,7 +407,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
             + "  DELETE "
             + "WHEN NOT MATCHED AND s.id = 2 THEN "
             + "  INSERT (t.id, t.dep) VALUES (s.id, s.dep)",
-        tableName);
+        commitTarget());
 
     ImmutableList<Object[]> expectedRows =
         ImmutableList.of(
@@ -395,7 +415,9 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
             row(2, "emp-id-2") // new
             );
     assertEquals(
-        "Should have expected rows", expectedRows, sql("SELECT * FROM %s ORDER BY id", tableName));
+        "Should have expected rows",
+        expectedRows,
+        sql("SELECT * FROM %s ORDER BY id", selectTarget()));
   }
 
   @Test
@@ -421,7 +443,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
             + "  DELETE "
             + "WHEN NOT MATCHED AND s.id = 3 THEN "
             + "  INSERT *",
-        tableName);
+        commitTarget());
 
     ImmutableList<Object[]> expectedRows =
         ImmutableList.of(
@@ -429,7 +451,9 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
             row(3, "emp-id-3") // new
             );
     assertEquals(
-        "Should have expected rows", expectedRows, sql("SELECT * FROM %s ORDER BY id", tableName));
+        "Should have expected rows",
+        expectedRows,
+        sql("SELECT * FROM %s ORDER BY id", selectTarget()));
   }
 
   @Test
@@ -459,7 +483,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
             + "  DELETE "
             + "WHEN NOT MATCHED AND s.id = 2 THEN "
             + "  INSERT *",
-        tableName, derivedSource);
+        commitTarget(), derivedSource);
 
     ImmutableList<Object[]> expectedRows =
         ImmutableList.of(
@@ -467,7 +491,9 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
             row(2, "emp-id-2") // new
             );
     assertEquals(
-        "Should have expected rows", expectedRows, sql("SELECT * FROM %s ORDER BY id", tableName));
+        "Should have expected rows",
+        expectedRows,
+        sql("SELECT * FROM %s ORDER BY id", selectTarget()));
   }
 
   @Test
@@ -498,13 +524,13 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                   + "  DELETE "
                   + "WHEN NOT MATCHED AND s.value = 2 THEN "
                   + "  INSERT (id, dep) VALUES (s.value, null)",
-              tableName);
+              commitTarget());
         });
 
     assertEquals(
         "Target should be unchanged",
         ImmutableList.of(row(1, "emp-id-one"), row(6, "emp-id-6")),
-        sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableName));
+        sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", selectTarget()));
   }
 
   @Test
@@ -540,14 +566,14 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                         + "  DELETE "
                         + "WHEN NOT MATCHED AND s.value = 2 THEN "
                         + "  INSERT (id, dep) VALUES (s.value, null)",
-                    tableName);
+                    commitTarget());
               });
         });
 
     assertEquals(
         "Target should be unchanged",
         ImmutableList.of(row(1, "emp-id-one"), row(6, "emp-id-6")),
-        sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableName));
+        sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", selectTarget()));
   }
 
   @Test
@@ -580,14 +606,14 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                         + "  DELETE "
                         + "WHEN NOT MATCHED AND s.value = 2 THEN "
                         + "  INSERT (id, dep) VALUES (s.value, null)",
-                    tableName);
+                    commitTarget());
               });
         });
 
     assertEquals(
         "Target should be unchanged",
         ImmutableList.of(row(1, "emp-id-one")),
-        sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableName));
+        sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", selectTarget()));
   }
 
   @Test
@@ -616,13 +642,13 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                   + "  UPDATE SET id = 10 "
                   + "WHEN MATCHED AND t.id = 6 THEN "
                   + "  DELETE",
-              tableName);
+              commitTarget());
         });
 
     assertEquals(
         "Target should be unchanged",
         ImmutableList.of(row(1, "emp-id-one"), row(6, "emp-id-6")),
-        sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableName));
+        sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", selectTarget()));
   }
 
   @Test
@@ -650,13 +676,13 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                   + "  UPDATE SET id = 10 "
                   + "WHEN MATCHED AND t.id = 6 THEN "
                   + "  DELETE",
-              tableName);
+              commitTarget());
         });
 
     assertEquals(
         "Target should be unchanged",
         ImmutableList.of(row(1, "emp-id-one")),
-        sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableName));
+        sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", selectTarget()));
   }
 
   @Test
@@ -688,13 +714,13 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                   + "  DELETE "
                   + "WHEN NOT MATCHED AND s.id = 2 THEN "
                   + "  INSERT *",
-              tableName);
+              commitTarget());
         });
 
     assertEquals(
         "Target should be unchanged",
         ImmutableList.of(row(1, "emp-id-one"), row(6, "emp-id-6")),
-        sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableName));
+        sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", selectTarget()));
   }
 
   @Test
@@ -718,14 +744,16 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
             + "  DELETE "
             + "WHEN NOT MATCHED AND s.id = 2 THEN "
             + "  INSERT *",
-        tableName);
+        commitTarget());
 
     ImmutableList<Object[]> expectedRows =
         ImmutableList.of(
             row(2, "emp-id-2") // new
             );
     assertEquals(
-        "Should have expected rows", expectedRows, sql("SELECT * FROM %s ORDER BY id", tableName));
+        "Should have expected rows",
+        expectedRows,
+        sql("SELECT * FROM %s ORDER BY id", selectTarget()));
   }
 
   @Test
@@ -755,13 +783,13 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                   + "  DELETE "
                   + "WHEN NOT MATCHED AND s.id = 2 THEN "
                   + "  INSERT *",
-              tableName);
+              commitTarget());
         });
 
     assertEquals(
         "Target should be unchanged",
         ImmutableList.of(row(1, "emp-id-one"), row(6, "emp-id-6")),
-        sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableName));
+        sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", selectTarget()));
   }
 
   @Test
@@ -776,6 +804,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
       append(
           tableName,
           "{ \"id\": 1, \"dep\": \"emp-id-one\" }\n" + "{ \"id\": 6, \"dep\": \"emp-id-6\" }");
+      createBranchIfNeeded();
 
       createOrReplaceView(
           "source",
@@ -793,7 +822,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
               + "  DELETE "
               + "WHEN NOT MATCHED AND s.id = 2 THEN "
               + "  INSERT *",
-          tableName);
+          commitTarget());
 
       ImmutableList<Object[]> expectedRows =
           ImmutableList.of(
@@ -803,7 +832,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
       assertEquals(
           "Should have expected rows",
           expectedRows,
-          sql("SELECT * FROM %s ORDER BY id", tableName));
+          sql("SELECT * FROM %s ORDER BY id", selectTarget()));
 
       removeTables();
     }
@@ -823,6 +852,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
           "id INT, ts TIMESTAMP",
           "{ \"id\": 1, \"ts\": \"2000-01-01 00:00:00\" }\n"
               + "{ \"id\": 6, \"ts\": \"2000-01-06 00:00:00\" }");
+      createBranchIfNeeded();
 
       createOrReplaceView(
           "source",
@@ -840,7 +870,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
               + "  DELETE "
               + "WHEN NOT MATCHED AND s.id = 2 THEN "
               + "  INSERT *",
-          tableName);
+          commitTarget());
 
       ImmutableList<Object[]> expectedRows =
           ImmutableList.of(
@@ -850,7 +880,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
       assertEquals(
           "Should have expected rows",
           expectedRows,
-          sql("SELECT id, CAST(ts AS STRING) FROM %s ORDER BY id", tableName));
+          sql("SELECT id, CAST(ts AS STRING) FROM %s ORDER BY id", selectTarget()));
 
       removeTables();
     }
@@ -868,6 +898,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
       append(
           tableName,
           "{ \"id\": 1, \"dep\": \"emp-id-one\" }\n" + "{ \"id\": 6, \"dep\": \"emp-id-6\" }");
+      createBranchIfNeeded();
 
       createOrReplaceView(
           "source",
@@ -885,7 +916,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
               + "  DELETE "
               + "WHEN NOT MATCHED AND s.id = 2 THEN "
               + "  INSERT *",
-          tableName);
+          commitTarget());
 
       ImmutableList<Object[]> expectedRows =
           ImmutableList.of(
@@ -895,7 +926,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
       assertEquals(
           "Should have expected rows",
           expectedRows,
-          sql("SELECT * FROM %s ORDER BY id", tableName));
+          sql("SELECT * FROM %s ORDER BY id", selectTarget()));
 
       removeTables();
     }
@@ -913,6 +944,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
       append(
           tableName,
           "{ \"id\": 1, \"dep\": \"emp-id-one\" }\n" + "{ \"id\": 6, \"dep\": \"emp-id-6\" }");
+      createBranchIfNeeded();
 
       createOrReplaceView(
           "source",
@@ -930,7 +962,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
               + "  DELETE "
               + "WHEN NOT MATCHED AND s.id = 2 THEN "
               + "  INSERT *",
-          tableName);
+          commitTarget());
 
       ImmutableList<Object[]> expectedRows =
           ImmutableList.of(
@@ -940,7 +972,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
       assertEquals(
           "Should have expected rows",
           expectedRows,
-          sql("SELECT * FROM %s ORDER BY id", tableName));
+          sql("SELECT * FROM %s ORDER BY id", selectTarget()));
 
       removeTables();
     }
@@ -959,6 +991,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
       append(
           tableName,
           "{ \"id\": 1, \"dep\": \"emp-id-one\" }\n" + "{ \"id\": 6, \"dep\": \"emp-id-6\" }");
+      createBranchIfNeeded();
 
       createOrReplaceView(
           "source",
@@ -976,7 +1009,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
               + "  DELETE "
               + "WHEN NOT MATCHED AND s.id = 2 THEN "
               + "  INSERT *",
-          tableName);
+          commitTarget());
 
       ImmutableList<Object[]> expectedRows =
           ImmutableList.of(
@@ -986,7 +1019,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
       assertEquals(
           "Should have expected rows",
           expectedRows,
-          sql("SELECT * FROM %s ORDER BY id", tableName));
+          sql("SELECT * FROM %s ORDER BY id", selectTarget()));
 
       removeTables();
     }
@@ -1004,7 +1037,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
             + "  UPDATE SET v = 'x' "
             + "WHEN NOT MATCHED THEN "
             + "  INSERT *",
-        tableName, tableName);
+        commitTarget(), commitTarget());
 
     ImmutableList<Object[]> expectedRows =
         ImmutableList.of(
@@ -1012,7 +1045,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
             row(2, "v2") // kept
             );
     assertEquals(
-        "Output should match", expectedRows, sql("SELECT * FROM %s ORDER BY id", tableName));
+        "Output should match", expectedRows, sql("SELECT * FROM %s ORDER BY id", selectTarget()));
   }
 
   @Test
@@ -1029,7 +1062,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
             + "  UPDATE SET v = 'x' "
             + "WHEN NOT MATCHED THEN "
             + "  INSERT *",
-        tableName, tableName);
+        commitTarget(), commitTarget());
 
     ImmutableList<Object[]> expectedRows =
         ImmutableList.of(
@@ -1037,7 +1070,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
             row(2, "v2") // kept
             );
     assertEquals(
-        "Output should match", expectedRows, sql("SELECT * FROM %s ORDER BY id", tableName));
+        "Output should match", expectedRows, sql("SELECT * FROM %s ORDER BY id", commitTarget()));
   }
 
   @Test
@@ -1054,7 +1087,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
             + "  UPDATE SET v = 'x' "
             + "WHEN NOT MATCHED THEN "
             + "  INSERT (v, id) VALUES ('invalid', -1) ",
-        tableName, tableName);
+        commitTarget(), commitTarget());
 
     ImmutableList<Object[]> expectedRows =
         ImmutableList.of(
@@ -1062,7 +1095,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
             row(2, "v2") // kept
             );
     assertEquals(
-        "Output should match", expectedRows, sql("SELECT * FROM %s ORDER BY id", tableName));
+        "Output should match", expectedRows, sql("SELECT * FROM %s ORDER BY id", selectTarget()));
   }
 
   @Test
@@ -1078,6 +1111,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         tableName, MERGE_ISOLATION_LEVEL, "serializable");
 
     sql("INSERT INTO TABLE %s VALUES (1, 'hr')", tableName);
+    createBranchIfNeeded();
 
     ExecutorService executorService =
         MoreExecutors.getExitingExecutorService(
@@ -1100,7 +1134,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                         + "ON t.id == s.value "
                         + "WHEN MATCHED THEN "
                         + "  UPDATE SET dep = 'x'",
-                    tableName);
+                    commitTarget());
 
                 barrier.incrementAndGet();
               }
@@ -1128,7 +1162,11 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
 
                 for (int numAppends = 0; numAppends < 5; numAppends++) {
                   DataFile dataFile = writeDataFile(table, ImmutableList.of(record));
-                  table.newFastAppend().appendFile(dataFile).commit();
+                  AppendFiles appendFiles = table.newFastAppend().appendFile(dataFile);
+                  if (branch != null) {
+                    appendFiles.toBranch(branch);
+                  }
+                  appendFiles.commit();
                   sleep(10);
                 }
 
@@ -1167,6 +1205,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         tableName, MERGE_ISOLATION_LEVEL, "snapshot");
 
     sql("INSERT INTO TABLE %s VALUES (1, 'hr')", tableName);
+    createBranchIfNeeded();
 
     ExecutorService executorService =
         MoreExecutors.getExitingExecutorService(
@@ -1189,7 +1228,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                         + "ON t.id == s.value "
                         + "WHEN MATCHED THEN "
                         + "  UPDATE SET dep = 'x'",
-                    tableName);
+                    commitTarget());
 
                 barrier.incrementAndGet();
               }
@@ -1217,7 +1256,12 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
 
                 for (int numAppends = 0; numAppends < 5; numAppends++) {
                   DataFile dataFile = writeDataFile(table, ImmutableList.of(record));
-                  table.newFastAppend().appendFile(dataFile).commit();
+                  AppendFiles appendFiles = table.newFastAppend().appendFile(dataFile);
+                  if (branch != null) {
+                    appendFiles.toBranch(branch);
+                  }
+
+                  appendFiles.commit();
                   sleep(10);
                 }
 
@@ -1253,7 +1297,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
             + "  UPDATE SET v = source.v "
             + "WHEN NOT MATCHED THEN "
             + "  INSERT (v, id) VALUES (source.v, source.id)",
-        tableName);
+        commitTarget());
 
     ImmutableList<Object[]> expectedRows =
         ImmutableList.of(
@@ -1263,7 +1307,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
             row(4, "v4") // new
             );
     assertEquals(
-        "Output should match", expectedRows, sql("SELECT * FROM %s ORDER BY id", tableName));
+        "Output should match", expectedRows, sql("SELECT * FROM %s ORDER BY id", selectTarget()));
   }
 
   @Test
@@ -1281,7 +1325,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
             + "  UPDATE SET v = source.v "
             + "WHEN NOT MATCHED THEN "
             + "  INSERT (v, id) VALUES (source.v, source.id)",
-        tableName);
+        commitTarget());
 
     ImmutableList<Object[]> expectedRows =
         ImmutableList.of(
@@ -1291,7 +1335,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
             row(4, "v4") // new
             );
     assertEquals(
-        "Output should match", expectedRows, sql("SELECT * FROM %s ORDER BY v", tableName));
+        "Output should match", expectedRows, sql("SELECT * FROM %s ORDER BY v", selectTarget()));
   }
 
   @Test
@@ -1309,7 +1353,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
             + "  UPDATE SET v = source.v "
             + "WHEN NOT MATCHED THEN "
             + "  INSERT (v, id) VALUES (source.v, source.id)",
-        tableName);
+        commitTarget());
 
     ImmutableList<Object[]> expectedRows =
         ImmutableList.of(
@@ -1318,7 +1362,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
             row(4, "v4") // new
             );
     assertEquals(
-        "Output should match", expectedRows, sql("SELECT * FROM %s ORDER BY v", tableName));
+        "Output should match", expectedRows, sql("SELECT * FROM %s ORDER BY v", selectTarget()));
   }
 
   @Test
@@ -1336,7 +1380,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
             + "  UPDATE SET v = source.v "
             + "WHEN NOT MATCHED THEN "
             + "  INSERT (v, id) VALUES (source.v, source.id)",
-        tableName);
+        commitTarget());
 
     ImmutableList<Object[]> expectedRows =
         ImmutableList.of(
@@ -1346,7 +1390,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
             row(2, "v2_2") // new
             );
     assertEquals(
-        "Output should match", expectedRows, sql("SELECT * FROM %s ORDER BY v", tableName));
+        "Output should match", expectedRows, sql("SELECT * FROM %s ORDER BY v", selectTarget()));
   }
 
   @Test
@@ -1370,7 +1414,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
             + "  DELETE "
             + "WHEN NOT MATCHED AND source.id = 3 AND NULL THEN "
             + "  INSERT (v, id) VALUES (source.v, source.id)",
-        tableName);
+        commitTarget());
 
     ImmutableList<Object[]> expectedRows1 =
         ImmutableList.of(
@@ -1378,7 +1422,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
             row(2, "v2") // kept
             );
     assertEquals(
-        "Output should match", expectedRows1, sql("SELECT * FROM %s ORDER BY v", tableName));
+        "Output should match", expectedRows1, sql("SELECT * FROM %s ORDER BY v", selectTarget()));
 
     // only the update and insert conditions are NULL
     sql(
@@ -1390,14 +1434,14 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
             + "  DELETE "
             + "WHEN NOT MATCHED AND source.id = 3 AND NULL THEN "
             + "  INSERT (v, id) VALUES (source.v, source.id)",
-        tableName);
+        commitTarget());
 
     ImmutableList<Object[]> expectedRows2 =
         ImmutableList.of(
             row(2, "v2") // kept
             );
     assertEquals(
-        "Output should match", expectedRows2, sql("SELECT * FROM %s ORDER BY v", tableName));
+        "Output should match", expectedRows2, sql("SELECT * FROM %s ORDER BY v", selectTarget()));
   }
 
   @Test
@@ -1418,7 +1462,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
             + "  DELETE "
             + "WHEN NOT MATCHED THEN "
             + "  INSERT (v, id) VALUES (source.v, source.id)",
-        tableName);
+        commitTarget());
 
     ImmutableList<Object[]> expectedRows =
         ImmutableList.of(
@@ -1426,7 +1470,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
             row(2, "v2") // kept (matches neither the update nor the delete cond)
             );
     assertEquals(
-        "Output should match", expectedRows, sql("SELECT * FROM %s ORDER BY v", tableName));
+        "Output should match", expectedRows, sql("SELECT * FROM %s ORDER BY v", selectTarget()));
   }
 
   @Test
@@ -1453,8 +1497,9 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
             .withColumnRenamed("value", "id")
             .withColumn("dep", lit("hr"));
     df.coalesce(1).writeTo(tableName).append();
+    createBranchIfNeeded();
 
-    Assert.assertEquals(200, spark.table(tableName).count());
+    Assert.assertEquals(200, spark.table(commitTarget()).count());
 
     // update a record from one of two row groups and copy over the second one
     sql(
@@ -1462,9 +1507,9 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
             + "ON t.id == source.value "
             + "WHEN MATCHED THEN "
             + "  UPDATE SET dep = 'x'",
-        tableName);
+        commitTarget());
 
-    Assert.assertEquals(200, spark.table(tableName).count());
+    Assert.assertEquals(200, spark.table(commitTarget()).count());
   }
 
   @Test
@@ -1485,7 +1530,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
             + "ON t.id == source.id "
             + "WHEN NOT MATCHED THEN "
             + "  INSERT *",
-        tableName);
+        commitTarget());
 
     ImmutableList<Object[]> expectedRows =
         ImmutableList.of(
@@ -1496,7 +1541,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
             row("d", "v4_2") // new
             );
     assertEquals(
-        "Output should match", expectedRows, sql("SELECT * FROM %s ORDER BY id", tableName));
+        "Output should match", expectedRows, sql("SELECT * FROM %s ORDER BY id", selectTarget()));
   }
 
   @Test
@@ -1514,7 +1559,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
             + "ON t.id == s.id "
             + "WHEN NOT MATCHED AND is_new = TRUE THEN "
             + "  INSERT (v, id) VALUES (s.v + 100, s.id)",
-        tableName);
+        commitTarget());
 
     ImmutableList<Object[]> expectedRows =
         ImmutableList.of(
@@ -1522,7 +1567,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
             row(2, 121) // new
             );
     assertEquals(
-        "Output should match", expectedRows, sql("SELECT * FROM %s ORDER BY id", tableName));
+        "Output should match", expectedRows, sql("SELECT * FROM %s ORDER BY id", selectTarget()));
   }
 
   @Test
@@ -1540,12 +1585,12 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
             + "  UPDATE SET b = c2, a = c1, t.id = source.id "
             + "WHEN NOT MATCHED THEN "
             + "  INSERT (b, a, id) VALUES (c2, c1, id)",
-        tableName);
+        commitTarget());
 
     assertEquals(
         "Output should match",
         ImmutableList.of(row(1, -2, "new_str_1"), row(2, -20, "new_str_2")),
-        sql("SELECT * FROM %s ORDER BY id", tableName));
+        sql("SELECT * FROM %s ORDER BY id", selectTarget()));
   }
 
   @Test
@@ -1563,21 +1608,21 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
             + "  UPDATE SET B = c2, A = c1, t.Id = source.ID "
             + "WHEN NOT MATCHED THEN "
             + "  INSERT (b, A, iD) VALUES (c2, c1, id)",
-        tableName);
+        commitTarget());
 
     assertEquals(
         "Output should match",
         ImmutableList.of(row(1, -2, "new_str_1"), row(2, -20, "new_str_2")),
-        sql("SELECT * FROM %s ORDER BY id", tableName));
+        sql("SELECT * FROM %s ORDER BY id", selectTarget()));
 
     assertEquals(
         "Output should match",
         ImmutableList.of(row(1, -2, "new_str_1")),
-        sql("SELECT * FROM %s WHERE id = 1 ORDER BY id", tableName));
+        sql("SELECT * FROM %s WHERE id = 1 ORDER BY id", selectTarget()));
     assertEquals(
         "Output should match",
         ImmutableList.of(row(2, -20, "new_str_2")),
-        sql("SELECT * FROM %s WHERE b = 'new_str_2'ORDER BY id", tableName));
+        sql("SELECT * FROM %s WHERE b = 'new_str_2'ORDER BY id", selectTarget()));
   }
 
   @Test
@@ -1593,12 +1638,12 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
             + "ON t.id == source.id "
             + "WHEN MATCHED THEN "
             + "  UPDATE SET t.s.c1 = source.c1, t.s.c2.a = array(-1, -2), t.s.c2.m = map('k', 'v')",
-        tableName);
+        commitTarget());
 
     assertEquals(
         "Output should match",
         ImmutableList.of(row(1, row(-2, row(ImmutableList.of(-1, -2), ImmutableMap.of("k", "v"))))),
-        sql("SELECT * FROM %s ORDER BY id", tableName));
+        sql("SELECT * FROM %s ORDER BY id", selectTarget()));
 
     // set primitive, array, map columns to NULL (proper casts should be in place)
     sql(
@@ -1606,12 +1651,12 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
             + "ON t.id == source.id "
             + "WHEN MATCHED THEN "
             + "  UPDATE SET t.s.c1 = NULL, t.s.c2 = NULL",
-        tableName);
+        commitTarget());
 
     assertEquals(
         "Output should match",
         ImmutableList.of(row(1, row(null, null))),
-        sql("SELECT * FROM %s ORDER BY id", tableName));
+        sql("SELECT * FROM %s ORDER BY id", selectTarget()));
 
     // update all fields in a struct
     sql(
@@ -1619,12 +1664,12 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
             + "ON t.id == source.id "
             + "WHEN MATCHED THEN "
             + "  UPDATE SET t.s = named_struct('c1', 100, 'c2', named_struct('a', array(1), 'm', map('x', 'y')))",
-        tableName);
+        commitTarget());
 
     assertEquals(
         "Output should match",
         ImmutableList.of(row(1, row(100, row(ImmutableList.of(1), ImmutableMap.of("x", "y"))))),
-        sql("SELECT * FROM %s ORDER BY id", tableName));
+        sql("SELECT * FROM %s ORDER BY id", selectTarget()));
   }
 
   @Test
@@ -1638,12 +1683,12 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
             + "ON t.id == source.id "
             + "WHEN MATCHED THEN "
             + "  UPDATE SET t.s = source.c1",
-        tableName);
+        commitTarget());
 
     assertEquals(
         "Output should match",
         ImmutableList.of(row(1, "-2")),
-        sql("SELECT * FROM %s ORDER BY id", tableName));
+        sql("SELECT * FROM %s ORDER BY id", selectTarget()));
   }
 
   @Test
@@ -1656,12 +1701,12 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
             + "ON t.id == s.id "
             + "WHEN MATCHED THEN "
             + "  UPDATE SET t.s.n1 = s.n1",
-        tableName);
+        commitTarget());
 
     assertEquals(
         "Output should match",
         ImmutableList.of(row(1, row(-10, null))),
-        sql("SELECT * FROM %s", tableName));
+        sql("SELECT * FROM %s", selectTarget()));
   }
 
   @Test
@@ -1669,7 +1714,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
     createAndInitTable("id INT, name STRING", "{ \"id\": 1, \"name\": \"n1\" }");
     createOrReplaceView("source", "{ \"id\": 1, \"name\": \"n2\" }");
 
-    Dataset<Row> query = spark.sql("SELECT name FROM " + tableName);
+    Dataset<Row> query = spark.sql("SELECT name FROM " + commitTarget());
     query.createOrReplaceTempView("tmp");
 
     spark.sql("CACHE TABLE tmp");
@@ -1682,7 +1727,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
             + "ON t.id == s.id "
             + "WHEN MATCHED THEN "
             + "  UPDATE SET t.name = s.name",
-        tableName);
+        commitTarget());
 
     assertEquals(
         "View should have correct data", ImmutableList.of(row("n2")), sql("SELECT * FROM tmp"));
@@ -1708,7 +1753,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
             + "  INSERT (dep, id) VALUES (s.dep, -1)"
             + "WHEN NOT MATCHED THEN "
             + "  INSERT *",
-        tableName);
+        commitTarget());
 
     ImmutableList<Object[]> expectedRows =
         ImmutableList.of(
@@ -1718,7 +1763,9 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
             row(3, "emp-id-3") // new
             );
     assertEquals(
-        "Should have expected rows", expectedRows, sql("SELECT * FROM %s ORDER BY id", tableName));
+        "Should have expected rows",
+        expectedRows,
+        sql("SELECT * FROM %s ORDER BY id", selectTarget()));
   }
 
   @Test
@@ -1739,7 +1786,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
             + "  INSERT (dep, id) VALUES (s.dep, -1)"
             + "WHEN NOT MATCHED AND s.id = 2 THEN "
             + "  INSERT *",
-        tableName);
+        commitTarget());
 
     ImmutableList<Object[]> expectedRows =
         ImmutableList.of(
@@ -1748,7 +1795,9 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
             row(2, "emp-id-2") // new
             );
     assertEquals(
-        "Should have expected rows", expectedRows, sql("SELECT * FROM %s ORDER BY id", tableName));
+        "Should have expected rows",
+        expectedRows,
+        sql("SELECT * FROM %s ORDER BY id", selectTarget()));
   }
 
   @Test
@@ -1772,7 +1821,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
             + "  UPDATE SET * "
             + "WHEN NOT MATCHED THEN "
             + "  INSERT * ",
-        tableName);
+        commitTarget());
 
     ImmutableList<Object[]> expectedRows =
         ImmutableList.of(
@@ -1783,7 +1832,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
     assertEquals(
         "Should have expected rows",
         expectedRows,
-        sql("SELECT id, badge, dep FROM %s ORDER BY id", tableName));
+        sql("SELECT id, badge, dep FROM %s ORDER BY id", selectTarget()));
   }
 
   @Test
@@ -1807,6 +1856,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
             + "WHEN NOT MATCHED THEN "
             + "  INSERT *",
         tableName);
+    createBranchIfNeeded();
 
     ImmutableList<Object[]> expectedRows =
         ImmutableList.of(
@@ -1815,7 +1865,9 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
             row(3, "emp-id-3") // new
             );
     assertEquals(
-        "Should have expected rows", expectedRows, sql("SELECT * FROM %s ORDER BY id", tableName));
+        "Should have expected rows",
+        expectedRows,
+        sql("SELECT * FROM %s ORDER BY id", selectTarget()));
   }
 
   @Test
@@ -1840,19 +1892,23 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
             + "  DELETE "
             + "WHEN NOT MATCHED AND s.id = 2 THEN "
             + "  INSERT *",
-        tableName);
+        commitTarget());
 
     ImmutableList<Object[]> expectedRows =
         ImmutableList.of(
             row(1, "emp-id-1"), // updated
             row(2, "emp-id-2")); // new
     assertEquals(
-        "Should have expected rows", expectedRows, sql("SELECT * FROM %s ORDER BY id", tableName));
+        "Should have expected rows",
+        expectedRows,
+        sql("SELECT * FROM %s ORDER BY id", selectTarget()));
   }
 
   @Test
   public void testMergeWithNonExistingColumns() {
-    createAndInitTable("id INT, c STRUCT<n1:INT,n2:STRUCT<dn1:INT,dn2:INT>>");
+    createAndInitTable(
+        "id INT, c STRUCT<n1:INT,n2:STRUCT<dn1:INT,dn2:INT>>",
+        "{ \"id\": 1, \"c\": { \"n1\": 2, \"n2\": { \"dn1\": 3, \"dn2\": 4 } } }");
     createOrReplaceView("source", "{ \"c1\": -100, \"c2\": -200 }");
 
     AssertHelpers.assertThrows(
@@ -1865,7 +1921,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                   + "ON t.id == s.c1 "
                   + "WHEN MATCHED THEN "
                   + "  UPDATE SET t.invalid_col = s.c2",
-              tableName);
+              commitTarget());
         });
 
     AssertHelpers.assertThrows(
@@ -1878,7 +1934,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                   + "ON t.id == s.c1 "
                   + "WHEN MATCHED THEN "
                   + "  UPDATE SET t.c.n2.invalid_col = s.c2",
-              tableName);
+              commitTarget());
         });
 
     AssertHelpers.assertThrows(
@@ -1893,13 +1949,15 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                   + "  UPDATE SET t.c.n2.dn1 = s.c2 "
                   + "WHEN NOT MATCHED THEN "
                   + "  INSERT (id, invalid_col) VALUES (s.c1, null)",
-              tableName);
+              commitTarget());
         });
   }
 
   @Test
   public void testMergeWithInvalidColumnsInInsert() {
-    createAndInitTable("id INT, c STRUCT<n1:INT,n2:STRUCT<dn1:INT,dn2:INT>>");
+    createAndInitTable(
+        "id INT, c STRUCT<n1:INT,n2:STRUCT<dn1:INT,dn2:INT>>",
+        "{ \"id\": 1, \"c\": { \"n1\": 2, \"n2\": { \"dn1\": 3, \"dn2\": 4 } } }");
     createOrReplaceView("source", "{ \"c1\": -100, \"c2\": -200 }");
 
     AssertHelpers.assertThrows(
@@ -1914,7 +1972,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                   + "  UPDATE SET t.c.n2.dn1 = s.c2 "
                   + "WHEN NOT MATCHED THEN "
                   + "  INSERT (id, c.n2) VALUES (s.c1, null)",
-              tableName);
+              commitTarget());
         });
 
     AssertHelpers.assertThrows(
@@ -1929,7 +1987,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                   + "  UPDATE SET t.c.n2.dn1 = s.c2 "
                   + "WHEN NOT MATCHED THEN "
                   + "  INSERT (id, id) VALUES (s.c1, null)",
-              tableName);
+              commitTarget());
         });
 
     AssertHelpers.assertThrows(
@@ -1942,13 +2000,15 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                   + "ON t.id == s.c1 "
                   + "WHEN NOT MATCHED THEN "
                   + "  INSERT (id) VALUES (s.c1)",
-              tableName);
+              commitTarget());
         });
   }
 
   @Test
   public void testMergeWithInvalidUpdates() {
-    createAndInitTable("id INT, a ARRAY<STRUCT<c1:INT,c2:INT>>, m MAP<STRING,STRING>");
+    createAndInitTable(
+        "id INT, a ARRAY<STRUCT<c1:INT,c2:INT>>, m MAP<STRING,STRING>",
+        "{ \"id\": 1, \"a\": [ { \"c1\": 2, \"c2\": 3 } ], \"m\": { \"k\": \"v\"} }");
     createOrReplaceView("source", "{ \"c1\": -100, \"c2\": -200 }");
 
     AssertHelpers.assertThrows(
@@ -1961,7 +2021,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                   + "ON t.id == s.c1 "
                   + "WHEN MATCHED THEN "
                   + "  UPDATE SET t.a.c1 = s.c2",
-              tableName);
+              commitTarget());
         });
 
     AssertHelpers.assertThrows(
@@ -1974,13 +2034,15 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                   + "ON t.id == s.c1 "
                   + "WHEN MATCHED THEN "
                   + "  UPDATE SET t.m.key = 'new_key'",
-              tableName);
+              commitTarget());
         });
   }
 
   @Test
   public void testMergeWithConflictingUpdates() {
-    createAndInitTable("id INT, c STRUCT<n1:INT,n2:STRUCT<dn1:INT,dn2:INT>>");
+    createAndInitTable(
+        "id INT, c STRUCT<n1:INT,n2:STRUCT<dn1:INT,dn2:INT>>",
+        "{ \"id\": 1, \"c\": { \"n1\": 2, \"n2\": { \"dn1\": 3, \"dn2\": 4 } } }");
     createOrReplaceView("source", "{ \"c1\": -100, \"c2\": -200 }");
 
     AssertHelpers.assertThrows(
@@ -1993,7 +2055,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                   + "ON t.id == s.c1 "
                   + "WHEN MATCHED THEN "
                   + "  UPDATE SET t.id = 1, t.c.n1 = 2, t.id = 2",
-              tableName);
+              commitTarget());
         });
 
     AssertHelpers.assertThrows(
@@ -2006,7 +2068,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                   + "ON t.id == s.c1 "
                   + "WHEN MATCHED THEN "
                   + "  UPDATE SET t.c.n1 = 1, t.id = 2, t.c.n1 = 2",
-              tableName);
+              commitTarget());
         });
 
     AssertHelpers.assertThrows(
@@ -2019,14 +2081,15 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                   + "ON t.id == s.c1 "
                   + "WHEN MATCHED THEN "
                   + "  UPDATE SET c.n1 = 1, c = named_struct('n1', 1, 'n2', named_struct('dn1', 1, 'dn2', 2))",
-              tableName);
+              commitTarget());
         });
   }
 
   @Test
   public void testMergeWithInvalidAssignments() {
     createAndInitTable(
-        "id INT NOT NULL, s STRUCT<n1:INT NOT NULL,n2:STRUCT<dn1:INT,dn2:INT>> NOT NULL");
+        "id INT NOT NULL, s STRUCT<n1:INT NOT NULL,n2:STRUCT<dn1:INT,dn2:INT>> NOT NULL",
+        "{ \"id\": 1, \"s\": { \"n1\": 2, \"n2\": { \"dn1\": 3, \"dn2\": 4 } } }");
     createOrReplaceView(
         "source",
         "c1 INT, c2 STRUCT<n1:INT NOT NULL> NOT NULL, c3 STRING NOT NULL, c4 STRUCT<dn2:INT,dn1:INT>",
@@ -2046,7 +2109,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                           + "ON t.id == s.c1 "
                           + "WHEN MATCHED THEN "
                           + "  UPDATE SET t.id = NULL",
-                      tableName);
+                      commitTarget());
                 });
 
             AssertHelpers.assertThrows(
@@ -2059,7 +2122,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                           + "ON t.id == s.c1 "
                           + "WHEN MATCHED THEN "
                           + "  UPDATE SET t.s.n1 = NULL",
-                      tableName);
+                      commitTarget());
                 });
 
             AssertHelpers.assertThrows(
@@ -2072,7 +2135,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                           + "ON t.id == s.c1 "
                           + "WHEN MATCHED THEN "
                           + "  UPDATE SET t.s = s.c2",
-                      tableName);
+                      commitTarget());
                 });
 
             AssertHelpers.assertThrows(
@@ -2085,7 +2148,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                           + "ON t.id == s.c1 "
                           + "WHEN MATCHED THEN "
                           + "  UPDATE SET t.s.n1 = s.c3",
-                      tableName);
+                      commitTarget());
                 });
 
             AssertHelpers.assertThrows(
@@ -2098,7 +2161,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                           + "ON t.id == s.c1 "
                           + "WHEN MATCHED THEN "
                           + "  UPDATE SET t.s.n2 = s.c4",
-                      tableName);
+                      commitTarget());
                 });
           });
     }
@@ -2106,7 +2169,9 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
 
   @Test
   public void testMergeWithNonDeterministicConditions() {
-    createAndInitTable("id INT, c STRUCT<n1:INT,n2:STRUCT<dn1:INT,dn2:INT>>");
+    createAndInitTable(
+        "id INT, c STRUCT<n1:INT,n2:STRUCT<dn1:INT,dn2:INT>>",
+        "{ \"id\": 1, \"c\": { \"n1\": 2, \"n2\": { \"dn1\": 3, \"dn2\": 4 } } }");
     createOrReplaceView("source", "{ \"c1\": -100, \"c2\": -200 }");
 
     AssertHelpers.assertThrows(
@@ -2119,7 +2184,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                   + "ON t.id == s.c1 AND rand() > t.id "
                   + "WHEN MATCHED THEN "
                   + "  UPDATE SET t.c.n1 = -1",
-              tableName);
+              commitTarget());
         });
 
     AssertHelpers.assertThrows(
@@ -2132,7 +2197,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                   + "ON t.id == s.c1 "
                   + "WHEN MATCHED AND rand() > t.id THEN "
                   + "  UPDATE SET t.c.n1 = -1",
-              tableName);
+              commitTarget());
         });
 
     AssertHelpers.assertThrows(
@@ -2145,7 +2210,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                   + "ON t.id == s.c1 "
                   + "WHEN MATCHED AND rand() > t.id THEN "
                   + "  DELETE",
-              tableName);
+              commitTarget());
         });
 
     AssertHelpers.assertThrows(
@@ -2158,13 +2223,15 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                   + "ON t.id == s.c1 "
                   + "WHEN NOT MATCHED AND rand() > c1 THEN "
                   + "  INSERT (id, c) VALUES (1, null)",
-              tableName);
+              commitTarget());
         });
   }
 
   @Test
   public void testMergeWithAggregateExpressions() {
-    createAndInitTable("id INT, c STRUCT<n1:INT,n2:STRUCT<dn1:INT,dn2:INT>>");
+    createAndInitTable(
+        "id INT, c STRUCT<n1:INT,n2:STRUCT<dn1:INT,dn2:INT>>",
+        "{ \"id\": 1, \"c\": { \"n1\": 2, \"n2\": { \"dn1\": 3, \"dn2\": 4 } } }");
     createOrReplaceView("source", "{ \"c1\": -100, \"c2\": -200 }");
 
     AssertHelpers.assertThrows(
@@ -2177,7 +2244,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                   + "ON t.id == s.c1 AND max(t.id) == 1 "
                   + "WHEN MATCHED THEN "
                   + "  UPDATE SET t.c.n1 = -1",
-              tableName);
+              commitTarget());
         });
 
     AssertHelpers.assertThrows(
@@ -2190,7 +2257,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                   + "ON t.id == s.c1 "
                   + "WHEN MATCHED AND sum(t.id) < 1 THEN "
                   + "  UPDATE SET t.c.n1 = -1",
-              tableName);
+              commitTarget());
         });
 
     AssertHelpers.assertThrows(
@@ -2203,7 +2270,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                   + "ON t.id == s.c1 "
                   + "WHEN MATCHED AND sum(t.id) THEN "
                   + "  DELETE",
-              tableName);
+              commitTarget());
         });
 
     AssertHelpers.assertThrows(
@@ -2216,13 +2283,15 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                   + "ON t.id == s.c1 "
                   + "WHEN NOT MATCHED AND sum(c1) < 1 THEN "
                   + "  INSERT (id, c) VALUES (1, null)",
-              tableName);
+              commitTarget());
         });
   }
 
   @Test
   public void testMergeWithSubqueriesInConditions() {
-    createAndInitTable("id INT, c STRUCT<n1:INT,n2:STRUCT<dn1:INT,dn2:INT>>");
+    createAndInitTable(
+        "id INT, c STRUCT<n1:INT,n2:STRUCT<dn1:INT,dn2:INT>>",
+        "{ \"id\": 1, \"c\": { \"n1\": 2, \"n2\": { \"dn1\": 3, \"dn2\": 4 } } }");
     createOrReplaceView("source", "{ \"c1\": -100, \"c2\": -200 }");
 
     AssertHelpers.assertThrows(
@@ -2235,7 +2304,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                   + "ON t.id == s.c1 AND t.id < (SELECT max(c2) FROM source) "
                   + "WHEN MATCHED THEN "
                   + "  UPDATE SET t.c.n1 = s.c2",
-              tableName);
+              commitTarget());
         });
 
     AssertHelpers.assertThrows(
@@ -2248,7 +2317,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                   + "ON t.id == s.c1 "
                   + "WHEN MATCHED AND t.id < (SELECT max(c2) FROM source) THEN "
                   + "  UPDATE SET t.c.n1 = s.c2",
-              tableName);
+              commitTarget());
         });
 
     AssertHelpers.assertThrows(
@@ -2261,7 +2330,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                   + "ON t.id == s.c1 "
                   + "WHEN MATCHED AND t.id NOT IN (SELECT c2 FROM source) THEN "
                   + "  DELETE",
-              tableName);
+              commitTarget());
         });
 
     AssertHelpers.assertThrows(
@@ -2274,13 +2343,13 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                   + "ON t.id == s.c1 "
                   + "WHEN NOT MATCHED AND s.c1 IN (SELECT c2 FROM source) THEN "
                   + "  INSERT (id, c) VALUES (1, null)",
-              tableName);
+              commitTarget());
         });
   }
 
   @Test
   public void testMergeWithTargetColumnsInInsertConditions() {
-    createAndInitTable("id INT, c2 INT");
+    createAndInitTable("id INT, c2 INT", "{ \"id\": 1, \"c2\": 2 }");
     createOrReplaceView("source", "{ \"id\": 1, \"value\": 11 }");
 
     AssertHelpers.assertThrows(
@@ -2293,7 +2362,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                   + "ON t.id == s.id "
                   + "WHEN NOT MATCHED AND c2 = 1 THEN "
                   + "  INSERT (id, c2) VALUES (s.id, null)",
-              tableName);
+              commitTarget());
         });
   }
 
@@ -2331,17 +2400,18 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         "MERGE INTO %s t USING source s ON t.id = s.id "
             + "WHEN MATCHED THEN UPDATE SET *"
             + "WHEN NOT MATCHED THEN INSERT *",
-        tableName);
+        commitTarget());
 
     ImmutableList<Object[]> expectedRows =
         ImmutableList.of(row(-1), row(0), row(1), row(2), row(3), row(4));
 
-    List<Object[]> result = sql("SELECT * FROM %s ORDER BY id", tableName);
+    List<Object[]> result = sql("SELECT * FROM %s ORDER BY id", selectTarget());
     assertEquals("Should correctly add the non-matching rows", expectedRows, result);
   }
 
   @Test
   public void testMergeEmptyTable() {
+    Assume.assumeFalse("Custom branch does not exist for empty table", "test".equals(branch));
     // This table will only have a single file and a single partition
     createAndInitTable("id INT", null);
 
@@ -2352,12 +2422,30 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         "MERGE INTO %s t USING source s ON t.id = s.id "
             + "WHEN MATCHED THEN UPDATE SET *"
             + "WHEN NOT MATCHED THEN INSERT *",
-        tableName);
+        commitTarget());
 
     ImmutableList<Object[]> expectedRows = ImmutableList.of(row(0), row(1), row(2), row(3), row(4));
 
-    List<Object[]> result = sql("SELECT * FROM %s ORDER BY id", tableName);
+    List<Object[]> result = sql("SELECT * FROM %s ORDER BY id", selectTarget());
     assertEquals("Should correctly add the non-matching rows", expectedRows, result);
+  }
+
+  @Test
+  public void testMergeNonExistingBranch() {
+    Assume.assumeTrue("Test only applicable to custom branch", "test".equals(branch));
+    createAndInitTable("id INT", null);
+
+    // Coalesce forces our source into a SinglePartition distribution
+    spark.range(0, 5).coalesce(1).createOrReplaceTempView("source");
+    Assertions.assertThatThrownBy(
+            () ->
+                sql(
+                    "MERGE INTO %s t USING source s ON t.id = s.id "
+                        + "WHEN MATCHED THEN UPDATE SET *"
+                        + "WHEN NOT MATCHED THEN INSERT *",
+                    commitTarget()))
+        .isInstanceOf(ValidationException.class)
+        .hasMessage("Cannot use branch (does not exist): test");
   }
 
   private void checkJoinAndFilterConditions(String query, String join, String icebergFilters) {

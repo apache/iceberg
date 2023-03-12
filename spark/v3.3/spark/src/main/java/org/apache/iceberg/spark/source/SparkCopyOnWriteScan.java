@@ -33,6 +33,7 @@ import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.SparkReadConf;
+import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.connector.expressions.Expressions;
 import org.apache.spark.sql.connector.expressions.NamedReference;
@@ -40,9 +41,13 @@ import org.apache.spark.sql.connector.read.Statistics;
 import org.apache.spark.sql.connector.read.SupportsRuntimeFiltering;
 import org.apache.spark.sql.sources.Filter;
 import org.apache.spark.sql.sources.In;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 class SparkCopyOnWriteScan extends SparkPartitioningAwareScan<FileScanTask>
     implements SupportsRuntimeFiltering {
+
+  private static final Logger LOG = LoggerFactory.getLogger(SparkCopyOnWriteScan.class);
 
   private final Snapshot snapshot;
   private Set<String> filteredLocations = null;
@@ -123,8 +128,18 @@ class SparkCopyOnWriteScan extends SparkPartitioningAwareScan<FileScanTask>
               tasks().stream()
                   .filter(file -> fileLocations.contains(file.file().path().toString()))
                   .collect(Collectors.toList());
+
+          LOG.info(
+              "{} of {} task(s) for table {} matched runtime file filter with {} location(s)",
+              filteredTasks.size(),
+              tasks().size(),
+              table().name(),
+              fileLocations.size());
+
           resetTasks(filteredTasks);
         }
+      } else {
+        LOG.warn("Unsupported runtime filter {}", filter);
       }
     }
   }
@@ -141,9 +156,8 @@ class SparkCopyOnWriteScan extends SparkPartitioningAwareScan<FileScanTask>
 
     SparkCopyOnWriteScan that = (SparkCopyOnWriteScan) o;
     return table().name().equals(that.table().name())
-        && readSchema().equals(that.readSchema())
-        && // compare Spark schemas to ignore field ids
-        filterExpressions().toString().equals(that.filterExpressions().toString())
+        && readSchema().equals(that.readSchema()) // compare Spark schemas to ignore field ids
+        && filterExpressions().toString().equals(that.filterExpressions().toString())
         && Objects.equals(snapshotId(), that.snapshotId())
         && Objects.equals(filteredLocations, that.filteredLocations);
   }
@@ -166,7 +180,7 @@ class SparkCopyOnWriteScan extends SparkPartitioningAwareScan<FileScanTask>
   }
 
   private Long currentSnapshotId() {
-    Snapshot currentSnapshot = table().currentSnapshot();
+    Snapshot currentSnapshot = SnapshotUtil.latestSnapshot(table(), branch());
     return currentSnapshot != null ? currentSnapshot.snapshotId() : null;
   }
 }

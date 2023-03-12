@@ -143,4 +143,24 @@ public class TestNamespace extends BaseTestIceberg {
         .isInstanceOf(NoSuchNamespaceException.class)
         .hasMessage("Namespace does not exist: unknown");
   }
+
+  @Test
+  public void testCustomLocation() {
+    Map<String, String> properties = ImmutableMap.of("location", "/custom/location");
+    Namespace namespaceWithLocation = Namespace.of("withLocation");
+    catalog.createNamespace(namespaceWithLocation, properties);
+    Assertions.assertThat(catalog.namespaceExists(namespaceWithLocation)).isTrue();
+    Assertions.assertThat(
+            catalog.defaultWarehouseLocation(TableIdentifier.of("withLocation", "testTable")))
+        .startsWith("/custom/location/testTable");
+    Namespace namespaceWithoutLocation = Namespace.of("withoutLocation");
+    catalog.createNamespace(namespaceWithoutLocation, ImmutableMap.of());
+    Assertions.assertThat(catalog.namespaceExists(namespaceWithoutLocation)).isTrue();
+    Assertions.assertThat(
+            catalog.defaultWarehouseLocation(TableIdentifier.of("withoutLocation", "testTable")))
+        .contains("/withoutLocation/testTable");
+    Assertions.assertThat(
+            catalog.defaultWarehouseLocation(TableIdentifier.of("badNamespace", "testTable")))
+        .contains("/badNamespace/testTable");
+  }
 }

@@ -25,6 +25,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.PartitionField;
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
@@ -32,10 +33,9 @@ import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.mapping.MappingUtil;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.mapping.NameMappingParser;
-import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.spark.SparkTableUtil.SparkPartition;
@@ -50,24 +50,28 @@ import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
-import scala.runtime.BoxedUnit;
 
 class AddFilesProcedure extends BaseProcedure {
 
-  private static final Joiner.MapJoiner MAP_JOINER = Joiner.on(",").withKeyValueSeparator("=");
+  private static final ProcedureParameter TABLE_PARAM =
+      ProcedureParameter.required("table", DataTypes.StringType);
+  private static final ProcedureParameter SOURCE_TABLE_PARAM =
+      ProcedureParameter.required("source_table", DataTypes.StringType);
+  private static final ProcedureParameter PARTITION_FILTER_PARAM =
+      ProcedureParameter.optional("partition_filter", STRING_MAP);
+  private static final ProcedureParameter CHECK_DUPLICATE_FILES_PARAM =
+      ProcedureParameter.optional("check_duplicate_files", DataTypes.BooleanType);
 
   private static final ProcedureParameter[] PARAMETERS =
       new ProcedureParameter[] {
-        ProcedureParameter.required("table", DataTypes.StringType),
-        ProcedureParameter.required("source_table", DataTypes.StringType),
-        ProcedureParameter.optional("partition_filter", STRING_MAP),
-        ProcedureParameter.optional("check_duplicate_files", DataTypes.BooleanType)
+        TABLE_PARAM, SOURCE_TABLE_PARAM, PARTITION_FILTER_PARAM, CHECK_DUPLICATE_FILES_PARAM
       };
 
   private static final StructType OUTPUT_TYPE =
       new StructType(
           new StructField[] {
-            new StructField("added_files_count", DataTypes.LongType, false, Metadata.empty())
+            new StructField("added_files_count", DataTypes.LongType, false, Metadata.empty()),
+            new StructField("changed_partition_count", DataTypes.LongType, false, Metadata.empty()),
           });
 
   private AddFilesProcedure(TableCatalog tableCatalog) {
@@ -95,34 +99,28 @@ class AddFilesProcedure extends BaseProcedure {
 
   @Override
   public InternalRow[] call(InternalRow args) {
-    Identifier tableIdent = toIdentifier(args.getString(0), PARAMETERS[0].name());
+    ProcedureInput input = new ProcedureInput(spark(), tableCatalog(), PARAMETERS, args);
+
+    Identifier tableIdent = input.ident(TABLE_PARAM);
 
     CatalogPlugin sessionCat = spark().sessionState().catalogManager().v2SessionCatalog();
-    Identifier sourceIdent =
-        toCatalogAndIdentifier(args.getString(1), PARAMETERS[1].name(), sessionCat).identifier();
+    Identifier sourceIdent = input.ident(SOURCE_TABLE_PARAM, sessionCat);
 
-    Map<String, String> partitionFilter = Maps.newHashMap();
-    if (!args.isNullAt(2)) {
-      args.getMap(2)
-          .foreach(
-              DataTypes.StringType,
-              DataTypes.StringType,
-              (k, v) -> {
-                partitionFilter.put(k.toString(), v.toString());
-                return BoxedUnit.UNIT;
-              });
-    }
+    Map<String, String> partitionFilter =
+        input.stringMap(PARTITION_FILTER_PARAM, ImmutableMap.of());
 
-    boolean checkDuplicateFiles;
-    if (args.isNullAt(3)) {
-      checkDuplicateFiles = true;
-    } else {
-      checkDuplicateFiles = args.getBoolean(3);
-    }
+    boolean checkDuplicateFiles = input.bool(CHECK_DUPLICATE_FILES_PARAM, true);
 
-    long addedFilesCount =
-        importToIceberg(tableIdent, sourceIdent, partitionFilter, checkDuplicateFiles);
-    return new InternalRow[] {newInternalRow(addedFilesCount)};
+    return importToIceberg(tableIdent, sourceIdent, partitionFilter, checkDuplicateFiles);
+  }
+
+  private InternalRow[] toOutputRows(Snapshot snapshot) {
+    Map<String, String> summary = snapshot.summary();
+    return new InternalRow[] {
+      newInternalRow(
+          Long.parseLong(summary.getOrDefault(SnapshotSummary.ADDED_FILES_PROP, "0")),
+          Long.parseLong(summary.getOrDefault(SnapshotSummary.CHANGED_PARTITION_COUNT_PROP, "0")))
+    };
   }
 
   private boolean isFileIdentifier(Identifier ident) {
@@ -133,7 +131,7 @@ class AddFilesProcedure extends BaseProcedure {
             || namespace[0].equalsIgnoreCase("avro"));
   }
 
-  private long importToIceberg(
+  private InternalRow[] importToIceberg(
       Identifier destIdent,
       Identifier sourceIdent,
       Map<String, String> partitionFilter,
@@ -147,14 +145,14 @@ class AddFilesProcedure extends BaseProcedure {
           if (isFileIdentifier(sourceIdent)) {
             Path sourcePath = new Path(sourceIdent.name());
             String format = sourceIdent.namespace()[0];
-            importFileTable(table, sourcePath, format, partitionFilter, checkDuplicateFiles);
+            importFileTable(
+                table, sourcePath, format, partitionFilter, checkDuplicateFiles, table.spec());
           } else {
             importCatalogTable(table, sourceIdent, partitionFilter, checkDuplicateFiles);
           }
 
           Snapshot snapshot = table.currentSnapshot();
-          return Long.parseLong(
-              snapshot.summary().getOrDefault(SnapshotSummary.ADDED_FILES_PROP, "0"));
+          return toOutputRows(snapshot);
         });
   }
 
@@ -172,10 +170,11 @@ class AddFilesProcedure extends BaseProcedure {
       Path tableLocation,
       String format,
       Map<String, String> partitionFilter,
-      boolean checkDuplicateFiles) {
+      boolean checkDuplicateFiles,
+      PartitionSpec spec) {
     // List Partitions via Spark InMemory file search interface
     List<SparkPartition> partitions =
-        Spark3Util.getPartitions(spark(), tableLocation, format, partitionFilter);
+        Spark3Util.getPartitions(spark(), tableLocation, format, partitionFilter, spec);
 
     if (table.spec().isUnpartitioned()) {
       Preconditions.checkArgument(

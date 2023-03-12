@@ -37,7 +37,7 @@ on:
 
 jobs:
   matrix:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
       foundlabel: ${{ steps.set-matrix.outputs.foundlabel }}
@@ -55,7 +55,7 @@ jobs:
 
   show-matrix:
     needs: matrix
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps:
       - run: |
           echo "Repo: ${{ github.event.inputs.repo }}"
@@ -67,7 +67,7 @@ jobs:
   run-benchmark:
     if: ${{ needs.matrix.outputs.foundlabel == 'true' }}
     needs: matrix
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     strategy:
       fail-fast: false
       matrix:

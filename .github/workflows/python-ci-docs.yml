@@ -19,12 +19,7 @@
 
 name: "Python Docs"
 on:
-  push:
-    branches:
-      - 'master'
-    paths:
-      - 'python/mkdocs/**'
-      - '.github/workflows/python-ci-docs.yml'
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -32,7 +27,7 @@ concurrency:
 
 jobs:
   docs:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
 
     steps:
       - uses: actions/checkout@v3

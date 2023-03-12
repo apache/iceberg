@@ -38,8 +38,10 @@ from pyiceberg.expressions import (
     BoundNotIn,
     BoundNotNaN,
     BoundNotNull,
+    BoundNotStartsWith,
     BoundPredicate,
     BoundReference,
+    BoundStartsWith,
     BoundTerm,
     EqualTo,
     GreaterThan,
@@ -54,8 +56,10 @@ from pyiceberg.expressions import (
     NotIn,
     NotNaN,
     NotNull,
+    NotStartsWith,
     Or,
     Reference,
+    StartsWith,
     UnboundPredicate,
 )
 from pyiceberg.expressions.literals import Literal, literal
@@ -64,6 +68,7 @@ from pyiceberg.expressions.visitors import (
     BooleanExpressionVisitor,
     BoundBooleanExpressionVisitor,
     _ManifestEvalVisitor,
+    expression_to_plain_format,
     rewrite_not,
     rewrite_to_dnf,
     visit,
@@ -202,6 +207,14 @@ class FooBoundBooleanExpressionVisitor(BoundBooleanExpressionVisitor[List[str]])
 
     def visit_or(self, left_result: List[str], right_result: List[str]) -> List[str]:
         self.visit_history.append("OR")
+        return self.visit_history
+
+    def visit_starts_with(self, term: BoundTerm[Any], literal: Literal[Any]) -> List[str]:
+        self.visit_history.append("STARTS_WITH")
+        return self.visit_history
+
+    def visit_not_starts_with(self, term: BoundTerm[Any], literal: Literal[Any]) -> List[str]:
+        self.visit_history.append("NOT_STARTS_WITH")
         return self.visit_history
 
 
@@ -777,6 +790,32 @@ def test_bound_boolean_expression_visitor_raise_on_unbound_predicate() -> None:
     with pytest.raises(TypeError) as exc_info:
         visit(bound_expression, visitor=visitor)
     assert "Not a bound predicate" in str(exc_info.value)
+
+
+def test_bound_boolean_expression_visitor_starts_with() -> None:
+    bound_expression = BoundStartsWith(
+        term=BoundReference(
+            field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
+            accessor=Accessor(position=0, inner=None),
+        ),
+        literal=literal("foo"),
+    )
+    visitor = FooBoundBooleanExpressionVisitor()
+    result = visit(bound_expression, visitor=visitor)
+    assert result == ["STARTS_WITH"]
+
+
+def test_bound_boolean_expression_visitor_not_starts_with() -> None:
+    bound_expression = BoundNotStartsWith(
+        term=BoundReference(
+            field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
+            accessor=Accessor(position=0, inner=None),
+        ),
+        literal=literal("foo"),
+    )
+    visitor = FooBoundBooleanExpressionVisitor()
+    result = visit(bound_expression, visitor=visitor)
+    assert result == ["NOT_STARTS_WITH"]
 
 
 def _to_byte_buffer(field_type: IcebergType, val: Any) -> bytes:
@@ -1358,6 +1397,90 @@ def test_integer_not_in(schema: Schema, manifest: ManifestFile) -> None:
     ), "Should read: in on no nulls column"
 
 
+def test_string_starts_with(schema: Schema, manifest: ManifestFile) -> None:
+    assert _ManifestEvalVisitor(schema, StartsWith(Reference("some_nulls"), "a"), case_sensitive=False).eval(
+        manifest
+    ), "Should read: range matches"
+
+    assert _ManifestEvalVisitor(schema, StartsWith(Reference("some_nulls"), "aa"), case_sensitive=False).eval(
+        manifest
+    ), "Should read: range matches"
+
+    assert _ManifestEvalVisitor(schema, StartsWith(Reference("some_nulls"), "dddd"), case_sensitive=False).eval(
+        manifest
+    ), "Should read: range matches"
+
+    assert _ManifestEvalVisitor(schema, StartsWith(Reference("some_nulls"), "z"), case_sensitive=False).eval(
+        manifest
+    ), "Should read: range matches"
+
+    assert _ManifestEvalVisitor(schema, StartsWith(Reference("no_nulls"), "a"), case_sensitive=False).eval(
+        manifest
+    ), "Should read: range matches"
+
+    assert not _ManifestEvalVisitor(schema, StartsWith(Reference("some_nulls"), "zzzz"), case_sensitive=False).eval(
+        manifest
+    ), "Should skip: range doesn't match"
+
+    assert not _ManifestEvalVisitor(schema, StartsWith(Reference("some_nulls"), "1"), case_sensitive=False).eval(
+        manifest
+    ), "Should skip: range doesn't match"
+
+
+def test_string_not_starts_with(schema: Schema, manifest: ManifestFile) -> None:
+    assert _ManifestEvalVisitor(schema, NotStartsWith(Reference("some_nulls"), "a"), case_sensitive=False).eval(
+        manifest
+    ), "Should read: range matches"
+
+    assert _ManifestEvalVisitor(schema, NotStartsWith(Reference("some_nulls"), "aa"), case_sensitive=False).eval(
+        manifest
+    ), "Should read: range matches"
+
+    assert _ManifestEvalVisitor(schema, NotStartsWith(Reference("some_nulls"), "dddd"), case_sensitive=False).eval(
+        manifest
+    ), "Should read: range matches"
+
+    assert _ManifestEvalVisitor(schema, NotStartsWith(Reference("some_nulls"), "z"), case_sensitive=False).eval(
+        manifest
+    ), "Should read: range matches"
+
+    assert _ManifestEvalVisitor(schema, NotStartsWith(Reference("no_nulls"), "a"), case_sensitive=False).eval(
+        manifest
+    ), "Should read: range matches"
+
+    assert _ManifestEvalVisitor(schema, NotStartsWith(Reference("some_nulls"), "zzzz"), case_sensitive=False).eval(
+        manifest
+    ), "Should read: range matches"
+
+    assert _ManifestEvalVisitor(schema, NotStartsWith(Reference("some_nulls"), "1"), case_sensitive=False).eval(
+        manifest
+    ), "Should read: range matches"
+
+    assert _ManifestEvalVisitor(schema, NotStartsWith(Reference("all_same_value_or_null"), "a"), case_sensitive=False).eval(
+        manifest
+    ), "Should read: range matches"
+
+    assert _ManifestEvalVisitor(schema, NotStartsWith(Reference("all_same_value_or_null"), "aa"), case_sensitive=False).eval(
+        manifest
+    ), "Should read: range matches"
+
+    assert _ManifestEvalVisitor(schema, NotStartsWith(Reference("all_same_value_or_null"), "A"), case_sensitive=False).eval(
+        manifest
+    ), "Should read: range matches"
+
+    #    Iceberg does not implement SQL's 3-way boolean logic, so the choice of an all null column
+    #    matching is
+    #    by definition in order to surface more values to the query engine to allow it to make its own
+    #    decision.
+    assert _ManifestEvalVisitor(schema, NotStartsWith(Reference("all_nulls_missing_nan"), "A"), case_sensitive=False).eval(
+        manifest
+    ), "Should read: range matches"
+
+    assert not _ManifestEvalVisitor(schema, NotStartsWith(Reference("no_nulls_same_value_a"), "a"), case_sensitive=False).eval(
+        manifest
+    ), "Should not read: all values start with the prefix"
+
+
 def test_rewrite_not_equal_to() -> None:
     assert rewrite_not(Not(EqualTo(Reference("x"), 34.56))) == NotEqualTo(Reference("x"), 34.56)
 
@@ -1371,14 +1494,28 @@ def test_rewrite_not_in() -> None:
 
 
 def test_rewrite_and() -> None:
-    assert rewrite_not(Not(And(EqualTo(Reference("x"), 34.56), EqualTo(Reference("y"), 34.56),))) == Or(
+    assert rewrite_not(
+        Not(
+            And(
+                EqualTo(Reference("x"), 34.56),
+                EqualTo(Reference("y"), 34.56),
+            )
+        )
+    ) == Or(
         NotEqualTo(term=Reference(name="x"), literal=34.56),
         NotEqualTo(term=Reference(name="y"), literal=34.56),
     )
 
 
 def test_rewrite_or() -> None:
-    assert rewrite_not(Not(Or(EqualTo(Reference("x"), 34.56), EqualTo(Reference("y"), 34.56),))) == And(
+    assert rewrite_not(
+        Not(
+            Or(
+                EqualTo(Reference("x"), 34.56),
+                EqualTo(Reference("y"), 34.56),
+            )
+        )
+    ) == And(
         NotEqualTo(term=Reference(name="x"), literal=34.56),
         NotEqualTo(term=Reference(name="y"), literal=34.56),
     )
@@ -1451,3 +1588,23 @@ def test_to_dnf_and() -> None:
 def test_to_dnf_not_and() -> None:
     expr = Not(And(Not(EqualTo("Q", "b")), EqualTo("R", "c")))
     assert rewrite_to_dnf(expr) == (EqualTo("Q", "b"), NotEqualTo("R", "c"))
+
+
+def test_dnf_to_dask(table_schema_simple: Schema) -> None:
+    expr = (
+        BoundGreaterThan[str](
+            term=BoundReference(table_schema_simple.find_field(1), table_schema_simple.accessor_for_field(1)),
+            literal=literal("hello"),
+        ),
+        And(
+            BoundIn[int](
+                term=BoundReference(table_schema_simple.find_field(2), table_schema_simple.accessor_for_field(2)),
+                literals={literal(1), literal(2), literal(3)},
+            ),
+            BoundEqualTo[bool](
+                term=BoundReference(table_schema_simple.find_field(3), table_schema_simple.accessor_for_field(3)),
+                literal=literal(True),
+            ),
+        ),
+    )
+    assert expression_to_plain_format(expr) == [[("foo", ">", "hello")], [("bar", "in", {1, 2, 3}), ("baz", "==", True)]]

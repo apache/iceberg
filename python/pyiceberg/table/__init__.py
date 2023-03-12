@@ -26,12 +26,12 @@ from typing import (
     Any,
     Callable,
     Dict,
-    Generic,
     Iterator,
     List,
     Optional,
     Tuple,
     TypeVar,
+    Union,
 )
 
 from pydantic import Field
@@ -40,11 +40,11 @@ from pyiceberg.expressions import (
     AlwaysTrue,
     And,
     BooleanExpression,
+    parser,
     visitors,
 )
-from pyiceberg.expressions.visitors import inclusive_projection
-from pyiceberg.io import FileIO
-from pyiceberg.io.pyarrow import project_table
+from pyiceberg.expressions.visitors import _InclusiveMetricsEvaluator, inclusive_projection
+from pyiceberg.io import FileIO, load_file_io
 from pyiceberg.manifest import (
     DataFile,
     ManifestContent,
@@ -69,6 +69,9 @@ if TYPE_CHECKING:
     from duckdb import DuckDBPyConnection
 
 
+ALWAYS_TRUE = AlwaysTrue()
+
+
 class Table:
     identifier: Identifier = Field()
     metadata: TableMetadata = Field()
@@ -91,15 +94,15 @@ class Table:
 
     def scan(
         self,
-        row_filter: Optional[BooleanExpression] = None,
+        row_filter: Union[str, BooleanExpression] = ALWAYS_TRUE,
         selected_fields: Tuple[str] = ("*",),
         case_sensitive: bool = True,
         snapshot_id: Optional[int] = None,
         options: Properties = EMPTY_DICT,
-    ) -> TableScan[Any]:
+    ) -> DataScan:
         return DataScan(
             table=self,
-            row_filter=row_filter or AlwaysTrue(),
+            row_filter=row_filter,
             selected_fields=selected_fields,
             case_sensitive=case_sensitive,
             snapshot_id=snapshot_id,
@@ -169,10 +172,47 @@ class Table:
         )
 
 
-S = TypeVar("S", bound="TableScan", covariant=True)  # type: ignore
+class StaticTable(Table):
+    """Load a table directly from a metadata file (i.e., without using a catalog)."""
+
+    def refresh(self) -> Table:
+        """Refresh the current table metadata"""
+        raise NotImplementedError("To be implemented")
+
+    @classmethod
+    def from_metadata(cls, metadata_location: str, properties: Properties = EMPTY_DICT) -> StaticTable:
+        io = load_file_io(properties=properties, location=metadata_location)
+        file = io.new_input(metadata_location)
+
+        from pyiceberg.serializers import FromInputFile
+
+        metadata = FromInputFile.table_metadata(file)
+
+        return cls(
+            identifier=("static-table", metadata_location),
+            metadata_location=metadata_location,
+            metadata=metadata,
+            io=load_file_io({**properties, **metadata.properties}),
+        )
 
 
-class TableScan(Generic[S], ABC):
+def _parse_row_filter(expr: Union[str, BooleanExpression]) -> BooleanExpression:
+    """Accepts an expression in the form of a BooleanExpression or a string
+
+    In the case of a string, it will be converted into a unbound BooleanExpression
+
+    Args:
+        expr: Expression as a BooleanExpression or a string
+
+    Returns: An unbound BooleanExpression
+    """
+    return parser.parse(expr) if isinstance(expr, str) else expr
+
+
+S = TypeVar("S", bound="TableScan", covariant=True)
+
+
+class TableScan(ABC):
     table: Table
     row_filter: BooleanExpression
     selected_fields: Tuple[str]
@@ -183,14 +223,14 @@ class TableScan(Generic[S], ABC):
     def __init__(
         self,
         table: Table,
-        row_filter: Optional[BooleanExpression] = None,
+        row_filter: Union[str, BooleanExpression] = ALWAYS_TRUE,
         selected_fields: Tuple[str] = ("*",),
         case_sensitive: bool = True,
         snapshot_id: Optional[int] = None,
         options: Properties = EMPTY_DICT,
     ):
         self.table = table
-        self.row_filter = row_filter or AlwaysTrue()
+        self.row_filter = _parse_row_filter(row_filter)
         self.selected_fields = selected_fields
         self.case_sensitive = case_sensitive
         self.snapshot_id = snapshot_id
@@ -228,7 +268,7 @@ class TableScan(Generic[S], ABC):
         """Creates a copy of this table scan with updated fields."""
         return type(self)(**{**self.__dict__, **overrides})
 
-    def use_ref(self, name: str) -> S:
+    def use_ref(self: S, name: str) -> S:
         if self.snapshot_id:
             raise ValueError(f"Cannot override ref, already set snapshot id={self.snapshot_id}")
         if snapshot := self.table.snapshot_by_name(name):
@@ -236,15 +276,15 @@ class TableScan(Generic[S], ABC):
 
         raise ValueError(f"Cannot scan unknown ref={name}")
 
-    def select(self, *field_names: str) -> S:
+    def select(self: S, *field_names: str) -> S:
         if "*" in self.selected_fields:
             return self.update(selected_fields=field_names)
         return self.update(selected_fields=tuple(set(self.selected_fields).intersection(set(field_names))))
 
-    def filter(self, new_row_filter: BooleanExpression) -> S:
-        return self.update(row_filter=And(self.row_filter, new_row_filter))
+    def filter(self: S, expr: Union[str, BooleanExpression]) -> S:
+        return self.update(row_filter=And(self.row_filter, _parse_row_filter(expr)))
 
-    def with_case_sensitive(self, case_sensitive: bool = True) -> S:
+    def with_case_sensitive(self: S, case_sensitive: bool = True) -> S:
         return self.update(case_sensitive=case_sensitive)
 
 
@@ -274,18 +314,23 @@ def _check_content(file: DataFile) -> DataFile:
         return file
 
 
-def _open_manifest(io: FileIO, manifest: ManifestFile, partition_filter: Callable[[DataFile], bool]) -> List[FileScanTask]:
+def _open_manifest(
+    io: FileIO,
+    manifest: ManifestFile,
+    partition_filter: Callable[[DataFile], bool],
+    metrics_evaluator: Callable[[DataFile], bool],
+) -> List[FileScanTask]:
     all_files = files(io.new_input(manifest.manifest_path))
     matching_partition_files = filter(partition_filter, all_files)
     matching_partition_data_files = map(_check_content, matching_partition_files)
-    return [FileScanTask(file) for file in matching_partition_data_files]
+    return [FileScanTask(file) for file in matching_partition_data_files if metrics_evaluator(file)]
 
 
-class DataScan(TableScan["DataScan"]):
+class DataScan(TableScan):
     def __init__(
         self,
         table: Table,
-        row_filter: Optional[BooleanExpression] = None,
+        row_filter: Union[str, BooleanExpression] = ALWAYS_TRUE,
         selected_fields: Tuple[str] = ("*",),
         case_sensitive: bool = True,
         snapshot_id: Optional[int] = None,
@@ -336,16 +381,26 @@ class DataScan(TableScan["DataScan"]):
         # this filter depends on the partition spec used to write the manifest file
 
         partition_evaluators: Dict[int, Callable[[DataFile], bool]] = KeyDefaultDict(self._build_partition_evaluator)
-
+        metrics_evaluator = _InclusiveMetricsEvaluator(self.table.schema(), self.row_filter, self.case_sensitive).eval
         with ThreadPool() as pool:
             return chain(
                 *pool.starmap(
                     func=_open_manifest,
-                    iterable=[(io, manifest, partition_evaluators[manifest.partition_spec_id]) for manifest in manifests],
+                    iterable=[
+                        (
+                            io,
+                            manifest,
+                            partition_evaluators[manifest.partition_spec_id],
+                            metrics_evaluator,
+                        )
+                        for manifest in manifests
+                    ],
                 )
             )
 
     def to_arrow(self) -> pa.Table:
+        from pyiceberg.io.pyarrow import project_table
+
         return project_table(
             self.plan_files(), self.table, self.row_filter, self.projection(), case_sensitive=self.case_sensitive
         )

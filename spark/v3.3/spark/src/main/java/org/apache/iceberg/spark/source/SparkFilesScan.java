@@ -32,6 +32,8 @@ import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.util.TableScanUtil;
 import org.apache.spark.sql.SparkSession;
 
+/** @deprecated will be removed in 1.3.0, use {@link SparkStagedScan} instead */
+@Deprecated
 class SparkFilesScan extends SparkScan {
   private final String taskSetID;
   private final long splitSize;

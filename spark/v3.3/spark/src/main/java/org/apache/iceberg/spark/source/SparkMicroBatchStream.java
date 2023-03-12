@@ -68,6 +68,7 @@ public class SparkMicroBatchStream implements MicroBatchStream {
   private static final Types.StructType EMPTY_GROUPING_KEY_TYPE = Types.StructType.of();
 
   private final Table table;
+  private final String branch;
   private final boolean caseSensitive;
   private final String expectedSchema;
   private final Broadcast<Table> tableBroadcast;
@@ -87,6 +88,7 @@ public class SparkMicroBatchStream implements MicroBatchStream {
       Schema expectedSchema,
       String checkpointLocation) {
     this.table = table;
+    this.branch = readConf.branch();
     this.caseSensitive = readConf.caseSensitive();
     this.expectedSchema = SchemaParser.toJson(expectedSchema);
     this.localityPreferred = readConf.localityEnabled();
@@ -118,9 +120,8 @@ public class SparkMicroBatchStream implements MicroBatchStream {
     Snapshot latestSnapshot = table.currentSnapshot();
     long addedFilesCount =
         PropertyUtil.propertyAsLong(latestSnapshot.summary(), SnapshotSummary.ADDED_FILES_PROP, -1);
-    // If snapshotSummary doesn't have SnapshotSummary.ADDED_FILES_PROP, iterate through addedFiles
-    // iterator to find
-    // addedFilesCount.
+    // if the latest snapshot summary doesn't contain SnapshotSummary.ADDED_FILES_PROP,
+    // iterate through addedDataFiles to compute addedFilesCount
     addedFilesCount =
         addedFilesCount == -1
             ? Iterables.size(latestSnapshot.addedDataFiles(table.io()))
@@ -165,6 +166,7 @@ public class SparkMicroBatchStream implements MicroBatchStream {
                         EMPTY_GROUPING_KEY_TYPE,
                         combinedScanTasks.get(index),
                         tableBroadcast,
+                        branch,
                         expectedSchema,
                         caseSensitive,
                         localityPreferred));

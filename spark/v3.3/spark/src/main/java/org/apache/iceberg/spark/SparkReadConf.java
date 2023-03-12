@@ -19,12 +19,10 @@
 package org.apache.iceberg.spark;
 
 import java.util.Map;
-import java.util.Set;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
-import org.apache.iceberg.hadoop.HadoopFileIO;
-import org.apache.iceberg.hadoop.HadoopInputFile;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.hadoop.Util;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.spark.sql.SparkSession;
 
@@ -48,33 +46,32 @@ import org.apache.spark.sql.SparkSession;
  */
 public class SparkReadConf {
 
-  private static final Set<String> LOCALITY_WHITELIST_FS = ImmutableSet.of("hdfs");
-
   private final SparkSession spark;
   private final Table table;
+  private final String branch;
   private final Map<String, String> readOptions;
   private final SparkConfParser confParser;
 
   public SparkReadConf(SparkSession spark, Table table, Map<String, String> readOptions) {
+    this(spark, table, null, readOptions);
+  }
+
+  public SparkReadConf(
+      SparkSession spark, Table table, String branch, Map<String, String> readOptions) {
     this.spark = spark;
     this.table = table;
+    this.branch = branch;
     this.readOptions = readOptions;
     this.confParser = new SparkConfParser(spark, table, readOptions);
   }
 
   public boolean caseSensitive() {
-    return Boolean.parseBoolean(spark.conf().get("spark.sql.caseSensitive"));
+    return SparkUtil.caseSensitive(spark);
   }
 
   public boolean localityEnabled() {
-    if (table.io() instanceof HadoopFileIO) {
-      HadoopInputFile file = (HadoopInputFile) table.io().newInputFile(table.location());
-      String scheme = file.getFileSystem().getScheme();
-      boolean defaultValue = LOCALITY_WHITELIST_FS.contains(scheme);
-      return PropertyUtil.propertyAsBoolean(readOptions, SparkReadOptions.LOCALITY, defaultValue);
-    }
-
-    return false;
+    boolean defaultValue = Util.mayHaveBlockLocations(table.io(), table.location());
+    return PropertyUtil.propertyAsBoolean(readOptions, SparkReadOptions.LOCALITY, defaultValue);
   }
 
   public Long snapshotId() {
@@ -94,15 +91,28 @@ public class SparkReadConf {
   }
 
   public String branch() {
-    return confParser.stringConf().option(SparkReadOptions.BRANCH).parseOptional();
+    String optionBranch = confParser.stringConf().option(SparkReadOptions.BRANCH).parseOptional();
+    ValidationException.check(
+        branch == null || optionBranch == null || optionBranch.equals(branch),
+        "Must not specify different branches in both table identifier and read option, "
+            + "got [%s] in identifier and [%s] in options",
+        branch,
+        optionBranch);
+    return branch != null ? branch : optionBranch;
   }
 
   public String tag() {
     return confParser.stringConf().option(SparkReadOptions.TAG).parseOptional();
   }
 
+  /** @deprecated will be removed in 1.3.0, use {@link #scanTaskSetId()} instead */
+  @Deprecated
   public String fileScanTaskSetId() {
     return confParser.stringConf().option(SparkReadOptions.FILE_SCAN_TASK_SET_ID).parseOptional();
+  }
+
+  public String scanTaskSetId() {
+    return confParser.stringConf().option(SparkReadOptions.SCAN_TASK_SET_ID).parseOptional();
   }
 
   public boolean streamingSkipDeleteSnapshots() {
@@ -241,6 +251,15 @@ public class SparkReadConf {
         .booleanConf()
         .sessionConf(SparkSQLProperties.PRESERVE_DATA_GROUPING)
         .defaultValue(SparkSQLProperties.PRESERVE_DATA_GROUPING_DEFAULT)
+        .parse();
+  }
+
+  public boolean aggregatePushDownEnabled() {
+    return confParser
+        .booleanConf()
+        .option(SparkReadOptions.AGGREGATE_PUSH_DOWN_ENABLED)
+        .sessionConf(SparkSQLProperties.AGGREGATE_PUSH_DOWN_ENABLED)
+        .defaultValue(SparkSQLProperties.AGGREGATE_PUSH_DOWN_ENABLED_DEFAULT)
         .parse();
   }
 }

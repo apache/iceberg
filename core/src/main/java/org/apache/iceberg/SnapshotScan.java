@@ -31,7 +31,6 @@ import org.apache.iceberg.metrics.ScanMetrics;
 import org.apache.iceberg.metrics.ScanMetricsResult;
 import org.apache.iceberg.metrics.ScanReport;
 import org.apache.iceberg.metrics.Timer;
-import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -67,8 +66,7 @@ public abstract class SnapshotScan<ThisT, T extends ScanTask, G extends ScanTask
 
   protected abstract CloseableIterable<T> doPlanFiles();
 
-  @VisibleForTesting
-  ScanMetrics scanMetrics() {
+  protected ScanMetrics scanMetrics() {
     if (scanMetrics == null) {
       this.scanMetrics = ScanMetrics.of(new DefaultMetricsContext());
     }
@@ -87,11 +85,16 @@ public abstract class SnapshotScan<ThisT, T extends ScanTask, G extends ScanTask
   }
 
   public ThisT useRef(String name) {
+    if (SnapshotRef.MAIN_BRANCH.equals(name)) {
+      return newRefinedScan(table(), tableSchema(), context());
+    }
+
     Preconditions.checkArgument(
         snapshotId() == null, "Cannot override ref, already set snapshot id=%s", snapshotId());
     Snapshot snapshot = table().snapshot(name);
     Preconditions.checkArgument(snapshot != null, "Cannot find ref %s", name);
-    return newRefinedScan(table(), tableSchema(), context().useSnapshotId(snapshot.snapshotId()));
+    TableScanContext newContext = context().useSnapshotId(snapshot.snapshotId());
+    return newRefinedScan(table(), SnapshotUtil.schemaFor(table(), name), newContext);
   }
 
   public ThisT asOfTime(long timestampMillis) {

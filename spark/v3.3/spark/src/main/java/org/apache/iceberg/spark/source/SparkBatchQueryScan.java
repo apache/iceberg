@@ -64,7 +64,6 @@ class SparkBatchQueryScan extends SparkPartitioningAwareScan<PartitionScanTask>
   private final Long startSnapshotId;
   private final Long endSnapshotId;
   private final Long asOfTimestamp;
-  private final String branch;
   private final String tag;
   private final List<Expression> runtimeFilterExpressions;
 
@@ -82,7 +81,6 @@ class SparkBatchQueryScan extends SparkPartitioningAwareScan<PartitionScanTask>
     this.startSnapshotId = readConf.startSnapshotId();
     this.endSnapshotId = readConf.endSnapshotId();
     this.asOfTimestamp = readConf.asOfTimestamp();
-    this.branch = readConf.branch();
     this.tag = readConf.tag();
     this.runtimeFilterExpressions = Lists.newArrayList();
   }
@@ -132,11 +130,6 @@ class SparkBatchQueryScan extends SparkPartitioningAwareScan<PartitionScanTask>
         evaluatorsBySpecId.put(spec.specId(), inclusive);
       }
 
-      LOG.info(
-          "Trying to filter {} tasks using runtime filter {}",
-          tasks().size(),
-          ExpressionUtil.toSanitizedString(runtimeFilterExpr));
-
       List<PartitionScanTask> filteredTasks =
           tasks().stream()
               .filter(
@@ -147,9 +140,10 @@ class SparkBatchQueryScan extends SparkPartitioningAwareScan<PartitionScanTask>
               .collect(Collectors.toList());
 
       LOG.info(
-          "{}/{} tasks matched runtime filter {}",
+          "{} of {} task(s) for table {} matched runtime filter {}",
           filteredTasks.size(),
           tasks().size(),
+          table().name(),
           ExpressionUtil.toSanitizedString(runtimeFilterExpr));
 
       // don't invalidate tasks if the runtime filter had no effect to avoid planning splits again
@@ -198,8 +192,8 @@ class SparkBatchQueryScan extends SparkPartitioningAwareScan<PartitionScanTask>
       Snapshot snapshot = table().snapshot(snapshotIdAsOfTime);
       return estimateStatistics(snapshot);
 
-    } else if (branch != null) {
-      Snapshot snapshot = table().snapshot(branch);
+    } else if (branch() != null) {
+      Snapshot snapshot = table().snapshot(branch());
       return estimateStatistics(snapshot);
 
     } else if (tag != null) {
@@ -225,15 +219,14 @@ class SparkBatchQueryScan extends SparkPartitioningAwareScan<PartitionScanTask>
 
     SparkBatchQueryScan that = (SparkBatchQueryScan) o;
     return table().name().equals(that.table().name())
-        && readSchema().equals(that.readSchema())
-        && // compare Spark schemas to ignore field ids
-        filterExpressions().toString().equals(that.filterExpressions().toString())
+        && Objects.equals(branch(), that.branch())
+        && readSchema().equals(that.readSchema()) // compare Spark schemas to ignore field ids
+        && filterExpressions().toString().equals(that.filterExpressions().toString())
         && runtimeFilterExpressions.toString().equals(that.runtimeFilterExpressions.toString())
         && Objects.equals(snapshotId, that.snapshotId)
         && Objects.equals(startSnapshotId, that.startSnapshotId)
         && Objects.equals(endSnapshotId, that.endSnapshotId)
         && Objects.equals(asOfTimestamp, that.asOfTimestamp)
-        && Objects.equals(branch, that.branch)
         && Objects.equals(tag, that.tag);
   }
 
@@ -241,6 +234,7 @@ class SparkBatchQueryScan extends SparkPartitioningAwareScan<PartitionScanTask>
   public int hashCode() {
     return Objects.hash(
         table().name(),
+        branch(),
         readSchema(),
         filterExpressions().toString(),
         runtimeFilterExpressions.toString(),
@@ -248,15 +242,15 @@ class SparkBatchQueryScan extends SparkPartitioningAwareScan<PartitionScanTask>
         startSnapshotId,
         endSnapshotId,
         asOfTimestamp,
-        branch,
         tag);
   }
 
   @Override
   public String toString() {
     return String.format(
-        "IcebergScan(table=%s, type=%s, filters=%s, runtimeFilters=%s, caseSensitive=%s)",
+        "IcebergScan(table=%s, branch=%s, type=%s, filters=%s, runtimeFilters=%s, caseSensitive=%s)",
         table(),
+        branch(),
         expectedSchema().asStruct(),
         filterExpressions(),
         runtimeFilterExpressions,

@@ -18,14 +18,22 @@
  */
 package org.apache.iceberg;
 
+import static org.apache.iceberg.util.SnapshotUtil.latestSnapshot;
+
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.List;
+import java.util.stream.Collectors;
 import org.apache.iceberg.ManifestEntry.Status;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.StructLikeWrapper;
 import org.junit.Assert;
 import org.junit.Assume;
 import org.junit.Test;
@@ -347,6 +355,63 @@ public class TestDeleteFiles extends TableTestBase {
         ids(initialSnapshot.snapshotId(), delete2.snapshotId(), delete2.snapshotId()),
         files(FILE_A, FILE_B, FILE_C),
         statuses(Status.EXISTING, Status.DELETED, Status.DELETED));
+  }
+
+  @Test
+  public void testDeleteWithCollision() {
+    Schema schema = new Schema(Types.NestedField.of(0, false, "x", Types.StringType.get()));
+    PartitionSpec spec = PartitionSpec.builderFor(schema).identity("x").build();
+    Table collisionTable =
+        TestTables.create(tableDir, "hashcollision", schema, spec, formatVersion);
+
+    PartitionData partitionOne = new PartitionData(spec.partitionType());
+    partitionOne.set(0, "Aa");
+    PartitionData partitionTwo = new PartitionData(spec.partitionType());
+    partitionTwo.set(0, "BB");
+
+    Assert.assertEquals(
+        StructLikeWrapper.forType(spec.partitionType()).set(partitionOne).hashCode(),
+        StructLikeWrapper.forType(spec.partitionType()).set(partitionTwo).hashCode());
+
+    DataFile testFileOne =
+        DataFiles.builder(spec)
+            .withPartition(partitionOne)
+            .withPath("/g1.parquet")
+            .withFileSizeInBytes(100)
+            .withRecordCount(1)
+            .build();
+
+    DataFile testFileTwo =
+        DataFiles.builder(spec)
+            .withPartition(partitionTwo)
+            .withRecordCount(1)
+            .withFileSizeInBytes(100)
+            .withPath("/g2.parquet")
+            .build();
+
+    collisionTable.newFastAppend().appendFile(testFileOne).appendFile(testFileTwo).commit();
+
+    List<StructLike> beforeDeletePartitions =
+        Lists.newArrayList(collisionTable.newScan().planFiles().iterator()).stream()
+            .map(s -> ((PartitionData) s.partition()).copy())
+            .collect(Collectors.toList());
+
+    Assert.assertEquals(
+        "We should have both partitions",
+        ImmutableList.of(partitionOne, partitionTwo),
+        beforeDeletePartitions);
+
+    collisionTable.newDelete().deleteFromRowFilter(Expressions.equal("x", "BB")).commit();
+
+    List<StructLike> afterDeletePartitions =
+        Lists.newArrayList(collisionTable.newScan().planFiles().iterator()).stream()
+            .map(s -> ((PartitionData) s.partition()).copy())
+            .collect(Collectors.toList());
+
+    Assert.assertEquals(
+        "We should have deleted partitionTwo",
+        ImmutableList.of(partitionOne),
+        afterDeletePartitions);
   }
 
   private static ByteBuffer longToBuffer(long value) {

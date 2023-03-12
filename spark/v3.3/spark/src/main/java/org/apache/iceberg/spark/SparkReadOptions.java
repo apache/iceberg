@@ -62,8 +62,15 @@ public class SparkReadOptions {
   // Overrides the table's read.parquet.vectorization.batch-size
   public static final String VECTORIZATION_BATCH_SIZE = "batch-size";
 
-  // Set ID that is used to fetch file scan tasks
-  public static final String FILE_SCAN_TASK_SET_ID = "file-scan-task-set-id";
+  /**
+   * Set ID that is used to fetch file scan tasks
+   *
+   * @deprecated will be removed in 1.3.0, use SCAN_TASK_SET_ID instead
+   */
+  @Deprecated public static final String FILE_SCAN_TASK_SET_ID = "file-scan-task-set-id";
+
+  // Set ID that is used to fetch scan tasks
+  public static final String SCAN_TASK_SET_ID = "scan-task-set-id";
 
   // skip snapshots of type delete while reading stream out of iceberg table
   public static final String STREAMING_SKIP_DELETE_SNAPSHOTS = "streaming-skip-delete-snapshots";
@@ -90,4 +97,6 @@ public class SparkReadOptions {
   public static final String VERSION_AS_OF = "versionAsOf";
 
   public static final String TIMESTAMP_AS_OF = "timestampAsOf";
+
+  public static final String AGGREGATE_PUSH_DOWN_ENABLED = "aggregate-push-down-enabled";
 }
