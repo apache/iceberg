@@ -498,8 +498,7 @@ def expression_to_pyarrow(expr: BooleanExpression) -> pc.Expression:
 def pyarrow_to_schema(schema: pa.Schema) -> Schema:
     visitor = _ConvertToIceberg()
     struct_results: List[Optional[IcebergType]] = []
-    for i, field in enumerate(schema):
-        field = schema.field(i)
+    for field in schema:
         visitor.before_field(field)
         struct_result = visit_pyarrow(field.type, visitor)
         visitor.after_field(field)
