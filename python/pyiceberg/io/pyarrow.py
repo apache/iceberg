@@ -498,7 +498,7 @@ def expression_to_pyarrow(expr: BooleanExpression) -> pc.Expression:
 def pyarrow_to_schema(schema: pa.Schema) -> Schema:
     visitor = _ConvertToIceberg()
     struct_results: List[Optional[IcebergType]] = []
-    for i, _ in enumerate(schema.names):
+    for i, field in enumerate(schema):
         field = schema.field(i)
         visitor.before_field(field)
         struct_result = visit_pyarrow(field.type, visitor)
@@ -623,8 +623,7 @@ def _get_field_id_and_doc(field: pa.Field) -> Tuple[Optional[int], Optional[str]
 class _ConvertToIceberg(PyArrowSchemaVisitor[IcebergType], ABC):
     def schema(self, schema: pa.Schema, field_results: List[Optional[IcebergType]]) -> Schema:
         fields = []
-        for i, _ in enumerate(schema.names):
-            field = schema.field(i)
+        for i, field in enumerate(schema):
             field_id, field_doc = _get_field_id_and_doc(field)
             field_type = field_results[i]
             if field_type is not None and field_id is not None:
