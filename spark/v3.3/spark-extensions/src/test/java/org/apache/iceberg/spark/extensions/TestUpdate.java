@@ -48,6 +48,7 @@ import org.apache.iceberg.RowLevelOperationMode;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -1255,6 +1256,66 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
         UnsupportedOperationException.class,
         "not supported temporarily",
         () -> sql("UPDATE %s SET c1 = -1 WHERE c2 = 1", "testtable"));
+  }
+
+  @Test
+  public void testUpdateToWAPBranch() {
+    Assume.assumeTrue("WAP branch only works for table identifier without branch", branch == null);
+
+    createAndInitTable(
+        "id INT, dep STRING", "{ \"id\": 1, \"dep\": \"hr\" }\n" + "{ \"id\": 2, \"dep\": \"a\" }");
+    sql(
+        "ALTER TABLE %s SET TBLPROPERTIES ('%s' = 'true')",
+        tableName, TableProperties.WRITE_AUDIT_PUBLISH_ENABLED);
+
+    withSQLConf(
+        ImmutableMap.of(SparkSQLProperties.WAP_BRANCH, "wap"),
+        () -> {
+          sql("UPDATE %s SET dep='hr' WHERE dep='a'", tableName);
+          Assert.assertEquals(
+              "Should have expected num of rows when reading table",
+              2L,
+              sql("SELECT * FROM %s WHERE dep='hr'", tableName).size());
+          Assert.assertEquals(
+              "Should have expected num of rows when reading WAP branch",
+              2L,
+              sql("SELECT * FROM %s.branch_wap WHERE dep='hr'", tableName).size());
+        });
+
+    withSQLConf(
+        ImmutableMap.of(SparkSQLProperties.WAP_BRANCH, "wap"),
+        () -> {
+          sql("UPDATE %s SET dep='b' WHERE dep='hr'", tableName);
+          Assert.assertEquals(
+              "Should have expected num of rows when reading table with multiple writes",
+              2L,
+              sql("SELECT * FROM %s WHERE dep='b'", tableName).size());
+          Assert.assertEquals(
+              "Should have expected num of rows when reading WAP branch with multiple writes",
+              2L,
+              sql("SELECT * FROM %s.branch_wap WHERE dep='b'", tableName).size());
+        });
+  }
+
+  @Test
+  public void testUpdateToWapBranchWithTableBranchIdentifier() {
+    Assume.assumeTrue("Test must have branch name part in table identifier", branch != null);
+
+    createAndInitTable("id INT, dep STRING", "{ \"id\": 1, \"dep\": \"hr\" }");
+    sql(
+        "ALTER TABLE %s SET TBLPROPERTIES ('%s' = 'true')",
+        tableName, TableProperties.WRITE_AUDIT_PUBLISH_ENABLED);
+
+    withSQLConf(
+        ImmutableMap.of(SparkSQLProperties.WAP_BRANCH, "wap"),
+        () ->
+            Assertions.assertThatThrownBy(
+                    () -> sql("UPDATE %s SET dep='hr' WHERE dep='a'", commitTarget()))
+                .isInstanceOf(ValidationException.class)
+                .hasMessage(
+                    String.format(
+                        "Cannot write to both branch and WAP branch, but got branch [%s] and WAP branch [wap]",
+                        branch)));
   }
 
   private RowLevelOperationMode mode(Table table) {

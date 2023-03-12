@@ -47,6 +47,7 @@ import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.RowLevelOperationMode;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -55,6 +56,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
 import org.apache.iceberg.spark.Spark3Util;
+import org.apache.iceberg.spark.SparkSQLProperties;
 import org.apache.iceberg.spark.data.TestHelpers;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.SparkException;
@@ -1064,6 +1066,67 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
         "Should have expected rows",
         ImmutableList.of(row(2, "hr", "c1")),
         sql("SELECT * FROM %s ORDER BY id", selectTarget()));
+  }
+
+  @Test
+  public void testDeleteToWapBranch() throws NoSuchTableException {
+    Assume.assumeTrue("WAP branch only works for table identifier without branch", branch == null);
+
+    createAndInitPartitionedTable();
+    sql(
+        "ALTER TABLE %s SET TBLPROPERTIES ('%s' = 'true')",
+        tableName, TableProperties.WRITE_AUDIT_PUBLISH_ENABLED);
+    append(new Employee(0, "hr"), new Employee(1, "hr"), new Employee(2, "hr"));
+
+    withSQLConf(
+        ImmutableMap.of(SparkSQLProperties.WAP_BRANCH, "wap"),
+        () -> {
+          sql("DELETE FROM %s t WHERE id=0", tableName);
+          Assert.assertEquals(
+              "Should have expected num of rows when reading table",
+              2L,
+              spark.table(tableName).count());
+          Assert.assertEquals(
+              "Should have expected num of rows when reading WAP branch",
+              2L,
+              spark.table(tableName + ".branch_wap").count());
+        });
+
+    withSQLConf(
+        ImmutableMap.of(SparkSQLProperties.WAP_BRANCH, "wap"),
+        () -> {
+          sql("DELETE FROM %s t WHERE id=1", tableName);
+          Assert.assertEquals(
+              "Should have expected num of rows when reading table with multiple writes",
+              1L,
+              spark.table(tableName).count());
+          Assert.assertEquals(
+              "Should have expected num of rows when reading WAP branch with multiple writes",
+              1L,
+              spark.table(tableName + ".branch_wap").count());
+        });
+  }
+
+  @Test
+  public void testDeleteToWapBranchWithTableBranchIdentifier() throws NoSuchTableException {
+    Assume.assumeTrue("Test must have branch name part in table identifier", branch != null);
+
+    createAndInitPartitionedTable();
+    sql(
+        "ALTER TABLE %s SET TBLPROPERTIES ('%s' = 'true')",
+        tableName, TableProperties.WRITE_AUDIT_PUBLISH_ENABLED);
+    append(tableName, new Employee(0, "hr"), new Employee(1, "hr"), new Employee(2, "hr"));
+    createBranchIfNeeded();
+
+    withSQLConf(
+        ImmutableMap.of(SparkSQLProperties.WAP_BRANCH, "wap"),
+        () ->
+            Assertions.assertThatThrownBy(() -> sql("DELETE FROM %s t WHERE id=0", commitTarget()))
+                .isInstanceOf(ValidationException.class)
+                .hasMessage(
+                    String.format(
+                        "Cannot write to both branch and WAP branch, but got branch [%s] and WAP branch [wap]",
+                        branch)));
   }
 
   // TODO: multiple stripes for ORC

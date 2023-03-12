@@ -55,4 +55,8 @@ public class SparkSQLProperties {
 
   // Controls write distribution mode
   public static final String DISTRIBUTION_MODE = "spark.sql.iceberg.distribution-mode";
+
+  public static final String WAP_ID = "spark.wap.id";
+
+  public static final String WAP_BRANCH = "spark.wap.branch";
 }

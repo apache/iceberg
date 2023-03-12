@@ -47,12 +47,14 @@ import org.apache.iceberg.RowLevelOperationMode;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
+import org.apache.iceberg.spark.SparkSQLProperties;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.SparkException;
 import org.apache.spark.sql.AnalysisException;
@@ -2446,6 +2448,87 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                     commitTarget()))
         .isInstanceOf(ValidationException.class)
         .hasMessage("Cannot use branch (does not exist): test");
+  }
+
+  @Test
+  public void testMergeToWapBranch() {
+    Assume.assumeTrue("WAP branch only works for table identifier without branch", branch == null);
+
+    createAndInitTable("id INT", "{\"id\": -1}");
+    sql(
+        "ALTER TABLE %s SET TBLPROPERTIES ('%s' = 'true')",
+        tableName, TableProperties.WRITE_AUDIT_PUBLISH_ENABLED);
+    spark.range(0, 5).coalesce(1).createOrReplaceTempView("source");
+    ImmutableList<Object[]> expectedRows =
+        ImmutableList.of(row(-1), row(0), row(1), row(2), row(3), row(4));
+
+    withSQLConf(
+        ImmutableMap.of(SparkSQLProperties.WAP_BRANCH, "wap"),
+        () -> {
+          sql(
+              "MERGE INTO %s t USING source s ON t.id = s.id "
+                  + "WHEN MATCHED THEN UPDATE SET *"
+                  + "WHEN NOT MATCHED THEN INSERT *",
+              tableName);
+          assertEquals(
+              "Should have expected num of rows when reading table",
+              expectedRows,
+              sql("SELECT * FROM %s ORDER BY id", tableName));
+          assertEquals(
+              "Should have expected num of rows when reading WAP branch",
+              expectedRows,
+              sql("SELECT * FROM %s.branch_wap ORDER BY id", tableName));
+        });
+
+    spark.range(3, 6).coalesce(1).createOrReplaceTempView("source2");
+    ImmutableList<Object[]> expectedRows2 =
+        ImmutableList.of(row(-1), row(0), row(1), row(2), row(5));
+    withSQLConf(
+        ImmutableMap.of(SparkSQLProperties.WAP_BRANCH, "wap"),
+        () -> {
+          sql(
+              "MERGE INTO %s t USING source2 s ON t.id = s.id "
+                  + "WHEN MATCHED THEN DELETE "
+                  + "WHEN NOT MATCHED THEN INSERT *",
+              tableName);
+          assertEquals(
+              "Should have expected num of rows when reading table with multiple writes",
+              expectedRows2,
+              sql("SELECT * FROM %s ORDER BY id", tableName));
+          assertEquals(
+              "Should have expected num of rows when reading WAP branch with multiple writes",
+              expectedRows2,
+              sql("SELECT * FROM %s.branch_wap ORDER BY id", tableName));
+        });
+  }
+
+  @Test
+  public void testMergeToWapBranchWithTableBranchIdentifier() {
+    Assume.assumeTrue("Test must have branch name part in table identifier", branch != null);
+
+    createAndInitTable("id INT", "{\"id\": -1}");
+    sql(
+        "ALTER TABLE %s SET TBLPROPERTIES ('%s' = 'true')",
+        tableName, TableProperties.WRITE_AUDIT_PUBLISH_ENABLED);
+    spark.range(0, 5).coalesce(1).createOrReplaceTempView("source");
+    ImmutableList<Object[]> expectedRows =
+        ImmutableList.of(row(-1), row(0), row(1), row(2), row(3), row(4));
+
+    withSQLConf(
+        ImmutableMap.of(SparkSQLProperties.WAP_BRANCH, "wap"),
+        () ->
+            Assertions.assertThatThrownBy(
+                    () ->
+                        sql(
+                            "MERGE INTO %s t USING source s ON t.id = s.id "
+                                + "WHEN MATCHED THEN UPDATE SET *"
+                                + "WHEN NOT MATCHED THEN INSERT *",
+                            commitTarget()))
+                .isInstanceOf(ValidationException.class)
+                .hasMessage(
+                    String.format(
+                        "Cannot write to both branch and WAP branch, but got branch [%s] and WAP branch [wap]",
+                        branch)));
   }
 
   private void checkJoinAndFilterConditions(String query, String join, String icebergFilters) {
