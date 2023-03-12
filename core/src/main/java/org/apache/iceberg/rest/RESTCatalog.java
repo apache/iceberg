@@ -58,7 +58,7 @@ public class RESTCatalog implements Catalog, SupportsNamespaces, Configurable<Ob
   public RESTCatalog(
       SessionCatalog.SessionContext context,
       Function<Map<String, String>, RESTClient> clientBuilder) {
-    this.sessionCatalog = new RESTSessionCatalog(clientBuilder);
+    this.sessionCatalog = new RESTSessionCatalog(clientBuilder, null);
     this.delegate = sessionCatalog.asCatalog(context);
     this.nsDelegate = (SupportsNamespaces) delegate;
   }
