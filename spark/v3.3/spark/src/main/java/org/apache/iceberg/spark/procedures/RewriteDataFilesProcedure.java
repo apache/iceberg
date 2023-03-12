@@ -121,7 +121,8 @@ class RewriteDataFilesProcedure extends BaseProcedure {
           if (where != null) {
             Expression sparkExpression = filter(where, quotedFullIdentifier);
             if (sparkExpression == null) {
-              // terminate immediately
+              // terminate immediately, since the where statement is evaluated by spark to false.
+              // that leads to a null spark expression.
               RewriteDataFiles.Result result = new BaseRewriteDataFilesResult(Lists.newArrayList());
               return toOutputRows(result);
             }
