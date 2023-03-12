@@ -57,10 +57,10 @@ public class SparkSQLProperties {
   public static final String DISTRIBUTION_MODE = "spark.sql.iceberg.distribution-mode";
 
   // Controls the WAP ID used for write-audit-publish workflow.
-  // When set, the next new snapshot will be staged with ID in snapshot summary.
+  // When set, new snapshots will be staged with this ID in snapshot summary.
   public static final String WAP_ID = "spark.wap.id";
 
   // Controls the WAP branch used for write-audit-publish workflow.
-  // When set, new snapshots will be committed to the branch specified.
+  // When set, new snapshots will be committed to this branch.
   public static final String WAP_BRANCH = "spark.wap.branch";
 }
