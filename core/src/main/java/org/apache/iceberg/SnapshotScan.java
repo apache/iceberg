@@ -144,7 +144,9 @@ public abstract class SnapshotScan<ThisT, T extends ScanTask, G extends ScanTask
                   .scanMetrics(ScanMetricsResult.fromScanMetrics(scanMetrics()))
                   .metadata(metadata)
                   .build();
-          context().metricsReporter().report(scanReport);
+          context()
+              .metricsReporter()
+              .forEach(metricsReporter -> metricsReporter.report(scanReport));
         });
   }
 

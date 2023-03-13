@@ -77,7 +77,7 @@ public class TestStaticTable extends HadoopTableTestBase {
             "POSITION_DELETES table does not support TableScan",
             UnsupportedOperationException.class,
             "Cannot create TableScan from table of type POSITION_DELETES",
-            staticTable::newScan);
+            () -> staticTable.newScan());
       } else {
         AssertHelpers.assertThrows(
             "Static tables do not support incremental scans",

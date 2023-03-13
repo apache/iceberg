@@ -27,6 +27,7 @@ import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.metrics.LoggingMetricsReporter;
 import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 /**
  * Base {@link Table} implementation.
@@ -70,13 +71,22 @@ public class BaseTable implements Table, HasTableOperations, Serializable {
 
   @Override
   public TableScan newScan() {
-    return new DataTableScan(this, schema(), new TableScanContext().reportWith(reporter));
+    return new DataTableScan(
+        this, schema(), new TableScanContext().reportWith(Lists.newArrayList(reporter)));
+  }
+
+  @Override
+  public TableScan newScan(MetricsReporter metricsReporter) {
+    return new DataTableScan(
+        this,
+        schema(),
+        new TableScanContext().reportWith(Lists.newArrayList(reporter, metricsReporter)));
   }
 
   @Override
   public IncrementalAppendScan newIncrementalAppendScan() {
     return new BaseIncrementalAppendScan(
-        this, schema(), new TableScanContext().reportWith(reporter));
+        this, schema(), new TableScanContext().reportWith(Lists.newArrayList(reporter)));
   }
 
   @Override

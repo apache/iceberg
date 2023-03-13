@@ -23,6 +23,7 @@ import java.util.Map;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
+import org.apache.iceberg.metrics.MetricsReporter;
 
 /** Represents a table. */
 public interface Table {
@@ -49,6 +50,18 @@ public interface Table {
   TableScan newScan();
 
   /**
+   * Create a new {@link TableScan scan} for this table with a {@link MetricsReporter metrics
+   * reporter}.
+   *
+   * <p>Once a table scan is created, it can be refined to project columns and filter data.
+   *
+   * @return a table scan for this table
+   */
+  default TableScan newScan(MetricsReporter metricsReporter) {
+    return newScan();
+  }
+
+  /**
    * Create a new {@link BatchScan batch scan} for this table.
    *
    * <p>Once a batch scan is created, it can be refined to project columns and filter data.
@@ -57,6 +70,20 @@ public interface Table {
    */
   default BatchScan newBatchScan() {
     return new BatchScanAdapter(newScan());
+  }
+
+  /**
+   * Create a new {@link BatchScan batch scan} for this table with a {@link MetricsReporter metrics
+   * reporter}.
+   *
+   * <p>Once a batch scan is created, it can be refined to project columns and filter data.
+   *
+   * <p>the scan metrics are reported to the {@code reporter}
+   *
+   * @return a batch scan for this table
+   */
+  default BatchScan newBatchScan(MetricsReporter reporter) {
+    return new BatchScanAdapter(newScan(reporter));
   }
 
   /**
