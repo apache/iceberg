@@ -29,6 +29,7 @@ import org.apache.iceberg.expressions.ManifestEvaluator;
 import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
+import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
@@ -70,6 +71,11 @@ public class PositionDeletesTable extends BaseMetadataTable {
   @Override
   public BatchScan newBatchScan() {
     return new PositionDeletesBatchScan(table(), schema());
+  }
+
+  @Override
+  public BatchScan newBatchScan(MetricsReporter reporter) {
+    return newBatchScan();
   }
 
   @Override
