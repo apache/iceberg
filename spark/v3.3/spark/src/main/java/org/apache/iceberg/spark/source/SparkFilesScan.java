@@ -27,7 +27,7 @@ import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.spark.FileScanTaskSetManager;
+import org.apache.iceberg.spark.ScanTaskSetManager;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.util.TableScanUtil;
 import org.apache.spark.sql.SparkSession;
@@ -54,7 +54,7 @@ class SparkFilesScan extends SparkScan {
   @Override
   protected List<CombinedScanTask> taskGroups() {
     if (tasks == null) {
-      FileScanTaskSetManager taskSetManager = FileScanTaskSetManager.get();
+      ScanTaskSetManager taskSetManager = ScanTaskSetManager.get();
       List<FileScanTask> files = taskSetManager.fetchTasks(table(), taskSetID);
       ValidationException.check(
           files != null,
