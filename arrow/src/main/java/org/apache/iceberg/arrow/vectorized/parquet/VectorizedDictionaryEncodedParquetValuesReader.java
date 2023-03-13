@@ -174,11 +174,7 @@ public class VectorizedDictionaryEncodedParquetValuesReader
     @Override
     protected void nextVal(
         FieldVector vector, Dictionary dict, int idx, int currentVal, int typeWidth) {
-      if (vector instanceof BigIntVector) {
-        vector.getDataBuffer().setLong((long) idx * Long.BYTES, dict.decodeToLong(currentVal));
-      } else {
-        ((DecimalVector) vector).set(idx, dict.decodeToLong(currentVal));
-      }
+      vector.getDataBuffer().setLong((long) idx * Long.BYTES, dict.decodeToLong(currentVal));
     }
   }
 

@@ -638,11 +638,7 @@ public final class VectorizedParquetDefinitionLevelReader
         ValuesAsBytesReader valuesReader,
         int typeWidth,
         byte[] byteArray) {
-      if (vector instanceof BigIntVector) {
-        vector.getDataBuffer().setLong(idx * Long.BYTES, valuesReader.readLong());
-      } else {
-        ((DecimalVector) vector).set(idx, valuesReader.getBuffer(Long.BYTES).getLong());
-      }
+      vector.getDataBuffer().setLong(idx * Long.BYTES, valuesReader.readLong());
     }
 
     @Override
@@ -660,15 +656,11 @@ public final class VectorizedParquetDefinitionLevelReader
             .longBackedDecimalDictEncodedReader()
             .nextBatch(vector, idx, numValuesToRead, dict, nullabilityHolder, typeWidth);
       } else if (Mode.PACKED.equals(mode)) {
-        if (vector instanceof BigIntVector) {
-          vector
-              .getDataBuffer()
-              .setLong(
-                  (long) idx * typeWidth,
-                  dict.decodeToLong(reader.readInteger()));
-        } else {
-          ((DecimalVector) vector).set(idx, dict.decodeToLong(reader.readInteger()));
-        }
+        vector
+            .getDataBuffer()
+            .setLong(
+                (long) idx * typeWidth,
+                dict.decodeToLong(reader.readInteger()));
       }
     }
   }
