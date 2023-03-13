@@ -556,7 +556,7 @@ def _(obj: pa.MapType, visitor: PyArrowSchemaVisitor[T]) -> Optional[T]:
 @visit_pyarrow.register(pa.DataType)
 def _(obj: pa.DataType, visitor: PyArrowSchemaVisitor[T]) -> T:
     if pa.types.is_nested(obj):
-        raise TypeError(f"Expected primitive type, got {type(obj)}")
+        raise TypeError(f"Expected primitive type, got: {type(obj)}")
     return visitor.primitive(obj)
 
 
@@ -619,7 +619,7 @@ def _get_field_id_and_doc(field: pa.Field) -> Tuple[Optional[int], Optional[str]
     return field_id, doc
 
 
-class _ConvertToIceberg(PyArrowSchemaVisitor[IcebergType], ABC):
+class _ConvertToIceberg(PyArrowSchemaVisitor[IcebergType]):
     def schema(self, schema: pa.Schema, field_results: List[Optional[IcebergType]]) -> Schema:
         fields = []
         for i, field in enumerate(schema):
