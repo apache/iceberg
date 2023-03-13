@@ -301,15 +301,17 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
             this.typeWidth = primitive.getTypeLength();
             break;
           case INT64:
-            arrowField = new Field(
-                icebergField.name(), new FieldType(icebergField.isOptional(),
-                new ArrowType.Int(Long.SIZE, true /* signed */), null, null),
-                Lists.newArrayList());
-            this.vec = arrowField.createVector(rootAlloc);
+            Field arrowLongField =
+                new Field(
+                    icebergField.name(),
+                    new FieldType(
+                        icebergField.isOptional(),
+                        new ArrowType.Int(Long.SIZE, true /* signed */),
+                        null,
+                        null),
+                    Lists.newArrayList());
+            this.vec = arrowLongField.createVector(rootAlloc);
             ((BigIntVector) vec).allocateNew(batchSize);
-
-            this.vec = arrowField.createVector(rootAlloc);
-            ((DecimalVector) vec).allocateNew(batchSize);
             this.readType = ReadType.LONG_BACKED_DECIMAL;
             this.typeWidth = (int) BigIntVector.TYPE_WIDTH;
             break;

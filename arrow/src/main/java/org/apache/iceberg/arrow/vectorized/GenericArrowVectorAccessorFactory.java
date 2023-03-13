@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.arrow.vectorized;
 
+import static org.apache.parquet.schema.OriginalType.DECIMAL;
+
 import java.lang.reflect.Array;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
@@ -47,8 +49,6 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.Dictionary;
 import org.apache.parquet.schema.PrimitiveType;
-
-import static org.apache.parquet.schema.OriginalType.DECIMAL;
 
 /**
  * This class is creates typed {@link ArrowVectorAccessor} from {@link VectorHolder}. It provides a
@@ -175,8 +175,9 @@ public class GenericArrowVectorAccessorFactory<
     } else if (vector instanceof IntVector) {
       return new IntAccessor<>((IntVector) vector);
     } else if (vector instanceof BigIntVector) {
-      if(primitive.getOriginalType() == DECIMAL) {
-        return new DecimalAccessor<>((BigIntVector) vector, decimalFactorySupplier.get(), primitive);
+      if (primitive.getOriginalType() == DECIMAL) {
+        return new DecimalAccessor<>(
+            (BigIntVector) vector, decimalFactorySupplier.get(), primitive);
       } else {
         return new LongAccessor<>((BigIntVector) vector);
       }
@@ -572,7 +573,10 @@ public class GenericArrowVectorAccessorFactory<
     private final DecimalFactory<DecimalT> decimalFactory;
     private final PrimitiveType primitive;
 
-    DecimalAccessor(BaseFixedWidthVector vector, DecimalFactory<DecimalT> decimalFactory, PrimitiveType primitive) {
+    DecimalAccessor(
+        BaseFixedWidthVector vector,
+        DecimalFactory<DecimalT> decimalFactory,
+        PrimitiveType primitive) {
       super(vector);
       this.vector = vector;
       this.decimalFactory = decimalFactory;
@@ -587,11 +591,12 @@ public class GenericArrowVectorAccessorFactory<
           data = decimalFactory.ofLong(((BigIntVector) vector).get(rowId), precision, scale);
           break;
         default:
-          data = decimalFactory.ofBigDecimal(
-              DecimalUtility.getBigDecimalFromArrowBuf(
-                  vector.getDataBuffer(), rowId, scale, DecimalVector.TYPE_WIDTH),
-              precision,
-              scale);
+          data =
+              decimalFactory.ofBigDecimal(
+                  DecimalUtility.getBigDecimalFromArrowBuf(
+                      vector.getDataBuffer(), rowId, scale, DecimalVector.TYPE_WIDTH),
+                  precision,
+                  scale);
       }
       return data;
     }
