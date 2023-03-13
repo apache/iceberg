@@ -21,7 +21,6 @@ package org.apache.iceberg.arrow.vectorized.parquet;
 import java.nio.ByteBuffer;
 import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.vector.BaseVariableWidthVector;
-import org.apache.arrow.vector.BigIntVector;
 import org.apache.arrow.vector.BitVector;
 import org.apache.arrow.vector.BitVectorHelper;
 import org.apache.arrow.vector.DecimalVector;
@@ -658,9 +657,7 @@ public final class VectorizedParquetDefinitionLevelReader
       } else if (Mode.PACKED.equals(mode)) {
         vector
             .getDataBuffer()
-            .setLong(
-                (long) idx * typeWidth,
-                dict.decodeToLong(reader.readInteger()));
+            .setLong((long) idx * typeWidth, dict.decodeToLong(reader.readInteger()));
       }
     }
   }

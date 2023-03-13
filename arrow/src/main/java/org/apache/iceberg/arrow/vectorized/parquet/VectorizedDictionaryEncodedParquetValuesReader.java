@@ -20,7 +20,6 @@ package org.apache.iceberg.arrow.vectorized.parquet;
 
 import java.nio.ByteBuffer;
 import org.apache.arrow.vector.BaseVariableWidthVector;
-import org.apache.arrow.vector.BigIntVector;
 import org.apache.arrow.vector.BitVectorHelper;
 import org.apache.arrow.vector.DecimalVector;
 import org.apache.arrow.vector.FieldVector;
