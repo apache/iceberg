@@ -135,21 +135,17 @@ public class NamespaceTests extends SnowTestBase {
     }
   }
 
-  @Test
-  public void testLoadNamespaceWithUnquotedIdentifierIsCaseInsensitive()
+  @ParameterizedTest
+  @ValueSource(strings = {"Schema123", "schEmA123", "SCHEMA123", "schema123", "sCHEma123"})
+  public void testLoadNamespaceWithUnquotedIdentifierIsCaseInsensitive(String canonicalSchema)
       throws SQLException, InterruptedException {
     String schema = "Schema123";
     String dbName = getDatabase();
     try {
       clientPool.run(conn -> conn.createStatement().execute("use " + dbName));
       createOrReplaceSchema(schema);
-      Assertions.assertThat(snowflakeCatalog.loadNamespaceMetadata(Namespace.of(dbName, schema)))
-          .isEmpty();
       Assertions.assertThat(
-              snowflakeCatalog.loadNamespaceMetadata(Namespace.of(dbName, schema.toUpperCase())))
-          .isEmpty();
-      Assertions.assertThat(
-              snowflakeCatalog.loadNamespaceMetadata(Namespace.of(dbName, "schEmA123")))
+              snowflakeCatalog.loadNamespaceMetadata(Namespace.of(dbName, canonicalSchema)))
           .isEmpty();
     } finally {
       dropSchemaIfExists(schema);
