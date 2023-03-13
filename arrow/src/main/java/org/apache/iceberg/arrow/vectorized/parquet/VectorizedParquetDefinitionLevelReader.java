@@ -660,7 +660,15 @@ public final class VectorizedParquetDefinitionLevelReader
             .longBackedDecimalDictEncodedReader()
             .nextBatch(vector, idx, numValuesToRead, dict, nullabilityHolder, typeWidth);
       } else if (Mode.PACKED.equals(mode)) {
-        ((DecimalVector) vector).set(idx, dict.decodeToLong(reader.readInteger()));
+        if (vector instanceof BigIntVector) {
+          vector
+              .getDataBuffer()
+              .setLong(
+                  (long) idx * typeWidth,
+                  dict.decodeToLong(reader.readInteger()));
+        } else {
+          ((DecimalVector) vector).set(idx, dict.decodeToLong(reader.readInteger()));
+        }
       }
     }
   }
