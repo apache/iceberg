@@ -367,13 +367,13 @@ def test_pyarrow_variable_binary_to_iceberg() -> None:
 def test_pyarrow_struct_to_iceberg() -> None:
     pyarrow_struct = pa.struct(
         [
-            pa.field("foo", pa.string(), nullable=True, metadata={"field_id": "1"}),
+            pa.field("foo", pa.string(), nullable=True, metadata={"field_id": "1", "doc": "foo doc"}),
             pa.field("bar", pa.int32(), nullable=False, metadata={"field_id": "2"}),
             pa.field("baz", pa.bool_(), nullable=True, metadata={"field_id": "3"}),
         ]
     )
     expected = StructType(
-        NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
+        NestedField(field_id=1, name="foo", field_type=StringType(), required=False, doc="foo doc"),
         NestedField(field_id=2, name="bar", field_type=IntegerType(), required=True),
         NestedField(field_id=3, name="baz", field_type=BooleanType(), required=False),
     )

@@ -126,6 +126,8 @@ BUFFER_SIZE = "buffer-size"
 ICEBERG_SCHEMA = b"iceberg.schema"
 FIELD_ID = "field_id"
 FIELD_DOC = "doc"
+PYARROW_FIELD_ID_KEYS = [b"PARQUET:field_id", b"field_id"]
+PYARROW_FIELD_DOC_KEYS = [b"PARQUET:field_doc", b"field_doc", b"doc"]
 
 T = TypeVar("T")
 
@@ -610,11 +612,15 @@ def _get_field_id_and_doc(field: pa.Field) -> Tuple[Optional[int], Optional[str]
     field_id = None
     doc = None
 
-    for key, value in field.metadata.items():
-        if key.decode().endswith(FIELD_ID) and field_id is None:
-            field_id = int(value.decode())
-        elif key.decode().endswith(FIELD_DOC) and doc is None:
-            doc = value.decode()
+    for pyarrow_field_id_key in PYARROW_FIELD_ID_KEYS:
+        if field_id_str := field.metadata.get(pyarrow_field_id_key):
+            field_id = int(field_id_str.decode())
+            break
+
+    for pyarrow_doc_key in PYARROW_FIELD_DOC_KEYS:
+        if doc_str := field.metadata.get(pyarrow_doc_key):
+            doc = doc_str.decode()
+            break
 
     return field_id, doc
 
