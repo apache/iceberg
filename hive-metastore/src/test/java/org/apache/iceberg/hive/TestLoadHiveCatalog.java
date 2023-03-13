@@ -78,14 +78,14 @@ public class TestLoadHiveCatalog {
             CatalogUtil.loadCatalog(
                 HiveCatalog.class.getName(),
                 CatalogUtil.ICEBERG_CATALOG_TYPE_HIVE,
-                ImmutableMap.of(CatalogProperties.CLIENT_POOL_CACHE_KEYS, "uri,conf:any.key"),
+                ImmutableMap.of(CatalogProperties.CLIENT_POOL_CACHE_KEYS, "conf:any.key"),
                 conf1);
     hiveCatalog2 =
         (HiveCatalog)
             CatalogUtil.loadCatalog(
                 HiveCatalog.class.getName(),
                 CatalogUtil.ICEBERG_CATALOG_TYPE_HIVE,
-                ImmutableMap.of(CatalogProperties.CLIENT_POOL_CACHE_KEYS, "uri,conf:any.key"),
+                ImmutableMap.of(CatalogProperties.CLIENT_POOL_CACHE_KEYS, "conf:any.key"),
                 conf2);
     clientPool1 = (CachedClientPool) hiveCatalog1.clientPool();
     clientPool2 = (CachedClientPool) hiveCatalog2.clientPool();
@@ -97,7 +97,7 @@ public class TestLoadHiveCatalog {
             CatalogUtil.loadCatalog(
                 HiveCatalog.class.getName(),
                 CatalogUtil.ICEBERG_CATALOG_TYPE_HIVE,
-                ImmutableMap.of(CatalogProperties.CLIENT_POOL_CACHE_KEYS, "uri,conf:any.key"),
+                ImmutableMap.of(CatalogProperties.CLIENT_POOL_CACHE_KEYS, "conf:any.key"),
                 conf2);
     clientPool2 = (CachedClientPool) hiveCatalog2.clientPool();
     Assert.assertNotSame(clientPool1.clientPool(), clientPool2.clientPool());

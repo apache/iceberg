@@ -23,15 +23,12 @@ import com.github.benmanes.caffeine.cache.Caffeine;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Supplier;
-import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.IMetaStoreClient;
@@ -40,7 +37,7 @@ import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.ClientPool;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.PropertyUtil;
@@ -56,7 +53,7 @@ public class CachedClientPool implements ClientPool<IMetaStoreClient, TException
   private final Configuration conf;
   private final int clientPoolSize;
   private final long evictionInterval;
-  private final List<Supplier<Object>> keySuppliers;
+  private final Key key;
 
   CachedClientPool(Configuration conf, Map<String, String> properties) {
     this.conf = conf;
@@ -70,14 +67,13 @@ public class CachedClientPool implements ClientPool<IMetaStoreClient, TException
             properties,
             CatalogProperties.CLIENT_POOL_CACHE_EVICTION_INTERVAL_MS,
             CatalogProperties.CLIENT_POOL_CACHE_EVICTION_INTERVAL_MS_DEFAULT);
-    this.keySuppliers =
-        extractKeySuppliers(properties.get(CatalogProperties.CLIENT_POOL_CACHE_KEYS), conf);
+    this.key = extractKey(properties.get(CatalogProperties.CLIENT_POOL_CACHE_KEYS), conf);
     init();
   }
 
   @VisibleForTesting
   HiveClientPool clientPool() {
-    return clientPoolCache.get(toKey(keySuppliers), k -> new HiveClientPool(clientPoolSize, conf));
+    return clientPoolCache.get(key, k -> new HiveClientPool(clientPoolSize, conf));
   }
 
   private synchronized void init() {
@@ -108,18 +104,14 @@ public class CachedClientPool implements ClientPool<IMetaStoreClient, TException
   }
 
   @VisibleForTesting
-  static Key toKey(List<Supplier<Object>> suppliers) {
-    return Key.of(suppliers.stream().map(Supplier::get).collect(Collectors.toList()));
-  }
-
-  @VisibleForTesting
-  static List<Supplier<Object>> extractKeySuppliers(String cacheKeys, Configuration conf) {
-    URIElement uri = URIElement.of(conf.get(HiveConf.ConfVars.METASTOREURIS.varname, ""));
+  static Key extractKey(String cacheKeys, Configuration conf) {
+    // generate key elements in a certain order, so that the Key instances are comparable
+    List<Object> elements = Lists.newArrayList();
+    elements.add(conf.get(HiveConf.ConfVars.METASTOREURIS.varname, ""));
     if (cacheKeys == null || cacheKeys.isEmpty()) {
-      return Collections.singletonList(() -> uri);
+      return Key.of(elements);
     }
 
-    // generate key elements in a certain order, so that the Key instances are comparable
     Set<KeyElementType> types = Sets.newTreeSet(Comparator.comparingInt(Enum::ordinal));
     Map<String, String> confElements = Maps.newTreeMap();
     for (String element : cacheKeys.split(",", -1)) {
@@ -132,7 +124,6 @@ public class CachedClientPool implements ClientPool<IMetaStoreClient, TException
       } else {
         KeyElementType type = KeyElementType.valueOf(trimmed.toUpperCase());
         switch (type) {
-          case URI:
           case UGI:
           case USER_NAME:
             ValidationException.check(
@@ -143,42 +134,30 @@ public class CachedClientPool implements ClientPool<IMetaStoreClient, TException
         }
       }
     }
-    ImmutableList.Builder<Supplier<Object>> suppliers = ImmutableList.builder();
     for (KeyElementType type : types) {
       switch (type) {
-        case URI:
-          suppliers.add(() -> uri);
-          break;
         case UGI:
-          suppliers.add(
-              () -> {
-                try {
-                  return UserGroupInformation.getCurrentUser();
-                } catch (IOException e) {
-                  throw new UncheckedIOException(e);
-                }
-              });
+          try {
+            elements.add(UserGroupInformation.getCurrentUser());
+          } catch (IOException e) {
+            throw new UncheckedIOException(e);
+          }
           break;
         case USER_NAME:
-          suppliers.add(
-              () -> {
-                try {
-                  String userName = UserGroupInformation.getCurrentUser().getUserName();
-                  return UserNameElement.of(userName);
-                } catch (IOException e) {
-                  throw new UncheckedIOException(e);
-                }
-              });
+          try {
+            elements.add(UserGroupInformation.getCurrentUser().getUserName());
+          } catch (IOException e) {
+            throw new UncheckedIOException(e);
+          }
           break;
         default:
           throw new RuntimeException("Unexpected key element " + type.name());
       }
     }
     for (String key : confElements.keySet()) {
-      ConfElement element = ConfElement.of(key, confElements.get(key));
-      suppliers.add(() -> element);
+      elements.add(ConfElement.of(key, confElements.get(key)));
     }
-    return suppliers.build();
+    return Key.of(elements);
   }
 
   @Value.Immutable
@@ -203,26 +182,7 @@ public class CachedClientPool implements ClientPool<IMetaStoreClient, TException
     }
   }
 
-  @Value.Immutable
-  abstract static class URIElement {
-    abstract String metastoreUri();
-
-    static URIElement of(String metastoreUri) {
-      return ImmutableURIElement.builder().metastoreUri(metastoreUri).build();
-    }
-  }
-
-  @Value.Immutable
-  abstract static class UserNameElement {
-    abstract String userName();
-
-    static UserNameElement of(String userName) {
-      return ImmutableUserNameElement.builder().userName(userName).build();
-    }
-  }
-
   private enum KeyElementType {
-    URI,
     UGI,
     USER_NAME,
     CONF
