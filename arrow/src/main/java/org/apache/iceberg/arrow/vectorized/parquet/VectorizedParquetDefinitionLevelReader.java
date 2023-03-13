@@ -21,6 +21,7 @@ package org.apache.iceberg.arrow.vectorized.parquet;
 import java.nio.ByteBuffer;
 import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.vector.BaseVariableWidthVector;
+import org.apache.arrow.vector.BigIntVector;
 import org.apache.arrow.vector.BitVector;
 import org.apache.arrow.vector.BitVectorHelper;
 import org.apache.arrow.vector.DecimalVector;
@@ -637,7 +638,11 @@ public final class VectorizedParquetDefinitionLevelReader
         ValuesAsBytesReader valuesReader,
         int typeWidth,
         byte[] byteArray) {
-      ((DecimalVector) vector).set(idx, valuesReader.getBuffer(Long.BYTES).getLong());
+      if (vector instanceof BigIntVector) {
+        vector.getDataBuffer().setLong(idx * Long.BYTES, valuesReader.readLong());
+      } else {
+        ((DecimalVector) vector).set(idx, valuesReader.getBuffer(Long.BYTES).getLong());
+      }
     }
 
     @Override

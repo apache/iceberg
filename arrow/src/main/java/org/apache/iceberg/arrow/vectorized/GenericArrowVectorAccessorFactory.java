@@ -24,6 +24,7 @@ import java.nio.ByteBuffer;
 import java.util.function.IntFunction;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
+import org.apache.arrow.vector.BaseFixedWidthVector;
 import org.apache.arrow.vector.BigIntVector;
 import org.apache.arrow.vector.BitVector;
 import org.apache.arrow.vector.DateDayVector;
@@ -46,6 +47,8 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.Dictionary;
 import org.apache.parquet.schema.PrimitiveType;
+
+import static org.apache.parquet.schema.OriginalType.DECIMAL;
 
 /**
  * This class is creates typed {@link ArrowVectorAccessor} from {@link VectorHolder}. It provides a
@@ -97,12 +100,12 @@ public class GenericArrowVectorAccessorFactory<
     Dictionary dictionary = holder.dictionary();
     boolean isVectorDictEncoded = holder.isDictionaryEncoded();
     FieldVector vector = holder.vector();
+    ColumnDescriptor desc = holder.descriptor();
+    PrimitiveType primitive = desc.getPrimitiveType();
     if (isVectorDictEncoded) {
-      ColumnDescriptor desc = holder.descriptor();
-      PrimitiveType primitive = desc.getPrimitiveType();
       return getDictionaryVectorAccessor(dictionary, desc, vector, primitive);
     } else {
-      return getPlainVectorAccessor(vector);
+      return getPlainVectorAccessor(vector, primitive);
     }
   }
 
@@ -166,19 +169,23 @@ public class GenericArrowVectorAccessorFactory<
 
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
   private ArrowVectorAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT> getPlainVectorAccessor(
-      FieldVector vector) {
+      FieldVector vector, PrimitiveType primitive) {
     if (vector instanceof BitVector) {
       return new BooleanAccessor<>((BitVector) vector);
     } else if (vector instanceof IntVector) {
       return new IntAccessor<>((IntVector) vector);
     } else if (vector instanceof BigIntVector) {
-      return new LongAccessor<>((BigIntVector) vector);
+      if(primitive.getOriginalType() == DECIMAL) {
+        return new DecimalAccessor<>((BigIntVector) vector, decimalFactorySupplier.get(), primitive);
+      } else {
+        return new LongAccessor<>((BigIntVector) vector);
+      }
     } else if (vector instanceof Float4Vector) {
       return new FloatAccessor<>((Float4Vector) vector);
     } else if (vector instanceof Float8Vector) {
       return new DoubleAccessor<>((Float8Vector) vector);
     } else if (vector instanceof DecimalVector) {
-      return new DecimalAccessor<>((DecimalVector) vector, decimalFactorySupplier.get());
+      return new DecimalAccessor<>((DecimalVector) vector, decimalFactorySupplier.get(), primitive);
     } else if (vector instanceof VarCharVector) {
       return new StringAccessor<>((VarCharVector) vector, stringFactorySupplier.get());
     } else if (vector instanceof VarBinaryVector) {
@@ -561,22 +568,32 @@ public class GenericArrowVectorAccessorFactory<
           DecimalT, Utf8StringT, ArrayT, ChildVectorT extends AutoCloseable>
       extends ArrowVectorAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT> {
 
-    private final DecimalVector vector;
+    private final BaseFixedWidthVector vector;
     private final DecimalFactory<DecimalT> decimalFactory;
+    private final PrimitiveType primitive;
 
-    DecimalAccessor(DecimalVector vector, DecimalFactory<DecimalT> decimalFactory) {
+    DecimalAccessor(BaseFixedWidthVector vector, DecimalFactory<DecimalT> decimalFactory, PrimitiveType primitive) {
       super(vector);
       this.vector = vector;
       this.decimalFactory = decimalFactory;
+      this.primitive = primitive;
     }
 
     @Override
     public final DecimalT getDecimal(int rowId, int precision, int scale) {
-      return decimalFactory.ofBigDecimal(
-          DecimalUtility.getBigDecimalFromArrowBuf(
-              vector.getDataBuffer(), rowId, scale, DecimalVector.TYPE_WIDTH),
-          precision,
-          scale);
+      DecimalT data;
+      switch (primitive.getPrimitiveTypeName()) {
+        case INT64:
+          data = decimalFactory.ofLong(((BigIntVector) vector).get(rowId), precision, scale);
+          break;
+        default:
+          data = decimalFactory.ofBigDecimal(
+              DecimalUtility.getBigDecimalFromArrowBuf(
+                  vector.getDataBuffer(), rowId, scale, DecimalVector.TYPE_WIDTH),
+              precision,
+              scale);
+      }
+      return data;
     }
   }
 

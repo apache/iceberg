@@ -44,6 +44,7 @@ import org.apache.iceberg.arrow.vectorized.parquet.VectorizedColumnIterator;
 import org.apache.iceberg.parquet.ParquetUtil;
 import org.apache.iceberg.parquet.VectorizedReader;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.Dictionary;
@@ -291,19 +292,30 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
         this.typeWidth = (int) TimeMicroVector.TYPE_WIDTH;
         break;
       case DECIMAL:
-        this.vec = arrowField.createVector(rootAlloc);
-        ((DecimalVector) vec).allocateNew(batchSize);
         switch (primitive.getPrimitiveTypeName()) {
           case BINARY:
           case FIXED_LEN_BYTE_ARRAY:
+            this.vec = arrowField.createVector(rootAlloc);
+            ((DecimalVector) vec).allocateNew(batchSize);
             this.readType = ReadType.FIXED_LENGTH_DECIMAL;
             this.typeWidth = primitive.getTypeLength();
             break;
           case INT64:
+            arrowField = new Field(
+                icebergField.name(), new FieldType(icebergField.isOptional(),
+                new ArrowType.Int(Long.SIZE, true /* signed */), null, null),
+                Lists.newArrayList());
+            this.vec = arrowField.createVector(rootAlloc);
+            ((BigIntVector) vec).allocateNew(batchSize);
+
+            this.vec = arrowField.createVector(rootAlloc);
+            ((DecimalVector) vec).allocateNew(batchSize);
             this.readType = ReadType.LONG_BACKED_DECIMAL;
             this.typeWidth = (int) BigIntVector.TYPE_WIDTH;
             break;
           case INT32:
+            this.vec = arrowField.createVector(rootAlloc);
+            ((DecimalVector) vec).allocateNew(batchSize);
             this.readType = ReadType.INT_BACKED_DECIMAL;
             this.typeWidth = (int) IntVector.TYPE_WIDTH;
             break;
