@@ -98,7 +98,22 @@ public class SparkReadConf {
             + "got [%s] in identifier and [%s] in options",
         branch,
         optionBranch);
-    return branch != null ? branch : optionBranch;
+    String inputBranch = branch != null ? branch : optionBranch;
+    if (inputBranch != null) {
+      return inputBranch;
+    }
+
+    boolean wapEnabled =
+        PropertyUtil.propertyAsBoolean(
+            table.properties(), TableProperties.WRITE_AUDIT_PUBLISH_ENABLED, false);
+    if (wapEnabled) {
+      String wapBranch = spark.conf().get(SparkSQLProperties.WAP_BRANCH, null);
+      if (wapBranch != null && table.refs().containsKey(wapBranch)) {
+        return wapBranch;
+      }
+    }
+
+    return null;
   }
 
   public String tag() {
