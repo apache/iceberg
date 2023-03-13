@@ -81,7 +81,7 @@ public class CachedClientPool implements ClientPool<IMetaStoreClient, TException
       clientPoolCache =
           Caffeine.newBuilder()
               .expireAfterAccess(evictionInterval, TimeUnit.MILLISECONDS)
-              .removalListener((key, value, cause) -> ((HiveClientPool) value).close())
+              .removalListener((ignored, value, cause) -> ((HiveClientPool) value).close())
               .build();
     }
   }

@@ -128,6 +128,8 @@ public class CatalogProperties {
    * <ul>
    *   <li>ugi - the Hadoop UserGroupInformation instance that represents the current user using the
    *       cache.
+   *   <li>user_name - similar to UGI but only includes the user's name determined by
+   *       UserGroupInformation#getUserName.
    *   <li>conf - name of an arbitrary configuration. The value of the configuration will be
    *       extracted from catalog properties and added to the cache key. A conf element should start
    *       with a "conf:" prefix which is followed by the configuration name. E.g. specifying
