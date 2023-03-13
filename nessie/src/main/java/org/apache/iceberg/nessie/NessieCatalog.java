@@ -47,7 +47,6 @@ import org.projectnessie.client.NessieClientBuilder;
 import org.projectnessie.client.NessieConfigConstants;
 import org.projectnessie.client.api.NessieApiV1;
 import org.projectnessie.client.http.HttpClientBuilder;
-import org.projectnessie.error.NessieNotFoundException;
 import org.projectnessie.model.ContentKey;
 import org.projectnessie.model.TableReference;
 import org.slf4j.Logger;
@@ -195,7 +194,7 @@ public class NessieCatalog extends BaseMetastoreCatalog
         ContentKey.of(
             org.projectnessie.model.Namespace.of(tableIdentifier.namespace().levels()),
             tr.getName()),
-        client().withReference(tr.getReference(), tr.getHash()),
+        client.withReference(tr.getReference(), tr.getHash()),
         fileIO,
         catalogOptions);
   }
@@ -224,13 +223,13 @@ public class NessieCatalog extends BaseMetastoreCatalog
 
   @Override
   public List<TableIdentifier> listTables(Namespace namespace) {
-    return client().listTables(namespace);
+    return client.listTables(namespace);
   }
 
   @Override
   public boolean dropTable(TableIdentifier identifier, boolean purge) {
     TableReference tableReference = parseTableReference(identifier);
-    return client()
+    return client
         .withReference(tableReference.getReference(), tableReference.getHash())
         .dropTable(identifierWithoutTableReference(identifier, tableReference), purge);
   }
@@ -239,22 +238,21 @@ public class NessieCatalog extends BaseMetastoreCatalog
   public void renameTable(TableIdentifier from, TableIdentifier to) {
     TableReference fromTableReference = parseTableReference(from);
     TableReference toTableReference = parseTableReference(to);
-    NessieIcebergClient nessieIcebergClient = client();
     String fromReference =
         fromTableReference.hasReference()
             ? fromTableReference.getReference()
-            : nessieIcebergClient.getRef().getName();
+            : client.getRef().getName();
     String toReference =
         toTableReference.hasReference()
             ? toTableReference.getReference()
-            : nessieIcebergClient.getRef().getName();
+            : client.getRef().getName();
     Preconditions.checkArgument(
         fromReference.equalsIgnoreCase(toReference),
         "from: %s and to: %s reference name must be same",
         fromReference,
         toReference);
 
-    nessieIcebergClient
+    client
         .withReference(fromTableReference.getReference(), fromTableReference.getHash())
         .renameTable(
             identifierWithoutTableReference(from, fromTableReference),
@@ -264,12 +262,12 @@ public class NessieCatalog extends BaseMetastoreCatalog
 
   @Override
   public void createNamespace(Namespace namespace, Map<String, String> metadata) {
-    client().createNamespace(namespace, metadata);
+    client.createNamespace(namespace, metadata);
   }
 
   @Override
   public List<Namespace> listNamespaces(Namespace namespace) throws NoSuchNamespaceException {
-    return client().listNamespaces(namespace);
+    return client.listNamespaces(namespace);
   }
 
   /**
@@ -282,22 +280,22 @@ public class NessieCatalog extends BaseMetastoreCatalog
   @Override
   public Map<String, String> loadNamespaceMetadata(Namespace namespace)
       throws NoSuchNamespaceException {
-    return client().loadNamespaceMetadata(namespace);
+    return client.loadNamespaceMetadata(namespace);
   }
 
   @Override
   public boolean dropNamespace(Namespace namespace) throws NamespaceNotEmptyException {
-    return client().dropNamespace(namespace);
+    return client.dropNamespace(namespace);
   }
 
   @Override
   public boolean setProperties(Namespace namespace, Map<String, String> properties) {
-    return client().setProperties(namespace, properties);
+    return client.setProperties(namespace, properties);
   }
 
   @Override
   public boolean removeProperties(Namespace namespace, Set<String> properties) {
-    return client().removeProperties(namespace, properties);
+    return client.removeProperties(namespace, properties);
   }
 
   @Override
@@ -312,26 +310,17 @@ public class NessieCatalog extends BaseMetastoreCatalog
 
   @VisibleForTesting
   String currentHash() {
-    return client().getRef().getHash();
+    return client.getRef().getHash();
   }
 
   @VisibleForTesting
   String currentRefName() {
-    return client().getRef().getName();
+    return client.getRef().getName();
   }
 
   @VisibleForTesting
   FileIO fileIO() {
     return fileIO;
-  }
-
-  private NessieIcebergClient client() {
-    try {
-      client.refresh();
-    } catch (NessieNotFoundException e) {
-      throw new RuntimeException(e);
-    }
-    return client;
   }
 
   private TableReference parseTableReference(TableIdentifier tableIdentifier) {
