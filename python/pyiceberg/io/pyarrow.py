@@ -124,7 +124,7 @@ if TYPE_CHECKING:
 ONE_MEGABYTE = 1024 * 1024
 BUFFER_SIZE = "buffer-size"
 ICEBERG_SCHEMA = b"iceberg.schema"
-FIELD_ID = "id"
+FIELD_ID = "field_id"
 FIELD_DOC = "doc"
 
 T = TypeVar("T")

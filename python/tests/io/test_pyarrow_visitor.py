@@ -53,57 +53,57 @@ def test_schema_to_pyarrow_schema(table_schema_nested: Schema) -> None:
     actual = schema_to_pyarrow(table_schema_nested)
     expected = """foo: string
   -- field metadata --
-  id: '1'
+  field_id: '1'
 bar: int32 not null
   -- field metadata --
-  id: '2'
+  field_id: '2'
 baz: bool
   -- field metadata --
-  id: '3'
+  field_id: '3'
 qux: list<element: string not null> not null
   child 0, element: string not null
     -- field metadata --
-    id: '5'
+    field_id: '5'
   -- field metadata --
-  id: '4'
+  field_id: '4'
 quux: map<string, map<string, int32>> not null
   child 0, entries: struct<key: string not null, value: map<string, int32> not null> not null
       child 0, key: string not null
       -- field metadata --
-      id: '7'
+      field_id: '7'
       child 1, value: map<string, int32> not null
           child 0, entries: struct<key: string not null, value: int32 not null> not null
               child 0, key: string not null
           -- field metadata --
-          id: '9'
+          field_id: '9'
               child 1, value: int32 not null
           -- field metadata --
-          id: '10'
+          field_id: '10'
       -- field metadata --
-      id: '8'
+      field_id: '8'
   -- field metadata --
-  id: '6'
+  field_id: '6'
 location: list<element: struct<latitude: float, longitude: float> not null> not null
   child 0, element: struct<latitude: float, longitude: float> not null
       child 0, latitude: float
       -- field metadata --
-      id: '13'
+      field_id: '13'
       child 1, longitude: float
       -- field metadata --
-      id: '14'
+      field_id: '14'
     -- field metadata --
-    id: '12'
+    field_id: '12'
   -- field metadata --
-  id: '11'
+  field_id: '11'
 person: struct<name: string, age: int32 not null>
   child 0, name: string
     -- field metadata --
-    id: '16'
+    field_id: '16'
   child 1, age: int32 not null
     -- field metadata --
-    id: '17'
+    field_id: '17'
   -- field metadata --
-  id: '15'"""
+  field_id: '15'"""
     assert repr(actual) == expected
 
 
@@ -178,9 +178,9 @@ def test_binary_type_to_pyarrow() -> None:
 def test_struct_type_to_pyarrow(table_schema_simple: Schema) -> None:
     expected = pa.struct(
         [
-            pa.field("foo", pa.string(), nullable=True, metadata={"id": "1"}),
-            pa.field("bar", pa.int32(), nullable=False, metadata={"id": "2"}),
-            pa.field("baz", pa.bool_(), nullable=True, metadata={"id": "3"}),
+            pa.field("foo", pa.string(), nullable=True, metadata={"field_id": "1"}),
+            pa.field("bar", pa.int32(), nullable=False, metadata={"field_id": "2"}),
+            pa.field("baz", pa.bool_(), nullable=True, metadata={"field_id": "3"}),
         ]
     )
     assert visit(table_schema_simple.as_struct(), _ConvertToArrowSchema()) == expected
