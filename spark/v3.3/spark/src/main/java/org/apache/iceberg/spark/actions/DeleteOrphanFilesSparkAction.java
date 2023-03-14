@@ -400,7 +400,8 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
 
     Column joinCond = actualFileIdentDS.col("path").equalTo(validFileIdentDS.col("path"));
 
-    List<String> orphanFiles = actualFileIdentDS
+    List<String> orphanFiles =
+        actualFileIdentDS
             .joinWith(validFileIdentDS, joinCond, "leftouter")
             .mapPartitions(new FindOrphanFiles(prefixMismatchMode, conflicts), Encoders.STRING())
             .collectAsList();
