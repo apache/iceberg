@@ -456,7 +456,8 @@ public final class VectorizedParquetDefinitionLevelReader
         ValuesAsBytesReader valuesReader,
         int typeWidth,
         byte[] byteArray) {
-      ByteBuffer buffer = valuesReader.getBuffer(12);
+      // 8 bytes (time of day nanos) + 4 bytes(julianDay) = 12 bytes
+      ByteBuffer buffer = valuesReader.getBuffer(12).order(ByteOrder.LITTLE_ENDIAN);
       long timestampInt96 = TimestampUtil.extractTimestampInt96(buffer);
       vector.getDataBuffer().setLong((long) idx * typeWidth, timestampInt96);
     }

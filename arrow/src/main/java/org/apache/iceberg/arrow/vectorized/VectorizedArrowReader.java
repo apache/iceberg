@@ -167,11 +167,6 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
                 .fixedWidthTypeBinaryBatchReader()
                 .nextBatch(vec, typeWidth, nullabilityHolder);
             break;
-          case TIMESTAMP_INT96:
-            vectorizedColumnIterator
-                .timestampInt96BatchReader()
-                .nextBatch(vec, typeWidth, nullabilityHolder);
-            break;
           case BOOLEAN:
             vectorizedColumnIterator.booleanBatchReader().nextBatch(vec, -1, nullabilityHolder);
             break;
@@ -196,6 +191,11 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
           case TIMESTAMP_MILLIS:
             vectorizedColumnIterator
                 .timestampMillisBatchReader()
+                .nextBatch(vec, typeWidth, nullabilityHolder);
+            break;
+          case TIMESTAMP_INT96:
+            vectorizedColumnIterator
+                .timestampInt96BatchReader()
                 .nextBatch(vec, typeWidth, nullabilityHolder);
             break;
           case UUID:
@@ -340,14 +340,6 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
         vec.allocateNew();
         this.typeWidth = len;
         break;
-      case INT96:
-        int length = BigIntVector.TYPE_WIDTH;
-        this.readType = ReadType.TIMESTAMP_INT96;
-        this.vec = arrowField.createVector(rootAlloc);
-        vec.setInitialCapacity(batchSize * length);
-        vec.allocateNew();
-        this.typeWidth = length;
-        break;
       case BINARY:
         this.vec = arrowField.createVector(rootAlloc);
         // TODO: Possibly use the uncompressed page size info to set the initial capacity
@@ -367,6 +359,14 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
         ((IntVector) vec).allocateNew(batchSize);
         this.readType = ReadType.INT;
         this.typeWidth = (int) IntVector.TYPE_WIDTH;
+        break;
+      case INT96:
+        int length = BigIntVector.TYPE_WIDTH;
+        this.readType = ReadType.TIMESTAMP_INT96;
+        this.vec = arrowField.createVector(rootAlloc);
+        vec.setInitialCapacity(batchSize * length);
+        vec.allocateNew();
+        this.typeWidth = length;
         break;
       case FLOAT:
         Field floatField =

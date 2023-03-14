@@ -377,7 +377,6 @@ public class SparkParquetReaders {
   }
 
   private static class TimestampInt96Reader extends UnboxedReader<Long> {
-    private static final long UNIX_EPOCH_JULIAN = 2_440_588L;
 
     TimestampInt96Reader(ColumnDescriptor desc) {
       super(desc);
@@ -392,11 +391,7 @@ public class SparkParquetReaders {
     public long readLong() {
       final ByteBuffer byteBuffer =
           column.nextBinary().toByteBuffer().order(ByteOrder.LITTLE_ENDIAN);
-      final long timeOfDayNanos = byteBuffer.getLong();
-      final int julianDay = byteBuffer.getInt();
-
-      return TimeUnit.DAYS.toMicros(julianDay - UNIX_EPOCH_JULIAN)
-          + TimeUnit.NANOSECONDS.toMicros(timeOfDayNanos);
+      return TimestampUtil.extractTimestampInt96(byteBuffer);
     }
   }
 
