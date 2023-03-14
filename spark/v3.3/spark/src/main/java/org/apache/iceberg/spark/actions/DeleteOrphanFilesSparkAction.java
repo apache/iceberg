@@ -71,6 +71,7 @@ import org.apache.spark.sql.Encoder;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.internal.SQLConf;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
@@ -123,10 +124,10 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
   private ExecutorService deleteExecutorService = null;
 
   DeleteOrphanFilesSparkAction(SparkSession spark, Table table) {
-    super(spark);
-
-    this.hadoopConf = new SerializableConfiguration(spark.sessionState().newHadoopConf());
-    this.listingParallelism = spark.sessionState().conf().parallelPartitionDiscoveryParallelism();
+    super(spark.cloneSession());
+    spark().conf().set(SQLConf.AUTO_BROADCASTJOIN_THRESHOLD().key(), -1);
+    this.hadoopConf = new SerializableConfiguration(spark().sessionState().newHadoopConf());
+    this.listingParallelism = spark().sessionState().conf().parallelPartitionDiscoveryParallelism();
     this.table = table;
     this.location = table.location();
 
@@ -399,11 +400,11 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
 
     Column joinCond = actualFileIdentDS.col("path").equalTo(validFileIdentDS.col("path"));
 
-    List<String> orphanFiles =
-        actualFileIdentDS
+    Dataset<String> ds = actualFileIdentDS
             .joinWith(validFileIdentDS, joinCond, "leftouter")
-            .mapPartitions(new FindOrphanFiles(prefixMismatchMode, conflicts), Encoders.STRING())
-            .collectAsList();
+            .mapPartitions(new FindOrphanFiles(prefixMismatchMode, conflicts), Encoders.STRING());
+
+    List<String> orphanFiles = ds.collectAsList();
 
     if (prefixMismatchMode == PrefixMismatchMode.ERROR && !conflicts.value().isEmpty()) {
       throw new ValidationException(
