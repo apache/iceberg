@@ -733,7 +733,7 @@ Notes:
 
 The atomic swap needed to commit new versions of table metadata can be implemented by storing a pointer in a metastore or database that is updated with a check-and-put operation [1]. The check-and-put validates that the version of the table that a write is based on is still current and then makes the new metadata from the write the current version.
 
-Each version of table metadata is stored in a metadata folder under the table’s base location using a naming scheme that must start with a `version`, followed by a hyphen (`-`) and a `random string`: `<V>-<random-string>.metadata.json`. To commit a new metadata version, `V+1`, the writer performs the following steps:
+Each version of table metadata is stored in a metadata folder under the table’s base location using a naming scheme that starts with a `version`, followed by a hyphen (`-`) and a `random string`: `<V>-<random-string>.metadata.json`. To commit a new metadata version, `V+1`, the writer performs the following steps:
 
 1. Create a new table metadata file based on the current metadata.
 2. Write the new table metadata to a unique file: `<V+1>-<random-string>.metadata.json`.
@@ -746,7 +746,7 @@ Notes:
 1. The metastore table scheme is partly implemented in [BaseMetastoreTableOperations](../../../javadoc/{{% icebergVersion %}}/index.html?org/apache/iceberg/BaseMetastoreTableOperations.html).
 2. The 3 parts in the format of the metadata file name: `<V>-<random-string>.metadata.json` serves this purpose:
     1. `V` - the version part.
-    2. `-` - the delimiter, using which version can be parsed.
+    2. `-` - the delimiter, using which version can be parsed. The part of the file name that is **before the first occurrence** of `-` is the version.
     3. `random-string` - which adds randomness to the file name to avoid naming conflicts in the case of parallel writes. For example: `random-string` could be a `random-uuid`.
 
 
