@@ -198,18 +198,6 @@ public class Partitioning {
   }
 
   /**
-   * Builds a grouping key type considering all provided specs.
-   *
-   * @param specs one or many specs
-   * @return the constructed grouping key type
-   * @deprecated use {@link #groupingKeyType(Schema, Collection)} instead; will be removed in 1.3.0
-   */
-  @Deprecated
-  public static StructType groupingKeyType(Collection<PartitionSpec> specs) {
-    return groupingKeyType(null, specs);
-  }
-
-  /**
    * Builds a grouping key type considering the provided schema and specs.
    *
    * <p>A grouping key defines how data is split between files and consists of partition fields with

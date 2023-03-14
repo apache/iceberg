@@ -166,7 +166,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     this.restCatalog =
         new RESTCatalog(
             context,
-            (config) -> HTTPClient.builder().uri(config.get(CatalogProperties.URI)).build());
+            (config) -> HTTPClient.builder(config).uri(config.get(CatalogProperties.URI)).build());
     restCatalog.setConf(conf);
     restCatalog.initialize(
         "prod",
@@ -1218,7 +1218,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
                 "user",
                 ImmutableMap.of("credential", "user:12345"),
                 ImmutableMap.of()),
-            (config) -> HTTPClient.builder().uri(config.get(CatalogProperties.URI)).build());
+            (config) -> HTTPClient.builder(config).uri(config.get(CatalogProperties.URI)).build());
     restCatalog.setConf(new Configuration());
     restCatalog.initialize(
         "prod",

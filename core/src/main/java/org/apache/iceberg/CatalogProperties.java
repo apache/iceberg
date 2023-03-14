@@ -142,21 +142,6 @@ public class CatalogProperties {
   public static final String APP_ID = "app-id";
   public static final String USER = "user";
 
-  /**
-   * @deprecated Will be removed in 1.3.0; Use {@link
-   *     org.apache.iceberg.rest.auth.OAuth2Properties#TOKEN_REFRESH_ENABLED} to control token
-   *     refresh behavior.
-   */
-  @Deprecated
-  public static final String AUTH_DEFAULT_REFRESH_ENABLED = "auth.default-refresh-enabled";
-
-  /**
-   * @deprecated Will be removed in 1.3.0; Use {@link
-   *     org.apache.iceberg.rest.auth.OAuth2Properties#TOKEN_REFRESH_ENABLED_DEFAULT} to control
-   *     default token refresh behavior.
-   */
-  @Deprecated public static final boolean AUTH_DEFAULT_REFRESH_ENABLED_DEFAULT = false;
-
   public static final String AUTH_SESSION_TIMEOUT_MS = "auth.session-timeout-ms";
   public static final long AUTH_SESSION_TIMEOUT_MS_DEFAULT = TimeUnit.HOURS.toMillis(1);
 }

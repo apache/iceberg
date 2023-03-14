@@ -136,7 +136,7 @@ public abstract class S3V4RestSignerClient
       synchronized (S3V4RestSignerClient.class) {
         if (null == httpClient) {
           httpClient =
-              HTTPClient.builder()
+              HTTPClient.builder(properties())
                   .uri(baseSignerUri())
                   .withObjectMapper(S3ObjectMapper.mapper())
                   .build();
