@@ -14,32 +14,20 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
----
-site_name: PyIceberg
-site_url: https://py.iceberg.apache.org/
-plugins:
-  - gen-files:
-      scripts:
-        - gen_doc_stubs.py
-  - literate-nav:
-      nav_file: SUMMARY.md
-  - mkdocstrings:
-      handlers:
-        python:
-          paths: [ .. ]
-nav:
-  - Home: index.md
-  - Configuration: configuration.md
-  - CLI: cli.md
-  - API: api.md
-  - Contributing:
-      - Contributing: contributing.md
-  - Feature support: feature-support.md
-  - Releases:
-      - Verify a release: verify-release.md
-      - How to release: how-to-release.md
-  - Code references: references/
-theme:
-  name: readthedocs
-markdown_extensions:
-  - admonition
+
+from pathlib import Path
+
+import mkdocs_gen_files  # type: ignore
+
+root = Path(__file__).parent.parent
+src_root = root.joinpath("pyiceberg")
+
+for path in src_root.glob("**/*.py"):
+    if "__init__" in str(path):  # skip __init__ files
+        continue
+
+    doc_path = Path("references", path.relative_to(root)).with_suffix(".md")
+
+    with mkdocs_gen_files.open(doc_path, "w") as f:
+        ident = ".".join(path.relative_to(root).with_suffix("").parts)
+        print(f"::: {ident}", file=f)
