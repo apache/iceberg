@@ -671,6 +671,7 @@ Table metadata consists of the following fields:
 | _optional_ | _required_ | **`default-sort-order-id`**| Default sort order id of the table. Note that this could be used by writers, but is not used when reading because reads use the specs stored in manifest files. |
 |            | _optional_ | **`refs`** | A map of snapshot references. The map keys are the unique snapshot reference names in the table, and the map values are snapshot reference objects. There is always a `main` branch reference pointing to the `current-snapshot-id` even if the `refs` map is null. |
 | _optional_ | _optional_ | **`statistics`** | A list (optional) of [table statistics](#table-statistics). |
+| _optional_ | _optional_ | **`partition-statistics`**  | A list (optional) of [partition statistics](#partition-statistics). |
 
 For serialization details, see Appendix C.
 
@@ -701,6 +702,45 @@ Blob metadata is a struct with the following fields:
 | _required_ | _required_ | **`fields`** | `list<integer>` | Ordered list of fields, given by field ID, on which the statistic was calculated. |
 | _optional_ | _optional_ | **`properties`** | `map<string, string>` | Additional properties associated with the statistic. Subset of Blob properties in the Puffin file. |
 
+
+#### Partition statistics
+
+Partition statistics files are based on [Partition Statistics file spec](#partition-statistics-file). Partition statistics are informational. A reader can choose to
+ignore partition statistics information. Partition statistics support is not required to read the table correctly. A table can contain
+many partition statistics files associated with different table snapshots.
+A writer can optionally write the partition statistics file during each write operation. If the statistics file is written for the specific snapshot,
+it must be accurate and must be registered in the table metadata file to be considered as a valid statistics file for the reader.
+
+Partition statistics files metadata within `partition-statistics` table metadata field is a struct with the following fields:
+
+| v1 | v2 | Field name | Type | Description |
+|----|----|------------|------|-------------|
+| _required_ | _required_ | **`snapshot-id`** | `long` | ID of the Iceberg table's snapshot the partition statistics file is associated with. |
+| _required_ | _required_ | **`statistics-file-path`** | `string` | Path of the partition statistics file. See [Partition Statistics file](#partition-statistics-file). |
+| _required_ | _required_ | **`max-data-sequence-number`** | `long` | Maximum data sequence number of the Iceberg table's snapshot the partition statistics was computed from. |
+
+#### Partition Statistics file
+
+Statistics information for every partition tuple is stored as a row in the **table default format**.
+These rows are sorted (in ascending manner with NULL FIRST) based on the first partition column from `partition`
+to optimize filtering rows while scanning.
+Each unique partition tuple must have exactly one corresponding row, ensuring all partition tuples are present.
+
+Partition statistics file store the statistics as a struct with the following fields:
+
+| v1 | v2 | Field id, name | Type | Description |
+|----|----|----------------|------|-------------|
+| _required_ | _required_ | **`1 partition`** | `struct<..>` | Partition data tuple, schema based on the partition spec output using partition field ids for the struct field ids |
+| _required_ | _required_ | **`2 spec_id`** | `int` | Partition spec id |
+| _required_ | _required_ | **`3 data_record_count`** | `long` | Count of records in data files |
+| _required_ | _required_ | **`4 data_file_count`** | `int` | Count of data files |
+| _required_ | _required_ | **`5 total_data_file_size_in_bytes`** | `long` | Total size of data files in bytes |
+| _optional_ | _optional_ | **`6 position_delete_record_count`** | `long` | Count of records in position delete files |
+| _optional_ | _optional_ | **`7 position_delete_file_count`** | `int` | Count of position delete files |
+| _optional_ | _optional_ | **`8 equality_delete_record_count`** | `long` | Count of records in equality delete files |
+| _optional_ | _optional_ | **`9 equality_delete_file_count`** | `int` | Count of equality delete files |
+| _optional_ | _optional_ | **`10 last_updated_at`** | `timestamptz` | Commit time of snapshot that last updated this partition |
+| _optional_ | _optional_ | **`11 last_updated_snapshot_id`** | `long` | ID of snapshot that last updated this partition |
 
 #### Commit Conflict Resolution and Retry
 
