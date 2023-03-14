@@ -87,11 +87,6 @@ jobs:
       with:
         distribution: zulu
         java-version: 8
-    # Setup Gradle properties, heap requirements are for `:iceberg-spark:iceberg-spark-3.3_2.12:checkstyleMain`.
-    - name: Setup gradle.properties
-      run: |
-        mkdir -p ~/.gradle
-        echo "org.gradle.jvmargs=-Xmx2048m" >> ~/.gradle/gradle.properties
     - run: ./gradlew -DallVersions build -x test -x javadoc -x integrationTest
 
   build-javadoc:
