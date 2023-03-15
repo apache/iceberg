@@ -23,8 +23,9 @@ import java.util.Map;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.actions.BaseRewriteDataFilesResult;
 import org.apache.iceberg.actions.RewriteDataFiles;
+import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.NamedReference;
 import org.apache.iceberg.expressions.Zorder;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -32,8 +33,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.ExtendedParser;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.procedures.SparkProcedures.ProcedureBuilder;
+import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.InternalRow;
-import org.apache.spark.sql.catalyst.expressions.Expression;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.apache.spark.sql.connector.iceberg.catalog.ProcedureParameter;
@@ -119,30 +120,28 @@ class RewriteDataFilesProcedure extends BaseProcedure {
 
           String where = args.isNullAt(4) ? null : args.getString(4);
           if (where != null) {
-            Expression sparkExpression = filter(where, quotedFullIdentifier);
-            if (sparkExpression == null) {
-              // terminate immediately, since the where statement is evaluated by spark to false.
-              // that leads to a null spark expression.
-              RewriteDataFiles.Result result = new BaseRewriteDataFilesResult(Lists.newArrayList());
-              return toOutputRows(result);
-            }
-            action =
-                action.filter(SparkExpressionConverter.convertToIcebergExpression(sparkExpression));
+            Expression icebergExpression = filter(where, quotedFullIdentifier);
+            action = action.filter(icebergExpression);
           }
 
           RewriteDataFiles.Result result = action.execute();
-
           return toOutputRows(result);
         });
   }
 
   private Expression filter(String where, String tableName) {
-    Option<Expression> expressionOption =
-        SparkExpressionConverter.collectResolvedSparkExpressionOption(spark(), tableName, where);
+    SparkSession sparkSession = spark();
+    Option<org.apache.spark.sql.catalyst.expressions.Expression> expressionOption =
+        SparkExpressionConverter.collectResolvedSparkExpressionOption(
+            sparkSession, tableName, where);
     if (expressionOption.isEmpty()) {
-      return null;
+      if (SparkExpressionConverter.collectDeterministicSparkExpression(
+          sparkSession, tableName, where)) {
+        return Expressions.alwaysTrue();
+      }
+      return Expressions.alwaysFalse();
     }
-    return expressionOption.get();
+    return SparkExpressionConverter.convertToIcebergExpression(expressionOption.get());
   }
 
   private RewriteDataFiles checkAndApplyOptions(InternalRow args, RewriteDataFiles action) {
