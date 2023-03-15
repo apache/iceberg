@@ -27,28 +27,7 @@ menu:
 
 ## DDL commands
 
-###  `Create Catalog`
-
-#### Catalog Configuration
-
-A catalog is created and named by executing the following query (replace `<catalog_name>` with your catalog name and
-`<config_key>`=`<config_value>` with catalog implementation config):
-
-```sql
-CREATE CATALOG <catalog_name> WITH (
-  'type'='iceberg',
-  `<config_key>`=`<config_value>`
-); 
-```
-
-The following properties can be set globally and are not limited to a specific catalog implementation:
-
-* `type`: Must be `iceberg`. (required)
-* `catalog-type`: `hive`, `hadoop` or `rest` for built-in catalogs, or left unset for custom catalog implementations using catalog-impl. (Optional)
-* `catalog-impl`: The fully-qualified class name of a custom catalog implementation. Must be set if `catalog-type` is unset. (Optional)
-* `property-version`: Version number to describe the property version. This property can be used for backwards compatibility in case the property format changes. The current property version is `1`. (Optional)
-* `cache-enabled`: Whether to enable catalog cache, default value is `true`. (Optional)
-* `cache.expiration-interval-ms`: How long catalog entries are locally cached, in milliseconds; negative values like `-1` will disable expiration, value 0 is not allowed to set. default value is `-1`. (Optional)
+###  `CREATE Catalog`
 
 #### Hive catalog
 

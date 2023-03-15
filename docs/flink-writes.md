@@ -24,6 +24,9 @@ menu:
  - See the License for the specific language governing permissions and
  - limitations under the License.
  -->
+# Flink Writes
+
+Iceberg support batch and streaming writes With [Apache Flink](https://flink.apache.org/)'s DataStream API and Table API.
 
 ## Writing with SQL
 
@@ -256,14 +259,4 @@ INSERT INTO tableName /*+ OPTIONS('upsert-enabled'='true') */
 ...
 ```
 
-| Flink option           | Default                                    | Description                                                  |
-| ---------------------- | ------------------------------------------ | ------------------------------------------------------------ |
-| write-format           | Table write.format.default                 | File format to use for this write operation; parquet, avro, or orc |
-| target-file-size-bytes | As per table property                      | Overrides this table's write.target-file-size-bytes          |
-| upsert-enabled         | Table write.upsert.enabled                 | Overrides this table's write.upsert.enabled                  |
-| overwrite-enabled      | false                                      | Overwrite the table's data, overwrite mode shouldn't be enable when configuring to use UPSERT data stream. |
-| distribution-mode      | Table write.distribution-mode              | Overrides this table's write.distribution-mode               |
-| compression-codec      | Table write.(fileformat).compression-codec | Overrides this table's compression codec for this write      |
-| compression-level      | Table write.(fileformat).compression-level | Overrides this table's compression level for Parquet and Avro tables for this write |
-| compression-strategy   | Table write.orc.compression-strategy       | Overrides this table's compression strategy for ORC tables for this write |
-| branch                 | main                                       | Write data to the specified Branch.                          |
+Check out all the options here: [write-options](/flink-configuration#write-options) 
