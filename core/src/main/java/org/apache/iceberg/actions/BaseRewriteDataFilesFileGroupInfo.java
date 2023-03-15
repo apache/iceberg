@@ -21,7 +21,10 @@ package org.apache.iceberg.actions;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 
-/** @deprecated will be removed in 1.3.0. */
+/**
+ * @deprecated will be removed in 1.4.0; use {@link
+ *     ImmutableRewriteDataFiles.FileGroupInfo#builder()} instead.
+ */
 @Deprecated
 public class BaseRewriteDataFilesFileGroupInfo implements RewriteDataFiles.FileGroupInfo {
   private final int globalIndex;

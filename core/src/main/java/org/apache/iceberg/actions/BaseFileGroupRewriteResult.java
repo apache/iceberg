@@ -21,7 +21,10 @@ package org.apache.iceberg.actions;
 import org.apache.iceberg.actions.RewriteDataFiles.FileGroupInfo;
 import org.apache.iceberg.actions.RewriteDataFiles.FileGroupRewriteResult;
 
-/** @deprecated will be removed in 1.3.0. */
+/**
+ * @deprecated will be removed in 1.4.0; use {@link
+ *     ImmutableRewriteDataFiles.FileGroupRewriteResult#builder()} instead.
+ */
 @Deprecated
 public class BaseFileGroupRewriteResult implements FileGroupRewriteResult {
   private final int addedDataFilesCount;

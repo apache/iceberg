@@ -22,7 +22,10 @@ import java.util.List;
 import org.apache.iceberg.actions.RewriteDataFiles.FileGroupRewriteResult;
 import org.apache.iceberg.actions.RewriteDataFiles.Result;
 
-/** @deprecated will be removed in 1.3.0. */
+/**
+ * @deprecated will be removed in 1.4.0; use {@link ImmutableRewriteDataFiles.Result#builder()}
+ *     instead.
+ */
 @Deprecated
 public class BaseRewriteDataFilesResult implements Result {
   private final List<FileGroupRewriteResult> rewriteResults;
