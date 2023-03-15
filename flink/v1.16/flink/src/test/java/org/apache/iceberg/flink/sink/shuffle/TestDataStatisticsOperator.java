@@ -114,7 +114,7 @@ public class TestDataStatisticsOperator {
 
   @Test
   public void testOperatorOutput() throws Exception {
-    try (OneInputStreamOperatorTestHarness<String, DataStatisticsAndRecordWrapper<String, String>>
+    try (OneInputStreamOperatorTestHarness<String, DataStatisticsOrRecord<String, String>>
         testHarness = createHarness(this.operator)) {
       testHarness.processElement(new StreamRecord<>("a"));
       testHarness.processElement(new StreamRecord<>("b"));
@@ -122,8 +122,8 @@ public class TestDataStatisticsOperator {
 
       List<String> recordsOutput =
           testHarness.extractOutputValues().stream()
-              .filter(DataStatisticsAndRecordWrapper::hasRecord)
-              .map(DataStatisticsAndRecordWrapper::record)
+              .filter(DataStatisticsOrRecord::hasRecord)
+              .map(DataStatisticsOrRecord::record)
               .collect(Collectors.toList());
       assertThat(recordsOutput)
           .containsExactlyInAnyOrderElementsOf(ImmutableList.of("a", "b", "b"));
@@ -144,9 +144,9 @@ public class TestDataStatisticsOperator {
         env, "test-operator", Collections.emptyList(), cancelStreamRegistry);
   }
 
-  private OneInputStreamOperatorTestHarness<String, DataStatisticsAndRecordWrapper<String, String>>
+  private OneInputStreamOperatorTestHarness<String, DataStatisticsOrRecord<String, String>>
       createHarness(final DataStatisticsOperator<String, String> operator) throws Exception {
-    OneInputStreamOperatorTestHarness<String, DataStatisticsAndRecordWrapper<String, String>> harness =
+    OneInputStreamOperatorTestHarness<String, DataStatisticsOrRecord<String, String>> harness =
         new OneInputStreamOperatorTestHarness<>(operator, 1, 1, 0);
     harness.setup();
     harness.open();

@@ -70,7 +70,7 @@ class DataStatisticsOperator<T, K> extends AbstractStreamOperator<DataStatistics
     globalStatisticsState =
         context
             .getOperatorStateStore()
-            .getListState(
+            .getUnionListState(
                 new ListStateDescriptor<>(
                     "globalStatisticsState",
                     TypeInformation.of(new TypeHint<DataStatistics<K>>() {})));
