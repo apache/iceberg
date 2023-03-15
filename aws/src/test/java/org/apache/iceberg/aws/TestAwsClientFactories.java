@@ -25,11 +25,14 @@ import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.aws.lakeformation.LakeFormationAwsClientFactory;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.SerializationUtil;
 import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
+import software.amazon.awssdk.auth.credentials.AwsCredentials;
+import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.SystemPropertyCredentialsProvider;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
@@ -37,6 +40,7 @@ import software.amazon.awssdk.services.glue.GlueClient;
 import software.amazon.awssdk.services.kms.KmsClient;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.GetUrlRequest;
+import software.amazon.awssdk.services.sts.auth.StsAssumeRoleWithWebIdentityCredentialsProvider;
 
 public class TestAwsClientFactories {
 
@@ -139,36 +143,83 @@ public class TestAwsClientFactories {
   @Test
   public void testDefaultAwsClientFactoryWithCredentialsProvider() {
     Map<String, String> properties = Maps.newHashMap();
-    properties.put(AwsProperties.AWS_REGION, Region.AWS_GLOBAL.toString());
+    properties.put(AwsProperties.AWS_CLIENT_REGION, Region.AWS_GLOBAL.toString());
     properties.put(
         AwsProperties.S3FILEIO_CREDENTIALS_PROVIDER,
         SystemPropertyCredentialsProvider.class.getName());
 
     AwsClientFactory defaultAwsClientFactory = AwsClientFactories.from(properties);
+    assertAwsClientFactory(defaultAwsClientFactory);
+  }
+
+  private void assertAwsClientFactory(AwsClientFactory defaultAwsClientFactory) {
     Assertions.assertThat(defaultAwsClientFactory)
         .isInstanceOf(AwsClientFactories.DefaultAwsClientFactory.class);
-
     try (S3Client s3Client = defaultAwsClientFactory.s3()) {
-      Assertions.assertThat(s3Client != null);
+      Assertions.assertThat(s3Client).isNotNull();
       URL url =
           s3Client
               .utilities()
               .getUrl(GetUrlRequest.builder().bucket("test-bucket").key("test-key").build());
-      Assert.assertTrue(
-          url != null && url.toString().equals("https://test-bucket.s3.amazonaws.com/test-key"));
+      Assertions.assertThat(url)
+          .isNotNull()
+          .hasToString("https://test-bucket.s3.amazonaws.com/test-key");
     }
+  }
+
+  @Test
+  public void
+      testDefaultAwsClientFactoryWithCredentialsProviderAndCreateMethodWithCustomProperties() {
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(AwsProperties.AWS_CLIENT_REGION, Region.AWS_GLOBAL.toString());
+    properties.put(
+        AwsProperties.S3FILEIO_CREDENTIALS_PROVIDER, CustomCredentialsProvider.class.getName());
+    properties.put(AwsProperties.S3FILEIO_CREDENTIALS_PROVIDER + ".param1", "value1");
+
+    AwsClientFactory defaultAwsClientFactory = AwsClientFactories.from(properties);
+    assertAwsClientFactory(defaultAwsClientFactory);
   }
 
   @Test
   public void testDefaultAwsClientFactoryWithInvalidCredentialsProvider() {
     Map<String, String> properties = Maps.newHashMap();
-    properties.put(AwsProperties.AWS_REGION, Region.AWS_GLOBAL.toString());
+    properties.put(AwsProperties.AWS_CLIENT_REGION, Region.AWS_GLOBAL.toString());
     properties.put(AwsProperties.S3FILEIO_CREDENTIALS_PROVIDER, "invalidClassName");
-    AssertHelpers.assertThrows(
-        "Should fail if invalid credentials provider set",
-        IllegalArgumentException.class,
-        "The creation of an instance of invalidClassName failed",
-        () -> AwsClientFactories.from(properties).s3().close());
+    Assertions.assertThatThrownBy(() -> AwsClientFactories.from(properties).s3().close())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining(
+            "Please make sure the necessary JARs/packages are added to the classpath.");
+  }
+
+  @Test
+  public void testDefaultAwsClientFactoryCredentialsProviderWithNoCreateMethod() {
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(AwsProperties.AWS_CLIENT_REGION, Region.AWS_GLOBAL.toString());
+    properties.put(
+        AwsProperties.S3FILEIO_CREDENTIALS_PROVIDER,
+        StsAssumeRoleWithWebIdentityCredentialsProvider.class.getName());
+    Assertions.assertThatThrownBy(() -> AwsClientFactories.from(properties).s3().close())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining(
+            "The creation of an instance of software.amazon.awssdk.services.sts.auth.StsAssumeRoleWithWebIdentityCredentialsProvider failed. Please ensure that the implementation class of software.amazon.awssdk.auth.credentials.AwsCredentialsProvider is used, which should have a static 'create' method for instance creation.");
+  }
+
+  public static class CustomCredentialsProvider implements AwsCredentialsProvider {
+
+    private final Map<String, String> properties;
+
+    CustomCredentialsProvider(Map<String, String> properties) {
+      this.properties = Preconditions.checkNotNull(properties, "properties cannot be null");
+    }
+
+    public static CustomCredentialsProvider create(Map<String, String> properties) {
+      return new CustomCredentialsProvider(properties);
+    }
+
+    @Override
+    public AwsCredentials resolveCredentials() {
+      return null;
+    }
   }
 
   public static class CustomFactory implements AwsClientFactory {
