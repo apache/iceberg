@@ -49,7 +49,7 @@ SELECT * FROM sample;
 
 ### Flink streaming read
 
-Iceberg supports processing incremental data in flink streaming jobs which starts from a historical snapshot-id:
+Iceberg supports processing incremental data in Flink streaming jobs which starts from a historical snapshot-id:
 
 ```sql
 -- Submit the flink job in streaming mode for current session.
