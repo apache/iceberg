@@ -127,7 +127,8 @@ public class CachedClientPool implements ClientPool<IMetaStoreClient, TException
           case UGI:
           case USER_NAME:
             ValidationException.check(
-                types.add(type), "%s key element already specified", type.name());
+                !types.contains(type), "%s key element already specified", type.name());
+            types.add(type);
             break;
           default:
             throw new ValidationException("Unknown key element %s", trimmed);
