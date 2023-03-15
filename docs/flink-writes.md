@@ -187,7 +187,7 @@ FlinkSink.builderFor(
   .append();
 ```
 
-### Netrics
+### Metrics
 
 The following Flink metrics are provided by the Flink Iceberg sink.
 
