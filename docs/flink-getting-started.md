@@ -866,6 +866,13 @@ INSERT INTO tableName /*+ OPTIONS('upsert-enabled'='true') */
 | compression-level      | Table write.(fileformat).compression-level | Overrides this table's compression level for Parquet and Avro tables for this write                        |
 | compression-strategy   | Table write.orc.compression-strategy       | Overrides this table's compression strategy for ORC tables for this write                                  |
 
+Table properties are also passed when configuring the FlinkSink.
+
+The following table properties currently only are supported in Flink:
+
+| Table properties     | Default | Description                        |
+|----------------------| ------- |------------------------------------|
+| write.upsert.enabled | false   | Enables upsert mode for Flink Sink |
 
 ## Inspecting tables
 
