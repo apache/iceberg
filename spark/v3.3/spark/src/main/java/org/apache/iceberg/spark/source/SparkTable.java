@@ -260,6 +260,11 @@ public class SparkTable
 
   @Override
   public ScanBuilder newScanBuilder(CaseInsensitiveStringMap options) {
+    if (options.containsKey(SparkReadOptions.FILE_SCAN_TASK_SET_ID)) {
+      // skip planning the job and fetch already staged file scan tasks
+      return new SparkFilesScanBuilder(sparkSession(), icebergTable, options);
+    }
+
     if (options.containsKey(SparkReadOptions.SCAN_TASK_SET_ID)) {
       return new SparkStagedScanBuilder(sparkSession(), icebergTable, options);
     }
