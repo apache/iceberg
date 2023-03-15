@@ -115,6 +115,10 @@ public class SparkWriteConf {
     return sessionConf.get("spark.wap.id", null);
   }
 
+  public Integer outputSpecId() {
+    return confParser.intConf().option(SparkWriteOptions.OUTPUT_SPEC_ID).parseOptional();
+  }
+
   public FileFormat dataFileFormat() {
     String valueAsString =
         confParser
