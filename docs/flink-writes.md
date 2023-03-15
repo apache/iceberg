@@ -241,7 +241,7 @@ If the checkpoint interval (and expected Iceberg commit interval) is 5 minutes, 
 
 Flink write options are passed when configuring the FlinkSink, like this:
 
-```
+```java
 FlinkSink.Builder builder = FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
     .table(table)
     .tableLoader(tableLoader)
