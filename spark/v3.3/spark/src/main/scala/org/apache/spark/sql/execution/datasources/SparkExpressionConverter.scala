@@ -35,6 +35,21 @@ object SparkExpressionConverter {
     SparkFilters.convert(DataSourceStrategy.translateFilter(sparkExpression, supportNestedPredicatePushdown = true).get)
   }
 
+  def collectDeterministicSparkExpression(session: SparkSession,
+                                          tableName: String, where: String): Boolean = {
+    // used only to check if a deterministic expression is true or false
+    val tableAttrs = session.table(tableName).queryExecution.analyzed.output
+    val firstColumnName = tableAttrs.head.name
+    val anotherWhere = s"$firstColumnName is not null and $where"
+    val unresolvedExpression = session.sessionState.sqlParser.parseExpression(anotherWhere)
+    val filter = Filter(unresolvedExpression, DummyRelation(tableAttrs))
+    val optimizedLogicalPlan = session.sessionState.executePlan(filter).optimizedPlan
+    val option = optimizedLogicalPlan.collectFirst {
+      case filter: Filter => Some(filter.condition)
+    }.getOrElse(Option.empty)
+    if (option.isDefined) true else false
+  }
+
   def collectResolvedSparkExpressionOption(session: SparkSession,
                                            tableName: String, where: String): Option[Expression] = {
     val tableAttrs = session.table(tableName).queryExecution.analyzed.output
