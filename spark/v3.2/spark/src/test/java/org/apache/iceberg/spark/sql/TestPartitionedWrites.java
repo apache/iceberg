@@ -20,6 +20,7 @@ package org.apache.iceberg.spark.sql;
 
 import java.util.List;
 import java.util.Map;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.spark.SparkCatalogTestBase;
 import org.apache.iceberg.spark.source.SimpleRecord;
@@ -156,5 +157,65 @@ public class TestPartitionedWrites extends SparkCatalogTestBase {
         "View should have expected rows",
         ImmutableList.of(row(1L, "a"), row(1L, "a")),
         sql("SELECT * FROM tmp"));
+  }
+
+  @Test
+  public void testWriteWithOutputSpec() throws NoSuchTableException {
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    final int originalSpecId = table.spec().specId();
+    table.updateSpec().addField("data").commit();
+
+    table.refresh();
+    sql("REFRESH TABLE %s", tableName);
+
+    // By default, we write to the current spec.
+    sql("INSERT INTO TABLE %s VALUES (10, 'a')", tableName);
+
+    List<Object[]> expected = ImmutableList.of(row(10L, "a", table.spec().specId()));
+    assertEquals(
+        "Rows must match",
+        expected,
+        sql("SELECT id, data, _spec_id FROM %s WHERE id >= 10 ORDER BY id", tableName));
+
+    // Output spec ID should be respected when present.
+    List<SimpleRecord> data =
+        ImmutableList.of(new SimpleRecord(11, "b"), new SimpleRecord(12, "c"));
+    spark
+        .createDataFrame(data, SimpleRecord.class)
+        .toDF()
+        .writeTo(tableName)
+        .option("output-spec-id", Integer.toString(originalSpecId))
+        .append();
+
+    expected =
+        ImmutableList.of(
+            row(10L, "a", table.spec().specId()),
+            row(11L, "b", originalSpecId),
+            row(12L, "c", originalSpecId));
+    assertEquals(
+        "Rows must match",
+        expected,
+        sql("SELECT id, data, _spec_id FROM %s WHERE id >= 10 ORDER BY id", tableName));
+
+    // Even the default spec ID should be followed when present.
+    data = ImmutableList.of(new SimpleRecord(13, "d"));
+    spark
+        .createDataFrame(data, SimpleRecord.class)
+        .toDF()
+        .writeTo(tableName)
+        .option("output-spec-id", Integer.toString(table.spec().specId()))
+        .append();
+
+    expected =
+        ImmutableList.of(
+            row(10L, "a", table.spec().specId()),
+            row(11L, "b", originalSpecId),
+            row(12L, "c", originalSpecId),
+            row(13L, "d", table.spec().specId()));
+    assertEquals(
+        "Rows must match",
+        expected,
+        sql("SELECT id, data, _spec_id FROM %s WHERE id >= 10 ORDER BY id", tableName));
   }
 }
