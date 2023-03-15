@@ -26,13 +26,13 @@ import java.io.OutputStream;
 import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.aliyun.AliyunProperties;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.metrics.MetricsContext;
 import org.apache.iceberg.relocated.com.google.common.io.ByteStreams;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -63,11 +63,11 @@ public class TestOSSOutputFile extends AliyunOSSTestBase {
 
   @Test
   public void testFromLocation() {
-    AssertHelpers.assertThrows(
-        "Should catch null location when creating oss output file",
-        NullPointerException.class,
-        "location cannot be null",
-        () -> OSSOutputFile.fromLocation(ossClient, null, aliyunProperties));
+    Assertions.assertThatThrownBy(
+            () -> OSSOutputFile.fromLocation(ossClient, null, aliyunProperties),
+            "Should catch null location when creating oss output file")
+        .isInstanceOf(NullPointerException.class)
+        .hasMessageContaining("location cannot be null");
   }
 
   @Test
@@ -79,11 +79,10 @@ public class TestOSSOutputFile extends AliyunOSSTestBase {
     writeOSSData(uri, data);
 
     OutputFile out = OSSOutputFile.fromLocation(ossClient, uri.location(), aliyunProperties);
-    AssertHelpers.assertThrows(
-        "Should complain about location already exists",
-        AlreadyExistsException.class,
-        "Location already exists",
-        out::create);
+
+    Assertions.assertThatThrownBy(out::create, "Should complain about location already exists")
+        .isInstanceOf(AlreadyExistsException.class)
+        .hasMessageContaining("Location already exists");
   }
 
   @Test

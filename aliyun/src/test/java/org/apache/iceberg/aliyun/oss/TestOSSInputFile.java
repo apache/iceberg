@@ -30,13 +30,13 @@ import java.io.IOException;
 import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.aliyun.AliyunProperties;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.SeekableInputStream;
 import org.apache.iceberg.metrics.MetricsContext;
 import org.apache.iceberg.relocated.com.google.common.io.ByteStreams;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -61,13 +61,13 @@ public class TestOSSInputFile extends AliyunOSSTestBase {
   @Test
   public void testOSSInputFile() {
     OSSURI uri = randomURI();
-    AssertHelpers.assertThrows(
-        "File length should not be negative",
-        ValidationException.class,
-        "Invalid file length",
-        () ->
-            new OSSInputFile(
-                ossClient().get(), uri, aliyunProperties, -1, MetricsContext.nullMetrics()));
+    Assertions.assertThatThrownBy(
+            () ->
+                new OSSInputFile(
+                    ossClient().get(), uri, aliyunProperties, -1, MetricsContext.nullMetrics()),
+            "File length should not be negative")
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("Invalid file length");
   }
 
   @Test
