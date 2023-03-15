@@ -251,7 +251,7 @@ FlinkSink.Builder builder = FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SC
 
 For Flink SQL, write options can be passed in via SQL hints like this:
 
-```
+```sql
 INSERT INTO tableName /*+ OPTIONS('upsert-enabled'='true') */
 ...
 ```
