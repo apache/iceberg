@@ -19,13 +19,11 @@
 package org.apache.iceberg;
 
 import java.util.Map;
-import java.util.function.Function;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.transforms.Transforms;
-import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.HashUtils;
 import org.apache.iceberg.util.LocationUtil;
 import org.apache.iceberg.util.PropertyUtil;
 
@@ -104,8 +102,6 @@ public class LocationProviders {
   }
 
   static class ObjectStoreLocationProvider implements LocationProvider {
-    private static final Function<Object, Integer> HASH_FUNC =
-        Transforms.bucket(Integer.MAX_VALUE).bind(Types.StringType.get());
 
     private final String storageLocation;
     private final String context;
@@ -143,11 +139,11 @@ public class LocationProviders {
 
     @Override
     public String newDataLocation(String filename) {
-      int hash = HASH_FUNC.apply(filename);
+      String hash = HashUtils.computeHash(filename);
       if (context != null) {
-        return String.format("%s/%08x/%s/%s", storageLocation, hash, context, filename);
+        return String.format("%s/%s/%s/%s", storageLocation, hash, context, filename);
       } else {
-        return String.format("%s/%08x/%s", storageLocation, hash, filename);
+        return String.format("%s/%s/%s", storageLocation, hash, filename);
       }
     }
 
