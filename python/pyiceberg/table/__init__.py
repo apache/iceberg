@@ -95,7 +95,7 @@ class Table:
     def scan(
         self,
         row_filter: Union[str, BooleanExpression] = ALWAYS_TRUE,
-        selected_fields: Tuple[str] = ("*",),
+        selected_fields: Tuple[str, ...] = ("*",),
         case_sensitive: bool = True,
         snapshot_id: Optional[int] = None,
         options: Properties = EMPTY_DICT,
@@ -215,7 +215,7 @@ S = TypeVar("S", bound="TableScan", covariant=True)
 class TableScan(ABC):
     table: Table
     row_filter: BooleanExpression
-    selected_fields: Tuple[str]
+    selected_fields: Tuple[str, ...]
     case_sensitive: bool
     snapshot_id: Optional[int]
     options: Properties
@@ -224,7 +224,7 @@ class TableScan(ABC):
         self,
         table: Table,
         row_filter: Union[str, BooleanExpression] = ALWAYS_TRUE,
-        selected_fields: Tuple[str] = ("*",),
+        selected_fields: Tuple[str, ...] = ("*",),
         case_sensitive: bool = True,
         snapshot_id: Optional[int] = None,
         options: Properties = EMPTY_DICT,
@@ -331,7 +331,7 @@ class DataScan(TableScan):
         self,
         table: Table,
         row_filter: Union[str, BooleanExpression] = ALWAYS_TRUE,
-        selected_fields: Tuple[str] = ("*",),
+        selected_fields: Tuple[str, ...] = ("*",),
         case_sensitive: bool = True,
         snapshot_id: Optional[int] = None,
         options: Properties = EMPTY_DICT,
