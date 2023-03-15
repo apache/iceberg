@@ -586,9 +586,9 @@ For more details of configuration, see sections [URL Connection HTTP Client Conf
 
 Configure the following property to set the type of HTTP client:
 
-| Property         | Default       | Description                                                                                                |
-|------------------|---------------|------------------------------------------------------------------------------------------------------------|
-| http-client.type | urlconnection | Types of HTTP Client. <br/> `urlconnection`: URL Connection HTTP Client <br/> `apache`: Apache HTTP Client |
+| Property         | Default | Description                                                                                                |
+|------------------|---------|------------------------------------------------------------------------------------------------------------|
+| http-client.type | apache  | Types of HTTP Client. <br/> `urlconnection`: URL Connection HTTP Client <br/> `apache`: Apache HTTP Client |
 
 #### URL Connection HTTP Client Configurations
 
