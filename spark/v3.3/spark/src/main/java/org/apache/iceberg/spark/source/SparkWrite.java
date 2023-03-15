@@ -91,6 +91,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
   private final String applicationId;
   private final boolean wapEnabled;
   private final String wapId;
+  private final PartitionSpec outputSpec;
   private final String branch;
   private final long targetFileSize;
   private final Schema writeSchema;
@@ -120,6 +121,10 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
     this.applicationId = applicationId;
     this.wapEnabled = writeConf.wapEnabled();
     this.wapId = writeConf.wapId();
+    this.outputSpec =
+        writeConf.outputSpecId() != null
+            ? table.specs().get(writeConf.outputSpecId())
+            : table.spec();
     this.branch = writeConf.branch();
     this.targetFileSize = writeConf.targetDataFileSize();
     this.writeSchema = writeSchema;
@@ -177,6 +182,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
         tableBroadcast,
         queryId,
         format,
+        outputSpec,
         targetFileSize,
         writeSchema,
         dsSchema,
@@ -604,6 +610,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
   private static class WriterFactory implements DataWriterFactory, StreamingDataWriterFactory {
     private final Broadcast<Table> tableBroadcast;
     private final FileFormat format;
+    private final PartitionSpec outputSpec;
     private final long targetFileSize;
     private final Schema writeSchema;
     private final StructType dsSchema;
@@ -614,12 +621,14 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
         Broadcast<Table> tableBroadcast,
         String queryId,
         FileFormat format,
+        PartitionSpec outputSpec,
         long targetFileSize,
         Schema writeSchema,
         StructType dsSchema,
         boolean partitionedFanoutEnabled) {
       this.tableBroadcast = tableBroadcast;
       this.format = format;
+      this.outputSpec = outputSpec;
       this.targetFileSize = targetFileSize;
       this.writeSchema = writeSchema;
       this.dsSchema = dsSchema;
@@ -635,7 +644,6 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
     @Override
     public DataWriter<InternalRow> createWriter(int partitionId, long taskId, long epochId) {
       Table table = tableBroadcast.value();
-      PartitionSpec spec = table.spec();
       FileIO io = table.io();
 
       OutputFileFactory fileFactory =
@@ -650,15 +658,16 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
               .dataSparkType(dsSchema)
               .build();
 
-      if (spec.isUnpartitioned()) {
-        return new UnpartitionedDataWriter(writerFactory, fileFactory, io, spec, targetFileSize);
+      if (outputSpec.isUnpartitioned()) {
+        return new UnpartitionedDataWriter(
+            writerFactory, fileFactory, io, outputSpec, targetFileSize);
 
       } else {
         return new PartitionedDataWriter(
             writerFactory,
             fileFactory,
             io,
-            spec,
+            outputSpec,
             writeSchema,
             dsSchema,
             targetFileSize,

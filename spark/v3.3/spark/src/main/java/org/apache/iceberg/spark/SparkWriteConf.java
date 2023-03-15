@@ -141,6 +141,10 @@ public class SparkWriteConf {
         .parse();
   }
 
+  public Integer outputSpecId() {
+    return confParser.intConf().option(SparkWriteOptions.OUTPUT_SPEC_ID).parseOptional();
+  }
+
   public FileFormat dataFileFormat() {
     String valueAsString =
         confParser
