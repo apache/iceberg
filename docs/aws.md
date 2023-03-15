@@ -60,7 +60,7 @@ AWS_SDK_VERSION=2.20.18
 AWS_MAVEN_GROUP=software.amazon.awssdk
 AWS_PACKAGES=(
     "bundle"
-    "url-connection-client"
+    "apache-client"
 )
 for pkg in "${AWS_PACKAGES[@]}"; do
     DEPENDENCIES+=",$AWS_MAVEN_GROUP:$pkg:$AWS_SDK_VERSION"
@@ -93,7 +93,7 @@ AWS_SDK_VERSION=2.20.18
 AWS_MAVEN_URL=$MAVEN_URL/software/amazon/awssdk
 AWS_PACKAGES=(
     "bundle"
-    "url-connection-client"
+    "apache-client"
 )
 for pkg in "${AWS_PACKAGES[@]}"; do
     wget $AWS_MAVEN_URL/$pkg/$AWS_SDK_VERSION/$pkg-$AWS_SDK_VERSION.jar
@@ -103,7 +103,7 @@ done
 /path/to/bin/sql-client.sh embedded \
     -j iceberg-flink-runtime-$ICEBERG_VERSION.jar \
     -j bundle-$AWS_SDK_VERSION.jar \
-    -j url-connection-client-$AWS_SDK_VERSION.jar \
+    -j apache-client-$AWS_SDK_VERSION.jar \
     shell
 ```
 
@@ -137,7 +137,7 @@ and then add them to the Hive classpath or add the jars at runtime in CLI:
 ```
 add jar /my/path/to/iceberg-hive-runtime.jar;
 add jar /my/path/to/aws/bundle.jar;
-add jar /my/path/to/aws/url-connection-client.jar;
+add jar /my/path/to/aws/apache-client.jar;
 ```
 
 With those dependencies, you can register a Glue catalog and create external tables in Hive at runtime in CLI by:
@@ -656,7 +656,7 @@ LIB_PATH=/usr/share/aws/aws-java-sdk/
 
 AWS_PACKAGES=(
   "bundle"
-  "url-connection-client"
+  "apache-client"
 )
 
 ICEBERG_PACKAGES=(
