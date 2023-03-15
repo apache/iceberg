@@ -53,8 +53,8 @@ def table_test_null_nan_rewritten(catalog: Catalog) -> Table:
 def test_pyarrow_nan(table_test_null_nan: Table) -> None:
     arrow_table = table_test_null_nan.scan(row_filter=IsNaN("col_numeric"), selected_fields=("idx", "col_numeric")).to_arrow()
     assert len(arrow_table) == 1
-    assert arrow_table[0][0].as_py() == 1
-    assert math.isnan(arrow_table[1][0].as_py())
+    assert arrow_table["idx"][0].as_py() == 1
+    assert math.isnan(arrow_table["col_numeric"][0].as_py())
 
 
 @pytest.mark.integration
@@ -63,8 +63,8 @@ def test_pyarrow_nan_rewritten(table_test_null_nan_rewritten: Table) -> None:
         row_filter=IsNaN("col_numeric"), selected_fields=("idx", "col_numeric")
     ).to_arrow()
     assert len(arrow_table) == 1
-    assert arrow_table[0][0].as_py() == 1
-    assert math.isnan(arrow_table[1][0].as_py())
+    assert arrow_table["idx"][0].as_py() == 1
+    assert math.isnan(arrow_table["col_numeric"][0].as_py())
 
 
 @pytest.mark.integration
@@ -77,5 +77,6 @@ def test_pyarrow_not_nan_count(table_test_null_nan: Table) -> None:
 @pytest.mark.integration
 def test_duckdb_nan(table_test_null_nan_rewritten: Table) -> None:
     con = table_test_null_nan_rewritten.scan().to_duckdb("table_test_null_nan")
-    result = con.query("SELECT idx FROM table_test_null_nan WHERE isnan(col_numeric)").fetchone()
-    assert result == (1,)
+    result = con.query("SELECT idx, col_numeric FROM table_test_null_nan WHERE isnan(col_numeric)").fetchone()
+    assert result[0] == 1
+    assert math.isnan(result[1])
