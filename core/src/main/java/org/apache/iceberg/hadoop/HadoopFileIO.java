@@ -21,10 +21,12 @@ package org.apache.iceberg.hadoop;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
@@ -168,7 +170,7 @@ public class HadoopFileIO
 
   @Override
   public void deleteFiles(Iterable<String> pathsToDelete) throws BulkDeletionFailureException {
-    AtomicInteger failureCount = new AtomicInteger(0);
+    Set<String> deleteFailedFiles = Collections.synchronizedSet(new HashSet<String>());
     Tasks.foreach(pathsToDelete)
         .executeWith(executorService())
         .retry(DELETE_RETRY_ATTEMPTS)
@@ -177,12 +179,12 @@ public class HadoopFileIO
         .onFailure(
             (f, e) -> {
               LOG.error("Failure during bulk delete on file: {} ", f, e);
-              failureCount.incrementAndGet();
+              deleteFailedFiles.add(f);
             })
         .run(this::deleteFile);
 
-    if (failureCount.get() != 0) {
-      throw new BulkDeletionFailureException(failureCount.get());
+    if (deleteFailedFiles.size() != 0) {
+      throw new BulkDeletionFailureException(deleteFailedFiles, deleteFailedFiles.size());
     }
   }
 

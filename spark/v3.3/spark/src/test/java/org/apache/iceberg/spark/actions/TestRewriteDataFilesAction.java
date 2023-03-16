@@ -1424,7 +1424,7 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
             .deleteOrphanFiles(table)
             .olderThan(System.currentTimeMillis())
             .execute()
-            .orphanFileLocations());
+            .statuses());
   }
 
   protected void shouldHaveACleanCache(Table table) {

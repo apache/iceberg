@@ -68,7 +68,9 @@ public class RemoveOrphanFilesProcedure extends BaseProcedure {
   private static final StructType OUTPUT_TYPE =
       new StructType(
           new StructField[] {
-            new StructField("orphan_file_location", DataTypes.StringType, false, Metadata.empty())
+            new StructField("orphan_file_location", DataTypes.StringType, false, Metadata.empty()),
+            new StructField("deleted", DataTypes.BooleanType, false, Metadata.empty()),
+            new StructField("error_message", DataTypes.StringType, true, Metadata.empty())
           });
 
   public static ProcedureBuilder builder() {
@@ -166,7 +168,6 @@ public class RemoveOrphanFilesProcedure extends BaseProcedure {
                       + "IO's bulk delete.",
                   table.io().getClass().getName());
             } else {
-
               action.executeDeleteWith(executorService(maxConcurrentDeletes, "remove-orphans"));
             }
           }
@@ -184,19 +185,30 @@ public class RemoveOrphanFilesProcedure extends BaseProcedure {
 
           DeleteOrphanFiles.Result result = action.execute();
 
-          return toOutputRows(result);
+          return toOutputRows(dryRun, result);
         });
   }
 
-  private InternalRow[] toOutputRows(DeleteOrphanFiles.Result result) {
-    Iterable<String> orphanFileLocations = result.orphanFileLocations();
+  private InternalRow[] toOutputRows(boolean dryRun, DeleteOrphanFiles.Result result) {
+    Iterable<DeleteOrphanFiles.OrphanFileStatus> orphanFileStatuses = result.statuses();
 
-    int orphanFileLocationsCount = Iterables.size(orphanFileLocations);
+    int orphanFileLocationsCount = Iterables.size(orphanFileStatuses);
     InternalRow[] rows = new InternalRow[orphanFileLocationsCount];
 
     int index = 0;
-    for (String fileLocation : orphanFileLocations) {
-      rows[index] = newInternalRow(UTF8String.fromString(fileLocation));
+    for (DeleteOrphanFiles.OrphanFileStatus fileStatus : orphanFileStatuses) {
+      String errorMessage =
+          fileStatus.failureCause() != null ? fileStatus.failureCause().getMessage() : null;
+      // During dry run DeleteOrphanFiles.OrphanFileStatus#deleted() will be ignored and deleted
+      // will always be false.
+      // For an actual run, deleted will use the value of
+      // DeleteOrphanFiles.OrphanFileStatus#deleted().
+      boolean deleted = dryRun ? false : fileStatus.deleted();
+      rows[index] =
+          newInternalRow(
+              UTF8String.fromString(fileStatus.location()),
+              deleted,
+              UTF8String.fromString(errorMessage));
       index++;
     }
 

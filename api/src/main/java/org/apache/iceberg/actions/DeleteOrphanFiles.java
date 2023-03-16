@@ -22,6 +22,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 import org.apache.iceberg.io.SupportsBulkOperations;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.immutables.value.Value;
@@ -144,7 +146,25 @@ public interface DeleteOrphanFiles extends Action<DeleteOrphanFiles, DeleteOrpha
   @Value.Immutable
   interface Result {
     /** Returns locations of orphan files. */
-    Iterable<String> orphanFileLocations();
+    default Iterable<String> orphanFileLocations() {
+      return StreamSupport.stream(statuses().spliterator(), false)
+          .map(DeleteOrphanFiles.OrphanFileStatus::location)
+          .collect(Collectors.toList());
+    }
+
+    Iterable<OrphanFileStatus> statuses();
+  }
+
+  interface OrphanFileStatus {
+
+    /** Returns the location of the orphan file. */
+    String location();
+
+    /** Returns whether the orphan file was successfully deleted or not. */
+    boolean deleted();
+
+    /** Returns the exception that occurred while deleting the file, else returns null. */
+    Exception failureCause();
   }
 
   /**

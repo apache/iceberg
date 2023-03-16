@@ -27,6 +27,7 @@ import java.io.UncheckedIOException;
 import java.net.URI;
 import java.sql.Timestamp;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -233,13 +234,29 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
     return String.format("Deleting orphan files (%s) from %s", optionsAsString, table.name());
   }
 
-  private void deleteFiles(SupportsBulkOperations io, List<String> paths) {
+  private void deleteFiles(
+      SupportsBulkOperations io,
+      List<String> paths,
+      List<DeleteOrphanFiles.OrphanFileStatus> orphanFileStatuses) {
+    Set<String> deleteFailedFiles = new HashSet<String>();
     try {
       io.deleteFiles(paths);
       LOG.info("Deleted {} files using bulk deletes", paths.size());
     } catch (BulkDeletionFailureException e) {
+      deleteFailedFiles.addAll(e.deleteFailedFiles());
       int deletedFilesCount = paths.size() - e.numberFailedObjects();
       LOG.warn("Deleted only {} of {} files using bulk deletes", deletedFilesCount, paths.size());
+    } finally {
+      paths.forEach(
+          (path) -> {
+            boolean deleted = true;
+            Exception exc = null;
+            if (deleteFailedFiles.contains(path)) {
+              deleted = false;
+              exc = new Exception("Failed to delete file during bulk delete");
+            }
+            orphanFileStatuses.add(new BaseOrphanFileStatus(path, deleted, exc));
+          });
     }
   }
 
@@ -250,8 +267,11 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
     List<String> orphanFiles =
         findOrphanFiles(spark(), actualFileIdentDS, validFileIdentDS, prefixMismatchMode);
 
+    List<DeleteOrphanFiles.OrphanFileStatus> orphanFileStatuses =
+        Lists.newArrayListWithCapacity(orphanFiles.size());
+
     if (deleteFunc == null && table.io() instanceof SupportsBulkOperations) {
-      deleteFiles((SupportsBulkOperations) table.io(), orphanFiles);
+      deleteFiles((SupportsBulkOperations) table.io(), orphanFiles, orphanFileStatuses);
     } else {
 
       Tasks.Builder<String> deleteTasks =
@@ -259,20 +279,32 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
               .noRetry()
               .executeWith(deleteExecutorService)
               .suppressFailureWhenFinished()
-              .onFailure((file, exc) -> LOG.warn("Failed to delete file: {}", file, exc));
+              .onFailure(
+                  (file, exc) -> {
+                    LOG.warn("Failed to delete file: {}", file, exc);
+                    orphanFileStatuses.add(new BaseOrphanFileStatus(file, false, exc));
+                  });
 
       if (deleteFunc == null) {
         LOG.info(
             "Table IO {} does not support bulk operations. Using non-bulk deletes.",
             table.io().getClass().getName());
-        deleteTasks.run(table.io()::deleteFile);
+        deleteTasks.run(
+            (file) -> {
+              table.io().deleteFile(file);
+              orphanFileStatuses.add(new BaseOrphanFileStatus(file));
+            });
       } else {
         LOG.info("Custom delete function provided. Using non-bulk deletes");
-        deleteTasks.run(deleteFunc::accept);
+        deleteTasks.run(
+            (file) -> {
+              deleteFunc.accept(file);
+              orphanFileStatuses.add(new BaseOrphanFileStatus(file));
+            });
       }
     }
 
-    return ImmutableDeleteOrphanFiles.Result.builder().orphanFileLocations(orphanFiles).build();
+    return ImmutableDeleteOrphanFiles.Result.builder().orphanFileLocations(orphanFileStatuses).build();
   }
 
   private Dataset<FileURI> validFileIdentDS() {

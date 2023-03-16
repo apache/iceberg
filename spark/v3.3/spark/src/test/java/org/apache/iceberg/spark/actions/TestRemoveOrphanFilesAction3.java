@@ -60,8 +60,11 @@ public class TestRemoveOrphanFilesAction3 extends TestRemoveOrphanFilesAction {
             .execute();
     Assert.assertTrue(
         "trash file should be removed",
-        StreamSupport.stream(results.orphanFileLocations().spliterator(), false)
-            .anyMatch(file -> file.contains("file:" + location + "/data/trashfile")));
+        StreamSupport.stream(results.statuses().spliterator(), false)
+            .anyMatch(
+                fileStatus ->
+                    fileStatus.location().contains("file:" + location + "/data/trashfile")));
+    assertDeletedStatusAndFailureCause(results.statuses());
   }
 
   @Test
@@ -90,8 +93,11 @@ public class TestRemoveOrphanFilesAction3 extends TestRemoveOrphanFilesAction {
             .execute();
     Assert.assertTrue(
         "trash file should be removed",
-        StreamSupport.stream(results.orphanFileLocations().spliterator(), false)
-            .anyMatch(file -> file.contains("file:" + location + "/data/trashfile")));
+        StreamSupport.stream(results.statuses().spliterator(), false)
+            .anyMatch(
+                fileStatus ->
+                    fileStatus.location().contains("file:" + location + "/data/trashfile")));
+    assertDeletedStatusAndFailureCause(results.statuses());
   }
 
   @Test
@@ -120,8 +126,11 @@ public class TestRemoveOrphanFilesAction3 extends TestRemoveOrphanFilesAction {
             .execute();
     Assert.assertTrue(
         "trash file should be removed",
-        StreamSupport.stream(results.orphanFileLocations().spliterator(), false)
-            .anyMatch(file -> file.contains("file:" + location + "/data/trashfile")));
+        StreamSupport.stream(results.statuses().spliterator(), false)
+            .anyMatch(
+                fileStatus ->
+                    fileStatus.location().contains("file:" + location + "/data/trashfile")));
+    assertDeletedStatusAndFailureCause(results.statuses());
   }
 
   @Test
@@ -153,8 +162,11 @@ public class TestRemoveOrphanFilesAction3 extends TestRemoveOrphanFilesAction {
             .execute();
     Assert.assertTrue(
         "trash file should be removed",
-        StreamSupport.stream(results.orphanFileLocations().spliterator(), false)
-            .anyMatch(file -> file.contains("file:" + location + "/data/trashfile")));
+        StreamSupport.stream(results.statuses().spliterator(), false)
+            .anyMatch(
+                fileStatus ->
+                    fileStatus.location().contains("file:" + location + "/data/trashfile")));
+    assertDeletedStatusAndFailureCause(results.statuses());
   }
 
   @Test
@@ -186,8 +198,11 @@ public class TestRemoveOrphanFilesAction3 extends TestRemoveOrphanFilesAction {
             .execute();
     Assert.assertTrue(
         "trash file should be removed",
-        StreamSupport.stream(results.orphanFileLocations().spliterator(), false)
-            .anyMatch(file -> file.contains("file:" + location + "/data/trashfile")));
+        StreamSupport.stream(results.statuses().spliterator(), false)
+            .anyMatch(
+                fileStatus ->
+                    fileStatus.location().contains("file:" + location + "/data/trashfile")));
+    assertDeletedStatusAndFailureCause(results.statuses());
   }
 
   @After
