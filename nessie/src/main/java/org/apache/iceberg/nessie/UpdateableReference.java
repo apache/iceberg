@@ -60,26 +60,8 @@ class UpdateableReference {
     return reference.getHash();
   }
 
-  /** @deprecated will be removed in 1.3.0 */
-  @Deprecated
-  public Branch getAsBranch() {
-    if (!isBranch()) {
-      throw new IllegalArgumentException("Reference is not a branch");
-    }
-    return (Branch) reference;
-  }
-
   public Reference getReference() {
     return reference;
-  }
-
-  public Reference getReferenceForApiRequest() {
-    if (!mutable) {
-      return reference;
-    }
-    // setting hash to null in client's request,
-    // So that server uses the latest commit hash for that branch.
-    return Branch.of(reference.getName(), null);
   }
 
   public void checkMutable() {
@@ -89,5 +71,9 @@ class UpdateableReference {
 
   public String getName() {
     return reference.getName();
+  }
+
+  public boolean isMutable() {
+    return mutable;
   }
 }

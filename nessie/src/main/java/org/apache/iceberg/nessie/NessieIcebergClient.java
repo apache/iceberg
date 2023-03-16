@@ -39,7 +39,14 @@ import org.apache.iceberg.relocated.com.google.common.base.Suppliers;
 import org.apache.iceberg.util.Tasks;
 import org.projectnessie.client.NessieConfigConstants;
 import org.projectnessie.client.api.CommitMultipleOperationsBuilder;
+import org.projectnessie.client.api.CreateNamespaceBuilder;
+import org.projectnessie.client.api.DeleteNamespaceBuilder;
+import org.projectnessie.client.api.GetEntriesBuilder;
+import org.projectnessie.client.api.GetMultipleNamespacesBuilder;
+import org.projectnessie.client.api.GetNamespaceBuilder;
 import org.projectnessie.client.api.NessieApiV1;
+import org.projectnessie.client.api.OnReferenceBuilder;
+import org.projectnessie.client.api.UpdateNamespaceBuilder;
 import org.projectnessie.client.http.HttpClientException;
 import org.projectnessie.error.BaseNessieClientServerException;
 import org.projectnessie.error.NessieConflictException;
@@ -132,8 +139,9 @@ public class NessieIcebergClient implements AutoCloseable {
 
   public List<TableIdentifier> listTables(Namespace namespace) {
     try {
-      return api.getEntries().reference(getRef().getReferenceForApiRequest()).get().getEntries()
-          .stream()
+      GetEntriesBuilder getEntriesBuilder = api.getEntries();
+      addReference(getEntriesBuilder);
+      return getEntriesBuilder.get().getEntries().stream()
           .filter(namespacePredicate(namespace))
           .filter(e -> Content.Type.ICEBERG_TABLE == e.getType())
           .map(this::toIdentifier)
@@ -179,12 +187,13 @@ public class NessieIcebergClient implements AutoCloseable {
   public void createNamespace(Namespace namespace, Map<String, String> metadata) {
     try {
       getRef().checkMutable();
-      getApi()
-          .createNamespace()
-          .reference(getRef().getReferenceForApiRequest())
-          .namespace(org.projectnessie.model.Namespace.of(namespace.levels()))
-          .properties(metadata)
-          .create();
+      CreateNamespaceBuilder createNamespaceBuilder =
+          getApi()
+              .createNamespace()
+              .namespace(org.projectnessie.model.Namespace.of(namespace.levels()))
+              .properties(metadata);
+      addReference(createNamespaceBuilder);
+      createNamespaceBuilder.create();
       refresh();
     } catch (NessieNamespaceAlreadyExistsException e) {
       throw new AlreadyExistsException(e, "Namespace already exists: %s", namespace);
@@ -199,12 +208,12 @@ public class NessieIcebergClient implements AutoCloseable {
 
   public List<Namespace> listNamespaces(Namespace namespace) throws NoSuchNamespaceException {
     try {
-      GetNamespacesResponse response =
+      GetMultipleNamespacesBuilder getMultipleNamespacesBuilder =
           getApi()
               .getMultipleNamespaces()
-              .reference(getRef().getReferenceForApiRequest())
-              .namespace(org.projectnessie.model.Namespace.of(namespace.levels()))
-              .get();
+              .namespace(org.projectnessie.model.Namespace.of(namespace.levels()));
+      addReference(getMultipleNamespacesBuilder);
+      GetNamespacesResponse response = getMultipleNamespacesBuilder.get();
       return response.getNamespaces().stream()
           .map(ns -> Namespace.of(ns.getElements().toArray(new String[0])))
           .collect(Collectors.toList());
@@ -220,11 +229,12 @@ public class NessieIcebergClient implements AutoCloseable {
   public boolean dropNamespace(Namespace namespace) throws NamespaceNotEmptyException {
     try {
       getRef().checkMutable();
-      getApi()
-          .deleteNamespace()
-          .reference(getRef().getReferenceForApiRequest())
-          .namespace(org.projectnessie.model.Namespace.of(namespace.levels()))
-          .delete();
+      DeleteNamespaceBuilder deleteNamespaceBuilder =
+          getApi()
+              .deleteNamespace()
+              .namespace(org.projectnessie.model.Namespace.of(namespace.levels()));
+      addReference(deleteNamespaceBuilder);
+      deleteNamespaceBuilder.delete();
       refresh();
       return true;
     } catch (NessieNamespaceNotFoundException e) {
@@ -245,12 +255,12 @@ public class NessieIcebergClient implements AutoCloseable {
   public Map<String, String> loadNamespaceMetadata(Namespace namespace)
       throws NoSuchNamespaceException {
     try {
-      return getApi()
-          .getNamespace()
-          .reference(getRef().getReferenceForApiRequest())
-          .namespace(org.projectnessie.model.Namespace.of(namespace.levels()))
-          .get()
-          .getProperties();
+      GetNamespaceBuilder getNamespaceBuilder =
+          getApi()
+              .getNamespace()
+              .namespace(org.projectnessie.model.Namespace.of(namespace.levels()));
+      addReference(getNamespaceBuilder);
+      return getNamespaceBuilder.get().getProperties();
     } catch (NessieNamespaceNotFoundException e) {
       throw new NoSuchNamespaceException(e, "Namespace does not exist: %s", namespace);
     } catch (NessieReferenceNotFoundException e) {
@@ -264,12 +274,13 @@ public class NessieIcebergClient implements AutoCloseable {
 
   public boolean setProperties(Namespace namespace, Map<String, String> properties) {
     try {
-      getApi()
-          .updateProperties()
-          .reference(getRef().getReferenceForApiRequest())
-          .namespace(org.projectnessie.model.Namespace.of(namespace.levels()))
-          .updateProperties(properties)
-          .update();
+      UpdateNamespaceBuilder updateNamespaceBuilder =
+          getApi()
+              .updateProperties()
+              .namespace(org.projectnessie.model.Namespace.of(namespace.levels()))
+              .updateProperties(properties);
+      addReference(updateNamespaceBuilder);
+      updateNamespaceBuilder.update();
       refresh();
       // always successful, otherwise an exception is thrown
       return true;
@@ -286,12 +297,13 @@ public class NessieIcebergClient implements AutoCloseable {
 
   public boolean removeProperties(Namespace namespace, Set<String> properties) {
     try {
-      getApi()
-          .updateProperties()
-          .reference(getRef().getReferenceForApiRequest())
-          .namespace(org.projectnessie.model.Namespace.of(namespace.levels()))
-          .removeProperties(properties)
-          .update();
+      UpdateNamespaceBuilder updateNamespaceBuilder =
+          getApi()
+              .updateProperties()
+              .namespace(org.projectnessie.model.Namespace.of(namespace.levels()))
+              .removeProperties(properties);
+      addReference(updateNamespaceBuilder);
+      updateNamespaceBuilder.update();
       refresh();
       // always successful, otherwise an exception is thrown
       return true;
@@ -505,6 +517,15 @@ public class NessieIcebergClient implements AutoCloseable {
         && (base == null
             || base.currentSnapshot() == null
             || snapshot.snapshotId() != base.currentSnapshot().snapshotId());
+  }
+
+  private void addReference(OnReferenceBuilder<?> builder) {
+    UpdateableReference ref = getRef();
+    if (!ref.isMutable()) {
+      builder.reference(ref.getReference());
+    } else {
+      builder.refName(ref.getName());
+    }
   }
 
   private String buildCommitMsg(TableMetadata base, TableMetadata metadata, String tableName) {
