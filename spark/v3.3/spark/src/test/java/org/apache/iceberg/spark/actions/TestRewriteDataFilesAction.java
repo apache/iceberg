@@ -505,8 +505,7 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
 
   @Test
   public void testPartialProgressEnabled() {
-    int numFiles = 20;
-    Table table = createTable(numFiles);
+    Table table = createTable(20);
     int fileSize = averageFileSize(table);
 
     table.updateProperties().set(COMMIT_NUM_RETRIES, "10").commit();
