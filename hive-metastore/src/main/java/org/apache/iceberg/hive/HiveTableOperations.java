@@ -33,7 +33,6 @@ import org.apache.hadoop.hive.common.StatsSetupConst;
 import org.apache.hadoop.hive.metastore.IMetaStoreClient;
 import org.apache.hadoop.hive.metastore.TableType;
 import org.apache.hadoop.hive.metastore.api.InvalidObjectException;
-import org.apache.hadoop.hive.metastore.api.MetaException;
 import org.apache.hadoop.hive.metastore.api.NoSuchObjectException;
 import org.apache.hadoop.hive.metastore.api.SerDeInfo;
 import org.apache.hadoop.hive.metastore.api.StorageDescriptor;
@@ -245,7 +244,8 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
       lock.ensureActive();
 
       try {
-        persistTable(tbl, updateHiveTable, baseMetadataLocation);
+        persistTable(
+            tbl, updateHiveTable, hiveLockEnabled(metadata, conf) ? null : baseMetadataLocation);
         lock.ensureActive();
 
         commitStatus = CommitStatus.SUCCESS;
@@ -266,12 +266,11 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
         throw e;
 
       } catch (Throwable e) {
-        if (e instanceof MetaException
-            && e.getMessage()
-                .contains(
-                    "The table has been modified. The parameter value for key '"
-                        + HiveTableOperations.NO_LOCK_EXPECTED_KEY
-                        + "' is")) {
+        if (e.getMessage()
+            .contains(
+                "The table has been modified. The parameter value for key '"
+                    + HiveTableOperations.METADATA_LOCATION_PROP
+                    + "' is")) {
           throw new CommitFailedException(
               e, "The table %s.%s has been modified concurrently", database, tableName);
         }

@@ -54,6 +54,7 @@ import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.hadoop.ConfigProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
@@ -499,7 +500,18 @@ public class TestHiveCommitLocks extends HiveTableBaseTest {
 
   @Test
   public void testNoLockCallsWithNoLock() throws TException {
-    doReturn(new NoLock()).when(spyOps).lockObject(any());
+    Configuration confWithLock = new Configuration(overriddenHiveConf);
+    confWithLock.setBoolean(ConfigProperties.LOCK_HIVE_ENABLED, false);
+
+    HiveTableOperations noLockSpyOps =
+        spy(
+            new HiveTableOperations(
+                confWithLock,
+                spyCachedClientPool,
+                ops.io(),
+                catalog.name(),
+                TABLE_IDENTIFIER.namespace().level(0),
+                TABLE_IDENTIFIER.name()));
 
     ArgumentCaptor<EnvironmentContext> contextCaptor =
         ArgumentCaptor.forClass(EnvironmentContext.class);
@@ -508,7 +520,7 @@ public class TestHiveCommitLocks extends HiveTableBaseTest {
         .when(spyClient)
         .alter_table_with_environmentContext(any(), any(), any(), contextCaptor.capture());
 
-    spyOps.doCommit(metadataV2, metadataV1);
+    noLockSpyOps.doCommit(metadataV2, metadataV1);
 
     // Make sure that the locking is not used
     verify(spyClient, never()).lock(any(LockRequest.class));

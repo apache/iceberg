@@ -20,7 +20,6 @@ package org.apache.iceberg.hive;
 
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.anyBoolean;
-import static org.mockito.Mockito.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
@@ -29,7 +28,6 @@ import static org.mockito.Mockito.when;
 
 import java.io.File;
 import java.util.concurrent.atomic.AtomicReference;
-import org.apache.hadoop.hive.metastore.api.MetaException;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.PartitionSpec;
@@ -345,10 +343,10 @@ public class TestHiveCommits extends HiveTableBaseTest {
 
     // Simulate a concurrent table modification error
     doThrow(
-            new MetaException(
-                "The table has been modified. The parameter value for key 'expected_parameter_key' is"))
+            new RuntimeException(
+                "MetaException(message:The table has been modified. The parameter value for key 'metadata_location' is"))
         .when(spyOps)
-        .persistTable(any(), anyBoolean(), anyString());
+        .persistTable(any(), anyBoolean(), any());
 
     // Should throw a CommitFailedException so the commit could be retried
     AssertHelpers.assertThrows(
@@ -376,7 +374,7 @@ public class TestHiveCommits extends HiveTableBaseTest {
               throw new TException("Datacenter on fire");
             })
         .when(spyOperations)
-        .persistTable(any(), anyBoolean(), anyString());
+        .persistTable(any(), anyBoolean(), any());
   }
 
   private void concurrentCommitAndThrowException(
@@ -399,14 +397,14 @@ public class TestHiveCommits extends HiveTableBaseTest {
               throw new TException("Datacenter on fire");
             })
         .when(spyOperations)
-        .persistTable(any(), anyBoolean(), anyString());
+        .persistTable(any(), anyBoolean(), any());
   }
 
   private void failCommitAndThrowException(HiveTableOperations spyOperations)
       throws TException, InterruptedException {
     doThrow(new TException("Datacenter on fire"))
         .when(spyOperations)
-        .persistTable(any(), anyBoolean(), anyString());
+        .persistTable(any(), anyBoolean(), any());
   }
 
   private void breakFallbackCatalogCommitCheck(HiveTableOperations spyOperations) {
