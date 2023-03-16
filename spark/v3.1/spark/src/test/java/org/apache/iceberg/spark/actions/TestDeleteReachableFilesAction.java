@@ -286,11 +286,11 @@ public class TestDeleteReachableFilesAction extends SparkTestBase {
     DeleteOrphanFiles.Result result =
         sparkActions().deleteOrphanFiles(table).olderThan(System.currentTimeMillis()).execute();
 
-    Assert.assertEquals("Should delete 1 file", 1, Iterables.size(result.orphanFileLocations()));
+    Assert.assertEquals("Should delete 1 file", 1, Iterables.size(result.statuses()));
     Assert.assertTrue(
         "Should remove v1 file",
-        StreamSupport.stream(result.orphanFileLocations().spliterator(), false)
-            .anyMatch(file -> file.contains("v1.metadata.json")));
+        StreamSupport.stream(result.statuses().spliterator(), false)
+            .anyMatch(fileStatus -> fileStatus.location().contains("v1.metadata.json")));
 
     DeleteReachableFiles baseRemoveFilesSparkAction =
         sparkActions().deleteReachableFiles(metadataLocation(table)).io(table.io());
