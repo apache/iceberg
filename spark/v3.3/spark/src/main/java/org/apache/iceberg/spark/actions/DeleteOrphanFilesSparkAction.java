@@ -304,7 +304,9 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
       }
     }
 
-    return ImmutableDeleteOrphanFiles.Result.builder().orphanFileLocations(orphanFileStatuses).build();
+    return ImmutableDeleteOrphanFiles.Result.builder()
+        .orphanFileLocations(orphanFileStatuses)
+        .build();
   }
 
   private Dataset<FileURI> validFileIdentDS() {

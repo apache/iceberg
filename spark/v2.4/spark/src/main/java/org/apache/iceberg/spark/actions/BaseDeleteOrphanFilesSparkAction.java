@@ -182,14 +182,25 @@ public class BaseDeleteOrphanFilesSparkAction
     List<String> orphanFiles =
         actualFileDF.join(validFileDF, joinCond, "leftanti").as(Encoders.STRING()).collectAsList();
 
+    List<DeleteOrphanFiles.OrphanFileStatus> orphanFileStatuses =
+        Lists.newArrayListWithCapacity(orphanFiles.size());
+
     Tasks.foreach(orphanFiles)
         .noRetry()
         .executeWith(deleteExecutorService)
         .suppressFailureWhenFinished()
-        .onFailure((file, exc) -> LOG.warn("Failed to delete file: {}", file, exc))
-        .run(deleteFunc::accept);
+        .onFailure(
+            (file, exc) -> {
+              LOG.warn("Failed to delete file: {}", file, exc);
+              orphanFileStatuses.add(new BaseOrphanFileStatus(file, false, exc));
+            })
+        .run(
+            (file) -> {
+              deleteFunc.accept(file);
+              orphanFileStatuses.add(new BaseOrphanFileStatus(file));
+            });
 
-    return new BaseDeleteOrphanFilesActionResult(orphanFiles);
+    return new BaseDeleteOrphanFilesActionResult(orphanFileStatuses);
   }
 
   private Dataset<Row> buildActualFileDF() {
