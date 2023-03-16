@@ -390,7 +390,7 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
     AssertHelpers.assertThrows(
         "Should reject calls with error message",
         IllegalArgumentException.class,
-        "Cannot set strategy to sort, it has already been set",
+        "Must use only one rewriter type (bin-pack, sort, zorder)",
         () ->
             sql(
                 "CALL %s.system.rewrite_data_files(table => '%s', strategy => 'binpack', "
@@ -401,7 +401,7 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
     AssertHelpers.assertThrows(
         "Should reject calls with error message",
         IllegalArgumentException.class,
-        "Can't use SORT when there is no sort order",
+        "Cannot sort data without a valid sort order",
         () ->
             sql(
                 "CALL %s.system.rewrite_data_files(table => '%s', strategy => 'sort')",
@@ -455,7 +455,7 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
     AssertHelpers.assertThrows(
         "Should reject calls with error message",
         IllegalArgumentException.class,
-        "Cannot find column 'col1' in table schema: "
+        "Cannot find column 'col1' in table schema (case sensitive = false): "
             + "struct<1: c1: optional int, 2: c2: optional string, 3: c3: optional string>",
         () ->
             sql(
