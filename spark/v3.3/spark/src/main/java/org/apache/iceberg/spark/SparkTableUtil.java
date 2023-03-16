@@ -534,7 +534,7 @@ public class SparkTableUtil {
                 .createDataset(Lists.transform(files, f -> f.path().toString()), Encoders.STRING())
                 .toDF("file_path");
         Dataset<Row> existingFiles =
-            loadMetadataTable(spark, targetTable, MetadataTableType.ENTRIES);
+            loadMetadataTable(spark, targetTable, MetadataTableType.ENTRIES).filter("status != 2");
         Column joinCond =
             existingFiles.col("data_file.file_path").equalTo(importedFiles.col("file_path"));
         Dataset<String> duplicates =
@@ -605,7 +605,8 @@ public class SparkTableUtil {
           filesToImport
               .map((MapFunction<DataFile, String>) f -> f.path().toString(), Encoders.STRING())
               .toDF("file_path");
-      Dataset<Row> existingFiles = loadMetadataTable(spark, targetTable, MetadataTableType.ENTRIES);
+      Dataset<Row> existingFiles =
+          loadMetadataTable(spark, targetTable, MetadataTableType.ENTRIES).filter("status != 2");
       Column joinCond =
           existingFiles.col("data_file.file_path").equalTo(importedFiles.col("file_path"));
       Dataset<String> duplicates =

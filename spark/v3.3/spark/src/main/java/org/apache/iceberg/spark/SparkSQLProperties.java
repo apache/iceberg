@@ -50,9 +50,17 @@ public class SparkSQLProperties {
 
   // Controls whether to push down aggregate (MAX/MIN/COUNT) to Iceberg
   public static final String AGGREGATE_PUSH_DOWN_ENABLED =
-      "spark.sql.iceberg.aggregate-push-down-enabled";
+      "spark.sql.iceberg.aggregate-push-down.enabled";
   public static final boolean AGGREGATE_PUSH_DOWN_ENABLED_DEFAULT = true;
 
   // Controls write distribution mode
   public static final String DISTRIBUTION_MODE = "spark.sql.iceberg.distribution-mode";
+
+  // Controls the WAP ID used for write-audit-publish workflow.
+  // When set, new snapshots will be staged with this ID in snapshot summary.
+  public static final String WAP_ID = "spark.wap.id";
+
+  // Controls the WAP branch used for write-audit-publish workflow.
+  // When set, new snapshots will be committed to this branch.
+  public static final String WAP_BRANCH = "spark.wap.branch";
 }

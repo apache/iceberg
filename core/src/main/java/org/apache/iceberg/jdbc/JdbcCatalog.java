@@ -33,6 +33,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.hadoop.conf.Configuration;
@@ -61,7 +62,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class JdbcCatalog extends BaseMetastoreCatalog
-    implements Configurable<Configuration>, SupportsNamespaces, Closeable {
+    implements Configurable<Object>, SupportsNamespaces, Closeable {
 
   public static final String PROPERTY_PREFIX = "jdbc.";
   private static final String NAMESPACE_EXISTS_PROPERTY = "exists";
@@ -74,8 +75,22 @@ public class JdbcCatalog extends BaseMetastoreCatalog
   private Object conf;
   private JdbcClientPool connections;
   private Map<String, String> catalogProperties;
+  private final Function<Map<String, String>, FileIO> ioBuilder;
+  private final Function<Map<String, String>, JdbcClientPool> clientPoolBuilder;
+  private final boolean initializeCatalogTables;
 
-  public JdbcCatalog() {}
+  public JdbcCatalog() {
+    this(null, null, true);
+  }
+
+  public JdbcCatalog(
+      Function<Map<String, String>, FileIO> ioBuilder,
+      Function<Map<String, String>, JdbcClientPool> clientPoolBuilder,
+      boolean initializeCatalogTables) {
+    this.ioBuilder = ioBuilder;
+    this.clientPoolBuilder = clientPoolBuilder;
+    this.initializeCatalogTables = initializeCatalogTables;
+  }
 
   @Override
   public void initialize(String name, Map<String, String> properties) {
@@ -95,15 +110,26 @@ public class JdbcCatalog extends BaseMetastoreCatalog
       this.catalogName = name;
     }
 
-    String fileIOImpl =
-        properties.getOrDefault(
-            CatalogProperties.FILE_IO_IMPL, "org.apache.iceberg.hadoop.HadoopFileIO");
-    this.io = CatalogUtil.loadFileIO(fileIOImpl, properties, conf);
+    if (null != ioBuilder) {
+      this.io = ioBuilder.apply(properties);
+    } else {
+      String ioImpl =
+          properties.getOrDefault(
+              CatalogProperties.FILE_IO_IMPL, "org.apache.iceberg.hadoop.HadoopFileIO");
+      this.io = CatalogUtil.loadFileIO(ioImpl, properties, conf);
+    }
+
+    LOG.debug("Connecting to JDBC database {}", uri);
+    if (null != clientPoolBuilder) {
+      this.connections = clientPoolBuilder.apply(properties);
+    } else {
+      this.connections = new JdbcClientPool(uri, properties);
+    }
 
     try {
-      LOG.debug("Connecting to JDBC database {}", properties.get(CatalogProperties.URI));
-      connections = new JdbcClientPool(uri, properties);
-      initializeCatalogTables();
+      if (initializeCatalogTables) {
+        initializeCatalogTables();
+      }
     } catch (SQLTimeoutException e) {
       throw new UncheckedSQLException(e, "Cannot initialize JDBC catalog: Query timed out");
     } catch (SQLTransientConnectionException | SQLNonTransientConnectionException e) {
@@ -252,8 +278,14 @@ public class JdbcCatalog extends BaseMetastoreCatalog
   }
 
   @Override
-  public void setConf(Configuration conf) {
+  public void setConf(Object conf) {
     this.conf = conf;
+  }
+
+  /** @deprecated will be removed in 1.3.0; use {@link #setConf(Object)} */
+  @Deprecated
+  public void setConf(Configuration conf) {
+    setConf((Object) conf);
   }
 
   @Override

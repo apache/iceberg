@@ -47,7 +47,9 @@ from pyarrow.fs import (
     FileInfo,
     FileSystem,
     FileType,
+    FSSpecHandler,
     LocalFileSystem,
+    PyFileSystem,
     S3FileSystem,
 )
 
@@ -66,6 +68,11 @@ from pyiceberg.expressions.visitors import (
 )
 from pyiceberg.expressions.visitors import visit as boolean_expression_visit
 from pyiceberg.io import (
+    S3_ACCESS_KEY_ID,
+    S3_ENDPOINT,
+    S3_REGION,
+    S3_SECRET_ACCESS_KEY,
+    S3_SESSION_TOKEN,
     FileIO,
     InputFile,
     InputStream,
@@ -264,10 +271,11 @@ class PyArrowFileIO(FileIO):
     def _get_fs(self, scheme: str) -> FileSystem:
         if scheme in {"s3", "s3a", "s3n"}:
             client_kwargs = {
-                "endpoint_override": self.properties.get("s3.endpoint"),
-                "access_key": self.properties.get("s3.access-key-id"),
-                "secret_key": self.properties.get("s3.secret-access-key"),
-                "session_token": self.properties.get("s3.session-token"),
+                "endpoint_override": self.properties.get(S3_ENDPOINT),
+                "access_key": self.properties.get(S3_ACCESS_KEY_ID),
+                "secret_key": self.properties.get(S3_SECRET_ACCESS_KEY),
+                "session_token": self.properties.get(S3_SESSION_TOKEN),
+                "region": self.properties.get(S3_REGION),
             }
             return S3FileSystem(**client_kwargs)
         elif scheme == "file":
@@ -391,7 +399,7 @@ class _ConvertToArrowSchema(SchemaVisitorPerPrimitiveType[pa.DataType], Singleto
         return pa.timestamp(unit="us")
 
     def visit_timestampz(self, _: TimestamptzType) -> pa.DataType:
-        return pa.timestamp(unit="us", tz="+00:00")
+        return pa.timestamp(unit="us", tz="UTC")
 
     def visit_string(self, _: StringType) -> pa.DataType:
         return pa.string()
@@ -420,11 +428,11 @@ class _ConvertToArrowExpression(BoundBooleanExpressionVisitor[pc.Expression]):
 
     def visit_is_nan(self, term: BoundTerm[Any]) -> pc.Expression:
         ref = pc.field(term.ref().field.name)
-        return ref.is_null(nan_is_null=True) & ref.is_valid()
+        return pc.is_nan(ref)
 
     def visit_not_nan(self, term: BoundTerm[Any]) -> pc.Expression:
         ref = pc.field(term.ref().field.name)
-        return ~(ref.is_null(nan_is_null=True) & ref.is_valid())
+        return ~pc.is_nan(ref)
 
     def visit_is_null(self, term: BoundTerm[Any]) -> pc.Expression:
         return pc.field(term.ref().field.name).is_null(nan_is_null=False)
@@ -449,6 +457,12 @@ class _ConvertToArrowExpression(BoundBooleanExpressionVisitor[pc.Expression]):
 
     def visit_less_than_or_equal(self, term: BoundTerm[Any], literal: Literal[Any]) -> pc.Expression:
         return pc.field(term.ref().field.name) <= _convert_scalar(literal.value, term.ref().field.field_type)
+
+    def visit_starts_with(self, term: BoundTerm[Any], literal: Literal[Any]) -> pc.Expression:
+        return pc.starts_with(pc.field(term.ref().field.name), literal.value)
+
+    def visit_not_starts_with(self, term: BoundTerm[Any], literal: Literal[Any]) -> pc.Expression:
+        return ~pc.starts_with(pc.field(term.ref().field.name), literal.value)
 
     def visit_true(self) -> pc.Expression:
         return pc.scalar(True)
@@ -477,7 +491,7 @@ def _file_to_table(
     projected_schema: Schema,
     projected_field_ids: Set[int],
     case_sensitive: bool,
-) -> pa.Table:
+) -> Optional[pa.Table]:
     _, path = PyArrowFileIO.parse_location(task.file.file_path)
 
     # Get the schema
@@ -512,10 +526,11 @@ def _file_to_table(
             columns=[col.name for col in file_project_schema.columns],
         )
 
-        if pyarrow_filter is not None:
-            arrow_table = arrow_table.filter(pyarrow_filter)
-
-        return to_requested_schema(projected_schema, file_project_schema, arrow_table)
+        # If there is no data, we don't have to go through the schema
+        if len(arrow_table) > 0:
+            return to_requested_schema(projected_schema, file_project_schema, arrow_table)
+        else:
+            return None
 
 
 def project_table(
@@ -534,11 +549,20 @@ def project_table(
         ResolveError: When an incompatible query is done
     """
 
+    scheme, _ = PyArrowFileIO.parse_location(table.location())
     if isinstance(table.io, PyArrowFileIO):
-        scheme, _ = PyArrowFileIO.parse_location(table.location())
         fs = table.io.get_fs(scheme)
     else:
-        raise ValueError(f"Expected PyArrowFileIO, got: {table.io}")
+        try:
+            from pyiceberg.io.fsspec import FsspecFileIO
+
+            if isinstance(table.io, FsspecFileIO):
+                fs = PyFileSystem(FSSpecHandler(table.io.get_fs(scheme)))
+            else:
+                raise ValueError(f"Expected PyArrowFileIO or FsspecFileIO, got: {table.io}")
+        except ModuleNotFoundError as e:
+            # When FsSpec is not installed
+            raise ValueError(f"Expected PyArrowFileIO or FsspecFileIO, got: {table.io}") from e
 
     bound_row_filter = bind(table.schema(), row_filter, case_sensitive=case_sensitive)
 
@@ -547,16 +571,22 @@ def project_table(
     }.union(extract_field_ids(bound_row_filter))
 
     with ThreadPool() as pool:
-        tables = pool.starmap(
-            func=_file_to_table,
-            iterable=[(fs, task, bound_row_filter, projected_schema, projected_field_ids, case_sensitive) for task in tasks],
-            chunksize=None,  # we could use this to control how to materialize the generator of tasks (we should also make the expression above lazy)
-        )
+        tables = [
+            table
+            for table in pool.starmap(
+                func=_file_to_table,
+                iterable=[(fs, task, bound_row_filter, projected_schema, projected_field_ids, case_sensitive) for task in tasks],
+                chunksize=None,  # we could use this to control how to materialize the generator of tasks (we should also make the expression above lazy)
+            )
+            if table is not None
+        ]
 
     if len(tables) > 1:
         return pa.concat_tables(tables)
-    else:
+    elif len(tables) == 1:
         return tables[0]
+    else:
+        return pa.Table.from_batches([], schema=schema_to_pyarrow(projected_schema))
 
 
 def to_requested_schema(requested_schema: Schema, file_schema: Schema, table: pa.Table) -> pa.Table:

@@ -37,7 +37,6 @@ import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
-import software.amazon.awssdk.auth.signer.AwsS3V4Signer;
 import software.amazon.awssdk.core.client.config.SdkAdvancedClientOption;
 import software.amazon.awssdk.core.signer.Signer;
 import software.amazon.awssdk.http.SdkHttpClient;
@@ -302,7 +301,7 @@ public class TestAwsProperties {
   @Test
   public void testS3RemoteSignerWithoutUri() {
     Map<String, String> properties =
-        ImmutableMap.of(AwsProperties.S3_SIGNER_IMPL, S3V4RestSignerClient.class.getName());
+        ImmutableMap.of(AwsProperties.S3_REMOTE_SIGNING_ENABLED, "true");
     AwsProperties awsProperties = new AwsProperties(properties);
 
     Assertions.assertThatThrownBy(
@@ -312,14 +311,11 @@ public class TestAwsProperties {
   }
 
   @Test
-  public void testS3RemoteSigner() {
+  public void testS3RemoteSigningEnabled() {
     String uri = "http://localhost:12345";
     Map<String, String> properties =
         ImmutableMap.of(
-            AwsProperties.S3_SIGNER_IMPL,
-            S3V4RestSignerClient.class.getName(),
-            CatalogProperties.URI,
-            uri);
+            AwsProperties.S3_REMOTE_SIGNING_ENABLED, "true", CatalogProperties.URI, uri);
     AwsProperties awsProperties = new AwsProperties(properties);
     S3ClientBuilder builder = S3Client.builder();
 
@@ -334,9 +330,9 @@ public class TestAwsProperties {
   }
 
   @Test
-  public void testS3LocalSigner() {
+  public void testS3RemoteSigningDisabled() {
     Map<String, String> properties =
-        ImmutableMap.of(AwsProperties.S3_SIGNER_IMPL, AwsS3V4Signer.class.getName());
+        ImmutableMap.of(AwsProperties.S3_REMOTE_SIGNING_ENABLED, "false");
     AwsProperties awsProperties = new AwsProperties(properties);
     S3ClientBuilder builder = S3Client.builder();
 
@@ -344,31 +340,6 @@ public class TestAwsProperties {
 
     Optional<Signer> signer =
         builder.overrideConfiguration().advancedOption(SdkAdvancedClientOption.SIGNER);
-    Assertions.assertThat(signer).isPresent().get().isInstanceOf(AwsS3V4Signer.class);
-  }
-
-  @Test
-  public void testS3WrongSigner() {
-    Map<String, String> properties = ImmutableMap.of(AwsProperties.S3_SIGNER_IMPL, "WrongSigner");
-    AwsProperties awsProperties = new AwsProperties(properties);
-
-    Assertions.assertThatThrownBy(
-            () -> awsProperties.applyS3SignerConfiguration(S3Client.builder()))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot instantiate custom signer: WrongSigner");
-  }
-
-  @Test
-  public void testS3SignerWrongSubclass() {
-    // we're just passing some random class as a signer impl
-    Map<String, String> properties =
-        ImmutableMap.of(AwsProperties.S3_SIGNER_IMPL, AwsProperties.class.getName());
-    AwsProperties awsProperties = new AwsProperties(properties);
-
-    Assertions.assertThatThrownBy(
-            () -> awsProperties.applyS3SignerConfiguration(S3Client.builder()))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage(
-            "Custom signer org.apache.iceberg.aws.AwsProperties must be an instance of software.amazon.awssdk.core.signer.Signer");
+    Assertions.assertThat(signer).isNotPresent();
   }
 }

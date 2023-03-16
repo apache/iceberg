@@ -224,7 +224,7 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
       return this;
     }
 
-    public Builder table(Table newTable) {
+    public Builder<T> table(Table newTable) {
       this.table = newTable;
       return this;
     }
@@ -275,6 +275,26 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
         readOptions.put(
             FlinkReadOptions.START_SNAPSHOT_ID.key(), Long.toString(newStartSnapshotId));
       }
+      return this;
+    }
+
+    public Builder<T> tag(String tag) {
+      readOptions.put(FlinkReadOptions.TAG.key(), tag);
+      return this;
+    }
+
+    public Builder<T> branch(String branch) {
+      readOptions.put(FlinkReadOptions.BRANCH.key(), branch);
+      return this;
+    }
+
+    public Builder<T> startTag(String startTag) {
+      readOptions.put(FlinkReadOptions.START_TAG.key(), startTag);
+      return this;
+    }
+
+    public Builder<T> endTag(String endTag) {
+      readOptions.put(FlinkReadOptions.END_TAG.key(), endTag);
       return this;
     }
 

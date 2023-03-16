@@ -19,6 +19,8 @@
 package org.apache.iceberg.util;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import java.io.File;
 import java.util.List;
@@ -131,6 +133,15 @@ public class TestReachableFileUtil {
 
     String reportedVersionHintLocation = ReachableFileUtil.versionHintLocation(staticTable);
     String expectedVersionHintLocation = ops.metadataFileLocation(Util.VERSION_HINT_FILENAME);
+    Assert.assertEquals(expectedVersionHintLocation, reportedVersionHintLocation);
+  }
+
+  @Test
+  public void testVersionHintWithBucketNameAsLocation() {
+    Table mockTable = mock(Table.class);
+    when(mockTable.location()).thenReturn("s3://bucket1");
+    String reportedVersionHintLocation = ReachableFileUtil.versionHintLocation(mockTable);
+    String expectedVersionHintLocation = "s3://bucket1/metadata/" + Util.VERSION_HINT_FILENAME;
     Assert.assertEquals(expectedVersionHintLocation, reportedVersionHintLocation);
   }
 }

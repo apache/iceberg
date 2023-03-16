@@ -42,11 +42,15 @@ public class ScanContext implements Serializable {
   private final boolean caseSensitive;
   private final boolean exposeLocality;
   private final Long snapshotId;
+  private final String branch;
+  private final String tag;
   private final StreamingStartingStrategy startingStrategy;
   private final Long startSnapshotId;
   private final Long startSnapshotTimestamp;
   private final Long endSnapshotId;
   private final Long asOfTimestamp;
+  private final String startTag;
+  private final String endTag;
   private final Long splitSize;
   private final Integer splitLookback;
   private final Long splitOpenFileCost;
@@ -81,14 +85,22 @@ public class ScanContext implements Serializable {
       boolean includeColumnStats,
       boolean exposeLocality,
       Integer planParallelism,
-      int maxPlanningSnapshotCount) {
+      int maxPlanningSnapshotCount,
+      String branch,
+      String tag,
+      String startTag,
+      String endTag) {
     this.caseSensitive = caseSensitive;
     this.snapshotId = snapshotId;
+    this.tag = tag;
+    this.branch = branch;
     this.startingStrategy = startingStrategy;
     this.startSnapshotTimestamp = startSnapshotTimestamp;
     this.startSnapshotId = startSnapshotId;
     this.endSnapshotId = endSnapshotId;
     this.asOfTimestamp = asOfTimestamp;
+    this.startTag = startTag;
+    this.endTag = endTag;
     this.splitSize = splitSize;
     this.splitLookback = splitLookback;
     this.splitOpenFileCost = splitOpenFileCost;
@@ -125,7 +137,24 @@ public class ScanContext implements Serializable {
             startSnapshotId == null,
             "Invalid starting snapshot id for SPECIFIC_START_SNAPSHOT_ID strategy: not null");
       }
+
+      Preconditions.checkArgument(
+          branch == null,
+          String.format(
+              "Cannot scan table using ref %s configured for streaming reader yet", branch));
+
+      Preconditions.checkArgument(
+          tag == null,
+          String.format("Cannot scan table using ref %s configured for streaming reader", tag));
     }
+
+    Preconditions.checkArgument(
+        !(startTag != null && startSnapshotId() != null),
+        "START_SNAPSHOT_ID and START_TAG cannot both be set.");
+
+    Preconditions.checkArgument(
+        !(endTag != null && endSnapshotId() != null),
+        "END_SNAPSHOT_ID and END_TAG cannot both be set.");
   }
 
   public boolean caseSensitive() {
@@ -134,6 +163,22 @@ public class ScanContext implements Serializable {
 
   public Long snapshotId() {
     return snapshotId;
+  }
+
+  public String branch() {
+    return branch;
+  }
+
+  public String tag() {
+    return tag;
+  }
+
+  public String startTag() {
+    return startTag;
+  }
+
+  public String endTag() {
+    return endTag;
   }
 
   public StreamingStartingStrategy streamingStartingStrategy() {
@@ -212,8 +257,12 @@ public class ScanContext implements Serializable {
     return ScanContext.builder()
         .caseSensitive(caseSensitive)
         .useSnapshotId(null)
+        .useBranch(branch)
+        .useTag(null)
         .startSnapshotId(newStartSnapshotId)
         .endSnapshotId(newEndSnapshotId)
+        .startTag(null)
+        .endTag(null)
         .asOfTimestamp(null)
         .splitSize(splitSize)
         .splitLookback(splitLookback)
@@ -235,8 +284,12 @@ public class ScanContext implements Serializable {
     return ScanContext.builder()
         .caseSensitive(caseSensitive)
         .useSnapshotId(newSnapshotId)
+        .useBranch(branch)
+        .useTag(tag)
         .startSnapshotId(null)
         .endSnapshotId(null)
+        .startTag(null)
+        .endTag(null)
         .asOfTimestamp(null)
         .splitSize(splitSize)
         .splitLookback(splitLookback)
@@ -261,6 +314,10 @@ public class ScanContext implements Serializable {
   public static class Builder {
     private boolean caseSensitive = FlinkReadOptions.CASE_SENSITIVE_OPTION.defaultValue();
     private Long snapshotId = FlinkReadOptions.SNAPSHOT_ID.defaultValue();
+    private String branch = FlinkReadOptions.BRANCH.defaultValue();
+    private String tag = FlinkReadOptions.TAG.defaultValue();
+    private String startTag = FlinkReadOptions.START_TAG.defaultValue();
+    private String endTag = FlinkReadOptions.END_TAG.defaultValue();
     private StreamingStartingStrategy startingStrategy =
         FlinkReadOptions.STARTING_STRATEGY_OPTION.defaultValue();
     private Long startSnapshotTimestamp = FlinkReadOptions.START_SNAPSHOT_TIMESTAMP.defaultValue();
@@ -297,6 +354,16 @@ public class ScanContext implements Serializable {
       return this;
     }
 
+    public Builder useTag(String newTag) {
+      this.tag = newTag;
+      return this;
+    }
+
+    public Builder useBranch(String newBranch) {
+      this.branch = newBranch;
+      return this;
+    }
+
     public Builder startingStrategy(StreamingStartingStrategy newStartingStrategy) {
       this.startingStrategy = newStartingStrategy;
       return this;
@@ -314,6 +381,16 @@ public class ScanContext implements Serializable {
 
     public Builder endSnapshotId(Long newEndSnapshotId) {
       this.endSnapshotId = newEndSnapshotId;
+      return this;
+    }
+
+    public Builder startTag(String newStartTag) {
+      this.startTag = newStartTag;
+      return this;
+    }
+
+    public Builder endTag(String newEndTag) {
+      this.endTag = newEndTag;
       return this;
     }
 
@@ -392,6 +469,10 @@ public class ScanContext implements Serializable {
       FlinkReadConf flinkReadConf = new FlinkReadConf(table, readOptions, readableConfig);
 
       return this.useSnapshotId(flinkReadConf.snapshotId())
+          .useTag(flinkReadConf.tag())
+          .useBranch(flinkReadConf.branch())
+          .startTag(flinkReadConf.startTag())
+          .endTag(flinkReadConf.endTag())
           .caseSensitive(flinkReadConf.caseSensitive())
           .asOfTimestamp(flinkReadConf.asOfTimestamp())
           .startingStrategy(flinkReadConf.startingStrategy())
@@ -431,7 +512,11 @@ public class ScanContext implements Serializable {
           includeColumnStats,
           exposeLocality,
           planParallelism,
-          maxPlanningSnapshotCount);
+          maxPlanningSnapshotCount,
+          branch,
+          tag,
+          startTag,
+          endTag);
     }
   }
 }

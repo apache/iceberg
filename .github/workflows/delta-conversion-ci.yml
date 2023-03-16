@@ -41,7 +41,6 @@ on:
       - 'flink/**'
       - 'pig/**'
       - 'python/**'
-      - 'python_legacy/**'
       - 'docs/**'
       - 'open-api/**'
       - 'format/**'
@@ -57,7 +56,7 @@ concurrency:
 
 jobs:
   delta-conversion-scala-2-12-tests:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     strategy:
       matrix:
         jvm: [8, 11]
@@ -86,7 +85,7 @@ jobs:
             **/build/testlogs
 
   delta-conversion-scala-2-13-tests:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     strategy:
       matrix:
         jvm: [ 8, 11 ]

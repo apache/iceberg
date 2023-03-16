@@ -31,6 +31,7 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.metrics.MetricsReport;
 import org.apache.iceberg.metrics.MetricsReporter;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.assertj.core.api.Assertions;
 import org.junit.Assert;
@@ -193,16 +194,21 @@ public class TestCatalogUtil {
   public void loadCustomMetricsReporter_noArg() {
     Map<String, String> properties = Maps.newHashMap();
     properties.put("key", "val");
+    properties.put(
+        CatalogProperties.METRICS_REPORTER_IMPL, TestMetricsReporterDefault.class.getName());
 
-    MetricsReporter metricsReporter =
-        CatalogUtil.loadMetricsReporter(TestMetricsReporterDefault.class.getName());
+    MetricsReporter metricsReporter = CatalogUtil.loadMetricsReporter(properties);
     Assertions.assertThat(metricsReporter).isInstanceOf(TestMetricsReporterDefault.class);
   }
 
   @Test
   public void loadCustomMetricsReporter_badArg() {
     Assertions.assertThatThrownBy(
-            () -> CatalogUtil.loadMetricsReporter(TestMetricsReporterBadArg.class.getName()))
+            () ->
+                CatalogUtil.loadMetricsReporter(
+                    ImmutableMap.of(
+                        CatalogProperties.METRICS_REPORTER_IMPL,
+                        TestMetricsReporterBadArg.class.getName())))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("missing no-arg constructor");
   }
@@ -210,7 +216,11 @@ public class TestCatalogUtil {
   @Test
   public void loadCustomMetricsReporter_badClass() {
     Assertions.assertThatThrownBy(
-            () -> CatalogUtil.loadMetricsReporter(TestFileIONotImpl.class.getName()))
+            () ->
+                CatalogUtil.loadMetricsReporter(
+                    ImmutableMap.of(
+                        CatalogProperties.METRICS_REPORTER_IMPL,
+                        TestFileIONotImpl.class.getName())))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("does not implement MetricsReporter");
   }

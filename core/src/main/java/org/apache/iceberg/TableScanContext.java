@@ -374,21 +374,4 @@ final class TableScanContext {
         fromSnapshotInclusive,
         reporter);
   }
-
-  TableScanContext withColStats(boolean stats) {
-    return new TableScanContext(
-        snapshotId,
-        rowFilter,
-        ignoreResiduals,
-        caseSensitive,
-        stats,
-        projectedSchema,
-        selectedColumns,
-        options,
-        fromSnapshotId,
-        toSnapshotId,
-        planExecutor,
-        fromSnapshotInclusive,
-        metricsReporter);
-  }
 }

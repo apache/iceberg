@@ -20,6 +20,7 @@ package org.apache.iceberg.spark.procedures;
 
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.ExpireSnapshots;
+import org.apache.iceberg.io.SupportsBulkOperations;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.spark.actions.ExpireSnapshotsSparkAction;
 import org.apache.iceberg.spark.actions.SparkActions;
@@ -33,6 +34,8 @@ import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * A procedure that expires snapshots in a table.
@@ -41,13 +44,16 @@ import org.apache.spark.sql.types.StructType;
  */
 public class ExpireSnapshotsProcedure extends BaseProcedure {
 
+  private static final Logger LOG = LoggerFactory.getLogger(ExpireSnapshotsProcedure.class);
+
   private static final ProcedureParameter[] PARAMETERS =
       new ProcedureParameter[] {
         ProcedureParameter.required("table", DataTypes.StringType),
         ProcedureParameter.optional("older_than", DataTypes.TimestampType),
         ProcedureParameter.optional("retain_last", DataTypes.IntegerType),
         ProcedureParameter.optional("max_concurrent_deletes", DataTypes.IntegerType),
-        ProcedureParameter.optional("stream_results", DataTypes.BooleanType)
+        ProcedureParameter.optional("stream_results", DataTypes.BooleanType),
+        ProcedureParameter.optional("snapshot_ids", DataTypes.createArrayType(DataTypes.LongType))
       };
 
   private static final StructType OUTPUT_TYPE =
@@ -61,7 +67,9 @@ public class ExpireSnapshotsProcedure extends BaseProcedure {
             new StructField(
                 "deleted_manifest_files_count", DataTypes.LongType, true, Metadata.empty()),
             new StructField(
-                "deleted_manifest_lists_count", DataTypes.LongType, true, Metadata.empty())
+                "deleted_manifest_lists_count", DataTypes.LongType, true, Metadata.empty()),
+            new StructField(
+                "deleted_statistics_files_count", DataTypes.LongType, true, Metadata.empty())
           });
 
   public static ProcedureBuilder builder() {
@@ -88,12 +96,14 @@ public class ExpireSnapshotsProcedure extends BaseProcedure {
   }
 
   @Override
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
   public InternalRow[] call(InternalRow args) {
     Identifier tableIdent = toIdentifier(args.getString(0), PARAMETERS[0].name());
     Long olderThanMillis = args.isNullAt(1) ? null : DateTimeUtil.microsToMillis(args.getLong(1));
     Integer retainLastNum = args.isNullAt(2) ? null : args.getInt(2);
     Integer maxConcurrentDeletes = args.isNullAt(3) ? null : args.getInt(3);
     Boolean streamResult = args.isNullAt(4) ? null : args.getBoolean(4);
+    long[] snapshotIds = args.isNullAt(5) ? null : args.getArray(5).toLongArray();
 
     Preconditions.checkArgument(
         maxConcurrentDeletes == null || maxConcurrentDeletes > 0,
@@ -114,7 +124,23 @@ public class ExpireSnapshotsProcedure extends BaseProcedure {
           }
 
           if (maxConcurrentDeletes != null) {
-            action.executeDeleteWith(executorService(maxConcurrentDeletes, "expire-snapshots"));
+            if (table.io() instanceof SupportsBulkOperations) {
+              LOG.warn(
+                  "max_concurrent_deletes only works with FileIOs that do not support bulk deletes. This"
+                      + "table is currently using {} which supports bulk deletes so the parameter will be ignored. "
+                      + "See that IO's documentation to learn how to adjust parallelism for that particular "
+                      + "IO's bulk delete.",
+                  table.io().getClass().getName());
+            } else {
+
+              action.executeDeleteWith(executorService(maxConcurrentDeletes, "expire-snapshots"));
+            }
+          }
+
+          if (snapshotIds != null) {
+            for (long snapshotId : snapshotIds) {
+              action.expireSnapshotId(snapshotId);
+            }
           }
 
           if (streamResult != null) {
@@ -135,7 +161,8 @@ public class ExpireSnapshotsProcedure extends BaseProcedure {
             result.deletedPositionDeleteFilesCount(),
             result.deletedEqualityDeleteFilesCount(),
             result.deletedManifestsCount(),
-            result.deletedManifestListsCount());
+            result.deletedManifestListsCount(),
+            result.deletedStatisticsFilesCount());
     return new InternalRow[] {row};
   }
 

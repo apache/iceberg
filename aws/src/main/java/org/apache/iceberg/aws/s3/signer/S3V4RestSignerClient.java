@@ -26,7 +26,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import javax.annotation.Nullable;
@@ -70,10 +69,13 @@ public abstract class S3V4RestSignerClient
   private static final Cache<Key, SignedComponent> SIGNED_COMPONENT_CACHE =
       Caffeine.newBuilder().expireAfterWrite(30, TimeUnit.SECONDS).maximumSize(100).build();
 
-  private static final ScheduledExecutorService TOKEN_REFRESH_EXECUTOR =
-      ThreadPools.newScheduledPool("s3-signer-token-refresh", 1);
   private static final String SCOPE = "sign";
-  private static final AtomicReference<RESTClient> HTTP_CLIENT_REF = new AtomicReference<>();
+
+  @SuppressWarnings("immutables:incompat")
+  private static volatile ScheduledExecutorService tokenRefreshExecutor;
+
+  @SuppressWarnings("immutables:incompat")
+  private static volatile RESTClient httpClient;
 
   public abstract Map<String, String> properties();
 
@@ -105,18 +107,44 @@ public abstract class S3V4RestSignerClient
     return () -> properties().get(OAuth2Properties.TOKEN);
   }
 
-  private RESTClient httpClient() {
-    if (null == HTTP_CLIENT_REF.get()) {
-      // TODO: should be closed
-      HTTP_CLIENT_REF.compareAndSet(
-          null,
-          HTTPClient.builder()
-              .uri(baseSignerUri())
-              .withObjectMapper(S3ObjectMapper.mapper())
-              .build());
+  @Value.Lazy
+  boolean keepTokenRefreshed() {
+    return PropertyUtil.propertyAsBoolean(
+        properties(),
+        OAuth2Properties.TOKEN_REFRESH_ENABLED,
+        OAuth2Properties.TOKEN_REFRESH_ENABLED_DEFAULT);
+  }
+
+  private ScheduledExecutorService tokenRefreshExecutor() {
+    if (!keepTokenRefreshed()) {
+      return null;
     }
 
-    return HTTP_CLIENT_REF.get();
+    if (null == tokenRefreshExecutor) {
+      synchronized (S3V4RestSignerClient.class) {
+        if (null == tokenRefreshExecutor) {
+          tokenRefreshExecutor = ThreadPools.newScheduledPool("s3-signer-token-refresh", 1);
+        }
+      }
+    }
+
+    return tokenRefreshExecutor;
+  }
+
+  private RESTClient httpClient() {
+    if (null == httpClient) {
+      synchronized (S3V4RestSignerClient.class) {
+        if (null == httpClient) {
+          httpClient =
+              HTTPClient.builder()
+                  .uri(baseSignerUri())
+                  .withObjectMapper(S3ObjectMapper.mapper())
+                  .build();
+        }
+      }
+    }
+
+    return httpClient;
   }
 
   private AuthSession authSession() {
@@ -124,7 +152,7 @@ public abstract class S3V4RestSignerClient
     if (null != token) {
       return AuthSession.fromAccessToken(
           httpClient(),
-          TOKEN_REFRESH_EXECUTOR,
+          tokenRefreshExecutor(),
           token,
           expiresAtMillis(properties()),
           new AuthSession(ImmutableMap.of(), token, null, credential(), SCOPE));
@@ -136,7 +164,7 @@ public abstract class S3V4RestSignerClient
       OAuthTokenResponse authResponse =
           OAuth2Util.fetchToken(httpClient(), session.headers(), credential(), SCOPE);
       return AuthSession.fromTokenResponse(
-          httpClient(), TOKEN_REFRESH_EXECUTOR, authResponse, startTimeMillis, session);
+          httpClient(), tokenRefreshExecutor(), authResponse, startTimeMillis, session);
     }
 
     return AuthSession.empty();

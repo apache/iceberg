@@ -14,11 +14,13 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import math
 from abc import ABC, abstractmethod
 from functools import singledispatch
 from typing import (
     Any,
     Callable,
+    Dict,
     Generic,
     List,
     Set,
@@ -46,8 +48,10 @@ from pyiceberg.expressions import (
     BoundNotIn,
     BoundNotNaN,
     BoundNotNull,
+    BoundNotStartsWith,
     BoundPredicate,
     BoundSetPredicate,
+    BoundStartsWith,
     BoundTerm,
     BoundUnaryPredicate,
     L,
@@ -56,15 +60,16 @@ from pyiceberg.expressions import (
     UnboundPredicate,
 )
 from pyiceberg.expressions.literals import Literal
-from pyiceberg.manifest import ManifestFile, PartitionFieldSummary
+from pyiceberg.manifest import DataFile, ManifestFile, PartitionFieldSummary
 from pyiceberg.partitioning import PartitionSpec
 from pyiceberg.schema import Schema
-from pyiceberg.typedef import StructProtocol
+from pyiceberg.typedef import EMPTY_DICT, StructProtocol
 from pyiceberg.types import (
     DoubleType,
     FloatType,
     IcebergType,
     PrimitiveType,
+    StructType,
     TimestampType,
     TimestamptzType,
 )
@@ -317,6 +322,14 @@ class BoundBooleanExpressionVisitor(BooleanExpressionVisitor[T], ABC):
     def visit_or(self, left_result: T, right_result: T) -> T:
         """Visit a bound Or predicate"""
 
+    @abstractmethod
+    def visit_starts_with(self, term: BoundTerm[L], literal: Literal[L]) -> T:
+        """Visit bound StartsWith predicate"""
+
+    @abstractmethod
+    def visit_not_starts_with(self, term: BoundTerm[L], literal: Literal[L]) -> T:
+        """Visit bound NotStartsWith predicate"""
+
     def visit_unbound_predicate(self, predicate: UnboundPredicate[L]) -> T:
         """Visit an unbound predicate
         Args:
@@ -400,6 +413,16 @@ def _(expr: BoundLessThanOrEqual[L], visitor: BoundBooleanExpressionVisitor[T]) 
     return visitor.visit_less_than_or_equal(term=expr.term, literal=expr.literal)
 
 
+@visit_bound_predicate.register(BoundStartsWith)
+def _(expr: BoundStartsWith[L], visitor: BoundBooleanExpressionVisitor[T]) -> T:
+    return visitor.visit_starts_with(term=expr.term, literal=expr.literal)
+
+
+@visit_bound_predicate.register(BoundNotStartsWith)
+def _(expr: BoundNotStartsWith[L], visitor: BoundBooleanExpressionVisitor[T]) -> T:
+    return visitor.visit_not_starts_with(term=expr.term, literal=expr.literal)
+
+
 def rewrite_not(expr: BooleanExpression) -> BooleanExpression:
     return visit(expr, _RewriteNotVisitor())
 
@@ -481,6 +504,13 @@ class _ExpressionEvaluator(BoundBooleanExpressionVisitor[bool]):
 
     def visit_less_than_or_equal(self, term: BoundTerm[L], literal: Literal[L]) -> bool:
         return term.eval(self.struct) <= literal.value
+
+    def visit_starts_with(self, term: BoundTerm[L], literal: Literal[L]) -> bool:
+        eval_res = term.eval(self.struct)
+        return eval_res is not None and str(eval_res).startswith(str(literal.value))
+
+    def visit_not_starts_with(self, term: BoundTerm[L], literal: Literal[L]) -> bool:
+        return not self.visit_starts_with(term, literal)
 
     def visit_true(self) -> bool:
         return True
@@ -672,6 +702,59 @@ class _ManifestEvalVisitor(BoundBooleanExpressionVisitor[bool]):
 
         if literal.value < lower:
             return ROWS_CANNOT_MATCH
+
+        return ROWS_MIGHT_MATCH
+
+    def visit_starts_with(self, term: BoundTerm[L], literal: Literal[L]) -> bool:
+        pos = term.ref().accessor.position
+        field = self.partition_fields[pos]
+        prefix = str(literal.value)
+        len_prefix = len(prefix)
+
+        if field.lower_bound is None:
+            return ROWS_CANNOT_MATCH
+
+        lower = _from_byte_buffer(term.ref().field.field_type, field.lower_bound)
+        # truncate lower bound so that its length is not greater than the length of prefix
+        if lower is not None and lower[:len_prefix] > prefix:
+            return ROWS_CANNOT_MATCH
+
+        if field.upper_bound is None:
+            return ROWS_CANNOT_MATCH
+
+        upper = _from_byte_buffer(term.ref().field.field_type, field.upper_bound)
+        # truncate upper bound so that its length is not greater than the length of prefix
+        if upper is not None and upper[:len_prefix] < prefix:
+            return ROWS_CANNOT_MATCH
+
+        return ROWS_MIGHT_MATCH
+
+    def visit_not_starts_with(self, term: BoundTerm[L], literal: Literal[L]) -> bool:
+        pos = term.ref().accessor.position
+        field = self.partition_fields[pos]
+        prefix = str(literal.value)
+        len_prefix = len(prefix)
+
+        if field.contains_null or field.lower_bound is None or field.upper_bound is None:
+            return ROWS_MIGHT_MATCH
+
+        # not_starts_with will match unless all values must start with the prefix. This happens when
+        # the lower and upper bounds both start with the prefix.
+        lower = _from_byte_buffer(term.ref().field.field_type, field.lower_bound)
+        upper = _from_byte_buffer(term.ref().field.field_type, field.upper_bound)
+
+        if lower is not None and upper is not None:
+            # if lower is shorter than the prefix then lower doesn't start with the prefix
+            if len(lower) < len_prefix:
+                return ROWS_MIGHT_MATCH
+
+            if lower[:len_prefix] == prefix:
+                # if upper is shorter than the prefix then upper can't start with the prefix
+                if len(upper) < len_prefix:
+                    return ROWS_MIGHT_MATCH
+
+                if upper[:len_prefix] == prefix:
+                    return ROWS_CANNOT_MATCH
 
         return ROWS_MIGHT_MATCH
 
@@ -943,6 +1026,12 @@ class ExpressionToPlainFormat(BoundBooleanExpressionVisitor[List[Tuple[str, str,
     def visit_less_than_or_equal(self, term: BoundTerm[L], literal: Literal[L]) -> List[Tuple[str, str, Any]]:
         return [(term.ref().field.name, "<=", self._cast_if_necessary(term.ref().field.field_type, literal.value))]
 
+    def visit_starts_with(self, term: BoundTerm[L], literal: Literal[L]) -> List[Tuple[str, str, Any]]:
+        return []
+
+    def visit_not_starts_with(self, term: BoundTerm[L], literal: Literal[L]) -> List[Tuple[str, str, Any]]:
+        return []
+
     def visit_true(self) -> List[Tuple[str, str, Any]]:
         return []  # Not supported
 
@@ -986,3 +1075,335 @@ def expression_to_plain_format(
     # In the form of expr1 ∨ expr2 ∨ ... ∨ exprN
     visitor = ExpressionToPlainFormat(cast_int_to_datetime)
     return [visit(expression, visitor) for expression in expressions]
+
+
+class _InclusiveMetricsEvaluator(BoundBooleanExpressionVisitor[bool]):
+    struct: StructType
+    expr: BooleanExpression
+
+    value_counts: Dict[int, int]
+    null_counts: Dict[int, int]
+    nan_counts: Dict[int, int]
+    lower_bounds: Dict[int, bytes]
+    upper_bounds: Dict[int, bytes]
+
+    def __init__(self, schema: Schema, expr: BooleanExpression, case_sensitive: bool = True) -> None:
+        self.struct = schema.as_struct()
+        self.expr = bind(schema, rewrite_not(expr), case_sensitive)
+
+    def eval(self, file: DataFile) -> bool:
+        """Test whether the file may contain records that match the expression."""
+
+        if file.record_count == 0:
+            return ROWS_CANNOT_MATCH
+
+        if file.record_count < 0:
+            # Older version don't correctly implement record count from avro file and thus
+            # set record count -1 when importing avro tables to iceberg tables. This should
+            # be updated once we implemented and set correct record count.
+            return ROWS_MIGHT_MATCH
+
+        self.value_counts = file.value_counts or EMPTY_DICT
+        self.null_counts = file.null_value_counts or EMPTY_DICT
+        self.nan_counts = file.nan_value_counts or EMPTY_DICT
+        self.lower_bounds = file.lower_bounds or EMPTY_DICT
+        self.upper_bounds = file.upper_bounds or EMPTY_DICT
+
+        return visit(self.expr, self)
+
+    def _may_contain_null(self, field_id: int) -> bool:
+        return self.null_counts is None or (field_id in self.null_counts and self.null_counts.get(field_id) is not None)
+
+    def _contains_nulls_only(self, field_id: int) -> bool:
+        if (value_count := self.value_counts.get(field_id)) and (null_count := self.null_counts.get(field_id)):
+            return value_count == null_count
+        return False
+
+    def _contains_nans_only(self, field_id: int) -> bool:
+        if (nan_count := self.nan_counts.get(field_id)) and (value_count := self.value_counts.get(field_id)):
+            return nan_count == value_count
+        return False
+
+    def _is_nan(self, val: Any) -> bool:
+        try:
+            return math.isnan(val)
+        except TypeError:
+            # In the case of None or other non-numeric types
+            return False
+
+    def visit_true(self) -> bool:
+        # all rows match
+        return ROWS_MIGHT_MATCH
+
+    def visit_false(self) -> bool:
+        # all rows fail
+        return ROWS_CANNOT_MATCH
+
+    def visit_not(self, child_result: bool) -> bool:
+        raise ValueError(f"NOT should be rewritten: {child_result}")
+
+    def visit_and(self, left_result: bool, right_result: bool) -> bool:
+        return left_result and right_result
+
+    def visit_or(self, left_result: bool, right_result: bool) -> bool:
+        return left_result or right_result
+
+    def visit_is_null(self, term: BoundTerm[L]) -> bool:
+        field_id = term.ref().field.field_id
+
+        if self.null_counts.get(field_id) == 0:
+            return ROWS_CANNOT_MATCH
+
+        return ROWS_MIGHT_MATCH
+
+    def visit_not_null(self, term: BoundTerm[L]) -> bool:
+        # no need to check whether the field is required because binding evaluates that case
+        # if the column has no non-null values, the expression cannot match
+        field_id = term.ref().field.field_id
+
+        if self._contains_nulls_only(field_id):
+            return ROWS_CANNOT_MATCH
+
+        return ROWS_MIGHT_MATCH
+
+    def visit_is_nan(self, term: BoundTerm[L]) -> bool:
+        field_id = term.ref().field.field_id
+
+        if self.nan_counts.get(field_id) == 0:
+            return ROWS_CANNOT_MATCH
+
+        # when there's no nanCounts information, but we already know the column only contains null,
+        # it's guaranteed that there's no NaN value
+        if self._contains_nulls_only(field_id):
+            return ROWS_CANNOT_MATCH
+
+        return ROWS_MIGHT_MATCH
+
+    def visit_not_nan(self, term: BoundTerm[L]) -> bool:
+        field_id = term.ref().field.field_id
+
+        if self._contains_nans_only(field_id):
+            return ROWS_CANNOT_MATCH
+
+        return ROWS_MIGHT_MATCH
+
+    def visit_less_than(self, term: BoundTerm[L], literal: Literal[L]) -> bool:
+        field = term.ref().field
+        field_id = field.field_id
+
+        if self._contains_nulls_only(field_id) or self._contains_nans_only(field_id):
+            return ROWS_CANNOT_MATCH
+
+        if not isinstance(field.field_type, PrimitiveType):
+            raise ValueError(f"Expected PrimitiveType: {field.field_type}")
+
+        if lower_bound_bytes := self.lower_bounds.get(field_id):  # type: ignore
+            lower_bound = from_bytes(field.field_type, lower_bound_bytes)  # type: ignore
+
+            if self._is_nan(lower_bound):
+                # NaN indicates unreliable bounds. See the InclusiveMetricsEvaluator docs for more.
+                return ROWS_MIGHT_MATCH
+
+            if lower_bound >= literal.value:
+                return ROWS_CANNOT_MATCH
+
+        return ROWS_MIGHT_MATCH
+
+    def visit_less_than_or_equal(self, term: BoundTerm[L], literal: Literal[L]) -> bool:
+        field = term.ref().field
+        field_id = field.field_id
+
+        if self._contains_nulls_only(field_id) or self._contains_nans_only(field_id):
+            return ROWS_CANNOT_MATCH
+
+        if not isinstance(field.field_type, PrimitiveType):
+            raise ValueError(f"Expected PrimitiveType: {field.field_type}")
+
+        if lower_bound_bytes := self.lower_bounds.get(field_id):  # type: ignore
+            lower_bound = from_bytes(field.field_type, lower_bound_bytes)  # type: ignore
+            if self._is_nan(lower_bound):
+                # NaN indicates unreliable bounds. See the InclusiveMetricsEvaluator docs for more.
+                return ROWS_MIGHT_MATCH
+
+            if lower_bound > literal.value:
+                return ROWS_CANNOT_MATCH
+
+        return ROWS_MIGHT_MATCH
+
+    def visit_greater_than(self, term: BoundTerm[L], literal: Literal[L]) -> bool:
+        field = term.ref().field
+        field_id = field.field_id
+
+        if self._contains_nulls_only(field_id) or self._contains_nans_only(field_id):
+            return ROWS_CANNOT_MATCH
+
+        if not isinstance(field.field_type, PrimitiveType):
+            raise ValueError(f"Expected PrimitiveType: {field.field_type}")
+
+        if upper_bound_bytes := self.upper_bounds.get(field_id):  # type: ignore
+            upper_bound = from_bytes(field.field_type, upper_bound_bytes)  # type: ignore
+            if upper_bound <= literal.value:
+                if self._is_nan(upper_bound):
+                    # NaN indicates unreliable bounds. See the InclusiveMetricsEvaluator docs for more.
+                    return ROWS_MIGHT_MATCH
+
+                return ROWS_CANNOT_MATCH
+
+        return ROWS_MIGHT_MATCH
+
+    def visit_greater_than_or_equal(self, term: BoundTerm[L], literal: Literal[L]) -> bool:
+        field = term.ref().field
+        field_id = field.field_id
+
+        if self._contains_nulls_only(field_id) or self._contains_nans_only(field_id):
+            return ROWS_CANNOT_MATCH
+
+        if not isinstance(field.field_type, PrimitiveType):
+            raise ValueError(f"Expected PrimitiveType: {field.field_type}")
+
+        if upper_bound_bytes := self.upper_bounds.get(field_id):  # type: ignore
+            upper_bound = from_bytes(field.field_type, upper_bound_bytes)  # type: ignore
+            if upper_bound < literal.value:
+                if self._is_nan(upper_bound):
+                    # NaN indicates unreliable bounds. See the InclusiveMetricsEvaluator docs for more.
+                    return ROWS_MIGHT_MATCH
+
+                return ROWS_CANNOT_MATCH
+
+        return ROWS_MIGHT_MATCH
+
+    def visit_equal(self, term: BoundTerm[L], literal: Literal[L]) -> bool:
+        field = term.ref().field
+        field_id = field.field_id
+
+        if self._contains_nulls_only(field_id) or self._contains_nans_only(field_id):
+            return ROWS_CANNOT_MATCH
+
+        if not isinstance(field.field_type, PrimitiveType):
+            raise ValueError(f"Expected PrimitiveType: {field.field_type}")
+
+        if lower_bound_bytes := self.lower_bounds.get(field_id):  # type: ignore
+            lower_bound = from_bytes(field.field_type, lower_bound_bytes)  # type: ignore
+            if self._is_nan(lower_bound):
+                # NaN indicates unreliable bounds. See the InclusiveMetricsEvaluator docs for more.
+                return ROWS_MIGHT_MATCH
+
+            if lower_bound > literal.value:
+                return ROWS_CANNOT_MATCH
+
+        if upper_bound_bytes := self.upper_bounds.get(field_id):  # type: ignore
+            upper_bound = from_bytes(field.field_type, upper_bound_bytes)  # type: ignore
+            if self._is_nan(upper_bound):
+                # NaN indicates unreliable bounds. See the InclusiveMetricsEvaluator docs for more.
+                return ROWS_MIGHT_MATCH
+
+            if upper_bound < literal.value:
+                return ROWS_CANNOT_MATCH
+
+        return ROWS_MIGHT_MATCH
+
+    def visit_not_equal(self, term: BoundTerm[L], literal: Literal[L]) -> bool:
+        return ROWS_MIGHT_MATCH
+
+    def visit_in(self, term: BoundTerm[L], literals: Set[L]) -> bool:
+        field = term.ref().field
+        field_id = field.field_id
+
+        if self._contains_nulls_only(field_id) or self._contains_nans_only(field_id):
+            return ROWS_CANNOT_MATCH
+
+        if len(literals) > IN_PREDICATE_LIMIT:
+            # skip evaluating the predicate if the number of values is too big
+            return ROWS_MIGHT_MATCH
+
+        if not isinstance(field.field_type, PrimitiveType):
+            raise ValueError(f"Expected PrimitiveType: {field.field_type}")
+
+        if lower_bound_bytes := self.lower_bounds.get(field_id):  # type: ignore
+            lower_bound = from_bytes(field.field_type, lower_bound_bytes)  # type: ignore
+            if self._is_nan(lower_bound):
+                # NaN indicates unreliable bounds. See the InclusiveMetricsEvaluator docs for more.
+                return ROWS_MIGHT_MATCH
+
+            literals = {lit for lit in literals if lower_bound <= lit}
+            if len(literals) == 0:
+                return ROWS_CANNOT_MATCH
+
+        if upper_bound_bytes := self.upper_bounds.get(field_id):  # type: ignore
+            upper_bound = from_bytes(field.field_type, upper_bound_bytes)  # type: ignore
+            # this is different from Java, here NaN is always larger
+            if self._is_nan(upper_bound):
+                return ROWS_MIGHT_MATCH
+
+            literals = {lit for lit in literals if upper_bound >= lit}
+            if len(literals) == 0:
+                return ROWS_CANNOT_MATCH
+
+        return ROWS_MIGHT_MATCH
+
+    def visit_not_in(self, term: BoundTerm[L], literals: Set[L]) -> bool:
+        # because the bounds are not necessarily a min or max value, this cannot be answered using
+        # them. notIn(col, {X, ...}) with (X, Y) doesn't guarantee that X is a value in col.
+        return ROWS_MIGHT_MATCH
+
+    def visit_starts_with(self, term: BoundTerm[L], literal: Literal[L]) -> bool:
+        field = term.ref().field
+        field_id: int = field.field_id
+
+        if self._contains_nulls_only(field_id):
+            return ROWS_CANNOT_MATCH
+
+        if not isinstance(field.field_type, PrimitiveType):
+            raise ValueError(f"Expected PrimitiveType: {field.field_type}")
+
+        prefix = str(literal.value)
+        len_prefix = len(prefix)
+
+        if lower_bound_bytes := self.lower_bounds.get(field_id):
+            lower_bound = str(from_bytes(field.field_type, lower_bound_bytes))
+
+            # truncate lower bound so that its length is not greater than the length of prefix
+            if lower_bound and lower_bound[:len_prefix] > prefix:
+                return ROWS_CANNOT_MATCH
+
+        if upper_bound_bytes := self.upper_bounds.get(field_id):
+            upper_bound = str(from_bytes(field.field_type, upper_bound_bytes))  # type: ignore
+
+            # truncate upper bound so that its length is not greater than the length of prefix
+            if upper_bound is not None and upper_bound[:len_prefix] < prefix:
+                return ROWS_CANNOT_MATCH
+
+        return ROWS_MIGHT_MATCH
+
+    def visit_not_starts_with(self, term: BoundTerm[L], literal: Literal[L]) -> bool:
+        field = term.ref().field
+        field_id: int = field.field_id
+
+        if self._may_contain_null(field_id):
+            return ROWS_MIGHT_MATCH
+
+        if not isinstance(field.field_type, PrimitiveType):
+            raise ValueError(f"Expected PrimitiveType: {field.field_type}")
+
+        prefix = str(literal.value)
+        len_prefix = len(prefix)
+
+        # not_starts_with will match unless all values must start with the prefix. This happens when
+        # the lower and upper bounds both start with the prefix.
+        if (lower_bound_bytes := self.lower_bounds.get(field_id)) and (upper_bound_bytes := self.upper_bounds.get(field_id)):
+            lower_bound = str(from_bytes(field.field_type, lower_bound_bytes))
+            upper_bound = str(from_bytes(field.field_type, upper_bound_bytes))
+
+            # if lower is shorter than the prefix then lower doesn't start with the prefix
+            if len(lower_bound) < len_prefix:
+                return ROWS_MIGHT_MATCH
+
+            if lower_bound[:len_prefix] == prefix:
+                # if upper is shorter than the prefix then upper can't start with the prefix
+                if len(upper_bound) < len_prefix:
+                    return ROWS_MIGHT_MATCH
+
+                if upper_bound[:len_prefix] == prefix:
+                    return ROWS_CANNOT_MATCH
+
+        return ROWS_MIGHT_MATCH

@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import importlib
 import logging
+import warnings
 from abc import ABC, abstractmethod
 from io import SEEK_SET
 from types import TracebackType
@@ -43,6 +44,12 @@ from urllib.parse import urlparse
 from pyiceberg.typedef import EMPTY_DICT, Properties
 
 logger = logging.getLogger(__name__)
+
+S3_ENDPOINT = "s3.endpoint"
+S3_ACCESS_KEY_ID = "s3.access-key-id"
+S3_SECRET_ACCESS_KEY = "s3.secret-access-key"
+S3_SESSION_TOKEN = "s3.session-token"
+S3_REGION = "s3.region"
 
 
 @runtime_checkable
@@ -275,21 +282,22 @@ def _import_file_io(io_impl: str, properties: Properties) -> Optional[FileIO]:
         class_ = getattr(module, class_name)
         return class_(properties)
     except ModuleNotFoundError:
-        logger.warning("Could not initialize FileIO: %s", io_impl)
+        warnings.warn(f"Could not initialize FileIO: {io_impl}")
         return None
 
 
 PY_IO_IMPL = "py-io-impl"
 
 
-def _infer_file_io_from_schema(path: str, properties: Properties) -> Optional[FileIO]:
+def _infer_file_io_from_scheme(path: str, properties: Properties) -> Optional[FileIO]:
     parsed_url = urlparse(path)
-    if file_ios := SCHEMA_TO_FILE_IO.get(parsed_url.scheme):
-        for file_io_path in file_ios:
-            if file_io := _import_file_io(file_io_path, properties):
-                return file_io
-    else:
-        logger.warning("No preferred file implementation for schema: %s", parsed_url.scheme)
+    if parsed_url.scheme:
+        if file_ios := SCHEMA_TO_FILE_IO.get(parsed_url.scheme):
+            for file_io_path in file_ios:
+                if file_io := _import_file_io(file_io_path, properties):
+                    return file_io
+        else:
+            warnings.warn(f"No preferred file implementation for scheme: {parsed_url.scheme}")
     return None
 
 
@@ -304,12 +312,12 @@ def load_file_io(properties: Properties = EMPTY_DICT, location: Optional[str] = 
 
     # Check the table location
     if location:
-        if file_io := _infer_file_io_from_schema(location, properties):
+        if file_io := _infer_file_io_from_scheme(location, properties):
             return file_io
 
     # Look at the schema of the warehouse
     if warehouse_location := properties.get(WAREHOUSE):
-        if file_io := _infer_file_io_from_schema(warehouse_location, properties):
+        if file_io := _infer_file_io_from_scheme(warehouse_location, properties):
             return file_io
 
     try:

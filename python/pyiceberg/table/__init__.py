@@ -43,7 +43,7 @@ from pyiceberg.expressions import (
     parser,
     visitors,
 )
-from pyiceberg.expressions.visitors import inclusive_projection
+from pyiceberg.expressions.visitors import _InclusiveMetricsEvaluator, inclusive_projection
 from pyiceberg.io import FileIO, load_file_io
 from pyiceberg.manifest import (
     DataFile,
@@ -95,7 +95,7 @@ class Table:
     def scan(
         self,
         row_filter: Union[str, BooleanExpression] = ALWAYS_TRUE,
-        selected_fields: Tuple[str] = ("*",),
+        selected_fields: Tuple[str, ...] = ("*",),
         case_sensitive: bool = True,
         snapshot_id: Optional[int] = None,
         options: Properties = EMPTY_DICT,
@@ -215,7 +215,7 @@ S = TypeVar("S", bound="TableScan", covariant=True)
 class TableScan(ABC):
     table: Table
     row_filter: BooleanExpression
-    selected_fields: Tuple[str]
+    selected_fields: Tuple[str, ...]
     case_sensitive: bool
     snapshot_id: Optional[int]
     options: Properties
@@ -224,7 +224,7 @@ class TableScan(ABC):
         self,
         table: Table,
         row_filter: Union[str, BooleanExpression] = ALWAYS_TRUE,
-        selected_fields: Tuple[str] = ("*",),
+        selected_fields: Tuple[str, ...] = ("*",),
         case_sensitive: bool = True,
         snapshot_id: Optional[int] = None,
         options: Properties = EMPTY_DICT,
@@ -314,11 +314,16 @@ def _check_content(file: DataFile) -> DataFile:
         return file
 
 
-def _open_manifest(io: FileIO, manifest: ManifestFile, partition_filter: Callable[[DataFile], bool]) -> List[FileScanTask]:
+def _open_manifest(
+    io: FileIO,
+    manifest: ManifestFile,
+    partition_filter: Callable[[DataFile], bool],
+    metrics_evaluator: Callable[[DataFile], bool],
+) -> List[FileScanTask]:
     all_files = files(io.new_input(manifest.manifest_path))
     matching_partition_files = filter(partition_filter, all_files)
     matching_partition_data_files = map(_check_content, matching_partition_files)
-    return [FileScanTask(file) for file in matching_partition_data_files]
+    return [FileScanTask(file) for file in matching_partition_data_files if metrics_evaluator(file)]
 
 
 class DataScan(TableScan):
@@ -326,7 +331,7 @@ class DataScan(TableScan):
         self,
         table: Table,
         row_filter: Union[str, BooleanExpression] = ALWAYS_TRUE,
-        selected_fields: Tuple[str] = ("*",),
+        selected_fields: Tuple[str, ...] = ("*",),
         case_sensitive: bool = True,
         snapshot_id: Optional[int] = None,
         options: Properties = EMPTY_DICT,
@@ -376,12 +381,20 @@ class DataScan(TableScan):
         # this filter depends on the partition spec used to write the manifest file
 
         partition_evaluators: Dict[int, Callable[[DataFile], bool]] = KeyDefaultDict(self._build_partition_evaluator)
-
+        metrics_evaluator = _InclusiveMetricsEvaluator(self.table.schema(), self.row_filter, self.case_sensitive).eval
         with ThreadPool() as pool:
             return chain(
                 *pool.starmap(
                     func=_open_manifest,
-                    iterable=[(io, manifest, partition_evaluators[manifest.partition_spec_id]) for manifest in manifests],
+                    iterable=[
+                        (
+                            io,
+                            manifest,
+                            partition_evaluators[manifest.partition_spec_id],
+                            metrics_evaluator,
+                        )
+                        for manifest in manifests
+                    ],
                 )
             )
 
