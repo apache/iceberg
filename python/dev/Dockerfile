@@ -47,12 +47,12 @@ RUN curl -s https://repo1.maven.org/maven2/org/apache/iceberg/iceberg-spark-runt
  && mv iceberg-spark-runtime-3.3_2.12-1.1.0.jar /opt/spark/jars
 
 # Download Java AWS SDK
-RUN curl -s https://repo1.maven.org/maven2/software/amazon/awssdk/bundle/2.20.8/bundle-2.20.8.jar -Lo bundle-2.20.8.jar \
- && mv bundle-2.20.8.jar /opt/spark/jars
+RUN curl -s https://repo1.maven.org/maven2/software/amazon/awssdk/bundle/2.17.165/bundle-2.17.165.jar -Lo bundle-2.17.165.jar \
+ && mv bundle-2.17.165.jar /opt/spark/jars
 
 # Download URL connection client required for S3FileIO
-RUN curl -s https://repo1.maven.org/maven2/software/amazon/awssdk/apache-client/2.20.8/apache-client-2.20.8.jar -Lo apache-client-2.20.8.jar \
- && mv apache-client-2.20.8.jar /opt/spark/jars
+RUN curl -s https://repo1.maven.org/maven2/software/amazon/awssdk/url-connection-client/2.17.165/url-connection-client-2.17.165.jar -Lo url-connection-client-2.17.165.jar \
+ && mv url-connection-client-2.17.165.jar /opt/spark/jars
 
 COPY spark-defaults.conf /opt/spark/conf
 ENV PATH="/opt/spark/sbin:/opt/spark/bin:${PATH}"
