@@ -28,6 +28,7 @@ import org.apache.iceberg.aws.dynamodb.DynamoDbCatalog;
 import org.apache.iceberg.aws.glue.GlueCatalog;
 import org.apache.iceberg.aws.lakeformation.LakeFormationAwsClientFactory;
 import org.apache.iceberg.aws.s3.S3FileIO;
+import org.apache.iceberg.common.DynClasses;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -265,7 +266,7 @@ public class AwsProperties implements Serializable {
    * <p>When set, the default client factory will use this provider to get AWS credentials provided
    * instead of reading the default credential chain to get S3 access credentials.
    */
-  public static final String S3FILEIO_CREDENTIALS_PROVIDER = "client.credentials-provider";
+  public static final String CLIENT_CREDENTIALS_PROVIDER = "client.credentials-provider";
 
   /**
    * Enable to make S3FileIO, to make cross-region call to the region specified in the ARN of an
@@ -362,7 +363,7 @@ public class AwsProperties implements Serializable {
    * Used by {@link org.apache.iceberg.aws.AwsClientFactories.DefaultAwsClientFactory}. If set, all
    * AWS clients except STS client will use * the given region instead of the default region chain.
    */
-  public static final String AWS_CLIENT_REGION = "client.region";
+  public static final String CLIENT_REGION = "client.region";
 
   /**
    * Used by {@link AssumeRoleAwsClientFactory}. Optional session name used to assume an IAM role.
@@ -656,6 +657,7 @@ public class AwsProperties implements Serializable {
   private static final String HTTP_CLIENT_PREFIX = "http-client.";
 
   private static final String CREDENTIAL_PROVIDER_PREFIX = "client.credentials-provider.";
+
   private String httpClientType;
   private final Map<String, String> httpClientProperties;
   private final Set<software.amazon.awssdk.services.sts.model.Tag> stsClientAssumeRoleTags;
@@ -672,7 +674,7 @@ public class AwsProperties implements Serializable {
   private String s3AccessKeyId;
   private String s3SecretAccessKey;
   private String s3SessionToken;
-  private String s3CredentialsProvider;
+  private String credentialsProvider;
   private int s3FileIoMultipartUploadThreads;
   private int s3FileIoMultiPartSize;
   private int s3FileIoDeleteBatchSize;
@@ -706,7 +708,7 @@ public class AwsProperties implements Serializable {
   private final String s3SignerImpl;
   private final Map<String, String> allProperties;
 
-  private String awsRegion;
+  private String clientRegion;
 
   private final Map<String, String> credentialsProviderProperties;
 
@@ -727,7 +729,7 @@ public class AwsProperties implements Serializable {
     this.s3AccessKeyId = null;
     this.s3SecretAccessKey = null;
     this.s3SessionToken = null;
-    this.s3CredentialsProvider = null;
+    this.credentialsProvider = null;
     this.s3FileIoAcl = null;
     this.s3Endpoint = null;
     this.s3FileIoMultipartUploadThreads = Runtime.getRuntime().availableProcessors();
@@ -760,7 +762,7 @@ public class AwsProperties implements Serializable {
 
     this.s3SignerImpl = null;
     this.allProperties = Maps.newHashMap();
-    this.awsRegion = null;
+    this.clientRegion = null;
     this.credentialsProviderProperties = null;
 
     ValidationException.check(
@@ -781,7 +783,7 @@ public class AwsProperties implements Serializable {
             properties, CLIENT_ASSUME_ROLE_TIMEOUT_SEC, CLIENT_ASSUME_ROLE_TIMEOUT_SEC_DEFAULT);
     this.clientAssumeRoleExternalId = properties.get(CLIENT_ASSUME_ROLE_EXTERNAL_ID);
     this.clientAssumeRoleRegion = properties.get(CLIENT_ASSUME_ROLE_REGION);
-    this.awsRegion = properties.get(AWS_CLIENT_REGION);
+    this.clientRegion = properties.get(CLIENT_REGION);
     this.clientAssumeRoleSessionName = properties.get(CLIENT_ASSUME_ROLE_SESSION_NAME);
 
     this.s3FileIoSseType = properties.getOrDefault(S3FILEIO_SSE_TYPE, S3FILEIO_SSE_TYPE_NONE);
@@ -790,7 +792,7 @@ public class AwsProperties implements Serializable {
     this.s3AccessKeyId = properties.get(S3FILEIO_ACCESS_KEY_ID);
     this.s3SecretAccessKey = properties.get(S3FILEIO_SECRET_ACCESS_KEY);
     this.s3SessionToken = properties.get(S3FILEIO_SESSION_TOKEN);
-    this.s3CredentialsProvider = properties.get(S3FILEIO_CREDENTIALS_PROVIDER);
+    this.credentialsProvider = properties.get(CLIENT_CREDENTIALS_PROVIDER);
     if (S3FILEIO_SSE_TYPE_CUSTOM.equals(s3FileIoSseType)) {
       Preconditions.checkNotNull(
           s3FileIoSseKey, "Cannot initialize SSE-C S3FileIO with null encryption key");
@@ -1101,12 +1103,12 @@ public class AwsProperties implements Serializable {
     return httpClientProperties;
   }
 
-  public String awsRegion() {
-    return awsRegion;
+  public String clientRegion() {
+    return clientRegion;
   }
 
-  public void setAwsRegion(String awsRegion) {
-    this.awsRegion = awsRegion;
+  public void setClientRegion(String clientRegion) {
+    this.clientRegion = clientRegion;
   }
   /**
    * Configure the credentials for an S3 client.
@@ -1118,8 +1120,8 @@ public class AwsProperties implements Serializable {
    * </pre>
    */
   public <T extends S3ClientBuilder> void applyS3CredentialConfigurations(T builder) {
-    if (this.s3CredentialsProvider != null && this.s3CredentialsProvider.trim().length() > 0) {
-      builder.credentialsProvider(credentialsProvider(this.s3CredentialsProvider.trim()));
+    if (!Strings.isNullOrEmpty(this.credentialsProvider)) {
+      builder.credentialsProvider(credentialsProvider(this.credentialsProvider));
     } else {
       builder.credentialsProvider(
           credentialsProvider(s3AccessKeyId, s3SecretAccessKey, s3SessionToken));
@@ -1283,12 +1285,12 @@ public class AwsProperties implements Serializable {
    * <p>Sample usage:
    *
    * <pre>
-   *     S3Client.builder().applyMutation(awsProperties::applyAwsRegionConfiguration)
+   *     S3Client.builder().applyMutation(awsProperties::applyClientRegionConfiguration)
    * </pre>
    */
-  public <T extends AwsClientBuilder> void applyAwsRegionConfiguration(T builder) {
-    if (awsRegion != null) {
-      builder.region(Region.of(awsRegion));
+  public <T extends AwsClientBuilder> void applyClientRegionConfiguration(T builder) {
+    if (clientRegion != null) {
+      builder.region(Region.of(clientRegion));
     }
   }
 
@@ -1316,18 +1318,31 @@ public class AwsProperties implements Serializable {
 
   private AwsCredentialsProvider credentialsProvider(String credentialsProviderClazz) {
     try {
-      Class.forName(credentialsProviderClazz);
+      Class<?> providerClass =
+          DynClasses.builder()
+              .loader(this.getClass().getClassLoader())
+              .impl(credentialsProviderClazz)
+              .buildChecked();
+
+      ValidationException.check(
+          AwsCredentialsProvider.class.isAssignableFrom(providerClass),
+          "%s is not an instance of software.amazon.awssdk.auth.credentials.AwsCredentialsProvider, loaded by the classloader for %s",
+          providerClass,
+          this);
+
       AwsCredentialsProvider provider;
-      if (this.credentialsProviderProperties == null
-          || this.credentialsProviderProperties.size() == 0) {
-        provider =
-            DynMethods.builder("create").impl(credentialsProviderClazz).buildChecked().invoke(null);
-      } else {
+      try {
         provider =
             DynMethods.builder("create")
                 .hiddenImpl(credentialsProviderClazz, Map.class)
                 .buildStaticChecked()
                 .invoke(credentialsProviderProperties);
+      } catch (NoSuchMethodException e) {
+        provider =
+            DynMethods.builder("create")
+                .hiddenImpl(credentialsProviderClazz)
+                .buildStaticChecked()
+                .invoke();
       }
       return provider;
     } catch (ClassNotFoundException cnfe) {
@@ -1335,13 +1350,12 @@ public class AwsProperties implements Serializable {
           String.format(
               "Failed to load class %s. "
                   + "Please make sure the necessary JARs/packages are added to the classpath.",
-              credentialsProviderClazz));
+              credentialsProviderClazz),
+          cnfe);
     } catch (NoSuchMethodException e) {
       throw new IllegalArgumentException(
           String.format(
-              "The creation of an instance of %s failed. Please ensure that the "
-                  + "implementation class of software.amazon.awssdk.auth.credentials.AwsCredentialsProvider is used, "
-                  + "which should have a static 'create' method for instance creation.",
+              "Failed to create an instance of %s. Please ensure that the provider class contains a static 'create' or 'create(Map<String, String>)' method that can be used to instantiate a client credentials provider",
               credentialsProviderClazz),
           e);
     }

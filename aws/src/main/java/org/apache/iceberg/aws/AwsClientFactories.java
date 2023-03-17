@@ -98,7 +98,7 @@ public class AwsClientFactories {
     @Override
     public S3Client s3() {
       return S3Client.builder()
-          .applyMutation(awsProperties::applyAwsRegionConfiguration)
+          .applyMutation(awsProperties::applyClientRegionConfiguration)
           .applyMutation(awsProperties::applyHttpClientConfigurations)
           .applyMutation(awsProperties::applyS3EndpointConfigurations)
           .applyMutation(awsProperties::applyS3ServiceConfigurations)
@@ -110,7 +110,7 @@ public class AwsClientFactories {
     @Override
     public GlueClient glue() {
       return GlueClient.builder()
-          .applyMutation(awsProperties::applyAwsRegionConfiguration)
+          .applyMutation(awsProperties::applyClientRegionConfiguration)
           .applyMutation(awsProperties::applyHttpClientConfigurations)
           .applyMutation(awsProperties::applyGlueEndpointConfigurations)
           .build();
@@ -119,7 +119,7 @@ public class AwsClientFactories {
     @Override
     public KmsClient kms() {
       return KmsClient.builder()
-          .applyMutation(awsProperties::applyAwsRegionConfiguration)
+          .applyMutation(awsProperties::applyClientRegionConfiguration)
           .applyMutation(awsProperties::applyHttpClientConfigurations)
           .build();
     }
@@ -127,7 +127,7 @@ public class AwsClientFactories {
     @Override
     public DynamoDbClient dynamo() {
       return DynamoDbClient.builder()
-          .applyMutation(awsProperties::applyAwsRegionConfiguration)
+          .applyMutation(awsProperties::applyClientRegionConfiguration)
           .applyMutation(awsProperties::applyHttpClientConfigurations)
           .applyMutation(awsProperties::applyDynamoDbEndpointConfigurations)
           .build();
