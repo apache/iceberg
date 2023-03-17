@@ -20,7 +20,8 @@
 package org.apache.spark.sql.execution.datasources
 
 import org.apache.iceberg.spark.SparkFilters
-import org.apache.spark.sql.{AnalysisException, SparkSession}
+import org.apache.spark.sql.AnalysisException
+import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.expressions.Attribute
 import org.apache.spark.sql.catalyst.expressions.Expression
 import org.apache.spark.sql.catalyst.plans.logical.Filter
