@@ -490,7 +490,7 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
     // Test with invalid filter column col1
     AssertHelpers.assertThrows(
         "Should reject calls with error message",
-        IllegalArgumentException.class,
+        AnalysisException.class,
         "Cannot parse predicates in where option: col1 = 3",
         () ->
             sql(
