@@ -18,12 +18,14 @@
  */
 package org.apache.iceberg;
 
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.util.HashUtils;
+import org.apache.iceberg.relocated.com.google.common.hash.HashFunction;
+import org.apache.iceberg.relocated.com.google.common.hash.Hashing;
 import org.apache.iceberg.util.LocationUtil;
 import org.apache.iceberg.util.PropertyUtil;
 
@@ -103,6 +105,10 @@ public class LocationProviders {
 
   static class ObjectStoreLocationProvider implements LocationProvider {
 
+    private static final HashFunction HASH_FUNC = Hashing.sha1();
+
+    private static final String allChars =
+        "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
     private final String storageLocation;
     private final String context;
 
@@ -139,7 +145,7 @@ public class LocationProviders {
 
     @Override
     public String newDataLocation(String filename) {
-      String hash = HashUtils.computeHash(filename);
+      String hash = computeHash(filename);
       if (context != null) {
         return String.format("%s/%s/%s/%s", storageLocation, hash, context, filename);
       } else {
@@ -162,6 +168,19 @@ public class LocationProviders {
           !resolvedContext.endsWith("/"), "Path context must not end with a slash.");
 
       return resolvedContext;
+    }
+
+    private static String computeHash(String fileName) {
+      Preconditions.checkState(fileName != null, "fileName cannot be null");
+      byte[] messageDigest =
+          HASH_FUNC.hashBytes(fileName.getBytes(StandardCharsets.UTF_8)).asBytes();
+
+      StringBuilder hash = new StringBuilder();
+      for (int i = 0; i < 8; ++i) {
+        hash.append(allChars.charAt((messageDigest[i] % 62 + 62) % 62));
+      }
+
+      return hash.toString();
     }
   }
 }
