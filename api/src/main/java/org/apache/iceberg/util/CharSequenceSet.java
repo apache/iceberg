@@ -139,7 +139,7 @@ public class CharSequenceSet implements Set<CharSequence>, Serializable {
   @Override
   public boolean retainAll(Collection<?> objects) {
     if (objects != null) {
-      return Iterables.removeAll(wrapperSet, objects);
+      return Iterables.retainAll(wrapperSet, objects);
     }
     return false;
   }
