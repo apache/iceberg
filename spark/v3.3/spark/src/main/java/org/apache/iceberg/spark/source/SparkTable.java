@@ -32,6 +32,7 @@ import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Partitioning;
+import org.apache.iceberg.PositionDeletesTable;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
@@ -279,7 +280,11 @@ public class SparkTable
     Preconditions.checkArgument(
         snapshotId == null, "Cannot write to table at a specific snapshot: %s", snapshotId);
 
-    return new SparkWriteBuilder(sparkSession(), icebergTable, branch, info);
+    if (icebergTable instanceof PositionDeletesTable) {
+      return new SparkPositionDeletesRewriteBuilder(sparkSession(), icebergTable, branch, info);
+    } else {
+      return new SparkWriteBuilder(sparkSession(), icebergTable, branch, info);
+    }
   }
 
   @Override
