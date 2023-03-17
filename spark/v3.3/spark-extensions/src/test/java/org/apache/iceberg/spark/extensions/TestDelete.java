@@ -511,6 +511,22 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
   }
 
   @Test
+  public void testDeleteWithFilterOnNestedColumn() {
+    createAndInitNestedColumnsTable();
+
+    sql("INSERT INTO TABLE %s VALUES (1, named_struct(\"c1\", 3, \"c2\", \"v1\"))", tableName);
+    sql("INSERT INTO TABLE %s VALUES (2, named_struct(\"c1\", 2, \"c2\", \"v2\"))", tableName);
+
+    sql("DELETE FROM %s WHERE complex.c1 = 3", tableName);
+    assertEquals(
+        "Should have expected rows", ImmutableList.of(row(2)), sql("SELECT id FROM %s", tableName));
+
+    sql("DELETE FROM %s t WHERE t.complex.c1 = 2", tableName);
+    assertEquals(
+        "Should have expected rows", ImmutableList.of(), sql("SELECT id FROM %s", tableName));
+  }
+
+  @Test
   public void testDeleteWithInSubquery() throws NoSuchTableException {
     createAndInitUnpartitionedTable();
 
