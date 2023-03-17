@@ -99,8 +99,7 @@ public class TestOSSInputStream extends AliyunOSSTestBase {
     OSSURI uri = new OSSURI(location("closed.dat"));
     SeekableInputStream closed = new OSSInputStream(ossClient().get(), uri);
     closed.close();
-    Assertions.assertThatThrownBy(
-            () -> closed.seek(0), "Cannot seek the input stream after closed.")
+    Assertions.assertThatThrownBy(() -> closed.seek(0))
         .isInstanceOf(IllegalStateException.class)
         .hasMessageContaining("Cannot seek: already closed");
   }
