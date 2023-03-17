@@ -64,8 +64,7 @@ public class TestOSSOutputFile extends AliyunOSSTestBase {
   @Test
   public void testFromLocation() {
     Assertions.assertThatThrownBy(
-            () -> OSSOutputFile.fromLocation(ossClient, null, aliyunProperties),
-            "Should catch null location when creating oss output file")
+            () -> OSSOutputFile.fromLocation(ossClient, null, aliyunProperties))
         .isInstanceOf(NullPointerException.class)
         .hasMessageContaining("location cannot be null");
   }
@@ -80,7 +79,7 @@ public class TestOSSOutputFile extends AliyunOSSTestBase {
 
     OutputFile out = OSSOutputFile.fromLocation(ossClient, uri.location(), aliyunProperties);
 
-    Assertions.assertThatThrownBy(out::create, "Should complain about location already exists")
+    Assertions.assertThatThrownBy(out::create)
         .isInstanceOf(AlreadyExistsException.class)
         .hasMessageContaining("Location already exists");
   }

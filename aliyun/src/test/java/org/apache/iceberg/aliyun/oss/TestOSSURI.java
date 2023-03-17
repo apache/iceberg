@@ -50,8 +50,7 @@ public class TestOSSURI {
   @Test
   public void invalidBucket() {
 
-    Assertions.assertThatThrownBy(
-            () -> new OSSURI("https://test_bucket/path/to/file"), "Invalid bucket")
+    Assertions.assertThatThrownBy(() -> new OSSURI("https://test_bucket/path/to/file"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining(
             OSS_RESOURCE_MANAGER.getFormattedString("BucketNameInvalid", "test_bucket"));
@@ -60,14 +59,14 @@ public class TestOSSURI {
   @Test
   public void missingKey() {
 
-    Assertions.assertThatThrownBy(() -> new OSSURI("https://bucket/"), "Missing key")
+    Assertions.assertThatThrownBy(() -> new OSSURI("https://bucket/"))
         .isInstanceOf(ValidationException.class)
         .hasMessageContaining("Missing key in OSS location");
   }
 
   @Test
   public void invalidKey() {
-    Assertions.assertThatThrownBy(() -> new OSSURI("https://bucket/\\path/to/file"), "Invalid key")
+    Assertions.assertThatThrownBy(() -> new OSSURI("https://bucket/\\path/to/file"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining(
             OSS_RESOURCE_MANAGER.getFormattedString("ObjectKeyInvalid", "\\path/to/file"));
@@ -76,8 +75,7 @@ public class TestOSSURI {
   @Test
   public void relativePathing() {
 
-    Assertions.assertThatThrownBy(
-            () -> new OSSURI("/path/to/file"), "Cannot use relative oss location.")
+    Assertions.assertThatThrownBy(() -> new OSSURI("/path/to/file"))
         .isInstanceOf(ValidationException.class)
         .hasMessageContaining("Invalid OSS location");
   }
@@ -85,8 +83,7 @@ public class TestOSSURI {
   @Test
   public void invalidScheme() {
 
-    Assertions.assertThatThrownBy(
-            () -> new OSSURI("invalid://bucket/"), "Only support scheme: oss/https")
+    Assertions.assertThatThrownBy(() -> new OSSURI("invalid://bucket/"))
         .isInstanceOf(ValidationException.class)
         .hasMessageContaining("Invalid scheme");
   }

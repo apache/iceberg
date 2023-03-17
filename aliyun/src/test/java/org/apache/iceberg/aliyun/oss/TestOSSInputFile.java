@@ -64,8 +64,7 @@ public class TestOSSInputFile extends AliyunOSSTestBase {
     Assertions.assertThatThrownBy(
             () ->
                 new OSSInputFile(
-                    ossClient().get(), uri, aliyunProperties, -1, MetricsContext.nullMetrics()),
-            "File length should not be negative")
+                    ossClient().get(), uri, aliyunProperties, -1, MetricsContext.nullMetrics()))
         .isInstanceOf(ValidationException.class)
         .hasMessageContaining("Invalid file length");
   }
