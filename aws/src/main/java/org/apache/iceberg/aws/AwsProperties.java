@@ -1316,13 +1316,9 @@ public class AwsProperties implements Serializable {
     return (s3AccessKeyId == null) == (s3SecretAccessKey == null);
   }
 
-  private AwsCredentialsProvider credentialsProvider(String credentialsProviderClazz) {
+  private AwsCredentialsProvider credentialsProvider(String credentialsProviderClass) {
     try {
-      Class<?> providerClass =
-          DynClasses.builder()
-              .loader(this.getClass().getClassLoader())
-              .impl(credentialsProviderClazz)
-              .buildChecked();
+      Class<?> providerClass = DynClasses.builder().impl(credentialsProviderClass).buildChecked();
 
       ValidationException.check(
           AwsCredentialsProvider.class.isAssignableFrom(providerClass),
@@ -1334,13 +1330,13 @@ public class AwsProperties implements Serializable {
       try {
         provider =
             DynMethods.builder("create")
-                .hiddenImpl(credentialsProviderClazz, Map.class)
+                .hiddenImpl(credentialsProviderClass, Map.class)
                 .buildStaticChecked()
                 .invoke(credentialsProviderProperties);
       } catch (NoSuchMethodException e) {
         provider =
             DynMethods.builder("create")
-                .hiddenImpl(credentialsProviderClazz)
+                .hiddenImpl(credentialsProviderClass)
                 .buildStaticChecked()
                 .invoke();
       }
@@ -1350,13 +1346,13 @@ public class AwsProperties implements Serializable {
           String.format(
               "Failed to load class %s. "
                   + "Please make sure the necessary JARs/packages are added to the classpath.",
-              credentialsProviderClazz),
+              credentialsProviderClass),
           cnfe);
     } catch (NoSuchMethodException e) {
       throw new IllegalArgumentException(
           String.format(
               "Failed to create an instance of %s. Please ensure that the provider class contains a static 'create' or 'create(Map<String, String>)' method that can be used to instantiate a client credentials provider",
-              credentialsProviderClazz),
+              credentialsProviderClass),
           e);
     }
   }
