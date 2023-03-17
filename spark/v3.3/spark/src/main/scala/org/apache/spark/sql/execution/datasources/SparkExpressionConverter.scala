@@ -20,7 +20,7 @@
 package org.apache.spark.sql.execution.datasources
 
 import org.apache.iceberg.spark.SparkFilters
-import org.apache.spark.sql.SparkSession
+import org.apache.spark.sql.{AnalysisException, SparkSession}
 import org.apache.spark.sql.catalyst.expressions.Attribute
 import org.apache.spark.sql.catalyst.expressions.Expression
 import org.apache.spark.sql.catalyst.plans.logical.Filter
@@ -35,6 +35,7 @@ object SparkExpressionConverter {
     SparkFilters.convert(DataSourceStrategy.translateFilter(sparkExpression, supportNestedPredicatePushdown = true).get)
   }
 
+  @throws[AnalysisException]
   def collectDeterministicSparkExpression(session: SparkSession,
                                           tableName: String, where: String): Boolean = {
     // used only to check if a deterministic expression is true or false
@@ -49,7 +50,7 @@ object SparkExpressionConverter {
     }.getOrElse(Option.empty)
     if (option.isDefined) true else false
   }
-
+  @throws[AnalysisException]
   def collectResolvedSparkExpressionOption(session: SparkSession,
                                            tableName: String, where: String): Option[Expression] = {
     val tableAttrs = session.table(tableName).queryExecution.analyzed.output

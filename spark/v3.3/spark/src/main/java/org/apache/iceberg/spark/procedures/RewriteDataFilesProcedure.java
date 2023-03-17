@@ -33,6 +33,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.ExtendedParser;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.procedures.SparkProcedures.ProcedureBuilder;
+import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.connector.catalog.Identifier;
@@ -131,17 +132,21 @@ class RewriteDataFilesProcedure extends BaseProcedure {
 
   private Expression filter(String where, String tableName) {
     SparkSession sparkSession = spark();
-    Option<org.apache.spark.sql.catalyst.expressions.Expression> expressionOption =
-        SparkExpressionConverter.collectResolvedSparkExpressionOption(
-            sparkSession, tableName, where);
-    if (expressionOption.isEmpty()) {
-      if (SparkExpressionConverter.collectDeterministicSparkExpression(
-          sparkSession, tableName, where)) {
-        return Expressions.alwaysTrue();
+    try {
+      Option<org.apache.spark.sql.catalyst.expressions.Expression> expressionOption =
+          SparkExpressionConverter.collectResolvedSparkExpressionOption(
+              sparkSession, tableName, where);
+      if (expressionOption.isEmpty()) {
+        if (SparkExpressionConverter.collectDeterministicSparkExpression(
+            sparkSession, tableName, where)) {
+          return Expressions.alwaysTrue();
+        }
+        return Expressions.alwaysFalse();
       }
-      return Expressions.alwaysFalse();
+      return SparkExpressionConverter.convertToIcebergExpression(expressionOption.get());
+    } catch (AnalysisException e) {
+      throw new IllegalArgumentException("Cannot parse predicates in where option: " + where);
     }
-    return SparkExpressionConverter.convertToIcebergExpression(expressionOption.get());
   }
 
   private RewriteDataFiles checkAndApplyOptions(InternalRow args, RewriteDataFiles action) {

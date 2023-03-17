@@ -272,6 +272,8 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
   @Test
   public void testRewriteDataFilesWithDeterministicFalseFilter() {
     createTable();
+    // create 10 files under non-partitioned table
+    insertData(10);
     List<Object[]> expectedRecords = currentData();
     // select only 0 files for compaction
     List<Object[]> output =
@@ -490,7 +492,7 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
     // Test with invalid filter column col1
     AssertHelpers.assertThrows(
         "Should reject calls with error message",
-        AnalysisException.class,
+         IllegalArgumentException.class,
         "Cannot parse predicates in where option: col1 = 3",
         () ->
             sql(
