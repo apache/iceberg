@@ -21,7 +21,6 @@ package org.apache.iceberg.io;
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
@@ -31,6 +30,7 @@ import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.util.StructLikeSet;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -137,11 +137,10 @@ public abstract class TestPartitioningWriters<T> extends WriterTestBase<T> {
     writer.write(toRow(4, "bbb"), spec, partitionKey(spec, "bbb"));
     writer.write(toRow(5, "ccc"), spec, partitionKey(spec, "ccc"));
 
-    AssertHelpers.assertThrows(
-        "Should fail to write out of order partitions",
-        IllegalStateException.class,
-        "Encountered records that belong to already closed files",
-        () -> writer.write(toRow(6, "aaa"), spec, partitionKey(spec, "aaa")));
+    Assertions.assertThatThrownBy(
+            () -> writer.write(toRow(6, "aaa"), spec, partitionKey(spec, "aaa")))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("Encountered records that belong to already closed files");
 
     writer.close();
   }
@@ -263,17 +262,14 @@ public abstract class TestPartitioningWriters<T> extends WriterTestBase<T> {
     writer.write(toRow(5, "ccc"), identitySpec, partitionKey(identitySpec, "ccc"));
     writer.write(toRow(6, "ddd"), identitySpec, partitionKey(identitySpec, "ddd"));
 
-    AssertHelpers.assertThrows(
-        "Should fail to write out of order partitions",
-        IllegalStateException.class,
-        "Encountered records that belong to already closed files",
-        () -> writer.write(toRow(7, "ccc"), identitySpec, partitionKey(identitySpec, "ccc")));
+    Assertions.assertThatThrownBy(
+            () -> writer.write(toRow(7, "ccc"), identitySpec, partitionKey(identitySpec, "ccc")))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("Encountered records that belong to already closed files");
 
-    AssertHelpers.assertThrows(
-        "Should fail to write out of order specs",
-        IllegalStateException.class,
-        "Encountered records that belong to already closed files",
-        () -> writer.write(toRow(7, "aaa"), unpartitionedSpec, null));
+    Assertions.assertThatThrownBy(() -> writer.write(toRow(7, "aaa"), unpartitionedSpec, null))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("Encountered records that belong to already closed files");
 
     writer.close();
   }
@@ -399,23 +395,21 @@ public abstract class TestPartitioningWriters<T> extends WriterTestBase<T> {
         identitySpec,
         partitionKey(identitySpec, "ddd"));
 
-    AssertHelpers.assertThrows(
-        "Should fail to write out of order partitions",
-        IllegalStateException.class,
-        "Encountered records that belong to already closed files",
-        () -> {
-          PositionDelete<T> positionDelete = positionDelete("file-5.parquet", 1L, null);
-          writer.write(positionDelete, identitySpec, partitionKey(identitySpec, "ccc"));
-        });
+    Assertions.assertThatThrownBy(
+            () -> {
+              PositionDelete<T> positionDelete = positionDelete("file-5.parquet", 1L, null);
+              writer.write(positionDelete, identitySpec, partitionKey(identitySpec, "ccc"));
+            })
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("Encountered records that belong to already closed files");
 
-    AssertHelpers.assertThrows(
-        "Should fail to write out of order specs",
-        IllegalStateException.class,
-        "Encountered records that belong to already closed files",
-        () -> {
-          PositionDelete<T> positionDelete = positionDelete("file-1.parquet", 3L, null);
-          writer.write(positionDelete, unpartitionedSpec, null);
-        });
+    Assertions.assertThatThrownBy(
+            () -> {
+              PositionDelete<T> positionDelete = positionDelete("file-1.parquet", 3L, null);
+              writer.write(positionDelete, unpartitionedSpec, null);
+            })
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("Encountered records that belong to already closed files");
 
     writer.close();
   }
