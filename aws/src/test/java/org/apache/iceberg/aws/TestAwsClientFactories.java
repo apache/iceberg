@@ -187,7 +187,7 @@ public class TestAwsClientFactories {
     Assertions.assertThatThrownBy(() -> AwsClientFactories.from(properties).s3().close())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining(
-            "Please make sure the necessary JARs/packages are added to the classpath.");
+            "Cannot load class invalidClassName, it does not exist in the classpath");
   }
 
   @Test
@@ -198,9 +198,9 @@ public class TestAwsClientFactories {
         AwsProperties.CLIENT_CREDENTIALS_PROVIDER,
         InvalidNoInterfaceDynamicallyLoadedCredentialsProvider.class.getName());
     Assertions.assertThatThrownBy(() -> AwsClientFactories.from(properties).s3().close())
-        .isInstanceOf(ValidationException.class)
+        .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining(
-            "class org.apache.iceberg.aws.TestAwsClientFactories$InvalidNoInterfaceDynamicallyLoadedCredentialsProvider is not an instance of software.amazon.awssdk.auth.credentials.AwsCredentialsProvider, loaded by the classloader for org.apache.iceberg.aws.AwsProperties");
+            "Cannot initialize org.apache.iceberg.aws.TestAwsClientFactories$InvalidNoInterfaceDynamicallyLoadedCredentialsProvider, it does not implement software.amazon.awssdk.auth.credentials.AwsCredentialsProvider");
   }
 
   @Test
@@ -213,7 +213,7 @@ public class TestAwsClientFactories {
     Assertions.assertThatThrownBy(() -> AwsClientFactories.from(properties).s3().close())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining(
-            "Failed to create an instance of org.apache.iceberg.aws.TestAwsClientFactories$CustomCredentialsProviderWithNoCreateMethod. Please ensure that the provider class contains a static 'create' or 'create(Map<String, String>)' method that can be used to instantiate a client credentials provider");
+            "Cannot create an instance of org.apache.iceberg.aws.TestAwsClientFactories$CustomCredentialsProviderWithNoCreateMethod, it does not contain a static 'create' or 'create(Map<String, String>)' method");
   }
 
   // publicly visible for testing to be dynamically loaded
@@ -239,6 +239,7 @@ public class TestAwsClientFactories {
 
     CustomCredentialsProvider(Map<String, String> properties) {
       this.properties = Preconditions.checkNotNull(properties, "properties cannot be null");
+      Preconditions.checkArgument(properties.get("param1") != null, "param1 value cannot be null");
     }
 
     public static CustomCredentialsProvider create(Map<String, String> properties) {

@@ -263,8 +263,10 @@ public class AwsProperties implements Serializable {
    * <p>Example:
    * client.credentials-provider=software.amazon.awssdk.auth.credentials.SystemPropertyCredentialsProvider
    *
-   * <p>When set, the default client factory will use this provider to get AWS credentials provided
-   * instead of reading the default credential chain to get AWS access credentials.
+   * <p>When set, the default client factory {@link
+   * org.apache.iceberg.aws.AwsClientFactories.DefaultAwsClientFactory} will use this provider to
+   * get AWS credentials provided instead of reading the default credential chain to get AWS access
+   * credentials.
    */
   public static final String CLIENT_CREDENTIALS_PROVIDER = "client.credentials-provider";
 
@@ -656,6 +658,11 @@ public class AwsProperties implements Serializable {
 
   private static final String HTTP_CLIENT_PREFIX = "http-client.";
 
+  /**
+   * Used by the client.credentials-provider configured value that will be used by {@link
+   * org.apache.iceberg.aws.AwsClientFactories.DefaultAwsClientFactory} to pass provider-specific
+   * properties. Each property consists of a key name and an associated value.
+   */
   private static final String CREDENTIAL_PROVIDER_PREFIX = "client.credentials-provider.";
 
   private String httpClientType;
@@ -895,8 +902,7 @@ public class AwsProperties implements Serializable {
     this.s3SignerImpl = properties.get(S3_SIGNER_IMPL);
     this.allProperties = SerializableMap.copyOf(properties);
     this.credentialsProviderProperties =
-        PropertyUtil.filterProperties(
-            properties, key -> key.startsWith(CREDENTIAL_PROVIDER_PREFIX));
+        PropertyUtil.propertiesWithPrefix(properties, CREDENTIAL_PROVIDER_PREFIX);
 
     ValidationException.check(
         s3KeyIdAccessKeyBothConfigured(),
@@ -1110,6 +1116,7 @@ public class AwsProperties implements Serializable {
   public void setClientRegion(String clientRegion) {
     this.clientRegion = clientRegion;
   }
+
   /**
    * Configure the credentials for an S3 client.
    *
@@ -1317,41 +1324,39 @@ public class AwsProperties implements Serializable {
   }
 
   private AwsCredentialsProvider credentialsProvider(String credentialsProviderClass) {
+    Class<?> providerClass;
     try {
-      Class<?> providerClass = DynClasses.builder().impl(credentialsProviderClass).buildChecked();
+      providerClass = DynClasses.builder().impl(credentialsProviderClass).buildChecked();
+    } catch (ClassNotFoundException e) {
+      throw new IllegalArgumentException(
+          String.format(
+              "Cannot load class %s, it does not exist in the classpath", credentialsProviderClass),
+          e);
+    }
 
-      ValidationException.check(
-          AwsCredentialsProvider.class.isAssignableFrom(providerClass),
-          "%s is not an instance of software.amazon.awssdk.auth.credentials.AwsCredentialsProvider, loaded by the classloader for %s",
-          providerClass,
-          this);
+    Preconditions.checkArgument(
+        AwsCredentialsProvider.class.isAssignableFrom(providerClass),
+        String.format(
+            "Cannot initialize %s, it does not implement %s.",
+            credentialsProviderClass, AwsCredentialsProvider.class.getName()));
 
-      AwsCredentialsProvider provider;
+    AwsCredentialsProvider provider;
+    try {
       try {
         provider =
             DynMethods.builder("create")
-                .hiddenImpl(credentialsProviderClass, Map.class)
+                .hiddenImpl(providerClass, Map.class)
                 .buildStaticChecked()
                 .invoke(credentialsProviderProperties);
       } catch (NoSuchMethodException e) {
         provider =
-            DynMethods.builder("create")
-                .hiddenImpl(credentialsProviderClass)
-                .buildStaticChecked()
-                .invoke();
+            DynMethods.builder("create").hiddenImpl(providerClass).buildStaticChecked().invoke();
       }
       return provider;
-    } catch (ClassNotFoundException cnfe) {
-      throw new IllegalArgumentException(
-          String.format(
-              "Failed to load class %s. "
-                  + "Please make sure the necessary JARs/packages are added to the classpath.",
-              credentialsProviderClass),
-          cnfe);
     } catch (NoSuchMethodException e) {
       throw new IllegalArgumentException(
           String.format(
-              "Failed to create an instance of %s. Please ensure that the provider class contains a static 'create' or 'create(Map<String, String>)' method that can be used to instantiate a client credentials provider",
+              "Cannot create an instance of %s, it does not contain a static 'create' or 'create(Map<String, String>)' method",
               credentialsProviderClass),
           e);
     }
