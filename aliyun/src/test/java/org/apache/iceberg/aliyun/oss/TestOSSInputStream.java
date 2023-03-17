@@ -35,7 +35,7 @@ public class TestOSSInputStream extends AliyunOSSTestBase {
   private final Random random = ThreadLocalRandom.current();
 
   @Test
-  public void testARead() throws Exception {
+  public void testRead() throws Exception {
     OSSURI uri = new OSSURI(location("read.dat"));
     int dataSize = 1024 * 1024 * 10;
     byte[] data = randomData(dataSize);
