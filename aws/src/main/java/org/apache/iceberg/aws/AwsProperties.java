@@ -252,19 +252,19 @@ public class AwsProperties implements Serializable {
   public static final String S3FILEIO_SESSION_TOKEN = "s3.session-token";
 
   /**
-   * Configure the AWS credentials provider used to access S3FileIO. A fully qualified concrete
+   * Configure the AWS credentials provider used to create AWS clients. A fully qualified concrete
    * class with package that implements the {@link AwsCredentialsProvider} interface is required.
    * Class provided must be a valid implementation of the {@link AwsCredentialsProvider} interface
    * and that it is accessible from project's classpath.
    *
-   * <p>Additionally, the implementation class must also have a create() method implemented, which
-   * returns an instance of the class that provides aws credentials provider.
+   * <p>Additionally, the implementation class must also have a create() or create(Map) method
+   * implemented, which returns an instance of the class that provides aws credentials provider.
    *
    * <p>Example:
    * client.credentials-provider=software.amazon.awssdk.auth.credentials.SystemPropertyCredentialsProvider
    *
    * <p>When set, the default client factory will use this provider to get AWS credentials provided
-   * instead of reading the default credential chain to get S3 access credentials.
+   * instead of reading the default credential chain to get AWS access credentials.
    */
   public static final String CLIENT_CREDENTIALS_PROVIDER = "client.credentials-provider";
 
@@ -361,7 +361,7 @@ public class AwsProperties implements Serializable {
 
   /**
    * Used by {@link org.apache.iceberg.aws.AwsClientFactories.DefaultAwsClientFactory}. If set, all
-   * AWS clients except STS client will use * the given region instead of the default region chain.
+   * AWS clients except STS client will use the given region instead of the default region chain.
    */
   public static final String CLIENT_REGION = "client.region";
 
