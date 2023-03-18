@@ -139,16 +139,25 @@ public class CharSequenceSet implements Set<CharSequence>, Serializable {
   @Override
   public boolean retainAll(Collection<?> objects) {
     if (objects != null) {
-      return Iterables.retainAll(wrapperSet, objects);
+      Set<CharSequenceWrapper> toRetain =
+          objects.stream()
+              .filter(CharSequence.class::isInstance)
+              .map(CharSequence.class::cast)
+              .map(CharSequenceWrapper::wrap)
+              .collect(Collectors.toSet());
+
+      return Iterables.retainAll(wrapperSet, toRetain);
     }
+
     return false;
   }
 
   @Override
   public boolean removeAll(Collection<?> objects) {
     if (objects != null) {
-      return Iterables.removeAll(wrapperSet, objects);
+      return objects.stream().filter(this::remove).count() != 0;
     }
+
     return false;
   }
 
