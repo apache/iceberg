@@ -153,6 +153,7 @@ public class CharSequenceSet implements Set<CharSequence>, Serializable {
   }
 
   @Override
+  @SuppressWarnings("CollectionUndefinedEquality")
   public boolean removeAll(Collection<?> objects) {
     if (objects != null) {
       return objects.stream().filter(this::remove).count() != 0;
