@@ -60,7 +60,6 @@ AWS_SDK_VERSION=2.20.18
 AWS_MAVEN_GROUP=software.amazon.awssdk
 AWS_PACKAGES=(
     "bundle"
-    "url-connection-client"
 )
 for pkg in "${AWS_PACKAGES[@]}"; do
     DEPENDENCIES+=",$AWS_MAVEN_GROUP:$pkg:$AWS_SDK_VERSION"
@@ -93,7 +92,6 @@ AWS_SDK_VERSION=2.20.18
 AWS_MAVEN_URL=$MAVEN_URL/software/amazon/awssdk
 AWS_PACKAGES=(
     "bundle"
-    "url-connection-client"
 )
 for pkg in "${AWS_PACKAGES[@]}"; do
     wget $AWS_MAVEN_URL/$pkg/$AWS_SDK_VERSION/$pkg-$AWS_SDK_VERSION.jar
@@ -103,7 +101,6 @@ done
 /path/to/bin/sql-client.sh embedded \
     -j iceberg-flink-runtime-$ICEBERG_VERSION.jar \
     -j bundle-$AWS_SDK_VERSION.jar \
-    -j url-connection-client-$AWS_SDK_VERSION.jar \
     shell
 ```
 
@@ -137,7 +134,6 @@ and then add them to the Hive classpath or add the jars at runtime in CLI:
 ```
 add jar /my/path/to/iceberg-hive-runtime.jar;
 add jar /my/path/to/aws/bundle.jar;
-add jar /my/path/to/aws/url-connection-client.jar;
 ```
 
 With those dependencies, you can register a Glue catalog and create external tables in Hive at runtime in CLI by:
@@ -586,9 +582,9 @@ For more details of configuration, see sections [URL Connection HTTP Client Conf
 
 Configure the following property to set the type of HTTP client:
 
-| Property         | Default       | Description                                                                                                |
-|------------------|---------------|------------------------------------------------------------------------------------------------------------|
-| http-client.type | urlconnection | Types of HTTP Client. <br/> `urlconnection`: URL Connection HTTP Client <br/> `apache`: Apache HTTP Client |
+| Property         | Default | Description                                                                                                |
+|------------------|---------|------------------------------------------------------------------------------------------------------------|
+| http-client.type | apache  | Types of HTTP Client. <br/> `urlconnection`: URL Connection HTTP Client <br/> `apache`: Apache HTTP Client |
 
 #### URL Connection HTTP Client Configurations
 
@@ -656,7 +652,6 @@ LIB_PATH=/usr/share/aws/aws-java-sdk/
 
 AWS_PACKAGES=(
   "bundle"
-  "url-connection-client"
 )
 
 ICEBERG_PACKAGES=(
