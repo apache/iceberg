@@ -80,3 +80,9 @@ def test_duckdb_nan(table_test_null_nan_rewritten: Table) -> None:
     result = con.query("SELECT idx, col_numeric FROM table_test_null_nan WHERE isnan(col_numeric)").fetchone()
     assert result[0] == 1
     assert math.isnan(result[1])
+
+
+@pytest.mark.integration
+def test_ray_dataset_nan(table_test_null_nan_rewritten: Table) -> None:
+    ray_dataset = table_test_null_nan_rewritten.scan().to_ray_dataset()
+    assert ray_dataset.count() == 3

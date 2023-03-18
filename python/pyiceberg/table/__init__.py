@@ -66,6 +66,7 @@ from pyiceberg.typedef import (
 if TYPE_CHECKING:
     import pandas as pd
     import pyarrow as pa
+    import ray
     from duckdb import DuckDBPyConnection
 
 
@@ -415,3 +416,8 @@ class DataScan(TableScan):
         con.register(table_name, self.to_arrow())
 
         return con
+
+    def to_ray_dataset(self) -> ray.data.dataset.Dataset:
+        import ray
+
+        return ray.data.from_arrow(self.to_arrow())
