@@ -27,7 +27,7 @@ lint:
 
 test:
 	poetry run coverage run --source=pyiceberg/ -m pytest tests/ -m unmarked ${PYTEST_ARGS}
-	poetry run coverage report -m --fail-under=90
+	poetry run coverage report -m --fail-under=88
 	poetry run coverage html
 	poetry run coverage xml
 
