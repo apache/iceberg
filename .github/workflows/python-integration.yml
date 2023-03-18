@@ -17,7 +17,7 @@
 # under the License.
 #
 
-name: "Python CI"
+name: "Python Integration"
 on:
   push:
     branches:
