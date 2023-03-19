@@ -37,7 +37,7 @@ buildscript {
     // So, bump checkstyle to the latest java 8 supported version(9.3) which contains the fix.
     classpath "com.puppycrawl.tools:checkstyle:9.3"
 
-    classpath 'com.diffplug.spotless:spotless-plugin-gradle:6.13.0'
+    classpath 'com.diffplug.spotless:spotless-plugin-gradle:6.17.0'
     classpath 'gradle.plugin.org.inferred:gradle-processors:3.7.0'
     classpath 'me.champeau.jmh:jmh-gradle-plugin:0.7.0'
     classpath 'gradle.plugin.io.morethan.jmhreport:gradle-jmh-report:0.9.0'
