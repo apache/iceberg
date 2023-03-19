@@ -262,4 +262,9 @@ public class BaseTable implements Table, HasTableOperations, Serializable {
   Object writeReplace() {
     return SerializableTable.copyOf(this);
   }
+
+  @Override
+  public MetricsReporter metricsReporter() {
+    return reporter;
+  }
 }
