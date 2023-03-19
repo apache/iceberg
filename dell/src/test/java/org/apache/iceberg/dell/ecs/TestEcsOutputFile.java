@@ -22,11 +22,11 @@ import com.emc.object.Range;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.dell.mock.ecs.EcsS3MockRule;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.io.PositionOutputStream;
 import org.apache.iceberg.relocated.com.google.common.io.ByteStreams;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.ClassRule;
 import org.junit.Test;
@@ -88,10 +88,8 @@ public class TestEcsOutputFile {
       output.write("1234567890".getBytes());
     }
 
-    AssertHelpers.assertThrows(
-        "Create should throw exception",
-        AlreadyExistsException.class,
-        outputFile.location(),
-        outputFile::create);
+    Assertions.assertThatThrownBy(outputFile::create)
+        .isInstanceOf(AlreadyExistsException.class)
+        .hasMessageContaining(outputFile.location());
   }
 }
