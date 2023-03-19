@@ -35,7 +35,7 @@ buildscript {
     // com.palantir.baseline:gradle-baseline-java:4.42.0 (the last version supporting Java 8) pulls
     // in an old version of the checkstyle(9.1), which has this OutOfMemory bug https://github.com/checkstyle/checkstyle/issues/10934
     // So, bump checkstyle to the latest java 8 supported version(9.3) which contains the fix.
-    classpath "com.puppycrawl.tools:checkstyle:9.3"
+    classpath "com.puppycrawl.tools:checkstyle:10.9.2"
 
     classpath 'com.diffplug.spotless:spotless-plugin-gradle:6.13.0'
     classpath 'gradle.plugin.org.inferred:gradle-processors:3.7.0'
