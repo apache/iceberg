@@ -96,16 +96,16 @@ class MigrateTableProcedure extends BaseProcedure {
 
     MigrateTableSparkAction migrateTableSparkAction =
         SparkActions.get().migrateTable(tableName).tableProperties(properties);
+
     if (backupSuffix != null) {
       migrateTableSparkAction = migrateTableSparkAction.withBackupSuffix(backupSuffix);
     }
 
-    final MigrateTable.Result result;
     if (dropBackup) {
-      result = migrateTableSparkAction.dropBackup().execute();
-    } else {
-      result = migrateTableSparkAction.execute();
+      migrateTableSparkAction = migrateTableSparkAction.dropBackup();
     }
+
+    MigrateTable.Result result = migrateTableSparkAction.execute();
 
     return new InternalRow[] {newInternalRow(result.migratedDataFilesCount())};
   }
