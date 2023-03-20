@@ -20,6 +20,8 @@ package org.apache.iceberg.spark.extensions;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Optional;
+import javax.annotation.Nullable;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -106,20 +108,41 @@ public class TestMigrateTableProcedure extends SparkExtensionsTestBase {
     sql("DROP TABLE IF EXISTS %s", tableName + "_BACKUP_");
   }
 
-  @Test
-  public void testMigrateWithDropBackup() throws IOException {
+  private void testMigrateWithDropBackup(@Nullable String backupSuffix) throws IOException {
     Assume.assumeTrue(catalogName.equals("spark_catalog"));
     String location = temp.newFolder().toString();
+    Optional<String> backupSuffixArg = Optional.ofNullable(backupSuffix);
     sql(
         "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'",
         tableName, location);
     sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
 
-    Object result =
-        scalarSql(
-            "CALL %s.system.migrate(table => '%s', drop_backup => true)", catalogName, tableName);
+    final Object result;
+    final String suffixUsed;
+    if (backupSuffixArg.isPresent()) {
+      suffixUsed = backupSuffixArg.get();
+      result =
+          scalarSql(
+              "CALL %s.system.migrate(table => '%s', drop_backup => true, backup_suffix => '%s')",
+              catalogName, tableName, suffixUsed);
+    } else {
+      suffixUsed = "__BACKUP__";
+      result =
+          scalarSql(
+              "CALL %s.system.migrate(table => '%s', drop_backup => true)", catalogName, tableName);
+    }
     Assert.assertEquals("Should have added one file", 1L, result);
-    Assert.assertFalse(spark.catalog().tableExists(tableName + "_BACKUP_"));
+    Assert.assertFalse(spark.catalog().tableExists(tableName + suffixUsed));
+  }
+
+  @Test
+  public void testMigrateWithDropBackupDefaultSuffix() throws IOException {
+    testMigrateWithDropBackup(null);
+  }
+
+  @Test
+  public void testMigrateWithDropBackupAndSuffix() throws IOException {
+    testMigrateWithDropBackup("_tmp");
   }
 
   @Test
@@ -144,12 +167,17 @@ public class TestMigrateTableProcedure extends SparkExtensionsTestBase {
     String tableLocation = createdTable.location().replace("file:", "");
     Assert.assertEquals("Table should have original location", location, tableLocation);
 
-    sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
+    sql("INSERT INTO TABLE %s VALUES (2, 'b')", tableName);
 
     assertEquals(
         "Should have expected rows",
-        ImmutableList.of(row(1L, "a"), row(1L, "a")),
+        ImmutableList.of(row(1L, "a"), row(2L, "b")),
         sql("SELECT * FROM %s ORDER BY id", tableName));
+
+    assertEquals(
+        "Should have expected rows",
+        ImmutableList.of(row(1L, "a")),
+        sql("SELECT * FROM %s ORDER BY id", tableName + backupSuffix));
 
     sql("DROP TABLE %s", tableName + backupSuffix);
   }
