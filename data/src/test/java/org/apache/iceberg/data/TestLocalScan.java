@@ -58,6 +58,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.DateTimeUtil;
 import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Before;
@@ -499,20 +500,19 @@ public class TestLocalScan {
     Assertions.assertThatThrownBy(
             () -> scanBuilder.useSnapshot(/* unknown snapshot id */ minSnapshotId - 1))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Cannot find snapshot with ID ");
+        .hasMessage("Cannot find snapshot with ID " + (minSnapshotId - 1));
   }
 
   @Test
   public void testAsOfTimeOlderThanFirstSnapshot() {
     IcebergGenerics.ScanBuilder scanBuilder = IcebergGenerics.read(sharedTable);
+    long timestamp = sharedTable.history().get(0).timestampMillis() - 1;
 
     Assertions.assertThatThrownBy(
-            () ->
-                scanBuilder.asOfTime(
-                    /* older than first snapshot */ sharedTable.history().get(0).timestampMillis()
-                        - 1))
+            () -> scanBuilder.asOfTime(/* older than first snapshot */ timestamp))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Cannot find a snapshot older than ");
+        .hasMessage(
+            "Cannot find a snapshot older than " + DateTimeUtil.formatTimestampMillis(timestamp));
   }
 
   private DataFile writeFile(String location, String filename, List<Record> records)

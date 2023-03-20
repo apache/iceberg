@@ -140,7 +140,8 @@ public abstract class TestPartitioningWriters<T> extends WriterTestBase<T> {
     Assertions.assertThatThrownBy(
             () -> writer.write(toRow(6, "aaa"), spec, partitionKey(spec, "aaa")))
         .isInstanceOf(IllegalStateException.class)
-        .hasMessageContaining("Encountered records that belong to already closed files");
+        .hasMessageContaining("Encountered records that belong to already closed files")
+        .hasMessageEndingWith("partition 'data=aaa' in spec " + spec);
 
     writer.close();
   }
@@ -265,11 +266,13 @@ public abstract class TestPartitioningWriters<T> extends WriterTestBase<T> {
     Assertions.assertThatThrownBy(
             () -> writer.write(toRow(7, "ccc"), identitySpec, partitionKey(identitySpec, "ccc")))
         .isInstanceOf(IllegalStateException.class)
-        .hasMessageContaining("Encountered records that belong to already closed files");
+        .hasMessageContaining("Encountered records that belong to already closed files")
+        .hasMessageEndingWith("partition 'data=ccc' in spec " + identitySpec);
 
     Assertions.assertThatThrownBy(() -> writer.write(toRow(7, "aaa"), unpartitionedSpec, null))
         .isInstanceOf(IllegalStateException.class)
-        .hasMessageContaining("Encountered records that belong to already closed files");
+        .hasMessageContaining("Encountered records that belong to already closed files")
+        .hasMessageEndingWith("spec []");
 
     writer.close();
   }
@@ -401,7 +404,8 @@ public abstract class TestPartitioningWriters<T> extends WriterTestBase<T> {
               writer.write(positionDelete, identitySpec, partitionKey(identitySpec, "ccc"));
             })
         .isInstanceOf(IllegalStateException.class)
-        .hasMessageContaining("Encountered records that belong to already closed files");
+        .hasMessageContaining("Encountered records that belong to already closed files")
+        .hasMessageEndingWith("partition 'data=ccc' in spec " + identitySpec);
 
     Assertions.assertThatThrownBy(
             () -> {
@@ -409,7 +413,8 @@ public abstract class TestPartitioningWriters<T> extends WriterTestBase<T> {
               writer.write(positionDelete, unpartitionedSpec, null);
             })
         .isInstanceOf(IllegalStateException.class)
-        .hasMessageContaining("Encountered records that belong to already closed files");
+        .hasMessageContaining("Encountered records that belong to already closed files")
+        .hasMessageEndingWith("spec []");
 
     writer.close();
   }

@@ -56,6 +56,6 @@ public class TestGenericRecord {
 
     Assertions.assertThatThrownBy(() -> record.get(0, CharSequence.class))
         .isInstanceOf(IllegalStateException.class)
-        .hasMessageContaining("Not an instance of java.lang.CharSequence: 10");
+        .hasMessage("Not an instance of java.lang.CharSequence: 10");
   }
 }
