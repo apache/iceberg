@@ -254,7 +254,7 @@ Avoid using `Thread.sleep()` in tests as it leads to long test durations and fla
 ```java
 deleteTablesAsync();
 Thread.sleep(3000L);
-assertThat(tables()).isEmpty()
+assertThat(tables()).isEmpty();
 ```
 
 A better alternative is using [Awaitility](https://github.com/awaitility/awaitility) to make sure `tables()` are eventually empty. The below example will run the check
