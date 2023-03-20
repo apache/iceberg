@@ -90,6 +90,6 @@ public class TestEcsOutputFile {
 
     Assertions.assertThatThrownBy(outputFile::create)
         .isInstanceOf(AlreadyExistsException.class)
-        .hasMessageContaining(outputFile.location());
+        .hasMessage("ECS object already exists: " + outputFile.location());
   }
 }

@@ -57,6 +57,6 @@ public class TestEcsURI {
 
     Assertions.assertThatThrownBy(() -> new EcsURI("http://bucket/a"))
         .isInstanceOf(ValidationException.class)
-        .hasMessageContaining("http://bucket/a");
+        .hasMessage("Invalid ecs location: http://bucket/a");
   }
 }

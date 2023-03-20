@@ -65,7 +65,8 @@ public class TestEcsTableOperations {
                         .removeProperties(ImmutableSet.of("a"))
                         .build()))
         .isInstanceOf(CommitFailedException.class)
-        .hasMessageContaining("Replace failed, E-Tag ");
+        .hasMessageStartingWith("Replace failed, E-Tag")
+        .hasMessageContaining("mismatch for table test2.t1");
   }
 
   public EcsCatalog createCatalog(String name) {
