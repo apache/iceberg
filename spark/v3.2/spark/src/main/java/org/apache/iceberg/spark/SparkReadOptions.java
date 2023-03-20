@@ -77,9 +77,4 @@ public class SparkReadOptions {
 
   // Timestamp in milliseconds; start a stream from the snapshot that occurs after this timestamp
   public static final String STREAM_FROM_TIMESTAMP = "stream-from-timestamp";
-
-  // maximum file per micro_batch
-  public static final String MAX_FILES_PER_MICRO_BATCH = "max-files-per-micro-batch";
-  // maximum rows per micro_batch
-  public static final String MAX_ROWS_PER_MICRO_BATCH = "max-rows-per-micro-batch";
 }

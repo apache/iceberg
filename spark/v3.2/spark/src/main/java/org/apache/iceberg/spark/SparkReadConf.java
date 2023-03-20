@@ -216,20 +216,4 @@ public class SparkReadConf {
   public Long endTimestamp() {
     return confParser.longConf().option(SparkReadOptions.END_TIMESTAMP).parseOptional();
   }
-
-  public Integer maxFilesPerMicroBatch() {
-    return confParser
-        .intConf()
-        .option(SparkReadOptions.MAX_FILES_PER_MICRO_BATCH)
-        .defaultValue(Integer.MAX_VALUE)
-        .parse();
-  }
-
-  public Integer maxRecordsPerMicroBatch() {
-    return confParser
-        .intConf()
-        .option(SparkReadOptions.MAX_ROWS_PER_MICRO_BATCH)
-        .defaultValue(Integer.MAX_VALUE)
-        .parse();
-  }
 }
