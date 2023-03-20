@@ -129,11 +129,11 @@ public class TestEcsCatalog {
 
     Assertions.assertThatThrownBy(() -> ecsCatalog.dropNamespace(Namespace.of("unknown")))
         .isInstanceOf(NoSuchNamespaceException.class)
-        .hasMessageContaining("Namespace unknown does not exist");
+        .hasMessage("Namespace unknown does not exist");
 
     Assertions.assertThatThrownBy(() -> ecsCatalog.dropNamespace(Namespace.of("a")))
         .isInstanceOf(NamespaceNotEmptyException.class)
-        .hasMessageContaining("Namespace a is not empty");
+        .hasMessage("Namespace a is not empty");
 
     Assert.assertTrue("Drop namespace [a, b1]", ecsCatalog.dropNamespace(Namespace.of("a", "b1")));
 
