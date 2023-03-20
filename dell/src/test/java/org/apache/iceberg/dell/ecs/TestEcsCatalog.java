@@ -165,14 +165,14 @@ public class TestEcsCatalog {
                 ecsCatalog.renameTable(
                     TableIdentifier.of("unknown"), TableIdentifier.of("b", "t2")))
         .isInstanceOf(NoSuchTableException.class)
-        .hasMessageContaining("Cannot rename table because table unknown does not exist");
+        .hasMessage("Cannot rename table because table unknown does not exist");
 
     Assertions.assertThatThrownBy(
             () ->
                 ecsCatalog.renameTable(
                     TableIdentifier.of("a", "t1"), TableIdentifier.of("unknown", "t2")))
         .isInstanceOf(NoSuchNamespaceException.class)
-        .hasMessageContaining(
+        .hasMessage(
             "Cannot rename a.t1 to unknown.t2 because namespace unknown does not exist");
 
     ecsCatalog.renameTable(TableIdentifier.of("a", "t1"), TableIdentifier.of("b", "t2"));
