@@ -417,7 +417,7 @@ class DataScan(TableScan):
 
         return con
 
-    def to_ray_dataset(self) -> ray.data.dataset.Dataset:
+    def to_ray(self) -> ray.data.dataset.Dataset:
         import ray
 
         return ray.data.from_arrow(self.to_arrow())

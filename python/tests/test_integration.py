@@ -49,6 +49,11 @@ def table_test_null_nan_rewritten(catalog: Catalog) -> Table:
     return catalog.load_table("default.test_null_nan_rewritten")
 
 
+@pytest.fixture()
+def table_test_all_types(catalog: Catalog) -> Table:
+    return catalog.load_table("default.test_all_types")
+
+
 @pytest.mark.integration
 def test_pyarrow_nan(table_test_null_nan: Table) -> None:
     arrow_table = table_test_null_nan.scan(row_filter=IsNaN("col_numeric"), selected_fields=("idx", "col_numeric")).to_arrow()
@@ -83,7 +88,33 @@ def test_duckdb_nan(table_test_null_nan_rewritten: Table) -> None:
 
 
 @pytest.mark.integration
-def test_ray_dataset_nan(table_test_null_nan_rewritten: Table) -> None:
-    ray_dataset = table_test_null_nan_rewritten.scan().to_ray_dataset()
+def test_ray_nan(table_test_null_nan_rewritten: Table) -> None:
+    ray_dataset = table_test_null_nan_rewritten.scan().to_ray()
     assert ray_dataset.count() == 3
     assert math.isnan(ray_dataset.take()[0]["col_numeric"])
+
+
+@pytest.mark.integration
+def test_ray_nan_rewritten(table_test_null_nan_rewritten: Table) -> None:
+    ray_dataset = table_test_null_nan_rewritten.scan(
+        row_filter=IsNaN("col_numeric"), selected_fields=("idx", "col_numeric")
+    ).to_ray()
+    assert ray_dataset.count() == 1
+    assert ray_dataset.take()[0]["idx"] == 1
+    assert math.isnan(ray_dataset.take()[0]["col_numeric"])
+
+
+@pytest.mark.integration
+@pytest.mark.skip(reason="Fixing issues with NaN's: https://github.com/apache/arrow/issues/34162")
+def test_ray_not_nan_count(table_test_null_nan_rewritten: Table) -> None:
+    ray_dataset = table_test_null_nan_rewritten.scan(row_filter=NotNaN("col_numeric"), selected_fields=("idx",)).to_ray()
+    print(ray_dataset.take())
+    assert ray_dataset.count() == 2
+
+
+@pytest.mark.integration
+def test_ray_all_types(table_test_all_types: Table) -> None:
+    ray_dataset = table_test_all_types.scan().to_ray()
+    pandas_dataframe = table_test_all_types.scan().to_pandas()
+    assert ray_dataset.count() == pandas_dataframe.shape[0]
+    assert pandas_dataframe.equals(ray_dataset.to_pandas())
