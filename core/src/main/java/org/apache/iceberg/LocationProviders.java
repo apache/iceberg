@@ -21,6 +21,7 @@ package org.apache.iceberg;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.Map;
+import java.util.Random;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.io.LocationProvider;
@@ -107,6 +108,7 @@ public class LocationProviders {
   static class ObjectStoreLocationProvider implements LocationProvider {
 
     private static final HashFunction HASH_FUNC = Hashing.murmur3_32_fixed();
+    private static final Random random = new Random(1);
     private final String storageLocation;
     private final String context;
 
@@ -170,9 +172,12 @@ public class LocationProviders {
 
     private static String computeHash(String fileName) {
       Preconditions.checkState(fileName != null, "fileName cannot be null");
+      byte[] hashBuffer = new byte[6];
+      random.nextBytes(hashBuffer);
       byte[] messageDigest =
           HASH_FUNC.hashBytes(fileName.getBytes(StandardCharsets.UTF_8)).asBytes();
-      String hash = Base64.getUrlEncoder().encodeToString(messageDigest);
+      System.arraycopy(messageDigest, 0, hashBuffer, 0, 4);
+      String hash = Base64.getUrlEncoder().encodeToString(hashBuffer);
 
       return hash.substring(0, 8);
     }
