@@ -19,10 +19,12 @@
 package org.apache.iceberg.util;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.io.BaseEncoding;
 import org.assertj.core.api.Assertions;
 import org.junit.Test;
 
@@ -168,6 +170,26 @@ public class TestJsonUtil {
   }
 
   @Test
+  public void getByteBufferOrNull() throws JsonProcessingException {
+    Assertions.assertThat(JsonUtil.getByteBufferOrNull("x", JsonUtil.mapper().readTree("{}")))
+        .isNull();
+    Assertions.assertThat(
+            JsonUtil.getByteBufferOrNull("x", JsonUtil.mapper().readTree("{\"x\": null}")))
+        .isNull();
+
+    byte[] bytes = new byte[] {1, 2, 3, 4};
+    String base16Str = BaseEncoding.base16().encode(bytes);
+    String json = String.format("{\"x\": \"%s\"}", base16Str);
+    ByteBuffer byteBuffer = JsonUtil.getByteBufferOrNull("x", JsonUtil.mapper().readTree(json));
+    Assertions.assertThat(byteBuffer.array()).isEqualTo(bytes);
+
+    Assertions.assertThatThrownBy(
+            () -> JsonUtil.getByteBufferOrNull("x", JsonUtil.mapper().readTree("{\"x\": 23}")))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot parse default as a binary value: 23");
+  }
+
+  @Test
   public void getBool() throws JsonProcessingException {
     Assertions.assertThatThrownBy(() -> JsonUtil.getBool("x", JsonUtil.mapper().readTree("{}")))
         .isInstanceOf(IllegalArgumentException.class)
@@ -192,6 +214,28 @@ public class TestJsonUtil {
         .isTrue();
     Assertions.assertThat(JsonUtil.getBool("x", JsonUtil.mapper().readTree("{\"x\": false}")))
         .isFalse();
+  }
+
+  @Test
+  public void getIntArrayOrNull() throws JsonProcessingException {
+    Assertions.assertThat(JsonUtil.getIntArrayOrNull("items", JsonUtil.mapper().readTree("{}")))
+        .isNull();
+
+    Assertions.assertThat(
+            JsonUtil.getIntArrayOrNull("items", JsonUtil.mapper().readTree("{\"items\": null}")))
+        .isNull();
+
+    Assertions.assertThatThrownBy(
+            () ->
+                JsonUtil.getIntArrayOrNull(
+                    "items", JsonUtil.mapper().readTree("{\"items\": [13, \"23\"]}")))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot parse integer from non-int value in items: \"23\"");
+
+    Assertions.assertThat(
+            JsonUtil.getIntArrayOrNull(
+                "items", JsonUtil.mapper().readTree("{\"items\": [23, 45]}")))
+        .isEqualTo(new int[] {23, 45});
   }
 
   @Test
@@ -310,6 +354,28 @@ public class TestJsonUtil {
             false);
     Assertions.assertThat(JsonUtil.getLongList("items", JsonUtil.mapper().readTree(json)))
         .isEqualTo(items);
+  }
+
+  @Test
+  public void getLongListOrNull() throws JsonProcessingException {
+    Assertions.assertThat(JsonUtil.getLongListOrNull("items", JsonUtil.mapper().readTree("{}")))
+        .isNull();
+
+    Assertions.assertThat(
+            JsonUtil.getLongListOrNull("items", JsonUtil.mapper().readTree("{\"items\": null}")))
+        .isNull();
+
+    Assertions.assertThatThrownBy(
+            () ->
+                JsonUtil.getLongListOrNull(
+                    "items", JsonUtil.mapper().readTree("{\"items\": [13, \"23\"]}")))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot parse long from non-long value in items: \"23\"");
+
+    Assertions.assertThat(
+            JsonUtil.getLongListOrNull(
+                "items", JsonUtil.mapper().readTree("{\"items\": [23, 45]}")))
+        .containsExactlyElementsOf(Arrays.asList(23L, 45L));
   }
 
   @Test

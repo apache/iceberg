@@ -25,7 +25,6 @@ import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.util.ArrayUtil;
 import org.apache.iceberg.util.JsonUtil;
 
 class ContentFileParser {
@@ -47,17 +46,16 @@ class ContentFileParser {
   private static final String EQUALITY_IDS = "equality-ids";
   private static final String SORT_ORDER_ID = "sort-order-id";
 
-  private final PartitionSpec spec;
+  private ContentFileParser() {}
 
-  ContentFileParser(PartitionSpec spec) {
-    this.spec = spec;
-  }
-
-  private boolean hasPartitionData(StructLike partitionData) {
+  private static boolean hasPartitionData(StructLike partitionData) {
     return partitionData != null && partitionData.size() > 0;
   }
 
-  void toJson(ContentFile contentFile, JsonGenerator generator) throws IOException {
+  static void toJson(ContentFile<?> contentFile, PartitionSpec spec, JsonGenerator generator)
+      throws IOException {
+    Preconditions.checkNotNull(contentFile, "Content file cannot be null");
+
     generator.writeStartObject();
 
     // ignore the ordinal position (ContentFile#pos) of the file in a manifest,
@@ -143,14 +141,15 @@ class ContentFileParser {
     generator.writeEndObject();
   }
 
-  ContentFile fromJson(JsonNode jsonNode) {
+  static ContentFile<?> fromJson(JsonNode jsonNode, PartitionSpec spec) {
+    Preconditions.checkNotNull(jsonNode, "Cannot parse content file from null JSON node");
     Preconditions.checkArgument(
         jsonNode.isObject(), "Cannot parse content file from a non-object: %s", jsonNode);
 
     int specId = JsonUtil.getInt(SPEC_ID, jsonNode);
     FileContent fileContent = FileContent.valueOf(JsonUtil.getString(CONTENT, jsonNode));
     String filePath = JsonUtil.getString(FILE_PATH, jsonNode);
-    FileFormat fileFormat = FileFormat.valueOf(JsonUtil.getString(FILE_FORMAT, jsonNode));
+    FileFormat fileFormat = FileFormat.fromString(JsonUtil.getString(FILE_FORMAT, jsonNode));
 
     PartitionData partitionData = null;
     if (jsonNode.has(PARTITION)) {
@@ -169,36 +168,11 @@ class ContentFileParser {
     }
 
     long fileSizeInBytes = JsonUtil.getLong(FILE_SIZE, jsonNode);
-    Metrics metrics = toMetrics(jsonNode);
-
-    ByteBuffer keyMetadata = null;
-    if (jsonNode.has(KEY_METADATA)) {
-      keyMetadata =
-          (ByteBuffer)
-              SingleValueParser.fromJson(DataFile.KEY_METADATA.type(), jsonNode.get(KEY_METADATA));
-    }
-
-    List<Long> splitOffsets = null;
-    if (jsonNode.has(SPLIT_OFFSETS)) {
-      splitOffsets =
-          (List<Long>)
-              SingleValueParser.fromJson(
-                  DataFile.SPLIT_OFFSETS.type(), jsonNode.get(SPLIT_OFFSETS));
-    }
-
-    int[] equalityFieldIds = null;
-    if (jsonNode.has(EQUALITY_IDS)) {
-      equalityFieldIds =
-          ArrayUtil.toIntArray(
-              (List<Integer>)
-                  SingleValueParser.fromJson(
-                      DataFile.EQUALITY_IDS.type(), jsonNode.get(EQUALITY_IDS)));
-    }
-
-    Integer sortOrderId = null;
-    if (jsonNode.has(SORT_ORDER_ID)) {
-      sortOrderId = JsonUtil.getInt(SORT_ORDER_ID, jsonNode);
-    }
+    Metrics metrics = metricsFromJson(jsonNode);
+    ByteBuffer keyMetadata = JsonUtil.getByteBufferOrNull(KEY_METADATA, jsonNode);
+    List<Long> splitOffsets = JsonUtil.getLongListOrNull(SPLIT_OFFSETS, jsonNode);
+    int[] equalityFieldIds = JsonUtil.getIntArrayOrNull(EQUALITY_IDS, jsonNode);
+    Integer sortOrderId = JsonUtil.getIntOrNull(SORT_ORDER_ID, jsonNode);
 
     if (fileContent == FileContent.DATA) {
       return new GenericDataFile(
@@ -227,7 +201,7 @@ class ContentFileParser {
     }
   }
 
-  private Metrics toMetrics(JsonNode jsonNode) {
+  private static Metrics metricsFromJson(JsonNode jsonNode) {
     long recordCount = JsonUtil.getLong(RECORD_COUNT, jsonNode);
 
     Map<Integer, Long> columnSizes = null;

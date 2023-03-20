@@ -18,37 +18,40 @@
  */
 package org.apache.iceberg;
 
-import com.fasterxml.jackson.core.JsonGenerator;
-import java.io.StringWriter;
 import java.util.stream.Stream;
 import org.apache.iceberg.expressions.ExpressionUtil;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.ResidualEvaluator;
-import org.apache.iceberg.util.JsonUtil;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
+import org.junit.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
 public class TestFileScanTaskParser {
+  @Test
+  public void testNullArguments() {
+    Assertions.assertThatThrownBy(() -> FileScanTaskParser.toJson(null))
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("File scan task cannot be null");
+
+    Assertions.assertThatThrownBy(() -> FileScanTaskParser.fromJson(null, true))
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("Cannot parse file scan task from null JSON string");
+  }
+
   private static Stream<Arguments> provideArgs() {
     return Stream.of(Arguments.of(true), Arguments.of(false));
   }
 
   @ParameterizedTest
   @MethodSource("provideArgs")
-  public void testParser(boolean caseSensitive) throws Exception {
-    FileScanTaskParser parser = new FileScanTaskParser(caseSensitive);
-    StringWriter stringWriter = new StringWriter();
-    JsonGenerator jsonStringGenerator = JsonUtil.factory().createGenerator(stringWriter);
+  public void testParser(boolean caseSensitive) {
     PartitionSpec spec = TableTestBase.SPEC;
     FileScanTask fileScanTask = createScanTask(spec, caseSensitive);
-
-    parser.toJson(fileScanTask, jsonStringGenerator);
-    jsonStringGenerator.close();
-    String jsonStr = stringWriter.toString();
-
-    FileScanTask deserializedTask = parser.fromJson(jsonStr);
+    String jsonStr = FileScanTaskParser.toJson(fileScanTask);
+    FileScanTask deserializedTask = FileScanTaskParser.fromJson(jsonStr, caseSensitive);
     assertFileScanTaskEquals(fileScanTask, deserializedTask, spec, caseSensitive);
   }
 

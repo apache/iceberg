@@ -20,8 +20,6 @@ package org.apache.iceberg;
 
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.github.benmanes.caffeine.cache.Caffeine;
-import com.github.benmanes.caffeine.cache.LoadingCache;
 import java.io.IOException;
 import java.io.StringWriter;
 import java.io.UncheckedIOException;
@@ -40,16 +38,10 @@ public class FileScanTaskParser {
   private static final String DELETE_FILES = "delete-files";
   private static final String RESIDUAL = "residual-filter";
 
-  private final boolean caseSensitive;
-  private final LoadingCache<PartitionSpec, ContentFileParser> contentFileParsersBySpec;
+  private FileScanTaskParser() {}
 
-  public FileScanTaskParser(boolean caseSensitive) {
-    this.caseSensitive = caseSensitive;
-    this.contentFileParsersBySpec =
-        Caffeine.newBuilder().weakKeys().build(spec -> new ContentFileParser(spec));
-  }
-
-  public String toJson(FileScanTask fileScanTask) {
+  public static String toJson(FileScanTask fileScanTask) {
+    Preconditions.checkNotNull(fileScanTask, "File scan task cannot be null");
     try (StringWriter writer = new StringWriter()) {
       JsonGenerator generator = JsonUtil.factory().createGenerator(writer);
       toJson(fileScanTask, generator);
@@ -60,26 +52,26 @@ public class FileScanTaskParser {
     }
   }
 
-  void toJson(FileScanTask fileScanTask, JsonGenerator generator) throws IOException {
+  private static void toJson(FileScanTask fileScanTask, JsonGenerator generator)
+      throws IOException {
     generator.writeStartObject();
 
     generator.writeFieldName(SCHEMA);
     SchemaParser.toJson(fileScanTask.schema(), generator);
 
     generator.writeFieldName(SPEC);
-    PartitionSpecParser.toJson(fileScanTask.spec(), generator);
-
-    ContentFileParser contentFileParser = contentFileParsersBySpec.get(fileScanTask.spec());
+    PartitionSpec spec = fileScanTask.spec();
+    PartitionSpecParser.toJson(spec, generator);
 
     if (fileScanTask.file() != null) {
       generator.writeFieldName(DATA_FILE);
-      contentFileParser.toJson(fileScanTask.file(), generator);
+      ContentFileParser.toJson(fileScanTask.file(), spec, generator);
     }
 
     if (fileScanTask.deletes() != null) {
       generator.writeArrayFieldStart(DELETE_FILES);
       for (DeleteFile deleteFile : fileScanTask.deletes()) {
-        contentFileParser.toJson(deleteFile, generator);
+        ContentFileParser.toJson(deleteFile, spec, generator);
       }
       generator.writeEndArray();
     }
@@ -92,11 +84,17 @@ public class FileScanTaskParser {
     generator.writeEndObject();
   }
 
-  public FileScanTask fromJson(String json) {
-    return JsonUtil.parse(json, this::fromJson);
+  public static FileScanTask fromJson(String json, boolean caseSensitive) {
+    Preconditions.checkNotNull(json, "Cannot parse file scan task from null JSON string");
+    try {
+      JsonNode jsonNode = JsonUtil.mapper().readValue(json, JsonNode.class);
+      return fromJsonNode(jsonNode, caseSensitive);
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
   }
 
-  FileScanTask fromJson(JsonNode jsonNode) {
+  private static FileScanTask fromJsonNode(JsonNode jsonNode, boolean caseSensitive) {
     Preconditions.checkArgument(
         jsonNode.isObject(), "Cannot parse file scan task from a non-object: %s", jsonNode);
 
@@ -108,11 +106,9 @@ public class FileScanTaskParser {
     PartitionSpec spec = PartitionSpecParser.fromJson(schema, specNode);
     String specString = PartitionSpecParser.toJson(spec);
 
-    ContentFileParser contentFileParser = contentFileParsersBySpec.get(spec);
-
     DataFile dataFile = null;
     if (jsonNode.has(DATA_FILE)) {
-      dataFile = (DataFile) contentFileParser.fromJson(jsonNode.get(DATA_FILE));
+      dataFile = (DataFile) ContentFileParser.fromJson(jsonNode.get(DATA_FILE), spec);
     }
 
     DeleteFile[] deleteFiles = null;
@@ -123,7 +119,7 @@ public class FileScanTaskParser {
       // parse the schema array
       ImmutableList.Builder<DeleteFile> builder = ImmutableList.builder();
       for (JsonNode deleteFileNode : deletesArray) {
-        DeleteFile deleteFile = (DeleteFile) contentFileParser.fromJson(deleteFileNode);
+        DeleteFile deleteFile = (DeleteFile) ContentFileParser.fromJson(deleteFileNode, spec);
         builder.add(deleteFile);
       }
 

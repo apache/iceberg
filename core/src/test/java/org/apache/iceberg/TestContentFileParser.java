@@ -23,18 +23,36 @@ import com.fasterxml.jackson.databind.JsonNode;
 import java.io.StringWriter;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.stream.Stream;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.JsonUtil;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
+import org.junit.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
 public class TestContentFileParser {
+  @Test
+  public void testNullArguments() throws Exception {
+    StringWriter stringWriter = new StringWriter();
+    JsonGenerator jsonStringGenerator = JsonUtil.factory().createGenerator(stringWriter);
+
+    Assertions.assertThatThrownBy(
+            () -> ContentFileParser.toJson(null, TableTestBase.SPEC, jsonStringGenerator))
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("Content file cannot be null");
+
+    Assertions.assertThatThrownBy(() -> ContentFileParser.fromJson(null, TableTestBase.SPEC))
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("Cannot parse content file from null JSON node");
+  }
+
   private static Stream<Arguments> provideSpecAndDataFile() {
     return Stream.of(
         Arguments.of(
@@ -84,7 +102,7 @@ public class TestContentFileParser {
                     ))
             .withFileSizeInBytes(350)
             .withSplitOffsets(Arrays.asList(128L, 256L))
-            .withEqualityFieldIds(Arrays.asList(1))
+            .withEqualityFieldIds(Collections.singletonList(1))
             .withEncryptionKeyMetadata(ByteBuffer.wrap(new byte[16]))
             .withSortOrder(
                 SortOrder.builderFor(TableTestBase.SCHEMA)
@@ -173,37 +191,35 @@ public class TestContentFileParser {
   @ParameterizedTest
   @MethodSource("provideSpecAndDataFile")
   public void testDataFile(PartitionSpec spec, DataFile dataFile) throws Exception {
-    ContentFileParser parser = new ContentFileParser(spec);
     StringWriter stringWriter = new StringWriter();
     JsonGenerator jsonStringGenerator = JsonUtil.factory().createGenerator(stringWriter);
 
-    parser.toJson(dataFile, jsonStringGenerator);
+    ContentFileParser.toJson(dataFile, spec, jsonStringGenerator);
     jsonStringGenerator.close();
     String jsonStr = stringWriter.toString();
 
     JsonNode jsonNode = JsonUtil.mapper().readTree(jsonStr);
-    DataFile deserializedFile = (DataFile) parser.fromJson(jsonNode);
+    DataFile deserializedFile = (DataFile) ContentFileParser.fromJson(jsonNode, spec);
     assertContentFileEquals(dataFile, deserializedFile, spec);
   }
 
   @ParameterizedTest
   @MethodSource("provideSpecAndDeleteFile")
   public void testDeleteFile(PartitionSpec spec, DeleteFile deleteFile) throws Exception {
-    ContentFileParser parser = new ContentFileParser(spec);
     StringWriter stringWriter = new StringWriter();
     JsonGenerator jsonStringGenerator = JsonUtil.factory().createGenerator(stringWriter);
 
-    parser.toJson(deleteFile, jsonStringGenerator);
+    ContentFileParser.toJson(deleteFile, spec, jsonStringGenerator);
     jsonStringGenerator.close();
     String jsonStr = stringWriter.toString();
 
     JsonNode jsonNode = JsonUtil.mapper().readTree(jsonStr);
-    DeleteFile deserializedFile = (DeleteFile) parser.fromJson(jsonNode);
+    DeleteFile deserializedFile = (DeleteFile) ContentFileParser.fromJson(jsonNode, spec);
     assertContentFileEquals(deleteFile, deserializedFile, spec);
   }
 
   static void assertContentFileEquals(
-      ContentFile expected, ContentFile actual, PartitionSpec spec) {
+      ContentFile<?> expected, ContentFile<?> actual, PartitionSpec spec) {
     Assert.assertEquals(expected.getClass(), actual.getClass());
     Assert.assertEquals(expected.specId(), actual.specId());
     Assert.assertEquals(expected.content(), actual.content());
