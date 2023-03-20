@@ -236,13 +236,13 @@ try {
     Assert.fail("this should fail");
 } catch (Exception e) {
     assertEquals(AccessDeniedException.class, e.getClass());
-    assertEquals("access denied", e.getMessage());
+    assertEquals("User 'testUser' has no permission to create namespace", e.getMessage());
 }
 
 // better
 assertThatThrownBy(() -> catalog.createNamespace(deniedNamespace))
     .isInstanceOf(AccessDeniedException.class)
-    .hasMessage("access denied");
+    .hasMessage("User 'testUser' has no permission to create namespace");
 ```
 Checks on exceptions should always make sure to assert that a particular exception message has occurred.
 
