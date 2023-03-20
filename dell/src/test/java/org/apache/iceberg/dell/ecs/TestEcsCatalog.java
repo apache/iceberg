@@ -172,8 +172,7 @@ public class TestEcsCatalog {
                 ecsCatalog.renameTable(
                     TableIdentifier.of("a", "t1"), TableIdentifier.of("unknown", "t2")))
         .isInstanceOf(NoSuchNamespaceException.class)
-        .hasMessage(
-            "Cannot rename a.t1 to unknown.t2 because namespace unknown does not exist");
+        .hasMessage("Cannot rename a.t1 to unknown.t2 because namespace unknown does not exist");
 
     ecsCatalog.renameTable(TableIdentifier.of("a", "t1"), TableIdentifier.of("b", "t2"));
 
