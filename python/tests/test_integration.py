@@ -86,3 +86,4 @@ def test_duckdb_nan(table_test_null_nan_rewritten: Table) -> None:
 def test_ray_dataset_nan(table_test_null_nan_rewritten: Table) -> None:
     ray_dataset = table_test_null_nan_rewritten.scan().to_ray_dataset()
     assert ray_dataset.count() == 3
+    assert math.isnan(ray_dataset.take()[0]["col_numeric"])
