@@ -587,3 +587,75 @@ Get all the snapshot ancestors by a particular snapshot
 CALL spark_catalog.system.ancestors_of('db.tbl', 1)
 CALL spark_catalog.system.ancestors_of(snapshot_id => 1, table => 'db.tbl')
 ```
+
+## Change Data Capture 
+
+### `create_changelog_view`
+
+Creates a view that contains the changes from a given table. 
+
+#### Usage
+
+| Argument Name | Required? | Type | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+|---------------|----------|------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `table`       | ✔️ | string | Name of the table to create changlog view                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `changelog_view`        |   | string | Name of the view to create                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `options`     |   | map<string, string> | A map of Spark read options to use. For example, `start-snapshot-id`, the snapshot id to start reading from exclusively. If not provided, the table’s first snapshot will be used as the starting point. `end-snapshot-id`, the snapshot id to stop reading at inclusively. Default to the current snapshot. `start-timestamp`, the timestamp to start reading from exclusively. If not provided, the table’s first snapshot will be used as the starting point.`end-timestamp`, the timestamp to stop reading at inclusively. If not provided, the table’s current snapshot will be used as the ending point. | 
+|`compute_updates`| | boolean | Whether to compute updates. Defaults to false                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | 
+|`identifier_columns`| | array<string> | The list of identifier columns. If not provided, and `compute_updates` is true, the table’s current identifier fields will be used.                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+|`remove_carryovers`| | boolean | Whether to remove carry-over rows. Defaults to true.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+
+#### Output
+| Output Name | Type | Description |
+| ------------|------|-------------|
+| `changelog_view` | string | The name of the changelog view |
+
+#### Examples
+
+Create a changelog view `tbl_changes` based on the changes that happened between snapshot `1` (exclusive) and `2` (inclusive).
+```sql
+CALL spark_catalog.system.create_changelog_view(
+  table => 'db.tbl',
+  options => map('start-snapshot-id','1','end-snapshot-id', '2')
+)
+```
+
+Create a changelog view `my_changelog_view` based on the changes that happened between timestamp `1678335750489` (exclusive) and `1678992105265` (inclusive).
+```sql
+CALL spark_catalog.system.create_changelog_view(
+  table => 'db.tbl',
+  options => map('start-timestamp','1678335750489','end-timestamp', '1678992105265'),
+  changelog_view => 'my_changelog_view'
+)
+```
+
+Create a changelog view that computes updates based on the identifier columns `id` and `name`.
+```sql
+CALL spark_catalog.system.create_changelog_view(
+  table => 'db.tbl',
+  options => map('start-snapshot-id','1','end-snapshot-id', '2'),
+  identifier_columns => array('id', 'name')
+)
+```
+
+Once the changelog view is created, you can query the view to see the changes that happened between the snapshots.
+```sql
+SELECT * FROM tbl_changes
+```
+```sql
+SELECT * FROM tbl_changes where _change_type = 'INSERT' AND id = 3 ORDER BY _change_ordinal
+``` 
+Please note that the changelog view includes Change Data Capture(CDC) metadata columns
+that provide additional information about the changes being tracked. These columns are:
+- `_change_type`: the type of change. It has one of the following values: `INSERT`, `DELETE`, `UPDATE_BEFORE`, or `UPDATE_AFTER`.
+- `_change_ordinal`: the order of changes
+- `_commit_snapshot_id`: the snapshot ID where the change occurred
+
+Here is an example of corresponding results. It shows that the first snapshot inserted 2 records, and the
+second snapshot deleted 1 record. 
+
+|  id	| name	  |_change_type |	_change_ordinal	| _change_snapshot_id |
+|---|--------|---|---|---|
+|1	| Alice	 |INSERT	|0	|5390529835796506035|
+|2	| Bob	   |INSERT	|0	|5390529835796506035|
+|1	| Alice  |DELETE	|1	|8764748981452218370|
