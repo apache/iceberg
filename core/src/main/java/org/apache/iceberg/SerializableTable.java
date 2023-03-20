@@ -26,7 +26,6 @@ import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.hadoop.HadoopConfigurable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
-import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.SerializableMap;
 import org.apache.iceberg.util.SerializableSupplier;
@@ -261,11 +260,6 @@ public class SerializableTable implements Table, Serializable {
   @Override
   public BatchScan newBatchScan() {
     return lazyTable().newBatchScan();
-  }
-
-  @Override
-  public BatchScan newBatchScan(MetricsReporter reporter) {
-    return newBatchScan();
   }
 
   @Override

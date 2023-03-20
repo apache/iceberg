@@ -424,10 +424,11 @@ public class SparkScanBuilder
     SparkMetricsReporter reporter = new SparkMetricsReporter();
     BatchScan scan =
         table
-            .newBatchScan(reporter)
+            .newBatchScan()
             .caseSensitive(caseSensitive)
             .filter(filterExpression())
-            .project(expectedSchema);
+            .project(expectedSchema)
+            .withMetricsReporter(Lists.newArrayList(reporter));
 
     if (snapshotId != null) {
       scan = scan.useSnapshot(snapshotId);
