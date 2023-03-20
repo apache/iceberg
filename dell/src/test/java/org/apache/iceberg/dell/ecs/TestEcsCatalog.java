@@ -129,11 +129,11 @@ public class TestEcsCatalog {
 
     Assertions.assertThatThrownBy(() -> ecsCatalog.dropNamespace(Namespace.of("unknown")))
         .isInstanceOf(NoSuchNamespaceException.class)
-        .hasMessageContaining("Namespace %s does not exist", "unknown");
+        .hasMessageContaining("Namespace unknown does not exist");
 
     Assertions.assertThatThrownBy(() -> ecsCatalog.dropNamespace(Namespace.of("a")))
         .isInstanceOf(NamespaceNotEmptyException.class)
-        .hasMessageContaining("Namespace %s is not empty", "a");
+        .hasMessageContaining("Namespace a is not empty");
 
     Assert.assertTrue("Drop namespace [a, b1]", ecsCatalog.dropNamespace(Namespace.of("a", "b1")));
 
@@ -165,7 +165,7 @@ public class TestEcsCatalog {
                 ecsCatalog.renameTable(
                     TableIdentifier.of("unknown"), TableIdentifier.of("b", "t2")))
         .isInstanceOf(NoSuchTableException.class)
-        .hasMessageContaining("Cannot rename table because table %s does not exist", "unknown");
+        .hasMessageContaining("Cannot rename table because table unknown does not exist");
 
     Assertions.assertThatThrownBy(
             () ->
