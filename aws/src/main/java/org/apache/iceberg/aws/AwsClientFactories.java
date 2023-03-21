@@ -102,7 +102,7 @@ public class AwsClientFactories {
           .applyMutation(awsProperties::applyHttpClientConfigurations)
           .applyMutation(awsProperties::applyS3EndpointConfigurations)
           .applyMutation(awsProperties::applyS3ServiceConfigurations)
-          .applyMutation(awsProperties::applyS3CredentialConfigurations)
+          .applyMutation(awsProperties::applyCredentialConfigurations)
           .applyMutation(awsProperties::applyS3SignerConfiguration)
           .build();
     }
@@ -113,6 +113,7 @@ public class AwsClientFactories {
           .applyMutation(awsProperties::applyClientRegionConfiguration)
           .applyMutation(awsProperties::applyHttpClientConfigurations)
           .applyMutation(awsProperties::applyGlueEndpointConfigurations)
+          .applyMutation(awsProperties::applyCredentialConfigurations)
           .build();
     }
 
@@ -121,6 +122,7 @@ public class AwsClientFactories {
       return KmsClient.builder()
           .applyMutation(awsProperties::applyClientRegionConfiguration)
           .applyMutation(awsProperties::applyHttpClientConfigurations)
+          .applyMutation(awsProperties::applyCredentialConfigurations)
           .build();
     }
 
@@ -129,6 +131,7 @@ public class AwsClientFactories {
       return DynamoDbClient.builder()
           .applyMutation(awsProperties::applyClientRegionConfiguration)
           .applyMutation(awsProperties::applyHttpClientConfigurations)
+          .applyMutation(awsProperties::applyCredentialConfigurations)
           .applyMutation(awsProperties::applyDynamoDbEndpointConfigurations)
           .build();
     }
@@ -197,8 +200,8 @@ public class AwsClientFactories {
    * Build an AwsBasicCredential object
    *
    * @deprecated Not for public use. To configure the credentials for a s3 client, please use {@link
-   *     AwsProperties#applyS3CredentialConfigurations(S3ClientBuilder)} in AwsProperties. It will
-   *     be removed in 2.0.0.
+   *     AwsProperties#applyCredentialConfigurations(S3ClientBuilder)} in AwsProperties. It will be
+   *     removed in 2.0.0.
    */
   @Deprecated
   static AwsCredentialsProvider credentialsProvider(

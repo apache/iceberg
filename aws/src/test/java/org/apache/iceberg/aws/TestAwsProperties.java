@@ -154,7 +154,7 @@ public class TestAwsProperties {
     ArgumentCaptor<AwsCredentialsProvider> awsCredentialsProviderCaptor =
         ArgumentCaptor.forClass(AwsCredentialsProvider.class);
 
-    awsProperties.applyS3CredentialConfigurations(mockS3ClientBuilder);
+    awsProperties.applyCredentialConfigurations(mockS3ClientBuilder);
     Mockito.verify(mockS3ClientBuilder).credentialsProvider(awsCredentialsProviderCaptor.capture());
     AwsCredentialsProvider capturedAwsCredentialsProvider = awsCredentialsProviderCaptor.getValue();
 
@@ -174,7 +174,7 @@ public class TestAwsProperties {
     ArgumentCaptor<AwsCredentialsProvider> awsCredentialsProviderCaptor =
         ArgumentCaptor.forClass(AwsCredentialsProvider.class);
 
-    awsPropertiesTwoSet.applyS3CredentialConfigurations(mockS3ClientBuilder);
+    awsPropertiesTwoSet.applyCredentialConfigurations(mockS3ClientBuilder);
     Mockito.verify(mockS3ClientBuilder).credentialsProvider(awsCredentialsProviderCaptor.capture());
     AwsCredentialsProvider capturedAwsCredentialsProvider = awsCredentialsProviderCaptor.getValue();
 
@@ -203,7 +203,7 @@ public class TestAwsProperties {
     ArgumentCaptor<AwsCredentialsProvider> awsCredentialsProviderCaptor =
         ArgumentCaptor.forClass(AwsCredentialsProvider.class);
 
-    awsProperties.applyS3CredentialConfigurations(mockS3ClientBuilder);
+    awsProperties.applyCredentialConfigurations(mockS3ClientBuilder);
     Mockito.verify(mockS3ClientBuilder).credentialsProvider(awsCredentialsProviderCaptor.capture());
     AwsCredentialsProvider capturedAwsCredentialsProvider = awsCredentialsProviderCaptor.getValue();
 

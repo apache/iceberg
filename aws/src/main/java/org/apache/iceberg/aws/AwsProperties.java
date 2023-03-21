@@ -254,8 +254,6 @@ public class AwsProperties implements Serializable {
   /**
    * Configure the AWS credentials provider used to create AWS clients. A fully qualified concrete
    * class with package that implements the {@link AwsCredentialsProvider} interface is required.
-   * Class provided must be a valid implementation of the {@link AwsCredentialsProvider} interface
-   * and that it is accessible from project's classpath.
    *
    * <p>Additionally, the implementation class must also have a create() or create(Map) method
    * implemented, which returns an instance of the class that provides aws credentials provider.
@@ -681,7 +679,6 @@ public class AwsProperties implements Serializable {
   private String s3AccessKeyId;
   private String s3SecretAccessKey;
   private String s3SessionToken;
-  private String credentialsProvider;
   private int s3FileIoMultipartUploadThreads;
   private int s3FileIoMultiPartSize;
   private int s3FileIoDeleteBatchSize;
@@ -708,16 +705,13 @@ public class AwsProperties implements Serializable {
   private boolean glueCatalogSkipArchive;
   private boolean glueCatalogSkipNameValidation;
   private boolean glueLakeFormationEnabled;
-
   private String dynamoDbTableName;
   private String dynamoDbEndpoint;
-
   private final String s3SignerImpl;
   private final Map<String, String> allProperties;
-
   private String clientRegion;
-
-  private final Map<String, String> credentialsProviderProperties;
+  private String clientCredentialsProvider;
+  private final Map<String, String> clientCredentialsProviderProperties;
 
   public AwsProperties() {
     this.httpClientType = HTTP_CLIENT_TYPE_DEFAULT;
@@ -736,7 +730,6 @@ public class AwsProperties implements Serializable {
     this.s3AccessKeyId = null;
     this.s3SecretAccessKey = null;
     this.s3SessionToken = null;
-    this.credentialsProvider = null;
     this.s3FileIoAcl = null;
     this.s3Endpoint = null;
     this.s3FileIoMultipartUploadThreads = Runtime.getRuntime().availableProcessors();
@@ -770,7 +763,8 @@ public class AwsProperties implements Serializable {
     this.s3SignerImpl = null;
     this.allProperties = Maps.newHashMap();
     this.clientRegion = null;
-    this.credentialsProviderProperties = null;
+    this.clientCredentialsProvider = null;
+    this.clientCredentialsProviderProperties = null;
 
     ValidationException.check(
         s3KeyIdAccessKeyBothConfigured(),
@@ -790,7 +784,6 @@ public class AwsProperties implements Serializable {
             properties, CLIENT_ASSUME_ROLE_TIMEOUT_SEC, CLIENT_ASSUME_ROLE_TIMEOUT_SEC_DEFAULT);
     this.clientAssumeRoleExternalId = properties.get(CLIENT_ASSUME_ROLE_EXTERNAL_ID);
     this.clientAssumeRoleRegion = properties.get(CLIENT_ASSUME_ROLE_REGION);
-    this.clientRegion = properties.get(CLIENT_REGION);
     this.clientAssumeRoleSessionName = properties.get(CLIENT_ASSUME_ROLE_SESSION_NAME);
 
     this.s3FileIoSseType = properties.getOrDefault(S3FILEIO_SSE_TYPE, S3FILEIO_SSE_TYPE_NONE);
@@ -799,7 +792,6 @@ public class AwsProperties implements Serializable {
     this.s3AccessKeyId = properties.get(S3FILEIO_ACCESS_KEY_ID);
     this.s3SecretAccessKey = properties.get(S3FILEIO_SECRET_ACCESS_KEY);
     this.s3SessionToken = properties.get(S3FILEIO_SESSION_TOKEN);
-    this.credentialsProvider = properties.get(CLIENT_CREDENTIALS_PROVIDER);
     if (S3FILEIO_SSE_TYPE_CUSTOM.equals(s3FileIoSseType)) {
       Preconditions.checkNotNull(
           s3FileIoSseKey, "Cannot initialize SSE-C S3FileIO with null encryption key");
@@ -901,7 +893,9 @@ public class AwsProperties implements Serializable {
 
     this.s3SignerImpl = properties.get(S3_SIGNER_IMPL);
     this.allProperties = SerializableMap.copyOf(properties);
-    this.credentialsProviderProperties =
+    this.clientRegion = properties.get(CLIENT_REGION);
+    this.clientCredentialsProvider = properties.get(CLIENT_CREDENTIALS_PROVIDER);
+    this.clientCredentialsProviderProperties =
         PropertyUtil.propertiesWithPrefix(properties, CREDENTIAL_PROVIDER_PREFIX);
 
     ValidationException.check(
@@ -1123,12 +1117,12 @@ public class AwsProperties implements Serializable {
    * <p>Sample usage:
    *
    * <pre>
-   *     S3Client.builder().applyMutation(awsProperties::applyS3CredentialConfigurations)
+   *     S3Client.builder().applyMutation(awsProperties::applyCredentialConfigurations)
    * </pre>
    */
-  public <T extends S3ClientBuilder> void applyS3CredentialConfigurations(T builder) {
-    if (!Strings.isNullOrEmpty(this.credentialsProvider)) {
-      builder.credentialsProvider(credentialsProvider(this.credentialsProvider));
+  public <T extends AwsClientBuilder> void applyCredentialConfigurations(T builder) {
+    if (!Strings.isNullOrEmpty(this.clientCredentialsProvider)) {
+      builder.credentialsProvider(credentialsProvider(this.clientCredentialsProvider));
     } else {
       builder.credentialsProvider(
           credentialsProvider(s3AccessKeyId, s3SecretAccessKey, s3SessionToken));
@@ -1347,11 +1341,12 @@ public class AwsProperties implements Serializable {
             DynMethods.builder("create")
                 .hiddenImpl(providerClass, Map.class)
                 .buildStaticChecked()
-                .invoke(credentialsProviderProperties);
+                .invoke(clientCredentialsProviderProperties);
       } catch (NoSuchMethodException e) {
         provider =
             DynMethods.builder("create").hiddenImpl(providerClass).buildStaticChecked().invoke();
       }
+
       return provider;
     } catch (NoSuchMethodException e) {
       throw new IllegalArgumentException(
