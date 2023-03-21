@@ -80,6 +80,12 @@ from pyiceberg.types import (
 )
 
 
+def pytest_collection_modifyitems(items: List[pytest.Item]) -> None:
+    for item in items:
+        if not any(item.iter_markers()):
+            item.add_marker("unmarked")
+
+
 def pytest_addoption(parser: pytest.Parser) -> None:
     # S3 options
     parser.addoption(
