@@ -74,7 +74,7 @@ public class TestFileRewriteCoordinator extends SparkCatalogTestBase {
     try (CloseableIterable<FileScanTask> fileScanTasks = table.newScan().planFiles()) {
       String fileSetID = UUID.randomUUID().toString();
 
-      FileScanTaskSetManager taskSetManager = FileScanTaskSetManager.get();
+      ScanTaskSetManager taskSetManager = ScanTaskSetManager.get();
       taskSetManager.stageTasks(table, fileSetID, Lists.newArrayList(fileScanTasks));
 
       // read and pack original 4 files into 2 splits
@@ -82,7 +82,7 @@ public class TestFileRewriteCoordinator extends SparkCatalogTestBase {
           spark
               .read()
               .format("iceberg")
-              .option(SparkReadOptions.FILE_SCAN_TASK_SET_ID, fileSetID)
+              .option(SparkReadOptions.SCAN_TASK_SET_ID, fileSetID)
               .option(SparkReadOptions.SPLIT_SIZE, Long.toString(avgFileSize * 2))
               .option(SparkReadOptions.FILE_OPEN_COST, "0")
               .load(tableName);
@@ -97,7 +97,7 @@ public class TestFileRewriteCoordinator extends SparkCatalogTestBase {
       FileRewriteCoordinator rewriteCoordinator = FileRewriteCoordinator.get();
       Set<DataFile> rewrittenFiles =
           taskSetManager.fetchTasks(table, fileSetID).stream()
-              .map(FileScanTask::file)
+              .map(t -> t.asFileScanTask().file())
               .collect(Collectors.toSet());
       Set<DataFile> addedFiles = rewriteCoordinator.fetchNewDataFiles(table, fileSetID);
       table.newRewrite().rewriteFiles(rewrittenFiles, addedFiles).commit();
@@ -129,7 +129,7 @@ public class TestFileRewriteCoordinator extends SparkCatalogTestBase {
     try (CloseableIterable<FileScanTask> fileScanTasks = table.newScan().planFiles()) {
       String fileSetID = UUID.randomUUID().toString();
 
-      FileScanTaskSetManager taskSetManager = FileScanTaskSetManager.get();
+      ScanTaskSetManager taskSetManager = ScanTaskSetManager.get();
       taskSetManager.stageTasks(table, fileSetID, Lists.newArrayList(fileScanTasks));
 
       // read original 4 files as 4 splits
@@ -137,7 +137,7 @@ public class TestFileRewriteCoordinator extends SparkCatalogTestBase {
           spark
               .read()
               .format("iceberg")
-              .option(SparkReadOptions.FILE_SCAN_TASK_SET_ID, fileSetID)
+              .option(SparkReadOptions.SCAN_TASK_SET_ID, fileSetID)
               .option(SparkReadOptions.SPLIT_SIZE, "134217728")
               .option(SparkReadOptions.FILE_OPEN_COST, "134217728")
               .load(tableName);
@@ -167,7 +167,7 @@ public class TestFileRewriteCoordinator extends SparkCatalogTestBase {
       FileRewriteCoordinator rewriteCoordinator = FileRewriteCoordinator.get();
       Set<DataFile> rewrittenFiles =
           taskSetManager.fetchTasks(table, fileSetID).stream()
-              .map(FileScanTask::file)
+              .map(t -> t.asFileScanTask().file())
               .collect(Collectors.toSet());
       Set<DataFile> addedFiles = rewriteCoordinator.fetchNewDataFiles(table, fileSetID);
       table.newRewrite().rewriteFiles(rewrittenFiles, addedFiles).commit();
@@ -198,7 +198,7 @@ public class TestFileRewriteCoordinator extends SparkCatalogTestBase {
     String firstFileSetID = UUID.randomUUID().toString();
     long firstFileSetSnapshotId = table.currentSnapshot().snapshotId();
 
-    FileScanTaskSetManager taskSetManager = FileScanTaskSetManager.get();
+    ScanTaskSetManager taskSetManager = ScanTaskSetManager.get();
 
     try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
       // stage first 2 files for compaction
@@ -227,7 +227,7 @@ public class TestFileRewriteCoordinator extends SparkCatalogTestBase {
           spark
               .read()
               .format("iceberg")
-              .option(SparkReadOptions.FILE_SCAN_TASK_SET_ID, fileSetID)
+              .option(SparkReadOptions.SCAN_TASK_SET_ID, fileSetID)
               .option(SparkReadOptions.SPLIT_SIZE, Long.MAX_VALUE)
               .load(tableName);
 
@@ -243,7 +243,7 @@ public class TestFileRewriteCoordinator extends SparkCatalogTestBase {
     Set<DataFile> rewrittenFiles =
         fileSetIDs.stream()
             .flatMap(fileSetID -> taskSetManager.fetchTasks(table, fileSetID).stream())
-            .map(FileScanTask::file)
+            .map(t -> t.asFileScanTask().file())
             .collect(Collectors.toSet());
     Set<DataFile> addedFiles =
         fileSetIDs.stream()
