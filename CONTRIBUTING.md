@@ -194,3 +194,83 @@ When passing boolean arguments to existing or external methods, use inline comme
     * For example, preferred convection `access-key-id` rather than `access.key.id`
 2. Use `.` to create a hierarchy of config groups
     * For example, `s3` in `s3.access-key-id`, `s3.secret-access-key`
+
+## Testing
+
+### AssertJ
+
+Prefer using [AssertJ](https://github.com/assertj/assertj) assertions as those provide a rich and intuitive set of strongly-typed assertions.
+Checks can be expressed in a fluent way and [AssertJ](https://github.com/assertj/assertj) provides rich context when assertions fail.
+Additionally, [AssertJ](https://github.com/assertj/assertj) has powerful testing capabilities on collections and exceptions. 
+Please refer to the [usage guide](https://assertj.github.io/doc/#assertj-core-assertions-guide) for additional examples.
+
+```java
+// bad: will only say true != false when check fails
+assertTrue(x instanceof Xyz);
+
+// better: will show type of x when check fails
+assertThat(x).isInstanceOf(Xyz.class);
+
+// bad: will only say true != false when check fails
+assertTrue(catalog.listNamespaces().containsAll(expected));
+
+// better: will show content of expected and of catalog.listNamespaces() if check fails
+assertThat(catalog.listNamespaces()).containsAll(expected);
+```
+```java
+// ok
+assertNotNull(metadataFileLocations);
+assertEquals(metadataFileLocations.size(), 4);
+
+// better: will show the content of metadataFileLocations if check fails
+assertThat(metadataFileLocations).isNotNull().hasSize(4);
+
+// or
+assertThat(metadataFileLocations).isNotNull().hasSameSizeAs(expected).hasSize(4);
+```
+
+```java
+// bad
+try {
+    catalog.createNamespace(deniedNamespace);
+    Assert.fail("this should fail");
+} catch (Exception e) {
+    assertEquals(AccessDeniedException.class, e.getClass());
+    assertEquals("User 'testUser' has no permission to create namespace", e.getMessage());
+}
+
+// better
+assertThatThrownBy(() -> catalog.createNamespace(deniedNamespace))
+    .isInstanceOf(AccessDeniedException.class)
+    .hasMessage("User 'testUser' has no permission to create namespace");
+```
+Checks on exceptions should always make sure to assert that a particular exception message has occurred.
+
+
+### Awaitility
+
+Avoid using `Thread.sleep()` in tests as it leads to long test durations and flaky behavior if a condition takes slightly longer than expected.
+
+```java
+deleteTablesAsync();
+Thread.sleep(3000L);
+assertThat(tables()).isEmpty();
+```
+
+A better alternative is using [Awaitility](https://github.com/awaitility/awaitility) to make sure `tables()` are eventually empty. The below example will run the check
+with a default polling interval of **100 millis**:
+
+```java
+deleteTablesAsync();
+Awaitility.await("Tables were not deleted")
+    .atMost(5, TimeUnit.SECONDS)
+    .untilAsserted(() -> assertThat(tables()).isEmpty());
+```
+
+Please refer to the [usage guide](https://github.com/awaitility/awaitility/wiki/Usage) of [Awaitility](https://github.com/awaitility/awaitility) for more usage examples.
+
+
+### JUnit4 / JUnit5
+
+Iceberg currently uses a mix of JUnit4 (`org.junit` imports) and JUnit5 (`org.junit.jupiter.api` imports) tests. To allow an easier migration to JUnit5 in the future, new test classes
+that are being added to the codebase should be written purely in JUnit5 where possible.
