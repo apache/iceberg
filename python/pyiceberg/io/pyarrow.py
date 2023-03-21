@@ -33,7 +33,6 @@ from typing import (
     TYPE_CHECKING,
     Any,
     Callable,
-    Dict,
     Iterable,
     List,
     Optional,
@@ -70,7 +69,6 @@ from pyiceberg.expressions.visitors import (
     translate_column_names,
 )
 from pyiceberg.expressions.visitors import visit as boolean_expression_visit
-from pyiceberg.files import FileFormat
 from pyiceberg.io import (
     S3_ACCESS_KEY_ID,
     S3_ENDPOINT,
