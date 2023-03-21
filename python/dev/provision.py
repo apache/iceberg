@@ -66,6 +66,39 @@ spark.sql(
 
 spark.sql(
     """
+  DROP TABLE IF EXISTS test_limit;
+"""
+)
+
+spark.sql(
+    """
+    CREATE TABLE test_limit
+    USING iceberg
+      AS SELECT
+          1            AS idx
+      UNION ALL SELECT
+          2            AS idx
+      UNION ALL SELECT
+          3            AS idx
+      UNION ALL SELECT
+          4            AS idx
+      UNION ALL SELECT
+          5            AS idx
+      UNION ALL SELECT
+          6            AS idx
+      UNION ALL SELECT
+          7            AS idx
+      UNION ALL SELECT
+          8            AS idx
+      UNION ALL SELECT
+          9            AS idx
+      UNION ALL SELECT
+          10           AS idx
+    """
+)
+
+spark.sql(
+    """
   DROP TABLE IF EXISTS test_deletes;
 """
 )
