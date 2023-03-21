@@ -39,8 +39,6 @@ public class MicroBatches {
 
   public static List<Pair<ManifestFile, Integer>> skippedManifestIndexesFromSnapshot(
       FileIO io, Snapshot snapshot, long startFileIndex, boolean scanAllFiles) {
-    //  Preconditions.checkArgument(startFileIndex >= 0, "startFileIndex is unexpectedly smaller
-    // than 0");
     List<ManifestFile> manifests =
         scanAllFiles
             ? snapshot.dataManifests(io)
