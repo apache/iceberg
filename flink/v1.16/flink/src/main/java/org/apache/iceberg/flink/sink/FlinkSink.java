@@ -505,7 +505,11 @@ public class FlinkSink {
                       + "and table is unpartitioned");
               return input;
             } else {
-              return input.keyBy(new PartitionKeySelector(partitionSpec, iSchema, flinkRowType));
+              if (partitionSpec.hasBucketPartition()) {
+                return input.partitionCustom(new BucketPartitioner(partitionSpec), new BucketPartitionKeySelector(partitionSpec, iSchema, flinkRowType));
+              } else {
+                return input.keyBy(new PartitionKeySelector(partitionSpec, iSchema, flinkRowType));
+              }
             }
           } else {
             if (partitionSpec.isUnpartitioned()) {
