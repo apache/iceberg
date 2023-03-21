@@ -42,5 +42,11 @@ public class TestTableLoader implements TableLoader {
   }
 
   @Override
+  @SuppressWarnings({"checkstyle:NoClone", "checkstyle:SuperClone"})
+  public TableLoader clone() {
+    return new TestTableLoader(dir.getAbsolutePath());
+  }
+
+  @Override
   public void close() {}
 }
