@@ -533,24 +533,6 @@ public class TestHiveIcebergStorageHandlerNoScan {
 
     if (testTableType == TestTables.TestTableType.HIVE_CATALOG) {
       // In HiveCatalog we just expect an exception since the table is already exists
-      // AssertHelpers.assertThrows(
-      //     "should throw exception",
-      //     IllegalArgumentException.class,
-      //     "customers already exists",
-      //     () -> {
-      //       shell.executeStatement(
-      //           "CREATE EXTERNAL TABLE customers "
-      //               + "STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler' "
-      //               + "TBLPROPERTIES ('"
-      //               + InputFormatConfig.TABLE_SCHEMA
-      //               + "'='"
-      //               + SchemaParser.toJson(HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA)
-      //               + "',' "
-      //               + InputFormatConfig.CATALOG_NAME
-      //               + "'='"
-      //               + testTables.catalogName()
-      //               + "')");
-      //     });
       Assertions.assertThatThrownBy(
               () -> {
                 shell.executeStatement(

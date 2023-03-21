@@ -85,7 +85,7 @@ public class TestCatalogs {
 
     Assertions.assertThatThrownBy(() -> Catalogs.loadTable(conf))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Table identifier not set");
+        .hasMessage("Table identifier not set");
 
     HadoopCatalog catalog = new CustomHadoopCatalog(conf, warehouseLocation);
     Table hadoopCatalogTable = catalog.createTable(TableIdentifier.of("table"), SCHEMA);
