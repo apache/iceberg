@@ -260,6 +260,14 @@ public class TestChangelogTable extends SparkExtensionsTestBase {
         sql("SELECT id, _change_type FROM %s.changes ORDER BY id", tableName));
   }
 
+  @Test
+  public void testMetadataColumns() {
+    createTableWithDefaultRows();
+    List<Object[]> rows = sql("SELECT id, _file, _pos FROM %s.changes", tableName);
+    Assert.assertTrue(rows.get(0)[1].toString().startsWith("file:/"));
+    Assert.assertTrue((Long) rows.get(0)[2] == 0L);
+  }
+
   private void createTableWithDefaultRows() {
     createTable();
     insertDefaultRows();
