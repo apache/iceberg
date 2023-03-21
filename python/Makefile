@@ -26,22 +26,27 @@ lint:
 	poetry run pre-commit run --all-files
 
 test:
-	poetry run coverage run --source=pyiceberg/ -m pytest tests/ -m unmarked ${PYTEST_ARGS}
-	poetry run coverage report -m --fail-under=88
-	poetry run coverage html
-	poetry run coverage xml
+	poetry run pytest tests/ -m "unmarked or parametrize" ${PYTEST_ARGS}
 
 test-s3:
 	sh ./dev/run-minio.sh
-	poetry run coverage run --source=pyiceberg/ -m pytest tests/ -m s3 ${PYTEST_ARGS}
+	poetry run pytest tests/ -m s3 ${PYTEST_ARGS}
 
 test-integration:
 	docker-compose -f dev/docker-compose-integration.yml kill
 	docker-compose -f dev/docker-compose-integration.yml build
 	docker-compose -f dev/docker-compose-integration.yml up -d
 	sleep 20
-	poetry run coverage run --source=pyiceberg/ -m pytest tests/ -m integration ${PYTEST_ARGS}
+	poetry run pytest tests/ -m integration ${PYTEST_ARGS}
 
 test-adlfs:
 	sh ./dev/run-azurite.sh
-	poetry run coverage run --source=pyiceberg/ -m pytest tests/ -m adlfs ${PYTEST_ARGS}
+	poetry run pytest tests/ -m adlfs ${PYTEST_ARGS}
+
+test-coverage:
+	sh ./dev/run-minio.sh
+	sh ./dev/run-azurite.sh
+	poetry run coverage run --source=pyiceberg/ -m pytest tests/ -m "not integration" ${PYTEST_ARGS}
+	poetry run coverage report -m --fail-under=90
+	poetry run coverage html
+	poetry run coverage xml

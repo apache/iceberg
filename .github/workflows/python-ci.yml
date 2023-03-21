@@ -59,10 +59,4 @@ jobs:
       run: make lint
     - name: Tests
       working-directory: ./python
-      run: make test
-    - name: Tests S3
-      working-directory: ./python
-      run: make test-s3
-    - name: Tests Adlfs
-      working-directory: ./python
-      run: make test-adlfs
+      run: make test-coverage
