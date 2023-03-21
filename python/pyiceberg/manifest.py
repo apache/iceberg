@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-from enum import StrEnum
+from enum import Enum
 from typing import (
     Any,
     Dict,
@@ -66,7 +66,7 @@ class ManifestEntryStatus(int, Enum):
         return f"ManifestEntryStatus.{self.name}"
 
 
-class FileFormat(StrEnum):
+class FileFormat(str, Enum):
     AVRO = "AVRO"
     PARQUET = "PARQUET"
     ORC = "ORC"
