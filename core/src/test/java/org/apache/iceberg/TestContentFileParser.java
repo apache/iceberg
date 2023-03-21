@@ -45,11 +45,11 @@ public class TestContentFileParser {
 
     Assertions.assertThatThrownBy(
             () -> ContentFileParser.toJson(null, TableTestBase.SPEC, jsonStringGenerator))
-        .isInstanceOf(NullPointerException.class)
+        .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Content file cannot be null");
 
     Assertions.assertThatThrownBy(() -> ContentFileParser.fromJson(null, TableTestBase.SPEC))
-        .isInstanceOf(NullPointerException.class)
+        .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse content file from null JSON node");
   }
 

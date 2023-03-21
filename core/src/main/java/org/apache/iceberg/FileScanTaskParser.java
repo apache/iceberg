@@ -41,7 +41,7 @@ public class FileScanTaskParser {
   private FileScanTaskParser() {}
 
   public static String toJson(FileScanTask fileScanTask) {
-    Preconditions.checkNotNull(fileScanTask, "File scan task cannot be null");
+    Preconditions.checkArgument(fileScanTask != null, "File scan task cannot be null");
     try (StringWriter writer = new StringWriter()) {
       JsonGenerator generator = JsonUtil.factory().createGenerator(writer);
       toJson(fileScanTask, generator);
@@ -85,7 +85,7 @@ public class FileScanTaskParser {
   }
 
   public static FileScanTask fromJson(String json, boolean caseSensitive) {
-    Preconditions.checkNotNull(json, "Cannot parse file scan task from null JSON string");
+    Preconditions.checkArgument(json != null, "Cannot parse file scan task from null JSON string");
     try {
       JsonNode jsonNode = JsonUtil.mapper().readValue(json, JsonNode.class);
       return fromJsonNode(jsonNode, caseSensitive);

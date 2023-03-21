@@ -54,7 +54,9 @@ class ContentFileParser {
 
   static void toJson(ContentFile<?> contentFile, PartitionSpec spec, JsonGenerator generator)
       throws IOException {
-    Preconditions.checkNotNull(contentFile, "Content file cannot be null");
+    Preconditions.checkArgument(contentFile != null, "Content file cannot be null");
+    Preconditions.checkArgument(spec != null, "Partition spec cannot be null");
+    Preconditions.checkArgument(generator != null, "JSON generator cannot be null");
 
     generator.writeStartObject();
 
@@ -142,7 +144,7 @@ class ContentFileParser {
   }
 
   static ContentFile<?> fromJson(JsonNode jsonNode, PartitionSpec spec) {
-    Preconditions.checkNotNull(jsonNode, "Cannot parse content file from null JSON node");
+    Preconditions.checkArgument(jsonNode != null, "Cannot parse content file from null JSON node");
     Preconditions.checkArgument(
         jsonNode.isObject(), "Cannot parse content file from a non-object: %s", jsonNode);
 

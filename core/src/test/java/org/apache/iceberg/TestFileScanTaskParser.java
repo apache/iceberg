@@ -33,11 +33,11 @@ public class TestFileScanTaskParser {
   @Test
   public void testNullArguments() {
     Assertions.assertThatThrownBy(() -> FileScanTaskParser.toJson(null))
-        .isInstanceOf(NullPointerException.class)
+        .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("File scan task cannot be null");
 
     Assertions.assertThatThrownBy(() -> FileScanTaskParser.fromJson(null, true))
-        .isInstanceOf(NullPointerException.class)
+        .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse file scan task from null JSON string");
   }
 
