@@ -531,7 +531,7 @@ public class TestHiveIcebergStorageHandlerNoScan {
                           + "')"))
           .isInstanceOf(IllegalArgumentException.class)
           .hasMessageStartingWith("Failed to execute Hive query")
-          .hasMessageContaining("Table customers already exists");
+          .hasMessageContaining("customers already exists");
     } else {
       // With other catalogs, table creation should succeed
       shell.executeStatement(
