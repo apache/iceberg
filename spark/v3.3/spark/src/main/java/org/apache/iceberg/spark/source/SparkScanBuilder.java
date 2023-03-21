@@ -448,8 +448,7 @@ public class SparkScanBuilder
 
     scan = configureSplitPlanning(scan);
 
-    return new SparkBatchQueryScan(
-        spark, table, scan, readConf, expectedSchema, filterExpressions, reporter);
+    return new SparkBatchQueryScan(spark, table, scan, readConf, expectedSchema, filterExpressions);
   }
 
   private Scan buildIncrementalAppendScan(long startSnapshotId, Long endSnapshotId) {

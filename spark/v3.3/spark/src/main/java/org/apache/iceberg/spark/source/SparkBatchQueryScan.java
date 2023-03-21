@@ -44,7 +44,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkFilters;
-import org.apache.iceberg.spark.SparkMetricsReporter;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.util.SnapshotUtil;
@@ -68,8 +67,6 @@ class SparkBatchQueryScan extends SparkPartitioningAwareScan<PartitionScanTask>
   private final String tag;
   private final List<Expression> runtimeFilterExpressions;
 
-  private SparkMetricsReporter sparkMetricsReporter;
-
   SparkBatchQueryScan(
       SparkSession spark,
       Table table,
@@ -86,18 +83,6 @@ class SparkBatchQueryScan extends SparkPartitioningAwareScan<PartitionScanTask>
     this.asOfTimestamp = readConf.asOfTimestamp();
     this.tag = readConf.tag();
     this.runtimeFilterExpressions = Lists.newArrayList();
-  }
-
-  SparkBatchQueryScan(
-      SparkSession spark,
-      Table table,
-      Scan<?, ? extends ScanTask, ? extends ScanTaskGroup<?>> scan,
-      SparkReadConf readConf,
-      Schema expectedSchema,
-      List<Expression> filters,
-      SparkMetricsReporter sparkMetricsReporter) {
-    this(spark, table, scan, readConf, expectedSchema, filters);
-    this.sparkMetricsReporter = sparkMetricsReporter;
   }
 
   Long snapshotId() {

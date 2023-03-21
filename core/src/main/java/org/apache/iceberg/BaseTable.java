@@ -70,12 +70,13 @@ public class BaseTable implements Table, HasTableOperations, Serializable {
 
   @Override
   public TableScan newScan() {
-    return new DataTableScan(this, schema(), new TableScanContext());
+    return new DataTableScan(this, schema(), new TableScanContext().reportWith(reporter));
   }
 
   @Override
   public IncrementalAppendScan newIncrementalAppendScan() {
-    return new BaseIncrementalAppendScan(this, schema(), new TableScanContext());
+    return new BaseIncrementalAppendScan(
+        this, schema(), new TableScanContext().reportWith(reporter));
   }
 
   @Override
