@@ -488,16 +488,6 @@ def expression_to_pyarrow(expr: BooleanExpression) -> pc.Expression:
     return boolean_expression_visit(expr, _ConvertToArrowExpression())
 
 
-@lru_cache
-def _get_file_format(file_format: FileFormat, **kwargs: Dict[str, Any]) -> ds.FileFormat:
-    if file_format == FileFormat.PARQUET.value:
-        return ds.ParquetFileFormat(**kwargs)
-    elif file_format == FileFormat.ORC.value:
-        return ds.OrcFileFormat()
-    else:
-        raise ValueError(f"Unsupported file format: {file_format}")
-
-
 def _file_to_table(
     fs: FileSystem,
     task: FileScanTask,
@@ -512,7 +502,7 @@ def _file_to_table(
         return None
 
     _, path = PyArrowFileIO.parse_location(task.file.file_path)
-    arrow_format = _get_file_format(task.file.file_format, **{"pre_buffer": True, "buffer_size": ONE_MEGABYTE * 8})
+    arrow_format = ds.ParquetFileFormat(pre_buffer=True, buffer_size=(ONE_MEGABYTE * 8))
     with fs.open_input_file(path) as fin:
         fragment = arrow_format.make_fragment(fin)
         physical_schema = fragment.physical_schema
