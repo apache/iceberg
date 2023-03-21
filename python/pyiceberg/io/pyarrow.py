@@ -24,9 +24,11 @@ with the pyarrow library.
 """
 from __future__ import annotations
 
+import multiprocessing
 import os
 from functools import lru_cache
 from multiprocessing.pool import ThreadPool
+from multiprocessing.sharedctypes import Synchronized
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -503,7 +505,12 @@ def _file_to_table(
     projected_schema: Schema,
     projected_field_ids: Set[int],
     case_sensitive: bool,
+    rows_counter: Synchronized[int],
+    limit: Optional[int] = None,
 ) -> Optional[pa.Table]:
+    if limit and rows_counter.value >= limit:
+        return None
+
     _, path = PyArrowFileIO.parse_location(task.file.file_path)
     arrow_format = _get_file_format(task.file.file_format, **{"pre_buffer": True, "buffer_size": ONE_MEGABYTE * 8})
     with fs.open_input_file(path) as fin:
@@ -529,12 +536,21 @@ def _file_to_table(
         if file_schema is None:
             raise ValueError(f"Missing Iceberg schema in Metadata for file: {path}")
 
-        arrow_table = ds.Scanner.from_fragment(
+        fragment_scanner = ds.Scanner.from_fragment(
             fragment=fragment,
             schema=physical_schema,
             filter=pyarrow_filter,
             columns=[col.name for col in file_project_schema.columns],
-        ).to_table()
+        )
+
+        if limit:
+            arrow_table = fragment_scanner.head(limit)
+            with rows_counter.get_lock():
+                if rows_counter.value >= limit:
+                    return None
+                rows_counter.value += len(arrow_table)
+        else:
+            arrow_table = fragment_scanner.to_table()
 
         # If there is no data, we don't have to go through the schema
         if len(arrow_table) > 0:
@@ -544,7 +560,12 @@ def _file_to_table(
 
 
 def project_table(
-    tasks: Iterable[FileScanTask], table: Table, row_filter: BooleanExpression, projected_schema: Schema, case_sensitive: bool
+    tasks: Iterable[FileScanTask],
+    table: Table,
+    row_filter: BooleanExpression,
+    projected_schema: Schema,
+    case_sensitive: bool,
+    limit: Optional[int] = None,
 ) -> pa.Table:
     """Resolves the right columns based on the identifier
 
@@ -580,23 +601,30 @@ def project_table(
         id for id in projected_schema.field_ids if not isinstance(projected_schema.find_type(id), (MapType, ListType))
     }.union(extract_field_ids(bound_row_filter))
 
+    rows_counter = multiprocessing.Value("i", 0)
+
     with ThreadPool() as pool:
         tables = [
             table
             for table in pool.starmap(
                 func=_file_to_table,
-                iterable=[(fs, task, bound_row_filter, projected_schema, projected_field_ids, case_sensitive) for task in tasks],
+                iterable=[
+                    (fs, task, bound_row_filter, projected_schema, projected_field_ids, case_sensitive, rows_counter, limit)
+                    for task in tasks
+                ],
                 chunksize=None,  # we could use this to control how to materialize the generator of tasks (we should also make the expression above lazy)
             )
             if table is not None
         ]
 
     if len(tables) > 1:
-        return pa.concat_tables(tables)
+        final_table = pa.concat_tables(tables)
     elif len(tables) == 1:
-        return tables[0]
+        final_table = tables[0]
     else:
-        return pa.Table.from_batches([], schema=schema_to_pyarrow(projected_schema))
+        final_table = pa.Table.from_batches([], schema=schema_to_pyarrow(projected_schema))
+
+    return final_table.slice(0, limit)
 
 
 def to_requested_schema(requested_schema: Schema, file_schema: Schema, table: pa.Table) -> pa.Table:
