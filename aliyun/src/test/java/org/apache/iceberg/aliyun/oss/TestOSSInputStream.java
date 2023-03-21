@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.aliyun.oss;
 
-import static org.apache.iceberg.AssertHelpers.assertThrows;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 
@@ -29,6 +28,7 @@ import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
 import org.apache.iceberg.io.SeekableInputStream;
 import org.apache.iceberg.relocated.com.google.common.io.ByteStreams;
+import org.assertj.core.api.Assertions;
 import org.junit.Test;
 
 public class TestOSSInputStream extends AliyunOSSTestBase {
@@ -99,14 +99,9 @@ public class TestOSSInputStream extends AliyunOSSTestBase {
     OSSURI uri = new OSSURI(location("closed.dat"));
     SeekableInputStream closed = new OSSInputStream(ossClient().get(), uri);
     closed.close();
-    assertThrows(
-        "Cannot seek the input stream after closed.",
-        IllegalStateException.class,
-        "Cannot seek: already closed",
-        () -> {
-          closed.seek(0);
-          return null;
-        });
+    Assertions.assertThatThrownBy(() -> closed.seek(0))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("Cannot seek: already closed");
   }
 
   @Test

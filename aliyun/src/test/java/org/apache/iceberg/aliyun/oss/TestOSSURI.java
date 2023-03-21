@@ -20,9 +20,9 @@ package org.apache.iceberg.aliyun.oss;
 
 import static com.aliyun.oss.internal.OSSUtils.OSS_RESOURCE_MANAGER;
 
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -49,47 +49,43 @@ public class TestOSSURI {
 
   @Test
   public void invalidBucket() {
-    AssertHelpers.assertThrows(
-        "Invalid bucket",
-        IllegalArgumentException.class,
-        OSS_RESOURCE_MANAGER.getFormattedString("BucketNameInvalid", "test_bucket"),
-        () -> new OSSURI("https://test_bucket/path/to/file"));
+
+    Assertions.assertThatThrownBy(() -> new OSSURI("https://test_bucket/path/to/file"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining(
+            OSS_RESOURCE_MANAGER.getFormattedString("BucketNameInvalid", "test_bucket"));
   }
 
   @Test
   public void missingKey() {
-    AssertHelpers.assertThrows(
-        "Missing key",
-        ValidationException.class,
-        "Missing key in OSS location",
-        () -> new OSSURI("https://bucket/"));
+
+    Assertions.assertThatThrownBy(() -> new OSSURI("https://bucket/"))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("Missing key in OSS location");
   }
 
   @Test
   public void invalidKey() {
-    AssertHelpers.assertThrows(
-        "Invalid key",
-        IllegalArgumentException.class,
-        OSS_RESOURCE_MANAGER.getFormattedString("ObjectKeyInvalid", "\\path/to/file"),
-        () -> new OSSURI("https://bucket/\\path/to/file"));
+    Assertions.assertThatThrownBy(() -> new OSSURI("https://bucket/\\path/to/file"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining(
+            OSS_RESOURCE_MANAGER.getFormattedString("ObjectKeyInvalid", "\\path/to/file"));
   }
 
   @Test
   public void relativePathing() {
-    AssertHelpers.assertThrows(
-        "Cannot use relative oss location.",
-        ValidationException.class,
-        "Invalid OSS location",
-        () -> new OSSURI("/path/to/file"));
+
+    Assertions.assertThatThrownBy(() -> new OSSURI("/path/to/file"))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("Invalid OSS location");
   }
 
   @Test
   public void invalidScheme() {
-    AssertHelpers.assertThrows(
-        "Only support scheme: oss/https",
-        ValidationException.class,
-        "Invalid scheme",
-        () -> new OSSURI("invalid://bucket/"));
+
+    Assertions.assertThatThrownBy(() -> new OSSURI("invalid://bucket/"))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("Invalid scheme");
   }
 
   @Test

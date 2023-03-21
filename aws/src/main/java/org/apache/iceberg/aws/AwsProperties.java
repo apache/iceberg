@@ -372,7 +372,7 @@ public class AwsProperties implements Serializable {
    */
   public static final String HTTP_CLIENT_TYPE_APACHE = "apache";
 
-  public static final String HTTP_CLIENT_TYPE_DEFAULT = HTTP_CLIENT_TYPE_URLCONNECTION;
+  public static final String HTTP_CLIENT_TYPE_DEFAULT = HTTP_CLIENT_TYPE_APACHE;
 
   /**
    * Used to configure the connection timeout in milliseconds for {@link
