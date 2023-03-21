@@ -37,22 +37,20 @@ RUN mkdir -p ${HADOOP_HOME} && mkdir -p ${SPARK_HOME} && mkdir -p /home/iceberg/
 WORKDIR ${SPARK_HOME}
 
 ENV SPARK_VERSION=3.3.2
+ENV ICEBERG_VERSION=1.2.0
+ENV AWS_SDK_VERSION=2.20.18
 
 RUN curl -s https://dlcdn.apache.org/spark/spark-${SPARK_VERSION}/spark-${SPARK_VERSION}-bin-hadoop3.tgz -o spark-${SPARK_VERSION}-bin-hadoop3.tgz \
  && tar xzf spark-${SPARK_VERSION}-bin-hadoop3.tgz --directory /opt/spark --strip-components 1 \
  && rm -rf spark-${SPARK_VERSION}-bin-hadoop3.tgz
 
 # Download iceberg spark runtime
-RUN curl -s https://repo1.maven.org/maven2/org/apache/iceberg/iceberg-spark-runtime-3.3_2.12/1.1.0/iceberg-spark-runtime-3.3_2.12-1.1.0.jar -Lo iceberg-spark-runtime-3.3_2.12-1.1.0.jar \
- && mv iceberg-spark-runtime-3.3_2.12-1.1.0.jar /opt/spark/jars
+RUN curl -s https://repo1.maven.org/maven2/org/apache/iceberg/iceberg-spark-runtime-3.3_2.12/${ICEBERG_VERSION}/iceberg-spark-runtime-3.3_2.12-${ICEBERG_VERSION}.jar -Lo iceberg-spark-runtime-3.3_2.12-${ICEBERG_VERSION}.jar \
+ && mv iceberg-spark-runtime-3.3_2.12-${ICEBERG_VERSION}.jar /opt/spark/jars
 
 # Download Java AWS SDK
-RUN curl -s https://repo1.maven.org/maven2/software/amazon/awssdk/bundle/2.17.165/bundle-2.17.165.jar -Lo bundle-2.17.165.jar \
- && mv bundle-2.17.165.jar /opt/spark/jars
-
-# Download URL connection client required for S3FileIO
-RUN curl -s https://repo1.maven.org/maven2/software/amazon/awssdk/url-connection-client/2.17.165/url-connection-client-2.17.165.jar -Lo url-connection-client-2.17.165.jar \
- && mv url-connection-client-2.17.165.jar /opt/spark/jars
+RUN curl -s https://repo1.maven.org/maven2/software/amazon/awssdk/bundle/${AWS_SDK_VERSION}/bundle-${AWS_SDK_VERSION}.jar -Lo bundle-${AWS_SDK_VERSION}.jar \
+ && mv bundle-${AWS_SDK_VERSION}.jar /opt/spark/jars
 
 COPY spark-defaults.conf /opt/spark/conf
 ENV PATH="/opt/spark/sbin:/opt/spark/bin:${PATH}"

@@ -101,6 +101,6 @@ This will include a Minio S3 container being spun up.
 
 Votes are cast by replying to the release candidate announcement email on the dev mailing list with either `+1`, `0`, or `-1`.
 
-> \[ \] +1 Release this as Apache Iceberg 1.1.0 \[ \] +0 \[ \] -1 Do not release this because…
+> \[ \] +1 Release this as Apache Iceberg 1.2.0 \[ \] +0 \[ \] -1 Do not release this because…
 
 In addition to your vote, it’s customary to specify if your vote is binding or non-binding. Only members of the Project Management Committee have formally binding votes. If you’re unsure, you can specify that your vote is non-binding. To read more about voting in the Apache framework, checkout the [Voting](https://www.apache.org/foundation/voting.html) information page on the Apache foundation’s website.
