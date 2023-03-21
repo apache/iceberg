@@ -177,6 +177,12 @@ class DataFile(Record):
     sort_order_id: Optional[int]
     spec_id: Optional[int]
 
+    def __setattr__(self, name: str, value: Any) -> None:
+        # The file_format is written as a string, so we need to cast it to the Enum
+        if name == "file_format":
+            value = FileFormat[value]
+        super().__setattr__(name, value)
+
     def __init__(self, *data: Any, **named_data: Any) -> None:
         super().__init__(*data, **{"struct": DATA_FILE_TYPE, **named_data})
 
