@@ -272,5 +272,5 @@ Please refer to the [usage guide](https://github.com/awaitility/awaitility/wiki/
 
 ### JUnit4 / JUnit5
 
-Iceberg currently uses a mix of JUnit4 and JUnit5 tests. To allow an easier migration to JUnit5 in the future, new test classes
+Iceberg currently uses a mix of JUnit4 (`org.junit` imports) and JUnit5 (`org.junit.jupiter.api` imports) tests. To allow an easier migration to JUnit5 in the future, new test classes
 that are being added to the codebase should be written purely in JUnit5 where possible.
