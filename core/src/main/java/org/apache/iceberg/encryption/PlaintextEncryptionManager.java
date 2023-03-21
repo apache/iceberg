@@ -25,6 +25,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class PlaintextEncryptionManager implements EncryptionManager {
+  public static final EncryptionManager INSTANCE = new PlaintextEncryptionManager();
+
   private static final Logger LOG = LoggerFactory.getLogger(PlaintextEncryptionManager.class);
 
   @Override
