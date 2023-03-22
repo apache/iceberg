@@ -22,6 +22,11 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.function.Function;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.exceptions.RuntimeIOException;
@@ -32,6 +37,9 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.mapping.NameMapping;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
+import org.apache.iceberg.relocated.com.google.common.util.concurrent.ThreadFactoryBuilder;
 import org.apache.parquet.ParquetReadOptions;
 import org.apache.parquet.column.page.PageReadStore;
 import org.apache.parquet.hadoop.ParquetFileReader;
@@ -109,11 +117,24 @@ public class VectorizedParquetReader<T> extends CloseableGroup implements Closea
     private final int batchSize;
     private final List<Map<ColumnPath, ColumnChunkMetaData>> columnChunkMetadata;
     private final boolean reuseContainers;
-    private int nextRowGroup = 0;
+    private final int nextRowGroup = 0;
     private long nextRowGroupStart = 0;
     private long valuesRead = 0;
     private T last = null;
     private final long[] rowGroupsStartRowPos;
+    private final int totalRowGroups;
+
+    // state effected when next row group is read is
+    // model, nextRowGroup, nextRowGroupStart
+    private static final ExecutorService prefetchService =
+        MoreExecutors.getExitingExecutorService(
+            (ThreadPoolExecutor)
+                Executors.newFixedThreadPool(
+                    4,
+                    new ThreadFactoryBuilder()
+                        .setDaemon(true)
+                        .setNameFormat("iceberg-parquet-row-group-prefetchNext-pool-%d")
+                        .build()));
 
     FileIterator(ReadConf conf) {
       this.reader = conf.reader();
@@ -125,7 +146,14 @@ public class VectorizedParquetReader<T> extends CloseableGroup implements Closea
       this.model.setBatchSize(this.batchSize);
       this.columnChunkMetadata = conf.columnChunkMetadataForRowGroups();
       this.rowGroupsStartRowPos = conf.startRowPositions();
+      this.totalRowGroups = shouldSkip.length;
+      prefetchNextRowGroup();
+      advance();
     }
+
+    // State associated with prefetching row groups
+    private int prefetchedRowGroup = 0;
+    private Future<PageReadStore> prefetchRowGroupFuture;
 
     @Override
     public boolean hasNext() {
@@ -154,21 +182,47 @@ public class VectorizedParquetReader<T> extends CloseableGroup implements Closea
     }
 
     private void advance() {
-      while (shouldSkip[nextRowGroup]) {
-        nextRowGroup += 1;
-        reader.skipNextRowGroup();
-      }
-      PageReadStore pages;
       try {
-        pages = reader.readNextRowGroup();
-      } catch (IOException e) {
-        throw new RuntimeIOException(e);
+        Preconditions.checkNotNull(prefetchRowGroupFuture, "future should not be null");
+        PageReadStore pages = prefetchRowGroupFuture.get();
+        // no row groups pre-fetched
+        if (prefetchedRowGroup >= totalRowGroups) {
+          return;
+        }
+        Preconditions.checkState(
+            pages != null,
+            "advance() should have been only when there was at least one row group to read");
+        long rowPosition = rowGroupsStartRowPos[prefetchedRowGroup];
+        model.setRowGroupInfo(pages, columnChunkMetadata.get(prefetchedRowGroup), rowPosition);
+        nextRowGroupStart += pages.getRowCount();
+        prefetchedRowGroup += 1;
+        prefetchNextRowGroup(); // eagerly fetch the next row group
+      } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+        throw new RuntimeException(e);
+      } catch (ExecutionException e) {
+        throw new RuntimeException(e);
       }
+    }
 
-      long rowPosition = rowGroupsStartRowPos[nextRowGroup];
-      model.setRowGroupInfo(pages, columnChunkMetadata.get(nextRowGroup), rowPosition);
-      nextRowGroupStart += pages.getRowCount();
-      nextRowGroup += 1;
+    private void prefetchNextRowGroup() {
+      prefetchRowGroupFuture =
+          prefetchService.submit(
+              () -> {
+                while (prefetchedRowGroup < totalRowGroups && shouldSkip[prefetchedRowGroup]) {
+                  prefetchedRowGroup += 1;
+                  reader.skipNextRowGroup();
+                }
+                try {
+                  if (prefetchedRowGroup < totalRowGroups) {
+                    PageReadStore pageReadStore = reader.readNextRowGroup();
+                    return pageReadStore;
+                  }
+                  return null;
+                } catch (IOException e) {
+                  throw new RuntimeIOException(e);
+                }
+              });
     }
 
     @Override
