@@ -27,6 +27,7 @@ import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.metrics.LoggingMetricsReporter;
 import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.ThreadPools;
@@ -355,12 +356,14 @@ final class TableScanContext {
         metricsReporters);
   }
 
-  Collection<MetricsReporter> metricsReporter() {
+  Collection<MetricsReporter> metricsReporters() {
     return metricsReporters;
   }
 
   TableScanContext reportWith(MetricsReporter reporter) {
-    metricsReporter().add(reporter);
+    ImmutableList.Builder<MetricsReporter> builder = ImmutableList.builder();
+    builder.addAll(metricsReporters);
+    builder.add(reporter);
     return new TableScanContext(
         snapshotId,
         rowFilter,
@@ -374,24 +377,6 @@ final class TableScanContext {
         toSnapshotId,
         planExecutor,
         fromSnapshotInclusive,
-        metricsReporter());
-  }
-
-  TableScanContext reportWith(Collection<MetricsReporter> reporters) {
-    metricsReporter().addAll(reporters);
-    return new TableScanContext(
-        snapshotId,
-        rowFilter,
-        ignoreResiduals,
-        caseSensitive,
-        colStats,
-        projectedSchema,
-        selectedColumns,
-        options,
-        fromSnapshotId,
-        toSnapshotId,
-        planExecutor,
-        fromSnapshotInclusive,
-        metricsReporter());
+        builder.build());
   }
 }

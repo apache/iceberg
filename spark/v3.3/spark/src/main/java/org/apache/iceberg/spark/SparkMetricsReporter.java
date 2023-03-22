@@ -31,7 +31,7 @@ public class SparkMetricsReporter implements MetricsReporter {
     this.metricsReport = report;
   }
 
-  MetricsReport getMetricsReport() {
+  MetricsReport metricsReport() {
     return metricsReport;
   }
 }

@@ -428,7 +428,7 @@ public class SparkScanBuilder
             .caseSensitive(caseSensitive)
             .filter(filterExpression())
             .project(expectedSchema)
-            .withMetricsReporter(Lists.newArrayList(reporter));
+            .metricsReporter(reporter);
 
     if (snapshotId != null) {
       scan = scan.useSnapshot(snapshotId);

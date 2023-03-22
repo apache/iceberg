@@ -143,7 +143,7 @@ class BatchScanAdapter implements BatchScan {
   }
 
   @Override
-  public BatchScan withMetricsReporter(Collection<MetricsReporter> reporter) {
-    return new BatchScanAdapter(scan.withMetricsReporter(reporter));
+  public BatchScan metricsReporter(MetricsReporter reporter) {
+    return new BatchScanAdapter(scan.metricsReporter(reporter));
   }
 }
