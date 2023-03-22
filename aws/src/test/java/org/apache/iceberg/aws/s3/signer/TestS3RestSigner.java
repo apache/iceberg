@@ -176,11 +176,19 @@ public class TestS3RestSigner {
 
   @Test
   public void validatedUploadPart() {
+    String multipartUploadId =
+        s3.createMultipartUpload(
+                CreateMultipartUploadRequest.builder()
+                    .bucket(BUCKET)
+                    .key("some/multipart-key")
+                    .build())
+            .uploadId();
     s3.uploadPart(
         UploadPartRequest.builder()
             .bucket(BUCKET)
             .key("some/multipart-key")
-            .uploadId("1234")
+            .uploadId(multipartUploadId)
+            .partNumber(1)
             .build(),
         RequestBody.fromString("content"));
   }

@@ -66,10 +66,52 @@ acceptedBreaks:
       old: "method void org.apache.iceberg.io.DataWriter<T>::add(T)"
       justification: "Removing deprecated method"
   "1.1.0":
+    org.apache.iceberg:iceberg-api:
+    - code: "java.field.constantValueChanged"
+      old: "field org.apache.iceberg.actions.RewriteDataFiles.MAX_CONCURRENT_FILE_GROUP_REWRITES_DEFAULT"
+      new: "field org.apache.iceberg.actions.RewriteDataFiles.MAX_CONCURRENT_FILE_GROUP_REWRITES_DEFAULT"
+      justification: "In most casse,users need more parallelism and is a default recommendation\
+        \ with respect to slowness of file rewrites "
     org.apache.iceberg:iceberg-core:
+    - code: "java.class.noLongerImplementsInterface"
+      old: "class org.apache.iceberg.jdbc.JdbcCatalog"
+      new: "class org.apache.iceberg.jdbc.JdbcCatalog"
+      justification: "Generally safe due to type erasure"
+    - code: "java.class.noLongerImplementsInterface"
+      old: "class org.apache.iceberg.rest.RESTCatalog"
+      new: "class org.apache.iceberg.rest.RESTCatalog"
+      justification: "Generally safe due to type erasure"
+    - code: "java.class.noLongerImplementsInterface"
+      old: "class org.apache.iceberg.rest.RESTSessionCatalog"
+      new: "class org.apache.iceberg.rest.RESTSessionCatalog"
+      justification: "Generally safe due to type erasure"
+    - code: "java.class.nowImplementsInterface"
+      old: "class org.apache.iceberg.jdbc.JdbcCatalog"
+      new: "class org.apache.iceberg.jdbc.JdbcCatalog"
+      justification: "Generally safe due to type erasure"
+    - code: "java.class.nowImplementsInterface"
+      old: "class org.apache.iceberg.rest.RESTCatalog"
+      new: "class org.apache.iceberg.rest.RESTCatalog"
+      justification: "Generally safe due to type erasure"
+    - code: "java.class.nowImplementsInterface"
+      old: "class org.apache.iceberg.rest.RESTSessionCatalog"
+      new: "class org.apache.iceberg.rest.RESTSessionCatalog"
+      justification: "Generally safe due to type erasure"
     - code: "java.class.removed"
       old: "class org.apache.iceberg.rest.HTTPClientFactory"
       justification: "Removing deprecations for 1.2.0"
+    - code: "java.class.superTypeTypeParametersChanged"
+      old: "class org.apache.iceberg.jdbc.JdbcCatalog"
+      new: "class org.apache.iceberg.jdbc.JdbcCatalog"
+      justification: "Generally safe due to type erasure"
+    - code: "java.class.superTypeTypeParametersChanged"
+      old: "class org.apache.iceberg.rest.RESTCatalog"
+      new: "class org.apache.iceberg.rest.RESTCatalog"
+      justification: "Generally safe due to type erasure"
+    - code: "java.class.superTypeTypeParametersChanged"
+      old: "class org.apache.iceberg.rest.RESTSessionCatalog"
+      new: "class org.apache.iceberg.rest.RESTSessionCatalog"
+      justification: "Generally safe due to type erasure"
     - code: "java.method.exception.checkedAdded"
       old: "method T com.fasterxml.jackson.databind.JsonDeserializer<T>::deserialize(com.fasterxml.jackson.core.JsonParser,\
         \ com.fasterxml.jackson.databind.DeserializationContext, T) throws java.io.IOException\
@@ -350,10 +392,6 @@ acceptedBreaks:
         \ @ org.apache.iceberg.StreamingDelete"
       justification: "Removing deprecations for 1.2.0"
     - code: "java.method.returnTypeChangedCovariantly"
-      old: "method org.apache.iceberg.Table org.apache.iceberg.BaseMetadataTable::table()"
-      new: "method org.apache.iceberg.BaseTable org.apache.iceberg.BaseMetadataTable::table()"
-      justification: "Returning more specific subclass"
-    - code: "java.method.returnTypeChangedCovariantly"
       old: "method ThisT org.apache.iceberg.SnapshotUpdate<ThisT>::toBranch(java.lang.String)\
         \ @ org.apache.iceberg.BaseOverwriteFiles"
       new: "method org.apache.iceberg.BaseOverwriteFiles org.apache.iceberg.BaseOverwriteFiles::toBranch(java.lang.String)"
@@ -363,11 +401,150 @@ acceptedBreaks:
         \ @ org.apache.iceberg.BaseReplacePartitions"
       new: "method org.apache.iceberg.BaseReplacePartitions org.apache.iceberg.BaseReplacePartitions::toBranch(java.lang.String)"
       justification: "Introducing branch snapshot operations for BaseReplacePartitions"
+    - code: "java.method.returnTypeChangedCovariantly"
+      old: "method org.apache.iceberg.Table org.apache.iceberg.BaseMetadataTable::table()"
+      new: "method org.apache.iceberg.BaseTable org.apache.iceberg.BaseMetadataTable::table()"
+      justification: "Returning more specific subclass"
     org.apache.iceberg:iceberg-orc:
     - code: "java.method.removed"
       old: "method org.apache.iceberg.orc.ORC.WriteBuilder org.apache.iceberg.orc.ORC.WriteBuilder::config(java.lang.String,\
         \ java.lang.String)"
       justification: "Removing deprecations for 1.2.0"
+  "1.2.0":
+    org.apache.iceberg:iceberg-api:
+    - code: "java.method.addedToInterface"
+      new: "method java.lang.String org.apache.iceberg.view.ViewVersion::operation()"
+      justification: "Add operation API to view version"
+    org.apache.iceberg:iceberg-core:
+    - code: "java.method.removed"
+      old: "method org.apache.iceberg.DeleteFileIndex org.apache.iceberg.MergingSnapshotProducer<ThisT>::addedDeleteFiles(org.apache.iceberg.TableMetadata,\
+        \ java.lang.Long, org.apache.iceberg.expressions.Expression, org.apache.iceberg.util.PartitionSet)\
+        \ @ org.apache.iceberg.BaseOverwriteFiles"
+      justification: "Removing deprecations for 1.3.0"
+    - code: "java.method.removed"
+      old: "method org.apache.iceberg.DeleteFileIndex org.apache.iceberg.MergingSnapshotProducer<ThisT>::addedDeleteFiles(org.apache.iceberg.TableMetadata,\
+        \ java.lang.Long, org.apache.iceberg.expressions.Expression, org.apache.iceberg.util.PartitionSet)\
+        \ @ org.apache.iceberg.BaseReplacePartitions"
+      justification: "Removing deprecations for 1.3.0"
+    - code: "java.method.removed"
+      old: "method org.apache.iceberg.DeleteFileIndex org.apache.iceberg.MergingSnapshotProducer<ThisT>::addedDeleteFiles(org.apache.iceberg.TableMetadata,\
+        \ java.lang.Long, org.apache.iceberg.expressions.Expression, org.apache.iceberg.util.PartitionSet)\
+        \ @ org.apache.iceberg.StreamingDelete"
+      justification: "Removing deprecations for 1.3.0"
+    - code: "java.method.removed"
+      old: "method void org.apache.iceberg.MergingSnapshotProducer<ThisT>::validateAddedDataFiles(org.apache.iceberg.TableMetadata,\
+        \ java.lang.Long, org.apache.iceberg.expressions.Expression) @ org.apache.iceberg.BaseOverwriteFiles"
+      justification: "Removing deprecations for 1.3.0"
+    - code: "java.method.removed"
+      old: "method void org.apache.iceberg.MergingSnapshotProducer<ThisT>::validateAddedDataFiles(org.apache.iceberg.TableMetadata,\
+        \ java.lang.Long, org.apache.iceberg.expressions.Expression) @ org.apache.iceberg.BaseReplacePartitions"
+      justification: "Removing deprecations for 1.3.0"
+    - code: "java.method.removed"
+      old: "method void org.apache.iceberg.MergingSnapshotProducer<ThisT>::validateAddedDataFiles(org.apache.iceberg.TableMetadata,\
+        \ java.lang.Long, org.apache.iceberg.expressions.Expression) @ org.apache.iceberg.StreamingDelete"
+      justification: "Removing deprecations for 1.3.0"
+    - code: "java.method.removed"
+      old: "method void org.apache.iceberg.MergingSnapshotProducer<ThisT>::validateAddedDataFiles(org.apache.iceberg.TableMetadata,\
+        \ java.lang.Long, org.apache.iceberg.util.PartitionSet) @ org.apache.iceberg.BaseOverwriteFiles"
+      justification: "Removing deprecations for 1.3.0"
+    - code: "java.method.removed"
+      old: "method void org.apache.iceberg.MergingSnapshotProducer<ThisT>::validateAddedDataFiles(org.apache.iceberg.TableMetadata,\
+        \ java.lang.Long, org.apache.iceberg.util.PartitionSet) @ org.apache.iceberg.BaseReplacePartitions"
+      justification: "Removing deprecations for 1.3.0"
+    - code: "java.method.removed"
+      old: "method void org.apache.iceberg.MergingSnapshotProducer<ThisT>::validateAddedDataFiles(org.apache.iceberg.TableMetadata,\
+        \ java.lang.Long, org.apache.iceberg.util.PartitionSet) @ org.apache.iceberg.StreamingDelete"
+      justification: "Removing deprecations for 1.3.0"
+    - code: "java.method.removed"
+      old: "method void org.apache.iceberg.MergingSnapshotProducer<ThisT>::validateDataFilesExist(org.apache.iceberg.TableMetadata,\
+        \ java.lang.Long, org.apache.iceberg.util.CharSequenceSet, boolean, org.apache.iceberg.expressions.Expression)\
+        \ @ org.apache.iceberg.BaseOverwriteFiles"
+      justification: "Removing deprecations for 1.3.0"
+    - code: "java.method.removed"
+      old: "method void org.apache.iceberg.MergingSnapshotProducer<ThisT>::validateDataFilesExist(org.apache.iceberg.TableMetadata,\
+        \ java.lang.Long, org.apache.iceberg.util.CharSequenceSet, boolean, org.apache.iceberg.expressions.Expression)\
+        \ @ org.apache.iceberg.BaseReplacePartitions"
+      justification: "Removing deprecations for 1.3.0"
+    - code: "java.method.removed"
+      old: "method void org.apache.iceberg.MergingSnapshotProducer<ThisT>::validateDataFilesExist(org.apache.iceberg.TableMetadata,\
+        \ java.lang.Long, org.apache.iceberg.util.CharSequenceSet, boolean, org.apache.iceberg.expressions.Expression)\
+        \ @ org.apache.iceberg.StreamingDelete"
+      justification: "Removing deprecations for 1.3.0"
+    - code: "java.method.removed"
+      old: "method void org.apache.iceberg.MergingSnapshotProducer<ThisT>::validateDeletedDataFiles(org.apache.iceberg.TableMetadata,\
+        \ java.lang.Long, org.apache.iceberg.expressions.Expression) @ org.apache.iceberg.BaseOverwriteFiles"
+      justification: "Removing deprecations for 1.3.0"
+    - code: "java.method.removed"
+      old: "method void org.apache.iceberg.MergingSnapshotProducer<ThisT>::validateDeletedDataFiles(org.apache.iceberg.TableMetadata,\
+        \ java.lang.Long, org.apache.iceberg.expressions.Expression) @ org.apache.iceberg.BaseReplacePartitions"
+      justification: "Removing deprecations for 1.3.0"
+    - code: "java.method.removed"
+      old: "method void org.apache.iceberg.MergingSnapshotProducer<ThisT>::validateDeletedDataFiles(org.apache.iceberg.TableMetadata,\
+        \ java.lang.Long, org.apache.iceberg.expressions.Expression) @ org.apache.iceberg.StreamingDelete"
+      justification: "Removing deprecations for 1.3.0"
+    - code: "java.method.removed"
+      old: "method void org.apache.iceberg.MergingSnapshotProducer<ThisT>::validateDeletedDataFiles(org.apache.iceberg.TableMetadata,\
+        \ java.lang.Long, org.apache.iceberg.util.PartitionSet) @ org.apache.iceberg.BaseOverwriteFiles"
+      justification: "Removing deprecations for 1.3.0"
+    - code: "java.method.removed"
+      old: "method void org.apache.iceberg.MergingSnapshotProducer<ThisT>::validateDeletedDataFiles(org.apache.iceberg.TableMetadata,\
+        \ java.lang.Long, org.apache.iceberg.util.PartitionSet) @ org.apache.iceberg.BaseReplacePartitions"
+      justification: "Removing deprecations for 1.3.0"
+    - code: "java.method.removed"
+      old: "method void org.apache.iceberg.MergingSnapshotProducer<ThisT>::validateDeletedDataFiles(org.apache.iceberg.TableMetadata,\
+        \ java.lang.Long, org.apache.iceberg.util.PartitionSet) @ org.apache.iceberg.StreamingDelete"
+      justification: "Removing deprecations for 1.3.0"
+    - code: "java.method.removed"
+      old: "method void org.apache.iceberg.MergingSnapshotProducer<ThisT>::validateNoNewDeleteFiles(org.apache.iceberg.TableMetadata,\
+        \ java.lang.Long, org.apache.iceberg.expressions.Expression) @ org.apache.iceberg.BaseOverwriteFiles"
+      justification: "Removing deprecations for 1.3.0"
+    - code: "java.method.removed"
+      old: "method void org.apache.iceberg.MergingSnapshotProducer<ThisT>::validateNoNewDeleteFiles(org.apache.iceberg.TableMetadata,\
+        \ java.lang.Long, org.apache.iceberg.expressions.Expression) @ org.apache.iceberg.BaseReplacePartitions"
+      justification: "Removing deprecations for 1.3.0"
+    - code: "java.method.removed"
+      old: "method void org.apache.iceberg.MergingSnapshotProducer<ThisT>::validateNoNewDeleteFiles(org.apache.iceberg.TableMetadata,\
+        \ java.lang.Long, org.apache.iceberg.expressions.Expression) @ org.apache.iceberg.StreamingDelete"
+      justification: "Removing deprecations for 1.3.0"
+    - code: "java.method.removed"
+      old: "method void org.apache.iceberg.MergingSnapshotProducer<ThisT>::validateNoNewDeleteFiles(org.apache.iceberg.TableMetadata,\
+        \ java.lang.Long, org.apache.iceberg.util.PartitionSet) @ org.apache.iceberg.BaseOverwriteFiles"
+      justification: "Removing deprecations for 1.3.0"
+    - code: "java.method.removed"
+      old: "method void org.apache.iceberg.MergingSnapshotProducer<ThisT>::validateNoNewDeleteFiles(org.apache.iceberg.TableMetadata,\
+        \ java.lang.Long, org.apache.iceberg.util.PartitionSet) @ org.apache.iceberg.BaseReplacePartitions"
+      justification: "Removing deprecations for 1.3.0"
+    - code: "java.method.removed"
+      old: "method void org.apache.iceberg.MergingSnapshotProducer<ThisT>::validateNoNewDeleteFiles(org.apache.iceberg.TableMetadata,\
+        \ java.lang.Long, org.apache.iceberg.util.PartitionSet) @ org.apache.iceberg.StreamingDelete"
+      justification: "Removing deprecations for 1.3.0"
+    - code: "java.method.removed"
+      old: "method void org.apache.iceberg.MergingSnapshotProducer<ThisT>::validateNoNewDeletesForDataFiles(org.apache.iceberg.TableMetadata,\
+        \ java.lang.Long, java.lang.Iterable<org.apache.iceberg.DataFile>) @ org.apache.iceberg.BaseOverwriteFiles"
+      justification: "Removing deprecations for 1.3.0"
+    - code: "java.method.removed"
+      old: "method void org.apache.iceberg.MergingSnapshotProducer<ThisT>::validateNoNewDeletesForDataFiles(org.apache.iceberg.TableMetadata,\
+        \ java.lang.Long, java.lang.Iterable<org.apache.iceberg.DataFile>) @ org.apache.iceberg.BaseReplacePartitions"
+      justification: "Removing deprecations for 1.3.0"
+    - code: "java.method.removed"
+      old: "method void org.apache.iceberg.MergingSnapshotProducer<ThisT>::validateNoNewDeletesForDataFiles(org.apache.iceberg.TableMetadata,\
+        \ java.lang.Long, java.lang.Iterable<org.apache.iceberg.DataFile>) @ org.apache.iceberg.StreamingDelete"
+      justification: "Removing deprecations for 1.3.0"
+    - code: "java.method.removed"
+      old: "method void org.apache.iceberg.MergingSnapshotProducer<ThisT>::validateNoNewDeletesForDataFiles(org.apache.iceberg.TableMetadata,\
+        \ java.lang.Long, org.apache.iceberg.expressions.Expression, java.lang.Iterable<org.apache.iceberg.DataFile>)\
+        \ @ org.apache.iceberg.BaseOverwriteFiles"
+      justification: "Removing deprecations for 1.3.0"
+    - code: "java.method.removed"
+      old: "method void org.apache.iceberg.MergingSnapshotProducer<ThisT>::validateNoNewDeletesForDataFiles(org.apache.iceberg.TableMetadata,\
+        \ java.lang.Long, org.apache.iceberg.expressions.Expression, java.lang.Iterable<org.apache.iceberg.DataFile>)\
+        \ @ org.apache.iceberg.BaseReplacePartitions"
+      justification: "Removing deprecations for 1.3.0"
+    - code: "java.method.removed"
+      old: "method void org.apache.iceberg.MergingSnapshotProducer<ThisT>::validateNoNewDeletesForDataFiles(org.apache.iceberg.TableMetadata,\
+        \ java.lang.Long, org.apache.iceberg.expressions.Expression, java.lang.Iterable<org.apache.iceberg.DataFile>)\
+        \ @ org.apache.iceberg.StreamingDelete"
+      justification: "Removing deprecations for 1.3.0"
   apache-iceberg-0.14.0:
     org.apache.iceberg:iceberg-api:
     - code: "java.class.defaultSerializationChanged"

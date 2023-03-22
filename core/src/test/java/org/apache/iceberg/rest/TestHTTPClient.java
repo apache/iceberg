@@ -35,6 +35,10 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Consumer;
+import org.apache.hc.core5.http.EntityDetails;
+import org.apache.hc.core5.http.HttpException;
+import org.apache.hc.core5.http.HttpRequestInterceptor;
+import org.apache.hc.core5.http.protocol.HttpContext;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.IcebergBuild;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -116,6 +120,18 @@ public class TestHTTPClient {
   @Test
   public void testHeadFailure() throws JsonProcessingException {
     testHttpMethodOnFailure(HttpMethod.HEAD);
+  }
+
+  @Test
+  public void testDynamicHttpRequestInterceptorLoading() {
+    Map<String, String> properties = ImmutableMap.of("key", "val");
+
+    HttpRequestInterceptor interceptor =
+        HTTPClient.loadInterceptorDynamically(
+            TestHttpRequestInterceptor.class.getName(), properties);
+
+    assertThat(interceptor).isInstanceOf(TestHttpRequestInterceptor.class);
+    assertThat(((TestHttpRequestInterceptor) interceptor).properties).isEqualTo(properties);
   }
 
   public static void testHttpMethodOnSuccess(HttpMethod method) throws JsonProcessingException {
@@ -264,5 +280,18 @@ public class TestHTTPClient {
       Item item = (Item) o;
       return Objects.equals(id, item.id) && Objects.equals(data, item.data);
     }
+  }
+
+  public static class TestHttpRequestInterceptor implements HttpRequestInterceptor {
+    private Map<String, String> properties;
+
+    public void initialize(Map<String, String> props) {
+      this.properties = props;
+    }
+
+    @Override
+    public void process(
+        org.apache.hc.core5.http.HttpRequest request, EntityDetails entity, HttpContext context)
+        throws HttpException, IOException {}
   }
 }

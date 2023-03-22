@@ -32,6 +32,7 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.spark.source.metrics.TaskNumDeletes;
 import org.apache.iceberg.spark.source.metrics.TaskNumSplits;
+import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.rdd.InputFileBlockHolder;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.connector.metric.CustomTaskMetric;
@@ -48,6 +49,7 @@ class RowDataReader extends BaseRowReader<FileScanTask> implements PartitionRead
     this(
         partition.table(),
         partition.taskGroup(),
+        SnapshotUtil.schemaFor(partition.table(), partition.branch()),
         partition.expectedSchema(),
         partition.isCaseSensitive());
   }
@@ -55,10 +57,11 @@ class RowDataReader extends BaseRowReader<FileScanTask> implements PartitionRead
   RowDataReader(
       Table table,
       ScanTaskGroup<FileScanTask> taskGroup,
+      Schema tableSchema,
       Schema expectedSchema,
       boolean caseSensitive) {
 
-    super(table, taskGroup, expectedSchema, caseSensitive);
+    super(table, taskGroup, tableSchema, expectedSchema, caseSensitive);
 
     numSplits = taskGroup.tasks().size();
     LOG.debug("Reading {} file split(s) for table {}", numSplits, table.name());

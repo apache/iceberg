@@ -52,7 +52,8 @@ public class ExpireSnapshotsProcedure extends BaseProcedure {
         ProcedureParameter.optional("older_than", DataTypes.TimestampType),
         ProcedureParameter.optional("retain_last", DataTypes.IntegerType),
         ProcedureParameter.optional("max_concurrent_deletes", DataTypes.IntegerType),
-        ProcedureParameter.optional("stream_results", DataTypes.BooleanType)
+        ProcedureParameter.optional("stream_results", DataTypes.BooleanType),
+        ProcedureParameter.optional("snapshot_ids", DataTypes.createArrayType(DataTypes.LongType))
       };
 
   private static final StructType OUTPUT_TYPE =
@@ -66,7 +67,9 @@ public class ExpireSnapshotsProcedure extends BaseProcedure {
             new StructField(
                 "deleted_manifest_files_count", DataTypes.LongType, true, Metadata.empty()),
             new StructField(
-                "deleted_manifest_lists_count", DataTypes.LongType, true, Metadata.empty())
+                "deleted_manifest_lists_count", DataTypes.LongType, true, Metadata.empty()),
+            new StructField(
+                "deleted_statistics_files_count", DataTypes.LongType, true, Metadata.empty())
           });
 
   public static ProcedureBuilder builder() {
@@ -93,12 +96,14 @@ public class ExpireSnapshotsProcedure extends BaseProcedure {
   }
 
   @Override
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
   public InternalRow[] call(InternalRow args) {
     Identifier tableIdent = toIdentifier(args.getString(0), PARAMETERS[0].name());
     Long olderThanMillis = args.isNullAt(1) ? null : DateTimeUtil.microsToMillis(args.getLong(1));
     Integer retainLastNum = args.isNullAt(2) ? null : args.getInt(2);
     Integer maxConcurrentDeletes = args.isNullAt(3) ? null : args.getInt(3);
     Boolean streamResult = args.isNullAt(4) ? null : args.getBoolean(4);
+    long[] snapshotIds = args.isNullAt(5) ? null : args.getArray(5).toLongArray();
 
     Preconditions.checkArgument(
         maxConcurrentDeletes == null || maxConcurrentDeletes > 0,
@@ -132,6 +137,12 @@ public class ExpireSnapshotsProcedure extends BaseProcedure {
             }
           }
 
+          if (snapshotIds != null) {
+            for (long snapshotId : snapshotIds) {
+              action.expireSnapshotId(snapshotId);
+            }
+          }
+
           if (streamResult != null) {
             action.option(
                 ExpireSnapshotsSparkAction.STREAM_RESULTS, Boolean.toString(streamResult));
@@ -150,7 +161,8 @@ public class ExpireSnapshotsProcedure extends BaseProcedure {
             result.deletedPositionDeleteFilesCount(),
             result.deletedEqualityDeleteFilesCount(),
             result.deletedManifestsCount(),
-            result.deletedManifestListsCount());
+            result.deletedManifestListsCount(),
+            result.deletedStatisticsFilesCount());
     return new InternalRow[] {row};
   }
 

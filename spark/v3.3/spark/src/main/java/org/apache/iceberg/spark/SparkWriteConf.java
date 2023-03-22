@@ -30,6 +30,7 @@ import org.apache.iceberg.IsolationLevel;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.spark.sql.RuntimeConfig;
 import org.apache.spark.sql.SparkSession;
@@ -56,12 +57,19 @@ import org.apache.spark.sql.internal.SQLConf;
 public class SparkWriteConf {
 
   private final Table table;
+  private final String branch;
   private final RuntimeConfig sessionConf;
   private final Map<String, String> writeOptions;
   private final SparkConfParser confParser;
 
   public SparkWriteConf(SparkSession spark, Table table, Map<String, String> writeOptions) {
+    this(spark, table, null, writeOptions);
+  }
+
+  public SparkWriteConf(
+      SparkSession spark, Table table, String branch, Map<String, String> writeOptions) {
     this.table = table;
+    this.branch = branch;
     this.sessionConf = spark.conf();
     this.writeOptions = writeOptions;
     this.confParser = new SparkConfParser(spark, table, writeOptions);
@@ -121,7 +129,7 @@ public class SparkWriteConf {
   }
 
   public String wapId() {
-    return sessionConf.get("spark.wap.id", null);
+    return sessionConf.get(SparkSQLProperties.WAP_ID, null);
   }
 
   public boolean mergeSchema() {
@@ -323,5 +331,31 @@ public class SparkWriteConf {
         .sessionConf(SQLConf.CASE_SENSITIVE().key())
         .defaultValue(SQLConf.CASE_SENSITIVE().defaultValueString())
         .parse();
+  }
+
+  public String branch() {
+    if (wapEnabled()) {
+      String wapId = wapId();
+      String wapBranch =
+          confParser.stringConf().sessionConf(SparkSQLProperties.WAP_BRANCH).parseOptional();
+
+      ValidationException.check(
+          wapId == null || wapBranch == null,
+          "Cannot set both WAP ID and branch, but got ID [%s] and branch [%s]",
+          wapId,
+          wapBranch);
+
+      if (wapBranch != null) {
+        ValidationException.check(
+            branch == null,
+            "Cannot write to both branch and WAP branch, but got branch [%s] and WAP branch [%s]",
+            branch,
+            wapBranch);
+
+        return wapBranch;
+      }
+    }
+
+    return branch;
   }
 }

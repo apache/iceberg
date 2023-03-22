@@ -579,7 +579,7 @@ class DynamoDbCatalog(Catalog):
             identifier=(self.name, database_name, table_name),
             metadata=metadata,
             metadata_location=metadata_location,
-            io=self._load_file_io(metadata.properties),
+            io=self._load_file_io(metadata.properties, metadata_location),
         )
 
 

@@ -21,6 +21,7 @@ package org.apache.iceberg.spark;
 import java.util.Map;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.Util;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.spark.sql.SparkSession;
@@ -47,12 +48,19 @@ public class SparkReadConf {
 
   private final SparkSession spark;
   private final Table table;
+  private final String branch;
   private final Map<String, String> readOptions;
   private final SparkConfParser confParser;
 
   public SparkReadConf(SparkSession spark, Table table, Map<String, String> readOptions) {
+    this(spark, table, null, readOptions);
+  }
+
+  public SparkReadConf(
+      SparkSession spark, Table table, String branch, Map<String, String> readOptions) {
     this.spark = spark;
     this.table = table;
+    this.branch = branch;
     this.readOptions = readOptions;
     this.confParser = new SparkConfParser(spark, table, readOptions);
   }
@@ -83,15 +91,37 @@ public class SparkReadConf {
   }
 
   public String branch() {
-    return confParser.stringConf().option(SparkReadOptions.BRANCH).parseOptional();
+    String optionBranch = confParser.stringConf().option(SparkReadOptions.BRANCH).parseOptional();
+    ValidationException.check(
+        branch == null || optionBranch == null || optionBranch.equals(branch),
+        "Must not specify different branches in both table identifier and read option, "
+            + "got [%s] in identifier and [%s] in options",
+        branch,
+        optionBranch);
+    String inputBranch = branch != null ? branch : optionBranch;
+    if (inputBranch != null) {
+      return inputBranch;
+    }
+
+    boolean wapEnabled =
+        PropertyUtil.propertyAsBoolean(
+            table.properties(), TableProperties.WRITE_AUDIT_PUBLISH_ENABLED, false);
+    if (wapEnabled) {
+      String wapBranch = spark.conf().get(SparkSQLProperties.WAP_BRANCH, null);
+      if (wapBranch != null && table.refs().containsKey(wapBranch)) {
+        return wapBranch;
+      }
+    }
+
+    return null;
   }
 
   public String tag() {
     return confParser.stringConf().option(SparkReadOptions.TAG).parseOptional();
   }
 
-  public String fileScanTaskSetId() {
-    return confParser.stringConf().option(SparkReadOptions.FILE_SCAN_TASK_SET_ID).parseOptional();
+  public String scanTaskSetId() {
+    return confParser.stringConf().option(SparkReadOptions.SCAN_TASK_SET_ID).parseOptional();
   }
 
   public boolean streamingSkipDeleteSnapshots() {

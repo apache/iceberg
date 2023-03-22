@@ -269,20 +269,6 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   }
 
   /**
-   * @param base table metadata to validate
-   * @param startingSnapshotId id of the snapshot current at the start of the operation
-   * @param partitionSet a set of partitions to filter new conflicting data files
-   * @deprecated will be removed in 1.3.0; use {@link
-   *     MergingSnapshotProducer#validateAddedDataFiles(TableMetadata, Long, PartitionSet,
-   *     Snapshot)} instead
-   */
-  @Deprecated
-  protected void validateAddedDataFiles(
-      TableMetadata base, Long startingSnapshotId, PartitionSet partitionSet) {
-    validateAddedDataFiles(base, startingSnapshotId, partitionSet, base.currentSnapshot());
-  }
-
-  /**
    * Validates that no files matching given partitions have been added to the table since a starting
    * snapshot.
    *
@@ -309,21 +295,6 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
       throw new UncheckedIOException(
           String.format("Failed to validate no appends matching %s", partitionSet), e);
     }
-  }
-
-  /**
-   * @param base table metadata to validate
-   * @param startingSnapshotId id of the snapshot current at the start of the operation
-   * @param conflictDetectionFilter an expression used to find new conflicting data files
-   * @deprecated will be removed in 1.3.0; use {@link
-   *     MergingSnapshotProducer#validateAddedDataFiles(TableMetadata, Long, Expression, Snapshot)}
-   *     instead
-   */
-  @Deprecated
-  protected void validateAddedDataFiles(
-      TableMetadata base, Long startingSnapshotId, Expression conflictDetectionFilter) {
-    validateAddedDataFiles(
-        base, startingSnapshotId, conflictDetectionFilter, base.currentSnapshot());
   }
 
   /**
@@ -430,49 +401,6 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
    *
    * @param base table metadata to validate
    * @param startingSnapshotId id of the snapshot current at the start of the operation
-   * @param dataFiles data files to validate have no new row deletes
-   * @deprecated will be removed in 1.3.0; use {@link
-   *     MergingSnapshotProducer#validateNoNewDeletesForDataFiles} instead
-   */
-  @Deprecated
-  protected void validateNoNewDeletesForDataFiles(
-      TableMetadata base, Long startingSnapshotId, Iterable<DataFile> dataFiles) {
-    validateNoNewDeletesForDataFiles(
-        base,
-        startingSnapshotId,
-        null,
-        dataFiles,
-        newFilesSequenceNumber != null,
-        base.currentSnapshot());
-  }
-
-  /**
-   * Validates that no new delete files that must be applied to the given data files have been added
-   * to the table since a starting snapshot.
-   *
-   * @param base table metadata to validate
-   * @param startingSnapshotId id of the snapshot current at the start of the operation
-   * @param dataFilter a data filter
-   * @param dataFiles data files to validate have no new row deletes
-   * @deprecated will be removed in 1.3.0; use {@link
-   *     MergingSnapshotProducer#validateNoNewDeletesForDataFiles} instead
-   */
-  @Deprecated
-  protected void validateNoNewDeletesForDataFiles(
-      TableMetadata base,
-      Long startingSnapshotId,
-      Expression dataFilter,
-      Iterable<DataFile> dataFiles) {
-    validateNoNewDeletesForDataFiles(
-        base, startingSnapshotId, dataFilter, dataFiles, base.currentSnapshot());
-  }
-
-  /**
-   * Validates that no new delete files that must be applied to the given data files have been added
-   * to the table since a starting snapshot.
-   *
-   * @param base table metadata to validate
-   * @param startingSnapshotId id of the snapshot current at the start of the operation
    * @param dataFilter a data filter
    * @param dataFiles data files to validate have no new row deletes
    * @param parent ending snapshot on the branch being validated
@@ -546,22 +474,6 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
    * @param base table metadata to validate
    * @param startingSnapshotId id of the snapshot current at the start of the operation
    * @param dataFilter an expression used to find new conflicting delete files
-   * @deprecated will be removed in 1.3.0; use {@link
-   *     MergingSnapshotProducer#validateNoNewDeleteFiles} instead
-   */
-  @Deprecated
-  protected void validateNoNewDeleteFiles(
-      TableMetadata base, Long startingSnapshotId, Expression dataFilter) {
-    validateNoNewDeleteFiles(base, startingSnapshotId, dataFilter, base.currentSnapshot());
-  }
-
-  /**
-   * Validates that no delete files matching a filter have been added to the table since a starting
-   * snapshot.
-   *
-   * @param base table metadata to validate
-   * @param startingSnapshotId id of the snapshot current at the start of the operation
-   * @param dataFilter an expression used to find new conflicting delete files
    * @param parent ending snapshot on the branch being validated
    */
   protected void validateNoNewDeleteFiles(
@@ -572,23 +484,6 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
         "Found new conflicting delete files that can apply to records matching %s: %s",
         dataFilter,
         Iterables.transform(deletes.referencedDeleteFiles(), ContentFile::path));
-  }
-
-  /**
-   * Validates that no delete files matching a partition set have been added to the table since a
-   * starting snapshot.
-   *
-   * @param base table metadata to validate
-   * @param startingSnapshotId id of the snapshot current at the start of the operation
-   * @param partitionSet a partition set used to find new conflicting delete files
-   * @deprecated will be removed in 1.3.0; use {@link
-   *     MergingSnapshotProducer#validateNoNewDeleteFiles(TableMetadata, Long, PartitionSet,
-   *     Snapshot)} instead
-   */
-  @Deprecated
-  protected void validateNoNewDeleteFiles(
-      TableMetadata base, Long startingSnapshotId, PartitionSet partitionSet) {
-    validateNoNewDeleteFiles(base, startingSnapshotId, partitionSet, base.currentSnapshot());
   }
 
   /**
@@ -609,27 +504,6 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
         "Found new conflicting delete files that can apply to records matching %s: %s",
         partitionSet,
         Iterables.transform(deletes.referencedDeleteFiles(), ContentFile::path));
-  }
-
-  /**
-   * Returns matching delete files have been added to the table since a starting snapshot.
-   *
-   * @param base table metadata to validate
-   * @param startingSnapshotId id of the snapshot current at the start of the operation
-   * @param dataFilter an expression used to find delete files
-   * @param partitionSet a partition set used to find delete files
-   * @deprecated will be removed in 1.3.0; use {@link
-   *     MergingSnapshotProducer#addedDeleteFiles(TableMetadata, Long, Expression, PartitionSet,
-   *     Snapshot)} instead
-   */
-  @Deprecated
-  protected DeleteFileIndex addedDeleteFiles(
-      TableMetadata base,
-      Long startingSnapshotId,
-      Expression dataFilter,
-      PartitionSet partitionSet) {
-    return addedDeleteFiles(
-        base, startingSnapshotId, dataFilter, partitionSet, base.currentSnapshot());
   }
 
   /**
@@ -674,23 +548,6 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
    * @param base table metadata to validate
    * @param startingSnapshotId id of the snapshot current at the start of the operation
    * @param dataFilter an expression used to find deleted data files
-   * @deprecated will be removed in 1.3.0; use {@link
-   *     MergingSnapshotProducer#validateDeletedDataFiles(TableMetadata, Long, Expression,
-   *     Snapshot)} instead
-   */
-  @Deprecated
-  protected void validateDeletedDataFiles(
-      TableMetadata base, Long startingSnapshotId, Expression dataFilter) {
-    validateDeletedDataFiles(base, startingSnapshotId, dataFilter, base.currentSnapshot());
-  }
-
-  /**
-   * Validates that no files matching a filter have been deleted from the table since a starting
-   * snapshot.
-   *
-   * @param base table metadata to validate
-   * @param startingSnapshotId id of the snapshot current at the start of the operation
-   * @param dataFilter an expression used to find deleted data files
    * @param parent ending snapshot on the branch being validated
    */
   protected void validateDeletedDataFiles(
@@ -711,23 +568,6 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
       throw new UncheckedIOException(
           String.format("Failed to validate no deleted data files matching %s", dataFilter), e);
     }
-  }
-
-  /**
-   * Validates that no files matching a filter have been deleted from the table since a starting
-   * snapshot.
-   *
-   * @param base table metadata to validate
-   * @param startingSnapshotId id of the snapshot current at the start of the operation
-   * @param partitionSet a partition set used to find deleted data files
-   * @deprecated will be removed in 1.3.0; use {@link
-   *     MergingSnapshotProducer#validateNoNewDeleteFiles(TableMetadata, Long, PartitionSet,
-   *     Snapshot)} instead
-   */
-  @Deprecated
-  protected void validateDeletedDataFiles(
-      TableMetadata base, Long startingSnapshotId, PartitionSet partitionSet) {
-    validateDeletedDataFiles(base, startingSnapshotId, partitionSet, base.currentSnapshot());
   }
 
   /**
@@ -846,27 +686,6 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     return builder.build();
   }
 
-  @Deprecated
-  /**
-   * @deprecated will be removed in 1.3.0 use {@link
-   *     MergingSnapshotProducer#validateDataFilesExist(TableMetadata, Long, CharSequenceSet,
-   *     boolean, Expression, Snapshot)} instead.
-   */
-  protected void validateDataFilesExist(
-      TableMetadata base,
-      Long startingSnapshotId,
-      CharSequenceSet requiredDataFiles,
-      boolean skipDeletes,
-      Expression conflictDetectionFilter) {
-    validateDataFilesExist(
-        base,
-        startingSnapshotId,
-        requiredDataFiles,
-        skipDeletes,
-        conflictDetectionFilter,
-        base.currentSnapshot());
-  }
-
   @SuppressWarnings("CollectionUndefinedEquality")
   protected void validateDataFilesExist(
       TableMetadata base,
@@ -976,7 +795,8 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     // filter any existing manifests
     List<ManifestFile> filtered =
         filterManager.filterManifests(
-            base.schema(), snapshot != null ? snapshot.dataManifests(ops.io()) : null);
+            SnapshotUtil.schemaFor(base, targetBranch()),
+            snapshot != null ? snapshot.dataManifests(ops.io()) : null);
     long minDataSequenceNumber =
         filtered.stream()
             .map(ManifestFile::minSequenceNumber)
@@ -989,7 +809,8 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     deleteFilterManager.dropDeleteFilesOlderThan(minDataSequenceNumber);
     List<ManifestFile> filteredDeletes =
         deleteFilterManager.filterManifests(
-            base.schema(), snapshot != null ? snapshot.deleteManifests(ops.io()) : null);
+            SnapshotUtil.schemaFor(base, targetBranch()),
+            snapshot != null ? snapshot.deleteManifests(ops.io()) : null);
 
     // only keep manifests that have live data files or that were written by this commit
     Predicate<ManifestFile> shouldKeep =

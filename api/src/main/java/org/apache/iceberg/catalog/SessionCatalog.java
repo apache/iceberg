@@ -38,6 +38,7 @@ public interface SessionCatalog {
     private final String identity;
     private final Map<String, String> credentials;
     private final Map<String, String> properties;
+    private final Object wrappedIdentity;
 
     public static SessionContext createEmpty() {
       return new SessionContext(UUID.randomUUID().toString(), null, null, ImmutableMap.of());
@@ -48,10 +49,20 @@ public interface SessionCatalog {
         String identity,
         Map<String, String> credentials,
         Map<String, String> properties) {
+      this(sessionId, identity, credentials, properties, null);
+    }
+
+    public SessionContext(
+        String sessionId,
+        String identity,
+        Map<String, String> credentials,
+        Map<String, String> properties,
+        Object wrappedIdentity) {
       this.sessionId = sessionId;
       this.identity = identity;
       this.credentials = credentials;
       this.properties = properties;
+      this.wrappedIdentity = wrappedIdentity;
     }
 
     /**
@@ -94,6 +105,15 @@ public interface SessionCatalog {
      */
     public Map<String, String> properties() {
       return properties;
+    }
+
+    /**
+     * Returns the opaque wrapped identity object.
+     *
+     * @return the wrapped identity
+     */
+    public Object wrappedIdentity() {
+      return wrappedIdentity;
     }
   }
 

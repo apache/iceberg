@@ -85,11 +85,16 @@ public abstract class SnapshotScan<ThisT, T extends ScanTask, G extends ScanTask
   }
 
   public ThisT useRef(String name) {
+    if (SnapshotRef.MAIN_BRANCH.equals(name)) {
+      return newRefinedScan(table(), tableSchema(), context());
+    }
+
     Preconditions.checkArgument(
         snapshotId() == null, "Cannot override ref, already set snapshot id=%s", snapshotId());
     Snapshot snapshot = table().snapshot(name);
     Preconditions.checkArgument(snapshot != null, "Cannot find ref %s", name);
-    return newRefinedScan(table(), tableSchema(), context().useSnapshotId(snapshot.snapshotId()));
+    TableScanContext newContext = context().useSnapshotId(snapshot.snapshotId());
+    return newRefinedScan(table(), SnapshotUtil.schemaFor(table(), name), newContext);
   }
 
   public ThisT asOfTime(long timestampMillis) {

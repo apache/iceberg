@@ -18,6 +18,11 @@
  */
 package org.apache.iceberg.actions;
 
+/**
+ * @deprecated will be removed in 1.4.0; use {@link ImmutableExpireSnapshots.Result#builder()}
+ *     instead.
+ */
+@Deprecated
 public class BaseExpireSnapshotsActionResult implements ExpireSnapshots.Result {
 
   private final long deletedDataFilesCount;

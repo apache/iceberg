@@ -27,8 +27,8 @@ import java.util.function.Consumer;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableMetadataParser;
-import org.apache.iceberg.actions.BaseDeleteReachableFilesActionResult;
 import org.apache.iceberg.actions.DeleteReachableFiles;
+import org.apache.iceberg.actions.ImmutableDeleteReachableFiles;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.io.FileIO;
@@ -144,12 +144,13 @@ public class DeleteReachableFilesSparkAction
 
     LOG.info("Deleted {} total files", summary.totalFilesCount());
 
-    return new BaseDeleteReachableFilesActionResult(
-        summary.dataFilesCount(),
-        summary.positionDeleteFilesCount(),
-        summary.equalityDeleteFilesCount(),
-        summary.manifestsCount(),
-        summary.manifestListsCount(),
-        summary.otherFilesCount());
+    return ImmutableDeleteReachableFiles.Result.builder()
+        .deletedDataFilesCount(summary.dataFilesCount())
+        .deletedPositionDeleteFilesCount(summary.positionDeleteFilesCount())
+        .deletedEqualityDeleteFilesCount(summary.equalityDeleteFilesCount())
+        .deletedManifestsCount(summary.manifestsCount())
+        .deletedManifestListsCount(summary.manifestListsCount())
+        .deletedOtherFilesCount(summary.otherFilesCount())
+        .build();
   }
 }

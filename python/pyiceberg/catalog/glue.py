@@ -163,7 +163,7 @@ class GlueCatalog(Catalog):
             identifier=(glue_table[PROP_GLUE_TABLE_DATABASE_NAME], glue_table[PROP_GLUE_TABLE_NAME]),
             metadata=metadata,
             metadata_location=metadata_location,
-            io=self._load_file_io(metadata.properties),
+            io=self._load_file_io(metadata.properties, metadata_location),
         )
 
     def _create_glue_table(self, database_name: str, table_name: str, table_input: Dict[str, Any]) -> None:
