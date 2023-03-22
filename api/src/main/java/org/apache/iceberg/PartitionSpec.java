@@ -289,24 +289,7 @@ public class PartitionSpec implements Serializable {
     return sourceIds;
   }
 
-  @Override
-  public String toString() {
-    StringBuilder sb = new StringBuilder();
-    sb.append("[");
-    for (PartitionField field : fields) {
-      sb.append("\n");
-      sb.append("  ").append(field);
-    }
-    if (fields.length > 0) {
-      sb.append("\n");
-    }
-    sb.append("]");
-    return sb.toString();
-  }
-
-  /**
-   * Determine if this PartitionSpec contains at least 1 bucket definition
-   */
+  /** Determine if this PartitionSpec contains at least 1 bucket definition */
   public boolean hasBucketPartition() {
     List<PartitionField> partFields = fields();
     boolean hasBucketPartition = false;
@@ -321,6 +304,21 @@ public class PartitionSpec implements Serializable {
     }
 
     return hasBucketPartition;
+  }
+
+  @Override
+  public String toString() {
+    StringBuilder sb = new StringBuilder();
+    sb.append("[");
+    for (PartitionField field : fields) {
+      sb.append("\n");
+      sb.append("  ").append(field);
+    }
+    if (fields.length > 0) {
+      sb.append("\n");
+    }
+    sb.append("]");
+    return sb.toString();
   }
 
   private static final PartitionSpec UNPARTITIONED_SPEC =

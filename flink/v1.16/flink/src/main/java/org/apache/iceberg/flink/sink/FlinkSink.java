@@ -506,7 +506,9 @@ public class FlinkSink {
               return input;
             } else {
               if (partitionSpec.hasBucketPartition()) {
-                return input.partitionCustom(new BucketPartitioner(partitionSpec), new BucketPartitionKeySelector(partitionSpec, iSchema, flinkRowType));
+                return input.partitionCustom(
+                    new BucketPartitioner(partitionSpec),
+                    new BucketPartitionKeySelector(partitionSpec, iSchema, flinkRowType));
               } else {
                 return input.keyBy(new PartitionKeySelector(partitionSpec, iSchema, flinkRowType));
               }
