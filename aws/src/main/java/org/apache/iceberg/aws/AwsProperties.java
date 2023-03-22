@@ -28,8 +28,8 @@ import org.apache.iceberg.aws.dynamodb.DynamoDbCatalog;
 import org.apache.iceberg.aws.glue.GlueCatalog;
 import org.apache.iceberg.aws.lakeformation.LakeFormationAwsClientFactory;
 import org.apache.iceberg.aws.s3.S3FileIO;
+import org.apache.iceberg.aws.s3.signer.S3V4RestSignerClient;
 import org.apache.iceberg.common.DynClasses;
-import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -49,8 +49,8 @@ import software.amazon.awssdk.awscore.client.builder.AwsClientBuilder;
 import software.amazon.awssdk.awscore.client.builder.AwsSyncClientBuilder;
 import software.amazon.awssdk.core.client.builder.SdkClientBuilder;
 import software.amazon.awssdk.core.client.config.SdkAdvancedClientOption;
-import software.amazon.awssdk.core.signer.Signer;
 import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.regions.providers.DefaultAwsRegionProviderChain;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClientBuilder;
 import software.amazon.awssdk.services.glue.GlueClientBuilder;
 import software.amazon.awssdk.services.s3.S3ClientBuilder;
@@ -252,23 +252,6 @@ public class AwsProperties implements Serializable {
   public static final String S3FILEIO_SESSION_TOKEN = "s3.session-token";
 
   /**
-   * Configure the AWS credentials provider used to create AWS clients. A fully qualified concrete
-   * class with package that implements the {@link AwsCredentialsProvider} interface is required.
-   *
-   * <p>Additionally, the implementation class must also have a create() or create(Map) method
-   * implemented, which returns an instance of the class that provides aws credentials provider.
-   *
-   * <p>Example:
-   * client.credentials-provider=software.amazon.awssdk.auth.credentials.SystemPropertyCredentialsProvider
-   *
-   * <p>When set, the default client factory {@link
-   * org.apache.iceberg.aws.AwsClientFactories.DefaultAwsClientFactory} will use this provider to
-   * get AWS credentials provided instead of reading the default credential chain to get AWS access
-   * credentials.
-   */
-  public static final String CLIENT_CREDENTIALS_PROVIDER = "client.credentials-provider";
-
-  /**
    * Enable to make S3FileIO, to make cross-region call to the region specified in the ARN of an
    * access point.
    *
@@ -287,7 +270,9 @@ public class AwsProperties implements Serializable {
 
   public static final boolean S3_CHECKSUM_ENABLED_DEFAULT = false;
 
-  public static final String S3_SIGNER_IMPL = "s3.signer-impl";
+  public static final String S3_REMOTE_SIGNING_ENABLED = "s3.remote-signing-enabled";
+
+  public static final boolean S3_REMOTE_SIGNING_ENABLED_DEFAULT = false;
 
   /** Configure the batch size used when deleting multiple files from a given S3 bucket */
   public static final String S3FILEIO_DELETE_BATCH_SIZE = "s3.delete.batch-size";
@@ -360,18 +345,43 @@ public class AwsProperties implements Serializable {
   public static final String CLIENT_ASSUME_ROLE_REGION = "client.assume-role.region";
 
   /**
-   * Used by {@link org.apache.iceberg.aws.AwsClientFactories.DefaultAwsClientFactory}. If set, all
-   * AWS clients except STS client will use the given region instead of the default region chain.
-   */
-  public static final String CLIENT_REGION = "client.region";
-
-  /**
    * Used by {@link AssumeRoleAwsClientFactory}. Optional session name used to assume an IAM role.
    *
    * <p>For more details, see
    * https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_iam-condition-keys.html#ck_rolesessionname
    */
   public static final String CLIENT_ASSUME_ROLE_SESSION_NAME = "client.assume-role.session-name";
+
+  /**
+   * Configure the AWS credentials provider used to create AWS clients. A fully qualified concrete
+   * class with package that implements the {@link AwsCredentialsProvider} interface is required.
+   *
+   * <p>Additionally, the implementation class must also have a create() or create(Map) method
+   * implemented, which returns an instance of the class that provides aws credentials provider.
+   *
+   * <p>Example:
+   * client.credentials-provider=software.amazon.awssdk.auth.credentials.SystemPropertyCredentialsProvider
+   *
+   * <p>When set, the default client factory {@link
+   * org.apache.iceberg.aws.AwsClientFactories.DefaultAwsClientFactory} will use this provider to
+   * get AWS credentials provided instead of reading the default credential chain to get AWS access
+   * credentials.
+   */
+  public static final String CLIENT_CREDENTIALS_PROVIDER = "client.credentials-provider";
+
+  /**
+   * Used by the client.credentials-provider configured value that will be used by {@link
+   * org.apache.iceberg.aws.AwsClientFactories.DefaultAwsClientFactory} to pass provider-specific
+   * properties. Each property consists of a key name and an associated value.
+   */
+  private static final String CLIENT_CREDENTIAL_PROVIDER_PREFIX = "client.credentials-provider.";
+
+  /**
+   * Used by {@link org.apache.iceberg.aws.AwsClientFactories.DefaultAwsClientFactory} and also
+   * other client factory classes. If set, all AWS clients except STS client will use the given
+   * region instead of the default region chain.
+   */
+  public static final String CLIENT_REGION = "client.region";
 
   /**
    * The type of {@link software.amazon.awssdk.http.SdkHttpClient} implementation used by {@link
@@ -395,7 +405,7 @@ public class AwsProperties implements Serializable {
    */
   public static final String HTTP_CLIENT_TYPE_APACHE = "apache";
 
-  public static final String HTTP_CLIENT_TYPE_DEFAULT = HTTP_CLIENT_TYPE_URLCONNECTION;
+  public static final String HTTP_CLIENT_TYPE_DEFAULT = HTTP_CLIENT_TYPE_APACHE;
 
   /**
    * Used to configure the connection timeout in milliseconds for {@link
@@ -654,15 +664,42 @@ public class AwsProperties implements Serializable {
    */
   public static final String LAKE_FORMATION_DB_NAME = "lakeformation.db-name";
 
-  private static final String HTTP_CLIENT_PREFIX = "http-client.";
+  /** Region to be used by the SigV4 protocol for signing requests. */
+  public static final String REST_SIGNER_REGION = "rest.signing-region";
+
+  /** The service name to be used by the SigV4 protocol for signing requests. */
+  public static final String REST_SIGNING_NAME = "rest.signing-name";
+
+  /** The default service name (API Gateway and lambda) used during SigV4 signing. */
+  public static final String REST_SIGNING_NAME_DEFAULT = "execute-api";
 
   /**
-   * Used by the client.credentials-provider configured value that will be used by {@link
-   * org.apache.iceberg.aws.AwsClientFactories.DefaultAwsClientFactory} to pass provider-specific
-   * properties. Each property consists of a key name and an associated value.
+   * Configure the static access key ID used for SigV4 signing.
+   *
+   * <p>When set, the default client factory will use the basic or session credentials provided
+   * instead of reading the default credential chain to create S3 access credentials. If {@link
+   * #REST_SESSION_TOKEN} is set, session credential is used, otherwise basic credential is used.
    */
-  private static final String CREDENTIAL_PROVIDER_PREFIX = "client.credentials-provider.";
+  public static final String REST_ACCESS_KEY_ID = "rest.access-key-id";
 
+  /**
+   * Configure the static secret access key used for SigV4 signing.
+   *
+   * <p>When set, the default client factory will use the basic or session credentials provided
+   * instead of reading the default credential chain to create S3 access credentials. If {@link
+   * #REST_SESSION_TOKEN} is set, session credential is used, otherwise basic credential is used.
+   */
+  public static final String REST_SECRET_ACCESS_KEY = "rest.secret-access-key";
+
+  /**
+   * Configure the static session token used for SigV4.
+   *
+   * <p>When set, the default client factory will use the session credentials provided instead of
+   * reading the default credential chain to create access credentials.
+   */
+  public static final String REST_SESSION_TOKEN = "rest.session-token";
+
+  private static final String HTTP_CLIENT_PREFIX = "http-client.";
   private String httpClientType;
   private final Map<String, String> httpClientProperties;
   private final Set<software.amazon.awssdk.services.sts.model.Tag> stsClientAssumeRoleTags;
@@ -672,6 +709,9 @@ public class AwsProperties implements Serializable {
   private int clientAssumeRoleTimeoutSec;
   private String clientAssumeRoleRegion;
   private String clientAssumeRoleSessionName;
+  private String clientRegion;
+  private String clientCredentialsProvider;
+  private final Map<String, String> clientCredentialsProviderProperties;
 
   private String s3FileIoSseType;
   private String s3FileIoSseKey;
@@ -708,12 +748,15 @@ public class AwsProperties implements Serializable {
 
   private String dynamoDbTableName;
   private String dynamoDbEndpoint;
-  private final String s3SignerImpl;
+
+  private final boolean s3RemoteSigningEnabled;
   private final Map<String, String> allProperties;
 
-  private String clientRegion;
-  private String clientCredentialsProvider;
-  private final Map<String, String> clientCredentialsProviderProperties;
+  private String restSigningRegion;
+  private String restSigningName;
+  private String restAccessKeyId;
+  private String restSecretAccessKey;
+  private String restSessionToken;
 
   public AwsProperties() {
     this.httpClientType = HTTP_CLIENT_TYPE_DEFAULT;
@@ -725,6 +768,9 @@ public class AwsProperties implements Serializable {
     this.clientAssumeRoleExternalId = null;
     this.clientAssumeRoleRegion = null;
     this.clientAssumeRoleSessionName = null;
+    this.clientRegion = null;
+    this.clientCredentialsProvider = null;
+    this.clientCredentialsProviderProperties = null;
 
     this.s3FileIoSseType = S3FILEIO_SSE_TYPE_NONE;
     this.s3FileIoSseKey = null;
@@ -762,12 +808,10 @@ public class AwsProperties implements Serializable {
     this.dynamoDbEndpoint = null;
     this.dynamoDbTableName = DYNAMODB_TABLE_NAME_DEFAULT;
 
-    this.s3SignerImpl = null;
+    this.s3RemoteSigningEnabled = S3_REMOTE_SIGNING_ENABLED_DEFAULT;
     this.allProperties = Maps.newHashMap();
 
-    this.clientRegion = null;
-    this.clientCredentialsProvider = null;
-    this.clientCredentialsProviderProperties = null;
+    this.restSigningName = REST_SIGNING_NAME_DEFAULT;
 
     ValidationException.check(
         s3KeyIdAccessKeyBothConfigured(),
@@ -788,6 +832,10 @@ public class AwsProperties implements Serializable {
     this.clientAssumeRoleExternalId = properties.get(CLIENT_ASSUME_ROLE_EXTERNAL_ID);
     this.clientAssumeRoleRegion = properties.get(CLIENT_ASSUME_ROLE_REGION);
     this.clientAssumeRoleSessionName = properties.get(CLIENT_ASSUME_ROLE_SESSION_NAME);
+    this.clientRegion = properties.get(CLIENT_REGION);
+    this.clientCredentialsProvider = properties.get(CLIENT_CREDENTIALS_PROVIDER);
+    this.clientCredentialsProviderProperties =
+        PropertyUtil.propertiesWithPrefix(properties, CLIENT_CREDENTIAL_PROVIDER_PREFIX);
 
     this.s3FileIoSseType = properties.getOrDefault(S3FILEIO_SSE_TYPE, S3FILEIO_SSE_TYPE_NONE);
     this.s3FileIoSseKey = properties.get(S3FILEIO_SSE_KEY);
@@ -894,13 +942,16 @@ public class AwsProperties implements Serializable {
     this.dynamoDbTableName =
         PropertyUtil.propertyAsString(properties, DYNAMODB_TABLE_NAME, DYNAMODB_TABLE_NAME_DEFAULT);
 
-    this.s3SignerImpl = properties.get(S3_SIGNER_IMPL);
+    this.s3RemoteSigningEnabled =
+        PropertyUtil.propertyAsBoolean(
+            properties, S3_REMOTE_SIGNING_ENABLED, S3_REMOTE_SIGNING_ENABLED_DEFAULT);
     this.allProperties = SerializableMap.copyOf(properties);
 
-    this.clientRegion = properties.get(CLIENT_REGION);
-    this.clientCredentialsProvider = properties.get(CLIENT_CREDENTIALS_PROVIDER);
-    this.clientCredentialsProviderProperties =
-        PropertyUtil.propertiesWithPrefix(properties, CREDENTIAL_PROVIDER_PREFIX);
+    this.restSigningRegion = properties.get(REST_SIGNER_REGION);
+    this.restSigningName = properties.getOrDefault(REST_SIGNING_NAME, REST_SIGNING_NAME_DEFAULT);
+    this.restAccessKeyId = properties.get(REST_ACCESS_KEY_ID);
+    this.restSecretAccessKey = properties.get(REST_SECRET_ACCESS_KEY);
+    this.restSessionToken = properties.get(REST_SESSION_TOKEN);
 
     ValidationException.check(
         s3KeyIdAccessKeyBothConfigured(),
@@ -1124,9 +1175,24 @@ public class AwsProperties implements Serializable {
    *     S3Client.builder().applyMutation(awsProperties::applyS3CredentialConfigurations)
    * </pre>
    */
-  public <T extends AwsClientBuilder> void applyS3CredentialConfigurations(T builder) {
+  public <T extends S3ClientBuilder> void applyS3CredentialConfigurations(T builder) {
     builder.credentialsProvider(
         credentialsProvider(s3AccessKeyId, s3SecretAccessKey, s3SessionToken));
+  }
+
+  /**
+   * Configure a client AWS region.
+   *
+   * <p>Sample usage:
+   *
+   * <pre>
+   *     S3Client.builder().applyMutation(awsProperties::applyClientRegionConfiguration)
+   * </pre>
+   */
+  public <T extends AwsClientBuilder> void applyClientRegionConfiguration(T builder) {
+    if (clientRegion != null) {
+      builder.region(Region.of(clientRegion));
+    }
   }
 
   /**
@@ -1143,6 +1209,7 @@ public class AwsProperties implements Serializable {
       builder.credentialsProvider(credentialsProvider(this.clientCredentialsProvider));
     }
   }
+
   /**
    * Configure services settings for an S3 client. The settings include: s3DualStack,
    * s3UseArnRegion, s3PathStyleAccess, and s3Acceleration
@@ -1174,54 +1241,12 @@ public class AwsProperties implements Serializable {
    * </pre>
    */
   public <T extends S3ClientBuilder> void applyS3SignerConfiguration(T builder) {
-    if (null != s3SignerImpl) {
+    if (s3RemoteSigningEnabled) {
       builder.overrideConfiguration(
-          c -> c.putAdvancedOption(SdkAdvancedClientOption.SIGNER, loadS3SignerDynamically()));
+          c ->
+              c.putAdvancedOption(
+                  SdkAdvancedClientOption.SIGNER, S3V4RestSignerClient.create(allProperties)));
     }
-  }
-
-  private Signer loadS3SignerDynamically() {
-    // load the signer implementation dynamically
-    Object signer = null;
-    try {
-      signer =
-          DynMethods.builder("create")
-              .impl(s3SignerImpl, Map.class)
-              .buildStaticChecked()
-              .invoke(allProperties);
-    } catch (NoSuchMethodException e) {
-      LOG.warn(
-          "Cannot find static method create(Map<String, String> properties) for signer {}",
-          s3SignerImpl,
-          e);
-    }
-
-    if (null == signer) {
-      try {
-        signer = DynMethods.builder("create").impl(s3SignerImpl).buildChecked().invoke(null);
-      } catch (NoSuchMethodException e) {
-        LOG.warn("Cannot find static method create() for signer {}", s3SignerImpl, e);
-      }
-    }
-
-    if (null == signer) {
-      // try via default no-arg constructor
-      try {
-        signer = DynConstructors.builder().impl(s3SignerImpl).buildChecked().newInstance();
-      } catch (NoSuchMethodException e) {
-        LOG.warn("Cannot find no-arg constructor for signer {}", s3SignerImpl, e);
-      }
-    }
-
-    Preconditions.checkArgument(
-        null != signer, "Cannot instantiate custom signer: %s", s3SignerImpl);
-
-    Preconditions.checkArgument(
-        signer instanceof Signer,
-        "Custom signer %s must be an instance of %s",
-        s3SignerImpl,
-        Signer.class.getName());
-    return (Signer) signer;
   }
 
   /**
@@ -1293,19 +1318,21 @@ public class AwsProperties implements Serializable {
     configureEndpoint(builder, dynamoDbEndpoint);
   }
 
-  /**
-   * Configure a client AWS region.
-   *
-   * <p>Sample usage:
-   *
-   * <pre>
-   *     S3Client.builder().applyMutation(awsProperties::applyClientRegionConfiguration)
-   * </pre>
-   */
-  public <T extends AwsClientBuilder> void applyClientRegionConfiguration(T builder) {
-    if (clientRegion != null) {
-      builder.region(Region.of(clientRegion));
+  public Region restSigningRegion() {
+    if (restSigningRegion == null) {
+      this.restSigningRegion = DefaultAwsRegionProviderChain.builder().build().getRegion().id();
     }
+
+    return Region.of(restSigningRegion);
+  }
+
+  public String restSigningName() {
+    return restSigningName;
+  }
+
+  public AwsCredentialsProvider restCredentialsProvider() {
+    return credentialsProvider(
+        this.restAccessKeyId, this.restSecretAccessKey, this.restSessionToken);
   }
 
   private Set<Tag> toS3Tags(Map<String, String> properties, String prefix) {
@@ -1328,6 +1355,25 @@ public class AwsProperties implements Serializable {
 
   private boolean s3KeyIdAccessKeyBothConfigured() {
     return (s3AccessKeyId == null) == (s3SecretAccessKey == null);
+  }
+
+  private AwsCredentialsProvider credentialsProvider(
+      String accessKeyId, String secretAccessKey, String sessionToken) {
+    if (accessKeyId != null) {
+      if (sessionToken == null) {
+        return StaticCredentialsProvider.create(
+            AwsBasicCredentials.create(accessKeyId, secretAccessKey));
+      } else {
+        return StaticCredentialsProvider.create(
+            AwsSessionCredentials.create(accessKeyId, secretAccessKey, sessionToken));
+      }
+    }
+
+    if (!Strings.isNullOrEmpty(this.clientCredentialsProvider)) {
+      return credentialsProvider(this.clientCredentialsProvider);
+    }
+
+    return DefaultCredentialsProvider.create();
   }
 
   private AwsCredentialsProvider credentialsProvider(String credentialsProviderClass) {
@@ -1368,25 +1414,6 @@ public class AwsProperties implements Serializable {
               credentialsProviderClass),
           e);
     }
-  }
-
-  private AwsCredentialsProvider credentialsProvider(
-      String accessKeyId, String secretAccessKey, String sessionToken) {
-    if (accessKeyId != null) {
-      if (sessionToken == null) {
-        return StaticCredentialsProvider.create(
-            AwsBasicCredentials.create(accessKeyId, secretAccessKey));
-      } else {
-        return StaticCredentialsProvider.create(
-            AwsSessionCredentials.create(accessKeyId, secretAccessKey, sessionToken));
-      }
-    }
-
-    if (!Strings.isNullOrEmpty(this.clientCredentialsProvider)) {
-      return credentialsProvider(this.clientCredentialsProvider);
-    }
-
-    return DefaultCredentialsProvider.create();
   }
 
   private <T extends SdkClientBuilder> void configureEndpoint(T builder, String endpoint) {
