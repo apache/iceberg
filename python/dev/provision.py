@@ -102,7 +102,7 @@ spark.sql(
 )
 
 all_types_dataframe = (
-    spark.range(0, 10, 1, 10)
+    spark.range(0, 5, 1, 5)
     .withColumnRenamed("id", "longCol")
     .withColumn("intCol", expr("CAST(longCol AS INT)"))
     .withColumn("floatCol", expr("CAST(longCol AS FLOAT)"))
