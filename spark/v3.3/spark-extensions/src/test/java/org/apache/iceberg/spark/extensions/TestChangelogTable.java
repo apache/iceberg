@@ -273,7 +273,7 @@ public class TestChangelogTable extends SparkExtensionsTestBase {
     String file2 = rows.get(1)[1].toString();
 
     assertEquals(
-        "Row should match",
+        "Rows should match",
         ImmutableList.of(
             row(1, file1, 0L, false, 0, row("a")), row(2, file2, 0L, false, 0, row("b"))),
         rows);
