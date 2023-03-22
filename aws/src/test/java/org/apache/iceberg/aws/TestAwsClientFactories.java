@@ -240,9 +240,9 @@ public class TestAwsClientFactories {
     return properties;
   }
 
-  public static class NoInterface {}
+  private static class NoInterface {}
 
-  public static class DummyValidProvider implements AwsCredentialsProvider {
+  private static class DummyValidProvider implements AwsCredentialsProvider {
 
     public static DummyValidProvider create() {
       return new DummyValidProvider();
@@ -254,7 +254,7 @@ public class TestAwsClientFactories {
     }
   }
 
-  public abstract static class ProviderTestBase implements AwsCredentialsProvider {
+  private abstract static class ProviderTestBase implements AwsCredentialsProvider {
 
     @Override
     public AwsCredentials resolveCredentials() {
@@ -263,15 +263,15 @@ public class TestAwsClientFactories {
     }
   }
 
-  public static class NoCreateMethod extends ProviderTestBase {}
+  private static class NoCreateMethod extends ProviderTestBase {}
 
-  public static class CreateMethod extends ProviderTestBase {
+  private static class CreateMethod extends ProviderTestBase {
     public static CreateMethod create() {
       return new CreateMethod();
     }
   }
 
-  public static class CreateMapMethod extends ProviderTestBase {
+  private static class CreateMapMethod extends ProviderTestBase {
 
     private final Map<String, String> properties;
 

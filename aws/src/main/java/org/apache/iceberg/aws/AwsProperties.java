@@ -705,10 +705,12 @@ public class AwsProperties implements Serializable {
   private boolean glueCatalogSkipArchive;
   private boolean glueCatalogSkipNameValidation;
   private boolean glueLakeFormationEnabled;
+
   private String dynamoDbTableName;
   private String dynamoDbEndpoint;
   private final String s3SignerImpl;
   private final Map<String, String> allProperties;
+
   private String clientRegion;
   private String clientCredentialsProvider;
   private final Map<String, String> clientCredentialsProviderProperties;
@@ -762,6 +764,7 @@ public class AwsProperties implements Serializable {
 
     this.s3SignerImpl = null;
     this.allProperties = Maps.newHashMap();
+
     this.clientRegion = null;
     this.clientCredentialsProvider = null;
     this.clientCredentialsProviderProperties = null;
@@ -1117,18 +1120,28 @@ public class AwsProperties implements Serializable {
    * <p>Sample usage:
    *
    * <pre>
+   *     S3Client.builder().applyMutation(awsProperties::applyS3CredentialConfigurations)
+   * </pre>
+   */
+  public <T extends AwsClientBuilder> void applyS3CredentialConfigurations(T builder) {
+    builder.credentialsProvider(
+        credentialsProvider(s3AccessKeyId, s3SecretAccessKey, s3SessionToken));
+  }
+
+  /**
+   * Configure the credentials for AWS clients.
+   *
+   * <p>Sample usage:
+   *
+   * <pre>
    *     S3Client.builder().applyMutation(awsProperties::applyCredentialConfigurations)
    * </pre>
    */
   public <T extends AwsClientBuilder> void applyCredentialConfigurations(T builder) {
     if (!Strings.isNullOrEmpty(this.clientCredentialsProvider)) {
       builder.credentialsProvider(credentialsProvider(this.clientCredentialsProvider));
-    } else {
-      builder.credentialsProvider(
-          credentialsProvider(s3AccessKeyId, s3SecretAccessKey, s3SessionToken));
     }
   }
-
   /**
    * Configure services settings for an S3 client. The settings include: s3DualStack,
    * s3UseArnRegion, s3PathStyleAccess, and s3Acceleration
@@ -1280,8 +1293,7 @@ public class AwsProperties implements Serializable {
   }
 
   /**
-   * Override the AWS client region for all AWS clients used by {@link
-   * org.apache.iceberg.aws.AwsClientFactories.DefaultAwsClientFactory}
+   * Configure a client AWS region.
    *
    * <p>Sample usage:
    *
@@ -1367,9 +1379,13 @@ public class AwsProperties implements Serializable {
         return StaticCredentialsProvider.create(
             AwsSessionCredentials.create(accessKeyId, secretAccessKey, sessionToken));
       }
-    } else {
-      return DefaultCredentialsProvider.create();
     }
+
+    if (!Strings.isNullOrEmpty(this.clientCredentialsProvider)) {
+      return credentialsProvider(this.clientCredentialsProvider);
+    }
+
+    return DefaultCredentialsProvider.create();
   }
 
   private <T extends SdkClientBuilder> void configureEndpoint(T builder, String endpoint) {

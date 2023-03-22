@@ -102,7 +102,7 @@ public class AwsClientFactories {
           .applyMutation(awsProperties::applyHttpClientConfigurations)
           .applyMutation(awsProperties::applyS3EndpointConfigurations)
           .applyMutation(awsProperties::applyS3ServiceConfigurations)
-          .applyMutation(awsProperties::applyCredentialConfigurations)
+          .applyMutation(awsProperties::applyS3CredentialConfigurations)
           .applyMutation(awsProperties::applyS3SignerConfiguration)
           .build();
     }
@@ -200,8 +200,8 @@ public class AwsClientFactories {
    * Build an AwsBasicCredential object
    *
    * @deprecated Not for public use. To configure the credentials for a s3 client, please use {@link
-   *     AwsProperties#applyCredentialConfigurations(S3ClientBuilder)} in AwsProperties. It will be
-   *     removed in 2.0.0.
+   *     AwsProperties#applyS3CredentialConfigurations(S3ClientBuilder)} in AwsProperties. It will
+   *     be removed in 2.0.0.
    */
   @Deprecated
   static AwsCredentialsProvider credentialsProvider(
