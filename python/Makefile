@@ -39,7 +39,7 @@ test-integration:
 	docker-compose -f dev/docker-compose-integration.yml kill
 	docker-compose -f dev/docker-compose-integration.yml build
 	docker-compose -f dev/docker-compose-integration.yml up -d
-	sleep 20
+	sleep 30
 	poetry run coverage run --source=pyiceberg/ -m pytest tests/ -m integration ${PYTEST_ARGS}
 
 test-adlfs:
