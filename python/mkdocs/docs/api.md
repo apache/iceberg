@@ -281,7 +281,7 @@ Table(
 
 ## Query a table
 
-To query a table, a table scan is needed. A table scan accepts a filter, columns and optionally a snapshot ID:
+To query a table, a table scan is needed. A table scan accepts a filter, columns and optionally a limit and a snapshot ID:
 
 ```python
 from pyiceberg.catalog import load_catalog
@@ -293,6 +293,7 @@ table = catalog.load_table("nyc.taxis")
 scan = table.scan(
     row_filter=GreaterThanOrEqual("trip_distance", 10.0),
     selected_fields=("VendorID", "tpep_pickup_datetime", "tpep_dropoff_datetime"),
+    limit=100
 )
 
 # Or filter using a string predicate
