@@ -20,6 +20,7 @@ package org.apache.iceberg.view;
 
 import java.util.List;
 import java.util.Map;
+import org.immutables.value.Value;
 
 /**
  * A version of the view at a point in time.
@@ -28,6 +29,7 @@ import java.util.Map;
  *
  * <p>Versions are created by view operations, like Create and Replace.
  */
+@Value.Immutable
 public interface ViewVersion {
 
   /** Return this version's id. Version ids are monotonically increasing */
@@ -43,8 +45,7 @@ public interface ViewVersion {
   long timestampMillis();
 
   /**
-   * Return the version summary such as the name of the operation that created that version of the
-   * view
+   * Return the version summary
    *
    * @return a version summary
    */
@@ -58,4 +59,11 @@ public interface ViewVersion {
    * @return the list of view representations
    */
   List<ViewRepresentation> representations();
+
+  /**
+   * Return the operation which produced the view version
+   *
+   * @return the string operation which produced the view version
+   */
+  String operation();
 }

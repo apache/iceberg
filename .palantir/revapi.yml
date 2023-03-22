@@ -405,6 +405,10 @@ acceptedBreaks:
         \ java.lang.String)"
       justification: "Removing deprecations for 1.2.0"
   "1.2.0":
+    org.apache.iceberg:iceberg-api:
+    - code: "java.method.addedToInterface"
+      new: "method java.lang.String org.apache.iceberg.view.ViewVersion::operation()"
+      justification: "Add operation API to view version"
     org.apache.iceberg:iceberg-core:
     - code: "java.method.removed"
       old: "method org.apache.iceberg.DeleteFileIndex org.apache.iceberg.MergingSnapshotProducer<ThisT>::addedDeleteFiles(org.apache.iceberg.TableMetadata,\

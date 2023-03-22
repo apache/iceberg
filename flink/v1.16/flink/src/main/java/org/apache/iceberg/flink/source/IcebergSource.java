@@ -187,7 +187,7 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
 
     if (scanContext.isStreaming()) {
       ContinuousSplitPlanner splitPlanner =
-          new ContinuousSplitPlannerImpl(lazyTable(), scanContext, planningThreadName());
+          new ContinuousSplitPlannerImpl(tableLoader.clone(), scanContext, planningThreadName());
       return new ContinuousIcebergEnumerator(
           enumContext, assigner, scanContext, splitPlanner, enumState);
     } else {
