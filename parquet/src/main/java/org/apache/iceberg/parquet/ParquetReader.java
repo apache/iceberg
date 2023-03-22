@@ -129,7 +129,7 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
                         .build()));
 
     // State associated with prefetching row groups
-    private int prefetchedRowGroup;
+    private int prefetchedRowGroup = 0;
     private Future<PageReadStore> prefetchRowGroupFuture;
 
     FileIterator(ReadConf<T> conf) {
@@ -180,9 +180,9 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
         Preconditions.checkState(
             pages != null,
             "advance() should have been only when there was at least one row group to read");
-        long rowPosition = rowGroupsStartRowPos[nextRowGroup];
+        long rowPosition = rowGroupsStartRowPos[prefetchedRowGroup];
         nextRowGroupStart += pages.getRowCount();
-        nextRowGroup += 1;
+        prefetchedRowGroup += 1;
 
         model.setPageSource(pages, rowPosition);
         prefetchNextRowGroup(); // eagerly fetch the next row group
@@ -198,7 +198,6 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
       prefetchRowGroupFuture =
           prefetchService.submit(
               () -> {
-                prefetchedRowGroup = nextRowGroup;
                 while (prefetchedRowGroup < totalRowGroups && shouldSkip[prefetchedRowGroup]) {
                   prefetchedRowGroup += 1;
                   reader.skipNextRowGroup();
