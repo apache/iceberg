@@ -34,11 +34,13 @@ import org.apache.spark.sql.types.StructType;
 
 public class AncestorsOfProcedure extends BaseProcedure {
 
+  private static final ProcedureParameter TABLE_PARAM =
+      ProcedureParameter.required("table", DataTypes.StringType);
+  private static final ProcedureParameter SNAPSHOT_ID_PARAM =
+      ProcedureParameter.optional("snapshot_id", DataTypes.LongType);
+
   private static final ProcedureParameter[] PARAMETERS =
-      new ProcedureParameter[] {
-        ProcedureParameter.required("table", DataTypes.StringType),
-        ProcedureParameter.optional("snapshot_id", DataTypes.LongType),
-      };
+      new ProcedureParameter[] {TABLE_PARAM, SNAPSHOT_ID_PARAM};
 
   private static final StructType OUTPUT_TYPE =
       new StructType(
@@ -72,8 +74,10 @@ public class AncestorsOfProcedure extends BaseProcedure {
 
   @Override
   public InternalRow[] call(InternalRow args) {
-    Identifier tableIdent = toIdentifier(args.getString(0), PARAMETERS[0].name());
-    Long toSnapshotId = args.isNullAt(1) ? null : args.getLong(1);
+    ProcedureInput input = new ProcedureInput(spark(), tableCatalog(), PARAMETERS, args);
+
+    Identifier tableIdent = input.asIdent(TABLE_PARAM);
+    Long toSnapshotId = input.asLong(SNAPSHOT_ID_PARAM, null);
 
     SparkTable sparkTable = loadSparkTable(tableIdent);
     Table icebergTable = sparkTable.table();

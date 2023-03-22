@@ -62,31 +62,43 @@ class ProcedureInput {
     return !args.isNullAt(ordinal);
   }
 
-  public boolean bool(ProcedureParameter param, boolean defaultValue) {
+  public Boolean asBoolean(ProcedureParameter param, Boolean defaultValue) {
     validateParamType(param, DataTypes.BooleanType);
     int ordinal = ordinal(param);
-    return args.isNullAt(ordinal) ? defaultValue : args.getBoolean(ordinal);
+    return args.isNullAt(ordinal) ? defaultValue : (Boolean) args.getBoolean(ordinal);
   }
 
-  public String string(ProcedureParameter param) {
-    String value = string(param, null);
+  public long asLong(ProcedureParameter param) {
+    Long value = asLong(param, null);
     Preconditions.checkArgument(value != null, "Parameter '%s' is not set", param.name());
     return value;
   }
 
-  public String string(ProcedureParameter param, String defaultValue) {
+  public Long asLong(ProcedureParameter param, Long defaultValue) {
+    validateParamType(param, DataTypes.LongType);
+    int ordinal = ordinal(param);
+    return args.isNullAt(ordinal) ? defaultValue : (Long) args.getLong(ordinal);
+  }
+
+  public String asString(ProcedureParameter param) {
+    String value = asString(param, null);
+    Preconditions.checkArgument(value != null, "Parameter '%s' is not set", param.name());
+    return value;
+  }
+
+  public String asString(ProcedureParameter param, String defaultValue) {
     validateParamType(param, DataTypes.StringType);
     int ordinal = ordinal(param);
     return args.isNullAt(ordinal) ? defaultValue : args.getString(ordinal);
   }
 
-  public String[] stringArray(ProcedureParameter param) {
-    String[] value = stringArray(param, null);
+  public String[] asStringArray(ProcedureParameter param) {
+    String[] value = asStringArray(param, null);
     Preconditions.checkArgument(value != null, "Parameter '%s' is not set", param.name());
     return value;
   }
 
-  public String[] stringArray(ProcedureParameter param, String[] defaultValue) {
+  public String[] asStringArray(ProcedureParameter param, String[] defaultValue) {
     validateParamType(param, STRING_ARRAY);
     return array(
         param,
@@ -119,7 +131,8 @@ class ProcedureInput {
     return convertedArray;
   }
 
-  public Map<String, String> stringMap(ProcedureParameter param, Map<String, String> defaultValue) {
+  public Map<String, String> asStringMap(
+      ProcedureParameter param, Map<String, String> defaultValue) {
     validateParamType(param, STRING_MAP);
     return map(
         param,
@@ -153,7 +166,7 @@ class ProcedureInput {
     return convertedMap;
   }
 
-  public Identifier ident(ProcedureParameter param) {
+  public Identifier asIdent(ProcedureParameter param) {
     CatalogAndIdentifier catalogAndIdent = catalogAndIdent(param, catalog);
 
     Preconditions.checkArgument(
@@ -166,7 +179,7 @@ class ProcedureInput {
     return catalogAndIdent.identifier();
   }
 
-  public Identifier ident(ProcedureParameter param, CatalogPlugin defaultCatalog) {
+  public Identifier asIdent(ProcedureParameter param, CatalogPlugin defaultCatalog) {
     CatalogAndIdentifier catalogAndIdent = catalogAndIdent(param, defaultCatalog);
     return catalogAndIdent.identifier();
   }
@@ -174,7 +187,7 @@ class ProcedureInput {
   private CatalogAndIdentifier catalogAndIdent(
       ProcedureParameter param, CatalogPlugin defaultCatalog) {
 
-    String identAsString = string(param);
+    String identAsString = asString(param);
 
     Preconditions.checkArgument(
         StringUtils.isNotBlank(identAsString),

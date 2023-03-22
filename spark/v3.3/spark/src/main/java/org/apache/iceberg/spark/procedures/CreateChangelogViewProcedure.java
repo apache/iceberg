@@ -136,7 +136,7 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
   public InternalRow[] call(InternalRow args) {
     ProcedureInput input = new ProcedureInput(spark(), tableCatalog(), PARAMETERS, args);
 
-    Identifier tableIdent = input.ident(TABLE_PARAM);
+    Identifier tableIdent = input.asIdent(TABLE_PARAM);
 
     // load insert and deletes from the changelog table
     Identifier changelogTableIdent = changelogTableIdent(tableIdent);
@@ -172,11 +172,11 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
   private boolean shouldComputeUpdateImages(ProcedureInput input) {
     // If the identifier columns are set, we compute pre/post update images by default.
     boolean defaultValue = input.isProvided(IDENTIFIER_COLUMNS_PARAM);
-    return input.bool(COMPUTE_UPDATES_PARAM, defaultValue);
+    return input.asBoolean(COMPUTE_UPDATES_PARAM, defaultValue);
   }
 
   private boolean shouldRemoveCarryoverRows(ProcedureInput input) {
-    return input.bool(REMOVE_CARRYOVERS_PARAM, true);
+    return input.asBoolean(REMOVE_CARRYOVERS_PARAM, true);
   }
 
   private Dataset<Row> removeCarryoverRows(Dataset<Row> df) {
@@ -190,7 +190,7 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
 
   private String[] identifierColumns(ProcedureInput input, Identifier tableIdent) {
     if (input.isProvided(IDENTIFIER_COLUMNS_PARAM)) {
-      return input.stringArray(IDENTIFIER_COLUMNS_PARAM);
+      return input.asStringArray(IDENTIFIER_COLUMNS_PARAM);
     } else {
       Table table = loadSparkTable(tableIdent).table();
       return table.schema().identifierFieldNames().toArray(new String[0]);
@@ -205,12 +205,12 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
   }
 
   private Map<String, String> options(ProcedureInput input) {
-    return input.stringMap(OPTIONS_PARAM, ImmutableMap.of());
+    return input.asStringMap(OPTIONS_PARAM, ImmutableMap.of());
   }
 
   private String viewName(ProcedureInput input, String tableName) {
     String defaultValue = String.format("`%s_changes`", tableName);
-    return input.string(CHANGELOG_VIEW_PARAM, defaultValue);
+    return input.asString(CHANGELOG_VIEW_PARAM, defaultValue);
   }
 
   private Dataset<Row> applyChangelogIterator(Dataset<Row> df, Column[] repartitionSpec) {
