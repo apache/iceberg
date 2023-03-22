@@ -21,6 +21,8 @@ services:
     image: python-integration
     container_name: pyiceberg-spark
     build: .
+    networks:
+      iceberg_net:
     depends_on:
       - rest
       - minio
@@ -37,15 +39,17 @@ services:
       - rest:rest
       - minio:minio
   rest:
-    image: tabulario/iceberg-rest:0.2.0
+    image: tabulario/iceberg-rest
     container_name: pyiceberg-rest
+    networks:
+      iceberg_net:
     ports:
       - 8181:8181
     environment:
       - AWS_ACCESS_KEY_ID=admin
       - AWS_SECRET_ACCESS_KEY=password
       - AWS_REGION=us-east-1
-      - CATALOG_WAREHOUSE=s3a://warehouse/wh/
+      - CATALOG_WAREHOUSE=s3://warehouse/
       - CATALOG_IO__IMPL=org.apache.iceberg.aws.s3.S3FileIO
       - CATALOG_S3_ENDPOINT=http://minio:9000
   minio:
@@ -54,6 +58,11 @@ services:
     environment:
       - MINIO_ROOT_USER=admin
       - MINIO_ROOT_PASSWORD=password
+      - MINIO_DOMAIN=minio
+    networks:
+      iceberg_net:
+        aliases:
+          - warehouse.minio
     ports:
       - 9001:9001
       - 9000:9000
@@ -63,6 +72,8 @@ services:
       - minio
     image: minio/mc
     container_name: pyiceberg-mc
+    networks:
+      iceberg_net:
     environment:
       - AWS_ACCESS_KEY_ID=admin
       - AWS_SECRET_ACCESS_KEY=password
@@ -74,3 +85,5 @@ services:
       /usr/bin/mc policy set public minio/warehouse;
       tail -f /dev/null
       "
+networks:
+  iceberg_net:
