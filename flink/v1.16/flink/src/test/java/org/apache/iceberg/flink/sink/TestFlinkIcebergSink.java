@@ -22,6 +22,8 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.table.api.TableSchema;
@@ -41,6 +43,7 @@ import org.apache.iceberg.flink.MiniClusterResource;
 import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.TestFixtures;
+import org.apache.iceberg.flink.source.BoundedTestSource;
 import org.apache.iceberg.flink.util.FlinkCompatibilityUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -389,5 +392,46 @@ public class TestFlinkIcebergSink extends TestFlinkIcebergSinkBase {
           env.execute("Test Iceberg DataStream.");
           return null;
         });
+  }
+
+  @Test
+  public void testPartitionEvolution() throws Exception {
+    List<List<Row>> rows =
+        IntStream.range(0, 10)
+            .mapToObj(i -> createRows(String.valueOf(i)))
+            .collect(Collectors.toList());
+
+    DataStream<Row> dataStream = env.addSource(new BoundedTestSource<>(rows), ROW_TYPE_INFO);
+
+    FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
+        .table(table)
+        .tableLoader(tableLoader)
+        .writeParallelism(parallelism)
+        .append();
+
+    Thread thread = null;
+    if (partitioned) {
+      thread =
+          new Thread(
+              () -> {
+                try {
+                  Thread.sleep(120);
+                  table.updateSpec().removeField("data").addField("id").commit();
+                } catch (InterruptedException e) {
+                  throw new RuntimeException(e);
+                }
+              });
+      thread.start();
+    }
+
+    // Execute the program.
+    env.execute("Test Iceberg DataStream.");
+    if (thread != null) {
+      thread.join();
+    }
+
+    List<RowData> expected = Lists.newArrayList();
+    rows.forEach(piece -> expected.addAll(convertToRowData(piece)));
+    SimpleDataUtil.assertTableRows(table, expected);
   }
 }

@@ -20,6 +20,7 @@ package org.apache.iceberg.flink.sink;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Supplier;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
@@ -104,7 +105,8 @@ class FlinkManifestUtil {
     return new DeltaManifests(dataManifest, deleteManifest, result.referencedDataFiles());
   }
 
-  static WriteResult readCompletedFiles(DeltaManifests deltaManifests, FileIO io)
+  static WriteResult readCompletedFiles(
+      DeltaManifests deltaManifests, FileIO io, Map<Integer, PartitionSpec> specsById)
       throws IOException {
     WriteResult.Builder builder = WriteResult.builder();
 
@@ -116,7 +118,7 @@ class FlinkManifestUtil {
     // Read the completed delete files from persisted delete manifests file.
     if (deltaManifests.deleteManifest() != null) {
       try (CloseableIterable<DeleteFile> deleteFiles =
-          ManifestFiles.readDeleteManifest(deltaManifests.deleteManifest(), io, null)) {
+          ManifestFiles.readDeleteManifest(deltaManifests.deleteManifest(), io, specsById)) {
         builder.addDeleteFiles(deleteFiles);
       }
     }

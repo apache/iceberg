@@ -110,7 +110,8 @@ public class TestFlinkManifest {
               () -> factory.create(curCkpId),
               table.spec());
 
-      WriteResult result = FlinkManifestUtil.readCompletedFiles(deltaManifests, table.io());
+      WriteResult result =
+          FlinkManifestUtil.readCompletedFiles(deltaManifests, table.io(), table.specs());
       Assert.assertEquals("Size of data file list are not equal.", 10, result.deleteFiles().length);
       for (int i = 0; i < dataFiles.size(); i++) {
         TestHelpers.assertEquals(dataFiles.get(i), result.dataFiles()[i]);
@@ -157,7 +158,8 @@ public class TestFlinkManifest {
         userProvidedFolder.toPath(),
         Paths.get(deltaManifests.dataManifest().path()).getParent());
 
-    WriteResult result = FlinkManifestUtil.readCompletedFiles(deltaManifests, table.io());
+    WriteResult result =
+        FlinkManifestUtil.readCompletedFiles(deltaManifests, table.io(), table.specs());
 
     Assert.assertEquals(0, result.deleteFiles().length);
     Assert.assertEquals(5, result.dataFiles().length);
