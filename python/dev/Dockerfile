@@ -52,6 +52,10 @@ RUN curl -s https://repo1.maven.org/maven2/org/apache/iceberg/iceberg-spark-runt
 RUN curl -s https://repo1.maven.org/maven2/software/amazon/awssdk/bundle/${AWS_SDK_VERSION}/bundle-${AWS_SDK_VERSION}.jar -Lo bundle-${AWS_SDK_VERSION}.jar \
  && mv bundle-${AWS_SDK_VERSION}.jar /opt/spark/jars
 
+# Download URL connection client required for S3FileIO
+RUN curl -s https://repo1.maven.org/maven2/software/amazon/awssdk/url-connection-client/${AWS_SDK_VERSION}/url-connection-client-${AWS_SDK_VERSION}.jar -Lo url-connection-client-${AWS_SDK_VERSION}.jar \
+ && mv url-connection-client-${AWS_SDK_VERSION}.jar /opt/spark/jars
+
 COPY spark-defaults.conf /opt/spark/conf
 ENV PATH="/opt/spark/sbin:/opt/spark/bin:${PATH}"
 
