@@ -896,6 +896,7 @@ public class AwsProperties implements Serializable {
 
     this.s3SignerImpl = properties.get(S3_SIGNER_IMPL);
     this.allProperties = SerializableMap.copyOf(properties);
+
     this.clientRegion = properties.get(CLIENT_REGION);
     this.clientCredentialsProvider = properties.get(CLIENT_CREDENTIALS_PROVIDER);
     this.clientCredentialsProviderProperties =
