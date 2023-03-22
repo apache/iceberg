@@ -131,23 +131,18 @@ public class TestDataStatisticsOperator {
   }
 
   private StateInitializationContext getStateContext() throws Exception {
-    // Create the state context.
-    OperatorStateStore operatorStateStore = createOperatorStateStore();
-    return new StateInitializationContextImpl(null, operatorStateStore, null, null, null);
-  }
-
-  private OperatorStateStore createOperatorStateStore() throws Exception {
     MockEnvironment env = new MockEnvironmentBuilder().build();
     AbstractStateBackend abstractStateBackend = new HashMapStateBackend();
     CloseableRegistry cancelStreamRegistry = new CloseableRegistry();
-    return abstractStateBackend.createOperatorStateBackend(
-        env, "test-operator", Collections.emptyList(), cancelStreamRegistry);
+    OperatorStateStore operatorStateStore = abstractStateBackend.createOperatorStateBackend(
+            env, "test-operator", Collections.emptyList(), cancelStreamRegistry);
+    return new StateInitializationContextImpl(null, operatorStateStore, null, null, null);
   }
 
   private OneInputStreamOperatorTestHarness<String, DataStatisticsOrRecord<String, String>>
-      createHarness(final DataStatisticsOperator<String, String> operator) throws Exception {
+      createHarness(final DataStatisticsOperator<String, String> dataStatisticsOperator) throws Exception {
     OneInputStreamOperatorTestHarness<String, DataStatisticsOrRecord<String, String>> harness =
-        new OneInputStreamOperatorTestHarness<>(operator, 1, 1, 0);
+        new OneInputStreamOperatorTestHarness<>(dataStatisticsOperator, 1, 1, 0);
     harness.setup();
     harness.open();
     return harness;

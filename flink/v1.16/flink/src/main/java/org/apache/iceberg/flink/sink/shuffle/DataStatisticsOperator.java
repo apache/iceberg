@@ -36,9 +36,7 @@ import org.apache.iceberg.flink.sink.shuffle.statistics.DataStatisticsFactory;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 
 /**
- * DataStatisticsOperator can help to improve data clustering based on the key.
- *
- * <p>DataStatisticsOperator collects traffic distribution statistics. A custom partitioner shall be
+ * DataStatisticsOperator collects traffic distribution statistics. A custom partitioner shall be
  * attached to the DataStatisticsOperator output. The custom partitioner leverages the statistics to
  * shuffle record to improve data clustering while maintaining relative balanced traffic
  * distribution to downstream subtasks.
@@ -51,11 +49,11 @@ class DataStatisticsOperator<T, K> extends AbstractStreamOperator<DataStatistics
   private final KeySelector<T, K> keySelector;
   private final OperatorEventGateway operatorEventGateway;
   private final DataStatisticsFactory<K> statisticsFactory;
-  private DataStatistics<K> localStatistics;
-  private DataStatistics<K> globalStatistics;
-  private ListState<DataStatistics<K>> globalStatisticsState;
+  private transient volatile DataStatistics<K> localStatistics;
+  private transient volatile DataStatistics<K> globalStatistics;
+  private transient ListState<DataStatistics<K>> globalStatisticsState;
 
-  public DataStatisticsOperator(
+  DataStatisticsOperator(
       KeySelector<T, K> keySelector,
       OperatorEventGateway operatorEventGateway,
       DataStatisticsFactory<K> statisticsFactory) {
@@ -112,11 +110,13 @@ class DataStatisticsOperator<T, K> extends AbstractStreamOperator<DataStatistics
   @Override
   public void snapshotState(StateSnapshotContext context) throws Exception {
     long checkpointId = context.getCheckpointId();
-    LOG.debug("Taking data statistics operator snapshot for checkpoint {}", checkpointId);
+    LOG.info("Taking data statistics operator snapshot for checkpoint {}", checkpointId);
 
-    // Update globalStatisticsState with latest global statistics
-    if (!globalStatistics.isEmpty()) {
+    // Only subtask 0 saves the state so that globalStatisticsState(UnionListState) stores
+    // an exact copy of globalStatistics
+    if (!globalStatistics.isEmpty() && getRuntimeContext().getIndexOfThisSubtask() == 0) {
       globalStatisticsState.clear();
+      LOG.debug("Saving global statistics {} to state", globalStatistics);
       globalStatisticsState.add(globalStatistics);
     }
 

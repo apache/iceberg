@@ -44,7 +44,7 @@ public class MapDataStatistics<K> implements DataStatistics<K> {
   public void merge(DataStatistics<K> otherStatistics) {
     Preconditions.checkArgument(
         otherStatistics instanceof MapDataStatistics,
-        "Can not merge this type of statistics: " + otherStatistics);
+        "Map statistics can not merge with " + otherStatistics.getClass());
     MapDataStatistics<K> mapDataStatistic = (MapDataStatistics<K>) otherStatistics;
     mapDataStatistic.statistics.forEach(
         (key, count) -> statistics.merge(key, count, Long::sum));
