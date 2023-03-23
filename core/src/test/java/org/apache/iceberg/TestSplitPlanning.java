@@ -256,14 +256,34 @@ public class TestSplitPlanning extends TableTestBase {
     appendDeleteFiles(files128Mb);
 
     PositionDeletesTable posDeletesTable = new PositionDeletesTable(table);
-    // we expect 8 bins since split size is 64MB
-    Assert.assertEquals(
-        8,
-        Iterables.size(
-            posDeletesTable
-                .newBatchScan()
-                .option(TableProperties.SPLIT_SIZE, String.valueOf(64L * 1024 * 1024))
-                .planTasks()));
+
+    try (CloseableIterable<ScanTaskGroup<ScanTask>> groups =
+        posDeletesTable
+            .newBatchScan()
+            .option(TableProperties.SPLIT_SIZE, String.valueOf(64L * 1024 * 1024))
+            .planTasks()) {
+      int totalTaskGroups = 0;
+      for (ScanTaskGroup<ScanTask> group : groups) {
+        int tasksPerGroup = 0;
+        long previousOffset = -1;
+        for (ScanTask task : group.tasks()) {
+          tasksPerGroup++;
+          Assert.assertTrue(task instanceof SplitPositionDeletesScanTask);
+          SplitPositionDeletesScanTask splitPosDelTask = (SplitPositionDeletesScanTask) task;
+          if (previousOffset != -1) {
+            Assert.assertEquals(splitPosDelTask.start(), previousOffset);
+          }
+          previousOffset = splitPosDelTask.start() + splitPosDelTask.length();
+        }
+
+        Assert.assertEquals("Should have 1 task as result of task merge", 1, tasksPerGroup);
+        totalTaskGroups++;
+      }
+      // we expect 8 bins since split size is 64MB
+      Assert.assertEquals(8, totalTaskGroups);
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
   }
 
   private void appendFiles(Iterable<DataFile> files) {
