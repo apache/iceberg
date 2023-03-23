@@ -293,7 +293,7 @@ table = catalog.load_table("nyc.taxis")
 scan = table.scan(
     row_filter=GreaterThanOrEqual("trip_distance", 10.0),
     selected_fields=("VendorID", "tpep_pickup_datetime", "tpep_dropoff_datetime"),
-    limit=100
+    limit=100,
 )
 
 # Or filter using a string predicate
