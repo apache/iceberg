@@ -1,6 +1,6 @@
 ---
-title: "Delta Lake Conversion"
-url: delta-conversion
+title: "Table Migration"
+url: table-migration
 weight: 400
 menu: main
 ---
@@ -20,12 +20,15 @@ menu: main
  - See the License for the specific language governing permissions and
  - limitations under the License.
  -->
-# Delta Lake Conversion
+# Hive and Spark Table Migration
+Iceberg supports converting Hive and Spark tables to Iceberg tables through Spark Procedures. For specific instructions on how to use the procedures, please refer to the [Table Migration via Spark Procedures](../spark-procedures/#table-migration) page.
+
+# Delta Lake Table Migration
 Iceberg supports converting Delta Lake tables to Iceberg tables through the `iceberg-delta-lake` module
 by using [Delta Standalone](https://docs.delta.io/latest/delta-standalone.html) to read logs of Delta lake tables.
 
 
-## Enabling Converting from Delta Lake to Iceberg
+## Enabling Migration from Delta Lake to Iceberg
 The `iceberg-delta-lake` module is not bundled with Spark and Flink engine runtimes. Users need to manually include this module in their environment to enable the conversion.
 Also, users need to provide [Delta Standalone](https://github.com/delta-io/connectors/releases/tag/v0.6.0) and [Delta Storage](https://repo1.maven.org/maven2/io/delta/delta-storage/2.2.0/)
 because they are what `iceberg-delta-lake` uses to read Delta Lake tables.
@@ -38,7 +41,7 @@ The module is built and tested with `Delta Standalone:0.6.0` and supports Delta 
 Please refer to [Delta Lake Table Protocol Versioning](https://docs.delta.io/latest/versioning.html) for more details about Delta Lake protocol versions.
 
 For delta lake table contains `TimestampType` columns, please make sure to set table property `read.parquet.vectorization.enabled` to `false` since the vectorized reader doesn't support `INT96` yet.
-Such support is under development in according to this [issue](https://github.com/apache/iceberg/issues/4200)
+Such support is under development in the [PR#6962](https://github.com/apache/iceberg/pull/6962)
 
 ## API
 The `iceberg-delta-lake` module provides an interface named `DeltaLakeToIcebergMigrationActionsProvider`, which contains actions that helps converting from Delta Lake to Iceberg.
