@@ -24,7 +24,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
-import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -243,12 +242,6 @@ public class RESTCatalog implements Catalog, SupportsNamespaces, Configurable<Ob
   @Override
   public void setConf(Object conf) {
     sessionCatalog.setConf(conf);
-  }
-
-  /** @deprecated will be removed in 1.3.0; use {@link #setConf(Object)} */
-  @Deprecated
-  public void setConf(Configuration conf) {
-    setConf((Object) conf);
   }
 
   @Override
