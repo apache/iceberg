@@ -22,10 +22,10 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 
 import java.io.IOException;
 import java.util.List;
+import org.apache.iceberg.inmemory.InMemoryOutputFile;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.FileIO;
-import org.apache.iceberg.io.InMemoryOutputFile;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;

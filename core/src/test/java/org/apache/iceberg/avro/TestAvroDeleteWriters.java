@@ -35,7 +35,7 @@ import org.apache.iceberg.data.avro.DataWriter;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
-import org.apache.iceberg.io.InMemoryOutputFile;
+import org.apache.iceberg.inmemory.InMemoryOutputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
