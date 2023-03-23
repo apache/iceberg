@@ -24,6 +24,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.hadoop.fs.Path;
+import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Snapshot;
@@ -39,7 +40,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.spark.SparkTableUtil.SparkPartition;
-import org.apache.iceberg.util.LocationUtil;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.TableIdentifier;
 import org.apache.spark.sql.connector.catalog.CatalogPlugin;
@@ -218,9 +218,11 @@ class AddFilesProcedure extends BaseProcedure {
   }
 
   private String getMetadataLocation(Table table) {
-    String defaultValue = LocationUtil.stripTrailingSlash(table.location()) + "/metadata";
-    return LocationUtil.stripTrailingSlash(
-        table.properties().getOrDefault(TableProperties.WRITE_METADATA_LOCATION, defaultValue));
+    return ((HasTableOperations) table)
+        .operations()
+        .current()
+        .metadataLocationProvider()
+        .metadataLocation();
   }
 
   @Override

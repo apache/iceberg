@@ -27,7 +27,6 @@ import org.apache.iceberg.LocationProviders;
 import org.apache.iceberg.MetadataUpdate;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
-import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
@@ -37,7 +36,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.rest.requests.UpdateTableRequest;
 import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.apache.iceberg.rest.responses.LoadTableResponse;
-import org.apache.iceberg.util.LocationUtil;
 
 class RESTTableOperations implements TableOperations {
   private static final String METADATA_FOLDER_NAME = "metadata";
@@ -167,13 +165,7 @@ class RESTTableOperations implements TableOperations {
   }
 
   private static String metadataFileLocation(TableMetadata metadata, String filename) {
-    String metadataLocation = metadata.properties().get(TableProperties.WRITE_METADATA_LOCATION);
-
-    if (metadataLocation != null) {
-      return String.format("%s/%s", LocationUtil.stripTrailingSlash(metadataLocation), filename);
-    } else {
-      return String.format("%s/%s/%s", metadata.location(), METADATA_FOLDER_NAME, filename);
-    }
+    return metadata.metadataLocationProvider().newMetadataLocation(filename);
   }
 
   @Override

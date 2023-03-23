@@ -21,7 +21,9 @@ package org.apache.iceberg;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.io.LocationProvider;
+import org.apache.iceberg.io.MetadataLocationProvider;
 import org.apache.iceberg.relocated.com.google.common.base.Splitter;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -296,5 +298,35 @@ public class TestLocationProvider extends TableTestBase {
     Assert.assertFalse("Third part should be a hash value", parts.get(2).isEmpty());
     Assert.assertEquals(
         "Fourth part should be the file name passed in", "test.parquet", parts.get(3));
+  }
+
+  @Test
+  public void testTableMetadataLocationProvider() {
+    MetadataLocationProvider metadataLocationProvider =
+        table.ops().current().metadataLocationProvider();
+
+    Assertions.assertThat(metadataLocationProvider).isNotNull();
+    Assertions.assertThat(metadataLocationProvider.metadataLocation())
+        .isNotNull()
+        .endsWith("/metadata");
+    Assertions.assertThat(metadataLocationProvider.metadataLocation())
+        .as("Table metadata location provider location should match with providers api")
+        .isEqualTo(
+            LocationProviders.metadataLocationFor(table.location(), table.properties())
+                .metadataLocation());
+  }
+
+  @Test
+  public void testTableMetadataLocationProviderWithInvalidInput() {
+    Assertions.assertThatThrownBy(
+            () ->
+                LocationProviders.metadataLocationFor(null, table.properties()).metadataLocation())
+        .isInstanceOf(NullPointerException.class)
+        .hasMessageContaining("table location cannot be null");
+
+    Assertions.assertThatThrownBy(
+            () -> LocationProviders.metadataLocationFor(table.location(), null))
+        .isInstanceOf(NullPointerException.class)
+        .hasMessageContaining("table properties cannot be null");
   }
 }

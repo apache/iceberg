@@ -19,40 +19,26 @@
 package org.apache.iceberg.io;
 
 import java.io.Serializable;
-import org.apache.iceberg.PartitionSpec;
-import org.apache.iceberg.StructLike;
 
 /**
- * Interface for providing data file locations to write tasks.
+ * Interface for providing metadata file locations to read/write tasks.
  *
  * <p>Implementations must be {@link Serializable} because instances will be serialized to tasks.
  */
-public interface LocationProvider extends Serializable {
+public interface MetadataLocationProvider extends Serializable {
 
   /**
-   * Return a fully-qualified data location for a table.
+   * Return a fully-qualified metadata location for a table.
    *
    * @return a fully-qualified data location URI
    */
-  default String dataLocation() {
-    throw new UnsupportedOperationException("dataLocation() not implemented");
-  }
+  String metadataLocation();
 
   /**
-   * Return a fully-qualified data file location for the given filename.
+   * Return a fully-qualified metadata file location for the given filename.
    *
    * @param filename a file name
-   * @return a fully-qualified location URI for a data file
+   * @return a fully-qualified location URI for a metadata file
    */
-  String newDataLocation(String filename);
-
-  /**
-   * Return a fully-qualified data file location for the given partition and filename.
-   *
-   * @param spec a partition spec
-   * @param partitionData a tuple of partition data for data in the file, matching the given spec
-   * @param filename a file name
-   * @return a fully-qualified location URI for a data file
-   */
-  String newDataLocation(PartitionSpec spec, StructLike partitionData, String filename);
+  String newMetadataLocation(String filename);
 }

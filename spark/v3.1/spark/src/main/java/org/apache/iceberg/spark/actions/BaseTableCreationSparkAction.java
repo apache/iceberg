@@ -173,10 +173,10 @@ abstract class BaseTableCreationSparkAction<ThisT, R> extends BaseSparkAction<Th
   }
 
   protected String getMetadataLocation(Table table) {
-    return table
-        .properties()
-        .getOrDefault(
-            TableProperties.WRITE_METADATA_LOCATION,
-            table.location() + "/" + ICEBERG_METADATA_FOLDER);
+    return ((HasTableOperations) table)
+        .operations()
+        .current()
+        .metadataLocationProvider()
+        .metadataLocation();
   }
 }

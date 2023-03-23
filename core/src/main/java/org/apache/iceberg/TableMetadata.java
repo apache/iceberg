@@ -30,6 +30,7 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.io.MetadataLocationProvider;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Objects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -374,6 +375,10 @@ public class TableMetadata implements Serializable {
 
   public String metadataFileLocation() {
     return metadataFileLocation;
+  }
+
+  public MetadataLocationProvider metadataLocationProvider() {
+    return LocationProviders.metadataLocationFor(location(), properties());
   }
 
   public String uuid() {

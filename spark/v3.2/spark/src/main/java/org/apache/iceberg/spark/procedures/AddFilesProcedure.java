@@ -221,8 +221,7 @@ class AddFilesProcedure extends BaseProcedure {
   }
 
   private String getMetadataLocation(Table table) {
-    String defaultValue = table.location() + "/metadata";
-    return table.properties().getOrDefault(TableProperties.WRITE_METADATA_LOCATION, defaultValue);
+    return ((HasTableOperations)table).operations().current().metadataLocationProvider().metadataLocation();
   }
 
   @Override

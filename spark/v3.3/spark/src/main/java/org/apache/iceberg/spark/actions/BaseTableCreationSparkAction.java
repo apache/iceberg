@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
@@ -37,7 +38,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.SparkCatalog;
 import org.apache.iceberg.spark.SparkSessionCatalog;
 import org.apache.iceberg.spark.source.StagedSparkTable;
-import org.apache.iceberg.util.LocationUtil;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.catalog.CatalogTable;
 import org.apache.spark.sql.catalyst.catalog.CatalogUtils;
@@ -53,7 +53,6 @@ abstract class BaseTableCreationSparkAction<ThisT> extends BaseSparkAction<ThisT
   private static final Set<String> ALLOWED_SOURCES =
       ImmutableSet.of("parquet", "avro", "orc", "hive");
   protected static final String LOCATION = "location";
-  protected static final String ICEBERG_METADATA_FOLDER = "metadata";
   protected static final List<String> EXCLUDED_PROPERTIES =
       ImmutableList.of("path", "transient_lastDdlTime", "serialization.format");
 
@@ -174,9 +173,10 @@ abstract class BaseTableCreationSparkAction<ThisT> extends BaseSparkAction<ThisT
   }
 
   protected String getMetadataLocation(Table table) {
-    String defaultValue =
-        LocationUtil.stripTrailingSlash(table.location()) + "/" + ICEBERG_METADATA_FOLDER;
-    return LocationUtil.stripTrailingSlash(
-        table.properties().getOrDefault(TableProperties.WRITE_METADATA_LOCATION, defaultValue));
+    return ((HasTableOperations) table)
+        .operations()
+        .current()
+        .metadataLocationProvider()
+        .metadataLocation();
   }
 }
