@@ -20,19 +20,25 @@ package org.apache.iceberg.spark.source;
 
 import java.util.Set;
 import org.apache.iceberg.ChangelogUtil;
+import org.apache.iceberg.MetadataColumns;
+import org.apache.iceberg.Partitioning;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.connector.catalog.MetadataColumn;
+import org.apache.spark.sql.connector.catalog.SupportsMetadataColumns;
 import org.apache.spark.sql.connector.catalog.SupportsRead;
 import org.apache.spark.sql.connector.catalog.Table;
 import org.apache.spark.sql.connector.catalog.TableCapability;
 import org.apache.spark.sql.connector.read.Scan;
 import org.apache.spark.sql.connector.read.ScanBuilder;
+import org.apache.spark.sql.types.DataType;
+import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 
-public class SparkChangelogTable implements Table, SupportsRead {
+public class SparkChangelogTable implements Table, SupportsRead, SupportsMetadataColumns {
 
   public static final String TABLE_NAME = "changes";
 
@@ -98,5 +104,17 @@ public class SparkChangelogTable implements Table, SupportsRead {
     }
 
     return lazySpark;
+  }
+
+  @Override
+  public MetadataColumn[] metadataColumns() {
+    DataType sparkPartitionType = SparkSchemaUtil.convert(Partitioning.partitionType(icebergTable));
+    return new MetadataColumn[] {
+      new SparkMetadataColumn(MetadataColumns.SPEC_ID.name(), DataTypes.IntegerType, false),
+      new SparkMetadataColumn(MetadataColumns.PARTITION_COLUMN_NAME, sparkPartitionType, true),
+      new SparkMetadataColumn(MetadataColumns.FILE_PATH.name(), DataTypes.StringType, false),
+      new SparkMetadataColumn(MetadataColumns.ROW_POSITION.name(), DataTypes.LongType, false),
+      new SparkMetadataColumn(MetadataColumns.IS_DELETED.name(), DataTypes.BooleanType, false)
+    };
   }
 }
