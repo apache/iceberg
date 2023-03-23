@@ -82,7 +82,8 @@ public class MicroBatches {
    * 3), (m3, 5).
    *
    * @param manifestFiles List of input manifests used to index.
-   * @return a list of manifest index with key as manifest file, value as file counts.
+   * @return a list pairing each manifest with the index number of the first data file entry in that
+   *     manifest.
    */
   private static List<Pair<ManifestFile, Integer>> indexManifests(
       List<ManifestFile> manifestFiles) {
@@ -98,12 +99,13 @@ public class MicroBatches {
   }
 
   /**
-   * Method to skip the manifest file in which the index is smaller than startFileIndex. For
-   * example, if the index list is : (m1, 0), (m2, 3), (m3, 5), and startFileIndex is 4, then the
-   * returned manifest index list is: (m2, 3), (m3, 5).
+   * Method to skip the manifest file whose index is smaller than startFileIndex. For example, if
+   * the index list is : (m1, 0), (m2, 3), (m3, 5), and startFileIndex is 4, then the returned
+   * manifest index list is: (m2, 3), (m3, 5).
    *
    * @param indexedManifests List of input manifests.
-   * @param startFileIndex Index used to skip the processed manifests.
+   * @param startFileIndex Index used to skip all manifests with an index less than or equal to this
+   *     value.
    * @return a sub-list of manifest file index which only contains the manifest indexes larger than
    *     the startFileIndex.
    */
@@ -231,7 +233,7 @@ public class MicroBatches {
      *
      * @param indexedManifests A list of indexed manifests to generate MicroBatch
      * @param startFileIndex A startFileIndex used to skip processed files.
-     * @param endFileIndex An endFileIndex used to find files to include, it not inclusive.
+     * @param endFileIndex An endFileIndex used to find files to include, exclusive.
      * @param targetSizeInBytes Used to control the size of MicroBatch, the processed file bytes
      *     must be smaller than this size.
      * @param scanAllFiles Used to check whether all the data files should be processed, or only
