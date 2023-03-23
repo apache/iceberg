@@ -35,7 +35,7 @@ import org.apache.iceberg.util.PropertyUtil;
 abstract class BaseScan<ThisT, T extends ScanTask, G extends ScanTaskGroup<T>>
     implements Scan<ThisT, T, G> {
 
-  private static final List<String> SCAN_COLUMNS =
+  protected static final List<String> SCAN_COLUMNS =
       ImmutableList.of(
           "snapshot_id",
           "file_path",

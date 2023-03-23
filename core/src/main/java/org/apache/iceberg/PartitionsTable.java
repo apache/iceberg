@@ -23,17 +23,15 @@ import com.github.benmanes.caffeine.cache.LoadingCache;
 import java.util.Map;
 import org.apache.iceberg.expressions.ManifestEvaluator;
 import org.apache.iceberg.io.CloseableIterable;
-import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.ParallelIterable;
 
 /** A {@link Table} implementation that exposes a table's partitions as rows. */
 public class PartitionsTable extends BaseMetadataTable {
 
   private final Schema schema;
-  static final boolean PLAN_SCANS_WITH_WORKER_POOL =
-      SystemProperties.getBoolean(SystemProperties.SCAN_THREAD_POOL_ENABLED, true);
 
   PartitionsTable(Table table) {
     this(table, table.name() + ".partitions");
@@ -95,26 +93,68 @@ public class PartitionsTable extends BaseMetadataTable {
         partition.key, partition.specId, partition.dataRecordCount, partition.dataFileCount);
   }
 
-  private static Iterable<Partition> partitions(Table table, StaticTableScan scan) {
-    CloseableIterable<FileScanTask> tasks = planFiles(scan);
+  @VisibleForTesting
+  static Iterable<Partition> partitions(Table table, StaticTableScan scan) {
     Types.StructType normalizedPartitionType = Partitioning.partitionType(table);
     PartitionMap partitions = new PartitionMap();
 
     // cache a position map needed by each partition spec to normalize partitions to final schema
     Map<Integer, int[]> normalizedPositionsBySpec =
         Maps.newHashMapWithExpectedSize(table.specs().size());
+    // logic to handle the partition evolution
+    int[] normalizedPositions =
+        normalizedPositionsBySpec.computeIfAbsent(
+            table.spec().specId(),
+            specId -> normalizedPositions(table, specId, normalizedPartitionType));
 
-    for (FileScanTask task : tasks) {
-      PartitionData original = (PartitionData) task.file().partition();
-      int[] normalizedPositions =
-          normalizedPositionsBySpec.computeIfAbsent(
-              task.spec().specId(),
-              specId -> normalizedPositions(table, specId, normalizedPartitionType));
+    // parallelize the manifest read and
+    CloseableIterable<DataFile> datafiles = planDataFiles(scan);
+
+    for (DataFile dataFile : datafiles) {
+      PartitionData original = (PartitionData) dataFile.partition();
       PartitionData normalized =
           normalizePartition(original, normalizedPartitionType, normalizedPositions);
-      partitions.get(normalized).update(task.file());
+      partitions.get(normalized).update(dataFile);
     }
+
     return partitions.all();
+  }
+
+  @VisibleForTesting
+  static CloseableIterable<DataFile> planDataFiles(StaticTableScan scan) {
+    Table table = scan.table();
+    Snapshot snapshot = scan.snapshot();
+
+    // read list of data and delete manifests from current snapshot obtained via scan
+    CloseableIterable<ManifestFile> dataManifests =
+        CloseableIterable.withNoopClose(snapshot.dataManifests(table.io()));
+
+    LoadingCache<Integer, ManifestEvaluator> evalCache =
+        Caffeine.newBuilder()
+            .build(
+                specId -> {
+                  PartitionSpec spec = table.specs().get(specId);
+                  PartitionSpec transformedSpec = transformSpec(scan.tableSchema(), spec);
+                  return ManifestEvaluator.forRowFilter(
+                      scan.filter(), transformedSpec, scan.isCaseSensitive());
+                });
+
+    CloseableIterable<ManifestFile> filteredManifests =
+        CloseableIterable.filter(
+            dataManifests, manifest -> evalCache.get(manifest.partitionSpecId()).eval(manifest));
+
+    Iterable<CloseableIterable<DataFile>> tasks =
+        CloseableIterable.transform(
+            filteredManifests,
+            manifest ->
+                ManifestFiles.read(manifest, table.io(), table.specs())
+                    .caseSensitive(scan.isCaseSensitive())
+                    // hardcoded to avoid scan stats column on partition table
+                    .select(BaseScan.SCAN_COLUMNS));
+
+    return (scan.planExecutor() != null)
+        ? new ParallelIterable<>(tasks, scan.planExecutor())
+        : CloseableIterable.concat(tasks);
   }
 
   /**
@@ -154,43 +194,6 @@ public class PartitionsTable extends BaseMetadataTable {
           normalizedPositions[originalIndex], originalPartition.get(originalIndex));
     }
     return normalizedPartition;
-  }
-
-  @VisibleForTesting
-  static CloseableIterable<FileScanTask> planFiles(StaticTableScan scan) {
-    Table table = scan.table();
-    Snapshot snapshot = table.snapshot(scan.snapshot().snapshotId());
-    boolean caseSensitive = scan.isCaseSensitive();
-
-    LoadingCache<Integer, ManifestEvaluator> evalCache =
-        Caffeine.newBuilder()
-            .build(
-                specId -> {
-                  PartitionSpec spec = table.specs().get(specId);
-                  PartitionSpec transformedSpec = transformSpec(scan.tableSchema(), spec);
-                  return ManifestEvaluator.forRowFilter(
-                      scan.filter(), transformedSpec, caseSensitive);
-                });
-
-    FileIO io = table.io();
-    ManifestGroup manifestGroup =
-        new ManifestGroup(io, snapshot.dataManifests(io), snapshot.deleteManifests(io))
-            .caseSensitive(caseSensitive)
-            .filterManifests(m -> evalCache.get(m.partitionSpecId()).eval(m))
-            .select(scan.scanColumns())
-            .specsById(scan.table().specs())
-            .ignoreDeleted();
-
-    if (scan.shouldIgnoreResiduals()) {
-      manifestGroup = manifestGroup.ignoreResiduals();
-    }
-
-    if (scan.snapshot().dataManifests(io).size() > 1
-        && (PLAN_SCANS_WITH_WORKER_POOL || scan.context().planWithCustomizedExecutor())) {
-      manifestGroup = manifestGroup.planWith(scan.context().planExecutor());
-    }
-
-    return manifestGroup.planFiles();
   }
 
   private class PartitionsScan extends StaticTableScan {
@@ -237,6 +240,10 @@ public class PartitionsTable extends BaseMetadataTable {
       this.dataRecordCount += file.recordCount();
       this.dataFileCount += 1;
       this.specId = file.specId();
+    }
+
+    StructLike key() {
+      return this.key;
     }
   }
 }
