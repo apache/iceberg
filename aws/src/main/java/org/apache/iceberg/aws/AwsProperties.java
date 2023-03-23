@@ -363,16 +363,17 @@ public class AwsProperties implements Serializable {
    * client.credentials-provider=software.amazon.awssdk.auth.credentials.SystemPropertyCredentialsProvider
    *
    * <p>When set, the default client factory {@link
-   * org.apache.iceberg.aws.AwsClientFactories.DefaultAwsClientFactory} will use this provider to
-   * get AWS credentials provided instead of reading the default credential chain to get AWS access
-   * credentials.
+   * org.apache.iceberg.aws.AwsClientFactories.DefaultAwsClientFactory} and also other client
+   * factory classes will use this provider to get AWS credentials provided instead of reading the
+   * default credential chain to get AWS access credentials.
    */
   public static final String CLIENT_CREDENTIALS_PROVIDER = "client.credentials-provider";
 
   /**
    * Used by the client.credentials-provider configured value that will be used by {@link
-   * org.apache.iceberg.aws.AwsClientFactories.DefaultAwsClientFactory} to pass provider-specific
-   * properties. Each property consists of a key name and an associated value.
+   * org.apache.iceberg.aws.AwsClientFactories.DefaultAwsClientFactory} and also other client
+   * factory classes to pass provider-specific properties. Each property consists of a key name and
+   * an associated value.
    */
   private static final String CLIENT_CREDENTIAL_PROVIDER_PREFIX = "client.credentials-provider.";
 
@@ -1196,12 +1197,12 @@ public class AwsProperties implements Serializable {
   }
 
   /**
-   * Configure the credentials for AWS clients.
+   * Configure the credential provider for AWS clients.
    *
    * <p>Sample usage:
    *
    * <pre>
-   *     S3Client.builder().applyMutation(awsProperties::applyCredentialConfigurations)
+   *     DynamoDbClient.builder().applyMutation(awsProperties::applyCredentialConfigurations)
    * </pre>
    */
   public <T extends AwsClientBuilder> void applyCredentialConfigurations(T builder) {
