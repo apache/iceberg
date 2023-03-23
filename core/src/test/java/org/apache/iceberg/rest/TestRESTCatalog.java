@@ -765,7 +765,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             CatalogProperties.URI,
             "ignored",
             CatalogProperties.FILE_IO_IMPL,
-            "org.apache.iceberg.io.InMemoryFileIO",
+            "org.apache.iceberg.inmemory.InMemoryFileIO",
             // default loading to refs only
             "snapshot-loading-mode",
             "refs"));

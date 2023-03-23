@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.io;
+package org.apache.iceberg.inmemory;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -51,21 +51,21 @@ public class TestInMemoryFileIO {
   }
 
   @Test
-  public void testNewInputFileNotFound() throws IOException {
+  public void testNewInputFileNotFound() {
     InMemoryFileIO fileIO = new InMemoryFileIO();
     Assertions.assertThatExceptionOfType(NotFoundException.class)
         .isThrownBy(() -> fileIO.newInputFile("s3://nonexistent/file"));
   }
 
   @Test
-  public void testDeleteFileNotFound() throws IOException {
+  public void testDeleteFileNotFound() {
     InMemoryFileIO fileIO = new InMemoryFileIO();
     Assertions.assertThatExceptionOfType(NotFoundException.class)
         .isThrownBy(() -> fileIO.deleteFile("s3://nonexistent/file"));
   }
 
   @Test
-  public void testCreateNoOverwrite() throws IOException {
+  public void testCreateNoOverwrite() {
     InMemoryFileIO fileIO = new InMemoryFileIO();
     fileIO.addFile(location, "hello world".getBytes());
     Assertions.assertThatExceptionOfType(AlreadyExistsException.class)
