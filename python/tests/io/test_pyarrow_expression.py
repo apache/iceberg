@@ -74,17 +74,11 @@ def test_expr_not_null_to_pyarrow(bound_reference: BoundReference[str]) -> None:
 
 
 def test_expr_is_nan_to_pyarrow(bound_double_reference: BoundReference[str]) -> None:
-    assert (
-        repr(expression_to_pyarrow(BoundIsNaN(bound_double_reference)))
-        == "<pyarrow.compute.Expression (is_null(foo, {nan_is_null=true}) and is_valid(foo))>"
-    )
+    assert repr(expression_to_pyarrow(BoundIsNaN(bound_double_reference))) == "<pyarrow.compute.Expression is_nan(foo)>"
 
 
 def test_expr_not_nan_to_pyarrow(bound_double_reference: BoundReference[str]) -> None:
-    assert (
-        repr(expression_to_pyarrow(BoundNotNaN(bound_double_reference)))
-        == "<pyarrow.compute.Expression invert((is_null(foo, {nan_is_null=true}) and is_valid(foo)))>"
-    )
+    assert repr(expression_to_pyarrow(BoundNotNaN(bound_double_reference))) == "<pyarrow.compute.Expression invert(is_nan(foo))>"
 
 
 def test_expr_equal_to_pyarrow(bound_reference: BoundReference[str]) -> None:
