@@ -52,7 +52,6 @@ import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.exceptions.RESTException;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.apache.iceberg.util.PropertyUtil;
@@ -419,15 +418,6 @@ public class HTTPClient implements RESTClient {
         .invoke(properties);
 
     return instance;
-  }
-
-  /**
-   * @return http client builder
-   * @deprecated will be removed in 1.3.0; use {@link HTTPClient#builder(Map)}
-   */
-  @Deprecated
-  public static Builder builder() {
-    return new Builder(ImmutableMap.of());
   }
 
   public static Builder builder(Map<String, String> properties) {

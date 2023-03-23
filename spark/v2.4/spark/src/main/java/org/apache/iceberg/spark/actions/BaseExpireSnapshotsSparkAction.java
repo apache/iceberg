@@ -31,8 +31,8 @@ import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
-import org.apache.iceberg.actions.BaseExpireSnapshotsActionResult;
 import org.apache.iceberg.actions.ExpireSnapshots;
+import org.apache.iceberg.actions.ImmutableExpireSnapshots;
 import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
@@ -244,7 +244,7 @@ public class BaseExpireSnapshotsSparkAction
    * @param expired an Iterator of Spark Rows of the structure (path: String, type: String)
    * @return Statistics on which files were deleted
    */
-  private BaseExpireSnapshotsActionResult deleteFiles(Iterator<Row> expired) {
+  private ExpireSnapshots.Result deleteFiles(Iterator<Row> expired) {
     AtomicLong dataFileCount = new AtomicLong(0L);
     AtomicLong manifestCount = new AtomicLong(0L);
     AtomicLong manifestListCount = new AtomicLong(0L);
@@ -284,7 +284,12 @@ public class BaseExpireSnapshotsSparkAction
     LOG.info(
         "Deleted {} total files",
         dataFileCount.get() + manifestCount.get() + manifestListCount.get());
-    return new BaseExpireSnapshotsActionResult(
-        dataFileCount.get(), manifestCount.get(), manifestListCount.get());
+    return ImmutableExpireSnapshots.Result.builder()
+        .deletedDataFilesCount(dataFileCount.get())
+        .deletedManifestsCount(manifestCount.get())
+        .deletedManifestListsCount(manifestListCount.get())
+        .deletedPositionDeleteFilesCount(0L)
+        .deletedEqualityDeleteFilesCount(0L)
+        .build();
   }
 }

@@ -116,7 +116,7 @@ public class TestContinuousSplitPlannerImpl {
             .startingStrategy(StreamingStartingStrategy.TABLE_SCAN_THEN_INCREMENTAL)
             .build();
     ContinuousSplitPlannerImpl splitPlanner =
-        new ContinuousSplitPlannerImpl(tableResource.table(), scanContext, null);
+        new ContinuousSplitPlannerImpl(tableResource.tableLoader().clone(), scanContext, null);
 
     ContinuousEnumerationResult emptyTableInitialDiscoveryResult = splitPlanner.planSplits(null);
     Assert.assertTrue(emptyTableInitialDiscoveryResult.splits().isEmpty());
@@ -148,7 +148,7 @@ public class TestContinuousSplitPlannerImpl {
             .startingStrategy(StreamingStartingStrategy.TABLE_SCAN_THEN_INCREMENTAL)
             .build();
     ContinuousSplitPlannerImpl splitPlanner =
-        new ContinuousSplitPlannerImpl(tableResource.table(), scanContext, null);
+        new ContinuousSplitPlannerImpl(tableResource.tableLoader().clone(), scanContext, null);
 
     ContinuousEnumerationResult initialResult = splitPlanner.planSplits(null);
     Assert.assertNull(initialResult.fromPosition());
@@ -181,7 +181,7 @@ public class TestContinuousSplitPlannerImpl {
             .splitSize(1L)
             .build();
     ContinuousSplitPlannerImpl splitPlanner =
-        new ContinuousSplitPlannerImpl(tableResource.table(), scanContext, null);
+        new ContinuousSplitPlannerImpl(tableResource.tableLoader().clone(), scanContext, null);
 
     ContinuousEnumerationResult emptyTableInitialDiscoveryResult = splitPlanner.planSplits(null);
     Assert.assertTrue(emptyTableInitialDiscoveryResult.splits().isEmpty());
@@ -219,7 +219,7 @@ public class TestContinuousSplitPlannerImpl {
             .startingStrategy(StreamingStartingStrategy.INCREMENTAL_FROM_LATEST_SNAPSHOT)
             .build();
     ContinuousSplitPlannerImpl splitPlanner =
-        new ContinuousSplitPlannerImpl(tableResource.table(), scanContext, null);
+        new ContinuousSplitPlannerImpl(tableResource.tableLoader().clone(), scanContext, null);
 
     ContinuousEnumerationResult initialResult = splitPlanner.planSplits(null);
     Assert.assertNull(initialResult.fromPosition());
@@ -262,7 +262,7 @@ public class TestContinuousSplitPlannerImpl {
             .startingStrategy(StreamingStartingStrategy.INCREMENTAL_FROM_EARLIEST_SNAPSHOT)
             .build();
     ContinuousSplitPlannerImpl splitPlanner =
-        new ContinuousSplitPlannerImpl(tableResource.table(), scanContext, null);
+        new ContinuousSplitPlannerImpl(tableResource.tableLoader().clone(), scanContext, null);
 
     ContinuousEnumerationResult emptyTableInitialDiscoveryResult = splitPlanner.planSplits(null);
     Assert.assertTrue(emptyTableInitialDiscoveryResult.splits().isEmpty());
@@ -294,7 +294,7 @@ public class TestContinuousSplitPlannerImpl {
             .startingStrategy(StreamingStartingStrategy.INCREMENTAL_FROM_EARLIEST_SNAPSHOT)
             .build();
     ContinuousSplitPlannerImpl splitPlanner =
-        new ContinuousSplitPlannerImpl(tableResource.table(), scanContext, null);
+        new ContinuousSplitPlannerImpl(tableResource.tableLoader().clone(), scanContext, null);
 
     ContinuousEnumerationResult initialResult = splitPlanner.planSplits(null);
     Assert.assertNull(initialResult.fromPosition());
@@ -336,7 +336,7 @@ public class TestContinuousSplitPlannerImpl {
             .build();
     ContinuousSplitPlannerImpl splitPlanner =
         new ContinuousSplitPlannerImpl(
-            tableResource.table(), scanContextWithInvalidSnapshotId, null);
+            tableResource.tableLoader().clone(), scanContextWithInvalidSnapshotId, null);
 
     AssertHelpers.assertThrows(
         "Should detect invalid starting snapshot id",
@@ -364,7 +364,7 @@ public class TestContinuousSplitPlannerImpl {
 
     ContinuousSplitPlannerImpl splitPlanner =
         new ContinuousSplitPlannerImpl(
-            tableResource.table(), scanContextWithInvalidSnapshotId, null);
+            tableResource.tableLoader().clone(), scanContextWithInvalidSnapshotId, null);
 
     AssertHelpers.assertThrows(
         "Should detect invalid starting snapshot id",
@@ -383,7 +383,7 @@ public class TestContinuousSplitPlannerImpl {
             .startSnapshotId(snapshot2.snapshotId())
             .build();
     ContinuousSplitPlannerImpl splitPlanner =
-        new ContinuousSplitPlannerImpl(tableResource.table(), scanContext, null);
+        new ContinuousSplitPlannerImpl(tableResource.tableLoader().clone(), scanContext, null);
 
     ContinuousEnumerationResult initialResult = splitPlanner.planSplits(null);
     Assert.assertNull(initialResult.fromPosition());
@@ -428,7 +428,7 @@ public class TestContinuousSplitPlannerImpl {
             .build();
     ContinuousSplitPlannerImpl splitPlanner =
         new ContinuousSplitPlannerImpl(
-            tableResource.table(), scanContextWithInvalidSnapshotId, null);
+            tableResource.tableLoader().clone(), scanContextWithInvalidSnapshotId, null);
 
     AssertHelpers.assertThrows(
         "Should detect invalid starting snapshot timestamp",
@@ -451,7 +451,7 @@ public class TestContinuousSplitPlannerImpl {
 
     ContinuousSplitPlannerImpl splitPlanner =
         new ContinuousSplitPlannerImpl(
-            tableResource.table(), scanContextWithInvalidSnapshotId, null);
+            tableResource.tableLoader().clone(), scanContextWithInvalidSnapshotId, null);
 
     AssertHelpers.assertThrows(
         "Should detect invalid starting snapshot timestamp",
@@ -470,7 +470,7 @@ public class TestContinuousSplitPlannerImpl {
             .startSnapshotTimestamp(snapshot2.timestampMillis())
             .build();
     ContinuousSplitPlannerImpl splitPlanner =
-        new ContinuousSplitPlannerImpl(tableResource.table(), scanContext, null);
+        new ContinuousSplitPlannerImpl(tableResource.tableLoader().clone(), scanContext, null);
 
     ContinuousEnumerationResult initialResult = splitPlanner.planSplits(null);
     Assert.assertNull(initialResult.fromPosition());
@@ -520,7 +520,7 @@ public class TestContinuousSplitPlannerImpl {
             .maxPlanningSnapshotCount(1)
             .build();
     ContinuousSplitPlannerImpl splitPlanner =
-        new ContinuousSplitPlannerImpl(tableResource.table(), scanContext, null);
+        new ContinuousSplitPlannerImpl(tableResource.tableLoader().clone(), scanContext, null);
 
     ContinuousEnumerationResult initialResult = splitPlanner.planSplits(null);
     Assert.assertNull(initialResult.fromPosition());

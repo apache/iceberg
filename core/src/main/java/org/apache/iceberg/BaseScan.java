@@ -90,18 +90,6 @@ abstract class BaseScan<ThisT, T extends ScanTask, G extends ScanTaskGroup<T>>
     this.context = context;
   }
 
-  /**
-   * @deprecated will be removed in 1.3.0; avoid using TableOperations for scans or use BaseTable
-   */
-  @Deprecated
-  protected TableOperations tableOps() {
-    if (table instanceof BaseTable) {
-      return ((BaseTable) table).operations();
-    }
-
-    return null;
-  }
-
   public Table table() {
     return table;
   }
@@ -132,16 +120,6 @@ abstract class BaseScan<ThisT, T extends ScanTask, G extends ScanTaskGroup<T>>
 
   protected ExecutorService planExecutor() {
     return context().planExecutor();
-  }
-
-  /**
-   * @deprecated will be removed in 1.3.0; use newRefinedScan(Table, Schema, TableScanContext)
-   *     instead.
-   */
-  @Deprecated
-  protected ThisT newRefinedScan(
-      TableOperations ignored, Table newTable, Schema newSchema, TableScanContext newContext) {
-    return newRefinedScan(newTable, newSchema, newContext);
   }
 
   protected abstract ThisT newRefinedScan(

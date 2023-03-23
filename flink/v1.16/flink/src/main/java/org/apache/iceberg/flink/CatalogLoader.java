@@ -33,7 +33,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.RESTCatalog;
 
 /** Serializable loader to load an Iceberg {@link Catalog}. */
-public interface CatalogLoader extends Serializable {
+public interface CatalogLoader extends Serializable, Cloneable {
 
   /**
    * Create a new catalog with the provided properties. NOTICE: for flink, we may initialize the

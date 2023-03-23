@@ -18,6 +18,10 @@
  */
 package org.apache.iceberg.actions;
 
+/**
+ * @deprecated will be removed in 1.4.0; use {@link ImmutableMigrateTable.Result#builder()} instead.
+ */
+@Deprecated
 public class BaseMigrateTableActionResult implements MigrateTable.Result {
 
   private final long migratedDataFilesCount;

@@ -19,8 +19,10 @@
 package org.apache.iceberg.actions;
 
 import java.util.Map;
+import org.immutables.value.Value;
 
 /** An action that migrates an existing table to Iceberg. */
+@Value.Enclosing
 public interface MigrateTable extends Action<MigrateTable, MigrateTable.Result> {
   /**
    * Sets table properties in the newly created Iceberg table. Any properties with the same key name
@@ -51,6 +53,7 @@ public interface MigrateTable extends Action<MigrateTable, MigrateTable.Result> 
   }
 
   /** The action result that contains a summary of the execution. */
+  @Value.Immutable
   interface Result {
     /** Returns the number of migrated data files. */
     long migratedDataFilesCount();
