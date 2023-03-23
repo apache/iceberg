@@ -386,7 +386,7 @@ ray_dataset = table.scan(
 
 This will return a Ray dataset:
 
-```python
+```
 Dataset(
     num_blocks=1,
     num_rows=1168798,
@@ -396,11 +396,14 @@ Dataset(
         tpep_dropoff_datetime: timestamp[us, tz=UTC]
     }
 )
-----
+```
+
+Using [Ray Dataset API](https://docs.ray.io/en/latest/data/api/dataset.html) to interact with the dataset:
+
+```python
 print(
     ray_dataset.take(2)
 )
-----
 [
     {
         'VendorID': 2,
