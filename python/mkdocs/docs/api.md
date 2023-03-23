@@ -371,10 +371,12 @@ print(
 ```
 
 ### Ray
+
 !!! note "Requirements"
     This requires [Ray to be installed](index.md).
 
 A table scan can also be converted into a Ray dataset:
+
 ```python
 ray_dataset = table.scan(
     row_filter=GreaterThanOrEqual("trip_distance", 10.0),
@@ -383,13 +385,14 @@ ray_dataset = table.scan(
 ```
 
 This will return a Ray dataset:
+
 ```python
 Dataset(
-    num_blocks=1, 
-    num_rows=1168798, 
+    num_blocks=1,
+    num_rows=1168798,
     schema={
-        VendorID: int64, 
-        tpep_pickup_datetime: timestamp[us, tz=UTC], 
+        VendorID: int64,
+        tpep_pickup_datetime: timestamp[us, tz=UTC],
         tpep_dropoff_datetime: timestamp[us, tz=UTC]
     }
 )
@@ -400,13 +403,13 @@ print(
 ----
 [
     {
-        'VendorID': 2, 
-        'tpep_pickup_datetime': datetime.datetime(2008, 12, 31, 23, 23, 50, tzinfo=<UTC>), 
+        'VendorID': 2,
+        'tpep_pickup_datetime': datetime.datetime(2008, 12, 31, 23, 23, 50, tzinfo=<UTC>),
         'tpep_dropoff_datetime': datetime.datetime(2009, 1, 1, 0, 34, 31, tzinfo=<UTC>)
-    }, 
+    },
     {
-        'VendorID': 2, 
-        'tpep_pickup_datetime': datetime.datetime(2008, 12, 31, 23, 5, 3, tzinfo=<UTC>), 
+        'VendorID': 2,
+        'tpep_pickup_datetime': datetime.datetime(2008, 12, 31, 23, 5, 3, tzinfo=<UTC>),
         'tpep_dropoff_datetime': datetime.datetime(2009, 1, 1, 16, 10, 18, tzinfo=<UTC>)
     }
 ]
