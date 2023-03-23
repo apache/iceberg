@@ -1202,10 +1202,10 @@ public class AwsProperties implements Serializable {
    * <p>Sample usage:
    *
    * <pre>
-   *     DynamoDbClient.builder().applyMutation(awsProperties::applyCredentialConfigurations)
+   *     DynamoDbClient.builder().applyMutation(awsProperties::applyClientCredentialConfigurations)
    * </pre>
    */
-  public <T extends AwsClientBuilder> void applyCredentialConfigurations(T builder) {
+  public <T extends AwsClientBuilder> void applyClientCredentialConfigurations(T builder) {
     if (!Strings.isNullOrEmpty(this.clientCredentialsProvider)) {
       builder.credentialsProvider(credentialsProvider(this.clientCredentialsProvider));
     }
