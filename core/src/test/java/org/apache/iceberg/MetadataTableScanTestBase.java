@@ -86,8 +86,8 @@ public abstract class MetadataTableScanTestBase extends TableTestBase {
         "File scan tasks do not include correct file",
         StreamSupport.stream(dataFiles.spliterator(), false)
             .anyMatch(
-                part -> {
-                  StructLike partition = part.partition();
+                dataFile -> {
+                  StructLike partition = dataFile.partition();
                   if (position >= partition.size()) {
                     return false;
                   }
