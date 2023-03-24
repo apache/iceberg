@@ -57,7 +57,7 @@ import software.amazon.awssdk.services.glue.model.TableInput;
 import software.amazon.awssdk.services.glue.model.UpdateTableRequest;
 import software.amazon.awssdk.utils.ImmutableMap;
 
-class GlueTableOperations extends BaseMetastoreTableOperations {
+public class GlueTableOperations extends BaseMetastoreTableOperations {
 
   private static final Logger LOG = LoggerFactory.getLogger(GlueTableOperations.class);
 
@@ -358,8 +358,12 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
     }
   }
 
-  @VisibleForTesting
-  Map<String, String> tableCatalogProperties() {
+  /**
+   * Return the table catalog properties intialized in {@link GlueCatalog}
+   *
+   * @return table catalog properties intialized in {@link GlueCatalog}
+   */
+  public Map<String, String> tableCatalogProperties() {
     return tableCatalogProperties;
   }
 }

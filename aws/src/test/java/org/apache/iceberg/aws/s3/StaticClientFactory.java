@@ -20,7 +20,10 @@ package org.apache.iceberg.aws.s3;
 
 import java.util.Map;
 import org.apache.iceberg.aws.AwsClientFactory;
+import software.amazon.awssdk.services.athena.AthenaClient;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
+import software.amazon.awssdk.services.emr.EmrClient;
+import software.amazon.awssdk.services.emrcontainers.EmrContainersClient;
 import software.amazon.awssdk.services.glue.GlueClient;
 import software.amazon.awssdk.services.kms.KmsClient;
 import software.amazon.awssdk.services.s3.S3Client;
@@ -45,6 +48,21 @@ class StaticClientFactory implements AwsClientFactory {
 
   @Override
   public DynamoDbClient dynamo() {
+    return null;
+  }
+
+  @Override
+  public EmrClient emr() {
+    return null;
+  }
+
+  @Override
+  public EmrContainersClient emrContainers() {
+    return null;
+  }
+
+  @Override
+  public AthenaClient athena() {
     return null;
   }
 

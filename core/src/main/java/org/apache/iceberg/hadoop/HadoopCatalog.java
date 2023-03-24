@@ -226,7 +226,11 @@ public class HadoopCatalog extends BaseMetastoreCatalog
   @Override
   protected TableOperations newTableOps(TableIdentifier identifier) {
     return new HadoopTableOperations(
-        new Path(defaultWarehouseLocation(identifier)), fileIO, conf, lockManager);
+        new Path(defaultWarehouseLocation(identifier)),
+        fileIO,
+        conf,
+        lockManager,
+        catalogProperties);
   }
 
   @Override

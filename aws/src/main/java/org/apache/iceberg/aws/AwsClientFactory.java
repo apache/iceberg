@@ -20,7 +20,10 @@ package org.apache.iceberg.aws;
 
 import java.io.Serializable;
 import java.util.Map;
+import software.amazon.awssdk.services.athena.AthenaClient;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
+import software.amazon.awssdk.services.emr.EmrClient;
+import software.amazon.awssdk.services.emrcontainers.EmrContainersClient;
 import software.amazon.awssdk.services.glue.GlueClient;
 import software.amazon.awssdk.services.kms.KmsClient;
 import software.amazon.awssdk.services.s3.S3Client;
@@ -58,6 +61,27 @@ public interface AwsClientFactory extends Serializable {
    * @return dynamoDB client
    */
   DynamoDbClient dynamo();
+
+  /**
+   * Create a Amazon EMR client
+   *
+   * @return EMR client
+   */
+  EmrClient emr();
+
+  /**
+   * Create a Amazon Containers client
+   *
+   * @return EMR Containers client
+   */
+  EmrContainersClient emrContainers();
+
+  /**
+   * Create a Amazon Athena client
+   *
+   * @return Athena client
+   */
+  AthenaClient athena();
 
   /**
    * Initialize AWS client factory from catalog properties.

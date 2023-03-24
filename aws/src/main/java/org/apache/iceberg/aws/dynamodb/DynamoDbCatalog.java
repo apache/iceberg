@@ -155,7 +155,8 @@ public class DynamoDbCatalog extends BaseMetastoreCatalog
   @Override
   protected TableOperations newTableOps(TableIdentifier tableIdentifier) {
     validateTableIdentifier(tableIdentifier);
-    return new DynamoDbTableOperations(dynamo, awsProperties, catalogName, fileIO, tableIdentifier);
+    return new DynamoDbTableOperations(
+        dynamo, awsProperties, catalogName, fileIO, tableIdentifier, catalogProperties);
   }
 
   @Override

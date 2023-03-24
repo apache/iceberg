@@ -33,8 +33,11 @@ import software.amazon.awssdk.core.client.builder.SdkClientBuilder;
 import software.amazon.awssdk.http.SdkHttpClient;
 import software.amazon.awssdk.http.apache.ApacheHttpClient;
 import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
+import software.amazon.awssdk.services.athena.AthenaClient;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClientBuilder;
+import software.amazon.awssdk.services.emr.EmrClient;
+import software.amazon.awssdk.services.emrcontainers.EmrContainersClient;
 import software.amazon.awssdk.services.glue.GlueClient;
 import software.amazon.awssdk.services.glue.GlueClientBuilder;
 import software.amazon.awssdk.services.kms.KmsClient;
@@ -133,6 +136,27 @@ public class AwsClientFactories {
           .applyMutation(awsProperties::applyHttpClientConfigurations)
           .applyMutation(awsProperties::applyClientCredentialConfigurations)
           .applyMutation(awsProperties::applyDynamoDbEndpointConfigurations)
+          .build();
+    }
+
+    @Override
+    public EmrClient emr() {
+      return EmrClient.builder()
+          .applyMutation(awsProperties::applyHttpClientConfigurations)
+          .build();
+    }
+
+    @Override
+    public EmrContainersClient emrContainers() {
+      return EmrContainersClient.builder()
+          .applyMutation(awsProperties::applyHttpClientConfigurations)
+          .build();
+    }
+
+    @Override
+    public AthenaClient athena() {
+      return AthenaClient.builder()
+          .applyMutation(awsProperties::applyHttpClientConfigurations)
           .build();
     }
 

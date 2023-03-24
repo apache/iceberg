@@ -43,7 +43,7 @@ import software.amazon.awssdk.services.dynamodb.model.GetItemResponse;
 import software.amazon.awssdk.services.dynamodb.model.PutItemRequest;
 import software.amazon.awssdk.services.dynamodb.model.UpdateItemRequest;
 
-class DynamoDbTableOperations extends BaseMetastoreTableOperations {
+public class DynamoDbTableOperations extends BaseMetastoreTableOperations {
 
   private static final Logger LOG = LoggerFactory.getLogger(DynamoDbTableOperations.class);
 
@@ -52,6 +52,8 @@ class DynamoDbTableOperations extends BaseMetastoreTableOperations {
   private final TableIdentifier tableIdentifier;
   private final String fullTableName;
   private final FileIO fileIO;
+
+  private Map<String, String> tableCatalogProperties = null;
 
   DynamoDbTableOperations(
       DynamoDbClient dynamo,
@@ -64,6 +66,17 @@ class DynamoDbTableOperations extends BaseMetastoreTableOperations {
     this.fullTableName = String.format("%s.%s", catalogName, tableIdentifier);
     this.tableIdentifier = tableIdentifier;
     this.fileIO = fileIO;
+  }
+
+  DynamoDbTableOperations(
+      DynamoDbClient dynamo,
+      AwsProperties awsProperties,
+      String catalogName,
+      FileIO fileIO,
+      TableIdentifier tableIdentifier,
+      Map<String, String> tableCatalogProperties) {
+    this(dynamo, awsProperties, catalogName, fileIO, tableIdentifier);
+    this.tableCatalogProperties = tableCatalogProperties;
   }
 
   @Override
@@ -231,5 +244,14 @@ class DynamoDbTableOperations extends BaseMetastoreTableOperations {
               .conditionExpression("attribute_not_exists(" + DynamoDbCatalog.COL_VERSION + ")")
               .build());
     }
+  }
+
+  /**
+   * Return the table catalog properties intialized in {@link DynamoDbCatalog}
+   *
+   * @return table catalog properties intialized in {@link DynamoDbCatalog}
+   */
+  public Map<String, String> tableCatalogProperties() {
+    return tableCatalogProperties;
   }
 }

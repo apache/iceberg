@@ -22,6 +22,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Matcher;
@@ -70,12 +71,24 @@ public class HadoopTableOperations implements TableOperations {
   private volatile Integer version = null;
   private volatile boolean shouldRefresh = true;
 
+  private Map<String, String> tableCatalogProperties = null;
+
   protected HadoopTableOperations(
       Path location, FileIO fileIO, Configuration conf, LockManager lockManager) {
     this.conf = conf;
     this.location = location;
     this.fileIO = fileIO;
     this.lockManager = lockManager;
+  }
+
+  protected HadoopTableOperations(
+      Path location,
+      FileIO fileIO,
+      Configuration conf,
+      LockManager lockManager,
+      Map<String, String> tableCatalogProperties) {
+    this(location, fileIO, conf, lockManager);
+    this.tableCatalogProperties = tableCatalogProperties;
   }
 
   @Override
@@ -449,5 +462,14 @@ public class HadoopTableOperations implements TableOperations {
           newUUID);
     }
     return newMetadata;
+  }
+
+  /**
+   * Return the table catalog properties intialized in {@link HadoopCatalog}
+   *
+   * @return table catalog properties intialized in {@link HadoopCatalog}
+   */
+  public Map<String, String> tableCatalogProperties() {
+    return tableCatalogProperties;
   }
 }

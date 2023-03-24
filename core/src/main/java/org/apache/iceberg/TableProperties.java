@@ -19,6 +19,7 @@
 package org.apache.iceberg;
 
 import java.util.Set;
+import org.apache.iceberg.metrics.Rewrite;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 
 public class TableProperties {
@@ -359,4 +360,83 @@ public class TableProperties {
 
   public static final String UPSERT_ENABLED = "write.upsert.enabled";
   public static final boolean UPSERT_ENABLED_DEFAULT = false;
+
+  /**
+   * Auto optimize related table properties. The below table properties with
+   * "auto.optimize.rewrite-data-files" prefix can be used as catalog properties as well in {@link
+   * Rewrite}.
+   */
+  public static final String AUTO_OPTIMIZE_REWRITE_DATA_FILES_SYNCHRONOUS_ENABLED =
+      "auto.optimize.rewrite-data-files.synchronous.enabled";
+
+  public static final boolean AUTO_OPTIMIZE_REWRITE_DATA_FILES_SYNCHRONOUS_ENABLED_DEFAULT = false;
+
+  public static final String AUTO_OPTIMIZE_REWRITE_DATA_FILES_IMPL =
+      "auto.optimize.rewrite-data-files.impl";
+
+  public static final String AUTO_OPTIMIZE_REWRITE_DATA_FILES_IMPL_DEFAULT = null;
+
+  public static final String AUTO_OPTIMIZE_REWRITE_DATA_FILES_EMR_CLUSTER_ID =
+      "auto.optimize.rewrite-data-files.emr.cluster-id";
+
+  public static final String AUTO_OPTIMIZE_REWRITE_DATA_FILES_EMR_CLUSTER_ID_DEFAULT = null;
+
+  public static final String AUTO_OPTIMIZE_REWRITE_DATA_FILES_COMMIT_THRESHOLD =
+      "auto.optimize.rewrite-data-files.commit.threshold";
+
+  public static final int AUTO_OPTIMIZE_REWRITE_DATA_FILES_COMMIT_THRESHOLD_DEFAULT = 10;
+
+  public static final String AUTO_OPTIMIZE_REWRITE_DATA_FILES_TIME_MS_THRESHOLD =
+      "auto.optimize.rewrite-data-files.time-ms.threshold";
+
+  public static final int AUTO_OPTIMIZE_REWRITE_DATA_FILES_TIME_THRESHOLD_MS_DEFAULT =
+      180 * 60 * 1000;
+
+  public static final String AUTO_OPTIMIZE_REWRITE_DATA_FILES_SPARK_CONFS =
+      "auto.optimize.rewrite-data-files.spark.confs";
+
+  public static final String AUTO_OPTIMIZE_REWRITE_DATA_FILES_SPARK_CONFS_DEFAULT =
+      "--conf spark.driver.cores=4 --conf spark.driver.memory=32g --conf spark.executor.cores=4 "
+          + "--conf spark.executor.memory=16g --conf spark.executor.instances=10 --conf spark.dynamicAllocation.enabled=false";
+
+  public static final String AUTO_OPTIMIZE_REWRITE_DATA_FILES_OPTIONS =
+      "auto.optimize.rewrite-data-files.options";
+  public static final String AUTO_OPTIMIZE_REWRITE_DATA_FILES_OPTIONS_DEFAULT =
+      "map('partial-progress.enabled','true')";
+
+  public static final String AUTO_OPTIMIZE_REWRITE_DATA_FILES_STRATEGY =
+      "auto.optimize.rewrite-data-files.strategy";
+
+  public static final String AUTO_OPTIMIZE_REWRITE_DATA_FILES_STRATEGY_DEFAULT = "binpack";
+
+  public static final String AUTO_OPTIMIZE_REWRITE_DATA_FILES_SORT_ORDER =
+      "auto.optimize.rewrite-data-files.sort-order";
+
+  public static final String AUTO_OPTIMIZE_REWRITE_DATA_FILES_SORT_ORDER_DEFAULT = null;
+
+  public static final String AUTO_OPTIMIZE_REWRITE_DATA_FILES_ATHENA_OUTPUT_BUCKET =
+      "auto.optimize.rewrite-data-files.athena.output-bucket";
+
+  public static final String AUTO_OPTIMIZE_REWRITE_DATA_FILES_ATHENA_OUTPUT_BUCKET_DEFAULT = null;
+
+  public static final String AUTO_OPTIMIZE_REWRITE_DATA_FILES_ATHENA_DATABASE =
+      "auto.optimize.rewrite-data-files.athena.data-source";
+
+  public static final String AUTO_OPTIMIZE_REWRITE_DATA_FILES_ATHENA_DATABASE_DEFAULT =
+      "AwsDataCatalog";
+
+  public static final String AUTO_OPTIMIZE_REWRITE_DATA_FILES_EXECUTION_ROLE =
+      "auto.optimize.rewrite-data-files.execution-role";
+
+  public static final String AUTO_OPTIMIZE_REWRITE_DATA_FILES_EXECUTION_ROLE_DEFAULT = null;
+
+  public static final String AUTO_OPTIMIZE_REWRITE_DATA_FILES_EMR_RELEASE_LABEL =
+      "auto.optimize.rewrite-data-files.emr.release-label";
+
+  public static final String AUTO_OPTIMIZE_REWRITE_DATA_FILES_EMR_RELEASE_LABEL_DEFAULT = null;
+
+  public static final String AUTO_OPTIMIZE_REWRITE_DATA_FILES_EMR_UPLOAD_BUCKET =
+      "auto.optimize.rewrite-data-files.emr.upload-bucket";
+
+  public static final String AUTO_OPTIMIZE_REWRITE_DATA_FILES_EMR_UPLOAD_BUCKET_DEFAULT = null;
 }

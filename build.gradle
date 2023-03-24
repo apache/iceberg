@@ -449,6 +449,9 @@ project(':iceberg-aws') {
     compileOnly 'software.amazon.awssdk:sts'
     compileOnly 'software.amazon.awssdk:dynamodb'
     compileOnly 'software.amazon.awssdk:lakeformation'
+    compileOnly 'software.amazon.awssdk:emr'
+    compileOnly 'software.amazon.awssdk:emrcontainers'
+    compileOnly 'software.amazon.awssdk:athena'
 
     compileOnly("org.apache.hadoop:hadoop-common") {
       exclude group: 'org.apache.avro', module: 'avro'
@@ -457,6 +460,7 @@ project(':iceberg-aws') {
       exclude group: 'com.google.code.gson', module: 'gson'
     }
 
+    compileOnly project(':iceberg-hive-metastore')
     compileOnly 'org.apache.httpcomponents.client5:httpclient5'
 
     testImplementation 'software.amazon.awssdk:iam'

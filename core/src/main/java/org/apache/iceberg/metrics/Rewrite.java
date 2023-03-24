@@ -18,25 +18,16 @@
  */
 package org.apache.iceberg.metrics;
 
-import java.util.Map;
-import org.apache.iceberg.TableOperations;
-import org.immutables.value.Value;
+/** Interface to rewrite tables in a specific engine selected by the user */
+public interface Rewrite {
 
-/** A commit report that contains all relevant information from a Snapshot. */
-@Value.Immutable
-public interface CommitReport extends MetricsReport {
+  /**
+   * Initialize the {@link Rewrite} implementation
+   *
+   * @param metricsReport {@link MetricsReport} instance
+   */
+  void initialize(MetricsReport metricsReport);
 
-  TableOperations tableOperations();
-
-  String tableName();
-
-  long snapshotId();
-
-  long sequenceNumber();
-
-  String operation();
-
-  CommitMetricsResult commitMetrics();
-
-  Map<String, String> metadata();
+  /** Trigger rewrite jobs for the {@link Rewrite} implementation */
+  void rewrite();
 }

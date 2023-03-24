@@ -24,7 +24,10 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import software.amazon.awssdk.awscore.client.builder.AwsClientBuilder;
 import software.amazon.awssdk.awscore.client.builder.AwsSyncClientBuilder;
 import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.athena.AthenaClient;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
+import software.amazon.awssdk.services.emr.EmrClient;
+import software.amazon.awssdk.services.emrcontainers.EmrContainersClient;
 import software.amazon.awssdk.services.glue.GlueClient;
 import software.amazon.awssdk.services.kms.KmsClient;
 import software.amazon.awssdk.services.s3.S3Client;
@@ -69,6 +72,30 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
         .applyMutation(this::applyAssumeRoleConfigurations)
         .applyMutation(awsProperties::applyHttpClientConfigurations)
         .applyMutation(awsProperties::applyDynamoDbEndpointConfigurations)
+        .build();
+  }
+
+  @Override
+  public EmrClient emr() {
+    return EmrClient.builder()
+        .applyMutation(this::applyAssumeRoleConfigurations)
+        .applyMutation(awsProperties::applyHttpClientConfigurations)
+        .build();
+  }
+
+  @Override
+  public EmrContainersClient emrContainers() {
+    return EmrContainersClient.builder()
+        .applyMutation(this::applyAssumeRoleConfigurations)
+        .applyMutation(awsProperties::applyHttpClientConfigurations)
+        .build();
+  }
+
+  @Override
+  public AthenaClient athena() {
+    return AthenaClient.builder()
+        .applyMutation(this::applyAssumeRoleConfigurations)
+        .applyMutation(awsProperties::applyHttpClientConfigurations)
         .build();
   }
 

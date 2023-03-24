@@ -117,6 +117,8 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
   private final FileIO fileIO;
   private final ClientPool<IMetaStoreClient, TException> metaClients;
 
+  private Map<String, String> tableCatalogProperties = null;
+
   protected HiveTableOperations(
       Configuration conf,
       ClientPool metaClients,
@@ -137,6 +139,18 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
             HIVE_ICEBERG_METADATA_REFRESH_MAX_RETRIES_DEFAULT);
     this.maxHiveTablePropertySize =
         conf.getLong(HIVE_TABLE_PROPERTY_MAX_SIZE, HIVE_TABLE_PROPERTY_MAX_SIZE_DEFAULT);
+  }
+
+  protected HiveTableOperations(
+      Configuration conf,
+      ClientPool metaClients,
+      FileIO fileIO,
+      String catalogName,
+      String database,
+      String table,
+      Map<String, String> tableCatalogProperties) {
+    this(conf, metaClients, fileIO, catalogName, database, table);
+    this.tableCatalogProperties = tableCatalogProperties;
   }
 
   @Override
@@ -575,5 +589,18 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
   @VisibleForTesting
   HiveLock lockObject() {
     return new MetastoreLock(conf, metaClients, catalogName, database, tableName);
+  }
+
+  /**
+   * Return the table catalog properties intialized in {@link HiveCatalog}
+   *
+   * @return table catalog properties intialized in {@link HiveCatalog}
+   */
+  public Map<String, String> tableCatalogProperties() {
+    return tableCatalogProperties;
+  }
+
+  public Configuration configuration() {
+    return conf;
   }
 }

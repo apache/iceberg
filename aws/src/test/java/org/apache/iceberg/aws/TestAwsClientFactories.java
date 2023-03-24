@@ -34,7 +34,10 @@ import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.athena.AthenaClient;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
+import software.amazon.awssdk.services.emr.EmrClient;
+import software.amazon.awssdk.services.emrcontainers.EmrContainersClient;
 import software.amazon.awssdk.services.glue.GlueClient;
 import software.amazon.awssdk.services.glue.model.GetTablesRequest;
 import software.amazon.awssdk.services.kms.KmsClient;
@@ -303,6 +306,21 @@ public class TestAwsClientFactories {
 
     @Override
     public DynamoDbClient dynamo() {
+      return null;
+    }
+
+    @Override
+    public EmrClient emr() {
+      return null;
+    }
+
+    @Override
+    public EmrContainersClient emrContainers() {
+      return null;
+    }
+
+    @Override
+    public AthenaClient athena() {
       return null;
     }
 

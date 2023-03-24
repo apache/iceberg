@@ -440,6 +440,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
 
           reporter.report(
               ImmutableCommitReport.builder()
+                  .tableOperations(ops)
                   .tableName(createSnapshotEvent.tableName())
                   .snapshotId(createSnapshotEvent.snapshotId())
                   .operation(createSnapshotEvent.operation())
