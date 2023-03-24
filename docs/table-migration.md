@@ -20,110 +20,57 @@ menu: main
  - See the License for the specific language governing permissions and
  - limitations under the License.
  -->
-# Hive and Spark Table Migration
-Iceberg supports converting Hive and Spark tables to Iceberg tables through Spark Procedures. For specific instructions on how to use the procedures, please refer to the [Table Migration via Spark Procedures](../spark-procedures/#table-migration) page.
+# Table Migration
+Apache Iceberg supports converting existing tables in other formats to Iceberg tables. This section introduces the general concept of table migration, its approaches, and existing implementations in Iceberg.
 
-# Delta Lake Table Migration
-Iceberg supports converting Delta Lake tables to Iceberg tables through the `iceberg-delta-lake` module
-by using [Delta Standalone](https://docs.delta.io/latest/delta-standalone.html) to read logs of Delta lake tables.
+## Migration Approaches
+There are two main approaches to perform table migration: CTAS (Create Table As Select) and in-place migration.
 
+### CTAS Migration
+CTAS migration involves creating a new Iceberg table and copying data from the existing table to the new one. This method is preferred when you want to completely cut ties with your old table, ensuring the new table is independent and fully managed by Iceberg. 
+However, CTAS migration may require more time to complete and might not be suitable for production use cases where downtime is not acceptable.
 
-## Enabling Migration from Delta Lake to Iceberg
-The `iceberg-delta-lake` module is not bundled with Spark and Flink engine runtimes. Users need to manually include this module in their environment to enable the conversion.
-Also, users need to provide [Delta Standalone](https://github.com/delta-io/connectors/releases/tag/v0.6.0) and [Delta Storage](https://repo1.maven.org/maven2/io/delta/delta-storage/2.2.0/)
-because they are what `iceberg-delta-lake` uses to read Delta Lake tables.
+### In-Place Migration
+In-place migration retains the existing data files but adds Iceberg metadata on top of them. This approach is faster and does not require copying data, making it more suitable for production use cases.
 
-## Compatibilities
-The module is built and tested with `Delta Standalone:0.6.0` and supports Delta Lake tables with the following protocol version:
-* `minReaderVersion`: 1
-* `minWriterVersion`: 2
+## In-Place Migration Actions
+Apache Iceberg primarily supports the in-place migration approach, which includes three important actions:
 
-Please refer to [Delta Lake Table Protocol Versioning](https://docs.delta.io/latest/versioning.html) for more details about Delta Lake protocol versions.
+1. Snapshot Table
+2. Migrate Table
+3. Add Files
 
-For delta lake table contains `TimestampType` columns, please make sure to set table property `read.parquet.vectorization.enabled` to `false` since the vectorized reader doesn't support `INT96` yet.
-Such support is under development in the [PR#6962](https://github.com/apache/iceberg/pull/6962)
+### Snapshot Table
+The Snapshot Table action creates a new iceberg table with the same schema and partitioning as the source table, leaving the source table unchanged during and after the action.
 
-## API
-The `iceberg-delta-lake` module provides an interface named `DeltaLakeToIcebergMigrationActionsProvider`, which contains actions that helps converting from Delta Lake to Iceberg.
-The supported actions are:
-* `snapshotDeltaLakeTable`: snapshot an existing Delta Lake table to an Iceberg table
+### Migrate Table
+The Migrate Table action also creates a new Iceberg table with the same schema and partitioning as the source table. However, during the action execution, it locks and drops the source table from the catalog.
+Consequently, Migrate Table requires all readers and writers working on the source table to be stopped before the action is performed.
 
-## Default Implementation
-The `iceberg-delta-lake` module also provides a default implementation of the interface which can be accessed by
-```java
-DeltaLakeToIcebergMigrationActionsProvider defaultActions = DeltaLakeToIcebergMigrationActionsProvider.defaultActions()
-```
+### Add Files
+After the initial step (either Snapshot Table or Migrate Table), it is common to find some data files that have not been migrated. These files often originate from concurrent writers who continue writing to the source table during or after the migration process. 
+In practice, these files can be new data files in Hive tables or new snapshots (versions) of Delta Lake tables. The Add Files action is essential for incorporating these files into the Iceberg table.
 
-### `snapshotDeltaLakeTable`
-The action reads the Delta Lake table's most recent snapshot and converts it to a new Iceberg table with the same schema and partitioning in one iceberg transaction.
-The original Delta Lake table remains unchanged.
+## In-Place Migration Completion
+Once all data files have been migrated and there are no more concurrent writers writing to the source table, the migration process is complete. 
+Readers and writers can now switch to the new Iceberg table for their operations.
 
-The newly created table can be changed or written to without affecting the source table, but the snapshot uses the original table's data files.
-Existing data files are added to the Iceberg table's metadata and can be read using a name-to-id mapping created from the original table schema.
+## Migration Implementation: From Hive/Spark to Iceberg
+Apache Hive and Apache Spark are two popular data warehouse systems used for big data processing and analysis. 
+However, both systems do not natively support time travel or rollback to previous snapshots. 
+When migrating data to an Iceberg table, which provides versioning and transactional updates, only the most recent data files need to be migrated.
 
-When inserts or overwrites run on the snapshot, new files are placed in the snapshot table's location. The location is default to be the same as that
-of the source Delta Lake Table. Users can also specify a different location for the snapshot table.
+Iceberg supports all three migration actions: Snapshot Table, Migrate Table, and Add Files for migrating from Hive or Spark tables to Iceberg tables. Since Hive or Spark tables do not maintain snapshots, 
+the migration process essentially involves creating a new Iceberg table with the existing schema and committing all data files across all partitions to the new Iceberg table. 
+After the initial migration, any new data files are added to the new Iceberg table using the Add Files action.
 
-{{< hint info >}}
-Because tables created by `snapshotDeltaLakeTable` are not the sole owners of their data files, they are prohibited from
-actions like `expire_snapshots` which would physically delete data files. Iceberg deletes, which only effect metadata,
-are still allowed. In addition, any operations which affect the original data files will disrupt the Snapshot's
-integrity. DELETE statements executed against the original Delta Lake table will remove original data files and the
-`snapshotDeltaLakeTable` table will no longer be able to access them.
-{{< /hint >}}
+For more details on how to perform the migration on Hive/Spark tables, please refer to the [Table Migration via Spark Procedures](../spark-procedures/#table-migration) page.
 
-#### Arguments
-The delta table's location is required to be provided when initializing the action.
+## Migration Implementation: From Delta Lake to Iceberg
+Delta Lake is a popular data storage system that provides time travel and versioning features. When migrating data from Delta Lake to Iceberg, 
+it is common to migrate all snapshots to maintain the history of the data.
 
-| Argument Name | Required? | Type | Description |
-|---------------|-----------|------|-------------|
-|`sourceTableLocation` | Yes | String | The location of the source Delta Lake table | 
+Currently, Iceberg only supports the Snapshot Table action for migrating from Delta Lake to Iceberg tables. Since Delta Lake tables maintain snapshots, all available snapshots will be committed to the new Iceberg table as transactions in order. 
+For Delta Lake tables, any additional data files added after the initial migration will be included in their corresponding snapshots and subsequently added to the new Iceberg table using the Add Snapshot action. The Add Snapshot action, a variant of the Add File action, is still under development.
 
-#### Configurations
-The configurations can be gave via method chaining
-
-| Method Name | Arguments      | Required? | Type                                       | Description                                                                                                  |
-|---------------------------|----------------|-----------|--------------------------------------------|--------------------------------------------------------------------------------------------------------------|
-| `as`                      | `identifier`   | Yes       | org.apache.iceberg.catalog.TableIdentifier | The identifier of the Iceberg table to be created.                                                           |
-| `icebergCatalog`          | `catalog`      | Yes       | org.apache.iceberg.catalog.Catalog         | The Iceberg catalog for the Iceberg table to be created                                                      |
-| `deltaLakeConfiguration`  | `conf`         | Yes       | org.apache.hadoop.conf.Configuration       | The Hadoop Configuration to access Delta Lake Table's log and datafiles                                      |
-| `tableLocation`           | `location`     | No        | String                                     | The location of the Iceberg table to be created. Defaults to the same location as the given Delta Lake table |
-| `tableProperty`           | `name`,`value` | No        | String, String                             | A property entry to add to the Iceberg table to be created                                                   |
-| `tableProperties`         | `properties`   | No        | Map<String, String>                        | Properties to add to the the Iceberg table to be created                                                     |
-
-#### Output
-| Output Name | Type | Description |
-| ------------|------|-------------|
-| `imported_files_count` | long | Number of files added to the new table |
-
-#### Added Table Properties
-The following table properties are added to the Iceberg table to be created by default:
-
-| Property Name                 | Value                                     | Description                                                        |
-|-------------------------------|-------------------------------------------|--------------------------------------------------------------------|
-| `snapshot_source`             | `delta`                                   | Indicates that the table is snapshot from a delta lake table       |
-| `original_location`           | location of the delta lake table          | The absolute path to the location of the original delta lake table |
-| `schema.name-mapping.default` | JSON name mapping derived from the schema | The name mapping string used to read Delta Lake table's data files |
-
-#### Examples
-Snapshot a Delta Lake table located at `s3://my-bucket/delta-table` to an Iceberg table named `my_table` in the `my_db` database in the `my_catalog` catalog.
-```java
-DeltaLakeToIcebergMigrationActionsProvider.defaultActions()
-    .snapshotDeltaLakeTable("s3://my-bucket/delta-table")
-    .as("my_db.my_table")
-    .icebergCatalog("my_catalog")
-    .deltaLakeConfiguration(new Configuration())
-    .execute();
-```
-Snapshot a Delta Lake table located at `s3://my-bucket/delta-table` to an Iceberg table named `my_table` in the `my_db` database in the `my_catalog` catalog at a manually
-specified location `s3://my-bucket/snapshot-loc`. Also, add a table property `my_property` with value `my_value` to the Iceberg table.
-```java
-DeltaLakeToIcebergMigrationActionsProvider.defaultActions()
-    .snapshotDeltaLakeTable("s3://my-bucket/delta-table")
-    .as("my_db.my_table")
-    .icebergCatalog("my_catalog")
-    .deltaLakeConfiguration(new Configuration())
-    .tableLocation("s3://my-bucket/snapshot-loc")
-    .tableProperty("my_property", "my_value")
-    .execute();
-```
+For more details on how to perform the migration on Delta Lake tables, please refer to the [Delta Lake Migration](../delta-lake-migration/#delta-lake-table-migration) page.
