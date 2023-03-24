@@ -22,8 +22,8 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.Random;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import org.apache.iceberg.BaseMetastoreCatalog;
 import org.apache.iceberg.CatalogProperties;
@@ -52,9 +52,9 @@ public class SnowflakeCatalog extends BaseMetastoreCatalog
   // Add a suffix to user agent header for the web requests made by the jdbc driver.
   private static final String JDBC_USER_AGENT_PROPERTY = "user_agent_suffix";
   private static final String APP_IDENTIFIER = "iceberg-snowflake-catalog";
-  private static final String ALPHA_NUMERIC_STRING = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-  // Specifies the length of unique id for each catalog initialized session.
-  private static final int UNIQUE_ID_LENGTH = 14;
+  // Specifies the length of unique id for each catalog initialized session. Should be less than 32
+  // (guid length)
+  private static final int UNIQUE_ID_LENGTH = 20;
 
   // Injectable factory for testing purposes.
   static class FileIOFactory {
@@ -120,7 +120,8 @@ public class SnowflakeCatalog extends BaseMetastoreCatalog
           cnfe);
     }
 
-    String uniqueAppIdentifier = APP_IDENTIFIER + "-" + randomAlphaNumeric(UNIQUE_ID_LENGTH);
+    String uniqueId = UUID.randomUUID().toString().replace("-", "").substring(0, UNIQUE_ID_LENGTH);
+    String uniqueAppIdentifier = APP_IDENTIFIER + "|" + uniqueId;
     // Populate application identifier in jdbc client
     properties.put(JDBC_APPLICATION_PROPERTY, uniqueAppIdentifier);
     // Adds application identifier to the user agent header of the JDBC requests.
@@ -261,21 +262,5 @@ public class SnowflakeCatalog extends BaseMetastoreCatalog
   @Override
   public void setConf(Object conf) {
     this.conf = conf;
-  }
-
-  /**
-   * Randomly generates an alphanumeric string of a given length.
-   *
-   * @param count Specifies the length of the randomly generated string.
-   */
-  private static String randomAlphaNumeric(int count) {
-    StringBuilder builder = new StringBuilder();
-    Random random = new Random();
-    int currentCount = count;
-    while (currentCount-- != 0) {
-      int character = random.nextInt(ALPHA_NUMERIC_STRING.length());
-      builder.append(ALPHA_NUMERIC_STRING.charAt(character));
-    }
-    return builder.toString();
   }
 }
