@@ -50,7 +50,7 @@ public class SnowflakeCatalog extends BaseMetastoreCatalog
   // https://docs.snowflake.com/en/user-guide/jdbc-parameters.html#application
   private static final String JDBC_APPLICATION_PROPERTY = "application";
   // Add a suffix to user agent header for the web requests made by the jdbc driver.
-  private static final String JDBC_USER_AGENT_PROPERTY = "user_agent_suffix";
+  private static final String JDBC_USER_AGENT_SUFFIX_PROPERTY = "user_agent_suffix";
   private static final String APP_IDENTIFIER = "iceberg-snowflake-catalog";
   // Specifies the length of unique id for each catalog initialized session. Should be less than 32
   // (guid length)
@@ -125,7 +125,7 @@ public class SnowflakeCatalog extends BaseMetastoreCatalog
     // Populate application identifier in jdbc client
     properties.put(JDBC_APPLICATION_PROPERTY, uniqueAppIdentifier);
     // Adds application identifier to the user agent header of the JDBC requests.
-    properties.put(JDBC_USER_AGENT_PROPERTY, uniqueAppIdentifier);
+    properties.put(JDBC_USER_AGENT_SUFFIX_PROPERTY, uniqueAppIdentifier);
     JdbcClientPool connectionPool = new JdbcClientPool(uri, properties);
 
     initialize(name, new JdbcSnowflakeClient(connectionPool), new FileIOFactory(), properties);
