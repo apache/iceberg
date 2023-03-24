@@ -48,13 +48,13 @@ import org.apache.iceberg.data.FileHelpers;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.deletes.PositionDelete;
+import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
-import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.PositionDeletesRewriteCoordinator;
 import org.apache.iceberg.spark.ScanTaskSetManager;
@@ -740,25 +740,27 @@ public class TestPositionDeletesTable extends SparkCatalogTestBase {
     Table posDeletesTable =
         MetadataTableUtils.createMetadataTableInstance(tab, MetadataTableType.POSITION_DELETES);
     String posDeletesTableName = catalogName + ".default." + tableName + ".position_deletes";
-    try (CloseableIterable<ScanTask> tasks = posDeletesTable.newBatchScan().planFiles()) {
-      String fileSetID = UUID.randomUUID().toString();
-      stageTask(tab, fileSetID, tasks);
+    for (String partValue : ImmutableList.of("a", "b")) {
+      try (CloseableIterable<ScanTask> tasks = tasks(posDeletesTable, "data", partValue)) {
+        String fileSetID = UUID.randomUUID().toString();
+        stageTask(tab, fileSetID, tasks);
 
-      Dataset<Row> scanDF =
-          spark
-              .read()
-              .format("iceberg")
-              .option(SparkReadOptions.SCAN_TASK_SET_ID, fileSetID)
-              .option(SparkReadOptions.FILE_OPEN_COST, Integer.MAX_VALUE)
-              .load(posDeletesTableName);
+        Dataset<Row> scanDF =
+            spark
+                .read()
+                .format("iceberg")
+                .option(SparkReadOptions.SCAN_TASK_SET_ID, fileSetID)
+                .option(SparkReadOptions.FILE_OPEN_COST, Integer.MAX_VALUE)
+                .load(posDeletesTableName);
 
-      Assert.assertEquals(2, scanDF.javaRDD().getNumPartitions());
-      scanDF
-          .writeTo(posDeletesTableName)
-          .option(SparkWriteOptions.REWRITTEN_FILE_SCAN_TASK_SET_ID, fileSetID)
-          .append();
+        Assert.assertEquals(1, scanDF.javaRDD().getNumPartitions());
+        scanDF
+            .writeTo(posDeletesTableName)
+            .option(SparkWriteOptions.REWRITTEN_FILE_SCAN_TASK_SET_ID, fileSetID)
+            .append();
 
-      commit(tab, posDeletesTable, fileSetID, 2);
+        commit(tab, posDeletesTable, fileSetID, 1);
+      }
     }
 
     // Prepare expected values (without 'delete_file_path' as these have been rewritten)
@@ -857,26 +859,29 @@ public class TestPositionDeletesTable extends SparkCatalogTestBase {
         .addDeletes(deletesWithRow.second())
         .commit();
 
+    // rewrite delete files
     Table posDeletesTable =
         MetadataTableUtils.createMetadataTableInstance(tab, MetadataTableType.POSITION_DELETES);
     String posDeletesTableName = catalogName + ".default." + tableName + ".position_deletes";
-    try (CloseableIterable<ScanTask> tasks = posDeletesTable.newBatchScan().planFiles()) {
-      String fileSetID = UUID.randomUUID().toString();
-      stageTask(tab, fileSetID, tasks);
+    for (String partValue : ImmutableList.of("a", "b")) {
+      try (CloseableIterable<ScanTask> tasks = tasks(posDeletesTable, "data", partValue)) {
+        String fileSetID = UUID.randomUUID().toString();
+        stageTask(tab, fileSetID, tasks);
 
-      Dataset<Row> scanDF =
-          spark
-              .read()
-              .format("iceberg")
-              .option(SparkReadOptions.SCAN_TASK_SET_ID, fileSetID)
-              .load(posDeletesTableName);
-      Assert.assertEquals(1, scanDF.javaRDD().getNumPartitions());
-      scanDF
-          .writeTo(posDeletesTableName)
-          .option(SparkWriteOptions.REWRITTEN_FILE_SCAN_TASK_SET_ID, fileSetID)
-          .append();
+        Dataset<Row> scanDF =
+            spark
+                .read()
+                .format("iceberg")
+                .option(SparkReadOptions.SCAN_TASK_SET_ID, fileSetID)
+                .load(posDeletesTableName);
+        Assert.assertEquals(1, scanDF.javaRDD().getNumPartitions());
+        scanDF
+            .writeTo(posDeletesTableName)
+            .option(SparkWriteOptions.REWRITTEN_FILE_SCAN_TASK_SET_ID, fileSetID)
+            .append();
 
-      commit(tab, posDeletesTable, fileSetID, 2);
+        commit(tab, posDeletesTable, fileSetID, 1);
+      }
     }
 
     // Compare values without 'delete_file_path' as these have been rewritten
@@ -976,28 +981,27 @@ public class TestPositionDeletesTable extends SparkCatalogTestBase {
         actualUnpartitioned);
 
     // Read/write back new partition spec (data)
-    try (CloseableIterable<ScanTask> tasks =
-        CloseableIterable.filter(
-            posDeletesTable.newBatchScan().planFiles(),
-            t -> !((PositionDeletesScanTask) t).spec().isUnpartitioned())) {
-      String fileSetID = UUID.randomUUID().toString();
-      stageTask(tab, fileSetID, tasks);
+    for (String partValue : ImmutableList.of("a", "b")) {
+      try (CloseableIterable<ScanTask> tasks = tasks(posDeletesTable, "data", partValue)) {
+        String fileSetID = UUID.randomUUID().toString();
+        stageTask(tab, fileSetID, tasks);
 
-      Dataset<Row> scanDF =
-          spark
-              .read()
-              .format("iceberg")
-              .option(SparkReadOptions.SCAN_TASK_SET_ID, fileSetID)
-              .option(SparkReadOptions.FILE_OPEN_COST, Integer.MAX_VALUE)
-              .load(posDeletesTableName);
-      Assert.assertEquals(2, scanDF.javaRDD().getNumPartitions());
-      scanDF
-          .writeTo(posDeletesTableName)
-          .option(SparkWriteOptions.REWRITTEN_FILE_SCAN_TASK_SET_ID, fileSetID)
-          .append();
+        Dataset<Row> scanDF =
+            spark
+                .read()
+                .format("iceberg")
+                .option(SparkReadOptions.SCAN_TASK_SET_ID, fileSetID)
+                .option(SparkReadOptions.FILE_OPEN_COST, Integer.MAX_VALUE)
+                .load(posDeletesTableName);
+        Assert.assertEquals(1, scanDF.javaRDD().getNumPartitions());
+        scanDF
+            .writeTo(posDeletesTableName)
+            .option(SparkWriteOptions.REWRITTEN_FILE_SCAN_TASK_SET_ID, fileSetID)
+            .append();
 
-      // commit the rewrite
-      commit(tab, posDeletesTable, fileSetID, 2);
+        // commit the rewrite
+        commit(tab, posDeletesTable, fileSetID, 1);
+      }
     }
 
     // Select deletes from new spec (data)
@@ -1099,8 +1103,8 @@ public class TestPositionDeletesTable extends SparkCatalogTestBase {
         MetadataTableUtils.createMetadataTableInstance(tab, MetadataTableType.POSITION_DELETES);
     String posDeletesTableName = catalogName + ".default." + tableName + ".position_deletes";
 
-    // rewrite files
-    try (CloseableIterable<ScanTask> tasks = posDeletesTable.newBatchScan().planFiles()) {
+    // rewrite files of old schema
+    try (CloseableIterable<ScanTask> tasks = tasks(posDeletesTable, "data", "a")) {
       String fileSetID = UUID.randomUUID().toString();
       stageTask(tab, fileSetID, tasks);
 
@@ -1112,13 +1116,13 @@ public class TestPositionDeletesTable extends SparkCatalogTestBase {
               .option(SparkReadOptions.FILE_OPEN_COST, Integer.MAX_VALUE)
               .load(posDeletesTableName);
 
-      Assert.assertEquals(4, scanDF.javaRDD().getNumPartitions());
+      Assert.assertEquals(1, scanDF.javaRDD().getNumPartitions());
       scanDF
           .writeTo(posDeletesTableName)
           .option(SparkWriteOptions.REWRITTEN_FILE_SCAN_TASK_SET_ID, fileSetID)
           .append();
 
-      commit(tab, posDeletesTable, fileSetID, 4);
+      commit(tab, posDeletesTable, fileSetID, 1);
     }
 
     // Select deletes from old schema
@@ -1139,6 +1143,28 @@ public class TestPositionDeletesTable extends SparkCatalogTestBase {
     StructLikeSet expectedA = expected(tab, expectedDeletesA, partitionA, null);
     StructLikeSet actualA = actual(tableName, tab, "partition.data = 'a'", NON_PATH_COLS);
     Assert.assertEquals("Position Delete table should contain expected rows", expectedA, actualA);
+
+    // rewrite files of new schema
+    try (CloseableIterable<ScanTask> tasks = tasks(posDeletesTable, "data", "c")) {
+      String fileSetID = UUID.randomUUID().toString();
+      stageTask(tab, fileSetID, tasks);
+
+      Dataset<Row> scanDF =
+          spark
+              .read()
+              .format("iceberg")
+              .option(SparkReadOptions.SCAN_TASK_SET_ID, fileSetID)
+              .option(SparkReadOptions.FILE_OPEN_COST, Integer.MAX_VALUE)
+              .load(posDeletesTableName);
+
+      Assert.assertEquals(1, scanDF.javaRDD().getNumPartitions());
+      scanDF
+          .writeTo(posDeletesTableName)
+          .option(SparkWriteOptions.REWRITTEN_FILE_SCAN_TASK_SET_ID, fileSetID)
+          .append();
+
+      commit(tab, posDeletesTable, fileSetID, 1);
+    }
 
     // Select deletes from new schema
     Record partitionC = partitionRecordTemplate.copy("data", "c");
@@ -1188,24 +1214,26 @@ public class TestPositionDeletesTable extends SparkCatalogTestBase {
     String posDeletesTableName = catalogName + ".default." + tableName + ".position_deletes";
 
     // rewrite files
-    try (CloseableIterable<ScanTask> tasks = posDeletesTable.newBatchScan().planFiles()) {
-      String fileSetID = UUID.randomUUID().toString();
-      stageTask(tab, fileSetID, tasks);
+    for (String partValue : ImmutableList.of("a", "b", "c", "d")) {
+      try (CloseableIterable<ScanTask> tasks = tasks(posDeletesTable, "data", partValue)) {
+        String fileSetID = UUID.randomUUID().toString();
+        stageTask(tab, fileSetID, tasks);
 
-      Dataset<Row> scanDF =
-          spark
-              .read()
-              .format("iceberg")
-              .option(SparkReadOptions.SCAN_TASK_SET_ID, fileSetID)
-              .option(SparkReadOptions.FILE_OPEN_COST, Integer.MAX_VALUE)
-              .load(posDeletesTableName);
-      Assert.assertEquals(4, scanDF.javaRDD().getNumPartitions());
-      scanDF
-          .writeTo(posDeletesTableName)
-          .option(SparkWriteOptions.REWRITTEN_FILE_SCAN_TASK_SET_ID, fileSetID)
-          .append();
+        Dataset<Row> scanDF =
+            spark
+                .read()
+                .format("iceberg")
+                .option(SparkReadOptions.SCAN_TASK_SET_ID, fileSetID)
+                .option(SparkReadOptions.FILE_OPEN_COST, Integer.MAX_VALUE)
+                .load(posDeletesTableName);
+        Assert.assertEquals(1, scanDF.javaRDD().getNumPartitions());
+        scanDF
+            .writeTo(posDeletesTableName)
+            .option(SparkWriteOptions.REWRITTEN_FILE_SCAN_TASK_SET_ID, fileSetID)
+            .append();
 
-      commit(tab, posDeletesTable, fileSetID, 4);
+        commit(tab, posDeletesTable, fileSetID, 1);
+      }
     }
 
     // Select deletes from old schema
@@ -1481,13 +1509,10 @@ public class TestPositionDeletesTable extends SparkCatalogTestBase {
     return Pair.of(deletes, deleteFile);
   }
 
-  private void stageTask(Table tab, String fileSetID, CloseableIterable<ScanTask> tasks) {
+  private <T extends ScanTask> void stageTask(
+      Table tab, String fileSetID, CloseableIterable<T> tasks) {
     ScanTaskSetManager taskSetManager = ScanTaskSetManager.get();
-    taskSetManager.stageTasks(
-        tab,
-        fileSetID,
-        Lists.newArrayList(
-            Iterators.transform(tasks.iterator(), t -> (PositionDeletesScanTask) t)));
+    taskSetManager.stageTasks(tab, fileSetID, Lists.newArrayList(tasks));
   }
 
   private void commit(
@@ -1501,7 +1526,7 @@ public class TestPositionDeletesTable extends SparkCatalogTestBase {
         ScanTaskSetManager.get().fetchTasks(posDeletesTable, fileSetID).stream()
             .map(t -> ((PositionDeletesScanTask) t).file())
             .collect(Collectors.toSet());
-    Set<DeleteFile> addedFiles = rewriteCoordinator.fetchNewDataFiles(posDeletesTable, fileSetID);
+    Set<DeleteFile> addedFiles = rewriteCoordinator.fetchNewFiles(posDeletesTable, fileSetID);
 
     // Assert new files and old files are equal in number but different in paths
     Assert.assertEquals(expectedSourceFiles, rewrittenFiles.size());
@@ -1521,5 +1546,21 @@ public class TestPositionDeletesTable extends SparkCatalogTestBase {
 
   private void commit(Table baseTab, Table posDeletesTable, String fileSetID, int expectedFiles) {
     commit(baseTab, posDeletesTable, fileSetID, expectedFiles, expectedFiles);
+  }
+
+  private CloseableIterable<ScanTask> tasks(
+      Table posDeletesTable, String partitionColumn, String partitionValue) {
+
+    Expression filter = Expressions.equal("partition." + partitionColumn, partitionValue);
+    CloseableIterable<ScanTask> files = posDeletesTable.newBatchScan().filter(filter).planFiles();
+
+    // take care of fail to filter in some partition evolution cases
+    return CloseableIterable.filter(
+        files,
+        t -> {
+          StructLike filePartition = ((PositionDeletesScanTask) t).partition();
+          String filePartitionValue = filePartition.get(0, String.class);
+          return filePartitionValue != null && filePartitionValue.equals(partitionValue);
+        });
   }
 }

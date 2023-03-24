@@ -20,7 +20,7 @@ package org.apache.iceberg.spark;
 
 import org.apache.iceberg.DeleteFile;
 
-public class PositionDeletesRewriteCoordinator extends AbstractFileRewriteCoordinator<DeleteFile> {
+public class PositionDeletesRewriteCoordinator extends BaseFileRewriteCoordinator<DeleteFile> {
 
   private static final PositionDeletesRewriteCoordinator INSTANCE =
       new PositionDeletesRewriteCoordinator();

@@ -18,9 +18,15 @@
  */
 package org.apache.iceberg.spark.source;
 
+import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
+import org.apache.iceberg.PositionDeletesScanTask;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.spark.ScanTaskSetManager;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkWriteConf;
 import org.apache.spark.sql.SparkSession;
@@ -29,6 +35,14 @@ import org.apache.spark.sql.connector.write.Write;
 import org.apache.spark.sql.connector.write.WriteBuilder;
 import org.apache.spark.sql.types.StructType;
 
+/**
+ * Builder class for rewrites of position delete files from Spark. Responsible for creating {@link
+ * SparkPositionDeletesRewrite}.
+ *
+ * <p>This class is meant to be used for an action to rewrite delete files. Hence, it makes an
+ * assumption that all incoming deletes belong to the same partition, and that incoming dataset is
+ * from {@link ScanTaskSetManager}.
+ */
 public class SparkPositionDeletesRewriteBuilder implements WriteBuilder {
 
   private final SparkSession spark;
@@ -54,7 +68,24 @@ public class SparkPositionDeletesRewriteBuilder implements WriteBuilder {
         writeConf.rewrittenFileSetId() != null,
         "position_deletes table can only be written by RewriteDeleteFiles");
 
+    // all files of rewrite group have same and partition and spec id
+    ScanTaskSetManager scanTaskSetManager = ScanTaskSetManager.get();
+    String fileSetId = writeConf.rewrittenFileSetId();
+    List<PositionDeletesScanTask> scanTasks = scanTaskSetManager.fetchTasks(table, fileSetId);
+    Preconditions.checkNotNull(scanTasks, "no scan tasks found for %s", fileSetId);
+
+    Set<Integer> specIds =
+        scanTasks.stream().map(t -> t.spec().specId()).collect(Collectors.toSet());
+    Set<StructLike> partitions =
+        scanTasks.stream().map(t -> t.file().partition()).collect(Collectors.toSet());
+    Preconditions.checkArgument(
+        specIds.size() == 1, "All scan tasks of %s are expected to have same spec id", fileSetId);
+    Preconditions.checkArgument(
+        partitions.size() == 1, "All scan tasks of %s are expected to have the same partition");
+    int specId = scanTasks.get(0).spec().specId();
+    StructLike partitionValue = scanTasks.get(0).partition();
+
     return new SparkPositionDeletesRewrite(
-        spark, table, writeConf, writeInfo, writeSchema, dsSchema);
+        spark, table, writeConf, writeInfo, writeSchema, dsSchema, specId, partitionValue);
   }
 }

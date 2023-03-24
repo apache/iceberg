@@ -31,7 +31,7 @@ import org.apache.iceberg.util.Pair;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public abstract class AbstractFileRewriteCoordinator<F extends ContentFile<F>> {
+abstract class BaseFileRewriteCoordinator<F extends ContentFile<F>> {
 
   private static final Logger LOG = LoggerFactory.getLogger(FileRewriteCoordinator.class);
 
@@ -42,21 +42,21 @@ public abstract class AbstractFileRewriteCoordinator<F extends ContentFile<F>> {
    * via a Spark Datasource, we have to propagate the result through this side-effect call.
    *
    * @param table table where the rewrite is occurring
-   * @param fileSetID the id used to identify the source set of files being rewritten
-   * @param newDataFiles the new files which have been written
+   * @param fileSetId the id used to identify the source set of files being rewritten
+   * @param newFiles the new files which have been written
    */
-  public void stageRewrite(Table table, String fileSetID, Set<F> newDataFiles) {
+  public void stageRewrite(Table table, String fileSetId, Set<F> newFiles) {
     LOG.debug(
         "Staging the output for {} - fileset {} with {} files",
         table.name(),
-        fileSetID,
-        newDataFiles.size());
-    Pair<String, String> id = toID(table, fileSetID);
-    resultMap.put(id, newDataFiles);
+        fileSetId,
+        newFiles.size());
+    Pair<String, String> id = toId(table, fileSetId);
+    resultMap.put(id, newFiles);
   }
 
-  public Set<F> fetchNewDataFiles(Table table, String fileSetID) {
-    Pair<String, String> id = toID(table, fileSetID);
+  public Set<F> fetchNewFiles(Table table, String fileSetID) {
+    Pair<String, String> id = toId(table, fileSetID);
     Set<F> result = resultMap.get(id);
     ValidationException.check(
         result != null, "No results for rewrite of file set %s in table %s", fileSetID, table);
@@ -64,22 +64,22 @@ public abstract class AbstractFileRewriteCoordinator<F extends ContentFile<F>> {
     return result;
   }
 
-  public void clearRewrite(Table table, String fileSetID) {
-    LOG.debug("Removing entry from RewriteCoordinator for {} - id {}", table.name(), fileSetID);
-    Pair<String, String> id = toID(table, fileSetID);
+  public void clearRewrite(Table table, String fileSetId) {
+    LOG.debug("Removing entry for {} - id {}", table.name(), fileSetId);
+    Pair<String, String> id = toId(table, fileSetId);
     resultMap.remove(id);
   }
 
-  public Set<String> fetchSetIDs(Table table) {
+  public Set<String> fetchSetIds(Table table) {
     return resultMap.keySet().stream()
         .filter(e -> e.first().equals(tableUUID(table)))
         .map(Pair::second)
         .collect(Collectors.toSet());
   }
 
-  private Pair<String, String> toID(Table table, String setID) {
+  private Pair<String, String> toId(Table table, String setId) {
     String tableUUID = tableUUID(table);
-    return Pair.of(tableUUID, setID);
+    return Pair.of(tableUUID, setId);
   }
 
   private String tableUUID(Table table) {

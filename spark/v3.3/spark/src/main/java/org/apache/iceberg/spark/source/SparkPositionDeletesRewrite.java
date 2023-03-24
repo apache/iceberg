@@ -21,31 +21,24 @@ package org.apache.iceberg.spark.source;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.PartitionSpec;
-import org.apache.iceberg.Partitioning;
-import org.apache.iceberg.PositionDeletesScanTask;
 import org.apache.iceberg.PositionDeletesTable;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.io.ClusteredPositionDeleteWriter;
-import org.apache.iceberg.io.DeleteWriteResult;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFileFactory;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
-import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.PositionDeletesRewriteCoordinator;
 import org.apache.iceberg.spark.ScanTaskSetManager;
-import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkWriteConf;
-import org.apache.iceberg.types.Types;
-import org.apache.iceberg.util.StructProjection;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.broadcast.Broadcast;
 import org.apache.spark.sql.SparkSession;
@@ -60,20 +53,16 @@ import org.apache.spark.sql.connector.write.WriterCommitMessage;
 import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import scala.Option;
 
 /**
  * {@link Write} class for rewriting position delete files from Spark. Responsible for creating
- * {@link PositionDeleteBatchWrite}
+ * {@link PositionDeleteBatchWrite}.
  *
- * <p>This class is meant to be used for an action to rewrite delete files. Hence, it makes an
- * assumption that all incoming deletes belong to the same partition, and that incoming dataset is
- * from {@link ScanTaskSetManager}.
+ * <p>This class is meant to be used for an action to rewrite position delete delete files. Hence,
+ * it assumes all position deletes to rewrite have come from {@link ScanTaskSetManager} and that all
+ * have the same partition spec id and partition values.
  */
 public class SparkPositionDeletesRewrite implements Write {
-  private static final Logger LOG = LoggerFactory.getLogger(SparkPositionDeletesRewrite.class);
 
   private final JavaSparkContext sparkContext;
   private final Table table;
@@ -83,7 +72,9 @@ public class SparkPositionDeletesRewrite implements Write {
   private final Schema writeSchema;
   private final StructType dsSchema;
   private final String fileSetId;
+
   private final int specId;
+  private final StructLike partition;
 
   /**
    * Constructs a SparkPositionDeletesWrite.
@@ -94,6 +85,8 @@ public class SparkPositionDeletesRewrite implements Write {
    * @param writeInfo spark write info
    * @param writeSchema Iceberg output schema
    * @param dsSchema schema of original incoming position deletes dataset
+   * @param specId spec id of position deletes
+   * @param partition partition value of position deletes
    */
   SparkPositionDeletesRewrite(
       SparkSession spark,
@@ -101,20 +94,19 @@ public class SparkPositionDeletesRewrite implements Write {
       SparkWriteConf writeConf,
       LogicalWriteInfo writeInfo,
       Schema writeSchema,
-      StructType dsSchema) {
+      StructType dsSchema,
+      int specId,
+      StructLike partition) {
     this.sparkContext = JavaSparkContext.fromSparkContext(spark.sparkContext());
     this.table = table;
     this.queryId = writeInfo.queryId();
-    this.format = writeConf.dataFileFormat();
-    this.targetFileSize = writeConf.targetDataFileSize();
+    this.format = writeConf.deleteFileFormat();
+    this.targetFileSize = writeConf.targetDeleteFileSize();
     this.writeSchema = writeSchema;
     this.dsSchema = dsSchema;
     this.fileSetId = writeConf.rewrittenFileSetId();
-
-    // all files of rewrite group have same spec id
-    ScanTaskSetManager scanTaskSetManager = ScanTaskSetManager.get();
-    List<PositionDeletesScanTask> scanTasks = scanTaskSetManager.fetchTasks(table, fileSetId);
-    this.specId = scanTasks.get(0).spec().specId();
+    this.specId = specId;
+    this.partition = partition;
   }
 
   @Override
@@ -131,7 +123,14 @@ public class SparkPositionDeletesRewrite implements Write {
       Broadcast<Table> tableBroadcast =
           sparkContext.broadcast(SerializableTableWithSize.copyOf(table));
       return new PositionDeltaWriteFactory(
-          tableBroadcast, queryId, format, targetFileSize, writeSchema, dsSchema, specId);
+          tableBroadcast,
+          queryId,
+          format,
+          targetFileSize,
+          writeSchema,
+          dsSchema,
+          specId,
+          partition);
     }
 
     @Override
@@ -175,6 +174,7 @@ public class SparkPositionDeletesRewrite implements Write {
     private final Schema writeSchema;
     private final StructType dsSchema;
     private final int specId;
+    private final StructLike partition;
 
     PositionDeltaWriteFactory(
         Broadcast<Table> tableBroadcast,
@@ -183,7 +183,8 @@ public class SparkPositionDeletesRewrite implements Write {
         long targetFileSize,
         Schema writeSchema,
         StructType dsSchema,
-        int specId) {
+        int specId,
+        StructLike partition) {
       this.tableBroadcast = tableBroadcast;
       this.queryId = queryId;
       this.format = format;
@@ -191,6 +192,7 @@ public class SparkPositionDeletesRewrite implements Write {
       this.writeSchema = writeSchema;
       this.dsSchema = dsSchema;
       this.specId = specId;
+      this.partition = partition;
     }
 
     @Override
@@ -211,14 +213,13 @@ public class SparkPositionDeletesRewrite implements Write {
                   .type()
                   .asStructType()
                   .fields());
-      StructType deleteFileType =
+      StructType deleteSparkType =
           new StructType(
               new StructField[] {
                 dsSchema.apply(MetadataColumns.DELETE_FILE_PATH.name()),
                 dsSchema.apply(MetadataColumns.DELETE_FILE_POS.name()),
                 dsSchema.apply(MetadataColumns.DELETE_FILE_ROW_FIELD_NAME)
               });
-
       SparkFileWriterFactory writerFactoryWithRow =
           SparkFileWriterFactory.builderFor(table)
               .dataFileFormat(format)
@@ -226,16 +227,22 @@ public class SparkPositionDeletesRewrite implements Write {
               .dataSparkType(dsSchema)
               .deleteFileFormat(format)
               .positionDeleteRowSchema(positionDeleteRowSchema)
-              .positionDeleteSparkType(deleteFileType)
+              .positionDeleteSparkType(deleteSparkType)
               .build();
 
+      StructType deleteSparkTypeWithoutRow =
+          new StructType(
+              new StructField[] {
+                dsSchema.apply(MetadataColumns.DELETE_FILE_PATH.name()),
+                dsSchema.apply(MetadataColumns.DELETE_FILE_POS.name()),
+              });
       SparkFileWriterFactory writerFactoryWithoutRow =
           SparkFileWriterFactory.builderFor(table)
               .dataFileFormat(format)
               .dataSchema(writeSchema)
               .dataSparkType(dsSchema)
               .deleteFileFormat(format)
-              .positionDeleteSparkType(deleteFileType)
+              .positionDeleteSparkType(deleteSparkTypeWithoutRow)
               .build();
 
       return new DeleteWriter(
@@ -245,7 +252,8 @@ public class SparkPositionDeletesRewrite implements Write {
           deleteFileFactory,
           targetFileSize,
           dsSchema,
-          specId);
+          specId,
+          partition);
     }
   }
 
@@ -267,15 +275,12 @@ public class SparkPositionDeletesRewrite implements Write {
     private final long targetFileSize;
     private final PositionDelete<InternalRow> positionDelete;
     private final FileIO io;
-    private final Map<Integer, PartitionSpec> specs;
-    private final InternalRowWrapper partitionRowWrapper;
-    private final StructProjection partitionProjection;
-    private final int specIdOrdinal;
-    private final Option<Integer> partitionOrdinalOption;
+    private final PartitionSpec spec;
     private final int fileOrdinal;
     private final int positionOrdinal;
     private final int rowOrdinal;
     private final int rowSize;
+    private final StructLike partition;
 
     private ClusteredPositionDeleteWriter<InternalRow> writerWithRow;
     private ClusteredPositionDeleteWriter<InternalRow> writerWithoutRow;
@@ -290,8 +295,10 @@ public class SparkPositionDeletesRewrite implements Write {
      * @param deleteFileFactory delete file factory
      * @param targetFileSize target file size
      * @param dsSchema schema of incoming dataset of position deletes
-     * @param specId partition spec id of incoming position deletes. All files of this row-group are
-     *     required to have one spec id.
+     * @param specId partition spec id of incoming position deletes. All incoming partition deletes
+     *     are required to have the same spec id.
+     * @param partition partition value of incoming position delete. All incoming partition deletes
+     *     are required to have the same partition.
      */
     DeleteWriter(
         Table table,
@@ -300,23 +307,16 @@ public class SparkPositionDeletesRewrite implements Write {
         OutputFileFactory deleteFileFactory,
         long targetFileSize,
         StructType dsSchema,
-        int specId) {
+        int specId,
+        StructLike partition) {
       this.deleteFileFactory = deleteFileFactory;
       this.targetFileSize = targetFileSize;
       this.writerFactoryWithRow = writerFactoryWithRow;
       this.writerFactoryWithoutRow = writerFactoryWithoutRow;
       this.positionDelete = PositionDelete.create();
       this.io = table.io();
-      this.specs = table.specs();
-
-      Types.StructType partitionType = Partitioning.partitionType(table);
-
-      this.specIdOrdinal = dsSchema.fieldIndex(PositionDeletesTable.SPEC_ID);
-      this.partitionOrdinalOption =
-          dsSchema.getFieldIndex(PositionDeletesTable.PARTITION).map(a -> (Integer) a);
-      this.partitionRowWrapper = initPartitionRowWrapper(partitionType);
-      this.partitionProjection =
-          StructProjection.create(partitionType, table.specs().get(specId).partitionType());
+      this.spec = table.specs().get(specId);
+      this.partition = partition;
 
       this.fileOrdinal = dsSchema.fieldIndex(MetadataColumns.DELETE_FILE_PATH.name());
       this.positionOrdinal = dsSchema.fieldIndex(MetadataColumns.DELETE_FILE_POS.name());
@@ -330,25 +330,15 @@ public class SparkPositionDeletesRewrite implements Write {
 
     @Override
     public void write(InternalRow record) throws IOException {
-      int specId = record.getInt(specIdOrdinal);
-      PartitionSpec spec = specs.get(specId);
-
-      InternalRow partition = null;
-      if (partitionOrdinalOption.isDefined()) {
-        int partitionOrdinal = partitionOrdinalOption.get();
-        partition = record.getStruct(partitionOrdinal, partitionRowWrapper.size());
-      }
-      partitionProjection.wrap(partitionRowWrapper.wrap(partition));
-
       String file = record.getString(fileOrdinal);
       long position = record.getLong(positionOrdinal);
       InternalRow row = record.getStruct(rowOrdinal, rowSize);
       if (row != null) {
         positionDelete.set(file, position, row);
-        lazyWriterWithRow().write(positionDelete, spec, partitionProjection);
+        lazyWriterWithRow().write(positionDelete, spec, partition);
       } else {
         positionDelete.set(file, position, null);
-        lazyWriterWithoutRow().write(positionDelete, spec, partitionProjection);
+        lazyWriterWithoutRow().write(positionDelete, spec, partition);
       }
     }
 
@@ -370,12 +360,14 @@ public class SparkPositionDeletesRewrite implements Write {
     public void abort() throws IOException {
       close();
 
-      DeleteWriteResult resultWithRow = writerWithRow.result();
-      DeleteWriteResult resultWithoutRow = writerWithoutRow.result();
-      SparkCleanupUtil.deleteTaskFiles(
-          io,
-          Lists.newArrayList(
-              Iterables.concat(resultWithRow.deleteFiles(), resultWithoutRow.deleteFiles())));
+      List<DeleteFile> allDeleteFiles = Lists.newArrayList();
+      if (writerWithRow != null) {
+        allDeleteFiles.addAll(writerWithRow.result().deleteFiles());
+      }
+      if (writerWithoutRow != null) {
+        allDeleteFiles.addAll(writerWithoutRow.result().deleteFiles());
+      }
+      SparkCleanupUtil.deleteTaskFiles(io, Lists.newArrayList(allDeleteFiles));
     }
 
     @Override
@@ -407,11 +399,6 @@ public class SparkPositionDeletesRewrite implements Write {
                 writerFactoryWithoutRow, deleteFileFactory, io, targetFileSize);
       }
       return writerWithoutRow;
-    }
-
-    protected InternalRowWrapper initPartitionRowWrapper(Types.StructType partitionType) {
-      StructType sparkPartitionType = (StructType) SparkSchemaUtil.convert(partitionType);
-      return new InternalRowWrapper(sparkPartitionType);
     }
   }
 

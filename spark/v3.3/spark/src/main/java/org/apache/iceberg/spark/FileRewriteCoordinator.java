@@ -18,9 +18,11 @@
  */
 package org.apache.iceberg.spark;
 
+import java.util.Set;
 import org.apache.iceberg.DataFile;
+import org.apache.iceberg.Table;
 
-public class FileRewriteCoordinator extends AbstractFileRewriteCoordinator<DataFile> {
+public class FileRewriteCoordinator extends BaseFileRewriteCoordinator<DataFile> {
 
   private static final FileRewriteCoordinator INSTANCE = new FileRewriteCoordinator();
 
@@ -28,5 +30,11 @@ public class FileRewriteCoordinator extends AbstractFileRewriteCoordinator<DataF
 
   public static FileRewriteCoordinator get() {
     return INSTANCE;
+  }
+
+  /** @deprecated will be removed in 1.3.0; use {@link #fetchNewFiles(Table, String)} instead. */
+  @Deprecated
+  public Set<DataFile> fetchNewDataFiles(Table table, String fileSetId) {
+    return fetchNewFiles(table, fileSetId);
   }
 }

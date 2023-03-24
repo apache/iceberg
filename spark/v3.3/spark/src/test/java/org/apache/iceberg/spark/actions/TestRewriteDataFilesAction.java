@@ -1679,7 +1679,7 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
   private Set<String> cacheContents(Table table) {
     return ImmutableSet.<String>builder()
         .addAll(manager.fetchSetIds(table))
-        .addAll(coordinator.fetchSetIDs(table))
+        .addAll(coordinator.fetchSetIds(table))
         .build();
   }
 
