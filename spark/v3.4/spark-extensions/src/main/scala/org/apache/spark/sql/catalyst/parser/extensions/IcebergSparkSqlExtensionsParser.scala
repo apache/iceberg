@@ -147,12 +147,16 @@ class IcebergSparkSqlExtensionsParser(delegate: ParserInterface) extends ParserI
     case UpdateTable(UnresolvedIcebergTable(aliasedTable), assignments, condition) =>
       UpdateIcebergTable(aliasedTable, assignments, condition)
 
-    case MergeIntoTable(UnresolvedIcebergTable(aliasedTable), source, cond, matchedActions, notMatchedActions) =>
+    case MergeIntoTable(UnresolvedIcebergTable(aliasedTable), source, cond, matchedActions, notMatchedActions, Nil) =>
       // cannot construct MergeIntoIcebergTable right away as MERGE operations require special resolution
       // that's why the condition and actions must be hidden from the regular resolution rules in Spark
       // see ResolveMergeIntoTableReferences for details
       val context = MergeIntoContext(cond, matchedActions, notMatchedActions)
       UnresolvedMergeIntoIcebergTable(aliasedTable, source, context)
+
+    case MergeIntoTable(UnresolvedIcebergTable(_), _, _, _, _, notMatchedBySourceActions)
+        if notMatchedBySourceActions.nonEmpty =>
+      throw new AnalysisException("Iceberg does not support WHEN NOT MATCHED BY SOURCE clause")
   }
 
   object UnresolvedIcebergTable {

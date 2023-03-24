@@ -55,15 +55,15 @@ import org.apache.spark.sql.catalyst.plans.logical.NoStatsUnaryNode
 import org.apache.spark.sql.catalyst.plans.logical.Project
 import org.apache.spark.sql.catalyst.plans.logical.ReplaceIcebergData
 import org.apache.spark.sql.catalyst.plans.logical.UpdateAction
-import org.apache.spark.sql.catalyst.plans.logical.WriteDelta
+import org.apache.spark.sql.catalyst.plans.logical.WriteIcebergDelta
 import org.apache.spark.sql.catalyst.util.RowDeltaUtils._
 import org.apache.spark.sql.catalyst.util.WriteDeltaProjections
 import org.apache.spark.sql.connector.catalog.SupportsRowLevelOperations
 import org.apache.spark.sql.connector.expressions.FieldReference
 import org.apache.spark.sql.connector.expressions.NamedReference
-import org.apache.spark.sql.connector.iceberg.write.SupportsDelta
 import org.apache.spark.sql.connector.write.RowLevelOperation.Command.MERGE
 import org.apache.spark.sql.connector.write.RowLevelOperationTable
+import org.apache.spark.sql.connector.write.SupportsDelta
 import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Relation
 import org.apache.spark.sql.types.IntegerType
 import org.apache.spark.sql.types.StructField
@@ -244,7 +244,7 @@ object RewriteMergeIntoTable extends RewriteRowLevelIcebergCommand with Predicat
       source: LogicalPlan,
       cond: Expression,
       matchedActions: Seq[MergeAction],
-      notMatchedActions: Seq[MergeAction]): WriteDelta = {
+      notMatchedActions: Seq[MergeAction]): WriteIcebergDelta = {
 
     // resolve all needed attrs (e.g. row ID and any required metadata attrs)
     val rowAttrs = relation.output
@@ -306,7 +306,7 @@ object RewriteMergeIntoTable extends RewriteRowLevelIcebergCommand with Predicat
     // build a plan to write the row delta to the table
     val writeRelation = relation.copy(table = operationTable)
     val projections = buildMergeDeltaProjections(mergeRows, rowAttrs, rowIdAttrs, metadataAttrs)
-    WriteDelta(writeRelation, mergeRows, relation, projections)
+    WriteIcebergDelta(writeRelation, mergeRows, relation, projections)
   }
 
   private def actionCondition(action: MergeAction): Expression = {

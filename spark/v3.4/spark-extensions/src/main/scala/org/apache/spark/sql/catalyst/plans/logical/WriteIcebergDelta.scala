@@ -28,9 +28,9 @@ import org.apache.spark.sql.catalyst.expressions.NamedExpression
 import org.apache.spark.sql.catalyst.util.CharVarcharUtils
 import org.apache.spark.sql.catalyst.util.RowDeltaUtils.OPERATION_COLUMN
 import org.apache.spark.sql.catalyst.util.WriteDeltaProjections
-import org.apache.spark.sql.connector.iceberg.write.DeltaWrite
-import org.apache.spark.sql.connector.iceberg.write.SupportsDelta
+import org.apache.spark.sql.connector.write.DeltaWrite
 import org.apache.spark.sql.connector.write.RowLevelOperationTable
+import org.apache.spark.sql.connector.write.SupportsDelta
 import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Relation
 import org.apache.spark.sql.types.DataType
 import org.apache.spark.sql.types.IntegerType
@@ -39,7 +39,7 @@ import org.apache.spark.sql.types.StructField
 /**
  * Writes a delta of rows to an existing table.
  */
-case class WriteDelta(
+case class WriteIcebergDelta(
     table: NamedRelation,
     query: LogicalPlan,
     originalTable: NamedRelation,
@@ -120,7 +120,7 @@ case class WriteDelta(
     operationResolved && rowAttrsResolved && rowIdAttrsResolved && metadataAttrsResolved
   }
 
-  override protected def withNewChildInternal(newChild: LogicalPlan): WriteDelta = {
+  override protected def withNewChildInternal(newChild: LogicalPlan): WriteIcebergDelta = {
     copy(query = newChild)
   }
 }

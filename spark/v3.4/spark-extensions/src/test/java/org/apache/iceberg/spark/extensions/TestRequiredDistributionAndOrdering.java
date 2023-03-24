@@ -25,7 +25,6 @@ import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.iceberg.spark.source.ThreeColumnRecord;
-import org.apache.spark.SparkException;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
@@ -187,10 +186,10 @@ public class TestRequiredDistributionAndOrdering extends SparkExtensionsTestBase
     Dataset<Row> inputDF = ds.coalesce(1).sortWithinPartitions("c1");
 
     // should fail if ordering is disabled
-    AssertHelpers.assertThrows(
+    AssertHelpers.assertThrowsCause(
         "Should reject writes without ordering",
-        SparkException.class,
-        "Writing job aborted",
+        IllegalStateException.class,
+        "Encountered records that belong to already closed files",
         () -> {
           try {
             inputDF

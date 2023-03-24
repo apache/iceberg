@@ -59,7 +59,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
 import org.apache.iceberg.spark.SparkSQLProperties;
 import org.apache.iceberg.util.SnapshotUtil;
-import org.apache.spark.SparkException;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
@@ -530,8 +529,6 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
     try {
       Assertions.assertThatThrownBy(updateFuture::get)
           .isInstanceOf(ExecutionException.class)
-          .cause()
-          .isInstanceOf(SparkException.class)
           .cause()
           .isInstanceOf(ValidationException.class)
           .hasMessageContaining("Found conflicting files that can contain");

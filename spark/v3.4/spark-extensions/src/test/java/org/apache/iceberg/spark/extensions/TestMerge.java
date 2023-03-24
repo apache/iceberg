@@ -1180,8 +1180,6 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
       Assertions.assertThatThrownBy(mergeFuture::get)
           .isInstanceOf(ExecutionException.class)
           .cause()
-          .isInstanceOf(SparkException.class)
-          .cause()
           .isInstanceOf(ValidationException.class)
           .hasMessageContaining("Found conflicting files that can contain");
     } finally {
@@ -1929,7 +1927,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
     AssertHelpers.assertThrows(
         "Should complain about the invalid nested column",
         AnalysisException.class,
-        "No such struct field invalid_col",
+        "No such struct field `invalid_col`",
         () -> {
           sql(
               "MERGE INTO %s t USING source s "

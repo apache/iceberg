@@ -19,8 +19,8 @@
 
 package org.apache.spark.sql.execution.datasources.v2
 
+import java.util.Optional
 import java.util.UUID
-import org.apache.spark.sql.AnalysisException
 import org.apache.spark.sql.catalyst.expressions.PredicateHelper
 import org.apache.spark.sql.catalyst.plans.logical.AppendData
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
@@ -28,12 +28,13 @@ import org.apache.spark.sql.catalyst.plans.logical.OverwriteByExpression
 import org.apache.spark.sql.catalyst.plans.logical.OverwritePartitionsDynamic
 import org.apache.spark.sql.catalyst.plans.logical.Project
 import org.apache.spark.sql.catalyst.plans.logical.ReplaceIcebergData
-import org.apache.spark.sql.catalyst.plans.logical.WriteDelta
+import org.apache.spark.sql.catalyst.plans.logical.WriteIcebergDelta
 import org.apache.spark.sql.catalyst.rules.Rule
+import org.apache.spark.sql.catalyst.util.WriteDeltaProjections
 import org.apache.spark.sql.catalyst.utils.PlanUtils.isIcebergRelation
 import org.apache.spark.sql.connector.catalog.Table
-import org.apache.spark.sql.connector.iceberg.write.DeltaWriteBuilder
-import org.apache.spark.sql.connector.write.ExtendedLogicalWriteInfoImpl
+import org.apache.spark.sql.connector.write.DeltaWriteBuilder
+import org.apache.spark.sql.connector.write.LogicalWriteInfoImpl
 import org.apache.spark.sql.connector.write.SupportsDynamicOverwrite
 import org.apache.spark.sql.connector.write.SupportsOverwrite
 import org.apache.spark.sql.connector.write.SupportsTruncate
@@ -53,13 +54,13 @@ object ExtendedV2Writes extends Rule[LogicalPlan] with PredicateHelper {
   import DataSourceV2Implicits._
 
   override def apply(plan: LogicalPlan): LogicalPlan = plan transformDown {
-    case a @ AppendData(r: DataSourceV2Relation, query, options, _, None) if isIcebergRelation(r) =>
+    case a @ AppendData(r: DataSourceV2Relation, query, options, _, None, _) if isIcebergRelation(r) =>
       val writeBuilder = newWriteBuilder(r.table, query.schema, options)
       val write = writeBuilder.build()
       val newQuery = ExtendedDistributionAndOrderingUtils.prepareQuery(write, query, conf)
       a.copy(write = Some(write), query = newQuery)
 
-    case o @ OverwriteByExpression(r: DataSourceV2Relation, deleteExpr, query, options, _, None)
+    case o @ OverwriteByExpression(r: DataSourceV2Relation, deleteExpr, query, options, _, None, _)
         if isIcebergRelation(r) =>
       // fail if any filter cannot be converted. correctness depends on removing all matching data.
       val filters = splitConjunctivePredicates(deleteExpr).flatMap { pred =>
@@ -104,19 +105,11 @@ object ExtendedV2Writes extends Rule[LogicalPlan] with PredicateHelper {
       val newQuery = ExtendedDistributionAndOrderingUtils.prepareQuery(write, query, conf)
       rd.copy(write = Some(write), query = Project(rd.dataInput, newQuery))
 
-    case wd @ WriteDelta(r: DataSourceV2Relation, query, _, projections, None) =>
-      val rowSchema = projections.rowProjection.map(_.schema).orNull
-      val rowIdSchema = projections.rowIdProjection.schema
-      val metadataSchema = projections.metadataProjection.map(_.schema).orNull
-      val writeBuilder = newWriteBuilder(r.table, rowSchema, Map.empty, rowIdSchema, metadataSchema)
-      writeBuilder match {
-        case builder: DeltaWriteBuilder =>
-          val deltaWrite = builder.build()
-          val newQuery = ExtendedDistributionAndOrderingUtils.prepareQuery(deltaWrite, query, conf)
-          wd.copy(write = Some(deltaWrite), query = newQuery)
-        case other =>
-          throw new AnalysisException(s"$other is not DeltaWriteBuilder")
-      }
+    case wd @ WriteIcebergDelta(r: DataSourceV2Relation, query, _, projections, None) =>
+      val deltaWriteBuilder = newDeltaWriteBuilder(r.table, Map.empty, projections)
+      val deltaWrite = deltaWriteBuilder.build()
+      val newQuery = ExtendedDistributionAndOrderingUtils.prepareQuery(deltaWrite, query, conf)
+      wd.copy(write = Some(deltaWrite), query = newQuery)
   }
 
   private def isTruncate(filters: Array[Filter]): Boolean = {
@@ -127,14 +120,31 @@ object ExtendedV2Writes extends Rule[LogicalPlan] with PredicateHelper {
       table: Table,
       rowSchema: StructType,
       writeOptions: Map[String, String],
-      rowIdSchema: StructType = null,
-      metadataSchema: StructType = null): WriteBuilder = {
-    val info = ExtendedLogicalWriteInfoImpl(
-      queryId = UUID.randomUUID().toString,
+      queryId: String = UUID.randomUUID().toString): WriteBuilder = {
+
+    val info = LogicalWriteInfoImpl(queryId, rowSchema, writeOptions.asOptions)
+    table.asWritable.newWriteBuilder(info)
+  }
+
+  private def newDeltaWriteBuilder(
+      table: Table,
+      writeOptions: Map[String, String],
+      projections: WriteDeltaProjections,
+      queryId: String = UUID.randomUUID().toString): DeltaWriteBuilder = {
+
+    val rowSchema = projections.rowProjection.map(_.schema).getOrElse(StructType(Nil))
+    val rowIdSchema = projections.rowIdProjection.schema
+    val metadataSchema = projections.metadataProjection.map(_.schema)
+
+    val info = LogicalWriteInfoImpl(
+      queryId,
       rowSchema,
       writeOptions.asOptions,
-      rowIdSchema,
-      metadataSchema)
-    table.asWritable.newWriteBuilder(info)
+      Optional.of(rowIdSchema),
+      Optional.ofNullable(metadataSchema.orNull))
+
+    val writeBuilder = table.asWritable.newWriteBuilder(info)
+    assert(writeBuilder.isInstanceOf[DeltaWriteBuilder], s"$writeBuilder must be DeltaWriteBuilder")
+    writeBuilder.asInstanceOf[DeltaWriteBuilder]
   }
 }

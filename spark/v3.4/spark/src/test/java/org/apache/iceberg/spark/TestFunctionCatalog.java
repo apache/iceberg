@@ -71,7 +71,7 @@ public class TestFunctionCatalog extends SparkTestBaseWithCatalog {
     AssertHelpers.assertThrows(
         "Listing functions in a namespace that does not exist should throw",
         NoSuchNamespaceException.class,
-        "Namespace 'db' not found",
+        "The schema `db` cannot be found",
         () -> asFunctionCatalog.listFunctions(DB_NAMESPACE));
   }
 
@@ -90,20 +90,20 @@ public class TestFunctionCatalog extends SparkTestBaseWithCatalog {
     AssertHelpers.assertThrows(
         "Cannot load a function if it's not used with the system namespace or the empty namespace",
         NoSuchFunctionException.class,
-        "Undefined function: default.iceberg_version",
+        "The function default.iceberg_version cannot be found",
         () -> asFunctionCatalog.loadFunction(Identifier.of(DEFAULT_NAMESPACE, "iceberg_version")));
 
     Identifier undefinedFunction = Identifier.of(SYSTEM_NAMESPACE, "undefined_function");
     AssertHelpers.assertThrows(
         "Cannot load a function that does not exist",
         NoSuchFunctionException.class,
-        "Undefined function: system.undefined_function",
+        "The function system.undefined_function cannot be found",
         () -> asFunctionCatalog.loadFunction(undefinedFunction));
 
     AssertHelpers.assertThrows(
         "Using an undefined function from SQL should fail analysis",
         AnalysisException.class,
-        "Undefined function",
+        "Cannot resolve function",
         () -> sql("SELECT undefined_function(1, 2)"));
   }
 

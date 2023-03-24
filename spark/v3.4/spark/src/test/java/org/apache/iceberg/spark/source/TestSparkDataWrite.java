@@ -48,7 +48,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.SnapshotUtil;
-import org.apache.spark.SparkException;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
@@ -691,10 +690,8 @@ public class TestSparkDataWrite {
     ManualSource.setTable(manualTableName, sparkTable);
 
     // Although an exception is thrown here, write and commit have succeeded
-    AssertHelpers.assertThrowsWithCause(
+    AssertHelpers.assertThrows(
         "Should throw a Commit State Unknown Exception",
-        SparkException.class,
-        "Writing job aborted",
         CommitStateUnknownException.class,
         "Datacenter on Fire",
         () ->

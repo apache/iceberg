@@ -26,14 +26,15 @@ import org.apache.spark.sql.catalyst.expressions.AttributeReference
 import org.apache.spark.sql.catalyst.expressions.ExtendedV2ExpressionUtils
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.catalyst.util.WriteDeltaProjections
-import org.apache.spark.sql.connector.iceberg.write.SupportsDelta
 import org.apache.spark.sql.connector.write.RowLevelOperation
+import org.apache.spark.sql.connector.write.SupportsDelta
 import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Relation
 import org.apache.spark.sql.types.StructType
 
 trait RewriteRowLevelIcebergCommand extends RewriteRowLevelCommand {
 
-  protected def buildWriteDeltaProjections(
+  // override as the existing Spark method does not work for UPDATE and MERGE
+  protected override def buildWriteDeltaProjections(
       plan: LogicalPlan,
       rowAttrs: Seq[Attribute],
       rowIdAttrs: Seq[Attribute],
