@@ -33,6 +33,7 @@ import org.apache.iceberg.spark.SparkCatalogTestBase;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 
 public class TestDropTable extends SparkCatalogTestBase {
@@ -85,7 +86,8 @@ public class TestDropTable extends SparkCatalogTestBase {
     }
   }
 
-  @Test
+  // TODO: enable once SPARK-43203 is fixed
+  @Ignore
   public void testPurgeTable() throws IOException {
     assertEquals(
         "Should have expected rows",
@@ -102,7 +104,8 @@ public class TestDropTable extends SparkCatalogTestBase {
     Assert.assertTrue("All files should be deleted", checkFilesExist(manifestAndFiles, false));
   }
 
-  @Test
+  // TODO: enable once SPARK-43203 is fixed
+  @Ignore
   public void testPurgeTableGCDisabled() throws IOException {
     sql("ALTER TABLE %s SET TBLPROPERTIES (gc.enabled = false)", tableName);
 

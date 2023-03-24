@@ -36,7 +36,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.source.SparkTable;
 import org.apache.iceberg.spark.source.TestSparkCatalog;
-import org.apache.spark.SparkException;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.junit.Assert;
 import org.junit.Test;
@@ -115,10 +114,8 @@ public class TestMergeOnReadDelete extends TestDelete {
     TestSparkCatalog.setTable(ident, sparkTable);
 
     // Although an exception is thrown here, write and commit have succeeded
-    AssertHelpers.assertThrowsWithCause(
+    AssertHelpers.assertThrows(
         "Should throw a Commit State Unknown Exception",
-        SparkException.class,
-        "Writing job aborted",
         CommitStateUnknownException.class,
         "Datacenter on Fire",
         () -> sql("DELETE FROM %s WHERE id = 2", "dummy_catalog.default.table"));

@@ -71,11 +71,11 @@ import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.connector.distributions.Distribution;
 import org.apache.spark.sql.connector.expressions.SortOrder;
-import org.apache.spark.sql.connector.iceberg.write.DeltaBatchWrite;
-import org.apache.spark.sql.connector.iceberg.write.DeltaWrite;
-import org.apache.spark.sql.connector.iceberg.write.DeltaWriter;
-import org.apache.spark.sql.connector.iceberg.write.DeltaWriterFactory;
-import org.apache.spark.sql.connector.iceberg.write.ExtendedLogicalWriteInfo;
+import org.apache.spark.sql.connector.write.DeltaBatchWrite;
+import org.apache.spark.sql.connector.write.DeltaWrite;
+import org.apache.spark.sql.connector.write.DeltaWriter;
+import org.apache.spark.sql.connector.write.DeltaWriterFactory;
+import org.apache.spark.sql.connector.write.LogicalWriteInfo;
 import org.apache.spark.sql.connector.write.PhysicalWriteInfo;
 import org.apache.spark.sql.connector.write.RequiresDistributionAndOrdering;
 import org.apache.spark.sql.connector.write.RowLevelOperation.Command;
@@ -111,7 +111,7 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
       SparkBatchQueryScan scan,
       IsolationLevel isolationLevel,
       SparkWriteConf writeConf,
-      ExtendedLogicalWriteInfo info,
+      LogicalWriteInfo info,
       Schema dataSchema,
       Distribution requiredDistribution,
       SortOrder[] requiredOrdering) {
@@ -675,15 +675,15 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
     private final boolean fanoutWriterEnabled;
     private final String queryId;
 
-    Context(Schema dataSchema, SparkWriteConf writeConf, ExtendedLogicalWriteInfo info) {
+    Context(Schema dataSchema, SparkWriteConf writeConf, LogicalWriteInfo info) {
       this.dataSchema = dataSchema;
       this.dataSparkType = info.schema();
       this.dataFileFormat = writeConf.dataFileFormat();
       this.targetDataFileSize = writeConf.targetDataFileSize();
-      this.deleteSparkType = info.rowIdSchema();
+      this.deleteSparkType = info.rowIdSchema().get();
       this.deleteFileFormat = writeConf.deleteFileFormat();
       this.targetDeleteFileSize = writeConf.targetDeleteFileSize();
-      this.metadataSparkType = info.metadataSchema();
+      this.metadataSparkType = info.metadataSchema().get();
       this.fanoutWriterEnabled = writeConf.fanoutWriterEnabled();
       this.queryId = info.queryId();
     }

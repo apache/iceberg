@@ -210,7 +210,7 @@ public class TestSnapshotTableProcedure extends SparkExtensionsTestBase {
     AssertHelpers.assertThrows(
         "Should reject calls with invalid map args",
         AnalysisException.class,
-        "cannot resolve 'map",
+        "The `map` requires 2n (n > 0) parameters but the actual number is 3",
         () ->
             sql(
                 "CALL %s.system.snapshot('%s', 'fable', 'loc', map(2, 1, 1))",

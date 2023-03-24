@@ -21,18 +21,16 @@ package org.apache.iceberg.spark.source;
 import org.apache.iceberg.IsolationLevel;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.connector.expressions.Expressions;
 import org.apache.spark.sql.connector.expressions.NamedReference;
-import org.apache.spark.sql.connector.iceberg.write.DeltaWriteBuilder;
-import org.apache.spark.sql.connector.iceberg.write.ExtendedLogicalWriteInfo;
-import org.apache.spark.sql.connector.iceberg.write.SupportsDelta;
 import org.apache.spark.sql.connector.read.Scan;
 import org.apache.spark.sql.connector.read.ScanBuilder;
+import org.apache.spark.sql.connector.write.DeltaWriteBuilder;
 import org.apache.spark.sql.connector.write.LogicalWriteInfo;
 import org.apache.spark.sql.connector.write.RowLevelOperation;
 import org.apache.spark.sql.connector.write.RowLevelOperationInfo;
+import org.apache.spark.sql.connector.write.SupportsDelta;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 
 class SparkPositionDeltaOperation implements RowLevelOperation, SupportsDelta {
@@ -86,19 +84,11 @@ class SparkPositionDeltaOperation implements RowLevelOperation, SupportsDelta {
   @Override
   public DeltaWriteBuilder newWriteBuilder(LogicalWriteInfo info) {
     if (lazyWriteBuilder == null) {
-      Preconditions.checkArgument(
-          info instanceof ExtendedLogicalWriteInfo, "info must be ExtendedLogicalWriteInfo");
       // don't validate the scan is not null as if the condition evaluates to false,
       // the optimizer replaces the original scan relation with a local relation
       lazyWriteBuilder =
           new SparkPositionDeltaWriteBuilder(
-              spark,
-              table,
-              branch,
-              command,
-              configuredScan,
-              isolationLevel,
-              (ExtendedLogicalWriteInfo) info);
+              spark, table, branch, command, configuredScan, isolationLevel, info);
     }
 
     return lazyWriteBuilder;
