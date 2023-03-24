@@ -249,6 +249,43 @@ public class TestSplitPlanning extends TableTestBase {
     Assert.assertEquals(8, Iterables.size(posDeletesTable.newBatchScan().planTasks()));
   }
 
+  @Test
+  public void testBasicSplitPlanningDeleteFilesWithSplitOffsets() {
+    table.updateProperties().set(TableProperties.FORMAT_VERSION, "2").commit();
+    List<DeleteFile> files128Mb = newDeleteFiles(4, 128 * 1024 * 1024, 8);
+    appendDeleteFiles(files128Mb);
+
+    PositionDeletesTable posDeletesTable = new PositionDeletesTable(table);
+
+    try (CloseableIterable<ScanTaskGroup<ScanTask>> groups =
+        posDeletesTable
+            .newBatchScan()
+            .option(TableProperties.SPLIT_SIZE, String.valueOf(64L * 1024 * 1024))
+            .planTasks()) {
+      int totalTaskGroups = 0;
+      for (ScanTaskGroup<ScanTask> group : groups) {
+        int tasksPerGroup = 0;
+        long previousOffset = -1;
+        for (ScanTask task : group.tasks()) {
+          tasksPerGroup++;
+          Assert.assertTrue(task instanceof SplitPositionDeletesScanTask);
+          SplitPositionDeletesScanTask splitPosDelTask = (SplitPositionDeletesScanTask) task;
+          if (previousOffset != -1) {
+            Assert.assertEquals(splitPosDelTask.start(), previousOffset);
+          }
+          previousOffset = splitPosDelTask.start() + splitPosDelTask.length();
+        }
+
+        Assert.assertEquals("Should have 1 task as result of task merge", 1, tasksPerGroup);
+        totalTaskGroups++;
+      }
+      // we expect 8 bins since split size is 64MB
+      Assert.assertEquals(8, totalTaskGroups);
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
+  }
+
   private void appendFiles(Iterable<DataFile> files) {
     AppendFiles appendFiles = table.newAppend();
     files.forEach(appendFiles::appendFile);
@@ -304,18 +341,23 @@ public class TestSplitPlanning extends TableTestBase {
   }
 
   private List<DeleteFile> newDeleteFiles(int numFiles, long sizeInBytes) {
-    return newDeleteFiles(numFiles, sizeInBytes, FileFormat.PARQUET);
+    return newDeleteFiles(numFiles, sizeInBytes, FileFormat.PARQUET, 1);
   }
 
-  private List<DeleteFile> newDeleteFiles(int numFiles, long sizeInBytes, FileFormat fileFormat) {
+  private List<DeleteFile> newDeleteFiles(int numFiles, long sizeInBytes, long numOffsets) {
+    return newDeleteFiles(numFiles, sizeInBytes, FileFormat.PARQUET, numOffsets);
+  }
+
+  private List<DeleteFile> newDeleteFiles(
+      int numFiles, long sizeInBytes, FileFormat fileFormat, long numOffsets) {
     List<DeleteFile> files = Lists.newArrayList();
     for (int fileNum = 0; fileNum < numFiles; fileNum++) {
-      files.add(newDeleteFile(sizeInBytes, fileFormat));
+      files.add(newDeleteFile(sizeInBytes, fileFormat, numOffsets));
     }
     return files;
   }
 
-  private DeleteFile newDeleteFile(long sizeInBytes, FileFormat fileFormat) {
+  private DeleteFile newDeleteFile(long sizeInBytes, FileFormat fileFormat, long numOffsets) {
     String fileName = UUID.randomUUID().toString();
     FileMetadata.Builder builder =
         FileMetadata.deleteFileBuilder(PartitionSpec.unpartitioned())
@@ -323,6 +365,16 @@ public class TestSplitPlanning extends TableTestBase {
             .withPath(fileFormat.addExtension(fileName))
             .withFileSizeInBytes(sizeInBytes)
             .withRecordCount(2);
+
+    if (numOffsets > 1) {
+      long stepSize = sizeInBytes / numOffsets;
+      List<Long> offsets =
+          LongStream.range(0, numOffsets)
+              .map(i -> i * stepSize)
+              .boxed()
+              .collect(Collectors.toList());
+      builder.withSplitOffsets(offsets);
+    }
 
     return builder.build();
   }

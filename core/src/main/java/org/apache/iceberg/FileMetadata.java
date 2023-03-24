@@ -19,6 +19,7 @@
 package org.apache.iceberg;
 
 import java.nio.ByteBuffer;
+import java.util.List;
 import java.util.Map;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
@@ -26,6 +27,7 @@ import org.apache.iceberg.encryption.EncryptionKeyMetadata;
 import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.util.ByteBuffers;
 
 public class FileMetadata {
@@ -56,6 +58,7 @@ public class FileMetadata {
     private Map<Integer, ByteBuffer> upperBounds = null;
     private ByteBuffer keyMetadata = null;
     private Integer sortOrderId = null;
+    private List<Long> splitOffsets = null;
 
     Builder(PartitionSpec spec) {
       this.spec = spec;
@@ -192,6 +195,15 @@ public class FileMetadata {
       return this;
     }
 
+    public Builder withSplitOffsets(List<Long> offsets) {
+      if (offsets != null) {
+        this.splitOffsets = ImmutableList.copyOf(offsets);
+      } else {
+        this.splitOffsets = null;
+      }
+      return this;
+    }
+
     public Builder withEncryptionKeyMetadata(ByteBuffer newKeyMetadata) {
       this.keyMetadata = newKeyMetadata;
       return this;
@@ -249,6 +261,7 @@ public class FileMetadata {
               upperBounds),
           equalityFieldIds,
           sortOrderId,
+          splitOffsets,
           keyMetadata);
     }
   }

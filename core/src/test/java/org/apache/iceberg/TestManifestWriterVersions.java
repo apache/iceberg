@@ -93,6 +93,7 @@ public class TestManifestWriterVersions {
           METRICS,
           EQUALITY_ID_ARR,
           SORT_ORDER_ID,
+          null,
           null);
 
   @Rule public TemporaryFolder temp = new TemporaryFolder();
