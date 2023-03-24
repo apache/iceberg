@@ -152,15 +152,15 @@ public class TestMetadataTableScansWithPartitionEvolution extends MetadataTableS
 
     TableScan scanNoFilter = partitionsTable.newScan().select("partition");
     Assert.assertEquals(idPartition, scanNoFilter.schema().asStruct());
-    Iterable<PartitionsTable.Partition> partitions =
-        PartitionsTable.partitions(table, (StaticTableScan) scanNoFilter);
-    Assert.assertEquals(4, Iterators.size(partitions.iterator()));
-    validatePartition(partitions, 0, 0);
-    validatePartition(partitions, 0, 1);
-    validatePartition(partitions, 0, 2);
-    validatePartition(partitions, 0, 3);
-    validatePartition(partitions, 1, 2);
-    validatePartition(partitions, 1, 3);
+    CloseableIterable<DataFile> dataFiles =
+        PartitionsTable.planDataFiles((StaticTableScan) scanNoFilter);
+    Assert.assertEquals(4, Iterators.size(dataFiles.iterator()));
+    validatePartition(dataFiles, 0, 0);
+    validatePartition(dataFiles, 0, 1);
+    validatePartition(dataFiles, 0, 2);
+    validatePartition(dataFiles, 0, 3);
+    validatePartition(dataFiles, 1, 2);
+    validatePartition(dataFiles, 1, 3);
   }
 
   @Test

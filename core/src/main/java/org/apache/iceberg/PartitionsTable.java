@@ -93,21 +93,19 @@ public class PartitionsTable extends BaseMetadataTable {
         partition.key, partition.specId, partition.dataRecordCount, partition.dataFileCount);
   }
 
-  @VisibleForTesting
-  static Iterable<Partition> partitions(Table table, StaticTableScan scan) {
+  private static Iterable<Partition> partitions(Table table, StaticTableScan scan) {
     Types.StructType normalizedPartitionType = Partitioning.partitionType(table);
     PartitionMap partitions = new PartitionMap();
 
     // cache a position map needed by each partition spec to normalize partitions to final schema
     Map<Integer, int[]> normalizedPositionsBySpec =
         Maps.newHashMapWithExpectedSize(table.specs().size());
-    // logic to handle the partition evolution
+
     int[] normalizedPositions =
         normalizedPositionsBySpec.computeIfAbsent(
             table.spec().specId(),
             specId -> normalizedPositions(table, specId, normalizedPartitionType));
 
-    // parallelize the manifest read and
     CloseableIterable<DataFile> datafiles = planDataFiles(scan);
 
     for (DataFile dataFile : datafiles) {
@@ -125,7 +123,6 @@ public class PartitionsTable extends BaseMetadataTable {
     Table table = scan.table();
     Snapshot snapshot = scan.snapshot();
 
-    // read list of data and delete manifests from current snapshot obtained via scan
     CloseableIterable<ManifestFile> dataManifests =
         CloseableIterable.withNoopClose(snapshot.dataManifests(table.io()));
 
@@ -149,12 +146,9 @@ public class PartitionsTable extends BaseMetadataTable {
             manifest ->
                 ManifestFiles.read(manifest, table.io(), table.specs())
                     .caseSensitive(scan.isCaseSensitive())
-                    // hardcoded to avoid scan stats column on partition table
-                    .select(BaseScan.SCAN_COLUMNS));
+                    .select(BaseScan.SCAN_COLUMNS)); // don't select stats columns
 
-    return (scan.planExecutor() != null)
-        ? new ParallelIterable<>(tasks, scan.planExecutor())
-        : CloseableIterable.concat(tasks);
+    return new ParallelIterable<>(tasks, scan.planExecutor());
   }
 
   /**
@@ -240,10 +234,6 @@ public class PartitionsTable extends BaseMetadataTable {
       this.dataRecordCount += file.recordCount();
       this.dataFileCount += 1;
       this.specId = file.specId();
-    }
-
-    StructLike key() {
-      return this.key;
     }
   }
 }

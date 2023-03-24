@@ -317,13 +317,13 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     TableScan scanNoFilter = partitionsTable.newScan().select("partition.data_bucket");
     Assert.assertEquals(expected, scanNoFilter.schema().asStruct());
 
-    Iterable<PartitionsTable.Partition> partitions =
-        PartitionsTable.partitions(table, (StaticTableScan) scanNoFilter);
-    Assert.assertEquals(4, Iterators.size(partitions.iterator()));
-    validatePartition(partitions, 0, 0);
-    validatePartition(partitions, 0, 1);
-    validatePartition(partitions, 0, 2);
-    validatePartition(partitions, 0, 3);
+    CloseableIterable<DataFile> dataFiles =
+        PartitionsTable.planDataFiles((StaticTableScan) scanNoFilter);
+    Assert.assertEquals(4, Iterators.size(dataFiles.iterator()));
+    validatePartition(dataFiles, 0, 0);
+    validatePartition(dataFiles, 0, 1);
+    validatePartition(dataFiles, 0, 2);
+    validatePartition(dataFiles, 0, 3);
   }
 
   @Test
@@ -337,13 +337,13 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
 
     TableScan scanWithProjection = partitionsTable.newScan().select("file_count");
     Assert.assertEquals(expected, scanWithProjection.schema().asStruct());
-    Iterable<PartitionsTable.Partition> partitions =
-        PartitionsTable.partitions(table, (StaticTableScan) scanWithProjection);
-    Assert.assertEquals(4, Iterators.size(partitions.iterator()));
-    validatePartition(partitions, 0, 0);
-    validatePartition(partitions, 0, 1);
-    validatePartition(partitions, 0, 2);
-    validatePartition(partitions, 0, 3);
+    CloseableIterable<DataFile> dataFiles =
+        PartitionsTable.planDataFiles((StaticTableScan) scanWithProjection);
+    Assert.assertEquals(4, Iterators.size(dataFiles.iterator()));
+    validatePartition(dataFiles, 0, 0);
+    validatePartition(dataFiles, 0, 1);
+    validatePartition(dataFiles, 0, 2);
+    validatePartition(dataFiles, 0, 3);
   }
 
   @Test
@@ -373,10 +373,10 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
             Expressions.equal("partition.data_bucket", 0),
             Expressions.greaterThan("record_count", 0));
     TableScan scanAndEq = partitionsTable.newScan().filter(andEquals);
-    Iterable<PartitionsTable.Partition> partitions =
-        PartitionsTable.partitions(table, (StaticTableScan) scanAndEq);
-    Assert.assertEquals(1, Iterators.size(partitions.iterator()));
-    validatePartition(partitions, 0, 0);
+    CloseableIterable<DataFile> dataFiles =
+        PartitionsTable.planDataFiles((StaticTableScan) scanAndEq);
+    Assert.assertEquals(1, Iterators.size(dataFiles.iterator()));
+    validatePartition(dataFiles, 0, 0);
   }
 
   @Test
@@ -390,11 +390,11 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
             Expressions.lessThan("partition.data_bucket", 2),
             Expressions.greaterThan("record_count", 0));
     TableScan scanLtAnd = partitionsTable.newScan().filter(ltAnd);
-    Iterable<PartitionsTable.Partition> partitions =
-        PartitionsTable.partitions(table, (StaticTableScan) scanLtAnd);
-    Assert.assertEquals(2, Iterators.size(partitions.iterator()));
-    validatePartition(partitions, 0, 0);
-    validatePartition(partitions, 0, 1);
+    CloseableIterable<DataFile> dataFiles =
+        PartitionsTable.planDataFiles((StaticTableScan) scanLtAnd);
+    Assert.assertEquals(2, Iterators.size(dataFiles.iterator()));
+    validatePartition(dataFiles, 0, 0);
+    validatePartition(dataFiles, 0, 1);
   }
 
   @Test
@@ -409,13 +409,12 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
             Expressions.greaterThan("record_count", 0));
     TableScan scanOr = partitionsTable.newScan().filter(or);
 
-    Iterable<PartitionsTable.Partition> partitions =
-        PartitionsTable.partitions(table, (StaticTableScan) scanOr);
-    Assert.assertEquals(4, Iterators.size(partitions.iterator()));
-    validatePartition(partitions, 0, 0);
-    validatePartition(partitions, 0, 1);
-    validatePartition(partitions, 0, 2);
-    validatePartition(partitions, 0, 3);
+    CloseableIterable<DataFile> dataFiles = PartitionsTable.planDataFiles((StaticTableScan) scanOr);
+    Assert.assertEquals(4, Iterators.size(dataFiles.iterator()));
+    validatePartition(dataFiles, 0, 0);
+    validatePartition(dataFiles, 0, 1);
+    validatePartition(dataFiles, 0, 2);
+    validatePartition(dataFiles, 0, 3);
   }
 
   @Test
@@ -425,11 +424,11 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
 
     Expression not = Expressions.not(Expressions.lessThan("partition.data_bucket", 2));
     TableScan scanNot = partitionsTable.newScan().filter(not);
-    Iterable<PartitionsTable.Partition> partitions =
-        PartitionsTable.partitions(table, (StaticTableScan) scanNot);
-    Assert.assertEquals(2, Iterators.size(partitions.iterator()));
-    validatePartition(partitions, 0, 2);
-    validatePartition(partitions, 0, 3);
+    CloseableIterable<DataFile> dataFiles =
+        PartitionsTable.planDataFiles((StaticTableScan) scanNot);
+    Assert.assertEquals(2, Iterators.size(dataFiles.iterator()));
+    validatePartition(dataFiles, 0, 2);
+    validatePartition(dataFiles, 0, 3);
   }
 
   @Test
@@ -440,11 +439,11 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
 
     Expression set = Expressions.in("partition.data_bucket", 2, 3);
     TableScan scanSet = partitionsTable.newScan().filter(set);
-    Iterable<PartitionsTable.Partition> partitions =
-        PartitionsTable.partitions(table, (StaticTableScan) scanSet);
-    Assert.assertEquals(2, Iterators.size(partitions.iterator()));
-    validatePartition(partitions, 0, 2);
-    validatePartition(partitions, 0, 3);
+    CloseableIterable<DataFile> dataFiles =
+        PartitionsTable.planDataFiles((StaticTableScan) scanSet);
+    Assert.assertEquals(2, Iterators.size(dataFiles.iterator()));
+    validatePartition(dataFiles, 0, 2);
+    validatePartition(dataFiles, 0, 3);
   }
 
   @Test
@@ -455,13 +454,13 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
 
     Expression unary = Expressions.notNull("partition.data_bucket");
     TableScan scanUnary = partitionsTable.newScan().filter(unary);
-    Iterable<PartitionsTable.Partition> partitions =
-        PartitionsTable.partitions(table, (StaticTableScan) scanUnary);
-    Assert.assertEquals(4, Iterators.size(partitions.iterator()));
-    validatePartition(partitions, 0, 0);
-    validatePartition(partitions, 0, 1);
-    validatePartition(partitions, 0, 2);
-    validatePartition(partitions, 0, 3);
+    CloseableIterable<DataFile> dataFiles =
+        PartitionsTable.planDataFiles((StaticTableScan) scanUnary);
+    Assert.assertEquals(4, Iterators.size(dataFiles.iterator()));
+    validatePartition(dataFiles, 0, 0);
+    validatePartition(dataFiles, 0, 1);
+    validatePartition(dataFiles, 0, 2);
+    validatePartition(dataFiles, 0, 3);
   }
 
   @Test
@@ -664,19 +663,18 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
         Expressions.and(
             Expressions.equal("partition.id", 10), Expressions.greaterThan("record_count", 0));
     TableScan scan = metadataTable.newScan().filter(filter);
-    Iterable<PartitionsTable.Partition> partitions =
-        PartitionsTable.partitions(table, (StaticTableScan) scan);
+    CloseableIterable<DataFile> dataFiles = PartitionsTable.planDataFiles((StaticTableScan) scan);
     // Four data files of old spec, one new data file of new spec
-    Assert.assertEquals(5, Iterables.size(partitions));
+    Assert.assertEquals(5, Iterables.size(dataFiles));
     filter =
         Expressions.and(
             Expressions.equal("partition.data_bucket", 0),
             Expressions.greaterThan("record_count", 0));
     scan = metadataTable.newScan().filter(filter);
-    partitions = PartitionsTable.partitions(table, (StaticTableScan) scan);
+    dataFiles = PartitionsTable.planDataFiles((StaticTableScan) scan);
 
     // 1 original data file written by old spec, plus 1 new data file written by new spec
-    Assert.assertEquals(2, Iterables.size(partitions));
+    Assert.assertEquals(2, Iterables.size(dataFiles));
   }
 
   @Test
@@ -717,11 +715,10 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
         Expressions.and(
             Expressions.equal("partition.id", 10), Expressions.greaterThan("record_count", 0));
     TableScan scan = metadataTable.newScan().filter(filter);
-    Iterable<PartitionsTable.Partition> partitions =
-        PartitionsTable.partitions(table, (StaticTableScan) scan);
+    CloseableIterable<DataFile> dataFiles = PartitionsTable.planDataFiles((StaticTableScan) scan);
 
     // Four original files of original spec, one data file written by new spec
-    Assert.assertEquals(5, Iterables.size(partitions));
+    Assert.assertEquals(5, Iterables.size(dataFiles));
 
     // Filter for a dropped partition spec field.  Correct behavior is that only old partitions are
     // returned.
@@ -730,11 +727,11 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
             Expressions.equal("partition.data_bucket", 0),
             Expressions.greaterThan("record_count", 0));
     scan = metadataTable.newScan().filter(filter);
-    partitions = PartitionsTable.partitions(table, (StaticTableScan) scan);
+    dataFiles = PartitionsTable.planDataFiles((StaticTableScan) scan);
 
     if (formatVersion == 1) {
       // 1 original data file written by old spec
-      Assert.assertEquals(1, Iterables.size(partitions));
+      Assert.assertEquals(1, Iterables.size(dataFiles));
     } else {
       // 1 original data/delete files written by old spec, plus both of new data file/delete file
       // written by new spec
@@ -745,11 +742,11 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
       //
       // However, these partition rows are filtered out later in Spark data filtering, as the newer
       // partitions
-      // will have 'data=null' field added as part of normalization to the Partitions table final
+      // will have 'data=null' field added as part of normalization to the Partition table final
       // schema.
-      // The Partitions table final schema is a union of fields of all specs, including dropped
+      // The Partition table final schema is a union of fields of all specs, including dropped
       // fields.
-      Assert.assertEquals(3, Iterables.size(partitions));
+      Assert.assertEquals(3, Iterables.size(dataFiles));
     }
   }
 
@@ -800,10 +797,10 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
             Expressions.equal("partition.partition", 0),
             Expressions.greaterThan("record_count", 0));
     TableScan scanAndEq = partitionsTable.newScan().filter(andEquals);
-    Iterable<PartitionsTable.Partition> partitions =
-        PartitionsTable.partitions(table, (StaticTableScan) scanAndEq);
-    Assert.assertEquals(1, Iterators.size(partitions.iterator()));
-    validatePartition(partitions, 0, 0);
+    CloseableIterable<DataFile> dataFiles =
+        PartitionsTable.planDataFiles((StaticTableScan) scanAndEq);
+    Assert.assertEquals(1, Iterators.size(dataFiles.iterator()));
+    validatePartition(dataFiles, 0, 0);
   }
 
   @Test
@@ -871,9 +868,8 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
                           true); // daemon threads will be terminated abruptly when the JVM exits
                       return thread;
                     }));
-    Iterable<PartitionsTable.Partition> partitions =
-        PartitionsTable.partitions(table, (StaticTableScan) scan);
-    Assert.assertEquals(4, Iterators.size(partitions.iterator()));
+    CloseableIterable<DataFile> dataFiles = PartitionsTable.planDataFiles((StaticTableScan) scan);
+    Assert.assertEquals(4, Iterators.size(dataFiles.iterator()));
     Assert.assertTrue("Thread should be created in provided pool", planThreadsIndex.get() > 0);
   }
 
