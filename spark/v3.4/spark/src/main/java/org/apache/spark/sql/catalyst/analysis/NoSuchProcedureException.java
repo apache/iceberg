@@ -18,9 +18,11 @@
  */
 package org.apache.spark.sql.catalyst.analysis;
 
+import org.apache.spark.QueryContext;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import scala.Option;
+import scala.collection.immutable.Map$;
 
 public class NoSuchProcedureException extends AnalysisException {
   public NoSuchProcedureException(Identifier ident) {
@@ -31,6 +33,7 @@ public class NoSuchProcedureException extends AnalysisException {
         Option.empty(),
         Option.empty(),
         Option.empty(),
-        new String[0]);
+        Map$.MODULE$.<String, String>empty(),
+        new QueryContext[0]);
   }
 }

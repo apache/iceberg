@@ -45,7 +45,7 @@ import org.apache.spark.sql.catalyst.plans.logical.ReplaceIcebergData
 import org.apache.spark.sql.catalyst.plans.logical.ReplacePartitionField
 import org.apache.spark.sql.catalyst.plans.logical.SetIdentifierFields
 import org.apache.spark.sql.catalyst.plans.logical.SetWriteDistributionAndOrdering
-import org.apache.spark.sql.catalyst.plans.logical.WriteDelta
+import org.apache.spark.sql.catalyst.plans.logical.WriteIcebergDelta
 import org.apache.spark.sql.connector.catalog.Identifier
 import org.apache.spark.sql.connector.catalog.TableCatalog
 import org.apache.spark.sql.errors.QueryCompilationErrors
@@ -98,7 +98,7 @@ case class ExtendedDataSourceV2Strategy(spark: SparkSession) extends Strategy wi
       // refresh the cache using the original relation
       ReplaceDataExec(planLater(query), refreshCache(r), write) :: Nil
 
-    case WriteDelta(_: DataSourceV2Relation, query, r: DataSourceV2Relation, projs, Some(write)) =>
+    case WriteIcebergDelta(_: DataSourceV2Relation, query, r: DataSourceV2Relation, projs, Some(write)) =>
       // refresh the cache using the original relation
       WriteDeltaExec(planLater(query), refreshCache(r), projs, write) :: Nil
 
@@ -110,13 +110,13 @@ case class ExtendedDataSourceV2Strategy(spark: SparkSession) extends Strategy wi
         notMatchedOutputs, targetOutput, rowIdAttrs, performCardinalityCheck, emitNotMatchedTargetRows,
         output, planLater(child)) :: Nil
 
-    case DeleteFromIcebergTable(DataSourceV2ScanRelation(r, _, output, _), condition, None) =>
+    case DeleteFromIcebergTable(DataSourceV2ScanRelation(r, _, output, _, _), condition, None) =>
       // the optimizer has already checked that this delete can be handled using a metadata operation
       val deleteCond = condition.getOrElse(Literal.TrueLiteral)
       val predicates = splitConjunctivePredicates(deleteCond)
       val normalizedPredicates = DataSourceStrategy.normalizeExprs(predicates, output)
       val filters = normalizedPredicates.flatMap { pred =>
-        val filter = DataSourceStrategy.translateFilter(pred, supportNestedPredicatePushdown = true)
+        val filter = DataSourceV2Strategy.translateFilterV2(pred)
         if (filter.isEmpty) {
           throw QueryCompilationErrors.cannotTranslateExpressionToSourceFilterError(pred)
         }

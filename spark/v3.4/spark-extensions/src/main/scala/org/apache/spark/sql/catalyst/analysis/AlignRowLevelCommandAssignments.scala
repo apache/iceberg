@@ -106,7 +106,7 @@ object AlignRowLevelCommandAssignments
       }
 
       val key = assignment.get.key
-      val value = castIfNeeded(targetAttr, assignment.get.value, resolver)
+      val value = castIfNeeded(targetAttr, assignment.get.value, resolver, Seq(targetAttr.name))
       AssignmentUtils.handleCharVarcharLimits(Assignment(key, value))
     }
   }

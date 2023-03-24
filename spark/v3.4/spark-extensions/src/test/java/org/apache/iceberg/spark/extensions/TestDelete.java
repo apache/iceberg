@@ -59,7 +59,6 @@ import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkSQLProperties;
 import org.apache.iceberg.spark.data.TestHelpers;
 import org.apache.iceberg.util.SnapshotUtil;
-import org.apache.spark.SparkException;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
@@ -100,6 +99,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     sql("DROP TABLE IF EXISTS %s", tableName);
     sql("DROP TABLE IF EXISTS deleted_id");
     sql("DROP TABLE IF EXISTS deleted_dep");
+    sql("DROP TABLE IF EXISTS parquet_table");
   }
 
   @Test
@@ -673,13 +673,15 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
 
   @Test
   public void testDeleteOnNonIcebergTableNotSupported() {
-    createOrReplaceView("testtable", "{ \"c1\": -100, \"c2\": -200 }");
+    Assume.assumeTrue(catalogName.equalsIgnoreCase("spark_catalog"));
+
+    sql("CREATE TABLE parquet_table (c1 INT, c2 INT) USING parquet");
 
     AssertHelpers.assertThrows(
         "Delete is supported only for Iceberg tables",
         AnalysisException.class,
-        "DELETE is only supported with v2 tables.",
-        () -> sql("DELETE FROM %s WHERE c1 = -100", "testtable"));
+        "does not support DELETE",
+        () -> sql("DELETE FROM parquet_table WHERE c1 = -100"));
   }
 
   @Test
@@ -884,8 +886,6 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     try {
       Assertions.assertThatThrownBy(deleteFuture::get)
           .isInstanceOf(ExecutionException.class)
-          .cause()
-          .isInstanceOf(SparkException.class)
           .cause()
           .isInstanceOf(ValidationException.class)
           .hasMessageContaining("Found conflicting files that can contain");

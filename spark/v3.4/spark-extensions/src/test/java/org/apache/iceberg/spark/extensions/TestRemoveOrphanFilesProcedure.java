@@ -82,7 +82,9 @@ public class TestRemoveOrphanFilesProcedure extends SparkExtensionsTestBase {
 
   @After
   public void removeTable() {
-    sql("DROP TABLE IF EXISTS %s PURGE", tableName);
+    // TODO: use the Iceberg catalog to drop the table until SPARK-43203 is fixed
+    validationCatalog.dropTable(tableIdent, true /* purge */);
+    sql("DROP TABLE IF EXISTS %s", tableName);
     sql("DROP TABLE IF EXISTS p PURGE");
   }
 

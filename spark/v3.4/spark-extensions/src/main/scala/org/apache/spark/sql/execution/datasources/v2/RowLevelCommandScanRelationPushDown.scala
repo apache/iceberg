@@ -33,7 +33,7 @@ import org.apache.spark.sql.catalyst.plans.logical.MergeIntoIcebergTable
 import org.apache.spark.sql.catalyst.plans.logical.NoStatsUnaryNode
 import org.apache.spark.sql.catalyst.plans.logical.ReplaceIcebergData
 import org.apache.spark.sql.catalyst.plans.logical.RowLevelCommand
-import org.apache.spark.sql.catalyst.plans.logical.WriteDelta
+import org.apache.spark.sql.catalyst.plans.logical.WriteIcebergDelta
 import org.apache.spark.sql.catalyst.rules.Rule
 import org.apache.spark.sql.catalyst.util.CharVarcharUtils
 import org.apache.spark.sql.connector.expressions.filter.Predicate
@@ -48,7 +48,7 @@ object RowLevelCommandScanRelationPushDown extends Rule[LogicalPlan] with Predic
   override def apply(plan: LogicalPlan): LogicalPlan = plan transformDown {
     // use native Spark planning for delta-based plans
     // unlike other commands, these plans have filters that can be pushed down directly
-    case RewrittenRowLevelCommand(command, _: DataSourceV2Relation, rewritePlan: WriteDelta) =>
+    case RewrittenRowLevelCommand(command, _: DataSourceV2Relation, rewritePlan: WriteIcebergDelta) =>
       val newRewritePlan = V2ScanRelationPushDown.apply(rewritePlan)
       command.withNewRewritePlan(newRewritePlan)
 
@@ -173,8 +173,8 @@ object UnplannedGroupBasedMergeOperation {
         case rd @ ReplaceIcebergData(DataSourceV2Relation(table, _, _, _, _), query, _, _) =>
           val joinsAndRelations = query.collect {
             case j @ Join(
-                NoStatsUnaryNode(ScanOperation(_, filters, r: DataSourceV2Relation)), _, _, _, _)
-                if filters.isEmpty && r.table.eq(table) =>
+                NoStatsUnaryNode(ScanOperation(_, pushDownFilters, pushUpFilters, r: DataSourceV2Relation)), _, _, _, _)
+                if pushUpFilters.isEmpty && pushDownFilters.isEmpty && r.table.eq(table) =>
               j -> r
           }
 

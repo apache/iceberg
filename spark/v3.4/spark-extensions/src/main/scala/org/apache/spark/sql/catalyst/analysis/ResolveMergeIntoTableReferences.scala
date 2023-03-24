@@ -146,7 +146,7 @@ case class ResolveMergeIntoTableReferences(spark: SparkSession) extends Rule[Log
       // Note: This will throw error only on unresolved attribute issues,
       // not other resolution errors like mismatched data types.
       val cols = p.inputSet.toSeq.map(_.sql).mkString(", ")
-      a.failAnalysis(s"cannot resolve ${a.sql} in MERGE command given columns [$cols]")
+      throw new AnalysisException(s"cannot resolve ${a.sql} in MERGE command given columns [$cols]")
     }
     resolved
   }

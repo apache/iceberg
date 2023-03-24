@@ -67,7 +67,7 @@ case class RowLevelCommandDynamicPruning(spark: SparkSession) extends Rule[Logic
     // apply special dynamic filtering only for plans that don't support deltas
     case RewrittenRowLevelCommand(
         command: RowLevelCommand,
-        DataSourceV2ScanRelation(_, scan: SupportsRuntimeFiltering, _, _),
+        DataSourceV2ScanRelation(_, scan: SupportsRuntimeFiltering, _, _, _),
         rewritePlan: ReplaceIcebergData) if conf.dynamicPartitionPruningEnabled && isCandidate(command) =>
 
       // use reference equality to find exactly the required scan relations

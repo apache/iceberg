@@ -108,7 +108,7 @@ public class TestWriteAborts extends SparkExtensionsTestBase {
     AssertHelpers.assertThrows(
         "Write must fail",
         SparkException.class,
-        "Writing job aborted",
+        "Encountered records that belong to already closed files",
         () -> {
           try {
             // incoming records are not ordered by partitions so the job must fail

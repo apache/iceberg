@@ -30,12 +30,12 @@ import org.apache.spark.sql.catalyst.plans.logical.Filter
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.catalyst.plans.logical.Project
 import org.apache.spark.sql.catalyst.plans.logical.ReplaceIcebergData
-import org.apache.spark.sql.catalyst.plans.logical.WriteDelta
+import org.apache.spark.sql.catalyst.plans.logical.WriteIcebergDelta
 import org.apache.spark.sql.catalyst.util.RowDeltaUtils._
 import org.apache.spark.sql.connector.catalog.SupportsRowLevelOperations
-import org.apache.spark.sql.connector.iceberg.write.SupportsDelta
 import org.apache.spark.sql.connector.write.RowLevelOperation.Command.DELETE
 import org.apache.spark.sql.connector.write.RowLevelOperationTable
+import org.apache.spark.sql.connector.write.SupportsDelta
 import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Relation
 import org.apache.spark.sql.util.CaseInsensitiveStringMap
 
@@ -95,7 +95,7 @@ object RewriteDeleteFromIcebergTable extends RewriteRowLevelIcebergCommand {
   private def buildWriteDeltaPlan(
       relation: DataSourceV2Relation,
       operationTable: RowLevelOperationTable,
-      cond: Expression): WriteDelta = {
+      cond: Expression): WriteIcebergDelta = {
 
     // resolve all needed attrs (e.g. row ID and any required metadata attrs)
     val rowIdAttrs = resolveRowIdAttrs(relation, operationTable.operation)
@@ -113,6 +113,6 @@ object RewriteDeleteFromIcebergTable extends RewriteRowLevelIcebergCommand {
     // build a plan to write deletes to the table
     val writeRelation = relation.copy(table = operationTable)
     val projections = buildWriteDeltaProjections(project, Nil, rowIdAttrs, metadataAttrs)
-    WriteDelta(writeRelation, project, relation, projections)
+    WriteIcebergDelta(writeRelation, project, relation, projections)
   }
 }

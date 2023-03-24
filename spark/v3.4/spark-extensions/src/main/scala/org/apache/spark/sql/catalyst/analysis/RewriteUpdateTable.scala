@@ -34,12 +34,12 @@ import org.apache.spark.sql.catalyst.plans.logical.Project
 import org.apache.spark.sql.catalyst.plans.logical.ReplaceIcebergData
 import org.apache.spark.sql.catalyst.plans.logical.Union
 import org.apache.spark.sql.catalyst.plans.logical.UpdateIcebergTable
-import org.apache.spark.sql.catalyst.plans.logical.WriteDelta
+import org.apache.spark.sql.catalyst.plans.logical.WriteIcebergDelta
 import org.apache.spark.sql.catalyst.util.RowDeltaUtils._
 import org.apache.spark.sql.connector.catalog.SupportsRowLevelOperations
-import org.apache.spark.sql.connector.iceberg.write.SupportsDelta
 import org.apache.spark.sql.connector.write.RowLevelOperation.Command.UPDATE
 import org.apache.spark.sql.connector.write.RowLevelOperationTable
+import org.apache.spark.sql.connector.write.SupportsDelta
 import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Relation
 import org.apache.spark.sql.util.CaseInsensitiveStringMap
 
@@ -133,7 +133,7 @@ object RewriteUpdateTable extends RewriteRowLevelIcebergCommand {
       relation: DataSourceV2Relation,
       operationTable: RowLevelOperationTable,
       assignments: Seq[Assignment],
-      cond: Expression): WriteDelta = {
+      cond: Expression): WriteIcebergDelta = {
 
     // resolve all needed attrs (e.g. row ID and any required metadata attrs)
     val rowAttrs = relation.output
@@ -152,7 +152,7 @@ object RewriteUpdateTable extends RewriteRowLevelIcebergCommand {
     // build a plan to write the row delta to the table
     val writeRelation = relation.copy(table = operationTable)
     val projections = buildWriteDeltaProjections(project, rowAttrs, rowIdAttrs, metadataAttrs)
-    WriteDelta(writeRelation, project, relation, projections)
+    WriteIcebergDelta(writeRelation, project, relation, projections)
   }
 
   // this method assumes the assignments have been already aligned before

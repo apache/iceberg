@@ -24,7 +24,7 @@ import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.catalyst.plans.logical.ReplaceIcebergData
 import org.apache.spark.sql.catalyst.plans.logical.RowLevelCommand
 import org.apache.spark.sql.catalyst.plans.logical.UpdateIcebergTable
-import org.apache.spark.sql.catalyst.plans.logical.WriteDelta
+import org.apache.spark.sql.catalyst.plans.logical.WriteIcebergDelta
 import org.apache.spark.sql.connector.catalog.Table
 import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Relation
 import org.apache.spark.sql.execution.datasources.v2.DataSourceV2ScanRelation
@@ -60,7 +60,7 @@ object RewrittenRowLevelCommand {
         case rd @ ReplaceIcebergData(DataSourceV2Relation(table, _, _, _, _), query, _, _) =>
           val readRelation = findReadRelation(table, query, allowScanDuplication)
           readRelation.map((c, _, rd))
-        case wd @ WriteDelta(DataSourceV2Relation(table, _, _, _, _), query, _, _, _) =>
+        case wd @ WriteIcebergDelta(DataSourceV2Relation(table, _, _, _, _), query, _, _, _) =>
           val readRelation = findReadRelation(table, query, allowScanDuplication)
           readRelation.map((c, _, wd))
         case _ =>
