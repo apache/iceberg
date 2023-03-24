@@ -44,6 +44,25 @@ import org.apache.iceberg.util.PropertyUtil;
 import org.apache.thrift.TException;
 import org.immutables.value.Value;
 
+/**
+ * A ClientPool that caches the underlying HiveClientPool instances.
+ *
+ * <p>The following key elements are supported and can be specified via {@link
+ * CatalogProperties#CLIENT_POOL_CACHE_KEYS}:
+ *
+ * <ul>
+ *   <li>ugi - the Hadoop UserGroupInformation instance that represents the current user using the
+ *       cache.
+ *   <li>user_name - similar to UGI but only includes the user's name determined by
+ *       UserGroupInformation#getUserName.
+ *   <li>conf - name of an arbitrary configuration. The value of the configuration will be extracted
+ *       from catalog properties and added to the cache key. A conf element should start with a
+ *       "conf:" prefix which is followed by the configuration name. E.g. specifying
+ *       "conf:metastore.catalog.default" will add "metastore.catalog.default" to the key, and so
+ *       that configurations with different default catalog wouldn't share the same client pool.
+ *       Multiple conf elements can be specified.
+ * </ul>
+ */
 public class CachedClientPool implements ClientPool<IMetaStoreClient, TException> {
 
   private static final String CONF_ELEMENT_PREFIX = "conf:";

@@ -120,23 +120,10 @@ public class CatalogProperties {
   public static final long CLIENT_POOL_CACHE_EVICTION_INTERVAL_MS_DEFAULT =
       TimeUnit.MINUTES.toMillis(5);
   /**
-   * A comma separated list of elements used, in addition to the hive metastore uri, to compose the
-   * key of the client pool cache.
+   * A comma separated list of elements used, in addition to the {@link #URI}, to compose the key of
+   * the client pool cache.
    *
-   * <p>The following elements are supported:
-   *
-   * <ul>
-   *   <li>ugi - the Hadoop UserGroupInformation instance that represents the current user using the
-   *       cache.
-   *   <li>user_name - similar to UGI but only includes the user's name determined by
-   *       UserGroupInformation#getUserName.
-   *   <li>conf - name of an arbitrary configuration. The value of the configuration will be
-   *       extracted from catalog properties and added to the cache key. A conf element should start
-   *       with a "conf:" prefix which is followed by the configuration name. E.g. specifying
-   *       "conf:metastore.catalog.default" will add "metastore.catalog.default" to the key, and so
-   *       that configurations with different default catalog wouldn't share the same client pool.
-   *       Multiple conf elements can be specified.
-   * </ul>
+   * <p>Supported key elements in a Catalog are implementation-dependent.
    */
   public static final String CLIENT_POOL_CACHE_KEYS = "client-pool-cache-keys";
 
