@@ -68,19 +68,21 @@ public interface SupportsNamespaces {
    * exist and must be returned by this discovery method. For example, if table a.b.t exists, this
    * method must return ["a"] in the result array.
    *
-   * @return an List of namespace {@link Namespace} names
+   * @return a List of namespace {@link Namespace} names
    */
   default List<Namespace> listNamespaces() {
     return listNamespaces(Namespace.empty());
   }
 
   /**
-   * List namespaces from the namespace.
+   * List the next level namespaces from the given namespace.
    *
    * <p>For example, if table a.b.t exists, use 'SELECT NAMESPACE IN a' this method must return
-   * Namepace.of("a","b") {@link Namespace}.
+   * Namespace.of("a","b") {@link Namespace}. If table a.b.c.t exists, 'SELECT NAMESPACE IN a' must
+   * return Namespace.of("a","b") {@link Namespace} only and 'SELECT NAMESPACE IN a.b' must return
+   * Namespace.of("a","b","c")
    *
-   * @return a List of namespace {@link Namespace} names
+   * @return a List of namespace {@link Namespace} names from the next level
    * @throws NoSuchNamespaceException If the namespace does not exist (optional)
    */
   List<Namespace> listNamespaces(Namespace namespace) throws NoSuchNamespaceException;
