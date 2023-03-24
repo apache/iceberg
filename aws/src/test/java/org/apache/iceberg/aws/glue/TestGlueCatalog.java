@@ -22,7 +22,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.aws.AwsProperties;
@@ -404,11 +403,12 @@ public class TestGlueCatalog {
         Lists.newArrayList(Namespace.of("db-1"), Namespace.of("db", "db2"));
 
     for (Namespace namespace : invalidNamespaces) {
-      AssertHelpers.assertThrows(
-          "should not create namespace with invalid or nested names",
-          ValidationException.class,
-          "Cannot convert namespace",
-          () -> glueCatalog.createNamespace(namespace));
+      Assertions.assertThatThrownBy(() -> glueCatalog.createNamespace(namespace))
+          .isInstanceOf(ValidationException.class)
+          .hasMessageStartingWith("Cannot convert namespace")
+          .hasMessageEndingWith(
+              "to Glue database name, "
+                  + "because it must be 1-252 chars of lowercase letters, numbers, underscore");
     }
   }
 
@@ -466,11 +466,12 @@ public class TestGlueCatalog {
 
   @Test
   public void testListNamespacesBadName() {
-    AssertHelpers.assertThrows(
-        "table name invalid",
-        ValidationException.class,
-        "Cannot convert namespace",
-        () -> glueCatalog.listNamespaces(Namespace.of("db-1")));
+
+    Assertions.assertThatThrownBy(() -> glueCatalog.listNamespaces(Namespace.of("db-1")))
+        .isInstanceOf(ValidationException.class)
+        .hasMessage(
+            "Cannot convert namespace db-1 to Glue database name, "
+                + "because it must be 1-252 chars of lowercase letters, numbers, underscore");
   }
 
   @Test
@@ -524,11 +525,10 @@ public class TestGlueCatalog {
     Mockito.doReturn(DeleteDatabaseResponse.builder().build())
         .when(glue)
         .deleteDatabase(Mockito.any(DeleteDatabaseRequest.class));
-    AssertHelpers.assertThrows(
-        "namespace should not be dropped when still has Iceberg table",
-        NamespaceNotEmptyException.class,
-        "still contains Iceberg tables",
-        () -> glueCatalog.dropNamespace(Namespace.of("db1")));
+
+    Assertions.assertThatThrownBy(() -> glueCatalog.dropNamespace(Namespace.of("db1")))
+        .isInstanceOf(NamespaceNotEmptyException.class)
+        .hasMessage("Cannot drop namespace db1 because it still contains Iceberg tables");
   }
 
   @Test
@@ -546,11 +546,10 @@ public class TestGlueCatalog {
     Mockito.doReturn(DeleteDatabaseResponse.builder().build())
         .when(glue)
         .deleteDatabase(Mockito.any(DeleteDatabaseRequest.class));
-    AssertHelpers.assertThrows(
-        "namespace should not be dropped when still has non-Iceberg table",
-        NamespaceNotEmptyException.class,
-        "still contains non-Iceberg tables",
-        () -> glueCatalog.dropNamespace(Namespace.of("db1")));
+
+    Assertions.assertThatThrownBy(() -> glueCatalog.dropNamespace(Namespace.of("db1")))
+        .isInstanceOf(NamespaceNotEmptyException.class)
+        .hasMessage("Cannot drop namespace db1 because it still contains non-Iceberg tables");
   }
 
   @Test

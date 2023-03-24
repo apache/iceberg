@@ -20,7 +20,6 @@ package org.apache.iceberg.aws;
 
 import java.io.IOException;
 import java.util.Map;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.aws.lakeformation.LakeFormationAwsClientFactory;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -68,19 +67,17 @@ public class TestAwsClientFactories {
   public void testS3FileIoCredentialsVerification() {
     Map<String, String> properties = Maps.newHashMap();
     properties.put(AwsProperties.S3FILEIO_ACCESS_KEY_ID, "key");
-    AssertHelpers.assertThrows(
-        "Should fail if only access key ID is set",
-        ValidationException.class,
-        "S3 client access key ID and secret access key must be set at the same time",
-        () -> AwsClientFactories.from(properties));
+
+    Assertions.assertThatThrownBy(() -> AwsClientFactories.from(properties))
+        .isInstanceOf(ValidationException.class)
+        .hasMessage("S3 client access key ID and secret access key must be set at the same time");
 
     properties.remove(AwsProperties.S3FILEIO_ACCESS_KEY_ID);
     properties.put(AwsProperties.S3FILEIO_SECRET_ACCESS_KEY, "secret");
-    AssertHelpers.assertThrows(
-        "Should fail if only secret access key is set",
-        ValidationException.class,
-        "S3 client access key ID and secret access key must be set at the same time",
-        () -> AwsClientFactories.from(properties));
+
+    Assertions.assertThatThrownBy(() -> AwsClientFactories.from(properties))
+        .isInstanceOf(ValidationException.class)
+        .hasMessage("S3 client access key ID and secret access key must be set at the same time");
   }
 
   @Test
