@@ -30,9 +30,12 @@ import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.awscore.client.builder.AwsSyncClientBuilder;
 import software.amazon.awssdk.core.client.builder.SdkClientBuilder;
+import software.amazon.awssdk.core.metrics.CoreMetric;
 import software.amazon.awssdk.http.SdkHttpClient;
 import software.amazon.awssdk.http.apache.ApacheHttpClient;
 import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
+import software.amazon.awssdk.metrics.MetricCollection;
+import software.amazon.awssdk.metrics.MetricPublisher;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClientBuilder;
 import software.amazon.awssdk.services.glue.GlueClient;
@@ -86,6 +89,32 @@ public class AwsClientFactories {
 
     factory.initialize(properties);
     return factory;
+  }
+
+  /**
+   * Metrics are the only reliable way provided by the AWS SDK to determine if an API call was
+   * retried. Not for public use.
+   */
+  public static class InternalRetryDetector implements MetricPublisher {
+    private boolean retried = false;
+
+    @Override
+    public void publish(MetricCollection metricCollection) {
+      if (!retried) {
+        if (metricCollection.metricValues(CoreMetric.RETRY_COUNT).stream().anyMatch(i -> i > 0)) {
+          retried = true;
+        } else {
+          metricCollection.children().forEach(this::publish);
+        }
+      }
+    }
+
+    @Override
+    public void close() {}
+
+    public boolean wasRetried() {
+      return retried;
+    }
   }
 
   static class DefaultAwsClientFactory implements AwsClientFactory {

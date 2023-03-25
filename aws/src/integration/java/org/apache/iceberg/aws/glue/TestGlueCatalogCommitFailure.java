@@ -25,6 +25,7 @@ import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.aws.AwsClientFactories;
 import org.apache.iceberg.aws.s3.S3TestUtil;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.CommitFailedException;
@@ -253,7 +254,8 @@ public class TestGlueCatalogCommitFailure extends GlueTestBase {
               realOps.persistGlueTable(
                   i.getArgument(0, software.amazon.awssdk.services.glue.model.Table.class),
                   mapProperties,
-                  i.getArgument(2, TableMetadata.class));
+                  i.getArgument(2, TableMetadata.class),
+                  i.getArgument(3, AwsClientFactories.InternalRetryDetector.class));
 
               // new metadata location is stored in map property, and used for locking
               String newMetadataLocation =
@@ -267,7 +269,7 @@ public class TestGlueCatalogCommitFailure extends GlueTestBase {
               throw new RuntimeException("Datacenter on fire");
             })
         .when(spyOperations)
-        .persistGlueTable(Mockito.any(), Mockito.anyMap(), Mockito.any());
+        .persistGlueTable(Mockito.any(), Mockito.anyMap(), Mockito.any(), Mockito.any());
   }
 
   @Test
@@ -422,11 +424,12 @@ public class TestGlueCatalogCommitFailure extends GlueTestBase {
               realOps.persistGlueTable(
                   i.getArgument(0, software.amazon.awssdk.services.glue.model.Table.class),
                   i.getArgument(1, Map.class),
-                  i.getArgument(2, TableMetadata.class));
+                  i.getArgument(2, TableMetadata.class),
+                  i.getArgument(3, AwsClientFactories.InternalRetryDetector.class));
               throw new RuntimeException("Datacenter on fire");
             })
         .when(spyOps)
-        .persistGlueTable(Mockito.any(), Mockito.anyMap(), Mockito.any());
+        .persistGlueTable(Mockito.any(), Mockito.anyMap(), Mockito.any(), Mockito.any());
   }
 
   private void failCommitAndThrowException(GlueTableOperations spyOps) {
@@ -436,7 +439,7 @@ public class TestGlueCatalogCommitFailure extends GlueTestBase {
   private void failCommitAndThrowException(GlueTableOperations spyOps, Exception exceptionToThrow) {
     Mockito.doThrow(exceptionToThrow)
         .when(spyOps)
-        .persistGlueTable(Mockito.any(), Mockito.anyMap(), Mockito.any());
+        .persistGlueTable(Mockito.any(), Mockito.anyMap(), Mockito.any(), Mockito.any());
   }
 
   private void breakFallbackCatalogCommitCheck(GlueTableOperations spyOperations) {
