@@ -25,7 +25,11 @@ import org.apache.flink.table.api.EnvironmentSettings;
 import org.apache.flink.table.api.TableEnvironment;
 import org.apache.flink.table.api.config.TableConfigOptions;
 import org.apache.flink.types.Row;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.Table;
+import org.apache.iceberg.flink.TestFixtures;
 import org.junit.Before;
+import org.junit.Test;
 
 /** Test Flink SELECT SQLs. */
 public class TestFlinkScanSql extends TestFlinkSource {
@@ -70,5 +74,37 @@ public class TestFlinkScanSql extends TestFlinkSource {
     String select = String.join(",", sqlSelectedFields);
     String optionStr = SqlHelpers.sqlOptionsToString(sqlOptions);
     return SqlHelpers.sql(getTableEnv(), "select %s from t %s %s", select, optionStr, sqlFilter);
+  }
+
+  @Test
+  public void selectWithMetadataColumns() {
+    SqlHelpers.sql(
+        getTableEnv(),
+        "create table t " +
+                "(`data` VARCHAR, " +
+                "`id` BIGINT, " +
+                "`dt` VARCHAR, " +
+                "`_file` VARCHAR METADATA, " +
+                "`_spec_id` INT METADATA, " +
+                "`_pos` BIGINT METADATA, " +
+                "`_deleted` BOOLEAN METADATA" +
+                ")");
+
+    Table table =
+        catalogResource.catalogLoader().loadCatalog().loadTable(TestFixtures.TABLE_IDENTIFIER);
+    Schema schema = table.schema();
+    System.out.println(schema);
+
+    SqlHelpers.sql(
+        getTableEnv(),
+        "insert into t(`data`, `id`, `dt`) "
+            + "values"
+            + "('data0', 0, '2020-03-20'),"
+            + "('data1', 1, '2020-03-21'),"
+            + "('data2', 2, '2020-03-22')");
+
+    List<Row> rows = SqlHelpers.sql(getTableEnv(), "select * from t");
+
+    rows.forEach(System.out::println);
   }
 }

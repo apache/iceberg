@@ -19,6 +19,7 @@
 package org.apache.iceberg.flink.source;
 
 import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -29,6 +30,7 @@ import org.apache.flink.configuration.ReadableConfig;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.DataStreamSource;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import org.apache.flink.table.api.DataTypes;
 import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.connector.ChangelogMode;
 import org.apache.flink.table.connector.ProviderContext;
@@ -38,9 +40,11 @@ import org.apache.flink.table.connector.source.ScanTableSource;
 import org.apache.flink.table.connector.source.abilities.SupportsFilterPushDown;
 import org.apache.flink.table.connector.source.abilities.SupportsLimitPushDown;
 import org.apache.flink.table.connector.source.abilities.SupportsProjectionPushDown;
+import org.apache.flink.table.connector.source.abilities.SupportsReadingMetadata;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.expressions.ResolvedExpression;
 import org.apache.flink.table.types.DataType;
+import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.flink.FlinkConfigOptions;
 import org.apache.iceberg.flink.FlinkFilters;
@@ -56,7 +60,8 @@ public class IcebergTableSource
     implements ScanTableSource,
         SupportsProjectionPushDown,
         SupportsFilterPushDown,
-        SupportsLimitPushDown {
+        SupportsLimitPushDown,
+        SupportsReadingMetadata {
 
   private int[] projectedFields;
   private Long limit;
@@ -120,7 +125,7 @@ public class IcebergTableSource
     return FlinkSource.forRowData()
         .env(execEnv)
         .tableLoader(loader)
-        .properties(properties)
+        .setAll(properties)
         .project(getProjectedSchema())
         .limit(limit)
         .filters(filters)
@@ -135,13 +140,13 @@ public class IcebergTableSource
         IcebergSource.forRowData()
             .tableLoader(loader)
             .assignerFactory(assignerType.factory())
-            .properties(properties)
+            .setAll(properties)
             .project(getProjectedSchema())
             .limit(limit)
             .filters(filters)
             .flinkConfig(readableConfig)
             .build();
-    DataStreamSource stream =
+    DataStreamSource<RowData> stream =
         env.fromSource(
             source,
             WatermarkStrategy.noWatermarks(),
@@ -225,5 +230,26 @@ public class IcebergTableSource
   @Override
   public String asSummaryString() {
     return "Iceberg table source";
+  }
+
+  @Override
+  public Map<String, DataType> listReadableMetadata() {
+    Map<String, DataType> readableMetadata = new LinkedHashMap<>();
+    readableMetadata.put(MetadataColumns.SPEC_ID.name(), DataTypes.INT());
+    readableMetadata.put(MetadataColumns.PARTITION_COLUMN_NAME, DataTypes.INT());
+    readableMetadata.put(MetadataColumns.FILE_PATH.name(), DataTypes.STRING());
+    readableMetadata.put(MetadataColumns.ROW_POSITION.name(), DataTypes.BIGINT());
+    readableMetadata.put(MetadataColumns.IS_DELETED.name(), DataTypes.BOOLEAN());
+    return readableMetadata;
+  }
+
+  @Override
+  public void applyReadableMetadata(List<String> metadataKeys, DataType producedDataType) {
+    System.out.println("TODO: applyReadableMetadata");
+  }
+
+  @Override
+  public boolean supportsMetadataProjection() {
+    return SupportsReadingMetadata.super.supportsMetadataProjection();
   }
 }

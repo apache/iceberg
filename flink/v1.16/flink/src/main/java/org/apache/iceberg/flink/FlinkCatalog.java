@@ -527,8 +527,9 @@ public class FlinkCatalog extends AbstractCatalog {
         .forEach(
             column -> {
               if (!FlinkCompatibilityUtil.isPhysicalColumn(column)) {
-                throw new UnsupportedOperationException(
-                    "Creating table with computed columns is not supported yet.");
+                // TODO skip metadata columns
+//                throw new UnsupportedOperationException(
+//                    "Creating table with computed columns is not supported yet.");
               }
             });
 

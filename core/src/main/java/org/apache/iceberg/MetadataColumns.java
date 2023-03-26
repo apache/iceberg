@@ -130,4 +130,8 @@ public class MetadataColumns {
   public static boolean nonMetadataColumn(String name) {
     return !isMetadataColumn(name);
   }
+
+  public static NestedField getNonPartitionMetadataColumn(String name) {
+    return META_COLUMNS.get(name);
+  }
 }

@@ -101,8 +101,8 @@ public class TableMetadata implements Serializable {
 
     // reassign all column ids to ensure consistency
     AtomicInteger lastColumnId = new AtomicInteger(0);
-    Schema freshSchema =
-        TypeUtil.assignFreshIds(INITIAL_SCHEMA_ID, schema, lastColumnId::incrementAndGet);
+    Schema freshSchema = schema;
+//        TypeUtil.assignFreshIds(INITIAL_SCHEMA_ID, schema, lastColumnId::incrementAndGet);
 
     // rebuild the partition spec using the new column ids
     PartitionSpec.Builder specBuilder =

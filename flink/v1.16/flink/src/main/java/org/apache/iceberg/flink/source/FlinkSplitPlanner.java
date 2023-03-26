@@ -82,7 +82,7 @@ public class FlinkSplitPlanner {
 
   static CloseableIterable<CombinedScanTask> planTasks(
       Table table, ScanContext context, ExecutorService workerPool) {
-    ScanMode scanMode = checkScanMode(context);
+    ScanMode scanMode = determineScanMode(context);
     if (scanMode == ScanMode.INCREMENTAL_APPEND_SCAN) {
       IncrementalAppendScan scan = table.newIncrementalAppendScan();
       scan = refineScanWithBaseConfigs(scan, context, workerPool);
@@ -141,7 +141,7 @@ public class FlinkSplitPlanner {
     INCREMENTAL_APPEND_SCAN
   }
 
-  private static ScanMode checkScanMode(ScanContext context) {
+  private static ScanMode determineScanMode(ScanContext context) {
     if (context.isStreaming()
         || context.startSnapshotId() != null
         || context.endSnapshotId() != null

@@ -18,12 +18,15 @@
  */
 package org.apache.iceberg.flink;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import org.apache.flink.table.api.TableColumn;
 import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.types.logical.LogicalType;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.table.types.utils.TypeConversions;
+import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -63,8 +66,29 @@ public class FlinkSchemaUtil {
 
     RowType root = (RowType) schemaType;
     Type converted = root.accept(new FlinkTypeToType(root));
+    List<Types.NestedField> fields = new ArrayList<>(schema.getFieldCount());
+    for (Types.NestedField convertedField : converted.asStructType().fields()) {
+      if (schema.getTableColumn(convertedField.name()).get() instanceof TableColumn.MetadataColumn
+          && MetadataColumns.isMetadataColumn(convertedField.name())) {
+        if (!MetadataColumns.PARTITION_COLUMN_NAME.equals(convertedField.name())) {
+          Types.NestedField required =
+              MetadataColumns.getNonPartitionMetadataColumn(convertedField.name());
+          Types.NestedField optional =
+              Types.NestedField.optional(required.fieldId(), required.name(), required.type());
+          fields.add(optional);
+        } else {
+          fields.add(
+              Types.NestedField.optional(
+                  MetadataColumns.PARTITION_COLUMN_ID,
+                  MetadataColumns.PARTITION_COLUMN_NAME,
+                  Types.StringType.get()));
+        }
+      } else {
+        fields.add(convertedField);
+      }
+    }
 
-    Schema iSchema = new Schema(converted.asStructType().fields());
+    Schema iSchema = new Schema(fields);
     return freshIdentifierFieldIds(iSchema, schema);
   }
 
