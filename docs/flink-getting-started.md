@@ -31,26 +31,26 @@ Apache Iceberg supports both [Apache Flink](https://flink.apache.org/)'s DataStr
 
 | Feature support                                             | Flink | Notes                                                                                  |
 | ----------------------------------------------------------- |-------|----------------------------------------------------------------------------------------|
-| [SQL create catalog](#creating-catalogs-and-using-catalogs) | ✔️    |                                                                                        |
-| [SQL create database](#create-database)                     | ✔️    |                                                                                        |
-| [SQL create table](#create-table)                           | ✔️    |                                                                                        |
-| [SQL create table like](#create-table-like)                 | ✔️    |                                                                                        |
-| [SQL alter table](#alter-table)                             | ✔️    | Only support altering table properties, column and partition changes are not supported |
-| [SQL drop_table](#drop-table)                               | ✔️    |                                                                                        |
-| [SQL select](#querying-with-sql)                            | ✔️    | Support both streaming and batch mode                                                  |
+| [SQL create catalog](#creating-catalogs-and-using-catalogs) | ✔️   |                                                                                        |
+| [SQL create database](#create-database)                     | ✔️   |                                                                                        |
+| [SQL create table](#create-table)                           | ✔️   |                                                                                        |
+| [SQL create table like](#create-table-like)                 | ✔️   |                                                                                        |
+| [SQL alter table](#alter-table)                             | ✔️   | Only support altering table properties, column and partition changes are not supported |
+| [SQL drop_table](#drop-table)                               | ✔️   |                                                                                        |
+| [SQL select](#querying-with-sql)                            | ✔️   | Support both streaming and batch mode                                                  |
 | [SQL insert into](#insert-into)                             | ✔️ ️  | Support both streaming and batch mode                                                  |
 | [SQL insert overwrite](#insert-overwrite)                   | ✔️ ️  |                                                                                        |
 | [DataStream read](#reading-with-datastream)                 | ✔️ ️  |                                                                                        |
 | [DataStream append](#appending-data)                        | ✔️ ️  |                                                                                        |
 | [DataStream overwrite](#overwrite-data)                     | ✔️ ️  |                                                                                        |
-| [Metadata tables](#inspecting-tables)                       | ✔️    |                                                                                        |
+| [Metadata tables](#inspecting-tables)                       | ✔️   |                                                                                        |
 | [Rewrite files action](#rewrite-files-action)               | ✔️ ️  |                                                                                        |
 
 ## Preparation when using Flink SQL Client
 
-To create Iceberg table in Flink, it is recommended to use [Flink SQL Client](https://ci.apache.org/projects/flink/flink-docs-stable/dev/table/sqlClient.html) as it's easier for users to understand the concepts.
+To create Iceberg table in Flink, it is recommended to use [Flink SQL Client](https://nightlies.apache.org/flink/flink-docs-stable/docs/dev/table/sqlclient/) as it's easier for users to understand the concepts.
 
-Download Flink from the [Apache download page](https://flink.apache.org/downloads.html). Iceberg uses Scala 2.12 when compiling the Apache `iceberg-flink-runtime` jar, so it's recommended to use Flink 1.16 bundled with Scala 2.12.
+Download Flink from the [Apache download page](https://flink.apache.org/downloads.html). Iceberg uses Scala 2.12 when compiling the Apache `iceberg-flink-runtime` jar, so it's recommended to use Flink 1.16.1 bundled with Scala 2.12.
 
 ```bash
 FLINK_VERSION=1.16.1
@@ -65,7 +65,7 @@ Start a standalone Flink cluster within Hadoop environment:
 ```bash
 # HADOOP_HOME is your hadoop root directory after unpack the binary package.
 APACHE_HADOOP_URL=https://archive.apache.org/dist/hadoop/
-HADOOP_VERSION=2.8.5
+HADOOP_VERSION=3.1.2
 wget ${APACHE_HADOOP_URL}/common/hadoop-${HADOOP_VERSION}/hadoop-${HADOOP_VERSION}.tar.gz
 tar xzvf hadoop-${HADOOP_VERSION}.tar.gz
 HADOOP_HOME=`pwd`/hadoop-${HADOOP_VERSION}
@@ -85,7 +85,7 @@ export HADOOP_CLASSPATH=`$HADOOP_HOME/bin/hadoop classpath`
 ./bin/sql-client.sh embedded -j <flink-runtime-directory>/iceberg-flink-runtime-1.16-{{% icebergVersion %}}.jar shell
 ```
 
-By default, Iceberg ships with Hadoop jars for Hadoop catalog. To use Hive catalog, load the Hive jars when opening the Flink SQL client. Fortunately, Flink has provided a [bundled hive jar](https://repo.maven.apache.org/maven2/org/apache/flink/flink-sql-connector-hive-2.3.9_2.12/1.16.1/flink-sql-connector-hive-2.3.9_2.12-1.16.1.jar) for the SQL client. An example on how to download the dependencies and get started:
+By default, Iceberg ships with Hadoop jars for Hadoop catalog. To use Hive catalog, load the Hive jars when opening the Flink SQL client. Fortunately, Flink has provided a [bundled hive jar](https://repo.maven.apache.org/maven2/org/apache/flink/flink-sql-connector-hive-3.1.2_2.12/1.16.1/flink-sql-connector-hive-3.1.2_2.12-1.16.1.jar) for the SQL client. An example on how to download the dependencies and get started:
 
 ```bash
 # HADOOP_HOME is your hadoop root directory after unpack the binary package.
@@ -110,7 +110,7 @@ wget ${FLINK_CONNECTOR_URL}/${FLINK_CONNECTOR_PACKAGE}-${HIVE_VERSION}_${SCALA_V
 ## Flink's Python API
 
 {{< hint info >}}
-PyFlink 1.6.1 [does not work on OSX with a M1 cpu](https://issues.apache.org/jira/browse/FLINK-28786)
+PyFlink 1.16.1 [does not work on OSX with a M1 cpu](https://issues.apache.org/jira/browse/FLINK-28786)
 {{< /hint >}}
 
 Install the Apache Flink dependency using `pip`:
@@ -221,7 +221,6 @@ The following properties can be set if using the Hive catalog:
 * `clients`: The Hive metastore client pool size, default value is 2. (Optional)
 * `warehouse`: The Hive warehouse location, users should specify this path if neither set the `hive-conf-dir` to specify a location containing a `hive-site.xml` configuration file nor add a correct `hive-site.xml` to classpath.
 * `hive-conf-dir`: Path to a directory containing a `hive-site.xml` configuration file which will be used to provide custom Hive configuration values. The value of `hive.metastore.warehouse.dir` from `<hive-conf-dir>/hive-site.xml` (or hive configure file from classpath) will be overwritten with the `warehouse` value if setting both `hive-conf-dir` and `warehouse` when creating iceberg catalog.
-* `hadoop-conf-dir`: Path to a directory containing `core-site.xml` and `hdfs-site.xml` configuration files which will be used to provide custom Hadoop configuration values.
 
 ##  Creating a table
 
