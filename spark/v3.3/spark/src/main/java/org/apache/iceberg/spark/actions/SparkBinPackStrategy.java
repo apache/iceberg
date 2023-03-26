@@ -27,7 +27,7 @@ import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.BinPackStrategy;
 import org.apache.iceberg.spark.FileRewriteCoordinator;
-import org.apache.iceberg.spark.FileScanTaskSetManager;
+import org.apache.iceberg.spark.ScanTaskSetManager;
 import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkTableCache;
 import org.apache.iceberg.spark.SparkWriteOptions;
@@ -39,7 +39,7 @@ public class SparkBinPackStrategy extends BinPackStrategy {
   private final Table table;
   private final SparkSession spark;
   private final SparkTableCache tableCache = SparkTableCache.get();
-  private final FileScanTaskSetManager manager = FileScanTaskSetManager.get();
+  private final ScanTaskSetManager manager = ScanTaskSetManager.get();
   private final FileRewriteCoordinator rewriteCoordinator = FileRewriteCoordinator.get();
 
   public SparkBinPackStrategy(Table table, SparkSession spark) {
@@ -63,7 +63,7 @@ public class SparkBinPackStrategy extends BinPackStrategy {
           spark
               .read()
               .format("iceberg")
-              .option(SparkReadOptions.FILE_SCAN_TASK_SET_ID, groupID)
+              .option(SparkReadOptions.SCAN_TASK_SET_ID, groupID)
               .option(SparkReadOptions.SPLIT_SIZE, splitSize(inputFileSize(filesToRewrite)))
               .option(SparkReadOptions.FILE_OPEN_COST, "0")
               .load(groupID);

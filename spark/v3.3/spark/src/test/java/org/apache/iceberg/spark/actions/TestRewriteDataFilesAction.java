@@ -89,7 +89,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.spark.FileRewriteCoordinator;
-import org.apache.iceberg.spark.FileScanTaskSetManager;
+import org.apache.iceberg.spark.ScanTaskSetManager;
 import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.spark.SparkTestBase;
 import org.apache.iceberg.spark.actions.RewriteDataFilesSparkAction.RewriteExecutionContext;
@@ -123,7 +123,7 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
   @Rule public TemporaryFolder temp = new TemporaryFolder();
 
   private final FileRewriteCoordinator coordinator = FileRewriteCoordinator.get();
-  private final FileScanTaskSetManager manager = FileScanTaskSetManager.get();
+  private final ScanTaskSetManager manager = ScanTaskSetManager.get();
   private String tableLocation = null;
 
   @Before
@@ -1675,7 +1675,7 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
 
   private Set<String> cacheContents(Table table) {
     return ImmutableSet.<String>builder()
-        .addAll(manager.fetchSetIDs(table))
+        .addAll(manager.fetchSetIds(table))
         .addAll(coordinator.fetchSetIDs(table))
         .build();
   }

@@ -57,9 +57,6 @@ jobs:
     - name: Linters
       working-directory: ./python
       run: make lint
-    - name: Tests S3
+    - name: Tests
       working-directory: ./python
-      run: make test-s3
-    - name: Tests Adlfs
-      working-directory: ./python
-      run: make test-adlfs
+      run: make test-coverage
