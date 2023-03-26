@@ -25,9 +25,6 @@ import org.apache.flink.table.api.EnvironmentSettings;
 import org.apache.flink.table.api.TableEnvironment;
 import org.apache.flink.table.api.config.TableConfigOptions;
 import org.apache.flink.types.Row;
-import org.apache.iceberg.Schema;
-import org.apache.iceberg.Table;
-import org.apache.iceberg.flink.TestFixtures;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -89,11 +86,6 @@ public class TestFlinkScanSql extends TestFlinkSource {
                 "`_pos` BIGINT METADATA, " +
                 "`_deleted` BOOLEAN METADATA" +
                 ")");
-
-    Table table =
-        catalogResource.catalogLoader().loadCatalog().loadTable(TestFixtures.TABLE_IDENTIFIER);
-    Schema schema = table.schema();
-    System.out.println(schema);
 
     SqlHelpers.sql(
         getTableEnv(),
