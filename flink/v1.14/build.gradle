@@ -207,6 +207,14 @@ project(":iceberg-flink:iceberg-flink-runtime-${flinkMajorVersion}") {
   }
 
   shadowJar {
+    exclude "META-INF/services/com.fasterxml.jackson.core.JsonFactory"
+    exclude "META-INF/services/com.fasterxml.jackson.core.ObjectCodec"
+    exclude "META-INF/services/org.apache.orc.DataMask\$Provider"
+    exclude "META-INF/services/org.apache.orc.impl.KeyProvider\$Factory"
+    exclude "META-INF/services/org.projectnessie.client.auth.NessieAuthenticationProvider"
+    exclude "META-INF/services/org.projectnessie.model.types.ContentTypeBundle"
+    exclude "META-INF/services/java.time.chrono.Chronology"
+    exclude "META-INF/maven/**"
     configurations = [project.configurations.runtimeClasspath]
 
     zip64 true
