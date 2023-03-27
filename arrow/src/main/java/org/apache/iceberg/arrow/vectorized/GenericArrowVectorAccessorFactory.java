@@ -170,17 +170,15 @@ public class GenericArrowVectorAccessorFactory<
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
   private ArrowVectorAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT> getPlainVectorAccessor(
       FieldVector vector, PrimitiveType primitive) {
-    boolean isDecimal =
-        primitive != null && OriginalType.DECIMAL.equals(primitive.getOriginalType());
     if (vector instanceof BitVector) {
       return new BooleanAccessor<>((BitVector) vector);
     } else if (vector instanceof IntVector) {
-      if (isDecimal) {
+      if (isDecimal(primitive)) {
         return new IntBackedDecimalAccessor<>((IntVector) vector, decimalFactorySupplier.get());
       }
       return new IntAccessor<>((IntVector) vector);
     } else if (vector instanceof BigIntVector) {
-      if (isDecimal) {
+      if (isDecimal(primitive)) {
         return new LongBackedDecimalAccessor<>((BigIntVector) vector, decimalFactorySupplier.get());
       }
       return new LongAccessor<>((BigIntVector) vector);
@@ -209,13 +207,17 @@ public class GenericArrowVectorAccessorFactory<
     } else if (vector instanceof TimeMicroVector) {
       return new TimeMicroAccessor<>((TimeMicroVector) vector);
     } else if (vector instanceof FixedSizeBinaryVector) {
-      if (isDecimal) {
+      if (isDecimal(primitive)) {
         return new FixedSizeBinaryBackedDecimalAccessor<>(
             (FixedSizeBinaryVector) vector, decimalFactorySupplier.get());
       }
       return new FixedSizeBinaryAccessor<>((FixedSizeBinaryVector) vector);
     }
     throw new UnsupportedOperationException("Unsupported vector: " + vector.getClass());
+  }
+
+  private static boolean isDecimal(PrimitiveType primitive) {
+    return primitive != null && OriginalType.DECIMAL.equals(primitive.getOriginalType());
   }
 
   private static class BooleanAccessor<

@@ -35,7 +35,6 @@ import org.apache.iceberg.types.Types;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.MessageType;
-import org.apache.parquet.schema.OriginalType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
 
@@ -130,31 +129,11 @@ public class VectorizedReaderBuilder extends TypeWithSchemaVisitor<VectorizedRea
     if (desc.getMaxRepetitionLevel() > 0) {
       return null;
     }
-    Types.NestedField logicalType = icebergSchema.findField(parquetFieldId);
-    if (logicalType == null) {
+    Types.NestedField icebergField = icebergSchema.findField(parquetFieldId);
+    if (icebergField == null) {
       return null;
     }
-
-    Types.NestedField physicalType = logicalType;
-    PrimitiveType.PrimitiveTypeName typeName = primitive.getPrimitiveTypeName();
-    if (OriginalType.DECIMAL.equals(primitive.getOriginalType())) {
-      org.apache.iceberg.types.Type type;
-      if (PrimitiveType.PrimitiveTypeName.INT64.equals(typeName)) {
-        // Use BigIntVector for long backed decimal
-        type = Types.LongType.get();
-      } else if (PrimitiveType.PrimitiveTypeName.INT32.equals(typeName)) {
-        // Use IntVector for int backed decimal
-        type = Types.IntegerType.get();
-      } else {
-        // Use FixedSizeBinaryVector for binary backed decimal
-        type = Types.FixedType.ofLength(primitive.getTypeLength());
-      }
-      physicalType =
-          Types.NestedField.of(
-              logicalType.fieldId(), logicalType.isOptional(), logicalType.name(), type);
-    }
     // Set the validity buffer if null checking is enabled in arrow
-    return new VectorizedArrowReader(
-        desc, physicalType, logicalType, rootAllocator, setArrowValidityVector);
+    return new VectorizedArrowReader(desc, icebergField, rootAllocator, setArrowValidityVector);
   }
 }

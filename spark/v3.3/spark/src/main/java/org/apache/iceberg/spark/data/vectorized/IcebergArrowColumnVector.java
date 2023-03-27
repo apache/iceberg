@@ -41,7 +41,7 @@ public class IcebergArrowColumnVector extends ColumnVector {
   private final NullabilityHolder nullabilityHolder;
 
   public IcebergArrowColumnVector(VectorHolder holder) {
-    super(SparkSchemaUtil.convert(holder.logicalType()));
+    super(SparkSchemaUtil.convert(holder.icebergType()));
     this.nullabilityHolder = holder.nullabilityHolder();
     this.accessor = ArrowVectorAccessors.getVectorAccessor(holder);
   }

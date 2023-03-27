@@ -50,6 +50,7 @@ import org.apache.parquet.column.Dictionary;
 import org.apache.parquet.column.page.PageReadStore;
 import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnPath;
+import org.apache.parquet.schema.OriginalType;
 import org.apache.parquet.schema.PrimitiveType;
 
 /**
@@ -65,7 +66,6 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
   private final ColumnDescriptor columnDescriptor;
   private final VectorizedColumnIterator vectorizedColumnIterator;
   private final Types.NestedField icebergField;
-  private final Types.NestedField logicalTypeField;
   private final BufferAllocator rootAlloc;
 
   private int batchSize;
@@ -86,17 +86,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
       Types.NestedField icebergField,
       BufferAllocator ra,
       boolean setArrowValidityVector) {
-    this(desc, icebergField, icebergField, ra, setArrowValidityVector);
-  }
-
-  public VectorizedArrowReader(
-      ColumnDescriptor desc,
-      Types.NestedField icebergField,
-      Types.NestedField logicalTypeField,
-      BufferAllocator ra,
-      boolean setArrowValidityVector) {
     this.icebergField = icebergField;
-    this.logicalTypeField = logicalTypeField;
     this.columnDescriptor = desc;
     this.rootAlloc = ra;
     this.vectorizedColumnIterator = new VectorizedColumnIterator(desc, "", setArrowValidityVector);
@@ -104,7 +94,6 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
 
   private VectorizedArrowReader() {
     this.icebergField = null;
-    this.logicalTypeField = null;
     this.batchSize = DEFAULT_BATCH_SIZE;
     this.columnDescriptor = null;
     this.rootAlloc = null;
@@ -202,26 +191,45 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
         vec.getValueCount(),
         numValsToRead);
     return new VectorHolder(
-        columnDescriptor,
-        vec,
-        dictEncoded,
-        dictionary,
-        nullabilityHolder,
-        icebergField.type(),
-        logicalTypeField.type());
+        columnDescriptor, vec, dictEncoded, dictionary, nullabilityHolder, icebergField.type());
   }
 
   private void allocateFieldVector(boolean dictionaryEncodedVector) {
     if (dictionaryEncodedVector) {
       allocateDictEncodedVector();
     } else {
-      Field arrowField = ArrowSchemaUtil.convert(icebergField);
+      Field arrowField = ArrowSchemaUtil.convert(getPhysicalType(columnDescriptor, icebergField));
       if (columnDescriptor.getPrimitiveType().getOriginalType() != null) {
-        allocateVectorBasedOnOriginalParquetType(columnDescriptor.getPrimitiveType(), arrowField);
+        allocateVectorBasedOnOriginalType(columnDescriptor.getPrimitiveType(), arrowField);
       } else {
         allocateVectorBasedOnTypeName(columnDescriptor.getPrimitiveType(), arrowField);
       }
     }
+  }
+
+  private static Types.NestedField getPhysicalType(
+      ColumnDescriptor desc, Types.NestedField logicalType) {
+    PrimitiveType primitive = desc.getPrimitiveType();
+    PrimitiveType.PrimitiveTypeName typeName = primitive.getPrimitiveTypeName();
+    Types.NestedField physicalType = logicalType;
+    if (OriginalType.DECIMAL.equals(primitive.getOriginalType())) {
+      org.apache.iceberg.types.Type type;
+      if (PrimitiveType.PrimitiveTypeName.INT64.equals(typeName)) {
+        // Use BigIntVector for long backed decimal
+        type = Types.LongType.get();
+      } else if (PrimitiveType.PrimitiveTypeName.INT32.equals(typeName)) {
+        // Use IntVector for int backed decimal
+        type = Types.IntegerType.get();
+      } else {
+        // Use FixedSizeBinaryVector for binary backed decimal
+        type = Types.FixedType.ofLength(primitive.getTypeLength());
+      }
+      physicalType =
+          Types.NestedField.of(
+              logicalType.fieldId(), logicalType.isOptional(), logicalType.name(), type);
+    }
+
+    return physicalType;
   }
 
   private void allocateDictEncodedVector() {
@@ -237,7 +245,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
     this.readType = ReadType.DICTIONARY;
   }
 
-  private void allocateVectorBasedOnOriginalParquetType(PrimitiveType primitive, Field arrowField) {
+  private void allocateVectorBasedOnOriginalType(PrimitiveType primitive, Field arrowField) {
     switch (primitive.getOriginalType()) {
       case ENUM:
       case JSON:
