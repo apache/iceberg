@@ -1,7 +1,7 @@
 ---
 title: "Table Migration"
 url: table-migration
-weight: 400
+weight: 1300
 menu: main
 ---
 <!--
@@ -27,7 +27,7 @@ Apache Iceberg supports converting existing tables in other formats to Iceberg t
 There are two main approaches to perform table migration: CTAS (Create Table As Select) and in-place migration.
 
 ### Create-Table-As-Select Migration
-CTAS migration involves creating a new Iceberg table and copying data from the existing table to the new one. This method is preferred when you want to completely cut ties with your old table, ensuring the new table is independent and fully managed by Iceberg. 
+CTAS migration involves creating a new Iceberg table and copying data from the existing table to the new one. This method is preferred when you want to completely cut ties with your old table, ensuring the new table is independent and fully managed by Iceberg.
 However, CTAS migration may require more time to complete and might not be suitable for production use cases where downtime is not acceptable.
 
 ```bash
@@ -70,29 +70,29 @@ The Migrate Table action also creates a new Iceberg table with the same schema a
 Consequently, Migrate Table requires all readers and writers working on the source table to be stopped before the action is performed.
 
 ### Add Files
-After the initial step (either Snapshot Table or Migrate Table), it is common to find some data files that have not been migrated. These files often originate from concurrent writers who continue writing to the source table during or after the migration process. 
+After the initial step (either Snapshot Table or Migrate Table), it is common to find some data files that have not been migrated. These files often originate from concurrent writers who continue writing to the source table during or after the migration process.
 In practice, these files can be new data files in Hive tables or new snapshots (versions) of Delta Lake tables. The Add Files action is essential for incorporating these files into the Iceberg table.
 
 ## In-Place Migration Completion
-Once all data files have been migrated and there are no more concurrent writers writing to the source table, the migration process is complete. 
+Once all data files have been migrated and there are no more concurrent writers writing to the source table, the migration process is complete.
 Readers and writers can now switch to the new Iceberg table for their operations.
 
 ## Migration Implementation: From Hive/Spark to Iceberg
-Apache Hive and Apache Spark are two popular data warehouse systems used for big data processing and analysis. 
-However, both systems do not natively support time travel or rollback to previous snapshots. 
+Apache Hive and Apache Spark are two popular data warehouse systems used for big data processing and analysis.
+However, both systems do not natively support time travel or rollback to previous snapshots.
 When migrating data to an Iceberg table, which provides versioning and transactional updates, only the most recent data files need to be migrated.
 
-Iceberg supports all three migration actions: Snapshot Table, Migrate Table, and Add Files for migrating from Hive or Spark tables to Iceberg tables. Since Hive or Spark tables do not maintain snapshots, 
-the migration process essentially involves creating a new Iceberg table with the existing schema and committing all data files across all partitions to the new Iceberg table. 
+Iceberg supports all three migration actions: Snapshot Table, Migrate Table, and Add Files for migrating from Hive or Spark tables to Iceberg tables. Since Hive or Spark tables do not maintain snapshots,
+the migration process essentially involves creating a new Iceberg table with the existing schema and committing all data files across all partitions to the new Iceberg table.
 After the initial migration, any new data files are added to the new Iceberg table using the Add Files action.
 
 For more details on how to perform the migration on Hive/Spark tables, please refer to the [Table Migration via Spark Procedures](../spark-procedures/#table-migration) page.
 
 ## Migration Implementation: From Delta Lake to Iceberg
-Delta Lake is a popular data storage system that provides time travel and versioning features. When migrating data from Delta Lake to Iceberg, 
+Delta Lake is a popular data storage system that provides time travel and versioning features. When migrating data from Delta Lake to Iceberg,
 it is common to migrate all snapshots to maintain the history of the data.
 
-Currently, Iceberg only supports the Snapshot Table action for migrating from Delta Lake to Iceberg tables. Since Delta Lake tables maintain snapshots, all available snapshots will be committed to the new Iceberg table as transactions in order. 
+Currently, Iceberg only supports the Snapshot Table action for migrating from Delta Lake to Iceberg tables. Since Delta Lake tables maintain snapshots, all available snapshots will be committed to the new Iceberg table as transactions in order.
 For Delta Lake tables, any additional data files added after the initial migration will be included in their corresponding snapshots and subsequently added to the new Iceberg table using the Add Snapshot action. The Add Snapshot action, a variant of the Add File action, is still under development.
 
 For more details on how to perform the migration on Delta Lake tables, please refer to the [Delta Lake Migration](../delta-lake-migration/#delta-lake-table-migration) page.
