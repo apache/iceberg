@@ -30,9 +30,11 @@ import org.apache.iceberg.StructLike;
 public interface LocationProvider extends Serializable {
 
   /**
-   * Return a fully-qualified data location for a table.
-   *
-   * @return a fully-qualified data location URI
+   * Returns the fully-qualified data location for a table, where data files such as Parquet, ORC,
+   * or Avro are stored. The table data location can be retrieved from the table properties input,
+   * such as 'write.data.path', or from 'write.object-storage.path' (deprecated), or from
+   * 'write.folder-storage.path' (deprecated). Refer to the implementation class of {@link
+   * LocationProvider} for more details.
    */
   default String dataLocation() {
     throw new UnsupportedOperationException("dataLocation() not implemented");

@@ -28,9 +28,11 @@ import java.io.Serializable;
 public interface MetadataLocationProvider extends Serializable {
 
   /**
-   * Return a fully-qualified metadata location for a table.
-   *
-   * @return a fully-qualified data location URI
+   * Returns the fully-qualified metadata location for a table, where Iceberg metadata files such as
+   * table metadata (JSON), manifest (AVRO), and manifest list (AVRO) files are stored. The table
+   * metadata location can be retrieved from the table properties input, such as
+   * 'write.metadata.path'. If this property is not configured, then tableLocation/metadata will be
+   * used by default.
    */
   String metadataLocation();
 

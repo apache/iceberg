@@ -197,11 +197,11 @@ public class LocationProviders {
     private String metadataLocation;
 
     DefaultMetadataLocationProvider(String tableLocation, Map<String, String> properties) {
+      Preconditions.checkArgument(tableLocation != null, "Invalid table location: null");
+      Preconditions.checkArgument(properties != null, "Invalid properties: null");
+
       this.metadataLocation =
-          LocationUtil.stripTrailingSlash(
-              metadataLocation(
-                  Preconditions.checkNotNull(tableLocation, "table location cannot be null"),
-                  Preconditions.checkNotNull(properties, "table properties cannot be null")));
+          LocationUtil.stripTrailingSlash(metadataLocation(tableLocation, properties));
     }
 
     @Override

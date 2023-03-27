@@ -321,12 +321,12 @@ public class TestLocationProvider extends TableTestBase {
     Assertions.assertThatThrownBy(
             () ->
                 LocationProviders.metadataLocationFor(null, table.properties()).metadataLocation())
-        .isInstanceOf(NullPointerException.class)
-        .hasMessageContaining("table location cannot be null");
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Invalid table location: null");
 
     Assertions.assertThatThrownBy(
             () -> LocationProviders.metadataLocationFor(table.location(), null))
-        .isInstanceOf(NullPointerException.class)
-        .hasMessageContaining("table properties cannot be null");
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Invalid properties: null");
   }
 }
