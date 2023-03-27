@@ -40,14 +40,15 @@ class PartitionedDeltaWriter extends BaseDeltaTaskWriter {
 
   private final int capacity = 10;
 
-  private final Map<PartitionKey, RowDataDeltaWriter> writers = new LinkedHashMap<PartitionKey, RowDataDeltaWriter>(
+  private final Map<PartitionKey, RowDataDeltaWriter> writers =
+      new LinkedHashMap<PartitionKey, RowDataDeltaWriter>(
           (int) Math.ceil(capacity / 0.75f) + 1, 0.75f, true) {
 
-    @Override
-    protected boolean removeEldestEntry(Map.Entry<PartitionKey, RowDataDeltaWriter> eldest) {
-      return size() > capacity;
-    }
-  };
+        @Override
+        protected boolean removeEldestEntry(Map.Entry<PartitionKey, RowDataDeltaWriter> eldest) {
+          return size() > capacity;
+        }
+      };
 
   PartitionedDeltaWriter(
       PartitionSpec spec,
