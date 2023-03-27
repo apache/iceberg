@@ -20,6 +20,7 @@ package org.apache.iceberg.flink.sink;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.apache.flink.table.data.RowData;
@@ -31,14 +32,22 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.io.FileAppenderFactory;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFileFactory;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.Tasks;
 
 class PartitionedDeltaWriter extends BaseDeltaTaskWriter {
 
   private final PartitionKey partitionKey;
 
-  private final Map<PartitionKey, RowDataDeltaWriter> writers = Maps.newHashMap();
+  private final int capacity = 10;
+
+  private final Map<PartitionKey, RowDataDeltaWriter> writers = new LinkedHashMap<PartitionKey, RowDataDeltaWriter>(
+          (int) Math.ceil(capacity / 0.75f) + 1, 0.75f, true) {
+
+    @Override
+    protected boolean removeEldestEntry(Map.Entry<PartitionKey, RowDataDeltaWriter> eldest) {
+      return size() > capacity;
+    }
+  };
 
   PartitionedDeltaWriter(
       PartitionSpec spec,
