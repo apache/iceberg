@@ -314,13 +314,11 @@ public abstract class BaseRewriteDataFilesAction<ThisT>
       Iterable<DataFile> deletedDataFiles,
       Iterable<DataFile> addedDataFiles,
       long startingSnapshotId) {
-    RewriteFiles rewriteFiles =
-        table
-            .newRewrite()
-            .validateFromSnapshot(startingSnapshotId);
+    RewriteFiles rewriteFiles = table.newRewrite().validateFromSnapshot(startingSnapshotId);
     if (useStartingSequenceNumber) {
       long sequenceNumber = table.snapshot(startingSnapshotId).sequenceNumber();
-      rewriteFiles.rewriteFiles(Sets.newHashSet(deletedDataFiles), Sets.newHashSet(addedDataFiles), sequenceNumber);
+      rewriteFiles.rewriteFiles(
+          Sets.newHashSet(deletedDataFiles), Sets.newHashSet(addedDataFiles), sequenceNumber);
     } else {
       rewriteFiles.rewriteFiles(Sets.newHashSet(deletedDataFiles), Sets.newHashSet(addedDataFiles));
     }
