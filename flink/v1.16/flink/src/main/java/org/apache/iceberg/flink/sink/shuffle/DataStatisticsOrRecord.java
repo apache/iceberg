@@ -24,14 +24,14 @@ import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
- * The wrapper class for data statistics and record. It is the only way for data statistics operator to send
- * global data statistics to custom partitioner to distribute data based on statistics
+ * The wrapper class for data statistics and record. It is the only way for data statistics operator
+ * to send global data statistics to custom partitioner to distribute data based on statistics
  *
- * <p>DataStatisticsOrRecord is sent from {@link DataStatisticsOperator} to partitioner. It
- * contains either data statistics(globally aggregated) or a record. Once partitioner receives the data
- * statistics, it will use that to decide the coming record should send to which writer subtask. After
- * shuffling, a filter and mapper are required to filter out the data distribution weight, unwrap the
- * object and extract the original record type T.
+ * <p>DataStatisticsOrRecord contains either data statistics(globally aggregated) or a record. It is
+ * sent from {@link DataStatisticsOperator} to partitioner. Once partitioner receives the data
+ * statistics, it will use that to decide the coming record should send to which writer subtask.
+ * After shuffling, a filter and mapper are required to filter out the data distribution weight,
+ * unwrap the object and extract the original record type T.
  */
 public class DataStatisticsOrRecord<T, K> implements Serializable {
 

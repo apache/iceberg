@@ -46,8 +46,7 @@ public class MapDataStatistics<K> implements DataStatistics<K> {
         otherStatistics instanceof MapDataStatistics,
         "Map statistics can not merge with " + otherStatistics.getClass());
     MapDataStatistics<K> mapDataStatistic = (MapDataStatistics<K>) otherStatistics;
-    mapDataStatistic.statistics.forEach(
-        (key, count) -> statistics.merge(key, count, Long::sum));
+    mapDataStatistic.statistics.forEach((key, count) -> statistics.merge(key, count, Long::sum));
   }
 
   public Map<K, Long> dataStatistics() {

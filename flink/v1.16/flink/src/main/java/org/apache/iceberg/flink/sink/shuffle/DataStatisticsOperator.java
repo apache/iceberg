@@ -91,7 +91,8 @@ class DataStatisticsOperator<T, K> extends AbstractStreamOperator<DataStatistics
   @Override
   public void open() throws Exception {
     if (!globalStatistics.isEmpty()) {
-      output.collect(new StreamRecord<>(DataStatisticsOrRecord.fromDataStatistics(globalStatistics)));
+      output.collect(
+          new StreamRecord<>(DataStatisticsOrRecord.fromDataStatistics(globalStatistics)));
     }
   }
 
@@ -102,21 +103,26 @@ class DataStatisticsOperator<T, K> extends AbstractStreamOperator<DataStatistics
 
   @Override
   public void processElement(StreamRecord<T> streamRecord) throws Exception {
-    final K key = keySelector.getKey(streamRecord.getValue());
+    T record = streamRecord.getValue();
+    K key = keySelector.getKey(record);
     localStatistics.add(key);
-    output.collect(new StreamRecord<>(DataStatisticsOrRecord.fromRecord(streamRecord.getValue())));
+    output.collect(new StreamRecord<>(DataStatisticsOrRecord.fromRecord(record)));
   }
 
   @Override
   public void snapshotState(StateSnapshotContext context) throws Exception {
     long checkpointId = context.getCheckpointId();
-    LOG.info("Taking data statistics operator snapshot for checkpoint {}", checkpointId);
+    int subTaskId = getRuntimeContext().getIndexOfThisSubtask();
+    LOG.info(
+        "Taking data statistics operator snapshot for checkpoint {} in subtask {}",
+        checkpointId,
+        subTaskId);
 
     // Only subtask 0 saves the state so that globalStatisticsState(UnionListState) stores
     // an exact copy of globalStatistics
     if (!globalStatistics.isEmpty() && getRuntimeContext().getIndexOfThisSubtask() == 0) {
       globalStatisticsState.clear();
-      LOG.debug("Saving global statistics {} to state", globalStatistics);
+      LOG.info("Saving global statistics {} to state in subtask {}", globalStatistics, subTaskId);
       globalStatisticsState.add(globalStatistics);
     }
 
