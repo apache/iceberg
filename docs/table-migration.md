@@ -26,13 +26,35 @@ Apache Iceberg supports converting existing tables in other formats to Iceberg t
 ## Migration Approaches
 There are two main approaches to perform table migration: CTAS (Create Table As Select) and in-place migration.
 
-### CTAS Migration
+### Create-Table-As-Select Migration
 CTAS migration involves creating a new Iceberg table and copying data from the existing table to the new one. This method is preferred when you want to completely cut ties with your old table, ensuring the new table is independent and fully managed by Iceberg. 
 However, CTAS migration may require more time to complete and might not be suitable for production use cases where downtime is not acceptable.
 
+```bash
+  source_table_folder/         migrated_table_folder/
+  ├── data/                    ├── data/
+  │   ├── data_file1           │   ├── data_file1_copy
+  │   ├── data_file2           │   ├── data_file2_copy
+  │   ├── data_file3           │   ├── data_file3_copy
+  │   └── ...                  │   └── ...
+  └── metadata/                └── metadata/
+      ├── metadata_file1           ├── metadata_file2
+      └── ...                      └── ...
+```
 ### In-Place Migration
 In-place migration retains the existing data files but adds Iceberg metadata on top of them. This approach is faster and does not require copying data, making it more suitable for production use cases.
 
+```bash
+  source_table_folder/         migrated_table_folder/
+  ├── data/                    ├── data/
+  │   ├── data_file1           │   ├── <data_file_1_ptr>
+  │   ├── data_file2           │   ├── <data_file_2_ptr>
+  │   ├── data_file3           │   ├── <data_file_3_ptr>
+  │   └── ...                  │   └── ...
+  └── metadata/                └── metadata/
+      ├── metadata_file1           ├── metadata_file2
+      └── ...                      └── ...
+```
 ## In-Place Migration Actions
 Apache Iceberg primarily supports the in-place migration approach, which includes three important actions:
 
