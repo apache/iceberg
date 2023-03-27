@@ -49,7 +49,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkAggregates;
 import org.apache.iceberg.spark.SparkFilters;
-import org.apache.iceberg.spark.SparkMetricsReporter;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkSchemaUtil;
@@ -421,14 +420,12 @@ public class SparkScanBuilder
   private Scan buildBatchScan(Long snapshotId, Long asOfTimestamp, String branch, String tag) {
     Schema expectedSchema = schemaWithMetadataColumns();
 
-    SparkMetricsReporter reporter = new SparkMetricsReporter();
     BatchScan scan =
         table
             .newBatchScan()
             .caseSensitive(caseSensitive)
             .filter(filterExpression())
-            .project(expectedSchema)
-            .metricsReporter(reporter);
+            .project(expectedSchema);
 
     if (snapshotId != null) {
       scan = scan.useSnapshot(snapshotId);
