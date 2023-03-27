@@ -99,7 +99,7 @@ class SparkWrite {
   private final String applicationId;
   private final boolean wapEnabled;
   private final String wapId;
-  private final PartitionSpec outputSpec;
+  private final int outputSpecId;
   private final long targetFileSize;
   private final Schema writeSchema;
   private final StructType dsSchema;
@@ -123,10 +123,10 @@ class SparkWrite {
     this.applicationId = applicationId;
     this.wapEnabled = writeConf.wapEnabled();
     this.wapId = writeConf.wapId();
-    this.outputSpec =
+    this.outputSpecId =
         writeConf.outputSpecId() != null
-            ? table.specs().get(writeConf.outputSpecId())
-            : table.spec();
+            ? table.specs().get(writeConf.outputSpecId()).specId()
+            : table.spec().specId();
     this.targetFileSize = writeConf.targetDataFileSize();
     this.writeSchema = writeSchema;
     this.dsSchema = dsSchema;
@@ -170,7 +170,7 @@ class SparkWrite {
     return new WriterFactory(
         tableBroadcast,
         format,
-        outputSpec,
+        outputSpecId,
         targetFileSize,
         writeSchema,
         dsSchema,
@@ -569,7 +569,7 @@ class SparkWrite {
   private static class WriterFactory implements DataWriterFactory, StreamingDataWriterFactory {
     private final Broadcast<Table> tableBroadcast;
     private final FileFormat format;
-    private final PartitionSpec outputSpec;
+    private final int outputSpecId;
     private final long targetFileSize;
     private final Schema writeSchema;
     private final StructType dsSchema;
@@ -578,14 +578,14 @@ class SparkWrite {
     protected WriterFactory(
         Broadcast<Table> tableBroadcast,
         FileFormat format,
-        PartitionSpec outputSpec,
+        int outputSpecId,
         long targetFileSize,
         Schema writeSchema,
         StructType dsSchema,
         boolean partitionedFanoutEnabled) {
       this.tableBroadcast = tableBroadcast;
       this.format = format;
-      this.outputSpec = outputSpec;
+      this.outputSpecId = outputSpecId;
       this.targetFileSize = targetFileSize;
       this.writeSchema = writeSchema;
       this.dsSchema = dsSchema;
@@ -601,6 +601,7 @@ class SparkWrite {
     public DataWriter<InternalRow> createWriter(int partitionId, long taskId, long epochId) {
       Table table = tableBroadcast.value();
       FileIO io = table.io();
+      PartitionSpec outputSpec = table.specs().get(outputSpecId);
 
       OutputFileFactory fileFactory =
           OutputFileFactory.builderFor(table, partitionId, taskId).format(format).build();

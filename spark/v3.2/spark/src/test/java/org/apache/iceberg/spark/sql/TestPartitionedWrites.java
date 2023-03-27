@@ -162,6 +162,9 @@ public class TestPartitionedWrites extends SparkCatalogTestBase {
   @Test
   public void testWriteWithOutputSpec() throws NoSuchTableException {
     Table table = validationCatalog.loadTable(tableIdent);
+    // Drop all records in table to have a fresh start.
+    sql("DELETE FROM %s", tableName);
+    table.refresh();
 
     final int originalSpecId = table.spec().specId();
     table.updateSpec().addField("data").commit();
@@ -197,6 +200,26 @@ public class TestPartitionedWrites extends SparkCatalogTestBase {
         "Rows must match",
         expected,
         sql("SELECT id, data, _spec_id FROM %s WHERE id >= 10 ORDER BY id", tableName));
+
+    // Verify that the actual partitions are written with the correct spec ID.
+    // Two of the partitions should have the original spec ID and one should have the new one.
+    Dataset<Row> actualPartitionRows =
+        spark
+            .read()
+            .format("iceberg")
+            .load(tableName + ".partitions")
+            .select("spec_id", "partition.id_trunc", "partition.data")
+            .orderBy("spec_id", "partition.id_trunc");
+
+    expected =
+        ImmutableList.of(
+            row(originalSpecId, 9L, null),
+            row(originalSpecId, 12L, null),
+            row(table.spec().specId(), 9L, "a"));
+    assertEquals(
+        "There are 3 partitions, one with the original spec ID and two with the new one",
+        expected,
+        rowsToJava(actualPartitionRows.collectAsList()));
 
     // Even the default spec ID should be followed when present.
     data = ImmutableList.of(new SimpleRecord(13, "d"));

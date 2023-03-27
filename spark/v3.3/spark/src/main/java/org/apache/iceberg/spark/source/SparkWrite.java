@@ -91,7 +91,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
   private final String applicationId;
   private final boolean wapEnabled;
   private final String wapId;
-  private final PartitionSpec outputSpec;
+  private final int outputSpecId;
   private final String branch;
   private final long targetFileSize;
   private final Schema writeSchema;
@@ -121,10 +121,10 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
     this.applicationId = applicationId;
     this.wapEnabled = writeConf.wapEnabled();
     this.wapId = writeConf.wapId();
-    this.outputSpec =
+    this.outputSpecId =
         writeConf.outputSpecId() != null
-            ? table.specs().get(writeConf.outputSpecId())
-            : table.spec();
+            ? table.specs().get(writeConf.outputSpecId()).specId()
+            : table.spec().specId();
     this.branch = writeConf.branch();
     this.targetFileSize = writeConf.targetDataFileSize();
     this.writeSchema = writeSchema;
@@ -182,7 +182,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
         tableBroadcast,
         queryId,
         format,
-        outputSpec,
+        outputSpecId,
         targetFileSize,
         writeSchema,
         dsSchema,
@@ -610,7 +610,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
   private static class WriterFactory implements DataWriterFactory, StreamingDataWriterFactory {
     private final Broadcast<Table> tableBroadcast;
     private final FileFormat format;
-    private final PartitionSpec outputSpec;
+    private final int outputSpecId;
     private final long targetFileSize;
     private final Schema writeSchema;
     private final StructType dsSchema;
@@ -621,14 +621,14 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
         Broadcast<Table> tableBroadcast,
         String queryId,
         FileFormat format,
-        PartitionSpec outputSpec,
+        int outputSpecId,
         long targetFileSize,
         Schema writeSchema,
         StructType dsSchema,
         boolean partitionedFanoutEnabled) {
       this.tableBroadcast = tableBroadcast;
       this.format = format;
-      this.outputSpec = outputSpec;
+      this.outputSpecId = outputSpecId;
       this.targetFileSize = targetFileSize;
       this.writeSchema = writeSchema;
       this.dsSchema = dsSchema;
@@ -645,6 +645,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
     public DataWriter<InternalRow> createWriter(int partitionId, long taskId, long epochId) {
       Table table = tableBroadcast.value();
       FileIO io = table.io();
+      PartitionSpec outputSpec = table.specs().get(outputSpecId);
 
       OutputFileFactory fileFactory =
           OutputFileFactory.builderFor(table, partitionId, taskId)
