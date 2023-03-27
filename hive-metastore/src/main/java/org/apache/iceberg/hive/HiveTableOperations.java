@@ -22,6 +22,7 @@ import static org.apache.iceberg.TableProperties.GC_ENABLED;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import java.util.Collections;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -32,6 +33,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.common.StatsSetupConst;
 import org.apache.hadoop.hive.metastore.IMetaStoreClient;
 import org.apache.hadoop.hive.metastore.TableType;
+import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.hadoop.hive.metastore.api.InvalidObjectException;
 import org.apache.hadoop.hive.metastore.api.NoSuchObjectException;
 import org.apache.hadoop.hive.metastore.api.SerDeInfo;
@@ -209,7 +211,18 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
         LOG.debug("Committing new table: {}", fullName);
       }
 
-      tbl.setSd(storageDescriptor(metadata, hiveEngineEnabled)); // set to pickup any schema changes
+      StorageDescriptor updated = storageDescriptor(metadata, hiveEngineEnabled);
+      // skip column update if one of the filed schema is larger than the max property size
+      boolean skipColumnUpdate= false;
+      for (FieldSchema fieldSchema : updated.getCols()) {
+        if (fieldSchema.getType().length() >= maxHiveTablePropertySize) {
+          skipColumnUpdate = true;
+        }
+      }
+      if (skipColumnUpdate) {
+        updated.setCols(tbl.getSd().getCols());
+      }
+      tbl.setSd(updated); // set to pickup any schema changes
 
       String metadataLocation = tbl.getParameters().get(METADATA_LOCATION_PROP);
       String baseMetadataLocation = base != null ? base.metadataFileLocation() : null;
