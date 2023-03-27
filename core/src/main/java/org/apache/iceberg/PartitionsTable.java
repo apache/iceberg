@@ -107,9 +107,9 @@ public class PartitionsTable extends BaseMetadataTable {
       PartitionData original = (PartitionData) dataFile.partition();
 
       int[] normalizedPositions =
-              normalizedPositionsBySpec.computeIfAbsent(
-                      dataFile.specId(),
-                      specId -> normalizedPositions(table, specId, normalizedPartitionType));
+          normalizedPositionsBySpec.computeIfAbsent(
+              dataFile.specId(),
+              specId -> normalizedPositions(table, specId, normalizedPartitionType));
 
       PartitionData normalized =
           normalizePartition(original, normalizedPartitionType, normalizedPositions);
@@ -153,9 +153,9 @@ public class PartitionsTable extends BaseMetadataTable {
   }
 
   /**
-   * Builds an integer array to map the partition field from original to normalized
-   * where index of the array represent the index of given field in the original partition type
-   * the value of the array represent the index of same field in normalized partition type
+   * Builds an integer array to map the partition field from original to normalized where index of
+   * the array represent the index of given field in the original partition type the value of the
+   * array represent the index of same field in normalized partition type
    *
    * @param table iceberg table
    * @param specId spec id where original partition type is written
