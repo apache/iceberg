@@ -315,11 +315,7 @@ public class TestLocationProvider extends TableTestBase {
         .set(TableProperties.WRITE_LOCATION_PROVIDER_IMPL, noDataLocImpl)
         .commit();
 
-    Assertions.assertThatThrownBy(() -> this.table.locationProvider().dataLocation())
-        .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessageContaining(
-            TwoArgDynamicallyLoadedLocationProvider.class.getCanonicalName()
-                + " does not expose dataLocation");
+    Assertions.assertThat(this.table.locationProvider().dataLocation()).isNull();
   }
 
   @Test
