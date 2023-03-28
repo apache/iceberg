@@ -136,7 +136,7 @@ public class SparkSessionCatalog<T extends TableCatalog & FunctionCatalog & Supp
   public Table loadTable(Identifier ident) throws NoSuchTableException {
     try {
       return icebergCatalog.loadTable(ident);
-    } catch (NoSuchTableException e) {
+    } catch (NoSuchTableException | org.apache.iceberg.exceptions.NotFoundException e) {
       return getSessionCatalog().loadTable(ident);
     }
   }
@@ -145,7 +145,8 @@ public class SparkSessionCatalog<T extends TableCatalog & FunctionCatalog & Supp
   public Table loadTable(Identifier ident, String version) throws NoSuchTableException {
     try {
       return icebergCatalog.loadTable(ident, version);
-    } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
+    } catch (org.apache.iceberg.exceptions.NoSuchTableException
+        | org.apache.iceberg.exceptions.NotFoundException e) {
       return getSessionCatalog().loadTable(ident, version);
     }
   }
@@ -154,7 +155,8 @@ public class SparkSessionCatalog<T extends TableCatalog & FunctionCatalog & Supp
   public Table loadTable(Identifier ident, long timestamp) throws NoSuchTableException {
     try {
       return icebergCatalog.loadTable(ident, timestamp);
-    } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
+    } catch (org.apache.iceberg.exceptions.NoSuchTableException
+        | org.apache.iceberg.exceptions.NotFoundException e) {
       return getSessionCatalog().loadTable(ident, timestamp);
     }
   }

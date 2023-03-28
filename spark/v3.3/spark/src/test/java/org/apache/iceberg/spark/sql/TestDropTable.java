@@ -26,10 +26,12 @@ import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.MetadataTableType;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.spark.SparkCatalogTestBase;
+import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -55,6 +57,46 @@ public class TestDropTable extends SparkCatalogTestBase {
   @Test
   public void testDropTable() throws IOException {
     dropTableInternal();
+  }
+
+  @Test
+  public void testDropTableWhenLocationDoesNotExist() throws IOException {
+    dropTableInternalWhenLocationDoesNotExist();
+  }
+
+  private void dropTableInternalWhenLocationDoesNotExist() throws IOException {
+    assertEquals(
+        "Should have expected rows",
+        ImmutableList.of(row(1, "test")),
+        sql("SELECT * FROM %s", tableName));
+
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    Path tableLocation = new Path(table.location());
+    FileSystem fs = tableLocation.getFileSystem(hiveConf);
+
+    Assertions.assertThat(validationCatalog.tableExists(tableIdent))
+        .as("Table should exist")
+        .isTrue();
+
+    Assertions.assertThat(fs.delete(tableLocation, true))
+        .as("Delete table location and all sub folders(data, metadata)")
+        .isTrue();
+    Assertions.assertThat(fs.exists(tableLocation))
+        .as("Table location should not exists")
+        .isFalse();
+
+    if (catalogName.equals("testhadoop")) {
+      Assertions.assertThatThrownBy(() -> sql("DROP TABLE %s", tableName))
+          .isInstanceOf(org.apache.spark.sql.AnalysisException.class)
+          .hasMessageContaining("Table or view not found");
+    } else {
+      sql("DROP TABLE %s", tableName);
+    }
+
+    Assertions.assertThat(validationCatalog.tableExists(tableIdent))
+        .as("Table should not exist")
+        .isFalse();
   }
 
   @Test
