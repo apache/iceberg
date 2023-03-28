@@ -301,14 +301,38 @@ public class TestLocationProvider extends TableTestBase {
   }
 
   @Test
+  public void testDataLocationFromDataLocationProvider() {
+    LocationProvider locationProvider = table.ops().locationProvider();
+    Assertions.assertThat(locationProvider.dataLocation()).isNotNull();
+
+    String noDataLocImpl =
+        String.format(
+            "%s$%s",
+            this.getClass().getCanonicalName(),
+            TwoArgDynamicallyLoadedLocationProvider.class.getSimpleName());
+    this.table
+        .updateProperties()
+        .set(TableProperties.WRITE_LOCATION_PROVIDER_IMPL, noDataLocImpl)
+        .commit();
+
+    Assertions.assertThatThrownBy(() -> this.table.locationProvider().dataLocation())
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessageContaining(
+            TwoArgDynamicallyLoadedLocationProvider.class.getCanonicalName()
+                + " does not expose dataLocation");
+  }
+
+  @Test
   public void testTableMetadataLocationProvider() {
     MetadataLocationProvider metadataLocationProvider =
         table.ops().current().metadataLocationProvider();
 
     Assertions.assertThat(metadataLocationProvider).isNotNull();
+
     Assertions.assertThat(metadataLocationProvider.metadataLocation())
         .isNotNull()
         .endsWith("/metadata");
+
     Assertions.assertThat(metadataLocationProvider.metadataLocation())
         .as("Table metadata location provider location should match with providers api")
         .isEqualTo(

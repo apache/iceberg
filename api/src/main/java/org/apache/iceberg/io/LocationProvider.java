@@ -37,7 +37,8 @@ public interface LocationProvider extends Serializable {
    * LocationProvider} for more details.
    */
   default String dataLocation() {
-    throw new UnsupportedOperationException("dataLocation() not implemented");
+    throw new UnsupportedOperationException(
+        String.format("%s does not expose dataLocation", this.getClass().getCanonicalName()));
   }
 
   /**
