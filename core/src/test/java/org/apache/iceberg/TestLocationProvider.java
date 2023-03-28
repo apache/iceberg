@@ -297,4 +297,57 @@ public class TestLocationProvider extends TableTestBase {
     Assert.assertEquals(
         "Fourth part should be the file name passed in", "test.parquet", parts.get(3));
   }
+
+  @Test
+  public void testPosixNormalizeWithDefaultLocationProviderAndDefaultDataLocation() {
+    table.updateProperties().set(TableProperties.WRITE_POSIX_PATH_ENFORCED, "true").commit();
+    table.updateLocation().setLocation("s3://bucket").commit();
+    table.refresh();
+    Assert.assertEquals(
+        "Must enforce POSIX standard for path",
+        "s3://bucket/data/foo/bar",
+        table.locationProvider().newDataLocation("foo//bar"));
+  }
+
+  @Test
+  public void testPosixNormalizeWithDefaultLocationProviderAndCustomDataLocation() {
+    table
+        .updateProperties()
+        .set(TableProperties.WRITE_POSIX_PATH_ENFORCED, "true")
+        .set(TableProperties.WRITE_DATA_LOCATION, "s3://bucket")
+        .commit();
+    table.refresh();
+    Assert.assertEquals(
+        "Must enforce POSIX standard for path",
+        "s3://bucket/foo/bar",
+        table.locationProvider().newDataLocation("foo//bar"));
+  }
+
+  @Test
+  public void testPosixNormalizeWithObjectStorageLocationProviderAndDefaultDataLocation() {
+    table
+        .updateProperties()
+        .set(TableProperties.OBJECT_STORE_ENABLED, "true")
+        .set(TableProperties.WRITE_POSIX_PATH_ENFORCED, "true")
+        .commit();
+    table.updateLocation().setLocation("s3://bucket").commit();
+    table.refresh();
+    Assert.assertTrue(
+        "Must enforce POSIX standard for path",
+        table.locationProvider().newDataLocation("foo//bar").contains("foo/bar"));
+  }
+
+  @Test
+  public void testPosixNormalizeWithObjectStorageLocationProviderAndCustomDataLocation() {
+    table
+        .updateProperties()
+        .set(TableProperties.WRITE_POSIX_PATH_ENFORCED, "true")
+        .set(TableProperties.WRITE_DATA_LOCATION, "s3://bucket")
+        .set(TableProperties.OBJECT_STORE_ENABLED, "true")
+        .commit();
+    table.refresh();
+    Assert.assertTrue(
+        "Must enforce POSIX standard for path",
+        table.locationProvider().newDataLocation("foo//bar").contains("foo/bar"));
+  }
 }
