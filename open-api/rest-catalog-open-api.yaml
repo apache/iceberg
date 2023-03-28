@@ -725,7 +725,7 @@ paths:
       description:
         Check if a table exists within a given namespace. This request does not return a response body.
       responses:
-        200:
+        204:
           description: OK - Table Exists
         400:
           description: Bad Request
@@ -763,7 +763,7 @@ paths:
                 $ref: '#/components/examples/RenameTableSameNamespace'
         required: true
       responses:
-        200:
+        204:
           description: OK
         400:
           $ref: '#/components/responses/BadRequestErrorResponse'
