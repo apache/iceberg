@@ -43,12 +43,12 @@ import org.apache.iceberg.types.Types;
 import org.apache.orc.OrcConf;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
-import org.junit.jupiter.api.Assertions;
+import org.assertj.core.api.WithAssertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-public class TestVectorizedOrcDataReader {
+public class TestVectorizedOrcDataReader implements WithAssertions {
   @TempDir public static Path temp;
 
   private static final Schema SCHEMA =
@@ -104,18 +104,18 @@ public class TestVectorizedOrcDataReader {
     char expChar = 'a';
     while (rows.hasNext()) {
       InternalRow row = rows.next();
-      Assertions.assertEquals(expId, row.getLong(0));
-      Assertions.assertEquals(expChar, row.getString(1).charAt(0));
-      Assertions.assertTrue(row.isNullAt(2));
+      assertThat(row.getLong(0)).isEqualTo(expId);
+      assertThat(row.getString(1)).isEqualTo(Character.toString(expChar));
+      assertThat(row.isNullAt(2)).isTrue();
       expId += 1;
       expChar += 1;
       rowCount += 1;
     }
-    Assertions.assertEquals(5, rowCount);
+    assertThat(rowCount).isEqualTo(5);
   }
 
   @Test
-  public void testVectorizedReader() throws IOException {
+  public void testReader() throws IOException {
     try (CloseableIterable<ColumnarBatch> reader =
         ORC.read(outputFile.toInputFile())
             .project(SCHEMA)
@@ -128,7 +128,7 @@ public class TestVectorizedOrcDataReader {
   }
 
   @Test
-  public void testRowReaderWithFilter() throws IOException {
+  public void testReaderWithFilter() throws IOException {
     try (CloseableIterable<ColumnarBatch> reader =
         ORC.read(outputFile.toInputFile())
             .project(SCHEMA)
@@ -143,7 +143,7 @@ public class TestVectorizedOrcDataReader {
   }
 
   @Test
-  public void testRowReaderWithFilterWithSelected() throws IOException {
+  public void testWithFilterWithSelected() throws IOException {
     try (CloseableIterable<ColumnarBatch> reader =
         ORC.read(outputFile.toInputFile())
             .project(SCHEMA)
@@ -155,12 +155,12 @@ public class TestVectorizedOrcDataReader {
             .config(OrcConf.READER_USE_SELECTED.getAttribute(), String.valueOf(true))
             .build()) {
       Iterator<InternalRow> rows = batchesToRows(reader.iterator());
-      Assertions.assertTrue(rows.hasNext());
+      assertThat(rows).hasNext();
       InternalRow row = rows.next();
-      Assertions.assertEquals(3L, row.getLong(0));
-      Assertions.assertEquals("c", row.getString(1));
-      Assertions.assertArrayEquals(new int[] {3, 4, 5}, row.getArray(3).toIntArray());
-      Assertions.assertFalse(rows.hasNext());
+      assertThat(row.getLong(0)).isEqualTo(3L);
+      assertThat(row.getString(1)).isEqualTo("c");
+      assertThat(row.getArray(3).toIntArray()).isEqualTo(new int[] {3, 4, 5});
+      assertThat(rows).isExhausted();
     }
   }
 }

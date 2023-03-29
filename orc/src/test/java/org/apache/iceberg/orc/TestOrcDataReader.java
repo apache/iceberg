@@ -20,6 +20,8 @@ package org.apache.iceberg.orc;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileContent;
@@ -40,20 +42,22 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.orc.OrcConf;
-import org.junit.Assert;
+import org.assertj.core.api.WithAssertions;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
-public class TestOrcDataReader {
+public class TestOrcDataReader implements WithAssertions {
   @ClassRule public static TemporaryFolder temp = new TemporaryFolder();
 
   private static final Schema SCHEMA =
       new Schema(
           Types.NestedField.required(1, "id", Types.LongType.get()),
           Types.NestedField.optional(2, "data", Types.StringType.get()),
-          Types.NestedField.optional(3, "binary", Types.BinaryType.get()));
+          Types.NestedField.optional(3, "binary", Types.BinaryType.get()),
+          Types.NestedField.required(
+              4, "array", Types.ListType.ofOptional(5, Types.IntegerType.get())));
   private static DataFile dataFile;
   private static OutputFile outputFile;
 
@@ -62,11 +66,19 @@ public class TestOrcDataReader {
     GenericRecord bufferRecord = GenericRecord.create(SCHEMA);
 
     ImmutableList.Builder<Record> builder = ImmutableList.builder();
-    builder.add(bufferRecord.copy(ImmutableMap.of("id", 1L, "data", "a")));
-    builder.add(bufferRecord.copy(ImmutableMap.of("id", 2L, "data", "b")));
-    builder.add(bufferRecord.copy(ImmutableMap.of("id", 3L, "data", "c")));
-    builder.add(bufferRecord.copy(ImmutableMap.of("id", 4L, "data", "d")));
-    builder.add(bufferRecord.copy(ImmutableMap.of("id", 5L, "data", "e")));
+    builder.add(
+        bufferRecord.copy(
+            ImmutableMap.of("id", 1L, "data", "a", "array", Collections.singletonList(1))));
+    builder.add(
+        bufferRecord.copy(ImmutableMap.of("id", 2L, "data", "b", "array", Arrays.asList(2, 3))));
+    builder.add(
+        bufferRecord.copy(ImmutableMap.of("id", 3L, "data", "c", "array", Arrays.asList(3, 4, 5))));
+    builder.add(
+        bufferRecord.copy(
+            ImmutableMap.of("id", 4L, "data", "d", "array", Arrays.asList(4, 5, 6, 7))));
+    builder.add(
+        bufferRecord.copy(
+            ImmutableMap.of("id", 5L, "data", "e", "array", Arrays.asList(5, 6, 7, 8, 9))));
 
     outputFile = Files.localOutput(File.createTempFile("test", ".orc", temp.getRoot()));
 
@@ -91,22 +103,23 @@ public class TestOrcDataReader {
 
   @Test
   public void testWrite() {
-    Assert.assertEquals("Format should be ORC", FileFormat.ORC, dataFile.format());
-    Assert.assertEquals("Should be data file", FileContent.DATA, dataFile.content());
-    Assert.assertEquals("Record count should match", 5, dataFile.recordCount());
-    Assert.assertEquals("Partition should be empty", 0, dataFile.partition().size());
-    Assert.assertNull("Key metadata should be null", dataFile.keyMetadata());
+    assertThat(dataFile.format()).isEqualTo(FileFormat.ORC);
+    assertThat(dataFile.content()).isEqualTo(FileContent.DATA);
+    assertThat(dataFile.recordCount()).isEqualTo(5);
+    assertThat(dataFile.partition().size()).isEqualTo(0);
+    assertThat(dataFile.keyMetadata()).isNull();
   }
 
   private void validateAllRecords(List<Record> records) {
-    Assert.assertEquals(5, records.size());
+    assertThat(records).hasSize(5);
     long id = 1;
     char data = 'a';
     for (Record record : records) {
-      Assert.assertEquals(id, record.getField("id"));
+      assertThat(record.getField("id")).isEqualTo(id);
       id++;
-      Assert.assertEquals(data, ((String) record.getField("data")).charAt(0));
+      assertThat((String) record.getField("data")).isEqualTo(Character.toString(data));
       data++;
+      assertThat(record.getField("binary")).isNull();
     }
   }
 
@@ -137,7 +150,7 @@ public class TestOrcDataReader {
 
   @Test
   public void testRowReaderWithFilterWithSelected() throws IOException {
-    List<Record> writtenRecords;
+    List<Record> readRecords;
     try (CloseableIterable<Record> reader =
         ORC.read(outputFile.toInputFile())
             .project(SCHEMA)
@@ -146,11 +159,12 @@ public class TestOrcDataReader {
             .config(OrcConf.ALLOW_SARG_TO_FILTER.getAttribute(), String.valueOf(true))
             .config(OrcConf.READER_USE_SELECTED.getAttribute(), String.valueOf(true))
             .build()) {
-      writtenRecords = Lists.newArrayList(reader);
+      readRecords = Lists.newArrayList(reader);
     }
 
-    Assert.assertEquals(1, writtenRecords.size());
-    Assert.assertEquals(3L, writtenRecords.get(0).get(0));
-    Assert.assertEquals("c", writtenRecords.get(0).get(1));
+    assertThat(readRecords).hasSize(1);
+    assertThat(readRecords.get(0).get(0)).isEqualTo(3L);
+    assertThat(readRecords.get(0).get(1)).isEqualTo("c");
+    assertThat(readRecords.get(0).get(3)).isEqualTo(Arrays.asList(3, 4, 5));
   }
 }
