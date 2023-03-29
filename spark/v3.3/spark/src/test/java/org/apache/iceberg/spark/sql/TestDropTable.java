@@ -31,6 +31,7 @@ import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.spark.SparkCatalogTestBase;
+import org.apache.iceberg.spark.SparkSQLProperties;
 import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Assert;
@@ -90,6 +91,17 @@ public class TestDropTable extends SparkCatalogTestBase {
       Assertions.assertThatThrownBy(() -> sql("DROP TABLE %s", tableName))
           .isInstanceOf(org.apache.spark.sql.AnalysisException.class)
           .hasMessageContaining("Table or view not found");
+    } else if (catalogName.equals("spark_catalog")) {
+
+      Assertions.assertThatThrownBy(() -> sql("DROP TABLE %s", tableName))
+          .isInstanceOf(org.apache.iceberg.exceptions.NotFoundException.class)
+          .hasMessageContaining("Failed to open input stream for file");
+
+      spark
+          .conf()
+          .set(SparkSQLProperties.LOAD_FROM_SESSION_CATALOG_ON_LOCATION_NOT_FOUND_ENABLED, true);
+      sql("DROP TABLE %s", tableName);
+
     } else {
       sql("DROP TABLE %s", tableName);
     }

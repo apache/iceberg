@@ -342,6 +342,8 @@ public class TableProperties {
   public static final String MERGE_MODE = "write.merge.mode";
   public static final String MERGE_MODE_DEFAULT = RowLevelOperationMode.COPY_ON_WRITE.modeName();
 
+  public static final String METADATA_LOCATION = "metadata_location";
+
   /**
    * @deprecated will be removed once Spark 3.1 support is dropped, the cardinality check is always
    *     performed starting from 0.13.0.

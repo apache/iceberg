@@ -22,6 +22,7 @@ import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.spark.source.HasIcebergCatalog;
@@ -134,30 +135,34 @@ public class SparkSessionCatalog<T extends TableCatalog & FunctionCatalog & Supp
 
   @Override
   public Table loadTable(Identifier ident) throws NoSuchTableException {
-    try {
-      return icebergCatalog.loadTable(ident);
-    } catch (NoSuchTableException | org.apache.iceberg.exceptions.NotFoundException e) {
-      return getSessionCatalog().loadTable(ident);
-    }
+    return loadTableInternal(ident, null, null);
   }
 
   @Override
   public Table loadTable(Identifier ident, String version) throws NoSuchTableException {
-    try {
-      return icebergCatalog.loadTable(ident, version);
-    } catch (org.apache.iceberg.exceptions.NoSuchTableException
-        | org.apache.iceberg.exceptions.NotFoundException e) {
-      return getSessionCatalog().loadTable(ident, version);
-    }
+    return loadTableInternal(ident, version, null);
   }
 
   @Override
   public Table loadTable(Identifier ident, long timestamp) throws NoSuchTableException {
+    return loadTableInternal(ident, null, timestamp);
+  }
+
+  private Table loadTableInternal(Identifier ident, String version, Long timestamp)
+      throws NoSuchTableException {
     try {
-      return icebergCatalog.loadTable(ident, timestamp);
-    } catch (org.apache.iceberg.exceptions.NoSuchTableException
-        | org.apache.iceberg.exceptions.NotFoundException e) {
-      return getSessionCatalog().loadTable(ident, timestamp);
+      return loadTable(icebergCatalog, ident, version, timestamp);
+    } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
+      throw e;
+    } catch (org.apache.iceberg.exceptions.NotFoundException e) {
+      if (loadFromSessionCatalogOnLocationNotFoundEnabled()) {
+        Table table = loadTable(getSessionCatalog(), ident, version, timestamp);
+        if (table.properties() != null
+            && table.properties().containsKey(TableProperties.METADATA_LOCATION)) {
+          return table;
+        }
+      }
+      throw e;
     }
   }
 
@@ -393,4 +398,22 @@ public class SparkSessionCatalog<T extends TableCatalog & FunctionCatalog & Supp
       return getSessionCatalog().loadFunction(ident);
     }
   }
+
+  private boolean loadFromSessionCatalogOnLocationNotFoundEnabled() {
+    return Boolean.parseBoolean(
+        SparkSession.active()
+            .conf()
+            .get(
+                SparkSQLProperties.LOAD_FROM_SESSION_CATALOG_ON_LOCATION_NOT_FOUND_ENABLED,
+                SparkSQLProperties
+                    .LOAD_FROM_SESSION_CATALOG_ON_LOCATION_NOT_FOUND_ENABLED_DEFAULT));
+  }
+
+  private Table loadTable(TableCatalog catalog, Identifier ident, String version, Long timestamp)
+      throws NoSuchTableException {
+    return (version != null)
+        ? catalog.loadTable(ident, version)
+        : (timestamp != null) ? catalog.loadTable(ident, timestamp) : catalog.loadTable(ident);
+  }
+
 }
