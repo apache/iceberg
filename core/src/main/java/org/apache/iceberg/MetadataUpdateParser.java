@@ -436,7 +436,7 @@ public class MetadataUpdateParser {
   }
 
   private static MetadataUpdate readRemoveStatistics(JsonNode node) {
-    int snapshotId = JsonUtil.getInt(SNAPSHOT_ID, node);
+    long snapshotId = JsonUtil.getLong(SNAPSHOT_ID, node);
     return new MetadataUpdate.RemoveStatistics(snapshotId);
   }
 
