@@ -76,7 +76,7 @@ public class AncestorsOfProcedure extends BaseProcedure {
   public InternalRow[] call(InternalRow args) {
     ProcedureInput input = new ProcedureInput(spark(), tableCatalog(), PARAMETERS, args);
 
-    Identifier tableIdent = input.asIdent(TABLE_PARAM);
+    Identifier tableIdent = input.ident(TABLE_PARAM);
     Long toSnapshotId = input.asLong(SNAPSHOT_ID_PARAM, null);
 
     SparkTable sparkTable = loadSparkTable(tableIdent);

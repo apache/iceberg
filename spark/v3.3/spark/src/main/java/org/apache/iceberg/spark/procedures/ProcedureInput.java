@@ -166,7 +166,7 @@ class ProcedureInput {
     return convertedMap;
   }
 
-  public Identifier asIdent(ProcedureParameter param) {
+  public Identifier ident(ProcedureParameter param) {
     CatalogAndIdentifier catalogAndIdent = catalogAndIdent(param, catalog);
 
     Preconditions.checkArgument(
@@ -179,7 +179,7 @@ class ProcedureInput {
     return catalogAndIdent.identifier();
   }
 
-  public Identifier asIdent(ProcedureParameter param, CatalogPlugin defaultCatalog) {
+  public Identifier ident(ProcedureParameter param, CatalogPlugin defaultCatalog) {
     CatalogAndIdentifier catalogAndIdent = catalogAndIdent(param, defaultCatalog);
     return catalogAndIdent.identifier();
   }

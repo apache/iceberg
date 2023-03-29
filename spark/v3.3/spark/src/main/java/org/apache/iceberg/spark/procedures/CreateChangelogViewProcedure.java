@@ -136,7 +136,7 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
   public InternalRow[] call(InternalRow args) {
     ProcedureInput input = new ProcedureInput(spark(), tableCatalog(), PARAMETERS, args);
 
-    Identifier tableIdent = input.asIdent(TABLE_PARAM);
+    Identifier tableIdent = input.ident(TABLE_PARAM);
 
     // load insert and deletes from the changelog table
     Identifier changelogTableIdent = changelogTableIdent(tableIdent);

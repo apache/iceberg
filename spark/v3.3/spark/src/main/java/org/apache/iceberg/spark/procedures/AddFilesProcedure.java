@@ -101,10 +101,10 @@ class AddFilesProcedure extends BaseProcedure {
   public InternalRow[] call(InternalRow args) {
     ProcedureInput input = new ProcedureInput(spark(), tableCatalog(), PARAMETERS, args);
 
-    Identifier tableIdent = input.asIdent(TABLE_PARAM);
+    Identifier tableIdent = input.ident(TABLE_PARAM);
 
     CatalogPlugin sessionCat = spark().sessionState().catalogManager().v2SessionCatalog();
-    Identifier sourceIdent = input.asIdent(SOURCE_TABLE_PARAM, sessionCat);
+    Identifier sourceIdent = input.ident(SOURCE_TABLE_PARAM, sessionCat);
 
     Map<String, String> partitionFilter =
         input.asStringMap(PARTITION_FILTER_PARAM, ImmutableMap.of());
