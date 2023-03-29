@@ -25,7 +25,7 @@ import org.apache.iceberg.Metrics;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.FileAppender;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.io.OutputFile;import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.parquet.hadoop.ParquetWriter;
 import org.apache.parquet.hadoop.metadata.ParquetMetadata;
 
@@ -37,11 +37,13 @@ import org.apache.parquet.hadoop.metadata.ParquetMetadata;
  */
 @Deprecated
 public class ParquetWriteAdapter<D> implements FileAppender<D> {
+  private OutputFile file;
   private ParquetWriter<D> writer;
   private MetricsConfig metricsConfig;
   private ParquetMetadata footer;
 
-  public ParquetWriteAdapter(ParquetWriter<D> writer, MetricsConfig metricsConfig) {
+  public ParquetWriteAdapter(OutputFile file, ParquetWriter<D> writer, MetricsConfig metricsConfig) {
+    this.file = file;
     this.writer = writer;
     this.metricsConfig = metricsConfig;
   }
@@ -71,6 +73,11 @@ public class ParquetWriteAdapter<D> implements FileAppender<D> {
   @Override
   public List<Long> splitOffsets() {
     return ParquetUtil.getSplitOffsets(writer.getFooter());
+  }
+
+  @Override
+  public OutputFile outputFile() {
+    return file;
   }
 
   @Override

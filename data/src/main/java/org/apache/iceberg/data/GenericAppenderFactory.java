@@ -129,7 +129,6 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
     return new org.apache.iceberg.io.DataWriter<>(
         newAppender(file.encryptingOutputFile(), format),
         format,
-        file.encryptingOutputFile().location(),
         spec,
         partition,
         file.keyMetadata());

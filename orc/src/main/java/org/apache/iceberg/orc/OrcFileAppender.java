@@ -153,6 +153,11 @@ class OrcFileAppender<D> implements FileAppender<D> {
   }
 
   @Override
+  public OutputFile outputFile() {
+    return file;
+  }
+
+  @Override
   public void close() throws IOException {
     if (!isClosed) {
       try {

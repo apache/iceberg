@@ -70,6 +70,11 @@ abstract class ManifestListWriter implements FileAppender<ManifestFile> {
     return writer.length();
   }
 
+  @Override
+  public OutputFile outputFile() {
+    return writer.outputFile();
+  }
+
   static class V2Writer extends ManifestListWriter {
     private final V2Metadata.IndexedManifestFile wrapper;
 
@@ -102,6 +107,11 @@ abstract class ManifestListWriter implements FileAppender<ManifestFile> {
       } catch (IOException e) {
         throw new RuntimeIOException(e, "Failed to create snapshot list writer for path: %s", file);
       }
+    }
+
+    @Override
+    public OutputFile outputFile() {
+      return super.outputFile();
     }
   }
 

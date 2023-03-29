@@ -44,6 +44,7 @@ public class PuffinWriter implements FileAppender<Blob> {
   // Must not be modified
   private static final byte[] MAGIC = PuffinFormat.getMagic();
 
+  private final OutputFile file;
   private final PositionOutputStream outputStream;
   private final Map<String, String> properties;
   private final PuffinCompressionCodec footerCompression;
@@ -63,6 +64,7 @@ public class PuffinWriter implements FileAppender<Blob> {
     Preconditions.checkNotNull(outputFile, "outputFile is null");
     Preconditions.checkNotNull(properties, "properties is null");
     Preconditions.checkNotNull(defaultBlobCompression, "defaultBlobCompression is null");
+    this.file = outputFile;
     this.outputStream = outputFile.create();
     this.properties = ImmutableMap.copyOf(properties);
     this.footerCompression =
@@ -105,6 +107,11 @@ public class PuffinWriter implements FileAppender<Blob> {
   @Override
   public long length() {
     return fileSize();
+  }
+
+  @Override
+  public OutputFile outputFile() {
+    return file;
   }
 
   @Override

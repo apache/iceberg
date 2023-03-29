@@ -34,6 +34,7 @@ import org.apache.iceberg.io.PositionOutputStream;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 class AvroFileAppender<D> implements FileAppender<D> {
+  private OutputFile file;
   private PositionOutputStream stream;
   private DataFileWriter<D> writer;
   private DatumWriter<?> datumWriter;
@@ -52,6 +53,7 @@ class AvroFileAppender<D> implements FileAppender<D> {
       MetricsConfig metricsConfig,
       boolean overwrite)
       throws IOException {
+    this.file = file;
     this.icebergSchema = icebergSchema;
     this.stream = overwrite ? file.createOrOverwrite() : file.create();
     this.datumWriter = createWriterFunc.apply(schema);
@@ -86,6 +88,11 @@ class AvroFileAppender<D> implements FileAppender<D> {
       }
     }
     throw new RuntimeIOException("Failed to get stream length: no open stream");
+  }
+
+  @Override
+  public OutputFile outputFile() {
+    return file;
   }
 
   @Override

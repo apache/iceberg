@@ -274,7 +274,6 @@ public class Avro {
 
   public static class DataWriteBuilder {
     private final WriteBuilder appenderBuilder;
-    private final String location;
     private PartitionSpec spec = null;
     private StructLike partition = null;
     private EncryptionKeyMetadata keyMetadata = null;
@@ -282,7 +281,6 @@ public class Avro {
 
     private DataWriteBuilder(OutputFile file) {
       this.appenderBuilder = write(file);
-      this.location = file.location();
     }
 
     public DataWriteBuilder forTable(Table table) {
@@ -360,7 +358,7 @@ public class Avro {
 
       FileAppender<T> fileAppender = appenderBuilder.build();
       return new DataWriter<>(
-          fileAppender, FileFormat.AVRO, location, spec, partition, keyMetadata, sortOrder);
+          fileAppender, FileFormat.AVRO, spec, partition, keyMetadata, sortOrder);
     }
   }
 
