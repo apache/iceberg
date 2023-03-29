@@ -25,8 +25,8 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.TableMetadata;
-import org.apache.iceberg.aws.AwsClientFactories;
 import org.apache.iceberg.aws.AwsProperties;
+import org.apache.iceberg.aws.util.RetryDetector;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
@@ -106,8 +106,7 @@ class DynamoDbTableOperations extends BaseMetastoreTableOperations {
     boolean newTable = base == null;
     String newMetadataLocation = writeNewMetadataIfRequired(newTable, metadata);
     CommitStatus commitStatus = CommitStatus.FAILURE;
-    AwsClientFactories.InternalRetryDetector retryDetector =
-        new AwsClientFactories.InternalRetryDetector();
+    RetryDetector retryDetector = new RetryDetector();
     Map<String, AttributeValue> tableKey = DynamoDbCatalog.tablePrimaryKey(tableIdentifier);
     try {
       GetItemResponse table =
@@ -125,11 +124,11 @@ class DynamoDbTableOperations extends BaseMetastoreTableOperations {
       // any explicit commit failures are passed up and out to the retry handler
       throw e;
     } catch (RuntimeException persistFailure) {
-      boolean isConditionCheckFailedEx = persistFailure instanceof ConditionalCheckFailedException;
+      boolean conditionCheckFailed = persistFailure instanceof ConditionalCheckFailedException;
 
       // If we got an exception we weren't expecting, or we got a ConditionalCheckFailedException
       // but retries were performed, attempt to reconcile the actual commit status.
-      if (!isConditionCheckFailedEx || retryDetector.wasRetried()) {
+      if (!conditionCheckFailed || retryDetector.retried()) {
         LOG.error(
             "Confirming if commit to {} indeed failed to persist, attempting to reconnect and check.",
             fullTableName,
@@ -139,7 +138,7 @@ class DynamoDbTableOperations extends BaseMetastoreTableOperations {
 
       // If we got ConditionalCheckFailedException, but find we
       // succeeded on a retry that threw an exception, skip this exception.
-      if (commitStatus != CommitStatus.SUCCESS && isConditionCheckFailedEx) {
+      if (commitStatus != CommitStatus.SUCCESS && conditionCheckFailed) {
         throw new CommitFailedException(
             persistFailure, "Cannot commit %s: concurrent update detected", tableName());
       }
@@ -204,7 +203,7 @@ class DynamoDbTableOperations extends BaseMetastoreTableOperations {
       Map<String, AttributeValue> tableKey,
       GetItemResponse table,
       Map<String, String> parameters,
-      AwsClientFactories.InternalRetryDetector retryDetector) {
+      RetryDetector retryDetector) {
     if (table.hasItem()) {
       LOG.debug("Committing existing DynamoDb catalog table: {}", tableName());
       List<String> updateParts = Lists.newArrayList();

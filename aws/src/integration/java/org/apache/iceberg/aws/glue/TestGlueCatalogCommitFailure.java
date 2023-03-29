@@ -19,23 +19,27 @@
 package org.apache.iceberg.aws.glue;
 
 import java.io.File;
+import java.util.Collections;
 import java.util.Map;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
-import org.apache.iceberg.aws.AwsClientFactories;
 import org.apache.iceberg.aws.s3.S3TestUtil;
+import org.apache.iceberg.aws.util.RetryDetector;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.ForbiddenException;
 import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.types.Types;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
 import org.mockito.Mockito;
+import software.amazon.awssdk.core.metrics.CoreMetric;
+import software.amazon.awssdk.metrics.MetricCollection;
 import software.amazon.awssdk.services.glue.model.AccessDeniedException;
 import software.amazon.awssdk.services.glue.model.ConcurrentModificationException;
 import software.amazon.awssdk.services.glue.model.EntityNotFoundException;
@@ -122,6 +126,74 @@ public class TestGlueCatalogCommitFailure extends GlueTestBase {
     Assert.assertEquals("Current metadata should not have changed", metadataV2, ops.current());
     Assert.assertTrue("Current metadata should still exist", metadataFileExists(metadataV2));
     Assert.assertEquals("No new metadata files should exist", 2, metadataFileCount(ops.current()));
+  }
+
+  @Test
+  public void testCheckCommitStatusAfterRetries() {
+    String namespace = createNamespace();
+    String tableName = createTable(namespace);
+    TableIdentifier tableId = TableIdentifier.of(namespace, tableName);
+
+    GlueTableOperations spyOps =
+        Mockito.spy((GlueTableOperations) glueCatalog.newTableOps(tableId));
+    GlueCatalog spyCatalog = Mockito.spy(glueCatalog);
+    Mockito.doReturn(spyOps).when(spyCatalog).newTableOps(Mockito.eq(tableId));
+    Table table = spyCatalog.loadTable(tableId);
+
+    TableMetadata metadataV1 = spyOps.current();
+    simulateRetriedCommit(spyOps, true);
+    updateTable(table, spyOps);
+
+    Assert.assertNotEquals("Current metadata should have changed", metadataV1, spyOps.current());
+    Assert.assertTrue("Current metadata should still exist", metadataFileExists(spyOps.current()));
+    Assert.assertEquals(
+        "No new metadata files should exist", 2, metadataFileCount(spyOps.current()));
+  }
+
+  @Test
+  public void testNoRetryAwarenessCorruptsTable() {
+    // This test exists to replicate the issue the prior test validates the fix for
+    String namespace = createNamespace();
+    String tableName = createTable(namespace);
+    TableIdentifier tableId = TableIdentifier.of(namespace, tableName);
+
+    GlueTableOperations spyOps =
+        Mockito.spy((GlueTableOperations) glueCatalog.newTableOps(tableId));
+    GlueCatalog spyCatalog = Mockito.spy(glueCatalog);
+    Mockito.doReturn(spyOps).when(spyCatalog).newTableOps(Mockito.eq(tableId));
+    Table table = spyCatalog.loadTable(tableId);
+
+    simulateRetriedCommit(spyOps, false);
+    Assertions.assertThatThrownBy(() -> updateTable(table, spyOps))
+        .as("Hidden retry should cause failure")
+        .isInstanceOf(CommitFailedException.class)
+        .hasMessageContaining("Glue detected concurrent update")
+        .cause()
+        .isInstanceOf(ConcurrentModificationException.class);
+
+    Assertions.assertThatThrownBy(() -> glueCatalog.loadTable(tableId))
+        .as("Prior failure causes Iceberg to render Table inaccessible")
+        .isInstanceOf(NotFoundException.class)
+        .hasMessageContaining("Location does not exist");
+  }
+
+  private void simulateRetriedCommit(GlueTableOperations spyOps, boolean reportRetry) {
+    // Perform a successful commit, then call it again, optionally letting the retryDetector know
+    // about it
+    Mockito.doAnswer(
+            i -> {
+              MetricCollection metricCollection = Mockito.mock(MetricCollection.class);
+              Mockito.doReturn(Collections.singletonList(reportRetry ? 1 : 0))
+                  .when(metricCollection)
+                  .metricValues(Mockito.eq(CoreMetric.RETRY_COUNT));
+
+              i.callRealMethod();
+              i.getArgument(3, RetryDetector.class).publish(metricCollection);
+              i.callRealMethod();
+              return null;
+            })
+        .when(spyOps)
+        .persistGlueTable(Mockito.any(), Mockito.anyMap(), Mockito.any(), Mockito.any());
   }
 
   @Test
@@ -255,7 +327,7 @@ public class TestGlueCatalogCommitFailure extends GlueTestBase {
                   i.getArgument(0, software.amazon.awssdk.services.glue.model.Table.class),
                   mapProperties,
                   i.getArgument(2, TableMetadata.class),
-                  i.getArgument(3, AwsClientFactories.InternalRetryDetector.class));
+                  i.getArgument(3, RetryDetector.class));
 
               // new metadata location is stored in map property, and used for locking
               String newMetadataLocation =
@@ -425,7 +497,7 @@ public class TestGlueCatalogCommitFailure extends GlueTestBase {
                   i.getArgument(0, software.amazon.awssdk.services.glue.model.Table.class),
                   i.getArgument(1, Map.class),
                   i.getArgument(2, TableMetadata.class),
-                  i.getArgument(3, AwsClientFactories.InternalRetryDetector.class));
+                  i.getArgument(3, RetryDetector.class));
               throw new RuntimeException("Datacenter on fire");
             })
         .when(spyOps)

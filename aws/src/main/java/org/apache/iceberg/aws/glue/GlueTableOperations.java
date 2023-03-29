@@ -26,9 +26,9 @@ import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.LockManager;
 import org.apache.iceberg.TableMetadata;
-import org.apache.iceberg.aws.AwsClientFactories;
 import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.aws.s3.S3FileIO;
+import org.apache.iceberg.aws.util.RetryDetector;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
@@ -143,8 +143,7 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
   @Override
   protected void doCommit(TableMetadata base, TableMetadata metadata) {
     CommitStatus commitStatus = CommitStatus.FAILURE;
-    AwsClientFactories.InternalRetryDetector retryDetector =
-        new AwsClientFactories.InternalRetryDetector();
+    RetryDetector retryDetector = new RetryDetector();
 
     String newMetadataLocation = null;
     boolean glueTempTableCreated = false;
@@ -166,7 +165,7 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
 
       // If we got an exception we weren't expecting, or we got an AWS service exception
       // but retries were performed, attempt to reconcile the actual commit status.
-      if (!isAwsServiceException || retryDetector.wasRetried()) {
+      if (!isAwsServiceException || retryDetector.retried()) {
         LOG.error(
             "Confirming if commit to {} indeed failed to persist, attempting to reconnect and check.",
             fullTableName,
@@ -287,7 +286,7 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
       Table glueTable,
       Map<String, String> parameters,
       TableMetadata metadata,
-      AwsClientFactories.InternalRetryDetector retryDetector) {
+      RetryDetector retryDetector) {
     if (glueTable != null) {
       LOG.debug("Committing existing Glue table: {}", tableName());
       UpdateTableRequest.Builder updateTableRequest =
