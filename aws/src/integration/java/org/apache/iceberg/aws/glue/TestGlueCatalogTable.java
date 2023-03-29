@@ -148,8 +148,9 @@ public class TestGlueCatalogTable extends GlueTestBase {
     String tableName = getRandomName();
     TableIdentifier identifier = TableIdentifier.of(namespace, tableName);
     try {
-      glueCatalog.createTable(identifier, schema, partitionSpec, tableLocationProperties);
-      glueCatalog.loadTable(identifier);
+      glueCatalogWithoutWarehouse.createTable(
+          identifier, schema, partitionSpec, testBucketPath + "/" + tableName, ImmutableMap.of());
+      glueCatalogWithoutWarehouse.loadTable(identifier);
     } catch (RuntimeException e) {
       throw new RuntimeException(
           "Create and load table without warehouse location should succeed", e);
@@ -378,7 +379,8 @@ public class TestGlueCatalogTable extends GlueTestBase {
     String tableName = getRandomName();
     AwsProperties properties = new AwsProperties();
     properties.setGlueCatalogSkipArchive(false);
-    glueCatalog.initialize(
+    GlueCatalog glueCatalogWithArchive = new GlueCatalog();
+    glueCatalogWithArchive.initialize(
         catalogName,
         testBucketPath,
         properties,
@@ -386,8 +388,9 @@ public class TestGlueCatalogTable extends GlueTestBase {
         LockManagers.defaultLockManager(),
         fileIO,
         ImmutableMap.of());
-    glueCatalog.createTable(TableIdentifier.of(namespace, tableName), schema, partitionSpec);
-    Table table = glueCatalog.loadTable(TableIdentifier.of(namespace, tableName));
+    glueCatalogWithArchive.createTable(
+        TableIdentifier.of(namespace, tableName), schema, partitionSpec);
+    Table table = glueCatalogWithArchive.loadTable(TableIdentifier.of(namespace, tableName));
     DataFile dataFile =
         DataFiles.builder(partitionSpec)
             .withPath("/path/to/data-a.parquet")
@@ -406,7 +409,6 @@ public class TestGlueCatalogTable extends GlueTestBase {
             .size());
     // create table and commit with skip
     tableName = getRandomName();
-    glueCatalog.initialize(catalogName, ImmutableMap.of());
     glueCatalog.createTable(TableIdentifier.of(namespace, tableName), schema, partitionSpec);
     table = glueCatalog.loadTable(TableIdentifier.of(namespace, tableName));
     table.newAppend().appendFile(dataFile).commit();
