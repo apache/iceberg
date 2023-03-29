@@ -33,9 +33,11 @@ import org.eclipse.jetty.servlet.ServletHolder;
 import org.jetbrains.annotations.NotNull;
 import org.junit.AfterClass;
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
+import org.mockito.Mockito;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
@@ -68,6 +70,7 @@ public class TestS3RestSigner {
           AwsBasicCredentials.create("accessKeyId", "secretAccessKey"));
 
   private static Server httpServer;
+  private static ValidatingSigner validatingSigner;
   private S3Client s3;
 
   @Rule public TemporaryFolder temp = new TemporaryFolder();
@@ -75,6 +78,28 @@ public class TestS3RestSigner {
   @Rule
   public MinioContainer minioContainer =
       new MinioContainer(CREDENTIALS_PROVIDER.resolveCredentials());
+
+  @BeforeClass
+  public static void beforeClass() throws Exception {
+    if (null == httpServer) {
+      httpServer = initHttpServer();
+    }
+
+    S3V4RestSignerClient signer =
+        Mockito.spy(
+            ImmutableS3V4RestSignerClient.builder()
+                .properties(
+                    ImmutableMap.of(
+                        S3V4RestSignerClient.S3_SIGNER_URI,
+                        httpServer.getURI().toString(),
+                        OAuth2Properties.CREDENTIAL,
+                        "catalog:12345",
+                        OAuth2Properties
+                            .TOKEN, // expired token to make sure token refresh is called
+                        "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyLCJleHAiOjF9.gQADTbdEv-rpDWKSkGLbmafyB5UUjTdm9B_1izpuZ6E"))
+                .build());
+    validatingSigner = new ValidatingSigner(signer, new CustomAwsS3V4Signer());
+  }
 
   @AfterClass
   public static void afterClass() throws Exception {
@@ -85,21 +110,7 @@ public class TestS3RestSigner {
 
   @Before
   public void before() throws Exception {
-    if (null == httpServer) {
-      httpServer = initHttpServer();
-    }
-
-    ValidatingSigner validatingSigner =
-        new ValidatingSigner(
-            ImmutableS3V4RestSignerClient.builder()
-                .properties(
-                    ImmutableMap.of(
-                        S3V4RestSignerClient.S3_SIGNER_URI,
-                        httpServer.getURI().toString(),
-                        OAuth2Properties.CREDENTIAL,
-                        "catalog:12345"))
-                .build(),
-            new CustomAwsS3V4Signer());
+    Mockito.reset(validatingSigner.icebergSigner);
 
     s3 =
         S3Client.builder()
@@ -124,9 +135,13 @@ public class TestS3RestSigner {
 
     s3.createMultipartUpload(
         CreateMultipartUploadRequest.builder().bucket(BUCKET).key("random/multipart-key").build());
+
+    Mockito.verify(validatingSigner.icebergSigner, Mockito.times(4))
+        .sign(Mockito.any(), Mockito.any());
+    Mockito.reset(validatingSigner.icebergSigner);
   }
 
-  private Server initHttpServer() throws Exception {
+  private static Server initHttpServer() throws Exception {
     S3SignerServlet servlet = new S3SignerServlet(S3ObjectMapper.mapper());
     ServletContextHandler servletContext =
         new ServletContextHandler(ServletContextHandler.NO_SESSIONS);
@@ -148,17 +163,24 @@ public class TestS3RestSigner {
     s3.getObject(GetObjectRequest.builder().bucket(BUCKET).key("random/key").build());
     // signer caching should kick in when repeating the same request
     s3.getObject(GetObjectRequest.builder().bucket(BUCKET).key("random/key").build());
+
+    Mockito.verify(validatingSigner.icebergSigner, Mockito.times(2))
+        .sign(Mockito.any(), Mockito.any());
   }
 
   @Test
   public void validatePutObject() {
     s3.putObject(
         PutObjectRequest.builder().bucket(BUCKET).key("some/key").build(), Paths.get("/etc/hosts"));
+
+    Mockito.verify(validatingSigner.icebergSigner).sign(Mockito.any(), Mockito.any());
   }
 
   @Test
   public void validateListPrefix() {
     s3.listObjectsV2(ListObjectsV2Request.builder().bucket(BUCKET).prefix("some/prefix/").build());
+
+    Mockito.verify(validatingSigner.icebergSigner).sign(Mockito.any(), Mockito.any());
   }
 
   @Test
@@ -166,12 +188,17 @@ public class TestS3RestSigner {
     s3.getObject(GetObjectRequest.builder().bucket(BUCKET).key("encoded/key=value/file").build());
     // signer caching should kick in when repeating the same request
     s3.getObject(GetObjectRequest.builder().bucket(BUCKET).key("encoded/key=value/file").build());
+
+    Mockito.verify(validatingSigner.icebergSigner, Mockito.times(2))
+        .sign(Mockito.any(), Mockito.any());
   }
 
   @Test
   public void validatedCreateMultiPartUpload() {
     s3.createMultipartUpload(
         CreateMultipartUploadRequest.builder().bucket(BUCKET).key("some/multipart-key").build());
+
+    Mockito.verify(validatingSigner.icebergSigner).sign(Mockito.any(), Mockito.any());
   }
 
   @Test
@@ -191,6 +218,9 @@ public class TestS3RestSigner {
             .partNumber(1)
             .build(),
         RequestBody.fromString("content"));
+
+    Mockito.verify(validatingSigner.icebergSigner, Mockito.times(2))
+        .sign(Mockito.any(), Mockito.any());
   }
 
   /**
