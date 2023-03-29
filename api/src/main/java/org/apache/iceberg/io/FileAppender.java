@@ -53,5 +53,6 @@ public interface FileAppender<D> extends Closeable {
     return null;
   }
 
+  /** Returns the outputFile of this appender */
   OutputFile outputFile();
 }
