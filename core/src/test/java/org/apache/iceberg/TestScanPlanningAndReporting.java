@@ -44,7 +44,7 @@ public class TestScanPlanningAndReporting extends TableTestBase {
   }
 
   @Test
-  public void scanningWithMutipleReporters() throws IOException {
+  public void scanningWithMultipleReporters() throws IOException {
     String tableName = "scan-with-multiple-reporters";
     Table table =
         TestTables.create(
@@ -56,17 +56,21 @@ public class TestScanPlanningAndReporting extends TableTestBase {
     TableScan tableScan =
         table
             .newScan()
-            .metricsReporter(
-                (MetricsReporter) -> {
-                  reportedCount.getAndIncrement();
-                })
-            .metricsReporter(
-                (MetricsReporter) -> {
-                  reportedCount.getAndIncrement();
-                });
+            .metricsReporter((MetricsReporter) -> reportedCount.getAndIncrement())
+            .metricsReporter((MetricsReporter) -> reportedCount.getAndIncrement());
     try (CloseableIterable<FileScanTask> fileScanTasks = tableScan.planFiles()) {
       fileScanTasks.forEach(task -> {});
     }
+
+    // verify if metrics are reported to default reporter
+    ScanReport scanReport = reporter.lastReport();
+    assertThat(scanReport).isNotNull();
+    assertThat(scanReport.tableName()).isEqualTo(tableName);
+    assertThat(scanReport.snapshotId()).isEqualTo(1L);
+    ScanMetricsResult result = scanReport.scanMetrics();
+    assertThat(result.totalPlanningDuration().totalDuration()).isGreaterThan(Duration.ZERO);
+    assertThat(result.resultDataFiles().value()).isEqualTo(1);
+
     assertThat(reportedCount.get()).isEqualTo(2);
   }
 
