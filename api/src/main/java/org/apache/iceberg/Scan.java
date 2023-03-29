@@ -174,11 +174,11 @@ public interface Scan<ThisT, T extends ScanTask, G extends ScanTaskGroup<T>> {
   long splitOpenFileCost();
 
   /**
-   * Create a new scan that will report the scan metrics to the {@code reporter} {@code reporter} is
-   * added to the list of reporters maintained by the scan.
+   * Create a new scan that will report scan metrics to the provided reporter in addition to
+   * reporters maintained by the scan.
    */
   default ThisT metricsReporter(MetricsReporter reporter) {
     throw new UnsupportedOperationException(
-        this.getClass().getName() + " doesn't implement metricReporter");
+        this.getClass().getName() + " doesn't implement metricsReporter");
   }
 }
