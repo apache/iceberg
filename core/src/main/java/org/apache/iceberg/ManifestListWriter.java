@@ -108,11 +108,6 @@ abstract class ManifestListWriter implements FileAppender<ManifestFile> {
         throw new RuntimeIOException(e, "Failed to create snapshot list writer for path: %s", file);
       }
     }
-
-    @Override
-    public OutputFile outputFile() {
-      return super.outputFile();
-    }
   }
 
   static class V1Writer extends ManifestListWriter {
