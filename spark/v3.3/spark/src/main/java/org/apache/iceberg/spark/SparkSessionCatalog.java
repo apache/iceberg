@@ -153,9 +153,9 @@ public class SparkSessionCatalog<T extends TableCatalog & FunctionCatalog & Supp
     try {
       return loadTable(icebergCatalog, ident, version, timestamp);
     } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
-      throw e;
+      return loadTable(getSessionCatalog(), ident, version, timestamp);
     } catch (org.apache.iceberg.exceptions.NotFoundException e) {
-      if (loadFromSessionCatalogOnLocationNotFoundEnabled()) {
+      if (loadCatalogTableWhenMetadataNotFoundEnabled()) {
         Table table = loadTable(getSessionCatalog(), ident, version, timestamp);
         if (table.properties() != null
             && table.properties().containsKey(TableProperties.METADATA_LOCATION)) {
@@ -399,14 +399,13 @@ public class SparkSessionCatalog<T extends TableCatalog & FunctionCatalog & Supp
     }
   }
 
-  private boolean loadFromSessionCatalogOnLocationNotFoundEnabled() {
+  private boolean loadCatalogTableWhenMetadataNotFoundEnabled() {
     return Boolean.parseBoolean(
         SparkSession.active()
             .conf()
             .get(
-                SparkSQLProperties.LOAD_FROM_SESSION_CATALOG_ON_LOCATION_NOT_FOUND_ENABLED,
-                SparkSQLProperties
-                    .LOAD_FROM_SESSION_CATALOG_ON_LOCATION_NOT_FOUND_ENABLED_DEFAULT));
+                SparkSQLProperties.LOAD_CATALOG_TABLE_WHEN_METADATA_NOT_FOUND_ENABLED,
+                SparkSQLProperties.LOAD_CATALOG_TABLE_WHEN_METADATA_NOT_FOUND_ENABLED_DEFAULT));
   }
 
   private Table loadTable(TableCatalog catalog, Identifier ident, String version, Long timestamp)
@@ -415,5 +414,4 @@ public class SparkSessionCatalog<T extends TableCatalog & FunctionCatalog & Supp
         ? catalog.loadTable(ident, version)
         : (timestamp != null) ? catalog.loadTable(ident, timestamp) : catalog.loadTable(ident);
   }
-
 }
