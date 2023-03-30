@@ -444,6 +444,12 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     if (parent == null || base.formatVersion() < 2) {
       return;
     }
+    List<Snapshot> snapshots =
+        Lists.newArrayList(
+            SnapshotUtil.ancestorsBetween(
+                base.currentSnapshot().snapshotId(), startingSnapshotId, base::snapshot));
+    boolean ignorePositionDeletes =
+        snapshots.stream().allMatch(this::cannotContainPosDeletesForPreviousSnapshots);
 
     DeleteFileIndex deletes = addedDeleteFiles(base, startingSnapshotId, dataFilter, null, parent);
 
@@ -453,17 +459,44 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
       // fail
       DeleteFile[] deleteFiles = deletes.forDataFile(startingSequenceNumber, dataFile);
       if (ignoreEqualityDeletes) {
-        ValidationException.check(
-            Arrays.stream(deleteFiles)
-                .noneMatch(deleteFile -> deleteFile.content() == FileContent.POSITION_DELETES),
-            "Cannot commit, found new position delete for replaced data file: %s",
-            dataFile);
+        if (!ignorePositionDeletes) {
+          ValidationException.check(
+              Arrays.stream(deleteFiles)
+                  .noneMatch(deleteFile -> deleteFile.content() == FileContent.POSITION_DELETES),
+              "Cannot commit, found new position delete for replaced data file: %s",
+              dataFile);
+        }
       } else {
-        ValidationException.check(
-            deleteFiles.length == 0,
-            "Cannot commit, found new delete for replaced data file: %s",
-            dataFile);
+        if (ignorePositionDeletes) {
+          ValidationException.check(
+              Arrays.stream(deleteFiles)
+                  .noneMatch(deleteFile -> deleteFile.content() == FileContent.EQUALITY_DELETES),
+              "Cannot commit, found new equality delete for replaced data file: %s",
+              dataFile);
+        } else {
+          ValidationException.check(
+              deleteFiles.length == 0,
+              "Cannot commit, found new delete for replaced data file: %s",
+              dataFile);
+        }
       }
+    }
+  }
+
+  private boolean cannotContainPosDeletesForPreviousSnapshots(Snapshot snapshot) {
+    switch (snapshot.operation()) {
+      case DataOperations.APPEND:
+      case DataOperations.REPLACE:
+        return true;
+      case DataOperations.DELETE:
+      case DataOperations.OVERWRITE:
+        return Boolean.parseBoolean(
+            snapshot
+                .summary()
+                .getOrDefault(SnapshotSummary.POSITION_DELETES_WITHIN_COMMIT_ONLY, "false"));
+      default:
+        throw new RuntimeException(
+            String.format("Unknown data operation: %s", snapshot.operation()));
     }
   }
 
