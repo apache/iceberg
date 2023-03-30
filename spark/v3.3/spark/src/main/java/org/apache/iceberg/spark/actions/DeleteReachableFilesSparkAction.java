@@ -142,6 +142,10 @@ public class DeleteReachableFilesSparkAction
       }
     }
 
+    if (deleteExecutorService != null) {
+      deleteExecutorService.shutdown();
+    }
+
     LOG.info("Deleted {} total files", summary.totalFilesCount());
 
     return ImmutableDeleteReachableFiles.Result.builder()
