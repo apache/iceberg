@@ -58,8 +58,8 @@ import org.apache.spark.sql.types.StructType;
  * {@link Write} class for rewriting position delete files from Spark. Responsible for creating
  * {@link PositionDeleteBatchWrite}.
  *
- * <p>This class is meant to be used for an action to rewrite position delete delete files. Hence,
- * it assumes all position deletes to rewrite have come from {@link ScanTaskSetManager} and that all
+ * <p>This class is meant to be used for an action to rewrite position delete files. Hence, it
+ * assumes all position deletes to rewrite have come from {@link ScanTaskSetManager} and that all
  * have the same partition spec id and partition values.
  */
 public class SparkPositionDeletesRewrite implements Write {
@@ -72,17 +72,16 @@ public class SparkPositionDeletesRewrite implements Write {
   private final Schema writeSchema;
   private final StructType dsSchema;
   private final String fileSetId;
-
   private final int specId;
   private final StructLike partition;
 
   /**
-   * Constructs a SparkPositionDeletesWrite.
+   * Constructs a {@link SparkPositionDeletesRewrite}.
    *
-   * @param spark spark session
+   * @param spark Spark session
    * @param table instance of {@link PositionDeletesTable}
-   * @param writeConf spark write config
-   * @param writeInfo spark write info
+   * @param writeConf Spark write config
+   * @param writeInfo Spark write info
    * @param writeSchema Iceberg output schema
    * @param dsSchema schema of original incoming position deletes dataset
    * @param specId spec id of position deletes
@@ -122,7 +121,7 @@ public class SparkPositionDeletesRewrite implements Write {
       // broadcast the table metadata as the writer factory will be sent to executors
       Broadcast<Table> tableBroadcast =
           sparkContext.broadcast(SerializableTableWithSize.copyOf(table));
-      return new PositionDeltaWriteFactory(
+      return new PositionDeletesWriterFactory(
           tableBroadcast,
           queryId,
           format,
@@ -159,14 +158,14 @@ public class SparkPositionDeletesRewrite implements Write {
   }
 
   /**
-   * Write factory for position deletes metadata table. Responsible for creating {@link
+   * Writer factory for position deletes metadata table. Responsible for creating {@link
    * DeleteWriter}.
    *
    * <p>This writer is meant to be used for an action to rewrite delete files. Hence, it makes an
    * assumption that all incoming deletes belong to the same partition, and that incoming dataset is
    * from {@link ScanTaskSetManager}.
    */
-  static class PositionDeltaWriteFactory implements DataWriterFactory {
+  static class PositionDeletesWriterFactory implements DataWriterFactory {
     private final Broadcast<Table> tableBroadcast;
     private final String queryId;
     private final FileFormat format;
@@ -176,7 +175,7 @@ public class SparkPositionDeletesRewrite implements Write {
     private final int specId;
     private final StructLike partition;
 
-    PositionDeltaWriteFactory(
+    PositionDeletesWriterFactory(
         Broadcast<Table> tableBroadcast,
         String queryId,
         FileFormat format,
@@ -206,20 +205,10 @@ public class SparkPositionDeletesRewrite implements Write {
               .suffix("deletes")
               .build();
 
-      Schema positionDeleteRowSchema =
-          new Schema(
-              writeSchema
-                  .findField(MetadataColumns.DELETE_FILE_ROW_FIELD_NAME)
-                  .type()
-                  .asStructType()
-                  .fields());
-      StructType deleteSparkType =
-          new StructType(
-              new StructField[] {
-                dsSchema.apply(MetadataColumns.DELETE_FILE_PATH.name()),
-                dsSchema.apply(MetadataColumns.DELETE_FILE_POS.name()),
-                dsSchema.apply(MetadataColumns.DELETE_FILE_ROW_FIELD_NAME)
-              });
+      Schema positionDeleteRowSchema = positionDeleteRowSchema();
+      StructType deleteSparkType = deleteSparkType();
+      StructType deleteSparkTypeWithoutRow = deleteSparkTypeWithoutRow();
+
       SparkFileWriterFactory writerFactoryWithRow =
           SparkFileWriterFactory.builderFor(table)
               .dataSchema(writeSchema)
@@ -228,13 +217,6 @@ public class SparkPositionDeletesRewrite implements Write {
               .positionDeleteRowSchema(positionDeleteRowSchema)
               .positionDeleteSparkType(deleteSparkType)
               .build();
-
-      StructType deleteSparkTypeWithoutRow =
-          new StructType(
-              new StructField[] {
-                dsSchema.apply(MetadataColumns.DELETE_FILE_PATH.name()),
-                dsSchema.apply(MetadataColumns.DELETE_FILE_POS.name()),
-              });
       SparkFileWriterFactory writerFactoryWithoutRow =
           SparkFileWriterFactory.builderFor(table)
               .dataSchema(writeSchema)
@@ -253,12 +235,38 @@ public class SparkPositionDeletesRewrite implements Write {
           specId,
           partition);
     }
+
+    private Schema positionDeleteRowSchema() {
+      return new Schema(
+          writeSchema
+              .findField(MetadataColumns.DELETE_FILE_ROW_FIELD_NAME)
+              .type()
+              .asStructType()
+              .fields());
+    }
+
+    private StructType deleteSparkType() {
+      return new StructType(
+          new StructField[] {
+            dsSchema.apply(MetadataColumns.DELETE_FILE_PATH.name()),
+            dsSchema.apply(MetadataColumns.DELETE_FILE_POS.name()),
+            dsSchema.apply(MetadataColumns.DELETE_FILE_ROW_FIELD_NAME)
+          });
+    }
+
+    private StructType deleteSparkTypeWithoutRow() {
+      return new StructType(
+          new StructField[] {
+            dsSchema.apply(MetadataColumns.DELETE_FILE_PATH.name()),
+            dsSchema.apply(MetadataColumns.DELETE_FILE_POS.name()),
+          });
+    }
   }
 
   /**
    * Writer for position deletes metadata table.
    *
-   * <p>Iceberg specifies delete files schema as having either 'row' as an required field, or omits
+   * <p>Iceberg specifies delete files schema as having either 'row' as a required field, or omits
    * 'row' altogether. This is to ensure accuracy of delete file statistics on 'row' column. Hence,
    * this writer, if receiving source position deletes with null and non-null rows, redirects rows
    * with null 'row' to one file writer, and non-null 'row' to another file writer.
@@ -285,7 +293,7 @@ public class SparkPositionDeletesRewrite implements Write {
     private boolean closed = false;
 
     /**
-     * Constructs a DeleteWriter
+     * Constructs a {@link DeleteWriter}.
      *
      * @param table position deletes metadata table
      * @param writerFactoryWithRow writer factory for deletes with non-null 'row'
@@ -343,29 +351,13 @@ public class SparkPositionDeletesRewrite implements Write {
     @Override
     public WriterCommitMessage commit() throws IOException {
       close();
-
-      List<DeleteFile> allDeleteFiles = Lists.newArrayList();
-      if (writerWithRow != null) {
-        allDeleteFiles.addAll(writerWithRow.result().deleteFiles());
-      }
-      if (writerWithoutRow != null) {
-        allDeleteFiles.addAll(writerWithoutRow.result().deleteFiles());
-      }
-      return new DeleteTaskCommit(allDeleteFiles);
+      return new DeleteTaskCommit(allDeleteFiles());
     }
 
     @Override
     public void abort() throws IOException {
       close();
-
-      List<DeleteFile> allDeleteFiles = Lists.newArrayList();
-      if (writerWithRow != null) {
-        allDeleteFiles.addAll(writerWithRow.result().deleteFiles());
-      }
-      if (writerWithoutRow != null) {
-        allDeleteFiles.addAll(writerWithoutRow.result().deleteFiles());
-      }
-      SparkCleanupUtil.deleteTaskFiles(io, Lists.newArrayList(allDeleteFiles));
+      SparkCleanupUtil.deleteTaskFiles(io, allDeleteFiles());
     }
 
     @Override
@@ -383,7 +375,7 @@ public class SparkPositionDeletesRewrite implements Write {
 
     private ClusteredPositionDeleteWriter<InternalRow> lazyWriterWithRow() {
       if (writerWithRow == null) {
-        writerWithRow =
+        this.writerWithRow =
             new ClusteredPositionDeleteWriter<>(
                 writerFactoryWithRow, deleteFileFactory, io, targetFileSize);
       }
@@ -392,11 +384,22 @@ public class SparkPositionDeletesRewrite implements Write {
 
     private ClusteredPositionDeleteWriter<InternalRow> lazyWriterWithoutRow() {
       if (writerWithoutRow == null) {
-        writerWithoutRow =
+        this.writerWithoutRow =
             new ClusteredPositionDeleteWriter<>(
                 writerFactoryWithoutRow, deleteFileFactory, io, targetFileSize);
       }
       return writerWithoutRow;
+    }
+
+    private List<DeleteFile> allDeleteFiles() {
+      List<DeleteFile> allDeleteFiles = Lists.newArrayList();
+      if (writerWithRow != null) {
+        allDeleteFiles.addAll(writerWithRow.result().deleteFiles());
+      }
+      if (writerWithoutRow != null) {
+        allDeleteFiles.addAll(writerWithoutRow.result().deleteFiles());
+      }
+      return allDeleteFiles;
     }
   }
 
