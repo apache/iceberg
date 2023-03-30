@@ -114,6 +114,26 @@ public class TestNamespace extends BaseTestIceberg {
   }
 
   @Test
+  public void testCreatingAndDroppingNamespaceCascade() throws NessieNotFoundException {
+    Namespace namespace = Namespace.of("test");
+    catalog.createNamespace(namespace, ImmutableMap.of());
+    Assertions.assertThat(catalog.namespaceExists(namespace)).isTrue();
+    TableIdentifier identifier = TableIdentifier.of(namespace, "tbl");
+
+    Schema schema =
+            new Schema(Types.StructType.of(required(1, "id", Types.LongType.get())).fields());
+    Assertions.assertThat(catalog.createTable(identifier, schema)).isNotNull();
+
+    ContentKey key = NessieUtil.toKey(identifier);
+    Assertions.assertThat(
+                    api.getContent().key(key).refName(BRANCH).get().get(key).unwrap(IcebergTable.class))
+            .isPresent();
+
+    catalog.dropNamespace(namespace, true);
+    Assertions.assertThat(catalog.namespaceExists(namespace)).isFalse();
+  }
+
+  @Test
   public void testSettingProperties() {
     Map<String, String> properties = ImmutableMap.of("prop", "val");
     Namespace namespace = Namespace.of("withProperties");

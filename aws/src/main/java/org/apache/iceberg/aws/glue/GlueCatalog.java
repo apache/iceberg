@@ -24,6 +24,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+
+import org.apache.commons.lang.NotImplementedException;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.BaseMetastoreCatalog;
 import org.apache.iceberg.BaseMetastoreTableOperations;
@@ -558,6 +560,15 @@ public class GlueCatalog extends BaseMetastoreCatalog
     LOG.info("Dropped namespace: {}", namespace);
     // Always successful, otherwise exception is thrown
     return true;
+  }
+
+  @Override
+  public boolean dropNamespace(Namespace namespace, boolean cascade) throws NamespaceNotEmptyException {
+    if (cascade) {
+      throw new NotImplementedException("cascade not supported yet");
+    }else {
+      return dropNamespace(namespace);
+    }
   }
 
   @Override

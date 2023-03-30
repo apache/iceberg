@@ -64,6 +64,7 @@ import software.amazon.awssdk.services.dynamodb.model.ConditionalCheckFailedExce
 import software.amazon.awssdk.services.dynamodb.model.CreateTableRequest;
 import software.amazon.awssdk.services.dynamodb.model.Delete;
 import software.amazon.awssdk.services.dynamodb.model.DeleteItemRequest;
+import software.amazon.awssdk.services.dynamodb.model.DeleteTableRequest;
 import software.amazon.awssdk.services.dynamodb.model.DescribeTableRequest;
 import software.amazon.awssdk.services.dynamodb.model.DescribeTableResponse;
 import software.amazon.awssdk.services.dynamodb.model.GetItemRequest;
@@ -282,6 +283,23 @@ public class DynamoDbCatalog extends BaseMetastoreCatalog
     } catch (ConditionalCheckFailedException e) {
       return false;
     }
+  }
+
+  @Override
+  public boolean dropNamespace(Namespace namespace, boolean cascade) throws NamespaceNotEmptyException {
+    validateNamespace(namespace);
+    List<TableIdentifier> tables = listTables(namespace);
+    if (tables.isEmpty()) {
+      return dropNamespace(namespace);
+    }
+    try {
+      tables.forEach(this::dropTable);
+    } catch (ConditionalCheckFailedException e) {
+      return false;
+    }
+    return dropNamespace(namespace);
+
+
   }
 
   @Override

@@ -626,6 +626,22 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
   }
 
   @Test
+  public void testDropNamespaceCascade() {
+    TableIdentifier tbl0 = TableIdentifier.of("db", "ns1", "ns2", "tbl2");
+    TableIdentifier tbl1 = TableIdentifier.of("db", "ns1", "ns2", "tbl1");
+    TableIdentifier tbl2 = TableIdentifier.of("db", "ns1", "tbl2");
+    TableIdentifier tbl3 = TableIdentifier.of("db", "ns3", "tbl4");
+    TableIdentifier tbl4 = TableIdentifier.of("db", "tbl");
+
+    Lists.newArrayList(tbl0, tbl1, tbl2, tbl3, tbl4)
+            .forEach(t -> catalog.createTable(t, SCHEMA, PartitionSpec.unpartitioned()));
+
+    catalog.dropNamespace(tbl4.namespace(), true);
+    Assert.assertFalse(catalog.namespaceExists(tbl1.namespace()));
+
+  }
+
+  @Test
   public void testCreateNamespace() {
     Namespace testNamespace = Namespace.of("testDb", "ns1", "ns2");
     Assert.assertFalse(catalog.namespaceExists(testNamespace));

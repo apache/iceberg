@@ -469,6 +469,28 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
   }
 
   @Test
+  public void testDropNamespaceCascade() throws IOException {
+    String warehouseLocation = temp.newFolder().getAbsolutePath();
+    HadoopCatalog catalog = new HadoopCatalog();
+    catalog.setConf(new Configuration());
+    catalog.initialize(
+            "hadoop", ImmutableMap.of(CatalogProperties.WAREHOUSE_LOCATION, warehouseLocation));
+    Namespace namespace1 = Namespace.of("db");
+    Namespace namespace2 = Namespace.of("db", "ns1");
+
+    TableIdentifier tbl1 = TableIdentifier.of(namespace1, "tbl1");
+    TableIdentifier tbl2 = TableIdentifier.of(namespace2, "tbl1");
+
+    Lists.newArrayList(tbl1, tbl2)
+            .forEach(t -> catalog.createTable(t, SCHEMA, PartitionSpec.unpartitioned()));
+
+    catalog.dropNamespace(namespace1, true);
+    String metaLocation = warehouseLocation + "/" + "db";
+    FileSystem fs = Util.getFs(new Path(metaLocation), catalog.getConf());
+    Assert.assertFalse(fs.isDirectory(new Path(metaLocation)));
+  }
+
+  @Test
   public void testVersionHintFileErrorWithFile() throws Exception {
     addVersionsToTable(table);
 

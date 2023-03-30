@@ -19,9 +19,14 @@
 package org.apache.iceberg.rest;
 
 import java.io.IOException;
+import java.net.URISyntaxException;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
+
+import org.apache.http.NameValuePair;
+import org.apache.http.client.utils.URIBuilder;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
@@ -284,7 +289,12 @@ public class RESTCatalogAdapter implements RESTClient {
 
       case DROP_NAMESPACE:
         if (asNamespaceCatalog != null) {
-          CatalogHandlers.dropNamespace(asNamespaceCatalog, namespaceFromPathVars(vars));
+          Namespace namespace = namespaceFromPathVars(vars);
+          if (vars.containsKey("cascade")) {
+            CatalogHandlers.dropNamespace(asNamespaceCatalog, namespace, Boolean.parseBoolean(vars.get("cascade")));
+          } else {
+            CatalogHandlers.dropNamespace(asNamespaceCatalog, namespace);
+          }
           return null;
         }
         break;
@@ -407,7 +417,22 @@ public class RESTCatalogAdapter implements RESTClient {
       Class<T> responseType,
       Map<String, String> headers,
       Consumer<ErrorResponse> errorHandler) {
-    return execute(HTTPMethod.DELETE, path, null, null, responseType, headers, errorHandler);
+    URIBuilder uri = toUri(path);
+    return execute(HTTPMethod.DELETE, uri.getPath().substring(1), toQueryParams(uri), null, responseType, headers, errorHandler);
+  }
+
+  private Map<String, String> toQueryParams(URIBuilder uri) {
+    return uri.getQueryParams()
+            .stream()
+            .collect(Collectors.toMap(NameValuePair::getName, NameValuePair::getValue));
+  }
+
+  private URIBuilder toUri(String path) {
+    try {
+      return new URIBuilder(path);
+    } catch (URISyntaxException e) {
+      throw new RESTException("invalid path: " + path);
+    }
   }
 
   @Override

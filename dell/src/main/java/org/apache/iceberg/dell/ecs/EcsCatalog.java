@@ -340,6 +340,15 @@ public class EcsCatalog extends BaseMetastoreCatalog
   }
 
   @Override
+  public boolean dropNamespace(Namespace namespace, boolean cascade) throws NamespaceNotEmptyException {
+    if (cascade) {
+      throw new RuntimeException("cascade not supported yet");
+    }else {
+      return dropNamespace(namespace);
+    }
+  }
+
+  @Override
   public boolean setProperties(Namespace namespace, Map<String, String> properties)
       throws NoSuchNamespaceException {
     return updateProperties(namespace, r -> r.putAll(properties));
