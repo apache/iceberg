@@ -21,14 +21,18 @@ package org.apache.iceberg.spark.source;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
+import org.apache.iceberg.ContentScanTask;
 import org.apache.iceberg.PositionDeletesScanTask;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.spark.ScanTaskSetManager;
 import org.apache.iceberg.spark.SparkSchemaUtil;
+import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.spark.SparkWriteConf;
+import org.apache.iceberg.util.StructLikeSet;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.connector.write.LogicalWriteInfo;
 import org.apache.spark.sql.connector.write.Write;
@@ -64,28 +68,46 @@ public class SparkPositionDeletesRewriteBuilder implements WriteBuilder {
 
   @Override
   public Write build() {
-    Preconditions.checkArgument(
-        writeConf.rewrittenFileSetId() != null,
-        "position_deletes table can only be written by RewriteDeleteFiles");
-
-    // all files of rewrite group have same and partition and spec id
-    ScanTaskSetManager scanTaskSetManager = ScanTaskSetManager.get();
     String fileSetId = writeConf.rewrittenFileSetId();
-    List<PositionDeletesScanTask> scanTasks = scanTaskSetManager.fetchTasks(table, fileSetId);
-    Preconditions.checkNotNull(scanTasks, "no scan tasks found for %s", fileSetId);
 
-    Set<Integer> specIds =
-        scanTasks.stream().map(t -> t.spec().specId()).collect(Collectors.toSet());
-    Set<StructLike> partitions =
-        scanTasks.stream().map(t -> t.file().partition()).collect(Collectors.toSet());
     Preconditions.checkArgument(
-        specIds.size() == 1, "All scan tasks of %s are expected to have same spec id", fileSetId);
+        fileSetId != null, "position_deletes table can only be written by RewriteDeleteFiles");
     Preconditions.checkArgument(
-        partitions.size() == 1, "All scan tasks of %s are expected to have the same partition");
-    int specId = scanTasks.get(0).spec().specId();
-    StructLike partitionValue = scanTasks.get(0).partition();
+        writeConf.handleTimestampWithoutZone()
+            || !SparkUtil.hasTimestampWithoutZone(table.schema()),
+        SparkUtil.TIMESTAMP_WITHOUT_TIMEZONE_ERROR);
+
+    // all files of rewrite group have same partition and spec id
+    ScanTaskSetManager taskSetManager = ScanTaskSetManager.get();
+    List<PositionDeletesScanTask> tasks = taskSetManager.fetchTasks(table, fileSetId);
+    Preconditions.checkNotNull(tasks, "No scan tasks found for %s", fileSetId);
+    Preconditions.checkArgument(tasks.size() > 0, "No scan tasks found for %s", fileSetId);
+
+    int specId = specId(fileSetId, tasks);
+    StructLike partition = partition(fileSetId, tasks);
 
     return new SparkPositionDeletesRewrite(
-        spark, table, writeConf, writeInfo, writeSchema, dsSchema, specId, partitionValue);
+        spark, table, writeConf, writeInfo, writeSchema, dsSchema, specId, partition);
+  }
+
+  private int specId(String fileSetId, List<PositionDeletesScanTask> tasks) {
+    Set<Integer> specIds = tasks.stream().map(t -> t.spec().specId()).collect(Collectors.toSet());
+    Preconditions.checkArgument(
+        specIds.size() == 1,
+        "All scan tasks of %s are expected to have same spec id, but got %s",
+        fileSetId,
+        Joiner.on(",").join(specIds));
+    return tasks.get(0).spec().specId();
+  }
+
+  private StructLike partition(String fileSetId, List<PositionDeletesScanTask> tasks) {
+    StructLikeSet partitions = StructLikeSet.create(tasks.get(0).spec().partitionType());
+    partitions.addAll(tasks.stream().map(ContentScanTask::partition).collect(Collectors.toList()));
+    Preconditions.checkArgument(
+        partitions.size() == 1,
+        "All scan tasks of %s are expected to have the same partition",
+        fileSetId,
+        Joiner.on(",").join(partitions));
+    return tasks.get(0).partition();
   }
 }

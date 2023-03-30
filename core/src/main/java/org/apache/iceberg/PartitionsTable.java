@@ -97,7 +97,6 @@ public class PartitionsTable extends BaseMetadataTable {
 
   private static Iterable<Partition> partitions(Table table, StaticTableScan scan) {
     CloseableIterable<FileScanTask> tasks = planFiles(scan);
-
     Types.StructType normalizedPartitionType = Partitioning.partitionType(table);
     PartitionMap partitions = new PartitionMap();
 

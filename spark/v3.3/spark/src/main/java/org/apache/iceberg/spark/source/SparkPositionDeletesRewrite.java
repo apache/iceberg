@@ -222,7 +222,6 @@ public class SparkPositionDeletesRewrite implements Write {
               });
       SparkFileWriterFactory writerFactoryWithRow =
           SparkFileWriterFactory.builderFor(table)
-              .dataFileFormat(format)
               .dataSchema(writeSchema)
               .dataSparkType(dsSchema)
               .deleteFileFormat(format)
@@ -238,7 +237,6 @@ public class SparkPositionDeletesRewrite implements Write {
               });
       SparkFileWriterFactory writerFactoryWithoutRow =
           SparkFileWriterFactory.builderFor(table)
-              .dataFileFormat(format)
               .dataSchema(writeSchema)
               .dataSparkType(dsSchema)
               .deleteFileFormat(format)

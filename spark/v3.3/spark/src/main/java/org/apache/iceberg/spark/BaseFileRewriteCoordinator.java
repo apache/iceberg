@@ -55,11 +55,11 @@ abstract class BaseFileRewriteCoordinator<F extends ContentFile<F>> {
     resultMap.put(id, newFiles);
   }
 
-  public Set<F> fetchNewFiles(Table table, String fileSetID) {
-    Pair<String, String> id = toId(table, fileSetID);
+  public Set<F> fetchNewFiles(Table table, String fileSetId) {
+    Pair<String, String> id = toId(table, fileSetId);
     Set<F> result = resultMap.get(id);
     ValidationException.check(
-        result != null, "No results for rewrite of file set %s in table %s", fileSetID, table);
+        result != null, "No results for rewrite of file set %s in table %s", fileSetId, table);
 
     return result;
   }
