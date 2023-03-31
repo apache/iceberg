@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.spark.procedures;
 
+import java.util.concurrent.ExecutorService;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.ExpireSnapshots;
 import org.apache.iceberg.io.SupportsBulkOperations;
@@ -45,6 +46,8 @@ import org.slf4j.LoggerFactory;
 public class ExpireSnapshotsProcedure extends BaseProcedure {
 
   private static final Logger LOG = LoggerFactory.getLogger(ExpireSnapshotsProcedure.class);
+
+  private ExecutorService executorService = null;
 
   private static final ProcedureParameter[] PARAMETERS =
       new ProcedureParameter[] {
@@ -132,8 +135,8 @@ public class ExpireSnapshotsProcedure extends BaseProcedure {
                       + "IO's bulk delete.",
                   table.io().getClass().getName());
             } else {
-
-              action.executeDeleteWith(executorService(maxConcurrentDeletes, "expire-snapshots"));
+              executorService = executorService(maxConcurrentDeletes, "expire-snapshots");
+              action.executeDeleteWith(executorService);
             }
           }
 
@@ -149,6 +152,10 @@ public class ExpireSnapshotsProcedure extends BaseProcedure {
           }
 
           ExpireSnapshots.Result result = action.execute();
+
+          if (executorService != null) {
+              executorService.shutdown();
+          }
 
           return toOutputRows(result);
         });

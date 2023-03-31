@@ -256,10 +256,6 @@ public class ExpireSnapshotsSparkAction extends BaseSparkAction<ExpireSnapshotsS
       }
     }
 
-    if (deleteExecutorService != null) {
-      deleteExecutorService.shutdown();
-    }
-
     LOG.info("Deleted {} total files", summary.totalFilesCount());
 
     return ImmutableExpireSnapshots.Result.builder()

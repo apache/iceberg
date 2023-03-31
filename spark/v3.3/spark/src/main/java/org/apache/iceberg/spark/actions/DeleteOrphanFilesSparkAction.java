@@ -270,10 +270,6 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
         LOG.info("Custom delete function provided. Using non-bulk deletes");
         deleteTasks.run(deleteFunc::accept);
       }
-
-      if (deleteExecutorService != null) {
-        deleteExecutorService.shutdown();
-      }
     }
 
     return ImmutableDeleteOrphanFiles.Result.builder().orphanFileLocations(orphanFiles).build();

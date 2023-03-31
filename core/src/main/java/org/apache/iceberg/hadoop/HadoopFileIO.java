@@ -180,7 +180,9 @@ public class HadoopFileIO
               failureCount.incrementAndGet();
             })
         .run(this::deleteFile);
-
+    if (executorService() != null) {
+      executorService().shutdown();
+    }
     if (failureCount.get() != 0) {
       throw new BulkDeletionFailureException(failureCount.get());
     }

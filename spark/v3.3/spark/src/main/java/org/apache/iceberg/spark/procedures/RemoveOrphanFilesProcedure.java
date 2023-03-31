@@ -19,6 +19,7 @@
 package org.apache.iceberg.spark.procedures;
 
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.DeleteOrphanFiles;
@@ -51,6 +52,8 @@ import scala.runtime.BoxedUnit;
  */
 public class RemoveOrphanFilesProcedure extends BaseProcedure {
   private static final Logger LOG = LoggerFactory.getLogger(RemoveOrphanFilesProcedure.class);
+
+  private ExecutorService executorService = null;
 
   private static final ProcedureParameter[] PARAMETERS =
       new ProcedureParameter[] {
@@ -166,8 +169,8 @@ public class RemoveOrphanFilesProcedure extends BaseProcedure {
                       + "IO's bulk delete.",
                   table.io().getClass().getName());
             } else {
-
-              action.executeDeleteWith(executorService(maxConcurrentDeletes, "remove-orphans"));
+              executorService = executorService(maxConcurrentDeletes, "remove-orphans");
+              action.executeDeleteWith(executorService);
             }
           }
 
@@ -183,6 +186,10 @@ public class RemoveOrphanFilesProcedure extends BaseProcedure {
           }
 
           DeleteOrphanFiles.Result result = action.execute();
+
+          if (executorService != null) {
+              executorService.shutdown();
+          }
 
           return toOutputRows(result);
         });
