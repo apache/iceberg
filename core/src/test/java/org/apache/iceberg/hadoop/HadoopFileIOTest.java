@@ -27,6 +27,8 @@ import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Random;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.LongAdder;
 import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
@@ -37,6 +39,8 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
+import org.assertj.core.api.Assertions;
+import org.awaitility.Awaitility;
 import org.junit.Assert;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -48,7 +52,7 @@ public class HadoopFileIOTest {
   private FileSystem fs;
   private HadoopFileIO hadoopFileIO;
 
-  @TempDir static File tempDir;
+  @TempDir File tempDir;
 
   @BeforeEach
   public void before() throws Exception {
@@ -166,6 +170,8 @@ public class HadoopFileIOTest {
 
   private List<Path> createRandomFiles(Path parent, int count) {
     List<Path> paths = Lists.newArrayList();
+    LongAdder createdFiles = new LongAdder();
+
     random
         .ints(count)
         .parallel()
@@ -175,10 +181,16 @@ public class HadoopFileIOTest {
                 Path path = new Path(parent, "file-" + i);
                 paths.add(path);
                 fs.createNewFile(path);
+                createdFiles.increment();
               } catch (IOException e) {
                 throw new UncheckedIOException(e);
               }
             });
+
+    Awaitility.await()
+        .atMost(30, TimeUnit.SECONDS)
+        .untilAsserted(() -> Assertions.assertThat(createdFiles.intValue()).isEqualTo(count));
+
     return paths;
   }
 }
