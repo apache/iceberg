@@ -322,6 +322,7 @@ public abstract class BaseRewriteDataFilesAction<ThisT>
     } else {
       rewriteFiles.rewriteFiles(Sets.newHashSet(deletedDataFiles), Sets.newHashSet(addedDataFiles));
     }
+
     commit(rewriteFiles);
   }
 
