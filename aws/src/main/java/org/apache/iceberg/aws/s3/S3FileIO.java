@@ -228,9 +228,7 @@ public class S3FileIO
           throw new RuntimeException("Interrupted when waiting for deletions to complete", e);
         }
       }
-      if (executorService() != null) {
-        executorService().shutdown();
-      }
+
       if (totalFailedDeletions > 0) {
         throw new BulkDeletionFailureException(totalFailedDeletions);
       }

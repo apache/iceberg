@@ -135,6 +135,7 @@ public class ExpireSnapshotsProcedure extends BaseProcedure {
                       + "IO's bulk delete.",
                   table.io().getClass().getName());
             } else {
+
               executorService = executorService(maxConcurrentDeletes, "expire-snapshots");
               action.executeDeleteWith(executorService);
             }

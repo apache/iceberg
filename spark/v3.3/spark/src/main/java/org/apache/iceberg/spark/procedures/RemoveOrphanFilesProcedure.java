@@ -169,6 +169,7 @@ public class RemoveOrphanFilesProcedure extends BaseProcedure {
                       + "IO's bulk delete.",
                   table.io().getClass().getName());
             } else {
+
               executorService = executorService(maxConcurrentDeletes, "remove-orphans");
               action.executeDeleteWith(executorService);
             }
