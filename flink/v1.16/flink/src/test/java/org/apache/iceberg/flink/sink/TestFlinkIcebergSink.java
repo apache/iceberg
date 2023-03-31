@@ -409,26 +409,21 @@ public class TestFlinkIcebergSink extends TestFlinkIcebergSinkBase {
         .writeParallelism(parallelism)
         .append();
 
-    Thread thread = null;
-    if (partitioned) {
-      thread =
-          new Thread(
-              () -> {
-                try {
-                  Thread.sleep(120);
-                  table.updateSpec().removeField("data").addField("id").commit();
-                } catch (InterruptedException e) {
-                  throw new RuntimeException(e);
-                }
-              });
-      thread.start();
-    }
+    Thread thread =
+        new Thread(
+            () -> {
+              try {
+                Thread.sleep(120);
+                table.updateSpec().addField("id").commit();
+              } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+              }
+            });
+    thread.start();
 
     // Execute the program.
     env.execute("Test Iceberg DataStream.");
-    if (thread != null) {
-      thread.join();
-    }
+    thread.join();
 
     List<RowData> expected = Lists.newArrayList();
     rows.forEach(piece -> expected.addAll(convertToRowData(piece)));
