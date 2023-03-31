@@ -20,28 +20,37 @@ package org.apache.iceberg.flink.actions;
 
 import static org.apache.iceberg.flink.SimpleDataUtil.RECORD;
 
+import com.google.common.collect.Iterables;
 import java.io.File;
 import java.io.IOException;
+import java.util.Collection;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.flink.configuration.CoreOptions;
 import org.apache.flink.table.api.TableEnvironment;
+import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
+import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.FileContent;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.actions.RewriteDataFilesActionResult;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.data.GenericAppenderFactory;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.flink.FlinkCatalogTestBase;
 import org.apache.iceberg.flink.SimpleDataUtil;
@@ -385,5 +394,74 @@ public class TestRewriteDataFilesAction extends FlinkCatalogTestBase {
     expected.add(SimpleDataUtil.createRecord(1, "a"));
     expected.add(SimpleDataUtil.createRecord(2, "b"));
     SimpleDataUtil.assertTableRecords(icebergTableUnPartitioned, expected);
+  }
+
+  @Test
+  public void testRewriteNoConflictWithEqualityDeletes() throws IOException {
+    // Add 2 data files
+    sql("INSERT INTO %s SELECT 1, 'hello'", TABLE_NAME_UNPARTITIONED);
+    sql("INSERT INTO %s SELECT 2, 'world'", TABLE_NAME_UNPARTITIONED);
+
+    // Load 2 stale tables to pass to rewrite actions
+    Table stale1 =
+        validationCatalog.loadTable(TableIdentifier.of(icebergNamespace, TABLE_NAME_UNPARTITIONED));
+    Table stale2 =
+        validationCatalog.loadTable(TableIdentifier.of(icebergNamespace, TABLE_NAME_UNPARTITIONED));
+
+    // Enabled upsert
+    icebergTableUnPartitioned.refresh();
+    upgradeToVersion2((BaseTable) icebergTableUnPartitioned);
+    icebergTableUnPartitioned
+        .updateSchema()
+        .allowIncompatibleChanges()
+        .requireColumn("id")
+        .setIdentifierFields("id")
+        .commit();
+    icebergTableUnPartitioned
+        .updateProperties()
+        .set(TableProperties.UPSERT_ENABLED, "true")
+        .commit();
+
+    // Add 1 data file and 1 equality-delete file
+    sql("INSERT INTO %s SELECT 1, 'hi'", TABLE_NAME_UNPARTITIONED);
+
+    icebergTableUnPartitioned.refresh();
+    CloseableIterable<FileScanTask> tasks = icebergTableUnPartitioned.newScan().planFiles();
+    List<DataFile> dataFiles =
+        Lists.newArrayList(CloseableIterable.transform(tasks, FileScanTask::file));
+    Set<DeleteFile> deleteFiles =
+        Lists.newArrayList(CloseableIterable.transform(tasks, FileScanTask::deletes)).stream()
+            .flatMap(Collection::stream)
+            .collect(Collectors.toSet());
+    Assert.assertEquals("Should have 3 data files before rewrite", 3, dataFiles.size());
+    Assert.assertTrue(
+        "Should have 1 equality-delete file before rewrite",
+        deleteFiles.size() == 1
+            && Iterables.getOnlyElement(deleteFiles).content() == FileContent.EQUALITY_DELETES);
+
+    Assert.assertThrows(
+        "Rewrite using new sequence number should fail",
+        ValidationException.class,
+        () ->
+            Actions.forTable(stale1).rewriteDataFiles().useStartingSequenceNumber(false).execute());
+    // Rewrite using the starting sequence number should succeed
+    RewriteDataFilesActionResult result = Actions.forTable(stale2).rewriteDataFiles().execute();
+
+    // Should not rewrite files from the new commit
+    Assert.assertEquals("Action should rewrite 2 data files", 2, result.deletedDataFiles().size());
+    Assert.assertEquals("Action should add 1 data file", 1, result.addedDataFiles().size());
+
+    icebergTableUnPartitioned.refresh();
+
+    // Assert the table records as expected.
+    SimpleDataUtil.assertTableRecords(
+        icebergTableUnPartitioned,
+        Lists.newArrayList(
+            SimpleDataUtil.createRecord(1, "hi"), SimpleDataUtil.createRecord(2, "world")));
+  }
+
+  private void upgradeToVersion2(BaseTable table) {
+    TableMetadata meta = table.operations().current();
+    table.operations().commit(meta, meta.upgradeToFormatVersion(2));
   }
 }
