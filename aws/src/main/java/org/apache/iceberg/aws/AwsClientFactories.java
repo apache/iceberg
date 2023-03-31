@@ -18,8 +18,6 @@
  */
 package org.apache.iceberg.aws;
 
-import java.net.URI;
-import java.util.Map;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.util.PropertyUtil;
@@ -38,9 +36,13 @@ import software.amazon.awssdk.services.dynamodb.DynamoDbClientBuilder;
 import software.amazon.awssdk.services.glue.GlueClient;
 import software.amazon.awssdk.services.glue.GlueClientBuilder;
 import software.amazon.awssdk.services.kms.KmsClient;
+import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.S3ClientBuilder;
 import software.amazon.awssdk.services.s3.S3Configuration;
+
+import java.net.URI;
+import java.util.Map;
 
 public class AwsClientFactories {
 
@@ -105,6 +107,16 @@ public class AwsClientFactories {
           .applyMutation(awsProperties::applyS3CredentialConfigurations)
           .applyMutation(awsProperties::applyS3SignerConfiguration)
           .build();
+    }
+
+    @Override
+    public S3AsyncClient s3Async() {
+      return S3AsyncClient.builder()
+              .applyMutation(awsProperties::applyS3EndpointConfigurations)
+              .applyMutation(awsProperties::applyS3ServiceConfigurations)
+              .applyMutation(awsProperties::applyS3CredentialConfigurations)
+              .applyMutation(awsProperties::applyS3SignerConfiguration)
+              .build();
     }
 
     @Override

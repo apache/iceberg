@@ -18,12 +18,6 @@
  */
 package org.apache.iceberg.aws;
 
-import java.io.Serializable;
-import java.net.URI;
-import java.util.Collections;
-import java.util.Map;
-import java.util.Set;
-import java.util.stream.Collectors;
 import org.apache.iceberg.aws.dynamodb.DynamoDbCatalog;
 import org.apache.iceberg.aws.glue.GlueCatalog;
 import org.apache.iceberg.aws.lakeformation.LakeFormationAwsClientFactory;
@@ -53,10 +47,18 @@ import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.regions.providers.DefaultAwsRegionProviderChain;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClientBuilder;
 import software.amazon.awssdk.services.glue.GlueClientBuilder;
+import software.amazon.awssdk.services.s3.S3AsyncClientBuilder;
 import software.amazon.awssdk.services.s3.S3ClientBuilder;
 import software.amazon.awssdk.services.s3.S3Configuration;
 import software.amazon.awssdk.services.s3.model.ObjectCannedACL;
 import software.amazon.awssdk.services.s3.model.Tag;
+
+import java.io.Serializable;
+import java.net.URI;
+import java.util.Collections;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 public class AwsProperties implements Serializable {
 
@@ -1180,6 +1182,10 @@ public class AwsProperties implements Serializable {
     builder.credentialsProvider(
         credentialsProvider(s3AccessKeyId, s3SecretAccessKey, s3SessionToken));
   }
+  public <T extends S3AsyncClientBuilder> void applyS3CredentialConfigurations(T builder) {
+    builder.credentialsProvider(
+        credentialsProvider(s3AccessKeyId, s3SecretAccessKey, s3SessionToken));
+  }
 
   /**
    * Configure a client AWS region.
@@ -1232,6 +1238,17 @@ public class AwsProperties implements Serializable {
                 .build());
   }
 
+  public <T extends S3AsyncClientBuilder> void applyS3ServiceConfigurations(T builder) {
+    builder
+        .dualstackEnabled(s3DualStackEnabled)
+        .serviceConfiguration(
+            S3Configuration.builder()
+              .pathStyleAccessEnabled(s3PathStyleAccess)
+              .useArnRegionEnabled(s3UseArnRegionEnabled)
+              .accelerateModeEnabled(s3AccelerationEnabled)
+              .build());
+  }
+
   /**
    * Configure a signer for an S3 client.
    *
@@ -1242,6 +1259,14 @@ public class AwsProperties implements Serializable {
    * </pre>
    */
   public <T extends S3ClientBuilder> void applyS3SignerConfiguration(T builder) {
+    if (s3RemoteSigningEnabled) {
+      builder.overrideConfiguration(
+          c ->
+              c.putAdvancedOption(
+                  SdkAdvancedClientOption.SIGNER, S3V4RestSignerClient.create(allProperties)));
+    }
+  }
+  public <T extends S3AsyncClientBuilder> void applyS3SignerConfiguration(T builder) {
     if (s3RemoteSigningEnabled) {
       builder.overrideConfiguration(
           c ->
@@ -1290,6 +1315,19 @@ public class AwsProperties implements Serializable {
    * </pre>
    */
   public <T extends S3ClientBuilder> void applyS3EndpointConfigurations(T builder) {
+    configureEndpoint(builder, s3Endpoint);
+  }
+
+  /**
+   * Override the endpoint for an S3 async client.
+   *
+   * <p>Sample usage:
+   *
+   * <pre>
+   *     S3Client.builder().applyMutation(awsProperties::applyS3EndpointConfigurations)
+   * </pre>
+   */
+  public <T extends S3AsyncClientBuilder> void applyS3EndpointConfigurations(T builder) {
     configureEndpoint(builder, s3Endpoint);
   }
 
