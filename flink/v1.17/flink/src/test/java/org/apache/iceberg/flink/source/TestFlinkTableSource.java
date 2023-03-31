@@ -422,8 +422,12 @@ public class TestFlinkTableSource extends FlinkTestBase {
     Assert.assertEquals("Should have 1 record", 1, result.size());
     Assert.assertEquals(
         "Should produce the expected record", Row.of(1, "iceberg", 10.0), result.get(0));
+
+    // In SQL, null check can only be done as IS NULL or IS NOT NULL, so it's correct to ignore it
+    // and push the rest down.
+    String expectedScan = "ref(name=\"data\") == \"iceberg\"";
     Assert.assertEquals(
-        "Should not push down a filter", Expressions.alwaysTrue(), lastScanEvent.filter());
+        "Should contain the push down filter", expectedScan, lastScanEvent.filter().toString());
   }
 
   @Test
@@ -445,8 +449,9 @@ public class TestFlinkTableSource extends FlinkTestBase {
     String sqlNotInNull = String.format("SELECT * FROM %s WHERE id NOT IN (1,2,NULL) ", TABLE_NAME);
     List<Row> resultGT = sql(sqlNotInNull);
     Assert.assertEquals("Should have 0 record", 0, resultGT.size());
-    Assert.assertEquals(
-        "Should not push down a filter", Expressions.alwaysTrue(), lastScanEvent.filter());
+    Assert.assertNull(
+        "As the predicate pushdown filter out all rows, Flink did not create scan plan, so it doesn't publish any ScanEvent.",
+        lastScanEvent);
   }
 
   @Test
@@ -542,6 +547,17 @@ public class TestFlinkTableSource extends FlinkTestBase {
     Assert.assertEquals("Should create only one scan", 1, scanEventCount);
     Assert.assertEquals(
         "Should contain the push down filter", expectedFilter, lastScanEvent.filter().toString());
+
+    // %% won't match the row with null value
+    sqlLike = "SELECT * FROM  " + TABLE_NAME + "  WHERE data LIKE '%%' ";
+    resultLike = sql(sqlLike);
+    Assert.assertEquals("Should have 2 records", 2, resultLike.size());
+    List<Row> expectedRecords =
+        Lists.newArrayList(Row.of(1, "iceberg", 10.0), Row.of(2, "b", 20.0));
+    assertSameElements(expectedRecords, resultLike);
+    String expectedScan = "not_null(ref(name=\"data\"))";
+    Assert.assertEquals(
+        "Should contain the push down filter", expectedScan, lastScanEvent.filter().toString());
   }
 
   @Test
@@ -549,7 +565,7 @@ public class TestFlinkTableSource extends FlinkTestBase {
     Row expectRecord = Row.of(1, "iceberg", 10.0);
     String sqlNoPushDown = "SELECT * FROM " + TABLE_NAME + " WHERE data LIKE '%%i' ";
     List<Row> resultLike = sql(sqlNoPushDown);
-    Assert.assertEquals("Should have 1 record", 0, resultLike.size());
+    Assert.assertEquals("Should have 0 record", 0, resultLike.size());
     Assert.assertEquals(
         "Should not push down a filter", Expressions.alwaysTrue(), lastScanEvent.filter());
 
@@ -564,15 +580,6 @@ public class TestFlinkTableSource extends FlinkTestBase {
     resultLike = sql(sqlNoPushDown);
     Assert.assertEquals("Should have 1 record", 1, resultLike.size());
     Assert.assertEquals("Should produce the expected record", expectRecord, resultLike.get(0));
-    Assert.assertEquals(
-        "Should not push down a filter", Expressions.alwaysTrue(), lastScanEvent.filter());
-
-    sqlNoPushDown = "SELECT * FROM  " + TABLE_NAME + "  WHERE data LIKE '%%' ";
-    resultLike = sql(sqlNoPushDown);
-    Assert.assertEquals("Should have 3 records", 3, resultLike.size());
-    List<Row> expectedRecords =
-        Lists.newArrayList(Row.of(1, "iceberg", 10.0), Row.of(2, "b", 20.0), Row.of(3, null, 30.0));
-    assertSameElements(expectedRecords, resultLike);
     Assert.assertEquals(
         "Should not push down a filter", Expressions.alwaysTrue(), lastScanEvent.filter());
 
