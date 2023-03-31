@@ -52,7 +52,7 @@ public class HadoopFileIOTest {
   private FileSystem fs;
   private HadoopFileIO hadoopFileIO;
 
-  @TempDir File tempDir;
+  @TempDir private File tempDir;
 
   @BeforeEach
   public void before() throws Exception {
