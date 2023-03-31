@@ -141,6 +141,7 @@ public class DeleteReachableFilesSparkAction
         summary = deleteFiles(deleteExecutorService, deleteFunc, files);
       }
     }
+
     LOG.info("Deleted {} total files", summary.totalFilesCount());
 
     return ImmutableDeleteReachableFiles.Result.builder()
