@@ -1,12 +1,10 @@
 ---
 title: "Delta Lake Migration"
 url: delta-lake-migration
-aliases:
-    - "java/delta-lake-migration"
 menu:
-    main:
-        parent: "API"
-        weight: 400
+  main:
+    parent: "Migration"
+    weight: 200
 ---
 <!--
  - Licensed to the Apache Software Foundation (ASF) under one or more
