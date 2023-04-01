@@ -290,10 +290,9 @@ public class NessieCatalog extends BaseMetastoreCatalog
   public boolean dropNamespace(Namespace namespace, boolean cascade)
       throws NamespaceNotEmptyException {
     if (cascade) {
-      throw new NotImplementedException("cascade not supported yet");
-    } else {
-      return dropNamespace(namespace);
+      listTables(namespace).forEach(this::dropTable);
     }
+    return dropNamespace(namespace);
   }
 
   @Override

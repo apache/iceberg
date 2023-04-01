@@ -553,6 +553,41 @@ public class TestGlueCatalog {
   }
 
   @Test
+  public void testDropNamespaceCascade() {
+    Table table = Table.builder()
+            .databaseName("db1")
+            .name("t1")
+            .parameters(
+                    ImmutableMap.of(
+                            BaseMetastoreTableOperations.TABLE_TYPE_PROP,
+                            BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE))
+            .build();
+    GetTablesResponse getTablesResponse = GetTablesResponse.builder()
+            .tableList(table)
+            .build();
+    GetTableResponse getTableResponse = GetTableResponse.builder()
+            .table(table)
+            .build();
+    Mockito.doReturn(getTablesResponse)
+            .doReturn(GetTablesResponse.builder().build())
+            .when(glue)
+            .getTables(Mockito.any(GetTablesRequest.class));
+    Mockito.doReturn(getTableResponse)
+            .doReturn(GetTableResponse.builder().build())
+            .when(glue)
+            .getTable(Mockito.any(GetTableRequest.class));
+    Mockito.doReturn(
+                    GetDatabaseResponse.builder().database(Database.builder().name("db1").build()).build())
+            .when(glue)
+            .getDatabase(Mockito.any(GetDatabaseRequest.class));
+    Mockito.doReturn(DeleteDatabaseResponse.builder().build())
+            .when(glue)
+            .deleteDatabase(Mockito.any(DeleteDatabaseRequest.class));
+    Assert.assertTrue(glueCatalog.dropNamespace(Namespace.of("db1"), true));
+    Mockito.verify(glue).deleteTable(Mockito.any(DeleteTableRequest.class));
+  }
+
+  @Test
   public void testSetProperties() {
     Map<String, String> parameters = Maps.newHashMap();
     parameters.put("key", "val");

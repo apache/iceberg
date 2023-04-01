@@ -360,6 +360,20 @@ public class TestDynamoDbCatalog {
   }
 
   @Test
+  public void testDropNamespaceCascade() {
+    Namespace namespace = Namespace.of(genRandomName());
+    catalog.createNamespace(namespace);
+    TableIdentifier tableIdentifier = TableIdentifier.of(namespace, genRandomName());
+    catalog.createTable(tableIdentifier, SCHEMA);
+    catalog.dropNamespace(namespace, true);
+    GetItemResponse response = dynamo.getItem(GetItemRequest.builder()
+            .tableName(catalogTableName)
+            .key(DynamoDbCatalog.namespacePrimaryKey(namespace))
+            .build());
+    Assert.assertFalse("namespace must not exist", response.hasItem());
+  }
+
+  @Test
   public void testRegisterTable() {
     Namespace namespace = Namespace.of(genRandomName());
     catalog.createNamespace(namespace);

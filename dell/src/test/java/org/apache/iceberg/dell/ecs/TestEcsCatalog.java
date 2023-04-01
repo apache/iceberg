@@ -145,6 +145,17 @@ public class TestEcsCatalog {
   }
 
   @Test
+  public void testDropNamespaceCascade() {
+    ecsCatalog.createNamespace(Namespace.of("a"));
+    ecsCatalog.createTable(TableIdentifier.of("a", "t1"), SCHEMA);
+
+    Assert.assertTrue("Drop namespace [a]", ecsCatalog.dropNamespace(Namespace.of("a"), true));
+
+    Assert.assertFalse(
+            "The [a] is absent", ecsCatalog.namespaceExists(Namespace.of("a")));
+  }
+
+  @Test
   public void testDropTable() {
     ecsCatalog.createTable(TableIdentifier.of("a"), SCHEMA);
 

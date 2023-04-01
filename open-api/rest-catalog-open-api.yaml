@@ -316,6 +316,14 @@ paths:
         - Catalog API
       summary: Drop a namespace from the catalog. Namespace must be empty.
       operationId: dropNamespace
+      parameters:
+        - name: cascade
+          in: query
+          required: false
+          description: When true, deletes all objects under the namespace
+          schema:
+            type: boolean
+            default: false
       responses:
         204:
           description: Success, no content

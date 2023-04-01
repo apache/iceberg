@@ -444,15 +444,24 @@ public class RESTSessionCatalog extends BaseSessionCatalog
 
   @Override
   public boolean dropNamespace(SessionContext context, Namespace ns) {
+    return dropNamespaceInternal(context, ns, false);
+  }
+
+  private boolean dropNamespaceInternal(SessionContext context, Namespace ns, boolean cascade) {
     checkNamespaceIsValid(ns);
 
     try {
       client.delete(
-          paths.namespace(ns), null, headers(context), ErrorHandlers.namespaceErrorHandler());
+          paths.namespace(ns, cascade), null, headers(context), ErrorHandlers.namespaceErrorHandler());
       return true;
     } catch (NoSuchNamespaceException e) {
       return false;
     }
+  }
+
+  @Override
+  public boolean dropNamespace(SessionContext context, Namespace namespace, boolean cascade) {
+    return dropNamespaceInternal(context, namespace, cascade);
   }
 
   @Override

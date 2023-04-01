@@ -912,6 +912,33 @@ public class TestHiveCatalog extends HiveMetastoreTest {
   }
 
   @Test
+  public void testDropNamespaceCascade() throws TException {
+    Namespace namespace = Namespace.of("dbname_drop");
+    TableIdentifier identifier = TableIdentifier.of(namespace, "table");
+    Schema schema =
+            new Schema(Types.StructType.of(required(1, "id", Types.LongType.get())).fields());
+
+    catalog.createNamespace(namespace, meta);
+    catalog.createTable(identifier, schema);
+    Map<String, String> nameMata = catalog.loadNamespaceMetadata(namespace);
+    Assert.assertTrue(nameMata.get("owner").equals("apache"));
+    Assert.assertTrue(nameMata.get("group").equals("iceberg"));
+
+    Assert.assertTrue(catalog.dropNamespace(namespace, true));
+    Assert.assertFalse(catalog.tableExists(identifier));
+    Assert.assertFalse(
+            "Should fail to drop when namespace doesn't exist",
+            catalog.dropNamespace(Namespace.of("db.ns1")));
+    AssertHelpers.assertThrows(
+            "Should fail to drop namespace exist" + namespace,
+            NoSuchNamespaceException.class,
+            "Namespace does not exist: ",
+            () -> {
+              catalog.loadNamespaceMetadata(namespace);
+            });
+  }
+
+  @Test
   public void testDropTableWithoutMetadataFile() {
     TableIdentifier identifier = TableIdentifier.of(DB_NAME, "tbl");
     Schema tableSchema = getTestSchema();
