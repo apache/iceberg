@@ -148,7 +148,7 @@ public abstract class BaseSessionCatalog implements SessionCatalog {
     @Override
     public boolean dropNamespace(Namespace namespace, boolean cascade) throws NamespaceNotEmptyException {
       if (cascade) {
-        throw new NotImplementedException("cascade not supported yet");
+        return BaseSessionCatalog.this.dropNamespace(context, namespace, true);
       }else {
         return dropNamespace(namespace);
       }

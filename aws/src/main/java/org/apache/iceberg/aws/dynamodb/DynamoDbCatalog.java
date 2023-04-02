@@ -287,19 +287,8 @@ public class DynamoDbCatalog extends BaseMetastoreCatalog
 
   @Override
   public boolean dropNamespace(Namespace namespace, boolean cascade) throws NamespaceNotEmptyException {
-    validateNamespace(namespace);
-    List<TableIdentifier> tables = listTables(namespace);
-    if (tables.isEmpty()) {
-      return dropNamespace(namespace);
-    }
-    try {
-      tables.forEach(this::dropTable);
-    } catch (ConditionalCheckFailedException e) {
-      return false;
-    }
+    listTables(namespace).forEach(this::dropTable);
     return dropNamespace(namespace);
-
-
   }
 
   @Override
