@@ -212,7 +212,9 @@ class S3OutputStream extends PositionOutputStream {
   }
 
   private void newStream() throws IOException {
-    closeStream();
+    if (stream != null) {
+      stream.close();
+    }
 
     createStagingDirectoryIfNotExists();
     currentStagingFile = File.createTempFile("s3fileio-", ".tmp", stagingDirectory);
@@ -263,20 +265,10 @@ class S3OutputStream extends PositionOutputStream {
     closed = true;
 
     try {
-      closeStream();
+      stream.close();
       completeUploads();
     } finally {
       cleanUpStagingFiles();
-    }
-  }
-
-  private void closeStream() throws IOException {
-    if (stream != null) {
-      try {
-        stream.close();
-      } finally {
-        stream = null;
-      }
     }
   }
 
