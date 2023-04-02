@@ -368,45 +368,6 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
   }
 
   @Override
-  public boolean dropNamespace(Namespace namespace, boolean cascade)
-      throws NamespaceNotEmptyException {
-    if (!isValidateNamespace(namespace)) {
-      return false;
-    }
-    if (cascade) {
-      try {
-        List<String> tables = clients.run(client -> client.getAllTables(""));
-        if (!tables.isEmpty()) {
-          clients.run(
-              client -> {
-                for (String table : tables) {
-                  client.dropTable(namespace.level(0), table);
-                  LOG.info("Dropped table: {}", table);
-                }
-                return null;
-              });
-        }
-
-        LOG.info("Dropped tables in namespace: {}", namespace);
-      } catch (NoSuchObjectException e) {
-        return false;
-
-      } catch (TException e) {
-        throw new RuntimeException(
-            "Failed to drop namespace " + namespace + " in Hive Metastore", e);
-
-      } catch (InterruptedException e) {
-        Thread.currentThread().interrupt();
-        throw new RuntimeException(
-            "Interrupted in call to drop dropDatabase( "
-                + namespace
-                + ", "
-                + cascade
-                + ") in Hive Metastore",
-            e);
-      }
-    }
-    return dropNamespace(namespace);
   public boolean dropNamespace(Namespace namespace, boolean cascade) throws NamespaceNotEmptyException {
     return dropNamespaceInternal(namespace, cascade);
   }
