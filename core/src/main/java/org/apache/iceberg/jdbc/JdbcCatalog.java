@@ -420,7 +420,8 @@ public class JdbcCatalog extends BaseMetastoreCatalog
   }
 
   @Override
-  public boolean dropNamespace(Namespace namespace, boolean cascade) throws NamespaceNotEmptyException {
+  public boolean dropNamespace(Namespace namespace, boolean cascade)
+      throws NamespaceNotEmptyException {
     if (cascade) {
       // recursively delete all nested namespaces
       listNamespaces(namespace).forEach(n -> dropNamespace(n, true));

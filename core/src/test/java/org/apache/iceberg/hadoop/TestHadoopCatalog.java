@@ -474,7 +474,7 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
     HadoopCatalog catalog = new HadoopCatalog();
     catalog.setConf(new Configuration());
     catalog.initialize(
-            "hadoop", ImmutableMap.of(CatalogProperties.WAREHOUSE_LOCATION, warehouseLocation));
+        "hadoop", ImmutableMap.of(CatalogProperties.WAREHOUSE_LOCATION, warehouseLocation));
     Namespace namespace1 = Namespace.of("db");
     Namespace namespace2 = Namespace.of("db", "ns1");
 
@@ -482,7 +482,7 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
     TableIdentifier tbl2 = TableIdentifier.of(namespace2, "tbl1");
 
     Lists.newArrayList(tbl1, tbl2)
-            .forEach(t -> catalog.createTable(t, SCHEMA, PartitionSpec.unpartitioned()));
+        .forEach(t -> catalog.createTable(t, SCHEMA, PartitionSpec.unpartitioned()));
 
     catalog.dropNamespace(namespace1, true);
     String metaLocation = warehouseLocation + "/" + "db";

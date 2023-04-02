@@ -25,8 +25,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
-
-import org.apache.commons.lang.NotImplementedException;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
@@ -146,10 +144,11 @@ public abstract class BaseSessionCatalog implements SessionCatalog {
     }
 
     @Override
-    public boolean dropNamespace(Namespace namespace, boolean cascade) throws NamespaceNotEmptyException {
+    public boolean dropNamespace(Namespace namespace, boolean cascade)
+        throws NamespaceNotEmptyException {
       if (cascade) {
         return BaseSessionCatalog.this.dropNamespace(context, namespace, true);
-      }else {
+      } else {
         return dropNamespace(namespace);
       }
     }

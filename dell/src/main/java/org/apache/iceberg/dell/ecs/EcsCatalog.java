@@ -340,10 +340,11 @@ public class EcsCatalog extends BaseMetastoreCatalog
   }
 
   @Override
-  public boolean dropNamespace(Namespace namespace, boolean cascade) throws NamespaceNotEmptyException {
+  public boolean dropNamespace(Namespace namespace, boolean cascade)
+      throws NamespaceNotEmptyException {
     if (cascade) {
       throw new RuntimeException("cascade not supported yet");
-    }else {
+    } else {
       return dropNamespace(namespace);
     }
   }

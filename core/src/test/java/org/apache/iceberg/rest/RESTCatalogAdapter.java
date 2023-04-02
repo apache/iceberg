@@ -24,7 +24,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
-
 import org.apache.http.NameValuePair;
 import org.apache.http.client.utils.URIBuilder;
 import org.apache.iceberg.catalog.Catalog;
@@ -291,7 +290,8 @@ public class RESTCatalogAdapter implements RESTClient {
         if (asNamespaceCatalog != null) {
           Namespace namespace = namespaceFromPathVars(vars);
           if (vars.containsKey("cascade")) {
-            CatalogHandlers.dropNamespace(asNamespaceCatalog, namespace, Boolean.parseBoolean(vars.get("cascade")));
+            CatalogHandlers.dropNamespace(
+                asNamespaceCatalog, namespace, Boolean.parseBoolean(vars.get("cascade")));
           } else {
             CatalogHandlers.dropNamespace(asNamespaceCatalog, namespace);
           }
@@ -418,13 +418,19 @@ public class RESTCatalogAdapter implements RESTClient {
       Map<String, String> headers,
       Consumer<ErrorResponse> errorHandler) {
     URIBuilder uri = toUri(path);
-    return execute(HTTPMethod.DELETE, uri.getPath().substring(1), toQueryParams(uri), null, responseType, headers, errorHandler);
+    return execute(
+        HTTPMethod.DELETE,
+        uri.getPath().substring(1),
+        toQueryParams(uri),
+        null,
+        responseType,
+        headers,
+        errorHandler);
   }
 
   private Map<String, String> toQueryParams(URIBuilder uri) {
-    return uri.getQueryParams()
-            .stream()
-            .collect(Collectors.toMap(NameValuePair::getName, NameValuePair::getValue));
+    return uri.getQueryParams().stream()
+        .collect(Collectors.toMap(NameValuePair::getName, NameValuePair::getValue));
   }
 
   private URIBuilder toUri(String path) {

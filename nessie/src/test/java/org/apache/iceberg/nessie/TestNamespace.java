@@ -121,13 +121,13 @@ public class TestNamespace extends BaseTestIceberg {
     TableIdentifier identifier = TableIdentifier.of(namespace, "tbl");
 
     Schema schema =
-            new Schema(Types.StructType.of(required(1, "id", Types.LongType.get())).fields());
+        new Schema(Types.StructType.of(required(1, "id", Types.LongType.get())).fields());
     Assertions.assertThat(catalog.createTable(identifier, schema)).isNotNull();
 
     ContentKey key = NessieUtil.toKey(identifier);
     Assertions.assertThat(
-                    api.getContent().key(key).refName(BRANCH).get().get(key).unwrap(IcebergTable.class))
-            .isPresent();
+            api.getContent().key(key).refName(BRANCH).get().get(key).unwrap(IcebergTable.class))
+        .isPresent();
 
     catalog.dropNamespace(namespace, true);
     Assertions.assertThat(catalog.namespaceExists(namespace)).isFalse();

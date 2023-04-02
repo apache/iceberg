@@ -634,11 +634,10 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
     TableIdentifier tbl4 = TableIdentifier.of("db", "tbl");
 
     Lists.newArrayList(tbl0, tbl1, tbl2, tbl3, tbl4)
-            .forEach(t -> catalog.createTable(t, SCHEMA, PartitionSpec.unpartitioned()));
+        .forEach(t -> catalog.createTable(t, SCHEMA, PartitionSpec.unpartitioned()));
 
     catalog.dropNamespace(tbl4.namespace(), true);
     Assert.assertFalse(catalog.namespaceExists(tbl1.namespace()));
-
   }
 
   @Test

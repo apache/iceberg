@@ -229,7 +229,8 @@ public class RESTCatalog implements Catalog, SupportsNamespaces, Configurable<Ob
   }
 
   @Override
-  public boolean dropNamespace(Namespace namespace, boolean cascade) throws NamespaceNotEmptyException {
+  public boolean dropNamespace(Namespace namespace, boolean cascade)
+      throws NamespaceNotEmptyException {
     return nsDelegate.dropNamespace(namespace, cascade);
   }
 

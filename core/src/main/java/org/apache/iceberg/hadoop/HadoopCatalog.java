@@ -27,8 +27,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-
-import org.apache.commons.lang.NotImplementedException;
 import org.apache.hadoop.conf.Configurable;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
@@ -228,7 +226,7 @@ public class HadoopCatalog extends BaseMetastoreCatalog
   @Override
   protected TableOperations newTableOps(TableIdentifier identifier) {
     return new HadoopTableOperations(
-            new Path(defaultWarehouseLocation(identifier)), fileIO, conf, lockManager);
+        new Path(defaultWarehouseLocation(identifier)), fileIO, conf, lockManager);
   }
 
   @Override
@@ -352,7 +350,8 @@ public class HadoopCatalog extends BaseMetastoreCatalog
   }
 
   @Override
-  public boolean dropNamespace(Namespace namespace, boolean cascade) throws NamespaceNotEmptyException {
+  public boolean dropNamespace(Namespace namespace, boolean cascade)
+      throws NamespaceNotEmptyException {
     if (cascade) {
       // recursively delete all nested namespaces
       listNamespaces(namespace).forEach(n -> dropNamespace(n, true));

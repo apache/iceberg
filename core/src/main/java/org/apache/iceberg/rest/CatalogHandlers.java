@@ -129,7 +129,8 @@ public class CatalogHandlers {
     }
   }
 
-  public static void dropNamespace(SupportsNamespaces catalog, Namespace namespace, boolean cascade) {
+  public static void dropNamespace(
+      SupportsNamespaces catalog, Namespace namespace, boolean cascade) {
     boolean dropped = catalog.dropNamespace(namespace, cascade);
     if (!dropped) {
       throw new NoSuchNamespaceException("Namespace does not exist: %s", namespace);

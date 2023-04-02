@@ -379,7 +379,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     Table table = catalog.buildTable(ident, SCHEMA).create();
 
     Assert.assertTrue(
-            "Dropping an existing namespace should return true", catalog.dropNamespace(NS));
+        "Dropping an existing namespace should return true", catalog.dropNamespace(NS));
     Assert.assertFalse("Namespace should not exist", catalog.namespaceExists(NS));
   }
 
