@@ -19,13 +19,9 @@
 package org.apache.iceberg.rest;
 
 import java.io.IOException;
-import java.net.URISyntaxException;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
-import org.apache.http.NameValuePair;
-import org.apache.http.client.utils.URIBuilder;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
@@ -289,9 +285,9 @@ public class RESTCatalogAdapter implements RESTClient {
       case DROP_NAMESPACE:
         if (asNamespaceCatalog != null) {
           Namespace namespace = namespaceFromPathVars(vars);
-          if (vars.containsKey("cascade")) {
-            CatalogHandlers.dropNamespace(
-                asNamespaceCatalog, namespace, Boolean.parseBoolean(vars.get("cascade")));
+          boolean cascade = PropertyUtil.propertyAsBoolean(vars, "cascade", false);
+          if (cascade) {
+            CatalogHandlers.dropNamespace(asNamespaceCatalog, namespace, true);
           } else {
             CatalogHandlers.dropNamespace(asNamespaceCatalog, namespace);
           }
@@ -417,28 +413,7 @@ public class RESTCatalogAdapter implements RESTClient {
       Class<T> responseType,
       Map<String, String> headers,
       Consumer<ErrorResponse> errorHandler) {
-    URIBuilder uri = toUri(path);
-    return execute(
-        HTTPMethod.DELETE,
-        uri.getPath().substring(1),
-        toQueryParams(uri),
-        null,
-        responseType,
-        headers,
-        errorHandler);
-  }
-
-  private Map<String, String> toQueryParams(URIBuilder uri) {
-    return uri.getQueryParams().stream()
-        .collect(Collectors.toMap(NameValuePair::getName, NameValuePair::getValue));
-  }
-
-  private URIBuilder toUri(String path) {
-    try {
-      return new URIBuilder(path);
-    } catch (URISyntaxException e) {
-      throw new RESTException("invalid path: " + path);
-    }
+    return execute(HTTPMethod.DELETE, path, null, null, responseType, headers, errorHandler);
   }
 
   @Override

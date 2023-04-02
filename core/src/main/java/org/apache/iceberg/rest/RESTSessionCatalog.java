@@ -452,7 +452,8 @@ public class RESTSessionCatalog extends BaseSessionCatalog
 
     try {
       client.delete(
-          paths.namespace(ns, cascade),
+          paths.namespace(ns),
+          ImmutableMap.of("cascade", Boolean.toString(cascade)),
           null,
           headers(context),
           ErrorHandlers.namespaceErrorHandler());

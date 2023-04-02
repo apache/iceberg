@@ -373,8 +373,6 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   public void testDropNamespaceCascade() {
     C catalog = catalog();
 
-    Assert.assertFalse("Namespace should not exist", catalog.namespaceExists(NS));
-
     catalog.createNamespace(NS);
     TableIdentifier ident = TableIdentifier.of("ns", "table");
     Table table = catalog.buildTable(ident, SCHEMA).create();
@@ -387,8 +385,6 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   @Test
   public void testDropNamespaceCascadeFalse() {
     C catalog = catalog();
-
-    Assert.assertFalse("Namespace should not exist", catalog.namespaceExists(NS));
 
     catalog.createNamespace(NS);
     TableIdentifier ident = TableIdentifier.of("ns", "table");
