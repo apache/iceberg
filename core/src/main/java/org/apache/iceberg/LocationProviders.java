@@ -19,15 +19,15 @@
 package org.apache.iceberg;
 
 import java.nio.charset.StandardCharsets;
-import java.util.Base64;
 import java.util.Map;
-import java.util.Random;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.hash.HashCode;
 import org.apache.iceberg.relocated.com.google.common.hash.HashFunction;
 import org.apache.iceberg.relocated.com.google.common.hash.Hashing;
+import org.apache.iceberg.relocated.com.google.common.io.BaseEncoding;
 import org.apache.iceberg.util.LocationUtil;
 import org.apache.iceberg.util.PropertyUtil;
 
@@ -108,7 +108,8 @@ public class LocationProviders {
   static class ObjectStoreLocationProvider implements LocationProvider {
 
     private static final HashFunction HASH_FUNC = Hashing.murmur3_32_fixed();
-    private static final Random random = new Random(1);
+    private static final BaseEncoding BASE64_ENCODER = BaseEncoding.base64Url().lowerCase().omitPadding();
+    private final ThreadLocal<byte[]> temp = ThreadLocal.withInitial(() -> new byte[4]);
     private final String storageLocation;
     private final String context;
 
@@ -170,16 +171,11 @@ public class LocationProviders {
       return resolvedContext;
     }
 
-    private static String computeHash(String fileName) {
-      Preconditions.checkState(fileName != null, "fileName cannot be null");
-      byte[] hashBuffer = new byte[6];
-      random.nextBytes(hashBuffer);
-      byte[] messageDigest =
-          HASH_FUNC.hashBytes(fileName.getBytes(StandardCharsets.UTF_8)).asBytes();
-      System.arraycopy(messageDigest, 0, hashBuffer, 0, 4);
-      String hash = Base64.getUrlEncoder().encodeToString(hashBuffer);
-
-      return hash.substring(0, 8);
+    private String computeHash(String fileName) {
+      byte[] bytes = temp.get();
+      HashCode hash = HASH_FUNC.hashString(fileName, StandardCharsets.UTF_8);
+      hash.writeBytesTo(bytes, 0, 4);
+      return BASE64_ENCODER.encode(bytes);
     }
   }
 }
