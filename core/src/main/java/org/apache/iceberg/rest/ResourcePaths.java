@@ -54,7 +54,8 @@ public class ResourcePaths {
   }
 
   public String namespace(Namespace ns, boolean cascade) {
-    return SLASH.join("v1", prefix, "namespaces", RESTUtil.encodeNamespace(ns) + "?cascade=" + cascade);
+    return SLASH.join(
+        "v1", prefix, "namespaces", RESTUtil.encodeNamespace(ns) + "?cascade=" + cascade);
   }
 
   public String namespaceProperties(Namespace ns) {

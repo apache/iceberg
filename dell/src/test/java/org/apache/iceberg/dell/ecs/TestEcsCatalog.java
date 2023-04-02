@@ -151,8 +151,7 @@ public class TestEcsCatalog {
 
     Assert.assertTrue("Drop namespace [a]", ecsCatalog.dropNamespace(Namespace.of("a"), true));
 
-    Assert.assertFalse(
-            "The [a] is absent", ecsCatalog.namespaceExists(Namespace.of("a")));
+    Assert.assertFalse("The [a] is absent", ecsCatalog.namespaceExists(Namespace.of("a")));
   }
 
   @Test

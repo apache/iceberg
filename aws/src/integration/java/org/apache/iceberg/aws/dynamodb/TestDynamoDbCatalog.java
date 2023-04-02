@@ -366,10 +366,12 @@ public class TestDynamoDbCatalog {
     TableIdentifier tableIdentifier = TableIdentifier.of(namespace, genRandomName());
     catalog.createTable(tableIdentifier, SCHEMA);
     catalog.dropNamespace(namespace, true);
-    GetItemResponse response = dynamo.getItem(GetItemRequest.builder()
-            .tableName(catalogTableName)
-            .key(DynamoDbCatalog.namespacePrimaryKey(namespace))
-            .build());
+    GetItemResponse response =
+        dynamo.getItem(
+            GetItemRequest.builder()
+                .tableName(catalogTableName)
+                .key(DynamoDbCatalog.namespacePrimaryKey(namespace))
+                .build());
     Assert.assertFalse("namespace must not exist", response.hasItem());
   }
 

@@ -368,7 +368,8 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
   }
 
   @Override
-  public boolean dropNamespace(Namespace namespace, boolean cascade) throws NamespaceNotEmptyException {
+  public boolean dropNamespace(Namespace namespace, boolean cascade)
+      throws NamespaceNotEmptyException {
     return dropNamespaceInternal(namespace, cascade);
   }
 

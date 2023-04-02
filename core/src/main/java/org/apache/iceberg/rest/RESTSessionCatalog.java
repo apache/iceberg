@@ -452,7 +452,10 @@ public class RESTSessionCatalog extends BaseSessionCatalog
 
     try {
       client.delete(
-          paths.namespace(ns, cascade), null, headers(context), ErrorHandlers.namespaceErrorHandler());
+          paths.namespace(ns, cascade),
+          null,
+          headers(context),
+          ErrorHandlers.namespaceErrorHandler());
       return true;
     } catch (NoSuchNamespaceException e) {
       return false;
