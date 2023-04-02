@@ -203,8 +203,8 @@ class S3InputStream extends SeekableInputStream implements RangeReadable {
       try {
         stream.close();
       } catch (Exception e) {
-        // log at trace level as closing an aborted stream will throw a checksum exception
-        // with the Apache HTTP client
+        // log at trace level as closing an aborted stream will throw a content length
+        // check exception with the Apache HTTP client
         LOG.trace("Error closing stream", e);
       }
       stream = null;
