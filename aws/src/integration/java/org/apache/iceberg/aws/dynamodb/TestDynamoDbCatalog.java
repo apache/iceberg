@@ -37,6 +37,7 @@ import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
+import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -373,6 +374,28 @@ public class TestDynamoDbCatalog {
                 .key(DynamoDbCatalog.namespacePrimaryKey(namespace))
                 .build());
     Assert.assertFalse("namespace must not exist", response.hasItem());
+  }
+
+  @Test
+  public void testDropNamespaceFalse() {
+    Namespace namespace = Namespace.of(genRandomName());
+    catalog.createNamespace(namespace);
+    TableIdentifier tableIdentifier = TableIdentifier.of(namespace, genRandomName());
+    catalog.createTable(tableIdentifier, SCHEMA);
+    AssertHelpers.assertThrows(
+        "Should fail to drop namespace is not empty" + namespace,
+        NamespaceNotEmptyException.class,
+        "Namespace dbname_drop is not empty. One or more tables exist.",
+        () -> {
+          catalog.dropNamespace(namespace, false);
+        });
+    GetItemResponse response =
+        dynamo.getItem(
+            GetItemRequest.builder()
+                .tableName(catalogTableName)
+                .key(DynamoDbCatalog.namespacePrimaryKey(namespace))
+                .build());
+    Assert.assertTrue(response.hasItem());
   }
 
   @Test

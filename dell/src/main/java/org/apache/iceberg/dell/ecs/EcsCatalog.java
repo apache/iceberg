@@ -343,6 +343,8 @@ public class EcsCatalog extends BaseMetastoreCatalog
   public boolean dropNamespace(Namespace namespace, boolean cascade)
       throws NamespaceNotEmptyException {
     if (cascade) {
+      // recursively delete all nested namespaces
+      listNamespaces(namespace).forEach(n -> dropNamespace(n, true));
       listTables(namespace).forEach(this::dropTable);
     }
     return dropNamespace(namespace);

@@ -585,6 +585,35 @@ public class TestGlueCatalog {
   }
 
   @Test
+  public void testDropNamespaceCascadeFalse() {
+    Mockito.doReturn(
+            GetTablesResponse.builder()
+                .tableList(
+                    Table.builder()
+                        .databaseName("db1")
+                        .name("t1")
+                        .parameters(
+                            ImmutableMap.of(
+                                BaseMetastoreTableOperations.TABLE_TYPE_PROP,
+                                BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE))
+                        .build())
+                .build())
+        .when(glue)
+        .getTables(Mockito.any(GetTablesRequest.class));
+    Mockito.doReturn(
+            GetDatabaseResponse.builder().database(Database.builder().name("db1").build()).build())
+        .when(glue)
+        .getDatabase(Mockito.any(GetDatabaseRequest.class));
+    Mockito.doReturn(DeleteDatabaseResponse.builder().build())
+        .when(glue)
+        .deleteDatabase(Mockito.any(DeleteDatabaseRequest.class));
+
+    Assertions.assertThatThrownBy(() -> glueCatalog.dropNamespace(Namespace.of("db1"), false))
+        .isInstanceOf(NamespaceNotEmptyException.class)
+        .hasMessage("Cannot drop namespace db1 because it still contains Iceberg tables");
+  }
+
+  @Test
   public void testSetProperties() {
     Map<String, String> parameters = Maps.newHashMap();
     parameters.put("key", "val");

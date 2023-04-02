@@ -147,11 +147,23 @@ public class TestEcsCatalog {
   @Test
   public void testDropNamespaceCascade() {
     ecsCatalog.createNamespace(Namespace.of("a"));
+    ecsCatalog.createNamespace(Namespace.of("a", "b1"));
     ecsCatalog.createTable(TableIdentifier.of("a", "t1"), SCHEMA);
 
     Assert.assertTrue("Drop namespace [a]", ecsCatalog.dropNamespace(Namespace.of("a"), true));
 
     Assert.assertFalse("The [a] is absent", ecsCatalog.namespaceExists(Namespace.of("a")));
+  }
+
+  @Test
+  public void testDropNamespaceCascadeFalse() {
+    ecsCatalog.createNamespace(Namespace.of("a"));
+    ecsCatalog.createNamespace(Namespace.of("a", "b1"));
+    ecsCatalog.createTable(TableIdentifier.of("a", "t1"), SCHEMA);
+
+    Assertions.assertThatThrownBy(() -> ecsCatalog.dropNamespace(Namespace.of("a"), false))
+            .isInstanceOf(NamespaceNotEmptyException.class)
+            .hasMessage("Namespace a is not empty");
   }
 
   @Test

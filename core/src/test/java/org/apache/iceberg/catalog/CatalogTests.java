@@ -48,6 +48,7 @@ import org.apache.iceberg.UpdatePartitionSpec;
 import org.apache.iceberg.UpdateSchema;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.expressions.Expressions;
@@ -379,7 +380,22 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     Table table = catalog.buildTable(ident, SCHEMA).create();
 
     Assert.assertTrue(
-        "Dropping an existing namespace should return true", catalog.dropNamespace(NS));
+        "Dropping an existing namespace should return true", catalog.dropNamespace(NS, true));
+    Assert.assertFalse("Namespace should not exist", catalog.namespaceExists(NS));
+  }
+
+  @Test
+  public void testDropNamespaceCascadeFalse() {
+    C catalog = catalog();
+
+    Assert.assertFalse("Namespace should not exist", catalog.namespaceExists(NS));
+
+    catalog.createNamespace(NS);
+    TableIdentifier ident = TableIdentifier.of("ns", "table");
+    Table table = catalog.buildTable(ident, SCHEMA).create();
+
+    Assertions.assertThatThrownBy(() -> catalog.dropNamespace(NS, false))
+            .isInstanceOf(NamespaceNotEmptyException.class);
     Assert.assertFalse("Namespace should not exist", catalog.namespaceExists(NS));
   }
 

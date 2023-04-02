@@ -215,6 +215,12 @@ public class SnowflakeCatalog extends BaseMetastoreCatalog
   }
 
   @Override
+  public boolean dropNamespace(Namespace namespace, boolean cascade) {
+    throw new UnsupportedOperationException(
+        "SnowflakeCatalog does not currently support dropNamespace");
+  }
+
+  @Override
   public boolean setProperties(Namespace namespace, Map<String, String> properties) {
     throw new UnsupportedOperationException(
         "SnowflakeCatalog does not currently support setProperties");

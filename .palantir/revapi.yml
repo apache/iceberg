@@ -411,6 +411,14 @@ acceptedBreaks:
       new: "field org.apache.iceberg.actions.RewriteDataFiles.MAX_CONCURRENT_FILE_GROUP_REWRITES_DEFAULT"
       justification: "Update default to align with recommendation and allow more parallelism"
     - code: "java.method.addedToInterface"
+      new: "method boolean org.apache.iceberg.catalog.SessionCatalog::dropNamespace(org.apache.iceberg.catalog.SessionCatalog.SessionContext,\
+        \ org.apache.iceberg.catalog.Namespace, boolean)"
+      justification: "extending api to add new method, not removing any public api"
+    - code: "java.method.addedToInterface"
+      new: "method boolean org.apache.iceberg.catalog.SupportsNamespaces::dropNamespace(org.apache.iceberg.catalog.Namespace,\
+        \ boolean) throws org.apache.iceberg.exceptions.NamespaceNotEmptyException"
+      justification: "extending api to add new method, not removing any public api"
+    - code: "java.method.addedToInterface"
       new: "method java.lang.String org.apache.iceberg.view.ViewVersion::operation()"
       justification: "Add operation API to view version"
     org.apache.iceberg:iceberg-core:
