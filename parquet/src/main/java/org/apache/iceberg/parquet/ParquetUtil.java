@@ -226,6 +226,24 @@ public class ParquetUtil {
    * Returns a list of offsets in ascending order determined by the starting position of the row
    * groups.
    */
+  public static List<Long> getSplitOffsets(InputFile file) {
+    try (ParquetFileReader reader = ParquetFileReader.open(ParquetIO.file(file))) {
+      ParquetMetadata md = reader.getFooter();
+      List<Long> splitOffsets = Lists.newArrayListWithExpectedSize(md.getBlocks().size());
+      for (BlockMetaData blockMetaData : md.getBlocks()) {
+        splitOffsets.add(blockMetaData.getStartingPos());
+      }
+      Collections.sort(splitOffsets);
+      return splitOffsets;
+    } catch (IOException e) {
+      throw new RuntimeIOException(e, "Failed to read footer of file: %s", file);
+    }
+  }
+
+  /**
+   * Returns a list of offsets in ascending order determined by the starting position of the row
+   * groups.
+   */
   public static List<Long> getSplitOffsets(ParquetMetadata md) {
     List<Long> splitOffsets = Lists.newArrayListWithExpectedSize(md.getBlocks().size());
     for (BlockMetaData blockMetaData : md.getBlocks()) {
