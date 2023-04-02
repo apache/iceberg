@@ -162,8 +162,8 @@ public class TestEcsCatalog {
     ecsCatalog.createTable(TableIdentifier.of("a", "t1"), SCHEMA);
 
     Assertions.assertThatThrownBy(() -> ecsCatalog.dropNamespace(Namespace.of("a"), false))
-            .isInstanceOf(NamespaceNotEmptyException.class)
-            .hasMessage("Namespace a is not empty");
+        .isInstanceOf(NamespaceNotEmptyException.class)
+        .hasMessage("Namespace a is not empty");
   }
 
   @Test

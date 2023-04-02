@@ -395,7 +395,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     Table table = catalog.buildTable(ident, SCHEMA).create();
 
     Assertions.assertThatThrownBy(() -> catalog.dropNamespace(NS, false))
-            .isInstanceOf(NamespaceNotEmptyException.class);
+        .isInstanceOf(NamespaceNotEmptyException.class);
     Assert.assertFalse("Namespace should not exist", catalog.namespaceExists(NS));
   }
 

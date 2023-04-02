@@ -643,8 +643,8 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
   @Test
   public void testDropNamespaceCascadeFalse() {
     Assert.assertFalse(
-            "Should return false if drop does not modify state",
-            catalog.dropNamespace(Namespace.of("db", "ns1_not_exitss")));
+        "Should return false if drop does not modify state",
+        catalog.dropNamespace(Namespace.of("db", "ns1_not_exitss")));
 
     TableIdentifier tbl0 = TableIdentifier.of("db", "ns1", "ns2", "tbl2");
     TableIdentifier tbl1 = TableIdentifier.of("db", "ns1", "ns2", "tbl1");
@@ -653,13 +653,13 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
     TableIdentifier tbl4 = TableIdentifier.of("db", "tbl");
 
     Lists.newArrayList(tbl0, tbl1, tbl2, tbl3, tbl4)
-            .forEach(t -> catalog.createTable(t, SCHEMA, PartitionSpec.unpartitioned()));
+        .forEach(t -> catalog.createTable(t, SCHEMA, PartitionSpec.unpartitioned()));
 
     AssertHelpers.assertThrows(
-            "Should fail to drop namespace has tables",
-            NamespaceNotEmptyException.class,
-            "is not empty. 1 tables exist.",
-            () -> catalog.dropNamespace(tbl4.namespace(), false));
+        "Should fail to drop namespace has tables",
+        NamespaceNotEmptyException.class,
+        "is not empty. 1 tables exist.",
+        () -> catalog.dropNamespace(tbl4.namespace(), false));
   }
 
   @Test
