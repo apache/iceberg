@@ -284,13 +284,7 @@ public class RESTCatalogAdapter implements RESTClient {
 
       case DROP_NAMESPACE:
         if (asNamespaceCatalog != null) {
-          Namespace namespace = namespaceFromPathVars(vars);
-          boolean cascade = PropertyUtil.propertyAsBoolean(vars, "cascade", false);
-          if (cascade) {
-            CatalogHandlers.dropNamespace(asNamespaceCatalog, namespace, true);
-          } else {
-            CatalogHandlers.dropNamespace(asNamespaceCatalog, namespace);
-          }
+          dropNamespace(vars);
           return null;
         }
         break;
@@ -367,6 +361,16 @@ public class RESTCatalogAdapter implements RESTClient {
     }
 
     return null;
+  }
+
+  private void dropNamespace(Map<String, String> vars) {
+    Namespace namespace = namespaceFromPathVars(vars);
+    boolean cascade = PropertyUtil.propertyAsBoolean(vars, "cascade", false);
+    if (cascade) {
+      CatalogHandlers.dropNamespace(asNamespaceCatalog, namespace, true);
+    } else {
+      CatalogHandlers.dropNamespace(asNamespaceCatalog, namespace);
+    }
   }
 
   public <T extends RESTResponse> T execute(
