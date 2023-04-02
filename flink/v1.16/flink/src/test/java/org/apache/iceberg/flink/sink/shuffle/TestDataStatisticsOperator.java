@@ -30,6 +30,7 @@ import org.apache.flink.api.common.state.OperatorStateStore;
 import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.core.fs.CloseableRegistry;
+import org.apache.flink.runtime.checkpoint.OperatorSubtaskState;
 import org.apache.flink.runtime.execution.Environment;
 import org.apache.flink.runtime.operators.coordination.MockOperatorEventGateway;
 import org.apache.flink.runtime.operators.testutils.MockEnvironment;
@@ -46,6 +47,7 @@ import org.apache.flink.streaming.runtime.tasks.StreamMockEnvironment;
 import org.apache.flink.streaming.util.MockOutput;
 import org.apache.flink.streaming.util.MockStreamConfig;
 import org.apache.flink.streaming.util.OneInputStreamOperatorTestHarness;
+import org.apache.iceberg.flink.sink.shuffle.statistics.DataStatistics;
 import org.apache.iceberg.flink.sink.shuffle.statistics.DataStatisticsFactory;
 import org.apache.iceberg.flink.sink.shuffle.statistics.MapDataStatistics;
 import org.apache.iceberg.flink.sink.shuffle.statistics.MapDataStatisticsFactory;
@@ -71,6 +73,15 @@ public class TestDataStatisticsOperator {
 
   @Before
   public void before() throws Exception {
+    this.operator = createOperator();
+    Environment env = getTestingEnvironment();
+    this.operator.setup(
+        new OneInputStreamTask<String, String>(env),
+        new MockStreamConfig(new Configuration(), 1),
+        new MockOutput<>(Lists.newArrayList()));
+  }
+
+  private DataStatisticsOperator<String, String> createOperator() {
     MockOperatorEventGateway mockGateway = new MockOperatorEventGateway();
     KeySelector<String, String> keySelector =
         new KeySelector<String, String>() {
@@ -82,13 +93,7 @@ public class TestDataStatisticsOperator {
           }
         };
     DataStatisticsFactory<String> dataStatisticsFactory = new MapDataStatisticsFactory<>();
-
-    this.operator = new DataStatisticsOperator<>(keySelector, mockGateway, dataStatisticsFactory);
-    Environment env = getTestingEnvironment();
-    this.operator.setup(
-        new OneInputStreamTask<String, String>(env),
-        new MockStreamConfig(new Configuration(), 1),
-        new MockOutput<>(Lists.newArrayList()));
+    return new DataStatisticsOperator<>(keySelector, mockGateway, dataStatisticsFactory);
   }
 
   @After
@@ -127,6 +132,70 @@ public class TestDataStatisticsOperator {
               .collect(Collectors.toList());
       assertThat(recordsOutput)
           .containsExactlyInAnyOrderElementsOf(ImmutableList.of("a", "b", "b"));
+    }
+  }
+
+  @Test
+  public void testRestoreState() throws Exception {
+    OperatorSubtaskState snapshot;
+    try (OneInputStreamOperatorTestHarness<String, DataStatisticsOrRecord<String, String>>
+        testHarness1 = createHarness(this.operator)) {
+      DataStatistics<String> mapDataStatistics = new MapDataStatistics<>();
+      mapDataStatistics.add("a");
+      mapDataStatistics.add("a");
+      mapDataStatistics.add("b");
+      mapDataStatistics.add("c");
+      operator.handleOperatorEvent(new DataStatisticsEvent<>(0, mapDataStatistics));
+      assertTrue(operator.globalDataStatistics() instanceof MapDataStatistics);
+      assertEquals(
+          2L,
+          (long)
+              ((MapDataStatistics<String>) operator.globalDataStatistics())
+                  .dataStatistics()
+                  .get("a"));
+      assertEquals(
+          1L,
+          (long)
+              ((MapDataStatistics<String>) operator.globalDataStatistics())
+                  .dataStatistics()
+                  .get("b"));
+      assertEquals(
+          1L,
+          (long)
+              ((MapDataStatistics<String>) operator.globalDataStatistics())
+                  .dataStatistics()
+                  .get("c"));
+
+      snapshot = testHarness1.snapshot(1L, 0);
+    }
+
+    // Use the snapshot to initialize state for another new operator and then verify that the global
+    // statistics for the new operator is same as before
+    DataStatisticsOperator<String, String> restoredOperator = createOperator();
+    try (OneInputStreamOperatorTestHarness<String, DataStatisticsOrRecord<String, String>>
+        testHarness2 = new OneInputStreamOperatorTestHarness<>(restoredOperator, 2, 2, 1)) {
+
+      testHarness2.setup();
+      testHarness2.initializeState(snapshot);
+      assertTrue(restoredOperator.globalDataStatistics() instanceof MapDataStatistics);
+      assertEquals(
+          2L,
+          (long)
+              ((MapDataStatistics<String>) restoredOperator.globalDataStatistics())
+                  .dataStatistics()
+                  .get("a"));
+      assertEquals(
+          1L,
+          (long)
+              ((MapDataStatistics<String>) restoredOperator.globalDataStatistics())
+                  .dataStatistics()
+                  .get("b"));
+      assertEquals(
+          1L,
+          (long)
+              ((MapDataStatistics<String>) restoredOperator.globalDataStatistics())
+                  .dataStatistics()
+                  .get("c"));
     }
   }
 
