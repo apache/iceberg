@@ -18,12 +18,10 @@
  */
 package org.apache.iceberg.data;
 
-import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
-import org.apache.iceberg.util.ByteBuffers;
 import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 
@@ -90,16 +88,6 @@ public class DataTestHelpers {
             "Primitive value should be equal to expected for type " + type, expected, actual);
         break;
       case FIXED:
-        // For fixed type, Iceberg actually represent value as Bytebuffer,
-        // but since RandomGenericData generates bytearray data for fixed type
-        // for it to be written to Avro, we add a conversion here to make the
-        // equality comparison consistent using bytearray
-        if (expected instanceof ByteBuffer) {
-          expected = ByteBuffers.toByteArray((ByteBuffer) expected);
-        }
-        if (actual instanceof ByteBuffer) {
-          actual = ByteBuffers.toByteArray((ByteBuffer) actual);
-        }
         Assertions.assertThat(expected)
             .as("Expected should be a byte[]")
             .isInstanceOf(byte[].class);

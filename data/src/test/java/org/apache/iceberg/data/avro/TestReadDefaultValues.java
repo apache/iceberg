@@ -125,15 +125,16 @@ public class TestReadDefaultValues {
       Schema readerSchema =
           new Schema(
               required(999, "col1", Types.IntegerType.get()),
-              optional(1000, "col2", type, null, defaultValue, defaultValue));
+              NestedFieldWithInitialDefault.optionalWithDefault(
+                  1000, "col2", type, null, defaultValue, defaultValue));
 
       List<Record> generatedRecords = RandomGenericData.generate(writerSchema, 100, 0L);
       List<Record> expected = Lists.newArrayList();
       for (Record record : generatedRecords) {
-        Record r = GenericRecord.create(readerSchema);
-        r.set(0, record.get(0));
-        r.set(1, defaultValue);
-        expected.add(r);
+        Record expectedRecord = GenericRecord.create(readerSchema);
+        expectedRecord.set(0, record.get(0));
+        expectedRecord.set(1, defaultValue);
+        expected.add(expectedRecord);
       }
 
       File testFile = temp.newFile();
@@ -162,6 +163,36 @@ public class TestReadDefaultValues {
       for (int i = 0; i < expected.size(); i += 1) {
         DataTestHelpers.assertEquals(readerSchema.asStruct(), expected.get(i), rows.get(i));
       }
+    }
+  }
+
+  // TODO: This class should be removed once NestedField.optional() that takes initialDefault and
+  // writeDefault becomes public. It is intentionally package private to avoid exposing it in the
+  // public API as of now.
+  static class NestedFieldWithInitialDefault extends Types.NestedField {
+    private final Object initialDefault;
+
+    NestedFieldWithInitialDefault(
+        boolean isOptional,
+        int fieldId,
+        String name,
+        Type type,
+        String doc,
+        Object initialDefault,
+        Object writeDefault) {
+      super(isOptional, fieldId, name, type, doc, initialDefault, writeDefault);
+      this.initialDefault = initialDefault;
+    }
+
+    static Types.NestedField optionalWithDefault(
+        int id, String name, Type type, String doc, Object initialDefault, Object writeDefault) {
+      return new NestedFieldWithInitialDefault(
+          true, id, name, type, doc, initialDefault, writeDefault);
+    }
+
+    @Override
+    public Object initialDefault() {
+      return initialDefault;
     }
   }
 }

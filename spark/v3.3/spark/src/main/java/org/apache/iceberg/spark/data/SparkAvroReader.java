@@ -83,7 +83,7 @@ public class SparkAvroReader implements DatumReader<InternalRow>, SupportsRowPos
     @Override
     public ValueReader<?> record(
         Types.StructType expected, Schema record, List<String> names, List<ValueReader<?>> fields) {
-      return SparkValueReaders.struct(fields, expected, record, idToConstant);
+      return SparkValueReaders.struct(fields, expected, idToConstant);
     }
 
     @Override

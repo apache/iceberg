@@ -113,7 +113,7 @@ class GenericReaders {
         StructType struct,
         Schema record,
         Map<Integer, ?> idToConstant) {
-      super(readers, struct, record, idToConstant);
+      super(readers, struct, idToConstant);
       this.structType = struct;
     }
 
