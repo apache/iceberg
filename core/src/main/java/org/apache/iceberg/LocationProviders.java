@@ -108,7 +108,8 @@ public class LocationProviders {
   static class ObjectStoreLocationProvider implements LocationProvider {
 
     private static final HashFunction HASH_FUNC = Hashing.murmur3_32_fixed();
-    private static final BaseEncoding BASE64_ENCODER = BaseEncoding.base64Url().lowerCase().omitPadding();
+    private static final BaseEncoding BASE64_ENCODER =
+        BaseEncoding.base64Url().lowerCase().omitPadding();
     private final ThreadLocal<byte[]> temp = ThreadLocal.withInitial(() -> new byte[4]);
     private final String storageLocation;
     private final String context;
