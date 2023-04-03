@@ -408,8 +408,8 @@ public class ParquetUtil {
   }
 
   /**
-   * Method to read timestamp (parquet Int96) from bytebuffer.
-   * Read 12 bytes in byteBuffer: 8 bytes (time of day nanos) + 4 bytes(julianDay)
+   * Method to read timestamp (parquet Int96) from bytebuffer. Read 12 bytes in byteBuffer: 8 bytes
+   * (time of day nanos) + 4 bytes(julianDay)
    */
   public static long extractTimestampInt96(ByteBuffer buffer) {
     // 8 bytes (time of day nanos)
