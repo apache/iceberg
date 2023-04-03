@@ -112,6 +112,7 @@ public class S3SignerServlet extends HttpServlet {
                 .withToken("client-credentials-token:sub=" + requestMap.get("client_id"))
                 .withIssuedTokenType("urn:ietf:params:oauth:token-type:access_token")
                 .withTokenType("Bearer")
+                .setExpirationInSeconds(100)
                 .build());
 
       case "urn:ietf:params:oauth:grant-type:token-exchange":
@@ -126,6 +127,7 @@ public class S3SignerServlet extends HttpServlet {
                 .withToken(token)
                 .withIssuedTokenType("urn:ietf:params:oauth:token-type:access_token")
                 .withTokenType("Bearer")
+                .setExpirationInSeconds(100)
                 .build());
 
       default:
