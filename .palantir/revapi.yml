@@ -66,6 +66,19 @@ acceptedBreaks:
       old: "method void org.apache.iceberg.io.DataWriter<T>::add(T)"
       justification: "Removing deprecated method"
   "1.1.0":
+    org.apache.iceberg:iceberg-api:
+    - code: "java.method.addedToInterface"
+      new: "method java.lang.Iterable<org.apache.iceberg.actions.DeleteOrphanFiles.OrphanFileStatus>\
+        \ org.apache.iceberg.actions.DeleteOrphanFiles.Result::statuses()"
+      justification: "Introduced improved API to represent results of DeleteOrphanFiles\
+        \ action. The new API will allow users to gracefully deal with failure encountered\
+        \ during file deletion"
+    - code: "java.method.numberOfParametersChanged"
+      old: "method void org.apache.iceberg.io.BulkDeletionFailureException::<init>(int)"
+      new: "method void org.apache.iceberg.io.BulkDeletionFailureException::<init>(java.util.Set<java.lang.String>,\
+        \ int)"
+      justification: "Intoduced improved API to collect the file paths that failed\
+        \ to delete"
     org.apache.iceberg:iceberg-core:
     - code: "java.class.noLongerImplementsInterface"
       old: "class org.apache.iceberg.jdbc.JdbcCatalog"

@@ -19,6 +19,8 @@
 package org.apache.iceberg.aws.s3;
 
 import java.util.Collection;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -214,10 +216,12 @@ public class S3FileIO
       }
 
       int totalFailedDeletions = 0;
+      Set<String> deleteFailedFiles = Collections.synchronizedSet(new HashSet<String>());
 
       for (Future<List<String>> deletionTask : deletionTasks) {
         try {
           List<String> failedDeletions = deletionTask.get();
+          deleteFailedFiles.addAll(failedDeletions);
           failedDeletions.forEach(path -> LOG.warn("Failed to delete object at path {}", path));
           totalFailedDeletions += failedDeletions.size();
         } catch (ExecutionException e) {
@@ -230,7 +234,7 @@ public class S3FileIO
       }
 
       if (totalFailedDeletions > 0) {
-        throw new BulkDeletionFailureException(totalFailedDeletions);
+        throw new BulkDeletionFailureException(deleteFailedFiles, totalFailedDeletions);
       }
     }
   }

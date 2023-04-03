@@ -1611,12 +1611,11 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
             .olderThan(System.currentTimeMillis())
             .execute();
     Assert.assertTrue(
-        "Should not delete any metadata files", Iterables.isEmpty(result1.orphanFileLocations()));
+        "Should not delete any metadata files", Iterables.isEmpty(result1.statuses()));
 
     DeleteOrphanFiles.Result result2 =
         actions.deleteOrphanFiles(table).olderThan(System.currentTimeMillis()).execute();
-    Assert.assertEquals(
-        "Should delete 1 data file", 1, Iterables.size(result2.orphanFileLocations()));
+    Assert.assertEquals("Should delete 1 data file", 1, Iterables.size(result2.statuses()));
 
     Dataset<Row> resultDF = spark.read().format("iceberg").load(loadLocation(tableIdentifier));
     List<SimpleRecord> actualRecords =

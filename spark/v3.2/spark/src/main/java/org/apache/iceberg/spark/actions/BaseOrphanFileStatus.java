@@ -16,25 +16,38 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.io;
+package org.apache.iceberg.spark.actions;
 
-import java.util.Set;
+import org.apache.iceberg.actions.DeleteOrphanFiles;
 
-public class BulkDeletionFailureException extends RuntimeException {
-  private final int numberFailedObjects;
-  private final Set<String> deleteFailedFiles;
+public class BaseOrphanFileStatus implements DeleteOrphanFiles.OrphanFileStatus {
 
-  public BulkDeletionFailureException(Set<String> deleteFailedFiles, int numberFailedObjects) {
-    super(String.format("Failed to delete %d files", numberFailedObjects));
-    this.deleteFailedFiles = deleteFailedFiles;
-    this.numberFailedObjects = numberFailedObjects;
+  private final String location;
+  private final boolean deleted;
+  private final Exception failureCause;
+
+  public BaseOrphanFileStatus(String location) {
+    this(location, true, null);
   }
 
-  public int numberFailedObjects() {
-    return numberFailedObjects;
+  public BaseOrphanFileStatus(String location, boolean deleted, Exception failureCause) {
+    this.location = location;
+    this.deleted = deleted;
+    this.failureCause = failureCause;
   }
 
-  public Set<String> deleteFailedFiles() {
-    return deleteFailedFiles;
+  @Override
+  public String location() {
+    return location;
+  }
+
+  @Override
+  public boolean deleted() {
+    return deleted;
+  }
+
+  @Override
+  public Exception failureCause() {
+    return failureCause;
   }
 }

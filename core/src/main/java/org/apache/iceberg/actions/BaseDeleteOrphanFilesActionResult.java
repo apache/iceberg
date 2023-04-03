@@ -25,14 +25,15 @@ package org.apache.iceberg.actions;
 @Deprecated
 public class BaseDeleteOrphanFilesActionResult implements DeleteOrphanFiles.Result {
 
-  private final Iterable<String> orphanFileLocations;
+  private final Iterable<DeleteOrphanFiles.OrphanFileStatus> statuses;
 
-  public BaseDeleteOrphanFilesActionResult(Iterable<String> orphanFileLocations) {
-    this.orphanFileLocations = orphanFileLocations;
+  public BaseDeleteOrphanFilesActionResult(
+      Iterable<DeleteOrphanFiles.OrphanFileStatus> orphanFileLocations) {
+    this.statuses = orphanFileLocations;
   }
 
   @Override
-  public Iterable<String> orphanFileLocations() {
-    return orphanFileLocations;
+  public Iterable<DeleteOrphanFiles.OrphanFileStatus> statuses() {
+    return statuses;
   }
 }
