@@ -30,6 +30,7 @@ import org.apache.arrow.vector.FixedSizeBinaryVector;
 import org.apache.arrow.vector.IntVector;
 import org.apache.arrow.vector.VarBinaryVector;
 import org.apache.iceberg.arrow.vectorized.NullabilityHolder;
+import org.apache.iceberg.parquet.ParquetUtil;
 import org.apache.iceberg.parquet.ValuesAsBytesReader;
 import org.apache.parquet.column.Dictionary;
 
@@ -458,7 +459,7 @@ public final class VectorizedParquetDefinitionLevelReader
         byte[] byteArray) {
       // 8 bytes (time of day nanos) + 4 bytes(julianDay) = 12 bytes
       ByteBuffer buffer = valuesReader.getBuffer(12).order(ByteOrder.LITTLE_ENDIAN);
-      long timestampInt96 = TimestampUtil.extractTimestampInt96(buffer);
+      long timestampInt96 = ParquetUtil.extractTimestampInt96(buffer);
       vector.getDataBuffer().setLong((long) idx * typeWidth, timestampInt96);
     }
 
@@ -479,7 +480,7 @@ public final class VectorizedParquetDefinitionLevelReader
       } else if (Mode.PACKED.equals(mode)) {
         ByteBuffer buffer =
             dict.decodeToBinary(reader.readInteger()).toByteBuffer().order(ByteOrder.LITTLE_ENDIAN);
-        long timestampInt96 = TimestampUtil.extractTimestampInt96(buffer);
+        long timestampInt96 = ParquetUtil.extractTimestampInt96(buffer);
         vector.getDataBuffer().setLong(idx, timestampInt96);
       }
     }

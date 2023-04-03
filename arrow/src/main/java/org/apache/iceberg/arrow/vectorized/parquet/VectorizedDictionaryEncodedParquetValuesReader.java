@@ -27,6 +27,7 @@ import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.FixedSizeBinaryVector;
 import org.apache.arrow.vector.IntVector;
 import org.apache.iceberg.arrow.vectorized.NullabilityHolder;
+import org.apache.iceberg.parquet.ParquetUtil;
 import org.apache.parquet.column.Dictionary;
 
 /**
@@ -112,7 +113,7 @@ public class VectorizedDictionaryEncodedParquetValuesReader
         FieldVector vector, Dictionary dict, int idx, int currentVal, int typeWidth) {
       ByteBuffer buffer =
           dict.decodeToBinary(currentVal).toByteBuffer().order(ByteOrder.LITTLE_ENDIAN);
-      long timestampInt96 = TimestampUtil.extractTimestampInt96(buffer);
+      long timestampInt96 = ParquetUtil.extractTimestampInt96(buffer);
       vector.getDataBuffer().setLong(idx, timestampInt96);
     }
   }

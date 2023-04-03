@@ -361,6 +361,9 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
         this.typeWidth = (int) IntVector.TYPE_WIDTH;
         break;
       case INT96:
+        // Impala & Spark used to write timestamps as INT96 default. For backwards compatibility
+        // we try to read INT96 as timestamps. But INT96 is not recommended and deprecated
+        // (see https://issues.apache.org/jira/browse/PARQUET-323)
         int length = BigIntVector.TYPE_WIDTH;
         this.readType = ReadType.TIMESTAMP_INT96;
         this.vec = arrowField.createVector(rootAlloc);

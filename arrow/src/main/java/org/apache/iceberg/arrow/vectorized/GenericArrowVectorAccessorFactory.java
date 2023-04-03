@@ -43,7 +43,7 @@ import org.apache.arrow.vector.VarCharVector;
 import org.apache.arrow.vector.complex.ListVector;
 import org.apache.arrow.vector.complex.StructVector;
 import org.apache.arrow.vector.util.DecimalUtility;
-import org.apache.iceberg.arrow.vectorized.parquet.TimestampUtil;
+import org.apache.iceberg.parquet.ParquetUtil;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.Dictionary;
@@ -159,6 +159,9 @@ public class GenericArrowVectorAccessorFactory<
         case INT64:
           return new DictionaryLongAccessor<>((IntVector) vector, dictionary);
         case INT96:
+          // Impala & Spark used to write timestamps as INT96 default. For backwards compatibility
+          // we try to read INT96 as timestamps. But INT96 is not recommended and deprecated
+          // (see https://issues.apache.org/jira/browse/PARQUET-323)
           return new DictionaryTimestampInt96Accessor<>((IntVector) vector, dictionary);
         case DOUBLE:
           return new DictionaryDoubleAccessor<>((IntVector) vector, dictionary);
@@ -461,7 +464,7 @@ public class GenericArrowVectorAccessorFactory<
               .decodeToBinary(offsetVector.get(rowId))
               .toByteBuffer()
               .order(ByteOrder.LITTLE_ENDIAN);
-      return TimestampUtil.extractTimestampInt96(byteBuffer);
+      return ParquetUtil.extractTimestampInt96(byteBuffer);
     }
   }
 
