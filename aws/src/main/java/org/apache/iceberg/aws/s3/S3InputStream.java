@@ -195,16 +195,19 @@ class S3InputStream extends SeekableInputStream implements RangeReadable {
     }
   }
 
-  private void closeStream() {
+  private void closeStream() throws IOException {
     if (stream != null) {
       // if we aren't at the end of the stream, and the stream is abortable, then
       // call abort() so we don't read the remaining data with the Apache HTTP client
       abortStream();
       try {
         stream.close();
-      } catch (Exception e) {
-        // close quietly, closing an aborted stream will throw a content length
-        // check exception with the Apache HTTP client, which is expected
+      } catch (IOException e) {
+        // the Apache HTTP client will throw a ConnectionClosedException
+        // when closing an aborted stream, which is expected
+        if (!e.getClass().getSimpleName().equals("ConnectionClosedException")) {
+          throw e;
+        }
       }
       stream = null;
     }
