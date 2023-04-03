@@ -316,9 +316,12 @@ In this case it is up to the engine itself to filter the file itself. Below, `to
 
 ### Apache Arrow
 
-!!! note "Requirements"
+<!-- prettier-ignore-start -->
 
-This requires [PyArrow to be installed](index.md)
+!!! note "Requirements"
+    This requires [PyArrow to be installed](index.md).
+
+<!-- prettier-ignore-end -->
 
 Using PyIceberg it is filter out data from a huge table and pull it into a PyArrow table:
 
@@ -346,9 +349,12 @@ This will only pull in the files that that might contain matching rows.
 
 ### DuckDB
 
-!!! note "Requirements"
+<!-- prettier-ignore-start -->
 
-This requires [DuckDB to be installed](index.md).
+!!! note "Requirements"
+    This requires [DuckDB to be installed](index.md).
+
+<!-- prettier-ignore-end -->
 
 A table scan can also be converted into a in-memory DuckDB table:
 
@@ -377,9 +383,12 @@ print(
 
 ### Ray
 
-!!! note "Requirements"
+<!-- prettier-ignore-start -->
 
-This requires [Ray to be installed](index.md).
+!!! note "Requirements"
+    This requires [Ray to be installed](index.md).
+
+<!-- prettier-ignore-end -->
 
 A table scan can also be converted into a Ray dataset:
 
