@@ -45,7 +45,6 @@ import org.apache.iceberg.actions.ImmutableRewriteManifests;
 import org.apache.iceberg.actions.RewriteManifests;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.ValidationException;
-import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -373,11 +372,13 @@ public class RewriteManifestsSparkAction
       StructType sparkType)
       throws IOException {
 
-    FileIO io = tableBroadcast.value().io();
-
     String manifestName = "optimized-m-" + UUID.randomUUID();
     Path manifestPath = new Path(location, manifestName);
-    OutputFile outputFile = io.newOutputFile(FileFormat.AVRO.addExtension(manifestPath.toString()));
+    OutputFile outputFile =
+        tableBroadcast
+            .value()
+            .io()
+            .newOutputFile(FileFormat.AVRO.addExtension(manifestPath.toString()));
 
     Types.StructType combinedFileType = DataFile.getType(combinedPartitionType);
     Types.StructType manifestFileType = DataFile.getType(spec.partitionType());
