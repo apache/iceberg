@@ -109,7 +109,7 @@ public class LocationProviders {
 
     private static final HashFunction HASH_FUNC = Hashing.murmur3_32_fixed();
     private static final BaseEncoding BASE64_ENCODER = BaseEncoding.base64Url().omitPadding();
-    private final ThreadLocal<byte[]> temp = ThreadLocal.withInitial(() -> new byte[4]);
+    private final ThreadLocal<byte[]> temp = ThreadLocal.withInitial(() -> new byte[6]);
     private final String storageLocation;
     private final String context;
 
