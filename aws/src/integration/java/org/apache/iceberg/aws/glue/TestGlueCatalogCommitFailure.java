@@ -19,7 +19,6 @@
 package org.apache.iceberg.aws.glue;
 
 import java.io.File;
-import java.util.Collections;
 import java.util.Map;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.BaseMetastoreTableOperations;
@@ -39,7 +38,7 @@ import org.junit.Assert;
 import org.junit.Test;
 import org.mockito.Mockito;
 import software.amazon.awssdk.core.metrics.CoreMetric;
-import software.amazon.awssdk.metrics.MetricCollection;
+import software.amazon.awssdk.metrics.MetricCollector;
 import software.amazon.awssdk.services.glue.model.AccessDeniedException;
 import software.amazon.awssdk.services.glue.model.ConcurrentModificationException;
 import software.amazon.awssdk.services.glue.model.EntityNotFoundException;
@@ -141,7 +140,7 @@ public class TestGlueCatalogCommitFailure extends GlueTestBase {
     Table table = spyCatalog.loadTable(tableId);
 
     TableMetadata metadataV1 = spyOps.current();
-    simulateRetriedCommit(spyOps, true);
+    simulateRetriedCommit(spyOps, true /* report retry */);
     updateTable(table, spyOps);
 
     Assert.assertNotEquals("Current metadata should have changed", metadataV1, spyOps.current());
@@ -153,6 +152,7 @@ public class TestGlueCatalogCommitFailure extends GlueTestBase {
   @Test
   public void testNoRetryAwarenessCorruptsTable() {
     // This test exists to replicate the issue the prior test validates the fix for
+    // See https://github.com/apache/iceberg/issues/7151
     String namespace = createNamespace();
     String tableName = createTable(namespace);
     TableIdentifier tableId = TableIdentifier.of(namespace, tableName);
@@ -163,16 +163,20 @@ public class TestGlueCatalogCommitFailure extends GlueTestBase {
     Mockito.doReturn(spyOps).when(spyCatalog).newTableOps(Mockito.eq(tableId));
     Table table = spyCatalog.loadTable(tableId);
 
-    simulateRetriedCommit(spyOps, false);
+    // Its possible that Glue or DynamoDB might someday make changes that render the retry detection
+    // mechanism unnecessary. At that time, this test would start failing while the prior one would
+    // still work. If or when that happens, we can re-evaluate whether the mechanism is still
+    // necessary.
+    simulateRetriedCommit(spyOps, false /* hide retry */);
     Assertions.assertThatThrownBy(() -> updateTable(table, spyOps))
-        .as("Hidden retry should cause failure")
+        .as("Hidden retry causes writer to conflict with itself")
         .isInstanceOf(CommitFailedException.class)
         .hasMessageContaining("Glue detected concurrent update")
         .cause()
         .isInstanceOf(ConcurrentModificationException.class);
 
     Assertions.assertThatThrownBy(() -> glueCatalog.loadTable(tableId))
-        .as("Prior failure causes Iceberg to render Table inaccessible")
+        .as("Table still accessible despite hidden retry, underlying assumptions may have changed")
         .isInstanceOf(NotFoundException.class)
         .hasMessageContaining("Location does not exist");
   }
@@ -182,13 +186,11 @@ public class TestGlueCatalogCommitFailure extends GlueTestBase {
     // about it
     Mockito.doAnswer(
             i -> {
-              MetricCollection metricCollection = Mockito.mock(MetricCollection.class);
-              Mockito.doReturn(Collections.singletonList(reportRetry ? 1 : 0))
-                  .when(metricCollection)
-                  .metricValues(Mockito.eq(CoreMetric.RETRY_COUNT));
+              final MetricCollector metrics = MetricCollector.create("test");
+              metrics.reportMetric(CoreMetric.RETRY_COUNT, reportRetry ? 1 : 0);
 
               i.callRealMethod();
-              i.getArgument(3, RetryDetector.class).publish(metricCollection);
+              i.getArgument(3, RetryDetector.class).publish(metrics.collect());
               i.callRealMethod();
               return null;
             })
