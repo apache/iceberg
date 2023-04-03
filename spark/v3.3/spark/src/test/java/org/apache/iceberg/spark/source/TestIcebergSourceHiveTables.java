@@ -46,6 +46,7 @@ public class TestIcebergSourceHiveTables extends TestIcebergSourceTablesBase {
     if (!catalog.tableExists(currentIdentifier)) {
       return;
     }
+
     dropTable(currentIdentifier);
   }
 
