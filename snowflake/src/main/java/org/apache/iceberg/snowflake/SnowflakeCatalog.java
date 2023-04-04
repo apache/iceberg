@@ -36,6 +36,7 @@ import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.hadoop.Configurable;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.jdbc.JdbcCatalog;
 import org.apache.iceberg.jdbc.JdbcClientPool;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -123,9 +124,10 @@ public class SnowflakeCatalog extends BaseMetastoreCatalog
     String uniqueId = UUID.randomUUID().toString().replace("-", "").substring(0, UNIQUE_ID_LENGTH);
     String uniqueAppIdentifier = APP_IDENTIFIER + "|" + uniqueId;
     // Populate application identifier in jdbc client
-    properties.put(JDBC_APPLICATION_PROPERTY, uniqueAppIdentifier);
+    properties.put(JdbcCatalog.PROPERTY_PREFIX + JDBC_APPLICATION_PROPERTY, uniqueAppIdentifier);
     // Adds application identifier to the user agent header of the JDBC requests.
-    properties.put(JDBC_USER_AGENT_SUFFIX_PROPERTY, uniqueAppIdentifier);
+    properties.put(
+        JdbcCatalog.PROPERTY_PREFIX + JDBC_USER_AGENT_SUFFIX_PROPERTY, uniqueAppIdentifier);
     JdbcClientPool connectionPool = new JdbcClientPool(uri, properties);
 
     initialize(name, new JdbcSnowflakeClient(connectionPool), new FileIOFactory(), properties);
