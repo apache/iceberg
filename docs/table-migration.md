@@ -49,7 +49,7 @@ The Snapshot Table action creates a new iceberg table with the same schema and p
 The Migrate Table action also creates a new Iceberg table with the same schema and partitioning as the source table. However, during the action execution, it locks and drops the source table from the catalog.
 Consequently, Migrate Table requires all modifications working on the source table to be stopped before the action is performed.
 
-Stop all writers interacting with the source table. Readers that also supports Iceberg may continue reading.
+Stop all writers interacting with the source table. Readers that also support Iceberg may continue reading.
 
 ![Migrate Table Step 1](../../../img/iceberg-migrateaction-step1.png)
 

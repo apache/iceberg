@@ -28,11 +28,12 @@ by using [Delta Standalone](https://docs.delta.io/latest/delta-standalone.html) 
 
 
 ## Enabling Migration from Delta Lake to Iceberg
-The `iceberg-delta-lake` module is not bundled with Spark and Flink engine runtimes. Users need to manually include this module in their environment to enable the conversion.
-Also, users need to provide [Delta Standalone](https://github.com/delta-io/connectors/releases/tag/v0.6.0) and [Delta Storage](https://repo1.maven.org/maven2/io/delta/delta-storage/2.2.0/)
-because they are what `iceberg-delta-lake` uses to read Delta Lake tables.
+The `iceberg-delta-lake` module is not bundled with Spark and Flink engine runtimes. To enable migration from delta lake features, the minimum required dependencies are:
+- [iceberg-delta-lake](https://repo1.maven.org/maven2/org/apache/iceberg/iceberg-delta-lake/1.2.0/iceberg-delta-lake-1.2.0.jar)
+- [delta-standalone-0.6.0](https://repo1.maven.org/maven2/io/delta/delta-standalone_2.13/0.6.0/delta-standalone_2.13-0.6.0.jar)
+- [delta-storage-2.2.0](https://repo1.maven.org/maven2/io/delta/delta-storage/2.2.0/delta-storage-2.2.0.jar)
 
-## Compatibilities
+### Compatibilities
 The module is built and tested with `Delta Standalone:0.6.0` and supports Delta Lake tables with the following protocol version:
 * `minReaderVersion`: 1
 * `minWriterVersion`: 2
@@ -42,19 +43,19 @@ Please refer to [Delta Lake Table Protocol Versioning](https://docs.delta.io/lat
 For delta lake table contains `TimestampType` columns, please make sure to set table property `read.parquet.vectorization.enabled` to `false` since the vectorized reader doesn't support `INT96` yet.
 Such support is under development in the [PR#6962](https://github.com/apache/iceberg/pull/6962)
 
-## API
+### API
 The `iceberg-delta-lake` module provides an interface named `DeltaLakeToIcebergMigrationActionsProvider`, which contains actions that helps converting from Delta Lake to Iceberg.
 The supported actions are:
 * `snapshotDeltaLakeTable`: snapshot an existing Delta Lake table to an Iceberg table
 
-## Default Implementation
+### Default Implementation
 The `iceberg-delta-lake` module also provides a default implementation of the interface which can be accessed by
 ```java
 DeltaLakeToIcebergMigrationActionsProvider defaultActions = DeltaLakeToIcebergMigrationActionsProvider.defaultActions()
 ```
 
-### `snapshotDeltaLakeTable`
-The action reads the Delta Lake table's most recent snapshot and converts it to a new Iceberg table with the same schema and partitioning in one iceberg transaction.
+## Snapshot Delta Lake Table to Iceberg
+The action `snapshotDeltaLakeTable` reads the Delta Lake table's most recent snapshot and converts it to a new Iceberg table with the same schema and partitioning in one iceberg transaction.
 The original Delta Lake table remains unchanged.
 
 The newly created table can be changed or written to without affecting the source table, but the snapshot uses the original table's data files.
@@ -105,24 +106,25 @@ The following table properties are added to the Iceberg table to be created by d
 | `schema.name-mapping.default` | JSON name mapping derived from the schema | The name mapping string used to read Delta Lake table's data files |
 
 #### Examples
-Snapshot a Delta Lake table located at `s3://my-bucket/delta-table` to an Iceberg table named `my_table` in the `my_db` database in the `my_catalog` catalog.
 ```java
+sourceDeltaLakeTableLocation = "s3://my-bucket/delta-table";
+destTableIdentifier = TableIdentifier.of("my_db", "my_table");
+destTableLocation = "s3://my-bucket/iceberg-table";
+icebergCatalog = ...; // Iceberg Catalog fetched from engines like Spark or created via CatalogUtil.loadCatalog
+hadoopConf = ...; // Hadoop Configuration fetched from engines like Spark and have proper file system configuration to access the Delta Lake table.
+    
 DeltaLakeToIcebergMigrationActionsProvider.defaultActions()
-    .snapshotDeltaLakeTable("s3://my-bucket/delta-table")
-    .as("my_db.my_table")
-    .icebergCatalog("my_catalog")
-    .deltaLakeConfiguration(new Configuration())
-    .execute();
-```
-Snapshot a Delta Lake table located at `s3://my-bucket/delta-table` to an Iceberg table named `my_table` in the `my_db` database in the `my_catalog` catalog at a manually
-specified location `s3://my-bucket/snapshot-loc`. Also, add a table property `my_property` with value `my_value` to the Iceberg table.
-```java
-DeltaLakeToIcebergMigrationActionsProvider.defaultActions()
-    .snapshotDeltaLakeTable("s3://my-bucket/delta-table")
-    .as("my_db.my_table")
-    .icebergCatalog("my_catalog")
-    .deltaLakeConfiguration(new Configuration())
-    .tableLocation("s3://my-bucket/snapshot-loc")
+    .snapshotDeltaLakeTable(sourceDeltaLakeTableLocation)
+    .as(destTableIdentifier)
+    .icebergCatalog(icebergCatalog)
+    .tableLocation(destTableLocation)
+    .deltaLakeConfiguration(hadoopConf)
     .tableProperty("my_property", "my_value")
     .execute();
 ```
+
+## Migrate Delta Lake Table To Iceberg
+Unsupported
+
+## Add Files From Delta Lake Table to Iceberg
+Unsupported
