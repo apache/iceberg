@@ -21,6 +21,7 @@ package org.apache.iceberg.flink.sink.shuffle;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.runtime.operators.coordination.OperatorEvent;
 import org.apache.iceberg.flink.sink.shuffle.statistics.DataStatistics;
+import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 
 /**
  * DataStatisticsEvent is sent between data statistics coordinator and operator to transmit data
@@ -49,7 +50,9 @@ class DataStatisticsEvent<K> implements OperatorEvent {
 
   @Override
   public String toString() {
-    return String.format(
-        "DataStatisticEvent[checkpointId = %d, dataStatistics = %s)", checkpointId, dataStatistics);
+    return MoreObjects.toStringHelper(this)
+        .add("checkpointId", checkpointId)
+        .add("dataStatistics", dataStatistics)
+        .toString();
   }
 }

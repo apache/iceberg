@@ -34,6 +34,7 @@ import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.iceberg.flink.sink.shuffle.statistics.DataStatistics;
 import org.apache.iceberg.flink.sink.shuffle.statistics.DataStatisticsFactory;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
  * DataStatisticsOperator collects traffic distribution statistics. A custom partitioner shall be
@@ -98,14 +99,12 @@ class DataStatisticsOperator<T, K> extends AbstractStreamOperator<DataStatistics
 
   @Override
   @SuppressWarnings("unchecked")
-  public void handleOperatorEvent(OperatorEvent evt) {
-    if (evt instanceof DataStatisticsEvent) {
-      globalStatistics = ((DataStatisticsEvent<K>) evt).dataStatistics();
-      output.collect(
-          new StreamRecord<>(DataStatisticsOrRecord.fromDataStatistics(globalStatistics)));
-    } else {
-      throw new IllegalStateException("Received unexpected operator event " + evt);
-    }
+  public void handleOperatorEvent(OperatorEvent event) {
+    Preconditions.checkArgument(
+        event instanceof DataStatisticsEvent,
+        "Received unexpected operator event " + event.getClass());
+    globalStatistics = ((DataStatisticsEvent<K>) event).dataStatistics();
+    output.collect(new StreamRecord<>(DataStatisticsOrRecord.fromDataStatistics(globalStatistics)));
   }
 
   @Override
