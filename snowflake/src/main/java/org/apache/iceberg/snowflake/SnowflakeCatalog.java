@@ -122,7 +122,7 @@ public class SnowflakeCatalog extends BaseMetastoreCatalog
     }
 
     String uniqueId = UUID.randomUUID().toString().replace("-", "").substring(0, UNIQUE_ID_LENGTH);
-    String uniqueAppIdentifier = APP_IDENTIFIER + "|" + uniqueId;
+    String uniqueAppIdentifier = APP_IDENTIFIER + "_" + uniqueId;
     // Populate application identifier in jdbc client
     properties.put(JdbcCatalog.PROPERTY_PREFIX + JDBC_APPLICATION_PROPERTY, uniqueAppIdentifier);
     // Adds application identifier to the user agent header of the JDBC requests.
