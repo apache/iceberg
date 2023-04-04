@@ -58,8 +58,8 @@ public class SnapshotSummary {
   public static final String SOURCE_SNAPSHOT_ID_PROP = "source-snapshot-id";
   public static final String REPLACE_PARTITIONS_PROP = "replace-partitions";
   public static final String EXTRA_METADATA_PREFIX = "snapshot-property.";
-  public static final String POSITION_DELETES_WITHIN_COMMIT_ONLY =
-      "position-deletes-within-commit-only";
+  public static final String NO_POS_DELETE_APPLY_TO_PREVIOUS_DATA =
+      "no-pos-delete-apply-to-previous-data";
 
   public static final MapJoiner MAP_JOINER = Joiner.on(",").withKeyValueSeparator("=");
 

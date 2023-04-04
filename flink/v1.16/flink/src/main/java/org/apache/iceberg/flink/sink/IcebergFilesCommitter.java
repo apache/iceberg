@@ -374,7 +374,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
         // files to be concurrently removed, so there is no need to validate the files referenced by
         // the position delete files that are being committed.
         RowDelta rowDelta = table.newRowDelta().scanManifestsWith(workerPool);
-        rowDelta.set(SnapshotSummary.POSITION_DELETES_WITHIN_COMMIT_ONLY, "true");
+        rowDelta.set(SnapshotSummary.NO_POS_DELETE_APPLY_TO_PREVIOUS_DATA, "true");
 
         Arrays.stream(result.dataFiles()).forEach(rowDelta::addRows);
         Arrays.stream(result.deleteFiles()).forEach(rowDelta::addDeletes);

@@ -490,10 +490,9 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
         return Boolean.parseBoolean(
             snapshot
                 .summary()
-                .getOrDefault(SnapshotSummary.POSITION_DELETES_WITHIN_COMMIT_ONLY, "false"));
+                .getOrDefault(SnapshotSummary.NO_POS_DELETE_APPLY_TO_PREVIOUS_DATA, "false"));
       default:
-        throw new RuntimeException(
-            String.format("Unknown data operation: %s", snapshot.operation()));
+        return false;
     }
   }
 
