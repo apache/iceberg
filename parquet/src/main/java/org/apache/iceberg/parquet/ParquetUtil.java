@@ -229,12 +229,7 @@ public class ParquetUtil {
   public static List<Long> getSplitOffsets(InputFile file) {
     try (ParquetFileReader reader = ParquetFileReader.open(ParquetIO.file(file))) {
       ParquetMetadata md = reader.getFooter();
-      List<Long> splitOffsets = Lists.newArrayListWithExpectedSize(md.getBlocks().size());
-      for (BlockMetaData blockMetaData : md.getBlocks()) {
-        splitOffsets.add(blockMetaData.getStartingPos());
-      }
-      Collections.sort(splitOffsets);
-      return splitOffsets;
+      return getSplitOffsets(md);
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to read footer of file: %s", file);
     }
