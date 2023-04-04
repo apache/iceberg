@@ -594,19 +594,56 @@ CALL spark_catalog.system.ancestors_of(snapshot_id => 1, table => 'db.tbl')
 
 Creates a view that contains the changes from a given table. 
 
+#### Remove carry-over rows
+
+The procedure removes the carry-over rows by default. Carry-over rows are the result of row-level operations(`MERGE`, `UPDATE` and `DELETE`)
+when using copy-on-write. For example, given a file which contains row1 `(id=1, name='Alice')` and row2 `(id=2, name='Bob')`.
+A copy-on-write delete of row2 would require erasing this file and preserving row1 in a new file. The changelog table
+reports this as the following pair of rows, despite it not being an actual change to the table.
+
+| id  | name  | _change_type |
+|-----|-------|--------------|
+| 1   | Alice | DELETE       |
+| 1   | Alice | INSERT       |
+
+By default, this view finds the carry-over rows and removes them from the result. User can disable this 
+behavior by setting the `remove_carryovers` option to `false`.
+
+#### Compute pre/post update images
+
+The procedure computes the pre/post update images if configured. Pre/post update images are converted from a
+pair of a delete row and an insert row. Identifier columns are used for determining whether an insert and a delete record
+refer to the same row. If the two records share the same values for the identity columns they are considered to be before
+and after states of the same row. You can either set identifier fields in the table schema or input them as the procedure parameters.
+
+The following example shows pre/post update images computation with an identifier column(`id`), where a row deletion
+and an insertion with the same `id` are treated as a single update operation. Specifically, suppose we have the following pair of rows:
+
+| id  | name   | _change_type |
+|-----|--------|--------------|
+| 3   | Robert | DELETE       |
+| 3   | Dan    | INSERT       |
+
+In this case, the procedure marks the row before the update as an `UPDATE_BEFORE` image and the row after the update
+as an `UPDATE_AFTER` image, resulting in the following pre/post update images:
+
+| id  | name   | _change_type |
+|-----|--------|--------------|
+| 3   | Robert | UPDATE_BEFORE|
+| 3   | Dan    | UPDATE_AFTER |
+
 #### Usage
 
-| Argument Name | Required? | Type | Description                                                                                                                                                       |
-|---------------|----------|------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `table`       | ✔️ | string | Name of the source table for the changelog                                                                                                                        |
-| `changelog_view`        |   | string | Name of the view to create                                                                                                                                        |
-| `options`     |   | map<string, string> | A map of Spark read options to use.                                                                                                                               |
-|`compute_updates`| | boolean | Whether to compute updates, defaults to false                                                                                                                     | 
-|`identifier_columns`| | array<string> | The list of identifier columns. If not provided while `compute_updates` is set to true, the table’s current identifier fields will be used for computing updates. |
-|`remove_carryovers`| | boolean | Whether to remove carry-over rows. Defaults to true.                                                                                                              |
+| Argument Name | Required? | Type | Description                                                                                                                                                                                                           |
+|---------------|----------|------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `table`       | ✔️ | string | Name of the source table for the changelog                                                                                                                                                                            |
+| `changelog_view`        |   | string | Name of the view to create                                                                                                                                                                                            |
+| `options`     |   | map<string, string> | A map of Spark read options to use                                                                                                                                                                                    |
+|`compute_updates`| | boolean | Whether to compute pre/post update images, defaults to false.                                                                                                                                                         | 
+|`identifier_columns`| | array<string> | The list of identifier columns to compute updates. If the argument `compute_updates` is set to true and `identifier_columns` are not provided, the table’s current identifier fields will be used to compute updates. |
+|`remove_carryovers`| | boolean | Whether to remove carry-over rows. Defaults to true.                                                                                                                                                                  |
 
-Here is a list of commonly used Spark read options 
-
+Here is a list of commonly used Spark read options:
 * `start-snapshot-id`: the exclusive start snapshot ID. If not provided, it reads from the table’s first snapshot inclusively. 
 * `end-snapshot-id`: the inclusive end snapshot id, default to table's current snapshot.                                                                                                                                            
 * `start-timestamp`: the exclusive start timestamp. If not provided, it reads from the table’s first snapshot inclusively.
