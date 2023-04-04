@@ -31,7 +31,6 @@ import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.flink.configuration.CoreOptions;
 import org.apache.flink.table.api.TableEnvironment;
-import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
@@ -42,8 +41,6 @@ import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.TableMetadata;
-import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.actions.RewriteDataFilesActionResult;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -58,6 +55,7 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
+import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -72,9 +70,11 @@ public class TestRewriteDataFilesAction extends FlinkCatalogTestBase {
 
   private static final String TABLE_NAME_UNPARTITIONED = "test_table_unpartitioned";
   private static final String TABLE_NAME_PARTITIONED = "test_table_partitioned";
+  private static final String TABLE_NAME_WITH_PK = "test_table_with_pk";
   private final FileFormat format;
   private Table icebergTableUnPartitioned;
   private Table icebergTablePartitioned;
+  private Table icebergTableWithPk;
 
   public TestRewriteDataFilesAction(
       String catalogName, Namespace baseNamespace, FileFormat format) {
@@ -123,6 +123,12 @@ public class TestRewriteDataFilesAction extends FlinkCatalogTestBase {
         TABLE_NAME_PARTITIONED, format.name());
     icebergTablePartitioned =
         validationCatalog.loadTable(TableIdentifier.of(icebergNamespace, TABLE_NAME_PARTITIONED));
+
+    sql(
+        "CREATE TABLE %s (id int, data varchar, PRIMARY KEY(`id`) NOT ENFORCED) with ('write.format.default'='%s', 'format-version'='2')",
+        TABLE_NAME_WITH_PK, format.name());
+    icebergTableWithPk =
+        validationCatalog.loadTable(TableIdentifier.of(icebergNamespace, TABLE_NAME_WITH_PK));
   }
 
   @Override
@@ -130,6 +136,7 @@ public class TestRewriteDataFilesAction extends FlinkCatalogTestBase {
   public void clean() {
     sql("DROP TABLE IF EXISTS %s.%s", flinkDatabase, TABLE_NAME_UNPARTITIONED);
     sql("DROP TABLE IF EXISTS %s.%s", flinkDatabase, TABLE_NAME_PARTITIONED);
+    sql("DROP TABLE IF EXISTS %s.%s", flinkDatabase, TABLE_NAME_WITH_PK);
     sql("DROP DATABASE IF EXISTS %s", flinkDatabase);
     super.clean();
   }
@@ -399,34 +406,20 @@ public class TestRewriteDataFilesAction extends FlinkCatalogTestBase {
   @Test
   public void testRewriteNoConflictWithEqualityDeletes() throws IOException {
     // Add 2 data files
-    sql("INSERT INTO %s SELECT 1, 'hello'", TABLE_NAME_UNPARTITIONED);
-    sql("INSERT INTO %s SELECT 2, 'world'", TABLE_NAME_UNPARTITIONED);
+    sql("INSERT INTO %s SELECT 1, 'hello'", TABLE_NAME_WITH_PK);
+    sql("INSERT INTO %s SELECT 2, 'world'", TABLE_NAME_WITH_PK);
 
     // Load 2 stale tables to pass to rewrite actions
     Table stale1 =
-        validationCatalog.loadTable(TableIdentifier.of(icebergNamespace, TABLE_NAME_UNPARTITIONED));
+        validationCatalog.loadTable(TableIdentifier.of(icebergNamespace, TABLE_NAME_WITH_PK));
     Table stale2 =
-        validationCatalog.loadTable(TableIdentifier.of(icebergNamespace, TABLE_NAME_UNPARTITIONED));
-
-    // Enabled upsert
-    icebergTableUnPartitioned.refresh();
-    upgradeToVersion2((BaseTable) icebergTableUnPartitioned);
-    icebergTableUnPartitioned
-        .updateSchema()
-        .allowIncompatibleChanges()
-        .requireColumn("id")
-        .setIdentifierFields("id")
-        .commit();
-    icebergTableUnPartitioned
-        .updateProperties()
-        .set(TableProperties.UPSERT_ENABLED, "true")
-        .commit();
+        validationCatalog.loadTable(TableIdentifier.of(icebergNamespace, TABLE_NAME_WITH_PK));
 
     // Add 1 data file and 1 equality-delete file
-    sql("INSERT INTO %s SELECT 1, 'hi'", TABLE_NAME_UNPARTITIONED);
+    sql("INSERT INTO %s /*+ OPTIONS('upsert-enabled'='true')*/ SELECT 1, 'hi'", TABLE_NAME_WITH_PK);
 
-    icebergTableUnPartitioned.refresh();
-    CloseableIterable<FileScanTask> tasks = icebergTableUnPartitioned.newScan().planFiles();
+    icebergTableWithPk.refresh();
+    CloseableIterable<FileScanTask> tasks = icebergTableWithPk.newScan().planFiles();
     List<DataFile> dataFiles =
         Lists.newArrayList(CloseableIterable.transform(tasks, FileScanTask::file));
     Set<DeleteFile> deleteFiles =
@@ -434,16 +427,20 @@ public class TestRewriteDataFilesAction extends FlinkCatalogTestBase {
             .flatMap(Collection::stream)
             .collect(Collectors.toSet());
     Assert.assertEquals("Should have 3 data files before rewrite", 3, dataFiles.size());
-    Assert.assertTrue(
-        "Should have 1 equality-delete file before rewrite",
-        deleteFiles.size() == 1
-            && Iterables.getOnlyElement(deleteFiles).content() == FileContent.EQUALITY_DELETES);
+    Assert.assertEquals("Should have 1 delete file before rewrite", 1, deleteFiles.size());
+    Assert.assertSame(
+        "The 1 delete file should be an equality-delete file",
+        Iterables.getOnlyElement(deleteFiles).content(),
+        FileContent.EQUALITY_DELETES);
 
-    Assert.assertThrows(
-        "Rewrite using new sequence number should fail",
-        ValidationException.class,
-        () ->
-            Actions.forTable(stale1).rewriteDataFiles().useStartingSequenceNumber(false).execute());
+    Assertions.assertThatThrownBy(
+            () ->
+                Actions.forTable(stale1)
+                    .rewriteDataFiles()
+                    .useStartingSequenceNumber(false)
+                    .execute(),
+            "Rewrite using new sequence number should fail")
+        .isInstanceOf(ValidationException.class);
     // Rewrite using the starting sequence number should succeed
     RewriteDataFilesActionResult result = Actions.forTable(stale2).rewriteDataFiles().execute();
 
@@ -451,17 +448,10 @@ public class TestRewriteDataFilesAction extends FlinkCatalogTestBase {
     Assert.assertEquals("Action should rewrite 2 data files", 2, result.deletedDataFiles().size());
     Assert.assertEquals("Action should add 1 data file", 1, result.addedDataFiles().size());
 
-    icebergTableUnPartitioned.refresh();
-
     // Assert the table records as expected.
     SimpleDataUtil.assertTableRecords(
-        icebergTableUnPartitioned,
+        icebergTableWithPk,
         Lists.newArrayList(
             SimpleDataUtil.createRecord(1, "hi"), SimpleDataUtil.createRecord(2, "world")));
-  }
-
-  private void upgradeToVersion2(BaseTable table) {
-    TableMetadata meta = table.operations().current();
-    table.operations().commit(meta, meta.upgradeToFormatVersion(2));
   }
 }

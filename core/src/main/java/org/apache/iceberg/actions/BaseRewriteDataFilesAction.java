@@ -200,6 +200,16 @@ public abstract class BaseRewriteDataFilesAction<ThisT>
     return this;
   }
 
+  /**
+   * If the compaction should use the sequence number of the snapshot at compaction start time for
+   * new data files, instead of using the sequence number of the newly produced snapshot.
+   *
+   * <p>This avoids commit conflicts with updates that add newer equality deletes at a higher
+   * sequence number.
+   *
+   * @param useStarting use starting sequence number if set to true
+   * @return this for method chaining
+   */
   public BaseRewriteDataFilesAction<ThisT> useStartingSequenceNumber(boolean useStarting) {
     this.useStartingSequenceNumber = useStarting;
     return this;
