@@ -69,19 +69,19 @@ public class SparkPositionDeletesRewriteBuilder implements WriteBuilder {
   @Override
   public Write build() {
     String fileSetId = writeConf.rewrittenFileSetId();
+    boolean handleTimestampWithoutZone = writeConf.handleTimestampWithoutZone();
 
     Preconditions.checkArgument(
-        fileSetId != null, "position_deletes table can only be written by RewriteDeleteFiles");
+        fileSetId != null, "Can only write to %s via actions", table.name());
     Preconditions.checkArgument(
-        writeConf.handleTimestampWithoutZone()
-            || !SparkUtil.hasTimestampWithoutZone(table.schema()),
+        handleTimestampWithoutZone || !SparkUtil.hasTimestampWithoutZone(table.schema()),
         SparkUtil.TIMESTAMP_WITHOUT_TIMEZONE_ERROR);
 
     // all files of rewrite group have same partition and spec id
     ScanTaskSetManager taskSetManager = ScanTaskSetManager.get();
     List<PositionDeletesScanTask> tasks = taskSetManager.fetchTasks(table, fileSetId);
-    Preconditions.checkNotNull(tasks, "No scan tasks found for %s", fileSetId);
-    Preconditions.checkArgument(tasks.size() > 0, "No scan tasks found for %s", fileSetId);
+    Preconditions.checkArgument(
+        tasks != null && tasks.size() > 0, "No scan tasks found for %s", fileSetId);
 
     int specId = specId(fileSetId, tasks);
     StructLike partition = partition(fileSetId, tasks);
@@ -102,10 +102,10 @@ public class SparkPositionDeletesRewriteBuilder implements WriteBuilder {
 
   private StructLike partition(String fileSetId, List<PositionDeletesScanTask> tasks) {
     StructLikeSet partitions = StructLikeSet.create(tasks.get(0).spec().partitionType());
-    partitions.addAll(tasks.stream().map(ContentScanTask::partition).collect(Collectors.toList()));
+    tasks.stream().map(ContentScanTask::partition).forEach(partitions::add);
     Preconditions.checkArgument(
         partitions.size() == 1,
-        "All scan tasks of %s are expected to have the same partition",
+        "All scan tasks of %s are expected to have the same partition, but got %s",
         fileSetId,
         Joiner.on(",").join(partitions));
     return tasks.get(0).partition();

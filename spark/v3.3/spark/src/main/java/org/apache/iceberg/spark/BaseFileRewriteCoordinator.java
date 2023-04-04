@@ -33,7 +33,7 @@ import org.slf4j.LoggerFactory;
 
 abstract class BaseFileRewriteCoordinator<F extends ContentFile<F>> {
 
-  private static final Logger LOG = LoggerFactory.getLogger(FileRewriteCoordinator.class);
+  private static final Logger LOG = LoggerFactory.getLogger(BaseFileRewriteCoordinator.class);
 
   private final Map<Pair<String, String>, Set<F>> resultMap = Maps.newConcurrentMap();
 
