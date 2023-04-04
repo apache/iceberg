@@ -110,14 +110,11 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
     private final boolean reuseContainers;
     private final long[] rowGroupsStartRowPos;
 
-    private int nextRowGroup = 0;
     private long nextRowGroupStart = 0;
     private long valuesRead = 0;
     private T last = null;
 
     private int totalRowGroups;
-    // state effected when next row group is read is
-    // model, nextRowGroup, nextRowGroupStart
     private static final ExecutorService prefetchService =
         MoreExecutors.getExitingExecutorService(
             (ThreadPoolExecutor)
@@ -128,7 +125,6 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
                         .setNameFormat("iceberg-parquet-row-group-prefetchNext-pool-%d")
                         .build()));
 
-    // State associated with prefetching row groups
     private int prefetchedRowGroup = 0;
     private Future<PageReadStore> prefetchRowGroupFuture;
 
@@ -173,7 +169,7 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
       try {
         Preconditions.checkNotNull(prefetchRowGroupFuture, "future should not be null");
         PageReadStore pages = prefetchRowGroupFuture.get();
-        // no row groups pre-fetched
+
         if (prefetchedRowGroup >= totalRowGroups) {
           return;
         }

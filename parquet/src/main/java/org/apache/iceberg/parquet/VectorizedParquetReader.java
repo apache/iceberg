@@ -117,15 +117,11 @@ public class VectorizedParquetReader<T> extends CloseableGroup implements Closea
     private final int batchSize;
     private final List<Map<ColumnPath, ColumnChunkMetaData>> columnChunkMetadata;
     private final boolean reuseContainers;
-    private final int nextRowGroup = 0;
     private long nextRowGroupStart = 0;
     private long valuesRead = 0;
     private T last = null;
     private final long[] rowGroupsStartRowPos;
     private final int totalRowGroups;
-
-    // state effected when next row group is read is
-    // model, nextRowGroup, nextRowGroupStart
     private static final ExecutorService prefetchService =
         MoreExecutors.getExitingExecutorService(
             (ThreadPoolExecutor)
@@ -135,6 +131,9 @@ public class VectorizedParquetReader<T> extends CloseableGroup implements Closea
                         .setDaemon(true)
                         .setNameFormat("iceberg-parquet-row-group-prefetchNext-pool-%d")
                         .build()));
+
+    private int prefetchedRowGroup = 0;
+    private Future<PageReadStore> prefetchRowGroupFuture;
 
     FileIterator(ReadConf conf) {
       this.reader = conf.reader();
@@ -150,10 +149,6 @@ public class VectorizedParquetReader<T> extends CloseableGroup implements Closea
       prefetchNextRowGroup();
       advance();
     }
-
-    // State associated with prefetching row groups
-    private int prefetchedRowGroup = 0;
-    private Future<PageReadStore> prefetchRowGroupFuture;
 
     @Override
     public boolean hasNext() {
@@ -185,7 +180,7 @@ public class VectorizedParquetReader<T> extends CloseableGroup implements Closea
       try {
         Preconditions.checkNotNull(prefetchRowGroupFuture, "future should not be null");
         PageReadStore pages = prefetchRowGroupFuture.get();
-        // no row groups pre-fetched
+
         if (prefetchedRowGroup >= totalRowGroups) {
           return;
         }
