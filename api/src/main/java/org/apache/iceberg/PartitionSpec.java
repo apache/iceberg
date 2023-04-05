@@ -289,23 +289,6 @@ public class PartitionSpec implements Serializable {
     return sourceIds;
   }
 
-  /** Determine if this PartitionSpec contains at least 1 bucket definition */
-  public boolean hasBucketPartition() {
-    List<PartitionField> partFields = fields();
-    boolean hasBucketPartition = false;
-
-    for (int i = 0; i < partFields.size(); i++) {
-      PartitionField field = partFields.get(i);
-      // Is there a more elegant way to know? (all Bucket* constructs are package private)
-      if (field.transform().dedupName().toLowerCase().contains("bucket")) {
-        hasBucketPartition = true;
-        break;
-      }
-    }
-
-    return hasBucketPartition;
-  }
-
   @Override
   public String toString() {
     StringBuilder sb = new StringBuilder();

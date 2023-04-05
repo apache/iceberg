@@ -33,7 +33,7 @@ import org.apache.iceberg.flink.RowDataWrapper;
  * Very similar to the {@link PartitionKeySelector}, but optimized to extract and return an Integer
  * bucketId as the key.
  */
-public class BucketPartitionKeySelector implements KeySelector<RowData, Integer> {
+class BucketPartitionKeySelector implements KeySelector<RowData, Integer> {
 
   private final Schema schema;
   private final PartitionKey partitionKey;

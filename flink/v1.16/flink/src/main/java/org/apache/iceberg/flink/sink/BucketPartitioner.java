@@ -22,6 +22,7 @@ import java.util.Optional;
 import org.apache.flink.api.common.functions.Partitioner;
 import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
  * This partitioner will redirect elements to writers deterministically so that each writer only
@@ -29,9 +30,9 @@ import org.apache.iceberg.PartitionSpec;
  * of multiple writers per bucket as evenly as possible, and will round-robin the requests across
  * them.
  */
-public class BucketPartitioner implements Partitioner<Integer> {
+class BucketPartitioner implements Partitioner<Integer> {
 
-  private final Integer maxBuckets;
+  private final int maxBuckets;
 
   private final int[] currentWriterOffset;
 
@@ -42,36 +43,33 @@ public class BucketPartitioner implements Partitioner<Integer> {
             .filter(f -> f.transform().dedupName().contains("bucket"))
             .findFirst();
 
-    if (!bucket.isPresent()) {
-      throw new IllegalStateException("No buckets found on the provided PartitionSpec");
-    }
+    Preconditions.checkArgument(
+        bucket.isPresent(), "No buckets found on the provided PartitionSpec");
 
     // Extracting the max number of buckets defined in the partition spec
     String transformName = bucket.get().transform().dedupName();
     Optional<Integer> maxBucketsOpt = BucketPartitionKeySelector.extractInteger(transformName);
 
-    if (maxBucketsOpt.isPresent()) {
-      this.maxBuckets = maxBucketsOpt.get();
-    } else {
-      throw new IllegalStateException(
-          "Could not extract the max number of buckets from the transform name ("
-              + transformName
-              + ")");
-    }
+    Preconditions.checkArgument(
+        maxBucketsOpt.isPresent(),
+        "Could not extract the max number of buckets from the transform name ("
+            + transformName
+            + ")");
 
+    this.maxBuckets = maxBucketsOpt.get();
     this.currentWriterOffset = new int[this.maxBuckets];
   }
 
   @Override
   public int partition(Integer bucketId, int numPartitions) {
     if (numPartitions > maxBuckets) {
-      return getSubpartitionIdx(bucketId, numPartitions);
+      return getPartitionIndex(bucketId, numPartitions);
     } else {
       return bucketId % numPartitions;
     }
   }
 
-  private int getSubpartitionIdx(int bucketId, int numPartitions) {
+  private int getPartitionIndex(int bucketId, int numPartitions) {
     int currentOffset = currentWriterOffset[bucketId];
     // When numPartitions is not evenly divisible by maxBuckets
     int extraPad = bucketId < (numPartitions % maxBuckets) ? 1 : 0;
