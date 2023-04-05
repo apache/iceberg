@@ -211,8 +211,6 @@ public class SparkPositionDeletesRewrite implements Write {
 
       SparkFileWriterFactory writerFactoryWithRow =
           SparkFileWriterFactory.builderFor(table)
-              .dataSchema(writeSchema)
-              .dataSparkType(dsSchema)
               .deleteFileFormat(format)
               .positionDeleteRowSchema(positionDeleteRowSchema)
               .positionDeleteSparkType(deleteSparkType)
