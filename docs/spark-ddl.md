@@ -140,6 +140,47 @@ AS SELECT ...
 The schema and partition spec will be replaced if changed. To avoid modifying the table's schema and partitioning, use `INSERT OVERWRITE` instead of `REPLACE TABLE`.
 The new table properties in the `REPLACE TABLE` command will be merged with any existing table properties. The existing table properties will be updated if changed else they are preserved.
 
+## `DROP NAMESPACE`
+
+### `DROP EMPTY NAMESPACE`
+
+To drop an _empty_ namespace, run:
+
+```sql
+DROP database prod.db.sample
+```
+If the namespace is not empty, this will fail with _NamespaceNotEmptyException_.
+
+
+### `DROP NON_EMPTY NAMESPACE`
+
+To drop a namespace and all its contents including tables, run:
+
+```sql
+DROP TABLE prod.db.sample CASCADE
+```
+**WARNING**: 
+drop table purge behaviour with cascade depends on the type of catalog managing the namespace.
+see below mapping of purge behaviour for different catalogs.
+- If the database is managed by **HiveCatalog**, this will _purge_ all the tables in the database.
+
+#### `drop namespace table purge behaviour by catalog for CASCADE`
+
+When namespace is dropped with _CASCADE_, all tables are dropped and contents are purged based on the type of
+catalog. 
+
+| Catalog   | Table Purge  | Nested Namespaces      |
+|-----------|--------------|------------------------|
+| Hive      | - [ x ]      | - [ ]                  |
+| Nessie    | - [  ]       | - [  ]                 |
+| DynamoDb  | - [  ]       | - [  ]                 |
+| Glue      | - [  ]       | - [  ]                 |
+| Hadoop    | - [  ]       | - [ x ]                |
+| JDBC      | - [  ]       | - [ x ]                |
+| ECS       | - [  ]       | - [ x ]                |
+| Snowflake | NotSupported | NotSupported           |
+
+
 ## `DROP TABLE`
 
 The drop table behavior changed in 0.14.
