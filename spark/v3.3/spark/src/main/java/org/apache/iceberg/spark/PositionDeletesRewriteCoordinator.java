@@ -18,29 +18,16 @@
  */
 package org.apache.iceberg.spark;
 
-import java.util.Set;
-import org.apache.iceberg.DataFile;
-import org.apache.iceberg.Table;
+import org.apache.iceberg.DeleteFile;
 
-public class FileRewriteCoordinator extends BaseFileRewriteCoordinator<DataFile> {
+public class PositionDeletesRewriteCoordinator extends BaseFileRewriteCoordinator<DeleteFile> {
 
-  private static final FileRewriteCoordinator INSTANCE = new FileRewriteCoordinator();
+  private static final PositionDeletesRewriteCoordinator INSTANCE =
+      new PositionDeletesRewriteCoordinator();
 
-  private FileRewriteCoordinator() {}
+  private PositionDeletesRewriteCoordinator() {}
 
-  public static FileRewriteCoordinator get() {
+  public static PositionDeletesRewriteCoordinator get() {
     return INSTANCE;
-  }
-
-  /** @deprecated will be removed in 1.4.0; use {@link #fetchNewFiles(Table, String)} instead. */
-  @Deprecated
-  public Set<DataFile> fetchNewDataFiles(Table table, String fileSetId) {
-    return fetchNewFiles(table, fileSetId);
-  }
-
-  /** @deprecated will be removed in 1.4.0; use {@link #fetchSetIds(Table)} instead */
-  @Deprecated
-  public Set<String> fetchSetIDs(Table table) {
-    return fetchSetIds(table);
   }
 }
