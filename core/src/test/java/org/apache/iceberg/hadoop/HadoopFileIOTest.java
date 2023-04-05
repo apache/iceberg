@@ -180,7 +180,6 @@ public class HadoopFileIOTest {
                 throw new UncheckedIOException(e);
               }
             });
-
     return paths;
   }
 }
