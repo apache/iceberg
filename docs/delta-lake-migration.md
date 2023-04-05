@@ -4,7 +4,7 @@ url: delta-lake-migration
 menu:
   main:
     parent: "Migration"
-    weight: 200
+    weight: 300
 ---
 <!--
  - Licensed to the Apache Software Foundation (ASF) under one or more
@@ -23,9 +23,14 @@ menu:
  - limitations under the License.
  -->
 # Delta Lake Table Migration
-Iceberg supports converting Delta Lake tables to Iceberg tables through the `iceberg-delta-lake` module
-by using [Delta Standalone](https://docs.delta.io/latest/delta-standalone.html) to read logs of Delta lake tables.
+Delta Lake is a table format that supports Parquet file format and provides time travel and versioning features. When migrating data from Delta Lake to Iceberg,
+it is common to migrate all snapshots to maintain the history of the data.
 
+Currently, Iceberg only supports the Snapshot Table action for migrating from Delta Lake to Iceberg tables. It is done via the `iceberg-delta-lake` module
+by using [Delta Standalone](https://docs.delta.io/latest/delta-standalone.html) to read logs of Delta lake tables.
+Since Delta Lake tables maintain snapshots, all available snapshots will be committed to the new Iceberg table as transactions in order.
+For Delta Lake tables, any additional data files added after the initial migration will be included in their corresponding snapshots and subsequently added to the new Iceberg table using the Add Snapshot action. 
+The Add Snapshot action, a variant of the Add File action, is still under development.
 
 ## Enabling Migration from Delta Lake to Iceberg
 The `iceberg-delta-lake` module is not bundled with Spark and Flink engine runtimes. To enable migration from delta lake features, the minimum required dependencies are:
