@@ -18,7 +18,9 @@
  */
 package org.apache.iceberg.flink.sink;
 
+import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 import org.apache.flink.api.common.functions.Partitioner;
 import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
@@ -37,17 +39,17 @@ class BucketPartitioner implements Partitioner<Integer> {
   private final int[] currentWriterOffset;
 
   BucketPartitioner(PartitionSpec partitionSpec) {
-    // The current implementation redirects to writers based on the _FIRST_ bucket found
-    Optional<PartitionField> bucket =
+    // The current implementation only supports _ONE_ bucket
+    List<PartitionField> bucketTransforms =
         partitionSpec.fields().stream()
-            .filter(f -> f.transform().dedupName().contains("bucket"))
-            .findFirst();
+            .filter(f -> f.transform().dedupName().contains("bucket")).collect(Collectors.toList());
 
     Preconditions.checkArgument(
-        bucket.isPresent(), "No buckets found on the provided PartitionSpec");
+        bucketTransforms.size() == 1,
+        "Expected 1 Bucket transform in the provided PartitionSpec, found: " + bucketTransforms.size());
 
     // Extracting the max number of buckets defined in the partition spec
-    String transformName = bucket.get().transform().dedupName();
+    String transformName = bucketTransforms.get(0).transform().dedupName();
     Optional<Integer> maxBucketsOpt = BucketPartitionKeySelector.extractInteger(transformName);
 
     Preconditions.checkArgument(
