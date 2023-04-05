@@ -32,13 +32,13 @@ public class FileRewriteCoordinator extends BaseFileRewriteCoordinator<DataFile>
     return INSTANCE;
   }
 
-  /** @deprecated will be removed in 1.3.0; use {@link #fetchNewFiles(Table, String)} instead. */
+  /** @deprecated will be removed in 1.4.0; use {@link #fetchNewFiles(Table, String)} instead. */
   @Deprecated
   public Set<DataFile> fetchNewDataFiles(Table table, String fileSetId) {
     return fetchNewFiles(table, fileSetId);
   }
 
-  /** @deprecated will be removed in 1.3.0; use {@link #fetchSetIds(Table)} instead */
+  /** @deprecated will be removed in 1.4.0; use {@link #fetchSetIds(Table)} instead */
   @Deprecated
   public Set<String> fetchSetIDs(Table table) {
     return fetchSetIds(table);
