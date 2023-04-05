@@ -43,7 +43,6 @@ import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.io.FileIO;
-import org.apache.iceberg.io.InMemoryFileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Objects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -151,8 +150,7 @@ public class InMemoryCatalog extends BaseMetastoreCatalog implements SupportsNam
 
     if (!tables.containsKey(fromTableIdentifier)) {
       throw new NoSuchTableException(
-          "Cannot rename %s to %s: Table does not exist",
-          fromTableIdentifier, toTableIdentifier, fromTableIdentifier);
+          "Cannot rename %s to %s: Table does not exist", fromTableIdentifier, toTableIdentifier);
     }
 
     if (tables.containsKey(toTableIdentifier)) {

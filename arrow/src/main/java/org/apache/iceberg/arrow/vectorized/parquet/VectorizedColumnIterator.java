@@ -172,6 +172,8 @@ public class VectorizedColumnIterator extends BaseColumnIterator {
     }
   }
 
+  /** @deprecated will be removed in 1.4.0 */
+  @Deprecated
   public class IntBackedDecimalBatchReader extends BatchReader {
     @Override
     protected int nextBatchOf(
@@ -186,6 +188,8 @@ public class VectorizedColumnIterator extends BaseColumnIterator {
     }
   }
 
+  /** @deprecated will be removed in 1.4.0 */
+  @Deprecated
   public class LongBackedDecimalBatchReader extends BatchReader {
     @Override
     protected int nextBatchOf(
@@ -200,6 +204,8 @@ public class VectorizedColumnIterator extends BaseColumnIterator {
     }
   }
 
+  /** @deprecated will be removed in 1.4.0 */
+  @Deprecated
   public class FixedLengthDecimalBatchReader extends BatchReader {
     @Override
     protected int nextBatchOf(
@@ -294,14 +300,20 @@ public class VectorizedColumnIterator extends BaseColumnIterator {
     return new DoubleBatchReader();
   }
 
+  /** @deprecated will be removed in 1.4.0 */
+  @Deprecated
   public IntBackedDecimalBatchReader intBackedDecimalBatchReader() {
     return new IntBackedDecimalBatchReader();
   }
 
+  /** @deprecated will be removed in 1.4.0 */
+  @Deprecated
   public LongBackedDecimalBatchReader longBackedDecimalBatchReader() {
     return new LongBackedDecimalBatchReader();
   }
 
+  /** @deprecated will be removed in 1.4.0 */
+  @Deprecated
   public FixedLengthDecimalBatchReader fixedLengthDecimalBatchReader() {
     return new FixedLengthDecimalBatchReader();
   }

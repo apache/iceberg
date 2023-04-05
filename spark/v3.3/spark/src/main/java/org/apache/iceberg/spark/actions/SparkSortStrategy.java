@@ -30,7 +30,7 @@ import org.apache.iceberg.actions.SortStrategy;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.spark.FileRewriteCoordinator;
-import org.apache.iceberg.spark.FileScanTaskSetManager;
+import org.apache.iceberg.spark.ScanTaskSetManager;
 import org.apache.iceberg.spark.SparkDistributionAndOrderingUtil;
 import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkTableCache;
@@ -63,7 +63,7 @@ public class SparkSortStrategy extends SortStrategy {
   private final Table table;
   private final SparkSession spark;
   private final SparkTableCache tableCache = SparkTableCache.get();
-  private final FileScanTaskSetManager manager = FileScanTaskSetManager.get();
+  private final ScanTaskSetManager manager = ScanTaskSetManager.get();
   private final FileRewriteCoordinator rewriteCoordinator = FileRewriteCoordinator.get();
 
   private double sizeEstimateMultiple;
@@ -128,7 +128,7 @@ public class SparkSortStrategy extends SortStrategy {
           spark
               .read()
               .format("iceberg")
-              .option(SparkReadOptions.FILE_SCAN_TASK_SET_ID, groupID)
+              .option(SparkReadOptions.SCAN_TASK_SET_ID, groupID)
               .load(groupID);
 
       // write the packed data into new files where each split becomes a new file
@@ -171,7 +171,7 @@ public class SparkSortStrategy extends SortStrategy {
     return tableCache;
   }
 
-  protected FileScanTaskSetManager manager() {
+  protected ScanTaskSetManager manager() {
     return manager;
   }
 

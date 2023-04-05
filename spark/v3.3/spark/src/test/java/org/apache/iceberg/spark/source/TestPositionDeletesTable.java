@@ -235,9 +235,17 @@ public class TestPositionDeletesTable extends SparkTestBase {
 
     Table deleteTable =
         MetadataTableUtils.createMetadataTableInstance(tab, MetadataTableType.POSITION_DELETES);
-    Assert.assertTrue(
-        "Position delete scan should produce more than one split",
-        Iterables.size(deleteTable.newBatchScan().planTasks()) > 1);
+
+    if (format.equals(FileFormat.AVRO)) {
+      Assert.assertTrue(
+          "Position delete scan should produce more than one split",
+          Iterables.size(deleteTable.newBatchScan().planTasks()) > 1);
+    } else {
+      Assert.assertEquals(
+          "Position delete scan should produce one split",
+          1,
+          Iterables.size(deleteTable.newBatchScan().planTasks()));
+    }
 
     StructLikeSet actual = actual(tableName, tab);
     StructLikeSet expected = expected(tab, deletes, null, posDeletes.path().toString());

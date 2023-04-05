@@ -24,6 +24,7 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import org.apache.iceberg.AssertHelpers;
+import org.apache.iceberg.inmemory.InMemoryOutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.assertj.core.api.Assertions;
 import org.junit.Assert;

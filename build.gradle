@@ -127,7 +127,7 @@ subprojects {
     revapi {
       oldGroup = project.group
       oldName = project.name
-      oldVersion = "1.1.0"
+      oldVersion = "1.2.0"
     }
 
     tasks.register('showDeprecationRulesOnRevApiFailure') {
@@ -597,6 +597,8 @@ project(':iceberg-hive-metastore') {
     implementation project(':iceberg-core')
     api project(':iceberg-api')
     implementation project(':iceberg-common')
+    annotationProcessor "org.immutables:value"
+    compileOnly "org.immutables:value"
 
     implementation "com.github.ben-manes.caffeine:caffeine"
 

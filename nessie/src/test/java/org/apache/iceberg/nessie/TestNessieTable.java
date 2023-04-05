@@ -55,6 +55,7 @@ import org.junit.jupiter.api.Test;
 import org.projectnessie.client.ext.NessieClientFactory;
 import org.projectnessie.client.ext.NessieClientUri;
 import org.projectnessie.error.NessieConflictException;
+import org.projectnessie.error.NessieNamespaceAlreadyExistsException;
 import org.projectnessie.error.NessieNotFoundException;
 import org.projectnessie.model.Branch;
 import org.projectnessie.model.CommitMeta;
@@ -93,8 +94,7 @@ public class TestNessieTable extends BaseTestIceberg {
   public void beforeEach(NessieClientFactory clientFactory, @NessieClientUri URI nessieUri)
       throws IOException {
     super.beforeEach(clientFactory, nessieUri);
-    this.tableLocation =
-        catalog.createTable(TABLE_IDENTIFIER, schema).location().replaceFirst("file:", "");
+    this.tableLocation = createTable(TABLE_IDENTIFIER, schema).location().replaceFirst("file:", "");
   }
 
   @Override
@@ -326,6 +326,7 @@ public class TestNessieTable extends BaseTestIceberg {
     Assertions.assertThat(log)
         .isNotNull()
         .isNotEmpty()
+        .filteredOn(e -> !e.getCommitMeta().getMessage().startsWith("create namespace "))
         .allSatisfy(
             logEntry -> {
               CommitMeta commit = logEntry.getCommitMeta();
@@ -429,12 +430,17 @@ public class TestNessieTable extends BaseTestIceberg {
   }
 
   @Test
-  public void testRegisterTableWithGivenBranch() {
+  public void testRegisterTableWithGivenBranch() throws Exception {
     List<String> metadataVersionFiles = metadataVersionFiles(tableLocation);
     Assertions.assertThat(1).isEqualTo(metadataVersionFiles.size());
     ImmutableTableReference tableReference =
         ImmutableTableReference.builder().reference("main").name(TABLE_NAME).build();
     TableIdentifier identifier = TableIdentifier.of(DB_NAME, tableReference.toString());
+    try {
+      api.createNamespace().namespace(DB_NAME).refName(tableReference.getReference()).create();
+    } catch (NessieNamespaceAlreadyExistsException ignore) {
+      // ignore
+    }
     validateRegister(identifier, metadataVersionFiles.get(0));
   }
 
@@ -494,12 +500,17 @@ public class TestNessieTable extends BaseTestIceberg {
   }
 
   @Test
-  public void testRegisterTableMoreThanOneBranch() {
+  public void testRegisterTableMoreThanOneBranch() throws Exception {
     List<String> metadataVersionFiles = metadataVersionFiles(tableLocation);
     Assertions.assertThat(1).isEqualTo(metadataVersionFiles.size());
     ImmutableTableReference tableReference =
         ImmutableTableReference.builder().reference("main").name(TABLE_NAME).build();
     TableIdentifier identifier = TableIdentifier.of(DB_NAME, tableReference.toString());
+    try {
+      api.createNamespace().namespace(DB_NAME).refName(tableReference.getReference()).create();
+    } catch (NessieNamespaceAlreadyExistsException ignore) {
+      // ignore
+    }
     validateRegister(identifier, metadataVersionFiles.get(0));
     Assertions.assertThat(catalog.dropTable(TABLE_IDENTIFIER, false)).isTrue();
     validateRegister(TABLE_IDENTIFIER, metadataVersionFiles.get(0));

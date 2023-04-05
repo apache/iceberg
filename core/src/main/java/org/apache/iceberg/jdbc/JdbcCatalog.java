@@ -36,7 +36,6 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.BaseMetastoreCatalog;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
@@ -280,12 +279,6 @@ public class JdbcCatalog extends BaseMetastoreCatalog
   @Override
   public void setConf(Object conf) {
     this.conf = conf;
-  }
-
-  /** @deprecated will be removed in 1.3.0; use {@link #setConf(Object)} */
-  @Deprecated
-  public void setConf(Configuration conf) {
-    setConf((Object) conf);
   }
 
   @Override
