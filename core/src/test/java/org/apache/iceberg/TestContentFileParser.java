@@ -18,9 +18,7 @@
  */
 package org.apache.iceberg;
 
-import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
-import java.io.StringWriter;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Collections;
@@ -32,7 +30,7 @@ import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.JsonUtil;
 import org.assertj.core.api.Assertions;
 import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -40,17 +38,48 @@ import org.junit.jupiter.params.provider.MethodSource;
 public class TestContentFileParser {
   @Test
   public void testNullArguments() throws Exception {
-    StringWriter stringWriter = new StringWriter();
-    JsonGenerator jsonStringGenerator = JsonUtil.factory().createGenerator(stringWriter);
-
-    Assertions.assertThatThrownBy(
-            () -> ContentFileParser.toJson(null, TableTestBase.SPEC, jsonStringGenerator))
+    Assertions.assertThatThrownBy(() -> ContentFileParser.toJson(null, TableTestBase.SPEC))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Content file cannot be null");
+
+    Assertions.assertThatThrownBy(() -> ContentFileParser.toJson(TableTestBase.FILE_A, null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Partition spec cannot be null");
+
+    Assertions.assertThatThrownBy(
+            () -> ContentFileParser.toJson(TableTestBase.FILE_A, TableTestBase.SPEC, null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("JSON generator cannot be null");
 
     Assertions.assertThatThrownBy(() -> ContentFileParser.fromJson(null, TableTestBase.SPEC))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse content file from null JSON node");
+
+    String jsonStr = ContentFileParser.toJson(TableTestBase.FILE_A, TableTestBase.SPEC);
+    JsonNode jsonNode = JsonUtil.mapper().readTree(jsonStr);
+    Assertions.assertThatThrownBy(() -> ContentFileParser.fromJson(jsonNode, null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Partition spec cannot be null");
+  }
+
+  @ParameterizedTest
+  @MethodSource("provideSpecAndDataFile")
+  public void testDataFile(PartitionSpec spec, DataFile dataFile) throws Exception {
+    String jsonStr = ContentFileParser.toJson(dataFile, spec);
+    JsonNode jsonNode = JsonUtil.mapper().readTree(jsonStr);
+    ContentFile<?> deserializedContentFile = ContentFileParser.fromJson(jsonNode, spec);
+    Assertions.assertThat(deserializedContentFile).isInstanceOf(DataFile.class);
+    assertContentFileEquals(dataFile, deserializedContentFile, spec);
+  }
+
+  @ParameterizedTest
+  @MethodSource("provideSpecAndDeleteFile")
+  public void testDeleteFile(PartitionSpec spec, DeleteFile deleteFile) throws Exception {
+    String jsonStr = ContentFileParser.toJson(deleteFile, spec);
+    JsonNode jsonNode = JsonUtil.mapper().readTree(jsonStr);
+    ContentFile<?> deserializedContentFile = ContentFileParser.fromJson(jsonNode, spec);
+    Assertions.assertThat(deserializedContentFile).isInstanceOf(DeleteFile.class);
+    assertContentFileEquals(deleteFile, deserializedContentFile, spec);
   }
 
   private static Stream<Arguments> provideSpecAndDataFile() {
@@ -186,36 +215,6 @@ public class TestContentFileParser {
         new int[] {3},
         1,
         ByteBuffer.wrap(new byte[16]));
-  }
-
-  @ParameterizedTest
-  @MethodSource("provideSpecAndDataFile")
-  public void testDataFile(PartitionSpec spec, DataFile dataFile) throws Exception {
-    StringWriter stringWriter = new StringWriter();
-    JsonGenerator jsonStringGenerator = JsonUtil.factory().createGenerator(stringWriter);
-
-    ContentFileParser.toJson(dataFile, spec, jsonStringGenerator);
-    jsonStringGenerator.close();
-    String jsonStr = stringWriter.toString();
-
-    JsonNode jsonNode = JsonUtil.mapper().readTree(jsonStr);
-    DataFile deserializedFile = (DataFile) ContentFileParser.fromJson(jsonNode, spec);
-    assertContentFileEquals(dataFile, deserializedFile, spec);
-  }
-
-  @ParameterizedTest
-  @MethodSource("provideSpecAndDeleteFile")
-  public void testDeleteFile(PartitionSpec spec, DeleteFile deleteFile) throws Exception {
-    StringWriter stringWriter = new StringWriter();
-    JsonGenerator jsonStringGenerator = JsonUtil.factory().createGenerator(stringWriter);
-
-    ContentFileParser.toJson(deleteFile, spec, jsonStringGenerator);
-    jsonStringGenerator.close();
-    String jsonStr = stringWriter.toString();
-
-    JsonNode jsonNode = JsonUtil.mapper().readTree(jsonStr);
-    DeleteFile deserializedFile = (DeleteFile) ContentFileParser.fromJson(jsonNode, spec);
-    assertContentFileEquals(deleteFile, deserializedFile, spec);
   }
 
   static void assertContentFileEquals(

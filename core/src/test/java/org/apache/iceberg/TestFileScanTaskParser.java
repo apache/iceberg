@@ -18,16 +18,14 @@
  */
 package org.apache.iceberg;
 
-import java.util.stream.Stream;
 import org.apache.iceberg.expressions.ExpressionUtil;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.assertj.core.api.Assertions;
 import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.Arguments;
-import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 public class TestFileScanTaskParser {
   @Test
@@ -41,12 +39,8 @@ public class TestFileScanTaskParser {
         .hasMessage("Cannot parse file scan task from null JSON string");
   }
 
-  private static Stream<Arguments> provideArgs() {
-    return Stream.of(Arguments.of(true), Arguments.of(false));
-  }
-
   @ParameterizedTest
-  @MethodSource("provideArgs")
+  @ValueSource(booleans = {true, false})
   public void testParser(boolean caseSensitive) {
     PartitionSpec spec = TableTestBase.SPEC;
     FileScanTask fileScanTask = createScanTask(spec, caseSensitive);
@@ -74,7 +68,7 @@ public class TestFileScanTaskParser {
   private static void assertFileScanTaskEquals(
       FileScanTask expected, FileScanTask actual, PartitionSpec spec, boolean caseSensitive) {
     TestContentFileParser.assertContentFileEquals(expected.file(), actual.file(), spec);
-    Assert.assertEquals(expected.deletes().size(), actual.deletes().size());
+    Assertions.assertThat(actual.deletes()).hasSameSizeAs(expected.deletes());
     for (int pos = 0; pos < expected.deletes().size(); ++pos) {
       TestContentFileParser.assertContentFileEquals(
           expected.deletes().get(pos), actual.deletes().get(pos), spec);

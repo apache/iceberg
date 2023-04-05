@@ -21,7 +21,6 @@ package org.apache.iceberg;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
-import java.io.StringWriter;
 import java.io.UncheckedIOException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ExpressionParser;
@@ -41,19 +40,13 @@ public class FileScanTaskParser {
   private FileScanTaskParser() {}
 
   public static String toJson(FileScanTask fileScanTask) {
-    Preconditions.checkArgument(fileScanTask != null, "File scan task cannot be null");
-    try (StringWriter writer = new StringWriter()) {
-      JsonGenerator generator = JsonUtil.factory().createGenerator(writer);
-      toJson(fileScanTask, generator);
-      generator.flush();
-      return writer.toString();
-    } catch (IOException e) {
-      throw new UncheckedIOException("Failed to write json for: " + fileScanTask, e);
-    }
+    return JsonUtil.generate(
+        generator -> FileScanTaskParser.toJson(fileScanTask, generator), false);
   }
 
   private static void toJson(FileScanTask fileScanTask, JsonGenerator generator)
       throws IOException {
+    Preconditions.checkArgument(fileScanTask != null, "File scan task cannot be null");
     generator.writeStartObject();
 
     generator.writeFieldName(SCHEMA);
