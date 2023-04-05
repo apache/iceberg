@@ -25,7 +25,6 @@ import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.RewriteDataFiles;
 import org.apache.iceberg.expressions.Expression;
-import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.NamedReference;
 import org.apache.iceberg.expressions.Zorder;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -44,7 +43,6 @@ import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
-import scala.Option;
 import scala.runtime.BoxedUnit;
 
 /**
@@ -133,17 +131,8 @@ class RewriteDataFilesProcedure extends BaseProcedure {
   private Expression filter(String where, String tableName) {
     SparkSession sparkSession = spark();
     try {
-      Option<org.apache.spark.sql.catalyst.expressions.Expression> expressionOption =
-          SparkExpressionConverter.collectResolvedSparkExpressionOption(
-              sparkSession, tableName, where);
-      if (expressionOption.isEmpty()) {
-        if (SparkExpressionConverter.collectDeterministicSparkExpression(
-            sparkSession, tableName, where)) {
-          return Expressions.alwaysTrue();
-        }
-        return Expressions.alwaysFalse();
-      }
-      return SparkExpressionConverter.convertToIcebergExpression(expressionOption.get());
+      return SparkExpressionConverter.collectResolvedIcebergExpression(
+          sparkSession, tableName, where);
     } catch (AnalysisException e) {
       throw new IllegalArgumentException("Cannot parse predicates in where option: " + where);
     }

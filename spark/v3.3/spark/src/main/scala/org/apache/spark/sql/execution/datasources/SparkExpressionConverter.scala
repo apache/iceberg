@@ -19,6 +19,7 @@
 
 package org.apache.spark.sql.execution.datasources
 
+import org.apache.iceberg.expressions.Expressions
 import org.apache.iceberg.spark.SparkFilters
 import org.apache.spark.sql.AnalysisException
 import org.apache.spark.sql.SparkSession
@@ -26,6 +27,8 @@ import org.apache.spark.sql.catalyst.expressions.Attribute
 import org.apache.spark.sql.catalyst.expressions.Expression
 import org.apache.spark.sql.catalyst.plans.logical.Filter
 import org.apache.spark.sql.catalyst.plans.logical.LeafNode
+import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
+
 
 object SparkExpressionConverter {
 
@@ -37,30 +40,35 @@ object SparkExpressionConverter {
   }
 
   @throws[AnalysisException]
-  def collectDeterministicSparkExpression(session: SparkSession,
-                                          tableName: String, where: String): Boolean = {
-    // used only to check if a deterministic expression is true or false
-    val tableAttrs = session.table(tableName).queryExecution.analyzed.output
-    val firstColumnName = tableAttrs.head.name
-    val anotherWhere = s"$firstColumnName is not null and $where"
-    val unresolvedExpression = session.sessionState.sqlParser.parseExpression(anotherWhere)
-    val filter = Filter(unresolvedExpression, DummyRelation(tableAttrs))
-    val optimizedLogicalPlan = session.sessionState.executePlan(filter).optimizedPlan
-    val option = optimizedLogicalPlan.collectFirst {
-      case filter: Filter => Some(filter.condition)
-    }.getOrElse(Option.empty)
-    if (option.isDefined) true else false
-  }
-  @throws[AnalysisException]
-  def collectResolvedSparkExpressionOption(session: SparkSession,
-                                           tableName: String, where: String): Option[Expression] = {
+  def optimizedLogicalPlanSparkExpression(session: SparkSession,
+                                        tableName: String, where: String): LogicalPlan = {
+    // used to obtain an optimized logical plan of a spark expression
     val tableAttrs = session.table(tableName).queryExecution.analyzed.output
     val unresolvedExpression = session.sessionState.sqlParser.parseExpression(where)
     val filter = Filter(unresolvedExpression, DummyRelation(tableAttrs))
     val optimizedLogicalPlan = session.sessionState.executePlan(filter).optimizedPlan
-    optimizedLogicalPlan.collectFirst {
-      case filter: Filter => Some(filter.condition)
-    }.getOrElse(Option.empty)
+    optimizedLogicalPlan
+  }
+
+  @throws[AnalysisException]
+  def collectResolvedIcebergExpression(session: SparkSession,
+                                       tableName: String,
+                                       where: String): org.apache.iceberg.expressions.Expression = {
+    val plan = optimizedLogicalPlanSparkExpression(session, tableName, where)
+    val planChildren = plan.containsChild
+    if (planChildren.isEmpty) {
+      val tableAttrs = session.table(tableName).queryExecution.analyzed.output
+      val firstColumnName = tableAttrs.head.name
+      val testWhere = s"$firstColumnName is null and $where"
+      val testPlan = optimizedLogicalPlanSparkExpression(session, tableName, testWhere)
+      val testPlanChildren = testPlan.containsChild
+      if (testPlanChildren.isEmpty) Expressions.alwaysFalse() else Expressions.alwaysTrue()
+    } else {
+      val sparkExpression = plan.collectFirst {
+        case filter: Filter => filter.condition
+      }.get
+      convertToIcebergExpression(sparkExpression)
+    }
   }
 
   case class DummyRelation(output: Seq[Attribute]) extends LeafNode
