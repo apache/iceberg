@@ -205,6 +205,7 @@ class ContentFileParser {
           metrics,
           equalityFieldIds,
           sortOrderId,
+          splitOffsets,
           keyMetadata);
     }
   }

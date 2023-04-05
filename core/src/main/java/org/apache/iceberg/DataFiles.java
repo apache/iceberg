@@ -273,7 +273,7 @@ public class DataFiles {
 
     public Builder withEqualityFieldIds(List<Integer> equalityIds) {
       if (equalityIds != null) {
-        this.equalityFieldIds = copyList(equalityIds);
+        this.equalityFieldIds = ImmutableList.copyOf(equalityIds);
       }
 
       return this;

@@ -176,6 +176,7 @@ public class TestContentFileParser {
         new Metrics(9L, null, null, null, null),
         null,
         null,
+        null,
         null);
   }
 
@@ -214,6 +215,7 @@ public class TestContentFileParser {
         metrics,
         new int[] {3},
         1,
+        Arrays.asList(128L),
         ByteBuffer.wrap(new byte[16]));
   }
 
