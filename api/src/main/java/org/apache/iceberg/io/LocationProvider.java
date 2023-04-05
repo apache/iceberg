@@ -57,4 +57,25 @@ public interface LocationProvider extends Serializable {
    * @return a fully-qualified location URI for a data file
    */
   String newDataLocation(PartitionSpec spec, StructLike partitionData, String filename);
+
+  /**
+   * Returns the fully-qualified metadata location for a table, where Iceberg metadata files such as
+   * table metadata (JSON), manifest (AVRO), and manifest list (AVRO) files are stored. The table
+   * metadata location can be retrieved from the table properties input, such as
+   * 'write.metadata.path'. If this property is not configured, then tableLocation/metadata will be
+   * used by default.
+   */
+  default String metadataLocation() {
+    return null;
+  }
+
+  /**
+   * Return a fully-qualified metadata file location for the given filename.
+   *
+   * @param filename a file name
+   * @return a fully-qualified location URI for a metadata file
+   */
+  default String newMetadataLocation(String filename) {
+    return null;
+  }
 }

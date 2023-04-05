@@ -21,8 +21,8 @@ package org.apache.iceberg;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.io.LocationProvider;
-import org.apache.iceberg.io.MetadataLocationProvider;
 import org.apache.iceberg.relocated.com.google.common.base.Splitter;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
@@ -319,34 +319,73 @@ public class TestLocationProvider extends TableTestBase {
   }
 
   @Test
-  public void testTableMetadataLocationProvider() {
-    MetadataLocationProvider metadataLocationProvider =
-        table.ops().current().metadataLocationProvider();
+  public void testTableDataAndMetadataLocation() {
 
-    Assertions.assertThat(metadataLocationProvider).isNotNull();
+    Assertions.assertThat(this.table.locationProvider().dataLocation()).isNotNull();
 
-    Assertions.assertThat(metadataLocationProvider.metadataLocation())
+    Assertions.assertThat(this.table.locationProvider().metadataLocation())
         .isNotNull()
         .endsWith("/metadata");
 
-    Assertions.assertThat(metadataLocationProvider.metadataLocation())
-        .as("Table metadata location provider location should match with providers api")
-        .isEqualTo(
-            LocationProviders.metadataLocationFor(table.location(), table.properties())
-                .metadataLocation());
+    Map<String, String> properties = Maps.newHashMap();
+    String newMetadataLocationProperty = "/data/metadata";
+    properties.put(TableProperties.WRITE_METADATA_LOCATION, newMetadataLocationProperty);
+    String filename = "metadata.json";
+
+    this.table
+        .updateProperties()
+        .set(TableProperties.WRITE_METADATA_LOCATION, newMetadataLocationProperty)
+        .commit();
+
+    String newMetadataLocation =
+        LocationProviders.newMetadataLocation(properties, this.table.location(), filename);
+
+    Assertions.assertThat(newMetadataLocation)
+        .isEqualTo(newMetadataLocationProperty + "/" + filename);
+
+    Assertions.assertThat(newMetadataLocation)
+        .isEqualTo(this.table.locationProvider().newMetadataLocation(filename));
+
+    this.table.updateProperties().remove(TableProperties.WRITE_METADATA_LOCATION).commit();
+    Assertions.assertThat(this.table.locationProvider().metadataLocation())
+        .startsWith(this.table.location())
+        .endsWith("/metadata");
   }
 
   @Test
-  public void testTableMetadataLocationProviderWithInvalidInput() {
-    Assertions.assertThatThrownBy(
-            () ->
-                LocationProviders.metadataLocationFor(null, table.properties()).metadataLocation())
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Invalid table location: null");
+  public void testMetadataLocationWithoutImplementation() {
+    String noDataLocImpl =
+        String.format(
+            "%s$%s",
+            this.getClass().getCanonicalName(),
+            TwoArgDynamicallyLoadedLocationProvider.class.getSimpleName());
+    this.table
+        .updateProperties()
+        .set(TableProperties.WRITE_LOCATION_PROVIDER_IMPL, noDataLocImpl)
+        .commit();
 
-    Assertions.assertThatThrownBy(
-            () -> LocationProviders.metadataLocationFor(table.location(), null))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Invalid properties: null");
+    Assertions.assertThat(this.table.locationProvider().dataLocation()).isNull();
+    Assertions.assertThat(this.table.locationProvider().metadataLocation()).isNull();
+    Assertions.assertThat(this.table.locationProvider().newMetadataLocation("metadata.json"))
+        .isNull();
+  }
+
+  @Test
+  public void testMetadataLocationWithInvalidArguments() {
+    Map<String, String> properties = Maps.newHashMap();
+    String tableLocation = "/data/tables";
+    String fileName = "metadata.json";
+
+    Assertions.assertThatIllegalArgumentException()
+        .isThrownBy(() -> LocationProviders.newMetadataLocation(null, tableLocation, fileName))
+        .withMessageContaining("Invalid properties: null");
+
+    Assertions.assertThatIllegalArgumentException()
+        .isThrownBy(() -> LocationProviders.newMetadataLocation(properties, null, fileName))
+        .withMessageContaining("Invalid table location: null");
+
+    Assertions.assertThatIllegalArgumentException()
+        .isThrownBy(() -> LocationProviders.newMetadataLocation(properties, tableLocation, null))
+        .withMessageContaining("Invalid filename: null");
   }
 }

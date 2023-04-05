@@ -23,7 +23,6 @@ import java.util.function.Function;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.io.LocationProvider;
-import org.apache.iceberg.io.MetadataLocationProvider;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Types;
@@ -31,20 +30,9 @@ import org.apache.iceberg.util.LocationUtil;
 import org.apache.iceberg.util.PropertyUtil;
 
 public class LocationProviders {
+  private static final String METADATA_FOLDER_NAME = "metadata";
 
   private LocationProviders() {}
-
-  /**
-   * Returns an instance of {@link MetadataLocationProvider}
-   *
-   * @param tableLocation iceberg table location
-   * @param properties iceberg table properties
-   * @return instance of {@link MetadataLocationProvider}
-   */
-  public static MetadataLocationProvider metadataLocationFor(
-      String tableLocation, Map<String, String> properties) {
-    return new DefaultMetadataLocationProvider(tableLocation, properties);
-  }
 
   public static LocationProvider locationsFor(
       String inputLocation, Map<String, String> properties) {
@@ -87,11 +75,93 @@ public class LocationProviders {
     }
   }
 
-  static class DefaultLocationProvider implements LocationProvider {
+  /**
+   * Returns a new metadata location based on the provided properties, table location, and file
+   * name. The metadata location is determined using the {@link
+   * BaseLocationProvider#metadataLocation(String, Map)} method, and the file name is appended to it
+   * with a forward slash separator.
+   *
+   * @param properties a map of properties that may contain the metadata location
+   * @param tableLocation the location of the table
+   * @param filename the name of the file to be included in the metadata location
+   * @return a new metadata location as a string
+   */
+  public static String newMetadataLocation(
+      Map<String, String> properties, String tableLocation, String filename) {
+    return BaseLocationProvider.newMetadataLocation(tableLocation, properties, filename);
+  }
+
+  abstract static class BaseLocationProvider implements LocationProvider {
+
+    private final String metadataLocation;
     private final String dataLocation;
+    private final String tableLocation;
+    private final Map<String, String> properties;
+
+    BaseLocationProvider(
+        String tableLocation, String dataLocation, Map<String, String> properties) {
+
+      Preconditions.checkArgument(tableLocation != null, "Invalid table location: null");
+      Preconditions.checkArgument(dataLocation != null, "Invalid data location: null");
+      Preconditions.checkArgument(properties != null, "Invalid properties: null");
+
+      this.tableLocation = tableLocation;
+      this.properties = properties;
+      this.dataLocation = LocationUtil.stripTrailingSlash(dataLocation);
+      this.metadataLocation =
+          LocationUtil.stripTrailingSlash(
+              BaseLocationProvider.metadataLocation(tableLocation, properties));
+    }
+
+    @Override
+    public String metadataLocation() {
+      return this.metadataLocation;
+    }
+
+    @Override
+    public String dataLocation() {
+      return this.dataLocation;
+    }
+
+    @Override
+    public String newMetadataLocation(String filename) {
+      return newMetadataLocation(this.tableLocation, this.properties, filename);
+    }
+
+    @Override
+    public String newDataLocation(PartitionSpec spec, StructLike partitionData, String filename) {
+      return String.format(
+          "%s/%s/%s", dataLocation(), spec.partitionToPath(partitionData), filename);
+    }
+
+    @Override
+    public String newDataLocation(String filename) {
+      return String.format("%s/%s", dataLocation(), filename);
+    }
+
+    private static String newMetadataLocation(
+        String tableLocation, Map<String, String> properties, String filename) {
+      Preconditions.checkArgument(filename != null, "Invalid filename: null");
+      return String.format("%s/%s", metadataLocation(tableLocation, properties), filename);
+    }
+
+    private static String metadataLocation(String tableLocation, Map<String, String> properties) {
+      Preconditions.checkArgument(tableLocation != null, "Invalid table location: null");
+      Preconditions.checkArgument(properties != null, "Invalid properties: null");
+
+      String metadataLocation = properties.get(TableProperties.WRITE_METADATA_LOCATION);
+      if (metadataLocation != null) {
+        return metadataLocation;
+      } else {
+        return String.format("%s/%s", tableLocation, METADATA_FOLDER_NAME);
+      }
+    }
+  }
+
+  static class DefaultLocationProvider extends BaseLocationProvider {
 
     DefaultLocationProvider(String tableLocation, Map<String, String> properties) {
-      this.dataLocation = LocationUtil.stripTrailingSlash(dataLocation(properties, tableLocation));
+      super(tableLocation, dataLocation(properties, tableLocation), properties);
     }
 
     private static String dataLocation(Map<String, String> properties, String tableLocation) {
@@ -104,36 +174,19 @@ public class LocationProviders {
       }
       return dataLocation;
     }
-
-    @Override
-    public String newDataLocation(PartitionSpec spec, StructLike partitionData, String filename) {
-      return String.format("%s/%s/%s", dataLocation, spec.partitionToPath(partitionData), filename);
-    }
-
-    @Override
-    public String newDataLocation(String filename) {
-      return String.format("%s/%s", dataLocation, filename);
-    }
-
-    @Override
-    public String dataLocation() {
-      return this.dataLocation;
-    }
   }
 
-  static class ObjectStoreLocationProvider implements LocationProvider {
+  static class ObjectStoreLocationProvider extends BaseLocationProvider {
     private static final Function<Object, Integer> HASH_FUNC =
         Transforms.bucket(Integer.MAX_VALUE).bind(Types.StringType.get());
 
-    private final String storageLocation;
     private final String context;
 
     ObjectStoreLocationProvider(String tableLocation, Map<String, String> properties) {
-      this.storageLocation =
-          LocationUtil.stripTrailingSlash(dataLocation(properties, tableLocation));
+      super(tableLocation, dataLocation(properties, tableLocation), properties);
       // if the storage location is within the table prefix, don't add table and database name
       // context
-      if (storageLocation.startsWith(tableLocation)) {
+      if (dataLocation().startsWith(tableLocation)) {
         this.context = null;
       } else {
         this.context = pathContext(tableLocation);
@@ -163,9 +216,9 @@ public class LocationProviders {
     public String newDataLocation(String filename) {
       int hash = HASH_FUNC.apply(filename);
       if (context != null) {
-        return String.format("%s/%08x/%s/%s", storageLocation, hash, context, filename);
+        return String.format("%s/%08x/%s/%s", dataLocation(), hash, context, filename);
       } else {
-        return String.format("%s/%08x/%s", storageLocation, hash, filename);
+        return String.format("%s/%08x/%s", dataLocation(), hash, filename);
       }
     }
 
@@ -184,43 +237,6 @@ public class LocationProviders {
           !resolvedContext.endsWith("/"), "Path context must not end with a slash.");
 
       return resolvedContext;
-    }
-
-    @Override
-    public String dataLocation() {
-      return this.storageLocation;
-    }
-  }
-
-  static class DefaultMetadataLocationProvider implements MetadataLocationProvider {
-    private static final String METADATA_FOLDER_NAME = "metadata";
-    private String metadataLocation;
-
-    DefaultMetadataLocationProvider(String tableLocation, Map<String, String> properties) {
-      Preconditions.checkArgument(tableLocation != null, "Invalid table location: null");
-      Preconditions.checkArgument(properties != null, "Invalid properties: null");
-
-      this.metadataLocation =
-          LocationUtil.stripTrailingSlash(metadataLocation(tableLocation, properties));
-    }
-
-    @Override
-    public String metadataLocation() {
-      return this.metadataLocation;
-    }
-
-    @Override
-    public String newMetadataLocation(String filename) {
-      return String.format("%s/%s", this.metadataLocation, filename);
-    }
-
-    private static String metadataLocation(String tableLocation, Map<String, String> properties) {
-      String metadataLocation = properties.get(TableProperties.WRITE_METADATA_LOCATION);
-      if (metadataLocation != null) {
-        return metadataLocation;
-      } else {
-        return String.format("%s/%s", tableLocation, METADATA_FOLDER_NAME);
-      }
     }
   }
 }

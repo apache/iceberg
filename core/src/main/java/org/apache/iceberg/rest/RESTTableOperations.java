@@ -165,7 +165,8 @@ class RESTTableOperations implements TableOperations {
   }
 
   private static String metadataFileLocation(TableMetadata metadata, String filename) {
-    return metadata.metadataLocationProvider().newMetadataLocation(filename);
+    return LocationProviders.newMetadataLocation(
+        metadata.properties(), metadata.location(), filename);
   }
 
   @Override
