@@ -166,8 +166,8 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
       // If we got an exception we weren't expecting, or we got an AWS service exception
       // but retries were performed, attempt to reconcile the actual commit status.
       if (!isAwsServiceException || retryDetector.retried()) {
-        LOG.error(
-            "Confirming if commit to {} indeed failed to persist, attempting to reconnect and check.",
+        LOG.warn(
+            "Received unexpected failure when committing to {}, validating if commit ended up succeeding.",
             fullTableName,
             persistFailure);
         commitStatus = checkCommitStatus(newMetadataLocation, metadata);
@@ -331,7 +331,6 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
   }
 
   private void handleAWSExceptions(AwsServiceException persistFailure) {
-    int statusCode = persistFailure.statusCode();
     if (persistFailure instanceof ConcurrentModificationException) {
       throw new CommitFailedException(
           persistFailure, "Cannot commit %s because Glue detected concurrent update", tableName());
@@ -358,8 +357,11 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
           "Cannot commit %s because Glue encountered a validation exception "
               + "while accessing requested resources",
           tableName());
-    } else if (statusCode < 500 || statusCode >= 600) {
-      throw persistFailure;
+    } else {
+      int statusCode = persistFailure.statusCode();
+      if (statusCode < 500 || statusCode >= 600) {
+        throw persistFailure;
+      }
     }
   }
 

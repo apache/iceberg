@@ -129,15 +129,13 @@ class DynamoDbTableOperations extends BaseMetastoreTableOperations {
       // If we got an exception we weren't expecting, or we got a ConditionalCheckFailedException
       // but retries were performed, attempt to reconcile the actual commit status.
       if (!conditionCheckFailed || retryDetector.retried()) {
-        LOG.error(
-            "Confirming if commit to {} indeed failed to persist, attempting to reconnect and check.",
+        LOG.warn(
+            "Received unexpected failure when committing to {}, validating if commit ended up succeeding.",
             fullTableName,
             persistFailure);
         commitStatus = checkCommitStatus(newMetadataLocation, metadata);
       }
 
-      // If we got ConditionalCheckFailedException, but find we
-      // succeeded on a retry that threw an exception, skip this exception.
       if (commitStatus != CommitStatus.SUCCESS && conditionCheckFailed) {
         throw new CommitFailedException(
             persistFailure, "Cannot commit %s: concurrent update detected", tableName());
