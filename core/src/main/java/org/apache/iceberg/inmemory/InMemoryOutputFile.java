@@ -16,21 +16,24 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.io;
+package org.apache.iceberg.inmemory;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.UUID;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
+import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.io.PositionOutputStream;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 public class InMemoryOutputFile implements OutputFile {
 
   private final String location;
+  private final InMemoryFileIO parentFileIO;
 
   private boolean exists = false;
   private ByteArrayOutputStream contents;
-  private InMemoryFileIO parentFileIO;
 
   public InMemoryOutputFile() {
     this("memory:" + UUID.randomUUID());

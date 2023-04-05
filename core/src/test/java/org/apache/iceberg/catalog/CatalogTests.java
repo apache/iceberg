@@ -499,6 +499,10 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
     Assert.assertFalse("Table should not exist", catalog.tableExists(ident));
 
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(ident.namespace());
+    }
+
     Table table = catalog.buildTable(ident, SCHEMA).create();
     Assert.assertTrue("Table should exist", catalog.tableExists(ident));
 
@@ -573,6 +577,10 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
     TableIdentifier ident = TableIdentifier.of("ns", "table");
 
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(ident.namespace());
+    }
+
     Assert.assertFalse("Table should not exist", catalog.tableExists(ident));
 
     catalog.buildTable(ident, SCHEMA).create();
@@ -596,6 +604,10 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     C catalog = catalog();
 
     TableIdentifier ident = TableIdentifier.of("ns", "table");
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(ident.namespace());
+    }
 
     Assert.assertFalse("Table should not exist", catalog.tableExists(ident));
 
@@ -632,6 +644,10 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     C catalog = catalog();
 
     TableIdentifier ident = TableIdentifier.of("ns", "table");
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(ident.namespace());
+    }
 
     Assert.assertFalse("Table should not exist", catalog.tableExists(ident));
 
@@ -670,6 +686,10 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
     TableIdentifier tableIdent = TableIdentifier.of("ns", "table");
     TableIdentifier metaIdent = TableIdentifier.of("ns", "table", "files");
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(tableIdent.namespace());
+    }
 
     catalog.buildTable(tableIdent, SCHEMA).create();
 
@@ -934,6 +954,10 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   public void testUpdateTableSchema() {
     C catalog = catalog();
 
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(NS);
+    }
+
     Table table = catalog.buildTable(TABLE, SCHEMA).create();
     UpdateSchema update = table.updateSchema().addColumn("new_col", Types.LongType.get());
 
@@ -952,6 +976,10 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   @Test
   public void testUUIDValidation() {
     C catalog = catalog();
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(NS);
+    }
 
     Table table = catalog.buildTable(TABLE, SCHEMA).create();
     UpdateSchema update = table.updateSchema().addColumn("new_col", Types.LongType.get());
@@ -981,6 +1009,10 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
         supportsServerSideRetry());
     C catalog = catalog();
 
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(NS);
+    }
+
     Table table = catalog.buildTable(TABLE, SCHEMA).create();
 
     UpdateSchema update = table.updateSchema().addColumn("new_col", Types.LongType.get());
@@ -1002,6 +1034,10 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   @Test
   public void testUpdateTableSchemaConflict() {
     C catalog = catalog();
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(NS);
+    }
 
     Table table = catalog.buildTable(TABLE, SCHEMA).create();
 
@@ -1031,6 +1067,10 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   @Test
   public void testUpdateTableSchemaAssignmentConflict() {
     C catalog = catalog();
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(NS);
+    }
 
     Table table = catalog.buildTable(TABLE, SCHEMA).create();
 
@@ -1064,6 +1104,10 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   public void testUpdateTableSchemaThenRevert() {
     C catalog = catalog();
 
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(NS);
+    }
+
     Table table = catalog.buildTable(TABLE, SCHEMA).create();
 
     table
@@ -1085,6 +1129,10 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   public void testUpdateTableSpec() {
     C catalog = catalog();
 
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(NS);
+    }
+
     Table table = catalog.buildTable(TABLE, SCHEMA).create();
     UpdatePartitionSpec update = table.updateSpec().addField("shard", Expressions.bucket("id", 16));
 
@@ -1104,6 +1152,10 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     Assume.assumeTrue(
         "Spec update recovery is only supported with server-side retry", supportsServerSideRetry());
     C catalog = catalog();
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(NS);
+    }
 
     Table table = catalog.buildTable(TABLE, SCHEMA).create();
 
@@ -1130,6 +1182,10 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   @Test
   public void testUpdateTableSpecConflict() {
     C catalog = catalog();
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(NS);
+    }
 
     Table table = catalog.buildTable(TABLE, SCHEMA).withPartitionSpec(SPEC).create();
 
@@ -1164,6 +1220,10 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   public void testUpdateTableAssignmentSpecConflict() {
     C catalog = catalog();
 
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(NS);
+    }
+
     Table table = catalog.buildTable(TABLE, SCHEMA).create();
 
     UpdatePartitionSpec update = table.updateSpec().addField("shard", Expressions.bucket("id", 16));
@@ -1196,6 +1256,10 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   public void testUpdateTableSpecThenRevert() {
     C catalog = catalog();
 
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(NS);
+    }
+
     // create a v2 table. otherwise the spec update would produce a different spec with a void
     // partition field
     Table table =
@@ -1218,6 +1282,10 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   public void testUpdateTableSortOrder() {
     C catalog = catalog();
 
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(NS);
+    }
+
     Table table = catalog.buildTable(TABLE, SCHEMA).create();
     ReplaceSortOrder update = table.replaceSortOrder().asc(Expressions.bucket("id", 16)).asc("id");
 
@@ -1238,6 +1306,10 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
         "Sort order update recovery is only supported with server-side retry",
         supportsServerSideRetry());
     C catalog = catalog();
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(NS);
+    }
 
     Table table = catalog.buildTable(TABLE, SCHEMA).create();
 
@@ -1265,6 +1337,10 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   public void testUpdateTableOrderThenRevert() {
     C catalog = catalog();
 
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(NS);
+    }
+
     Table table = catalog.buildTable(TABLE, SCHEMA).withSortOrder(WRITE_ORDER).create();
 
     table.replaceSortOrder().asc("id").commit();
@@ -1278,6 +1354,10 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   @Test
   public void testAppend() throws IOException {
     C catalog = catalog();
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(NS);
+    }
 
     Table table = catalog.buildTable(TABLE, SCHEMA).withPartitionSpec(SPEC).create();
 
@@ -1293,6 +1373,10 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   @Test
   public void testConcurrentAppendEmptyTable() {
     C catalog = catalog();
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(NS);
+    }
 
     Table table = catalog.buildTable(TABLE, SCHEMA).withPartitionSpec(SPEC).create();
 
@@ -1313,6 +1397,10 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   @Test
   public void testConcurrentAppendNonEmptyTable() {
     C catalog = catalog();
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(NS);
+    }
 
     Table table = catalog.buildTable(TABLE, SCHEMA).withPartitionSpec(SPEC).create();
 
@@ -1338,6 +1426,10 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   @Test
   public void testUpdateTransaction() {
     C catalog = catalog();
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(NS);
+    }
 
     Table table = catalog.buildTable(TABLE, SCHEMA).create();
 
@@ -1371,6 +1463,10 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   public void testCreateTransaction() {
     C catalog = catalog();
 
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(NS);
+    }
+
     Transaction create = catalog.buildTable(TABLE, SCHEMA).createTransaction();
 
     Assert.assertFalse(
@@ -1391,6 +1487,10 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   @Test
   public void testCompleteCreateTransaction() {
     C catalog = catalog();
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(NS);
+    }
 
     Map<String, String> properties =
         ImmutableMap.of("user", "someone", "created-at", "2022-02-25T00:38:19");
@@ -1439,6 +1539,10 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   @Test
   public void testCompleteCreateTransactionMultipleSchemas() {
     C catalog = catalog();
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(NS);
+    }
 
     Map<String, String> properties =
         ImmutableMap.of("user", "someone", "created-at", "2022-02-25T00:38:19");
@@ -1525,6 +1629,10 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   public void testCompleteCreateTransactionV2() {
     C catalog = catalog();
 
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(NS);
+    }
+
     Map<String, String> properties =
         ImmutableMap.of(
             "user", "someone", "created-at", "2022-02-25T00:38:19", "format-version", "2");
@@ -1582,6 +1690,10 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   public void testConcurrentCreateTransaction() {
     C catalog = catalog();
 
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(NS);
+    }
+
     Transaction create = catalog.buildTable(TABLE, SCHEMA).createTransaction();
 
     Assert.assertFalse(
@@ -1617,6 +1729,10 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   public void testCreateOrReplaceTransactionCreate() {
     C catalog = catalog();
 
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(NS);
+    }
+
     Transaction create = catalog.buildTable(TABLE, SCHEMA).createOrReplaceTransaction();
 
     Assert.assertFalse(
@@ -1637,6 +1753,10 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   @Test
   public void testCompleteCreateOrReplaceTransactionCreate() {
     C catalog = catalog();
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(NS);
+    }
 
     Map<String, String> properties =
         ImmutableMap.of("user", "someone", "created-at", "2022-02-25T00:38:19");
@@ -1686,6 +1806,10 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   public void testCreateOrReplaceReplaceTransactionReplace() {
     C catalog = catalog();
 
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(NS);
+    }
+
     Table original = catalog.buildTable(TABLE, OTHER_SCHEMA).create();
 
     Assert.assertTrue("Table should exist before replaceTransaction", catalog.tableExists(TABLE));
@@ -1726,6 +1850,10 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   @Test
   public void testCompleteCreateOrReplaceTransactionReplace() {
     C catalog = catalog();
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(NS);
+    }
 
     Table original = catalog.buildTable(TABLE, OTHER_SCHEMA).create();
 
@@ -1796,6 +1924,10 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
     C catalog = catalog();
 
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(NS);
+    }
+
     Transaction createOrReplace = catalog.buildTable(TABLE, SCHEMA).createOrReplaceTransaction();
 
     Assert.assertFalse(
@@ -1829,6 +1961,10 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   @Test
   public void testReplaceTransaction() {
     C catalog = catalog();
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(NS);
+    }
 
     Table original = catalog.buildTable(TABLE, OTHER_SCHEMA).create();
 
@@ -1870,6 +2006,10 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   @Test
   public void testCompleteReplaceTransaction() {
     C catalog = catalog();
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(NS);
+    }
 
     Table original = catalog.buildTable(TABLE, OTHER_SCHEMA).create();
 
@@ -1936,6 +2076,10 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   public void testReplaceTransactionRequiresTableExists() {
     C catalog = catalog();
 
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(NS);
+    }
+
     AssertHelpers.assertThrows(
         "Should fail to create replace transaction with a missing table",
         NoSuchTableException.class,
@@ -1946,6 +2090,10 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   @Test
   public void testConcurrentReplaceTransactions() {
     C catalog = catalog();
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(NS);
+    }
 
     Transaction transaction = catalog.buildTable(TABLE, SCHEMA).createTransaction();
     transaction.newFastAppend().appendFile(FILE_A).commit();
@@ -1988,6 +2136,10 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   public void testConcurrentReplaceTransactionSchema() {
     C catalog = catalog();
 
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(NS);
+    }
+
     Transaction transaction = catalog.buildTable(TABLE, OTHER_SCHEMA).createTransaction();
     transaction.newFastAppend().appendFile(FILE_A).commit();
     transaction.commitTransaction();
@@ -2024,6 +2176,10 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   @Test
   public void testConcurrentReplaceTransactionSchema2() {
     C catalog = catalog();
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(NS);
+    }
 
     Transaction transaction = catalog.buildTable(TABLE, OTHER_SCHEMA).createTransaction();
     transaction.newFastAppend().appendFile(FILE_A).commit();
@@ -2064,6 +2220,10 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
     C catalog = catalog();
 
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(NS);
+    }
+
     Transaction transaction = catalog.buildTable(TABLE, OTHER_SCHEMA).createTransaction();
     transaction.newFastAppend().appendFile(FILE_A).commit();
     transaction.commitTransaction();
@@ -2098,6 +2258,10 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   @Test
   public void testConcurrentReplaceTransactionPartitionSpec() {
     C catalog = catalog();
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(NS);
+    }
 
     Transaction transaction = catalog.buildTable(TABLE, SCHEMA).createTransaction();
     transaction.newFastAppend().appendFile(FILE_A).commit();
@@ -2134,6 +2298,10 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   public void testConcurrentReplaceTransactionPartitionSpec2() {
     C catalog = catalog();
 
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(NS);
+    }
+
     Transaction transaction = catalog.buildTable(TABLE, SCHEMA).createTransaction();
     transaction.newFastAppend().appendFile(FILE_A).commit();
     transaction.commitTransaction();
@@ -2169,6 +2337,10 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   public void testConcurrentReplaceTransactionPartitionSpecConflict() {
     Assume.assumeTrue("Spec conflicts are detected server-side", supportsServerSideRetry());
     C catalog = catalog();
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(NS);
+    }
 
     Transaction transaction = catalog.buildTable(TABLE, SCHEMA).createTransaction();
     transaction.newFastAppend().appendFile(FILE_A).commit();
@@ -2207,6 +2379,10 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   public void testConcurrentReplaceTransactionSortOrder() {
     C catalog = catalog();
 
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(NS);
+    }
+
     Transaction transaction = catalog.buildTable(TABLE, SCHEMA).createTransaction();
     transaction.newFastAppend().appendFile(FILE_A).commit();
     transaction.commitTransaction();
@@ -2239,6 +2415,10 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   @Test
   public void testConcurrentReplaceTransactionSortOrderConflict() {
     C catalog = catalog();
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(NS);
+    }
 
     Transaction transaction = catalog.buildTable(TABLE, SCHEMA).createTransaction();
     transaction.newFastAppend().appendFile(FILE_A).commit();
@@ -2279,6 +2459,10 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   @Test
   public void testMetadataFileLocationsRemovalAfterCommit() {
     C catalog = catalog();
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(NS);
+    }
 
     Table table = catalog.buildTable(TABLE, SCHEMA).create();
     table.updateSchema().addColumn("a", Types.LongType.get()).commit();

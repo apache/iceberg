@@ -20,6 +20,7 @@ package org.apache.iceberg.nessie;
 
 import static org.apache.iceberg.types.Types.NestedField.required;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
 import org.apache.avro.generic.GenericRecordBuilder;
@@ -452,37 +453,42 @@ public class TestBranchVisibility extends BaseTestIceberg {
 
     NessieCatalog nessieCatalog = initCatalog(testBranch);
     String hashBeforeNamespaceCreation = api.getReference().refName(testBranch).get().getHash();
-    Namespace namespace = Namespace.of("a", "b");
-    Assertions.assertThat(nessieCatalog.listNamespaces(namespace)).isEmpty();
+    Namespace namespaceA = Namespace.of("a");
+    Namespace namespaceAB = Namespace.of("a", "b");
+    Assertions.assertThat(nessieCatalog.listNamespaces(namespaceAB)).isEmpty();
 
-    nessieCatalog.createNamespace(namespace);
-    Assertions.assertThat(nessieCatalog.listNamespaces(namespace)).isNotEmpty();
-    Assertions.assertThat(nessieCatalog.listTables(namespace)).isEmpty();
+    createMissingNamespaces(
+        nessieCatalog, Namespace.of(Arrays.copyOf(namespaceAB.levels(), namespaceAB.length() - 1)));
+    nessieCatalog.createNamespace(namespaceAB);
+    Assertions.assertThat(nessieCatalog.listNamespaces(namespaceAB)).isEmpty();
+    Assertions.assertThat(nessieCatalog.listNamespaces(namespaceA)).containsExactly(namespaceAB);
+    Assertions.assertThat(nessieCatalog.listTables(namespaceAB)).isEmpty();
 
     NessieCatalog catalogAtHash1 = initCatalog(testBranch, hashBeforeNamespaceCreation);
-    Assertions.assertThat(catalogAtHash1.listNamespaces(namespace)).isEmpty();
-    Assertions.assertThat(catalogAtHash1.listTables(namespace)).isEmpty();
+    Assertions.assertThat(catalogAtHash1.listNamespaces(namespaceAB)).isEmpty();
+    Assertions.assertThat(catalogAtHash1.listTables(namespaceAB)).isEmpty();
 
-    TableIdentifier identifier = TableIdentifier.of(namespace, "table");
+    TableIdentifier identifier = TableIdentifier.of(namespaceAB, "table");
     String hashBeforeTableCreation = nessieCatalog.currentHash();
     nessieCatalog.createTable(identifier, schema);
-    Assertions.assertThat(nessieCatalog.listTables(namespace)).hasSize(1);
+    Assertions.assertThat(nessieCatalog.listTables(namespaceAB)).hasSize(1);
 
     NessieCatalog catalogAtHash2 = initCatalog(testBranch, hashBeforeTableCreation);
-    Assertions.assertThat(catalogAtHash2.listNamespaces(namespace)).isNotEmpty();
-    Assertions.assertThat(catalogAtHash2.listTables(namespace)).isEmpty();
+    Assertions.assertThat(catalogAtHash2.listNamespaces(namespaceAB)).isEmpty();
+    Assertions.assertThat(catalogAtHash2.listNamespaces(namespaceA)).containsExactly(namespaceAB);
+    Assertions.assertThat(catalogAtHash2.listTables(namespaceAB)).isEmpty();
 
     // updates should not be possible
     Assertions.assertThatThrownBy(() -> catalogAtHash2.createTable(identifier, schema))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("You can only mutate tables when using a branch without a hash or timestamp.");
-    Assertions.assertThat(catalogAtHash2.listTables(namespace)).isEmpty();
+    Assertions.assertThat(catalogAtHash2.listTables(namespaceAB)).isEmpty();
 
     // updates should be still possible here
     nessieCatalog = initCatalog(testBranch);
-    TableIdentifier identifier2 = TableIdentifier.of(namespace, "table2");
+    TableIdentifier identifier2 = TableIdentifier.of(namespaceAB, "table2");
     nessieCatalog.createTable(identifier2, schema);
-    Assertions.assertThat(nessieCatalog.listTables(namespace)).hasSize(2);
+    Assertions.assertThat(nessieCatalog.listTables(namespaceAB)).hasSize(2);
   }
 
   @Test
@@ -503,10 +509,13 @@ public class TestBranchVisibility extends BaseTestIceberg {
     TableIdentifier identifier = TableIdentifier.of("db", "table1");
 
     NessieCatalog nessieCatalog = initCatalog(branch1);
+
+    createMissingNamespaces(nessieCatalog, identifier);
     Table table1 = nessieCatalog.createTable(identifier, schema1);
     Assertions.assertThat(table1.schema().asStruct()).isEqualTo(schema1.asStruct());
 
     nessieCatalog = initCatalog(branch2);
+    createMissingNamespaces(nessieCatalog, identifier);
     Table table2 = nessieCatalog.createTable(identifier, schema2);
     Assertions.assertThat(table2.schema().asStruct()).isEqualTo(schema2.asStruct());
 

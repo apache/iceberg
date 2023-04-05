@@ -43,10 +43,11 @@ abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBa
   BaseBatchReader(
       Table table,
       ScanTaskGroup<T> taskGroup,
+      Schema tableSchema,
       Schema expectedSchema,
       boolean caseSensitive,
       int batchSize) {
-    super(table, taskGroup, expectedSchema, caseSensitive);
+    super(table, taskGroup, tableSchema, expectedSchema, caseSensitive);
     this.batchSize = batchSize;
   }
 

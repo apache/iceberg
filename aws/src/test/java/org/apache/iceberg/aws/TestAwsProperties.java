@@ -22,7 +22,6 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.aws.s3.signer.S3V4RestSignerClient;
@@ -37,7 +36,6 @@ import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
-import software.amazon.awssdk.auth.signer.AwsS3V4Signer;
 import software.amazon.awssdk.core.client.config.SdkAdvancedClientOption;
 import software.amazon.awssdk.core.signer.Signer;
 import software.amazon.awssdk.http.SdkHttpClient;
@@ -52,11 +50,10 @@ public class TestAwsProperties {
   public void testS3FileIoSseCustom_mustHaveCustomKey() {
     Map<String, String> map = Maps.newHashMap();
     map.put(AwsProperties.S3FILEIO_SSE_TYPE, AwsProperties.S3FILEIO_SSE_TYPE_CUSTOM);
-    AssertHelpers.assertThrows(
-        "must have key for SSE-C",
-        NullPointerException.class,
-        "Cannot initialize SSE-C S3FileIO with null encryption key",
-        () -> new AwsProperties(map));
+
+    Assertions.assertThatThrownBy(() -> new AwsProperties(map))
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("Cannot initialize SSE-C S3FileIO with null encryption key");
   }
 
   @Test
@@ -64,11 +61,10 @@ public class TestAwsProperties {
     Map<String, String> map = Maps.newHashMap();
     map.put(AwsProperties.S3FILEIO_SSE_TYPE, AwsProperties.S3FILEIO_SSE_TYPE_CUSTOM);
     map.put(AwsProperties.S3FILEIO_SSE_KEY, "something");
-    AssertHelpers.assertThrows(
-        "must have md5 for SSE-C",
-        NullPointerException.class,
-        "Cannot initialize SSE-C S3FileIO with null encryption key MD5",
-        () -> new AwsProperties(map));
+
+    Assertions.assertThatThrownBy(() -> new AwsProperties(map))
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("Cannot initialize SSE-C S3FileIO with null encryption key MD5");
   }
 
   @Test
@@ -83,66 +79,60 @@ public class TestAwsProperties {
   public void testS3FileIoAcl_unknownType() {
     Map<String, String> map = Maps.newHashMap();
     map.put(AwsProperties.S3FILEIO_ACL, "bad-input");
-    AssertHelpers.assertThrows(
-        "should not accept bad input",
-        IllegalArgumentException.class,
-        "Cannot support S3 CannedACL bad-input",
-        () -> new AwsProperties(map));
+
+    Assertions.assertThatThrownBy(() -> new AwsProperties(map))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot support S3 CannedACL bad-input");
   }
 
   @Test
   public void testS3MultipartSizeTooSmall() {
     Map<String, String> map = Maps.newHashMap();
     map.put(AwsProperties.S3FILEIO_MULTIPART_SIZE, "1");
-    AssertHelpers.assertThrows(
-        "should not accept small part size",
-        IllegalArgumentException.class,
-        "Minimum multipart upload object size must be larger than 5 MB",
-        () -> new AwsProperties(map));
+
+    Assertions.assertThatThrownBy(() -> new AwsProperties(map))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Minimum multipart upload object size must be larger than 5 MB.");
   }
 
   @Test
   public void testS3MultipartSizeTooLarge() {
     Map<String, String> map = Maps.newHashMap();
     map.put(AwsProperties.S3FILEIO_MULTIPART_SIZE, "5368709120"); // 5GB
-    AssertHelpers.assertThrows(
-        "should not accept too big part size",
-        IllegalArgumentException.class,
-        "Input malformed or exceeded maximum multipart upload size 5GB",
-        () -> new AwsProperties(map));
+
+    Assertions.assertThatThrownBy(() -> new AwsProperties(map))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Input malformed or exceeded maximum multipart upload size 5GB: 5368709120");
   }
 
   @Test
   public void testS3MultipartThresholdFactorLessThanOne() {
     Map<String, String> map = Maps.newHashMap();
     map.put(AwsProperties.S3FILEIO_MULTIPART_THRESHOLD_FACTOR, "0.9");
-    AssertHelpers.assertThrows(
-        "should not accept factor less than 1",
-        IllegalArgumentException.class,
-        "Multipart threshold factor must be >= to 1.0",
-        () -> new AwsProperties(map));
+
+    Assertions.assertThatThrownBy(() -> new AwsProperties(map))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Multipart threshold factor must be >= to 1.0");
   }
 
   @Test
   public void testS3FileIoDeleteBatchSizeTooLarge() {
     Map<String, String> map = Maps.newHashMap();
     map.put(AwsProperties.S3FILEIO_DELETE_BATCH_SIZE, "2000");
-    AssertHelpers.assertThrows(
-        "should not accept batch size greater than 1000",
-        IllegalArgumentException.class,
-        "Deletion batch size must be between 1 and 1000",
-        () -> new AwsProperties(map));
+
+    Assertions.assertThatThrownBy(() -> new AwsProperties(map))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Deletion batch size must be between 1 and 1000");
   }
 
   @Test
   public void testS3FileIoDeleteBatchSizeTooSmall() {
     Map<String, String> map = Maps.newHashMap();
     map.put(AwsProperties.S3FILEIO_DELETE_BATCH_SIZE, "0");
-    AssertHelpers.assertThrows(
-        "should not accept batch size less than 1",
-        IllegalArgumentException.class,
-        "Deletion batch size must be between 1 and 1000",
-        () -> new AwsProperties(map));
+
+    Assertions.assertThatThrownBy(() -> new AwsProperties(map))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Deletion batch size must be between 1 and 1000");
   }
 
   @Test
@@ -262,11 +252,10 @@ public class TestAwsProperties {
     AwsProperties awsProperties = new AwsProperties(properties);
     S3ClientBuilder s3ClientBuilder = S3Client.builder();
 
-    AssertHelpers.assertThrows(
-        "should not support http client types other than urlconnection and apache",
-        IllegalArgumentException.class,
-        "Unrecognized HTTP client type",
-        () -> awsProperties.applyHttpClientConfigurations(s3ClientBuilder));
+    Assertions.assertThatThrownBy(
+            () -> awsProperties.applyHttpClientConfigurations(s3ClientBuilder))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Unrecognized HTTP client type test");
   }
 
   @Test
@@ -302,7 +291,7 @@ public class TestAwsProperties {
   @Test
   public void testS3RemoteSignerWithoutUri() {
     Map<String, String> properties =
-        ImmutableMap.of(AwsProperties.S3_SIGNER_IMPL, S3V4RestSignerClient.class.getName());
+        ImmutableMap.of(AwsProperties.S3_REMOTE_SIGNING_ENABLED, "true");
     AwsProperties awsProperties = new AwsProperties(properties);
 
     Assertions.assertThatThrownBy(
@@ -312,14 +301,11 @@ public class TestAwsProperties {
   }
 
   @Test
-  public void testS3RemoteSigner() {
+  public void testS3RemoteSigningEnabled() {
     String uri = "http://localhost:12345";
     Map<String, String> properties =
         ImmutableMap.of(
-            AwsProperties.S3_SIGNER_IMPL,
-            S3V4RestSignerClient.class.getName(),
-            CatalogProperties.URI,
-            uri);
+            AwsProperties.S3_REMOTE_SIGNING_ENABLED, "true", CatalogProperties.URI, uri);
     AwsProperties awsProperties = new AwsProperties(properties);
     S3ClientBuilder builder = S3Client.builder();
 
@@ -334,9 +320,9 @@ public class TestAwsProperties {
   }
 
   @Test
-  public void testS3LocalSigner() {
+  public void testS3RemoteSigningDisabled() {
     Map<String, String> properties =
-        ImmutableMap.of(AwsProperties.S3_SIGNER_IMPL, AwsS3V4Signer.class.getName());
+        ImmutableMap.of(AwsProperties.S3_REMOTE_SIGNING_ENABLED, "false");
     AwsProperties awsProperties = new AwsProperties(properties);
     S3ClientBuilder builder = S3Client.builder();
 
@@ -344,31 +330,6 @@ public class TestAwsProperties {
 
     Optional<Signer> signer =
         builder.overrideConfiguration().advancedOption(SdkAdvancedClientOption.SIGNER);
-    Assertions.assertThat(signer).isPresent().get().isInstanceOf(AwsS3V4Signer.class);
-  }
-
-  @Test
-  public void testS3WrongSigner() {
-    Map<String, String> properties = ImmutableMap.of(AwsProperties.S3_SIGNER_IMPL, "WrongSigner");
-    AwsProperties awsProperties = new AwsProperties(properties);
-
-    Assertions.assertThatThrownBy(
-            () -> awsProperties.applyS3SignerConfiguration(S3Client.builder()))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot instantiate custom signer: WrongSigner");
-  }
-
-  @Test
-  public void testS3SignerWrongSubclass() {
-    // we're just passing some random class as a signer impl
-    Map<String, String> properties =
-        ImmutableMap.of(AwsProperties.S3_SIGNER_IMPL, AwsProperties.class.getName());
-    AwsProperties awsProperties = new AwsProperties(properties);
-
-    Assertions.assertThatThrownBy(
-            () -> awsProperties.applyS3SignerConfiguration(S3Client.builder()))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage(
-            "Custom signer org.apache.iceberg.aws.AwsProperties must be an instance of software.amazon.awssdk.core.signer.Signer");
+    Assertions.assertThat(signer).isNotPresent();
   }
 }

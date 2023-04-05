@@ -97,6 +97,7 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
   private final String applicationId;
   private final boolean wapEnabled;
   private final String wapId;
+  private final String branch;
   private final Map<String, String> extraSnapshotMetadata;
   private final Distribution requiredDistribution;
   private final SortOrder[] requiredOrdering;
@@ -123,6 +124,7 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
     this.applicationId = spark.sparkContext().applicationId();
     this.wapEnabled = writeConf.wapEnabled();
     this.wapId = writeConf.wapId();
+    this.branch = writeConf.branch();
     this.extraSnapshotMetadata = writeConf.extraSnapshotMetadata();
     this.requiredDistribution = requiredDistribution;
     this.requiredOrdering = requiredOrdering;
@@ -271,6 +273,10 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
         // stage the changes without changing the current snapshot
         operation.set(SnapshotSummary.STAGED_WAP_ID_PROP, wapId);
         operation.stageOnly();
+      }
+
+      if (branch != null) {
+        operation.toBranch(branch);
       }
 
       try {

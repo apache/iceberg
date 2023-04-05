@@ -27,7 +27,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
-import org.apache.iceberg.spark.FileScanTaskSetManager;
+import org.apache.iceberg.spark.ScanTaskSetManager;
 import org.apache.iceberg.spark.SparkCatalogTestBase;
 import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.spark.sql.Dataset;
@@ -37,9 +37,10 @@ import org.junit.After;
 import org.junit.Assert;
 import org.junit.Test;
 
-public class TestSparkFilesScan extends SparkCatalogTestBase {
+public class TestSparkStagedScan extends SparkCatalogTestBase {
 
-  public TestSparkFilesScan(String catalogName, String implementation, Map<String, String> config) {
+  public TestSparkStagedScan(
+      String catalogName, String implementation, Map<String, String> config) {
     super(catalogName, implementation, config);
   }
 
@@ -61,7 +62,7 @@ public class TestSparkFilesScan extends SparkCatalogTestBase {
     Assert.assertEquals("Should produce 1 snapshot", 1, Iterables.size(table.snapshots()));
 
     try (CloseableIterable<FileScanTask> fileScanTasks = table.newScan().planFiles()) {
-      FileScanTaskSetManager taskSetManager = FileScanTaskSetManager.get();
+      ScanTaskSetManager taskSetManager = ScanTaskSetManager.get();
       String setID = UUID.randomUUID().toString();
       taskSetManager.stageTasks(table, setID, ImmutableList.copyOf(fileScanTasks));
 
@@ -70,7 +71,7 @@ public class TestSparkFilesScan extends SparkCatalogTestBase {
           spark
               .read()
               .format("iceberg")
-              .option(SparkReadOptions.FILE_SCAN_TASK_SET_ID, setID)
+              .option(SparkReadOptions.SCAN_TASK_SET_ID, setID)
               .load(tableName);
 
       // write the records back essentially duplicating data
@@ -97,7 +98,7 @@ public class TestSparkFilesScan extends SparkCatalogTestBase {
     Assert.assertEquals("Should produce 2 snapshots", 2, Iterables.size(table.snapshots()));
 
     try (CloseableIterable<FileScanTask> fileScanTasks = table.newScan().planFiles()) {
-      FileScanTaskSetManager taskSetManager = FileScanTaskSetManager.get();
+      ScanTaskSetManager taskSetManager = ScanTaskSetManager.get();
       String setID = UUID.randomUUID().toString();
       List<FileScanTask> tasks = ImmutableList.copyOf(fileScanTasks);
       taskSetManager.stageTasks(table, setID, tasks);
@@ -107,7 +108,7 @@ public class TestSparkFilesScan extends SparkCatalogTestBase {
           spark
               .read()
               .format("iceberg")
-              .option(SparkReadOptions.FILE_SCAN_TASK_SET_ID, setID)
+              .option(SparkReadOptions.SCAN_TASK_SET_ID, setID)
               .option(SparkReadOptions.SPLIT_SIZE, tasks.get(0).file().fileSizeInBytes())
               .load(tableName);
       Assert.assertEquals("Num partitions should match", 2, scanDF.javaRDD().getNumPartitions());
@@ -117,7 +118,7 @@ public class TestSparkFilesScan extends SparkCatalogTestBase {
           spark
               .read()
               .format("iceberg")
-              .option(SparkReadOptions.FILE_SCAN_TASK_SET_ID, setID)
+              .option(SparkReadOptions.SCAN_TASK_SET_ID, setID)
               .option(SparkReadOptions.SPLIT_SIZE, Long.MAX_VALUE)
               .load(tableName);
       Assert.assertEquals("Num partitions should match", 1, scanDF.javaRDD().getNumPartitions());

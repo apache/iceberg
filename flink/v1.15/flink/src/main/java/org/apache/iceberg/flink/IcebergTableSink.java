@@ -21,13 +21,17 @@ package org.apache.iceberg.flink;
 import java.util.List;
 import java.util.Map;
 import org.apache.flink.configuration.ReadableConfig;
+import org.apache.flink.streaming.api.datastream.DataStream;
+import org.apache.flink.streaming.api.datastream.DataStreamSink;
 import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.api.constraints.UniqueConstraint;
 import org.apache.flink.table.connector.ChangelogMode;
+import org.apache.flink.table.connector.ProviderContext;
 import org.apache.flink.table.connector.sink.DataStreamSinkProvider;
 import org.apache.flink.table.connector.sink.DynamicTableSink;
 import org.apache.flink.table.connector.sink.abilities.SupportsOverwrite;
 import org.apache.flink.table.connector.sink.abilities.SupportsPartitioning;
+import org.apache.flink.table.data.RowData;
 import org.apache.flink.types.RowKind;
 import org.apache.flink.util.Preconditions;
 import org.apache.iceberg.flink.sink.FlinkSink;
@@ -69,16 +73,20 @@ public class IcebergTableSink implements DynamicTableSink, SupportsPartitioning,
     List<String> equalityColumns =
         tableSchema.getPrimaryKey().map(UniqueConstraint::getColumns).orElseGet(ImmutableList::of);
 
-    return (DataStreamSinkProvider)
-        (providerContext, dataStream) ->
-            FlinkSink.forRowData(dataStream)
-                .tableLoader(tableLoader)
-                .tableSchema(tableSchema)
-                .equalityFieldColumns(equalityColumns)
-                .overwrite(overwrite)
-                .setAll(writeProps)
-                .flinkConf(readableConfig)
-                .append();
+    return new DataStreamSinkProvider() {
+      @Override
+      public DataStreamSink<?> consumeDataStream(
+          ProviderContext providerContext, DataStream<RowData> dataStream) {
+        return FlinkSink.forRowData(dataStream)
+            .tableLoader(tableLoader)
+            .tableSchema(tableSchema)
+            .equalityFieldColumns(equalityColumns)
+            .overwrite(overwrite)
+            .setAll(writeProps)
+            .flinkConf(readableConfig)
+            .append();
+      }
+    };
   }
 
   @Override

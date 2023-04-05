@@ -37,6 +37,7 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.rdd.InputFileBlockHolder;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
@@ -51,6 +52,7 @@ class ChangelogRowReader extends BaseRowReader<ChangelogScanTask>
     this(
         partition.table(),
         partition.taskGroup(),
+        SnapshotUtil.schemaFor(partition.table(), partition.branch()),
         partition.expectedSchema(),
         partition.isCaseSensitive());
   }
@@ -58,9 +60,15 @@ class ChangelogRowReader extends BaseRowReader<ChangelogScanTask>
   ChangelogRowReader(
       Table table,
       ScanTaskGroup<ChangelogScanTask> taskGroup,
+      Schema tableSchema,
       Schema expectedSchema,
       boolean caseSensitive) {
-    super(table, taskGroup, ChangelogUtil.dropChangelogMetadata(expectedSchema), caseSensitive);
+    super(
+        table,
+        taskGroup,
+        tableSchema,
+        ChangelogUtil.dropChangelogMetadata(expectedSchema),
+        caseSensitive);
   }
 
   @Override

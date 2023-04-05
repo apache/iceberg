@@ -27,6 +27,7 @@ import org.apache.iceberg.expressions.ExpressionUtil;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.metrics.DefaultMetricsContext;
 import org.apache.iceberg.metrics.ImmutableScanReport;
+import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.metrics.ScanMetrics;
 import org.apache.iceberg.metrics.ScanMetricsResult;
 import org.apache.iceberg.metrics.ScanReport;
@@ -85,11 +86,16 @@ public abstract class SnapshotScan<ThisT, T extends ScanTask, G extends ScanTask
   }
 
   public ThisT useRef(String name) {
+    if (SnapshotRef.MAIN_BRANCH.equals(name)) {
+      return newRefinedScan(table(), tableSchema(), context());
+    }
+
     Preconditions.checkArgument(
         snapshotId() == null, "Cannot override ref, already set snapshot id=%s", snapshotId());
     Snapshot snapshot = table().snapshot(name);
     Preconditions.checkArgument(snapshot != null, "Cannot find ref %s", name);
-    return newRefinedScan(table(), tableSchema(), context().useSnapshotId(snapshot.snapshotId()));
+    TableScanContext newContext = context().useSnapshotId(snapshot.snapshotId());
+    return newRefinedScan(table(), SnapshotUtil.schemaFor(table(), name), newContext);
   }
 
   public ThisT asOfTime(long timestampMillis) {
@@ -139,7 +145,9 @@ public abstract class SnapshotScan<ThisT, T extends ScanTask, G extends ScanTask
                   .scanMetrics(ScanMetricsResult.fromScanMetrics(scanMetrics()))
                   .metadata(metadata)
                   .build();
-          context().metricsReporter().report(scanReport);
+          for (MetricsReporter metricsReporter : context().metricsReporters()) {
+            metricsReporter.report(scanReport);
+          }
         });
   }
 

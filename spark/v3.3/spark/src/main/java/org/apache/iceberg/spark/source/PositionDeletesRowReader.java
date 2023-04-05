@@ -33,6 +33,7 @@ import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.primitives.Ints;
+import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.rdd.InputFileBlockHolder;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.connector.read.PartitionReader;
@@ -48,6 +49,7 @@ class PositionDeletesRowReader extends BaseRowReader<PositionDeletesScanTask>
     this(
         partition.table(),
         partition.taskGroup(),
+        SnapshotUtil.schemaFor(partition.table(), partition.branch()),
         partition.expectedSchema(),
         partition.isCaseSensitive());
   }
@@ -55,10 +57,11 @@ class PositionDeletesRowReader extends BaseRowReader<PositionDeletesScanTask>
   PositionDeletesRowReader(
       Table table,
       ScanTaskGroup<PositionDeletesScanTask> taskGroup,
+      Schema tableSchema,
       Schema expectedSchema,
       boolean caseSensitive) {
 
-    super(table, taskGroup, expectedSchema, caseSensitive);
+    super(table, taskGroup, tableSchema, expectedSchema, caseSensitive);
 
     int numSplits = taskGroup.tasks().size();
     LOG.debug("Reading {} position delete file split(s) for table {}", numSplits, table.name());

@@ -332,7 +332,8 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
 
     Table partitionsTable = new PartitionsTable(table);
     Types.StructType expected =
-        new Schema(required(3, "file_count", Types.IntegerType.get())).asStruct();
+        new Schema(required(3, "file_count", Types.IntegerType.get(), "Count of data files"))
+            .asStruct();
 
     TableScan scanWithProjection = partitionsTable.newScan().select("file_count");
     Assert.assertEquals(expected, scanWithProjection.schema().asStruct());

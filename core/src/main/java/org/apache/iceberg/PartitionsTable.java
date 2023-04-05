@@ -45,9 +45,11 @@ public class PartitionsTable extends BaseMetadataTable {
     this.schema =
         new Schema(
             Types.NestedField.required(1, "partition", Partitioning.partitionType(table)),
-            Types.NestedField.required(2, "record_count", Types.LongType.get()),
-            Types.NestedField.required(3, "file_count", Types.IntegerType.get()),
-            Types.NestedField.required(4, "spec_id", Types.IntegerType.get()));
+            Types.NestedField.required(4, "spec_id", Types.IntegerType.get()),
+            Types.NestedField.required(
+                2, "record_count", Types.LongType.get(), "Count of records in data files"),
+            Types.NestedField.required(
+                3, "file_count", Types.IntegerType.get(), "Count of data files"));
   }
 
   @Override
@@ -77,7 +79,7 @@ public class PartitionsTable extends BaseMetadataTable {
           schema(),
           scan.schema(),
           partitions,
-          root -> StaticDataTask.Row.of(root.recordCount, root.fileCount));
+          root -> StaticDataTask.Row.of(root.dataRecordCount, root.dataFileCount));
     } else {
       return StaticDataTask.of(
           io().newInputFile(table().operations().current().metadataFileLocation()),
@@ -90,7 +92,7 @@ public class PartitionsTable extends BaseMetadataTable {
 
   private static StaticDataTask.Row convertPartition(Partition partition) {
     return StaticDataTask.Row.of(
-        partition.key, partition.recordCount, partition.fileCount, partition.specId);
+        partition.key, partition.specId, partition.dataRecordCount, partition.dataFileCount);
   }
 
   private static Iterable<Partition> partitions(Table table, StaticTableScan scan) {
@@ -220,20 +222,20 @@ public class PartitionsTable extends BaseMetadataTable {
 
   static class Partition {
     private final StructLike key;
-    private long recordCount;
-    private int fileCount;
     private int specId;
+    private long dataRecordCount;
+    private int dataFileCount;
 
     Partition(StructLike key) {
       this.key = key;
-      this.recordCount = 0;
-      this.fileCount = 0;
       this.specId = 0;
+      this.dataRecordCount = 0;
+      this.dataFileCount = 0;
     }
 
     void update(DataFile file) {
-      this.recordCount += file.recordCount();
-      this.fileCount += 1;
+      this.dataRecordCount += file.recordCount();
+      this.dataFileCount += 1;
       this.specId = file.specId();
     }
   }
