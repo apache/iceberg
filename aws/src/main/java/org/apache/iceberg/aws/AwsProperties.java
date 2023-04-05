@@ -40,6 +40,7 @@ import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SerializableMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import software.amazon.awssdk.auth.credentials.AnonymousCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
@@ -1178,7 +1179,9 @@ public class AwsProperties implements Serializable {
    */
   public <T extends S3ClientBuilder> void applyS3CredentialConfigurations(T builder) {
     builder.credentialsProvider(
-        credentialsProvider(s3AccessKeyId, s3SecretAccessKey, s3SessionToken));
+        s3RemoteSigningEnabled
+            ? AnonymousCredentialsProvider.create()
+            : credentialsProvider(s3AccessKeyId, s3SecretAccessKey, s3SessionToken));
   }
 
   /**

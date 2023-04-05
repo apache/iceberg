@@ -27,6 +27,7 @@ import java.util.concurrent.ExecutorService;
 import org.apache.iceberg.expressions.Binder;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
@@ -249,5 +250,10 @@ abstract class BaseScan<ThisT, T extends ScanTask, G extends ScanTaskGroup<T>>
     }
 
     return schema;
+  }
+
+  @Override
+  public ThisT metricsReporter(MetricsReporter reporter) {
+    return newRefinedScan(table(), schema(), context().reportWith(reporter));
   }
 }

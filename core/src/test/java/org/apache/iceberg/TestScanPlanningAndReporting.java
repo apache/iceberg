@@ -23,6 +23,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.metrics.CommitReport;
@@ -40,6 +41,37 @@ public class TestScanPlanningAndReporting extends TableTestBase {
 
   public TestScanPlanningAndReporting() {
     super(2);
+  }
+
+  @Test
+  public void scanningWithMultipleReporters() throws IOException {
+    String tableName = "scan-with-multiple-reporters";
+    Table table =
+        TestTables.create(
+            tableDir, tableName, SCHEMA, SPEC, SortOrder.unsorted(), formatVersion, reporter);
+    table.newAppend().appendFile(FILE_A).commit();
+    table.refresh();
+
+    AtomicInteger reportedCount = new AtomicInteger();
+    TableScan tableScan =
+        table
+            .newScan()
+            .metricsReporter((MetricsReporter) -> reportedCount.getAndIncrement())
+            .metricsReporter((MetricsReporter) -> reportedCount.getAndIncrement());
+    try (CloseableIterable<FileScanTask> fileScanTasks = tableScan.planFiles()) {
+      fileScanTasks.forEach(task -> {});
+    }
+
+    // verify if metrics are reported to default reporter
+    ScanReport scanReport = reporter.lastReport();
+    assertThat(scanReport).isNotNull();
+    assertThat(scanReport.tableName()).isEqualTo(tableName);
+    assertThat(scanReport.snapshotId()).isEqualTo(1L);
+    ScanMetricsResult result = scanReport.scanMetrics();
+    assertThat(result.totalPlanningDuration().totalDuration()).isGreaterThan(Duration.ZERO);
+    assertThat(result.resultDataFiles().value()).isEqualTo(1);
+
+    assertThat(reportedCount.get()).isEqualTo(2);
   }
 
   @Test
