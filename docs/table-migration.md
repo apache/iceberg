@@ -29,12 +29,12 @@ Apache Iceberg supports converting existing tables in other formats to Iceberg t
 There are two methods for executing table migration: full data migration and in-place metadata migration.
 
 Full data migration involves copying all data files from the source table to the new Iceberg table. This method makes the new table fully isolated from the source table, but is slower and doubles the space.
-In practice, users can use operations like CTAS, INSERT, and Change-Data-Capture pipelines to perform the full data migration.
-
-In this doc, we will describe more about in-place metadata migration.
+In practice, users can use operations like [Create-Table-As-Select](../spark-ddl/#create-table--as-select), [INSERT](../spark-writes/#insert-into), and Change-Data-Capture pipelines to perform such migration.
 
 In-place metadata migration preserves the existing data files while incorporating Iceberg metadata on top of them.
 This method is not only faster but also eliminates the need for data duplication. However, the new table and the source table are not fully isolated. In other words, if any processes vacuum data files from the source table, the new table will also be affected.
+
+In this doc, we will describe more about in-place metadata migration.
 
 ![In-Place Metadata Migration](../../../img/iceberg-in-place-metadata-migration.png)
 
