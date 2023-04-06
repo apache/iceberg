@@ -22,6 +22,7 @@ menu:
  - See the License for the specific language governing permissions and
  - limitations under the License.
  -->
+
 # Delta Lake Table Migration
 Delta Lake is a table format that supports Parquet file format and provides time travel and versioning features. When migrating data from Delta Lake to Iceberg,
 it is common to migrate all snapshots to maintain the history of the data.

@@ -22,6 +22,7 @@ menu:
  - See the License for the specific language governing permissions and
  - limitations under the License.
  -->
+
 # Hive Table Migration
 Apache Hive supports ORC, Parquet, and Avro file formats that could be migrated to Iceberg.
 When migrating data to an Iceberg table, which provides versioning and transactional updates, only the most recent data files need to be migrated.

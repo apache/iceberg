@@ -22,6 +22,7 @@ menu:
  - See the License for the specific language governing permissions and
  - limitations under the License.
  -->
+
 # Table Migration
 Apache Iceberg supports converting existing tables in other formats to Iceberg tables. This section introduces the general concept of table migration, its approaches, and existing implementations in Iceberg.
 
