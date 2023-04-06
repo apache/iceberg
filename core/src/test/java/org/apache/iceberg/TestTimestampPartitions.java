@@ -45,17 +45,23 @@ public class TestTimestampPartitions extends TableTestBase {
     Schema dateSchema =
         new Schema(
             required(1, "id", Types.LongType.get()),
-            optional(2, "timestamp", Types.TimestampType.withoutZone()));
+            optional(2, "timestamp", Types.TimestampType.withoutZone()),
+            optional(3, "timestamptz", Types.TimestampType.withZone()));
 
     PartitionSpec partitionSpec =
-        PartitionSpec.builderFor(dateSchema).day("timestamp", "date").build();
+        PartitionSpec.builderFor(dateSchema)
+            .day("timestamp", "date")
+            .identity("timestamp")
+            .identity("timestamptz")
+            .build();
 
     DataFile dataFile =
         DataFiles.builder(partitionSpec)
             .withPath("/path/to/data-1.parquet")
             .withFileSizeInBytes(0)
             .withRecordCount(0)
-            .withPartitionPath("date=2018-06-08")
+            .withPartitionPath(
+                "date=2018-06-08/timestamp=2023-02-11 18:30:00/timestamptz=2023-02-11 18:30:00")
             .build();
 
     File tableDir = temp.newFolder();
