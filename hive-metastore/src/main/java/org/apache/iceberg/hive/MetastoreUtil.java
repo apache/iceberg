@@ -50,8 +50,8 @@ public class MetastoreUtil {
   private MetastoreUtil() {}
 
   /**
-   * Calls alter_table method using the metastore client. If the HMS supports then, environmental
-   * context with will be set in a way that turns off stats updates to avoid recursive file listing.
+   * Calls alter_table method using the metastore client. If the HMS supports it, environmental
+   * context will be set in a way that turns off stats updates to avoid recursive file listing.
    */
   public static void alterTable(
       IMetaStoreClient client, String databaseName, String tblName, Table table) {
@@ -59,8 +59,8 @@ public class MetastoreUtil {
   }
 
   /**
-   * Calls alter_table method using the metastore client. If the HMS supports then, environmental
-   * context with will be set in a way that turns off stats updates to avoid recursive file listing.
+   * Calls alter_table method using the metastore client. If the HMS supports it, environmental
+   * context will be set in a way that turns off stats updates to avoid recursive file listing.
    */
   public static void alterTable(
       IMetaStoreClient client,
