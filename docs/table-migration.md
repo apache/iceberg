@@ -26,7 +26,7 @@ menu:
 Apache Iceberg supports converting existing tables in other formats to Iceberg tables. This section introduces the general concept of table migration, its approaches, and existing implementations in Iceberg.
 
 ## Migration Approaches
-There are two primary methods for executing table migration: full data migration and in-place metadata migration. 
+There are two methods for executing table migration: full data migration and in-place metadata migration.
 
 Full data migration involves copying all data files from the source table to the new Iceberg table. This method makes the new table fully isolated from the source table, but is slower and doubles the space.
 In practice, users can use operations like CTAS, INSERT, and Change-Data-Capture pipelines to perform the full data migration.

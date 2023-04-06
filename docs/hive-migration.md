@@ -40,14 +40,14 @@ To snapshot a Hive table, users can run the following Spark SQL:
 ```sql
 CALL catalog_name.system.snapshot('db.source', 'db.dest')
 ```
-See [Spark Procedure: snapshot](../spark-procedures/#table-migration) for more details.
+See [Spark Procedure: snapshot](../spark-procedures/#snapshot) for more details.
 
 ## Migrate Hive Table To Iceberg
 To migrate a Hive table to Iceberg, users can run the following Spark SQL:
 ```sql
 CALL catalog_name.system.migrate('db.sample')
 ```
-See [Spark Procedure: migrate](../spark-procedures/#table-migration) for more details.
+See [Spark Procedure: migrate](../spark-procedures/#migrate) for more details.
 
 ## Add Files From Delta Lake Table to Iceberg
 To add data files from a Hive table to a given Iceberg table, users can run the following Spark SQL:
@@ -57,4 +57,4 @@ table => 'db.tbl',
 source_table => 'db.src_tbl'
 )
 ```
-See [Spark Procedure: add_files](../spark-procedures/#table-migration) for more details.
+See [Spark Procedure: add_files](../spark-procedures/#add_files) for more details.

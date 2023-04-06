@@ -29,7 +29,7 @@ it is common to migrate all snapshots to maintain the history of the data.
 Currently, Iceberg only supports the Snapshot Table action for migrating from Delta Lake to Iceberg tables. It is done via the `iceberg-delta-lake` module
 by using [Delta Standalone](https://docs.delta.io/latest/delta-standalone.html) to read logs of Delta lake tables.
 Since Delta Lake tables maintain snapshots, all available snapshots will be committed to the new Iceberg table as transactions in order.
-For Delta Lake tables, any additional data files added after the initial migration will be included in their corresponding snapshots and subsequently added to the new Iceberg table using the Add Snapshot action. 
+For Delta Lake tables, any additional data files added after the initial migration will be included in their corresponding snapshots and subsequently added to the new Iceberg table using the Add Snapshot action.
 The Add Snapshot action, a variant of the Add File action, is still under development.
 
 ## Enabling Migration from Delta Lake to Iceberg
@@ -82,19 +82,19 @@ The delta table's location is required to be provided when initializing the acti
 
 | Argument Name | Required? | Type | Description |
 |---------------|-----------|------|-------------|
-|`sourceTableLocation` | Yes | String | The location of the source Delta Lake table | 
+|`sourceTableLocation` | ✔️ | String | The location of the source Delta Lake table | 
 
 #### Configurations
 The configurations can be gave via method chaining
 
 | Method Name | Arguments      | Required? | Type                                       | Description                                                                                                  |
 |---------------------------|----------------|-----------|--------------------------------------------|--------------------------------------------------------------------------------------------------------------|
-| `as`                      | `identifier`   | Yes       | org.apache.iceberg.catalog.TableIdentifier | The identifier of the Iceberg table to be created.                                                           |
-| `icebergCatalog`          | `catalog`      | Yes       | org.apache.iceberg.catalog.Catalog         | The Iceberg catalog for the Iceberg table to be created                                                      |
-| `deltaLakeConfiguration`  | `conf`         | Yes       | org.apache.hadoop.conf.Configuration       | The Hadoop Configuration to access Delta Lake Table's log and datafiles                                      |
-| `tableLocation`           | `location`     | No        | String                                     | The location of the Iceberg table to be created. Defaults to the same location as the given Delta Lake table |
-| `tableProperty`           | `name`,`value` | No        | String, String                             | A property entry to add to the Iceberg table to be created                                                   |
-| `tableProperties`         | `properties`   | No        | Map<String, String>                        | Properties to add to the the Iceberg table to be created                                                     |
+| `as`                      | `identifier`   | ✔️       | org.apache.iceberg.catalog.TableIdentifier | The identifier of the Iceberg table to be created.                                                           |
+| `icebergCatalog`          | `catalog`      | ✔️       | org.apache.iceberg.catalog.Catalog         | The Iceberg catalog for the Iceberg table to be created                                                      |
+| `deltaLakeConfiguration`  | `conf`         | ✔️       | org.apache.hadoop.conf.Configuration       | The Hadoop Configuration to access Delta Lake Table's log and datafiles                                      |
+| `tableLocation`           | `location`     |         | String                                     | The location of the Iceberg table to be created. Defaults to the same location as the given Delta Lake table |
+| `tableProperty`           | `name`,`value` |         | String, String                             | A property entry to add to the Iceberg table to be created                                                   |
+| `tableProperties`         | `properties`   |         | Map<String, String>                        | Properties to add to the the Iceberg table to be created                                                     |
 
 #### Output
 | Output Name | Type | Description |
@@ -129,7 +129,7 @@ DeltaLakeToIcebergMigrationActionsProvider.defaultActions()
 ```
 
 ## Migrate Delta Lake Table To Iceberg
-Unsupported
+**Not Yet Support**. This action should read the Delta Lake table's most recent snapshot and convert it to a new Iceberg table with the same name, schema and partitioning in one iceberg transaction. The source Delta Lake table should be dropped as the completion of this action.
 
 ## Add Files From Delta Lake Table to Iceberg
-Unsupported
+**Not Yet Support**. This action should add files from a Delta version of a Delta Lake table to an existing Iceberg table
