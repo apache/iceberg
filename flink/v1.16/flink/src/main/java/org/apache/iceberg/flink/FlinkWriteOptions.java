@@ -51,6 +51,9 @@ public class FlinkWriteOptions {
   public static final ConfigOption<Boolean> WRITE_UPSERT_ENABLED =
       ConfigOptions.key("upsert-enabled").booleanType().noDefaultValue();
 
+  public static final ConfigOption<String> EQUALITY_FIELD_COLUMNS =
+      ConfigOptions.key("equality-field-columns").stringType().noDefaultValue();
+
   public static final ConfigOption<Boolean> OVERWRITE_MODE =
       ConfigOptions.key("overwrite-enabled").booleanType().defaultValue(false);
 

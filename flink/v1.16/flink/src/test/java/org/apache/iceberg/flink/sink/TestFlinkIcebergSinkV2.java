@@ -29,6 +29,7 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.data.Record;
+import org.apache.iceberg.flink.FlinkWriteConf;
 import org.apache.iceberg.flink.HadoopCatalogResource;
 import org.apache.iceberg.flink.MiniClusterResource;
 import org.apache.iceberg.flink.SimpleDataUtil;
@@ -135,21 +136,22 @@ public class TestFlinkIcebergSinkV2 extends TestFlinkIcebergSinkV2Base {
     FlinkSink.Builder builder =
         FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA).table(table);
 
+    FlinkWriteConf flinkWriteConf = builder.flinkWriteConf();
+
     // Use schema identifier field IDs as equality field id list by default
     Assert.assertEquals(
-        table.schema().identifierFieldIds(),
-        Sets.newHashSet(builder.checkAndGetEqualityFieldIds()));
+        table.schema().identifierFieldIds(), Sets.newHashSet(flinkWriteConf.equalityFieldIds()));
 
     // Use user-provided equality field column as equality field id list
     builder.equalityFieldColumns(Lists.newArrayList("id"));
     Assert.assertEquals(
         Sets.newHashSet(table.schema().findField("id").fieldId()),
-        Sets.newHashSet(builder.checkAndGetEqualityFieldIds()));
+        Sets.newHashSet(flinkWriteConf.equalityFieldIds()));
 
     builder.equalityFieldColumns(Lists.newArrayList("type"));
     Assert.assertEquals(
         Sets.newHashSet(table.schema().findField("type").fieldId()),
-        Sets.newHashSet(builder.checkAndGetEqualityFieldIds()));
+        Sets.newHashSet(flinkWriteConf.equalityFieldIds()));
   }
 
   @Test
