@@ -80,8 +80,7 @@ public abstract class MetadataTableScanTestBase extends TableTestBase {
     }
   }
 
-  /** Used for asserting on data files where partition size = 1 */
-  protected void validateSingletonPartition(
+  protected void validateSingleFieldPartition(
       CloseableIterable<DataFile> dataFiles, int partitionValue) {
     validatePartition(dataFiles, 0, partitionValue);
   }
