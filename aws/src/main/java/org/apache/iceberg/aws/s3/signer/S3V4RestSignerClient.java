@@ -80,6 +80,9 @@ public abstract class S3V4RestSignerClient
   @SuppressWarnings("immutables:incompat")
   private static volatile RESTClient httpClient;
 
+  @SuppressWarnings("immutables:incompat")
+  private static volatile Cache<String, AuthSession> authSessionCache;
+
   public abstract Map<String, String> properties();
 
   @Value.Default
@@ -135,24 +138,33 @@ public abstract class S3V4RestSignerClient
     return tokenRefreshExecutor;
   }
 
-  @Value.Lazy
-  Cache<String, AuthSession> authSessionCache() {
-    long expirationIntervalMs =
-        PropertyUtil.propertyAsLong(
-            properties(),
-            CatalogProperties.AUTH_SESSION_TIMEOUT_MS,
-            CatalogProperties.AUTH_SESSION_TIMEOUT_MS_DEFAULT);
+  private Cache<String, AuthSession> authSessionCache() {
+    if (null == authSessionCache) {
+      synchronized (S3V4RestSignerClient.class) {
+        if (null == authSessionCache) {
+          long expirationIntervalMs =
+              PropertyUtil.propertyAsLong(
+                  properties(),
+                  CatalogProperties.AUTH_SESSION_TIMEOUT_MS,
+                  CatalogProperties.AUTH_SESSION_TIMEOUT_MS_DEFAULT);
 
-    return Caffeine.newBuilder()
-        .expireAfterAccess(Duration.ofMillis(expirationIntervalMs))
-        .removalListener(
-            (RemovalListener<String, AuthSession>)
-                (id, auth, cause) -> {
-                  if (null != auth) {
-                    auth.stopRefreshing();
-                  }
-                })
-        .build();
+          authSessionCache =
+              Caffeine.newBuilder()
+                  .expireAfterAccess(Duration.ofMillis(expirationIntervalMs))
+                  .removalListener(
+                      (RemovalListener<String, AuthSession>)
+                          (id, auth, cause) -> {
+                            if (null != auth) {
+                              LOG.trace("Stopping refresh for AuthSession");
+                              auth.stopRefreshing();
+                            }
+                          })
+                  .build();
+        }
+      }
+    }
+
+    return authSessionCache;
   }
 
   private RESTClient httpClient() {
