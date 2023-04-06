@@ -34,6 +34,7 @@ import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.iceberg.flink.sink.shuffle.statistics.DataStatistics;
 import org.apache.iceberg.flink.sink.shuffle.statistics.DataStatisticsFactory;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
  * DataStatisticsOperator collects traffic distribution statistics. A custom partitioner shall be
@@ -97,8 +98,13 @@ class DataStatisticsOperator<T, K> extends AbstractStreamOperator<DataStatistics
   }
 
   @Override
-  public void handleOperatorEvent(OperatorEvent evt) {
-    // TODO: receive event with aggregated statistics from coordinator and update globalStatistics
+  @SuppressWarnings("unchecked")
+  public void handleOperatorEvent(OperatorEvent event) {
+    Preconditions.checkArgument(
+        event instanceof DataStatisticsEvent,
+        "Received unexpected operator event " + event.getClass());
+    globalStatistics = ((DataStatisticsEvent<K>) event).dataStatistics();
+    output.collect(new StreamRecord<>(DataStatisticsOrRecord.fromDataStatistics(globalStatistics)));
   }
 
   @Override
@@ -126,8 +132,9 @@ class DataStatisticsOperator<T, K> extends AbstractStreamOperator<DataStatistics
       globalStatisticsState.add(globalStatistics);
     }
 
-    // TODO: send to coordinator
-    // For now we make it simple to send globalStatisticsState at checkpoint
+    // For now, we make it simple to send globalStatisticsState at checkpoint
+    operatorEventGateway.sendEventToCoordinator(
+        new DataStatisticsEvent<>(checkpointId, localStatistics));
 
     // Recreate the local statistics
     localStatistics = statisticsFactory.createDataStatistics();
@@ -136,5 +143,10 @@ class DataStatisticsOperator<T, K> extends AbstractStreamOperator<DataStatistics
   @VisibleForTesting
   DataStatistics<K> localDataStatistics() {
     return localStatistics;
+  }
+
+  @VisibleForTesting
+  DataStatistics<K> globalDataStatistics() {
+    return globalStatistics;
   }
 }
