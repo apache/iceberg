@@ -173,9 +173,6 @@ abstract class BaseTableCreationSparkAction<ThisT, R> extends BaseSparkAction<Th
   }
 
   protected String getMetadataLocation(Table table) {
-    return ((HasTableOperations) table)
-        .operations()
-        .locationProvider()
-        .metadataLocation();
+    return MetadataUtil.metadataLocation(table);
   }
 }

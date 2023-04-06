@@ -25,6 +25,7 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 import org.apache.iceberg.LocationProviders;
 import org.apache.iceberg.MetadataUpdate;
+import org.apache.iceberg.MetadataUtil;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.encryption.EncryptionManager;
@@ -165,8 +166,7 @@ class RESTTableOperations implements TableOperations {
   }
 
   private static String metadataFileLocation(TableMetadata metadata, String filename) {
-    return LocationProviders.newMetadataLocation(
-        metadata.properties(), metadata.location(), filename);
+    return MetadataUtil.newMetadataLocation(metadata, filename);
   }
 
   @Override

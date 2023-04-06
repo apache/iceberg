@@ -221,7 +221,7 @@ class AddFilesProcedure extends BaseProcedure {
   }
 
   private String getMetadataLocation(Table table) {
-    return ((HasTableOperations) table).operations().locationProvider().metadataLocation();
+    return MetadataUtil.metadataLocation(table);
   }
 
   @Override

@@ -223,8 +223,7 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
   }
 
   private String metadataFileLocation(TableMetadata metadata, String filename) {
-    return LocationProviders.newMetadataLocation(
-        metadata.properties(), metadata.location(), filename);
+    return MetadataUtil.newMetadataLocation(metadata, filename);
   }
 
   @Override

@@ -22,8 +22,6 @@ import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.relocated.com.google.common.base.Splitter;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -298,94 +296,5 @@ public class TestLocationProvider extends TableTestBase {
     Assert.assertFalse("Third part should be a hash value", parts.get(2).isEmpty());
     Assert.assertEquals(
         "Fourth part should be the file name passed in", "test.parquet", parts.get(3));
-  }
-
-  @Test
-  public void testDataLocationFromDataLocationProvider() {
-    LocationProvider locationProvider = table.ops().locationProvider();
-    Assertions.assertThat(locationProvider.dataLocation()).isNotNull();
-
-    String noDataLocImpl =
-        String.format(
-            "%s$%s",
-            this.getClass().getCanonicalName(),
-            TwoArgDynamicallyLoadedLocationProvider.class.getSimpleName());
-    this.table
-        .updateProperties()
-        .set(TableProperties.WRITE_LOCATION_PROVIDER_IMPL, noDataLocImpl)
-        .commit();
-
-    Assertions.assertThat(this.table.locationProvider().dataLocation()).isNull();
-  }
-
-  @Test
-  public void testTableDataAndMetadataLocation() {
-
-    Assertions.assertThat(this.table.locationProvider().dataLocation()).isNotNull();
-
-    Assertions.assertThat(this.table.locationProvider().metadataLocation())
-        .isNotNull()
-        .endsWith("/metadata");
-
-    Map<String, String> properties = Maps.newHashMap();
-    String newMetadataLocationProperty = "/data/metadata";
-    properties.put(TableProperties.WRITE_METADATA_LOCATION, newMetadataLocationProperty);
-    String filename = "metadata.json";
-
-    this.table
-        .updateProperties()
-        .set(TableProperties.WRITE_METADATA_LOCATION, newMetadataLocationProperty)
-        .commit();
-
-    String newMetadataLocation =
-        LocationProviders.newMetadataLocation(properties, this.table.location(), filename);
-
-    Assertions.assertThat(newMetadataLocation)
-        .isEqualTo(newMetadataLocationProperty + "/" + filename);
-
-    Assertions.assertThat(newMetadataLocation)
-        .isEqualTo(this.table.locationProvider().newMetadataLocation(filename));
-
-    this.table.updateProperties().remove(TableProperties.WRITE_METADATA_LOCATION).commit();
-    Assertions.assertThat(this.table.locationProvider().metadataLocation())
-        .startsWith(this.table.location())
-        .endsWith("/metadata");
-  }
-
-  @Test
-  public void testMetadataLocationWithoutImplementation() {
-    String noDataLocImpl =
-        String.format(
-            "%s$%s",
-            this.getClass().getCanonicalName(),
-            TwoArgDynamicallyLoadedLocationProvider.class.getSimpleName());
-    this.table
-        .updateProperties()
-        .set(TableProperties.WRITE_LOCATION_PROVIDER_IMPL, noDataLocImpl)
-        .commit();
-
-    Assertions.assertThat(this.table.locationProvider().dataLocation()).isNull();
-    Assertions.assertThat(this.table.locationProvider().metadataLocation()).isNull();
-    Assertions.assertThat(this.table.locationProvider().newMetadataLocation("metadata.json"))
-        .isNull();
-  }
-
-  @Test
-  public void testMetadataLocationWithInvalidArguments() {
-    Map<String, String> properties = Maps.newHashMap();
-    String tableLocation = "/data/tables";
-    String fileName = "metadata.json";
-
-    Assertions.assertThatIllegalArgumentException()
-        .isThrownBy(() -> LocationProviders.newMetadataLocation(null, tableLocation, fileName))
-        .withMessageContaining("Invalid properties: null");
-
-    Assertions.assertThatIllegalArgumentException()
-        .isThrownBy(() -> LocationProviders.newMetadataLocation(properties, null, fileName))
-        .withMessageContaining("Invalid table location: null");
-
-    Assertions.assertThatIllegalArgumentException()
-        .isThrownBy(() -> LocationProviders.newMetadataLocation(properties, tableLocation, null))
-        .withMessageContaining("Invalid filename: null");
   }
 }

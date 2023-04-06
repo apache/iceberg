@@ -22,7 +22,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import org.apache.iceberg.HasTableOperations;
+import org.apache.iceberg.MetadataUtil;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
@@ -173,6 +173,6 @@ abstract class BaseTableCreationSparkAction<ThisT> extends BaseSparkAction<ThisT
   }
 
   protected String getMetadataLocation(Table table) {
-    return ((HasTableOperations) table).operations().locationProvider().metadataLocation();
+    return MetadataUtil.metadataLocation(table);
   }
 }
