@@ -21,7 +21,6 @@ package org.apache.iceberg.flink;
 import static org.apache.iceberg.DistributionMode.HASH;
 import static org.apache.iceberg.DistributionMode.NONE;
 import static org.apache.iceberg.DistributionMode.RANGE;
-import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE;
 
 import java.util.List;
 import java.util.Map;
@@ -32,9 +31,6 @@ import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * A class for common Iceberg configs for Flink writes.
@@ -55,7 +51,6 @@ import org.slf4j.LoggerFactory;
  * <p>Note this class is NOT meant to be serialized.
  */
 public class FlinkWriteConf {
-  private static final Logger LOG = LoggerFactory.getLogger(FlinkWriteConf.class);
 
   private final FlinkConfParser confParser;
   private final Table table;
@@ -167,8 +162,7 @@ public class FlinkWriteConf {
         .parse();
   }
 
-  public DistributionMode distributionMode(
-      List<Integer> equalityFieldIds, List<String> equalityFieldColumns) {
+  public DistributionMode distributionMode(List<Integer> equalityFieldIds) {
     String modeName =
         confParser
             .stringConf()
@@ -177,60 +171,9 @@ public class FlinkWriteConf {
             .tableProperty(TableProperties.WRITE_DISTRIBUTION_MODE)
             .parseOptional();
 
-    DistributionMode writeMode =
-        modeName == null
-            ? defaultWriteDistributionMode(equalityFieldIds)
-            : DistributionMode.fromName(modeName);
-
-    switch (writeMode) {
-      case NONE:
-        if (equalityFieldIds.isEmpty()) {
-          return NONE;
-        } else {
-          LOG.warn("Switch to use 'hash' distribution mode, because there are equality fields set");
-          return HASH;
-        }
-
-      case HASH:
-        PartitionSpec partitionSpec = table.spec();
-        if (equalityFieldIds.isEmpty()) {
-          if (partitionSpec.isUnpartitioned()) {
-            LOG.warn(
-                "Fallback to use 'none' distribution mode, because there are no equality fields set and table is unpartitioned");
-            return NONE;
-          }
-        } else {
-          if (partitionSpec.isPartitioned()) {
-            for (PartitionField partitionField : partitionSpec.fields()) {
-              Preconditions.checkState(
-                  equalityFieldIds.contains(partitionField.sourceId()),
-                  "In 'hash' distribution mode with equality fields set, partition field '%s' "
-                      + "should be included in equality fields: '%s'",
-                  partitionField,
-                  equalityFieldColumns);
-            }
-          }
-        }
-        return HASH;
-
-      case RANGE:
-        if (equalityFieldIds.isEmpty()) {
-          LOG.warn(
-              "Fallback to use 'none' distribution mode, because there are no equality fields set "
-                  + "and {}=range is not supported yet in flink",
-              WRITE_DISTRIBUTION_MODE);
-          return NONE;
-        } else {
-          LOG.warn(
-              "Switch to use 'hash' distribution mode, because there are equality fields set "
-                  + "and {}=range is not supported yet in flink",
-              WRITE_DISTRIBUTION_MODE);
-          return HASH;
-        }
-
-      default:
-        throw new RuntimeException("Unrecognized " + WRITE_DISTRIBUTION_MODE + ": " + writeMode);
-    }
+    return modeName == null
+        ? defaultWriteDistributionMode(equalityFieldIds)
+        : DistributionMode.fromName(modeName);
   }
 
   private DistributionMode defaultWriteDistributionMode(List<Integer> equalityFieldIds) {

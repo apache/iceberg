@@ -484,23 +484,63 @@ public class FlinkSink {
         PartitionSpec partitionSpec,
         Schema iSchema,
         RowType flinkRowType) {
-      DistributionMode writeMode =
-          flinkWriteConf.distributionMode(equalityFieldIds, equalityFieldColumns);
+      DistributionMode writeMode = flinkWriteConf.distributionMode(equalityFieldIds);
 
       LOG.info("Write distribution mode is '{}'", writeMode.modeName());
       switch (writeMode) {
         case NONE:
-          return input;
-
-        case HASH:
-          if (partitionSpec.isUnpartitioned()) {
-            LOG.info(
-                "Distribute rows by equality fields, because there are equality fields set "
-                    + "and table is unpartitioned");
+          if (equalityFieldIds.isEmpty()) {
+            return input;
+          } else {
+            LOG.info("Distribute rows by equality fields, because there are equality fields set");
             return input.keyBy(
                 new EqualityFieldKeySelector(iSchema, flinkRowType, equalityFieldIds));
+          }
+
+        case HASH:
+          if (equalityFieldIds.isEmpty()) {
+            if (partitionSpec.isUnpartitioned()) {
+              LOG.warn(
+                  "Fallback to use 'none' distribution mode, because there are no equality fields set "
+                      + "and table is unpartitioned");
+              return input;
+            } else {
+              return input.keyBy(new PartitionKeySelector(partitionSpec, iSchema, flinkRowType));
+            }
           } else {
-            return input.keyBy(new PartitionKeySelector(partitionSpec, iSchema, flinkRowType));
+            if (partitionSpec.isUnpartitioned()) {
+              LOG.info(
+                  "Distribute rows by equality fields, because there are equality fields set "
+                      + "and table is unpartitioned");
+              return input.keyBy(
+                  new EqualityFieldKeySelector(iSchema, flinkRowType, equalityFieldIds));
+            } else {
+              for (PartitionField partitionField : partitionSpec.fields()) {
+                Preconditions.checkState(
+                    equalityFieldIds.contains(partitionField.sourceId()),
+                    "In 'hash' distribution mode with equality fields set, partition field '%s' "
+                        + "should be included in equality fields: '%s'",
+                    partitionField,
+                    equalityFieldColumns);
+              }
+              return input.keyBy(new PartitionKeySelector(partitionSpec, iSchema, flinkRowType));
+            }
+          }
+
+        case RANGE:
+          if (equalityFieldIds.isEmpty()) {
+            LOG.warn(
+                "Fallback to use 'none' distribution mode, because there are no equality fields set "
+                    + "and {}=range is not supported yet in flink",
+                WRITE_DISTRIBUTION_MODE);
+            return input;
+          } else {
+            LOG.info(
+                "Distribute rows by equality fields, because there are equality fields set "
+                    + "and {}=range is not supported yet in flink",
+                WRITE_DISTRIBUTION_MODE);
+            return input.keyBy(
+                new EqualityFieldKeySelector(iSchema, flinkRowType, equalityFieldIds));
           }
 
         default:
