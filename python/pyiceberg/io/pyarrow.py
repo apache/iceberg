@@ -722,7 +722,7 @@ def _file_to_table(
         if metadata := physical_schema.metadata:
             schema_raw = metadata.get(ICEBERG_SCHEMA)
         # TODO: if field_ids are not present, Name Mapping should be implemented to look them up in the table schema
-        file_schema = Schema.parse_raw(schema_raw) if schema_raw is not None else pyarrow_to_schema(parquet_schema)
+        file_schema = Schema.parse_raw(schema_raw) if schema_raw is not None else pyarrow_to_schema(physical_schema)
 
         pyarrow_filter = None
         if bound_row_filter is not AlwaysTrue():
