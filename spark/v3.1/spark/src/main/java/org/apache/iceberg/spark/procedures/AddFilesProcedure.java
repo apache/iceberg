@@ -50,6 +50,7 @@ import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 import scala.runtime.BoxedUnit;
+import org.apache.iceberg.MetadataUtil;
 
 class AddFilesProcedure extends BaseProcedure {
 
@@ -223,7 +224,7 @@ class AddFilesProcedure extends BaseProcedure {
   }
 
   private String getMetadataLocation(Table table) {
-    return ((HasTableOperations) table).operations().locationProvider().metadataLocation();
+    return MetadataUtil.metadataLocation(table);
   }
 
   @Override
