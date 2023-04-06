@@ -28,9 +28,9 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
  * This partitioner will redirect elements to writers deterministically so that each writer only
- * targets 1 bucket. If the number of writers > number of buckets each partitioner will keep a state
- * of multiple writers per bucket as evenly as possible, and will round-robin the requests across
- * them.
+ * targets 1 bucket. If the number of writers is greater than the number of buckets each partitioner
+ * will keep a state of multiple writers per bucket as evenly as possible, and will round-robin the
+ * requests across them.
  */
 class BucketPartitioner implements Partitioner<Integer> {
 
@@ -42,11 +42,13 @@ class BucketPartitioner implements Partitioner<Integer> {
     // The current implementation only supports _ONE_ bucket
     List<PartitionField> bucketTransforms =
         partitionSpec.fields().stream()
-            .filter(f -> f.transform().dedupName().contains("bucket")).collect(Collectors.toList());
+            .filter(f -> f.transform().dedupName().contains("bucket"))
+            .collect(Collectors.toList());
 
     Preconditions.checkArgument(
         bucketTransforms.size() == 1,
-        "Expected 1 Bucket transform in the provided PartitionSpec, found: " + bucketTransforms.size());
+        "Expected 1 Bucket transform in the provided PartitionSpec, found: "
+            + bucketTransforms.size());
 
     // Extracting the max number of buckets defined in the partition spec
     String transformName = bucketTransforms.get(0).transform().dedupName();
