@@ -28,7 +28,7 @@ class FileContentType(Enum):
 class FileFormat(Enum):
     """An enum that includes all possible formats for an Iceberg data file"""
 
-    ORC = auto()
-    PARQUET = auto()
-    AVRO = auto()
-    METADATA = auto()
+    ORC = "ORC"
+    PARQUET = "PARQUET"
+    AVRO = "AVRO"
+    METADATA = "METADATA"

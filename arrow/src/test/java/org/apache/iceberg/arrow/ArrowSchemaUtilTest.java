@@ -152,7 +152,7 @@ public class ArrowSchemaUtilTest {
         break;
       case FIXED:
         Assert.assertEquals(FIXED_WIDTH_BINARY_FIELD, field.getName());
-        Assert.assertEquals(ArrowType.Binary.TYPE_TYPE, arrowType.getTypeID());
+        Assert.assertEquals(ArrowType.FixedSizeBinary.TYPE_TYPE, arrowType.getTypeID());
         break;
       case BINARY:
         Assert.assertEquals(BINARY_FIELD, field.getName());

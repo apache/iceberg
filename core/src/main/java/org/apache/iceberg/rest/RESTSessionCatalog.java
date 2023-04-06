@@ -327,6 +327,7 @@ public class RESTSessionCatalog extends BaseSessionCatalog
       tableMetadata =
           TableMetadata.buildFrom(response.tableMetadata())
               .withMetadataLocation(response.metadataLocation())
+              .setPreviousFileLocation(null)
               .setSnapshotsSupplier(
                   () ->
                       loadInternal(context, identifier, SnapshotMode.ALL)
