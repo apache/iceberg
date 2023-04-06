@@ -102,10 +102,8 @@ public class PartitionsTable extends BaseMetadataTable {
         Maps.newHashMapWithExpectedSize(table.specs().size());
 
     CloseableIterable<DataFile> datafiles = planDataFiles(scan);
-
     for (DataFile dataFile : datafiles) {
       PartitionData original = (PartitionData) dataFile.partition();
-
       int[] normalizedPositions =
           normalizedPositionsBySpec.computeIfAbsent(
               dataFile.specId(),
@@ -153,9 +151,12 @@ public class PartitionsTable extends BaseMetadataTable {
   }
 
   /**
-   * Builds an integer array to map the partition field from original to normalized where index of
-   * the array represent the index of given field in the original partition type the value of the
-   * array represent the index of same field in normalized partition type
+   * Builds an integer array for a specific partition type to map its partitions to the final
+   * normalized type.
+   *
+   * <p>The array represents fields in the original partition type, with the index being the field's
+   * index in the original partition type, and the value being the field's index in the normalized
+   * partition type.
    *
    * @param table iceberg table
    * @param specId spec id where original partition type is written

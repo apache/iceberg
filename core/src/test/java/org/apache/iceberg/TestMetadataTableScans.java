@@ -320,10 +320,10 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     CloseableIterable<DataFile> dataFiles =
         PartitionsTable.planDataFiles((StaticTableScan) scanNoFilter);
     Assert.assertEquals(4, Iterators.size(dataFiles.iterator()));
-    validatePartition(dataFiles, 0, 0);
-    validatePartition(dataFiles, 0, 1);
-    validatePartition(dataFiles, 0, 2);
-    validatePartition(dataFiles, 0, 3);
+    validateSingletonPartition(dataFiles, 0);
+    validateSingletonPartition(dataFiles, 1);
+    validateSingletonPartition(dataFiles, 2);
+    validateSingletonPartition(dataFiles, 3);
   }
 
   @Test
@@ -340,10 +340,10 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     CloseableIterable<DataFile> dataFiles =
         PartitionsTable.planDataFiles((StaticTableScan) scanWithProjection);
     Assert.assertEquals(4, Iterators.size(dataFiles.iterator()));
-    validatePartition(dataFiles, 0, 0);
-    validatePartition(dataFiles, 0, 1);
-    validatePartition(dataFiles, 0, 2);
-    validatePartition(dataFiles, 0, 3);
+    validateSingletonPartition(dataFiles, 0);
+    validateSingletonPartition(dataFiles, 1);
+    validateSingletonPartition(dataFiles, 2);
+    validateSingletonPartition(dataFiles, 3);
   }
 
   @Test
@@ -376,7 +376,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     CloseableIterable<DataFile> dataFiles =
         PartitionsTable.planDataFiles((StaticTableScan) scanAndEq);
     Assert.assertEquals(1, Iterators.size(dataFiles.iterator()));
-    validatePartition(dataFiles, 0, 0);
+    validateSingletonPartition(dataFiles, 0);
   }
 
   @Test
@@ -393,8 +393,8 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     CloseableIterable<DataFile> dataFiles =
         PartitionsTable.planDataFiles((StaticTableScan) scanLtAnd);
     Assert.assertEquals(2, Iterators.size(dataFiles.iterator()));
-    validatePartition(dataFiles, 0, 0);
-    validatePartition(dataFiles, 0, 1);
+    validateSingletonPartition(dataFiles, 0);
+    validateSingletonPartition(dataFiles, 1);
   }
 
   @Test
@@ -411,10 +411,10 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
 
     CloseableIterable<DataFile> dataFiles = PartitionsTable.planDataFiles((StaticTableScan) scanOr);
     Assert.assertEquals(4, Iterators.size(dataFiles.iterator()));
-    validatePartition(dataFiles, 0, 0);
-    validatePartition(dataFiles, 0, 1);
-    validatePartition(dataFiles, 0, 2);
-    validatePartition(dataFiles, 0, 3);
+    validateSingletonPartition(dataFiles, 0);
+    validateSingletonPartition(dataFiles, 1);
+    validateSingletonPartition(dataFiles, 2);
+    validateSingletonPartition(dataFiles, 3);
   }
 
   @Test
@@ -427,8 +427,8 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     CloseableIterable<DataFile> dataFiles =
         PartitionsTable.planDataFiles((StaticTableScan) scanNot);
     Assert.assertEquals(2, Iterators.size(dataFiles.iterator()));
-    validatePartition(dataFiles, 0, 2);
-    validatePartition(dataFiles, 0, 3);
+    validateSingletonPartition(dataFiles, 2);
+    validateSingletonPartition(dataFiles, 3);
   }
 
   @Test
@@ -442,8 +442,8 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     CloseableIterable<DataFile> dataFiles =
         PartitionsTable.planDataFiles((StaticTableScan) scanSet);
     Assert.assertEquals(2, Iterators.size(dataFiles.iterator()));
-    validatePartition(dataFiles, 0, 2);
-    validatePartition(dataFiles, 0, 3);
+    validateSingletonPartition(dataFiles, 2);
+    validateSingletonPartition(dataFiles, 3);
   }
 
   @Test
@@ -457,10 +457,10 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     CloseableIterable<DataFile> dataFiles =
         PartitionsTable.planDataFiles((StaticTableScan) scanUnary);
     Assert.assertEquals(4, Iterators.size(dataFiles.iterator()));
-    validatePartition(dataFiles, 0, 0);
-    validatePartition(dataFiles, 0, 1);
-    validatePartition(dataFiles, 0, 2);
-    validatePartition(dataFiles, 0, 3);
+    validateSingletonPartition(dataFiles, 0);
+    validateSingletonPartition(dataFiles, 1);
+    validateSingletonPartition(dataFiles, 2);
+    validateSingletonPartition(dataFiles, 3);
   }
 
   @Test
@@ -800,7 +800,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     CloseableIterable<DataFile> dataFiles =
         PartitionsTable.planDataFiles((StaticTableScan) scanAndEq);
     Assert.assertEquals(1, Iterators.size(dataFiles.iterator()));
-    validatePartition(dataFiles, 0, 0);
+    validateSingletonPartition(dataFiles, 0);
   }
 
   @Test
