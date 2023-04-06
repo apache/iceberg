@@ -45,7 +45,7 @@ The module is built and tested with `Delta Standalone:0.6.0` and supports Delta 
 
 Please refer to [Delta Lake Table Protocol Versioning](https://docs.delta.io/latest/versioning.html) for more details about Delta Lake protocol versions.
 
-For delta lake table contains `TimestampType` columns, please make sure to set table property `read.parquet.vectorization.enabled` to `false` since the vectorized reader doesn't support `INT96` yet.
+For delta lake table contains `TimestampType` columns, please make sure to set table property `read.parquet.vectorization.enabled` to `false` since the vectorized reader does not support `INT96` yet.
 Such support is under development in the [PR#6962](https://github.com/apache/iceberg/pull/6962)
 
 ### API
@@ -77,24 +77,15 @@ integrity. DELETE statements executed against the original Delta Lake table will
 `snapshotDeltaLakeTable` table will no longer be able to access them.
 {{< /hint >}}
 
-#### Arguments
-The delta table's location is required to be provided when initializing the action.
+#### Usage
+| Required Input                                  | Configured By                                                                                                                                                                                             |
+|-------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Source Table Location                           | Argument [`sourceTableLocation`](https://iceberg.apache.org/javadoc/latest/org/apache/iceberg/delta/DeltaLakeToIcebergMigrationActionsProvider.html#snapshotDeltaLakeTable(java.lang.String))             | 
+| New Iceberg Table Identifier                    | Configuration API [`as`](https://iceberg.apache.org/javadoc/latest/org/apache/iceberg/delta/SnapshotDeltaLakeTable.html#as(org.apache.iceberg.catalog.TableIdentifier))                                   |
+| Iceberg Catalog To Create New Iceberg Table     | Configuration API [`icebergCatalog`](https://iceberg.apache.org/javadoc/latest/org/apache/iceberg/delta/SnapshotDeltaLakeTable.html#icebergCatalog(org.apache.iceberg.catalog.Catalog))                   |
+| Hadoop Configuration To Access Delta Lake Table | Configuration API [`deltaLakeConfiguration`](https://iceberg.apache.org/javadoc/latest/org/apache/iceberg/delta/SnapshotDeltaLakeTable.html#deltaLakeConfiguration(org.apache.hadoop.conf.Configuration)) |
 
-| Argument Name | Required? | Type | Description |
-|---------------|-----------|------|-------------|
-|`sourceTableLocation` | ✔️ | String | The location of the source Delta Lake table | 
-
-#### Configurations
-The configurations can be gave via method chaining
-
-| Method Name | Arguments      | Required? | Type                                       | Description                                                                                                  |
-|---------------------------|----------------|-----------|--------------------------------------------|--------------------------------------------------------------------------------------------------------------|
-| `as`                      | `identifier`   | ✔️       | org.apache.iceberg.catalog.TableIdentifier | The identifier of the Iceberg table to be created.                                                           |
-| `icebergCatalog`          | `catalog`      | ✔️       | org.apache.iceberg.catalog.Catalog         | The Iceberg catalog for the Iceberg table to be created                                                      |
-| `deltaLakeConfiguration`  | `conf`         | ✔️       | org.apache.hadoop.conf.Configuration       | The Hadoop Configuration to access Delta Lake Table's log and datafiles                                      |
-| `tableLocation`           | `location`     |         | String                                     | The location of the Iceberg table to be created. Defaults to the same location as the given Delta Lake table |
-| `tableProperty`           | `name`,`value` |         | String, String                             | A property entry to add to the Iceberg table to be created                                                   |
-| `tableProperties`         | `properties`   |         | Map<String, String>                        | Properties to add to the the Iceberg table to be created                                                     |
+For detailed usage and other optional configurations, please refer to the [SnapshotDeltaLakeTable API](https://iceberg.apache.org/javadoc/latest/org/apache/iceberg/delta/SnapshotDeltaLakeTable.html)
 
 #### Output
 | Output Name | Type | Description |
