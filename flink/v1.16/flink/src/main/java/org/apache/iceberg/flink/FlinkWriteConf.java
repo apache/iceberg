@@ -23,10 +23,8 @@ import static org.apache.iceberg.DistributionMode.NONE;
 import static org.apache.iceberg.DistributionMode.RANGE;
 import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE;
 
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import org.apache.flink.configuration.ReadableConfig;
 import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.FileFormat;
@@ -35,8 +33,6 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -52,9 +48,9 @@ import org.slf4j.LoggerFactory;
  *   <li>Table metadata
  * </ol>
  *
- * <p>The most specific value is set in write options and takes precedence over all other configs.
- * If no write option is provided, this class checks the flink configuration for any overrides. If
- * no applicable value is found in the write options, this class uses the table metadata.
+ * The most specific value is set in write options and takes precedence over all other configs. If
+ * no write option is provided, this class checks the flink configuration for any overrides. If no
+ * applicable value is found in the write options, this class uses the table metadata.
  *
  * <p>Note this class is NOT meant to be serialized.
  */
@@ -171,7 +167,8 @@ public class FlinkWriteConf {
         .parse();
   }
 
-  public DistributionMode distributionMode() {
+  public DistributionMode distributionMode(
+      List<Integer> equalityFieldIds, List<String> equalityFieldColumns) {
     String modeName =
         confParser
             .stringConf()
@@ -180,12 +177,11 @@ public class FlinkWriteConf {
             .tableProperty(TableProperties.WRITE_DISTRIBUTION_MODE)
             .parseOptional();
 
-    List<Integer> equalityFieldIds = equalityFieldIds();
-
     DistributionMode writeMode =
-        modeName != null
-            ? DistributionMode.fromName(modeName)
-            : defaultWriteDistributionMode(equalityFieldIds);
+        modeName == null
+            ? defaultWriteDistributionMode(equalityFieldIds)
+            : DistributionMode.fromName(modeName);
+
     switch (writeMode) {
       case NONE:
         if (equalityFieldIds.isEmpty()) {
@@ -211,7 +207,7 @@ public class FlinkWriteConf {
                   "In 'hash' distribution mode with equality fields set, partition field '%s' "
                       + "should be included in equality fields: '%s'",
                   partitionField,
-                  equalityFieldColumns());
+                  equalityFieldColumns);
             }
           }
         }
@@ -270,45 +266,5 @@ public class FlinkWriteConf {
         .option(FlinkWriteOptions.BRANCH.key())
         .defaultValue(FlinkWriteOptions.BRANCH.defaultValue())
         .parse();
-  }
-
-  public String equalityFieldColumns() {
-    return confParser
-        .stringConf()
-        .option(FlinkWriteOptions.EQUALITY_FIELD_COLUMNS.key())
-        .parseOptional();
-  }
-
-  public List<Integer> equalityFieldIds() {
-    String fieldColumns = equalityFieldColumns();
-    if (fieldColumns == null) {
-      return Lists.newArrayList(table.schema().identifierFieldIds());
-    }
-
-    List<String> equalityFieldColumns = Arrays.asList(fieldColumns.split(","));
-    if (equalityFieldColumns.isEmpty()) {
-      return Lists.newArrayList(table.schema().identifierFieldIds());
-    }
-
-    Set<Integer> equalityFieldSet = Sets.newHashSetWithExpectedSize(equalityFieldColumns.size());
-    for (String column : equalityFieldColumns) {
-      org.apache.iceberg.types.Types.NestedField field = table.schema().findField(column);
-      Preconditions.checkNotNull(
-          field,
-          "Missing required equality field column '%s' in table schema %s",
-          column,
-          table.schema());
-      equalityFieldSet.add(field.fieldId());
-    }
-
-    if (!equalityFieldSet.equals(table.schema().identifierFieldIds())) {
-      LOG.warn(
-          "The configured equality field column IDs {} are not matched with the schema identifier field IDs"
-              + " {}, use job specified equality field columns as the equality fields by default.",
-          equalityFieldSet,
-          table.schema().identifierFieldIds());
-    }
-
-    return Lists.newArrayList(equalityFieldSet);
   }
 }
