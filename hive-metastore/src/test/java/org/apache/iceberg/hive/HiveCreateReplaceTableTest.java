@@ -22,6 +22,7 @@ import static org.apache.iceberg.PartitionSpec.builderFor;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
 import java.io.IOException;
+import java.nio.file.Paths;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
@@ -59,7 +60,7 @@ public class HiveCreateReplaceTableTest extends HiveMetastoreTest {
 
   @Before
   public void createTableLocation() throws IOException {
-    tableLocation = temp.newFolder("hive-").getPath();
+    tableLocation = temp.newFolder("hive-").toURI().toString();
   }
 
   @After
@@ -286,7 +287,11 @@ public class HiveCreateReplaceTableTest extends HiveMetastoreTest {
 
     Transaction txn =
         catalog.newCreateTableTransaction(
-            TABLE_IDENTIFIER, SCHEMA, SPEC, "file:///" + tableLocation, Maps.newHashMap());
+            TABLE_IDENTIFIER,
+            SCHEMA,
+            SPEC,
+            Paths.get(tableLocation).toUri().toString(),
+            Maps.newHashMap());
     txn.commitTransaction();
 
     Table table = catalog.loadTable(TABLE_IDENTIFIER);

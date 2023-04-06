@@ -75,7 +75,7 @@ public class TestTableSerialization {
     File tableLocation = temp.newFolder();
     Assert.assertTrue(tableLocation.delete());
 
-    this.table = TABLES.create(SCHEMA, SPEC, SORT_ORDER, props, tableLocation.toString());
+    this.table = TABLES.create(SCHEMA, SPEC, SORT_ORDER, props, tableLocation.toURI().toString());
   }
 
   @Test

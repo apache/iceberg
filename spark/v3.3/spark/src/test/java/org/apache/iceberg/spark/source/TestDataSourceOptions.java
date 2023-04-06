@@ -83,7 +83,7 @@ public class TestDataSourceOptions {
 
   @Test
   public void testWriteFormatOptionOverridesTableProperties() throws IOException {
-    String tableLocation = temp.newFolder("iceberg-table").toString();
+    String tableLocation = temp.newFolder("iceberg-table").toURI().toString();
 
     HadoopTables tables = new HadoopTables(CONF);
     PartitionSpec spec = PartitionSpec.unpartitioned();

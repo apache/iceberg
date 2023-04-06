@@ -26,6 +26,7 @@ import static org.mockito.Mockito.when;
 
 import java.io.File;
 import java.io.IOException;
+import java.net.URI;
 import java.util.List;
 import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
@@ -113,7 +114,7 @@ public class TestSparkDataWrite {
   @Test
   public void testBasicWrite() throws IOException {
     File parent = temp.newFolder(format.toString());
-    File location = new File(parent, "test");
+    URI location = new File(parent, "test").toURI();
     String targetLocation = locationWithBranch(location);
 
     HadoopTables tables = new HadoopTables(CONF);
@@ -165,7 +166,7 @@ public class TestSparkDataWrite {
   @Test
   public void testAppend() throws IOException {
     File parent = temp.newFolder(format.toString());
-    File location = new File(parent, "test");
+    URI location = new File(parent, "test").toURI();
     String targetLocation = locationWithBranch(location);
 
     HadoopTables tables = new HadoopTables(CONF);
@@ -217,7 +218,7 @@ public class TestSparkDataWrite {
   @Test
   public void testEmptyOverwrite() throws IOException {
     File parent = temp.newFolder(format.toString());
-    File location = new File(parent, "test");
+    URI location = new File(parent, "test").toURI();
     String targetLocation = locationWithBranch(location);
 
     HadoopTables tables = new HadoopTables(CONF);
@@ -263,7 +264,7 @@ public class TestSparkDataWrite {
   @Test
   public void testOverwrite() throws IOException {
     File parent = temp.newFolder(format.toString());
-    File location = new File(parent, "test");
+    URI location = new File(parent, "test").toURI();
     String targetLocation = locationWithBranch(location);
 
     HadoopTables tables = new HadoopTables(CONF);
@@ -316,7 +317,7 @@ public class TestSparkDataWrite {
   @Test
   public void testUnpartitionedOverwrite() throws IOException {
     File parent = temp.newFolder(format.toString());
-    File location = new File(parent, "test");
+    URI location = new File(parent, "test").toURI();
     String targetLocation = locationWithBranch(location);
 
     HadoopTables tables = new HadoopTables(CONF);
@@ -359,7 +360,7 @@ public class TestSparkDataWrite {
   @Test
   public void testUnpartitionedCreateWithTargetFileSizeViaTableProperties() throws IOException {
     File parent = temp.newFolder(format.toString());
-    File location = new File(parent, "test");
+    URI location = new File(parent, "test").toURI();
     String targetLocation = locationWithBranch(location);
 
     HadoopTables tables = new HadoopTables(CONF);
@@ -430,7 +431,7 @@ public class TestSparkDataWrite {
         spark.version().startsWith("2"));
 
     File parent = temp.newFolder(format.toString());
-    File location = new File(parent, "test");
+    URI location = new File(parent, "test").toURI();
     String targetLocation = locationWithBranch(location);
 
     HadoopTables tables = new HadoopTables(CONF);
@@ -468,7 +469,7 @@ public class TestSparkDataWrite {
         spark.version().startsWith("2"));
 
     File parent = temp.newFolder(format.toString());
-    File location = new File(parent, "test");
+    URI location = new File(parent, "test").toURI();
     String targetLocation = locationWithBranch(location);
 
     HadoopTables tables = new HadoopTables(CONF);
@@ -509,7 +510,7 @@ public class TestSparkDataWrite {
   @Test
   public void testViewsReturnRecentResults() throws IOException {
     File parent = temp.newFolder(format.toString());
-    File location = new File(parent, "test");
+    URI location = new File(parent, "test").toURI();
     String targetLocation = locationWithBranch(location);
 
     HadoopTables tables = new HadoopTables(CONF);
@@ -559,7 +560,7 @@ public class TestSparkDataWrite {
   public void partitionedCreateWithTargetFileSizeViaOption(IcebergOptionsType option)
       throws IOException {
     File parent = temp.newFolder(format.toString());
-    File location = new File(parent, "test");
+    URI location = new File(parent, "test").toURI();
     String targetLocation = locationWithBranch(location);
 
     HadoopTables tables = new HadoopTables(CONF);
@@ -640,7 +641,7 @@ public class TestSparkDataWrite {
   @Test
   public void testCommitUnknownException() throws IOException {
     File parent = temp.newFolder(format.toString());
-    File location = new File(parent, "commitunknown");
+    URI location = new File(parent, "commitunknown").toURI();
     String targetLocation = locationWithBranch(location);
 
     HadoopTables tables = new HadoopTables(CONF);
@@ -728,7 +729,7 @@ public class TestSparkDataWrite {
     JOB
   }
 
-  private String locationWithBranch(File location) {
+  private String locationWithBranch(URI location) {
     if (branch == null) {
       return location.toString();
     }

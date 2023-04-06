@@ -629,7 +629,7 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
         .write()
         .format("iceberg")
         .mode("append")
-        .save(tableDir.getAbsolutePath());
+        .save(tableDir.toURI().toString());
 
     List<String> validFiles =
         spark

@@ -99,7 +99,9 @@ public class TestHiveMetastore {
   static {
     try {
       HIVE_LOCAL_DIR =
-          createTempDirectory("hive", asFileAttribute(fromString("rwxrwxrwx"))).toFile();
+          System.getProperty("os.name").toLowerCase().contains("win")
+              ? createTempDirectory("hive").toFile()
+              : createTempDirectory("hive", asFileAttribute(fromString("rwxrwxrwx"))).toFile();
       DERBY_PATH = new File(HIVE_LOCAL_DIR, "metastore_db").getPath();
       File derbyLogFile = new File(HIVE_LOCAL_DIR, "derby.log");
       System.setProperty("derby.stream.error.file", derbyLogFile.getAbsolutePath());
@@ -262,8 +264,7 @@ public class TestHiveMetastore {
 
   private void initConf(HiveConf conf, int port) {
     conf.set(HiveConf.ConfVars.METASTOREURIS.varname, "thrift://localhost:" + port);
-    conf.set(
-        HiveConf.ConfVars.METASTOREWAREHOUSE.varname, "file:" + HIVE_LOCAL_DIR.getAbsolutePath());
+    conf.set(HiveConf.ConfVars.METASTOREWAREHOUSE.varname, HIVE_LOCAL_DIR.toURI().toString());
     conf.set(HiveConf.ConfVars.METASTORE_TRY_DIRECT_SQL.varname, "false");
     conf.set(HiveConf.ConfVars.METASTORE_DISALLOW_INCOMPATIBLE_COL_TYPE_CHANGES.varname, "false");
     conf.set("iceberg.hive.client-pool-size", "2");

@@ -19,7 +19,6 @@
 package org.apache.iceberg.spark.actions;
 
 import java.io.File;
-import java.io.FilenameFilter;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.file.Paths;
@@ -71,9 +70,7 @@ import org.junit.After;
 import org.junit.Assert;
 import org.junit.Assume;
 import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
 import org.junit.runners.Parameterized;
 import scala.Option;
 import scala.Some;
@@ -134,8 +131,6 @@ public class TestCreateActions extends SparkCatalogTestBase {
       }
     };
   }
-
-  @Rule public TemporaryFolder temp = new TemporaryFolder();
 
   private String baseTableName = "baseTable";
   private File tableDir;
@@ -203,7 +198,7 @@ public class TestCreateActions extends SparkCatalogTestBase {
     String source = sourceName("test_unrecovered_partitions");
     String dest = source;
     File location = temp.newFolder();
-    sql(CREATE_PARTITIONED_PARQUET, source, location);
+    sql(CREATE_PARTITIONED_PARQUET, source, location.toURI());
 
     // Data generation and partition addition
     spark
@@ -225,8 +220,8 @@ public class TestCreateActions extends SparkCatalogTestBase {
         "Can only migrate from Spark Session Catalog", catalog.name().equals("spark_catalog"));
     String source = sourceName("test_custom_parts");
     String dest = source;
-    File tblLocation = temp.newFolder();
-    File partitionDataLoc = temp.newFolder();
+    URI tblLocation = temp.newFolder().toURI();
+    URI partitionDataLoc = temp.newFolder().toURI();
 
     // Data generation and partition addition
     spark.sql(String.format(CREATE_PARTITIONED_PARQUET, source, tblLocation));
@@ -235,10 +230,8 @@ public class TestCreateActions extends SparkCatalogTestBase {
         .selectExpr("cast(id as STRING) as data")
         .write()
         .mode(SaveMode.Overwrite)
-        .parquet(partitionDataLoc.toURI().toString());
-    sql(
-        "ALTER TABLE %s ADD PARTITION(id=0) LOCATION '%s'",
-        source, partitionDataLoc.toURI().toString());
+        .parquet(partitionDataLoc.toString());
+    sql("ALTER TABLE %s ADD PARTITION(id=0) LOCATION '%s'", source, partitionDataLoc.toString());
     assertMigratedFileCount(SparkActions.get().migrateTable(source), source, dest);
   }
 
@@ -326,7 +319,6 @@ public class TestCreateActions extends SparkCatalogTestBase {
 
     String colName1 = "newCol1";
     String colName2 = "newCol2";
-    File location = temp.newFolder();
     spark
         .range(10)
         .selectExpr("cast(id as INT)", "CAST(id as INT) " + colName1, "CAST(id as INT) " + colName2)
@@ -411,7 +403,7 @@ public class TestCreateActions extends SparkCatalogTestBase {
     Assume.assumeTrue(
         "Cannot snapshot with arbitrary location in a hadoop based catalog",
         !type.equals("hadoop"));
-    File location = temp.newFolder();
+    URI location = temp.newFolder().toURI();
     String source = sourceName("test_snapshot_partitioned_table");
     String dest = destName("iceberg_snapshot_partitioned");
     createSourceTable(CREATE_PARTITIONED_PARQUET, source);
@@ -427,7 +419,7 @@ public class TestCreateActions extends SparkCatalogTestBase {
     Assume.assumeTrue(
         "Cannot snapshot with arbitrary location in a hadoop based catalog",
         !type.equals("hadoop"));
-    File location = temp.newFolder();
+    URI location = temp.newFolder().toURI();
     String source = sourceName("test_snapshot_unpartitioned_table");
     String dest = destName("iceberg_snapshot_unpartitioned");
     createSourceTable(CREATE_PARQUET, source);
@@ -443,7 +435,7 @@ public class TestCreateActions extends SparkCatalogTestBase {
     Assume.assumeTrue(
         "Cannot snapshot with arbitrary location in a hadoop based catalog",
         !type.equals("hadoop"));
-    File location = temp.newFolder();
+    URI location = temp.newFolder().toURI();
     String source = sourceName("snapshot_hive_table");
     String dest = destName("iceberg_snapshot_hive_table");
     createSourceTable(CREATE_HIVE_EXTERNAL_PARQUET, source);
@@ -466,7 +458,7 @@ public class TestCreateActions extends SparkCatalogTestBase {
   @Test
   public void testSnapshotManagedHiveTable() throws Exception {
     Assume.assumeTrue("Cannot migrate to a hadoop based catalog", !type.equals("hadoop"));
-    File location = temp.newFolder();
+    URI location = temp.newFolder().toURI();
     String source = sourceName("snapshot_managed_hive_table");
     String dest = destName("iceberg_snapshot_managed_hive_table");
     createSourceTable(CREATE_HIVE_PARQUET, source);
@@ -480,7 +472,7 @@ public class TestCreateActions extends SparkCatalogTestBase {
   @Test
   public void testMigrateManagedHiveTable() throws Exception {
     Assume.assumeTrue("Cannot migrate to a hadoop based catalog", !type.equals("hadoop"));
-    File location = temp.newFolder();
+    URI location = temp.newFolder().toURI();
     String source = sourceName("migrate_managed_hive_table");
     String dest = destName("iceberg_migrate_managed_hive_table");
     createSourceTable(CREATE_HIVE_PARQUET, source);
@@ -588,7 +580,7 @@ public class TestCreateActions extends SparkCatalogTestBase {
     Assume.assumeTrue(
         "Can only migrate from Spark Session Catalog", catalog.name().equals("spark_catalog"));
 
-    File location = temp.newFolder();
+    URI location = temp.newFolder().toURI();
     String tblName = sourceName("schema_evolution_test");
 
     // Data generation and partition addition
@@ -597,7 +589,7 @@ public class TestCreateActions extends SparkCatalogTestBase {
         .selectExpr("CAST(id as INT) as col0", "CAST(id AS FLOAT) col2", "CAST(id AS LONG) col3")
         .write()
         .mode(SaveMode.Append)
-        .parquet(location.toURI().toString());
+        .parquet(location.toString());
     Dataset<Row> rowDataset =
         spark
             .range(6, 10)
@@ -606,11 +598,11 @@ public class TestCreateActions extends SparkCatalogTestBase {
                 "CAST(id AS STRING) col1",
                 "CAST(id AS FLOAT) col2",
                 "CAST(id AS LONG) col3");
-    rowDataset.write().mode(SaveMode.Append).parquet(location.toURI().toString());
+    rowDataset.write().mode(SaveMode.Append).parquet(location.toString());
     spark
         .read()
         .schema(rowDataset.schema())
-        .parquet(location.toURI().toString())
+        .parquet(location.toString())
         .write()
         .saveAsTable(tblName);
     List<Object[]> expectedBeforeAddColumn = sql("SELECT * FROM %s ORDER BY col0", tblName);
@@ -728,7 +720,8 @@ public class TestCreateActions extends SparkCatalogTestBase {
     spark.conf().set("spark.sql.parquet.writeLegacyFormat", true);
 
     String tableName = sourceName("testTwoLevelList");
-    File location = temp.newFolder();
+    File tmpFolder = temp.newFolder();
+    URI location = tmpFolder.toURI();
 
     StructType sparkSchema =
         new StructType(
@@ -772,13 +765,7 @@ public class TestCreateActions extends SparkCatalogTestBase {
     File parquetFile =
         Arrays.stream(
                 Preconditions.checkNotNull(
-                    location.listFiles(
-                        new FilenameFilter() {
-                          @Override
-                          public boolean accept(File dir, String name) {
-                            return name.endsWith("parquet");
-                          }
-                        })))
+                    tmpFolder.listFiles((dir, name) -> name.endsWith("parquet"))))
             .findAny()
             .get();
 
@@ -811,7 +798,7 @@ public class TestCreateActions extends SparkCatalogTestBase {
     spark.conf().set("spark.sql.parquet.writeLegacyFormat", useLegacyMode);
 
     String tableName = sourceName(String.format("threeLevelList_%s", useLegacyMode));
-    File location = temp.newFolder();
+    URI location = temp.newFolder().toURI();
     sql(
         "CREATE TABLE %s (col1 ARRAY<STRUCT<col2 INT>>)" + " STORED AS parquet" + " LOCATION '%s'",
         tableName, location);
@@ -834,7 +821,7 @@ public class TestCreateActions extends SparkCatalogTestBase {
 
     String tableName =
         sourceName(String.format("threeLevelListWithNestedStruct_%s", useLegacyMode));
-    File location = temp.newFolder();
+    URI location = temp.newFolder().toURI();
     sql(
         "CREATE TABLE %s (col1 ARRAY<STRUCT<col2 STRUCT<col3 INT>>>)"
             + " STORED AS parquet"
@@ -858,7 +845,7 @@ public class TestCreateActions extends SparkCatalogTestBase {
     spark.conf().set("spark.sql.parquet.writeLegacyFormat", useLegacyMode);
 
     String tableName = sourceName(String.format("threeLevelLists_%s", useLegacyMode));
-    File location = temp.newFolder();
+    URI location = temp.newFolder().toURI();
     sql(
         "CREATE TABLE %s (col1 ARRAY<STRUCT<col2 INT>>, col3 ARRAY<STRUCT<col4 INT>>)"
             + " STORED AS parquet"
@@ -885,7 +872,7 @@ public class TestCreateActions extends SparkCatalogTestBase {
     spark.conf().set("spark.sql.parquet.writeLegacyFormat", useLegacyMode);
 
     String tableName = sourceName(String.format("structOfThreeLevelLists_%s", useLegacyMode));
-    File location = temp.newFolder();
+    URI location = temp.newFolder().toURI();
     sql(
         "CREATE TABLE %s (col1 STRUCT<col2 ARRAY<STRUCT<col3 INT>>>)"
             + " STORED AS parquet"
@@ -922,7 +909,7 @@ public class TestCreateActions extends SparkCatalogTestBase {
 
   private void createSourceTable(String createStatement, String tableName)
       throws IOException, NoSuchTableException, NoSuchDatabaseException, ParseException {
-    File location = temp.newFolder();
+    URI location = temp.newFolder().toURI();
     spark.sql(String.format(createStatement, tableName, location));
     CatalogTable table = loadSessionTable(tableName);
     Seq<String> partitionColumns = table.partitionColumnNames();

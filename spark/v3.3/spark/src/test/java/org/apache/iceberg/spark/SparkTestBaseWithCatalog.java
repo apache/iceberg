@@ -46,7 +46,7 @@ public abstract class SparkTestBaseWithCatalog extends SparkTestBase {
   @AfterClass
   public static void dropWarehouse() throws IOException {
     if (warehouse != null && warehouse.exists()) {
-      Path warehousePath = new Path(warehouse.getAbsolutePath());
+      Path warehousePath = new Path(warehouse.toURI());
       FileSystem fs = warehousePath.getFileSystem(hiveConf);
       Assert.assertTrue("Failed to delete " + warehousePath, fs.delete(warehousePath, true));
     }
@@ -73,7 +73,7 @@ public abstract class SparkTestBaseWithCatalog extends SparkTestBase {
     this.catalogName = catalogName;
     this.validationCatalog =
         catalogName.equals("testhadoop")
-            ? new HadoopCatalog(spark.sessionState().newHadoopConf(), "file:" + warehouse)
+            ? new HadoopCatalog(spark.sessionState().newHadoopConf(), warehouse.toURI().toString())
             : catalog;
     this.validationNamespaceCatalog = (SupportsNamespaces) validationCatalog;
 
@@ -82,7 +82,9 @@ public abstract class SparkTestBaseWithCatalog extends SparkTestBase {
         (key, value) -> spark.conf().set("spark.sql.catalog." + catalogName + "." + key, value));
 
     if (config.get("type").equalsIgnoreCase("hadoop")) {
-      spark.conf().set("spark.sql.catalog." + catalogName + ".warehouse", "file:" + warehouse);
+      spark
+          .conf()
+          .set("spark.sql.catalog." + catalogName + ".warehouse", warehouse.toURI().toString());
     }
 
     this.tableName =

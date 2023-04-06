@@ -230,10 +230,10 @@ public class TestCreateTable extends SparkCatalogTestBase {
 
     Assert.assertFalse("Table should not already exist", validationCatalog.tableExists(tableIdent));
 
-    File tableLocation = temp.newFolder();
-    Assert.assertTrue(tableLocation.delete());
+    File tableLocationFile = temp.newFolder();
+    Assert.assertTrue(tableLocationFile.delete());
 
-    String location = "file:" + tableLocation.toString();
+    String location = tableLocationFile.toURI().toString();
 
     sql(
         "CREATE TABLE %s "

@@ -49,8 +49,6 @@ public abstract class SparkCatalogTestBase extends SparkTestBaseWithCatalog {
     };
   }
 
-  @Rule public TemporaryFolder temp = new TemporaryFolder();
-
   public SparkCatalogTestBase(SparkCatalogConfig config) {
     super(config);
   }
