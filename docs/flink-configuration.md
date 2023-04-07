@@ -127,6 +127,10 @@ env.getConfig()
 | include-column-stats        | connector.iceberg.include-column-stats        | N/A                          | false                            | Create a new scan from this that loads the column stats with each data file. Column stats include: value count, null value count, lower bounds, and upper bounds. |
 | max-planning-snapshot-count | connector.iceberg.max-planning-snapshot-count | N/A                          | Integer.MAX_VALUE                | Max number of snapshots limited per split enumeration. Applicable only to streaming read. |
 | limit                       | connector.iceberg.limit                       | N/A                          | -1                               | Limited output number of rows.                               |
+| tag                         | N/A                                           | N/A                          |                                  | For time travel in batch mode. Read data from the specified tag. |
+| branch                      | N/A                                           | N/A                          |                                  | Read data from the specified branch. Only supported in batch mode. |
+| startTag                    | N/A                                           | N/A                          |                                  | Start to read data from the specified tag.                   |
+| endTag                      | N/A                                           | N/A                          |                                  | Specifies the end tag.                                       |
 
 
 ### Write options
@@ -158,3 +162,4 @@ INSERT INTO tableName /*+ OPTIONS('upsert-enabled'='true') */
 | compression-codec      | Table write.(fileformat).compression-codec | Overrides this table's compression codec for this write      |
 | compression-level      | Table write.(fileformat).compression-level | Overrides this table's compression level for Parquet and Avro tables for this write |
 | compression-strategy   | Table write.orc.compression-strategy       | Overrides this table's compression strategy for ORC tables for this write |
+| branch                 | main                                       | Branch to use for this write operation                       |

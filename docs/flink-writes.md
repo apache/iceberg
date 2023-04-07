@@ -39,6 +39,9 @@ To append new data to a table with a Flink streaming job, use `INSERT INTO`:
 ```sql
 INSERT INTO `hive_catalog`.`default`.`sample` VALUES (1, 'a');
 INSERT INTO `hive_catalog`.`default`.`sample` SELECT id, data from other_kafka_table;
+
+-- Write data to the specified branch.
+INSERT INTO `hive_catalog`.`default`.`sample` /*+ OPTIONS('branch'='b1')*/ VALUES (1, 'a');
 ```
 
 ### `INSERT OVERWRITE`
@@ -105,6 +108,7 @@ TableLoader tableLoader = TableLoader.fromHadoopTable("hdfs://nn:8020/warehouse/
 
 FlinkSink.forRowData(input)
     .tableLoader(tableLoader)
+    .branch("b1") // Write data to the specified branch.
     .append();
 
 env.execute("Test Iceberg DataStream");

@@ -49,6 +49,9 @@ Submit a Flink __batch__ job using the following sentences:
 -- Execute the flink job in batch mode for current session context
 SET execution.runtime-mode = batch;
 SELECT * FROM sample;
+
+-- Read data from the specified branch.
+SELECT * FROM sample /*+ OPTIONS('branch'='b1')*/ ;
 ```
 
 ### Flink streaming read
@@ -94,6 +97,7 @@ TableLoader tableLoader = TableLoader.fromHadoopTable("hdfs://nn:8020/warehouse/
 DataStream<RowData> batch = FlinkSource.forRowData()
      .env(env)
      .tableLoader(tableLoader)
+     .branch("b1")  // Read data from the specified branch.
      .streaming(false)
      .build();
 
