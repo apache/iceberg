@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.spark.sql;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.Table;
@@ -185,6 +186,26 @@ public abstract class PartitionedWritesTestBase extends SparkCatalogTestBase {
         sql("SELECT * FROM tmp"));
   }
 
+  // Asserts whether the given table .partitions table has the expected rows. Note that the output
+  // row should have spec_id and it is sorted by spec_id and selectPartitionColumns.
+  protected void assertPartitionMetadata(
+      String tableName, List<Object[]> expected, String... selectPartitionColumns) {
+    String[] fullyQualifiedCols =
+        Arrays.stream(selectPartitionColumns).map(s -> "partition." + s).toArray(String[]::new);
+    Dataset<Row> actualPartitionRows =
+        spark
+            .read()
+            .format("iceberg")
+            .load(tableName + ".partitions")
+            .select("spec_id", fullyQualifiedCols)
+            .orderBy("spec_id", fullyQualifiedCols);
+
+    assertEquals(
+        "There are 3 partitions, one with the original spec ID and two with the new one",
+        expected,
+        rowsToJava(actualPartitionRows.collectAsList()));
+  }
+
   @Test
   public void testWriteWithOutputSpec() throws NoSuchTableException {
     Table table = validationCatalog.loadTable(tableIdent);
@@ -229,27 +250,13 @@ public abstract class PartitionedWritesTestBase extends SparkCatalogTestBase {
 
     // Verify that the actual partitions are written with the correct spec ID.
     // Two of the partitions should have the original spec ID and one should have the new one.
-
-    if (!this.getClass().equals(TestPartitionedWritesToWapBranch.class)) {
-      // TODO: WAP branch does not support reading partitions table, skip this check for now.
-      Dataset<Row> actualPartitionRows =
-          spark
-              .read()
-              .format("iceberg")
-              .load(tableName + ".partitions")
-              .select("spec_id", "partition.id_trunc", "partition.data")
-              .orderBy("spec_id", "partition.id_trunc");
-
-      expected =
-          ImmutableList.of(
-              row(originalSpecId, 9L, null),
-              row(originalSpecId, 12L, null),
-              row(table.spec().specId(), 9L, "a"));
-      assertEquals(
-          "There are 3 partitions, one with the original spec ID and two with the new one",
-          expected,
-          rowsToJava(actualPartitionRows.collectAsList()));
-    }
+    // TODO: WAP branch does not support reading partitions table, skip this check for now.
+    expected =
+        ImmutableList.of(
+            row(originalSpecId, 9L, null),
+            row(originalSpecId, 12L, null),
+            row(table.spec().specId(), 9L, "a"));
+    assertPartitionMetadata(tableName, expected, "id_trunc", "data");
 
     // Even the default spec ID should be followed when present.
     data = ImmutableList.of(new SimpleRecord(13, "d"));

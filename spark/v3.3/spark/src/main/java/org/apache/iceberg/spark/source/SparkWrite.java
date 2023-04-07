@@ -51,6 +51,7 @@ import org.apache.iceberg.io.FileWriter;
 import org.apache.iceberg.io.OutputFileFactory;
 import org.apache.iceberg.io.PartitioningWriter;
 import org.apache.iceberg.io.RollingDataWriter;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -121,10 +122,6 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
     this.applicationId = applicationId;
     this.wapEnabled = writeConf.wapEnabled();
     this.wapId = writeConf.wapId();
-    this.outputSpecId =
-        writeConf.outputSpecId() != null
-            ? table.specs().get(writeConf.outputSpecId()).specId()
-            : table.spec().specId();
     this.branch = writeConf.branch();
     this.targetFileSize = writeConf.targetDataFileSize();
     this.writeSchema = writeSchema;
@@ -133,6 +130,15 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
     this.partitionedFanoutEnabled = writeConf.fanoutWriterEnabled();
     this.requiredDistribution = requiredDistribution;
     this.requiredOrdering = requiredOrdering;
+
+    Preconditions.checkArgument(
+        writeConf.outputSpecId() == null || table.specs().containsKey(writeConf.outputSpecId()),
+        "Cannot write to unknown spec: %s",
+        writeConf.outputSpecId());
+    this.outputSpecId =
+        writeConf.outputSpecId() != null
+            ? table.specs().get(writeConf.outputSpecId()).specId()
+            : table.spec().specId();
   }
 
   @Override

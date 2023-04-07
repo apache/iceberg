@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.spark.sql;
 
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import org.apache.iceberg.Table;
@@ -87,5 +88,12 @@ public class TestPartitionedWritesToWapBranch extends PartitionedWritesTestBase 
         .isInstanceOf(ValidationException.class)
         .hasMessage(
             "Cannot set both WAP ID and branch, but got ID [%s] and branch [%s]", wapId, BRANCH);
+  }
+
+  @Override
+  protected void assertPartitionMetadata(
+      String tableName, List<Object[]> expected, String... selectPartitionColumns) {
+    // Cannot read from the .partitions table newly written data into the WAP branch. See
+    // https://github.com/apache/iceberg/issues/7297 for more details.
   }
 }

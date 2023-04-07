@@ -62,6 +62,7 @@ import org.apache.iceberg.io.FileWriter;
 import org.apache.iceberg.io.OutputFileFactory;
 import org.apache.iceberg.io.PartitioningWriter;
 import org.apache.iceberg.io.RollingDataWriter;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -123,15 +124,20 @@ class SparkWrite {
     this.applicationId = applicationId;
     this.wapEnabled = writeConf.wapEnabled();
     this.wapId = writeConf.wapId();
-    this.outputSpecId =
-        writeConf.outputSpecId() != null
-            ? table.specs().get(writeConf.outputSpecId()).specId()
-            : table.spec().specId();
     this.targetFileSize = writeConf.targetDataFileSize();
     this.writeSchema = writeSchema;
     this.dsSchema = dsSchema;
     this.extraSnapshotMetadata = writeConf.extraSnapshotMetadata();
     this.partitionedFanoutEnabled = writeConf.fanoutWriterEnabled();
+
+    Preconditions.checkArgument(
+        writeConf.outputSpecId() == null || table.specs().containsKey(writeConf.outputSpecId()),
+        "Cannot write to unknown spec: %s",
+        writeConf.outputSpecId());
+    this.outputSpecId =
+        writeConf.outputSpecId() != null
+            ? table.specs().get(writeConf.outputSpecId()).specId()
+            : table.spec().specId();
   }
 
   BatchWrite asBatchAppend() {
