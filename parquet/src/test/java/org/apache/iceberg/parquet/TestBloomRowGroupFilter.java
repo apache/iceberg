@@ -75,6 +75,7 @@ import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
 import org.apache.parquet.schema.MessageType;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -1180,9 +1181,9 @@ public class TestBloomRowGroupFilter {
     Expression expected = Binder.bind(SCHEMA.asStruct(), Expressions.or(bloom, dict), true);
     ParquetMetricsRowGroupFilter metricFilter = new ParquetMetricsRowGroupFilter(SCHEMA, expr);
     Expression metricResidual = metricFilter.residualFor(parquetSchema, rowGroupMetadata);
-    Assert.assertTrue(
-        String.format("Expected residual: %s, actual residual: %s", expected, metricResidual),
-        expected.isEquivalentTo(metricResidual));
+    Assertions.assertThat(expected.isEquivalentTo(metricResidual))
+        .overridingErrorMessage(
+            "Expected residual: %s, actual residual: %s", expected, metricResidual);
 
     expected = Binder.bind(SCHEMA.asStruct(), bloom, true);
     ParquetDictionaryRowGroupFilter dictFilter =
@@ -1190,17 +1191,17 @@ public class TestBloomRowGroupFilter {
     Expression dictResidual =
         dictFilter.residualFor(
             parquetSchema, rowGroupMetadata, reader.getDictionaryReader(rowGroupMetadata));
-    Assert.assertTrue(
-        String.format("Expected residual: %s, actual residual: %s", expected, dictResidual),
-        expected.isEquivalentTo(dictResidual));
+    Assertions.assertThat(expected.isEquivalentTo(dictResidual))
+        .overridingErrorMessage(
+            "Expected residual: %s, actual residual: %s", expected, dictResidual);
 
     expected = Expressions.alwaysFalse();
     ParquetBloomRowGroupFilter bloomFilter = new ParquetBloomRowGroupFilter(SCHEMA, dictResidual);
     Expression bloomResidual =
         bloomFilter.residualFor(
             parquetSchema, rowGroupMetadata, reader.getBloomFilterDataReader(rowGroupMetadata));
-    Assert.assertTrue(
-        String.format("Expected residual: %s, actual residual: %s", expected, bloomResidual),
-        expected.isEquivalentTo(bloomResidual));
+    Assertions.assertThat(expected.isEquivalentTo(bloomResidual))
+        .overridingErrorMessage(
+            "Expected residual: %s, actual residual: %s", expected, bloomResidual);
   }
 }
