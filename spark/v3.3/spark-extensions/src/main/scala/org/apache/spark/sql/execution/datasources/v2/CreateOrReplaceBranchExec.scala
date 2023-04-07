@@ -42,10 +42,17 @@ case class CreateOrReplaceBranchExec(
   override protected def run(): Seq[InternalRow] = {
     catalog.loadTable(ident) match {
       case iceberg: SparkTable =>
-        val snapshotId: java.lang.Long = branchOptions.snapshotId
+        var snapshotId: java.lang.Long = branchOptions.snapshotId
           .orElse(Option(iceberg.table.currentSnapshot()).map(_.snapshotId()))
           .map(java.lang.Long.valueOf)
           .orNull
+
+        if (branchOptions.tagName.isDefined) {
+          iceberg.table().snapshot(branchOptions.tagName.get) match {
+            case null => throw new IllegalArgumentException(s"Tag ${branchOptions.tagName.get} does not exist")
+            case snapshot => snapshotId = java.lang.Long.valueOf(snapshot.snapshotId())
+          }
+        }
 
         Preconditions.checkArgument(snapshotId != null,
           "Cannot complete create or replace branch operation on %s, main has no snapshot", ident)

@@ -106,6 +106,7 @@ class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface) extends IcebergS
     val branchOptionsContext = Option(createOrReplaceBranchClause.branchOptions())
     val snapshotId = branchOptionsContext.flatMap(branchOptions => Option(branchOptions.snapshotId()))
       .map(_.getText.toLong)
+    val tagName = branchOptionsContext.flatMap(branchOptions => Option(branchOptions.identifier())).map(_.getText)
     val snapshotRetention = branchOptionsContext.flatMap(branchOptions => Option(branchOptions.snapshotRetention()))
     val minSnapshotsToKeep = snapshotRetention.flatMap(retention => Option(retention.minSnapshotsToKeep()))
       .map(minSnapshots => minSnapshots.number().getText.toLong)
@@ -121,6 +122,7 @@ class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface) extends IcebergS
 
     val branchOptions = BranchOptions(
       snapshotId,
+      tagName,
       minSnapshotsToKeep,
       maxSnapshotAgeMs,
       branchRefAgeMs

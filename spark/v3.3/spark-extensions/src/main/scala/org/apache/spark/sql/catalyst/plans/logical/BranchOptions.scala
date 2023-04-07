@@ -19,5 +19,5 @@
 
 package org.apache.spark.sql.catalyst.plans.logical
 
-case class BranchOptions (snapshotId: Option[Long], numSnapshots: Option[Long],
+case class BranchOptions (snapshotId: Option[Long], tagName: Option[String], numSnapshots: Option[Long],
                           snapshotRetain: Option[Long], snapshotRefRetain: Option[Long])

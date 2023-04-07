@@ -94,7 +94,7 @@ tagOptions
     ;
 
 branchOptions
-    : (AS OF VERSION snapshotId)? (refRetain)? (snapshotRetention)?
+    : ((AS OF VERSION snapshotId)? | (AS OF TAG identifier)?) (refRetain)? (snapshotRetention)?
     ;
 
 snapshotRetention
