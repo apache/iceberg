@@ -877,6 +877,64 @@ public class TestIcebergFilesCommitter extends TableTestBase {
     }
   }
 
+  @Test
+  public void testSpecEvolution() throws Exception {
+    long timestamp = 0;
+
+    JobID jobID = new JobID();
+    OperatorID operatorId;
+    try (OneInputStreamOperatorTestHarness<WriteResult, Void> harness = createStreamSink(jobID)) {
+      harness.setup();
+      harness.open();
+      operatorId = harness.getOperator().getOperatorID();
+
+      assertSnapshotSize(0);
+
+      List<RowData> rows = Lists.newArrayListWithExpectedSize(3);
+
+      int checkpointId = 1;
+      RowData rowData = SimpleDataUtil.createRowData(checkpointId, "hello" + checkpointId);
+      DataFile dataFile = writeDataFile("data-" + checkpointId, ImmutableList.of(rowData));
+      harness.processElement(of(dataFile), ++timestamp);
+      rows.add(rowData);
+      harness.snapshot(checkpointId, ++timestamp);
+      harness.notifyOfCompletedCheckpoint(checkpointId);
+
+      // Change partition spec
+      table.refresh();
+      table.updateSpec().addField("id").commit();
+
+      checkpointId = 2;
+      rowData = SimpleDataUtil.createRowData(checkpointId, "hello" + checkpointId);
+      dataFile = writeDataFile("data-" + checkpointId, ImmutableList.of(rowData));
+      harness.processElement(of(dataFile), ++timestamp);
+      rows.add(rowData);
+      harness.snapshot(checkpointId, ++timestamp);
+      harness.notifyOfCompletedCheckpoint(checkpointId);
+
+      // Change partition spec again
+      table.refresh();
+      table.updateSpec().addField("data").commit();
+
+      checkpointId = 3;
+      rowData = SimpleDataUtil.createRowData(checkpointId, "hello" + checkpointId);
+      dataFile = writeDataFile("data-" + checkpointId, ImmutableList.of(rowData));
+      harness.processElement(of(dataFile), ++timestamp);
+      rows.add(rowData);
+      harness.snapshot(checkpointId, ++timestamp);
+      harness.notifyOfCompletedCheckpoint(checkpointId);
+
+      assertFlinkManifests(0);
+
+      SimpleDataUtil.assertTableRows(table, ImmutableList.copyOf(rows), branch);
+      assertSnapshotSize(checkpointId);
+      assertMaxCommittedCheckpointId(jobID, operatorId, checkpointId);
+      Assert.assertEquals(
+          TestIcebergFilesCommitter.class.getName(),
+          SimpleDataUtil.latestSnapshot(table, branch).summary().get("flink.test"));
+    }
+  }
+
   private DeleteFile writeEqDeleteFile(
       FileAppenderFactory<RowData> appenderFactory, String filename, List<RowData> deletes)
       throws IOException {
