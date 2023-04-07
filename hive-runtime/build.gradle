@@ -53,6 +53,8 @@ project(':iceberg-hive-runtime') {
   }
 
   shadowJar {
+    exclude "META-INF/services/**"
+    exclude "META-INF/maven/**"
     configurations = [project.configurations.runtimeClasspath]
 
     zip64 true
