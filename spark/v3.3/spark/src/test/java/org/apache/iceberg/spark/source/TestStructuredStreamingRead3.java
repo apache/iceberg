@@ -28,6 +28,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.BaseTable;
@@ -489,6 +490,46 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
         IllegalStateException.class,
         "Cannot process overwrite snapshot",
         () -> query.processAllAvailable());
+  }
+
+  @Test
+  public void testReadStreamWithSnapshotTypeOverwriteAndReplayOverwriteReturnsOnlyAddedFiles()
+      throws Exception {
+    // upgrade table to version 2 - to facilitate creation of Snapshot of type OVERWRITE.
+    TableOperations ops = ((BaseTable) table).operations();
+    TableMetadata meta = ops.current();
+    ops.commit(meta, meta.upgradeToFormatVersion(2));
+
+    // fill table with some initial data
+    List<List<SimpleRecord>> dataAcrossSnapshots = TEST_DATA_MULTIPLE_SNAPSHOTS;
+
+    // Overwrite a single record in the dataset
+    appendDataAsMultipleSnapshots(dataAcrossSnapshots);
+    Record addRecord = GenericRecord.create(table.schema());
+    addRecord.set(0, 1);
+    addRecord.set(1, "overwrite one");
+    table
+        .newOverwrite()
+        .addFile(
+            FileHelpers.writeDataFile(
+                table, Files.localOutput(temp.newFile()), Collections.singletonList(addRecord)))
+        .overwriteByRowFilter(Expressions.equal("id", 1))
+        .commit();
+
+    // check pre-condition - that the above Delete file write - actually resulted in snapshot of
+    // type OVERWRITE
+    Assert.assertEquals(DataOperations.OVERWRITE, table.currentSnapshot().operation());
+
+    // The expected output is the original records without the appended records but with no
+    // information about deleted ones
+    List<SimpleRecord> expected =
+        dataAcrossSnapshots.stream().flatMap(List::stream).collect(Collectors.toList());
+    expected.add(new SimpleRecord(1, "overwrite one"));
+
+    StreamingQuery query =
+        startStream(SparkReadOptions.STREAMING_OVERWRITE_SNAPSHOTS_READ_MODE, "append_only");
+    List<SimpleRecord> rows = rowsAvailable(query);
+    Assertions.assertThat(rows).containsExactlyInAnyOrderElementsOf(expected);
   }
 
   @Test
