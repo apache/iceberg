@@ -107,9 +107,9 @@ class AddFilesProcedure extends BaseProcedure {
     Identifier sourceIdent = input.ident(SOURCE_TABLE_PARAM, sessionCat);
 
     Map<String, String> partitionFilter =
-        input.stringMap(PARTITION_FILTER_PARAM, ImmutableMap.of());
+        input.asStringMap(PARTITION_FILTER_PARAM, ImmutableMap.of());
 
-    boolean checkDuplicateFiles = input.bool(CHECK_DUPLICATE_FILES_PARAM, true);
+    boolean checkDuplicateFiles = input.asBoolean(CHECK_DUPLICATE_FILES_PARAM, true);
 
     return importToIceberg(tableIdent, sourceIdent, partitionFilter, checkDuplicateFiles);
   }

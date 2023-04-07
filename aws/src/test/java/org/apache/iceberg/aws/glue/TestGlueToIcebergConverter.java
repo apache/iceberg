@@ -19,12 +19,12 @@
 package org.apache.iceberg.aws.glue;
 
 import java.util.Map;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
 import software.amazon.awssdk.services.glue.model.Database;
@@ -59,11 +59,10 @@ public class TestGlueToIcebergConverter {
   @Test
   public void testValidateTableIcebergPropertyNotFound() {
     Table table = Table.builder().parameters(ImmutableMap.of()).build();
-    AssertHelpers.assertThrows(
-        "Iceberg property not found",
-        ValidationException.class,
-        "Input Glue table is not an iceberg table",
-        () -> GlueToIcebergConverter.validateTable(table, "name"));
+
+    Assertions.assertThatThrownBy(() -> GlueToIcebergConverter.validateTable(table, "name"))
+        .isInstanceOf(ValidationException.class)
+        .hasMessage("Input Glue table is not an iceberg table: name (type=null)");
   }
 
   @Test
@@ -71,10 +70,9 @@ public class TestGlueToIcebergConverter {
     Map<String, String> properties =
         ImmutableMap.of(BaseMetastoreTableOperations.TABLE_TYPE_PROP, "other");
     Table table = Table.builder().parameters(properties).build();
-    AssertHelpers.assertThrows(
-        "Iceberg property value wrong",
-        ValidationException.class,
-        "Input Glue table is not an iceberg table",
-        () -> GlueToIcebergConverter.validateTable(table, "name"));
+
+    Assertions.assertThatThrownBy(() -> GlueToIcebergConverter.validateTable(table, "name"))
+        .isInstanceOf(ValidationException.class)
+        .hasMessage("Input Glue table is not an iceberg table: name (type=other)");
   }
 }

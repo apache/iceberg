@@ -21,10 +21,10 @@ package org.apache.iceberg.aws.s3;
 import static org.junit.Assert.assertEquals;
 
 import java.util.Map;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.assertj.core.api.Assertions;
 import org.junit.Test;
 
 public class TestS3URI {
@@ -51,11 +51,10 @@ public class TestS3URI {
 
   @Test
   public void testMissingScheme() {
-    AssertHelpers.assertThrows(
-        "Should not allow missing scheme",
-        ValidationException.class,
-        "Invalid S3 URI, cannot determine scheme",
-        () -> new S3URI("/path/to/file"));
+
+    Assertions.assertThatThrownBy(() -> new S3URI("/path/to/file"))
+        .isInstanceOf(ValidationException.class)
+        .hasMessage("Invalid S3 URI, cannot determine scheme: /path/to/file");
   }
 
   @Test

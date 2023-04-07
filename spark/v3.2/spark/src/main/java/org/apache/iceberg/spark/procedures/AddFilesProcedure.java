@@ -64,7 +64,7 @@ class AddFilesProcedure extends BaseProcedure {
 
   private static final ProcedureParameter[] PARAMETERS =
       new ProcedureParameter[] {
-          TABLE_PARAM, SOURCE_TABLE_PARAM, PARTITION_FILTER_PARAM, CHECK_DUPLICATE_FILES_PARAM
+        TABLE_PARAM, SOURCE_TABLE_PARAM, PARTITION_FILTER_PARAM, CHECK_DUPLICATE_FILES_PARAM
       };
 
   private static final StructType OUTPUT_TYPE =

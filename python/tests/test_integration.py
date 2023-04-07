@@ -50,6 +50,11 @@ def table_test_null_nan_rewritten(catalog: Catalog) -> Table:
 
 
 @pytest.fixture()
+def table_test_limit(catalog: Catalog) -> Table:
+    return catalog.load_table("default.test_limit")
+
+
+@pytest.fixture()
 def table_test_all_types(catalog: Catalog) -> Table:
     return catalog.load_table("default.test_all_types")
 
@@ -85,6 +90,18 @@ def test_duckdb_nan(table_test_null_nan_rewritten: Table) -> None:
     result = con.query("SELECT idx, col_numeric FROM table_test_null_nan WHERE isnan(col_numeric)").fetchone()
     assert result[0] == 1
     assert math.isnan(result[1])
+
+
+@pytest.mark.integration
+def test_pyarrow_limit(table_test_limit: Table) -> None:
+    limited_result = table_test_limit.scan(selected_fields=("idx",), limit=1).to_arrow()
+    assert len(limited_result) == 1
+
+    empty_result = table_test_limit.scan(selected_fields=("idx",), limit=0).to_arrow()
+    assert len(empty_result) == 0
+
+    full_result = table_test_limit.scan(selected_fields=("idx",), limit=999).to_arrow()
+    assert len(full_result) == 10
 
 
 @pytest.mark.integration

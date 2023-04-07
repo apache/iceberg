@@ -206,6 +206,7 @@ public class NessieIcebergClient implements AutoCloseable {
               .get();
       return response.getNamespaces().stream()
           .map(ns -> Namespace.of(ns.getElements().toArray(new String[0])))
+          .filter(ns -> ns.length() == namespace.length() + 1)
           .collect(Collectors.toList());
     } catch (NessieReferenceNotFoundException e) {
       throw new RuntimeException(

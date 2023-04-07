@@ -16,24 +16,19 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.io;
+package org.apache.iceberg.flink.sink.shuffle.statistics;
 
-import java.io.IOException;
-import java.io.OutputStream;
-import java.nio.charset.StandardCharsets;
-import org.assertj.core.api.Assertions;
-import org.junit.Test;
+import org.apache.flink.annotation.Internal;
 
-public class TestInMemoryOutputFile {
-  @Test
-  public void testWriteAfterClose() throws IOException {
-    InMemoryOutputFile outputFile = new InMemoryOutputFile();
-    OutputStream outputStream = outputFile.create();
-    outputStream.write('a');
-    outputStream.write('b');
-    outputStream.close();
-    Assertions.assertThatThrownBy(() -> outputStream.write('c')).hasMessage("Stream is closed");
-    Assertions.assertThat(outputFile.toByteArray())
-        .isEqualTo("ab".getBytes(StandardCharsets.ISO_8859_1));
+/**
+ * MapDataStatisticsFactory creates {@link MapDataStatistics} to track traffic volume for
+ * low-cardinality key in hash mode
+ */
+@Internal
+public class MapDataStatisticsFactory<K> implements DataStatisticsFactory<K> {
+
+  @Override
+  public DataStatistics<K> createDataStatistics() {
+    return new MapDataStatistics<>();
   }
 }

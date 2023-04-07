@@ -119,6 +119,13 @@ public class CatalogProperties {
       "client.pool.cache.eviction-interval-ms";
   public static final long CLIENT_POOL_CACHE_EVICTION_INTERVAL_MS_DEFAULT =
       TimeUnit.MINUTES.toMillis(5);
+  /**
+   * A comma separated list of elements used, in addition to the {@link #URI}, to compose the key of
+   * the client pool cache.
+   *
+   * <p>Supported key elements in a Catalog are implementation-dependent.
+   */
+  public static final String CLIENT_POOL_CACHE_KEYS = "client-pool-cache-keys";
 
   public static final String LOCK_IMPL = "lock-impl";
 
