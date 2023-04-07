@@ -143,9 +143,10 @@ public class SparkReadConf {
   }
 
   /**
-   * Returns the streaming reade-mode for snapshots of type overwrite. In the process first checks the
-   * option 'streaming-overwrite-snapshots-read-mode', and if it is not set defaults to using the older
-   * 'streaming-skip-overwrite-snapshots' modeling only SKIP and BREAK operations, with BREAK being the default
+   * Returns the streaming reade-mode for snapshots of type overwrite. In the process first checks
+   * the option 'streaming-overwrite-snapshots-read-mode', and if it is not set defaults to using
+   * the older 'streaming-skip-overwrite-snapshots' modeling only SKIP and BREAK operations, with
+   * BREAK being the default
    */
   public StreamingOverwriteSnapshotReadMode streamingOverwriteSnapshotsReadMode() {
     Optional<StreamingOverwriteSnapshotReadMode> mainConf =

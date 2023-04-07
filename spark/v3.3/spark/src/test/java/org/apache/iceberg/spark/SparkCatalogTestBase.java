@@ -19,8 +19,6 @@
 package org.apache.iceberg.spark;
 
 import java.util.Map;
-import org.junit.Rule;
-import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
