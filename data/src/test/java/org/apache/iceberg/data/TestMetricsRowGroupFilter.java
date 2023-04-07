@@ -956,7 +956,7 @@ public class TestMetricsRowGroupFilter {
 
   @Test
   public void testParquetFindsResidual() {
-    Assume.assumeTrue("Only valid for Parquet", format == FileFormat.PARQUET);
+    Assumptions.assumeThat(format).isEqualTo(FileFormat.PARQUET);
 
     Expression mightMatch = notEqual("some_nulls", "some");
     Expression cannotMatch = equal("id", INT_MIN_VALUE - 25);
@@ -966,17 +966,15 @@ public class TestMetricsRowGroupFilter {
         new ParquetMetricsRowGroupFilter(SCHEMA, Expressions.or(mightMatch, cannotMatch), true);
     Expression actual = filter.residualFor(parquetSchema, rowGroupMetadata);
 
-    Assert.assertTrue(
-        String.format("Expected actual: %s, actual: %s", expected.toString(), actual.toString()),
-        actual.isEquivalentTo(expected));
+    Assertions.assertThat(actual.isEquivalentTo(expected))
+        .overridingErrorMessage("Expected: %s, actual: %s", expected, actual);
 
     filter =
         new ParquetMetricsRowGroupFilter(SCHEMA, Expressions.and(mightMatch, cannotMatch), true);
     expected = Expressions.alwaysFalse();
     actual = filter.residualFor(parquetSchema, rowGroupMetadata);
-    Assert.assertTrue(
-        String.format("Expected actual: %s, actual: %s", expected.toString(), actual.toString()),
-        actual.isEquivalentTo(expected));
+    Assertions.assertThat(actual.isEquivalentTo(expected))
+        .overridingErrorMessage("Expected: %s, actual: %s", expected, actual);
   }
 
   private boolean shouldRead(Expression expression) {
