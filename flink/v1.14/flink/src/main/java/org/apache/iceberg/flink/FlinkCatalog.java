@@ -98,6 +98,7 @@ public class FlinkCatalog extends AbstractCatalog {
   private final SupportsNamespaces asNamespaceCatalog;
   private final Closeable closeable;
   private final boolean cacheEnabled;
+  private static final String COMMENT = "comment";
 
   public FlinkCatalog(
       String catalogName,
@@ -197,7 +198,7 @@ public class FlinkCatalog extends AbstractCatalog {
         Map<String, String> metadata =
             Maps.newHashMap(
                 asNamespaceCatalog.loadNamespaceMetadata(appendLevel(baseNamespace, databaseName)));
-        String comment = metadata.remove("comment");
+        String comment = metadata.remove(COMMENT);
         return new CatalogDatabaseImpl(metadata, comment);
       } catch (NoSuchNamespaceException e) {
         throw new DatabaseNotExistException(getName(), databaseName, e);
@@ -241,12 +242,12 @@ public class FlinkCatalog extends AbstractCatalog {
 
   private Map<String, String> mergeComment(Map<String, String> metadata, String comment) {
     Map<String, String> ret = Maps.newHashMap(metadata);
-    if (metadata.containsKey("comment")) {
+    if (metadata.containsKey(COMMENT)) {
       throw new CatalogException("Database properties should not contain key: 'comment'.");
     }
 
     if (!StringUtils.isNullOrWhitespaceOnly(comment)) {
-      ret.put("comment", comment);
+      ret.put(COMMENT, comment);
     }
     return ret;
   }
@@ -418,7 +419,10 @@ public class FlinkCatalog extends AbstractCatalog {
         properties.put(entry.getKey(), entry.getValue());
       }
     }
-
+    // add table comment
+    if (!StringUtils.isNullOrWhitespaceOnly(table.getComment())) {
+      properties.put(COMMENT, table.getComment());
+    }
     try {
       icebergCatalog.createTable(
           toIdentifier(tablePath), icebergSchema, spec, location, properties.build());
@@ -613,8 +617,9 @@ public class FlinkCatalog extends AbstractCatalog {
     // may use
     // CatalogTableImpl to copy a new catalog table.
     // Let's re-loading table from Iceberg catalog when creating source/sink operators.
-    // Iceberg does not have Table comment, so pass a null (Default comment value in Flink).
-    return new CatalogTableImpl(schema, partitionKeys, table.properties(), null);
+    Map<String, String> prop = Maps.newHashMap(table.properties());
+    String comment = prop.remove(COMMENT);
+    return new CatalogTableImpl(schema, partitionKeys, prop, comment);
   }
 
   @Override
