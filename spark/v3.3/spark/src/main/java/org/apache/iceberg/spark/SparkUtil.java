@@ -77,6 +77,8 @@ public class SparkUtil {
 
   private SparkUtil() {}
 
+  /** @deprecated will be removed in 1.4.0 */
+  @Deprecated
   public static FileIO serializableFileIO(Table table) {
     if (table.io() instanceof HadoopConfigurable) {
       // we need to use Spark's SerializableConfiguration to avoid issues with Kryo serialization
