@@ -113,11 +113,12 @@ class GCSInputStream extends SeekableInputStream {
     singleByteBuffer.position(0);
 
     pos += 1;
-    channel.read(singleByteBuffer);
+    if (channel.read(singleByteBuffer) == -1)
+      return -1;
     readBytes.increment();
     readOperations.increment();
 
-    return singleByteBuffer.array()[0];
+    return singleByteBuffer.array()[0] & 0xFF;
   }
 
   @Override
