@@ -85,7 +85,7 @@ class ReadConf<T> {
       typeWithIds = fileSchema;
       this.projection = ParquetSchemaUtil.pruneColumns(fileSchema, expectedSchema);
     } else if (nameMapping != null) {
-      typeWithIds = ParquetSchemaUtil.applyNameMapping(fileSchema, nameMapping);
+      typeWithIds = ParquetSchemaUtil.applyNameMapping(fileSchema, nameMapping, caseSensitive);
       this.projection = ParquetSchemaUtil.pruneColumns(typeWithIds, expectedSchema);
     } else {
       typeWithIds = ParquetSchemaUtil.addFallbackIds(fileSchema);

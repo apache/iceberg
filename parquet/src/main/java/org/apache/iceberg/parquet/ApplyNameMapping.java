@@ -38,10 +38,12 @@ class ApplyNameMapping extends ParquetTypeVisitor<Type> {
   private static final String MAP_KEY_NAME = "key";
   private static final String MAP_VALUE_NAME = "value";
   private final NameMapping nameMapping;
+  private final boolean caseSensitive;
   private final Deque<String> fieldNames = Lists.newLinkedList();
 
-  ApplyNameMapping(NameMapping nameMapping) {
+  ApplyNameMapping(NameMapping nameMapping, boolean caseSensitive) {
     this.nameMapping = nameMapping;
+    this.caseSensitive = caseSensitive;
   }
 
   @Override
@@ -54,7 +56,7 @@ class ApplyNameMapping extends ParquetTypeVisitor<Type> {
 
   @Override
   public Type struct(GroupType struct, List<Type> types) {
-    MappedField field = nameMapping.find(currentPath());
+    MappedField field = nameMapping.find(caseSensitive, currentPath());
     List<Type> actualTypes = types.stream().filter(Objects::nonNull).collect(Collectors.toList());
     Type structType = struct.withNewFields(actualTypes);
 
@@ -66,7 +68,7 @@ class ApplyNameMapping extends ParquetTypeVisitor<Type> {
     Preconditions.checkArgument(elementType != null, "List type must have element field");
 
     Type listElement = ParquetSchemaUtil.determineListElementType(list);
-    MappedField field = nameMapping.find(currentPath());
+    MappedField field = nameMapping.find(caseSensitive, currentPath());
 
     Types.GroupBuilder<GroupType> listBuilder =
         Types.buildGroup(list.getRepetition()).as(LogicalTypeAnnotation.listType());
@@ -85,7 +87,7 @@ class ApplyNameMapping extends ParquetTypeVisitor<Type> {
     Preconditions.checkArgument(
         keyType != null && valueType != null, "Map type must have both key field and value field");
 
-    MappedField field = nameMapping.find(currentPath());
+    MappedField field = nameMapping.find(caseSensitive, currentPath());
     Type mapType =
         Types.buildGroup(map.getRepetition())
             .as(LogicalTypeAnnotation.mapType())
@@ -99,7 +101,7 @@ class ApplyNameMapping extends ParquetTypeVisitor<Type> {
 
   @Override
   public Type primitive(PrimitiveType primitive) {
-    MappedField field = nameMapping.find(currentPath());
+    MappedField field = nameMapping.find(caseSensitive, currentPath());
     return field == null ? primitive : primitive.withId(field.id());
   }
 

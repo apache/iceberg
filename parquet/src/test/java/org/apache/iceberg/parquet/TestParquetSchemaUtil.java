@@ -128,6 +128,33 @@ public class TestParquetSchemaUtil {
   }
 
   @Test
+  public void testAssignIdsByNameMappingCaseInsensitive() {
+    Types.StructType structTypeLowerCase =
+        Types.StructType.of(required(0, "id", Types.LongType.get()));
+    Schema schemaLowerCase =
+        new Schema(
+            TypeUtil.assignFreshIds(structTypeLowerCase, new AtomicInteger(0)::incrementAndGet)
+                .asStructType()
+                .fields());
+    MessageType messageTypeWithIds = ParquetSchemaUtil.convert(schemaLowerCase, "parquet_type");
+
+    Types.StructType structTypeUpperCase =
+        Types.StructType.of(required(0, "ID", Types.LongType.get()));
+    Schema schemaUpperCase =
+        new Schema(
+            TypeUtil.assignFreshIds(structTypeUpperCase, new AtomicInteger(0)::incrementAndGet)
+                .asStructType()
+                .fields());
+    NameMapping nameMappingUpperCase = MappingUtil.create(schemaUpperCase);
+
+    MessageType messageTypeWithIdsFromNameMapping =
+        ParquetSchemaUtil.applyNameMapping(
+            RemoveIds.removeIds(messageTypeWithIds), nameMappingUpperCase, false);
+
+    Assert.assertEquals(messageTypeWithIds, messageTypeWithIdsFromNameMapping);
+  }
+
+  @Test
   public void testSchemaConversionWithoutAssigningIds() {
     MessageType messageType =
         new MessageType(
