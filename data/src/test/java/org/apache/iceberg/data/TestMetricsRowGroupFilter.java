@@ -943,25 +943,30 @@ public class TestMetricsRowGroupFilter {
 
   @Test
   public void testParquetFindsResidual() {
-    Assumptions.assumeTrue(format == FileFormat.PARQUET, "Only valid for Parquet");
+    Assumptions.assumingThat(
+        format == FileFormat.PARQUET,
+        () -> {
+          Expression mightMatch = notEqual("some_nulls", "some");
+          Expression cannotMatch = equal("id", INT_MIN_VALUE - 25);
 
-    Expression mightMatch = notEqual("some_nulls", "some");
-    Expression cannotMatch = equal("id", INT_MIN_VALUE - 25);
+          Expression expected =
+              Binder.bind(SCHEMA.asStruct(), Expressions.rewriteNot(mightMatch), true);
+          ParquetMetricsRowGroupFilter filter =
+              new ParquetMetricsRowGroupFilter(
+                  SCHEMA, Expressions.or(mightMatch, cannotMatch), true);
+          Expression actual = filter.residualFor(parquetSchema, rowGroupMetadata);
 
-    Expression expected = Binder.bind(SCHEMA.asStruct(), Expressions.rewriteNot(mightMatch), true);
-    ParquetMetricsRowGroupFilter filter =
-        new ParquetMetricsRowGroupFilter(SCHEMA, Expressions.or(mightMatch, cannotMatch), true);
-    Expression actual = filter.residualFor(parquetSchema, rowGroupMetadata);
+          Assertions.assertThat(actual.isEquivalentTo(expected))
+              .overridingErrorMessage("Expected: %s, actual: %s", expected, actual);
 
-    Assertions.assertThat(actual.isEquivalentTo(expected))
-        .overridingErrorMessage("Expected: %s, actual: %s", expected, actual);
-
-    filter =
-        new ParquetMetricsRowGroupFilter(SCHEMA, Expressions.and(mightMatch, cannotMatch), true);
-    expected = Expressions.alwaysFalse();
-    actual = filter.residualFor(parquetSchema, rowGroupMetadata);
-    Assertions.assertThat(actual.isEquivalentTo(expected))
-        .overridingErrorMessage("Expected: %s, actual: %s", expected, actual);
+          filter =
+              new ParquetMetricsRowGroupFilter(
+                  SCHEMA, Expressions.and(mightMatch, cannotMatch), true);
+          expected = Expressions.alwaysFalse();
+          actual = filter.residualFor(parquetSchema, rowGroupMetadata);
+          Assertions.assertThat(actual.isEquivalentTo(expected))
+              .overridingErrorMessage("Expected: %s, actual: %s", expected, actual);
+        });
   }
 
   private boolean shouldRead(Expression expression) {
