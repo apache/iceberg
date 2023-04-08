@@ -27,8 +27,8 @@ import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.arrow.vectorized.parquet.TimestampUtil;
 import org.apache.iceberg.parquet.ParquetSchemaUtil;
+import org.apache.iceberg.parquet.ParquetUtil;
 import org.apache.iceberg.parquet.ParquetValueReader;
 import org.apache.iceberg.parquet.ParquetValueReaders;
 import org.apache.iceberg.parquet.ParquetValueReaders.FloatAsDoubleReader;
@@ -392,7 +392,7 @@ public class SparkParquetReaders {
     public long readLong() {
       final ByteBuffer byteBuffer =
           column.nextBinary().toByteBuffer().order(ByteOrder.LITTLE_ENDIAN);
-      return TimestampUtil.extractTimestampInt96(byteBuffer);
+      return ParquetUtil.extractTimestampInt96(byteBuffer);
     }
   }
 
