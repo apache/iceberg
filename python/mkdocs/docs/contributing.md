@@ -88,13 +88,13 @@ make test-adlfs
 
 To pass additional arguments to pytest, you can use `PYTEST_ARGS`.
 
-*Run pytest in verbose mode*
+_Run pytest in verbose mode_
 
 ```sh
 make test PYTEST_ARGS="-v"
 ```
 
-*Run pytest with pdb enabled*
+_Run pytest with pdb enabled_
 
 ```sh
 make test PYTEST_ARGS="--pdb"
