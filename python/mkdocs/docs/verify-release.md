@@ -73,9 +73,13 @@ Run RAT checks to validate license header:
 
 This section explains how to run the tests of the source distribution.
 
+<!-- prettier-ignore-start -->
+
 !!! note "Clean environment"
     To make sure that your environment is fresh is to run the tests in a new Docker container:
-    `docker run -t -i -v $(pwd):/pyiceberg/ python:3.9 bash`.  And change directory: `cd /pyiceberg/`.
+    `docker run -t -i -v $(pwd):/pyiceberg/ python:3.9 bash`. And change directory: `cd /pyiceberg/`.
+
+<!-- prettier-ignore-end -->
 
 First step is to install the package:
 
