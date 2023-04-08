@@ -24,7 +24,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
-import org.apache.iceberg.SystemProperties;
+import org.apache.iceberg.SystemConfigs;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.ThreadFactoryBuilder;
 
@@ -33,13 +33,9 @@ public class ThreadPools {
   private ThreadPools() {}
 
   public static final String WORKER_THREAD_POOL_SIZE_PROP =
-      SystemProperties.WORKER_THREAD_POOL_SIZE_PROP;
+      SystemConfigs.WORKER_THREAD_POOL_SIZE.propertyKey();
 
-  public static final int WORKER_THREAD_POOL_SIZE =
-      getPoolSize(
-          WORKER_THREAD_POOL_SIZE_PROP,
-          SystemProperties.WORKER_THREAD_POOL_SIZE_ENV,
-          Math.max(2, Runtime.getRuntime().availableProcessors()));
+  public static final int WORKER_THREAD_POOL_SIZE = SystemConfigs.WORKER_THREAD_POOL_SIZE.value();
 
   private static final ExecutorService WORKER_POOL = newWorkerPool("iceberg-worker-pool");
 
@@ -79,22 +75,6 @@ public class ThreadPools {
    */
   public static ScheduledExecutorService newScheduledPool(String namePrefix, int poolSize) {
     return new ScheduledThreadPoolExecutor(poolSize, newDaemonThreadFactory(namePrefix));
-  }
-
-  private static int getPoolSize(String systemProperty, String envVariable, int defaultSize) {
-    String value = System.getProperty(systemProperty);
-    if (value == null) {
-      value = System.getenv(envVariable);
-    }
-
-    if (value != null) {
-      try {
-        return Integer.parseUnsignedInt(value);
-      } catch (NumberFormatException e) {
-        // will return the default
-      }
-    }
-    return defaultSize;
   }
 
   private static ThreadFactory newDaemonThreadFactory(String namePrefix) {

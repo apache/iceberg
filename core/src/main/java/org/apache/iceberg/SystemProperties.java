@@ -19,8 +19,11 @@
 package org.apache.iceberg;
 
 /**
- * Configuration properties that are controlled by Java system properties or environmental variable
+ * Configuration properties that are controlled by Java system properties.
+ *
+ * @deprecated Use {@link SystemConfigs} instead; will be removed in 2.0.0
  */
+@Deprecated
 public class SystemProperties {
 
   private SystemProperties() {}
@@ -32,12 +35,8 @@ public class SystemProperties {
    */
   public static final String WORKER_THREAD_POOL_SIZE_PROP = "iceberg.worker.num-threads";
 
-  public static final String WORKER_THREAD_POOL_SIZE_ENV = "ICEBERG_WORKER_NUM_THREADS";
-
   /** Whether to use the shared worker pool when planning table scans. */
   public static final String SCAN_THREAD_POOL_ENABLED = "iceberg.scan.plan-in-worker-pool";
-
-  static final String SCAN_THREAD_POOL_ENABLED_ENV = "ICEBERG_SCAN_PLAN_IN_WORKER_POOL";
 
   /**
    * Maximum number of distinct {@link org.apache.iceberg.io.FileIO} that is allowed to have
@@ -45,36 +44,14 @@ public class SystemProperties {
    */
   public static final String IO_MANIFEST_CACHE_MAX_FILEIO = "iceberg.io.manifest.cache.fileio-max";
 
-  static final String IO_MANIFEST_CACHE_MAX_FILEIO_ENV = "ICEBERG_IO_MANIFEST_CACHE_FILEIO_MAX";
-
   public static final int IO_MANIFEST_CACHE_MAX_FILEIO_DEFAULT = 8;
 
-  static boolean getBoolean(String systemProperty, String envVariable, boolean defaultValue) {
+  static boolean getBoolean(String systemProperty, boolean defaultValue) {
     String value = System.getProperty(systemProperty);
-    if (value == null) {
-      value = System.getenv(envVariable);
-    }
-
     if (value != null) {
       return Boolean.parseBoolean(value);
     }
 
     return defaultValue;
-  }
-
-  static int getInt(String systemProperty, String envVariable, int defaultSize) {
-    String value = System.getProperty(systemProperty);
-    if (value == null) {
-      value = System.getenv(envVariable);
-    }
-
-    if (value != null) {
-      try {
-        return Integer.parseUnsignedInt(value);
-      } catch (NumberFormatException e) {
-        // will return the default
-      }
-    }
-    return defaultSize;
   }
 }

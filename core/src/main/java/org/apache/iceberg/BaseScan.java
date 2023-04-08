@@ -79,10 +79,7 @@ abstract class BaseScan<ThisT, T extends ScanTask, G extends ScanTaskGroup<T>>
       ImmutableList.<String>builder().addAll(DELETE_SCAN_COLUMNS).addAll(STATS_COLUMNS).build();
 
   private static final boolean PLAN_SCANS_WITH_WORKER_POOL =
-      SystemProperties.getBoolean(
-          SystemProperties.SCAN_THREAD_POOL_ENABLED,
-          SystemProperties.SCAN_THREAD_POOL_ENABLED_ENV,
-          true);
+      SystemConfigs.SCAN_THREAD_POOL_ENABLED.value();
 
   private final Table table;
   private final Schema schema;

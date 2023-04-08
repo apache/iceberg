@@ -55,11 +55,7 @@ public class ManifestFiles {
 
   @VisibleForTesting
   static Caffeine<Object, Object> newManifestCacheBuilder() {
-    int maxSize =
-        SystemProperties.getInt(
-            SystemProperties.IO_MANIFEST_CACHE_MAX_FILEIO,
-            SystemProperties.IO_MANIFEST_CACHE_MAX_FILEIO_ENV,
-            SystemProperties.IO_MANIFEST_CACHE_MAX_FILEIO_DEFAULT);
+    int maxSize = SystemConfigs.IO_MANIFEST_CACHE_MAX_FILEIO.value();
     return Caffeine.newBuilder()
         .weakKeys()
         .softValues()
