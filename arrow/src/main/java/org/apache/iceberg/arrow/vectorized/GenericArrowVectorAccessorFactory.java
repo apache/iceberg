@@ -159,9 +159,9 @@ public class GenericArrowVectorAccessorFactory<
         case INT64:
           return new DictionaryLongAccessor<>((IntVector) vector, dictionary);
         case INT96:
-          // Impala & Spark used to write timestamps as INT96 default. For backwards compatibility
-          // we try to read INT96 as timestamps. But INT96 is not recommended and deprecated
-          // (see https://issues.apache.org/jira/browse/PARQUET-323)
+          // Impala & Spark used to write timestamps as INT96 by default. For backwards
+          // compatibility we try to read INT96 as timestamps. But INT96 is not recommended
+          // and deprecated (see https://issues.apache.org/jira/browse/PARQUET-323)
           return new DictionaryTimestampInt96Accessor<>((IntVector) vector, dictionary);
         case DOUBLE:
           return new DictionaryDoubleAccessor<>((IntVector) vector, dictionary);

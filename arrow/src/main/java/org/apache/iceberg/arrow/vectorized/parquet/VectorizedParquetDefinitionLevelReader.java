@@ -473,15 +473,22 @@ public final class VectorizedParquetDefinitionLevelReader
         NullabilityHolder nullabilityHolder,
         int typeWidth,
         Mode mode) {
-      if (Mode.RLE.equals(mode)) {
-        reader
-            .timestampInt96DictEncodedReader()
-            .nextBatch(vector, idx, numValuesToRead, dict, nullabilityHolder, typeWidth);
-      } else if (Mode.PACKED.equals(mode)) {
-        ByteBuffer buffer =
-            dict.decodeToBinary(reader.readInteger()).toByteBuffer().order(ByteOrder.LITTLE_ENDIAN);
-        long timestampInt96 = ParquetUtil.extractTimestampInt96(buffer);
-        vector.getDataBuffer().setLong(idx, timestampInt96);
+      switch (mode) {
+        case RLE:
+          reader
+              .timestampInt96DictEncodedReader()
+              .nextBatch(vector, idx, numValuesToRead, dict, nullabilityHolder, typeWidth);
+          break;
+        case PACKED:
+          ByteBuffer buffer =
+              dict.decodeToBinary(reader.readInteger())
+                  .toByteBuffer()
+                  .order(ByteOrder.LITTLE_ENDIAN);
+          long timestampInt96 = ParquetUtil.extractTimestampInt96(buffer);
+          vector.getDataBuffer().setLong(idx, timestampInt96);
+          break;
+        default:
+          throw new UnsupportedOperationException("Not a supported mode: " + mode);
       }
     }
   }
