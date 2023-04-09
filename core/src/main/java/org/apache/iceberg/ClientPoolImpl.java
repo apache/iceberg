@@ -147,4 +147,8 @@ public abstract class ClientPoolImpl<C, E extends Exception>
   public int poolSize() {
     return poolSize;
   }
+
+  public boolean isClosed() {
+    return closed;
+  }
 }
