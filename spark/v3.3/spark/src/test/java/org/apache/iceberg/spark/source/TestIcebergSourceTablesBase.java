@@ -84,6 +84,7 @@ import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.functions;
 import org.apache.spark.sql.internal.SQLConf;
 import org.apache.spark.sql.types.StructType;
+import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Rule;
@@ -1822,7 +1823,9 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
                 .load(loadLocation(tableIdentifier))
                 .select("tmp_col")
                 .collectAsList();
-        Assert.assertEquals("Rows must match", expected, actual);
+        Assertions.assertThat(actual)
+            .as("Rows must match")
+            .containsExactlyInAnyOrderElementsOf(expected);
         dropTable(tableIdentifier);
       }
     }

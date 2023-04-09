@@ -488,7 +488,8 @@ public final class VectorizedParquetDefinitionLevelReader
           vector.getDataBuffer().setLong(idx, timestampInt96);
           break;
         default:
-          throw new UnsupportedOperationException("Not a supported mode: " + mode);
+          throw new UnsupportedOperationException(
+              "Unsupported mode for timestamp int96 reader: " + mode);
       }
     }
   }
