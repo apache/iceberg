@@ -28,7 +28,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import javax.annotation.Nullable;
 import org.apache.hadoop.conf.Configuration;
@@ -43,6 +42,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.PropertyUtil;
+import org.apache.iceberg.util.ThreadPools;
 import org.apache.thrift.TException;
 import org.immutables.value.Value;
 
@@ -105,7 +105,9 @@ public class CachedClientPool implements ClientPool<IMetaStoreClient, TException
           Caffeine.newBuilder()
               .expireAfterAccess(evictionInterval, TimeUnit.MILLISECONDS)
               .removalListener((ignored, value, cause) -> ((HiveClientPool) value).close())
-              .scheduler(Scheduler.forScheduledExecutorService(Executors.newScheduledThreadPool(2)))
+              .scheduler(
+                  Scheduler.forScheduledExecutorService(
+                      ThreadPools.newScheduledPool("hive-metastore-cleaner", 2)))
               .build();
     }
   }
