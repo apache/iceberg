@@ -409,7 +409,7 @@ public abstract class TestFlinkScan {
   }
 
   @Test
-  public void testFilterExp() throws Exception {
+  public void testFilterExpPartition() throws Exception {
     Table table =
         catalogResource
             .catalog()
@@ -431,6 +431,24 @@ public abstract class TestFlinkScan {
         runWithFilter(Expressions.equal("dt", "2020-03-20"), "where dt='2020-03-20'"),
         expectedRecords,
         TestFixtures.SCHEMA);
+  }
+
+  @Test
+  public void testFilterExp() throws Exception {
+    Table table =
+        catalogResource.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, TestFixtures.SCHEMA);
+
+    List<Record> expectedRecords = RandomGenericData.generate(TestFixtures.SCHEMA, 3, 0L);
+    expectedRecords.get(0).set(2, "a");
+    expectedRecords.get(1).set(2, "b");
+    expectedRecords.get(2).set(2, "c");
+
+    GenericAppenderHelper helper = new GenericAppenderHelper(table, fileFormat, TEMPORARY_FOLDER);
+    DataFile dataFile = helper.writeFile(expectedRecords);
+    helper.appendToTable(dataFile);
+    List<Row> actual =
+        runWithFilter(Expressions.greaterThanOrEqual("data", "b"), "where data>='b'");
+    TestHelpers.assertRecords(actual, expectedRecords, TestFixtures.SCHEMA);
   }
 
   @Test
