@@ -26,44 +26,44 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 /**
- * An equality delete writer capable of writing to multiple specs and partitions that keeps equality delete writer for
- * each seen spec/partition pair open until this writer is closed.
+ * An equality delete writer capable of writing to multiple specs and partitions that keeps equality
+ * delete writer for each seen spec/partition pair open until this writer is closed.
  */
 public class FanoutEqualityDeleteWriter<T> extends FanoutWriter<T, DeleteWriteResult> {
 
-    private final FileWriterFactory<T> writerFactory;
-    private final OutputFileFactory fileFactory;
-    private final FileIO io;
-    private final long targetFileSizeInBytes;
-    private final List<DeleteFile> deleteFiles;
+  private final FileWriterFactory<T> writerFactory;
+  private final OutputFileFactory fileFactory;
+  private final FileIO io;
+  private final long targetFileSizeInBytes;
+  private final List<DeleteFile> deleteFiles;
 
-    public FanoutEqualityDeleteWriter(
-            FileWriterFactory<T> writerFactory,
-            OutputFileFactory fileFactory,
-            FileIO io,
-            long targetFileSizeInBytes) {
-        this.writerFactory = writerFactory;
-        this.fileFactory = fileFactory;
-        this.io = io;
-        this.targetFileSizeInBytes = targetFileSizeInBytes;
-        this.deleteFiles = Lists.newArrayList();
-    }
+  public FanoutEqualityDeleteWriter(
+      FileWriterFactory<T> writerFactory,
+      OutputFileFactory fileFactory,
+      FileIO io,
+      long targetFileSizeInBytes) {
+    this.writerFactory = writerFactory;
+    this.fileFactory = fileFactory;
+    this.io = io;
+    this.targetFileSizeInBytes = targetFileSizeInBytes;
+    this.deleteFiles = Lists.newArrayList();
+  }
 
-    @Override
-    protected FileWriter<T, DeleteWriteResult> newWriter(PartitionSpec spec, StructLike partition) {
-        return new RollingEqualityDeleteWriter<>(
-                writerFactory, fileFactory, io, targetFileSizeInBytes, spec, partition);
-    }
+  @Override
+  protected FileWriter<T, DeleteWriteResult> newWriter(PartitionSpec spec, StructLike partition) {
+    return new RollingEqualityDeleteWriter<>(
+        writerFactory, fileFactory, io, targetFileSizeInBytes, spec, partition);
+  }
 
-    @Override
-    protected void addResult(DeleteWriteResult result) {
-        Preconditions.checkArgument(
-                !result.referencesDataFiles(), "Equality deletes cannot reference data files");
-        deleteFiles.addAll(result.deleteFiles());
-    }
+  @Override
+  protected void addResult(DeleteWriteResult result) {
+    Preconditions.checkArgument(
+        !result.referencesDataFiles(), "Equality deletes cannot reference data files");
+    deleteFiles.addAll(result.deleteFiles());
+  }
 
-    @Override
-    protected DeleteWriteResult aggregatedResult() {
-        return new DeleteWriteResult(deleteFiles);
-    }
+  @Override
+  protected DeleteWriteResult aggregatedResult() {
+    return new DeleteWriteResult(deleteFiles);
+  }
 }

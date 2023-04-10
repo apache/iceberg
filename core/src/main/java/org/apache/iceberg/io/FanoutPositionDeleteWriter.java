@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.io;
 
+import java.util.List;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.StructLike;
@@ -25,11 +26,9 @@ import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.CharSequenceSet;
 
-import java.util.List;
-
 /**
- * An position delete writer capable of writing to multiple specs and partitions that keeps position delete writer for
- * each seen spec/partition pair open until this writer is closed.
+ * An position delete writer capable of writing to multiple specs and partitions that keeps position
+ * delete writer for each seen spec/partition pair open until this writer is closed.
  */
 public class FanoutPositionDeleteWriter<T>
     extends FanoutWriter<PositionDelete<T>, DeleteWriteResult> {
