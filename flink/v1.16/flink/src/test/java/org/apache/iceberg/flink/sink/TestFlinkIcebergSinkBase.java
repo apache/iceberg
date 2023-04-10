@@ -21,10 +21,12 @@ package org.apache.iceberg.flink.sink;
 import java.util.List;
 import java.util.stream.Collectors;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
+import org.apache.flink.api.common.typeinfo.Types;
 import org.apache.flink.api.java.typeutils.RowTypeInfo;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.util.DataFormatConverters;
+import org.apache.flink.table.types.DataType;
 import org.apache.flink.types.Row;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.SimpleDataUtil;
@@ -36,10 +38,11 @@ public class TestFlinkIcebergSinkBase {
   protected Table table;
   protected StreamExecutionEnvironment env;
   protected static final TypeInformation<Row> ROW_TYPE_INFO =
-      new RowTypeInfo(SimpleDataUtil.FLINK_SCHEMA.getFieldTypes());
+      new RowTypeInfo(Types.INT, Types.STRING);
 
   protected static final DataFormatConverters.RowConverter CONVERTER =
-      new DataFormatConverters.RowConverter(SimpleDataUtil.FLINK_SCHEMA.getFieldDataTypes());
+      new DataFormatConverters.RowConverter(
+          SimpleDataUtil.FLINK_SCHEMA.getColumnDataTypes().toArray(new DataType[2]));
 
   protected BoundedTestSource<Row> createBoundedSource(List<Row> rows) {
     return new BoundedTestSource<>(rows.toArray(new Row[0]));

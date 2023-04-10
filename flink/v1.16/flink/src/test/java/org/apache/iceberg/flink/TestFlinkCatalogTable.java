@@ -20,17 +20,19 @@ package org.apache.iceberg.flink;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 import org.apache.flink.table.api.DataTypes;
-import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.api.ValidationException;
-import org.apache.flink.table.api.constraints.UniqueConstraint;
-import org.apache.flink.table.catalog.CatalogTable;
+import org.apache.flink.table.catalog.Column;
 import org.apache.flink.table.catalog.ObjectPath;
+import org.apache.flink.table.catalog.ResolvedCatalogTable;
+import org.apache.flink.table.catalog.ResolvedSchema;
+import org.apache.flink.table.catalog.UniqueConstraint;
 import org.apache.flink.table.catalog.exceptions.TableNotExistException;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.BaseTable;
@@ -109,7 +111,7 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
         ValidationException.class,
         "Table `tl` was not found.",
         () -> getTableEnv().from("tl"));
-    Schema actualSchema = FlinkSchemaUtil.convert(getTableEnv().from("tl2").getSchema());
+    Schema actualSchema = FlinkSchemaUtil.convert(getTableEnv().from("tl2").getResolvedSchema());
     Assert.assertEquals(tableSchema.asStruct(), actualSchema.asStruct());
   }
 
@@ -123,9 +125,11 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
         table.schema().asStruct());
     Assert.assertEquals(Maps.newHashMap(), table.properties());
 
-    CatalogTable catalogTable = catalogTable("tl");
+    ResolvedCatalogTable catalogTable = catalogTable("tl");
+
     Assert.assertEquals(
-        TableSchema.builder().field("id", DataTypes.BIGINT()).build(), catalogTable.getSchema());
+        ResolvedSchema.of(Column.physical("id", DataTypes.BIGINT())),
+        catalogTable.getResolvedSchema());
     Assert.assertEquals(Maps.newHashMap(), catalogTable.getOptions());
   }
 
@@ -139,8 +143,9 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
         Sets.newHashSet(table.schema().findField("key").fieldId()),
         table.schema().identifierFieldIds());
 
-    CatalogTable catalogTable = catalogTable("tl");
-    Optional<UniqueConstraint> uniqueConstraintOptional = catalogTable.getSchema().getPrimaryKey();
+    ResolvedCatalogTable catalogTable = catalogTable("tl");
+    Optional<UniqueConstraint> uniqueConstraintOptional =
+        catalogTable.getResolvedSchema().getPrimaryKey();
     Assert.assertTrue(
         "Should have the expected unique constraint", uniqueConstraintOptional.isPresent());
     Assert.assertEquals(
@@ -161,8 +166,9 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
             table.schema().findField("id").fieldId(), table.schema().findField("data").fieldId()),
         table.schema().identifierFieldIds());
 
-    CatalogTable catalogTable = catalogTable("tl");
-    Optional<UniqueConstraint> uniqueConstraintOptional = catalogTable.getSchema().getPrimaryKey();
+    ResolvedCatalogTable catalogTable = catalogTable("tl");
+    Optional<UniqueConstraint> uniqueConstraintOptional =
+        catalogTable.getResolvedSchema().getPrimaryKey();
     Assert.assertTrue(
         "Should have the expected unique constraint", uniqueConstraintOptional.isPresent());
     Assert.assertEquals(
@@ -208,9 +214,9 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
         table.schema().asStruct());
     Assert.assertEquals(Maps.newHashMap(), table.properties());
 
-    CatalogTable catalogTable = catalogTable("tl2");
-    Assert.assertEquals(
-        TableSchema.builder().field("id", DataTypes.BIGINT()).build(), catalogTable.getSchema());
+    ResolvedCatalogTable catalogTable = catalogTable("tl2");
+    ResolvedSchema expectSchema = ResolvedSchema.of(Column.physical("id", DataTypes.BIGINT()));
+    Assert.assertEquals(expectSchema, catalogTable.getResolvedSchema());
     Assert.assertEquals(Maps.newHashMap(), catalogTable.getOptions());
   }
 
@@ -244,15 +250,14 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
         PartitionSpec.builderFor(table.schema()).identity("dt").build(), table.spec());
     Assert.assertEquals(Maps.newHashMap(), table.properties());
 
-    CatalogTable catalogTable = catalogTable("tl");
-    Assert.assertEquals(
-        TableSchema.builder()
-            .field("id", DataTypes.BIGINT())
-            .field("dt", DataTypes.STRING())
-            .build(),
-        catalogTable.getSchema());
+    ResolvedCatalogTable catalogTable = catalogTable("tl");
+    ResolvedSchema resolvedSchema =
+        ResolvedSchema.of(
+            Column.physical("id", DataTypes.BIGINT()), Column.physical("dt", DataTypes.STRING()));
+    Assert.assertEquals(resolvedSchema, catalogTable.getResolvedSchema());
     Assert.assertEquals(Maps.newHashMap(), catalogTable.getOptions());
-    Assert.assertEquals(Collections.singletonList("dt"), catalogTable.getPartitionKeys());
+    List<String> keys = catalogTable.getPartitionKeys();
+    Assert.assertEquals(Collections.singletonList("dt"), keys);
   }
 
   @Test
@@ -301,11 +306,12 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
         schema,
         PartitionSpec.builderFor(schema).bucket("id", 100).build());
 
-    CatalogTable catalogTable = catalogTable("tl");
-    Assert.assertEquals(
-        TableSchema.builder().field("id", DataTypes.BIGINT()).build(), catalogTable.getSchema());
+    ResolvedCatalogTable catalogTable = catalogTable("tl");
+    ResolvedSchema expectSchema = ResolvedSchema.of(Column.physical("id", DataTypes.BIGINT()));
+    Assert.assertEquals(expectSchema, catalogTable.getResolvedSchema());
     Assert.assertEquals(Maps.newHashMap(), catalogTable.getOptions());
-    Assert.assertEquals(Collections.emptyList(), catalogTable.getPartitionKeys());
+    List<String> keys = catalogTable.getPartitionKeys();
+    Assert.assertEquals(Collections.emptyList(), keys);
   }
 
   @Test
@@ -325,7 +331,7 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
     Assert.assertEquals(properties, table("tl").properties());
 
     // remove property
-    CatalogTable catalogTable = catalogTable("tl");
+    ResolvedCatalogTable catalogTable = catalogTable("tl");
     properties.remove("oldK");
     getTableEnv()
         .getCatalog(getTableEnv().getCurrentCatalog())
@@ -351,7 +357,7 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
     Assert.assertEquals(properties, table("tl").properties());
 
     // remove property
-    CatalogTable catalogTable = catalogTable("tl");
+    ResolvedCatalogTable catalogTable = catalogTable("tl");
     properties.remove("oldK");
     getTableEnv()
         .getCatalog(getTableEnv().getCurrentCatalog())
@@ -435,8 +441,8 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
     return validationCatalog.loadTable(TableIdentifier.of(icebergNamespace, name));
   }
 
-  private CatalogTable catalogTable(String name) throws TableNotExistException {
-    return (CatalogTable)
+  private ResolvedCatalogTable catalogTable(String name) throws TableNotExistException {
+    return (ResolvedCatalogTable)
         getTableEnv()
             .getCatalog(getTableEnv().getCurrentCatalog())
             .get()

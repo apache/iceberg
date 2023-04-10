@@ -22,7 +22,7 @@ import java.io.IOException;
 import java.util.List;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
-import org.apache.flink.table.api.TableSchema;
+import org.apache.flink.table.catalog.ResolvedSchema;
 import org.apache.flink.test.util.MiniClusterWithClientResource;
 import org.apache.flink.types.Row;
 import org.apache.iceberg.DistributionMode;
@@ -100,7 +100,7 @@ public class TestFlinkIcebergSinkBranch extends TestFlinkIcebergSinkBase {
     verifyOtherBranchUnmodified();
   }
 
-  private void testWriteRow(TableSchema tableSchema, DistributionMode distributionMode)
+  private void testWriteRow(ResolvedSchema tableSchema, DistributionMode distributionMode)
       throws Exception {
     List<Row> rows = createRows("");
     DataStream<Row> dataStream = env.addSource(createBoundedSource(rows), ROW_TYPE_INFO);

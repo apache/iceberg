@@ -25,7 +25,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import org.apache.flink.table.api.DataTypes;
-import org.apache.flink.table.api.TableSchema;
+import org.apache.flink.table.catalog.Column;
+import org.apache.flink.table.catalog.ResolvedSchema;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.types.Row;
 import org.apache.iceberg.FileFormat;
@@ -85,11 +86,11 @@ public class TestFlinkInputFormat extends TestFlinkSource {
     // The Flink SQL output: [f2, data]
     // The FlinkInputFormat output: [nested[f2], data]
 
-    TableSchema projectedSchema =
-        TableSchema.builder()
-            .field("nested", DataTypes.ROW(DataTypes.FIELD("f2", DataTypes.STRING())))
-            .field("data", DataTypes.STRING())
-            .build();
+    ResolvedSchema projectedSchema =
+        ResolvedSchema.of(
+            Column.physical("nested", DataTypes.ROW(DataTypes.FIELD("f2", DataTypes.STRING()))),
+            Column.physical("data", DataTypes.STRING()));
+
     List<Row> result =
         runFormat(
             FlinkSource.forRowData()
@@ -120,11 +121,10 @@ public class TestFlinkInputFormat extends TestFlinkSource {
     List<Record> writeRecords = RandomGenericData.generate(writeSchema, 2, 0L);
     new GenericAppenderHelper(table, fileFormat, TEMPORARY_FOLDER).appendToTable(writeRecords);
 
-    TableSchema projectedSchema =
-        TableSchema.builder()
-            .field("id", DataTypes.BIGINT())
-            .field("data", DataTypes.STRING())
-            .build();
+    ResolvedSchema projectedSchema =
+        ResolvedSchema.of(
+            Column.physical("id", DataTypes.BIGINT()), Column.physical("data", DataTypes.STRING()));
+
     List<Row> result =
         runFormat(
             FlinkSource.forRowData()
@@ -166,10 +166,11 @@ public class TestFlinkInputFormat extends TestFlinkSource {
       appender.appendToTable(partition, Collections.singletonList(record));
     }
 
-    TableSchema projectedSchema =
-        TableSchema.builder()
-            .field("struct", DataTypes.ROW(DataTypes.FIELD("innerName", DataTypes.STRING())))
-            .build();
+    ResolvedSchema projectedSchema =
+        ResolvedSchema.of(
+            Column.physical(
+                "struct", DataTypes.ROW(DataTypes.FIELD("innerName", DataTypes.STRING()))));
+
     List<Row> result =
         runFormat(
             FlinkSource.forRowData()

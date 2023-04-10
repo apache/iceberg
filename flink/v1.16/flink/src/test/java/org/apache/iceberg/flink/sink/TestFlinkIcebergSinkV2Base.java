@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
+import org.apache.flink.api.common.typeinfo.Types;
 import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.api.java.typeutils.RowTypeInfo;
 import org.apache.flink.streaming.api.datastream.DataStream;
@@ -49,7 +50,7 @@ public class TestFlinkIcebergSinkV2Base {
 
   protected static final int FORMAT_V2 = 2;
   protected static final TypeInformation<Row> ROW_TYPE_INFO =
-      new RowTypeInfo(SimpleDataUtil.FLINK_SCHEMA.getFieldTypes());
+      new RowTypeInfo(Types.INT, Types.STRING);
 
   protected static final int ROW_ID_POS = 0;
   protected static final int ROW_DATA_POS = 1;

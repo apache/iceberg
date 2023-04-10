@@ -22,12 +22,14 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import org.apache.flink.table.api.TableColumn;
-import org.apache.flink.table.api.TableSchema;
+import org.apache.flink.table.catalog.Column;
+import org.apache.flink.table.catalog.ResolvedSchema;
 import org.apache.flink.types.Row;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.TestFixtures;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 public abstract class TestFlinkSource extends TestFlinkScan {
@@ -38,16 +40,18 @@ public abstract class TestFlinkSource extends TestFlinkScan {
 
   @Override
   protected List<Row> runWithProjection(String... projected) throws Exception {
-    TableSchema.Builder builder = TableSchema.builder();
-    TableSchema schema =
-        FlinkSchemaUtil.toSchema(
-            FlinkSchemaUtil.convert(
-                catalogResource.catalog().loadTable(TestFixtures.TABLE_IDENTIFIER).schema()));
+    Schema catalogSchema =
+        catalogResource.catalog().loadTable(TestFixtures.TABLE_IDENTIFIER).schema();
+    ResolvedSchema schema = FlinkSchemaUtil.toSchema(FlinkSchemaUtil.convert(catalogSchema));
+
+    List<Column> columns = Lists.newArrayList();
     for (String field : projected) {
-      TableColumn column = schema.getTableColumn(field).get();
-      builder.field(column.getName(), column.getType());
+      Column column = schema.getColumn(field).get();
+      columns.add(column);
     }
-    return run(FlinkSource.forRowData().project(builder.build()), Maps.newHashMap(), "", projected);
+    ResolvedSchema builderResolvedSchema = ResolvedSchema.of(columns);
+    return run(
+        FlinkSource.forRowData().project(builderResolvedSchema), Maps.newHashMap(), "", projected);
   }
 
   @Override
