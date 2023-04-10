@@ -28,6 +28,7 @@ import org.apache.iceberg.LockManager;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.aws.s3.S3FileIO;
+import org.apache.iceberg.aws.util.RetryDetector;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
@@ -142,6 +143,7 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
   @Override
   protected void doCommit(TableMetadata base, TableMetadata metadata) {
     CommitStatus commitStatus = CommitStatus.FAILURE;
+    RetryDetector retryDetector = new RetryDetector();
 
     String newMetadataLocation = null;
     boolean glueTempTableCreated = false;
@@ -154,45 +156,27 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
       Table glueTable = getGlueTable();
       checkMetadataLocation(glueTable, base);
       Map<String, String> properties = prepareProperties(glueTable, newMetadataLocation);
-      persistGlueTable(glueTable, properties, metadata);
+      persistGlueTable(glueTable, properties, metadata, retryDetector);
       commitStatus = CommitStatus.SUCCESS;
     } catch (CommitFailedException e) {
       throw e;
-    } catch (ConcurrentModificationException e) {
-      throw new CommitFailedException(
-          e, "Cannot commit %s because Glue detected concurrent update", tableName());
-    } catch (software.amazon.awssdk.services.glue.model.AlreadyExistsException e) {
-      throw new AlreadyExistsException(
-          e,
-          "Cannot commit %s because its Glue table already exists when trying to create one",
-          tableName());
-    } catch (EntityNotFoundException e) {
-      throw new NotFoundException(
-          e, "Cannot commit %s because Glue cannot find the requested entity", tableName());
-    } catch (AccessDeniedException e) {
-      throw new ForbiddenException(
-          e, "Cannot commit %s because Glue cannot access the requested resources", tableName());
-    } catch (software.amazon.awssdk.services.glue.model.ValidationException e) {
-      throw new ValidationException(
-          e,
-          "Cannot commit %s because Glue encountered a validation exception "
-              + "while accessing requested resources",
-          tableName());
     } catch (RuntimeException persistFailure) {
-      LOG.error(
-          "Confirming if commit to {} indeed failed to persist, attempting to reconnect and check.",
-          fullTableName,
-          persistFailure);
+      boolean isAwsServiceException = persistFailure instanceof AwsServiceException;
 
-      if (persistFailure instanceof AwsServiceException) {
-        int statusCode = ((AwsServiceException) persistFailure).statusCode();
-        if (statusCode >= 500 && statusCode < 600) {
-          commitStatus = CommitStatus.FAILURE;
-        } else {
-          throw persistFailure;
-        }
-      } else {
+      // If we got an exception we weren't expecting, or we got an AWS service exception
+      // but retries were performed, attempt to reconcile the actual commit status.
+      if (!isAwsServiceException || retryDetector.retried()) {
+        LOG.warn(
+            "Received unexpected failure when committing to {}, validating if commit ended up succeeding.",
+            fullTableName,
+            persistFailure);
         commitStatus = checkCommitStatus(newMetadataLocation, metadata);
+      }
+
+      // If we got an AWS exception we would usually handle, but find we
+      // succeeded on a retry that threw an exception, skip the exception.
+      if (commitStatus != CommitStatus.SUCCESS && isAwsServiceException) {
+        handleAWSExceptions((AwsServiceException) persistFailure);
       }
 
       switch (commitStatus) {
@@ -298,11 +282,16 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
   }
 
   @VisibleForTesting
-  void persistGlueTable(Table glueTable, Map<String, String> parameters, TableMetadata metadata) {
+  void persistGlueTable(
+      Table glueTable,
+      Map<String, String> parameters,
+      TableMetadata metadata,
+      RetryDetector retryDetector) {
     if (glueTable != null) {
       LOG.debug("Committing existing Glue table: {}", tableName());
       UpdateTableRequest.Builder updateTableRequest =
           UpdateTableRequest.builder()
+              .overrideConfiguration(c -> c.addMetricPublisher(retryDetector))
               .catalogId(awsProperties.glueCatalogId())
               .databaseName(databaseName)
               .skipArchive(awsProperties.glueCatalogSkipArchive())
@@ -325,6 +314,7 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
       LOG.debug("Committing new Glue table: {}", tableName());
       glue.createTable(
           CreateTableRequest.builder()
+              .overrideConfiguration(c -> c.addMetricPublisher(retryDetector))
               .catalogId(awsProperties.glueCatalogId())
               .databaseName(databaseName)
               .tableInput(
@@ -337,6 +327,41 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
                       .parameters(parameters)
                       .build())
               .build());
+    }
+  }
+
+  private void handleAWSExceptions(AwsServiceException persistFailure) {
+    if (persistFailure instanceof ConcurrentModificationException) {
+      throw new CommitFailedException(
+          persistFailure, "Cannot commit %s because Glue detected concurrent update", tableName());
+    } else if (persistFailure
+        instanceof software.amazon.awssdk.services.glue.model.AlreadyExistsException) {
+      throw new AlreadyExistsException(
+          persistFailure,
+          "Cannot commit %s because its Glue table already exists when trying to create one",
+          tableName());
+    } else if (persistFailure instanceof EntityNotFoundException) {
+      throw new NotFoundException(
+          persistFailure,
+          "Cannot commit %s because Glue cannot find the requested entity",
+          tableName());
+    } else if (persistFailure instanceof AccessDeniedException) {
+      throw new ForbiddenException(
+          persistFailure,
+          "Cannot commit %s because Glue cannot access the requested resources",
+          tableName());
+    } else if (persistFailure
+        instanceof software.amazon.awssdk.services.glue.model.ValidationException) {
+      throw new ValidationException(
+          persistFailure,
+          "Cannot commit %s because Glue encountered a validation exception "
+              + "while accessing requested resources",
+          tableName());
+    } else {
+      int statusCode = persistFailure.statusCode();
+      if (statusCode < 500 || statusCode >= 600) {
+        throw persistFailure;
+      }
     }
   }
 
