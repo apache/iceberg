@@ -98,6 +98,7 @@ public class AwsClientFactories {
     @Override
     public S3Client s3() {
       return S3Client.builder()
+          .applyMutation(awsProperties::applyClientRegionConfiguration)
           .applyMutation(awsProperties::applyHttpClientConfigurations)
           .applyMutation(awsProperties::applyS3EndpointConfigurations)
           .applyMutation(awsProperties::applyS3ServiceConfigurations)
@@ -109,22 +110,28 @@ public class AwsClientFactories {
     @Override
     public GlueClient glue() {
       return GlueClient.builder()
+          .applyMutation(awsProperties::applyClientRegionConfiguration)
           .applyMutation(awsProperties::applyHttpClientConfigurations)
           .applyMutation(awsProperties::applyGlueEndpointConfigurations)
+          .applyMutation(awsProperties::applyClientCredentialConfigurations)
           .build();
     }
 
     @Override
     public KmsClient kms() {
       return KmsClient.builder()
+          .applyMutation(awsProperties::applyClientRegionConfiguration)
           .applyMutation(awsProperties::applyHttpClientConfigurations)
+          .applyMutation(awsProperties::applyClientCredentialConfigurations)
           .build();
     }
 
     @Override
     public DynamoDbClient dynamo() {
       return DynamoDbClient.builder()
+          .applyMutation(awsProperties::applyClientRegionConfiguration)
           .applyMutation(awsProperties::applyHttpClientConfigurations)
+          .applyMutation(awsProperties::applyClientCredentialConfigurations)
           .applyMutation(awsProperties::applyDynamoDbEndpointConfigurations)
           .build();
     }

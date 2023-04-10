@@ -18,6 +18,11 @@
  */
 package org.apache.iceberg.actions;
 
+/**
+ * @deprecated will be removed in 1.4.0; use {@link ImmutableSnapshotTable.Result#builder()}
+ *     instead.
+ */
+@Deprecated
 public class BaseSnapshotTableActionResult implements SnapshotTable.Result {
 
   private final long importedDataFilesCount;

@@ -24,10 +24,12 @@ with the pyarrow library.
 """
 from __future__ import annotations
 
+import multiprocessing
 import os
 from functools import lru_cache
 from itertools import chain
 from multiprocessing.pool import ThreadPool
+from multiprocessing.sharedctypes import Synchronized
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -434,11 +436,11 @@ class _ConvertToArrowExpression(BoundBooleanExpressionVisitor[pc.Expression]):
 
     def visit_is_nan(self, term: BoundTerm[Any]) -> pc.Expression:
         ref = pc.field(term.ref().field.name)
-        return ref.is_null(nan_is_null=True) & ref.is_valid()
+        return pc.is_nan(ref)
 
     def visit_not_nan(self, term: BoundTerm[Any]) -> pc.Expression:
         ref = pc.field(term.ref().field.name)
-        return ~(ref.is_null(nan_is_null=True) & ref.is_valid())
+        return ~pc.is_nan(ref)
 
     def visit_is_null(self, term: BoundTerm[Any]) -> pc.Expression:
         return pc.field(term.ref().field.name).is_null(nan_is_null=False)
@@ -567,14 +569,19 @@ def _task_to_table(
     projected_field_ids: Set[int],
     positional_deletes: Optional[List[ChunkedArray]],
     case_sensitive: bool,
+    rows_counter: Synchronized[int],
+    limit: Optional[int] = None,
 ) -> Optional[pa.Table]:
-    _, path = PyArrowFileIO.parse_location(task.file.file_path)
+    if limit and rows_counter.value >= limit:
+        return None
 
-    # Get the schema
-    with fs.open_input_file(path) as fout:
-        parquet_schema = pq.read_schema(fout)
+    _, path = PyArrowFileIO.parse_location(task.file.file_path)
+    arrow_format = ds.ParquetFileFormat(pre_buffer=True, buffer_size=(ONE_MEGABYTE * 8))
+    with fs.open_input_file(path) as fin:
+        fragment = arrow_format.make_fragment(fin)
+        physical_schema = fragment.physical_schema
         schema_raw = None
-        if metadata := parquet_schema.metadata:
+        if metadata := physical_schema.metadata:
             schema_raw = metadata.get(ICEBERG_SCHEMA)
         if schema_raw is None:
             raise ValueError(
@@ -593,16 +600,21 @@ def _task_to_table(
         if file_schema is None:
             raise ValueError(f"Missing Iceberg schema in Metadata for file: {path}")
 
-        arrow_table = pq.read_table(
-            source=fout,
-            schema=parquet_schema,
-            pre_buffer=True,
-            buffer_size=8 * ONE_MEGABYTE,
-            # We only want to filter when there are no positional deletes,
-            # Otherwise we'll mess up the positions
-            filters=pyarrow_filter if positional_deletes is None else None,
+        fragment_scanner = ds.Scanner.from_fragment(
+            fragment=fragment,
+            schema=physical_schema,
+            filter=pyarrow_filter,
             columns=[col.name for col in file_project_schema.columns],
         )
+
+        if limit:
+            arrow_table = fragment_scanner.head(limit)
+            with rows_counter.get_lock():
+                if rows_counter.value >= limit:
+                    return None
+                rows_counter.value += len(arrow_table)
+        else:
+            arrow_table = fragment_scanner.to_table()
 
         if positional_deletes is not None:
             # It can be that there are multiple delete files on top,
@@ -638,7 +650,12 @@ def _task_to_table(
 
 
 def project_table(
-    tasks: Iterable[FileScanTask], table: Table, row_filter: BooleanExpression, projected_schema: Schema, case_sensitive: bool
+    tasks: Iterable[FileScanTask],
+    table: Table,
+    row_filter: BooleanExpression,
+    projected_schema: Schema,
+    case_sensitive: bool,
+    limit: Optional[int] = None,
 ) -> pa.Table:
     """Resolves the right columns based on the identifier
 
@@ -674,6 +691,8 @@ def project_table(
         id for id in projected_schema.field_ids if not isinstance(projected_schema.find_type(id), (MapType, ListType))
     }.union(extract_field_ids(bound_row_filter))
 
+    rows_counter = multiprocessing.Value("i", 0)
+
     with ThreadPool() as pool:
         # Fetch the deletes
         deletes_per_file: Dict[str, List[ChunkedArray]] = {}
@@ -703,6 +722,8 @@ def project_table(
                         projected_field_ids,
                         deletes_per_file.get(task.file.file_path),
                         case_sensitive,
+                        rows_counter,
+                        limit
                     )
                     for task in tasks
                 ],
@@ -711,11 +732,13 @@ def project_table(
         ]
 
     if len(tables) > 1:
-        return pa.concat_tables(tables)
+        final_table = pa.concat_tables(tables)
     elif len(tables) == 1:
-        return tables[0]
+        final_table = tables[0]
     else:
-        return pa.Table.from_batches([], schema=schema_to_pyarrow(projected_schema))
+        final_table = pa.Table.from_batches([], schema=schema_to_pyarrow(projected_schema))
+
+    return final_table.slice(0, limit)
 
 
 def to_requested_schema(requested_schema: Schema, file_schema: Schema, table: pa.Table) -> pa.Table:

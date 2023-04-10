@@ -32,9 +32,9 @@ import java.util.Set;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
-import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
@@ -98,7 +98,7 @@ public class RESTSessionCatalog extends BaseSessionCatalog
           OAuth2Properties.SAML1_TOKEN_TYPE);
 
   private final Function<Map<String, String>, RESTClient> clientBuilder;
-  private Function<Map<String, String>, FileIO> ioBuilder = null;
+  private final BiFunction<SessionContext, Map<String, String>, FileIO> ioBuilder;
   private Cache<String, AuthSession> sessions = null;
   private AuthSession catalogAuth = null;
   private boolean keepTokenRefreshed = true;
@@ -123,11 +123,15 @@ public class RESTSessionCatalog extends BaseSessionCatalog
   }
 
   public RESTSessionCatalog() {
-    this(config -> HTTPClient.builder(config).uri(config.get(CatalogProperties.URI)).build());
+    this(config -> HTTPClient.builder(config).uri(config.get(CatalogProperties.URI)).build(), null);
   }
 
-  RESTSessionCatalog(Function<Map<String, String>, RESTClient> clientBuilder) {
+  public RESTSessionCatalog(
+      Function<Map<String, String>, RESTClient> clientBuilder,
+      BiFunction<SessionContext, Map<String, String>, FileIO> ioBuilder) {
+    Preconditions.checkNotNull(clientBuilder, "Invalid client builder: null");
     this.clientBuilder = clientBuilder;
+    this.ioBuilder = ioBuilder;
   }
 
   @Override
@@ -188,7 +192,7 @@ public class RESTSessionCatalog extends BaseSessionCatalog
               client, tokenRefreshExecutor(), token, expiresAtMillis(mergedProps), catalogAuth);
     }
 
-    this.io = newFileIO(mergedProps);
+    this.io = newFileIO(SessionContext.createEmpty(), mergedProps);
 
     this.snapshotMode =
         SnapshotMode.valueOf(
@@ -201,11 +205,6 @@ public class RESTSessionCatalog extends BaseSessionCatalog
     this.reportingViaRestEnabled =
         PropertyUtil.propertyAsBoolean(mergedProps, REST_METRICS_REPORTING_ENABLED, true);
     super.initialize(name, mergedProps);
-  }
-
-  public void setFileIOBuilder(Function<Map<String, String>, FileIO> newIOBuilder) {
-    Preconditions.checkState(null == io, "Cannot set IO builder after calling initialize");
-    this.ioBuilder = newIOBuilder;
   }
 
   private AuthSession session(SessionContext context) {
@@ -224,12 +223,6 @@ public class RESTSessionCatalog extends BaseSessionCatalog
   @Override
   public void setConf(Object newConf) {
     this.conf = newConf;
-  }
-
-  /** @deprecated will be removed in 1.3.0; use {@link #setConf(Object)} */
-  @Deprecated
-  public void setConf(Configuration newConf) {
-    setConf((Object) newConf);
   }
 
   @Override
@@ -334,6 +327,7 @@ public class RESTSessionCatalog extends BaseSessionCatalog
       tableMetadata =
           TableMetadata.buildFrom(response.tableMetadata())
               .withMetadataLocation(response.metadataLocation())
+              .setPreviousFileLocation(null)
               .setSnapshotsSupplier(
                   () ->
                       loadInternal(context, identifier, SnapshotMode.ALL)
@@ -350,7 +344,7 @@ public class RESTSessionCatalog extends BaseSessionCatalog
             client,
             paths.table(loadedIdent),
             session::headers,
-            tableFileIO(response.config()),
+            tableFileIO(context, response.config()),
             tableMetadata);
 
     TableIdentifier tableIdentifier = loadedIdent;
@@ -605,7 +599,7 @@ public class RESTSessionCatalog extends BaseSessionCatalog
               client,
               paths.table(ident),
               session::headers,
-              tableFileIO(response.config()),
+              tableFileIO(context, response.config()),
               response.tableMetadata());
 
       return new BaseTable(ops, fullTableName(ident));
@@ -624,7 +618,7 @@ public class RESTSessionCatalog extends BaseSessionCatalog
               client,
               paths.table(ident),
               session::headers,
-              tableFileIO(response.config()),
+              tableFileIO(context, response.config()),
               RESTTableOperations.UpdateType.CREATE,
               createChanges(meta),
               meta);
@@ -675,7 +669,7 @@ public class RESTSessionCatalog extends BaseSessionCatalog
               client,
               paths.table(ident),
               session::headers,
-              tableFileIO(response.config()),
+              tableFileIO(context, response.config()),
               RESTTableOperations.UpdateType.REPLACE,
               changes.build(),
               base);
@@ -765,9 +759,9 @@ public class RESTSessionCatalog extends BaseSessionCatalog
     return String.format("%s.%s", name(), ident);
   }
 
-  private FileIO newFileIO(Map<String, String> properties) {
+  private FileIO newFileIO(SessionContext context, Map<String, String> properties) {
     if (null != ioBuilder) {
-      return ioBuilder.apply(properties);
+      return ioBuilder.apply(context, properties);
     } else {
       String ioImpl =
           properties.getOrDefault(CatalogProperties.FILE_IO_IMPL, ResolvingFileIO.class.getName());
@@ -775,14 +769,14 @@ public class RESTSessionCatalog extends BaseSessionCatalog
     }
   }
 
-  private FileIO tableFileIO(Map<String, String> config) {
-    if (config.isEmpty()) {
+  private FileIO tableFileIO(SessionContext context, Map<String, String> config) {
+    if (config.isEmpty() && ioBuilder == null) {
       return io; // reuse client and io since config is the same
     }
 
     Map<String, String> fullConf = RESTUtil.merge(properties(), config);
 
-    return newFileIO(fullConf);
+    return newFileIO(context, fullConf);
   }
 
   private AuthSession tableSession(Map<String, String> tableConf, AuthSession parent) {

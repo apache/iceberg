@@ -71,7 +71,7 @@ public class TestHTTPClient {
   @BeforeClass
   public static void beforeClass() {
     mockServer = startClientAndServer(PORT);
-    restClient = HTTPClient.builder().uri(URI).build();
+    restClient = HTTPClient.builder(ImmutableMap.of()).uri(URI).build();
     icebergBuildGitCommitShort = IcebergBuild.gitCommitShortId();
     icebergBuildFullVersion = IcebergBuild.fullVersion();
   }

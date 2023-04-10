@@ -603,4 +603,9 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
   void setListAllTables(boolean listAllTables) {
     this.listAllTables = listAllTables;
   }
+
+  @VisibleForTesting
+  ClientPool<IMetaStoreClient, TException> clientPool() {
+    return clients;
+  }
 }

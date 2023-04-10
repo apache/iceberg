@@ -773,24 +773,26 @@ public class TestMetadataUpdateParser {
   @Test
   public void testSetStatistics() {
     String json =
-        "{\"action\":\"set-statistics\",\"snapshot-id\":42,\"statistics\":{\"snapshot-id\":42,"
+        "{\"action\":\"set-statistics\",\"snapshot-id\":1940541653261589030,\"statistics\":{\"snapshot-id\":1940541653261589030,"
             + "\"statistics-path\":\"s3://bucket/warehouse/stats.puffin\",\"file-size-in-bytes\":124,"
             + "\"file-footer-size-in-bytes\":27,\"blob-metadata\":[{\"type\":\"boring-type\","
-            + "\"snapshot-id\":42,\"sequence-number\":2,\"fields\":[1],"
+            + "\"snapshot-id\":1940541653261589030,\"sequence-number\":2,\"fields\":[1],"
             + "\"properties\":{\"prop-key\":\"prop-value\"}}]}}";
+
+    long snapshotId = 1940541653261589030L;
     MetadataUpdate expected =
         new MetadataUpdate.SetStatistics(
-            42,
+            snapshotId,
             new GenericStatisticsFile(
-                42,
+                snapshotId,
                 "s3://bucket/warehouse/stats.puffin",
-                124,
-                27,
+                124L,
+                27L,
                 ImmutableList.of(
                     new GenericBlobMetadata(
                         "boring-type",
-                        42,
-                        2,
+                        snapshotId,
+                        2L,
                         ImmutableList.of(1),
                         ImmutableMap.of("prop-key", "prop-value")))));
     assertEquals(
@@ -803,8 +805,8 @@ public class TestMetadataUpdateParser {
 
   @Test
   public void testRemoveStatistics() {
-    String json = "{\"action\":\"remove-statistics\",\"snapshot-id\":42}";
-    MetadataUpdate expected = new MetadataUpdate.RemoveStatistics(42);
+    String json = "{\"action\":\"remove-statistics\",\"snapshot-id\":1940541653261589030}";
+    MetadataUpdate expected = new MetadataUpdate.RemoveStatistics(1940541653261589030L);
     assertEquals(
         MetadataUpdateParser.REMOVE_STATISTICS, expected, MetadataUpdateParser.fromJson(json));
     Assert.assertEquals(

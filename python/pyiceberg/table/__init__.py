@@ -70,6 +70,7 @@ from pyiceberg.typedef import (
 if TYPE_CHECKING:
     import pandas as pd
     import pyarrow as pa
+    import ray
     from duckdb import DuckDBPyConnection
 
 ALWAYS_TRUE = AlwaysTrue()
@@ -98,10 +99,11 @@ class Table:
     def scan(
         self,
         row_filter: Union[str, BooleanExpression] = ALWAYS_TRUE,
-        selected_fields: Tuple[str] = ("*",),
+        selected_fields: Tuple[str, ...] = ("*",),
         case_sensitive: bool = True,
         snapshot_id: Optional[int] = None,
         options: Properties = EMPTY_DICT,
+        limit: Optional[int] = None,
     ) -> DataScan:
         return DataScan(
             table=self,
@@ -110,6 +112,7 @@ class Table:
             case_sensitive=case_sensitive,
             snapshot_id=snapshot_id,
             options=options,
+            limit=limit,
         )
 
     def schema(self) -> Schema:
@@ -218,19 +221,21 @@ S = TypeVar("S", bound="TableScan", covariant=True)
 class TableScan(ABC):
     table: Table
     row_filter: BooleanExpression
-    selected_fields: Tuple[str]
+    selected_fields: Tuple[str, ...]
     case_sensitive: bool
     snapshot_id: Optional[int]
     options: Properties
+    limit: Optional[int]
 
     def __init__(
         self,
         table: Table,
         row_filter: Union[str, BooleanExpression] = ALWAYS_TRUE,
-        selected_fields: Tuple[str] = ("*",),
+        selected_fields: Tuple[str, ...] = ("*",),
         case_sensitive: bool = True,
         snapshot_id: Optional[int] = None,
         options: Properties = EMPTY_DICT,
+        limit: Optional[int] = None,
     ):
         self.table = table
         self.row_filter = _parse_row_filter(row_filter)
@@ -238,6 +243,7 @@ class TableScan(ABC):
         self.case_sensitive = case_sensitive
         self.snapshot_id = snapshot_id
         self.options = options
+        self.limit = limit
 
     def snapshot(self) -> Optional[Snapshot]:
         if self.snapshot_id:
@@ -343,12 +349,13 @@ class DataScan(TableScan):
         self,
         table: Table,
         row_filter: Union[str, BooleanExpression] = ALWAYS_TRUE,
-        selected_fields: Tuple[str] = ("*",),
+        selected_fields: Tuple[str, ...] = ("*",),
         case_sensitive: bool = True,
         snapshot_id: Optional[int] = None,
         options: Properties = EMPTY_DICT,
+        limit: Optional[int] = None,
     ):
-        super().__init__(table, row_filter, selected_fields, case_sensitive, snapshot_id, options)
+        super().__init__(table, row_filter, selected_fields, case_sensitive, snapshot_id, options, limit)
 
     def _build_partition_projection(self, spec_id: int) -> BooleanExpression:
         project = inclusive_projection(self.table.schema(), self.table.specs()[spec_id])
@@ -453,7 +460,12 @@ class DataScan(TableScan):
         from pyiceberg.io.pyarrow import project_table
 
         return project_table(
-            self.plan_files(), self.table, self.row_filter, self.projection(), case_sensitive=self.case_sensitive
+            self.plan_files(),
+            self.table,
+            self.row_filter,
+            self.projection(),
+            case_sensitive=self.case_sensitive,
+            limit=self.limit,
         )
 
     def to_pandas(self, **kwargs: Any) -> pd.DataFrame:
@@ -466,3 +478,8 @@ class DataScan(TableScan):
         con.register(table_name, self.to_arrow())
 
         return con
+
+    def to_ray(self) -> ray.data.dataset.Dataset:
+        import ray
+
+        return ray.data.from_arrow(self.to_arrow())

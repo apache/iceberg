@@ -44,12 +44,6 @@ public abstract class BaseMetadataTable extends BaseReadOnlyTable
   private final BaseTable table;
   private final String name;
 
-  /** @deprecated will be removed in 1.3.0; use BaseMetadataTable(Table, String) instead. */
-  @Deprecated
-  protected BaseMetadataTable(TableOperations ignored, Table table, String name) {
-    this(table, name);
-  }
-
   protected BaseMetadataTable(Table table, String name) {
     super("metadata");
     Preconditions.checkArgument(
@@ -108,7 +102,7 @@ public abstract class BaseMetadataTable extends BaseReadOnlyTable
     return table;
   }
 
-  /** @deprecated will be removed in 2.0.0; do not use metadata table TableOperations */
+  /** @deprecated will be removed in 1.4.0; do not use metadata table TableOperations */
   @Override
   @Deprecated
   public TableOperations operations() {

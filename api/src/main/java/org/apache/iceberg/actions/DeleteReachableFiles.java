@@ -22,6 +22,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.SupportsBulkOperations;
+import org.immutables.value.Value;
 
 /**
  * An action that deletes all files referenced by a table metadata file.
@@ -32,6 +33,7 @@ import org.apache.iceberg.io.SupportsBulkOperations;
  *
  * <p>Implementations may use a query engine to distribute parts of work.
  */
+@Value.Enclosing
 public interface DeleteReachableFiles
     extends Action<DeleteReachableFiles, DeleteReachableFiles.Result> {
 
@@ -65,6 +67,7 @@ public interface DeleteReachableFiles
   DeleteReachableFiles io(FileIO io);
 
   /** The action result that contains a summary of the execution. */
+  @Value.Immutable
   interface Result {
 
     /** Returns the number of deleted data files. */
