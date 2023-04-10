@@ -63,7 +63,7 @@ public class InMemoryInputFile implements InputFile {
 
   private static class InMemorySeekableInputStream extends SeekableInputStream {
 
-    private final int length;
+    private final long length;
     private final ByteArrayInputStream delegate;
     private boolean closed = false;
 
