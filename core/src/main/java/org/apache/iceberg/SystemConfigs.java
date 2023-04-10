@@ -37,7 +37,7 @@ public class SystemConfigs {
           "iceberg.worker.num-threads",
           "ICEBERG_WORKER_NUM_THREADS",
           Math.max(2, Runtime.getRuntime().availableProcessors()),
-          Integer::parseInt);
+          Integer::parseUnsignedInt);
 
   /** Whether to use the shared worker pool when planning table scans. */
   public static final ConfigEntry<Boolean> SCAN_THREAD_POOL_ENABLED =
@@ -56,7 +56,7 @@ public class SystemConfigs {
           "iceberg.io.manifest.cache.fileio-max",
           "ICEBERG_IO_MANIFEST_CACHE_FILEIO_MAX",
           8,
-          Integer::parseInt);
+          Integer::parseUnsignedInt);
 
   public static class ConfigEntry<T> {
     private final String propertyKey;
