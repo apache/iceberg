@@ -48,7 +48,6 @@ from urllib.parse import urlparse
 import pyarrow as pa
 import pyarrow.compute as pc
 import pyarrow.dataset as ds
-import pyarrow.parquet as pq
 from pyarrow import ChunkedArray
 from pyarrow.fs import (
     FileInfo,
@@ -723,7 +722,7 @@ def project_table(
                         deletes_per_file.get(task.file.file_path),
                         case_sensitive,
                         rows_counter,
-                        limit
+                        limit,
                     )
                     for task in tasks
                 ],
