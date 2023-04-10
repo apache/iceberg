@@ -29,6 +29,7 @@ import java.util.stream.Stream;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.types.Types;
@@ -151,16 +152,15 @@ public class TestMetadataTableScansWithPartitionEvolution extends MetadataTableS
 
     TableScan scanNoFilter = partitionsTable.newScan().select("partition");
     Assert.assertEquals(idPartition, scanNoFilter.schema().asStruct());
-    try (CloseableIterable<FileScanTask> tasksNoFilter =
-        PartitionsTable.planFiles((StaticTableScan) scanNoFilter)) {
-      Assertions.assertThat(tasksNoFilter).hasSize(4);
-      validateIncludesPartitionScan(tasksNoFilter, 0);
-      validateIncludesPartitionScan(tasksNoFilter, 1);
-      validateIncludesPartitionScan(tasksNoFilter, 2);
-      validateIncludesPartitionScan(tasksNoFilter, 3);
-      validateIncludesPartitionScan(tasksNoFilter, 1, 2);
-      validateIncludesPartitionScan(tasksNoFilter, 1, 3);
-    }
+    CloseableIterable<DataFile> dataFiles =
+        PartitionsTable.planDataFiles((StaticTableScan) scanNoFilter);
+    Assert.assertEquals(4, Iterators.size(dataFiles.iterator()));
+    validatePartition(dataFiles, 0, 0);
+    validatePartition(dataFiles, 0, 1);
+    validatePartition(dataFiles, 0, 2);
+    validatePartition(dataFiles, 0, 3);
+    validatePartition(dataFiles, 1, 2);
+    validatePartition(dataFiles, 1, 3);
   }
 
   @Test
