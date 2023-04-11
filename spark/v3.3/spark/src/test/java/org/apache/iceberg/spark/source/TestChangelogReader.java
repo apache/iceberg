@@ -103,7 +103,8 @@ public class TestChangelogReader extends SparkTestBase {
     List<InternalRow> rows = Lists.newArrayList();
 
     for (ScanTaskGroup<ChangelogScanTask> taskGroup : taskGroups) {
-      ChangelogRowReader reader = new ChangelogRowReader(table, taskGroup, table.schema(), false);
+      ChangelogRowReader reader =
+          new ChangelogRowReader(table, taskGroup, table.schema(), table.schema(), false);
       while (reader.next()) {
         rows.add(reader.get().copy());
       }
@@ -133,7 +134,8 @@ public class TestChangelogReader extends SparkTestBase {
     List<InternalRow> rows = Lists.newArrayList();
 
     for (ScanTaskGroup<ChangelogScanTask> taskGroup : taskGroups) {
-      ChangelogRowReader reader = new ChangelogRowReader(table, taskGroup, table.schema(), false);
+      ChangelogRowReader reader =
+          new ChangelogRowReader(table, taskGroup, table.schema(), table.schema(), false);
       while (reader.next()) {
         rows.add(reader.get().copy());
       }
@@ -166,7 +168,8 @@ public class TestChangelogReader extends SparkTestBase {
     List<InternalRow> rows = Lists.newArrayList();
 
     for (ScanTaskGroup<ChangelogScanTask> taskGroup : taskGroups) {
-      ChangelogRowReader reader = new ChangelogRowReader(table, taskGroup, table.schema(), false);
+      ChangelogRowReader reader =
+          new ChangelogRowReader(table, taskGroup, table.schema(), table.schema(), false);
       while (reader.next()) {
         rows.add(reader.get().copy());
       }
@@ -192,7 +195,8 @@ public class TestChangelogReader extends SparkTestBase {
     List<InternalRow> rows = Lists.newArrayList();
 
     for (ScanTaskGroup<ChangelogScanTask> taskGroup : taskGroups) {
-      ChangelogRowReader reader = new ChangelogRowReader(table, taskGroup, table.schema(), false);
+      ChangelogRowReader reader =
+          new ChangelogRowReader(table, taskGroup, table.schema(), table.schema(), false);
       while (reader.next()) {
         rows.add(reader.get().copy());
       }

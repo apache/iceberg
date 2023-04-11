@@ -20,6 +20,7 @@ package org.apache.iceberg.arrow.vectorized;
 
 import java.lang.reflect.Array;
 import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.util.function.IntFunction;
 import java.util.function.Supplier;
@@ -45,6 +46,7 @@ import org.apache.arrow.vector.util.DecimalUtility;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.Dictionary;
+import org.apache.parquet.schema.OriginalType;
 import org.apache.parquet.schema.PrimitiveType;
 
 /**
@@ -97,12 +99,13 @@ public class GenericArrowVectorAccessorFactory<
     Dictionary dictionary = holder.dictionary();
     boolean isVectorDictEncoded = holder.isDictionaryEncoded();
     FieldVector vector = holder.vector();
+    ColumnDescriptor desc = holder.descriptor();
+    // desc could be null when the holder is ConstantVectorHolder/PositionVectorHolder
+    PrimitiveType primitive = desc == null ? null : desc.getPrimitiveType();
     if (isVectorDictEncoded) {
-      ColumnDescriptor desc = holder.descriptor();
-      PrimitiveType primitive = desc.getPrimitiveType();
       return getDictionaryVectorAccessor(dictionary, desc, vector, primitive);
     } else {
-      return getPlainVectorAccessor(vector);
+      return getPlainVectorAccessor(vector, primitive);
     }
   }
 
@@ -166,12 +169,18 @@ public class GenericArrowVectorAccessorFactory<
 
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
   private ArrowVectorAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT> getPlainVectorAccessor(
-      FieldVector vector) {
+      FieldVector vector, PrimitiveType primitive) {
     if (vector instanceof BitVector) {
       return new BooleanAccessor<>((BitVector) vector);
     } else if (vector instanceof IntVector) {
+      if (isDecimal(primitive)) {
+        return new IntBackedDecimalAccessor<>((IntVector) vector, decimalFactorySupplier.get());
+      }
       return new IntAccessor<>((IntVector) vector);
     } else if (vector instanceof BigIntVector) {
+      if (isDecimal(primitive)) {
+        return new LongBackedDecimalAccessor<>((BigIntVector) vector, decimalFactorySupplier.get());
+      }
       return new LongAccessor<>((BigIntVector) vector);
     } else if (vector instanceof Float4Vector) {
       return new FloatAccessor<>((Float4Vector) vector);
@@ -198,9 +207,17 @@ public class GenericArrowVectorAccessorFactory<
     } else if (vector instanceof TimeMicroVector) {
       return new TimeMicroAccessor<>((TimeMicroVector) vector);
     } else if (vector instanceof FixedSizeBinaryVector) {
+      if (isDecimal(primitive)) {
+        return new FixedSizeBinaryBackedDecimalAccessor<>(
+            (FixedSizeBinaryVector) vector, decimalFactorySupplier.get());
+      }
       return new FixedSizeBinaryAccessor<>((FixedSizeBinaryVector) vector);
     }
     throw new UnsupportedOperationException("Unsupported vector: " + vector.getClass());
+  }
+
+  private static boolean isDecimal(PrimitiveType primitive) {
+    return primitive != null && OriginalType.DECIMAL.equals(primitive.getOriginalType());
   }
 
   private static class BooleanAccessor<
@@ -577,6 +594,67 @@ public class GenericArrowVectorAccessorFactory<
               vector.getDataBuffer(), rowId, scale, DecimalVector.TYPE_WIDTH),
           precision,
           scale);
+    }
+  }
+
+  private static class IntBackedDecimalAccessor<
+          DecimalT, Utf8StringT, ArrayT, ChildVectorT extends AutoCloseable>
+      extends ArrowVectorAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT> {
+
+    private final IntVector vector;
+    private final DecimalFactory<DecimalT> decimalFactory;
+
+    IntBackedDecimalAccessor(IntVector vector, DecimalFactory<DecimalT> decimalFactory) {
+      super(vector);
+      this.vector = vector;
+      this.decimalFactory = decimalFactory;
+    }
+
+    @Override
+    public final DecimalT getDecimal(int rowId, int precision, int scale) {
+      return decimalFactory.ofLong(vector.get(rowId), precision, scale);
+    }
+  }
+
+  private static class LongBackedDecimalAccessor<
+          DecimalT, Utf8StringT, ArrayT, ChildVectorT extends AutoCloseable>
+      extends ArrowVectorAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT> {
+
+    private final BigIntVector vector;
+    private final DecimalFactory<DecimalT> decimalFactory;
+
+    LongBackedDecimalAccessor(BigIntVector vector, DecimalFactory<DecimalT> decimalFactory) {
+      super(vector);
+      this.vector = vector;
+      this.decimalFactory = decimalFactory;
+    }
+
+    @Override
+    public final DecimalT getDecimal(int rowId, int precision, int scale) {
+      return decimalFactory.ofLong(vector.get(rowId), precision, scale);
+    }
+  }
+
+  private static class FixedSizeBinaryBackedDecimalAccessor<
+          DecimalT, Utf8StringT, ArrayT, ChildVectorT extends AutoCloseable>
+      extends ArrowVectorAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT> {
+
+    private final FixedSizeBinaryVector vector;
+    private final DecimalFactory<DecimalT> decimalFactory;
+
+    FixedSizeBinaryBackedDecimalAccessor(
+        FixedSizeBinaryVector vector, DecimalFactory<DecimalT> decimalFactory) {
+      super(vector);
+      this.vector = vector;
+      this.decimalFactory = decimalFactory;
+    }
+
+    @Override
+    public final DecimalT getDecimal(int rowId, int precision, int scale) {
+      byte[] bytes = vector.get(rowId);
+      BigInteger bigInteger = new BigInteger(bytes);
+      BigDecimal javaDecimal = new BigDecimal(bigInteger, scale);
+      return decimalFactory.ofBigDecimal(javaDecimal, precision, scale);
     }
   }
 

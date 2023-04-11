@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.spark.actions;
 
+import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.apache.spark.sql.functions.current_date;
@@ -533,6 +534,8 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
   public void testPartialProgressEnabled() {
     Table table = createTable(20);
     int fileSize = averageFileSize(table);
+
+    table.updateProperties().set(COMMIT_NUM_RETRIES, "10").commit();
 
     List<Object[]> originalData = currentData();
     long dataSizeBefore = testDataSize(table);

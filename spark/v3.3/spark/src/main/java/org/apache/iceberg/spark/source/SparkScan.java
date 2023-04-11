@@ -37,6 +37,7 @@ import org.apache.iceberg.spark.source.metrics.NumDeletes;
 import org.apache.iceberg.spark.source.metrics.NumSplits;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.PropertyUtil;
+import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.connector.metric.CustomMetric;
@@ -59,6 +60,7 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
   private final Schema expectedSchema;
   private final List<Expression> filterExpressions;
   private final boolean readTimestampWithoutZone;
+  private final String branch;
 
   // lazy variables
   private StructType readSchema;
@@ -69,8 +71,8 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
       SparkReadConf readConf,
       Schema expectedSchema,
       List<Expression> filters) {
-
-    SparkSchemaUtil.validateMetadataColumnReferences(table.schema(), expectedSchema);
+    Schema snapshotSchema = SnapshotUtil.schemaFor(table, readConf.branch());
+    SparkSchemaUtil.validateMetadataColumnReferences(snapshotSchema, expectedSchema);
 
     this.sparkContext = JavaSparkContext.fromSparkContext(spark.sparkContext());
     this.table = table;
@@ -79,10 +81,15 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
     this.expectedSchema = expectedSchema;
     this.filterExpressions = filters != null ? filters : Collections.emptyList();
     this.readTimestampWithoutZone = readConf.handleTimestampWithoutZone();
+    this.branch = readConf.branch();
   }
 
   protected Table table() {
     return table;
+  }
+
+  protected String branch() {
+    return branch;
   }
 
   protected boolean caseSensitive() {
@@ -128,7 +135,7 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
 
   @Override
   public Statistics estimateStatistics() {
-    return estimateStatistics(table.currentSnapshot());
+    return estimateStatistics(SnapshotUtil.latestSnapshot(table, branch));
   }
 
   protected Statistics estimateStatistics(Snapshot snapshot) {
@@ -166,8 +173,8 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
             .collect(Collectors.joining(", "));
 
     return String.format(
-        "%s [filters=%s, groupedBy=%s]",
-        table(), Spark3Util.describe(filterExpressions), groupingKeyFieldNamesAsString);
+        "%s (branch=%s) [filters=%s, groupedBy=%s]",
+        table(), branch(), Spark3Util.describe(filterExpressions), groupingKeyFieldNamesAsString);
   }
 
   @Override

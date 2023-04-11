@@ -94,4 +94,12 @@ public abstract class SparkTestBaseWithCatalog extends SparkTestBase {
   protected String tableName(String name) {
     return (catalogName.equals("spark_catalog") ? "" : catalogName + ".") + "default." + name;
   }
+
+  protected String commitTarget() {
+    return tableName;
+  }
+
+  protected String selectTarget() {
+    return tableName;
+  }
 }

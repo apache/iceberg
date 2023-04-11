@@ -57,6 +57,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.Exceptions;
+import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.util.ThreadPools;
 import org.slf4j.Logger;
@@ -149,6 +150,10 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
     this.targetBranch = branch;
   }
 
+  protected String targetBranch() {
+    return targetBranch;
+  }
+
   protected ExecutorService workerPool() {
     return this.workerPool;
   }
@@ -202,15 +207,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   @Override
   public Snapshot apply() {
     refresh();
-    Snapshot parentSnapshot = base.currentSnapshot();
-    if (targetBranch != null) {
-      SnapshotRef branch = base.ref(targetBranch);
-      if (branch != null) {
-        parentSnapshot = base.snapshot(branch.snapshotId());
-      } else if (base.currentSnapshot() != null) {
-        parentSnapshot = base.currentSnapshot();
-      }
-    }
+    Snapshot parentSnapshot = SnapshotUtil.latestSnapshot(base, targetBranch);
 
     long sequenceNumber = base.nextSequenceNumber();
     Long parentSnapshotId = parentSnapshot == null ? null : parentSnapshot.snapshotId();

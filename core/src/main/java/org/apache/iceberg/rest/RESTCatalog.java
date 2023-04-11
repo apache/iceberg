@@ -24,7 +24,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
-import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -40,8 +39,7 @@ import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.hadoop.Configurable;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
-public class RESTCatalog
-    implements Catalog, SupportsNamespaces, Configurable<Configuration>, Closeable {
+public class RESTCatalog implements Catalog, SupportsNamespaces, Configurable<Object>, Closeable {
   private final RESTSessionCatalog sessionCatalog;
   private final Catalog delegate;
   private final SupportsNamespaces nsDelegate;
@@ -59,7 +57,7 @@ public class RESTCatalog
   public RESTCatalog(
       SessionCatalog.SessionContext context,
       Function<Map<String, String>, RESTClient> clientBuilder) {
-    this.sessionCatalog = new RESTSessionCatalog(clientBuilder);
+    this.sessionCatalog = new RESTSessionCatalog(clientBuilder, null);
     this.delegate = sessionCatalog.asCatalog(context);
     this.nsDelegate = (SupportsNamespaces) delegate;
   }
@@ -242,7 +240,7 @@ public class RESTCatalog
   }
 
   @Override
-  public void setConf(Configuration conf) {
+  public void setConf(Object conf) {
     sessionCatalog.setConf(conf);
   }
 

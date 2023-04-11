@@ -172,7 +172,12 @@ public class SparkCatalog extends BaseCatalog {
         ValidationException.check(
             ref != null,
             "Cannot find matching snapshot ID or reference name for version " + version);
-        return sparkTable.copyWithSnapshotId(ref.snapshotId());
+
+        if (ref.isBranch()) {
+          return sparkTable.copyWithBranch(version);
+        } else {
+          return sparkTable.copyWithSnapshotId(ref.snapshotId());
+        }
       }
 
     } else if (table instanceof SparkChangelogTable) {
@@ -659,10 +664,7 @@ public class SparkCatalog extends BaseCatalog {
 
       Matcher branch = BRANCH.matcher(ident.name());
       if (branch.matches()) {
-        Snapshot branchSnapshot = table.snapshot(branch.group(1));
-        if (branchSnapshot != null) {
-          return new SparkTable(table, branchSnapshot.snapshotId(), !cacheEnabled);
-        }
+        return new SparkTable(table, branch.group(1), !cacheEnabled);
       }
 
       Matcher tag = TAG.matcher(ident.name());
@@ -759,10 +761,7 @@ public class SparkCatalog extends BaseCatalog {
       return new SparkTable(table, snapshotIdAsOfTime, !cacheEnabled);
 
     } else if (branch != null) {
-      Snapshot branchSnapshot = table.snapshot(branch);
-      Preconditions.checkArgument(
-          branchSnapshot != null, "Cannot find snapshot associated with branch name: %s", branch);
-      return new SparkTable(table, branchSnapshot.snapshotId(), !cacheEnabled);
+      return new SparkTable(table, branch, !cacheEnabled);
 
     } else if (tag != null) {
       Snapshot tagSnapshot = table.snapshot(tag);

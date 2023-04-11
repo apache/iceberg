@@ -23,4 +23,4 @@ services:
     hostname: azurite
     ports:
       - 10000:10000
-    command: [ "azurite-blob", "--loose", "--blobHost", "0.0.0.0" ]
+    command: ["azurite-blob", "--loose", "--blobHost", "0.0.0.0"]

@@ -398,6 +398,53 @@ public class SnapshotUtil {
   }
 
   /**
+   * Return the schema of the snapshot at a given branch.
+   *
+   * <p>If branch does not exist, the table schema is returned because it will be the schema when
+   * the new branch is created.
+   *
+   * @param table a {@link Table}
+   * @param branch branch name of the table (nullable)
+   * @return schema of the specific snapshot at the given branch
+   */
+  public static Schema schemaFor(Table table, String branch) {
+    if (branch == null || branch.equals(SnapshotRef.MAIN_BRANCH)) {
+      return table.schema();
+    }
+
+    Snapshot ref = table.snapshot(branch);
+    if (ref == null) {
+      return table.schema();
+    }
+
+    return schemaFor(table, ref.snapshotId());
+  }
+
+  /**
+   * Return the schema of the snapshot at a given branch.
+   *
+   * <p>If branch does not exist, the table schema is returned because it will be the schema when
+   * the new branch is created.
+   *
+   * @param metadata a {@link TableMetadata}
+   * @param branch branch name of the table (nullable)
+   * @return schema of the specific snapshot at the given branch
+   */
+  public static Schema schemaFor(TableMetadata metadata, String branch) {
+    if (branch == null || branch.equals(SnapshotRef.MAIN_BRANCH)) {
+      return metadata.schema();
+    }
+
+    SnapshotRef ref = metadata.ref(branch);
+    if (ref == null) {
+      return metadata.schema();
+    }
+
+    Snapshot snapshot = metadata.snapshot(ref.snapshotId());
+    return metadata.schemas().get(snapshot.schemaId());
+  }
+
+  /**
    * Fetch the snapshot at the head of the given branch in the given table.
    *
    * <p>This method calls {@link Table#currentSnapshot()} instead of using branch API {@link
@@ -405,11 +452,11 @@ public class SnapshotUtil {
    * code path to ensure backwards compatibility.
    *
    * @param table a {@link Table}
-   * @param branch branch name of the table
+   * @param branch branch name of the table (nullable)
    * @return the latest snapshot for the given branch
    */
   public static Snapshot latestSnapshot(Table table, String branch) {
-    if (branch.equals(SnapshotRef.MAIN_BRANCH)) {
+    if (branch == null || branch.equals(SnapshotRef.MAIN_BRANCH)) {
       return table.currentSnapshot();
     }
 
@@ -423,15 +470,23 @@ public class SnapshotUtil {
    * TableMetadata#ref(String)}} for the main branch so that existing code still goes through the
    * old code path to ensure backwards compatibility.
    *
+   * <p>If branch does not exist, the table's latest snapshot is returned it will be the schema when
+   * the new branch is created.
+   *
    * @param metadata a {@link TableMetadata}
-   * @param branch branch name of the table metadata
+   * @param branch branch name of the table metadata (nullable)
    * @return the latest snapshot for the given branch
    */
   public static Snapshot latestSnapshot(TableMetadata metadata, String branch) {
-    if (branch.equals(SnapshotRef.MAIN_BRANCH)) {
+    if (branch == null || branch.equals(SnapshotRef.MAIN_BRANCH)) {
       return metadata.currentSnapshot();
     }
 
-    return metadata.snapshot(metadata.ref(branch).snapshotId());
+    SnapshotRef ref = metadata.ref(branch);
+    if (ref == null) {
+      return metadata.currentSnapshot();
+    }
+
+    return metadata.snapshot(ref.snapshotId());
   }
 }

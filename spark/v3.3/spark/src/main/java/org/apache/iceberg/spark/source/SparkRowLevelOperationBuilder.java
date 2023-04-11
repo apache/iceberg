@@ -45,13 +45,16 @@ class SparkRowLevelOperationBuilder implements RowLevelOperationBuilder {
 
   private final SparkSession spark;
   private final Table table;
+  private final String branch;
   private final RowLevelOperationInfo info;
   private final RowLevelOperationMode mode;
   private final IsolationLevel isolationLevel;
 
-  SparkRowLevelOperationBuilder(SparkSession spark, Table table, RowLevelOperationInfo info) {
+  SparkRowLevelOperationBuilder(
+      SparkSession spark, Table table, String branch, RowLevelOperationInfo info) {
     this.spark = spark;
     this.table = table;
+    this.branch = branch;
     this.info = info;
     this.mode = mode(table.properties(), info.command());
     this.isolationLevel = isolationLevel(table.properties(), info.command());
@@ -61,9 +64,9 @@ class SparkRowLevelOperationBuilder implements RowLevelOperationBuilder {
   public RowLevelOperation build() {
     switch (mode) {
       case COPY_ON_WRITE:
-        return new SparkCopyOnWriteOperation(spark, table, info, isolationLevel);
+        return new SparkCopyOnWriteOperation(spark, table, branch, info, isolationLevel);
       case MERGE_ON_READ:
-        return new SparkPositionDeltaOperation(spark, table, info, isolationLevel);
+        return new SparkPositionDeltaOperation(spark, table, branch, info, isolationLevel);
       default:
         throw new IllegalArgumentException("Unsupported operation mode: " + mode);
     }

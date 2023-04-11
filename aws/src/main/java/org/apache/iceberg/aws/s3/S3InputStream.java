@@ -36,6 +36,7 @@ import org.apache.iceberg.relocated.com.google.common.io.ByteStreams;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.core.sync.ResponseTransformer;
+import software.amazon.awssdk.http.Abortable;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
@@ -196,7 +197,29 @@ class S3InputStream extends SeekableInputStream implements RangeReadable {
 
   private void closeStream() throws IOException {
     if (stream != null) {
-      stream.close();
+      // if we aren't at the end of the stream, and the stream is abortable, then
+      // call abort() so we don't read the remaining data with the Apache HTTP client
+      abortStream();
+      try {
+        stream.close();
+      } catch (IOException e) {
+        // the Apache HTTP client will throw a ConnectionClosedException
+        // when closing an aborted stream, which is expected
+        if (!e.getClass().getSimpleName().equals("ConnectionClosedException")) {
+          throw e;
+        }
+      }
+      stream = null;
+    }
+  }
+
+  private void abortStream() {
+    try {
+      if (stream instanceof Abortable && stream.read() != -1) {
+        ((Abortable) stream).abort();
+      }
+    } catch (Exception e) {
+      LOG.warn("An error occurred while aborting the stream", e);
     }
   }
 

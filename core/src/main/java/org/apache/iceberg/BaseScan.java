@@ -27,6 +27,7 @@ import java.util.concurrent.ExecutorService;
 import org.apache.iceberg.expressions.Binder;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
@@ -35,7 +36,7 @@ import org.apache.iceberg.util.PropertyUtil;
 abstract class BaseScan<ThisT, T extends ScanTask, G extends ScanTaskGroup<T>>
     implements Scan<ThisT, T, G> {
 
-  private static final List<String> SCAN_COLUMNS =
+  protected static final List<String> SCAN_COLUMNS =
       ImmutableList.of(
           "snapshot_id",
           "file_path",
@@ -90,18 +91,6 @@ abstract class BaseScan<ThisT, T extends ScanTask, G extends ScanTaskGroup<T>>
     this.context = context;
   }
 
-  /**
-   * @deprecated will be removed in 1.3.0; avoid using TableOperations for scans or use BaseTable
-   */
-  @Deprecated
-  protected TableOperations tableOps() {
-    if (table instanceof BaseTable) {
-      return ((BaseTable) table).operations();
-    }
-
-    return null;
-  }
-
   public Table table() {
     return table;
   }
@@ -132,16 +121,6 @@ abstract class BaseScan<ThisT, T extends ScanTask, G extends ScanTaskGroup<T>>
 
   protected ExecutorService planExecutor() {
     return context().planExecutor();
-  }
-
-  /**
-   * @deprecated will be removed in 1.3.0; use newRefinedScan(Table, Schema, TableScanContext)
-   *     instead.
-   */
-  @Deprecated
-  protected ThisT newRefinedScan(
-      TableOperations ignored, Table newTable, Schema newSchema, TableScanContext newContext) {
-    return newRefinedScan(newTable, newSchema, newContext);
   }
 
   protected abstract ThisT newRefinedScan(
@@ -271,5 +250,10 @@ abstract class BaseScan<ThisT, T extends ScanTask, G extends ScanTaskGroup<T>>
     }
 
     return schema;
+  }
+
+  @Override
+  public ThisT metricsReporter(MetricsReporter reporter) {
+    return newRefinedScan(table(), schema(), context().reportWith(reporter));
   }
 }
