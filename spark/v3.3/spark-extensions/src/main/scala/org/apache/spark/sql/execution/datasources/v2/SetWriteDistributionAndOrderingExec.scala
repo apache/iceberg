@@ -30,6 +30,7 @@ import org.apache.spark.sql.catalyst.expressions.Attribute
 import org.apache.spark.sql.connector.catalog.CatalogV2Implicits
 import org.apache.spark.sql.connector.catalog.Identifier
 import org.apache.spark.sql.connector.catalog.TableCatalog
+import org.apache.spark.sql.internal.SQLConf
 
 case class SetWriteDistributionAndOrderingExec(
     catalog: TableCatalog,
@@ -47,6 +48,7 @@ case class SetWriteDistributionAndOrderingExec(
         val txn = iceberg.table.newTransaction()
 
         val orderBuilder = txn.replaceSortOrder()
+        orderBuilder.caseSensitive(session.conf.get(SQLConf.CASE_SENSITIVE, SQLConf.CASE_SENSITIVE.defaultValue.get))
         sortOrder.foreach {
           case (term, SortDirection.ASC, nullOrder) =>
             orderBuilder.asc(term, nullOrder)
