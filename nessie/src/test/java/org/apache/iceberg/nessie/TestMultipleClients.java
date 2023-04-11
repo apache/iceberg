@@ -98,7 +98,7 @@ public class TestMultipleClients extends BaseTestIceberg {
 
   @Test
   public void testListTables() {
-    catalog.createTable(TableIdentifier.parse("foo.tbl1"), schema);
+    createTable(TableIdentifier.parse("foo.tbl1"), schema);
     Assertions.assertThat(catalog.listTables(Namespace.of("foo")))
         .containsExactlyInAnyOrder(TableIdentifier.parse("foo.tbl1"));
 
@@ -116,7 +116,7 @@ public class TestMultipleClients extends BaseTestIceberg {
   @Test
   public void testCommits() {
     TableIdentifier identifier = TableIdentifier.parse("foo.tbl1");
-    catalog.createTable(identifier, schema);
+    createTable(identifier, schema);
     Table tableFromCatalog = catalog.loadTable(identifier);
     tableFromCatalog.updateSchema().addColumn("x1", Types.LongType.get()).commit();
 
@@ -133,7 +133,7 @@ public class TestMultipleClients extends BaseTestIceberg {
   @Test
   public void testConcurrentCommitsWithRefresh() {
     TableIdentifier identifier = TableIdentifier.parse("foo.tbl1");
-    catalog.createTable(identifier, schema);
+    createTable(identifier, schema);
 
     String hashBefore = catalog.currentHash();
 
