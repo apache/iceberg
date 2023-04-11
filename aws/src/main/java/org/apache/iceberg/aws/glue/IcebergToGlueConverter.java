@@ -226,7 +226,9 @@ class IcebergToGlueConverter {
    * @param metadata Iceberg table metadata
    */
   static void setTableInputInformation(
-      TableInput.Builder tableInputBuilder, TableMetadata metadata) {
+      TableInput.Builder tableInputBuilder,
+      TableMetadata metadata,
+      Map<String, String> parameters) {
     try {
       StorageDescriptor.Builder storageDescriptor = StorageDescriptor.builder();
       if (!SET_ADDITIONAL_LOCATIONS.isNoop()) {
@@ -239,7 +241,11 @@ class IcebergToGlueConverter {
       }
 
       tableInputBuilder.storageDescriptor(
-          storageDescriptor.location(metadata.location()).columns(toColumns(metadata)).build());
+          storageDescriptor
+              .location(metadata.location())
+              .columns(toColumns(metadata))
+              .parameters(parameters)
+              .build());
     } catch (RuntimeException e) {
       LOG.warn(
           "Encountered unexpected exception while converting Iceberg metadata to Glue table information",

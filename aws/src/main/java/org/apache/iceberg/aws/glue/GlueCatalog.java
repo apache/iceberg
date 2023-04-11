@@ -476,7 +476,9 @@ public class GlueCatalog extends BaseMetastoreCatalog
     TableInput tableInput =
         TableInput.builder()
             .applyMutation(
-                builder -> IcebergToGlueConverter.setTableInputInformation(builder, metadata))
+                builder ->
+                    IcebergToGlueConverter.setTableInputInformation(
+                        builder, metadata, tableParameters))
             .name(tableName)
             .tableType(GlueTableOperations.GLUE_EXTERNAL_TABLE_TYPE)
             .parameters(tableParameters)
