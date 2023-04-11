@@ -43,7 +43,7 @@ from pyiceberg.expressions import (
     parser,
     visitors,
 )
-from pyiceberg.expressions.visitors import _InclusiveMetricsEvaluator, inclusive_projection
+from pyiceberg.expressions.visitors import _InclusiveMetricsEvaluator, inclusive_projection, set_default_timezone
 from pyiceberg.io import FileIO, load_file_io
 from pyiceberg.manifest import (
     DataFile,
@@ -62,6 +62,7 @@ from pyiceberg.typedef import (
     KeyDefaultDict,
     Properties,
 )
+from pyiceberg.utils.datetime import TIMEZONE, UTC
 
 if TYPE_CHECKING:
     import pandas as pd
@@ -347,7 +348,17 @@ class DataScan(TableScan):
 
     def _build_partition_projection(self, spec_id: int) -> BooleanExpression:
         project = inclusive_projection(self.table.schema(), self.table.specs()[spec_id])
-        return project(self.row_filter)
+        return project(self.sanitized_row_filter)
+
+    @cached_property
+    def sanitized_row_filter(self) -> BooleanExpression:
+        row_filter = set_default_timezone(
+            self.row_filter,
+            self.table.schema(),
+            case_sensitive=self.case_sensitive,
+            default_timezone=self.table.io.properties.get(TIMEZONE, UTC),
+        )
+        return row_filter
 
     @cached_property
     def partition_filters(self) -> KeyDefaultDict[int, BooleanExpression]:
@@ -388,7 +399,7 @@ class DataScan(TableScan):
         # this filter depends on the partition spec used to write the manifest file
 
         partition_evaluators: Dict[int, Callable[[DataFile], bool]] = KeyDefaultDict(self._build_partition_evaluator)
-        metrics_evaluator = _InclusiveMetricsEvaluator(self.table.schema(), self.row_filter, self.case_sensitive).eval
+        metrics_evaluator = _InclusiveMetricsEvaluator(self.table.schema(), self.sanitized_row_filter, self.case_sensitive).eval
         with ThreadPool() as pool:
             return chain(
                 *pool.starmap(
@@ -411,7 +422,7 @@ class DataScan(TableScan):
         return project_table(
             self.plan_files(),
             self.table,
-            self.row_filter,
+            self.sanitized_row_filter,
             self.projection(),
             case_sensitive=self.case_sensitive,
             limit=self.limit,

@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import math
+import warnings
 from abc import ABC, abstractmethod
 from functools import singledispatch
 from typing import (
@@ -23,6 +24,7 @@ from typing import (
     Dict,
     Generic,
     List,
+    NoReturn,
     Set,
     Tuple,
     TypeVar,
@@ -55,11 +57,13 @@ from pyiceberg.expressions import (
     BoundTerm,
     BoundUnaryPredicate,
     L,
+    LiteralPredicate,
     Not,
     Or,
+    SetPredicate,
     UnboundPredicate,
 )
-from pyiceberg.expressions.literals import Literal
+from pyiceberg.expressions.literals import Literal, StringLiteral
 from pyiceberg.manifest import DataFile, ManifestFile, PartitionFieldSummary
 from pyiceberg.partitioning import PartitionSpec
 from pyiceberg.schema import Schema
@@ -73,7 +77,7 @@ from pyiceberg.types import (
     TimestampType,
     TimestamptzType,
 )
-from pyiceberg.utils.datetime import micros_to_timestamp, micros_to_timestamptz
+from pyiceberg.utils.datetime import iso8601_add_default_timezone, micros_to_timestamp, micros_to_timestamptz
 
 T = TypeVar("T")
 
@@ -1407,3 +1411,67 @@ class _InclusiveMetricsEvaluator(BoundBooleanExpressionVisitor[bool]):
                     return ROWS_CANNOT_MATCH
 
         return ROWS_MIGHT_MATCH
+
+
+class _SetDefaultTimezone(BooleanExpressionVisitor[BooleanExpression]):
+    schema: Schema
+    case_sensitive: bool
+    default_timezone: str
+
+    def __init__(self, schema: Schema, case_sensitive: bool, default_timezone: str) -> None:
+        self.schema = schema
+        self.case_sensitive = case_sensitive
+        self.default_timezone = default_timezone
+
+    def visit_true(self) -> BooleanExpression:
+        return AlwaysTrue()
+
+    def visit_false(self) -> BooleanExpression:
+        return AlwaysFalse()
+
+    def visit_not(self, child_result: BooleanExpression) -> BooleanExpression:
+        return Not(child_result)
+
+    def visit_and(self, left_result: BooleanExpression, right_result: BooleanExpression) -> BooleanExpression:
+        return And(left_result, right_result)
+
+    def visit_or(self, left_result: BooleanExpression, right_result: BooleanExpression) -> BooleanExpression:
+        return Or(left_result, right_result)
+
+    def _check_timezone(self, literal: Literal[L]) -> Literal[L]:
+        if isinstance(literal, StringLiteral):
+            return StringLiteral(iso8601_add_default_timezone(literal.value))
+        return literal
+
+    def visit_unbound_predicate(self, predicate: UnboundPredicate[L]) -> BooleanExpression:
+        if isinstance(predicate, (LiteralPredicate, SetPredicate)):
+            bound_term = predicate.term.bind(self.schema, case_sensitive=self.case_sensitive)
+            if isinstance(bound_term.ref().field.field_type, TimestamptzType):
+                warnings.warn(f"Assuming timezone {self.default_timezone} for: {predicate}")
+                if isinstance(predicate, LiteralPredicate):
+                    return type(predicate)(term=predicate.term, literal=self._check_timezone(predicate.literal))
+                elif isinstance(predicate, SetPredicate):
+                    return type(predicate)(
+                        term=predicate.term, literals=(self._check_timezone(lit) for lit in predicate.literals)
+                    )
+
+        return predicate
+
+    def visit_bound_predicate(self, predicate: BoundPredicate[L]) -> NoReturn:
+        raise ValueError(f"Did not expect a bound expression: {predicate}")
+
+
+def set_default_timezone(
+    expr: BooleanExpression, schema: Schema, case_sensitive: bool, default_timezone: str = "+00:00"
+) -> BooleanExpression:
+    """Looks up Timestamptz fields and checks if the timezone is set, otherwise it will be set
+
+    Args:
+        expr: Unbound expression to look up the timestamptz fields to check for a timezone
+        schema: The schema to bind the expression to
+        case_sensitive: Case sensitivity for looking up fields in the schema
+        default_timezone: If there is no timezone, set this as a default.
+    Returns:
+
+    """
+    return visit(expr, _SetDefaultTimezone(schema, case_sensitive, default_timezone))

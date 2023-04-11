@@ -71,6 +71,7 @@ from pyiceberg.expressions.visitors import (
     expression_to_plain_format,
     rewrite_not,
     rewrite_to_dnf,
+    set_default_timezone,
     visit,
     visit_bound_predicate,
 )
@@ -84,6 +85,7 @@ from pyiceberg.types import (
     NestedField,
     PrimitiveType,
     StringType,
+    TimestamptzType,
 )
 
 
@@ -1608,3 +1610,24 @@ def test_dnf_to_dask(table_schema_simple: Schema) -> None:
         ),
     )
     assert expression_to_plain_format(expr) == [[("foo", ">", "hello")], [("bar", "in", {1, 2, 3}), ("baz", "==", True)]]
+
+
+def test_set_default_timezone_literal() -> None:
+    expr = GreaterThan("pickup_time", "2022-01-01T00:00:00")
+    assert set_default_timezone(
+        expr, Schema(NestedField(1, "pickup_time", TimestamptzType())), case_sensitive=False
+    ) == GreaterThan("pickup_time", "2022-01-01T00:00:00+00:00")
+
+
+def test_set_default_timezone_literal_already_set() -> None:
+    expr = GreaterThan("pickup_time", "2022-01-01T00:00:00-07:00")
+    assert set_default_timezone(
+        expr, Schema(NestedField(1, "pickup_time", TimestamptzType())), case_sensitive=False
+    ) == GreaterThan("pickup_time", "2022-01-01T00:00:00-07:00")
+
+
+def test_set_default_timezone_set() -> None:
+    expr = In("pickup_time", {"2022-01-01T00:00:00"})
+    assert set_default_timezone(expr, Schema(NestedField(1, "pickup_time", TimestamptzType())), case_sensitive=False) == In(
+        "pickup_time", {"2022-01-01T00:00:00+00:00"}
+    )

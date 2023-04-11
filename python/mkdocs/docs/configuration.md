@@ -33,7 +33,12 @@ The configuration file is recommended since that's the most transparent way. If 
 export PYICEBERG_CATALOG__DEFAULT__URI=thrift://localhost:9083
 ```
 
-The environment variable picked up by Iceberg starts with `PYICEBERG_` and then follows the yaml structure below, where a double underscore `__` represents a nested field.
+The environment variable picked up by Iceberg starts with `PYICEBERG_` and then follows the yaml structure below, where a double underscore `__` represents a nested field. Catalog level configuration:
+
+| Key        | Example                          | Default                                      | Description                                                                                     |
+| ---------- | -------------------------------- | -------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| py-io-impl | pyiceberg.io.fsspec.FsspecFileIO | Preference based on the scheme `s3://`, etc. | Sets the FileIO explicitly to an implementation, and will fail explicitly if it can't be loaded |
+| timezone   | -07:00                           | UTC `+00:00`                                 | For Timestamptz fields, in the case a timezone is omitted, it will use this timezone.           |
 
 ## FileIO
 
@@ -44,14 +49,6 @@ Iceberg works with the concept of a FileIO which is a pluggable module for readi
 - **file**: `PyArrowFileIO`
 - **hdfs**: `PyArrowFileIO`
 - **abfs**, **abfss**: `FsspecFileIO`
-
-You can also set the FileIO explicitly:
-
-| Key        | Example                          | Description                                                                                     |
-| ---------- | -------------------------------- | ----------------------------------------------------------------------------------------------- |
-| py-io-impl | pyiceberg.io.fsspec.FsspecFileIO | Sets the FileIO explicitly to an implementation, and will fail explicitly if it can't be loaded |
-
-For the FileIO there are several configuration options available:
 
 ### S3
 

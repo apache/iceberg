@@ -26,6 +26,8 @@ from datetime import (
     timedelta,
 )
 
+TIMEZONE = "timezone"
+UTC = "+00:00"
 EPOCH_DATE = date.fromisoformat("1970-01-01")
 EPOCH_TIMESTAMP = datetime.fromisoformat("1970-01-01T00:00:00.000000")
 ISO_TIMESTAMP = re.compile(r"\d\d\d\d-\d\d-\d\dT\d\d:\d\d:\d\d(.\d{1,6})?")
@@ -85,6 +87,15 @@ def timestamp_to_micros(timestamp_str: str) -> int:
         # When we can match a timestamp without a zone, we can give a more specific error
         raise ValueError(f"Zone offset provided, but not expected: {timestamp_str}")
     raise ValueError(f"Invalid timestamp without zone: {timestamp_str} (must be ISO-8601)")
+
+
+def iso8601_add_default_timezone(timestamp_str: str, default_tz: str = "+00:00") -> str:
+    if ISO_TIMESTAMPTZ.fullmatch(timestamp_str):
+        return timestamp_str
+    if ISO_TIMESTAMP.fullmatch(timestamp_str):
+        return timestamp_str + default_tz
+    else:
+        raise ValueError(f"Invalid timestamp: {timestamp_str} (must be ISO-8601)")
 
 
 def timestamptz_to_micros(timestamptz_str: str) -> int:
