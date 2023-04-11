@@ -20,7 +20,6 @@ package org.apache.iceberg.aws.glue;
 
 import java.util.List;
 import java.util.Map;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.TableMetadata;
@@ -33,6 +32,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
 import software.amazon.awssdk.services.glue.model.Column;
@@ -63,11 +63,13 @@ public class TestIcebergToGlueConverter {
             Namespace.of(""),
             Namespace.of(new String(new char[600]).replace("\0", "a")));
     for (Namespace name : badNames) {
-      AssertHelpers.assertThrows(
-          "bad namespace name",
-          ValidationException.class,
-          "Cannot convert namespace",
-          () -> IcebergToGlueConverter.toDatabaseName(name, false));
+
+      Assertions.assertThatThrownBy(() -> IcebergToGlueConverter.toDatabaseName(name, false))
+          .isInstanceOf(ValidationException.class)
+          .hasMessageStartingWith("Cannot convert namespace")
+          .hasMessageEndingWith(
+              "to Glue database name, "
+                  + "because it must be 1-252 chars of lowercase letters, numbers, underscore");
     }
   }
 

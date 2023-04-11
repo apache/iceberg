@@ -22,6 +22,7 @@ import java.util.Collection;
 import java.util.concurrent.ExecutorService;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.metrics.MetricsReporter;
 
 /** An adapter that allows using {@link TableScan} as {@link BatchScan}. */
 class BatchScanAdapter implements BatchScan {
@@ -139,5 +140,10 @@ class BatchScanAdapter implements BatchScan {
   @Override
   public long splitOpenFileCost() {
     return scan.splitOpenFileCost();
+  }
+
+  @Override
+  public BatchScan metricsReporter(MetricsReporter reporter) {
+    return new BatchScanAdapter(scan.metricsReporter(reporter));
   }
 }

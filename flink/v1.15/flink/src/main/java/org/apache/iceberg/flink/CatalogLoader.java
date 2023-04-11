@@ -33,7 +33,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.RESTCatalog;
 
 /** Serializable loader to load an Iceberg {@link Catalog}. */
-public interface CatalogLoader extends Serializable {
+public interface CatalogLoader extends Serializable, Cloneable {
 
   /**
    * Create a new catalog with the provided properties. NOTICE: for flink, we may initialize the
@@ -44,6 +44,10 @@ public interface CatalogLoader extends Serializable {
    * @return a newly created {@link Catalog}
    */
   Catalog loadCatalog();
+
+  /** Clone a CatalogLoader. */
+  @SuppressWarnings({"checkstyle:NoClone", "checkstyle:SuperClone"})
+  CatalogLoader clone();
 
   static CatalogLoader hadoop(
       String name, Configuration hadoopConf, Map<String, String> properties) {
@@ -75,6 +79,12 @@ public interface CatalogLoader extends Serializable {
       this.hadoopConf = new SerializableConfiguration(conf);
       this.warehouseLocation = properties.get(CatalogProperties.WAREHOUSE_LOCATION);
       this.properties = Maps.newHashMap(properties);
+    }
+
+    @Override
+    @SuppressWarnings({"checkstyle:NoClone", "checkstyle:SuperClone"})
+    public CatalogLoader clone() {
+      return new HadoopCatalogLoader(catalogName, new Configuration(hadoopConf.get()), properties);
     }
 
     @Override
@@ -120,6 +130,12 @@ public interface CatalogLoader extends Serializable {
     }
 
     @Override
+    @SuppressWarnings({"checkstyle:NoClone", "checkstyle:SuperClone"})
+    public CatalogLoader clone() {
+      return new HiveCatalogLoader(catalogName, new Configuration(hadoopConf.get()), properties);
+    }
+
+    @Override
     public String toString() {
       return MoreObjects.toStringHelper(this)
           .add("catalogName", catalogName)
@@ -146,6 +162,12 @@ public interface CatalogLoader extends Serializable {
     public Catalog loadCatalog() {
       return CatalogUtil.loadCatalog(
           RESTCatalog.class.getName(), catalogName, properties, hadoopConf.get());
+    }
+
+    @Override
+    @SuppressWarnings({"checkstyle:NoClone", "checkstyle:SuperClone"})
+    public CatalogLoader clone() {
+      return new RESTCatalogLoader(catalogName, new Configuration(hadoopConf.get()), properties);
     }
 
     @Override
@@ -177,6 +199,12 @@ public interface CatalogLoader extends Serializable {
     @Override
     public Catalog loadCatalog() {
       return CatalogUtil.loadCatalog(impl, name, properties, hadoopConf.get());
+    }
+
+    @Override
+    @SuppressWarnings({"checkstyle:NoClone", "checkstyle:SuperClone"})
+    public CatalogLoader clone() {
+      return new CustomCatalogLoader(name, properties, new Configuration(hadoopConf.get()), impl);
     }
 
     @Override

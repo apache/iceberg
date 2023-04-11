@@ -30,6 +30,7 @@ import org.immutables.value.Value;
 public interface ReportMetricsRequest extends RESTRequest {
 
   enum ReportType {
+    UNKNOWN,
     SCAN_REPORT,
     COMMIT_REPORT;
 
@@ -38,7 +39,7 @@ public interface ReportMetricsRequest extends RESTRequest {
       try {
         return ReportType.valueOf(reportType.toUpperCase(Locale.ENGLISH));
       } catch (IllegalArgumentException e) {
-        throw new IllegalArgumentException(String.format("Invalid report type: %s", reportType), e);
+        return UNKNOWN;
       }
     }
   }
@@ -54,16 +55,20 @@ public interface ReportMetricsRequest extends RESTRequest {
   }
 
   static ReportMetricsRequest of(MetricsReport report) {
-    ReportType reportType = null;
+    ReportType reportType = ReportType.UNKNOWN;
     if (report instanceof ScanReport) {
       reportType = ReportType.SCAN_REPORT;
     } else if (report instanceof CommitReport) {
       reportType = ReportType.COMMIT_REPORT;
     }
 
-    Preconditions.checkArgument(
-        null != reportType, "Unsupported report type: %s", report.getClass().getName());
-
     return ImmutableReportMetricsRequest.builder().reportType(reportType).report(report).build();
+  }
+
+  static ReportMetricsRequest unknown() {
+    return ImmutableReportMetricsRequest.builder()
+        .reportType(ReportType.UNKNOWN)
+        .report(new MetricsReport() {})
+        .build();
   }
 }

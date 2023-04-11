@@ -23,17 +23,15 @@ import com.github.benmanes.caffeine.cache.LoadingCache;
 import java.util.Map;
 import org.apache.iceberg.expressions.ManifestEvaluator;
 import org.apache.iceberg.io.CloseableIterable;
-import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.ParallelIterable;
 
 /** A {@link Table} implementation that exposes a table's partitions as rows. */
 public class PartitionsTable extends BaseMetadataTable {
 
   private final Schema schema;
-  static final boolean PLAN_SCANS_WITH_WORKER_POOL =
-      SystemProperties.getBoolean(SystemProperties.SCAN_THREAD_POOL_ENABLED, true);
 
   PartitionsTable(Table table) {
     this(table, table.name() + ".partitions");
@@ -45,9 +43,11 @@ public class PartitionsTable extends BaseMetadataTable {
     this.schema =
         new Schema(
             Types.NestedField.required(1, "partition", Partitioning.partitionType(table)),
-            Types.NestedField.required(2, "record_count", Types.LongType.get()),
-            Types.NestedField.required(3, "file_count", Types.IntegerType.get()),
-            Types.NestedField.required(4, "spec_id", Types.IntegerType.get()));
+            Types.NestedField.required(4, "spec_id", Types.IntegerType.get()),
+            Types.NestedField.required(
+                2, "record_count", Types.LongType.get(), "Count of records in data files"),
+            Types.NestedField.required(
+                3, "file_count", Types.IntegerType.get(), "Count of data files"));
   }
 
   @Override
@@ -77,7 +77,7 @@ public class PartitionsTable extends BaseMetadataTable {
           schema(),
           scan.schema(),
           partitions,
-          root -> StaticDataTask.Row.of(root.recordCount, root.fileCount));
+          root -> StaticDataTask.Row.of(root.dataRecordCount, root.dataFileCount));
     } else {
       return StaticDataTask.of(
           io().newInputFile(table().operations().current().metadataFileLocation()),
@@ -90,11 +90,10 @@ public class PartitionsTable extends BaseMetadataTable {
 
   private static StaticDataTask.Row convertPartition(Partition partition) {
     return StaticDataTask.Row.of(
-        partition.key, partition.recordCount, partition.fileCount, partition.specId);
+        partition.key, partition.specId, partition.dataRecordCount, partition.dataFileCount);
   }
 
   private static Iterable<Partition> partitions(Table table, StaticTableScan scan) {
-    CloseableIterable<FileScanTask> tasks = planFiles(scan);
     Types.StructType normalizedPartitionType = Partitioning.partitionType(table);
     PartitionMap partitions = new PartitionMap();
 
@@ -102,22 +101,66 @@ public class PartitionsTable extends BaseMetadataTable {
     Map<Integer, int[]> normalizedPositionsBySpec =
         Maps.newHashMapWithExpectedSize(table.specs().size());
 
-    for (FileScanTask task : tasks) {
-      PartitionData original = (PartitionData) task.file().partition();
+    CloseableIterable<DataFile> datafiles = planDataFiles(scan);
+    for (DataFile dataFile : datafiles) {
+      PartitionData original = (PartitionData) dataFile.partition();
       int[] normalizedPositions =
           normalizedPositionsBySpec.computeIfAbsent(
-              task.spec().specId(),
+              dataFile.specId(),
               specId -> normalizedPositions(table, specId, normalizedPartitionType));
+
       PartitionData normalized =
           normalizePartition(original, normalizedPartitionType, normalizedPositions);
-      partitions.get(normalized).update(task.file());
+      partitions.get(normalized).update(dataFile);
     }
+
     return partitions.all();
   }
 
+  @VisibleForTesting
+  static CloseableIterable<DataFile> planDataFiles(StaticTableScan scan) {
+    Table table = scan.table();
+    Snapshot snapshot = scan.snapshot();
+
+    CloseableIterable<ManifestFile> dataManifests =
+        CloseableIterable.withNoopClose(snapshot.dataManifests(table.io()));
+
+    LoadingCache<Integer, ManifestEvaluator> evalCache =
+        Caffeine.newBuilder()
+            .build(
+                specId -> {
+                  PartitionSpec spec = table.specs().get(specId);
+                  PartitionSpec transformedSpec = transformSpec(scan.tableSchema(), spec);
+                  return ManifestEvaluator.forRowFilter(
+                      scan.filter(), transformedSpec, scan.isCaseSensitive());
+                });
+
+    CloseableIterable<ManifestFile> filteredManifests =
+        CloseableIterable.filter(
+            dataManifests, manifest -> evalCache.get(manifest.partitionSpecId()).eval(manifest));
+
+    Iterable<CloseableIterable<DataFile>> tasks =
+        CloseableIterable.transform(
+            filteredManifests,
+            manifest ->
+                ManifestFiles.read(manifest, table.io(), table.specs())
+                    .caseSensitive(scan.isCaseSensitive())
+                    .select(BaseScan.SCAN_COLUMNS)); // don't select stats columns
+
+    return new ParallelIterable<>(tasks, scan.planExecutor());
+  }
+
   /**
-   * Builds an array of the field position of positions in the normalized partition type indexed by
-   * field position in the original partition type
+   * Builds an integer array for a specific partition type to map its partitions to the final
+   * normalized type.
+   *
+   * <p>The array represents fields in the original partition type, with the index being the field's
+   * index in the original partition type, and the value being the field's index in the normalized
+   * partition type.
+   *
+   * @param table iceberg table
+   * @param specId spec id where original partition type is written
+   * @param normalizedType normalized partition type
    */
   private static int[] normalizedPositions(
       Table table, int specId, Types.StructType normalizedType) {
@@ -154,43 +197,6 @@ public class PartitionsTable extends BaseMetadataTable {
     return normalizedPartition;
   }
 
-  @VisibleForTesting
-  static CloseableIterable<FileScanTask> planFiles(StaticTableScan scan) {
-    Table table = scan.table();
-    Snapshot snapshot = table.snapshot(scan.snapshot().snapshotId());
-    boolean caseSensitive = scan.isCaseSensitive();
-
-    LoadingCache<Integer, ManifestEvaluator> evalCache =
-        Caffeine.newBuilder()
-            .build(
-                specId -> {
-                  PartitionSpec spec = table.specs().get(specId);
-                  PartitionSpec transformedSpec = transformSpec(scan.tableSchema(), spec);
-                  return ManifestEvaluator.forRowFilter(
-                      scan.filter(), transformedSpec, caseSensitive);
-                });
-
-    FileIO io = table.io();
-    ManifestGroup manifestGroup =
-        new ManifestGroup(io, snapshot.dataManifests(io), snapshot.deleteManifests(io))
-            .caseSensitive(caseSensitive)
-            .filterManifests(m -> evalCache.get(m.partitionSpecId()).eval(m))
-            .select(scan.scanColumns())
-            .specsById(scan.table().specs())
-            .ignoreDeleted();
-
-    if (scan.shouldIgnoreResiduals()) {
-      manifestGroup = manifestGroup.ignoreResiduals();
-    }
-
-    if (scan.snapshot().dataManifests(io).size() > 1
-        && (PLAN_SCANS_WITH_WORKER_POOL || scan.context().planWithCustomizedExecutor())) {
-      manifestGroup = manifestGroup.planWith(scan.context().planExecutor());
-    }
-
-    return manifestGroup.planFiles();
-  }
-
   private class PartitionsScan extends StaticTableScan {
     PartitionsScan(Table table) {
       super(
@@ -220,20 +226,20 @@ public class PartitionsTable extends BaseMetadataTable {
 
   static class Partition {
     private final StructLike key;
-    private long recordCount;
-    private int fileCount;
     private int specId;
+    private long dataRecordCount;
+    private int dataFileCount;
 
     Partition(StructLike key) {
       this.key = key;
-      this.recordCount = 0;
-      this.fileCount = 0;
       this.specId = 0;
+      this.dataRecordCount = 0;
+      this.dataFileCount = 0;
     }
 
     void update(DataFile file) {
-      this.recordCount += file.recordCount();
-      this.fileCount += 1;
+      this.dataRecordCount += file.recordCount();
+      this.dataFileCount += 1;
       this.specId = file.specId();
     }
   }

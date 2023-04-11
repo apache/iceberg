@@ -32,6 +32,7 @@ import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Partitioning;
+import org.apache.iceberg.PositionDeletesTable;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
@@ -163,7 +164,7 @@ public class SparkTable
 
   @Override
   public String name() {
-    return String.format("Iceberg %s", icebergTable.name());
+    return icebergTable.toString();
   }
 
   public Long snapshotId() {
@@ -260,11 +261,6 @@ public class SparkTable
 
   @Override
   public ScanBuilder newScanBuilder(CaseInsensitiveStringMap options) {
-    if (options.containsKey(SparkReadOptions.FILE_SCAN_TASK_SET_ID)) {
-      // skip planning the job and fetch already staged file scan tasks
-      return new SparkFilesScanBuilder(sparkSession(), icebergTable, options);
-    }
-
     if (options.containsKey(SparkReadOptions.SCAN_TASK_SET_ID)) {
       return new SparkStagedScanBuilder(sparkSession(), icebergTable, options);
     }
@@ -284,7 +280,11 @@ public class SparkTable
     Preconditions.checkArgument(
         snapshotId == null, "Cannot write to table at a specific snapshot: %s", snapshotId);
 
-    return new SparkWriteBuilder(sparkSession(), icebergTable, branch, info);
+    if (icebergTable instanceof PositionDeletesTable) {
+      return new SparkPositionDeletesRewriteBuilder(sparkSession(), icebergTable, branch, info);
+    } else {
+      return new SparkWriteBuilder(sparkSession(), icebergTable, branch, info);
+    }
   }
 
   @Override

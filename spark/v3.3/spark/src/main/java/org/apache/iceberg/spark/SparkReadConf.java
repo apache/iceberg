@@ -98,17 +98,26 @@ public class SparkReadConf {
             + "got [%s] in identifier and [%s] in options",
         branch,
         optionBranch);
-    return branch != null ? branch : optionBranch;
+    String inputBranch = branch != null ? branch : optionBranch;
+    if (inputBranch != null) {
+      return inputBranch;
+    }
+
+    boolean wapEnabled =
+        PropertyUtil.propertyAsBoolean(
+            table.properties(), TableProperties.WRITE_AUDIT_PUBLISH_ENABLED, false);
+    if (wapEnabled) {
+      String wapBranch = spark.conf().get(SparkSQLProperties.WAP_BRANCH, null);
+      if (wapBranch != null && table.refs().containsKey(wapBranch)) {
+        return wapBranch;
+      }
+    }
+
+    return null;
   }
 
   public String tag() {
     return confParser.stringConf().option(SparkReadOptions.TAG).parseOptional();
-  }
-
-  /** @deprecated will be removed in 1.3.0, use {@link #scanTaskSetId()} instead */
-  @Deprecated
-  public String fileScanTaskSetId() {
-    return confParser.stringConf().option(SparkReadOptions.FILE_SCAN_TASK_SET_ID).parseOptional();
   }
 
   public String scanTaskSetId() {

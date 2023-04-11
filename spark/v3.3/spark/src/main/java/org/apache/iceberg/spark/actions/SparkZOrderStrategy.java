@@ -214,7 +214,7 @@ public class SparkZOrderStrategy extends SparkSortStrategy {
           spark
               .read()
               .format("iceberg")
-              .option(SparkReadOptions.FILE_SCAN_TASK_SET_ID, groupID)
+              .option(SparkReadOptions.SCAN_TASK_SET_ID, groupID)
               .load(groupID);
 
       Column[] originalColumns =
