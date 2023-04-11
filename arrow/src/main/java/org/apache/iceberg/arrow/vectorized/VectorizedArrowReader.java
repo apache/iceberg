@@ -113,6 +113,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
     FLOAT,
     DOUBLE,
     TIMESTAMP_MILLIS,
+    TIMESTAMP_INT96,
     TIME_MICROS,
     UUID,
     DICTIONARY
@@ -173,6 +174,11 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
           case TIMESTAMP_MILLIS:
             vectorizedColumnIterator
                 .timestampMillisBatchReader()
+                .nextBatch(vec, typeWidth, nullabilityHolder);
+            break;
+          case TIMESTAMP_INT96:
+            vectorizedColumnIterator
+                .timestampInt96BatchReader()
                 .nextBatch(vec, typeWidth, nullabilityHolder);
             break;
           case UUID:
@@ -365,6 +371,17 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
         ((IntVector) vec).allocateNew(batchSize);
         this.readType = ReadType.INT;
         this.typeWidth = (int) IntVector.TYPE_WIDTH;
+        break;
+      case INT96:
+        // Impala & Spark used to write timestamps as INT96 by default. For backwards
+        // compatibility we try to read INT96 as timestamps. But INT96 is not recommended
+        // and deprecated (see https://issues.apache.org/jira/browse/PARQUET-323)
+        int length = BigIntVector.TYPE_WIDTH;
+        this.readType = ReadType.TIMESTAMP_INT96;
+        this.vec = arrowField.createVector(rootAlloc);
+        vec.setInitialCapacity(batchSize * length);
+        vec.allocateNew();
+        this.typeWidth = length;
         break;
       case FLOAT:
         Field floatField =

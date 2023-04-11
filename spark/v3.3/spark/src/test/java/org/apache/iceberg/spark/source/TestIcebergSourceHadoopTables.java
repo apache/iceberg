@@ -51,6 +51,11 @@ public class TestIcebergSourceHadoopTables extends TestIcebergSourceTablesBase {
   }
 
   @Override
+  public void dropTable(TableIdentifier ident) {
+    TABLES.dropTable(tableLocation);
+  }
+
+  @Override
   public Table loadTable(TableIdentifier ident, String entriesSuffix) {
     return TABLES.load(loadLocation(ident, entriesSuffix));
   }
