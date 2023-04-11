@@ -92,6 +92,8 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
       ProcedureParameter.optional("remove_carryovers", DataTypes.BooleanType);
   private static final ProcedureParameter IDENTIFIER_COLUMNS_PARAM =
       ProcedureParameter.optional("identifier_columns", STRING_ARRAY);
+  private static final ProcedureParameter NET_CHANGES =
+      ProcedureParameter.optional("net_changes", DataTypes.BooleanType);
 
   private static final ProcedureParameter[] PARAMETERS =
       new ProcedureParameter[] {
@@ -101,6 +103,7 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
         COMPUTE_UPDATES_PARAM,
         REMOVE_CARRYOVERS_PARAM,
         IDENTIFIER_COLUMNS_PARAM,
+        NET_CHANGES,
       };
 
   private static final StructType OUTPUT_TYPE =
@@ -142,10 +145,12 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
     Identifier changelogTableIdent = changelogTableIdent(tableIdent);
     Dataset<Row> df = loadRows(changelogTableIdent, options(input));
 
+    boolean netChanges = input.asBoolean(NET_CHANGES, false);
+
     if (shouldComputeUpdateImages(input)) {
-      df = computeUpdateImages(identifierColumns(input, tableIdent), df);
+      df = computeUpdateImages(identifierColumns(input, tableIdent), df, netChanges);
     } else if (shouldRemoveCarryoverRows(input)) {
-      df = removeCarryoverRows(df);
+      df = removeCarryoverRows(df, netChanges);
     }
 
     String viewName = viewName(input, tableIdent.name());
@@ -155,18 +160,23 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
     return toOutputRows(viewName);
   }
 
-  private Dataset<Row> computeUpdateImages(String[] identifierColumns, Dataset<Row> df) {
+  private Dataset<Row> computeUpdateImages(
+      String[] identifierColumns, Dataset<Row> df, boolean netChanges) {
     Preconditions.checkArgument(
         identifierColumns.length > 0,
         "Cannot compute the update images because identifier columns are not set");
 
-    Column[] repartitionSpec = new Column[identifierColumns.length + 1];
+    int length = netChanges ? identifierColumns.length : identifierColumns.length + 1;
+    Column[] repartitionSpec = new Column[length];
     for (int i = 0; i < identifierColumns.length; i++) {
       repartitionSpec[i] = df.col(identifierColumns[i]);
     }
-    repartitionSpec[repartitionSpec.length - 1] = df.col(MetadataColumns.CHANGE_ORDINAL.name());
 
-    return applyChangelogIterator(df, repartitionSpec);
+    if (!netChanges) {
+      repartitionSpec[repartitionSpec.length - 1] = df.col(MetadataColumns.CHANGE_ORDINAL.name());
+    }
+
+    return applyChangelogIterator(df, repartitionSpec, netChanges);
   }
 
   private boolean shouldComputeUpdateImages(ProcedureInput input) {
@@ -179,7 +189,7 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
     return input.asBoolean(REMOVE_CARRYOVERS_PARAM, true);
   }
 
-  private Dataset<Row> removeCarryoverRows(Dataset<Row> df) {
+  private Dataset<Row> removeCarryoverRows(Dataset<Row> df, boolean netChanges) {
     Column[] repartitionSpec =
         Arrays.stream(df.columns())
             .filter(c -> !c.equals(MetadataColumns.CHANGE_TYPE.name()))
@@ -213,7 +223,8 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
     return input.asString(CHANGELOG_VIEW_PARAM, defaultValue);
   }
 
-  private Dataset<Row> applyChangelogIterator(Dataset<Row> df, Column[] repartitionSpec) {
+  private Dataset<Row> applyChangelogIterator(
+      Dataset<Row> df, Column[] repartitionSpec, boolean netChanges) {
     Column[] sortSpec = sortSpec(df, repartitionSpec);
     StructType schema = df.schema();
     String[] identifierFields =
@@ -229,6 +240,7 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
   }
 
   private Dataset<Row> applyCarryoverRemoveIterator(Dataset<Row> df, Column[] repartitionSpec) {
+    // todo double check we should sort by (change order, change type) for net changes
     Column[] sortSpec = sortSpec(df, repartitionSpec);
     StructType schema = df.schema();
 
@@ -241,8 +253,22 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
   }
 
   private static Column[] sortSpec(Dataset<Row> df, Column[] repartitionSpec) {
-    Column[] sortSpec = new Column[repartitionSpec.length + 1];
+    Column changeOrdinal = df.col(MetadataColumns.CHANGE_ORDINAL.name());
+    boolean noChangeOrdinal =
+        Arrays.stream(repartitionSpec).noneMatch(c -> c.equals(changeOrdinal));
+
+    Column[] sortSpec;
+    if (noChangeOrdinal) {
+      sortSpec = new Column[repartitionSpec.length + 2];
+    } else {
+      sortSpec = new Column[repartitionSpec.length + 1];
+    }
+
     System.arraycopy(repartitionSpec, 0, sortSpec, 0, repartitionSpec.length);
+
+    if (noChangeOrdinal) {
+      sortSpec[sortSpec.length - 2] = changeOrdinal;
+    }
     sortSpec[sortSpec.length - 1] = df.col(MetadataColumns.CHANGE_TYPE.name());
     return sortSpec;
   }

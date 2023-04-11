@@ -79,6 +79,11 @@ public abstract class ChangelogIterator implements Iterator<Row> {
     return Iterators.filter(changelogIterator, Objects::nonNull);
   }
 
+  public static Iterator<Row> netChanges(Iterator<Row> rowIterator, StructType rowType) {
+    ChangelogIterator changelogIterator = new NetChangelogIterator(rowIterator, rowType);
+    return Iterators.filter(changelogIterator, Objects::nonNull);
+  }
+
   protected boolean isDifferentValue(Row currentRow, Row nextRow, int idx) {
     return !Objects.equals(nextRow.get(idx), currentRow.get(idx));
   }

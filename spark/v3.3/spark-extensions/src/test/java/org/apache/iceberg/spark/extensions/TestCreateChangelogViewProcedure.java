@@ -254,6 +254,35 @@ public class TestCreateChangelogViewProcedure extends SparkExtensionsTestBase {
   }
 
   @Test
+  public void testNetChanges() {
+    createTableWith2Columns();
+    sql("ALTER TABLE %s DROP PARTITION FIELD data", tableName);
+    sql("ALTER TABLE %s ADD PARTITION FIELD id", tableName);
+
+    sql("INSERT INTO %s VALUES (1, 'a'), (2, 'b')", tableName);
+    Table table = validationCatalog.loadTable(tableIdent);
+    Snapshot snap1 = table.currentSnapshot();
+
+    sql("INSERT OVERWRITE %s VALUES (3, 'c'), (2, 'd')", tableName);
+    table.refresh();
+    Snapshot snap2 = table.currentSnapshot();
+
+    List<Object[]> returns =
+        sql(
+            "CALL %s.system.create_changelog_view(table => '%s', identifier_columns => array('id'), net_changes => true)",
+            catalogName, tableName);
+
+    String viewName = (String) returns.get(0)[0];
+    assertEquals(
+        "Rows should match",
+        ImmutableList.of(
+            row(1, "a", INSERT, 0, snap1.snapshotId()),
+            row(2, "d", INSERT, 1, snap2.snapshotId()),
+            row(3, "c", INSERT, 1, snap2.snapshotId())),
+        sql("select * from %s order by _change_ordinal, id, data", viewName));
+  }
+
+  @Test
   public void testUpdateWithIdentifierField() {
     createTableWithIdentifierField();
 

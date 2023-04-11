@@ -151,7 +151,7 @@ class RemoveCarryoverIterator extends ChangelogIterator {
     return indices;
   }
 
-  private boolean isSameRecord(Row currentRow, Row nextRow) {
+  protected boolean isSameRecord(Row currentRow, Row nextRow) {
     for (int idx : indicesToIdentifySameRow) {
       if (isDifferentValue(currentRow, nextRow, idx)) {
         return false;
