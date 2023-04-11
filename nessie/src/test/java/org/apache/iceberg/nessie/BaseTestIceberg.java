@@ -174,12 +174,6 @@ public abstract class BaseTestIceberg {
     return catalog.createTable(tableIdentifier, schema);
   }
 
-  protected void createTable(
-      NessieCatalog nessieCatalog, TableIdentifier tableIdentifier, Schema schema) {
-    createMissingNamespaces(nessieCatalog, tableIdentifier);
-    nessieCatalog.createTable(tableIdentifier, schema);
-  }
-
   protected void createMissingNamespaces(TableIdentifier tableIdentifier) {
     createMissingNamespaces(catalog, tableIdentifier);
   }
