@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.flink.sink.shuffle.statistics;
+package org.apache.iceberg.flink.sink.shuffle;
 
 import org.apache.flink.annotation.Internal;
 
@@ -28,7 +28,7 @@ import org.apache.flink.annotation.Internal;
  * (sketching) can be used.
  */
 @Internal
-public interface DataStatistics<K> {
+interface DataStatistics<K> {
 
   /**
    * Check if data statistics contains any statistics information
