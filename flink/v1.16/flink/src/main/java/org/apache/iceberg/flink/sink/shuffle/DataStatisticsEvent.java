@@ -20,7 +20,6 @@ package org.apache.iceberg.flink.sink.shuffle;
 
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.runtime.operators.coordination.OperatorEvent;
-import org.apache.iceberg.flink.sink.shuffle.statistics.DataStatistics;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 
 /**

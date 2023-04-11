@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.flink.sink.shuffle.statistics;
+package org.apache.iceberg.flink.sink.shuffle;
 
 import java.util.Map;
 import org.apache.flink.annotation.Internal;
@@ -26,7 +26,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 /** MapDataStatistics uses map to count key frequency */
 @Internal
-public class MapDataStatistics<K> implements DataStatistics<K> {
+class MapDataStatistics<K> implements DataStatistics<K> {
   private final Map<K, Long> statistics = Maps.newHashMap();
 
   @Override
