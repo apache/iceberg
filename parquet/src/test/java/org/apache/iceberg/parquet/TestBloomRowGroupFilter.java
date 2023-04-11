@@ -248,7 +248,7 @@ public class TestBloomRowGroupFilter {
         structNotNull.put("_int_field", INT_MIN_VALUE + i);
         builder.set("_struct_not_null", structNotNull); // struct with int
         builder.set("_no_stats", TOO_LONG_FOR_STATS); // value longer than 4k will produce no stats
-        builder.set("_boolean", (i % 2 == 0) ? true : false);
+        builder.set("_boolean", i % 2 == 0);
         builder.set("_time", instant.plusSeconds(i * 86400).toEpochMilli());
         builder.set("_date", instant.plusSeconds(i * 86400).getEpochSecond());
         builder.set("_timestamp", instant.plusSeconds(i * 86400).toEpochMilli());

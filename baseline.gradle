@@ -48,7 +48,6 @@ subprojects {
 
   checkstyle {
     toolVersion '9.3'
-    ignoreFailures = true
     configDirectory = file("${rootDir}/.baseline/checkstyle")
   }
 

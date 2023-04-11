@@ -124,10 +124,10 @@ public class DataGenerators {
                           LogicalTypes.timeMillis()
                               .addToSchema(
                                   org.apache.avro.Schema.create(org.apache.avro.Schema.Type.INT));
-                      field = new org.apache.avro.Schema.Field("time_field", fieldSchema);
+                      return new org.apache.avro.Schema.Field("time_field", fieldSchema);
                     }
 
-                    return new org.apache.avro.Schema.Field(field, field.schema());
+                    return field;
                   })
               .collect(Collectors.toList());
       return org.apache.avro.Schema.createRecord(
