@@ -17,8 +17,8 @@
 
 from pathlib import Path
 
-import mkdocs_gen_files  # type: ignore
 import griffe  # type: ignore
+import mkdocs_gen_files  # type: ignore
 
 nav = mkdocs_gen_files.Nav()
 
@@ -34,7 +34,6 @@ for path in sorted(src_root.glob("**/*.py")):
     parts = tuple(module_path.parts)
 
     if parts[-1] == "__init__":
-        init = True
         parts = parts[:-1]
         doc_path = doc_path.with_name("index.md")
         full_doc_path = full_doc_path.with_name("index.md")
