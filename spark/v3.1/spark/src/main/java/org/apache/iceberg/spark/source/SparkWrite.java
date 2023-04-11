@@ -130,14 +130,15 @@ class SparkWrite {
     this.extraSnapshotMetadata = writeConf.extraSnapshotMetadata();
     this.partitionedFanoutEnabled = writeConf.fanoutWriterEnabled();
 
-    Preconditions.checkArgument(
-        writeConf.outputSpecId() == null || table.specs().containsKey(writeConf.outputSpecId()),
-        "Cannot write to unknown spec: %s",
-        writeConf.outputSpecId());
-    this.outputSpecId =
-        writeConf.outputSpecId() != null
-            ? table.specs().get(writeConf.outputSpecId()).specId()
-            : table.spec().specId();
+    if (writeConf.outputSpecId() == null) {
+      this.outputSpecId = table.spec().specId();
+    } else {
+      this.outputSpecId = writeConf.outputSpecId();
+      Preconditions.checkArgument(
+          table.specs().containsKey(outputSpecId),
+          "Cannot write to unknown spec: %s",
+          outputSpecId);
+    }
   }
 
   BatchWrite asBatchAppend() {

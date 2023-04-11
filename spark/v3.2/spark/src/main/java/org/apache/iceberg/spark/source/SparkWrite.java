@@ -128,14 +128,15 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
     this.requiredDistribution = requiredDistribution;
     this.requiredOrdering = requiredOrdering;
 
-    Preconditions.checkArgument(
-        writeConf.outputSpecId() == null || table.specs().containsKey(writeConf.outputSpecId()),
-        "Cannot write to unknown spec: %s",
-        writeConf.outputSpecId());
-    this.outputSpecId =
-        writeConf.outputSpecId() != null
-            ? table.specs().get(writeConf.outputSpecId()).specId()
-            : table.spec().specId();
+    if (writeConf.outputSpecId() == null) {
+      this.outputSpecId = table.spec().specId();
+    } else {
+      this.outputSpecId = writeConf.outputSpecId();
+      Preconditions.checkArgument(
+          table.specs().containsKey(outputSpecId),
+          "Cannot write to unknown spec: %s",
+          outputSpecId);
+    }
   }
 
   @Override
