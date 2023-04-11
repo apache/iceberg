@@ -18,8 +18,8 @@
  */
 package org.apache.iceberg.mr.hive.serde.objectinspector;
 
-import org.apache.hadoop.hive.common.type.Date;
 import java.time.LocalDate;
+import org.apache.hadoop.hive.common.type.Date;
 import org.apache.hadoop.hive.serde2.io.DateWritableV2;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.AbstractPrimitiveJavaObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.DateObjectInspector;
@@ -41,7 +41,7 @@ public final class IcebergDateObjectInspector extends AbstractPrimitiveJavaObjec
 
   @Override
   public Date getPrimitiveJavaObject(Object o) {
-    return o == null ? null : Date.ofEpochDay((int)((LocalDate) o).toEpochDay());
+    return o == null ? null : Date.ofEpochDay((int) ((LocalDate) o).toEpochDay());
   }
 
   @Override

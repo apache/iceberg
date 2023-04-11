@@ -20,11 +20,11 @@ package org.apache.iceberg.mr.hive.serde.objectinspector;
 
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import org.apache.hadoop.hive.common.type.Timestamp;
 import org.apache.hadoop.hive.serde2.io.TimestampWritableV2;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.AbstractPrimitiveJavaObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.TimestampObjectInspector;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoFactory;
-import org.apache.hadoop.hive.common.type.Timestamp;
 
 public class IcebergTimestampWithZoneObjectInspector extends AbstractPrimitiveJavaObjectInspector
     implements TimestampObjectInspector, WriteObjectInspector {
@@ -42,12 +42,16 @@ public class IcebergTimestampWithZoneObjectInspector extends AbstractPrimitiveJa
 
   @Override
   public OffsetDateTime convert(Object o) {
-    return o == null ? null : OffsetDateTime.ofInstant(((Timestamp) o).toSqlTimestamp().toInstant(), ZoneOffset.UTC);
+    return o == null
+        ? null
+        : OffsetDateTime.ofInstant(((Timestamp) o).toSqlTimestamp().toInstant(), ZoneOffset.UTC);
   }
 
   @Override
   public Timestamp getPrimitiveJavaObject(Object o) {
-    return o == null ? null : Timestamp.ofEpochMilli(((OffsetDateTime) o).toInstant().toEpochMilli());
+    return o == null
+        ? null
+        : Timestamp.ofEpochMilli(((OffsetDateTime) o).toInstant().toEpochMilli());
   }
 
   @Override

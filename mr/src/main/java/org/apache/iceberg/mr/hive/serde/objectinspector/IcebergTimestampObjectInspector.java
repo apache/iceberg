@@ -18,10 +18,9 @@
  */
 package org.apache.iceberg.mr.hive.serde.objectinspector;
 
-import org.apache.hadoop.hive.common.type.Timestamp;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
-
+import org.apache.hadoop.hive.common.type.Timestamp;
 import org.apache.hadoop.hive.serde2.io.TimestampWritableV2;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.AbstractPrimitiveJavaObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.TimestampObjectInspector;
@@ -48,7 +47,9 @@ public class IcebergTimestampObjectInspector extends AbstractPrimitiveJavaObject
 
   @Override
   public Timestamp getPrimitiveJavaObject(Object o) {
-    return o == null ? null : Timestamp.ofEpochMilli(((LocalDateTime) o).toInstant(ZoneOffset.UTC).toEpochMilli());
+    return o == null
+        ? null
+        : Timestamp.ofEpochMilli(((LocalDateTime) o).toInstant(ZoneOffset.UTC).toEpochMilli());
   }
 
   @Override
