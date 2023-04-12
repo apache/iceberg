@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.sql;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.spark.SparkCatalogTestBase;
 import org.apache.iceberg.spark.source.SimpleRecord;
@@ -162,18 +163,19 @@ public class TestPartitionedWrites extends SparkCatalogTestBase {
   @Test
   public void testWriteWithOutputSpec() throws NoSuchTableException {
     Table table = validationCatalog.loadTable(tableIdent);
+
     // Drop all records in table to have a fresh start.
-    sql("DELETE FROM %s", tableName);
-    table.refresh();
+    table.newDelete().deleteFromRowFilter(Expressions.alwaysTrue()).commit();
 
     final int originalSpecId = table.spec().specId();
     table.updateSpec().addField("data").commit();
 
-    table.refresh();
+    // Refresh this when using SparkCatalog since otherwise the new spec would not be caught.
     sql("REFRESH TABLE %s", tableName);
 
     // By default, we write to the current spec.
-    sql("INSERT INTO TABLE %s VALUES (10, 'a')", tableName);
+    List<SimpleRecord> data = ImmutableList.of(new SimpleRecord(10, "a"));
+    spark.createDataFrame(data, SimpleRecord.class).toDF().writeTo(tableName).append();
 
     List<Object[]> expected = ImmutableList.of(row(10L, "a", table.spec().specId()));
     assertEquals(
@@ -182,8 +184,7 @@ public class TestPartitionedWrites extends SparkCatalogTestBase {
         sql("SELECT id, data, _spec_id FROM %s WHERE id >= 10 ORDER BY id", tableName));
 
     // Output spec ID should be respected when present.
-    List<SimpleRecord> data =
-        ImmutableList.of(new SimpleRecord(11, "b"), new SimpleRecord(12, "c"));
+    data = ImmutableList.of(new SimpleRecord(11, "b"), new SimpleRecord(12, "c"));
     spark
         .createDataFrame(data, SimpleRecord.class)
         .toDF()
