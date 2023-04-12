@@ -18,7 +18,7 @@
  */
 
 if (jdkVersion != '8' && jdkVersion != '11' && jdkVersion != '17') {
-  throw new GradleException("The JMH benchamrks must be run with JDK 8 or JDK 11")
+  throw new GradleException("The JMH benchamrks must be run with JDK 8 or JDK 11 or JDK 17")
 }
 
 def sparkVersions = (System.getProperty("sparkVersions") != null ? System.getProperty("sparkVersions") : System.getProperty("defaultSparkVersions")).split(",")

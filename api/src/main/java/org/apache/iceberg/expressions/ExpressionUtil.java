@@ -47,10 +47,10 @@ public class ExpressionUtil {
   private static final Pattern DATE = Pattern.compile("\\d{4}-\\d{2}-\\d{2}");
   private static final Pattern TIME = Pattern.compile("\\d{2}:\\d{2}(:\\d{2}(.\\d{1,6})?)?");
   private static final Pattern TIMESTAMP =
-      Pattern.compile("\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}(:\\d{2}(.\\d{1,6})?)?");
+      Pattern.compile("\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}(:\\d{2}(.\\d{1,10})?)?");
   private static final Pattern TIMESTAMPTZ =
       Pattern.compile(
-          "\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}(:\\d{2}(.\\d{1,6})?)?([-+]\\d{2}:\\d{2}|Z)");
+          "\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}(:\\d{2}(.\\d{1,10})?)?([-+]\\d{2}:\\d{2}|Z)");
   static final int LONG_IN_PREDICATE_ABBREVIATION_THRESHOLD = 10;
   private static final int LONG_IN_PREDICATE_ABBREVIATION_MIN_GAIN = 5;
 
