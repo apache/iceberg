@@ -65,6 +65,7 @@ import javax.annotation.CheckForNull;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
@@ -72,8 +73,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 /**
@@ -304,49 +304,58 @@ public class S3AsyncFileIO
     ListObjectsV2Request request =
         ListObjectsV2Request.builder().bucket(s3uri.bucket()).prefix(s3uri.key()).build();
 
-    new AbstractIterator<FileInfo>() {
-      final AtomicReference<FileInfo> next = new AtomicReference<>(null);
-
-      @Override
-      public void forEachRemaining(Consumer<? super FileInfo> action) {
-        super.forEachRemaining(action);
-      }
-
-      @CheckForNull
-      @Override
-      protected FileInfo computeNext() {
-        return null;
-      }
-    };
-
-    return () -> new SubscriberIterator<>(
-      client().listObjectsV2Paginator(request)
-          .contents()
-          .map(o ->
-              new FileInfo(
+    SdkPublisher<FileInfo> publisher = client().listObjectsV2Paginator(request)
+        .contents()
+        .map(o ->
+            new FileInfo(
                 String.format("%s://%s/%s", s3uri.scheme(), s3uri.bucket(), o.key()),
                 o.size(),
-                o.lastModified().toEpochMilli()))
-    );
+                o.lastModified().toEpochMilli()));
+    SubscriberIterator<FileInfo> subscriber = new SubscriberIterator<>(publisher);
+    publisher.subscribe(subscriber);
+    return () -> subscriber;
   }
 
   private static class SubscriberIterator<T> extends AbstractIterator<T> implements Subscriber<T> {
     private final SdkPublisher<T> source;
-    private final BlockingQueue<T> items = new ArrayBlockingQueue<>(100);
+    private final BlockingQueue<Optional<T>> items = new ArrayBlockingQueue<>(100); // TODO: 100 is arbitrary between 1 and 1000 (S3 page size)
     private Throwable thrown;
 
     SubscriberIterator(SdkPublisher<T> source) {
+      super();
       this.source = source;
     }
 
+    private final AtomicInteger put = new AtomicInteger(0);
+    private final AtomicInteger taken = new AtomicInteger(0);
+    private void putInternal(Optional<T> item) {
+      try {
+        items.put(item);
+        put.getAndIncrement();
+      } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+        throw new RuntimeException(e);
+      }
+    }
+
+    private Optional<T> takeInternal() {
+      try {
+        Optional<T> taken = items.take();
+        this.taken.getAndIncrement();
+        return taken;
+      } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+        throw new RuntimeException(e);
+      }
+    }
     @Override
     public void onSubscribe(Subscription s) {
       s.request(Long.MAX_VALUE);
     }
 
     @Override
-    public void onNext(T t) {
-      items.add(t);
+    public void onNext(T item) {
+      putInternal(Optional.of(item));
     }
 
     @Override
@@ -356,12 +365,13 @@ public class S3AsyncFileIO
       } else {
         this.thrown.addSuppressed(t);
       }
-      endOfData();
+      putInternal(Optional.empty());
+      LOG.error("Error from S3", t);
     }
 
     @Override
     public void onComplete() {
-      endOfData();
+      putInternal(Optional.empty());
     }
 
     @CheckForNull
@@ -369,17 +379,10 @@ public class S3AsyncFileIO
     protected T computeNext() {
       if (items.isEmpty()) {
         if (thrown != null) {
-          if (thrown instanceof RuntimeException) {
-            throwUnchecked(thrown);
-          }
+          throwUnchecked(thrown);
         }
       }
-      try {
-        return items.take();
-      } catch (InterruptedException e) {
-        Thread.currentThread().interrupt();
-        throw new RuntimeException(e);
-      }
+      return takeInternal().orElseGet(this::endOfData);
     }
   }
 

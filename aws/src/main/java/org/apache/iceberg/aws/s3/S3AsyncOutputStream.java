@@ -404,40 +404,45 @@ class S3AsyncOutputStream extends PositionOutputStream {
 
   private void completeUploads() {
     if (multipartUploadId == null) {
-      long contentLength =
-          stagingFiles.stream().map(FileAndDigest::file).mapToLong(File::length).sum();
-      InputStream stream = new BufferedInputStream(
-                  stagingFiles.stream()
-                      .map(FileAndDigest::file)
-                      .map(S3AsyncOutputStream::uncheckedInputStream)
-                      .reduce(SequenceInputStream::new)
-                      .orElseGet(() -> new ByteArrayInputStream(new byte[0])));
-
-      PutObjectRequest.Builder requestBuilder =
-          PutObjectRequest.builder().bucket(location.bucket()).key(location.key());
-
-      if (writeTags != null && !writeTags.isEmpty()) {
-        requestBuilder.tagging(Tagging.builder().tagSet(writeTags).build());
-      }
-
-      if (isChecksumEnabled) {
-        requestBuilder.contentMD5(BinaryUtils.toBase64(completeMessageDigest.digest()));
-      }
-
-      S3RequestUtil.configureEncryption(awsProperties, requestBuilder);
-      S3RequestUtil.configurePermission(awsProperties, requestBuilder);
-
-      final BlockingInputStreamAsyncRequestBody body =
-              AsyncRequestBody.forBlockingInputStream(contentLength);
-
-      final CompletableFuture<PutObjectResponse> request =
-              s3.putObject(requestBuilder.build(), body);
-      body.writeInputStream(stream);
-      request.join();
+      uploadObject();
     } else {
       uploadParts();
       completeMultiPartUpload();
     }
+  }
+
+  private void uploadObject() {
+    long contentLength =
+        stagingFiles.stream().map(FileAndDigest::file).mapToLong(File::length).sum();
+    PutObjectRequest.Builder requestBuilder =
+        PutObjectRequest.builder().bucket(location.bucket()).key(location.key());
+
+    if (writeTags != null && !writeTags.isEmpty()) {
+      requestBuilder.tagging(Tagging.builder().tagSet(writeTags).build());
+    }
+
+    if (isChecksumEnabled) {
+      requestBuilder.contentMD5(BinaryUtils.toBase64(completeMessageDigest.digest()));
+    }
+
+    S3RequestUtil.configureEncryption(awsProperties, requestBuilder);
+    S3RequestUtil.configurePermission(awsProperties, requestBuilder);
+
+    InputStream stream = new BufferedInputStream(
+        stagingFiles.stream()
+            .map(FileAndDigest::file)
+            .map(S3AsyncOutputStream::uncheckedInputStream)
+            .reduce(SequenceInputStream::new)
+            .orElseGet(() -> new ByteArrayInputStream(new byte[0])));
+
+    final BlockingInputStreamAsyncRequestBody body =
+            AsyncRequestBody.forBlockingInputStream(contentLength);
+
+    final CompletableFuture<PutObjectResponse> request =
+            s3.putObject(requestBuilder.build(), body);
+
+    body.writeInputStream(stream);
+    request.join();
   }
 
   private static InputStream uncheckedInputStream(File file) {

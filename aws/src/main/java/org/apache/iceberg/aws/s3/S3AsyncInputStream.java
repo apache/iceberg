@@ -195,7 +195,7 @@ class S3AsyncInputStream extends SeekableInputStream implements RangeReadable {
 
     try {
       stream = s3.getObject(requestBuilder.build(), AsyncResponseTransformer.toBlockingInputStream()).join();
-    } catch (NoSuchKeyException e) {
+    } catch (NoSuchKeyException e) { // FIXME: Needs to be extracted out of completion exceptions.
       throw new NotFoundException(e, "Location does not exist: %s", location);
     }
   }
