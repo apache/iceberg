@@ -35,7 +35,7 @@ class SparkSortDataRewriter extends SparkShufflingDataRewriter {
     super(spark, table);
     Preconditions.checkArgument(
         table.sortOrder().isSorted(),
-        "Cannot sort data without a valid sort order, table %s is unsorted and no sort order is provided",
+        "Cannot sort data without a valid sort order, table '%s' is unsorted and no sort order is provided",
         table.name());
     this.sortOrder = table.sortOrder();
   }

@@ -47,7 +47,7 @@ import org.slf4j.LoggerFactory;
  *
  * <p>Note that implementations may add extra conditions for selecting files or filtering groups.
  */
-abstract class SizeBasedFileRewriter<T extends ContentScanTask<F>, F extends ContentFile<F>>
+public abstract class SizeBasedFileRewriter<T extends ContentScanTask<F>, F extends ContentFile<F>>
     implements FileRewriter<T, F> {
 
   private static final Logger LOG = LoggerFactory.getLogger(SizeBasedFileRewriter.class);
@@ -173,15 +173,15 @@ abstract class SizeBasedFileRewriter<T extends ContentScanTask<F>, F extends Con
     return rewriteAll ? groups : filterFileGroups(groups);
   }
 
-  protected boolean hasEnoughInputFiles(List<T> group) {
+  protected boolean enoughInputFiles(List<T> group) {
     return group.size() > 1 && group.size() >= minInputFiles;
   }
 
-  protected boolean hasEnoughData(List<T> group) {
+  protected boolean enoughData(List<T> group) {
     return group.size() > 1 && inputSize(group) > targetFileSize;
   }
 
-  protected boolean hasTooMuchData(List<T> group) {
+  protected boolean tooMuchData(List<T> group) {
     return inputSize(group) > maxFileSize;
   }
 
@@ -264,14 +264,6 @@ abstract class SizeBasedFileRewriter<T extends ContentScanTask<F>, F extends Con
 
     Preconditions.checkArgument(
         min >= 0, "'%s' is set to %s but must be >= 0", MIN_FILE_SIZE_BYTES, min);
-
-    Preconditions.checkArgument(
-        max > min,
-        "'%s' (%s) must be > '%s' (%s)",
-        MAX_FILE_SIZE_BYTES,
-        max,
-        MIN_FILE_SIZE_BYTES,
-        min);
 
     Preconditions.checkArgument(
         target > min,

@@ -129,7 +129,7 @@ class SparkZOrderDataRewriter extends SparkShufflingDataRewriter {
             options, VAR_LENGTH_CONTRIBUTION, VAR_LENGTH_CONTRIBUTION_DEFAULT);
     Preconditions.checkArgument(
         value > 0,
-        "Cannot use less than 1 byte for variable length types with ZOrder, %s was set to %s",
+        "Cannot use less than 1 byte for variable length types with ZOrder, '%s' was set to %s",
         VAR_LENGTH_CONTRIBUTION,
         value);
     return value;
@@ -139,7 +139,7 @@ class SparkZOrderDataRewriter extends SparkShufflingDataRewriter {
     int value = PropertyUtil.propertyAsInt(options, MAX_OUTPUT_SIZE, MAX_OUTPUT_SIZE_DEFAULT);
     Preconditions.checkArgument(
         value > 0,
-        "Cannot have the interleaved ZOrder value use less than 1 byte, %s was set to %s",
+        "Cannot have the interleaved ZOrder value use less than 1 byte, '%s' was set to %s",
         MAX_OUTPUT_SIZE,
         value);
     return value;

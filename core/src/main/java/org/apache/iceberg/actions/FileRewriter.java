@@ -31,6 +31,7 @@ import org.apache.iceberg.ContentScanTask;
  * @param <F> the Java type of content files
  */
 public interface FileRewriter<T extends ContentScanTask<F>, F extends ContentFile<F>> {
+
   /** Returns a description for this rewriter. */
   default String description() {
     return getClass().getName();
@@ -39,8 +40,6 @@ public interface FileRewriter<T extends ContentScanTask<F>, F extends ContentFil
   /**
    * Returns a set of supported options for this rewriter. This is an allowed-list and any options
    * not specified here will be rejected at runtime.
-   *
-   * @return returns a set of supported options
    */
   Set<String> validOptions();
 
