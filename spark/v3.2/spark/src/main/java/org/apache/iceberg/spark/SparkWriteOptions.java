@@ -57,7 +57,6 @@ public class SparkWriteOptions {
   public static final String HANDLE_TIMESTAMP_WITHOUT_TIMEZONE =
       "handle-timestamp-without-timezone";
 
-  // Output partition spec ID where writes should go.
   public static final String OUTPUT_SPEC_ID = "output-spec-id";
 
   public static final String OVERWRITE_MODE = "overwrite-mode";
