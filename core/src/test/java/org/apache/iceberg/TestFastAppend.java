@@ -570,6 +570,7 @@ public class TestFastAppend extends TableTestBase {
             () -> table.newFastAppend().appendFile(FILE_A).toBranch("some-tag").commit())
         .as("Invalid branch")
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("some-tag is a tag, not a branch. Tags cannot be targets for producing snapshots");
+        .hasMessage(
+            "some-tag is a tag, not a branch. Tags cannot be targets for producing snapshots");
   }
 }
