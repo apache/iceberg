@@ -113,6 +113,7 @@ public class DataGenerators {
           schemaConvertedFromIceberg.getFields().stream()
               .map(
                   field -> {
+                    org.apache.avro.Schema.Field updatedField;
                     if (field.name().equals("time_field")) {
                       // Iceberg's AvroSchemaUtil uses timestamp-micros with Long value for time
                       // field, while AvroToRowDataConverters#convertToTime() always looks for
@@ -124,10 +125,12 @@ public class DataGenerators {
                           LogicalTypes.timeMillis()
                               .addToSchema(
                                   org.apache.avro.Schema.create(org.apache.avro.Schema.Type.INT));
-                      return new org.apache.avro.Schema.Field("time_field", fieldSchema);
+                      updatedField = new org.apache.avro.Schema.Field("time_field", fieldSchema);
+                    } else {
+                      updatedField = field;
                     }
 
-                    return field;
+                    return new org.apache.avro.Schema.Field(updatedField, updatedField.schema());
                   })
               .collect(Collectors.toList());
       return org.apache.avro.Schema.createRecord(
