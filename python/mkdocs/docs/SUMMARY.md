@@ -15,6 +15,8 @@
  - limitations under the License.
  -->
 
+<!-- prettier-ignore-start -->
+
 - [Home](index.md)
 - [Configuration](configuration.md)
 - [CLI](cli.md)
@@ -25,3 +27,5 @@
     - [Verify a release](verify-release.md)
     - [How to release](how-to-release.md)
 - [Code Reference](reference/)
+
+<!-- prettier-ignore-end -->
