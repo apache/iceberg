@@ -33,11 +33,7 @@ subprojects {
   // ready to enforce linting on.
   apply plugin: 'org.inferred.processors'
   if (!project.hasProperty('quick')) {
-    // com.palantir.baseline:gradle-baseline-java:4.42.0 (the last version supporting Java 8) pulls
-    // in an old version of the checkstyle(9.1), which has this OutOfMemory bug https://github.com/checkstyle/checkstyle/issues/10934
-    // So, replace com.palantir.baseline-checkstyle plugin usage with gradle checkstyle plugin
-    // with checkstyle version 9.3 (the latest java 8 supported version) which contains the fix.
-    apply plugin: 'checkstyle'
+    apply plugin: 'com.palantir.baseline-checkstyle'
     apply plugin: 'com.palantir.baseline-error-prone'
   }
   apply plugin: 'com.palantir.baseline-class-uniqueness'
@@ -46,25 +42,14 @@ subprojects {
   apply plugin: 'com.palantir.baseline-release-compatibility'
   apply plugin: 'com.diffplug.spotless'
 
-  checkstyle {
-    toolVersion '9.3'
-    configDirectory = file("${rootDir}/.baseline/checkstyle")
-  }
-
-  // Configure checkstyle to be same as palantir/gradle-baseline
-  pluginManager.withPlugin("java", plugin -> {
-    JavaPluginExtension javaExt = project.getExtensions().getByType(JavaPluginExtension.class)
-    // We use the "JavadocMethod" module in our Checkstyle configuration, making
-    // Java 8+ new doclint compiler feature redundant.
-    if (javaExt.getSourceCompatibility().isJava8Compatible()) {
-      project.getTasks()
-              .withType(Javadoc.class)
-              .configureEach(javadoc ->
-                      javadoc.options(javadocOptions -> ((StandardJavadocDocletOptions) javadocOptions)
-                              .addStringOption("Xdoclint:none", "-quiet")))
+  pluginManager.withPlugin('com.palantir.baseline-checkstyle') {
+    checkstyle {
+      // com.palantir.baseline:gradle-baseline-java:4.42.0 (the last version supporting Java 8) pulls
+      // in an old version of the checkstyle(9.1), which has this OutOfMemory bug https://github.com/checkstyle/checkstyle/issues/10934.
+      // So, override its checkstyle version to 9.3 (the latest java 8 supported version) which contains a fix using CheckstyleExtension.
+      toolVersion '9.3'
     }
-  })
-
+  }
 
   pluginManager.withPlugin('com.diffplug.spotless') {
     spotless {
