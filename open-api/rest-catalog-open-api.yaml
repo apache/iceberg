@@ -726,7 +726,7 @@ paths:
         Check if a table exists within a given namespace. This request does not return a response body.
       responses:
         204:
-          description: OK - Table Exists
+          description: Success, no content
         400:
           description: Bad Request
         401:
@@ -764,7 +764,7 @@ paths:
         required: true
       responses:
         204:
-          description: OK
+          description: Success, no content
         400:
           $ref: '#/components/responses/BadRequestErrorResponse'
         401:
