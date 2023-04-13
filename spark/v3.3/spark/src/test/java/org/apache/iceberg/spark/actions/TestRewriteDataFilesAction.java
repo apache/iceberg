@@ -1232,23 +1232,25 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
   public void testInvalidAPIUsage() {
     Table table = createTable(1);
 
+    SortOrder sortOrder = SortOrder.builderFor(table.schema()).asc("c2").build();
+
     AssertHelpers.assertThrows(
         "Should be unable to set Strategy more than once",
         IllegalArgumentException.class,
-        "Cannot set strategy",
+        "Must use only one rewriter type",
         () -> actions().rewriteDataFiles(table).binPack().sort());
 
     AssertHelpers.assertThrows(
         "Should be unable to set Strategy more than once",
         IllegalArgumentException.class,
-        "Cannot set strategy",
-        () -> actions().rewriteDataFiles(table).sort().binPack());
+        "Must use only one rewriter type",
+        () -> actions().rewriteDataFiles(table).sort(sortOrder).binPack());
 
     AssertHelpers.assertThrows(
         "Should be unable to set Strategy more than once",
         IllegalArgumentException.class,
-        "Cannot set strategy",
-        () -> actions().rewriteDataFiles(table).sort(SortOrder.unsorted()).binPack());
+        "Must use only one rewriter type",
+        () -> actions().rewriteDataFiles(table).sort(sortOrder).binPack());
   }
 
   @Test

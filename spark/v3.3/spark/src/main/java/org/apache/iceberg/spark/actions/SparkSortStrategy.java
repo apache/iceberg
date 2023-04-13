@@ -47,6 +47,12 @@ import org.apache.spark.sql.connector.distributions.Distributions;
 import org.apache.spark.sql.connector.expressions.SortOrder;
 import org.apache.spark.sql.internal.SQLConf;
 
+/**
+ * A Spark strategy to sort data.
+ *
+ * @deprecated since 1.3.0, will be removed in 1.4.0; use {@link SparkSortDataRewriter} instead.
+ */
+@Deprecated
 public class SparkSortStrategy extends SortStrategy {
 
   /**
