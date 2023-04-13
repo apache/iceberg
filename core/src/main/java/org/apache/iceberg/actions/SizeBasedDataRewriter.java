@@ -38,7 +38,7 @@ public abstract class SizeBasedDataRewriter extends SizeBasedFileRewriter<FileSc
    * rewritten regardless of its file size determined by {@link #MIN_FILE_SIZE_BYTES} and {@link
    * #MAX_FILE_SIZE_BYTES}. If a file group contains a file that satisfies this condition, the file
    * group will be rewritten regardless of the number of files in the file group determined by
-   * {@link #MIN_INPUT_FILES}
+   * {@link #MIN_INPUT_FILES}.
    *
    * <p>Defaults to Integer.MAX_VALUE, which means this feature is not enabled by default.
    */
