@@ -25,6 +25,8 @@ import static org.junit.runners.Parameterized.Parameter;
 import static org.junit.runners.Parameterized.Parameters;
 
 import java.io.IOException;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -1208,6 +1210,51 @@ public class TestHiveIcebergStorageHandlerWithEngine {
         customersWithNewFirstNameOnly,
         HiveIcebergTestUtils.valueForRow(customerSchemaWithNewFirstNameOnly, rows),
         0);
+  }
+  
+  @Test
+  public void testWriteWithDatePartition() {
+    Assume.assumeTrue("Tez write is not implemented yet", executionEngine.equals("mr"));
+
+    Schema dateSchema = new Schema(
+            optional(1, "id", Types.LongType.get()),
+            optional(2, "part_field", Types.DateType.get()));
+
+    PartitionSpec spec = PartitionSpec.builderFor(dateSchema).identity("part_field").build();
+    List<Record> records = TestHelper.RecordsBuilder.newInstance(dateSchema)
+            .add(1L, LocalDate.of(2023, 1, 21))
+            .add(2L, LocalDate.of(2023, 1, 22))
+            .add(3L, LocalDate.of(2022, 1, 21))
+            .build();
+    testTables.createTable(shell, "part_test", dateSchema, spec, FileFormat.PARQUET, records);
+    List<Object[]> result = shell.executeStatement("SELECT * from part_test order by id");
+
+    Assert.assertEquals(records.size(), result.size());
+    Assert.assertEquals("2023-01-21", result.get(0)[1]);
+    Assert.assertEquals("2023-01-22", result.get(1)[1]);
+    Assert.assertEquals("2022-01-21", result.get(2)[1]);
+  }
+
+  @Test
+  public void testWriteWithTimestampPartition() throws IOException {
+    Assume.assumeTrue("Tez write is not implemented yet", executionEngine.equals("mr"));
+
+    Schema dateSchema = new Schema(
+            optional(1, "id", Types.LongType.get()),
+            optional(2, "part_field", Types.TimestampType.withoutZone()));
+    PartitionSpec spec = PartitionSpec.builderFor(dateSchema).identity("part_field").build();
+    List<Record> records = TestHelper.RecordsBuilder.newInstance(dateSchema)
+            .add(1L, LocalDateTime.of(2023, 1, 21, 21, 10, 10, 100000000))
+            .add(2L, LocalDateTime.of(2023, 1, 21, 22, 10, 10, 200000000))
+            .add(3L, LocalDateTime.of(2023, 1, 22, 21, 10, 10, 300000000))
+            .build();
+    testTables.createTable(shell, "part_test", dateSchema, spec, FileFormat.PARQUET, records);
+    List<Object[]> result = shell.executeStatement("SELECT * from part_test order by id");
+
+    Assert.assertEquals(records.size(), result.size());
+    Assert.assertEquals("2023-01-21 21:10:10.1", result.get(0)[1]);
+    Assert.assertEquals("2023-01-21 22:10:10.2", result.get(1)[1]);
+    Assert.assertEquals("2023-01-22 21:10:10.3", result.get(2)[1]);
   }
 
   /**
