@@ -23,7 +23,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Function;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -40,6 +39,7 @@ import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.hadoop.Configurable;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.util.SerializableFunction;
 
 public class RESTCatalog implements Catalog, SupportsNamespaces, Configurable<Object>, Closeable {
   private final RESTSessionCatalog sessionCatalog;
@@ -53,13 +53,13 @@ public class RESTCatalog implements Catalog, SupportsNamespaces, Configurable<Ob
         config -> HTTPClient.builder(config).uri(config.get(CatalogProperties.URI)).build());
   }
 
-  public RESTCatalog(Function<Map<String, String>, RESTClient> clientBuilder) {
+  public RESTCatalog(SerializableFunction<Map<String, String>, RESTClient> clientBuilder) {
     this(SessionCatalog.SessionContext.createEmpty(), clientBuilder);
   }
 
   public RESTCatalog(
       SessionCatalog.SessionContext context,
-      Function<Map<String, String>, RESTClient> clientBuilder) {
+      SerializableFunction<Map<String, String>, RESTClient> clientBuilder) {
     this.sessionCatalog = new RESTSessionCatalog(clientBuilder, null);
     this.delegate = sessionCatalog.asCatalog(context);
     this.nsDelegate = (SupportsNamespaces) delegate;

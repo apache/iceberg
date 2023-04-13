@@ -19,25 +19,35 @@
 package org.apache.iceberg.rest;
 
 import java.util.Map;
-import java.util.function.Supplier;
 import org.apache.iceberg.metrics.MetricsReport;
 import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.rest.requests.ReportMetricsRequest;
+import org.apache.iceberg.util.SerializableFunction;
+import org.apache.iceberg.util.SerializableMap;
+import org.apache.iceberg.util.SerializableSupplier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 class RESTMetricsReporter implements MetricsReporter {
   private static final Logger LOG = LoggerFactory.getLogger(RESTMetricsReporter.class);
 
-  private final RESTClient client;
+  private transient volatile RESTClient client;
   private final String metricsEndpoint;
-  private final Supplier<Map<String, String>> headers;
+  private final SerializableSupplier<Map<String, String>> headers;
+  private final SerializableFunction<Map<String, String>, RESTClient> clientBuilder;
+  private final SerializableMap<String, String> properties;
 
   RESTMetricsReporter(
-      RESTClient client, String metricsEndpoint, Supplier<Map<String, String>> headers) {
+      RESTClient client,
+      String metricsEndpoint,
+      SerializableSupplier<Map<String, String>> headers,
+      SerializableFunction<Map<String, String>, RESTClient> clientBuilder,
+      SerializableMap<String, String> properties) {
     this.client = client;
     this.metricsEndpoint = metricsEndpoint;
     this.headers = headers;
+    this.clientBuilder = clientBuilder;
+    this.properties = properties;
   }
 
   @Override
@@ -48,14 +58,36 @@ class RESTMetricsReporter implements MetricsReporter {
     }
 
     try {
-      client.post(
-          metricsEndpoint,
-          ReportMetricsRequest.of(report),
-          null,
-          headers,
-          ErrorHandlers.defaultErrorHandler());
+      client()
+          .post(
+              metricsEndpoint,
+              ReportMetricsRequest.of(report),
+              null,
+              headers,
+              ErrorHandlers.defaultErrorHandler());
     } catch (Exception e) {
       LOG.warn("Failed to report metrics to REST endpoint {}", metricsEndpoint, e);
     }
+  }
+
+  private RESTClient client() {
+    // lazy init the client in case RESTMetricsReporter was deserialized
+    if (null == client) {
+      synchronized (this) {
+        if (null == client) {
+          client = clientBuilder.apply(properties);
+        }
+      }
+    }
+
+    return client;
+  }
+
+  Object writeReplace() {
+    // fetch the latest headers from the AuthSession and carry them over in a separate supplier so
+    // that AuthSession doesn't have to be Serializable
+    Map<String, String> authHeaders = headers.get();
+    return new RESTMetricsReporter(
+        client, metricsEndpoint, () -> authHeaders, clientBuilder, properties);
   }
 }

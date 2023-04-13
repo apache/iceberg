@@ -25,6 +25,7 @@ import java.util.stream.Collectors;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
+import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -202,6 +203,11 @@ public abstract class BaseMetadataTable extends BaseReadOnlyTable
   @Override
   public String toString() {
     return name();
+  }
+
+  @Override
+  public MetricsReporter metricsReporter() {
+    return table().metricsReporter();
   }
 
   final Object writeReplace() {

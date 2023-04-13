@@ -774,6 +774,11 @@ public class BaseTransaction implements Transaction {
     }
 
     @Override
+    public MetricsReporter metricsReporter() {
+      return BaseTransaction.this.reporter;
+    }
+
+    @Override
     public String toString() {
       return name();
     }

@@ -26,6 +26,7 @@ import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.hadoop.HadoopConfigurable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
+import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.SerializableMap;
 import org.apache.iceberg.util.SerializableSupplier;
@@ -62,6 +63,7 @@ public class SerializableTable implements Table, Serializable {
   private final EncryptionManager encryption;
   private final LocationProvider locationProvider;
   private final Map<String, SnapshotRef> refs;
+  private final MetricsReporter metricsReporter;
 
   private transient volatile Table lazyTable = null;
   private transient volatile Schema lazySchema = null;
@@ -83,6 +85,7 @@ public class SerializableTable implements Table, Serializable {
     this.encryption = table.encryption();
     this.locationProvider = table.locationProvider();
     this.refs = SerializableMap.copyOf(table.refs());
+    this.metricsReporter = table.metricsReporter();
   }
 
   /**
@@ -136,7 +139,7 @@ public class SerializableTable implements Table, Serializable {
   }
 
   protected Table newTable(TableOperations ops, String tableName) {
-    return new BaseTable(ops, tableName);
+    return new BaseTable(ops, tableName, metricsReporter());
   }
 
   @Override
@@ -245,6 +248,11 @@ public class SerializableTable implements Table, Serializable {
   @Override
   public Map<String, SnapshotRef> refs() {
     return refs;
+  }
+
+  @Override
+  public MetricsReporter metricsReporter() {
+    return metricsReporter;
   }
 
   @Override

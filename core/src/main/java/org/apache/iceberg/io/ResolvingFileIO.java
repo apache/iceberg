@@ -27,6 +27,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.HadoopConfigurable;
+import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.hadoop.SerializableConfiguration;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -131,6 +132,9 @@ public class ResolvingFileIO implements FileIO, HadoopConfigurable {
     String impl = implFromLocation(location);
     FileIO io = ioInstances.get(impl);
     if (io != null) {
+      if (io instanceof HadoopFileIO && ((HadoopFileIO) io).conf() == null) {
+        ((HadoopFileIO) io).setConf(hadoopConf.get());
+      }
       return io;
     }
 

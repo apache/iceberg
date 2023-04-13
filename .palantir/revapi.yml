@@ -460,6 +460,28 @@ acceptedBreaks:
       new: "parameter void org.apache.iceberg.actions.BaseCommitService<T>::offer(===T===)\
         \ @ org.apache.iceberg.actions.RewriteDataFilesCommitManager.CommitService"
       justification: "Backwards compatible parameterization of argument"
+    - code: "java.method.parameterTypeChanged"
+      old: "parameter void org.apache.iceberg.rest.RESTCatalog::<init>(===java.util.function.Function<java.util.Map<java.lang.String,\
+        \ java.lang.String>, org.apache.iceberg.rest.RESTClient>===)"
+      new: "parameter void org.apache.iceberg.rest.RESTCatalog::<init>(===org.apache.iceberg.util.SerializableFunction<java.util.Map<java.lang.String,\
+        \ java.lang.String>, org.apache.iceberg.rest.RESTClient>===)"
+      justification: "Switching to SerializableFunction"
+    - code: "java.method.parameterTypeChanged"
+      old: "parameter void org.apache.iceberg.rest.RESTCatalog::<init>(org.apache.iceberg.catalog.SessionCatalog.SessionContext,\
+        \ ===java.util.function.Function<java.util.Map<java.lang.String, java.lang.String>,\
+        \ org.apache.iceberg.rest.RESTClient>===)"
+      new: "parameter void org.apache.iceberg.rest.RESTCatalog::<init>(org.apache.iceberg.catalog.SessionCatalog.SessionContext,\
+        \ ===org.apache.iceberg.util.SerializableFunction<java.util.Map<java.lang.String,\
+        \ java.lang.String>, org.apache.iceberg.rest.RESTClient>===)"
+      justification: "Switching to SerializableFunction"
+    - code: "java.method.parameterTypeChanged"
+      old: "parameter void org.apache.iceberg.rest.RESTSessionCatalog::<init>(===java.util.function.Function<java.util.Map<java.lang.String,\
+        \ java.lang.String>, org.apache.iceberg.rest.RESTClient>===, java.util.function.BiFunction<org.apache.iceberg.catalog.SessionCatalog.SessionContext,\
+        \ java.util.Map<java.lang.String, java.lang.String>, org.apache.iceberg.io.FileIO>)"
+      new: "parameter void org.apache.iceberg.rest.RESTSessionCatalog::<init>(===org.apache.iceberg.util.SerializableFunction<java.util.Map<java.lang.String,\
+        \ java.lang.String>, org.apache.iceberg.rest.RESTClient>===, java.util.function.BiFunction<org.apache.iceberg.catalog.SessionCatalog.SessionContext,\
+        \ java.util.Map<java.lang.String, java.lang.String>, org.apache.iceberg.io.FileIO>)"
+      justification: "Switching to SerializableFunction"
     - code: "java.method.removed"
       old: "method ThisT org.apache.iceberg.BaseScan<ThisT, T extends org.apache.iceberg.ScanTask,\
         \ G extends org.apache.iceberg.ScanTaskGroup<T extends org.apache.iceberg.ScanTask>>::newRefinedScan(org.apache.iceberg.TableOperations,\
