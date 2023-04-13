@@ -25,6 +25,8 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import com.esotericsoftware.kryo.serializers.ClosureSerializer;
+import com.esotericsoftware.kryo.serializers.JavaSerializer;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -278,6 +280,7 @@ public class TestHelpers {
 
       // required for serializing and deserializing $$Lambda$ Anonymous Classes
       kryo.register(SerializedLambda.class);
+      kryo.register(ObjectMapper.class, new JavaSerializer());
       kryo.register(ClosureSerializer.Closure.class, new ClosureSerializer());
 
       ByteArrayOutputStream bytes = new ByteArrayOutputStream();

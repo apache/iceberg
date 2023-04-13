@@ -86,6 +86,7 @@ import org.apache.iceberg.rest.responses.OAuthTokenResponse;
 import org.apache.iceberg.rest.responses.UpdateNamespacePropertiesResponse;
 import org.apache.iceberg.util.EnvironmentUtil;
 import org.apache.iceberg.util.PropertyUtil;
+import org.apache.iceberg.util.SerializableSupplier;
 import org.apache.iceberg.util.ThreadPools;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -384,7 +385,7 @@ public class RESTSessionCatalog extends BaseSessionCatalog
   }
 
   private MetricsReporter metricsReporter(
-      String metricsEndpoint, Supplier<Map<String, String>> headers) {
+      String metricsEndpoint, SerializableSupplier<Map<String, String>> headers) {
     if (reportingViaRestEnabled) {
       RESTMetricsReporter restMetricsReporter =
           new RESTMetricsReporter(client, metricsEndpoint, headers);

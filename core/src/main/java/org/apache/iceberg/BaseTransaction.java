@@ -770,6 +770,10 @@ public class BaseTransaction implements Transaction {
       return current.refs();
     }
 
+    public MetricsReporter metricsReporter() {
+      return BaseTransaction.this.reporter;
+    }
+
     @Override
     public String toString() {
       return name();
