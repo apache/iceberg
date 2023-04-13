@@ -74,16 +74,19 @@ public class TestSetWriteDistributionAndOrdering extends SparkExtensionsTestBase
         tableName);
     Table table = validationCatalog.loadTable(tableIdent);
     Assert.assertTrue("Table should start unsorted", table.sortOrder().isUnsorted());
-    Assertions.assertThatThrownBy(() -> {
-      sql(String.format("SET %s=true", SQLConf.CASE_SENSITIVE().key()));
-      sql("ALTER TABLE %s WRITE ORDERED BY category, id", tableName);
-    }).isInstanceOf(ValidationException.class);
+    sql("SET %s=true", SQLConf.CASE_SENSITIVE().key());
+    Assertions.assertThatThrownBy(
+            () -> {
+              sql("ALTER TABLE %s WRITE ORDERED BY category, id", tableName);
+            })
+        .isInstanceOf(ValidationException.class);
 
+    sql("SET %s=false", SQLConf.CASE_SENSITIVE().key());
     Assertions.assertThatNoException()
-        .isThrownBy(() -> {
-          sql(String.format("SET %s=false", SQLConf.CASE_SENSITIVE().key()));
-          sql("ALTER TABLE %s WRITE ORDERED BY category, id", tableName);
-        });
+        .isThrownBy(
+            () -> {
+              sql("ALTER TABLE %s WRITE ORDERED BY category, id", tableName);
+            });
   }
 
   @Test

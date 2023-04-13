@@ -110,5 +110,8 @@ public interface SortOrderBuilder<R> {
    * @param caseSensitive when true, column name resolution is case-sensitive
    * @return this for method chaining
    */
-  R caseSensitive(boolean caseSensitive);
+  default R caseSensitive(boolean caseSensitive) {
+    throw new UnsupportedOperationException(
+        String.format("Operation not supported by %s", this.getClass().getName()));
+  };
 }
