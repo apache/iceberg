@@ -62,7 +62,6 @@ import org.apache.iceberg.io.FileWriter;
 import org.apache.iceberg.io.OutputFileFactory;
 import org.apache.iceberg.io.PartitioningWriter;
 import org.apache.iceberg.io.RollingDataWriter;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -129,16 +128,7 @@ class SparkWrite {
     this.dsSchema = dsSchema;
     this.extraSnapshotMetadata = writeConf.extraSnapshotMetadata();
     this.partitionedFanoutEnabled = writeConf.fanoutWriterEnabled();
-
-    if (writeConf.outputSpecId() == null) {
-      this.outputSpecId = table.spec().specId();
-    } else {
-      this.outputSpecId = writeConf.outputSpecId();
-      Preconditions.checkArgument(
-          table.specs().containsKey(outputSpecId),
-          "Cannot write to unknown spec: %s",
-          outputSpecId);
-    }
+    this.outputSpecId = writeConf.outputSpecId();
   }
 
   BatchWrite asBatchAppend() {
@@ -608,7 +598,7 @@ class SparkWrite {
     public DataWriter<InternalRow> createWriter(int partitionId, long taskId, long epochId) {
       Table table = tableBroadcast.value();
       FileIO io = table.io();
-      PartitionSpec outputSpec = table.specs().get(outputSpecId);
+      PartitionSpec spec = table.specs().get(outputSpecId);
 
       OutputFileFactory fileFactory =
           OutputFileFactory.builderFor(table, partitionId, taskId).format(format).build();
@@ -619,16 +609,15 @@ class SparkWrite {
               .dataSparkType(dsSchema)
               .build();
 
-      if (outputSpec.isUnpartitioned()) {
-        return new UnpartitionedDataWriter(
-            writerFactory, fileFactory, io, outputSpec, targetFileSize);
+      if (spec.isUnpartitioned()) {
+        return new UnpartitionedDataWriter(writerFactory, fileFactory, io, spec, targetFileSize);
 
       } else {
         return new PartitionedDataWriter(
             writerFactory,
             fileFactory,
             io,
-            outputSpec,
+            spec,
             writeSchema,
             dsSchema,
             targetFileSize,
