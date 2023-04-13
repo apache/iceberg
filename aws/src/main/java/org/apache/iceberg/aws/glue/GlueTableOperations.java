@@ -196,10 +196,13 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
   }
 
   /**
-   * Validate the Glue table is Iceberg table by checking its parameters
+   * Validate the Glue table is Iceberg table by checking its parameters. We throw a {@link
+   * NoSuchIcebergTableException} here so that the catalog can decide whether to fail or potentially
+   * use the Spark built-in catalog instead.
    *
    * @param table glue table
    * @param fullName full table name for logging
+   * @throws NoSuchIcebergTableException if the table is not an Iceberg table
    */
   static void checkIfTableIsIceberg(Table table, String fullName) {
     String tableType = table.parameters().get(TABLE_TYPE_PROP);
