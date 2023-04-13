@@ -130,7 +130,7 @@ public class SparkWriteConf {
   }
 
   public int outputSpecId() {
-    final int outputSpecId =
+    int outputSpecId =
         confParser
             .intConf()
             .option(SparkWriteOptions.OUTPUT_SPEC_ID)
