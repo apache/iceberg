@@ -18,7 +18,11 @@
  */
 package org.apache.iceberg.actions;
 
+import java.util.List;
+import org.apache.iceberg.RewriteJobOrder;
+import org.apache.iceberg.StructLike;
 import org.apache.iceberg.expressions.Expression;
+import org.immutables.value.Value;
 
 /**
  * An action for rewriting position delete files.
@@ -27,6 +31,80 @@ import org.apache.iceberg.expressions.Expression;
  */
 public interface RewritePositionDeleteFiles
     extends SnapshotUpdate<RewritePositionDeleteFiles, RewritePositionDeleteFiles.Result> {
+
+  /**
+   * Enable committing groups of files (see max-file-group-size-bytes) prior to the entire rewrite
+   * completing. This will produce additional commits but allow for progress even if some groups
+   * fail to commit. This setting will not change the correctness of the rewrite operation as file
+   * groups can be compacted independently.
+   *
+   * <p>The default is false, which produces a single commit when the entire job has completed.
+   */
+  String PARTIAL_PROGRESS_ENABLED = "partial-progress.enabled";
+
+  boolean PARTIAL_PROGRESS_ENABLED_DEFAULT = false;
+
+  /**
+   * The maximum amount of Iceberg commits that this rewrite is allowed to produce if partial
+   * progress is enabled. This setting has no effect if partial progress is disabled.
+   */
+  String PARTIAL_PROGRESS_MAX_COMMITS = "partial-progress.max-commits";
+
+  int PARTIAL_PROGRESS_MAX_COMMITS_DEFAULT = 10;
+
+  /**
+   * The entire rewrite operation is broken down into pieces based on partitioning and within
+   * partitions based on size into groups. These sub-units of the rewrite are referred to as file
+   * groups. The largest amount of data that should be compacted in a single group is controlled by
+   * {@link #MAX_FILE_GROUP_SIZE_BYTES}. This helps with breaking down the rewriting of very large
+   * partitions which may not be rewritable otherwise due to the resource constraints of the
+   * cluster. For example a sort based rewrite may not scale to terabyte sized partitions, those
+   * partitions need to be worked on in small subsections to avoid exhaustion of resources.
+   *
+   * <p>When grouping files, the underlying rewrite strategy will use this value as to limit the
+   * files which will be included in a single file group. A group will be processed by a single
+   * framework "action". For example, in Spark this means that each group would be rewritten in its
+   * own Spark action. A group will never contain files for multiple output partitions.
+   */
+  String MAX_FILE_GROUP_SIZE_BYTES = "max-file-group-size-bytes";
+
+  long MAX_FILE_GROUP_SIZE_BYTES_DEFAULT = 1024L * 1024L * 1024L * 100L; // 100 Gigabytes
+
+  /**
+   * The max number of file groups to be simultaneously rewritten by the rewrite strategy. The
+   * structure and contents of the group is determined by the rewrite strategy. Each file group will
+   * be rewritten independently and asynchronously.
+   */
+  String MAX_CONCURRENT_FILE_GROUP_REWRITES = "max-concurrent-file-group-rewrites";
+
+  int MAX_CONCURRENT_FILE_GROUP_REWRITES_DEFAULT = 5;
+
+  /**
+   * The output file size that this rewrite strategy will attempt to generate when rewriting files.
+   * By default this will use the "write.target-file-size-bytes value" in the table properties of
+   * the table being updated.
+   */
+  String TARGET_FILE_SIZE_BYTES = "target-file-size-bytes";
+
+  /**
+   * Forces the rewrite job order based on the value.
+   *
+   * <p>
+   *
+   * <ul>
+   *   <li>If rewrite-job-order=bytes-asc, then rewrite the smallest job groups first.
+   *   <li>If rewrite-job-order=bytes-desc, then rewrite the largest job groups first.
+   *   <li>If rewrite-job-order=files-asc, then rewrite the job groups with the least files first.
+   *   <li>If rewrite-job-order=files-desc, then rewrite the job groups with the most files first.
+   *   <li>If rewrite-job-order=none, then rewrite job groups in the order they were planned (no
+   *       specific ordering).
+   * </ul>
+   *
+   * <p>Defaults to none.
+   */
+  String REWRITE_JOB_ORDER = "rewrite-job-order";
+
+  String REWRITE_JOB_ORDER_DEFAULT = RewriteJobOrder.NONE.orderName();
 
   /**
    * A filter for finding deletes to rewrite.
@@ -41,11 +119,60 @@ public interface RewritePositionDeleteFiles
   RewritePositionDeleteFiles filter(Expression expression);
 
   /** The action result that contains a summary of the execution. */
+  @Value.Immutable
   interface Result {
+    List<PositionDeleteGroupRewriteResult> rewriteResults();
+
     /** Returns the count of the position deletes that been rewritten. */
     int rewrittenDeleteFilesCount();
 
     /** Returns the count of the added delete files. */
     int addedDeleteFilesCount();
+
+    /** Returns the number of bytes of position deletes that have been rewritten */
+    long rewrittenBytesCount();
+
+    /** Returns the number of bytes of newly added position deletes */
+    long addedBytesCount();
+  }
+
+  /**
+   * For a particular position delete file group, the number of position delete files which are
+   * newly created and the number of files which were formerly part of the table but have been
+   * rewritten.
+   */
+  @Value.Immutable
+  interface PositionDeleteGroupRewriteResult {
+    PositionDeleteGroupInfo info();
+
+    int addedDeleteFilesCount();
+
+    int rewrittenDeleteFilesCount();
+
+    long rewrittenBytesCount();
+
+    long addedBytesCount();
+  }
+
+  /**
+   * A description of a position delete file group, when it was processed, and within which
+   * partition. For use tracking rewrite operations and for returning results.
+   */
+  @Value.Immutable
+  interface PositionDeleteGroupInfo {
+    /**
+     * returns which position delete file group this is out of the total set of file groups for this
+     * rewrite
+     */
+    int globalIndex();
+
+    /**
+     * returns which position delete file group this is out of the set of file groups for this
+     * partition
+     */
+    int partitionIndex();
+
+    /** returns which partition this position delete file group contains files from */
+    StructLike partition();
   }
 }

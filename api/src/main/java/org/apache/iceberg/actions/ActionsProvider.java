@@ -64,4 +64,10 @@ public interface ActionsProvider {
     throw new UnsupportedOperationException(
         this.getClass().getName() + " does not implement deleteReachableFiles");
   }
+
+  /** Instantiates an action to rewrite position delete files all the files */
+  default RewritePositionDeleteFiles rewritePositionDeletes(Table table) {
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " does not implement rewritePositionDeletes");
+  }
 }
