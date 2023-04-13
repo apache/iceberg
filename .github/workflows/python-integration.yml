@@ -46,7 +46,7 @@ jobs:
       id: check_file_changed
       run: |
         $diff = git diff --name-only HEAD^ HEAD
-        $SourceDiff = $diff | Where-Object { $_ -match '^python/dev/Dockerfile$' }
+        $SourceDiff = $diff | Where-Object { $_ -match '^python/dev/.+$' }
         $HasDiff = $SourceDiff.Length -gt 0
         Write-Host "::set-output name=docs_changed::$HasDiff"
     - name: Restore image

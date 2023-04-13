@@ -62,31 +62,43 @@ class ProcedureInput {
     return !args.isNullAt(ordinal);
   }
 
-  public boolean bool(ProcedureParameter param, boolean defaultValue) {
+  public Boolean asBoolean(ProcedureParameter param, Boolean defaultValue) {
     validateParamType(param, DataTypes.BooleanType);
     int ordinal = ordinal(param);
-    return args.isNullAt(ordinal) ? defaultValue : args.getBoolean(ordinal);
+    return args.isNullAt(ordinal) ? defaultValue : (Boolean) args.getBoolean(ordinal);
   }
 
-  public String string(ProcedureParameter param) {
-    String value = string(param, null);
+  public long asLong(ProcedureParameter param) {
+    Long value = asLong(param, null);
     Preconditions.checkArgument(value != null, "Parameter '%s' is not set", param.name());
     return value;
   }
 
-  public String string(ProcedureParameter param, String defaultValue) {
+  public Long asLong(ProcedureParameter param, Long defaultValue) {
+    validateParamType(param, DataTypes.LongType);
+    int ordinal = ordinal(param);
+    return args.isNullAt(ordinal) ? defaultValue : (Long) args.getLong(ordinal);
+  }
+
+  public String asString(ProcedureParameter param) {
+    String value = asString(param, null);
+    Preconditions.checkArgument(value != null, "Parameter '%s' is not set", param.name());
+    return value;
+  }
+
+  public String asString(ProcedureParameter param, String defaultValue) {
     validateParamType(param, DataTypes.StringType);
     int ordinal = ordinal(param);
     return args.isNullAt(ordinal) ? defaultValue : args.getString(ordinal);
   }
 
-  public String[] stringArray(ProcedureParameter param) {
-    String[] value = stringArray(param, null);
+  public String[] asStringArray(ProcedureParameter param) {
+    String[] value = asStringArray(param, null);
     Preconditions.checkArgument(value != null, "Parameter '%s' is not set", param.name());
     return value;
   }
 
-  public String[] stringArray(ProcedureParameter param, String[] defaultValue) {
+  public String[] asStringArray(ProcedureParameter param, String[] defaultValue) {
     validateParamType(param, STRING_ARRAY);
     return array(
         param,
@@ -119,7 +131,8 @@ class ProcedureInput {
     return convertedArray;
   }
 
-  public Map<String, String> stringMap(ProcedureParameter param, Map<String, String> defaultValue) {
+  public Map<String, String> asStringMap(
+      ProcedureParameter param, Map<String, String> defaultValue) {
     validateParamType(param, STRING_MAP);
     return map(
         param,
@@ -154,28 +167,34 @@ class ProcedureInput {
   }
 
   public Identifier ident(ProcedureParameter param) {
-    String identAsString = string(param);
-    CatalogAndIdentifier catalogAndIdent = toCatalogAndIdent(identAsString, param.name(), catalog);
+    CatalogAndIdentifier catalogAndIdent = catalogAndIdent(param, catalog);
 
     Preconditions.checkArgument(
         catalogAndIdent.catalog().equals(catalog),
         "Cannot run procedure in catalog '%s': '%s' is a table in catalog '%s'",
         catalog.name(),
-        identAsString,
+        catalogAndIdent.identifier(),
         catalogAndIdent.catalog().name());
 
     return catalogAndIdent.identifier();
   }
 
-  private CatalogAndIdentifier toCatalogAndIdent(
-      String identAsString, String paramName, CatalogPlugin defaultCatalog) {
+  public Identifier ident(ProcedureParameter param, CatalogPlugin defaultCatalog) {
+    CatalogAndIdentifier catalogAndIdent = catalogAndIdent(param, defaultCatalog);
+    return catalogAndIdent.identifier();
+  }
+
+  private CatalogAndIdentifier catalogAndIdent(
+      ProcedureParameter param, CatalogPlugin defaultCatalog) {
+
+    String identAsString = asString(param);
 
     Preconditions.checkArgument(
         StringUtils.isNotBlank(identAsString),
         "Cannot handle an empty identifier for parameter '%s'",
-        paramName);
+        param.name());
 
-    String desc = String.format("identifier for parameter '%s'", paramName);
+    String desc = String.format("identifier for parameter '%s'", param.name());
     return Spark3Util.catalogAndIdentifier(desc, spark, identAsString, defaultCatalog);
   }
 

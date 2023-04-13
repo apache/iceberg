@@ -34,11 +34,15 @@ import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
  * the cluster (for example, to get splits), not just on the client side. So we need an Iceberg
  * table loader to get the {@link Table} object.
  */
-public interface TableLoader extends Closeable, Serializable {
+public interface TableLoader extends Closeable, Serializable, Cloneable {
 
   void open();
 
   Table loadTable();
+
+  /** Clone a TableLoader */
+  @SuppressWarnings({"checkstyle:NoClone", "checkstyle:SuperClone"})
+  TableLoader clone();
 
   static TableLoader fromCatalog(CatalogLoader catalogLoader, TableIdentifier identifier) {
     return new CatalogTableLoader(catalogLoader, identifier);
@@ -78,6 +82,12 @@ public interface TableLoader extends Closeable, Serializable {
     }
 
     @Override
+    @SuppressWarnings({"checkstyle:NoClone", "checkstyle:SuperClone"})
+    public TableLoader clone() {
+      return new HadoopTableLoader(location, new Configuration(hadoopConf.get()));
+    }
+
+    @Override
     public void close() {}
 
     @Override
@@ -109,6 +119,12 @@ public interface TableLoader extends Closeable, Serializable {
     public Table loadTable() {
       FlinkEnvironmentContext.init();
       return catalog.loadTable(TableIdentifier.parse(identifier));
+    }
+
+    @Override
+    @SuppressWarnings({"checkstyle:NoClone", "checkstyle:SuperClone"})
+    public TableLoader clone() {
+      return new CatalogTableLoader(catalogLoader.clone(), TableIdentifier.parse(identifier));
     }
 
     @Override

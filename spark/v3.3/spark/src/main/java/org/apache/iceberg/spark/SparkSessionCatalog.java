@@ -27,12 +27,14 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.spark.source.HasIcebergCatalog;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.analysis.NamespaceAlreadyExistsException;
+import org.apache.spark.sql.catalyst.analysis.NoSuchFunctionException;
 import org.apache.spark.sql.catalyst.analysis.NoSuchNamespaceException;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.catalyst.analysis.NonEmptyNamespaceException;
 import org.apache.spark.sql.catalyst.analysis.TableAlreadyExistsException;
 import org.apache.spark.sql.connector.catalog.CatalogExtension;
 import org.apache.spark.sql.connector.catalog.CatalogPlugin;
+import org.apache.spark.sql.connector.catalog.FunctionCatalog;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.NamespaceChange;
 import org.apache.spark.sql.connector.catalog.StagedTable;
@@ -41,6 +43,7 @@ import org.apache.spark.sql.connector.catalog.SupportsNamespaces;
 import org.apache.spark.sql.connector.catalog.Table;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.apache.spark.sql.connector.catalog.TableChange;
+import org.apache.spark.sql.connector.catalog.functions.UnboundFunction;
 import org.apache.spark.sql.connector.expressions.Transform;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
@@ -48,10 +51,11 @@ import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 /**
  * A Spark catalog that can also load non-Iceberg tables.
  *
- * @param <T> CatalogPlugin class to avoid casting to TableCatalog and SupportsNamespaces.
+ * @param <T> CatalogPlugin class to avoid casting to TableCatalog, FunctionCatalog and
+ *     SupportsNamespaces.
  */
-public class SparkSessionCatalog<T extends TableCatalog & SupportsNamespaces> extends BaseCatalog
-    implements CatalogExtension {
+public class SparkSessionCatalog<T extends TableCatalog & FunctionCatalog & SupportsNamespaces>
+    extends BaseCatalog implements CatalogExtension {
   private static final String[] DEFAULT_NAMESPACE = new String[] {"default"};
 
   private String catalogName = null;
@@ -336,6 +340,7 @@ public class SparkSessionCatalog<T extends TableCatalog & SupportsNamespaces> ex
   @SuppressWarnings("unchecked")
   public void setDelegateCatalog(CatalogPlugin sparkSessionCatalog) {
     if (sparkSessionCatalog instanceof TableCatalog
+        && sparkSessionCatalog instanceof FunctionCatalog
         && sparkSessionCatalog instanceof SupportsNamespaces) {
       this.sessionCatalog = (T) sparkSessionCatalog;
     } else {
@@ -376,5 +381,14 @@ public class SparkSessionCatalog<T extends TableCatalog & SupportsNamespaces> ex
         icebergCatalog instanceof HasIcebergCatalog,
         "Cannot return underlying Iceberg Catalog, wrapped catalog does not contain an Iceberg Catalog");
     return ((HasIcebergCatalog) icebergCatalog).icebergCatalog();
+  }
+
+  @Override
+  public UnboundFunction loadFunction(Identifier ident) throws NoSuchFunctionException {
+    try {
+      return super.loadFunction(ident);
+    } catch (NoSuchFunctionException e) {
+      return getSessionCatalog().loadFunction(ident);
+    }
   }
 }
