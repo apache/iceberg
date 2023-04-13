@@ -44,13 +44,14 @@ import org.junit.Test;
 
 public class TestSparkFileRewriter extends SparkTestBase {
 
-  private final TableIdentifier TABLE_IDENT = TableIdentifier.of("default", "tbl");
-  private final Schema SCHEMA =
+  private static final TableIdentifier TABLE_IDENT = TableIdentifier.of("default", "tbl");
+  private static final Schema SCHEMA =
       new Schema(
           NestedField.required(1, "id", IntegerType.get()),
           NestedField.required(2, "dep", StringType.get()));
-  private final PartitionSpec SPEC = PartitionSpec.builderFor(SCHEMA).identity("dep").build();
-  private final SortOrder SORT_ORDER = SortOrder.builderFor(SCHEMA).asc("id").build();
+  private static final PartitionSpec SPEC =
+      PartitionSpec.builderFor(SCHEMA).identity("dep").build();
+  private static final SortOrder SORT_ORDER = SortOrder.builderFor(SCHEMA).asc("id").build();
 
   @After
   public void removeTable() {
@@ -108,8 +109,10 @@ public class TestSparkFileRewriter extends SparkTestBase {
             SizeBasedDataRewriter.DELETE_FILE_THRESHOLD, String.valueOf(Integer.MAX_VALUE));
     rewriter.init(options);
 
-    Iterable<FileScanTask> selectedFiles = rewriter.selectFiles(tasks);
-    Assert.assertEquals("Must select 2 tasks", 2, Iterables.size(selectedFiles));
+    Iterable<List<FileScanTask>> groups = rewriter.planFileGroups(tasks);
+    Assert.assertEquals("Must have 1 group", 1, Iterables.size(groups));
+    List<FileScanTask> group = Iterables.getOnlyElement(groups);
+    Assert.assertEquals("Must rewrite 2 files", 2, group.size());
   }
 
   private void checkDataFilesDeleteThreshold(SizeBasedDataRewriter rewriter) {
@@ -125,8 +128,10 @@ public class TestSparkFileRewriter extends SparkTestBase {
             SizeBasedDataRewriter.DELETE_FILE_THRESHOLD, "2");
     rewriter.init(options);
 
-    Iterable<FileScanTask> selectedFiles = rewriter.selectFiles(tasks);
-    Assert.assertEquals("Must select 1 task", 1, Iterables.size(selectedFiles));
+    Iterable<List<FileScanTask>> groups = rewriter.planFileGroups(tasks);
+    Assert.assertEquals("Must have 1 group", 1, Iterables.size(groups));
+    List<FileScanTask> group = Iterables.getOnlyElement(groups);
+    Assert.assertEquals("Must rewrite 1 file", 1, group.size());
   }
 
   private void checkDataFileGroupWithEnoughFiles(SizeBasedDataRewriter rewriter) {
@@ -140,7 +145,7 @@ public class TestSparkFileRewriter extends SparkTestBase {
     Map<String, String> options =
         ImmutableMap.of(
             SizeBasedDataRewriter.MIN_INPUT_FILES, "3",
-            SizeBasedDataRewriter.MIN_FILE_SIZE_BYTES, "1",
+            SizeBasedDataRewriter.MIN_FILE_SIZE_BYTES, "150",
             SizeBasedDataRewriter.TARGET_FILE_SIZE_BYTES, "1000",
             SizeBasedDataRewriter.MAX_FILE_SIZE_BYTES, "5000",
             SizeBasedDataRewriter.DELETE_FILE_THRESHOLD, String.valueOf(Integer.MAX_VALUE));
@@ -149,7 +154,7 @@ public class TestSparkFileRewriter extends SparkTestBase {
     Iterable<List<FileScanTask>> groups = rewriter.planFileGroups(tasks);
     Assert.assertEquals("Must have 1 group", 1, Iterables.size(groups));
     List<FileScanTask> group = Iterables.getOnlyElement(groups);
-    Assert.assertEquals("Must rewrite all 4 files", 4, group.size());
+    Assert.assertEquals("Must rewrite 4 files", 4, group.size());
   }
 
   private void checkDataFileGroupWithEnoughData(SizeBasedDataRewriter rewriter) {
@@ -169,7 +174,7 @@ public class TestSparkFileRewriter extends SparkTestBase {
     Iterable<List<FileScanTask>> groups = rewriter.planFileGroups(tasks);
     Assert.assertEquals("Must have 1 group", 1, Iterables.size(groups));
     List<FileScanTask> group = Iterables.getOnlyElement(groups);
-    Assert.assertEquals("Must rewrite all 3 files", 3, group.size());
+    Assert.assertEquals("Must rewrite 3 files", 3, group.size());
   }
 
   private void checkDataFileGroupWithTooMuchData(SizeBasedDataRewriter rewriter) {

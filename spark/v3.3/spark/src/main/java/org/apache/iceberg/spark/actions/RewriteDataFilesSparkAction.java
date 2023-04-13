@@ -217,9 +217,8 @@ public class RewriteDataFilesSparkAction
 
       filesByPartition.forEach(
           (partition, tasks) -> {
-            Iterable<FileScanTask> filtered = rewriter.selectFiles(tasks);
-            Iterable<List<FileScanTask>> groupedTasks = rewriter.planFileGroups(filtered);
-            List<List<FileScanTask>> fileGroups = ImmutableList.copyOf(groupedTasks);
+            Iterable<List<FileScanTask>> plannedFileGroups = rewriter.planFileGroups(tasks);
+            List<List<FileScanTask>> fileGroups = ImmutableList.copyOf(plannedFileGroups);
             if (fileGroups.size() > 0) {
               fileGroupsByPartition.put(partition, fileGroups);
             }

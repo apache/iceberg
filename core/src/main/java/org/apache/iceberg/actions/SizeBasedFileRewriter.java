@@ -56,8 +56,8 @@ public abstract class SizeBasedFileRewriter<T extends ContentScanTask<F>, F exte
   public static final String TARGET_FILE_SIZE_BYTES = "target-file-size-bytes";
 
   /**
-   * Adjusts files which will be considered for rewriting. Files smaller than this value will be
-   * considered for rewriting. This functions independently of {@link #MAX_FILE_SIZE_BYTES}.
+   * Controls which files will be considered for rewriting. Files with sizes under this threshold
+   * will be considered for rewriting regardless of any other criteria.
    *
    * <p>Defaults to 75% of the target file size.
    */
@@ -66,8 +66,8 @@ public abstract class SizeBasedFileRewriter<T extends ContentScanTask<F>, F exte
   public static final double MIN_FILE_SIZE_DEFAULT_RATIO = 0.75;
 
   /**
-   * Adjusts files which will be considered for rewriting. Files larger than this value will be
-   * considered for rewriting. This functions independently of {@link #MIN_FILE_SIZE_BYTES}.
+   * Controls which files will be considered for rewriting. Files with sizes above this threshold
+   * will be considered for rewriting regardless of any other criteria.
    *
    * <p>Defaults to 180% of the target file size.
    */
@@ -76,33 +76,26 @@ public abstract class SizeBasedFileRewriter<T extends ContentScanTask<F>, F exte
   public static final double MAX_FILE_SIZE_DEFAULT_RATIO = 1.80;
 
   /**
-   * The minimum number of files that need to be in a file group for it to be considered for
-   * compaction if the total size of that group is less than the target file size. This can also be
-   * thought of as the maximum number of wrongly sized files that could remain in a partition after
-   * rewriting.
+   * Any file group exceeding this number of files will be rewritten regardless of other criteria.
+   * This config ensures file groups that contain many files are compacted even if the total size of
+   * that group is less than the target file size. This can also be thought of as the maximum number
+   * of wrongly sized files that could remain in a partition after rewriting.
    */
   public static final String MIN_INPUT_FILES = "min-input-files";
 
   public static final int MIN_INPUT_FILES_DEFAULT = 5;
 
-  /** Overrides other options and forces rewriting of all files. */
+  /** Overrides other options and forces rewriting of all provided files. */
   public static final String REWRITE_ALL = "rewrite-all";
 
   public static final boolean REWRITE_ALL_DEFAULT = false;
 
   /**
-   * The entire rewrite operation is broken down into pieces based on partitioning and within
-   * partitions based on size into groups. These subunits of the rewrite are referred to as file
-   * groups. This option controls the largest amount of data that should be rewritten in a single
+   * This option controls the largest amount of data that should be rewritten in a single file
    * group. It helps with breaking down the rewriting of very large partitions which may not be
    * rewritable otherwise due to the resource constraints of the cluster. For example, a sort-based
-   * rewrite may not scale to TB sized partitions, those partitions need to be worked on in small
-   * subsections to avoid exhaustion of resources.
-   *
-   * <p>When grouping files, the file rewriter will use this value to limit the files which will be
-   * included in a single file group. A group will be processed by a single framework "action". For
-   * example, in Spark this means that each group would be rewritten in its own Spark job. A group
-   * will never contain files for multiple output partitions.
+   * rewrite may not scale to TB-sized partitions, and those partitions need to be worked on in
+   * small subsections to avoid exhaustion of resources.
    */
   public static final String MAX_FILE_GROUP_SIZE_BYTES = "max-file-group-size-bytes";
 
@@ -122,9 +115,9 @@ public abstract class SizeBasedFileRewriter<T extends ContentScanTask<F>, F exte
 
   protected abstract long defaultTargetFileSize();
 
-  protected abstract Iterable<T> doSelectFiles(Iterable<T> tasks);
+  protected abstract Iterable<T> filterFiles(Iterable<T> tasks);
 
-  protected abstract List<List<T>> filterFileGroups(List<List<T>> groups);
+  protected abstract Iterable<List<T>> filterFileGroups(List<List<T>> groups);
 
   protected Table table() {
     return table;
@@ -157,19 +150,15 @@ public abstract class SizeBasedFileRewriter<T extends ContentScanTask<F>, F exte
     }
   }
 
-  @Override
-  public Iterable<T> selectFiles(Iterable<T> tasks) {
-    return rewriteAll ? tasks : doSelectFiles(tasks);
-  }
-
-  protected boolean hasSuboptimalSize(T task) {
+  protected boolean wronglySized(T task) {
     return task.length() < minFileSize || task.length() > maxFileSize;
   }
 
   @Override
   public Iterable<List<T>> planFileGroups(Iterable<T> tasks) {
+    Iterable<T> filteredTasks = rewriteAll ? tasks : filterFiles(tasks);
     BinPacking.ListPacker<T> packer = new BinPacking.ListPacker<>(maxGroupSize, 1, false);
-    List<List<T>> groups = packer.pack(tasks, ContentScanTask::length);
+    List<List<T>> groups = packer.pack(filteredTasks, ContentScanTask::length);
     return rewriteAll ? groups : filterFileGroups(groups);
   }
 
@@ -177,11 +166,11 @@ public abstract class SizeBasedFileRewriter<T extends ContentScanTask<F>, F exte
     return group.size() > 1 && group.size() >= minInputFiles;
   }
 
-  protected boolean enoughData(List<T> group) {
+  protected boolean enoughContent(List<T> group) {
     return group.size() > 1 && inputSize(group) > targetFileSize;
   }
 
-  protected boolean tooMuchData(List<T> group) {
+  protected boolean tooMuchContent(List<T> group) {
     return inputSize(group) > maxFileSize;
   }
 
@@ -230,18 +219,18 @@ public abstract class SizeBasedFileRewriter<T extends ContentScanTask<F>, F exte
 
   /**
    * Estimates a larger max target file size than the target size used in task creation to avoid
-   * tasks which are predicted to have a certain size, but exceed that target size when serde is
-   * complete creating tiny remainder files.
+   * creating tiny remainder files.
    *
    * <p>While we create tasks that should all be smaller than our target size, there is a chance
    * that the actual data will end up being larger than our target size due to various factors of
-   * compression, serialization and other factors outside our control. If this occurs, instead of
-   * making a single file that is close in size to our target, we would end up producing one file of
-   * the target size, and then a small extra file with the remaining data. For example, if our
-   * target is 512 MB, we may generate a rewrite task that should be 500 MB. When we write the data
-   * we may find we actually have to write out 530 MB. If we use the target size while writing we
-   * would produce a 512 MB file and an 18 MB file. If instead we use a larger size estimated by
-   * this method, then we end up writing a single file.
+   * compression, serialization, which are outside our control. If this occurs, instead of making a
+   * single file that is close in size to our target, we would end up producing one file of the
+   * target size, and then a small extra file with the remaining data.
+   *
+   * <p>For example, if our target is 512 MB, we may generate a rewrite task that should be 500 MB.
+   * When we write the data we may find we actually have to write out 530 MB. If we use the target
+   * size while writing, we would produce a 512 MB file and an 18 MB file. If instead we use a
+   * larger size estimated by this method, then we end up writing a single file.
    *
    * @return the target size plus one half of the distance between max and target
    */

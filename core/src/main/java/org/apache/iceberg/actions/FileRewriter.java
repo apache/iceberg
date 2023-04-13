@@ -27,6 +27,11 @@ import org.apache.iceberg.ContentScanTask;
 /**
  * A class for rewriting content files.
  *
+ * <p>The entire rewrite operation is broken down into pieces based on partitioning, and size-based
+ * groups within a partition. These subunits of the rewrite are referred to as file groups. A file
+ * group will be processed by a single framework "action". For example, in Spark this means that
+ * each group would be rewritten in its own Spark job.
+ *
  * @param <T> the Java type of tasks to read content files
  * @param <F> the Java type of content files
  */
@@ -38,8 +43,8 @@ public interface FileRewriter<T extends ContentScanTask<F>, F extends ContentFil
   }
 
   /**
-   * Returns a set of supported options for this rewriter. This is an allowed-list and any options
-   * not specified here will be rejected at runtime.
+   * Returns a set of supported options for this rewriter. Only options specified in this list will
+   * be accepted at runtime. Any other options will be rejected.
    */
   Set<String> validOptions();
 
@@ -51,20 +56,12 @@ public interface FileRewriter<T extends ContentScanTask<F>, F extends ContentFil
   void init(Map<String, String> options);
 
   /**
-   * Selects files which this rewriter believes are valid targets to be rewritten.
+   * Selects files which this rewriter believes are valid targets to be rewritten based on their
+   * scan tasks and groups those scan tasks into file groups. The file groups are then rewritten in
+   * a single executable unit, such as a Spark job.
    *
    * @param tasks an iterable of scan task for files in a partition
-   * @return the iterable containing only scan task for files to be rewritten
-   */
-  Iterable<T> selectFiles(Iterable<T> tasks);
-
-  /**
-   * Groups scan tasks into lists which will be processed in a single executable unit. Each group
-   * will end up being rewritten as an independent set of changes. This creates the jobs which will
-   * eventually be run by the underlying action.
-   *
-   * @param tasks an iterable of scan tasks for files to be rewritten
-   * @return the iterable of lists of scan tasks for files which will be processed together
+   * @return groups of scan tasks for files to be rewritten in a single executable unit
    */
   Iterable<List<T>> planFileGroups(Iterable<T> tasks);
 

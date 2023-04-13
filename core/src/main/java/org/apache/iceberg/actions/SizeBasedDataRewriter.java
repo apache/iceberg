@@ -21,7 +21,6 @@ package org.apache.iceberg.actions;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Table;
@@ -68,8 +67,8 @@ public abstract class SizeBasedDataRewriter extends SizeBasedFileRewriter<FileSc
   }
 
   @Override
-  protected Iterable<FileScanTask> doSelectFiles(Iterable<FileScanTask> tasks) {
-    return Iterables.filter(tasks, task -> hasSuboptimalSize(task) || tooManyDeletes(task));
+  protected Iterable<FileScanTask> filterFiles(Iterable<FileScanTask> tasks) {
+    return Iterables.filter(tasks, task -> wronglySized(task) || tooManyDeletes(task));
   }
 
   private boolean tooManyDeletes(FileScanTask task) {
@@ -77,14 +76,14 @@ public abstract class SizeBasedDataRewriter extends SizeBasedFileRewriter<FileSc
   }
 
   @Override
-  protected List<List<FileScanTask>> filterFileGroups(List<List<FileScanTask>> groups) {
-    return groups.stream().filter(this::shouldRewrite).collect(Collectors.toList());
+  protected Iterable<List<FileScanTask>> filterFileGroups(List<List<FileScanTask>> groups) {
+    return Iterables.filter(groups, this::shouldRewrite);
   }
 
   private boolean shouldRewrite(List<FileScanTask> group) {
     return enoughInputFiles(group)
-        || enoughData(group)
-        || tooMuchData(group)
+        || enoughContent(group)
+        || tooMuchContent(group)
         || anyTaskHasTooManyDeletes(group);
   }
 
