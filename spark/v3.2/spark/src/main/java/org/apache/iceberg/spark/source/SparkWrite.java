@@ -621,8 +621,8 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
     @Override
     public DataWriter<InternalRow> createWriter(int partitionId, long taskId, long epochId) {
       Table table = tableBroadcast.value();
-      FileIO io = table.io();
       PartitionSpec spec = table.specs().get(outputSpecId);
+      FileIO io = table.io();
 
       OutputFileFactory fileFactory =
           OutputFileFactory.builderFor(table, partitionId, taskId)
