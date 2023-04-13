@@ -24,14 +24,13 @@ import org.apache.iceberg.NullOrder
 import org.apache.iceberg.SortDirection
 import org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE
 import org.apache.iceberg.expressions.Term
-import org.apache.iceberg.spark.{Spark3Util, SparkUtil}
+import org.apache.iceberg.spark.SparkUtil
 import org.apache.iceberg.spark.source.SparkTable
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.Attribute
 import org.apache.spark.sql.connector.catalog.CatalogV2Implicits
 import org.apache.spark.sql.connector.catalog.Identifier
 import org.apache.spark.sql.connector.catalog.TableCatalog
-import org.apache.spark.sql.internal.SQLConf
 
 case class SetWriteDistributionAndOrderingExec(
     catalog: TableCatalog,
