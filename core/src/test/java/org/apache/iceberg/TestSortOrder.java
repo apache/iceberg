@@ -380,13 +380,10 @@ public class TestSortOrder {
                     .build())
         .isInstanceOf(ValidationException.class)
         .hasMessageContaining(String.format("Cannot find field '%s' in struct", fieldName));
-    Assertions.assertThatNoException()
-        .isThrownBy(
-            () ->
-                SortOrder.builderFor(SCHEMA)
-                    .caseSensitive(false)
-                    .withOrderId(10)
-                    .asc("ext1")
-                    .build());
+
+    SortOrder ext1 =
+        SortOrder.builderFor(SCHEMA).caseSensitive(false).withOrderId(10).asc("ext1").build();
+    SortField sortField = ext1.fields().get(0);
+    Assert.assertEquals(sortField.sourceId(), SCHEMA.findField("Ext1").fieldId());
   }
 }
