@@ -35,6 +35,12 @@ import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
 
+/**
+ * A Spark strategy to bin-pack data.
+ *
+ * @deprecated since 1.3.0, will be removed in 1.4.0; use {@link SparkBinPackDataRewriter} instead.
+ */
+@Deprecated
 public class SparkBinPackStrategy extends BinPackStrategy {
   private final Table table;
   private final SparkSession spark;
