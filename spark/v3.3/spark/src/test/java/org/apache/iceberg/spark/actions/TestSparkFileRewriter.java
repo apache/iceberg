@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.spark.actions;
 
-import com.google.common.collect.ImmutableSet;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.FileScanTask;
@@ -32,6 +31,7 @@ import org.apache.iceberg.actions.SizeBasedFileRewriter;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.spark.SparkTestBase;
 import org.apache.iceberg.types.Types.IntegerType;
