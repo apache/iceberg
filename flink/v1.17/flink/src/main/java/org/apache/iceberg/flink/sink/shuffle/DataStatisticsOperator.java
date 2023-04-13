@@ -137,6 +137,14 @@ class DataStatisticsOperator<D extends DataStatistics<D, S>, S>
     localStatistics = statisticsSerializer.createInstance();
   }
 
+  @Override
+  public void notifyCheckpointComplete(long checkpointId) throws Exception {
+    super.notifyCheckpointComplete(checkpointId);
+    // Send global statistics to partitioners at checkpoint to update data distribution at the same
+    // time
+    output.collect(new StreamRecord<>(DataStatisticsOrRecord.fromDataStatistics(globalStatistics)));
+  }
+
   @VisibleForTesting
   DataStatistics<D, S> localDataStatistics() {
     return localStatistics;
