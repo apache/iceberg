@@ -602,7 +602,8 @@ public class RESTSessionCatalog extends BaseSessionCatalog
               tableFileIO(context, response.config()),
               response.tableMetadata());
 
-      return new BaseTable(ops, fullTableName(ident));
+      return new BaseTable(
+          ops, fullTableName(ident), report -> reportMetrics(ident, report, session::headers));
     }
 
     @Override
