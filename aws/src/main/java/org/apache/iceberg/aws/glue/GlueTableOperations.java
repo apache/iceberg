@@ -35,6 +35,7 @@ import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.ForbiddenException;
+import org.apache.iceberg.exceptions.NoSuchIcebergTableException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -126,7 +127,7 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
     String metadataLocation = null;
     Table table = getGlueTable();
     if (table != null) {
-      GlueToIcebergConverter.validateTable(table, tableName());
+      checkIfTableIsIceberg(table, tableName());
       metadataLocation = table.parameters().get(METADATA_LOCATION_PROP);
     } else {
       if (currentMetadataLocation() != null) {
@@ -192,6 +193,21 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
       cleanupMetadataAndUnlock(commitStatus, newMetadataLocation);
       cleanupGlueTempTableIfNecessary(glueTempTableCreated, commitStatus);
     }
+  }
+
+  /**
+   * Validate the Glue table is Iceberg table by checking its parameters
+   *
+   * @param table glue table
+   * @param fullName full table name for logging
+   */
+  static void checkIfTableIsIceberg(Table table, String fullName) {
+    String tableType = table.parameters().get(TABLE_TYPE_PROP);
+    NoSuchIcebergTableException.check(
+        tableType != null && tableType.equalsIgnoreCase(ICEBERG_TABLE_TYPE_VALUE),
+        "Input Glue table is not an iceberg table: %s (type=%s)",
+        fullName,
+        tableType);
   }
 
   protected static FileIO initializeFileIO(Map<String, String> properties, Object hadoopConf) {
