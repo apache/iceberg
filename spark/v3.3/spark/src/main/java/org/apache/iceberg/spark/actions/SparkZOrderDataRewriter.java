@@ -169,9 +169,7 @@ class SparkZOrderDataRewriter extends SparkShufflingDataRewriter {
           schema.asStruct());
 
       if (identityPartitionFieldIds.contains(field.fieldId())) {
-        LOG.warn(
-            "Cannot ZOrder on partition column as such values are constant within a partition, ignoring '{}'",
-            colName);
+        LOG.warn("Ignoring '{}' as such values are constant within a partition", colName);
       } else {
         validZOrderColNames.add(colName);
       }
