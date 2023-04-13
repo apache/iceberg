@@ -24,6 +24,7 @@ import static org.apache.iceberg.DistributionMode.RANGE;
 
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.IsolationLevel;
@@ -31,6 +32,7 @@ import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.spark.sql.RuntimeConfig;
 import org.apache.spark.sql.SparkSession;
@@ -61,6 +63,8 @@ public class SparkWriteConf {
   private final RuntimeConfig sessionConf;
   private final Map<String, String> writeOptions;
   private final SparkConfParser confParser;
+  private final int currentSpecId;
+  private final Set<Integer> partitionSpecIds;
 
   public SparkWriteConf(SparkSession spark, Table table, Map<String, String> writeOptions) {
     this(spark, table, null, writeOptions);
@@ -73,6 +77,8 @@ public class SparkWriteConf {
     this.sessionConf = spark.conf();
     this.writeOptions = writeOptions;
     this.confParser = new SparkConfParser(spark, table, writeOptions);
+    this.currentSpecId = table.spec().specId();
+    this.partitionSpecIds = table.specs().keySet();
   }
 
   public boolean checkNullability() {
@@ -139,6 +145,20 @@ public class SparkWriteConf {
         .option(SparkWriteOptions.SPARK_MERGE_SCHEMA)
         .defaultValue(SparkWriteOptions.MERGE_SCHEMA_DEFAULT)
         .parse();
+  }
+
+  public int outputSpecId() {
+    int outputSpecId =
+        confParser
+            .intConf()
+            .option(SparkWriteOptions.OUTPUT_SPEC_ID)
+            .defaultValue(currentSpecId)
+            .parse();
+    Preconditions.checkArgument(
+        partitionSpecIds.contains(outputSpecId),
+        "Output spec id %s is not a valid spec id for table",
+        outputSpecId);
+    return outputSpecId;
   }
 
   public FileFormat dataFileFormat() {
