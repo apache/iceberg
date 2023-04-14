@@ -87,10 +87,7 @@ public class SerializableTable implements Table, Serializable {
     this.encryption = table.encryption();
     this.locationProvider = table.locationProvider();
     this.refs = SerializableMap.copyOf(table.refs());
-    this.metricsReporterProperties =
-        table instanceof BaseTable
-            ? SerializableMap.copyOf(table.metricsReporter().properties())
-            : null;
+    this.metricsReporterProperties = SerializableMap.copyOf(table.metricsReporter().properties());
   }
 
   /**
@@ -259,7 +256,7 @@ public class SerializableTable implements Table, Serializable {
   public MetricsReporter metricsReporter() {
     if (lazyMetricsReporter == null) {
       synchronized (this) {
-        if (lazyMetricsReporter == null && metricsReporterProperties != null) {
+        if (lazyMetricsReporter == null) {
           lazyMetricsReporter = CatalogUtil.loadMetricsReporter(this.metricsReporterProperties);
         }
       }
