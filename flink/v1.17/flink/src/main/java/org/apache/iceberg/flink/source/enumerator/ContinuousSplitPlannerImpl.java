@@ -166,7 +166,9 @@ public class ContinuousSplitPlannerImpl implements ContinuousSplitPlanner {
     if (scanContext.streamingStartingStrategy()
         == StreamingStartingStrategy.TABLE_SCAN_THEN_INCREMENTAL) {
       // do a batch table scan first
-      splits = FlinkSplitPlanner.planIcebergSourceSplits(table, scanContext, workerPool);
+      splits =
+          FlinkSplitPlanner.planIcebergSourceSplits(
+              table, scanContext.copyWithSnapshotId(startSnapshot.snapshotId()), workerPool);
       LOG.info(
           "Discovered {} splits from initial batch table scan with snapshot Id {}",
           splits.size(),

@@ -145,15 +145,7 @@ public class FlinkSplitPlanner {
 
   @VisibleForTesting
   static ScanMode checkScanMode(ScanContext context) {
-    if (context.isStreaming()
-        && context.streamingStartingStrategy()
-            == StreamingStartingStrategy.TABLE_SCAN_THEN_INCREMENTAL
-        && (context.startSnapshotId() == null || context.startTag() == null)) {
-      return ScanMode.BATCH;
-    }
-
-    if (context.isStreaming()
-        || context.startSnapshotId() != null
+    if (context.startSnapshotId() != null
         || context.endSnapshotId() != null
         || context.startTag() != null
         || context.endTag() != null) {
