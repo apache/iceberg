@@ -24,7 +24,6 @@ import static org.apache.iceberg.DistributionMode.RANGE;
 
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.IsolationLevel;
@@ -60,16 +59,12 @@ public class SparkWriteConf {
   private final RuntimeConfig sessionConf;
   private final Map<String, String> writeOptions;
   private final SparkConfParser confParser;
-  private final int currentSpecId;
-  private final Set<Integer> partitionSpecIds;
 
   public SparkWriteConf(SparkSession spark, Table table, Map<String, String> writeOptions) {
     this.table = table;
     this.sessionConf = spark.conf();
     this.writeOptions = writeOptions;
     this.confParser = new SparkConfParser(spark, table, writeOptions);
-    this.currentSpecId = table.spec().specId();
-    this.partitionSpecIds = table.specs().keySet();
   }
 
   public boolean checkNullability() {
@@ -134,10 +129,10 @@ public class SparkWriteConf {
         confParser
             .intConf()
             .option(SparkWriteOptions.OUTPUT_SPEC_ID)
-            .defaultValue(currentSpecId)
+            .defaultValue(table.spec().specId())
             .parse();
     Preconditions.checkArgument(
-        partitionSpecIds.contains(outputSpecId),
+        table.specs().containsKey(outputSpecId),
         "Output spec id %s is not a valid spec id for table",
         outputSpecId);
     return outputSpecId;
