@@ -516,6 +516,25 @@ public class TestFilterPushDown extends SparkTestBaseWithCatalog {
         ImmutableList.of(row(4, Double.NEGATIVE_INFINITY)));
   }
 
+  @Test
+  public void testNullabilityPredicatesOnNestedFieldsPushDown() {
+    sql(
+        "CREATE TABLE %s (id INT, point struct<x: BIGINT NOT NULL, y: BIGINT NOT NULL>)"
+            + "USING iceberg ",
+        tableName);
+    sql("INSERT INTO %s VALUES(1, struct(0, 0)), (2, null)", tableName);
+
+    checkOnlyIcebergFilters(
+        "point.x IS NULL" /* query predicate */,
+        "point.x IS NULL" /* Iceberg scan filters */,
+        ImmutableList.of(row(2, null)));
+
+    checkOnlyIcebergFilters(
+        "point.x IS NOT NULL" /* query predicate */,
+        "point.x IS NOT NULL" /* Iceberg scan filters */,
+        ImmutableList.of(row(1, row(0L, 0L))));
+  }
+
   private void checkOnlyIcebergFilters(
       String predicate, String icebergFilters, List<Object[]> expectedRows) {
 
