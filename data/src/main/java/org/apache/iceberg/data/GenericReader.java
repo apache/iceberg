@@ -20,10 +20,13 @@ package org.apache.iceberg.data;
 
 import java.io.Serializable;
 import java.util.Map;
+import org.apache.iceberg.Accessor;
 import org.apache.iceberg.CombinedScanTask;
+import org.apache.iceberg.DataTask;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.StructLike;
 import org.apache.iceberg.TableScan;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.data.avro.DataReader;
@@ -48,6 +51,7 @@ class GenericReader implements Serializable {
   private final FileIO io;
   private final Schema tableSchema;
   private final Schema projection;
+  private final Expression scanFilter;
   private final boolean caseSensitive;
   private final boolean reuseContainers;
 
@@ -55,6 +59,7 @@ class GenericReader implements Serializable {
     this.io = scan.table().io();
     this.tableSchema = scan.table().schema();
     this.projection = scan.schema();
+    this.scanFilter = scan.filter();
     this.caseSensitive = scan.isCaseSensitive();
     this.reuseContainers = reuseContainers;
   }
@@ -70,6 +75,10 @@ class GenericReader implements Serializable {
   }
 
   public CloseableIterable<Record> open(FileScanTask task) {
+    if (task.isDataTask()) {
+      return openDataTask(task.asDataTask());
+    }
+
     DeleteFilter<Record> deletes = new GenericDeleteFilter(io, task, tableSchema, projection);
     Schema readSchema = deletes.requiredSchema();
 
@@ -78,6 +87,27 @@ class GenericReader implements Serializable {
     records = applyResidual(records, readSchema, task.residual());
 
     return records;
+  }
+
+  private CloseableIterable<Record> openDataTask(DataTask dataTask) {
+    Evaluator filter = new Evaluator(projection.asStruct(), scanFilter, caseSensitive);
+
+    CloseableIterable<StructLike> filteredRecords =
+        CloseableIterable.filter(dataTask.rows(), filter::eval);
+    return CloseableIterable.transform(
+        filteredRecords,
+        row -> {
+          GenericRecord record = GenericRecord.create(projection);
+          projection
+              .columns()
+              .forEach(
+                  column -> {
+                    Accessor<StructLike> accessor = projection.accessorForField(column.fieldId());
+                    record.setField(column.name(), accessor.get(row));
+                  });
+
+          return record;
+        });
   }
 
   private CloseableIterable<Record> applyResidual(

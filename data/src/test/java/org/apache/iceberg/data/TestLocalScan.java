@@ -35,6 +35,7 @@ import java.nio.ByteOrder;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.AppendFiles;
@@ -42,8 +43,10 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.MetadataColumns;
+import org.apache.iceberg.PartitionKey;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.Tables;
@@ -515,12 +518,116 @@ public class TestLocalScan {
             "Cannot find a snapshot older than " + DateTimeUtil.formatTimestampMillis(timestamp));
   }
 
+  @Test
+  public void testLoadPartitionsTable() throws IOException {
+    Schema schema =
+        new Schema(
+            optional(1, "id", Types.IntegerType.get()), optional(2, "ds", Types.StringType.get()));
+    PartitionSpec spec = PartitionSpec.builderFor(schema).identity("ds").build();
+
+    File location = temp.newFolder("partitions_table_test_" + format.name());
+    Table table =
+        TABLES.create(
+            schema,
+            spec,
+            ImmutableMap.of(TableProperties.DEFAULT_FILE_FORMAT, format.name()),
+            location.getAbsolutePath());
+
+    GenericRecord record = GenericRecord.create(schema);
+
+    // Create two files with different partitions ds=2021-01-01 and ds=2021-01-02.
+    List<Record> firstFileRecords =
+        Lists.newArrayList(
+            record.copy(ImmutableMap.of("id", 1, "ds", "2021-01-01")),
+            record.copy(ImmutableMap.of("id", 2, "ds", "2021-01-01")));
+    List<Record> secondFileRecords =
+        Lists.newArrayList(
+            record.copy(ImmutableMap.of("id", 3, "ds", "2021-01-02")),
+            record.copy(ImmutableMap.of("id", 4, "ds", "2021-01-02")));
+
+    PartitionKey firstPartitionKey = new PartitionKey(spec, schema);
+    firstPartitionKey.partition(firstFileRecords.get(0));
+    PartitionKey secondPartitionKey = new PartitionKey(spec, schema);
+    secondPartitionKey.partition(secondFileRecords.get(0));
+
+    DataFile df1 =
+        writeFile(
+            location.getAbsolutePath(),
+            format.addExtension("first"),
+            schema,
+            spec,
+            firstPartitionKey,
+            firstFileRecords);
+    DataFile df2 =
+        writeFile(
+            location.getAbsolutePath(),
+            format.addExtension("second"),
+            schema,
+            spec,
+            secondPartitionKey,
+            secondFileRecords);
+    table.newAppend().appendFile(df1).appendFile(df2).commit();
+
+    Table partitionsTable = TABLES.load(table.name() + "#partitions");
+
+    // Verify that we can read the partitions table correctly, and we can get both partitions.
+    Set<Record> actualRecords =
+        Sets.newHashSet(IcebergGenerics.read(partitionsTable).select("partition").build());
+    Assert.assertEquals(2, actualRecords.size());
+    actualRecords.forEach(
+        r -> Assert.assertEquals(1, ((StructLike) r.getField("partition")).size()));
+
+    Set<String> dsValues =
+        actualRecords.stream()
+            .map(r -> (StructLike) r.getField("partition"))
+            .map(s -> s.get(0, String.class))
+            .collect(Collectors.toSet());
+    Assert.assertTrue(dsValues.contains("2021-01-01"));
+    Assert.assertTrue(dsValues.contains("2021-01-02"));
+
+    // Verify that we can filter the partitions table correctly.
+    actualRecords =
+        Sets.newHashSet(
+            IcebergGenerics.read(partitionsTable)
+                .where(Expressions.equal("partition.ds", "2021-01-02"))
+                .select("partition")
+                .build());
+    Assert.assertEquals(1, actualRecords.size());
+
+    dsValues =
+        actualRecords.stream()
+            .map(r -> (StructLike) r.getField("partition"))
+            .map(s -> s.get(0, String.class))
+            .collect(Collectors.toSet());
+    Assert.assertTrue(dsValues.contains("2021-01-02"));
+
+    // Similarly, filtering all records should yield no records.
+    actualRecords =
+        Sets.newHashSet(
+            IcebergGenerics.read(partitionsTable)
+                .where(Expressions.greaterThanOrEqual("record_count", 1000))
+                .select("partition")
+                .build());
+    Assert.assertEquals(0, actualRecords.size());
+  }
+
   private DataFile writeFile(String location, String filename, List<Record> records)
       throws IOException {
     return writeFile(location, filename, SCHEMA, records);
   }
 
   private DataFile writeFile(String location, String filename, Schema schema, List<Record> records)
+      throws IOException {
+    return writeFile(location, filename, schema, PartitionSpec.unpartitioned(), null, records);
+  }
+
+  private DataFile writeFile(
+      String location,
+      String filename,
+      Schema schema,
+      PartitionSpec spec,
+      StructLike partition,
+      List<Record> records)
       throws IOException {
     Path path = new Path(location, filename);
     FileFormat fileFormat = FileFormat.fromFileName(filename);
@@ -532,7 +639,8 @@ public class TestLocalScan {
       appender.addAll(records);
     }
 
-    return DataFiles.builder(PartitionSpec.unpartitioned())
+    return DataFiles.builder(spec)
+        .withPartition(partition)
         .withInputFile(HadoopInputFile.fromPath(path, CONF))
         .withMetrics(fileAppender.metrics())
         .build();
