@@ -19,13 +19,8 @@
 package org.apache.iceberg.inmemory;
 
 import org.apache.iceberg.catalog.CatalogTests;
-import org.apache.iceberg.catalog.TableIdentifier;
-import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.assertj.core.api.Assertions;
-import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
 
 public class TestInMemoryCatalog extends CatalogTests<InMemoryCatalog> {
   private InMemoryCatalog catalog;
@@ -44,17 +39,5 @@ public class TestInMemoryCatalog extends CatalogTests<InMemoryCatalog> {
   @Override
   protected boolean requiresNamespaceCreate() {
     return true;
-  }
-
-  @Test
-  public void tableCreationWithoutNamespace() {
-    Assumptions.assumeTrue(requiresNamespaceCreate());
-
-    // this should be moved to CatalogTests at some point, but TestNessieCatalog currently fails
-    // with a different exception than we would expect
-    Assertions.assertThatThrownBy(
-            () -> catalog().buildTable(TableIdentifier.of("ns", "table"), SCHEMA).create())
-        .isInstanceOf(NoSuchNamespaceException.class)
-        .hasMessage("Cannot create table ns.table. Namespace ns does not exist");
   }
 }
