@@ -86,7 +86,7 @@ public abstract class BaseMetastoreCatalog implements Catalog {
     TableMetadata metadata = TableMetadataParser.read(ops.io(), metadataFile);
     ops.commit(null, metadata);
 
-    return new BaseTable(ops, fullTableName(name(), identifier));
+    return new BaseTable(ops, fullTableName(name(), identifier), metricsReporter());
   }
 
   @Override
@@ -201,7 +201,7 @@ public abstract class BaseMetastoreCatalog implements Catalog {
         throw new AlreadyExistsException("Table was created concurrently: %s", identifier);
       }
 
-      return new BaseTable(ops, fullTableName(name(), identifier));
+      return new BaseTable(ops, fullTableName(name(), identifier), metricsReporter());
     }
 
     @Override
