@@ -49,6 +49,7 @@ import software.amazon.awssdk.regions.providers.DefaultAwsRegionProviderChain;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClientBuilder;
 import software.amazon.awssdk.services.glue.GlueClientBuilder;
 import software.amazon.awssdk.services.s3.S3AsyncClientBuilder;
+import software.amazon.awssdk.services.s3.S3BaseClientBuilder;
 import software.amazon.awssdk.services.s3.S3ClientBuilder;
 import software.amazon.awssdk.services.s3.S3Configuration;
 import software.amazon.awssdk.services.s3.model.ObjectCannedACL;
@@ -64,6 +65,9 @@ import java.util.stream.Collectors;
 public class AwsProperties implements Serializable {
 
   private static final Logger LOG = LoggerFactory.getLogger(AwsProperties.class);
+
+  public static final String S3FILEIO_ASYNC_CLIENT_ENABLED = "s3.client.async.enabled";
+  public static final boolean S3FILEIO_ASYNC_CLIENT_ENABLED_DEFAULT = false;
 
   /**
    * Type of S3 Server side encryption used, default to {@link
@@ -754,6 +758,7 @@ public class AwsProperties implements Serializable {
   private String dynamoDbEndpoint;
 
   private final boolean s3RemoteSigningEnabled;
+  private boolean s3AsyncClientEnabled;
   private final Map<String, String> allProperties;
 
   private String restSigningRegion;
@@ -776,6 +781,7 @@ public class AwsProperties implements Serializable {
     this.clientCredentialsProvider = null;
     this.clientCredentialsProviderProperties = null;
 
+    this.s3AsyncClientEnabled = S3FILEIO_ASYNC_CLIENT_ENABLED_DEFAULT;
     this.s3FileIoSseType = S3FILEIO_SSE_TYPE_NONE;
     this.s3FileIoSseKey = null;
     this.s3FileIoSseMd5 = null;
@@ -841,6 +847,8 @@ public class AwsProperties implements Serializable {
     this.clientCredentialsProviderProperties =
         PropertyUtil.propertiesWithPrefix(properties, CLIENT_CREDENTIAL_PROVIDER_PREFIX);
 
+    this.s3AsyncClientEnabled = PropertyUtil.propertyAsBoolean(properties,
+        S3FILEIO_ASYNC_CLIENT_ENABLED, S3FILEIO_ASYNC_CLIENT_ENABLED_DEFAULT);
     this.s3FileIoSseType = properties.getOrDefault(S3FILEIO_SSE_TYPE, S3FILEIO_SSE_TYPE_NONE);
     this.s3FileIoSseKey = properties.get(S3FILEIO_SSE_KEY);
     this.s3FileIoSseMd5 = properties.get(S3FILEIO_SSE_MD5);
@@ -1138,6 +1146,14 @@ public class AwsProperties implements Serializable {
     return s3DeleteTags;
   }
 
+  public boolean isS3AsyncClientEnabled() {
+    return s3AsyncClientEnabled;
+  }
+
+  public void setS3AsyncClientEnabled(boolean enabled) {
+    this.s3AsyncClientEnabled = enabled;
+  }
+
   public int s3FileIoDeleteThreads() {
     return s3FileIoDeleteThreads;
   }
@@ -1214,7 +1230,7 @@ public class AwsProperties implements Serializable {
    *     DynamoDbClient.builder().applyMutation(awsProperties::applyClientCredentialConfigurations)
    * </pre>
    */
-  public <T extends AwsClientBuilder> void applyClientCredentialConfigurations(T builder) {
+  public <T extends AwsClientBuilder<?, ?>> void applyClientCredentialConfigurations(T builder) {
     if (!Strings.isNullOrEmpty(this.clientCredentialsProvider)) {
       builder.credentialsProvider(credentialsProvider(this.clientCredentialsProvider));
     }
@@ -1230,26 +1246,15 @@ public class AwsProperties implements Serializable {
    *     S3Client.builder().applyMutation(awsProperties::applyS3ServiceConfigurations)
    * </pre>
    */
-  public <T extends S3ClientBuilder> void applyS3ServiceConfigurations(T builder) {
+  public <T extends S3BaseClientBuilder<T, ?>> void applyS3ServiceConfigurations(T builder) {
     builder
-        .dualstackEnabled(s3DualStackEnabled)
         .serviceConfiguration(
             S3Configuration.builder()
                 .pathStyleAccessEnabled(s3PathStyleAccess)
                 .useArnRegionEnabled(s3UseArnRegionEnabled)
                 .accelerateModeEnabled(s3AccelerationEnabled)
-                .build());
-  }
-
-  public <T extends S3AsyncClientBuilder> void applyS3ServiceConfigurations(T builder) {
-    builder
-        .dualstackEnabled(s3DualStackEnabled)
-        .serviceConfiguration(
-            S3Configuration.builder()
-              .pathStyleAccessEnabled(s3PathStyleAccess)
-              .useArnRegionEnabled(s3UseArnRegionEnabled)
-              .accelerateModeEnabled(s3AccelerationEnabled)
-              .build());
+                .build())
+        .dualstackEnabled(s3DualStackEnabled);
   }
 
   /**
@@ -1261,15 +1266,7 @@ public class AwsProperties implements Serializable {
    *     S3Client.builder().applyMutation(awsProperties::applyS3SignerConfiguration)
    * </pre>
    */
-  public <T extends S3ClientBuilder> void applyS3SignerConfiguration(T builder) {
-    if (s3RemoteSigningEnabled) {
-      builder.overrideConfiguration(
-          c ->
-              c.putAdvancedOption(
-                  SdkAdvancedClientOption.SIGNER, S3V4RestSignerClient.create(allProperties)));
-    }
-  }
-  public <T extends S3AsyncClientBuilder> void applyS3SignerConfiguration(T builder) {
+  public <T extends S3BaseClientBuilder<?, ?>> void applyS3SignerConfiguration(T builder) {
     if (s3RemoteSigningEnabled) {
       builder.overrideConfiguration(
           c ->

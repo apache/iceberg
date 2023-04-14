@@ -72,11 +72,6 @@ public class S3AsyncOutputFile extends BaseS3AsyncFile implements OutputFile, Na
   }
 
   @Override
-  public String location() {
-    return null;
-  }
-
-  @Override
   public InputFile toInputFile() {
     return new S3AsyncInputFile(client(), uri(), null, awsProperties(), metrics());
   }
