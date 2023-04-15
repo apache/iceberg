@@ -18,17 +18,24 @@
  */
 package org.apache.iceberg.spark;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import org.apache.commons.lang3.time.DurationUtils;
 import org.apache.hadoop.fs.FileStatus;
+import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.NullOrder;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -74,24 +81,32 @@ import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.Table;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.apache.spark.sql.connector.catalog.TableChange;
+import org.apache.spark.sql.connector.distributions.Distribution;
 import org.apache.spark.sql.connector.expressions.Expression;
 import org.apache.spark.sql.connector.expressions.Expressions;
 import org.apache.spark.sql.connector.expressions.Literal;
 import org.apache.spark.sql.connector.expressions.NamedReference;
+import org.apache.spark.sql.connector.expressions.SortOrder;
 import org.apache.spark.sql.connector.expressions.Transform;
 import org.apache.spark.sql.execution.datasources.FileStatusCache;
-import org.apache.spark.sql.execution.datasources.InMemoryFileIndex;
 import org.apache.spark.sql.execution.datasources.PartitionDirectory;
+import org.apache.spark.sql.execution.datasources.PartitioningAwareFileIndex;
 import org.apache.spark.sql.types.IntegerType;
 import org.apache.spark.sql.types.LongType;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import scala.Option;
+import scala.Tuple2;
 import scala.collection.JavaConverters;
+import scala.collection.immutable.Map$;
 import scala.collection.immutable.Seq;
+import scala.collection.mutable.LinkedHashMap;
 
 public class Spark3Util {
 
+  private static Logger log = LoggerFactory.getLogger(Spark3Util.class);
   private static final Set<String> RESERVED_PROPERTIES =
       ImmutableSet.of(TableCatalog.PROP_LOCATION, TableCatalog.PROP_PROVIDER);
   private static final Joiner DOT = Joiner.on(".");
@@ -494,6 +509,20 @@ public class Spark3Util {
     return extensions.contains("IcebergSparkSessionExtensions");
   }
 
+  public static boolean isPartitioned(SparkSession spark, Path tableLocation) {
+    try {
+      return Arrays.stream(
+              FileSystem.get(spark.sparkContext().hadoopConfiguration()).listStatus(tableLocation))
+          .anyMatch(FileStatus::isDirectory);
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
+  }
+
+  public static Duration duration(long start) {
+    return DurationUtils.toDuration(System.currentTimeMillis() - start, TimeUnit.MILLISECONDS);
+  }
+
   public static class DescribeSchemaVisitor extends TypeUtil.SchemaVisitor<String> {
     private static final Joiner COMMA = Joiner.on(',');
     private static final DescribeSchemaVisitor INSTANCE = new DescribeSchemaVisitor();
@@ -840,6 +869,7 @@ public class Spark3Util {
       String format,
       Map<String, String> partitionFilter,
       PartitionSpec partitionSpec) {
+    long start = System.currentTimeMillis();
     FileStatusCache fileStatusCache = FileStatusCache.getOrCreate(spark);
 
     Option<StructType> userSpecifiedSchema =
@@ -848,17 +878,13 @@ public class Spark3Util {
             : Option.apply(
                 SparkSchemaUtil.convert(new Schema(partitionSpec.partitionType().fields())));
 
-    InMemoryFileIndex fileIndex =
-        new InMemoryFileIndex(
+    PartitioningAwareFileIndex fileIndex =
+        new InMemoryLeafDirOnlyIndex(
             spark,
-            JavaConverters.collectionAsScalaIterableConverter(ImmutableList.of(rootPath))
-                .asScala()
-                .toSeq(),
-            scala.collection.immutable.Map$.MODULE$.<String, String>empty(),
-            userSpecifiedSchema,
+            scala.collection.immutable.Map$.MODULE$.empty(),
+            userSpecifiedSchema.get(),
             fileStatusCache,
-            Option.empty(),
-            Option.empty());
+            rootPath);
 
     org.apache.spark.sql.execution.datasources.PartitionSpec spec = fileIndex.partitionSpec();
     StructType schema = spec.partitionColumns();
@@ -878,28 +904,36 @@ public class Spark3Util {
     Seq<PartitionDirectory> filteredPartitions =
         fileIndex.listFiles(scalaPartitionFilters, scalaDataFilters).toIndexedSeq();
 
-    return JavaConverters.seqAsJavaListConverter(filteredPartitions).asJava().stream()
-        .map(
-            partition -> {
-              Map<String, String> values = Maps.newHashMap();
-              JavaConverters.asJavaIterableConverter(schema)
-                  .asJava()
-                  .forEach(
-                      field -> {
-                        int fieldIndex = schema.fieldIndex(field.name());
-                        Object catalystValue = partition.values().get(fieldIndex, field.dataType());
-                        Object value =
-                            CatalystTypeConverters.convertToScala(catalystValue, field.dataType());
-                        values.put(field.name(), String.valueOf(value));
-                      });
+    List<SparkPartition> sparkPartitions =
+        JavaConverters.seqAsJavaListConverter(filteredPartitions).asJava().stream()
+            .map(
+                partition -> {
+                  Map<String, String> values = Maps.newHashMap();
+                  JavaConverters.asJavaIterableConverter(schema)
+                      .asJava()
+                      .forEach(
+                          field -> {
+                            int fieldIndex = schema.fieldIndex(field.name());
+                            Object catalystValue =
+                                partition.values().get(fieldIndex, field.dataType());
+                            Object value =
+                                CatalystTypeConverters.convertToScala(
+                                    catalystValue, field.dataType());
+                            values.put(field.name(), String.valueOf(value));
+                          });
 
-              FileStatus fileStatus =
-                  JavaConverters.seqAsJavaListConverter(partition.files()).asJava().get(0);
+                  FileStatus fileStatus =
+                      JavaConverters.seqAsJavaListConverter(partition.files()).asJava().get(0);
 
-              return new SparkPartition(
-                  values, fileStatus.getPath().getParent().toString(), format);
-            })
-        .collect(Collectors.toList());
+                  return new SparkPartition(
+                      values, fileStatus.getPath().getParent().toString(), format);
+                })
+            .collect(Collectors.toList());
+    log.info(
+        "retrieved {} sparkPartitions in {}",
+        sparkPartitions.size(),
+        DurationUtils.toDuration(System.currentTimeMillis() - start, TimeUnit.MILLISECONDS));
+    return sparkPartitions;
   }
 
   public static org.apache.spark.sql.catalyst.TableIdentifier toV1TableIdentifier(
@@ -994,6 +1028,136 @@ public class Spark3Util {
         org.apache.iceberg.SortDirection direction,
         NullOrder nullOrder) {
       return String.format("%s(%s) %s %s", transform, sourceName, direction, nullOrder);
+    }
+  }
+
+  /**
+   * Implement our own index in-memory index which will only list directories to avoid unnecessary
+   * file listings. Should ONLY be used to get partition directory paths. Uses table's schema to
+   * only visit partition dirs using number of partition columns depth recursively. Does NOT return
+   * files within leaf dir.
+   */
+  private static class InMemoryLeafDirOnlyIndex extends PartitioningAwareFileIndex {
+
+    private final Path rootPath;
+    private final FileStatusCache fileStatusCache;
+    private final SparkSession sparkSession;
+    private final StructType userSpecifiedSchema;
+    private LinkedHashMap<Path, FileStatus> cachedLeafFiles;
+    private scala.collection.immutable.Map<Path, FileStatus[]> cachedLeafDirToChildFiles;
+    private org.apache.spark.sql.execution.datasources.PartitionSpec cachedPartitionSpec;
+
+    public InMemoryLeafDirOnlyIndex(
+        SparkSession sparkSession,
+        scala.collection.immutable.Map<String, String> parameters,
+        StructType userSpecifiedSchema,
+        FileStatusCache fileStatusCache,
+        Path rootPath) {
+      super(sparkSession, parameters, Option.apply(userSpecifiedSchema), fileStatusCache);
+      this.fileStatusCache = fileStatusCache;
+      this.rootPath = rootPath;
+      this.sparkSession = sparkSession;
+      this.userSpecifiedSchema = userSpecifiedSchema;
+    }
+
+    @Override
+    public scala.collection.Seq<Path> rootPaths() {
+      return JavaConverters.asScalaBuffer(Arrays.asList(rootPath)).seq();
+    }
+
+    @Override
+    public void refresh() {
+      fileStatusCache.invalidateAll();
+      cachedLeafFiles = null;
+      cachedLeafDirToChildFiles = null;
+      cachedPartitionSpec = null;
+    }
+
+    @Override
+    public org.apache.spark.sql.execution.datasources.PartitionSpec partitionSpec() {
+      if (cachedPartitionSpec == null) {
+        cachedPartitionSpec = inferPartitioning();
+      }
+      log.trace("Partition spec: {}", cachedPartitionSpec);
+      return cachedPartitionSpec;
+    }
+
+    @Override
+    public LinkedHashMap<Path, FileStatus> leafFiles() {
+      if (cachedLeafFiles == null) {
+        try {
+          List<FileStatus> fileStatuses =
+              listLeafDirs(sparkSession, rootPath, userSpecifiedSchema, 0);
+          LinkedHashMap<Path, FileStatus> map = new LinkedHashMap<>();
+          for (FileStatus fs : fileStatuses) {
+            map.put(fs.getPath(), fs);
+          }
+          cachedLeafFiles = map;
+        } catch (IOException e) {
+          throw new RuntimeException("error listing files for path=" + rootPath, e);
+        }
+      }
+      return cachedLeafFiles;
+    }
+
+    static List<FileStatus> listLeafDirs(
+        SparkSession spark, Path path, StructType partitionSpec, int level) throws IOException {
+      List<FileStatus> leafDirs = new ArrayList<>();
+      int numPartitionCols = partitionSpec.fields().length;
+      if (level < numPartitionCols) {
+        try (FileSystem fs = path.getFileSystem(spark.sparkContext().hadoopConfiguration())) {
+          List<FileStatus> dirs =
+              Stream.of(fs.listStatus(path))
+                  .filter(FileStatus::isDirectory)
+                  .collect(Collectors.toList());
+          for (FileStatus dir : dirs) {
+            // stop recursive call once we reach the expected end of partitions as per table schema
+            if (level == numPartitionCols - 1) {
+              leafDirs.add(dir);
+            } else {
+              leafDirs.addAll(listLeafDirs(spark, dir.getPath(), partitionSpec, level + 1));
+            }
+          }
+        }
+      }
+      return leafDirs;
+    }
+
+    @Override
+    public scala.collection.immutable.Map<Path, FileStatus[]> leafDirToChildrenFiles() {
+      if (cachedLeafDirToChildFiles == null) {
+        List<Tuple2<Path, FileStatus[]>> tuple2s =
+            JavaConverters.seqAsJavaList(leafFiles().values().toSeq()).stream()
+                .map(
+                    fileStatus -> {
+                      // Create an empty data file in the leaf dir.
+                      // As this index is only used to list partition directories,
+                      // we can stop listing the leaf dir to avoid unnecessary listing which can
+                      // take a while on folders with 1000s of files
+                      return new Tuple2<>(
+                          fileStatus.getPath(),
+                          new FileStatus[] {createEmptyChildDataFileStatus(fileStatus)});
+                    })
+                .collect(Collectors.toList());
+        cachedLeafDirToChildFiles =
+            (scala.collection.immutable.Map<Path, FileStatus[]>)
+                Map$.MODULE$.apply(JavaConverters.asScalaBuffer(tuple2s));
+      }
+      return cachedLeafDirToChildFiles;
+    }
+
+    private FileStatus createEmptyChildDataFileStatus(FileStatus fileStatus) {
+      return new FileStatus(
+          1L,
+          false,
+          fileStatus.getReplication(),
+          1L,
+          fileStatus.getModificationTime(),
+          fileStatus.getAccessTime(),
+          fileStatus.getPermission(),
+          fileStatus.getOwner(),
+          fileStatus.getGroup(),
+          new Path(fileStatus.getPath(), fileStatus.getPath().toString() + "/dummyDataFile"));
     }
   }
 }

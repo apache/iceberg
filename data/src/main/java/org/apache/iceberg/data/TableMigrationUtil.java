@@ -20,6 +20,7 @@ package org.apache.iceberg.data;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -44,6 +45,7 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.orc.OrcMetrics;
 import org.apache.iceberg.parquet.ParquetUtil;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.ThreadFactoryBuilder;
 import org.apache.iceberg.util.Tasks;
@@ -102,13 +104,19 @@ public class TableMigrationUtil {
 
       Path partition = new Path(partitionUri);
       FileSystem fs = partition.getFileSystem(conf);
-      List<FileStatus> fileStatus =
-          Arrays.stream(fs.listStatus(partition, HIDDEN_PATH_FILTER))
-              .filter(FileStatus::isFile)
-              .collect(Collectors.toList());
-      DataFile[] datafiles = new DataFile[fileStatus.size()];
+      FileStatus[] fileStatuses = fs.listStatus(partition, HIDDEN_PATH_FILTER);
+      List<FileStatus> files = new ArrayList<>();
+      for (FileStatus fileStatus : fileStatuses) {
+        Preconditions.checkArgument(
+            fileStatus.isFile(),
+            "cannot add data files from partitionPath {} which contains more partition folders, " +
+                    "only files are expected. Make sure path contains data partitioned as per table's partition spec.",
+            partitionUri);
+        files.add(fileStatus);
+      }
+      DataFile[] datafiles = new DataFile[files.size()];
       Tasks.Builder<Integer> task =
-          Tasks.range(fileStatus.size()).stopOnFailure().throwFailureWhenFinished();
+          Tasks.range(files.size()).stopOnFailure().throwFailureWhenFinished();
 
       if (parallelism > 1) {
         service = migrationService(parallelism);
@@ -118,25 +126,25 @@ public class TableMigrationUtil {
       if (format.contains("avro")) {
         task.run(
             index -> {
-              Metrics metrics = getAvroMetrics(fileStatus.get(index).getPath(), conf);
+              Metrics metrics = getAvroMetrics(files.get(index).getPath(), conf);
               datafiles[index] =
-                  buildDataFile(fileStatus.get(index), partitionKey, spec, metrics, "avro");
+                  buildDataFile(files.get(index), partitionKey, spec, metrics, "avro");
             });
       } else if (format.contains("parquet")) {
         task.run(
             index -> {
               Metrics metrics =
-                  getParquetMetrics(fileStatus.get(index).getPath(), conf, metricsSpec, mapping);
+                  getParquetMetrics(files.get(index).getPath(), conf, metricsSpec, mapping);
               datafiles[index] =
-                  buildDataFile(fileStatus.get(index), partitionKey, spec, metrics, "parquet");
+                  buildDataFile(files.get(index), partitionKey, spec, metrics, "parquet");
             });
       } else if (format.contains("orc")) {
         task.run(
             index -> {
               Metrics metrics =
-                  getOrcMetrics(fileStatus.get(index).getPath(), conf, metricsSpec, mapping);
+                  getOrcMetrics(files.get(index).getPath(), conf, metricsSpec, mapping);
               datafiles[index] =
-                  buildDataFile(fileStatus.get(index), partitionKey, spec, metrics, "orc");
+                  buildDataFile(files.get(index), partitionKey, spec, metrics, "orc");
             });
       } else {
         throw new UnsupportedOperationException("Unknown partition format: " + format);

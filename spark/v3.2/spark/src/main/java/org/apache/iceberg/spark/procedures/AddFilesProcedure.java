@@ -49,9 +49,13 @@ import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import scala.runtime.BoxedUnit;
 
 class AddFilesProcedure extends BaseProcedure {
 
+  private static Logger LOG = LoggerFactory.getLogger(AddFilesProcedure.class);
   private static final ProcedureParameter TABLE_PARAM =
       ProcedureParameter.required("table", DataTypes.StringType);
   private static final ProcedureParameter SOURCE_TABLE_PARAM =
@@ -165,12 +169,16 @@ class AddFilesProcedure extends BaseProcedure {
       boolean checkDuplicateFiles,
       PartitionSpec spec) {
     // List Partitions via Spark InMemory file search interface
+    long start = System.currentTimeMillis();
     List<SparkPartition> partitions =
         Spark3Util.getPartitions(spark(), tableLocation, format, partitionFilter, spec);
+    LOG.info("found {} partitions in {}", partitions.size(), Spark3Util.duration(start));
 
+    long startImport = System.currentTimeMillis();
     if (table.spec().isUnpartitioned()) {
       Preconditions.checkArgument(
-          partitions.isEmpty(), "Cannot add partitioned files to an unpartitioned table");
+          !Spark3Util.isPartitioned(spark(), tableLocation),
+          "Cannot add partitioned files to an unpartitioned table");
       Preconditions.checkArgument(
           partitionFilter.isEmpty(),
           "Cannot use a partition filter when importing" + "to an unpartitioned table");
@@ -184,6 +192,7 @@ class AddFilesProcedure extends BaseProcedure {
           !partitions.isEmpty(), "Cannot find any matching partitions in table %s", partitions);
       importPartitions(table, partitions, checkDuplicateFiles);
     }
+    LOG.info("imported files in {}", Spark3Util.duration(startImport));
   }
 
   private void importCatalogTable(
