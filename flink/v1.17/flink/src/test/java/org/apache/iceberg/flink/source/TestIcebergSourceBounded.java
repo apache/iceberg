@@ -142,6 +142,9 @@ public class TestIcebergSourceBounded extends TestFlinkScan {
 
     try (CloseableIterator<Row> iter = stream.executeAndCollect()) {
       return Lists.newArrayList(iter);
+    } catch (Exception e) {
+      // To retrieve the underlying exception information that actually caused the task failure.
+      throw (RuntimeException) e.getCause().getCause().getCause().getCause().getCause().getCause();
     }
   }
 }

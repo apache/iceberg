@@ -24,11 +24,14 @@ import java.util.Map;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.table.api.EnvironmentSettings;
 import org.apache.flink.table.api.TableEnvironment;
+import org.apache.flink.table.api.TableResult;
 import org.apache.flink.table.api.config.TableConfigOptions;
 import org.apache.flink.types.Row;
+import org.apache.flink.util.CloseableIterator;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.flink.FlinkConfigOptions;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.jupiter.api.BeforeEach;
 
 public class TestIcebergSourceBoundedSql extends TestIcebergSourceBounded {
@@ -71,6 +74,14 @@ public class TestIcebergSourceBoundedSql extends TestIcebergSourceBounded {
       throws Exception {
     String select = String.join(",", sqlSelectedFields);
     String optionStr = SqlHelpers.sqlOptionsToString(options);
-    return SqlHelpers.sql(getTableEnv(), "select %s from t %s %s", select, optionStr, sqlFilter);
+    TableResult tableResult =
+        getTableEnv()
+            .executeSql(String.format("select %s from t %s %s", select, optionStr, sqlFilter));
+    try (CloseableIterator<Row> iter = tableResult.collect()) {
+      return Lists.newArrayList(iter);
+    } catch (Exception e) {
+      // To retrieve the underlying exception information that actually caused the task failure.
+      throw (RuntimeException) e.getCause().getCause().getCause().getCause().getCause().getCause();
+    }
   }
 }

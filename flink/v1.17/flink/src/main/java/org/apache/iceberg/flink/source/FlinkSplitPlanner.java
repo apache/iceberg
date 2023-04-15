@@ -27,6 +27,7 @@ import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.IncrementalAppendScan;
 import org.apache.iceberg.Scan;
+import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TableScan;
@@ -37,6 +38,7 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.Tasks;
 
 @Internal
@@ -88,32 +90,14 @@ public class FlinkSplitPlanner {
       IncrementalAppendScan scan = table.newIncrementalAppendScan();
       scan = refineScanWithBaseConfigs(scan, context, workerPool);
 
-      if (context.startTag() != null) {
-        Preconditions.checkArgument(
-            table.snapshot(context.startTag()) != null,
-            "Cannot find snapshot with tag %s",
-            context.startTag());
-        scan = scan.fromSnapshotExclusive(table.snapshot(context.startTag()).snapshotId());
+      Long startSnapshotId = resolveStartSnapshotId(table, context);
+      if (startSnapshotId != null) {
+        scan = scan.fromSnapshotExclusive(startSnapshotId);
       }
 
-      if (context.startSnapshotId() != null) {
-        Preconditions.checkArgument(
-            context.startTag() == null, "START_SNAPSHOT_ID and START_TAG cannot both be set");
-        scan = scan.fromSnapshotExclusive(context.startSnapshotId());
-      }
-
-      if (context.endTag() != null) {
-        Preconditions.checkArgument(
-            table.snapshot(context.endTag()) != null,
-            "Cannot find snapshot with tag %s",
-            context.endTag());
-        scan = scan.toSnapshot(table.snapshot(context.endTag()).snapshotId());
-      }
-
-      if (context.endSnapshotId() != null) {
-        Preconditions.checkArgument(
-            context.endTag() == null, "END_SNAPSHOT_ID and END_TAG cannot both be set");
-        scan = scan.toSnapshot(context.endSnapshotId());
+      Long toSnapshotId = resolveToSnapshotId(table, context);
+      if (toSnapshotId != null) {
+        scan = scan.toSnapshot(toSnapshotId);
       }
 
       return scan.planTasks();
@@ -137,6 +121,60 @@ public class FlinkSplitPlanner {
     }
   }
 
+  private static Long resolveToSnapshotId(Table table, ScanContext context) {
+    if (context.endTag() != null) {
+      Preconditions.checkArgument(
+          table.snapshot(context.endTag()) != null,
+          "Cannot find snapshot with tag %s",
+          context.endTag());
+      return table.snapshot(context.endTag()).snapshotId();
+    }
+
+    if (context.endSnapshotId() != null) {
+      return context.endSnapshotId();
+    }
+
+    if (context.endSnapshotTimestamp() != null) {
+      return SnapshotUtil.snapshotIdAsOfTime(table, context.endSnapshotTimestamp());
+    }
+    return null;
+  }
+
+  private static Long resolveStartSnapshotId(Table table, ScanContext context) {
+    if (context.startTag() != null) {
+      Preconditions.checkArgument(
+          table.snapshot(context.startTag()) != null,
+          "Cannot find snapshot with tag %s",
+          context.startTag());
+      return table.snapshot(context.startTag()).snapshotId();
+    }
+
+    if (context.startSnapshotId() != null) {
+      return context.startSnapshotId();
+    }
+
+    if (context.startSnapshotTimestamp() != null) {
+      return getStartSnapshotId(table, context.startSnapshotTimestamp());
+    }
+
+    return null;
+  }
+
+  private static Long getStartSnapshotId(Table table, Long startTimestamp) {
+    Snapshot oldestSnapshotAfter = SnapshotUtil.oldestAncestorAfter(table, startTimestamp);
+    Preconditions.checkArgument(
+        oldestSnapshotAfter != null,
+        "Cannot find a snapshot older than %s for table %s",
+        startTimestamp,
+        table.name());
+
+    if (oldestSnapshotAfter.timestampMillis() == startTimestamp) {
+      return oldestSnapshotAfter.snapshotId();
+    } else {
+      return oldestSnapshotAfter.parentId();
+    }
+  }
+
   @VisibleForTesting
   enum ScanMode {
     BATCH,
@@ -146,6 +184,7 @@ public class FlinkSplitPlanner {
   @VisibleForTesting
   static ScanMode checkScanMode(ScanContext context) {
     if (context.startSnapshotId() != null
+        || context.startSnapshotTimestamp() != null
         || context.endSnapshotId() != null
         || context.startTag() != null
         || context.endTag() != null) {

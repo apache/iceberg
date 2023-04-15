@@ -49,6 +49,7 @@ public class ScanContext implements Serializable {
   private final StreamingStartingStrategy startingStrategy;
   private final Long startSnapshotId;
   private final Long startSnapshotTimestamp;
+  private final Long endSnapshotTimestamp;
   private final Long endSnapshotId;
   private final Long asOfTimestamp;
   private final String startTag;
@@ -76,6 +77,7 @@ public class ScanContext implements Serializable {
       Long snapshotId,
       StreamingStartingStrategy startingStrategy,
       Long startSnapshotTimestamp,
+      Long endSnapshotTimestamp,
       Long startSnapshotId,
       Long endSnapshotId,
       Long asOfTimestamp,
@@ -106,6 +108,7 @@ public class ScanContext implements Serializable {
     this.branch = branch;
     this.startingStrategy = startingStrategy;
     this.startSnapshotTimestamp = startSnapshotTimestamp;
+    this.endSnapshotTimestamp = endSnapshotTimestamp;
     this.startSnapshotId = startSnapshotId;
     this.endSnapshotId = endSnapshotId;
     this.asOfTimestamp = asOfTimestamp;
@@ -163,16 +166,30 @@ public class ScanContext implements Serializable {
     }
 
     Preconditions.checkArgument(
-        !(startTag != null && startSnapshotId() != null),
-        "START_SNAPSHOT_ID and START_TAG cannot both be set.");
+        atMostOneNonNull(startSnapshotId(), startTag, startSnapshotTimestamp()),
+        "Cannot specify more than one of start-snapshot-id, start-tag, or start-snapshot-timestamp.");
 
     Preconditions.checkArgument(
-        !(endTag != null && endSnapshotId() != null),
-        "END_SNAPSHOT_ID and END_TAG cannot both be set.");
+        atMostOneNonNull(endSnapshotId(), endTag, endSnapshotTimestamp()),
+        "Cannot specify more than one of end-snapshot-id, end-tag, or end-snapshot-timestamp.");
 
     Preconditions.checkArgument(
         maxAllowedPlanningFailures >= -1,
         "Cannot set maxAllowedPlanningFailures to a negative number other than -1.");
+  }
+
+  private static boolean atMostOneNonNull(Object... objects) {
+    int count = 0;
+    for (Object obj : objects) {
+      if (obj != null) {
+        count++;
+      }
+
+      if (count > 1) {
+        return false;
+      }
+    }
+    return true;
   }
 
   public boolean caseSensitive() {
@@ -205,6 +222,10 @@ public class ScanContext implements Serializable {
 
   public Long startSnapshotTimestamp() {
     return startSnapshotTimestamp;
+  }
+
+  public Long endSnapshotTimestamp() {
+    return endSnapshotTimestamp;
   }
 
   public Long startSnapshotId() {
@@ -363,6 +384,7 @@ public class ScanContext implements Serializable {
     private StreamingStartingStrategy startingStrategy =
         FlinkReadOptions.STARTING_STRATEGY_OPTION.defaultValue();
     private Long startSnapshotTimestamp = FlinkReadOptions.START_SNAPSHOT_TIMESTAMP.defaultValue();
+    private Long endSnapshotTimestamp = FlinkReadOptions.END_SNAPSHOT_TIMESTAMP.defaultValue();
     private Long startSnapshotId = FlinkReadOptions.START_SNAPSHOT_ID.defaultValue();
     private Long endSnapshotId = FlinkReadOptions.END_SNAPSHOT_ID.defaultValue();
     private Long asOfTimestamp = FlinkReadOptions.AS_OF_TIMESTAMP.defaultValue();
@@ -419,6 +441,11 @@ public class ScanContext implements Serializable {
 
     public Builder startSnapshotTimestamp(Long newStartSnapshotTimestamp) {
       this.startSnapshotTimestamp = newStartSnapshotTimestamp;
+      return this;
+    }
+
+    public Builder endSnapshotTimestamp(Long newEndSnapshotTimestamp) {
+      this.endSnapshotTimestamp = newEndSnapshotTimestamp;
       return this;
     }
 
@@ -545,6 +572,7 @@ public class ScanContext implements Serializable {
           .asOfTimestamp(flinkReadConf.asOfTimestamp())
           .startingStrategy(flinkReadConf.startingStrategy())
           .startSnapshotTimestamp(flinkReadConf.startSnapshotTimestamp())
+          .endSnapshotTimestamp(flinkReadConf.endSnapshotTimestamp())
           .startSnapshotId(flinkReadConf.startSnapshotId())
           .endSnapshotId(flinkReadConf.endSnapshotId())
           .splitSize(flinkReadConf.splitSize())
@@ -568,6 +596,7 @@ public class ScanContext implements Serializable {
           snapshotId,
           startingStrategy,
           startSnapshotTimestamp,
+          endSnapshotTimestamp,
           startSnapshotId,
           endSnapshotId,
           asOfTimestamp,

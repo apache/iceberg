@@ -360,8 +360,9 @@ public abstract class TestFlinkScan {
                         .put("end-tag", endTag)
                         .put("start-snapshot-id", Long.toString(snapshotId1))
                         .buildOrThrow()))
-        .isInstanceOf(Exception.class)
-        .hasMessage("START_SNAPSHOT_ID and START_TAG cannot both be set.");
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining(
+            "Cannot specify more than one of start-snapshot-id, start-tag, or start-snapshot-timestamp.");
 
     assertThatThrownBy(
             () ->
@@ -371,8 +372,9 @@ public abstract class TestFlinkScan {
                         .put("end-tag", endTag)
                         .put("end-snapshot-id", Long.toString(snapshotId3))
                         .buildOrThrow()))
-        .isInstanceOf(Exception.class)
-        .hasMessage("END_SNAPSHOT_ID and END_TAG cannot both be set.");
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining(
+            "Cannot specify more than one of end-snapshot-id, end-tag, or end-snapshot-timestamp.");
   }
 
   @TestTemplate
@@ -408,6 +410,141 @@ public abstract class TestFlinkScan {
                 .buildOrThrow()),
         expected2,
         TestFixtures.SCHEMA);
+  }
+
+  @Test
+  public void testIncrementalReadWithTimestampRange() throws Exception {
+    Table table =
+        catalogResource.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, TestFixtures.SCHEMA);
+
+    GenericAppenderHelper helper = new GenericAppenderHelper(table, fileFormat, TEMPORARY_FOLDER);
+
+    // snapshot 1
+    List<Record> records1 = RandomGenericData.generate(TestFixtures.SCHEMA, 1, 0L);
+    helper.appendToTable(records1);
+    long timestampMillis1 = table.currentSnapshot().timestampMillis();
+    org.apache.iceberg.TestHelpers.waitUntilAfter(timestampMillis1 + 2);
+
+    // snapshot 2
+    List<Record> records2 = RandomGenericData.generate(TestFixtures.SCHEMA, 1, 0L);
+    helper.appendToTable(records2);
+    long timestampMillis2 = table.currentSnapshot().timestampMillis();
+    long timestampMillisAfter2 = org.apache.iceberg.TestHelpers.waitUntilAfter(timestampMillis2);
+
+    // snapshot 3
+    List<Record> records3 = RandomGenericData.generate(TestFixtures.SCHEMA, 1, 1L);
+    helper.appendToTable(records3);
+
+    // snapshot 4
+    List<Record> records4 = RandomGenericData.generate(TestFixtures.SCHEMA, 1, 2L);
+    helper.appendToTable(records4);
+    long timestampMillis4 = table.currentSnapshot().timestampMillis();
+    long timestampMillisAfter4 = org.apache.iceberg.TestHelpers.waitUntilAfter(timestampMillis4);
+
+    // snapshot 5
+    helper.appendToTable(RandomGenericData.generate(TestFixtures.SCHEMA, 1, 3L));
+    long timestampMillisAfter5 =
+        org.apache.iceberg.TestHelpers.waitUntilAfter(table.currentSnapshot().timestampMillis());
+
+    List<Record> expected = Lists.newArrayList();
+    expected.addAll(records3);
+    expected.addAll(records4);
+    TestHelpers.assertRecords(
+        runWithOptions(
+            ImmutableMap.<String, String>builder()
+                .put("start-snapshot-timestamp", Long.toString(timestampMillis2))
+                .put("end-snapshot-timestamp", Long.toString(timestampMillis4))
+                .buildOrThrow()),
+        expected,
+        TestFixtures.SCHEMA);
+
+    TestHelpers.assertRecords(
+        runWithOptions(
+            ImmutableMap.<String, String>builder()
+                .put("start-snapshot-timestamp", Long.toString(timestampMillisAfter2))
+                .put("end-snapshot-timestamp", Long.toString(timestampMillis4))
+                .buildOrThrow()),
+        expected,
+        TestFixtures.SCHEMA);
+
+    TestHelpers.assertRecords(
+        runWithOptions(
+            ImmutableMap.<String, String>builder()
+                .put("start-snapshot-timestamp", Long.toString(timestampMillis2))
+                .put("end-snapshot-timestamp", Long.toString(timestampMillisAfter4))
+                .buildOrThrow()),
+        expected,
+        TestFixtures.SCHEMA);
+
+    List<Record> expected2 = Lists.newArrayList();
+    expected2.addAll(records2);
+    expected2.addAll(records3);
+    expected2.addAll(records4);
+    TestHelpers.assertRecords(
+        runWithOptions(
+            ImmutableMap.<String, String>builder()
+                .put("start-snapshot-timestamp", Long.toString(timestampMillis2 - 1))
+                .put("end-snapshot-timestamp", Long.toString(timestampMillis4))
+                .buildOrThrow()),
+        expected2,
+        TestFixtures.SCHEMA);
+
+    expected2.addAll(records1);
+    TestHelpers.assertRecords(
+        runWithOptions(
+            ImmutableMap.<String, String>builder()
+                .put("start-snapshot-timestamp", Long.toString(timestampMillis1 - 1))
+                .put("end-snapshot-timestamp", Long.toString(timestampMillis4))
+                .buildOrThrow()),
+        expected2,
+        TestFixtures.SCHEMA);
+
+    TestHelpers.assertRecords(
+        runWithOptions(
+            ImmutableMap.<String, String>builder()
+                .put("start-snapshot-timestamp", Long.toString(timestampMillis2))
+                .put("end-snapshot-timestamp", Long.toString(timestampMillis4 - 1))
+                .buildOrThrow()),
+        records3,
+        TestFixtures.SCHEMA);
+
+    Assertions.assertThatThrownBy(
+            () ->
+                runWithOptions(
+                    ImmutableMap.<String, String>builder()
+                        .put("start-snapshot-timestamp", Long.toString(timestampMillis2))
+                        .put("end-snapshot-timestamp", Long.toString(timestampMillis4))
+                        .put(
+                            "start-snapshot-id",
+                            Long.toString(table.currentSnapshot().snapshotId()))
+                        .buildOrThrow()))
+        .hasMessageContaining(
+            "Cannot specify more than one of start-snapshot-id, start-tag, or start-snapshot-timestamp.")
+        .isInstanceOf(IllegalArgumentException.class);
+
+    Assertions.assertThatThrownBy(
+            () ->
+                runWithOptions(
+                    ImmutableMap.<String, String>builder()
+                        .put("start-snapshot-timestamp", Long.toString(timestampMillis2))
+                        .put("end-snapshot-timestamp", Long.toString(timestampMillis4))
+                        .put(
+                            "start-snapshot-id",
+                            Long.toString(table.currentSnapshot().snapshotId()))
+                        .buildOrThrow()))
+        .hasMessageContaining(
+            "Cannot specify more than one of start-snapshot-id, start-tag, or start-snapshot-timestamp.")
+        .isInstanceOf(IllegalArgumentException.class);
+
+    Assertions.assertThatThrownBy(
+            () ->
+                runWithOptions(
+                    ImmutableMap.<String, String>builder()
+                        .put("start-snapshot-timestamp", Long.toString(timestampMillisAfter5))
+                        .put("end-snapshot-timestamp", Long.toString(timestampMillis4))
+                        .buildOrThrow()))
+        .hasMessageContaining("Cannot find a snapshot older than")
+        .isInstanceOf(IllegalArgumentException.class);
   }
 
   @TestTemplate
