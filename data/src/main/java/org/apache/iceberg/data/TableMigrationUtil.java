@@ -20,7 +20,6 @@ package org.apache.iceberg.data;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -46,6 +45,7 @@ import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.orc.OrcMetrics;
 import org.apache.iceberg.parquet.ParquetUtil;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.ThreadFactoryBuilder;
 import org.apache.iceberg.util.Tasks;
@@ -105,12 +105,12 @@ public class TableMigrationUtil {
       Path partition = new Path(partitionUri);
       FileSystem fs = partition.getFileSystem(conf);
       FileStatus[] fileStatuses = fs.listStatus(partition, HIDDEN_PATH_FILTER);
-      List<FileStatus> files = new ArrayList<>();
+      List<FileStatus> files = Lists.newArrayList();
       for (FileStatus fileStatus : fileStatuses) {
         Preconditions.checkArgument(
             fileStatus.isFile(),
-            "cannot add data files from partitionPath {} which contains more partition folders, " +
-                    "only files are expected. Make sure path contains data partitioned as per table's partition spec.",
+            "cannot add data files from partitionPath {} which contains more partition folders, "
+                + "only files are expected. Make sure path contains data partitioned as per table's partition spec.",
             partitionUri);
         files.add(fileStatus);
       }
