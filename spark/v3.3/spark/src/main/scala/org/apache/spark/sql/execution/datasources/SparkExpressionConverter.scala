@@ -27,8 +27,6 @@ import org.apache.spark.sql.catalyst.expressions.Attribute
 import org.apache.spark.sql.catalyst.expressions.Expression
 import org.apache.spark.sql.catalyst.plans.logical.Filter
 import org.apache.spark.sql.catalyst.plans.logical.LeafNode
-import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
-
 
 object SparkExpressionConverter {
 
@@ -40,34 +38,34 @@ object SparkExpressionConverter {
   }
 
   @throws[AnalysisException]
-  def optimizedLogicalPlanSparkExpression(session: SparkSession,
-                                        tableName: String, where: String): LogicalPlan = {
+  def optimizedLogicalPlanSparkExpressionOption(session: SparkSession,
+                                        tableName: String, where: String): Option[Expression] = {
     // used to obtain an optimized logical plan of a spark expression
     val tableAttrs = session.table(tableName).queryExecution.analyzed.output
     val unresolvedExpression = session.sessionState.sqlParser.parseExpression(where)
     val filter = Filter(unresolvedExpression, DummyRelation(tableAttrs))
     val optimizedLogicalPlan = session.sessionState.executePlan(filter).optimizedPlan
-    optimizedLogicalPlan
+    optimizedLogicalPlan.collectFirst {
+      case filter: Filter => Some(filter.condition)
+    }.flatten
   }
 
   @throws[AnalysisException]
   def collectResolvedIcebergExpression(session: SparkSession,
                                        tableName: String,
                                        where: String): org.apache.iceberg.expressions.Expression = {
-    val plan = optimizedLogicalPlanSparkExpression(session, tableName, where)
-    val planChildren = plan.containsChild
-    if (planChildren.isEmpty) {
-      val tableAttrs = session.table(tableName).queryExecution.analyzed.output
-      val firstColumnName = tableAttrs.head.name
-      val testWhere = s"$firstColumnName is null and $where"
-      val testPlan = optimizedLogicalPlanSparkExpression(session, tableName, testWhere)
-      val testPlanChildren = testPlan.containsChild
-      if (testPlanChildren.isEmpty) Expressions.alwaysFalse() else Expressions.alwaysTrue()
-    } else {
-      val sparkExpression = plan.collectFirst {
-        case filter: Filter => filter.condition
-      }.get
-      convertToIcebergExpression(sparkExpression)
+    val option = optimizedLogicalPlanSparkExpressionOption(session, tableName, where)
+    option match {
+      case None  =>
+        val tableAttrs = session.table(tableName).queryExecution.analyzed.output
+        val firstColumnName = tableAttrs.head.name
+        val testWhere = s"$firstColumnName is null and $where"
+        val testOption = optimizedLogicalPlanSparkExpressionOption(session, tableName, testWhere)
+        testOption match {
+          case None => Expressions.alwaysFalse()
+          case _ => Expressions.alwaysTrue()
+        }
+      case _ => convertToIcebergExpression(option.get)
     }
   }
 
