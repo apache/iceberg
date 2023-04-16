@@ -38,7 +38,7 @@ object SparkExpressionConverter {
   }
 
   @throws[AnalysisException]
-  def optimizedLogicalPlanSparkExpressionOption(session: SparkSession,
+  def collectSparkExpressionOption(session: SparkSession,
                                         tableName: String, where: String): Option[Expression] = {
     // used to obtain an optimized logical plan of a spark expression
     val tableAttrs = session.table(tableName).queryExecution.analyzed.output
@@ -54,13 +54,13 @@ object SparkExpressionConverter {
   def collectResolvedIcebergExpression(session: SparkSession,
                                        tableName: String,
                                        where: String): org.apache.iceberg.expressions.Expression = {
-    val option = optimizedLogicalPlanSparkExpressionOption(session, tableName, where)
+    val option = collectSparkExpressionOption(session, tableName, where)
     option match {
       case None  =>
         val tableAttrs = session.table(tableName).queryExecution.analyzed.output
         val firstColumnName = tableAttrs.head.name
         val testWhere = s"$firstColumnName is null and $where"
-        val testOption = optimizedLogicalPlanSparkExpressionOption(session, tableName, testWhere)
+        val testOption = collectSparkExpressionOption(session, tableName, testWhere)
         testOption match {
           case None => Expressions.alwaysFalse()
           case _ => Expressions.alwaysTrue()
