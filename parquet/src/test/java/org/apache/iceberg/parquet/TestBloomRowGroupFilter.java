@@ -320,8 +320,8 @@ public class TestBloomRowGroupFilter {
         new ParquetBloomRowGroupFilter(SCHEMA, isNull("struct_not_null.int_field"))
             .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
     assertThat(shouldRead)
-        .as("Should skip: this field is required and are always not-null")
-        .isFalse();
+        .as("Should read: this field may contain nulls and bloom filter doesn't help")
+        .isTrue();
   }
 
   @Test
