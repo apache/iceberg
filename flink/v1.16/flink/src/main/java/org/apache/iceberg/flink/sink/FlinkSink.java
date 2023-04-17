@@ -505,7 +505,7 @@ public class FlinkSink {
                       + "and table is unpartitioned");
               return input;
             } else {
-              if (canUseBucketPartitioner(partitionSpec)) {
+              if (BucketPartitionerUtils.hasOneBucketField(partitionSpec)) {
                 return input.partitionCustom(
                     new BucketPartitioner(partitionSpec),
                     new BucketPartitionKeySelector(partitionSpec, iSchema, flinkRowType));
@@ -553,14 +553,6 @@ public class FlinkSink {
           throw new RuntimeException("Unrecognized " + WRITE_DISTRIBUTION_MODE + ": " + writeMode);
       }
     }
-  }
-
-  /** Determine if this PartitionSpec contains at least 1 bucket definition */
-  static boolean canUseBucketPartitioner(PartitionSpec partitionSpec) {
-    return partitionSpec.fields().stream()
-            .filter(f -> f.transform().dedupName().toLowerCase().contains("bucket"))
-            .count()
-        == 1;
   }
 
   static RowType toFlinkRowType(Schema schema, TableSchema requestedSchema) {

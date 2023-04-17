@@ -27,7 +27,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.TreeMap;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -59,12 +58,16 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.BucketUtil;
 import org.jetbrains.annotations.NotNull;
 import org.junit.Assert;
+import org.junit.Assume;
 import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
+@RunWith(Parameterized.class)
 public class TestBucketPartitionerFlinkIcebergSink {
 
   private static final int NUMBER_TASK_MANAGERS = 1;
@@ -98,17 +101,24 @@ public class TestBucketPartitionerFlinkIcebergSink {
   private final int parallelism = NUMBER_TASK_MANAGERS * SLOTS_PER_TASK_MANAGER;
   private final FileFormat format = FileFormat.fromString("parquet");
   private final int numBuckets = 4;
+  private final TableSchemaType tableSchemaType;
+
+  @Parameterized.Parameters(name = "TableSchemaType = {0}")
+  public static Object[][] parameters() {
+    return new Object[][] {
+      new Object[] {TableSchemaType.ONE_BUCKET},
+      new Object[] {TableSchemaType.IDENTITY_AND_BUCKET},
+      new Object[] {TableSchemaType.TWO_BUCKETS},
+    };
+  }
+
+  public TestBucketPartitionerFlinkIcebergSink(TableSchemaType tableSchemaType) {
+    this.tableSchemaType = tableSchemaType;
+  }
 
   @Before
   public void before() throws IOException {
-    table =
-        catalogResource
-            .catalog()
-            .createTable(
-                TABLE_IDENTIFIER,
-                SimpleDataUtil.SCHEMA,
-                PartitionSpec.builderFor(SimpleDataUtil.SCHEMA).bucket("data", numBuckets).build(),
-                ImmutableMap.of(TableProperties.DEFAULT_FILE_FORMAT, format.name()));
+    table = getTable();
 
     env =
         StreamExecutionEnvironment.getExecutionEnvironment(DISABLE_CLASSLOADER_CHECK_CONFIG)
@@ -117,6 +127,39 @@ public class TestBucketPartitionerFlinkIcebergSink {
             .setMaxParallelism(parallelism * 2);
 
     tableLoader = catalogResource.tableLoader();
+  }
+
+  private Table getTable() {
+    PartitionSpec partitionSpec = null;
+
+    switch (tableSchemaType) {
+      case ONE_BUCKET:
+        partitionSpec =
+            PartitionSpec.builderFor(SimpleDataUtil.SCHEMA).bucket("data", numBuckets).build();
+        break;
+      case IDENTITY_AND_BUCKET:
+        partitionSpec =
+            PartitionSpec.builderFor(SimpleDataUtil.SCHEMA)
+                .identity("id")
+                .bucket("data", numBuckets)
+                .build();
+        break;
+      case TWO_BUCKETS:
+        partitionSpec =
+            PartitionSpec.builderFor(SimpleDataUtil.SCHEMA)
+                .bucket("id", numBuckets)
+                .bucket("data", numBuckets)
+                .build();
+        break;
+    }
+
+    return catalogResource
+        .catalog()
+        .createTable(
+            TABLE_IDENTIFIER,
+            SimpleDataUtil.SCHEMA,
+            partitionSpec,
+            ImmutableMap.of(TableProperties.DEFAULT_FILE_FORMAT, format.name()));
   }
 
   private List<RowData> convertToRowData(List<Row> rows) {
@@ -141,9 +184,6 @@ public class TestBucketPartitionerFlinkIcebergSink {
 
     try (CloseableIterable<FileScanTask> fileScanTasks = table.newScan().planFiles()) {
       for (FileScanTask scanTask : fileScanTasks) {
-        Optional<Integer> bucketIdOpt =
-            BucketPartitionKeySelector.extractInteger(scanTask.file().partition().toString());
-
         long recordCountInFile = scanTask.file().recordCount();
 
         String[] splitFilePath = scanTask.file().path().toString().split("/");
@@ -151,7 +191,11 @@ public class TestBucketPartitionerFlinkIcebergSink {
         int writerId = Integer.parseInt(filename.split("-")[0]);
 
         totalRecordCount += recordCountInFile;
-        int bucketId = bucketIdOpt.get();
+        int bucketId =
+            scanTask
+                .file()
+                .partition()
+                .get(tableSchemaType == TableSchemaType.ONE_BUCKET ? 0 : 1, Integer.class);
         writersPerBucket.computeIfAbsent(bucketId, k -> Lists.newArrayList());
         writersPerBucket.get(bucketId).add(writerId);
         filesPerBucket.put(bucketId, filesPerBucket.getOrDefault(bucketId, 0) + 1);
@@ -189,6 +233,8 @@ public class TestBucketPartitionerFlinkIcebergSink {
   //  - 24 rows (3 batches w/overlap), 4 buckets
   @Test
   public void testSendToBucket0A() throws Exception {
+    Assume.assumeFalse(tableSchemaType == TableSchemaType.TWO_BUCKETS);
+
     // Data generation
     // We make the number of requests a factor of the parallelism for an easier verification
     int totalNumRows = parallelism * 3; // 24 rows
@@ -202,6 +248,8 @@ public class TestBucketPartitionerFlinkIcebergSink {
   //  - 30 rows (4 batches w/o overlap, uneven first bucket), 4 buckets
   @Test
   public void testSendToBucket0B() throws Exception {
+    Assume.assumeTrue(tableSchemaType != TableSchemaType.TWO_BUCKETS);
+
     // Data generation
     // We make the number of requests a factor of the parallelism for an easier verification
     int totalNumRows = 30;
@@ -240,6 +288,8 @@ public class TestBucketPartitionerFlinkIcebergSink {
   //  - 16 rows (2 writers per bucket, uneven last bucket), 4 buckets
   @Test
   public void testSendRecordsToAllBucketsEvenly() throws Exception {
+    Assume.assumeTrue(tableSchemaType != TableSchemaType.TWO_BUCKETS);
+
     // Data generation
     // We make the number of requests a factor of the parallelism for an easier verification
     int totalNumRows = parallelism * 2;
@@ -270,6 +320,34 @@ public class TestBucketPartitionerFlinkIcebergSink {
     }
   }
 
+  @Test
+  public void testBucketPartitionerFail() {
+    Assume.assumeTrue(tableSchemaType == TableSchemaType.TWO_BUCKETS);
+
+    Exception exception =
+        Assert.assertThrows(RuntimeException.class, () -> new BucketPartitioner(table.spec()));
+
+    Assert.assertTrue(
+        exception
+            .getMessage()
+            .contains(BucketPartitionerUtils.BAD_NUMBER_OF_BUCKETS_ERROR_MESSAGE));
+  }
+
+  @Test
+  public void testBucketPartitionKeySelectorFail() {
+    Assume.assumeTrue(tableSchemaType == TableSchemaType.TWO_BUCKETS);
+
+    Exception exception =
+        Assert.assertThrows(
+            RuntimeException.class,
+            () -> new BucketPartitionKeySelector(table.spec(), table.schema(), null));
+
+    Assert.assertTrue(
+        exception
+            .getMessage()
+            .contains(BucketPartitionerUtils.BAD_NUMBER_OF_BUCKETS_ERROR_MESSAGE));
+  }
+
   /**
    * Utility method to generate rows whose values will "hash" to a desired bucketId
    *
@@ -281,7 +359,7 @@ public class TestBucketPartitionerFlinkIcebergSink {
     List<Row> rows = Lists.newArrayListWithCapacity(numRows);
     for (int i = 0; i < numRows; i++) {
       String value = generateValueForBucketId(bucketId, numBuckets);
-      rows.add(Row.of(i, value));
+      rows.add(Row.of(1, value));
     }
     return rows;
   }
@@ -332,5 +410,11 @@ public class TestBucketPartitionerFlinkIcebergSink {
       this.filesPerBucket = filesPerBucket;
       this.recordsPerFile = recordsPerFile;
     }
+  }
+
+  private enum TableSchemaType {
+    ONE_BUCKET,
+    IDENTITY_AND_BUCKET,
+    TWO_BUCKETS;
   }
 }

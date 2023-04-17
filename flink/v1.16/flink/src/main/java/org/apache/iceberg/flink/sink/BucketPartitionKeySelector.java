@@ -18,16 +18,17 @@
  */
 package org.apache.iceberg.flink.sink;
 
-import java.util.Optional;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import java.util.List;
+import java.util.stream.IntStream;
 import org.apache.flink.api.java.functions.KeySelector;
+import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.iceberg.PartitionKey;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.flink.RowDataWrapper;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
  * Very similar to the {@link PartitionKeySelector}, but optimized to extract and return an Integer
@@ -38,14 +39,26 @@ class BucketPartitionKeySelector implements KeySelector<RowData, Integer> {
   private final Schema schema;
   private final PartitionKey partitionKey;
   private final RowType flinkSchema;
-  private static final Pattern intPattern = Pattern.compile("\\d+");
+  private final int bucketFieldPosition;
 
   private transient RowDataWrapper rowDataWrapper;
 
   BucketPartitionKeySelector(PartitionSpec spec, Schema schema, RowType flinkSchema) {
+    List<Tuple2<Integer, Integer>> bucketFields = BucketPartitionerUtils.getBucketFields(spec);
+
+    // The current implementation only supports ONE bucket
+    Preconditions.checkArgument(
+        bucketFields.size() == 1,
+        BucketPartitionerUtils.BAD_NUMBER_OF_BUCKETS_ERROR_MESSAGE + bucketFields.size());
+
+    int bucketFieldId = bucketFields.get(0).f0;
     this.schema = schema;
     this.partitionKey = new PartitionKey(spec, schema);
     this.flinkSchema = flinkSchema;
+    this.bucketFieldPosition =
+        IntStream.range(0, spec.fields().size())
+            .filter(i -> spec.fields().get(i).fieldId() == bucketFieldId)
+            .toArray()[0];
   }
 
   /**
@@ -60,26 +73,8 @@ class BucketPartitionKeySelector implements KeySelector<RowData, Integer> {
   }
 
   @Override
-  public Integer getKey(RowData rowData) throws Exception {
+  public Integer getKey(RowData rowData) {
     partitionKey.partition(lazyRowDataWrapper().wrap(rowData));
-    Optional<Integer> bucketId = BucketPartitionKeySelector.extractInteger(partitionKey.toPath());
-
-    if (!bucketId.isPresent()) {
-      throw new IllegalStateException("Unable to extract bucket in partition key: " + partitionKey);
-    }
-
-    return bucketId.get();
-  }
-
-  /**
-   * Utility method to extract a bucketId from a string value. Input examples: bucket[5] or
-   * bucket_data[11], would return 5 and 11 bucket Ids respectively.
-   *
-   * @param value the string with the Bucket Id
-   * @return the Bucket Id as an Integer or Empty if not found
-   */
-  public static Optional<Integer> extractInteger(String value) {
-    Matcher match = intPattern.matcher(value);
-    return match.find() ? Optional.of(Integer.parseInt(match.group())) : Optional.empty();
+    return partitionKey.get(this.bucketFieldPosition, Integer.class);
   }
 }

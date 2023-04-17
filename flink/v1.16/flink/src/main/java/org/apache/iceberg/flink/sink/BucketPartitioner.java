@@ -19,10 +19,8 @@
 package org.apache.iceberg.flink.sink;
 
 import java.util.List;
-import java.util.Optional;
-import java.util.stream.Collectors;
 import org.apache.flink.api.common.functions.Partitioner;
-import org.apache.iceberg.PartitionField;
+import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
@@ -39,28 +37,15 @@ class BucketPartitioner implements Partitioner<Integer> {
   private final int[] currentWriterOffset;
 
   BucketPartitioner(PartitionSpec partitionSpec) {
-    // The current implementation only supports _ONE_ bucket
-    List<PartitionField> bucketTransforms =
-        partitionSpec.fields().stream()
-            .filter(f -> f.transform().dedupName().contains("bucket"))
-            .collect(Collectors.toList());
+    List<Tuple2<Integer, Integer>> bucketFields =
+        BucketPartitionerUtils.getBucketFields(partitionSpec);
 
+    // The current implementation only supports ONE bucket
     Preconditions.checkArgument(
-        bucketTransforms.size() == 1,
-        "Expected 1 Bucket transform in the provided PartitionSpec, found: "
-            + bucketTransforms.size());
+        bucketFields.size() == 1,
+        BucketPartitionerUtils.BAD_NUMBER_OF_BUCKETS_ERROR_MESSAGE + bucketFields.size());
 
-    // Extracting the max number of buckets defined in the partition spec
-    String transformName = bucketTransforms.get(0).transform().dedupName();
-    Optional<Integer> maxBucketsOpt = BucketPartitionKeySelector.extractInteger(transformName);
-
-    Preconditions.checkArgument(
-        maxBucketsOpt.isPresent(),
-        "Could not extract the max number of buckets from the transform name ("
-            + transformName
-            + ")");
-
-    this.maxBuckets = maxBucketsOpt.get();
+    this.maxBuckets = bucketFields.get(0).f1;
     this.currentWriterOffset = new int[this.maxBuckets];
   }
 
