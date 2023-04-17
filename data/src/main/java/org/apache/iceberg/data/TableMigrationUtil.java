@@ -105,18 +105,18 @@ public class TableMigrationUtil {
       Path partition = new Path(partitionUri);
       FileSystem fs = partition.getFileSystem(conf);
       FileStatus[] fileStatuses = fs.listStatus(partition, HIDDEN_PATH_FILTER);
-      List<FileStatus> files = Lists.newArrayList();
-      for (FileStatus fileStatus : fileStatuses) {
+      List<FileStatus> fileStatus = Lists.newArrayList();
+      for (FileStatus f : fileStatuses) {
         Preconditions.checkArgument(
-            fileStatus.isFile(),
+            f.isFile(),
             "cannot add data files from partitionPath %s which contains more partition folders, "
                 + "only files are expected here. Make sure path contains data partitioned as per table's partition spec.",
             partitionUri);
-        files.add(fileStatus);
+        fileStatus.add(f);
       }
-      DataFile[] datafiles = new DataFile[files.size()];
+      DataFile[] datafiles = new DataFile[fileStatus.size()];
       Tasks.Builder<Integer> task =
-          Tasks.range(files.size()).stopOnFailure().throwFailureWhenFinished();
+          Tasks.range(fileStatus.size()).stopOnFailure().throwFailureWhenFinished();
 
       if (parallelism > 1) {
         service = migrationService(parallelism);
@@ -126,25 +126,25 @@ public class TableMigrationUtil {
       if (format.contains("avro")) {
         task.run(
             index -> {
-              Metrics metrics = getAvroMetrics(files.get(index).getPath(), conf);
+              Metrics metrics = getAvroMetrics(fileStatus.get(index).getPath(), conf);
               datafiles[index] =
-                  buildDataFile(files.get(index), partitionKey, spec, metrics, "avro");
+                  buildDataFile(fileStatus.get(index), partitionKey, spec, metrics, "avro");
             });
       } else if (format.contains("parquet")) {
         task.run(
             index -> {
               Metrics metrics =
-                  getParquetMetrics(files.get(index).getPath(), conf, metricsSpec, mapping);
+                  getParquetMetrics(fileStatus.get(index).getPath(), conf, metricsSpec, mapping);
               datafiles[index] =
-                  buildDataFile(files.get(index), partitionKey, spec, metrics, "parquet");
+                  buildDataFile(fileStatus.get(index), partitionKey, spec, metrics, "parquet");
             });
       } else if (format.contains("orc")) {
         task.run(
             index -> {
               Metrics metrics =
-                  getOrcMetrics(files.get(index).getPath(), conf, metricsSpec, mapping);
+                  getOrcMetrics(fileStatus.get(index).getPath(), conf, metricsSpec, mapping);
               datafiles[index] =
-                  buildDataFile(files.get(index), partitionKey, spec, metrics, "orc");
+                  buildDataFile(fileStatus.get(index), partitionKey, spec, metrics, "orc");
             });
       } else {
         throw new UnsupportedOperationException("Unknown partition format: " + format);

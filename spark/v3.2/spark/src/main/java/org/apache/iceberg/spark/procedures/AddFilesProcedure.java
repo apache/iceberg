@@ -168,12 +168,10 @@ class AddFilesProcedure extends BaseProcedure {
       boolean checkDuplicateFiles,
       PartitionSpec spec) {
     // List Partitions via Spark InMemory file search interface
-    long start = System.currentTimeMillis();
     List<SparkPartition> partitions =
         Spark3Util.getPartitions(spark(), tableLocation, format, partitionFilter, spec);
-    log.info("found {} partitions in {}", partitions.size(), Spark3Util.duration(start));
+    ;
 
-    long startImport = System.currentTimeMillis();
     if (table.spec().isUnpartitioned()) {
       Preconditions.checkArgument(
           !Spark3Util.isPartitioned(spark(), tableLocation),
@@ -191,7 +189,6 @@ class AddFilesProcedure extends BaseProcedure {
           !partitions.isEmpty(), "Cannot find any matching partitions in table %s", partitions);
       importPartitions(table, partitions, checkDuplicateFiles);
     }
-    log.info("imported files in {}", Spark3Util.duration(startImport));
   }
 
   private void importCatalogTable(

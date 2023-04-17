@@ -20,7 +20,6 @@ package org.apache.iceberg.spark;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -28,10 +27,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import org.apache.commons.lang3.time.DurationUtils;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -509,15 +506,11 @@ public class Spark3Util {
   public static boolean isPartitioned(SparkSession spark, Path tableLocation) {
     try {
       return Arrays.stream(
-              FileSystem.get(spark.sparkContext().hadoopConfiguration()).listStatus(tableLocation))
+              FileSystem.get(spark.sessionState().newHadoopConf()).listStatus(tableLocation))
           .anyMatch(FileStatus::isDirectory);
     } catch (IOException e) {
       throw new RuntimeException(e);
     }
-  }
-
-  public static Duration duration(long start) {
-    return DurationUtils.toDuration(System.currentTimeMillis() - start, TimeUnit.MILLISECONDS);
   }
 
   public static class DescribeSchemaVisitor extends TypeUtil.SchemaVisitor<String> {
@@ -866,7 +859,6 @@ public class Spark3Util {
       String format,
       Map<String, String> partitionFilter,
       PartitionSpec partitionSpec) {
-    long start = System.currentTimeMillis();
     FileStatusCache fileStatusCache = FileStatusCache.getOrCreate(spark);
 
     Option<StructType> userSpecifiedSchema =
@@ -901,36 +893,28 @@ public class Spark3Util {
     Seq<PartitionDirectory> filteredPartitions =
         fileIndex.listFiles(scalaPartitionFilters, scalaDataFilters).toIndexedSeq();
 
-    List<SparkPartition> sparkPartitions =
-        JavaConverters.seqAsJavaListConverter(filteredPartitions).asJava().stream()
-            .map(
-                partition -> {
-                  Map<String, String> values = Maps.newHashMap();
-                  JavaConverters.asJavaIterableConverter(schema)
-                      .asJava()
-                      .forEach(
-                          field -> {
-                            int fieldIndex = schema.fieldIndex(field.name());
-                            Object catalystValue =
-                                partition.values().get(fieldIndex, field.dataType());
-                            Object value =
-                                CatalystTypeConverters.convertToScala(
-                                    catalystValue, field.dataType());
-                            values.put(field.name(), String.valueOf(value));
-                          });
+    return JavaConverters.seqAsJavaListConverter(filteredPartitions).asJava().stream()
+        .map(
+            partition -> {
+              Map<String, String> values = Maps.newHashMap();
+              JavaConverters.asJavaIterableConverter(schema)
+                  .asJava()
+                  .forEach(
+                      field -> {
+                        int fieldIndex = schema.fieldIndex(field.name());
+                        Object catalystValue = partition.values().get(fieldIndex, field.dataType());
+                        Object value =
+                            CatalystTypeConverters.convertToScala(catalystValue, field.dataType());
+                        values.put(field.name(), String.valueOf(value));
+                      });
 
-                  FileStatus fileStatus =
-                      JavaConverters.seqAsJavaListConverter(partition.files()).asJava().get(0);
+              FileStatus fileStatus =
+                  JavaConverters.seqAsJavaListConverter(partition.files()).asJava().get(0);
 
-                  return new SparkPartition(
-                      values, fileStatus.getPath().getParent().toString(), format);
-                })
-            .collect(Collectors.toList());
-    log.info(
-        "retrieved {} sparkPartitions in {}",
-        sparkPartitions.size(),
-        DurationUtils.toDuration(System.currentTimeMillis() - start, TimeUnit.MILLISECONDS));
-    return sparkPartitions;
+              return new SparkPartition(
+                  values, fileStatus.getPath().getParent().toString(), format);
+            })
+        .collect(Collectors.toList());
   }
 
   public static org.apache.spark.sql.catalyst.TableIdentifier toV1TableIdentifier(
@@ -1029,10 +1013,10 @@ public class Spark3Util {
   }
 
   /**
-   * Implement our own index in-memory index which will only list directories to avoid unnecessary
-   * file listings. Should ONLY be used to get partition directory paths. Uses table's schema to
-   * only visit partition dirs using number of partition columns depth recursively. Does NOT return
-   * files within leaf dir.
+   * Implement our own in-memory index which will only list directories to avoid unnecessary file
+   * listings. Should ONLY be used to get partition directory paths. Uses table's schema to only
+   * visit partition dirs using number of partition columns depth recursively. Does NOT return files
+   * within leaf dir.
    */
   private static class InMemoryLeafDirOnlyIndex extends PartitioningAwareFileIndex {
 
@@ -1146,7 +1130,7 @@ public class Spark3Util {
     private FileStatus createEmptyChildDataFileStatus(FileStatus fileStatus) {
       return new FileStatus(
           1L,
-          false,
+          false, /* isDir */
           fileStatus.getReplication(),
           1L,
           fileStatus.getModificationTime(),
