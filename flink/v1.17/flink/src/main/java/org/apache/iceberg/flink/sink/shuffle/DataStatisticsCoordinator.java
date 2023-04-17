@@ -57,7 +57,7 @@ class DataStatisticsCoordinator<K> implements OperatorCoordinator {
   private volatile AggregateDataStatistics<K> completeAggregateDataStatistics;
   private volatile boolean started;
 
-  public DataStatisticsCoordinator(
+  DataStatisticsCoordinator(
       String operatorName,
       ExecutorService coordinatorExecutor,
       DataStatisticsCoordinatorContext<K> context,

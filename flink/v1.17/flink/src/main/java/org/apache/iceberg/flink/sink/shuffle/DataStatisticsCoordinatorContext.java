@@ -18,17 +18,17 @@
  */
 package org.apache.iceberg.flink.sink.shuffle;
 
-import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import org.apache.flink.runtime.operators.coordination.OperatorCoordinator;
-import org.apache.flink.shaded.guava30.com.google.common.collect.Iterables;
 import org.apache.flink.util.ExceptionUtils;
 import org.apache.flink.util.FlinkRuntimeException;
 import org.apache.flink.util.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -138,7 +138,7 @@ public class DataStatisticsCoordinatorContext<K> implements AutoCloseable {
       this.gateways = new Map[parallelism];
 
       for (int i = 0; i < parallelism; ++i) {
-        this.gateways[i] = new HashMap<>();
+        this.gateways[i] = Maps.newHashMap();
       }
     }
 
