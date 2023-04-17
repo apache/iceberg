@@ -74,7 +74,7 @@ public abstract class BaseRewriteDataFilesAction<ThisT>
     this.spec = table.spec();
     this.filter = Expressions.alwaysTrue();
     this.caseSensitive = false;
-    this.useStartingSequenceNumber = true;
+    this.useStartingSequenceNumber = false;
 
     long splitSize =
         PropertyUtil.propertyAsLong(

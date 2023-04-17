@@ -410,6 +410,7 @@ public class TestRewriteDataFilesAction extends FlinkCatalogTestBase {
     sql("INSERT INTO %s SELECT 2, 'world'", TABLE_NAME_WITH_PK);
 
     // Load 2 stale tables to pass to rewrite actions
+    // Since the first rewrite will refresh stale1, we need another stale2 for the second rewrite
     Table stale1 =
         validationCatalog.loadTable(TableIdentifier.of(icebergNamespace, TABLE_NAME_WITH_PK));
     Table stale2 =
@@ -432,6 +433,10 @@ public class TestRewriteDataFilesAction extends FlinkCatalogTestBase {
         "The 1 delete file should be an equality-delete file",
         Iterables.getOnlyElement(deleteFiles).content(),
         FileContent.EQUALITY_DELETES);
+    Assert.assertEquals(
+        "The latest sequence number should be greater than that of the stale snapshot",
+        stale1.currentSnapshot().sequenceNumber() + 1,
+        icebergTableWithPk.currentSnapshot().sequenceNumber());
 
     Assertions.assertThatThrownBy(
             () ->
@@ -441,8 +446,10 @@ public class TestRewriteDataFilesAction extends FlinkCatalogTestBase {
                     .execute(),
             "Rewrite using new sequence number should fail")
         .isInstanceOf(ValidationException.class);
+
     // Rewrite using the starting sequence number should succeed
-    RewriteDataFilesActionResult result = Actions.forTable(stale2).rewriteDataFiles().execute();
+    RewriteDataFilesActionResult result =
+        Actions.forTable(stale2).rewriteDataFiles().useStartingSequenceNumber(true).execute();
 
     // Should not rewrite files from the new commit
     Assert.assertEquals("Action should rewrite 2 data files", 2, result.deletedDataFiles().size());
