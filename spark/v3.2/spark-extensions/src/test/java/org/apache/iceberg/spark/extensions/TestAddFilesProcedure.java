@@ -37,6 +37,7 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.spark.SparkException;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.RowFactory;
@@ -44,6 +45,7 @@ import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
+import org.assertj.core.api.Assertions;
 import org.joda.time.DateTime;
 import org.junit.After;
 import org.junit.Assert;
@@ -470,6 +472,46 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
         "Iceberg table contains correct data",
         sql(sqlFormat, sourceTableName),
         sql(sqlFormat, tableName));
+  }
+
+  @Test
+  public void addDataPartitionedFilteringWorksWithJustSecondPartition() {
+    createTableWithTwoPartitions("parquet");
+
+    String createIceberg =
+        "CREATE TABLE %s (id Integer, name String, date Date, dept String) USING iceberg PARTITIONED BY (date, dept)";
+
+    sql(createIceberg, tableName);
+
+    Object result =
+        scalarSql(
+            "CALL %s.system.add_files('%s', '`parquet`.`%s`', map('dept', '01'))",
+            catalogName, tableName, fileTableDir.getAbsolutePath());
+
+    Assert.assertEquals(3L, result);
+
+    assertEquals(
+        "Iceberg table contains correct data",
+        sql("SELECT id, name, date FROM %s WHERE dept = '01' ORDER BY id", sourceTableName),
+        sql("SELECT id, name, date FROM %s ORDER BY id", tableName));
+  }
+
+  @Test
+  public void addDataPartitionedVerifyUnexpectedPartitionAddFails() {
+    createTableWithTwoPartitions("parquet");
+
+    String createIceberg =
+        "CREATE TABLE %s (id Integer, name String, date Date, dept String) USING iceberg PARTITIONED BY (date)";
+
+    sql(createIceberg, tableName);
+
+    Assertions.assertThatThrownBy(
+            () ->
+                sql(
+                    "CALL %s.system.add_files('%s', '`parquet`.`%s`', map('date', '2021-01-01'))",
+                    catalogName, tableName, fileTableDir.getAbsolutePath()))
+        .isInstanceOf(SparkException.class)
+        .hasMessageContaining("cannot add data files from partitionPath");
   }
 
   @Test
@@ -976,7 +1018,9 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
                   RowFactory.create(1, "John Doe", toDate("2021-01-01"), "01"),
                   RowFactory.create(2, "Jane Doe", toDate("2021-01-01"), "01"),
                   RowFactory.create(3, "Matt Doe", toDate("2021-01-02"), "02"),
-                  RowFactory.create(4, "Will Doe", toDate("2021-01-02"), "02")),
+                  RowFactory.create(4, "Will Doe", toDate("2021-01-02"), "02"),
+                  RowFactory.create(5, "BatMan Doe", toDate("2021-01-03"), "01"),
+                  RowFactory.create(6, "Bond Doe", toDate("2021-01-03"), "01")),
               new StructType(dateStruct))
           .repartition(2);
 

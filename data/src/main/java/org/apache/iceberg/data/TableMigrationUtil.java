@@ -109,8 +109,8 @@ public class TableMigrationUtil {
       for (FileStatus fileStatus : fileStatuses) {
         Preconditions.checkArgument(
             fileStatus.isFile(),
-            "cannot add data files from partitionPath {} which contains more partition folders, "
-                + "only files are expected. Make sure path contains data partitioned as per table's partition spec.",
+            "cannot add data files from partitionPath %s which contains more partition folders, "
+                + "only files are expected here. Make sure path contains data partitioned as per table's partition spec.",
             partitionUri);
         files.add(fileStatus);
       }
