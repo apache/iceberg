@@ -20,7 +20,6 @@ package org.apache.iceberg.spark;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
@@ -1028,7 +1027,7 @@ public class Spark3Util {
     private scala.collection.immutable.Map<Path, FileStatus[]> cachedLeafDirToChildFiles;
     private org.apache.spark.sql.execution.datasources.PartitionSpec cachedPartitionSpec;
 
-    public InMemoryLeafDirOnlyIndex(
+    InMemoryLeafDirOnlyIndex(
         SparkSession sparkSession,
         scala.collection.immutable.Map<String, String> parameters,
         StructType userSpecifiedSchema,
@@ -1083,10 +1082,10 @@ public class Spark3Util {
 
     static List<FileStatus> listLeafDirs(
         SparkSession spark, Path path, StructType partitionSpec, int level) throws IOException {
-      List<FileStatus> leafDirs = new ArrayList<>();
+      List<FileStatus> leafDirs = Lists.newArrayList();
       int numPartitionCols = partitionSpec.fields().length;
       if (level < numPartitionCols) {
-        try (FileSystem fs = path.getFileSystem(spark.sparkContext().hadoopConfiguration())) {
+        try (FileSystem fs = path.getFileSystem(spark.sessionState().newHadoopConf())) {
           List<FileStatus> dirs =
               Stream.of(fs.listStatus(path))
                   .filter(FileStatus::isDirectory)
