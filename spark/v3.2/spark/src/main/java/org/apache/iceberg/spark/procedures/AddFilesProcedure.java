@@ -54,7 +54,7 @@ import org.slf4j.LoggerFactory;
 
 class AddFilesProcedure extends BaseProcedure {
 
-  private static Logger LOG = LoggerFactory.getLogger(AddFilesProcedure.class);
+  private static Logger log = LoggerFactory.getLogger(AddFilesProcedure.class);
   private static final ProcedureParameter TABLE_PARAM =
       ProcedureParameter.required("table", DataTypes.StringType);
   private static final ProcedureParameter SOURCE_TABLE_PARAM =
@@ -171,7 +171,7 @@ class AddFilesProcedure extends BaseProcedure {
     long start = System.currentTimeMillis();
     List<SparkPartition> partitions =
         Spark3Util.getPartitions(spark(), tableLocation, format, partitionFilter, spec);
-    LOG.info("found {} partitions in {}", partitions.size(), Spark3Util.duration(start));
+    log.info("found {} partitions in {}", partitions.size(), Spark3Util.duration(start));
 
     long startImport = System.currentTimeMillis();
     if (table.spec().isUnpartitioned()) {
@@ -191,7 +191,7 @@ class AddFilesProcedure extends BaseProcedure {
           !partitions.isEmpty(), "Cannot find any matching partitions in table %s", partitions);
       importPartitions(table, partitions, checkDuplicateFiles);
     }
-    LOG.info("imported files in {}", Spark3Util.duration(startImport));
+    log.info("imported files in {}", Spark3Util.duration(startImport));
   }
 
   private void importCatalogTable(
