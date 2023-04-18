@@ -82,6 +82,7 @@ import org.apache.spark.sql.connector.expressions.Literal;
 import org.apache.spark.sql.connector.expressions.NamedReference;
 import org.apache.spark.sql.connector.expressions.Transform;
 import org.apache.spark.sql.execution.datasources.FileStatusCache;
+import org.apache.spark.sql.execution.datasources.InMemoryOnlyPartitionPathIndex;
 import org.apache.spark.sql.execution.datasources.PartitionDirectory;
 import org.apache.spark.sql.execution.datasources.PartitioningAwareFileIndex;
 import org.apache.spark.sql.types.IntegerType;
@@ -91,11 +92,8 @@ import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import scala.Option;
-import scala.Tuple2;
 import scala.collection.JavaConverters;
-import scala.collection.immutable.Map$;
 import scala.collection.immutable.Seq;
-import scala.collection.mutable.LinkedHashMap;
 
 public class Spark3Util {
 
@@ -867,12 +865,13 @@ public class Spark3Util {
                 SparkSchemaUtil.convert(new Schema(partitionSpec.partitionType().fields())));
 
     PartitioningAwareFileIndex fileIndex =
-        new InMemoryLeafDirOnlyIndex(
+        new InMemoryOnlyPartitionPathIndex(
             spark,
+            rootPath,
             scala.collection.immutable.Map$.MODULE$.empty(),
             userSpecifiedSchema.get(),
             fileStatusCache,
-            rootPath);
+            Option.empty());
 
     org.apache.spark.sql.execution.datasources.PartitionSpec spec = fileIndex.partitionSpec();
     StructType schema = spec.partitionColumns();
@@ -1008,136 +1007,6 @@ public class Spark3Util {
         org.apache.iceberg.SortDirection direction,
         NullOrder nullOrder) {
       return String.format("%s(%s) %s %s", transform, sourceName, direction, nullOrder);
-    }
-  }
-
-  /**
-   * Implement our own in-memory index which will only list directories to avoid unnecessary file
-   * listings. Should ONLY be used to get partition directory paths. Uses table's schema to only
-   * visit partition dirs using number of partition columns depth recursively. Does NOT return files
-   * within leaf dir.
-   */
-  private static class InMemoryLeafDirOnlyIndex extends PartitioningAwareFileIndex {
-
-    private final Path rootPath;
-    private final FileStatusCache fileStatusCache;
-    private final SparkSession sparkSession;
-    private final StructType userSpecifiedSchema;
-    private LinkedHashMap<Path, FileStatus> cachedLeafFiles;
-    private scala.collection.immutable.Map<Path, FileStatus[]> cachedLeafDirToChildFiles;
-    private org.apache.spark.sql.execution.datasources.PartitionSpec cachedPartitionSpec;
-
-    InMemoryLeafDirOnlyIndex(
-        SparkSession sparkSession,
-        scala.collection.immutable.Map<String, String> parameters,
-        StructType userSpecifiedSchema,
-        FileStatusCache fileStatusCache,
-        Path rootPath) {
-      super(sparkSession, parameters, Option.apply(userSpecifiedSchema), fileStatusCache);
-      this.fileStatusCache = fileStatusCache;
-      this.rootPath = rootPath;
-      this.sparkSession = sparkSession;
-      this.userSpecifiedSchema = userSpecifiedSchema;
-    }
-
-    @Override
-    public scala.collection.Seq<Path> rootPaths() {
-      return JavaConverters.asScalaBuffer(Arrays.asList(rootPath)).seq();
-    }
-
-    @Override
-    public void refresh() {
-      fileStatusCache.invalidateAll();
-      cachedLeafFiles = null;
-      cachedLeafDirToChildFiles = null;
-      cachedPartitionSpec = null;
-    }
-
-    @Override
-    public org.apache.spark.sql.execution.datasources.PartitionSpec partitionSpec() {
-      if (cachedPartitionSpec == null) {
-        cachedPartitionSpec = inferPartitioning();
-      }
-      log.trace("Partition spec: {}", cachedPartitionSpec);
-      return cachedPartitionSpec;
-    }
-
-    @Override
-    public LinkedHashMap<Path, FileStatus> leafFiles() {
-      if (cachedLeafFiles == null) {
-        try {
-          List<FileStatus> fileStatuses =
-              listLeafDirs(sparkSession, rootPath, userSpecifiedSchema, 0);
-          LinkedHashMap<Path, FileStatus> map = new LinkedHashMap<>();
-          for (FileStatus fs : fileStatuses) {
-            map.put(fs.getPath(), fs);
-          }
-          cachedLeafFiles = map;
-        } catch (IOException e) {
-          throw new RuntimeException("error listing files for path=" + rootPath, e);
-        }
-      }
-      return cachedLeafFiles;
-    }
-
-    static List<FileStatus> listLeafDirs(
-        SparkSession spark, Path path, StructType partitionSpec, int level) throws IOException {
-      List<FileStatus> leafDirs = Lists.newArrayList();
-      int numPartitionCols = partitionSpec.fields().length;
-      if (level < numPartitionCols) {
-        try (FileSystem fs = path.getFileSystem(spark.sessionState().newHadoopConf())) {
-          List<FileStatus> dirs =
-              Stream.of(fs.listStatus(path))
-                  .filter(FileStatus::isDirectory)
-                  .collect(Collectors.toList());
-          for (FileStatus dir : dirs) {
-            // stop recursive call once we reach the expected end of partitions as per table schema
-            if (level == numPartitionCols - 1) {
-              leafDirs.add(dir);
-            } else {
-              leafDirs.addAll(listLeafDirs(spark, dir.getPath(), partitionSpec, level + 1));
-            }
-          }
-        }
-      }
-      return leafDirs;
-    }
-
-    @Override
-    public scala.collection.immutable.Map<Path, FileStatus[]> leafDirToChildrenFiles() {
-      if (cachedLeafDirToChildFiles == null) {
-        List<Tuple2<Path, FileStatus[]>> tuple2s =
-            JavaConverters.seqAsJavaList(leafFiles().values().toSeq()).stream()
-                .map(
-                    fileStatus -> {
-                      // Create an empty data file in the leaf dir.
-                      // As this index is only used to list partition directories,
-                      // we can stop listing the leaf dir to avoid unnecessary listing which can
-                      // take a while on folders with 1000s of files
-                      return new Tuple2<>(
-                          fileStatus.getPath(),
-                          new FileStatus[] {createEmptyChildDataFileStatus(fileStatus)});
-                    })
-                .collect(Collectors.toList());
-        cachedLeafDirToChildFiles =
-            (scala.collection.immutable.Map<Path, FileStatus[]>)
-                Map$.MODULE$.apply(JavaConverters.asScalaBuffer(tuple2s));
-      }
-      return cachedLeafDirToChildFiles;
-    }
-
-    private FileStatus createEmptyChildDataFileStatus(FileStatus fileStatus) {
-      return new FileStatus(
-          1L,
-          false, /* isDir */
-          fileStatus.getReplication(),
-          1L,
-          fileStatus.getModificationTime(),
-          fileStatus.getAccessTime(),
-          fileStatus.getPermission(),
-          fileStatus.getOwner(),
-          fileStatus.getGroup(),
-          new Path(fileStatus.getPath(), fileStatus.getPath().toString() + "/dummyDataFile"));
     }
   }
 }
