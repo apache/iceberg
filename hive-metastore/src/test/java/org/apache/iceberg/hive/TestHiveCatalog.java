@@ -43,6 +43,7 @@ import java.util.stream.Stream;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.api.Database;
+import org.apache.hadoop.hive.metastore.api.InvalidOperationException;
 import org.apache.hadoop.hive.metastore.api.PrincipalType;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.iceberg.AssertHelpers;
@@ -913,7 +914,7 @@ public class TestHiveCatalog extends HiveMetastoreTest {
 
   @Test
   public void testDropNamespaceCascade() throws TException {
-    Namespace namespace = Namespace.of("dbname_drop");
+    Namespace namespace = Namespace.of("dbname_drop_cascade_test");
     TableIdentifier identifier = TableIdentifier.of(namespace, "table");
     Schema schema =
         new Schema(Types.StructType.of(required(1, "id", Types.LongType.get())).fields());
@@ -940,7 +941,7 @@ public class TestHiveCatalog extends HiveMetastoreTest {
 
   @Test
   public void testDropNamespaceCascadeFalse() throws TException {
-    Namespace namespace = Namespace.of("dbname_drop");
+    Namespace namespace = Namespace.of("dbname_drop_cascade_test_false");
     TableIdentifier identifier = TableIdentifier.of(namespace, "table");
     Schema schema = getTestSchema();
 
@@ -952,8 +953,8 @@ public class TestHiveCatalog extends HiveMetastoreTest {
 
     AssertHelpers.assertThrows(
         "Should fail to drop namespace is not empty" + namespace,
-        NamespaceNotEmptyException.class,
-        "Namespace dbname_drop is not empty. One or more tables exist.",
+        InvalidOperationException.class,
+        "is not empty. One or more tables exist.",
         () -> {
           catalog.dropNamespace(namespace, false);
         });
