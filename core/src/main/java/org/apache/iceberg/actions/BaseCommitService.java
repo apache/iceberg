@@ -84,7 +84,7 @@ abstract class BaseCommitService<T> implements Closeable {
    *
    * @param batch set of file groups
    */
-  abstract void commitOrClean(Set<T> batch);
+  protected abstract void commitOrClean(Set<T> batch);
 
   /**
    * Clean up a specified file set by removing any files created for that operation, should not
@@ -92,20 +92,18 @@ abstract class BaseCommitService<T> implements Closeable {
    *
    * @param group group of files which are not yet committed
    */
-  abstract void abortFileGroup(T group);
+  protected abstract void abortFileGroup(T group);
 
   /** Starts a single threaded executor service for handling file group commits. */
   public void start() {
-    Preconditions.checkState(
-        running.compareAndSet(false, true), "Rewrite Commit service already started");
+    Preconditions.checkState(running.compareAndSet(false, true), "Commit service already started");
     LOG.info("Starting commit service for {}", table);
-    // Partial progress commit service
     committerService.execute(
         () -> {
           while (running.get() || completedRewrites.size() > 0 || inProgressCommits.size() > 0) {
             try {
               if (completedRewrites.size() == 0 && inProgressCommits.size() == 0) {
-                // Give other threads a chance to make progress
+                // give other threads a chance to make progress
                 Thread.sleep(100);
               }
             } catch (InterruptedException e) {
@@ -146,18 +144,16 @@ abstract class BaseCommitService<T> implements Closeable {
   @Override
   public void close() {
     Preconditions.checkState(
-        running.compareAndSet(true, false), "Cannot close already closed RewriteService");
+        running.compareAndSet(true, false), "Cannot close already closed commit service");
     LOG.info("Closing commit service for {} waiting for all commits to finish", table);
     committerService.shutdown();
 
     boolean timeout = false;
     try {
       // All rewrites have completed and all new files have been created, we are now waiting for
-      // the commit
-      // pool to finish doing its commits to Iceberg State. In the case of partial progress this
-      // should
-      // have been occurring simultaneously with rewrites, if not there should be only a single
-      // commit operation.
+      // the commit pool to finish doing its commits to Iceberg State. In the case of partial
+      // progress this should have been occurring simultaneously with rewrites, if not there should
+      // be only a single commit operation.
       if (!committerService.awaitTermination(120, TimeUnit.MINUTES)) {
         LOG.warn(
             "Commit operation did not complete within 120 minutes of the all files "
@@ -218,7 +214,8 @@ abstract class BaseCommitService<T> implements Closeable {
   private boolean canCreateCommitGroup() {
     // Either we have a full commit group, or we have completed writing and need to commit
     // what is left over
-    return (completedRewrites.size() >= rewritesPerCommit)
-        || (!running.get() && completedRewrites.size() > 0);
+    boolean fullCommitGroup = completedRewrites.size() >= rewritesPerCommit;
+    boolean writingComplete = !running.get() && completedRewrites.size() > 0;
+    return fullCommitGroup || writingComplete;
   }
 }

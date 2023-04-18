@@ -130,12 +130,12 @@ public class RewriteDataFilesCommitManager {
     }
 
     @Override
-    void commitOrClean(Set<RewriteFileGroup> batch) {
+    protected void commitOrClean(Set<RewriteFileGroup> batch) {
       RewriteDataFilesCommitManager.this.commitOrClean(batch);
     }
 
     @Override
-    void abortFileGroup(RewriteFileGroup group) {
+    protected void abortFileGroup(RewriteFileGroup group) {
       RewriteDataFilesCommitManager.this.abortFileGroup(group);
     }
   }
