@@ -411,9 +411,6 @@ acceptedBreaks:
       new: "field org.apache.iceberg.actions.RewriteDataFiles.MAX_CONCURRENT_FILE_GROUP_REWRITES_DEFAULT"
       justification: "Update default to align with recommendation and allow more parallelism"
     - code: "java.method.addedToInterface"
-      new: "method R org.apache.iceberg.SortOrderBuilder<R>::caseSensitive(boolean)"
-      justification: "Change introduced to honor case sensitivity"
-    - code: "java.method.addedToInterface"
       new: "method java.lang.String org.apache.iceberg.view.ViewVersion::operation()"
       justification: "Add operation API to view version"
     org.apache.iceberg:iceberg-core:
