@@ -43,7 +43,6 @@ import java.util.stream.Stream;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.api.Database;
-import org.apache.hadoop.hive.metastore.api.InvalidOperationException;
 import org.apache.hadoop.hive.metastore.api.PrincipalType;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.iceberg.AssertHelpers;
@@ -953,7 +952,7 @@ public class TestHiveCatalog extends HiveMetastoreTest {
 
     AssertHelpers.assertThrows(
         "Should fail to drop namespace is not empty" + namespace,
-        InvalidOperationException.class,
+        NamespaceNotEmptyException.class,
         "is not empty. One or more tables exist.",
         () -> {
           catalog.dropNamespace(namespace, false);
