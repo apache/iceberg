@@ -29,5 +29,10 @@ public enum SplitAssignerType {
     }
   };
 
+  EVENTTIME {
+    @Override
+    public SplitAssignerFactory factory()
+  }
+
   public abstract SplitAssignerFactory factory();
 }

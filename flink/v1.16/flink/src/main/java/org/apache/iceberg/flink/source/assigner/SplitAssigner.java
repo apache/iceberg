@@ -79,6 +79,8 @@ public interface SplitAssigner extends Closeable {
    */
   default void onCompletedSplits(Collection<String> completedSplitIds) {}
 
+  default void onNoMoreSplits() {}
+
   /**
    * Get assigner state for checkpointing. This is a super-set API that works for all currently
    * imagined assigners.
