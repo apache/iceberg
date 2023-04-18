@@ -30,7 +30,7 @@ import scala.collection.mutable
  * visit partition dirs using number of partition columns depth recursively. Does NOT return files
  * within leaf dir.
  */
-class InMemoryOnlyPartitionPathIndex(
+class InMemoryPartitionPathsIndex(
                          sparkSession: SparkSession,
                          rootPath :Path,
                          parameters: Map[String, String],

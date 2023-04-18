@@ -82,7 +82,7 @@ import org.apache.spark.sql.connector.expressions.Literal;
 import org.apache.spark.sql.connector.expressions.NamedReference;
 import org.apache.spark.sql.connector.expressions.Transform;
 import org.apache.spark.sql.execution.datasources.FileStatusCache;
-import org.apache.spark.sql.execution.datasources.InMemoryOnlyPartitionPathIndex;
+import org.apache.spark.sql.execution.datasources.InMemoryPartitionPathsIndex;
 import org.apache.spark.sql.execution.datasources.PartitionDirectory;
 import org.apache.spark.sql.execution.datasources.PartitioningAwareFileIndex;
 import org.apache.spark.sql.types.IntegerType;
@@ -865,7 +865,7 @@ public class Spark3Util {
                 SparkSchemaUtil.convert(new Schema(partitionSpec.partitionType().fields())));
 
     PartitioningAwareFileIndex fileIndex =
-        new InMemoryOnlyPartitionPathIndex(
+        new InMemoryPartitionPathsIndex(
             spark,
             rootPath,
             scala.collection.immutable.Map$.MODULE$.empty(),
