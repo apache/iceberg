@@ -439,16 +439,16 @@ public abstract class TestFlinkScan {
         catalogResource.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, TestFixtures.SCHEMA);
 
     List<Record> expectedRecords = RandomGenericData.generate(TestFixtures.SCHEMA, 3, 0L);
-    expectedRecords.get(0).set(2, "a");
-    expectedRecords.get(1).set(2, "b");
-    expectedRecords.get(2).set(2, "c");
+    expectedRecords.get(0).set(0, "a");
+    expectedRecords.get(1).set(0, "b");
+    expectedRecords.get(2).set(0, "c");
 
     GenericAppenderHelper helper = new GenericAppenderHelper(table, fileFormat, TEMPORARY_FOLDER);
     DataFile dataFile = helper.writeFile(expectedRecords);
     helper.appendToTable(dataFile);
     List<Row> actual =
         runWithFilter(Expressions.greaterThanOrEqual("data", "b"), "where data>='b'");
-    TestHelpers.assertRecords(actual, expectedRecords, TestFixtures.SCHEMA);
+    TestHelpers.assertRecords(actual, expectedRecords.subList(1, 3), TestFixtures.SCHEMA);
   }
 
   @Test

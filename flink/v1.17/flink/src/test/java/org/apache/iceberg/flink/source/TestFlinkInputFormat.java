@@ -24,8 +24,6 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
-import java.util.stream.LongStream;
 import org.apache.flink.table.api.DataTypes;
 import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.types.logical.RowType;
@@ -36,10 +34,8 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.data.GenericAppenderHelper;
-import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
-import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.TestFixtures;
 import org.apache.iceberg.flink.TestHelpers;
@@ -142,43 +138,6 @@ public class TestFlinkInputFormat extends TestFlinkSource {
     }
 
     TestHelpers.assertRows(result, expected);
-  }
-
-  public static Record createRecord(Schema writeSchema, long val) {
-    Record record = GenericRecord.create(writeSchema);
-    record.set(0, val);
-    return record;
-  }
-
-  @Test
-  public void testBasicFormatFiltering() throws IOException {
-    Schema writeSchema = new Schema(Types.NestedField.required(0, "id", Types.LongType.get()));
-
-    List<Record> writeRecords =
-        LongStream.rangeClosed(-1, 1)
-            .mapToObj(i -> createRecord(writeSchema, i))
-            .collect(Collectors.toList());
-
-    Table sourceTable =
-        catalogResource.catalog().createTable(TableIdentifier.of("default", "t"), writeSchema);
-
-    new GenericAppenderHelper(sourceTable, fileFormat, TEMPORARY_FOLDER)
-        .appendToTable(writeRecords);
-
-    List<Row> result =
-        runFormat(
-            FlinkSource.forRowData()
-                .tableLoader(tableLoader())
-                .filters(Collections.singletonList(Expressions.greaterThanOrEqual("id", 0)))
-                .buildFormat());
-
-    List<Row> expectedRows =
-        writeRecords.stream()
-            .filter(r -> r.get(0, Long.class) >= 0)
-            .map(r -> Row.of(r.get(0, Long.class)))
-            .collect(Collectors.toList());
-
-    TestHelpers.assertRows(result, expectedRows);
   }
 
   @Test
