@@ -29,7 +29,6 @@ import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.JsonUtil;
 import org.assertj.core.api.Assertions;
-import org.junit.Assert;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -40,26 +39,26 @@ public class TestContentFileParser {
   public void testNullArguments() throws Exception {
     Assertions.assertThatThrownBy(() -> ContentFileParser.toJson(null, TableTestBase.SPEC))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Content file cannot be null");
+        .hasMessage("Invalid content file: null");
 
     Assertions.assertThatThrownBy(() -> ContentFileParser.toJson(TableTestBase.FILE_A, null))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Partition spec cannot be null");
+        .hasMessage("Invalid partition spec: null");
 
     Assertions.assertThatThrownBy(
             () -> ContentFileParser.toJson(TableTestBase.FILE_A, TableTestBase.SPEC, null))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("JSON generator cannot be null");
+        .hasMessage("Invalid JSON generator: null");
 
     Assertions.assertThatThrownBy(() -> ContentFileParser.fromJson(null, TableTestBase.SPEC))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse content file from null JSON node");
+        .hasMessage("Invalid JSON node for content file: null");
 
     String jsonStr = ContentFileParser.toJson(TableTestBase.FILE_A, TableTestBase.SPEC);
     JsonNode jsonNode = JsonUtil.mapper().readTree(jsonStr);
     Assertions.assertThatThrownBy(() -> ContentFileParser.fromJson(jsonNode, null))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Partition spec cannot be null");
+        .hasMessage("Invalid partition spec: null");
   }
 
   @ParameterizedTest
@@ -221,26 +220,25 @@ public class TestContentFileParser {
 
   static void assertContentFileEquals(
       ContentFile<?> expected, ContentFile<?> actual, PartitionSpec spec) {
-    Assert.assertEquals(expected.getClass(), actual.getClass());
-    Assert.assertEquals(expected.specId(), actual.specId());
-    Assert.assertEquals(expected.content(), actual.content());
-    Assert.assertEquals(expected.path(), actual.path());
-    Assert.assertEquals(expected.format(), actual.format());
-    Assert.assertEquals(
-        0,
-        Comparators.forType(spec.partitionType())
-            .compare(expected.partition(), actual.partition()));
-    Assert.assertEquals(expected.recordCount(), actual.recordCount());
-    Assert.assertEquals(expected.fileSizeInBytes(), actual.fileSizeInBytes());
-    Assert.assertEquals(expected.columnSizes(), actual.columnSizes());
-    Assert.assertEquals(expected.valueCounts(), actual.valueCounts());
-    Assert.assertEquals(expected.nullValueCounts(), actual.nullValueCounts());
-    Assert.assertEquals(expected.nanValueCounts(), actual.nanValueCounts());
-    Assert.assertEquals(expected.lowerBounds(), actual.lowerBounds());
-    Assert.assertEquals(expected.upperBounds(), actual.upperBounds());
-    Assert.assertEquals(expected.keyMetadata(), actual.keyMetadata());
-    Assert.assertEquals(expected.splitOffsets(), actual.splitOffsets());
-    Assert.assertEquals(expected.equalityFieldIds(), actual.equalityFieldIds());
-    Assert.assertEquals(expected.sortOrderId(), actual.sortOrderId());
+    Assertions.assertThat(actual.getClass()).isEqualTo(expected.getClass());
+    Assertions.assertThat(actual.specId()).isEqualTo(expected.specId());
+    Assertions.assertThat(actual.content()).isEqualTo(expected.content());
+    Assertions.assertThat(actual.path()).isEqualTo(expected.path());
+    Assertions.assertThat(actual.format()).isEqualTo(expected.format());
+    Assertions.assertThat(actual.partition())
+        .usingComparator(Comparators.forType(spec.partitionType()))
+        .isEqualTo(expected.partition());
+    Assertions.assertThat(actual.recordCount()).isEqualTo(expected.recordCount());
+    Assertions.assertThat(actual.fileSizeInBytes()).isEqualTo(expected.fileSizeInBytes());
+    Assertions.assertThat(actual.columnSizes()).isEqualTo(expected.columnSizes());
+    Assertions.assertThat(actual.valueCounts()).isEqualTo(expected.valueCounts());
+    Assertions.assertThat(actual.nullValueCounts()).isEqualTo(expected.nullValueCounts());
+    Assertions.assertThat(actual.nanValueCounts()).isEqualTo(expected.nanValueCounts());
+    Assertions.assertThat(actual.lowerBounds()).isEqualTo(expected.lowerBounds());
+    Assertions.assertThat(actual.upperBounds()).isEqualTo(expected.upperBounds());
+    Assertions.assertThat(actual.keyMetadata()).isEqualTo(expected.keyMetadata());
+    Assertions.assertThat(actual.splitOffsets()).isEqualTo(expected.splitOffsets());
+    Assertions.assertThat(actual.equalityFieldIds()).isEqualTo(expected.equalityFieldIds());
+    Assertions.assertThat(actual.sortOrderId()).isEqualTo(expected.sortOrderId());
   }
 }

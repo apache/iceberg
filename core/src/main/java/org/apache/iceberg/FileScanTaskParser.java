@@ -21,7 +21,6 @@ package org.apache.iceberg;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ExpressionParser;
 import org.apache.iceberg.expressions.Expressions;
@@ -46,7 +45,8 @@ public class FileScanTaskParser {
 
   private static void toJson(FileScanTask fileScanTask, JsonGenerator generator)
       throws IOException {
-    Preconditions.checkArgument(fileScanTask != null, "File scan task cannot be null");
+    Preconditions.checkArgument(fileScanTask != null, "Invalid file scan task: null");
+    Preconditions.checkArgument(generator != null, "Invalid JSON generator: null");
     generator.writeStartObject();
 
     generator.writeFieldName(SCHEMA);
@@ -78,18 +78,14 @@ public class FileScanTaskParser {
   }
 
   public static FileScanTask fromJson(String json, boolean caseSensitive) {
-    Preconditions.checkArgument(json != null, "Cannot parse file scan task from null JSON string");
-    try {
-      JsonNode jsonNode = JsonUtil.mapper().readValue(json, JsonNode.class);
-      return fromJsonNode(jsonNode, caseSensitive);
-    } catch (IOException e) {
-      throw new UncheckedIOException(e);
-    }
+    Preconditions.checkArgument(json != null, "Invalid JSON string for file scan task: null");
+    return JsonUtil.parse(json, node -> FileScanTaskParser.fromJsonNode(node, caseSensitive));
   }
 
   private static FileScanTask fromJsonNode(JsonNode jsonNode, boolean caseSensitive) {
+    Preconditions.checkArgument(jsonNode != null, "Invalid JSON node for file scan task: null");
     Preconditions.checkArgument(
-        jsonNode.isObject(), "Cannot parse file scan task from a non-object: %s", jsonNode);
+        jsonNode.isObject(), "Invalid JSON node for file scan task: non-object (%s)", jsonNode);
 
     JsonNode schemaNode = jsonNode.get(SCHEMA);
     Schema schema = SchemaParser.fromJson(schemaNode);
@@ -108,7 +104,9 @@ public class FileScanTaskParser {
     if (jsonNode.has(DELETE_FILES)) {
       JsonNode deletesArray = jsonNode.get(DELETE_FILES);
       Preconditions.checkArgument(
-          deletesArray.isArray(), "Cannot parse delete files from a non-array: %s", deletesArray);
+          deletesArray.isArray(),
+          "Invalid JSON node for delete files: non-array (%s)",
+          deletesArray);
       // parse the schema array
       ImmutableList.Builder<DeleteFile> builder = ImmutableList.builder();
       for (JsonNode deleteFileNode : deletesArray) {

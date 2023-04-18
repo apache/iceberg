@@ -59,9 +59,9 @@ class ContentFileParser {
 
   static void toJson(ContentFile<?> contentFile, PartitionSpec spec, JsonGenerator generator)
       throws IOException {
-    Preconditions.checkArgument(contentFile != null, "Content file cannot be null");
-    Preconditions.checkArgument(spec != null, "Partition spec cannot be null");
-    Preconditions.checkArgument(generator != null, "JSON generator cannot be null");
+    Preconditions.checkArgument(contentFile != null, "Invalid content file: null");
+    Preconditions.checkArgument(spec != null, "Invalid partition spec: null");
+    Preconditions.checkArgument(generator != null, "Invalid JSON generator: null");
 
     generator.writeStartObject();
 
@@ -70,7 +70,7 @@ class ContentFileParser {
 
     Preconditions.checkArgument(
         contentFile.specId() == spec.specId(),
-        "Partition spec id mismatch: expected = %s, actual = %s",
+        "Invalid partition spec id from content file: expected = %s, actual = %s",
         spec.specId(),
         contentFile.specId());
     generator.writeNumberField(SPEC_ID, contentFile.specId());
@@ -81,9 +81,9 @@ class ContentFileParser {
 
     Preconditions.checkArgument(
         spec.isPartitioned() == hasPartitionData(contentFile.partition()),
-        "Invalid data file: partition data (%s) doesn't match the expected (%s)",
-        hasPartitionData(contentFile.partition()),
-        spec.isPartitioned());
+        "Invalid partition data from content file: expected = %s, actual = %s",
+        spec.isPartitioned() ? "partitioned" : "unpartitioned",
+        hasPartitionData(contentFile.partition()) ? "partitioned" : "unpartitioned");
     if (contentFile.partition() != null) {
       generator.writeFieldName(PARTITION);
       SingleValueParser.toJson(spec.partitionType(), contentFile.partition(), generator);
@@ -92,37 +92,7 @@ class ContentFileParser {
     generator.writeNumberField(RECORD_COUNT, contentFile.recordCount());
     generator.writeNumberField(FILE_SIZE, contentFile.fileSizeInBytes());
 
-    if (contentFile.columnSizes() != null) {
-      generator.writeFieldName(COLUMN_SIZES);
-      SingleValueParser.toJson(DataFile.COLUMN_SIZES.type(), contentFile.columnSizes(), generator);
-    }
-
-    if (contentFile.valueCounts() != null) {
-      generator.writeFieldName(VALUE_COUNTS);
-      SingleValueParser.toJson(DataFile.VALUE_COUNTS.type(), contentFile.valueCounts(), generator);
-    }
-
-    if (contentFile.nullValueCounts() != null) {
-      generator.writeFieldName(NULL_VALUE_COUNTS);
-      SingleValueParser.toJson(
-          DataFile.NULL_VALUE_COUNTS.type(), contentFile.nullValueCounts(), generator);
-    }
-
-    if (contentFile.nullValueCounts() != null) {
-      generator.writeFieldName(NAN_VALUE_COUNTS);
-      SingleValueParser.toJson(
-          DataFile.NAN_VALUE_COUNTS.type(), contentFile.nanValueCounts(), generator);
-    }
-
-    if (contentFile.lowerBounds() != null) {
-      generator.writeFieldName(LOWER_BOUNDS);
-      SingleValueParser.toJson(DataFile.LOWER_BOUNDS.type(), contentFile.lowerBounds(), generator);
-    }
-
-    if (contentFile.upperBounds() != null) {
-      generator.writeFieldName(UPPER_BOUNDS);
-      SingleValueParser.toJson(DataFile.UPPER_BOUNDS.type(), contentFile.upperBounds(), generator);
-    }
+    metricsToJson(contentFile, generator);
 
     if (contentFile.keyMetadata() != null) {
       generator.writeFieldName(KEY_METADATA);
@@ -149,10 +119,10 @@ class ContentFileParser {
   }
 
   static ContentFile<?> fromJson(JsonNode jsonNode, PartitionSpec spec) {
-    Preconditions.checkArgument(jsonNode != null, "Cannot parse content file from null JSON node");
+    Preconditions.checkArgument(jsonNode != null, "Invalid JSON node for content file: null");
     Preconditions.checkArgument(
-        jsonNode.isObject(), "Cannot parse content file from a non-object: %s", jsonNode);
-    Preconditions.checkArgument(spec != null, "Partition spec cannot be null");
+        jsonNode.isObject(), "Invalid JSON node for content file: non-object (%s)", jsonNode);
+    Preconditions.checkArgument(spec != null, "Invalid partition spec: null");
 
     int specId = JsonUtil.getInt(SPEC_ID, jsonNode);
     FileContent fileContent = FileContent.valueOf(JsonUtil.getString(CONTENT, jsonNode));
@@ -207,6 +177,41 @@ class ContentFileParser {
           sortOrderId,
           splitOffsets,
           keyMetadata);
+    }
+  }
+
+  private static void metricsToJson(ContentFile<?> contentFile, JsonGenerator generator)
+      throws IOException {
+    if (contentFile.columnSizes() != null) {
+      generator.writeFieldName(COLUMN_SIZES);
+      SingleValueParser.toJson(DataFile.COLUMN_SIZES.type(), contentFile.columnSizes(), generator);
+    }
+
+    if (contentFile.valueCounts() != null) {
+      generator.writeFieldName(VALUE_COUNTS);
+      SingleValueParser.toJson(DataFile.VALUE_COUNTS.type(), contentFile.valueCounts(), generator);
+    }
+
+    if (contentFile.nullValueCounts() != null) {
+      generator.writeFieldName(NULL_VALUE_COUNTS);
+      SingleValueParser.toJson(
+          DataFile.NULL_VALUE_COUNTS.type(), contentFile.nullValueCounts(), generator);
+    }
+
+    if (contentFile.nullValueCounts() != null) {
+      generator.writeFieldName(NAN_VALUE_COUNTS);
+      SingleValueParser.toJson(
+          DataFile.NAN_VALUE_COUNTS.type(), contentFile.nanValueCounts(), generator);
+    }
+
+    if (contentFile.lowerBounds() != null) {
+      generator.writeFieldName(LOWER_BOUNDS);
+      SingleValueParser.toJson(DataFile.LOWER_BOUNDS.type(), contentFile.lowerBounds(), generator);
+    }
+
+    if (contentFile.upperBounds() != null) {
+      generator.writeFieldName(UPPER_BOUNDS);
+      SingleValueParser.toJson(DataFile.UPPER_BOUNDS.type(), contentFile.upperBounds(), generator);
     }
   }
 

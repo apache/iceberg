@@ -22,7 +22,6 @@ import org.apache.iceberg.expressions.ExpressionUtil;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.assertj.core.api.Assertions;
-import org.junit.Assert;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -32,11 +31,11 @@ public class TestFileScanTaskParser {
   public void testNullArguments() {
     Assertions.assertThatThrownBy(() -> FileScanTaskParser.toJson(null))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("File scan task cannot be null");
+        .hasMessage("Invalid file scan task: null");
 
     Assertions.assertThatThrownBy(() -> FileScanTaskParser.fromJson(null, true))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse file scan task from null JSON string");
+        .hasMessage("Invalid JSON string for file scan task: null");
   }
 
   @ParameterizedTest
@@ -74,13 +73,17 @@ public class TestFileScanTaskParser {
           expected.deletes().get(pos), actual.deletes().get(pos), spec);
     }
 
-    Assert.assertTrue("Schema should be the same", expected.schema().sameSchema(actual.schema()));
-    Assert.assertEquals(expected.spec(), actual.spec());
-    Assert.assertTrue(
-        ExpressionUtil.equivalent(
-            expected.residual(),
-            actual.residual(),
-            TableTestBase.SCHEMA.asStruct(),
-            caseSensitive));
+    Assertions.assertThat(expected.schema().sameSchema(actual.schema()))
+        .isTrue()
+        .as("Schema should match");
+    Assertions.assertThat(actual.spec()).isEqualTo(expected.spec());
+    Assertions.assertThat(
+            ExpressionUtil.equivalent(
+                expected.residual(),
+                actual.residual(),
+                TableTestBase.SCHEMA.asStruct(),
+                caseSensitive))
+        .isTrue()
+        .as("Residual expression should match");
   }
 }
