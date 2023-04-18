@@ -33,10 +33,24 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
+@RunWith(Parameterized.class)
 public class TestTableSerialization {
 
+  public TestTableSerialization(String isObjectStoreEnabled) {
+    this.isObjectStoreEnabled = isObjectStoreEnabled;
+  }
+
+  @Parameterized.Parameters(name = "isObjectStoreEnabled = {0}")
+  public static Object[] parameters() {
+    return new Object[] {"true", "false"};
+  }
+
   private static final HadoopTables TABLES = new HadoopTables();
+
+  private final String isObjectStoreEnabled;
 
   private static final Schema SCHEMA =
       new Schema(
@@ -55,7 +69,8 @@ public class TestTableSerialization {
 
   @Before
   public void initTable() throws IOException {
-    Map<String, String> props = ImmutableMap.of("k1", "v1", "k2", "v2");
+    Map<String, String> props =
+        ImmutableMap.of("k1", "v1", TableProperties.OBJECT_STORE_ENABLED, isObjectStoreEnabled);
 
     File tableLocation = temp.newFolder();
     Assert.assertTrue(tableLocation.delete());

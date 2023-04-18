@@ -109,7 +109,7 @@ public class LocationProviders {
 
     private static final HashFunction HASH_FUNC = Hashing.murmur3_32_fixed();
     private static final BaseEncoding BASE64_ENCODER = BaseEncoding.base64Url().omitPadding();
-    private final ThreadLocal<byte[]> temp = ThreadLocal.withInitial(() -> new byte[4]);
+    private static final ThreadLocal<byte[]> TEMP = ThreadLocal.withInitial(() -> new byte[4]);
     private final String storageLocation;
     private final String context;
 
@@ -172,7 +172,7 @@ public class LocationProviders {
     }
 
     private String computeHash(String fileName) {
-      byte[] bytes = temp.get();
+      byte[] bytes = TEMP.get();
       HashCode hash = HASH_FUNC.hashString(fileName, StandardCharsets.UTF_8);
       hash.writeBytesTo(bytes, 0, 4);
       return BASE64_ENCODER.encode(bytes);
