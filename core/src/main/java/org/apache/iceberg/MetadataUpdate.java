@@ -126,8 +126,8 @@ public interface MetadataUpdate extends Serializable {
   class SetDefaultPartitionSpec implements MetadataUpdate {
     private final int specId;
 
-    public SetDefaultPartitionSpec(int schemaId) {
-      this.specId = schemaId;
+    public SetDefaultPartitionSpec(int specId) {
+      this.specId = specId;
     }
 
     public int specId() {
