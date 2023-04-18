@@ -18,15 +18,20 @@
  */
 package org.apache.iceberg.flink;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import org.apache.flink.api.dag.Transformation;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.table.api.EnvironmentSettings;
 import org.apache.flink.table.api.Expressions;
 import org.apache.flink.table.api.TableEnvironment;
 import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
+import org.apache.flink.table.api.internal.TableEnvironmentImpl;
+import org.apache.flink.table.operations.ModifyOperation;
+import org.apache.flink.table.planner.delegation.PlannerBase;
 import org.apache.flink.test.util.MiniClusterWithClientResource;
 import org.apache.flink.types.Row;
 import org.apache.iceberg.DataFile;
@@ -176,6 +181,41 @@ public class TestFlinkTableSink extends FlinkCatalogTestBase {
     sql("INSERT OVERWRITE %s SELECT 2, 'b'", TABLE_NAME);
     SimpleDataUtil.assertTableRecords(
         icebergTable, Lists.newArrayList(SimpleDataUtil.createRecord(2, "b")));
+  }
+
+  @Test
+  public void testWriteParallelism() throws Exception {
+    List<Row> dataSet =
+        IntStream.range(1, 1000)
+            .mapToObj(i -> ImmutableList.of(Row.of(i, "aaa"), Row.of(i, "bbb"), Row.of(i, "ccc")))
+            .flatMap(List::stream)
+            .collect(Collectors.toList());
+    String dataId = BoundedTableFactory.registerDataSet(ImmutableList.of(dataSet));
+    sql(
+        "CREATE TABLE %s(id INT NOT NULL, data STRING NOT NULL)"
+            + " WITH ('connector'='BoundedSource', 'data-id'='%s')",
+        SOURCE_TABLE, dataId);
+
+    PlannerBase planner = (PlannerBase) ((TableEnvironmentImpl) getTableEnv()).getPlanner();
+    String insertSQL =
+        String.format(
+            "INSERT INTO %s /*+ OPTIONS('write-parallelism'='1') */ SELECT * FROM %s",
+            TABLE_NAME, SOURCE_TABLE);
+    ModifyOperation operation = (ModifyOperation) planner.getParser().parse(insertSQL).get(0);
+    Transformation<?> dummySink = planner.translate(Collections.singletonList(operation)).get(0);
+    Transformation<?> committer = dummySink.getInputs().get(0);
+    Transformation<?> writer = committer.getInputs().get(0);
+
+    Assert.assertEquals("Should have the expected 1 parallelism.", 1, writer.getParallelism());
+
+    writer
+        .getInputs()
+        .forEach(
+            input ->
+                Assert.assertEquals(
+                    "Should have the expected parallelism.",
+                    isStreamingJob ? 2 : 4,
+                    input.getParallelism()));
   }
 
   @Test

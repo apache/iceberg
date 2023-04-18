@@ -37,7 +37,10 @@ import org.apache.iceberg.util.SortOrderUtil;
  * would be chosen by {@link BinPackStrategy} will be rewrite candidates.
  *
  * <p>In the future other algorithms for determining files to rewrite will be provided.
+ *
+ * @deprecated since 1.3.0, will be removed in 1.4.0; use {@link SizeBasedFileRewriter} instead.
  */
+@Deprecated
 public abstract class SortStrategy extends BinPackStrategy {
 
   private SortOrder sortOrder;

@@ -20,6 +20,7 @@ package org.apache.iceberg.spark.actions;
 
 import java.io.IOException;
 import java.math.RoundingMode;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -37,13 +38,11 @@ import org.apache.iceberg.RewriteJobOrder;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.actions.BinPackStrategy;
+import org.apache.iceberg.actions.FileRewriter;
 import org.apache.iceberg.actions.ImmutableRewriteDataFiles;
 import org.apache.iceberg.actions.RewriteDataFiles;
 import org.apache.iceberg.actions.RewriteDataFilesCommitManager;
 import org.apache.iceberg.actions.RewriteFileGroup;
-import org.apache.iceberg.actions.RewriteStrategy;
-import org.apache.iceberg.actions.SortStrategy;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -92,7 +91,7 @@ public class RewriteDataFilesSparkAction
   private boolean partialProgressEnabled;
   private boolean useStartingSequenceNumber;
   private RewriteJobOrder rewriteJobOrder;
-  private RewriteStrategy strategy = null;
+  private FileRewriter<FileScanTask, DataFile> rewriter = null;
 
   RewriteDataFilesSparkAction(SparkSession spark, Table table) {
     super(spark.cloneSession());
@@ -109,40 +108,32 @@ public class RewriteDataFilesSparkAction
   @Override
   public RewriteDataFilesSparkAction binPack() {
     Preconditions.checkArgument(
-        this.strategy == null,
-        "Cannot set strategy to binpack, it has already been set",
-        this.strategy);
-    this.strategy = binPackStrategy();
+        rewriter == null, "Must use only one rewriter type (bin-pack, sort, zorder)");
+    this.rewriter = new SparkBinPackDataRewriter(spark(), table);
     return this;
   }
 
   @Override
   public RewriteDataFilesSparkAction sort(SortOrder sortOrder) {
     Preconditions.checkArgument(
-        this.strategy == null,
-        "Cannot set strategy to sort, it has already been set to %s",
-        this.strategy);
-    this.strategy = sortStrategy().sortOrder(sortOrder);
+        rewriter == null, "Must use only one rewriter type (bin-pack, sort, zorder)");
+    this.rewriter = new SparkSortDataRewriter(spark(), table, sortOrder);
     return this;
   }
 
   @Override
   public RewriteDataFilesSparkAction sort() {
     Preconditions.checkArgument(
-        this.strategy == null,
-        "Cannot set strategy to sort, it has already been set to %s",
-        this.strategy);
-    this.strategy = sortStrategy();
+        rewriter == null, "Must use only one rewriter type (bin-pack, sort, zorder)");
+    this.rewriter = new SparkSortDataRewriter(spark(), table);
     return this;
   }
 
   @Override
   public RewriteDataFilesSparkAction zOrder(String... columnNames) {
     Preconditions.checkArgument(
-        this.strategy == null,
-        "Cannot set strategy to zorder, it has already been set to %s",
-        this.strategy);
-    this.strategy = zOrderStrategy(columnNames);
+        rewriter == null, "Must use only one rewriter type (bin-pack, sort, zorder)");
+    this.rewriter = new SparkZOrderDataRewriter(spark(), table, Arrays.asList(columnNames));
     return this;
   }
 
@@ -161,8 +152,8 @@ public class RewriteDataFilesSparkAction
     long startingSnapshotId = table.currentSnapshot().snapshotId();
 
     // Default to BinPack if no strategy selected
-    if (this.strategy == null) {
-      this.strategy = binPackStrategy();
+    if (this.rewriter == null) {
+      this.rewriter = new SparkBinPackDataRewriter(spark(), table);
     }
 
     validateAndInitOptions();
@@ -226,9 +217,8 @@ public class RewriteDataFilesSparkAction
 
       filesByPartition.forEach(
           (partition, tasks) -> {
-            Iterable<FileScanTask> filtered = strategy.selectFilesToRewrite(tasks);
-            Iterable<List<FileScanTask>> groupedTasks = strategy.planFileGroups(filtered);
-            List<List<FileScanTask>> fileGroups = ImmutableList.copyOf(groupedTasks);
+            Iterable<List<FileScanTask>> plannedFileGroups = rewriter.planFileGroups(tasks);
+            List<List<FileScanTask>> fileGroups = ImmutableList.copyOf(plannedFileGroups);
             if (fileGroups.size() > 0) {
               fileGroupsByPartition.put(partition, fileGroups);
             }
@@ -250,7 +240,7 @@ public class RewriteDataFilesSparkAction
     Set<DataFile> addedFiles =
         withJobGroupInfo(
             newJobGroupInfo("REWRITE-DATA-FILES", desc),
-            () -> strategy.rewriteFiles(fileGroup.fileScans()));
+            () -> rewriter.rewrite(fileGroup.fileScans()));
 
     fileGroup.setOutputFiles(addedFiles);
     LOG.info("Rewrite Files Ready to be Committed - {}", desc);
@@ -418,7 +408,7 @@ public class RewriteDataFilesSparkAction
   }
 
   void validateAndInitOptions() {
-    Set<String> validOptions = Sets.newHashSet(strategy.validOptions());
+    Set<String> validOptions = Sets.newHashSet(rewriter.validOptions());
     validOptions.addAll(VALID_OPTIONS);
 
     Set<String> invalidKeys = Sets.newHashSet(options().keySet());
@@ -426,11 +416,11 @@ public class RewriteDataFilesSparkAction
 
     Preconditions.checkArgument(
         invalidKeys.isEmpty(),
-        "Cannot use options %s, they are not supported by the action or the strategy %s",
+        "Cannot use options %s, they are not supported by the action or the rewriter %s",
         invalidKeys,
-        strategy.name());
+        rewriter.description());
 
-    strategy = strategy.options(options());
+    rewriter.init(options());
 
     maxConcurrentFileGroupRewrites =
         PropertyUtil.propertyAsInt(
@@ -474,7 +464,7 @@ public class RewriteDataFilesSparkAction
       return String.format(
           "Rewriting %d files (%s, file group %d/%d, %s (%d/%d)) in %s",
           group.rewrittenFiles().size(),
-          strategy.name(),
+          rewriter.description(),
           group.info().globalIndex(),
           ctx.totalGroupCount(),
           partition,
@@ -485,23 +475,11 @@ public class RewriteDataFilesSparkAction
       return String.format(
           "Rewriting %d files (%s, file group %d/%d) in %s",
           group.rewrittenFiles().size(),
-          strategy.name(),
+          rewriter.description(),
           group.info().globalIndex(),
           ctx.totalGroupCount(),
           table.name());
     }
-  }
-
-  private BinPackStrategy binPackStrategy() {
-    return new SparkBinPackStrategy(table, spark());
-  }
-
-  private SortStrategy sortStrategy() {
-    return new SparkSortStrategy(table, spark());
-  }
-
-  private SortStrategy zOrderStrategy(String... columnNames) {
-    return new SparkZOrderStrategy(table, spark(), Lists.newArrayList(columnNames));
   }
 
   @VisibleForTesting

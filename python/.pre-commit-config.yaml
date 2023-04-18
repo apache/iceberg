@@ -36,12 +36,21 @@ repos:
     rev: v5.10.1
     hooks:
       - id: isort
-        args: [ --settings-path=python/pyproject.toml ]
+        args: [--settings-path=python/pyproject.toml]
   - repo: https://github.com/pre-commit/mirrors-mypy
     rev: v0.991
     hooks:
       - id: mypy
-        args: [ --install-types, --non-interactive, --config=python/pyproject.toml]
+        args:
+          [--install-types, --non-interactive, --config=python/pyproject.toml]
+  - repo: https://github.com/pre-commit/mirrors-prettier
+    rev: v2.7.1
+    hooks:
+      - id: prettier
+        args: [--plugin=prettier-plugin-toml]
+        additional_dependencies:
+          - prettier@2.7.1
+          - prettier-plugin-toml@0.3.1
   - repo: https://github.com/hadialqattan/pycln
     rev: v2.1.3
     hooks:
@@ -51,18 +60,19 @@ repos:
     rev: v3.3.1
     hooks:
       - id: pyupgrade
-        args: [ --py38-plus, --keep-runtime-typing ]
+        args: [--py38-plus, --keep-runtime-typing]
   - repo: https://github.com/pycqa/pylint
     rev: v2.16.0
     hooks:
       - id: pylint
-        args: [ --rcfile=python/pylintrc ]
+        args: [--rcfile=python/pylintrc]
   - repo: https://github.com/pycqa/flake8
-    rev: '6.0.0'
+    rev: "6.0.0"
     hooks:
       - id: flake8
-        args: [ "--ignore=E501,W503,E203,B024" ]
-        additional_dependencies: [ flake8-bugbear==22.12.6, flake8-comprehensions==3.10.1 ]
+        args: ["--ignore=E501,W503,E203,B024"]
+        additional_dependencies:
+          [flake8-bugbear==22.12.6, flake8-comprehensions==3.10.1]
   - repo: https://github.com/executablebooks/mdformat
     rev: 0.7.16
     hooks:

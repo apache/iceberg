@@ -313,6 +313,12 @@ public class InMemoryCatalog extends BaseMetastoreCatalog implements SupportsNam
       String newLocation = writeNewMetadata(metadata, currentVersion() + 1);
       String oldLocation = base == null ? null : base.metadataFileLocation();
 
+      if (null == base && !namespaceExists(tableIdentifier.namespace())) {
+        throw new NoSuchNamespaceException(
+            "Cannot create table %s. Namespace %s does not exist",
+            tableIdentifier, tableIdentifier.namespace());
+      }
+
       tables.compute(
           tableIdentifier,
           (k, existingLocation) -> {

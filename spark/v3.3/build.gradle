@@ -104,6 +104,10 @@ project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}") {
     testImplementation "org.xerial:sqlite-jdbc"
   }
 
+  test {
+    useJUnitPlatform()
+  }
+
   tasks.withType(Test) {
     // Vectorized reads need more memory
     maxHeapSize '2560m'
