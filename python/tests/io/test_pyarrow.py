@@ -921,7 +921,6 @@ def test_projection_add_column_struct(schema_int: Schema, file_int: str) -> None
     # Everything should be None
     for r in result_table.columns[0]:
         assert r.as_py() is None
-    print(result_table.schema)
     assert (
         repr(result_table.schema)
         == """id: map<int32, string>
