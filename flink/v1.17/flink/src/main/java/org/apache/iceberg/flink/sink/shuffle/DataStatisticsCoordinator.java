@@ -143,7 +143,7 @@ class DataStatisticsCoordinator<K> implements OperatorCoordinator {
         lastCompletedAggregator = inProgressAggregator;
         LOG.info(
             "Received data statistics from {} operators out of total {} for checkpoint {}. "
-                + "It's more than the expected percentage {}. Thus sending the aggregate data"
+                + "It's more than the expected percentage {}. Sending the aggregate data"
                 + " statistics {} to subtasks.",
             inProgressAggregator.aggregatedSubtasksCount(),
             context.parallelism(),
