@@ -616,28 +616,26 @@ class PyArrowSchemaVisitor(Generic[T], ABC):
         """visit a primitive type"""
 
 
-def _get_field_id_and_doc(field: pa.Field) -> Tuple[Optional[int], Optional[str]]:
-    field_id = None
-    doc = None
-
+def _get_field_id(field: pa.Field) -> Optional[int]:
     for pyarrow_field_id_key in PYARROW_FIELD_ID_KEYS:
         if field_id_str := field.metadata.get(pyarrow_field_id_key):
-            field_id = int(field_id_str.decode())
-            break
+            return int(field_id_str.decode())
+    return None
 
+
+def _get_field_doc(field: pa.Field) -> Optional[str]:
     for pyarrow_doc_key in PYARROW_FIELD_DOC_KEYS:
         if doc_str := field.metadata.get(pyarrow_doc_key):
-            doc = doc_str.decode()
-            break
-
-    return field_id, doc
+            return doc_str.decode()
+    return None
 
 
 class _ConvertToIceberg(PyArrowSchemaVisitor[Union[IcebergType, Schema]]):
     def schema(self, schema: pa.Schema, field_results: List[Optional[IcebergType]]) -> Schema:
         fields = []
         for i, field in enumerate(schema):
-            field_id, field_doc = _get_field_id_and_doc(field)
+            field_id = _get_field_id(field)
+            field_doc = _get_field_doc(field)
             field_type = field_results[i]
             if field_type is not None and field_id is not None:
                 fields.append(NestedField(field_id, field.name, field_type, required=not field.nullable, doc=field_doc))
@@ -646,7 +644,8 @@ class _ConvertToIceberg(PyArrowSchemaVisitor[Union[IcebergType, Schema]]):
     def struct(self, struct: pa.StructType, field_results: List[Optional[IcebergType]]) -> IcebergType:
         fields = []
         for i, field in enumerate(struct):
-            field_id, field_doc = _get_field_id_and_doc(field)
+            field_id = _get_field_id(field)
+            field_doc = _get_field_doc(field)
             field_type = field_results[i]
             if field_type is not None and field_id is not None:
                 fields.append(NestedField(field_id, field.name, field_type, required=not field.nullable, doc=field_doc))
@@ -654,7 +653,7 @@ class _ConvertToIceberg(PyArrowSchemaVisitor[Union[IcebergType, Schema]]):
 
     def list(self, list_type: pa.ListType, element_result: Optional[IcebergType]) -> Optional[IcebergType]:
         element_field = list_type.value_field
-        element_id, _ = _get_field_id_and_doc(element_field)
+        element_id = _get_field_id(element_field)
         if element_result is not None and element_id is not None:
             return ListType(element_id, element_result, element_required=not element_field.nullable)
         return None
@@ -663,9 +662,9 @@ class _ConvertToIceberg(PyArrowSchemaVisitor[Union[IcebergType, Schema]]):
         self, map_type: pa.MapType, key_result: Optional[IcebergType], value_result: Optional[IcebergType]
     ) -> Optional[IcebergType]:
         key_field = map_type.key_field
-        key_id, _ = _get_field_id_and_doc(key_field)
+        key_id = _get_field_id(key_field)
         value_field = map_type.item_field
-        value_id, _ = _get_field_id_and_doc(value_field)
+        value_id = _get_field_id(value_field)
         if key_result is not None and value_result is not None and key_id is not None and value_id is not None:
             return MapType(key_id, key_result, value_id, value_result, value_required=not value_field.nullable)
         return None
