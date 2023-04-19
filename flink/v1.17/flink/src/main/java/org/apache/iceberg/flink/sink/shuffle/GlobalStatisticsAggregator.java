@@ -23,14 +23,22 @@ import java.util.Set;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-class AggregateDataStatistics<K> implements Serializable {
+/**
+ * GlobalStatisticsAggregator is used by {@link DataStatisticsCoordinator} to collect {@link
+ * DataStatistics} from {@link DataStatisticsOperator} subtasks for specific checkpoint. It stores
+ * the merged {@link DataStatistics} result and uses set to keep a record of all reported subtasks.
+ */
+class GlobalStatisticsAggregator<K> implements Serializable {
+  private static final Logger LOG = LoggerFactory.getLogger(GlobalStatisticsAggregator.class);
 
   private final long checkpointId;
   private final DataStatistics<K> dataStatistics;
   private final Set<Integer> subtaskSet = Sets.newHashSet();
 
-  AggregateDataStatistics(long checkpoint, final DataStatisticsFactory<K> statisticsFactory) {
+  GlobalStatisticsAggregator(long checkpoint, final DataStatisticsFactory<K> statisticsFactory) {
     this.checkpointId = checkpoint;
     this.dataStatistics = statisticsFactory.createDataStatistics();
   }
@@ -50,13 +58,17 @@ class AggregateDataStatistics<K> implements Serializable {
         event.checkpointId(),
         checkpointId);
     if (!subtaskSet.add(subtask)) {
+      LOG.debug(
+          "Receive duplicated data statistics for checkpoint {} subtask {}. Ignore it.",
+          checkpointId,
+          subtask);
       return;
     }
 
     dataStatistics.merge(event.dataStatistics());
   }
 
-  long aggregateSize() {
+  long accumulatedSubtasksCount() {
     return subtaskSet.size();
   }
 

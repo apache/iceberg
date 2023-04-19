@@ -21,11 +21,12 @@ package org.apache.iceberg.flink.sink.shuffle;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import org.apache.flink.annotation.Internal;
 import org.apache.flink.runtime.operators.coordination.OperatorCoordinator;
 import org.apache.flink.runtime.operators.coordination.OperatorEvent;
 import org.apache.flink.util.ExceptionUtils;
-import org.apache.flink.util.FlinkException;
 import org.apache.flink.util.InstantiationUtil;
 import org.apache.flink.util.Preconditions;
 import org.apache.flink.util.function.ThrowingRunnable;
@@ -37,11 +38,12 @@ import org.slf4j.LoggerFactory;
 /**
  * DataStatisticsCoordinator receives {@link DataStatisticsEvent} from {@link
  * DataStatisticsOperator} every subtask and then merge them together. Once aggregation for all
- * subtasks data statistics completes, DataStatisticsCoordinator will send the aggregation
+ * subtasks data statistics completes, DataStatisticsCoordinator will send the aggregated
  * result(global data statistics) back to {@link DataStatisticsOperator}. In the end a custom
  * partitioner will distribute traffic based on the global data statistics to improve data
  * clustering.
  */
+@Internal
 class DataStatisticsCoordinator<K> implements OperatorCoordinator {
   private static final Logger LOG = LoggerFactory.getLogger(DataStatisticsCoordinator.class);
 
@@ -53,18 +55,22 @@ class DataStatisticsCoordinator<K> implements OperatorCoordinator {
   private final DataStatisticsCoordinatorContext<K> context;
   private final DataStatisticsFactory<K> statisticsFactory;
 
-  private volatile AggregateDataStatistics<K> incompleteAggregateDataStatistics;
-  private volatile AggregateDataStatistics<K> completeAggregateDataStatistics;
+  private volatile GlobalStatisticsAggregator<K> inProgressAggregator;
+  private volatile GlobalStatisticsAggregator<K> lastCompleteAggregator;
   private volatile boolean started;
 
   DataStatisticsCoordinator(
       String operatorName,
-      ExecutorService coordinatorExecutor,
-      DataStatisticsCoordinatorContext<K> context,
+      OperatorCoordinator.Context context,
       DataStatisticsFactory<K> statisticsFactory) {
     this.operatorName = operatorName;
-    this.coordinatorExecutor = coordinatorExecutor;
-    this.context = context;
+    DataStatisticsCoordinatorProvider.CoordinatorExecutorThreadFactory coordinatorThreadFactory =
+        new DataStatisticsCoordinatorProvider.CoordinatorExecutorThreadFactory(
+            "DataStatisticsCoordinator-" + operatorName, context.getUserCodeClassloader());
+    this.coordinatorExecutor = Executors.newSingleThreadExecutor(coordinatorThreadFactory);
+    this.context =
+        new DataStatisticsCoordinatorContext<>(
+            coordinatorExecutor, coordinatorThreadFactory, context);
     this.statisticsFactory = statisticsFactory;
   }
 
@@ -101,7 +107,7 @@ class DataStatisticsCoordinator<K> implements OperatorCoordinator {
             // chance the logging or job failing will not succeed anymore
             ExceptionUtils.rethrowIfFatalErrorOrOOM(t);
 
-            final String actionString = String.format(actionName, actionNameFormatParameters);
+            String actionString = String.format(actionName, actionNameFormatParameters);
             LOG.error(
                 "Uncaught exception in the data statistics {} while {}. Triggering job failover.",
                 operatorName,
@@ -121,72 +127,64 @@ class DataStatisticsCoordinator<K> implements OperatorCoordinator {
   private void handleDataStatisticRequest(int subtask, DataStatisticsEvent<K> event) {
     long checkpointId = event.checkpointId();
 
-    if (completeAggregateDataStatistics != null
-        && completeAggregateDataStatistics.checkpointId() >= checkpointId) {
+    if (lastCompleteAggregator != null && lastCompleteAggregator.checkpointId() >= checkpointId) {
       LOG.debug(
           "Data statistics aggregation for checkpoint {} has completed. Ignore the event from subtask {} for checkpoint {}",
-          completeAggregateDataStatistics.checkpointId(),
+          lastCompleteAggregator.checkpointId(),
           subtask,
           checkpointId);
       return;
     }
 
-    if (incompleteAggregateDataStatistics == null) {
-      incompleteAggregateDataStatistics =
-          new AggregateDataStatistics<>(checkpointId, statisticsFactory);
+    if (inProgressAggregator == null) {
+      inProgressAggregator = new GlobalStatisticsAggregator<>(checkpointId, statisticsFactory);
     }
 
-    if (incompleteAggregateDataStatistics.checkpointId() < checkpointId) {
-      if ((double) incompleteAggregateDataStatistics.aggregateSize() / context.currentParallelism()
+    if (inProgressAggregator.checkpointId() < checkpointId) {
+      if ((double) inProgressAggregator.accumulatedSubtasksCount() / context.parallelism()
           >= EXPECTED_DATA_STATISTICS_RECEIVED_PERCENTAGE) {
-        completeAggregateDataStatistics = incompleteAggregateDataStatistics;
+        lastCompleteAggregator = inProgressAggregator;
         LOG.info(
             "Received data statistics from {} operators out of total {} for checkpoint {}. It's more than the expected percentage {}. Thus sending the aggregate data statistics {} to subtasks.",
-            incompleteAggregateDataStatistics.aggregateSize(),
-            context.currentParallelism(),
-            incompleteAggregateDataStatistics.checkpointId(),
+            inProgressAggregator.accumulatedSubtasksCount(),
+            context.parallelism(),
+            inProgressAggregator.checkpointId(),
             EXPECTED_DATA_STATISTICS_RECEIVED_PERCENTAGE,
-            completeAggregateDataStatistics);
-        incompleteAggregateDataStatistics =
-            new AggregateDataStatistics<>(checkpointId, statisticsFactory);
-        incompleteAggregateDataStatistics.mergeDataStatistic(subtask, event);
+            lastCompleteAggregator);
+        inProgressAggregator = new GlobalStatisticsAggregator<>(checkpointId, statisticsFactory);
+        inProgressAggregator.mergeDataStatistic(subtask, event);
         context.sendDataStatisticsToSubtasks(
-            incompleteAggregateDataStatistics.checkpointId(),
-            completeAggregateDataStatistics.dataStatistics());
+            inProgressAggregator.checkpointId(), lastCompleteAggregator.dataStatistics());
         return;
       } else {
         LOG.info(
             "Received data statistics from {} operators out of total {} for checkpoint {}. It's less than the expected percentage {}. Thus dropping the incomplete aggregate data statistics {} and starting collecting data statistics from new checkpoint {}",
-            incompleteAggregateDataStatistics.aggregateSize(),
-            context.currentParallelism(),
-            incompleteAggregateDataStatistics.checkpointId(),
+            inProgressAggregator.accumulatedSubtasksCount(),
+            context.parallelism(),
+            inProgressAggregator.checkpointId(),
             EXPECTED_DATA_STATISTICS_RECEIVED_PERCENTAGE,
-            incompleteAggregateDataStatistics,
+            inProgressAggregator,
             checkpointId);
-        incompleteAggregateDataStatistics =
-            new AggregateDataStatistics<>(checkpointId, statisticsFactory);
-        incompleteAggregateDataStatistics.mergeDataStatistic(subtask, event);
+        inProgressAggregator = new GlobalStatisticsAggregator<>(checkpointId, statisticsFactory);
       }
-    } else if (incompleteAggregateDataStatistics.checkpointId() > checkpointId) {
+    } else if (inProgressAggregator.checkpointId() > checkpointId) {
       LOG.debug(
           "Expect data statistics for checkpoint {}, but receive event from older checkpoint {}. Ignore it.",
-          incompleteAggregateDataStatistics.checkpointId(),
+          inProgressAggregator.checkpointId(),
           checkpointId);
       return;
-    } else {
-      incompleteAggregateDataStatistics.mergeDataStatistic(subtask, event);
     }
+    inProgressAggregator.mergeDataStatistic(subtask, event);
 
-    if (incompleteAggregateDataStatistics.aggregateSize() == context.currentParallelism()) {
-      completeAggregateDataStatistics = incompleteAggregateDataStatistics;
+    if (inProgressAggregator.accumulatedSubtasksCount() == context.parallelism()) {
+      lastCompleteAggregator = inProgressAggregator;
       LOG.info(
           "Received data statistics from all {} operators for checkpoint {}. Sending the aggregated data statistics {} to subtasks.",
-          context.currentParallelism(),
-          incompleteAggregateDataStatistics.checkpointId(),
-          completeAggregateDataStatistics);
-      incompleteAggregateDataStatistics = null;
-      context.sendDataStatisticsToSubtasks(
-          checkpointId, completeAggregateDataStatistics.dataStatistics());
+          context.parallelism(),
+          inProgressAggregator.checkpointId(),
+          lastCompleteAggregator);
+      inProgressAggregator = null;
+      context.sendDataStatisticsToSubtasks(checkpointId, lastCompleteAggregator.dataStatistics());
     }
   }
 
@@ -201,14 +199,11 @@ class DataStatisticsCoordinator<K> implements OperatorCoordinator {
               attemptNumber,
               operatorName,
               event);
-          if (event instanceof DataStatisticsEvent) {
-            handleDataStatisticRequest(subtask, ((DataStatisticsEvent<K>) event));
-          } else {
-            throw new FlinkException("Unrecognized data statistics operator event: " + event);
-          }
+          Preconditions.checkArgument(event instanceof DataStatisticsEvent);
+          handleDataStatisticRequest(subtask, ((DataStatisticsEvent<K>) event));
         },
         "handling operator event %s from data statistics operator subtask %d (#%d)",
-        event,
+        event.getClass(),
         subtask,
         attemptNumber);
   }
@@ -223,7 +218,7 @@ class DataStatisticsCoordinator<K> implements OperatorCoordinator {
               checkpointId);
           try {
             byte[] serializedDataDistributionWeight =
-                InstantiationUtil.serializeObject(completeAggregateDataStatistics);
+                InstantiationUtil.serializeObject(lastCompleteAggregator);
             resultFuture.complete(serializedDataDistributionWeight);
           } catch (Throwable e) {
             ExceptionUtils.rethrowIfFatalErrorOrOOM(e);
@@ -256,21 +251,21 @@ class DataStatisticsCoordinator<K> implements OperatorCoordinator {
 
     LOG.info(
         "Restoring data statistic coordinator {} from checkpoint {}.", operatorName, checkpointId);
-    completeAggregateDataStatistics =
+    lastCompleteAggregator =
         InstantiationUtil.deserializeObject(
-            checkpointData, AggregateDataStatistics.class.getClassLoader());
+            checkpointData, GlobalStatisticsAggregator.class.getClassLoader());
   }
 
   @Override
   public void subtaskReset(int subtask, long checkpointId) {
-    this.runInCoordinatorThread(
+    runInCoordinatorThread(
         () -> {
           LOG.info(
               "Resetting subtask {} to checkpoint {} for data statistics {}.",
               subtask,
               checkpointId,
-              this.operatorName);
-          this.context.subtaskReset(subtask);
+              operatorName);
+          context.subtaskReset(subtask);
         },
         "handling subtask %d recovery to checkpoint %d",
         subtask,
@@ -279,14 +274,14 @@ class DataStatisticsCoordinator<K> implements OperatorCoordinator {
 
   @Override
   public void executionAttemptFailed(int subtask, int attemptNumber, @Nullable Throwable reason) {
-    this.runInCoordinatorThread(
+    runInCoordinatorThread(
         () -> {
           LOG.info(
               "Unregistering gateway after failure for subtask {} (#{}) of data statistic {}.",
               subtask,
               attemptNumber,
-              this.operatorName);
-          this.context.attemptFailed(subtask, attemptNumber);
+              operatorName);
+          context.attemptFailed(subtask, attemptNumber);
         },
         "handling subtask %d (#%d) failure",
         subtask,
@@ -297,9 +292,9 @@ class DataStatisticsCoordinator<K> implements OperatorCoordinator {
   public void executionAttemptReady(int subtask, int attemptNumber, SubtaskGateway gateway) {
     Preconditions.checkArgument(subtask == gateway.getSubtask());
     Preconditions.checkArgument(attemptNumber == gateway.getExecution().getAttemptNumber());
-    this.runInCoordinatorThread(
+    runInCoordinatorThread(
         () -> {
-          this.context.attemptReady(gateway);
+          context.attemptReady(gateway);
         },
         "making event gateway to subtask %d (#%d) available",
         subtask,
@@ -308,13 +303,13 @@ class DataStatisticsCoordinator<K> implements OperatorCoordinator {
 
   // ---------------------------------------------------
   @VisibleForTesting
-  AggregateDataStatistics<K> completeAggregatedDataStatistics() {
-    return completeAggregateDataStatistics;
+  GlobalStatisticsAggregator<K> completeAggregatedDataStatistics() {
+    return lastCompleteAggregator;
   }
 
   @VisibleForTesting
-  AggregateDataStatistics<K> incompleteAggregatedDataStatistics() {
-    return incompleteAggregateDataStatistics;
+  GlobalStatisticsAggregator<K> incompleteAggregatedDataStatistics() {
+    return inProgressAggregator;
   }
 
   @VisibleForTesting

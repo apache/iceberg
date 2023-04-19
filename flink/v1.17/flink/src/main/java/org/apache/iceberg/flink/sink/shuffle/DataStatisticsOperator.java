@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.flink.sink.shuffle;
 
+import org.apache.flink.annotation.Internal;
 import org.apache.flink.api.common.state.ListState;
 import org.apache.flink.api.common.state.ListStateDescriptor;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
@@ -40,6 +41,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
  * shuffle record to improve data clustering while maintaining relative balanced traffic
  * distribution to downstream subtasks.
  */
+@Internal
 class DataStatisticsOperator<D extends DataStatistics<D, S>, S>
     extends AbstractStreamOperator<DataStatisticsOrRecord<D, S>>
     implements OneInputStreamOperator<RowData, DataStatisticsOrRecord<D, S>>, OperatorEventHandler {

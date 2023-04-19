@@ -19,8 +19,6 @@
 package org.apache.iceberg.flink.sink.shuffle;
 
 import java.io.Serializable;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 import javax.annotation.Nullable;
 import org.apache.flink.annotation.VisibleForTesting;
@@ -30,6 +28,11 @@ import org.apache.flink.runtime.operators.coordination.RecreateOnResetOperatorCo
 import org.apache.flink.util.FatalExitExceptionHandler;
 import org.jetbrains.annotations.NotNull;
 
+/**
+ * DataStatisticsCoordinatorProvider provides the method to create new {@link
+ * DataStatisticsCoordinator} and defines {@link CoordinatorExecutorThreadFactory} to create new
+ * thread for {@link DataStatisticsCoordinator} to execute task
+ */
 public class DataStatisticsCoordinatorProvider<K extends Serializable>
     extends RecreateOnResetOperatorCoordinator.Provider {
 
@@ -45,17 +48,7 @@ public class DataStatisticsCoordinatorProvider<K extends Serializable>
 
   @Override
   public OperatorCoordinator getCoordinator(OperatorCoordinator.Context context) {
-    DataStatisticsCoordinatorProvider.CoordinatorExecutorThreadFactory coordinatorThreadFactory =
-        new DataStatisticsCoordinatorProvider.CoordinatorExecutorThreadFactory(
-            "DataStatisticsCoordinator-" + operatorName, context.getUserCodeClassloader());
-    ExecutorService coordinatorExecutor =
-        Executors.newSingleThreadExecutor(coordinatorThreadFactory);
-    DataStatisticsCoordinatorContext<K> dataStatisticsCoordinatorContext =
-        new DataStatisticsCoordinatorContext<>(
-            coordinatorExecutor, coordinatorThreadFactory, context);
-
-    return new DataStatisticsCoordinator<>(
-        operatorName, coordinatorExecutor, dataStatisticsCoordinatorContext, dataStatisticsFactory);
+    return new DataStatisticsCoordinator<>(operatorName, context, dataStatisticsFactory);
   }
 
   static class CoordinatorExecutorThreadFactory

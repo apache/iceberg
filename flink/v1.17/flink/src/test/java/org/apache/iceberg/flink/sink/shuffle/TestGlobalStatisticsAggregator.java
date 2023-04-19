@@ -21,31 +21,34 @@ package org.apache.iceberg.flink.sink.shuffle;
 import org.junit.Test;
 import org.junit.jupiter.api.Assertions;
 
-public class TestAggregateDataStatistics {
+public class TestGlobalStatisticsAggregator {
 
   @Test
   public void mergeDataStatisticTest() {
-    AggregateDataStatistics<String> aggregateDataStatistics =
-        new AggregateDataStatistics<>(1, MapDataStatistics::new);
+    GlobalStatisticsAggregator<String> globalStatisticsAggregator =
+        new GlobalStatisticsAggregator<>(1, MapDataStatistics::new);
     DataStatistics<String> mapDataStatistics1 = new MapDataStatistics<>();
     mapDataStatistics1.add("a");
     mapDataStatistics1.add("a");
     mapDataStatistics1.add("b");
-    aggregateDataStatistics.mergeDataStatistic(1, new DataStatisticsEvent<>(1, mapDataStatistics1));
+    globalStatisticsAggregator.mergeDataStatistic(
+        1, new DataStatisticsEvent<>(1, mapDataStatistics1));
     DataStatistics<String> mapDataStatistics2 = new MapDataStatistics<>();
     mapDataStatistics2.add("a");
-    aggregateDataStatistics.mergeDataStatistic(2, new DataStatisticsEvent<>(1, mapDataStatistics2));
-    aggregateDataStatistics.mergeDataStatistic(1, new DataStatisticsEvent<>(1, mapDataStatistics1));
+    globalStatisticsAggregator.mergeDataStatistic(
+        2, new DataStatisticsEvent<>(1, mapDataStatistics2));
+    globalStatisticsAggregator.mergeDataStatistic(
+        1, new DataStatisticsEvent<>(1, mapDataStatistics1));
     Assertions.assertEquals(
         3L,
         (long)
-            ((MapDataStatistics<String>) aggregateDataStatistics.dataStatistics())
+            ((MapDataStatistics<String>) globalStatisticsAggregator.dataStatistics())
                 .dataStatistics()
                 .get("a"));
     Assertions.assertEquals(
         1L,
         (long)
-            ((MapDataStatistics<String>) aggregateDataStatistics.dataStatistics())
+            ((MapDataStatistics<String>) globalStatisticsAggregator.dataStatistics())
                 .dataStatistics()
                 .get("b"));
   }

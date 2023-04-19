@@ -20,8 +20,6 @@ package org.apache.iceberg.flink.sink.shuffle;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import org.apache.flink.runtime.jobgraph.OperatorID;
 import org.apache.flink.runtime.operators.coordination.EventReceivingTasks;
 import org.apache.flink.runtime.operators.coordination.MockOperatorCoordinatorContext;
@@ -40,20 +38,11 @@ public class TestDataStatisticsCoordinator {
 
   @Before
   public void before() throws Exception {
-    DataStatisticsCoordinatorProvider.CoordinatorExecutorThreadFactory coordinatorThreadFactory =
-        new DataStatisticsCoordinatorProvider.CoordinatorExecutorThreadFactory(
-            TEST_OPERATOR_ID.toHexString(), getClass().getClassLoader());
-    ExecutorService coordinatorExecutor =
-        Executors.newSingleThreadExecutor(coordinatorThreadFactory);
     receivingTasks = EventReceivingTasks.createForRunningTasks();
     dataStatisticsCoordinator =
         new DataStatisticsCoordinator<>(
             OPERATOR_NAME,
-            coordinatorExecutor,
-            new DataStatisticsCoordinatorContext<>(
-                coordinatorExecutor,
-                coordinatorThreadFactory,
-                new MockOperatorCoordinatorContext(TEST_OPERATOR_ID, NUM_SUBTASKS)),
+            new MockOperatorCoordinatorContext(TEST_OPERATOR_ID, NUM_SUBTASKS),
             new MapDataStatisticsFactory<>());
   }
 
@@ -70,7 +59,9 @@ public class TestDataStatisticsCoordinator {
     Assert.assertThrows(
         failureMessage,
         IllegalStateException.class,
-        () -> dataStatisticsCoordinator.handleEventFromOperator(0, 0, null));
+        () ->
+            dataStatisticsCoordinator.handleEventFromOperator(
+                0, 0, new DataStatisticsEvent<>(0, new MapDataStatistics<>())));
     Assert.assertThrows(
         failureMessage,
         IllegalStateException.class,

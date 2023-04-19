@@ -23,6 +23,7 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
+import org.apache.flink.annotation.Internal;
 import org.apache.flink.runtime.operators.coordination.OperatorCoordinator;
 import org.apache.flink.util.ExceptionUtils;
 import org.apache.flink.util.FlinkRuntimeException;
@@ -32,7 +33,12 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class DataStatisticsCoordinatorContext<K> implements AutoCloseable {
+/**
+ * DataStatisticsCoordinatorContext is used by {@link DataStatisticsCoordinator} to communicate with
+ * {@link DataStatisticsOperator} via {@link OperatorCoordinator.SubtaskGateway}.
+ */
+@Internal
+class DataStatisticsCoordinatorContext<K> implements AutoCloseable {
 
   private static final Logger LOG = LoggerFactory.getLogger(DataStatisticsCoordinatorContext.class);
   private final ExecutorService coordinatorExecutor;
@@ -48,7 +54,7 @@ public class DataStatisticsCoordinatorContext<K> implements AutoCloseable {
     this.coordinatorExecutor = coordinatorExecutor;
     this.coordinatorThreadFactory = coordinatorThreadFactory;
     this.operatorCoordinatorContext = operatorCoordinatorContext;
-    this.subtaskGateways = new SubtaskGateways(currentParallelism());
+    this.subtaskGateways = new SubtaskGateways(parallelism());
   }
 
   @Override
@@ -62,18 +68,16 @@ public class DataStatisticsCoordinatorContext<K> implements AutoCloseable {
         () -> {
           DataStatisticsEvent<K> dataStatisticsEvent =
               new DataStatisticsEvent<>(checkpointId, globalDataStatistics);
-          int parallelism = currentParallelism();
+          int parallelism = parallelism();
           for (int i = 0; i < parallelism; ++i) {
             subtaskGateways.getOnlyGatewayAndCheckReady(i).sendEvent(dataStatisticsEvent);
           }
           return null;
         },
-        String.format(
-            "Failed to send global data statistics %s for checkpoint %d",
-            globalDataStatistics, checkpointId));
+        String.format("Failed to send global data statistics for checkpoint %d", checkpointId));
   }
 
-  int currentParallelism() {
+  int parallelism() {
     return operatorCoordinatorContext.currentParallelism();
   }
 
@@ -101,6 +105,7 @@ public class DataStatisticsCoordinatorContext<K> implements AutoCloseable {
    * not the coordinator thread, otherwise call the callable right away.
    *
    * @param callable the callable to delegate.
+   * @param errorMessage the error message to log when callable fails to execute.
    */
   void callInCoordinatorThread(Callable<Void> callable, String errorMessage) {
     // Ensure the task is done by the coordinator executor.
@@ -135,10 +140,10 @@ public class DataStatisticsCoordinatorContext<K> implements AutoCloseable {
     private final Map<Integer, OperatorCoordinator.SubtaskGateway>[] gateways;
 
     private SubtaskGateways(int parallelism) {
-      this.gateways = new Map[parallelism];
+      gateways = new Map[parallelism];
 
       for (int i = 0; i < parallelism; ++i) {
-        this.gateways[i] = Maps.newHashMap();
+        gateways[i] = Maps.newHashMap();
       }
     }
 
@@ -146,27 +151,27 @@ public class DataStatisticsCoordinatorContext<K> implements AutoCloseable {
       int subtaskIndex = gateway.getSubtask();
       int attemptNumber = gateway.getExecution().getAttemptNumber();
       Preconditions.checkState(
-          !this.gateways[subtaskIndex].containsKey(attemptNumber),
+          !gateways[subtaskIndex].containsKey(attemptNumber),
           "Already have a subtask gateway for %d (#%d).",
           subtaskIndex,
           attemptNumber);
-      this.gateways[subtaskIndex].put(attemptNumber, gateway);
+      gateways[subtaskIndex].put(attemptNumber, gateway);
     }
 
     private void unregisterSubtaskGateway(int subtaskIndex, int attemptNumber) {
-      this.gateways[subtaskIndex].remove(attemptNumber);
+      gateways[subtaskIndex].remove(attemptNumber);
     }
 
     private OperatorCoordinator.SubtaskGateway getOnlyGatewayAndCheckReady(int subtaskIndex) {
       Preconditions.checkState(
-          this.gateways[subtaskIndex].size() > 0,
+          gateways[subtaskIndex].size() > 0,
           "Subtask %d is not ready yet to receive events.",
           subtaskIndex);
-      return Iterables.getOnlyElement(this.gateways[subtaskIndex].values());
+      return Iterables.getOnlyElement(gateways[subtaskIndex].values());
     }
 
     private void reset(int subtaskIndex) {
-      this.gateways[subtaskIndex].clear();
+      gateways[subtaskIndex].clear();
     }
   }
 }
