@@ -438,8 +438,8 @@ public abstract class TestFlinkScan {
         TestFixtures.SCHEMA);
   }
 
-  @Test
-  public void testFilterExp() throws Exception {
+  private void testFilterExp(Expression filter, String sqlFilter, boolean caseSensitive)
+      throws Exception {
     Table table =
         catalogResource.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, TestFixtures.SCHEMA);
 
@@ -451,27 +451,23 @@ public abstract class TestFlinkScan {
     GenericAppenderHelper helper = new GenericAppenderHelper(table, fileFormat, TEMPORARY_FOLDER);
     DataFile dataFile = helper.writeFile(expectedRecords);
     helper.appendToTable(dataFile);
+
     List<Row> actual =
         runWithFilter(Expressions.greaterThanOrEqual("data", "b"), "where data>='b'", true);
+
     TestHelpers.assertRecords(actual, expectedRecords.subList(1, 3), TestFixtures.SCHEMA);
   }
 
   @Test
+  public void testFilterExp() throws Exception {
+    testFilterExp(Expressions.greaterThanOrEqual("data", "b"), "where data>='b'", true);
+  }
+
+  @Test
   public void testFilterExpCaseInsensitive() throws Exception {
-    Table table =
-        catalogResource.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, TestFixtures.SCHEMA);
-
-    List<Record> expectedRecords = RandomGenericData.generate(TestFixtures.SCHEMA, 3, 0L);
-    expectedRecords.get(0).set(0, "a");
-    expectedRecords.get(1).set(0, "b");
-    expectedRecords.get(2).set(0, "c");
-
-    GenericAppenderHelper helper = new GenericAppenderHelper(table, fileFormat, TEMPORARY_FOLDER);
-    DataFile dataFile = helper.writeFile(expectedRecords);
-    helper.appendToTable(dataFile);
-    List<Row> actual =
-        runWithFilter(Expressions.greaterThanOrEqual("DATA", "b"), "where data>='b'", false);
-    TestHelpers.assertRecords(actual, expectedRecords.subList(1, 3), TestFixtures.SCHEMA);
+    // sqlFilter does not support case-insensitive filtering:
+    // https://issues.apache.org/jira/browse/FLINK-16175
+    testFilterExp(Expressions.greaterThanOrEqual("DATA", "b"), "where data>='b'", false);
   }
 
   @Test
