@@ -75,6 +75,17 @@ The following properties can be set if using the REST catalog:
 | token      |          |        | A token which will be used to interact with the server.                     |
 
 
+## exteral table configuration
+
+Connect external tables in Flink, We can use the catalog configuration described above and the external table configuration described below.
+The following properties can be set if using the external table:
+
+| Property         | Required | Values | Description                                                                                                        |
+| -----------------|----------| ------ |--------------------------------------------------------------------------------------------------------------------|
+| catalog-name     |          |        | User-specified catalog name. It's required because the connector don't have any default value.                     |
+| catalog-database |          |        | The iceberg database name in the backend catalog, use the current flink database named by default                  |
+| catalog-table    |          |        | The iceberg table name in the backend catalog. Default to use the table name in the flink `CREATE TABLE` sentence. |
+
 ## Runtime configuration
 
 ### Read options

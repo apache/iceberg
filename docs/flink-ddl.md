@@ -153,7 +153,7 @@ CREATE TABLE `hive_catalog`.`default`.`sample` (
 );
 ```
 
-Table create commands support the commonly used [Flink create clauses](https://nightlies.apache.org/flink/flink-docs-master/docs/dev/table/sql/create/) including:
+Table create commands support the commonly used [Flink create clauses](https://nightlies.apache.org/flink/flink-docs-stable/docs/dev/table/sql/create/) including:
 
 * `PARTITION BY (column1, column2, ...)` to configure partitioning, Flink does not yet support hidden partitioning.
 * `COMMENT 'table document'` to set a table description.
@@ -187,15 +187,40 @@ CREATE TABLE `hive_catalog`.`default`.`sample` (
 CREATE TABLE  `hive_catalog`.`default`.`sample_like` LIKE `hive_catalog`.`default`.`sample`;
 ```
 
-For more details, refer to the [Flink `CREATE TABLE` documentation](https://nightlies.apache.org/flink/flink-docs-release-1.16/docs/dev/table/sql/create/).
+For more details, refer to the [Flink `CREATE TABLE` documentation](https://nightlies.apache.org/flink/flink-docs-stable/docs/dev/table/sql/create/).
 
+### `CONNECT TO A EXTERNAL TABLE`
+
+Apache Flink provides access to externally stored iceberg tables that can be used as source or sink. It doesn't hold any data there, so the schema definition only declares how to map columns from an external iceberg table to Flink’s representation. Want to know how to connect to other common external systems, go to the [Flink official document](https://nightlies.apache.org/flink/flink-docs-stable/docs/connectors/table/overview/).
+
+Flink SQL `CREATE TABLE sample_second (..) WITH ('connector'='iceberg', ...)` will access external iceberg table directly. The externally located database is automatically created if it does not exist when writing a record to a Flink table.
+
+Flink iceberg connector provides table properties.
+For more details, refer to the [exteral table configuration document](https://iceberg.apache.org/docs/latest/flink-configuration/#exteral-table-configuration)
+
+Want to link database and table with different name like `hive_db.hive_iceberg_table`, we can connect table like this:
+
+```sql
+CREATE TABLE `default`. `sample_second` (
+    id BIGINT COMMENT 'unique id',
+    data STRING
+) WITH (
+    'connector'='iceberg',
+    'catalog-type'='hive',
+    'uri'='thrift://localhost:9083',
+    'warehouse'='file:///path/to/warehouse'
+    'catalog-name'='hive_prod',
+    'catalog-database'='hive_db',
+    'catalog-table'='hive_iceberg_table',
+);
+```
 
 ### `ALTER TABLE`
 
 Iceberg only support altering table properties:
 
 ```sql
-ALTER TABLE `hive_catalog`.`default`.`sample` SET ('write.format.default'='avro')
+ALTER TABLE `hive_catalog`.`default`.`sample` SET ('write.format.default'='avro');
 ```
 
 ### `ALTER TABLE .. RENAME TO`
