@@ -167,7 +167,7 @@ class AddFilesProcedure extends BaseProcedure {
       Map<String, String> partitionFilter,
       boolean checkDuplicateFiles,
       PartitionSpec spec) {
-    // List Partitions via Spark InMemory file search interface
+    // List Partitions via custom InMemory partition path only index search interface
     List<SparkPartition> partitions =
         Spark3Util.getPartitions(spark(), tableLocation, format, partitionFilter, spec);
 

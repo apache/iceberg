@@ -29,7 +29,6 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.hadoop.fs.FileStatus;
-import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.NullOrder;
 import org.apache.iceberg.PartitionSpec;
@@ -46,6 +45,7 @@ import org.apache.iceberg.expressions.ExpressionVisitors;
 import org.apache.iceberg.expressions.Term;
 import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.expressions.Zorder;
+import org.apache.iceberg.hadoop.Util;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -503,10 +503,11 @@ public class Spark3Util {
   public static boolean isPartitioned(SparkSession spark, Path tableLocation) {
     try {
       return Arrays.stream(
-              FileSystem.get(spark.sessionState().newHadoopConf()).listStatus(tableLocation))
+              Util.getFs(tableLocation, spark.sessionState().newHadoopConf())
+                  .listStatus(tableLocation))
           .anyMatch(FileStatus::isDirectory);
     } catch (IOException e) {
-      throw new RuntimeException(e);
+      throw new RuntimeException("Unable to list files in path: " + tableLocation, e);
     }
   }
 

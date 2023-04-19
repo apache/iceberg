@@ -56,6 +56,8 @@ class InMemoryPartitionPathsIndex(
     cachedPartitionSpec
   }
 
+  override def allFiles(): Seq[FileStatus] = cachedLeafFiles.values.toSeq
+
   override protected def leafFiles: mutable.LinkedHashMap[Path, FileStatus] = cachedLeafFiles
 
   override protected def leafDirToChildrenFiles: Map[Path, Array[FileStatus]] = cachedLeafDirToChildrenFiles
@@ -89,7 +91,6 @@ class InMemoryPartitionPathsIndex(
    * @return
    */
   private def listLeafDirs(path: Path, partitionIndex: Int): mutable.LinkedHashSet[FileStatus] = {
-    val startTime = System.nanoTime()
     val output = mutable.LinkedHashSet[FileStatus]()
     val numPartitions = userSpecifiedSchema.fields.length
     if (partitionIndex < numPartitions) {
@@ -104,8 +105,6 @@ class InMemoryPartitionPathsIndex(
           }
         })
     }
-    logInfo(s"It took ${(System.nanoTime() - startTime) / (1000 * 1000)} ms to list leaf dirs" +
-      s" for path ${path}.")
     output
   }
 
@@ -119,5 +118,5 @@ class InMemoryPartitionPathsIndex(
       fs.getPermission,
       fs.getOwner,
       fs.getGroup,
-      new Path(fs.getPath, fs.getPath.toString + "/dummyDataFile"))
+      new Path(fs.getPath, "dummyDataFile"))
 }
