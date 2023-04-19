@@ -236,6 +236,7 @@ public class SortOrder implements Serializable {
       return this;
     }
 
+    @Override
     public Builder caseSensitive(boolean sortCaseSensitive) {
       this.caseSensitive = sortCaseSensitive;
       return this;
