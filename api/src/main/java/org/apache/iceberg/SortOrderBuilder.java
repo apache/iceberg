@@ -112,7 +112,6 @@ public interface SortOrderBuilder<R> {
    */
   default R caseSensitive(boolean caseSensitive) {
     throw new UnsupportedOperationException(
-        String.format(
-            "Setting case sensitivity is not supported by %s", this.getClass().getName()));
+        this.getClass().getName() + " doesn't implement caseSensitive");
   };
 }
