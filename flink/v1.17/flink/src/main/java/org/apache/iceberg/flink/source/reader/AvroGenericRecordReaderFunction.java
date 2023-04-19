@@ -18,12 +18,14 @@
  */
 package org.apache.iceberg.flink.source.reader;
 
+import java.util.List;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.configuration.ReadableConfig;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.encryption.EncryptionManager;
+import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.flink.source.AvroGenericRecordFileScanTaskReader;
 import org.apache.iceberg.flink.source.DataIterator;
 import org.apache.iceberg.flink.source.RowDataFileScanTaskReader;
@@ -54,7 +56,8 @@ public class AvroGenericRecordReaderFunction extends DataIteratorReaderFunction<
         null,
         false,
         table.io(),
-        table.encryption());
+        table.encryption(),
+        null);
   }
 
   public AvroGenericRecordReaderFunction(
@@ -65,14 +68,15 @@ public class AvroGenericRecordReaderFunction extends DataIteratorReaderFunction<
       String nameMapping,
       boolean caseSensitive,
       FileIO io,
-      EncryptionManager encryption) {
+      EncryptionManager encryption,
+      List<Expression> filters) {
     super(new ListDataIteratorBatcher<>(config));
     this.tableName = tableName;
     this.readSchema = readSchema(tableSchema, projectedSchema);
     this.io = io;
     this.encryption = encryption;
     this.rowDataReader =
-        new RowDataFileScanTaskReader(tableSchema, readSchema, nameMapping, caseSensitive);
+        new RowDataFileScanTaskReader(tableSchema, readSchema, nameMapping, caseSensitive, filters);
   }
 
   @Override
