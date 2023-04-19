@@ -30,6 +30,7 @@ import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.flink.configuration.CoreOptions;
 import org.apache.flink.table.api.TableEnvironment;
+import org.apache.flink.types.Row;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
@@ -52,9 +53,11 @@ import org.apache.iceberg.flink.FlinkCatalogTestBase;
 import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.Pair;
 import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Assert;
@@ -420,6 +423,11 @@ public class TestRewriteDataFilesAction extends FlinkCatalogTestBase {
     sql("INSERT INTO %s /*+ OPTIONS('upsert-enabled'='true')*/ SELECT 1, 'hi'", TABLE_NAME_WITH_PK);
 
     icebergTableWithPk.refresh();
+    Assert.assertEquals(
+        "The latest sequence number should be greater than that of the stale snapshot",
+        stale1.currentSnapshot().sequenceNumber() + 1,
+        icebergTableWithPk.currentSnapshot().sequenceNumber());
+
     CloseableIterable<FileScanTask> tasks = icebergTableWithPk.newScan().planFiles();
     List<DataFile> dataFiles =
         Lists.newArrayList(CloseableIterable.transform(tasks, FileScanTask::file));
@@ -433,10 +441,9 @@ public class TestRewriteDataFilesAction extends FlinkCatalogTestBase {
         "The 1 delete file should be an equality-delete file",
         Iterables.getOnlyElement(deleteFiles).content(),
         FileContent.EQUALITY_DELETES);
-    Assert.assertEquals(
-        "The latest sequence number should be greater than that of the stale snapshot",
-        stale1.currentSnapshot().sequenceNumber() + 1,
-        icebergTableWithPk.currentSnapshot().sequenceNumber());
+    shouldHaveDataAndFileSequenceNumbers(
+        TABLE_NAME_WITH_PK,
+        ImmutableList.of(Pair.of(1L, 1L), Pair.of(2L, 2L), Pair.of(3L, 3L), Pair.of(3L, 3L)));
 
     Assertions.assertThatThrownBy(
             () ->
@@ -454,11 +461,28 @@ public class TestRewriteDataFilesAction extends FlinkCatalogTestBase {
     // Should not rewrite files from the new commit
     Assert.assertEquals("Action should rewrite 2 data files", 2, result.deletedDataFiles().size());
     Assert.assertEquals("Action should add 1 data file", 1, result.addedDataFiles().size());
+    shouldHaveDataAndFileSequenceNumbers(
+        TABLE_NAME_WITH_PK, ImmutableList.of(Pair.of(3L, 3L), Pair.of(3L, 3L), Pair.of(2L, 4L)));
 
     // Assert the table records as expected.
     SimpleDataUtil.assertTableRecords(
         icebergTableWithPk,
         Lists.newArrayList(
             SimpleDataUtil.createRecord(1, "hi"), SimpleDataUtil.createRecord(2, "world")));
+  }
+
+  private void shouldHaveDataAndFileSequenceNumbers(
+      String tableName, List<Pair<Long, Long>> expectedSequenceNumbers) {
+    // "status < 2" for added or existing entries
+    List<Row> liveEntries = sql("SELECT * FROM %s$entries WHERE status < 2", tableName);
+
+    List<Pair<Long, Long>> actualSequenceNumbers =
+        liveEntries.stream()
+            .map(
+                row ->
+                    Pair.<Long, Long>of(
+                        row.getFieldAs("sequence_number"), row.getFieldAs("file_sequence_number")))
+            .collect(Collectors.toList());
+    Assertions.assertThat(actualSequenceNumbers).hasSameElementsAs(expectedSequenceNumbers);
   }
 }
