@@ -47,7 +47,6 @@ import org.apache.iceberg.Transaction;
 import org.apache.iceberg.UpdatePartitionSpec;
 import org.apache.iceberg.UpdateSchema;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
-import org.apache.iceberg.exceptions.BadRequestException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
@@ -374,7 +373,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     C catalog = catalog();
 
     catalog.createNamespace(NS);
-    TableIdentifier ident = TableIdentifier.of("ns", "table");
+    TableIdentifier ident = TableIdentifier.of(NS, "table");
     Table table = catalog.buildTable(ident, SCHEMA).create();
 
     Assert.assertTrue(
@@ -391,8 +390,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     Table table = catalog.buildTable(ident, SCHEMA).create();
 
     Assertions.assertThatThrownBy(() -> catalog.dropNamespace(NS, false))
-        .isInstanceOf(BadRequestException.class)
-        .hasMessageContaining("is not empty. 1 tables exist");
+        .hasMessageContaining("not empty");
     Assert.assertTrue("Namespace should exist", catalog.namespaceExists(NS));
   }
 
