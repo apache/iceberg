@@ -158,7 +158,7 @@ class DataStatisticsCoordinator<K> implements OperatorCoordinator {
       } else {
         LOG.info(
             "Received data statistics from {} operators out of total {} for checkpoint {}. "
-                + "It's less than the expected percentage {}. Thus dropping the incomplete aggregate "
+                + "It's less than the expected percentage {}. Dropping the incomplete aggregate "
                 + "data statistics {} and starting collecting data statistics from new checkpoint {}",
             inProgressAggregator.aggregatedSubtasksCount(),
             context.parallelism(),
