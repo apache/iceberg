@@ -52,8 +52,8 @@ pydantic = "^1.9" # JUST: 1.8.2 and below are not compatible with `pyiceberg` (t
 fsspec = ">=2021.09.0,<2024.1.0" # JUST: Lower bound for `lexists` support; see https://github.com/fsspec/filesystem_spec/commit/315c3431b3f917dd64c9454f5c38d8ea36b6db48.
 pyparsing = "^3.0.7" # JUST: `min` keyword added in https://github.com/pyparsing/pyparsing/commit/18ea2e761a7d1a097d9b42064678d1d10aba803c.
 zstandard = ">=0.13.0,<1.0.0" # JUST: 0.13 added support for Python 3.8. For some reason, "^0.13" or "^0.13.0" keeps going for 0.13 instead of 0.21 with `poetry lock`, hence the explicit declaration.
-pyarrow = { version = ">=8.0.0,<=11.0.0", optional = true }
-pandas = { version = ">=1.4.4,<=1.5.3", optional = true }
+pyarrow = { version = ">=7.0.0,<12.0.0", optional = true } # JUST: 7 works. PyArrow has a weird versioning scheme, so it's hard to place an upper bound permissively.
+pandas = { version = ">=1.0.0,<3.0.0", optional = true } # JUST: Only used for PyArrow conversion, so same as https://arrow.apache.org/docs/python/install.html#dependencies. Threw in Pandas 2.0 support (easy).
 duckdb = ">=0.5.0,<1.0.0" # JUST: The DuckDB functionality is very limited, but starting off conservative. Same issue as `zstandard` if providing "^0.5".
 ray = { version = "^2", optional = true } # JUST: Relaxed upper bound (lower bound untouched).
 python-snappy = { version = "^0.6", optional = true } # JUST: I can't find release notes for this library, so being very conservative.
