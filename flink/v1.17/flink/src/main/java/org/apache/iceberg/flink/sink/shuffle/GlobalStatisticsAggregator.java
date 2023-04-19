@@ -68,7 +68,7 @@ class GlobalStatisticsAggregator<K> implements Serializable {
     dataStatistics.merge(event.dataStatistics());
   }
 
-  long accumulatedSubtasksCount() {
+  long aggregatedSubtasksCount() {
     return subtaskSet.size();
   }
 

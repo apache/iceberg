@@ -22,7 +22,6 @@ import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.TimeUnit;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.runtime.operators.coordination.OperatorCoordinator;
 import org.apache.flink.util.ExceptionUtils;
@@ -38,7 +37,7 @@ import org.slf4j.LoggerFactory;
  * {@link DataStatisticsOperator} via {@link OperatorCoordinator.SubtaskGateway}.
  */
 @Internal
-class DataStatisticsCoordinatorContext<K> implements AutoCloseable {
+class DataStatisticsCoordinatorContext<K> {
 
   private static final Logger LOG = LoggerFactory.getLogger(DataStatisticsCoordinatorContext.class);
   private final ExecutorService coordinatorExecutor;
@@ -55,12 +54,6 @@ class DataStatisticsCoordinatorContext<K> implements AutoCloseable {
     this.coordinatorThreadFactory = coordinatorThreadFactory;
     this.operatorCoordinatorContext = operatorCoordinatorContext;
     this.subtaskGateways = new SubtaskGateways(parallelism());
-  }
-
-  @Override
-  public void close() throws Exception {
-    coordinatorExecutor.shutdown();
-    coordinatorExecutor.awaitTermination(Long.MAX_VALUE, TimeUnit.MILLISECONDS);
   }
 
   void sendDataStatisticsToSubtasks(long checkpointId, DataStatistics<K> globalDataStatistics) {
@@ -155,10 +148,12 @@ class DataStatisticsCoordinatorContext<K> implements AutoCloseable {
           "Already have a subtask gateway for %d (#%d).",
           subtaskIndex,
           attemptNumber);
+      LOG.debug("Register gateway for subtask {} attempt {}", subtaskIndex, attemptNumber);
       gateways[subtaskIndex].put(attemptNumber, gateway);
     }
 
     private void unregisterSubtaskGateway(int subtaskIndex, int attemptNumber) {
+      LOG.debug("Unregister gateway for subtask {} attempt {}", subtaskIndex, attemptNumber);
       gateways[subtaskIndex].remove(attemptNumber);
     }
 

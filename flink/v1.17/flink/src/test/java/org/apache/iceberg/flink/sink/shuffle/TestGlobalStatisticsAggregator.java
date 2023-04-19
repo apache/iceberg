@@ -43,13 +43,13 @@ public class TestGlobalStatisticsAggregator {
         3L,
         (long)
             ((MapDataStatistics<String>) globalStatisticsAggregator.dataStatistics())
-                .dataStatistics()
+                .mapStatistics()
                 .get("a"));
     Assertions.assertEquals(
         1L,
         (long)
             ((MapDataStatistics<String>) globalStatisticsAggregator.dataStatistics())
-                .dataStatistics()
+                .mapStatistics()
                 .get("b"));
   }
 }

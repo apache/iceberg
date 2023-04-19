@@ -102,17 +102,17 @@ public class TestDataStatisticsCoordinator {
         (MapDataStatistics<String>)
             dataStatisticsCoordinator.completeAggregatedDataStatistics().dataStatistics();
     Assert.assertEquals(
-        checkpoint1Subtask0DataStatistic.dataStatistics().get("a")
-            + (long) checkpoint1Subtask1DataStatistic.dataStatistics().get("a"),
-        (long) globalDataStatistics.dataStatistics().get("a"));
+        checkpoint1Subtask0DataStatistic.mapStatistics().get("a")
+            + (long) checkpoint1Subtask1DataStatistic.mapStatistics().get("a"),
+        (long) globalDataStatistics.mapStatistics().get("a"));
     Assert.assertEquals(
-        checkpoint1Subtask0DataStatistic.dataStatistics().get("b")
-            + (long) checkpoint1Subtask1DataStatistic.dataStatistics().get("b"),
-        (long) globalDataStatistics.dataStatistics().get("b"));
+        checkpoint1Subtask0DataStatistic.mapStatistics().get("b")
+            + (long) checkpoint1Subtask1DataStatistic.mapStatistics().get("b"),
+        (long) globalDataStatistics.mapStatistics().get("b"));
     Assert.assertEquals(
-        checkpoint1Subtask0DataStatistic.dataStatistics().get("c")
-            + (long) checkpoint1Subtask1DataStatistic.dataStatistics().get("c"),
-        (long) globalDataStatistics.dataStatistics().get("c"));
+        checkpoint1Subtask0DataStatistic.mapStatistics().get("c")
+            + (long) checkpoint1Subtask1DataStatistic.mapStatistics().get("c"),
+        (long) globalDataStatistics.mapStatistics().get("c"));
   }
 
   @Test
@@ -161,13 +161,13 @@ public class TestDataStatisticsCoordinator {
         (MapDataStatistics<String>)
             dataStatisticsCoordinator.completeAggregatedDataStatistics().dataStatistics();
     Assert.assertEquals(
-        checkpoint3Subtask0DataStatistic.dataStatistics().get("a")
-            + checkpoint3Subtask1DataStatistic.dataStatistics().get("a"),
-        (long) globalDataStatistics.dataStatistics().get("a"));
+        checkpoint3Subtask0DataStatistic.mapStatistics().get("a")
+            + checkpoint3Subtask1DataStatistic.mapStatistics().get("a"),
+        (long) globalDataStatistics.mapStatistics().get("a"));
     Assert.assertEquals(
-        checkpoint3Subtask0DataStatistic.dataStatistics().get("b")
-            + checkpoint3Subtask1DataStatistic.dataStatistics().get("b"),
-        (long) globalDataStatistics.dataStatistics().get("b"));
+        checkpoint3Subtask0DataStatistic.mapStatistics().get("b")
+            + checkpoint3Subtask1DataStatistic.mapStatistics().get("b"),
+        (long) globalDataStatistics.mapStatistics().get("b"));
     Assert.assertNull(dataStatisticsCoordinator.incompleteAggregatedDataStatistics());
 
     MapDataStatistics<String> checkpoint1Subtask1DataStatistic = new MapDataStatistics<>();

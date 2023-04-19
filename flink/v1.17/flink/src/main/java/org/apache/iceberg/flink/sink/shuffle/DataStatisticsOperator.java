@@ -123,6 +123,10 @@ class DataStatisticsOperator<D extends DataStatistics<D, S>, S>
         checkpointId,
         subTaskId);
 
+    // Send global statistics to partitioners at checkpoint to update data distribution at the same
+    // time
+    output.collect(new StreamRecord<>(DataStatisticsOrRecord.fromDataStatistics(globalStatistics)));
+
     // Only subtask 0 saves the state so that globalStatisticsState(UnionListState) stores
     // an exact copy of globalStatistics
     if (!globalStatistics.isEmpty() && getRuntimeContext().getIndexOfThisSubtask() == 0) {
@@ -131,20 +135,17 @@ class DataStatisticsOperator<D extends DataStatistics<D, S>, S>
       globalStatisticsState.add(globalStatistics);
     }
 
-    // For now, we make it simple to send globalStatisticsState at checkpoint
+    // For now, we make it simple to send localStatistics at checkpoint
     operatorEventGateway.sendEventToCoordinator(
         new DataStatisticsEvent<>(checkpointId, localStatistics));
+    LOG.debug(
+        "Send local statistics {} from subtask {} at checkpoint {} to coordinator",
+        localStatistics,
+        subTaskId,
+        checkpointId);
 
     // Recreate the local statistics
     localStatistics = statisticsSerializer.createInstance();
-  }
-
-  @Override
-  public void notifyCheckpointComplete(long checkpointId) throws Exception {
-    super.notifyCheckpointComplete(checkpointId);
-    // Send global statistics to partitioners at checkpoint to update data distribution at the same
-    // time
-    output.collect(new StreamRecord<>(DataStatisticsOrRecord.fromDataStatistics(globalStatistics)));
   }
 
   @VisibleForTesting
