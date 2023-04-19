@@ -73,6 +73,7 @@ class KeyMetadata implements EncryptionKeyMetadata, IndexedRecord {
 
   static KeyMetadata parse(ByteBuffer buffer) {
     KeyMetadataDecoder<IndexedRecord> decoder = DECODER.get();
+
     try {
       return (KeyMetadata) decoder.decode(buffer);
     } catch (IOException e) {
@@ -83,6 +84,7 @@ class KeyMetadata implements EncryptionKeyMetadata, IndexedRecord {
   @Override
   public ByteBuffer buffer() {
     KeyMetadataEncoder<IndexedRecord> encoder = ENCODER.get();
+
     try {
       return encoder.encode(this);
     } catch (IOException e) {

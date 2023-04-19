@@ -48,6 +48,7 @@ public class KeyMetadataDecoder<D> extends MessageDecoder.BaseDecoder<D> {
   @Override
   public D decode(InputStream stream, D reuse) throws IOException {
     byte writeSchemaVersion;
+
     try {
       writeSchemaVersion = (byte) stream.read();
     } catch (IOException e) {
@@ -66,6 +67,7 @@ public class KeyMetadataDecoder<D> extends MessageDecoder.BaseDecoder<D> {
     }
 
     RawDecoder<D> decoder = decoders.get(writeSchemaVersion);
+
     if (decoder == null) {
       Function<Schema, DatumReader<?>> createReaderFunc =
           schema -> {
