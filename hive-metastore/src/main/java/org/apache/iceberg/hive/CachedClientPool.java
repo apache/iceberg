@@ -107,7 +107,7 @@ public class CachedClientPool implements ClientPool<IMetaStoreClient, TException
               .removalListener((ignored, value, cause) -> ((HiveClientPool) value).close())
               .scheduler(
                   Scheduler.forScheduledExecutorService(
-                      ThreadPools.newScheduledPool("hive-metastore-cleaner", 2)))
+                      ThreadPools.newScheduledPool("hive-metastore-cleaner", 1)))
               .build();
     }
   }
