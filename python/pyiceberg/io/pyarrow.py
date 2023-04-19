@@ -127,7 +127,7 @@ ONE_MEGABYTE = 1024 * 1024
 BUFFER_SIZE = "buffer-size"
 ICEBERG_SCHEMA = b"iceberg.schema"
 FIELD_ID = "field_id"
-FIELD_DOC = "doc"
+DOC = "doc"
 PYARROW_FIELD_ID_KEYS = [b"PARQUET:field_id", b"field_id"]
 PYARROW_FIELD_DOC_KEYS = [b"PARQUET:field_doc", b"field_doc", b"doc"]
 
@@ -368,7 +368,7 @@ class _ConvertToArrowSchema(SchemaVisitorPerPrimitiveType[pa.DataType], Singleto
             name=field.name,
             type=field_result,
             nullable=field.optional,
-            metadata={FIELD_DOC: field.doc, FIELD_ID: str(field.field_id)} if field.doc else {FIELD_ID: str(field.field_id)},
+            metadata={DOC: field.doc, FIELD_ID: str(field.field_id)} if field.doc else {FIELD_ID: str(field.field_id)},
         )
 
     def list(self, list_type: ListType, element_result: pa.DataType) -> pa.DataType:
@@ -501,17 +501,11 @@ def expression_to_pyarrow(expr: BooleanExpression) -> pc.Expression:
 
 def pyarrow_to_schema(schema: pa.Schema) -> Schema:
     visitor = _ConvertToIceberg()
-    struct_results: List[Optional[IcebergType]] = []
-    for field in schema:
-        visitor.before_field(field)
-        struct_result = visit_pyarrow(field.type, visitor)
-        visitor.after_field(field)
-        struct_results.append(struct_result)
-    return visitor.schema(schema, struct_results)
+    return visit_pyarrow(schema, visitor)
 
 
 @singledispatch
-def visit_pyarrow(obj: pa.DataType, visitor: PyArrowSchemaVisitor[T]) -> T:
+def visit_pyarrow(obj: pa.DataType | pa.Schema, visitor: PyArrowSchemaVisitor[T]) -> T:
     """A generic function for applying a pyarrow schema visitor to any point within a schema
 
     The function traverses the schema in post-order fashion
@@ -526,8 +520,20 @@ def visit_pyarrow(obj: pa.DataType, visitor: PyArrowSchemaVisitor[T]) -> T:
     raise NotImplementedError("Cannot visit non-type: %s" % obj)
 
 
+@visit_pyarrow.register(pa.Schema)
+def _(obj: pa.Schema, visitor: PyArrowSchemaVisitor[T]) -> Optional[T]:
+    struct_results: List[Optional[T]] = []
+    for field in obj:
+        visitor.before_field(field)
+        struct_result = visit_pyarrow(field.type, visitor)
+        visitor.after_field(field)
+        struct_results.append(struct_result)
+
+    return visitor.schema(obj, struct_results)
+
+
 @visit_pyarrow.register(pa.StructType)
-def _(obj: pa.StructType, visitor: PyArrowSchemaVisitor[T]) -> T:
+def _(obj: pa.StructType, visitor: PyArrowSchemaVisitor[T]) -> Optional[T]:
     struct_results: List[Optional[T]] = []
     for field in obj:
         visitor.before_field(field)
@@ -558,7 +564,7 @@ def _(obj: pa.MapType, visitor: PyArrowSchemaVisitor[T]) -> Optional[T]:
 
 
 @visit_pyarrow.register(pa.DataType)
-def _(obj: pa.DataType, visitor: PyArrowSchemaVisitor[T]) -> T:
+def _(obj: pa.DataType, visitor: PyArrowSchemaVisitor[T]) -> Optional[T]:
     if pa.types.is_nested(obj):
         raise TypeError(f"Expected primitive type, got: {type(obj)}")
     return visitor.primitive(obj)
@@ -590,11 +596,11 @@ class PyArrowSchemaVisitor(Generic[T], ABC):
         """Override this method to perform an action immediately after visiting a map value."""
 
     @abstractmethod
-    def schema(self, schema: pa.Schema, field_results: List[Optional[T]]) -> Schema:
+    def schema(self, schema: pa.Schema, field_results: List[Optional[T]]) -> Optional[T]:
         """visit a schema"""
 
     @abstractmethod
-    def struct(self, struct: pa.StructType, field_results: List[Optional[T]]) -> T:
+    def struct(self, struct: pa.StructType, field_results: List[Optional[T]]) -> Optional[T]:
         """visit a struct"""
 
     @abstractmethod
@@ -606,7 +612,7 @@ class PyArrowSchemaVisitor(Generic[T], ABC):
         """visit a map"""
 
     @abstractmethod
-    def primitive(self, primitive: pa.DataType) -> T:
+    def primitive(self, primitive: pa.DataType) -> Optional[T]:
         """visit a primitive type"""
 
 
@@ -627,7 +633,7 @@ def _get_field_id_and_doc(field: pa.Field) -> Tuple[Optional[int], Optional[str]
     return field_id, doc
 
 
-class _ConvertToIceberg(PyArrowSchemaVisitor[IcebergType]):
+class _ConvertToIceberg(PyArrowSchemaVisitor[Union[IcebergType, Schema]]):
     def schema(self, schema: pa.Schema, field_results: List[Optional[IcebergType]]) -> Schema:
         fields = []
         for i, field in enumerate(schema):
