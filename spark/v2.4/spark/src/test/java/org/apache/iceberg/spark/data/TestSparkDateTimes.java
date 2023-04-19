@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.data;
 
 import java.util.TimeZone;
@@ -65,7 +64,7 @@ public class TestSparkDateTimes {
   public void checkSparkTimestamp(String timestampString, String sparkRepr) {
     Literal<Long> ts = Literal.of(timestampString).to(Types.TimestampType.withZone());
     String sparkTimestamp = DateTimeUtils.timestampToString(ts.value());
-    Assert.assertEquals("Should be the same timestamp (" + ts.value() + ")",
-        sparkRepr, sparkTimestamp);
+    Assert.assertEquals(
+        "Should be the same timestamp (" + ts.value() + ")", sparkRepr, sparkTimestamp);
   }
 }

@@ -16,8 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
+
+import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.junit.Assert.assertEquals;
 
 import java.io.File;
 import java.io.IOException;
@@ -36,14 +38,11 @@ import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
-import static org.apache.iceberg.types.Types.NestedField.required;
-import static org.junit.Assert.assertEquals;
-
 @RunWith(Parameterized.class)
 public class TestFilterFiles {
   @Parameterized.Parameters(name = "formatVersion = {0}")
   public static Object[] parameters() {
-    return new Object[] { 1, 2 };
+    return new Object[] {1, 2};
   }
 
   public final int formatVersion;
@@ -52,11 +51,10 @@ public class TestFilterFiles {
     this.formatVersion = formatVersion;
   }
 
-  @Rule
-  public TemporaryFolder temp = new TemporaryFolder();
-  private final Schema schema = new Schema(
-      required(1, "id", Types.IntegerType.get()),
-      required(2, "data", Types.StringType.get()));
+  @Rule public TemporaryFolder temp = new TemporaryFolder();
+  private final Schema schema =
+      new Schema(
+          required(1, "id", Types.IntegerType.get()), required(2, "data", Types.StringType.get()));
   private File tableDir = null;
 
   @Before
@@ -103,14 +101,22 @@ public class TestFilterFiles {
     lowerBounds.put(1, Conversions.toByteBuffer(Types.IntegerType.get(), 1));
     upperBounds.put(1, Conversions.toByteBuffer(Types.IntegerType.get(), 2));
 
-    Metrics metrics = new Metrics(2L, Maps.newHashMap(), Maps.newHashMap(),
-        Maps.newHashMap(), null, lowerBounds, upperBounds);
+    Metrics metrics =
+        new Metrics(
+            2L,
+            Maps.newHashMap(),
+            Maps.newHashMap(),
+            Maps.newHashMap(),
+            null,
+            lowerBounds,
+            upperBounds);
 
-    DataFile file = DataFiles.builder(table.spec())
-        .withPath("/path/to/file.parquet")
-        .withFileSizeInBytes(0)
-        .withMetrics(metrics)
-        .build();
+    DataFile file =
+        DataFiles.builder(table.spec())
+            .withPath("/path/to/file.parquet")
+            .withFileSizeInBytes(0)
+            .withMetrics(metrics)
+            .build();
 
     table.newAppend().appendFile(file).commit();
 
@@ -129,14 +135,22 @@ public class TestFilterFiles {
     lowerBounds.put(1, Conversions.toByteBuffer(Types.IntegerType.get(), 1));
     upperBounds.put(1, Conversions.toByteBuffer(Types.IntegerType.get(), 2));
 
-    Metrics metrics = new Metrics(2L, Maps.newHashMap(), Maps.newHashMap(),
-        Maps.newHashMap(), null, lowerBounds, upperBounds);
+    Metrics metrics =
+        new Metrics(
+            2L,
+            Maps.newHashMap(),
+            Maps.newHashMap(),
+            Maps.newHashMap(),
+            null,
+            lowerBounds,
+            upperBounds);
 
-    DataFile file = DataFiles.builder(table.spec())
-        .withPath("/path/to/file.parquet")
-        .withFileSizeInBytes(0)
-        .withMetrics(metrics)
-        .build();
+    DataFile file =
+        DataFiles.builder(table.spec())
+            .withPath("/path/to/file.parquet")
+            .withFileSizeInBytes(0)
+            .withMetrics(metrics)
+            .build();
 
     table.newAppend().appendFile(file).commit();
 
@@ -145,7 +159,8 @@ public class TestFilterFiles {
     TableScan emptyScan = table.newScan().caseSensitive(false).filter(Expressions.equal("ID", 5));
     assertEquals(0, Iterables.size(emptyScan.planFiles()));
 
-    TableScan nonEmptyScan = table.newScan().caseSensitive(false).filter(Expressions.equal("ID", 1));
+    TableScan nonEmptyScan =
+        table.newScan().caseSensitive(false).filter(Expressions.equal("ID", 1));
     assertEquals(1, Iterables.size(nonEmptyScan.planFiles()));
   }
 }

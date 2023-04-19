@@ -16,45 +16,43 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 /**
  * Data operations that produce snapshots.
- * <p>
- * A snapshot can return the operation that created the snapshot to help other components ignore
+ *
+ * <p>A snapshot can return the operation that created the snapshot to help other components ignore
  * snapshots that are not needed for some tasks. For example, snapshot expiration does not need to
  * clean up deleted files for appends, which have no deleted files.
  */
 public class DataOperations {
-  private DataOperations() {
-  }
+  private DataOperations() {}
 
   /**
    * New data is appended to the table and no data is removed or deleted.
-   * <p>
-   * This operation is implemented by {@link AppendFiles}.
+   *
+   * <p>This operation is implemented by {@link AppendFiles}.
    */
   public static final String APPEND = "append";
 
   /**
    * Files are removed and replaced, without changing the data in the table.
-   * <p>
-   * This operation is implemented by {@link RewriteFiles}.
+   *
+   * <p>This operation is implemented by {@link RewriteFiles}.
    */
   public static final String REPLACE = "replace";
 
   /**
    * New data is added to overwrite existing data.
-   * <p>
-   * This operation is implemented by {@link OverwriteFiles} and {@link ReplacePartitions}.
+   *
+   * <p>This operation is implemented by {@link OverwriteFiles} and {@link ReplacePartitions}.
    */
   public static final String OVERWRITE = "overwrite";
 
   /**
    * Data is deleted from the table and no data is added.
-   * <p>
-   * This operation is implemented by {@link DeleteFiles}.
+   *
+   * <p>This operation is implemented by {@link DeleteFiles}.
    */
   public static final String DELETE = "delete";
 }

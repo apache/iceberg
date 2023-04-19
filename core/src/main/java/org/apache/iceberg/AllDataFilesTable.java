@@ -16,31 +16,30 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import org.apache.iceberg.io.CloseableIterable;
 
 /**
  * A {@link Table} implementation that exposes a table's valid data files as rows.
- * <p>
- * A valid data file is one that is readable from any snapshot currently tracked by the table.
- * <p>
- * This table may return duplicate rows.
+ *
+ * <p>A valid data file is one that is readable from any snapshot currently tracked by the table.
+ *
+ * <p>This table may return duplicate rows.
  */
 public class AllDataFilesTable extends BaseFilesTable {
 
-  AllDataFilesTable(TableOperations ops, Table table) {
-    this(ops, table, table.name() + ".all_data_files");
+  AllDataFilesTable(Table table) {
+    this(table, table.name() + ".all_data_files");
   }
 
-  AllDataFilesTable(TableOperations ops, Table table, String name) {
-    super(ops, table, name);
+  AllDataFilesTable(Table table, String name) {
+    super(table, name);
   }
 
   @Override
   public TableScan newScan() {
-    return new AllDataFilesTableScan(operations(), table(), schema());
+    return new AllDataFilesTableScan(table(), schema());
   }
 
   @Override
@@ -50,23 +49,22 @@ public class AllDataFilesTable extends BaseFilesTable {
 
   public static class AllDataFilesTableScan extends BaseAllFilesTableScan {
 
-    AllDataFilesTableScan(TableOperations ops, Table table, Schema schema) {
-      super(ops, table, schema, MetadataTableType.ALL_DATA_FILES);
+    AllDataFilesTableScan(Table table, Schema schema) {
+      super(table, schema, MetadataTableType.ALL_DATA_FILES);
     }
 
-    private AllDataFilesTableScan(TableOperations ops, Table table, Schema schema,
-                                  TableScanContext context) {
-      super(ops, table, schema, MetadataTableType.ALL_DATA_FILES, context);
+    private AllDataFilesTableScan(Table table, Schema schema, TableScanContext context) {
+      super(table, schema, MetadataTableType.ALL_DATA_FILES, context);
     }
 
     @Override
-    protected TableScan newRefinedScan(TableOperations ops, Table table, Schema schema, TableScanContext context) {
-      return new AllDataFilesTableScan(ops, table, schema, context);
+    protected TableScan newRefinedScan(Table table, Schema schema, TableScanContext context) {
+      return new AllDataFilesTableScan(table, schema, context);
     }
 
     @Override
     protected CloseableIterable<ManifestFile> manifests() {
-      return reachableManifests(snapshot -> snapshot.dataManifests(tableOps().io()));
+      return reachableManifests(snapshot -> snapshot.dataManifests(table().io()));
     }
   }
 }

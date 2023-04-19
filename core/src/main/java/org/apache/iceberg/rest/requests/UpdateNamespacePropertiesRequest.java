@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.rest.requests;
 
 import java.util.Collection;
@@ -34,9 +33,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.rest.RESTRequest;
 
-/**
- * A REST request to set and/or remove properties on a namespace.
- */
+/** A REST request to set and/or remove properties on a namespace. */
 public class UpdateNamespacePropertiesRequest implements RESTRequest {
 
   private List<String> removals;
@@ -85,40 +82,34 @@ public class UpdateNamespacePropertiesRequest implements RESTRequest {
     private final ImmutableSet.Builder<String> removalsBuilder = ImmutableSet.builder();
     private final ImmutableMap.Builder<String, String> updatesBuilder = ImmutableMap.builder();
 
-    private Builder() {
-    }
+    private Builder() {}
 
     public Builder remove(String removal) {
-      Preconditions.checkNotNull(removal,
-          "Invalid property to remove: null");
+      Preconditions.checkNotNull(removal, "Invalid property to remove: null");
       removalsBuilder.add(removal);
       return this;
     }
 
     public Builder removeAll(Collection<String> removals) {
-      Preconditions.checkNotNull(removals,
-          "Invalid list of properties to remove: null");
-      Preconditions.checkArgument(!removals.contains(null),
-          "Invalid property to remove: null");
+      Preconditions.checkNotNull(removals, "Invalid list of properties to remove: null");
+      Preconditions.checkArgument(!removals.contains(null), "Invalid property to remove: null");
       removalsBuilder.addAll(removals);
       return this;
     }
 
     public Builder update(String key, String value) {
-      Preconditions.checkNotNull(key,
-          "Invalid property to update: null");
-      Preconditions.checkNotNull(value,
-          "Invalid value to update for key [%s]: null. Use remove instead", key);
+      Preconditions.checkNotNull(key, "Invalid property to update: null");
+      Preconditions.checkNotNull(
+          value, "Invalid value to update for key [%s]: null. Use remove instead", key);
       updatesBuilder.put(key, value);
       return this;
     }
 
     public Builder updateAll(Map<String, String> updates) {
-      Preconditions.checkNotNull(updates,
-          "Invalid collection of properties to update: null");
-      Preconditions.checkArgument(!updates.containsKey(null),
-          "Invalid property to update: null");
-      Preconditions.checkArgument(!updates.containsValue(null),
+      Preconditions.checkNotNull(updates, "Invalid collection of properties to update: null");
+      Preconditions.checkArgument(!updates.containsKey(null), "Invalid property to update: null");
+      Preconditions.checkArgument(
+          !updates.containsValue(null),
           "Invalid value to update for properties %s: null. Use remove instead",
           Maps.filterValues(updates, Objects::isNull).keySet());
       updatesBuilder.putAll(updates);
@@ -133,4 +124,3 @@ public class UpdateNamespacePropertiesRequest implements RESTRequest {
     }
   }
 }
-

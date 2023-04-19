@@ -16,15 +16,15 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.actions;
 
 import org.apache.iceberg.Table;
 import org.apache.spark.sql.SparkSession;
 
 /**
- * @deprecated since 0.12.0, used for supporting {@link RewriteDataFilesAction} in Spark 2.4 for backward compatibility.
- * This implementation is no longer maintained, the new implementation is available with Spark 3.x
+ * @deprecated since 0.12.0, used for supporting {@link RewriteDataFilesAction} in Spark 2.4 for
+ *     backward compatibility. This implementation is no longer maintained, the new implementation
+ *     is available with Spark 3
  */
 @Deprecated
 class SparkActions extends Actions {

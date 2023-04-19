@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.source;
 
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -29,21 +28,28 @@ public class TestStreamingOffset {
 
   @Test
   public void testJsonConversion() {
-    org.apache.iceberg.spark.source.StreamingOffset[] expected = new org.apache.iceberg.spark.source.StreamingOffset[]{
-        new org.apache.iceberg.spark.source.StreamingOffset(System.currentTimeMillis(), 1L, false),
-        new org.apache.iceberg.spark.source.StreamingOffset(System.currentTimeMillis(), 2L, false),
-        new org.apache.iceberg.spark.source.StreamingOffset(System.currentTimeMillis(), 3L, false),
-        new org.apache.iceberg.spark.source.StreamingOffset(System.currentTimeMillis(), 4L, true)
-    };
-    Assert.assertArrayEquals("StreamingOffsets should match", expected,
+    org.apache.iceberg.spark.source.StreamingOffset[] expected =
+        new org.apache.iceberg.spark.source.StreamingOffset[] {
+          new org.apache.iceberg.spark.source.StreamingOffset(
+              System.currentTimeMillis(), 1L, false),
+          new org.apache.iceberg.spark.source.StreamingOffset(
+              System.currentTimeMillis(), 2L, false),
+          new org.apache.iceberg.spark.source.StreamingOffset(
+              System.currentTimeMillis(), 3L, false),
+          new org.apache.iceberg.spark.source.StreamingOffset(System.currentTimeMillis(), 4L, true)
+        };
+    Assert.assertArrayEquals(
+        "StreamingOffsets should match",
+        expected,
         Arrays.stream(expected)
-            .map(elem -> org.apache.iceberg.spark.source.StreamingOffset.fromJson(elem.json())).toArray());
+            .map(elem -> org.apache.iceberg.spark.source.StreamingOffset.fromJson(elem.json()))
+            .toArray());
   }
 
   @Test
   public void testToJson() throws Exception {
-    org.apache.iceberg.spark.source.StreamingOffset expected = new org.apache.iceberg.spark.source.StreamingOffset(
-        System.currentTimeMillis(), 1L, false);
+    org.apache.iceberg.spark.source.StreamingOffset expected =
+        new org.apache.iceberg.spark.source.StreamingOffset(System.currentTimeMillis(), 1L, false);
     ObjectNode actual = JsonUtil.mapper().createObjectNode();
     actual.put("version", 1);
     actual.put("snapshot_id", expected.snapshotId());

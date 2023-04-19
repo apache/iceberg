@@ -16,38 +16,38 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.nessie;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.BaseMetastoreTableOperations;
-import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.TableMetadataParser;
+import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
+import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
+import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.projectnessie.client.http.HttpClientException;
 import org.projectnessie.error.NessieConflictException;
 import org.projectnessie.error.NessieNotFoundException;
-import org.projectnessie.model.Branch;
+import org.projectnessie.error.NessieReferenceConflictException;
+import org.projectnessie.model.Conflict;
+import org.projectnessie.model.Conflict.ConflictType;
 import org.projectnessie.model.Content;
 import org.projectnessie.model.ContentKey;
-import org.projectnessie.model.GenericMetadata;
 import org.projectnessie.model.IcebergTable;
-import org.projectnessie.model.ImmutableCommitMeta;
-import org.projectnessie.model.ImmutableIcebergTable;
-import org.projectnessie.model.Operation;
 import org.projectnessie.model.Reference;
+import org.projectnessie.model.ReferenceConflicts;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/**
- * Nessie implementation of Iceberg TableOperations.
- */
+/** Nessie implementation of Iceberg TableOperations. */
 public class NessieTableOperations extends BaseMetastoreTableOperations {
 
   private static final Logger LOG = LoggerFactory.getLogger(NessieTableOperations.class);
@@ -64,9 +64,7 @@ public class NessieTableOperations extends BaseMetastoreTableOperations {
   private final FileIO fileIO;
   private final Map<String, String> catalogOptions;
 
-  /**
-   * Create a nessie table operations given a table identifier.
-   */
+  /** Create a nessie table operations given a table identifier. */
   NessieTableOperations(
       ContentKey key,
       NessieIcebergClient client,
@@ -85,21 +83,28 @@ public class NessieTableOperations extends BaseMetastoreTableOperations {
 
   private TableMetadata loadTableMetadata(String metadataLocation, Reference reference) {
     // Update the TableMetadata with the Content of NessieTableState.
-    TableMetadata deserialized = NessieUtil.tableMetadataFromIcebergTable(io(), table, metadataLocation);
+    TableMetadata deserialized = TableMetadataParser.read(io(), metadataLocation);
     Map<String, String> newProperties = Maps.newHashMap(deserialized.properties());
     newProperties.put(NESSIE_COMMIT_ID_PROPERTY, reference.getHash());
-    TableMetadata.Builder builder = TableMetadata.buildFrom(deserialized)
-        .setPreviousFileLocation(null)
-        .setCurrentSchema(table.getSchemaId())
-        .setDefaultSortOrder(table.getSortOrderId())
-        .setDefaultPartitionSpec(table.getSpecId())
-        .withMetadataLocation(metadataLocation)
-        .setProperties(newProperties);
+    // To prevent accidental deletion of files that are still referenced by other branches/tags,
+    // setting GC_ENABLED to false. So that all Iceberg's gc operations like expire_snapshots,
+    // remove_orphan_files, drop_table with purge will fail with an error.
+    // Nessie CLI will provide a reference aware GC functionality for the expired/unreferenced
+    // files.
+    newProperties.put(TableProperties.GC_ENABLED, "false");
+    TableMetadata.Builder builder =
+        TableMetadata.buildFrom(deserialized)
+            .setPreviousFileLocation(null)
+            .setCurrentSchema(table.getSchemaId())
+            .setDefaultSortOrder(table.getSortOrderId())
+            .setDefaultPartitionSpec(table.getSpecId())
+            .withMetadataLocation(metadataLocation)
+            .setProperties(newProperties);
     if (table.getSnapshotId() != -1) {
       builder.setBranchSnapshot(table.getSnapshotId(), SnapshotRef.MAIN_BRANCH);
     }
-    LOG.info("loadTableMetadata for '{}' from location '{}' at '{}'", key, metadataLocation,
-        reference);
+    LOG.info(
+        "loadTableMetadata for '{}' from location '{}' at '{}'", key, metadataLocation, reference);
 
     return builder.discardChanges().build();
   }
@@ -109,24 +114,31 @@ public class NessieTableOperations extends BaseMetastoreTableOperations {
     try {
       client.refresh();
     } catch (NessieNotFoundException e) {
-      throw new RuntimeException(String.format("Failed to refresh as ref '%s' " +
-          "is no longer valid.", client.getRef().getName()), e);
+      throw new RuntimeException(
+          String.format(
+              "Failed to refresh as ref '%s' " + "is no longer valid.", client.getRef().getName()),
+          e);
     }
     String metadataLocation = null;
     Reference reference = client.getRef().getReference();
     try {
-      Content content = client.getApi().getContent().key(key).reference(reference).get()
-          .get(key);
+      Content content = client.getApi().getContent().key(key).reference(reference).get().get(key);
       LOG.debug("Content '{}' at '{}': {}", key, reference, content);
       if (content == null) {
         if (currentMetadataLocation() != null) {
           throw new NoSuchTableException("No such table '%s' in '%s'", key, reference);
         }
       } else {
-        this.table = content.unwrap(IcebergTable.class)
-            .orElseThrow(
-                () -> new IllegalStateException(String.format("Cannot refresh iceberg table: " +
-                    "Nessie points to a non-Iceberg object for path: %s.", key)));
+        this.table =
+            content
+                .unwrap(IcebergTable.class)
+                .orElseThrow(
+                    () ->
+                        new IllegalStateException(
+                            String.format(
+                                "Cannot refresh iceberg table: "
+                                    + "Nessie points to a non-Iceberg object for path: %s.",
+                                key)));
         metadataLocation = table.getMetadataLocation();
       }
     } catch (NessieNotFoundException ex) {
@@ -139,61 +151,24 @@ public class NessieTableOperations extends BaseMetastoreTableOperations {
 
   @Override
   protected void doCommit(TableMetadata base, TableMetadata metadata) {
-    UpdateableReference updateableReference = client.getRef();
+    boolean newTable = base == null;
+    String newMetadataLocation = writeNewMetadataIfRequired(newTable, metadata);
 
-    updateableReference.checkMutable();
-
-    Branch current = updateableReference.getAsBranch();
-    Branch expectedHead = current;
-    if (base != null) {
-      String metadataCommitId = base.property(NESSIE_COMMIT_ID_PROPERTY, expectedHead.getHash());
-      if (metadataCommitId != null) {
-        expectedHead = Branch.of(expectedHead.getName(), metadataCommitId);
-      }
-    }
-
-    String newMetadataLocation = writeNewMetadata(metadata, currentVersion() + 1);
-
+    String refName = client.refName();
     boolean delete = true;
     try {
-      ImmutableIcebergTable.Builder newTableBuilder = ImmutableIcebergTable.builder();
-      if (table != null) {
-        newTableBuilder.id(table.getId());
-      }
-      Snapshot snapshot = metadata.currentSnapshot();
-      long snapshotId = snapshot != null ? snapshot.snapshotId() : -1L;
-
-      JsonNode newMetadata = NessieUtil.tableMetadataAsJsonNode(metadata);
-      IcebergTable newTable = newTableBuilder
-          .snapshotId(snapshotId)
-          .schemaId(metadata.currentSchemaId())
-          .specId(metadata.defaultSpecId())
-          .sortOrderId(metadata.defaultSortOrderId())
-          .metadataLocation(newMetadataLocation)
-          .metadata(
-              GenericMetadata.of("org.apache:iceberg:" + metadata.formatVersion(), newMetadata))
-          .build();
-
-      LOG.debug("Committing '{}' against '{}', current is '{}': {}", key, expectedHead,
-          current.getHash(), newTable);
-      ImmutableCommitMeta.Builder builder = ImmutableCommitMeta.builder();
-      builder.message(buildCommitMsg(base, metadata));
-      if (isSnapshotOperation(base, metadata)) {
-        builder.putProperties("iceberg.operation", snapshot.operation());
-      }
-      Branch branch = client.getApi().commitMultipleOperations()
-          .operation(Operation.Put.of(key, newTable, table))
-          .commitMeta(NessieUtil.catalogOptions(builder, catalogOptions).build())
-          .branch(expectedHead)
-          .commit();
-      LOG.info("Committed '{}' against '{}', expected commit-id was '{}'", key, branch,
-          expectedHead.getHash());
-      updateableReference.updateReference(branch);
-
+      client.commitTable(base, metadata, newMetadataLocation, table, key);
       delete = false;
     } catch (NessieConflictException ex) {
-      throw new CommitFailedException(ex, "Cannot commit: Reference hash is out of date. " +
-          "Update the reference '%s' and try again", updateableReference.getName());
+      if (ex instanceof NessieReferenceConflictException) {
+        // Throws a specialized exception, if possible
+        maybeThrowSpecializedException((NessieReferenceConflictException) ex);
+      }
+      throw new CommitFailedException(
+          ex,
+          "Cannot commit: Reference hash is out of date. "
+              + "Update the reference '%s' and try again",
+          refName);
     } catch (HttpClientException ex) {
       // Intentionally catch all nessie-client-exceptions here and not just the "timeout" variant
       // to catch all kinds of network errors (e.g. connection reset). Network code implementation
@@ -203,8 +178,7 @@ public class NessieTableOperations extends BaseMetastoreTableOperations {
       throw new CommitStateUnknownException(ex);
     } catch (NessieNotFoundException ex) {
       throw new RuntimeException(
-          String.format("Cannot commit: Reference '%s' no longer exists",
-              updateableReference.getName()), ex);
+          String.format("Cannot commit: Reference '%s' no longer exists", refName), ex);
     } finally {
       if (delete) {
         io().deleteFile(newMetadataLocation);
@@ -212,20 +186,36 @@ public class NessieTableOperations extends BaseMetastoreTableOperations {
     }
   }
 
-  private boolean isSnapshotOperation(TableMetadata base, TableMetadata metadata) {
-    Snapshot snapshot = metadata.currentSnapshot();
-    return snapshot != null && (base == null || base.currentSnapshot() == null ||
-        snapshot.snapshotId() != base.currentSnapshot().snapshotId());
-  }
-
-  private String buildCommitMsg(TableMetadata base, TableMetadata metadata) {
-    if (isSnapshotOperation(base, metadata)) {
-      return String.format("Iceberg %s against %s", metadata.currentSnapshot().operation(),
-          tableName());
-    } else if (base != null && metadata.currentSchemaId() != base.currentSchemaId()) {
-      return String.format("Iceberg schema change against %s", tableName());
+  private static void maybeThrowSpecializedException(NessieReferenceConflictException ex) {
+    // Check if the server returned 'ReferenceConflicts' information
+    ReferenceConflicts referenceConflicts = ex.getErrorDetails();
+    if (referenceConflicts == null) {
+      return;
     }
-    return String.format("Iceberg commit against %s", tableName());
+
+    // Can only narrow down to a single exception, if there is only one conflict.
+    List<Conflict> conflicts = referenceConflicts.conflicts();
+    if (conflicts.size() != 1) {
+      return;
+    }
+
+    Conflict conflict = conflicts.get(0);
+    ConflictType conflictType = conflict.conflictType();
+    if (conflictType != null) {
+      switch (conflictType) {
+        case NAMESPACE_ABSENT:
+          throw new NoSuchNamespaceException(ex, "Namespace does not exist: %s", conflict.key());
+        case NAMESPACE_NOT_EMPTY:
+          throw new NamespaceNotEmptyException(ex, "Namespace not empty: %s", conflict.key());
+        case KEY_DOES_NOT_EXIST:
+          throw new NoSuchTableException(ex, "Table or view does not exist: %s", conflict.key());
+        case KEY_EXISTS:
+          throw new AlreadyExistsException(ex, "Table or view already exists: %s", conflict.key());
+        default:
+          // Explicit fall-through
+          break;
+      }
+    }
   }
 
   @Override

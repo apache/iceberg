@@ -7,7 +7,7 @@
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -16,11 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.dell.ecs;
 
+import static org.apache.iceberg.types.Types.NestedField.required;
+
 import java.util.Map;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.Schema;
@@ -33,18 +33,15 @@ import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
+import org.assertj.core.api.Assertions;
 import org.junit.Rule;
 import org.junit.Test;
 
-import static org.apache.iceberg.types.Types.NestedField.required;
-
 public class TestEcsTableOperations {
 
-  static final Schema SCHEMA = new Schema(
-      required(1, "id", Types.IntegerType.get()));
+  static final Schema SCHEMA = new Schema(required(1, "id", Types.IntegerType.get()));
 
-  @Rule
-  public EcsS3MockRule rule = EcsS3MockRule.create();
+  @Rule public EcsS3MockRule rule = EcsS3MockRule.create();
 
   @Test
   public void testConcurrentCommit() {
@@ -55,21 +52,21 @@ public class TestEcsTableOperations {
     Table catalog2Table = catalog2.loadTable(TableIdentifier.of("t1"));
 
     // Generate a new version
-    catalog1Table.updateProperties()
-        .set("a", "a")
-        .commit();
+    catalog1Table.updateProperties().set("a", "a").commit();
 
     // Use the TableOperations to test the CommitFailedException
     // High level actions, such as Table#updateProperties(), may refresh metadata.
     TableOperations operations = ((HasTableOperations) catalog2Table).operations();
-    AssertHelpers.assertThrows(
-        "Commit failed when use out-dated status",
-        CommitFailedException.class,
-        () -> operations.commit(
-            operations.current(),
-            TableMetadata.buildFrom(operations.current())
-                    .removeProperties(ImmutableSet.of("a"))
-                    .build()));
+    Assertions.assertThatThrownBy(
+            () ->
+                operations.commit(
+                    operations.current(),
+                    TableMetadata.buildFrom(operations.current())
+                        .removeProperties(ImmutableSet.of("a"))
+                        .build()))
+        .isInstanceOf(CommitFailedException.class)
+        .hasMessageStartingWith("Replace failed, E-Tag")
+        .hasMessageContaining("mismatch for table test2.t1");
   }
 
   public EcsCatalog createCatalog(String name) {

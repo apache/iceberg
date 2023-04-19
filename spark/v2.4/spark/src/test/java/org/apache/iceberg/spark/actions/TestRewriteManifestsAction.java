@@ -16,8 +16,17 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.actions;
+
+import static org.apache.iceberg.ValidationHelpers.dataSeqs;
+import static org.apache.iceberg.ValidationHelpers.fileSeqs;
+import static org.apache.iceberg.ValidationHelpers.files;
+import static org.apache.iceberg.ValidationHelpers.snapshotIds;
+import static org.apache.iceberg.ValidationHelpers.validateDataManifest;
+import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.when;
 
 import java.io.File;
 import java.io.IOException;
@@ -25,6 +34,7 @@ import java.util.List;
 import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.AssertHelpers;
+import org.apache.iceberg.DataFile;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -34,6 +44,7 @@ import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.actions.RewriteManifests;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.hadoop.HadoopTables;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -53,28 +64,22 @@ import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
-import static org.apache.iceberg.types.Types.NestedField.optional;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.when;
-
 @RunWith(Parameterized.class)
 public class TestRewriteManifestsAction extends SparkTestBase {
 
   private static final HadoopTables TABLES = new HadoopTables(new Configuration());
-  private static final Schema SCHEMA = new Schema(
-      optional(1, "c1", Types.IntegerType.get()),
-      optional(2, "c2", Types.StringType.get()),
-      optional(3, "c3", Types.StringType.get())
-  );
+  private static final Schema SCHEMA =
+      new Schema(
+          optional(1, "c1", Types.IntegerType.get()),
+          optional(2, "c2", Types.StringType.get()),
+          optional(3, "c3", Types.StringType.get()));
 
   @Parameterized.Parameters(name = "snapshotIdInheritanceEnabled = {0}")
   public static Object[] parameters() {
-    return new Object[] { "true", "false" };
+    return new Object[] {"true", "false"};
   }
 
-  @Rule
-  public TemporaryFolder temp = new TemporaryFolder();
+  @Rule public TemporaryFolder temp = new TemporaryFolder();
 
   private final String snapshotIdInheritanceEnabled;
   private String tableLocation = null;
@@ -100,7 +105,8 @@ public class TestRewriteManifestsAction extends SparkTestBase {
 
     SparkActions actions = SparkActions.get();
 
-    actions.rewriteManifests(table)
+    actions
+        .rewriteManifests(table)
         .rewriteIf(manifest -> true)
         .stagingLocation(temp.newFolder().toString())
         .execute();
@@ -115,35 +121,35 @@ public class TestRewriteManifestsAction extends SparkTestBase {
     options.put(TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED, snapshotIdInheritanceEnabled);
     Table table = TABLES.create(SCHEMA, spec, options, tableLocation);
 
-    List<ThreeColumnRecord> records1 = Lists.newArrayList(
-        new ThreeColumnRecord(1, null, "AAAA"),
-        new ThreeColumnRecord(1, "BBBBBBBBBB", "BBBB")
-    );
+    List<ThreeColumnRecord> records1 =
+        Lists.newArrayList(
+            new ThreeColumnRecord(1, null, "AAAA"), new ThreeColumnRecord(1, "BBBBBBBBBB", "BBBB"));
     writeRecords(records1);
 
-    List<ThreeColumnRecord> records2 = Lists.newArrayList(
-        new ThreeColumnRecord(2, "CCCCCCCCCC", "CCCC"),
-        new ThreeColumnRecord(2, "DDDDDDDDDD", "DDDD")
-    );
+    List<ThreeColumnRecord> records2 =
+        Lists.newArrayList(
+            new ThreeColumnRecord(2, "CCCCCCCCCC", "CCCC"),
+            new ThreeColumnRecord(2, "DDDDDDDDDD", "DDDD"));
     writeRecords(records2);
 
     table.refresh();
 
-    List<ManifestFile> manifests = table.currentSnapshot().allManifests();
+    List<ManifestFile> manifests = table.currentSnapshot().allManifests(table.io());
     Assert.assertEquals("Should have 2 manifests before rewrite", 2, manifests.size());
 
     SparkActions actions = SparkActions.get();
 
-    RewriteManifests.Result result = actions.rewriteManifests(table)
-        .rewriteIf(manifest -> true)
-        .execute();
+    RewriteManifests.Result result =
+        actions.rewriteManifests(table).rewriteIf(manifest -> true).execute();
 
-    Assert.assertEquals("Action should rewrite 2 manifests", 2, Iterables.size(result.rewrittenManifests()));
-    Assert.assertEquals("Action should add 1 manifests", 1, Iterables.size(result.addedManifests()));
+    Assert.assertEquals(
+        "Action should rewrite 2 manifests", 2, Iterables.size(result.rewrittenManifests()));
+    Assert.assertEquals(
+        "Action should add 1 manifests", 1, Iterables.size(result.addedManifests()));
 
     table.refresh();
 
-    List<ManifestFile> newManifests = table.currentSnapshot().allManifests();
+    List<ManifestFile> newManifests = table.currentSnapshot().allManifests(table.io());
     Assert.assertEquals("Should have 1 manifests after rewrite", 1, newManifests.size());
 
     Assert.assertEquals(4, (long) newManifests.get(0).existingFilesCount());
@@ -155,9 +161,8 @@ public class TestRewriteManifestsAction extends SparkTestBase {
     expectedRecords.addAll(records2);
 
     Dataset<Row> resultDF = spark.read().format("iceberg").load(tableLocation);
-    List<ThreeColumnRecord> actualRecords = resultDF.sort("c1", "c2")
-        .as(Encoders.bean(ThreeColumnRecord.class))
-        .collectAsList();
+    List<ThreeColumnRecord> actualRecords =
+        resultDF.sort("c1", "c2").as(Encoders.bean(ThreeColumnRecord.class)).collectAsList();
 
     Assert.assertEquals("Rows must match", expectedRecords, actualRecords);
   }
@@ -169,21 +174,20 @@ public class TestRewriteManifestsAction extends SparkTestBase {
     options.put(TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED, snapshotIdInheritanceEnabled);
     Table table = TABLES.create(SCHEMA, spec, options, tableLocation);
 
-    List<ThreeColumnRecord> records1 = Lists.newArrayList(
-        new ThreeColumnRecord(1, null, "AAAA"),
-        new ThreeColumnRecord(1, "BBBBBBBBBB", "BBBB")
-    );
+    List<ThreeColumnRecord> records1 =
+        Lists.newArrayList(
+            new ThreeColumnRecord(1, null, "AAAA"), new ThreeColumnRecord(1, "BBBBBBBBBB", "BBBB"));
     writeRecords(records1);
 
-    List<ThreeColumnRecord> records2 = Lists.newArrayList(
-        new ThreeColumnRecord(2, "CCCCCCCCCC", "CCCC"),
-        new ThreeColumnRecord(2, "DDDDDDDDDD", "DDDD")
-    );
+    List<ThreeColumnRecord> records2 =
+        Lists.newArrayList(
+            new ThreeColumnRecord(2, "CCCCCCCCCC", "CCCC"),
+            new ThreeColumnRecord(2, "DDDDDDDDDD", "DDDD"));
     writeRecords(records2);
 
     table.refresh();
 
-    List<ManifestFile> manifests = table.currentSnapshot().allManifests();
+    List<ManifestFile> manifests = table.currentSnapshot().allManifests(table.io());
     Assert.assertEquals("Should have 2 manifests before rewrite", 2, manifests.size());
 
     SparkActions actions = SparkActions.get();
@@ -191,15 +195,19 @@ public class TestRewriteManifestsAction extends SparkTestBase {
     // create a spy which would throw a CommitStateUnknownException after successful commit.
     org.apache.iceberg.RewriteManifests newRewriteManifests = table.rewriteManifests();
     org.apache.iceberg.RewriteManifests spyNewRewriteManifests = spy(newRewriteManifests);
-    doAnswer(invocation -> {
-      newRewriteManifests.commit();
-      throw new CommitStateUnknownException(new RuntimeException("Datacenter on Fire"));
-    }).when(spyNewRewriteManifests).commit();
+    doAnswer(
+            invocation -> {
+              newRewriteManifests.commit();
+              throw new CommitStateUnknownException(new RuntimeException("Datacenter on Fire"));
+            })
+        .when(spyNewRewriteManifests)
+        .commit();
 
     Table spyTable = spy(table);
     when(spyTable.rewriteManifests()).thenReturn(spyNewRewriteManifests);
 
-    AssertHelpers.assertThrowsCause("Should throw a Commit State Unknown Exception",
+    AssertHelpers.assertThrowsCause(
+        "Should throw a Commit State Unknown Exception",
         RuntimeException.class,
         "Datacenter on Fire",
         () -> actions.rewriteManifests(spyTable).rewriteIf(manifest -> true).execute());
@@ -207,7 +215,7 @@ public class TestRewriteManifestsAction extends SparkTestBase {
     table.refresh();
 
     // table should reflect the changes, since the commit was successful
-    List<ManifestFile> newManifests = table.currentSnapshot().allManifests();
+    List<ManifestFile> newManifests = table.currentSnapshot().allManifests(table.io());
     Assert.assertEquals("Should have 1 manifests after rewrite", 1, newManifests.size());
 
     Assert.assertEquals(4, (long) newManifests.get(0).existingFilesCount());
@@ -219,50 +227,45 @@ public class TestRewriteManifestsAction extends SparkTestBase {
     expectedRecords.addAll(records2);
 
     Dataset<Row> resultDF = spark.read().format("iceberg").load(tableLocation);
-    List<ThreeColumnRecord> actualRecords = resultDF.sort("c1", "c2")
-        .as(Encoders.bean(ThreeColumnRecord.class))
-        .collectAsList();
+    List<ThreeColumnRecord> actualRecords =
+        resultDF.sort("c1", "c2").as(Encoders.bean(ThreeColumnRecord.class)).collectAsList();
 
     Assert.assertEquals("Rows must match", expectedRecords, actualRecords);
   }
 
   @Test
   public void testRewriteSmallManifestsPartitionedTable() {
-    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA)
-        .identity("c1")
-        .truncate("c2", 2)
-        .build();
+    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("c1").truncate("c2", 2).build();
     Map<String, String> options = Maps.newHashMap();
     options.put(TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED, snapshotIdInheritanceEnabled);
     Table table = TABLES.create(SCHEMA, spec, options, tableLocation);
 
-    List<ThreeColumnRecord> records1 = Lists.newArrayList(
-        new ThreeColumnRecord(1, null, "AAAA"),
-        new ThreeColumnRecord(1, "BBBBBBBBBB", "BBBB")
-    );
+    List<ThreeColumnRecord> records1 =
+        Lists.newArrayList(
+            new ThreeColumnRecord(1, null, "AAAA"), new ThreeColumnRecord(1, "BBBBBBBBBB", "BBBB"));
     writeRecords(records1);
 
-    List<ThreeColumnRecord> records2 = Lists.newArrayList(
-        new ThreeColumnRecord(2, "CCCCCCCCCC", "CCCC"),
-        new ThreeColumnRecord(2, "DDDDDDDDDD", "DDDD")
-    );
+    List<ThreeColumnRecord> records2 =
+        Lists.newArrayList(
+            new ThreeColumnRecord(2, "CCCCCCCCCC", "CCCC"),
+            new ThreeColumnRecord(2, "DDDDDDDDDD", "DDDD"));
     writeRecords(records2);
 
-    List<ThreeColumnRecord> records3 = Lists.newArrayList(
-        new ThreeColumnRecord(3, "EEEEEEEEEE", "EEEE"),
-        new ThreeColumnRecord(3, "FFFFFFFFFF", "FFFF")
-    );
+    List<ThreeColumnRecord> records3 =
+        Lists.newArrayList(
+            new ThreeColumnRecord(3, "EEEEEEEEEE", "EEEE"),
+            new ThreeColumnRecord(3, "FFFFFFFFFF", "FFFF"));
     writeRecords(records3);
 
-    List<ThreeColumnRecord> records4 = Lists.newArrayList(
-        new ThreeColumnRecord(4, "GGGGGGGGGG", "GGGG"),
-        new ThreeColumnRecord(4, "HHHHHHHHHG", "HHHH")
-    );
+    List<ThreeColumnRecord> records4 =
+        Lists.newArrayList(
+            new ThreeColumnRecord(4, "GGGGGGGGGG", "GGGG"),
+            new ThreeColumnRecord(4, "HHHHHHHHHG", "HHHH"));
     writeRecords(records4);
 
     table.refresh();
 
-    List<ManifestFile> manifests = table.currentSnapshot().allManifests();
+    List<ManifestFile> manifests = table.currentSnapshot().allManifests(table.io());
     Assert.assertEquals("Should have 4 manifests before rewrite", 4, manifests.size());
 
     SparkActions actions = SparkActions.get();
@@ -271,20 +274,22 @@ public class TestRewriteManifestsAction extends SparkTestBase {
     long manifestEntrySizeBytes = computeManifestEntrySizeBytes(manifests);
     long targetManifestSizeBytes = (long) (1.05 * 4 * manifestEntrySizeBytes);
 
-    table.updateProperties()
+    table
+        .updateProperties()
         .set(TableProperties.MANIFEST_TARGET_SIZE_BYTES, String.valueOf(targetManifestSizeBytes))
         .commit();
 
-    RewriteManifests.Result result = actions.rewriteManifests(table)
-        .rewriteIf(manifest -> true)
-        .execute();
+    RewriteManifests.Result result =
+        actions.rewriteManifests(table).rewriteIf(manifest -> true).execute();
 
-    Assert.assertEquals("Action should rewrite 4 manifests", 4, Iterables.size(result.rewrittenManifests()));
-    Assert.assertEquals("Action should add 2 manifests", 2, Iterables.size(result.addedManifests()));
+    Assert.assertEquals(
+        "Action should rewrite 4 manifests", 4, Iterables.size(result.rewrittenManifests()));
+    Assert.assertEquals(
+        "Action should add 2 manifests", 2, Iterables.size(result.addedManifests()));
 
     table.refresh();
 
-    List<ManifestFile> newManifests = table.currentSnapshot().allManifests();
+    List<ManifestFile> newManifests = table.currentSnapshot().allManifests(table.io());
     Assert.assertEquals("Should have 2 manifests after rewrite", 2, newManifests.size());
 
     Assert.assertEquals(4, (long) newManifests.get(0).existingFilesCount());
@@ -302,32 +307,29 @@ public class TestRewriteManifestsAction extends SparkTestBase {
     expectedRecords.addAll(records4);
 
     Dataset<Row> resultDF = spark.read().format("iceberg").load(tableLocation);
-    List<ThreeColumnRecord> actualRecords = resultDF.sort("c1", "c2")
-        .as(Encoders.bean(ThreeColumnRecord.class))
-        .collectAsList();
+    List<ThreeColumnRecord> actualRecords =
+        resultDF.sort("c1", "c2").as(Encoders.bean(ThreeColumnRecord.class)).collectAsList();
 
     Assert.assertEquals("Rows must match", expectedRecords, actualRecords);
   }
 
   @Test
   public void testRewriteImportedManifests() throws IOException {
-    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA)
-        .identity("c3")
-        .build();
+    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("c3").build();
     Map<String, String> options = Maps.newHashMap();
     options.put(TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED, snapshotIdInheritanceEnabled);
     Table table = TABLES.create(SCHEMA, spec, options, tableLocation);
 
-    List<ThreeColumnRecord> records = Lists.newArrayList(
-        new ThreeColumnRecord(1, null, "AAAA"),
-        new ThreeColumnRecord(1, "BBBBBBBBBB", "BBBB")
-    );
+    List<ThreeColumnRecord> records =
+        Lists.newArrayList(
+            new ThreeColumnRecord(1, null, "AAAA"), new ThreeColumnRecord(1, "BBBBBBBBBB", "BBBB"));
     File parquetTableDir = temp.newFolder("parquet_table");
     String parquetTableLocation = parquetTableDir.toURI().toString();
 
     try {
       Dataset<Row> inputDF = spark.createDataFrame(records, ThreeColumnRecord.class);
-      inputDF.select("c1", "c2", "c3")
+      inputDF
+          .select("c1", "c2", "c3")
           .write()
           .format("parquet")
           .mode("overwrite")
@@ -336,19 +338,30 @@ public class TestRewriteManifestsAction extends SparkTestBase {
           .saveAsTable("parquet_table");
 
       File stagingDir = temp.newFolder("staging-dir");
-      SparkTableUtil.importSparkTable(spark, new TableIdentifier("parquet_table"), table, stagingDir.toString());
+      SparkTableUtil.importSparkTable(
+          spark, new TableIdentifier("parquet_table"), table, stagingDir.toString());
+
+      // add some more data to create more than one manifest for the rewrite
+      inputDF.select("c1", "c2", "c3").write().format("iceberg").mode("append").save(tableLocation);
+      table.refresh();
 
       Snapshot snapshot = table.currentSnapshot();
 
       SparkActions actions = SparkActions.get();
 
-      RewriteManifests.Result result = actions.rewriteManifests(table)
-          .rewriteIf(manifest -> true)
-          .stagingLocation(temp.newFolder().toString())
-          .execute();
+      RewriteManifests.Result result =
+          actions
+              .rewriteManifests(table)
+              .rewriteIf(manifest -> true)
+              .stagingLocation(temp.newFolder().toString())
+              .execute();
 
-      Assert.assertEquals("Action should rewrite all manifests", snapshot.allManifests(), result.rewrittenManifests());
-      Assert.assertEquals("Action should add 1 manifest", 1, Iterables.size(result.addedManifests()));
+      Assert.assertEquals(
+          "Action should rewrite all manifests",
+          snapshot.allManifests(table.io()),
+          result.rewrittenManifests());
+      Assert.assertEquals(
+          "Action should add 1 manifest", 1, Iterables.size(result.addedManifests()));
 
     } finally {
       spark.sql("DROP TABLE parquet_table");
@@ -357,9 +370,7 @@ public class TestRewriteManifestsAction extends SparkTestBase {
 
   @Test
   public void testRewriteLargeManifestsPartitionedTable() throws IOException {
-    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA)
-        .identity("c3")
-        .build();
+    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("c3").build();
     Map<String, String> options = Maps.newHashMap();
     options.put(TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED, snapshotIdInheritanceEnabled);
     Table table = TABLES.create(SCHEMA, spec, options, tableLocation);
@@ -375,92 +386,196 @@ public class TestRewriteManifestsAction extends SparkTestBase {
 
     table.refresh();
 
-    List<ManifestFile> manifests = table.currentSnapshot().allManifests();
+    List<ManifestFile> manifests = table.currentSnapshot().allManifests(table.io());
     Assert.assertEquals("Should have 1 manifests before rewrite", 1, manifests.size());
 
     // set the target manifest size to a small value to force splitting records into multiple files
-    table.updateProperties()
-        .set(TableProperties.MANIFEST_TARGET_SIZE_BYTES, String.valueOf(manifests.get(0).length() / 2))
+    table
+        .updateProperties()
+        .set(
+            TableProperties.MANIFEST_TARGET_SIZE_BYTES,
+            String.valueOf(manifests.get(0).length() / 2))
         .commit();
 
     SparkActions actions = SparkActions.get();
 
-    RewriteManifests.Result result = actions.rewriteManifests(table)
-        .rewriteIf(manifest -> true)
-        .stagingLocation(temp.newFolder().toString())
-        .execute();
+    RewriteManifests.Result result =
+        actions
+            .rewriteManifests(table)
+            .rewriteIf(manifest -> true)
+            .stagingLocation(temp.newFolder().toString())
+            .execute();
 
-    Assert.assertEquals("Action should rewrite 1 manifest", 1, Iterables.size(result.rewrittenManifests()));
-    Assert.assertEquals("Action should add 2 manifests", 2, Iterables.size(result.addedManifests()));
+    Assert.assertEquals(
+        "Action should rewrite 1 manifest", 1, Iterables.size(result.rewrittenManifests()));
+    Assert.assertEquals(
+        "Action should add 2 manifests", 2, Iterables.size(result.addedManifests()));
 
     table.refresh();
 
-    List<ManifestFile> newManifests = table.currentSnapshot().allManifests();
+    List<ManifestFile> newManifests = table.currentSnapshot().allManifests(table.io());
     Assert.assertEquals("Should have 2 manifests after rewrite", 2, newManifests.size());
 
     Dataset<Row> resultDF = spark.read().format("iceberg").load(tableLocation);
-    List<ThreeColumnRecord> actualRecords = resultDF.sort("c1", "c2")
-        .as(Encoders.bean(ThreeColumnRecord.class))
-        .collectAsList();
+    List<ThreeColumnRecord> actualRecords =
+        resultDF.sort("c1", "c2").as(Encoders.bean(ThreeColumnRecord.class)).collectAsList();
 
     Assert.assertEquals("Rows must match", records, actualRecords);
   }
 
   @Test
   public void testRewriteManifestsWithPredicate() throws IOException {
-    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA)
-        .identity("c1")
-        .truncate("c2", 2)
-        .build();
+    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("c1").truncate("c2", 2).build();
     Map<String, String> options = Maps.newHashMap();
     options.put(TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED, snapshotIdInheritanceEnabled);
     Table table = TABLES.create(SCHEMA, spec, options, tableLocation);
 
-    List<ThreeColumnRecord> records1 = Lists.newArrayList(
-        new ThreeColumnRecord(1, null, "AAAA"),
-        new ThreeColumnRecord(1, "BBBBBBBBBB", "BBBB")
-    );
+    List<ThreeColumnRecord> records1 =
+        Lists.newArrayList(
+            new ThreeColumnRecord(1, null, "AAAA"), new ThreeColumnRecord(1, "BBBBBBBBBB", "BBBB"));
     writeRecords(records1);
 
-    List<ThreeColumnRecord> records2 = Lists.newArrayList(
-        new ThreeColumnRecord(2, "CCCCCCCCCC", "CCCC"),
-        new ThreeColumnRecord(2, "DDDDDDDDDD", "DDDD")
-    );
+    writeRecords(records1);
+
+    List<ThreeColumnRecord> records2 =
+        Lists.newArrayList(
+            new ThreeColumnRecord(2, "CCCCCCCCCC", "CCCC"),
+            new ThreeColumnRecord(2, "DDDDDDDDDD", "DDDD"));
     writeRecords(records2);
 
     table.refresh();
 
-    List<ManifestFile> manifests = table.currentSnapshot().allManifests();
-    Assert.assertEquals("Should have 2 manifests before rewrite", 2, manifests.size());
+    List<ManifestFile> manifests = table.currentSnapshot().allManifests(table.io());
+    Assert.assertEquals("Should have 3 manifests before rewrite", 3, manifests.size());
 
     SparkActions actions = SparkActions.get();
 
     // rewrite only the first manifest without caching
-    RewriteManifests.Result result = actions.rewriteManifests(table)
-        .rewriteIf(manifest -> manifest.path().equals(manifests.get(0).path()))
-        .stagingLocation(temp.newFolder().toString())
-        .option("use-caching", "false")
-        .execute();
+    RewriteManifests.Result result =
+        actions
+            .rewriteManifests(table)
+            .rewriteIf(
+                manifest ->
+                    (manifest.path().equals(manifests.get(0).path())
+                        || (manifest.path().equals(manifests.get(1).path()))))
+            .stagingLocation(temp.newFolder().toString())
+            .option("use-caching", "false")
+            .execute();
 
-    Assert.assertEquals("Action should rewrite 1 manifest", 1, Iterables.size(result.rewrittenManifests()));
-    Assert.assertEquals("Action should add 1 manifests", 1, Iterables.size(result.addedManifests()));
+    Assert.assertEquals(
+        "Action should rewrite 2 manifest", 2, Iterables.size(result.rewrittenManifests()));
+    Assert.assertEquals(
+        "Action should add 1 manifests", 1, Iterables.size(result.addedManifests()));
 
     table.refresh();
 
-    List<ManifestFile> newManifests = table.currentSnapshot().allManifests();
+    List<ManifestFile> newManifests = table.currentSnapshot().allManifests(table.io());
     Assert.assertEquals("Should have 2 manifests after rewrite", 2, newManifests.size());
 
     Assert.assertFalse("First manifest must be rewritten", newManifests.contains(manifests.get(0)));
-    Assert.assertTrue("Second manifest must not be rewritten", newManifests.contains(manifests.get(1)));
+    Assert.assertFalse(
+        "Second manifest must be rewritten", newManifests.contains(manifests.get(1)));
+    Assert.assertTrue(
+        "Third manifest must not be rewritten", newManifests.contains(manifests.get(2)));
+
+    List<ThreeColumnRecord> expectedRecords = Lists.newArrayList();
+    expectedRecords.add(records1.get(0));
+    expectedRecords.add(records1.get(0));
+    expectedRecords.add(records1.get(1));
+    expectedRecords.add(records1.get(1));
+    expectedRecords.addAll(records2);
+
+    Dataset<Row> resultDF = spark.read().format("iceberg").load(tableLocation);
+    List<ThreeColumnRecord> actualRecords =
+        resultDF.sort("c1", "c2").as(Encoders.bean(ThreeColumnRecord.class)).collectAsList();
+
+    Assert.assertEquals("Rows must match", expectedRecords, actualRecords);
+  }
+
+  @Test
+  public void testRewriteManifestsNoOp() throws IOException {
+    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("c1").truncate("c2", 2).build();
+    Map<String, String> options = Maps.newHashMap();
+    options.put(TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED, snapshotIdInheritanceEnabled);
+    Table table = TABLES.create(SCHEMA, spec, options, tableLocation);
+
+    List<ThreeColumnRecord> records1 =
+        Lists.newArrayList(
+            new ThreeColumnRecord(1, null, "AAAA"), new ThreeColumnRecord(1, "BBBBBBBBBB", "BBBB"));
+    writeRecords(records1);
+
+    table.refresh();
+
+    List<ManifestFile> manifests = table.currentSnapshot().allManifests(table.io());
+    Assert.assertEquals("Should have 1 manifest before rewrite", 1, manifests.size());
+
+    SparkActions actions = SparkActions.get();
+
+    RewriteManifests.Result result = actions.rewriteManifests(table).execute();
+
+    Assert.assertEquals(
+        "Action should rewrite 0 manifests", 0, Iterables.size(result.rewrittenManifests()));
+    Assert.assertEquals(
+        "Action should add 0 manifests", 0, Iterables.size(result.addedManifests()));
+  }
+
+  @Test
+  public void testRewriteSmallManifestsNonPartitionedV2Table() {
+    PartitionSpec spec = PartitionSpec.unpartitioned();
+    Map<String, String> properties = ImmutableMap.of(TableProperties.FORMAT_VERSION, "2");
+    Table table = TABLES.create(SCHEMA, spec, properties, tableLocation);
+
+    List<ThreeColumnRecord> records1 = Lists.newArrayList(new ThreeColumnRecord(1, null, "AAAA"));
+    writeRecords(records1);
+
+    table.refresh();
+
+    Snapshot snapshot1 = table.currentSnapshot();
+    DataFile file1 = Iterables.getOnlyElement(snapshot1.addedDataFiles(table.io()));
+
+    List<ThreeColumnRecord> records2 = Lists.newArrayList(new ThreeColumnRecord(2, "CCCC", "CCCC"));
+    writeRecords(records2);
+
+    table.refresh();
+
+    Snapshot snapshot2 = table.currentSnapshot();
+    DataFile file2 = Iterables.getOnlyElement(snapshot2.addedDataFiles(table.io()));
+
+    List<ManifestFile> manifests = table.currentSnapshot().allManifests(table.io());
+    Assert.assertEquals("Should have 2 manifests before rewrite", 2, manifests.size());
+
+    SparkActions actions = SparkActions.get();
+    RewriteManifests.Result result = actions.rewriteManifests(table).execute();
+    Assert.assertEquals(
+        "Action should rewrite 2 manifests", 2, Iterables.size(result.rewrittenManifests()));
+    Assert.assertEquals(
+        "Action should add 1 manifests", 1, Iterables.size(result.addedManifests()));
+
+    table.refresh();
+
+    List<ManifestFile> newManifests = table.currentSnapshot().allManifests(table.io());
+    Assert.assertEquals("Should have 1 manifests after rewrite", 1, newManifests.size());
+
+    ManifestFile newManifest = Iterables.getOnlyElement(newManifests);
+    Assert.assertEquals(2, (long) newManifest.existingFilesCount());
+    Assert.assertFalse(newManifest.hasAddedFiles());
+    Assert.assertFalse(newManifest.hasDeletedFiles());
+
+    validateDataManifest(
+        table,
+        newManifest,
+        dataSeqs(1L, 2L),
+        fileSeqs(1L, 2L),
+        snapshotIds(snapshot1.snapshotId(), snapshot2.snapshotId()),
+        files(file1, file2));
 
     List<ThreeColumnRecord> expectedRecords = Lists.newArrayList();
     expectedRecords.addAll(records1);
     expectedRecords.addAll(records2);
 
     Dataset<Row> resultDF = spark.read().format("iceberg").load(tableLocation);
-    List<ThreeColumnRecord> actualRecords = resultDF.sort("c1", "c2")
-        .as(Encoders.bean(ThreeColumnRecord.class))
-        .collectAsList();
+    List<ThreeColumnRecord> actualRecords =
+        resultDF.sort("c1", "c2").as(Encoders.bean(ThreeColumnRecord.class)).collectAsList();
 
     Assert.assertEquals("Rows must match", expectedRecords, actualRecords);
   }
@@ -471,11 +586,7 @@ public class TestRewriteManifestsAction extends SparkTestBase {
   }
 
   private void writeDF(Dataset<Row> df) {
-    df.select("c1", "c2", "c3")
-        .write()
-        .format("iceberg")
-        .mode("append")
-        .save(tableLocation);
+    df.select("c1", "c2", "c3").write().format("iceberg").mode("append").save(tableLocation);
   }
 
   private long computeManifestEntrySizeBytes(List<ManifestFile> manifests) {
@@ -484,7 +595,8 @@ public class TestRewriteManifestsAction extends SparkTestBase {
 
     for (ManifestFile manifest : manifests) {
       totalSize += manifest.length();
-      numEntries += manifest.addedFilesCount() + manifest.existingFilesCount() + manifest.deletedFilesCount();
+      numEntries +=
+          manifest.addedFilesCount() + manifest.existingFilesCount() + manifest.deletedFilesCount();
     }
 
     return totalSize / numEntries;

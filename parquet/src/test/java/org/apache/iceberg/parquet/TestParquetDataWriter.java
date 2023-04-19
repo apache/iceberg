@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.parquet;
 
 import java.io.IOException;
@@ -51,15 +50,15 @@ import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
 public class TestParquetDataWriter {
-  private static final Schema SCHEMA = new Schema(
-      Types.NestedField.required(1, "id", Types.LongType.get()),
-      Types.NestedField.optional(2, "data", Types.StringType.get()),
-      Types.NestedField.optional(3, "binary", Types.BinaryType.get()));
+  private static final Schema SCHEMA =
+      new Schema(
+          Types.NestedField.required(1, "id", Types.LongType.get()),
+          Types.NestedField.optional(2, "data", Types.StringType.get()),
+          Types.NestedField.optional(3, "binary", Types.BinaryType.get()));
 
   private List<Record> records;
 
-  @Rule
-  public TemporaryFolder temp = new TemporaryFolder();
+  @Rule public TemporaryFolder temp = new TemporaryFolder();
 
   @Before
   public void createRecords() {
@@ -79,18 +78,16 @@ public class TestParquetDataWriter {
   public void testDataWriter() throws IOException {
     OutputFile file = Files.localOutput(temp.newFile());
 
-    SortOrder sortOrder = SortOrder.builderFor(SCHEMA)
-        .withOrderId(10)
-        .asc("id")
-        .build();
+    SortOrder sortOrder = SortOrder.builderFor(SCHEMA).withOrderId(10).asc("id").build();
 
-    DataWriter<Record> dataWriter = Parquet.writeData(file)
-        .schema(SCHEMA)
-        .createWriterFunc(GenericParquetWriter::buildWriter)
-        .overwrite()
-        .withSpec(PartitionSpec.unpartitioned())
-        .withSortOrder(sortOrder)
-        .build();
+    DataWriter<Record> dataWriter =
+        Parquet.writeData(file)
+            .schema(SCHEMA)
+            .createWriterFunc(GenericParquetWriter::buildWriter)
+            .overwrite()
+            .withSpec(PartitionSpec.unpartitioned())
+            .withSortOrder(sortOrder)
+            .build();
 
     try {
       for (Record record : records) {
@@ -106,14 +103,16 @@ public class TestParquetDataWriter {
     Assert.assertEquals("Should be data file", FileContent.DATA, dataFile.content());
     Assert.assertEquals("Record count should match", records.size(), dataFile.recordCount());
     Assert.assertEquals("Partition should be empty", 0, dataFile.partition().size());
-    Assert.assertEquals("Sort order should match", sortOrder.orderId(), (int) dataFile.sortOrderId());
+    Assert.assertEquals(
+        "Sort order should match", sortOrder.orderId(), (int) dataFile.sortOrderId());
     Assert.assertNull("Key metadata should be null", dataFile.keyMetadata());
 
     List<Record> writtenRecords;
-    try (CloseableIterable<Record> reader = Parquet.read(file.toInputFile())
-        .project(SCHEMA)
-        .createReaderFunc(fileSchema -> GenericParquetReaders.buildReader(SCHEMA, fileSchema))
-        .build()) {
+    try (CloseableIterable<Record> reader =
+        Parquet.read(file.toInputFile())
+            .project(SCHEMA)
+            .createReaderFunc(fileSchema -> GenericParquetReaders.buildReader(SCHEMA, fileSchema))
+            .build()) {
       writtenRecords = Lists.newArrayList(reader);
     }
 
@@ -125,19 +124,27 @@ public class TestParquetDataWriter {
   public void testInvalidUpperBoundString() throws Exception {
     OutputFile file = Files.localOutput(temp.newFile());
 
-    Table testTable = TestTables.create(temp.newFile(), "test_invalid_string_bound",
-        SCHEMA, PartitionSpec.unpartitioned(), SortOrder.unsorted(), 2);
-    testTable.updateProperties()
+    Table testTable =
+        TestTables.create(
+            temp.newFile(),
+            "test_invalid_string_bound",
+            SCHEMA,
+            PartitionSpec.unpartitioned(),
+            SortOrder.unsorted(),
+            2);
+    testTable
+        .updateProperties()
         .set(TableProperties.DEFAULT_WRITE_METRICS_MODE, "truncate(16)")
         .commit();
 
-    DataWriter<Record> dataWriter = Parquet.writeData(file)
-        .metricsConfig(MetricsConfig.forTable(testTable))
-        .schema(SCHEMA)
-        .createWriterFunc(GenericParquetWriter::buildWriter)
-        .overwrite()
-        .withSpec(PartitionSpec.unpartitioned())
-        .build();
+    DataWriter<Record> dataWriter =
+        Parquet.writeData(file)
+            .metricsConfig(MetricsConfig.forTable(testTable))
+            .schema(SCHEMA)
+            .createWriterFunc(GenericParquetWriter::buildWriter)
+            .overwrite()
+            .withSpec(PartitionSpec.unpartitioned())
+            .build();
 
     // These high code points cause an overflow
     GenericRecord genericRecord = GenericRecord.create(SCHEMA);
@@ -162,15 +169,17 @@ public class TestParquetDataWriter {
 
     Assert.assertEquals("Format should be Parquet", FileFormat.PARQUET, dataFile.format());
     Assert.assertEquals("Should be data file", FileContent.DATA, dataFile.content());
-    Assert.assertEquals("Record count should match", overflowRecords.size(), dataFile.recordCount());
+    Assert.assertEquals(
+        "Record count should match", overflowRecords.size(), dataFile.recordCount());
     Assert.assertEquals("Partition should be empty", 0, dataFile.partition().size());
     Assert.assertNull("Key metadata should be null", dataFile.keyMetadata());
 
     List<Record> writtenRecords;
-    try (CloseableIterable<Record> reader = Parquet.read(file.toInputFile())
-        .project(SCHEMA)
-        .createReaderFunc(fileSchema -> GenericParquetReaders.buildReader(SCHEMA, fileSchema))
-        .build()) {
+    try (CloseableIterable<Record> reader =
+        Parquet.read(file.toInputFile())
+            .project(SCHEMA)
+            .createReaderFunc(fileSchema -> GenericParquetReaders.buildReader(SCHEMA, fileSchema))
+            .build()) {
       writtenRecords = Lists.newArrayList(reader);
     }
 
@@ -187,19 +196,27 @@ public class TestParquetDataWriter {
   public void testInvalidUpperBoundBinary() throws Exception {
     OutputFile file = Files.localOutput(temp.newFile());
 
-    Table testTable = TestTables.create(temp.newFile(), "test_invalid_binary_bound",
-        SCHEMA, PartitionSpec.unpartitioned(), SortOrder.unsorted(), 2);
-    testTable.updateProperties()
+    Table testTable =
+        TestTables.create(
+            temp.newFile(),
+            "test_invalid_binary_bound",
+            SCHEMA,
+            PartitionSpec.unpartitioned(),
+            SortOrder.unsorted(),
+            2);
+    testTable
+        .updateProperties()
         .set(TableProperties.DEFAULT_WRITE_METRICS_MODE, "truncate(16)")
         .commit();
 
-    DataWriter<Record> dataWriter = Parquet.writeData(file)
-        .metricsConfig(MetricsConfig.forTable(testTable))
-        .schema(SCHEMA)
-        .createWriterFunc(GenericParquetWriter::buildWriter)
-        .overwrite()
-        .withSpec(PartitionSpec.unpartitioned())
-        .build();
+    DataWriter<Record> dataWriter =
+        Parquet.writeData(file)
+            .metricsConfig(MetricsConfig.forTable(testTable))
+            .schema(SCHEMA)
+            .createWriterFunc(GenericParquetWriter::buildWriter)
+            .overwrite()
+            .withSpec(PartitionSpec.unpartitioned())
+            .build();
 
     // This max binary value causes an overflow
     GenericRecord genericRecord = GenericRecord.create(SCHEMA);
@@ -208,8 +225,7 @@ public class TestParquetDataWriter {
     for (int i = 0; i < 17; i++) {
       bytes.put(i, (byte) 0xff);
     }
-    builder.add(genericRecord.copy(ImmutableMap.of("id", 1L, "binary",
-        bytes)));
+    builder.add(genericRecord.copy(ImmutableMap.of("id", 1L, "binary", bytes)));
     List<Record> overflowRecords = builder.build();
 
     try {
@@ -224,15 +240,17 @@ public class TestParquetDataWriter {
 
     Assert.assertEquals("Format should be Parquet", FileFormat.PARQUET, dataFile.format());
     Assert.assertEquals("Should be data file", FileContent.DATA, dataFile.content());
-    Assert.assertEquals("Record count should match", overflowRecords.size(), dataFile.recordCount());
+    Assert.assertEquals(
+        "Record count should match", overflowRecords.size(), dataFile.recordCount());
     Assert.assertEquals("Partition should be empty", 0, dataFile.partition().size());
     Assert.assertNull("Key metadata should be null", dataFile.keyMetadata());
 
     List<Record> writtenRecords;
-    try (CloseableIterable<Record> reader = Parquet.read(file.toInputFile())
-        .project(SCHEMA)
-        .createReaderFunc(fileSchema -> GenericParquetReaders.buildReader(SCHEMA, fileSchema))
-        .build()) {
+    try (CloseableIterable<Record> reader =
+        Parquet.read(file.toInputFile())
+            .project(SCHEMA)
+            .createReaderFunc(fileSchema -> GenericParquetReaders.buildReader(SCHEMA, fileSchema))
+            .build()) {
       writtenRecords = Lists.newArrayList(reader);
     }
 

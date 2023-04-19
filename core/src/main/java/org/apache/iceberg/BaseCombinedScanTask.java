@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import java.util.Collection;
@@ -25,6 +24,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.util.TableScanUtil;
 
 public class BaseCombinedScanTask implements CombinedScanTask {
   private final FileScanTask[] tasks;
@@ -36,7 +36,7 @@ public class BaseCombinedScanTask implements CombinedScanTask {
 
   public BaseCombinedScanTask(List<FileScanTask> tasks) {
     Preconditions.checkNotNull(tasks, "tasks cannot be null");
-    this.tasks = BaseFileScanTask.combineAdjacentTasks(tasks).stream().toArray(FileScanTask[]::new);
+    this.tasks = TableScanUtil.mergeTasks(tasks).toArray(new FileScanTask[0]);
   }
 
   @Override
@@ -46,8 +46,6 @@ public class BaseCombinedScanTask implements CombinedScanTask {
 
   @Override
   public String toString() {
-    return MoreObjects.toStringHelper(this)
-        .add("tasks", Joiner.on(", ").join(tasks))
-        .toString();
+    return MoreObjects.toStringHelper(this).add("tasks", Joiner.on(", ").join(tasks)).toString();
   }
 }

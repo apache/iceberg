@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.avro;
 
 import java.util.Deque;
@@ -31,8 +30,8 @@ public abstract class AvroSchemaVisitor<T> {
       case RECORD:
         // check to make sure this hasn't been visited before
         String name = schema.getFullName();
-        Preconditions.checkState(!visitor.recordLevels.contains(name),
-            "Cannot process recursive Avro record %s", name);
+        Preconditions.checkState(
+            !visitor.recordLevels.contains(name), "Cannot process recursive Avro record %s", name);
 
         visitor.recordLevels.push(name);
 

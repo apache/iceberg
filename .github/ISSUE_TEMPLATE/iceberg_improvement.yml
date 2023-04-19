@@ -1,0 +1,33 @@
+---
+name: Iceberg Improvement / Feature Request
+description: New features with Apache Iceberg
+labels: ["kind:feature request"]
+body:
+  - type: textarea
+    attributes:
+      label: Feature Request / Improvement
+      description: Please describe the feature and elaborate on the use case and motivation behind it
+    validations:
+      required: true
+  - type: dropdown
+    attributes:
+      label: Query engine
+      description: Which query engine?
+      multiple: false
+      options:
+        - Spark
+        - Trino
+        - Starburst
+        - Snowflake
+        - Dremio
+        - Starrocks
+        - Doris
+        - EMR
+        - Athena
+        - PrestoDB
+        - Flink
+        - Impala
+        - Hive
+        - Other
+    validations:
+      required: false

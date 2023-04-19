@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark;
 
 import java.util.List;
@@ -70,7 +69,7 @@ class SparkTypeToType extends SparkTypeVisitor<Type> {
     List<Types.NestedField> newFields = Lists.newArrayListWithExpectedSize(fields.length);
     boolean isRoot = root == struct;
     for (int i = 0; i < fields.length; i += 1) {
-      StructField field  = fields[i];
+      StructField field = fields[i];
       Type type = types.get(i);
 
       int id;
@@ -122,10 +121,9 @@ class SparkTypeToType extends SparkTypeVisitor<Type> {
     if (atomic instanceof BooleanType) {
       return Types.BooleanType.get();
 
-    } else if (
-        atomic instanceof IntegerType ||
-        atomic instanceof ShortType ||
-        atomic instanceof ByteType) {
+    } else if (atomic instanceof IntegerType
+        || atomic instanceof ShortType
+        || atomic instanceof ByteType) {
       return Types.IntegerType.get();
 
     } else if (atomic instanceof LongType) {
@@ -137,10 +135,9 @@ class SparkTypeToType extends SparkTypeVisitor<Type> {
     } else if (atomic instanceof DoubleType) {
       return Types.DoubleType.get();
 
-    } else if (
-        atomic instanceof StringType ||
-        atomic instanceof CharType ||
-        atomic instanceof VarcharType) {
+    } else if (atomic instanceof StringType
+        || atomic instanceof CharType
+        || atomic instanceof VarcharType) {
       return Types.StringType.get();
 
     } else if (atomic instanceof DateType) {
@@ -151,13 +148,11 @@ class SparkTypeToType extends SparkTypeVisitor<Type> {
 
     } else if (atomic instanceof DecimalType) {
       return Types.DecimalType.of(
-          ((DecimalType) atomic).precision(),
-          ((DecimalType) atomic).scale());
+          ((DecimalType) atomic).precision(), ((DecimalType) atomic).scale());
     } else if (atomic instanceof BinaryType) {
       return Types.BinaryType.get();
     }
 
-    throw new UnsupportedOperationException(
-        "Not a supported type: " + atomic.catalogString());
+    throw new UnsupportedOperationException("Not a supported type: " + atomic.catalogString());
   }
 }

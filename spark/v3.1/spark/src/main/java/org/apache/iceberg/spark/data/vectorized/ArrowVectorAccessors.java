@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.data.vectorized;
 
 import org.apache.iceberg.arrow.vectorized.ArrowVectorAccessor;
@@ -35,6 +34,5 @@ public class ArrowVectorAccessors {
     return factory.getVectorAccessor(holder);
   }
 
-  private ArrowVectorAccessors() {
-  }
+  private ArrowVectorAccessors() {}
 }

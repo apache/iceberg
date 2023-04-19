@@ -16,8 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.data;
+
+import static org.apache.iceberg.types.Types.NestedField.optional;
 
 import java.io.File;
 import java.io.IOException;
@@ -32,16 +33,12 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
-import static org.apache.iceberg.types.Types.NestedField.optional;
-
 public class TestOrcWrite {
-  @Rule
-  public TemporaryFolder temp = new TemporaryFolder();
+  @Rule public TemporaryFolder temp = new TemporaryFolder();
 
-  private static final Schema SCHEMA = new Schema(
-      optional(1, "id", Types.IntegerType.get()),
-      optional(2, "data", Types.StringType.get())
-  );
+  private static final Schema SCHEMA =
+      new Schema(
+          optional(1, "id", Types.IntegerType.get()), optional(2, "data", Types.StringType.get()));
 
   @Test
   public void splitOffsets() throws IOException {
@@ -49,10 +46,11 @@ public class TestOrcWrite {
     Assert.assertTrue("Delete should succeed", testFile.delete());
 
     Iterable<InternalRow> rows = RandomData.generateSpark(SCHEMA, 1, 0L);
-    FileAppender<InternalRow> writer = ORC.write(Files.localOutput(testFile))
-        .createWriterFunc(SparkOrcWriter::new)
-        .schema(SCHEMA)
-        .build();
+    FileAppender<InternalRow> writer =
+        ORC.write(Files.localOutput(testFile))
+            .createWriterFunc(SparkOrcWriter::new)
+            .schema(SCHEMA)
+            .build();
 
     writer.addAll(rows);
     writer.close();

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import java.io.IOException;
@@ -35,8 +34,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class MicroBatches {
-  private MicroBatches() {
-  }
+  private MicroBatches() {}
 
   public static class MicroBatch {
     private final long snapshotId;
@@ -46,8 +44,13 @@ public class MicroBatches {
     private final List<FileScanTask> tasks;
     private final boolean lastIndexOfSnapshot;
 
-    private MicroBatch(long snapshotId, long startFileIndex, long endFileIndex, long sizeInBytes,
-               List<FileScanTask> tasks, boolean lastIndexOfSnapshot) {
+    private MicroBatch(
+        long snapshotId,
+        long startFileIndex,
+        long endFileIndex,
+        long sizeInBytes,
+        List<FileScanTask> tasks,
+        boolean lastIndexOfSnapshot) {
       this.snapshotId = snapshotId;
       this.startFileIndex = startFileIndex;
       this.endFileIndex = endFileIndex;
@@ -110,27 +113,36 @@ public class MicroBatches {
     }
 
     public MicroBatch generate(long startFileIndex, long targetSizeInBytes, boolean scanAllFiles) {
-      Preconditions.checkArgument(startFileIndex >= 0, "startFileIndex is unexpectedly smaller than 0");
-      Preconditions.checkArgument(targetSizeInBytes > 0, "targetSizeInBytes should be larger than 0");
+      Preconditions.checkArgument(
+          startFileIndex >= 0, "startFileIndex is unexpectedly smaller than 0");
+      Preconditions.checkArgument(
+          targetSizeInBytes > 0, "targetSizeInBytes should be larger than 0");
 
-      List<ManifestFile> manifests = scanAllFiles ? snapshot.dataManifests(io) :
-          snapshot.dataManifests(io).stream().filter(m -> m.snapshotId().equals(snapshot.snapshotId()))
-              .collect(Collectors.toList());
+      List<ManifestFile> manifests =
+          scanAllFiles
+              ? snapshot.dataManifests(io)
+              : snapshot.dataManifests(io).stream()
+                  .filter(m -> m.snapshotId().equals(snapshot.snapshotId()))
+                  .collect(Collectors.toList());
 
       List<Pair<ManifestFile, Integer>> manifestIndexes = indexManifests(manifests);
-      List<Pair<ManifestFile, Integer>> skippedManifestIndexes = skipManifests(manifestIndexes, startFileIndex);
+      List<Pair<ManifestFile, Integer>> skippedManifestIndexes =
+          skipManifests(manifestIndexes, startFileIndex);
 
-      return generateMicroBatch(skippedManifestIndexes, startFileIndex, targetSizeInBytes, scanAllFiles);
+      return generateMicroBatch(
+          skippedManifestIndexes, startFileIndex, targetSizeInBytes, scanAllFiles);
     }
 
     /**
-     * Method to index the data files for each manifest. For example, if manifest m1 has 3 data files, manifest
-     * m2 has 2 data files, manifest m3 has 1 data file, then the index will be (m1, 0), (m2, 3), (m3, 5).
+     * Method to index the data files for each manifest. For example, if manifest m1 has 3 data
+     * files, manifest m2 has 2 data files, manifest m3 has 1 data file, then the index will be (m1,
+     * 0), (m2, 3), (m3, 5).
      *
      * @param manifestFiles List of input manifests used to index.
      * @return a list of manifest index with key as manifest file, value as file counts.
      */
-    private static List<Pair<ManifestFile, Integer>> indexManifests(List<ManifestFile> manifestFiles) {
+    private static List<Pair<ManifestFile, Integer>> indexManifests(
+        List<ManifestFile> manifestFiles) {
       int currentFileIndex = 0;
       List<Pair<ManifestFile, Integer>> manifestIndexes = Lists.newArrayList();
 
@@ -143,17 +155,17 @@ public class MicroBatches {
     }
 
     /**
-     * Method to skip the manifest file in which the index is smaller than startFileIndex. For example, if the
-     * index list is : (m1, 0), (m2, 3), (m3, 5), and startFileIndex is 4, then the returned manifest index list is:
-     * (m2, 3), (m3, 5).
+     * Method to skip the manifest file in which the index is smaller than startFileIndex. For
+     * example, if the index list is : (m1, 0), (m2, 3), (m3, 5), and startFileIndex is 4, then the
+     * returned manifest index list is: (m2, 3), (m3, 5).
      *
      * @param indexedManifests List of input manifests.
      * @param startFileIndex Index used to skip the processed manifests.
-     * @return a sub-list of manifest file index which only contains the manifest indexes larger than the
-     * startFileIndex.
+     * @return a sub-list of manifest file index which only contains the manifest indexes larger
+     *     than the startFileIndex.
      */
-    private static List<Pair<ManifestFile, Integer>> skipManifests(List<Pair<ManifestFile, Integer>> indexedManifests,
-                                                                   long startFileIndex) {
+    private static List<Pair<ManifestFile, Integer>> skipManifests(
+        List<Pair<ManifestFile, Integer>> indexedManifests, long startFileIndex) {
       if (startFileIndex == 0) {
         return indexedManifests;
       }
@@ -171,20 +183,30 @@ public class MicroBatches {
     }
 
     /**
-     * Method to generate MicroBatch of this snapshot based on the indexed manifests, controlled by targetSizeInBytes.
+     * Method to generate MicroBatch of this snapshot based on the indexed manifests, controlled by
+     * targetSizeInBytes.
      *
      * @param indexedManifests A list of indexed manifests to generate MicroBatch
      * @param startFileIndex A startFileIndex used to skip processed files.
-     * @param targetSizeInBytes Used to control the size of MicroBatch, the processed file bytes must be smaller than
-     *                         this size.
-     * @param scanAllFiles Used to check whether all the data files should be processed, or only added files.
+     * @param targetSizeInBytes Used to control the size of MicroBatch, the processed file bytes
+     *     must be smaller than this size.
+     * @param scanAllFiles Used to check whether all the data files should be processed, or only
+     *     added files.
      * @return A MicroBatch.
      */
-    private MicroBatch generateMicroBatch(List<Pair<ManifestFile, Integer>> indexedManifests,
-                                          long startFileIndex, long targetSizeInBytes, boolean scanAllFiles) {
+    private MicroBatch generateMicroBatch(
+        List<Pair<ManifestFile, Integer>> indexedManifests,
+        long startFileIndex,
+        long targetSizeInBytes,
+        boolean scanAllFiles) {
       if (indexedManifests.isEmpty()) {
-        return new MicroBatch(snapshot.snapshotId(), startFileIndex, startFileIndex + 1, 0L,
-            Collections.emptyList(), true);
+        return new MicroBatch(
+            snapshot.snapshotId(),
+            startFileIndex,
+            startFileIndex + 1,
+            0L,
+            Collections.emptyList(),
+            true);
       }
 
       long currentSizeInBytes = 0L;
@@ -195,12 +217,14 @@ public class MicroBatches {
       for (int idx = 0; idx < indexedManifests.size(); idx++) {
         currentFileIndex = indexedManifests.get(idx).second();
 
-        try (CloseableIterable<FileScanTask> taskIterable = open(indexedManifests.get(idx).first(), scanAllFiles);
+        try (CloseableIterable<FileScanTask> taskIterable =
+                open(indexedManifests.get(idx).first(), scanAllFiles);
             CloseableIterator<FileScanTask> taskIter = taskIterable.iterator()) {
           while (taskIter.hasNext()) {
             FileScanTask task = taskIter.next();
             if (currentFileIndex >= startFileIndex) {
-              // Make sure there's at least one task in each MicroBatch to void job to be stuck, always add task
+              // Make sure there's at least one task in each MicroBatch to void job to be stuck,
+              // always add task
               // firstly.
               tasks.add(task);
               currentSizeInBytes += task.length();
@@ -222,7 +246,8 @@ public class MicroBatches {
 
         if (currentSizeInBytes >= targetSizeInBytes) {
           if (tasks.size() > 1 && currentSizeInBytes > targetSizeInBytes) {
-            // If there's more than 1 task in this batch, and the size exceeds the limit, we should revert last
+            // If there's more than 1 task in this batch, and the size exceeds the limit, we should
+            // revert last
             // task to make sure we don't exceed the size limit.
             FileScanTask extraTask = tasks.remove(tasks.size() - 1);
             currentSizeInBytes -= extraTask.length();
@@ -234,19 +259,28 @@ public class MicroBatches {
         }
       }
 
-      return new MicroBatch(snapshot.snapshotId(), startFileIndex, currentFileIndex, currentSizeInBytes,
-          tasks, isLastIndex);
+      return new MicroBatch(
+          snapshot.snapshotId(),
+          startFileIndex,
+          currentFileIndex,
+          currentSizeInBytes,
+          tasks,
+          isLastIndex);
     }
 
     private CloseableIterable<FileScanTask> open(ManifestFile manifestFile, boolean scanAllFiles) {
-      ManifestGroup manifestGroup = new ManifestGroup(io, ImmutableList.of(manifestFile))
-          .specsById(specsById)
-          .caseSensitive(caseSensitive);
+      ManifestGroup manifestGroup =
+          new ManifestGroup(io, ImmutableList.of(manifestFile))
+              .specsById(specsById)
+              .caseSensitive(caseSensitive);
       if (!scanAllFiles) {
-        manifestGroup = manifestGroup
-            .filterManifestEntries(entry ->
-                entry.snapshotId() == snapshot.snapshotId() && entry.status() == ManifestEntry.Status.ADDED)
-            .ignoreDeleted();
+        manifestGroup =
+            manifestGroup
+                .filterManifestEntries(
+                    entry ->
+                        entry.snapshotId() == snapshot.snapshotId()
+                            && entry.status() == ManifestEntry.Status.ADDED)
+                .ignoreDeleted();
       }
 
       return manifestGroup.planFiles();

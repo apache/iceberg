@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.util;
 
 import java.util.Collection;
@@ -45,13 +44,17 @@ public class BinPacking {
     }
 
     public List<List<T>> packEnd(List<T> items, Function<T, Long> weightFunc) {
-      return Lists.reverse(ImmutableList.copyOf(Iterables.transform(
-          new PackingIterable<>(Lists.reverse(items), targetWeight, lookback, weightFunc, largestBinFirst),
-          Lists::reverse)));
+      return Lists.reverse(
+          ImmutableList.copyOf(
+              Iterables.transform(
+                  new PackingIterable<>(
+                      Lists.reverse(items), targetWeight, lookback, weightFunc, largestBinFirst),
+                  Lists::reverse)));
     }
 
     public List<List<T>> pack(Iterable<T> items, Function<T, Long> weightFunc) {
-      return ImmutableList.copyOf(new PackingIterable<>(items, targetWeight, lookback, weightFunc, largestBinFirst));
+      return ImmutableList.copyOf(
+          new PackingIterable<>(items, targetWeight, lookback, weightFunc, largestBinFirst));
     }
   }
 
@@ -62,15 +65,19 @@ public class BinPacking {
     private final Function<T, Long> weightFunc;
     private final boolean largestBinFirst;
 
-    public PackingIterable(Iterable<T> iterable, long targetWeight, int lookback,
-                           Function<T, Long> weightFunc) {
+    public PackingIterable(
+        Iterable<T> iterable, long targetWeight, int lookback, Function<T, Long> weightFunc) {
       this(iterable, targetWeight, lookback, weightFunc, false);
     }
 
-    public PackingIterable(Iterable<T> iterable, long targetWeight, int lookback,
-                           Function<T, Long> weightFunc, boolean largestBinFirst) {
-      Preconditions.checkArgument(lookback > 0,
-          "Bin look-back size must be greater than 0: %s", lookback);
+    public PackingIterable(
+        Iterable<T> iterable,
+        long targetWeight,
+        int lookback,
+        Function<T, Long> weightFunc,
+        boolean largestBinFirst) {
+      Preconditions.checkArgument(
+          lookback > 0, "Bin look-back size must be greater than 0: %s", lookback);
       this.iterable = iterable;
       this.targetWeight = targetWeight;
       this.lookback = lookback;
@@ -80,7 +87,8 @@ public class BinPacking {
 
     @Override
     public Iterator<List<T>> iterator() {
-      return new PackingIterator<>(iterable.iterator(), targetWeight, lookback, weightFunc, largestBinFirst);
+      return new PackingIterator<>(
+          iterable.iterator(), targetWeight, lookback, weightFunc, largestBinFirst);
     }
   }
 
@@ -92,8 +100,12 @@ public class BinPacking {
     private final Function<T, Long> weightFunc;
     private final boolean largestBinFirst;
 
-    private PackingIterator(Iterator<T> items, long targetWeight, int lookback,
-                            Function<T, Long> weightFunc, boolean largestBinFirst) {
+    private PackingIterator(
+        Iterator<T> items,
+        long targetWeight,
+        int lookback,
+        Function<T, Long> weightFunc,
+        boolean largestBinFirst) {
       this.items = items;
       this.targetWeight = targetWeight;
       this.lookback = lookback;

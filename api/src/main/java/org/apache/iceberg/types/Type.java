@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.types;
 
 import java.io.ObjectStreamException;
@@ -24,6 +23,9 @@ import java.io.Serializable;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import org.apache.iceberg.StructLike;
 
 public interface Type extends Serializable {
   enum TypeID {
@@ -40,9 +42,9 @@ public interface Type extends Serializable {
     FIXED(ByteBuffer.class),
     BINARY(ByteBuffer.class),
     DECIMAL(BigDecimal.class),
-    STRUCT(Void.class),
-    LIST(Void.class),
-    MAP(Void.class);
+    STRUCT(StructLike.class),
+    LIST(List.class),
+    MAP(Map.class);
 
     private final Class<?> javaClass;
 
@@ -111,6 +113,23 @@ public interface Type extends Serializable {
     Object writeReplace() throws ObjectStreamException {
       return new PrimitiveHolder(toString());
     }
+
+    @Override
+    public boolean equals(Object o) {
+      if (this == o) {
+        return true;
+      } else if (!(o instanceof PrimitiveType)) {
+        return false;
+      }
+
+      PrimitiveType that = (PrimitiveType) o;
+      return typeId() == that.typeId();
+    }
+
+    @Override
+    public int hashCode() {
+      return Objects.hash(PrimitiveType.class, typeId());
+    }
   }
 
   abstract class NestedType implements Type {
@@ -130,5 +149,4 @@ public interface Type extends Serializable {
 
     public abstract Types.NestedField field(int id);
   }
-
 }

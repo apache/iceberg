@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.mr.hive.serde.objectinspector;
 
 import java.sql.Timestamp;
@@ -30,7 +29,8 @@ import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoFactory;
 public class IcebergTimestampWithZoneObjectInspector extends AbstractPrimitiveJavaObjectInspector
     implements TimestampObjectInspector, WriteObjectInspector {
 
-  private static final IcebergTimestampWithZoneObjectInspector INSTANCE = new IcebergTimestampWithZoneObjectInspector();
+  private static final IcebergTimestampWithZoneObjectInspector INSTANCE =
+      new IcebergTimestampWithZoneObjectInspector();
 
   public static IcebergTimestampWithZoneObjectInspector get() {
     return INSTANCE;
@@ -70,5 +70,4 @@ public class IcebergTimestampWithZoneObjectInspector extends AbstractPrimitiveJa
       return o;
     }
   }
-
 }

@@ -16,23 +16,16 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.spark.sql.connector.iceberg.write;
 
 import org.apache.spark.sql.connector.iceberg.write.RowLevelOperation.Command;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 
-/**
- * An interface with logical information for a row-level operation such as DELETE or MERGE.
- */
+/** An interface with logical information for a row-level operation such as DELETE or MERGE. */
 public interface RowLevelOperationInfo {
-  /**
-   * Returns options that the user specified when performing the row-level operation.
-   */
+  /** Returns options that the user specified when performing the row-level operation. */
   CaseInsensitiveStringMap options();
 
-  /**
-   * Returns the SQL command (e.g. DELETE, UPDATE, MERGE) for this row-level operation.
-   */
+  /** Returns the SQL command (e.g. DELETE, UPDATE, MERGE) for this row-level operation. */
   Command command();
 }

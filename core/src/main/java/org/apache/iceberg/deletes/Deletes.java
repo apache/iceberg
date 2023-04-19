@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.deletes;
 
 import java.io.IOException;
@@ -42,44 +41,76 @@ import org.apache.iceberg.util.SortedMerge;
 import org.apache.iceberg.util.StructLikeSet;
 
 public class Deletes {
-  private static final Schema POSITION_DELETE_SCHEMA = new Schema(
-      MetadataColumns.DELETE_FILE_PATH,
-      MetadataColumns.DELETE_FILE_POS
-  );
+  private static final Schema POSITION_DELETE_SCHEMA =
+      new Schema(MetadataColumns.DELETE_FILE_PATH, MetadataColumns.DELETE_FILE_POS);
 
-  private static final Accessor<StructLike> FILENAME_ACCESSOR = POSITION_DELETE_SCHEMA
-      .accessorForField(MetadataColumns.DELETE_FILE_PATH.fieldId());
-  private static final Accessor<StructLike> POSITION_ACCESSOR = POSITION_DELETE_SCHEMA
-      .accessorForField(MetadataColumns.DELETE_FILE_POS.fieldId());
+  private static final Accessor<StructLike> FILENAME_ACCESSOR =
+      POSITION_DELETE_SCHEMA.accessorForField(MetadataColumns.DELETE_FILE_PATH.fieldId());
+  private static final Accessor<StructLike> POSITION_ACCESSOR =
+      POSITION_DELETE_SCHEMA.accessorForField(MetadataColumns.DELETE_FILE_POS.fieldId());
 
-  private Deletes() {
-  }
+  private Deletes() {}
 
-  public static <T> CloseableIterable<T> filter(CloseableIterable<T> rows, Function<T, StructLike> rowToDeleteKey,
-                                                StructLikeSet deleteSet) {
+  public static <T> CloseableIterable<T> filter(
+      CloseableIterable<T> rows, Function<T, StructLike> rowToDeleteKey, StructLikeSet deleteSet) {
     if (deleteSet.isEmpty()) {
       return rows;
     }
 
-    EqualitySetDeleteFilter<T> equalityFilter = new EqualitySetDeleteFilter<>(rowToDeleteKey, deleteSet);
+    EqualitySetDeleteFilter<T> equalityFilter =
+        new EqualitySetDeleteFilter<>(rowToDeleteKey, deleteSet);
     return equalityFilter.filter(rows);
   }
 
-  public static <T> CloseableIterable<T> markDeleted(CloseableIterable<T> rows, Predicate<T> isDeleted,
-                                                     Consumer<T> deleteMarker) {
-    return CloseableIterable.transform(rows, row -> {
-      if (isDeleted.test(row)) {
-        deleteMarker.accept(row);
-      }
-      return row;
-    });
+  /**
+   * Returns the same rows that are input, while marking the deleted ones.
+   *
+   * @param rows the rows to process
+   * @param isDeleted a predicate that determines if a row is deleted
+   * @param deleteMarker a function that marks a row as deleted
+   * @return the processed rows
+   */
+  public static <T> CloseableIterable<T> markDeleted(
+      CloseableIterable<T> rows, Predicate<T> isDeleted, Consumer<T> deleteMarker) {
+    return CloseableIterable.transform(
+        rows,
+        row -> {
+          if (isDeleted.test(row)) {
+            deleteMarker.accept(row);
+          }
+
+          return row;
+        });
   }
 
-  public static <T> CloseableIterable<T> filterDeleted(CloseableIterable<T> rows, Predicate<T> isDeleted) {
-    return CloseableIterable.filter(rows, isDeleted.negate());
+  /**
+   * Returns the remaining rows (the ones that are not deleted), while counting the deleted ones.
+   *
+   * @param rows the rows to process
+   * @param isDeleted a predicate that determines if a row is deleted
+   * @param counter a counter that counts deleted rows
+   * @return the processed rows
+   */
+  public static <T> CloseableIterable<T> filterDeleted(
+      CloseableIterable<T> rows, Predicate<T> isDeleted, DeleteCounter counter) {
+    Filter<T> remainingRowsFilter =
+        new Filter<T>() {
+          @Override
+          protected boolean shouldKeep(T item) {
+            boolean deleted = isDeleted.test(item);
+            if (deleted) {
+              counter.increment();
+            }
+
+            return !deleted;
+          }
+        };
+
+    return remainingRowsFilter.filter(rows);
   }
 
-  public static StructLikeSet toEqualitySet(CloseableIterable<StructLike> eqDeletes, Types.StructType eqType) {
+  public static StructLikeSet toEqualitySet(
+      CloseableIterable<StructLike> eqDeletes, Types.StructType eqType) {
     try (CloseableIterable<StructLike> deletes = eqDeletes) {
       StructLikeSet deleteSet = StructLikeSet.create(eqType);
       Iterables.addAll(deleteSet, deletes);
@@ -89,11 +120,15 @@ public class Deletes {
     }
   }
 
-  public static <T extends StructLike> PositionDeleteIndex toPositionIndex(CharSequence dataLocation,
-                                                                           List<CloseableIterable<T>> deleteFiles) {
+  public static <T extends StructLike> PositionDeleteIndex toPositionIndex(
+      CharSequence dataLocation, List<CloseableIterable<T>> deleteFiles) {
     DataFileFilter<T> locationFilter = new DataFileFilter<>(dataLocation);
-    List<CloseableIterable<Long>> positions = Lists.transform(deleteFiles, deletes ->
-        CloseableIterable.transform(locationFilter.filter(deletes), row -> (Long) POSITION_ACCESSOR.get(row)));
+    List<CloseableIterable<Long>> positions =
+        Lists.transform(
+            deleteFiles,
+            deletes ->
+                CloseableIterable.transform(
+                    locationFilter.filter(deletes), row -> (Long) POSITION_ACCESSOR.get(row)));
     return toPositionIndex(CloseableIterable.concat(positions));
   }
 
@@ -107,29 +142,43 @@ public class Deletes {
     }
   }
 
-  public static <T> CloseableIterable<T> streamingFilter(CloseableIterable<T> rows,
-                                                         Function<T, Long> rowToPosition,
-                                                         CloseableIterable<Long> posDeletes) {
-    return new PositionStreamDeleteFilter<>(rows, rowToPosition, posDeletes);
+  public static <T> CloseableIterable<T> streamingFilter(
+      CloseableIterable<T> rows,
+      Function<T, Long> rowToPosition,
+      CloseableIterable<Long> posDeletes) {
+    return streamingFilter(rows, rowToPosition, posDeletes, new DeleteCounter());
   }
 
-  public static <T> CloseableIterable<T> streamingMarker(CloseableIterable<T> rows,
-                                                         Function<T, Long> rowToPosition,
-                                                         CloseableIterable<Long> posDeletes,
-                                                         Consumer<T> markDeleted) {
+  public static <T> CloseableIterable<T> streamingFilter(
+      CloseableIterable<T> rows,
+      Function<T, Long> rowToPosition,
+      CloseableIterable<Long> posDeletes,
+      DeleteCounter counter) {
+    return new PositionStreamDeleteFilter<>(rows, rowToPosition, posDeletes, counter);
+  }
+
+  public static <T> CloseableIterable<T> streamingMarker(
+      CloseableIterable<T> rows,
+      Function<T, Long> rowToPosition,
+      CloseableIterable<Long> posDeletes,
+      Consumer<T> markDeleted) {
     return new PositionStreamDeleteMarker<>(rows, rowToPosition, posDeletes, markDeleted);
   }
 
-  public static CloseableIterable<Long> deletePositions(CharSequence dataLocation,
-                                                        CloseableIterable<StructLike> deleteFile) {
+  public static CloseableIterable<Long> deletePositions(
+      CharSequence dataLocation, CloseableIterable<StructLike> deleteFile) {
     return deletePositions(dataLocation, ImmutableList.of(deleteFile));
   }
 
-  public static <T extends StructLike> CloseableIterable<Long> deletePositions(CharSequence dataLocation,
-                                                                               List<CloseableIterable<T>> deleteFiles) {
+  public static <T extends StructLike> CloseableIterable<Long> deletePositions(
+      CharSequence dataLocation, List<CloseableIterable<T>> deleteFiles) {
     DataFileFilter<T> locationFilter = new DataFileFilter<>(dataLocation);
-    List<CloseableIterable<Long>> positions = Lists.transform(deleteFiles, deletes ->
-        CloseableIterable.transform(locationFilter.filter(deletes), row -> (Long) POSITION_ACCESSOR.get(row)));
+    List<CloseableIterable<Long>> positions =
+        Lists.transform(
+            deleteFiles,
+            deletes ->
+                CloseableIterable.transform(
+                    locationFilter.filter(deletes), row -> (Long) POSITION_ACCESSOR.get(row)));
 
     return new SortedMerge<>(Long::compare, positions);
   }
@@ -138,8 +187,7 @@ public class Deletes {
     private final StructLikeSet deletes;
     private final Function<T, StructLike> extractEqStruct;
 
-    protected EqualitySetDeleteFilter(Function<T, StructLike> extractEq,
-                                      StructLikeSet deletes) {
+    protected EqualitySetDeleteFilter(Function<T, StructLike> extractEq, StructLikeSet deletes) {
       this.extractEqStruct = extractEq;
       this.deletes = deletes;
     }
@@ -150,14 +198,17 @@ public class Deletes {
     }
   }
 
-  private abstract static class PositionStreamDeleteIterable<T> extends CloseableGroup implements CloseableIterable<T> {
+  private abstract static class PositionStreamDeleteIterable<T> extends CloseableGroup
+      implements CloseableIterable<T> {
     private final CloseableIterable<T> rows;
     private final CloseableIterator<Long> deletePosIterator;
     private final Function<T, Long> rowToPosition;
     private long nextDeletePos;
 
-    PositionStreamDeleteIterable(CloseableIterable<T> rows, Function<T, Long> rowToPosition,
-                                 CloseableIterable<Long> deletePositions) {
+    PositionStreamDeleteIterable(
+        CloseableIterable<T> rows,
+        Function<T, Long> rowToPosition,
+        CloseableIterable<Long> deletePositions) {
       this.rows = rows;
       this.rowToPosition = rowToPosition;
       this.deletePosIterator = deletePositions.iterator();
@@ -202,9 +253,15 @@ public class Deletes {
   }
 
   private static class PositionStreamDeleteFilter<T> extends PositionStreamDeleteIterable<T> {
-    private PositionStreamDeleteFilter(CloseableIterable<T> rows, Function<T, Long> rowToPosition,
-                                       CloseableIterable<Long> deletePositions) {
+    private final DeleteCounter counter;
+
+    PositionStreamDeleteFilter(
+        CloseableIterable<T> rows,
+        Function<T, Long> rowToPosition,
+        CloseableIterable<Long> deletePositions,
+        DeleteCounter counter) {
       super(rows, rowToPosition, deletePositions);
+      this.counter = counter;
     }
 
     @Override
@@ -212,7 +269,12 @@ public class Deletes {
       return new FilterIterator<T>(items) {
         @Override
         protected boolean shouldKeep(T item) {
-          return !isDeleted(item);
+          boolean deleted = isDeleted(item);
+          if (deleted) {
+            counter.increment();
+          }
+
+          return !deleted;
         }
       };
     }
@@ -221,20 +283,25 @@ public class Deletes {
   private static class PositionStreamDeleteMarker<T> extends PositionStreamDeleteIterable<T> {
     private final Consumer<T> markDeleted;
 
-    PositionStreamDeleteMarker(CloseableIterable<T> rows, Function<T, Long> rowToPosition,
-                               CloseableIterable<Long> deletePositions, Consumer<T> markDeleted) {
+    PositionStreamDeleteMarker(
+        CloseableIterable<T> rows,
+        Function<T, Long> rowToPosition,
+        CloseableIterable<Long> deletePositions,
+        Consumer<T> markDeleted) {
       super(rows, rowToPosition, deletePositions);
       this.markDeleted = markDeleted;
     }
 
     @Override
     protected CloseableIterator<T> applyDelete(CloseableIterator<T> items) {
-      return CloseableIterator.transform(items, row -> {
-        if (isDeleted(row)) {
-          markDeleted.accept(row);
-        }
-        return row;
-      });
+      return CloseableIterator.transform(
+          items,
+          row -> {
+            if (isDeleted(row)) {
+              markDeleted.accept(row);
+            }
+            return row;
+          });
     }
   }
 
@@ -264,7 +331,8 @@ public class Deletes {
         return false;
       }
 
-      // File paths inside a delete file normally have more identical chars at the beginning. For example, a typical
+      // File paths inside a delete file normally have more identical chars at the beginning. For
+      // example, a typical
       // path is like "s3:/bucket/db/table/data/partition/00000-0-[uuid]-00001.parquet".
       // The uuid is where the difference starts. So it's faster to find the first diff backward.
       for (int i = count - 1; i >= 0; i--) {

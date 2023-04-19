@@ -16,8 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.gcp.gcs;
+
+import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertEquals;
 
 import com.google.cloud.storage.BlobId;
 import com.google.cloud.storage.Storage;
@@ -33,9 +35,6 @@ import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.assertEquals;
-
 public class GCSOutputStreamTest {
   private static final Logger LOG = LoggerFactory.getLogger(GCSOutputStreamTest.class);
   private static final String BUCKET = "test-bucket";
@@ -47,13 +46,15 @@ public class GCSOutputStreamTest {
   @Test
   public void testWrite() {
     // Run tests for both byte and array write paths
-    Stream.of(true, false).forEach(arrayWrite -> {
-      // Test small file write
-      writeAndVerify(storage, randomBlobId(), randomData(1024), arrayWrite);
+    Stream.of(true, false)
+        .forEach(
+            arrayWrite -> {
+              // Test small file write
+              writeAndVerify(storage, randomBlobId(), randomData(1024), arrayWrite);
 
-      // Test large file
-      writeAndVerify(storage, randomBlobId(), randomData(10 * 1024 * 1024), arrayWrite);
-    });
+              // Test large file
+              writeAndVerify(storage, randomBlobId(), randomData(10 * 1024 * 1024), arrayWrite);
+            });
   }
 
   @Test
@@ -64,10 +65,9 @@ public class GCSOutputStreamTest {
     stream.close();
   }
 
-
-  private void writeAndVerify(Storage client, BlobId uri, byte [] data, boolean arrayWrite) {
-    try (GCSOutputStream stream = new GCSOutputStream(client, uri, properties,
-        MetricsContext.nullMetrics())) {
+  private void writeAndVerify(Storage client, BlobId uri, byte[] data, boolean arrayWrite) {
+    try (GCSOutputStream stream =
+        new GCSOutputStream(client, uri, properties, MetricsContext.nullMetrics())) {
       if (arrayWrite) {
         stream.write(data);
         assertEquals(data.length, stream.getPos());
@@ -90,7 +90,7 @@ public class GCSOutputStreamTest {
   }
 
   private byte[] randomData(int size) {
-    byte [] result = new byte[size];
+    byte[] result = new byte[size];
     random.nextBytes(result);
     return result;
   }

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import java.io.IOException;
@@ -30,36 +29,45 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 class ManifestLists {
-  private ManifestLists() {
-  }
+  private ManifestLists() {}
 
   static List<ManifestFile> read(InputFile manifestList) {
-    try (CloseableIterable<ManifestFile> files = Avro.read(manifestList)
-        .rename("manifest_file", GenericManifestFile.class.getName())
-        .rename("partitions", GenericPartitionFieldSummary.class.getName())
-        .rename("r508", GenericPartitionFieldSummary.class.getName())
-        .classLoader(GenericManifestFile.class.getClassLoader())
-        .project(ManifestFile.schema())
-        .reuseContainers(false)
-        .build()) {
+    try (CloseableIterable<ManifestFile> files =
+        Avro.read(manifestList)
+            .rename("manifest_file", GenericManifestFile.class.getName())
+            .rename("partitions", GenericPartitionFieldSummary.class.getName())
+            .rename("r508", GenericPartitionFieldSummary.class.getName())
+            .classLoader(GenericManifestFile.class.getClassLoader())
+            .project(ManifestFile.schema())
+            .reuseContainers(false)
+            .build()) {
 
       return Lists.newLinkedList(files);
 
     } catch (IOException e) {
-      throw new RuntimeIOException(e, "Cannot read manifest list file: %s", manifestList.location());
+      throw new RuntimeIOException(
+          e, "Cannot read manifest list file: %s", manifestList.location());
     }
   }
 
-  static ManifestListWriter write(int formatVersion, OutputFile manifestListFile,
-                                  long snapshotId, Long parentSnapshotId, long sequenceNumber) {
+  static ManifestListWriter write(
+      int formatVersion,
+      OutputFile manifestListFile,
+      long snapshotId,
+      Long parentSnapshotId,
+      long sequenceNumber) {
     switch (formatVersion) {
       case 1:
-        Preconditions.checkArgument(sequenceNumber == TableMetadata.INITIAL_SEQUENCE_NUMBER,
-            "Invalid sequence number for v1 manifest list: %s", sequenceNumber);
+        Preconditions.checkArgument(
+            sequenceNumber == TableMetadata.INITIAL_SEQUENCE_NUMBER,
+            "Invalid sequence number for v1 manifest list: %s",
+            sequenceNumber);
         return new ManifestListWriter.V1Writer(manifestListFile, snapshotId, parentSnapshotId);
       case 2:
-        return new ManifestListWriter.V2Writer(manifestListFile, snapshotId, parentSnapshotId, sequenceNumber);
+        return new ManifestListWriter.V2Writer(
+            manifestListFile, snapshotId, parentSnapshotId, sequenceNumber);
     }
-    throw new UnsupportedOperationException("Cannot write manifest list for table version: " + formatVersion);
+    throw new UnsupportedOperationException(
+        "Cannot write manifest list for table version: " + formatVersion);
   }
 }

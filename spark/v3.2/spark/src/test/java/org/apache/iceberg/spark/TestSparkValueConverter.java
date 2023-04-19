@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark;
 
 import org.apache.iceberg.Schema;
@@ -31,51 +30,55 @@ import org.junit.Test;
 public class TestSparkValueConverter {
   @Test
   public void testSparkNullMapConvert() {
-    Schema schema = new Schema(
-        Types.NestedField.required(0, "id", Types.LongType.get()),
-        Types.NestedField.optional(5, "locations", Types.MapType.ofOptional(6, 7,
-            Types.StringType.get(),
-            Types.StructType.of(
-                Types.NestedField.required(1, "lat", Types.FloatType.get()),
-                Types.NestedField.required(2, "long", Types.FloatType.get())
-            )
-        ))
-    );
+    Schema schema =
+        new Schema(
+            Types.NestedField.required(0, "id", Types.LongType.get()),
+            Types.NestedField.optional(
+                5,
+                "locations",
+                Types.MapType.ofOptional(
+                    6,
+                    7,
+                    Types.StringType.get(),
+                    Types.StructType.of(
+                        Types.NestedField.required(1, "lat", Types.FloatType.get()),
+                        Types.NestedField.required(2, "long", Types.FloatType.get())))));
 
     assertCorrectNullConversion(schema);
   }
 
   @Test
   public void testSparkNullListConvert() {
-    Schema schema = new Schema(
-        Types.NestedField.required(0, "id", Types.LongType.get()),
-        Types.NestedField.optional(5, "locations",
-            Types.ListType.ofOptional(6, Types.StringType.get())
-        )
-    );
+    Schema schema =
+        new Schema(
+            Types.NestedField.required(0, "id", Types.LongType.get()),
+            Types.NestedField.optional(
+                5, "locations", Types.ListType.ofOptional(6, Types.StringType.get())));
 
     assertCorrectNullConversion(schema);
   }
 
   @Test
   public void testSparkNullStructConvert() {
-    Schema schema = new Schema(
-        Types.NestedField.required(0, "id", Types.LongType.get()),
-        Types.NestedField.optional(5, "location", Types.StructType.of(
-            Types.NestedField.required(1, "lat", Types.FloatType.get()),
-            Types.NestedField.required(2, "long", Types.FloatType.get())
-        ))
-    );
+    Schema schema =
+        new Schema(
+            Types.NestedField.required(0, "id", Types.LongType.get()),
+            Types.NestedField.optional(
+                5,
+                "location",
+                Types.StructType.of(
+                    Types.NestedField.required(1, "lat", Types.FloatType.get()),
+                    Types.NestedField.required(2, "long", Types.FloatType.get()))));
 
     assertCorrectNullConversion(schema);
   }
 
   @Test
   public void testSparkNullPrimitiveConvert() {
-    Schema schema = new Schema(
-        Types.NestedField.required(0, "id", Types.LongType.get()),
-        Types.NestedField.optional(5, "location", Types.StringType.get())
-    );
+    Schema schema =
+        new Schema(
+            Types.NestedField.required(0, "id", Types.LongType.get()),
+            Types.NestedField.optional(5, "location", Types.StringType.get()));
     assertCorrectNullConversion(schema);
   }
 
@@ -83,7 +86,8 @@ public class TestSparkValueConverter {
     Row sparkRow = RowFactory.create(1, null);
     Record record = GenericRecord.create(schema);
     record.set(0, 1);
-    Assert.assertEquals("Round-trip conversion should produce original value",
+    Assert.assertEquals(
+        "Round-trip conversion should produce original value",
         record,
         SparkValueConverter.convert(schema, sparkRow));
   }

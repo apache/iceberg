@@ -16,13 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.hadoop;
 
 public class ConfigProperties {
 
-  private ConfigProperties() {
-  }
+  private ConfigProperties() {}
 
   public static final String ENGINE_HIVE_ENABLED = "iceberg.engine.hive.enabled";
   public static final String KEEP_HIVE_STATS = "iceberg.hive.keep.stats";

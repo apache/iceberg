@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.actions;
 
 public interface SnapshotUpdateAction<ThisT, R> extends Action<ThisT, R> {

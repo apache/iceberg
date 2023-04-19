@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.avro;
 
 import org.apache.avro.io.DatumWriter;
@@ -26,11 +25,13 @@ import org.apache.iceberg.Schema;
 
 public class AvroMetrics {
 
-  private AvroMetrics() {
-  }
+  private AvroMetrics() {}
 
-  static Metrics fromWriter(DatumWriter<?> datumWriter, Schema schema, long numRecords,
-                            MetricsConfig inputMetricsConfig) {
+  static Metrics fromWriter(
+      DatumWriter<?> datumWriter,
+      Schema schema,
+      long numRecords,
+      MetricsConfig inputMetricsConfig) {
     // TODO will populate in following PRs if datum writer is a MetricsAwareDatumWriter
     return new Metrics(numRecords, null, null, null, null);
   }

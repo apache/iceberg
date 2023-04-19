@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.spark.sql.connector.iceberg.expressions;
 
 import org.apache.spark.annotation.Experimental;
@@ -29,18 +28,12 @@ import org.apache.spark.sql.connector.expressions.Expression;
  */
 @Experimental
 public interface SortOrder extends Expression {
-  /**
-   * Returns the sort expression.
-   */
+  /** Returns the sort expression. */
   Expression expression();
 
-  /**
-   * Returns the sort direction.
-   */
+  /** Returns the sort direction. */
   SortDirection direction();
 
-  /**
-   * Returns the null ordering.
-   */
+  /** Returns the null ordering. */
   NullOrdering nullOrdering();
 }

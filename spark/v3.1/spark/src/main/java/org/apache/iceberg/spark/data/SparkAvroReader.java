@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.data;
 
 import java.io.IOException;
@@ -38,7 +37,6 @@ import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.catalyst.InternalRow;
 
-
 public class SparkAvroReader implements DatumReader<InternalRow>, SupportsRowPosition {
 
   private final Schema readSchema;
@@ -50,10 +48,12 @@ public class SparkAvroReader implements DatumReader<InternalRow>, SupportsRowPos
   }
 
   @SuppressWarnings("unchecked")
-  public SparkAvroReader(org.apache.iceberg.Schema expectedSchema, Schema readSchema, Map<Integer, ?> constants) {
+  public SparkAvroReader(
+      org.apache.iceberg.Schema expectedSchema, Schema readSchema, Map<Integer, ?> constants) {
     this.readSchema = readSchema;
-    this.reader = (ValueReader<InternalRow>) AvroSchemaWithTypeVisitor
-        .visit(expectedSchema, readSchema, new ReadBuilder(constants));
+    this.reader =
+        (ValueReader<InternalRow>)
+            AvroSchemaWithTypeVisitor.visit(expectedSchema, readSchema, new ReadBuilder(constants));
   }
 
   @Override
@@ -81,8 +81,8 @@ public class SparkAvroReader implements DatumReader<InternalRow>, SupportsRowPos
     }
 
     @Override
-    public ValueReader<?> record(Types.StructType expected, Schema record, List<String> names,
-                                 List<ValueReader<?>> fields) {
+    public ValueReader<?> record(
+        Types.StructType expected, Schema record, List<String> names, List<ValueReader<?>> fields) {
       return SparkValueReaders.struct(fields, expected, idToConstant);
     }
 
@@ -92,13 +92,14 @@ public class SparkAvroReader implements DatumReader<InternalRow>, SupportsRowPos
     }
 
     @Override
-    public ValueReader<?> array(Types.ListType expected, Schema array, ValueReader<?> elementReader) {
+    public ValueReader<?> array(
+        Types.ListType expected, Schema array, ValueReader<?> elementReader) {
       return SparkValueReaders.array(elementReader);
     }
 
     @Override
-    public ValueReader<?> map(Types.MapType expected, Schema map,
-                              ValueReader<?> keyReader, ValueReader<?> valueReader) {
+    public ValueReader<?> map(
+        Types.MapType expected, Schema map, ValueReader<?> keyReader, ValueReader<?> valueReader) {
       return SparkValueReaders.arrayMap(keyReader, valueReader);
     }
 

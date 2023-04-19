@@ -16,11 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.dell.ecs;
 
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -55,10 +54,9 @@ public class TestEcsURI {
 
   @Test
   public void testInvalidLocation() {
-    AssertHelpers.assertThrows(
-        "Invalid location should cause exception",
-        ValidationException.class,
-        "http://bucket/a",
-        () -> new EcsURI("http://bucket/a"));
+
+    Assertions.assertThatThrownBy(() -> new EcsURI("http://bucket/a"))
+        .isInstanceOf(ValidationException.class)
+        .hasMessage("Invalid ecs location: http://bucket/a");
   }
 }

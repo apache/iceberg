@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.mr.hive;
 
 import java.io.Serializable;
@@ -92,32 +91,39 @@ public class HiveIcebergStorageHandler implements HiveStoragePredicateHandler, H
     overlayTableProperties(conf, tableDesc, map);
     // For Tez, setting the committer here is enough to make sure it'll be part of the jobConf
     map.put("mapred.output.committer.class", HiveIcebergOutputCommitter.class.getName());
-    // For MR, the jobConf is set only in configureJobConf, so we're setting the write key here to detect it over there
+    // For MR, the jobConf is set only in configureJobConf, so we're setting the write key here to
+    // detect it over there
     map.put(WRITE_KEY, "true");
-    // Putting the key into the table props as well, so that projection pushdown can be determined on a
-    // table-level and skipped only for output tables in HiveIcebergSerde. Properties from the map will be present in
-    // the serde config for all tables in the query, not just the output tables, so we can't rely on that in the serde.
+    // Putting the key into the table props as well, so that projection pushdown can be determined
+    // on a
+    // table-level and skipped only for output tables in HiveIcebergSerde. Properties from the map
+    // will be present in
+    // the serde config for all tables in the query, not just the output tables, so we can't rely on
+    // that in the serde.
     tableDesc.getProperties().put(WRITE_KEY, "true");
   }
 
   @Override
-  public void configureTableJobProperties(TableDesc tableDesc, Map<String, String> map) {
+  public void configureTableJobProperties(TableDesc tableDesc, Map<String, String> map) {}
 
-  }
-
-  // Override annotation commented out, since this interface method has been introduced only in Hive 3
+  // Override annotation commented out, since this interface method has been introduced only in Hive
+  // 3
   // @Override
-  public void configureInputJobCredentials(TableDesc tableDesc, Map<String, String> secrets) {
-
-  }
+  public void configureInputJobCredentials(TableDesc tableDesc, Map<String, String> secrets) {}
 
   @Override
   public void configureJobConf(TableDesc tableDesc, JobConf jobConf) {
-    if (tableDesc != null && tableDesc.getProperties() != null &&
-        tableDesc.getProperties().get(WRITE_KEY) != null) {
+    if (tableDesc != null
+        && tableDesc.getProperties() != null
+        && tableDesc.getProperties().get(WRITE_KEY) != null) {
       String tableName = tableDesc.getTableName();
-      Preconditions.checkArgument(!tableName.contains(TABLE_NAME_SEPARATOR),
-          "Can not handle table " + tableName + ". Its name contains '" + TABLE_NAME_SEPARATOR + "'");
+      Preconditions.checkArgument(
+          !tableName.contains(TABLE_NAME_SEPARATOR),
+          "Can not handle table "
+              + tableName
+              + ". Its name contains '"
+              + TABLE_NAME_SEPARATOR
+              + "'");
       String tables = jobConf.get(InputFormatConfig.OUTPUT_TABLES);
       tables = tables == null ? tableName : tables + TABLE_NAME_SEPARATOR + tableName;
       jobConf.set("mapred.output.committer.class", HiveIcebergOutputCommitter.class.getName());
@@ -152,7 +158,8 @@ public class HiveIcebergStorageHandler implements HiveStoragePredicateHandler, H
    * @return Entire filter to take advantage of Hive's pruning as well as Iceberg's pruning.
    */
   @Override
-  public DecomposedPredicate decomposePredicate(JobConf jobConf, Deserializer deserializer, ExprNodeDesc exprNodeDesc) {
+  public DecomposedPredicate decomposePredicate(
+      JobConf jobConf, Deserializer deserializer, ExprNodeDesc exprNodeDesc) {
     DecomposedPredicate predicate = new DecomposedPredicate();
     predicate.residualPredicate = (ExprNodeGenericFuncDesc) exprNodeDesc;
     predicate.pushedPredicate = (ExprNodeGenericFuncDesc) exprNodeDesc;
@@ -160,52 +167,63 @@ public class HiveIcebergStorageHandler implements HiveStoragePredicateHandler, H
   }
 
   /**
-   * Returns the Table serialized to the configuration based on the table name.
-   * If configuration is missing from the FileIO of the table, it will be populated with the input config.
+   * Returns the Table serialized to the configuration based on the table name. If configuration is
+   * missing from the FileIO of the table, it will be populated with the input config.
    *
    * @param config The configuration used to get the data from
    * @param name The name of the table we need as returned by TableDesc.getTableName()
    * @return The Table
    */
   public static Table table(Configuration config, String name) {
-    Table table = SerializationUtil.deserializeFromBase64(config.get(InputFormatConfig.SERIALIZED_TABLE_PREFIX + name));
+    Table table =
+        SerializationUtil.deserializeFromBase64(
+            config.get(InputFormatConfig.SERIALIZED_TABLE_PREFIX + name));
     checkAndSetIoConfig(config, table);
     return table;
   }
 
   /**
-   * If enabled, it populates the FileIO's hadoop configuration with the input config object.
-   * This might be necessary when the table object was serialized without the FileIO config.
+   * If enabled, it populates the FileIO's hadoop configuration with the input config object. This
+   * might be necessary when the table object was serialized without the FileIO config.
    *
    * @param config Configuration to set for FileIO, if enabled
    * @param table The Iceberg table object
    */
   public static void checkAndSetIoConfig(Configuration config, Table table) {
-    if (table != null && config.getBoolean(InputFormatConfig.CONFIG_SERIALIZATION_DISABLED,
-        InputFormatConfig.CONFIG_SERIALIZATION_DISABLED_DEFAULT) && table.io() instanceof HadoopConfigurable) {
+    if (table != null
+        && config.getBoolean(
+            InputFormatConfig.CONFIG_SERIALIZATION_DISABLED,
+            InputFormatConfig.CONFIG_SERIALIZATION_DISABLED_DEFAULT)
+        && table.io() instanceof HadoopConfigurable) {
       ((HadoopConfigurable) table.io()).setConf(config);
     }
   }
 
   /**
-   * If enabled, it ensures that the FileIO's hadoop configuration will not be serialized.
-   * This might be desirable for decreasing the overall size of serialized table objects.
+   * If enabled, it ensures that the FileIO's hadoop configuration will not be serialized. This
+   * might be desirable for decreasing the overall size of serialized table objects.
    *
-   * Note: Skipping FileIO config serialization in this fashion might in turn necessitate calling
-   * {@link #checkAndSetIoConfig(Configuration, Table)} on the deserializer-side to enable subsequent use of the FileIO.
+   * <p>Note: Skipping FileIO config serialization in this fashion might in turn necessitate calling
+   * {@link #checkAndSetIoConfig(Configuration, Table)} on the deserializer-side to enable
+   * subsequent use of the FileIO.
    *
    * @param config Configuration to set for FileIO in a transient manner, if enabled
    * @param table The Iceberg table object
    */
   public static void checkAndSkipIoConfigSerialization(Configuration config, Table table) {
-    if (table != null && config.getBoolean(InputFormatConfig.CONFIG_SERIALIZATION_DISABLED,
-        InputFormatConfig.CONFIG_SERIALIZATION_DISABLED_DEFAULT) && table.io() instanceof HadoopConfigurable) {
-      ((HadoopConfigurable) table.io()).serializeConfWith(conf -> new NonSerializingConfig(config)::get);
+    if (table != null
+        && config.getBoolean(
+            InputFormatConfig.CONFIG_SERIALIZATION_DISABLED,
+            InputFormatConfig.CONFIG_SERIALIZATION_DISABLED_DEFAULT)
+        && table.io() instanceof HadoopConfigurable) {
+      ((HadoopConfigurable) table.io())
+          .serializeConfWith(conf -> new NonSerializingConfig(config)::get);
     }
   }
 
   /**
    * Returns the names of the output tables stored in the configuration.
+   *
    * @param config The configuration used to get the data from
    * @return The collection of the table names as returned by TableDesc.getTableName()
    */
@@ -215,6 +233,7 @@ public class HiveIcebergStorageHandler implements HiveStoragePredicateHandler, H
 
   /**
    * Returns the catalog name serialized to the configuration.
+   *
    * @param config The configuration used to get the data from
    * @param name The name of the table we neeed as returned by TableDesc.getTableName()
    * @return catalog name
@@ -225,6 +244,7 @@ public class HiveIcebergStorageHandler implements HiveStoragePredicateHandler, H
 
   /**
    * Returns the Table Schema serialized to the configuration.
+   *
    * @param config The configuration used to get the data from
    * @return The Table Schema object
    */
@@ -233,23 +253,25 @@ public class HiveIcebergStorageHandler implements HiveStoragePredicateHandler, H
   }
 
   /**
-   * Stores the serializable table data in the configuration.
-   * Currently the following is handled:
+   * Stores the serializable table data in the configuration. Currently the following is handled:
+   *
    * <ul>
-   *   <li>- Table - in case the table is serializable</li>
-   *   <li>- Location</li>
-   *   <li>- Schema</li>
-   *   <li>- Partition specification</li>
-   *   <li>- FileIO for handling table files</li>
-   *   <li>- Location provider used for file generation</li>
-   *   <li>- Encryption manager for encryption handling</li>
+   *   <li>- Table - in case the table is serializable
+   *   <li>- Location
+   *   <li>- Schema
+   *   <li>- Partition specification
+   *   <li>- FileIO for handling table files
+   *   <li>- Location provider used for file generation
+   *   <li>- Encryption manager for encryption handling
    * </ul>
+   *
    * @param configuration The configuration storing the catalog information
    * @param tableDesc The table which we want to store to the configuration
    * @param map The map of the configuration properties which we append with the serialized data
    */
   @VisibleForTesting
-  static void overlayTableProperties(Configuration configuration, TableDesc tableDesc, Map<String, String> map) {
+  static void overlayTableProperties(
+      Configuration configuration, TableDesc tableDesc, Map<String, String> map) {
     Properties props = tableDesc.getProperties();
     Table table = Catalogs.loadTable(configuration, props);
     String schemaJson = SchemaParser.toJson(table.schema());
@@ -265,15 +287,19 @@ public class HiveIcebergStorageHandler implements HiveStoragePredicateHandler, H
     // serialize table object into config
     Table serializableTable = SerializableTable.copyOf(table);
     checkAndSkipIoConfigSerialization(configuration, serializableTable);
-    map.put(InputFormatConfig.SERIALIZED_TABLE_PREFIX + tableDesc.getTableName(),
+    map.put(
+        InputFormatConfig.SERIALIZED_TABLE_PREFIX + tableDesc.getTableName(),
         SerializationUtil.serializeToBase64(serializableTable));
 
-    // We need to remove this otherwise the job.xml will be invalid as column comments are separated with '\0' and
+    // We need to remove this otherwise the job.xml will be invalid as column comments are separated
+    // with '\0' and
     // the serialization utils fail to serialize this character
     map.remove("columns.comments");
 
-    // save schema into table props as well to avoid repeatedly hitting the HMS during serde initializations
-    // this is an exception to the interface documentation, but it's a safe operation to add this property
+    // save schema into table props as well to avoid repeatedly hitting the HMS during serde
+    // initializations
+    // this is an exception to the interface documentation, but it's a safe operation to add this
+    // property
     props.put(InputFormatConfig.TABLE_SCHEMA, schemaJson);
   }
 
@@ -287,7 +313,8 @@ public class HiveIcebergStorageHandler implements HiveStoragePredicateHandler, H
 
     public Configuration get() {
       if (conf == null) {
-        throw new IllegalStateException("Configuration was not serialized on purpose but was not set manually either");
+        throw new IllegalStateException(
+            "Configuration was not serialized on purpose but was not set manually either");
       }
 
       return conf;

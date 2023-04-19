@@ -16,22 +16,22 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.encryption;
 
 import java.nio.ByteBuffer;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
- * Barebone encryption parameters, one object per content file.
- * Carries the file encryption key (later, will be extended with column keys and AAD prefix).
- * Applicable only to formats with native encryption support (Parquet and ORC).
+ * Barebone encryption parameters, one object per content file. Carries the file encryption key
+ * (later, will be extended with column keys and AAD prefix). Applicable only to formats with native
+ * encryption support (Parquet and ORC).
  */
 public class NativeFileCryptoParameters {
   private ByteBuffer fileKey;
   private EncryptionAlgorithm fileEncryptionAlgorithm;
 
-  private NativeFileCryptoParameters(ByteBuffer fileKey, EncryptionAlgorithm fileEncryptionAlgorithm) {
+  private NativeFileCryptoParameters(
+      ByteBuffer fileKey, EncryptionAlgorithm fileEncryptionAlgorithm) {
     Preconditions.checkState(fileKey != null, "File encryption key is not supplied");
     this.fileKey = fileKey;
     this.fileEncryptionAlgorithm = fileEncryptionAlgorithm;
@@ -40,7 +40,8 @@ public class NativeFileCryptoParameters {
   /**
    * Creates the builder.
    *
-   * @param fileKey per-file encryption key. For example, used as "footer key" DEK in Parquet encryption.
+   * @param fileKey per-file encryption key. For example, used as "footer key" DEK in Parquet
+   *     encryption.
    */
   public static Builder create(ByteBuffer fileKey) {
     return new Builder(fileKey);

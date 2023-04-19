@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.transforms;
 
 import java.util.List;
@@ -87,7 +86,8 @@ public interface PartitionSpecVisitor<T> {
   }
 
   default T unknown(int fieldId, String sourceName, int sourceId, String transform) {
-    throw new UnsupportedOperationException(String.format("Unknown transform %s is not supported", transform));
+    throw new UnsupportedOperationException(
+        String.format("Unknown transform %s is not supported", transform));
   }
 
   /**
@@ -121,13 +121,17 @@ public interface PartitionSpecVisitor<T> {
     } else if (transform instanceof Truncate) {
       int width = ((Truncate<?>) transform).width();
       return visitor.truncate(field.fieldId(), sourceName, field.sourceId(), width);
-    } else if (transform == Dates.YEAR || transform == Timestamps.YEAR) {
+    } else if (transform == Dates.YEAR
+        || transform == Timestamps.YEAR
+        || transform instanceof Years) {
       return visitor.year(field.fieldId(), sourceName, field.sourceId());
-    } else if (transform == Dates.MONTH || transform == Timestamps.MONTH) {
+    } else if (transform == Dates.MONTH
+        || transform == Timestamps.MONTH
+        || transform instanceof Months) {
       return visitor.month(field.fieldId(), sourceName, field.sourceId());
-    } else if (transform == Dates.DAY || transform == Timestamps.DAY) {
+    } else if (transform == Dates.DAY || transform == Timestamps.DAY || transform instanceof Days) {
       return visitor.day(field.fieldId(), sourceName, field.sourceId());
-    } else if (transform == Timestamps.HOUR) {
+    } else if (transform == Timestamps.HOUR || transform instanceof Hours) {
       return visitor.hour(field.fieldId(), sourceName, field.sourceId());
     } else if (transform instanceof VoidTransform) {
       return visitor.alwaysNull(field.fieldId(), sourceName, field.sourceId());

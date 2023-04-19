@@ -16,8 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
+
+import static org.apache.iceberg.types.Types.NestedField.required;
 
 import java.nio.ByteBuffer;
 import java.util.List;
@@ -26,23 +27,28 @@ import org.apache.avro.generic.IndexedRecord;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.types.Types;
 
-import static org.apache.iceberg.types.Types.NestedField.required;
-
 class V1Metadata {
-  private V1Metadata() {
-  }
+  private V1Metadata() {}
 
-  static final Schema MANIFEST_LIST_SCHEMA = new Schema(
-      ManifestFile.PATH, ManifestFile.LENGTH, ManifestFile.SPEC_ID, ManifestFile.SNAPSHOT_ID,
-      ManifestFile.ADDED_FILES_COUNT, ManifestFile.EXISTING_FILES_COUNT, ManifestFile.DELETED_FILES_COUNT,
-      ManifestFile.PARTITION_SUMMARIES,
-      ManifestFile.ADDED_ROWS_COUNT, ManifestFile.EXISTING_ROWS_COUNT, ManifestFile.DELETED_ROWS_COUNT);
+  static final Schema MANIFEST_LIST_SCHEMA =
+      new Schema(
+          ManifestFile.PATH,
+          ManifestFile.LENGTH,
+          ManifestFile.SPEC_ID,
+          ManifestFile.SNAPSHOT_ID,
+          ManifestFile.ADDED_FILES_COUNT,
+          ManifestFile.EXISTING_FILES_COUNT,
+          ManifestFile.DELETED_FILES_COUNT,
+          ManifestFile.PARTITION_SUMMARIES,
+          ManifestFile.ADDED_ROWS_COUNT,
+          ManifestFile.EXISTING_ROWS_COUNT,
+          ManifestFile.DELETED_ROWS_COUNT);
 
   /**
    * A wrapper class to write any ManifestFile implementation to Avro using the v1 schema.
    *
-   * This is used to maintain compatibility with v1 by writing manifest list files with the old schema, instead of
-   * writing a sequence number into metadata files in v1 tables.
+   * <p>This is used to maintain compatibility with v1 by writing manifest list files with the old
+   * schema, instead of writing a sequence number into metadata files in v1 tables.
    */
   static class IndexedManifestFile implements ManifestFile, IndexedRecord {
     private static final org.apache.avro.Schema AVRO_SCHEMA =
@@ -193,11 +199,13 @@ class V1Metadata {
   static Schema wrapFileSchema(Types.StructType fileSchema) {
     // this is used to build projection schemas
     return new Schema(
-        ManifestEntry.STATUS, ManifestEntry.SNAPSHOT_ID,
+        ManifestEntry.STATUS,
+        ManifestEntry.SNAPSHOT_ID,
         required(ManifestEntry.DATA_FILE_ID, "data_file", fileSchema));
   }
 
-  private static final Types.NestedField BLOCK_SIZE = required(105, "block_size_in_bytes", Types.LongType.get());
+  private static final Types.NestedField BLOCK_SIZE =
+      required(105, "block_size_in_bytes", Types.LongType.get());
 
   static Types.StructType dataFileSchema(Types.StructType partitionType) {
     return Types.StructType.of(
@@ -215,13 +223,10 @@ class V1Metadata {
         DataFile.UPPER_BOUNDS,
         DataFile.KEY_METADATA,
         DataFile.SPLIT_OFFSETS,
-        DataFile.SORT_ORDER_ID
-    );
+        DataFile.SORT_ORDER_ID);
   }
 
-  /**
-   * Wrapper used to write a ManifestEntry to v1 metadata.
-   */
+  /** Wrapper used to write a ManifestEntry to v1 metadata. */
   static class IndexedManifestEntry implements ManifestEntry<DataFile>, IndexedRecord {
     private final org.apache.avro.Schema avroSchema;
     private final IndexedDataFile fileWrapper;
@@ -281,13 +286,23 @@ class V1Metadata {
     }
 
     @Override
-    public Long sequenceNumber() {
-      return wrapped.sequenceNumber();
+    public Long dataSequenceNumber() {
+      return wrapped.dataSequenceNumber();
     }
 
     @Override
-    public void setSequenceNumber(long sequenceNumber) {
-      wrapped.setSequenceNumber(sequenceNumber);
+    public void setDataSequenceNumber(long dataSequenceNumber) {
+      wrapped.setDataSequenceNumber(dataSequenceNumber);
+    }
+
+    @Override
+    public Long fileSequenceNumber() {
+      return wrapped.fileSequenceNumber();
+    }
+
+    @Override
+    public void setFileSequenceNumber(long fileSequenceNumber) {
+      wrapped.setFileSequenceNumber(fileSequenceNumber);
     }
 
     @Override

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.aliyun.oss;
 
 import com.aliyun.oss.OSS;
@@ -62,8 +61,8 @@ abstract class BaseOSSFile {
       return objectMetadata() != null;
     } catch (OSSException e) {
 
-      if (e.getErrorCode().equals(OSSErrorCode.NO_SUCH_BUCKET) ||
-          e.getErrorCode().equals(OSSErrorCode.NO_SUCH_KEY)) {
+      if (e.getErrorCode().equals(OSSErrorCode.NO_SUCH_BUCKET)
+          || e.getErrorCode().equals(OSSErrorCode.NO_SUCH_KEY)) {
         return false;
       }
 
@@ -85,8 +84,6 @@ abstract class BaseOSSFile {
 
   @Override
   public String toString() {
-    return MoreObjects.toStringHelper(this)
-        .add("file", uri)
-        .toString();
+    return MoreObjects.toStringHelper(this).add("file", uri).toString();
   }
 }

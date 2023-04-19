@@ -16,15 +16,14 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.actions;
 
 import java.util.Map;
 import org.apache.iceberg.SnapshotUpdate;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
-abstract class BaseSnapshotUpdateAction<ThisT, R>
-    extends BaseAction<ThisT, R> implements SnapshotUpdateAction<ThisT, R> {
+abstract class BaseSnapshotUpdateAction<ThisT, R> extends BaseAction<ThisT, R>
+    implements SnapshotUpdateAction<ThisT, R> {
 
   private final Map<String, String> summary = Maps.newHashMap();
 

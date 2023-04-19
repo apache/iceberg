@@ -16,8 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.data;
+
+import static java.time.temporal.ChronoUnit.MICROS;
 
 import java.nio.ByteBuffer;
 import java.time.Instant;
@@ -42,44 +43,46 @@ import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.RandomUtil;
 
-import static java.time.temporal.ChronoUnit.MICROS;
-
 public class RandomGenericData {
-  private RandomGenericData() {
-  }
+  private RandomGenericData() {}
 
   public static List<Record> generate(Schema schema, int numRecords, long seed) {
-    return Lists.newArrayList(generateIcebergGenerics(schema, numRecords, () -> new RandomRecordGenerator(seed)));
+    return Lists.newArrayList(
+        generateIcebergGenerics(schema, numRecords, () -> new RandomRecordGenerator(seed)));
   }
 
-  public static Iterable<Record> generateFallbackRecords(Schema schema, int numRecords, long seed, long numDictRows) {
-    return generateIcebergGenerics(schema, numRecords, () -> new FallbackGenerator(seed, numDictRows));
+  public static Iterable<Record> generateFallbackRecords(
+      Schema schema, int numRecords, long seed, long numDictRows) {
+    return generateIcebergGenerics(
+        schema, numRecords, () -> new FallbackGenerator(seed, numDictRows));
   }
 
-  public static Iterable<Record> generateDictionaryEncodableRecords(Schema schema, int numRecords, long seed) {
+  public static Iterable<Record> generateDictionaryEncodableRecords(
+      Schema schema, int numRecords, long seed) {
     return generateIcebergGenerics(schema, numRecords, () -> new DictionaryEncodedGenerator(seed));
   }
 
-  private static Iterable<Record> generateIcebergGenerics(Schema schema, int numRecords,
-                                                          Supplier<RandomDataGenerator<Record>> supplier) {
-    return () -> new Iterator<Record>() {
-      private final RandomDataGenerator<Record> generator = supplier.get();
-      private int count = 0;
+  private static Iterable<Record> generateIcebergGenerics(
+      Schema schema, int numRecords, Supplier<RandomDataGenerator<Record>> supplier) {
+    return () ->
+        new Iterator<Record>() {
+          private final RandomDataGenerator<Record> generator = supplier.get();
+          private int count = 0;
 
-      @Override
-      public boolean hasNext() {
-        return count < numRecords;
-      }
+          @Override
+          public boolean hasNext() {
+            return count < numRecords;
+          }
 
-      @Override
-      public Record next() {
-        if (!hasNext()) {
-          throw new NoSuchElementException();
-        }
-        ++count;
-        return (Record) TypeUtil.visit(schema, generator);
-      }
-    };
+          @Override
+          public Record next() {
+            if (!hasNext()) {
+              throw new NoSuchElementException();
+            }
+            ++count;
+            return (Record) TypeUtil.visit(schema, generator);
+          }
+        };
   }
 
   private static class RandomRecordGenerator extends RandomDataGenerator<Record> {
@@ -105,16 +108,19 @@ public class RandomGenericData {
     }
   }
 
-  private static class DictionaryEncodedGenerator extends RandomRecordGenerator  {
+  private static class DictionaryEncodedGenerator extends RandomRecordGenerator {
     DictionaryEncodedGenerator(long seed) {
       super(seed);
     }
 
     @Override
     protected int getMaxEntries() {
-      // Here we limited the max entries in LIST or MAP to be 3, because we have the mechanism to duplicate
-      // the keys in RandomDataGenerator#map while the dictionary encoder will generate a string with
-      // limited values("0","1","2"). It's impossible for us to request the generator to generate more than 3 keys,
+      // Here we limited the max entries in LIST or MAP to be 3, because we have the mechanism to
+      // duplicate
+      // the keys in RandomDataGenerator#map while the dictionary encoder will generate a string
+      // with
+      // limited values("0","1","2"). It's impossible for us to request the generator to generate
+      // more than 3 keys,
       // otherwise we will get in a infinite loop in RandomDataGenerator#map.
       return 3;
     }
@@ -145,7 +151,8 @@ public class RandomGenericData {
     }
   }
 
-  public abstract static class RandomDataGenerator<T> extends TypeUtil.CustomOrderSchemaVisitor<Object> {
+  public abstract static class RandomDataGenerator<T>
+      extends TypeUtil.CustomOrderSchemaVisitor<Object> {
     private final Random random;
     private static final int MAX_ENTRIES = 20;
 

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.mr.hive.serde.objectinspector;
 
 import java.nio.ByteBuffer;
@@ -60,7 +59,8 @@ public class IcebergBinaryObjectInspector extends AbstractPrimitiveJavaObjectIns
       return Arrays.copyOf(bytes, bytes.length);
     } else if (o instanceof ByteBuffer) {
       ByteBuffer copy =
-          ByteBuffer.wrap(((ByteBuffer) o).array(), ((ByteBuffer) o).arrayOffset(), ((ByteBuffer) o).limit());
+          ByteBuffer.wrap(
+              ((ByteBuffer) o).array(), ((ByteBuffer) o).arrayOffset(), ((ByteBuffer) o).limit());
       return copy;
     } else {
       return o;
@@ -71,5 +71,4 @@ public class IcebergBinaryObjectInspector extends AbstractPrimitiveJavaObjectIns
   public ByteBuffer convert(Object o) {
     return o == null ? null : ByteBuffer.wrap((byte[]) o);
   }
-
 }

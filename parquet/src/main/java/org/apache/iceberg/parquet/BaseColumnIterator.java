@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.parquet;
 
 import org.apache.parquet.column.ColumnDescriptor;
@@ -71,5 +70,4 @@ public abstract class BaseColumnIterator {
   public boolean hasNext() {
     return triplesRead < triplesCount;
   }
-
 }

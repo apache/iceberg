@@ -7,15 +7,15 @@
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
-
 package org.apache.iceberg.mr.hive.vector;
 
 import java.util.List;
@@ -31,8 +31,9 @@ import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.Type;
 
 /**
- * Collects the top level field names from Parquet schema. During schema visit it translates the expected schema's
- * field names to what fields the visitor can match in the file schema to support column renames.
+ * Collects the top level field names from Parquet schema. During schema visit it translates the
+ * expected schema's field names to what fields the visitor can match in the file schema to support
+ * column renames.
  */
 class ParquetSchemaFieldNameVisitor extends TypeWithSchemaVisitor<Type> {
   private final MessageType originalFileSchema;
@@ -53,7 +54,8 @@ class ParquetSchemaFieldNameVisitor extends TypeWithSchemaVisitor<Type> {
   public Type struct(Types.StructType expected, GroupType struct, List<Type> fields) {
     boolean isMessageType = struct instanceof MessageType;
 
-    List<Types.NestedField> expectedFields = expected != null ? expected.fields() : ImmutableList.of();
+    List<Types.NestedField> expectedFields =
+        expected != null ? expected.fields() : ImmutableList.of();
     List<Type> types = Lists.newArrayListWithExpectedSize(expectedFields.size());
 
     for (Types.NestedField field : expectedFields) {
@@ -65,10 +67,12 @@ class ParquetSchemaFieldNameVisitor extends TypeWithSchemaVisitor<Type> {
       Type fieldInPrunedFileSchema = typesById.get(id);
       if (fieldInPrunedFileSchema == null) {
         if (!originalFileSchema.containsField(field.name())) {
-          // Must be a new field - it isn't in this parquet file yet, so add the new field name instead of null
+          // Must be a new field - it isn't in this parquet file yet, so add the new field name
+          // instead of null
           appendToColNamesList(isMessageType, field.name());
         } else {
-          // This field is found in the parquet file with a different ID, so it must have been recreated since.
+          // This field is found in the parquet file with a different ID, so it must have been
+          // recreated since.
           // Inserting a dummy col name to force Hive Parquet reader returning null for this column.
           appendToColNamesList(isMessageType, DUMMY_COL_NAME);
         }
@@ -95,7 +99,8 @@ class ParquetSchemaFieldNameVisitor extends TypeWithSchemaVisitor<Type> {
   }
 
   @Override
-  public Type primitive(org.apache.iceberg.types.Type.PrimitiveType expected,
+  public Type primitive(
+      org.apache.iceberg.types.Type.PrimitiveType expected,
       org.apache.parquet.schema.PrimitiveType primitive) {
     typesById.put(primitive.getId().intValue(), primitive);
     return primitive;

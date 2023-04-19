@@ -16,19 +16,28 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 public class SnapshotManager implements ManageSnapshots {
 
+  private final boolean isExternalTransaction;
   private final BaseTransaction transaction;
   private UpdateSnapshotReferencesOperation updateSnapshotReferencesOperation;
 
   SnapshotManager(String tableName, TableOperations ops) {
-    Preconditions.checkState(ops.current() != null, "Cannot manage snapshots: table %s does not exist", tableName);
-    this.transaction = new BaseTransaction(tableName, ops, BaseTransaction.TransactionType.SIMPLE, ops.refresh());
+    Preconditions.checkState(
+        ops.current() != null, "Cannot manage snapshots: table %s does not exist", tableName);
+    this.transaction =
+        new BaseTransaction(tableName, ops, BaseTransaction.TransactionType.SIMPLE, ops.refresh());
+    this.isExternalTransaction = false;
+  }
+
+  SnapshotManager(BaseTransaction transaction) {
+    Preconditions.checkArgument(transaction != null, "Invalid input transaction: null");
+    this.transaction = transaction;
+    this.isExternalTransaction = true;
   }
 
   @Override
@@ -102,13 +111,13 @@ public class SnapshotManager implements ManageSnapshots {
   }
 
   @Override
-  public ManageSnapshots replaceTag(String name, long snapshotId)  {
+  public ManageSnapshots replaceTag(String name, long snapshotId) {
     updateSnapshotReferencesOperation().replaceTag(name, snapshotId);
     return this;
   }
 
   @Override
-  public ManageSnapshots replaceBranch(String name, long snapshotId)  {
+  public ManageSnapshots replaceBranch(String name, long snapshotId) {
     updateSnapshotReferencesOperation().replaceBranch(name, snapshotId);
     return this;
   }
@@ -154,6 +163,8 @@ public class SnapshotManager implements ManageSnapshots {
   @Override
   public void commit() {
     commitIfRefUpdatesExist();
-    transaction.commitTransaction();
+    if (!isExternalTransaction) {
+      transaction.commitTransaction();
+    }
   }
 }

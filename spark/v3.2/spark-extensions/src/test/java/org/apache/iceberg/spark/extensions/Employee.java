@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.extensions;
 
 import java.util.Objects;
@@ -25,8 +24,7 @@ public class Employee {
   private Integer id;
   private String dep;
 
-  public Employee() {
-  }
+  public Employee() {}
 
   public Employee(Integer id, String dep) {
     this.id = id;

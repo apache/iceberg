@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.aliyun.oss.mock;
 
 import java.util.List;
@@ -44,9 +43,11 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 @SuppressWarnings("checkstyle:AnnotationUseStyle")
 @Configuration
-@EnableAutoConfiguration(exclude = {SecurityAutoConfiguration.class}, excludeName = {
-    "org.springframework.boot.actuate.autoconfigure.security.servlet.ManagementWebSecurityAutoConfiguration"
-})
+@EnableAutoConfiguration(
+    exclude = {SecurityAutoConfiguration.class},
+    excludeName = {
+      "org.springframework.boot.actuate.autoconfigure.security.servlet.ManagementWebSecurityAutoConfiguration"
+    })
 @ComponentScan
 public class AliyunOSSMockApp {
 
@@ -57,8 +58,7 @@ public class AliyunOSSMockApp {
 
   static final String PROP_SILENT = "silent";
 
-  @Autowired
-  private ConfigurableApplicationContext context;
+  @Autowired private ConfigurableApplicationContext context;
 
   public static AliyunOSSMockApp start(Map<String, Object> properties, String... args) {
     Map<String, Object> defaults = Maps.newHashMap();
@@ -105,7 +105,8 @@ public class AliyunOSSMockApp {
       mediaTypes.add(MediaType.APPLICATION_FORM_URLENCODED);
       mediaTypes.add(MediaType.APPLICATION_OCTET_STREAM);
 
-      final MappingJackson2XmlHttpMessageConverter xmlConverter = new MappingJackson2XmlHttpMessageConverter();
+      final MappingJackson2XmlHttpMessageConverter xmlConverter =
+          new MappingJackson2XmlHttpMessageConverter();
       xmlConverter.setSupportedMediaTypes(mediaTypes);
 
       return xmlConverter;
@@ -114,7 +115,8 @@ public class AliyunOSSMockApp {
 
   private static class RangeConverter implements Converter<String, Range> {
 
-    private static final Pattern REQUESTED_RANGE_PATTERN = Pattern.compile("^bytes=((\\d*)-(\\d*))((,\\d*-\\d*)*)");
+    private static final Pattern REQUESTED_RANGE_PATTERN =
+        Pattern.compile("^bytes=((\\d*)-(\\d*))((,\\d*-\\d*)*)");
 
     @Override
     public Range convert(String rangeString) {

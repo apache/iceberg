@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.io;
 
 import java.io.EOFException;
@@ -70,7 +69,8 @@ class MultiBufferInputStream extends ByteBufferInputStream {
   @Override
   public void seek(long newPosition) throws IOException {
     if (newPosition > length) {
-      throw new EOFException(String.format("Cannot seek to position after end of file: %s", newPosition));
+      throw new EOFException(
+          String.format("Cannot seek to position after end of file: %s", newPosition));
     }
 
     if (position > newPosition) {
@@ -222,8 +222,7 @@ class MultiBufferInputStream extends ByteBufferInputStream {
       return sliceBuffers(length - position);
     } catch (EOFException e) {
       throw new RuntimeException(
-          "[Parquet bug] Stream is bad: incorrect bytes remaining " +
-              (length - position));
+          "[Parquet bug] Stream is bad: incorrect bytes remaining " + (length - position));
     }
   }
 

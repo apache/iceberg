@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.catalog;
 
 import java.util.List;
@@ -31,35 +30,45 @@ import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 
-/**
- * A Catalog API for table and namespace operations that includes session context.
- */
+/** A Catalog API for table and namespace operations that includes session context. */
 public interface SessionCatalog {
-  /**
-   * Context for a session.
-   */
+  /** Context for a session. */
   final class SessionContext {
     private final String sessionId;
     private final String identity;
     private final Map<String, String> credentials;
     private final Map<String, String> properties;
+    private final Object wrappedIdentity;
 
     public static SessionContext createEmpty() {
       return new SessionContext(UUID.randomUUID().toString(), null, null, ImmutableMap.of());
     }
 
-    public SessionContext(String sessionId, String identity, Map<String, String> credentials,
-                          Map<String, String> properties) {
+    public SessionContext(
+        String sessionId,
+        String identity,
+        Map<String, String> credentials,
+        Map<String, String> properties) {
+      this(sessionId, identity, credentials, properties, null);
+    }
+
+    public SessionContext(
+        String sessionId,
+        String identity,
+        Map<String, String> credentials,
+        Map<String, String> properties,
+        Object wrappedIdentity) {
       this.sessionId = sessionId;
       this.identity = identity;
       this.credentials = credentials;
       this.properties = properties;
+      this.wrappedIdentity = wrappedIdentity;
     }
 
     /**
      * Returns a string that identifies this session.
-     * <p>
-     * This can be used for caching state within a session.
+     *
+     * <p>This can be used for caching state within a session.
      *
      * @return a string that identifies this session
      */
@@ -69,8 +78,8 @@ public interface SessionCatalog {
 
     /**
      * Returns a string that identifies the current user or principal.
-     * <p>
-     * This identity cannot change for a given session ID.
+     *
+     * <p>This identity cannot change for a given session ID.
      *
      * @return a user or principal identity string
      */
@@ -80,8 +89,8 @@ public interface SessionCatalog {
 
     /**
      * Returns the session's credential map.
-     * <p>
-     * This cannot change for a given session ID.
+     *
+     * <p>This cannot change for a given session ID.
      *
      * @return a credential string
      */
@@ -96,6 +105,15 @@ public interface SessionCatalog {
      */
     public Map<String, String> properties() {
       return properties;
+    }
+
+    /**
+     * Returns the opaque wrapped identity object.
+     *
+     * @return the wrapped identity
+     */
+    public Object wrappedIdentity() {
+      return wrappedIdentity;
     }
   }
 
@@ -180,8 +198,8 @@ public interface SessionCatalog {
 
   /**
    * Drop a table, without requesting that files are immediately deleted.
-   * <p>
-   * Data and metadata files should be deleted according to the catalog's policy.
+   *
+   * <p>Data and metadata files should be deleted according to the catalog's policy.
    *
    * @param context session context
    * @param ident a table identifier
@@ -212,9 +230,9 @@ public interface SessionCatalog {
 
   /**
    * Invalidate cached table metadata from current catalog.
-   * <p>
-   * If the table is already loaded or cached, drop cached data. If the table does not exist or is
-   * not cached, do nothing.
+   *
+   * <p>If the table is already loaded or cached, drop cached data. If the table does not exist or
+   * is not cached, do nothing.
    *
    * @param context session context
    * @param ident a table identifier
@@ -246,10 +264,10 @@ public interface SessionCatalog {
 
   /**
    * List top-level namespaces from the catalog.
-   * <p>
-   * If an object such as a table, view, or function exists, its parent namespaces must also exist
-   * and must be returned by this discovery method. For example, if table a.b.t exists, this method
-   * must return ["a"] in the result array.
+   *
+   * <p>If an object such as a table, view, or function exists, its parent namespaces must also
+   * exist and must be returned by this discovery method. For example, if table a.b.t exists, this
+   * method must return ["a"] in the result array.
    *
    * @param context session context
    * @return an List of namespace {@link Namespace} names
@@ -260,9 +278,9 @@ public interface SessionCatalog {
 
   /**
    * List namespaces from the namespace.
-   * <p>
-   * For example, if table a.b.t exists, use 'SELECT NAMESPACE IN a' this method
-   * must return Namepace.of("a","b") {@link Namespace}.
+   *
+   * <p>For example, if table a.b.t exists, use 'SELECT NAMESPACE IN a' this method must return
+   * Namepace.of("a","b") {@link Namespace}.
    *
    * @param context session context
    * @param namespace a {@link Namespace namespace}
@@ -293,8 +311,8 @@ public interface SessionCatalog {
 
   /**
    * Set a collection of properties on a namespace in the catalog.
-   * <p>
-   * Properties that are not in the given map are not modified or removed by this method.
+   *
+   * <p>Properties that are not in the given map are not modified or removed by this method.
    *
    * @param context session context
    * @param namespace a {@link Namespace namespace}
@@ -303,8 +321,11 @@ public interface SessionCatalog {
    * @throws NoSuchNamespaceException If the namespace does not exist (optional)
    * @throws UnsupportedOperationException If namespace properties are not supported
    */
-  boolean updateNamespaceMetadata(SessionContext context, Namespace namespace,
-                                  Map<String, String> updates, Set<String> removals);
+  boolean updateNamespaceMetadata(
+      SessionContext context,
+      Namespace namespace,
+      Map<String, String> updates,
+      Set<String> removals);
 
   /**
    * Checks whether the Namespace exists.

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.arrow;
 
 import java.util.List;
@@ -37,13 +36,11 @@ import org.apache.iceberg.types.Types.MapType;
 import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.types.Types.StructType;
 
-
 public class ArrowSchemaUtil {
   private static final String ORIGINAL_TYPE = "originalType";
   private static final String MAP_TYPE = "mapType";
 
-  private ArrowSchemaUtil() {
-  }
+  private ArrowSchemaUtil() {}
 
   /**
    * Convert Iceberg schema to Arrow Schema.
@@ -69,9 +66,11 @@ public class ArrowSchemaUtil {
 
     switch (field.type().typeId()) {
       case BINARY:
-        // Spark doesn't support BYTE(fixed_size) type, so cast it to VarBinary
-      case FIXED:
         arrowType = ArrowType.Binary.INSTANCE;
+        break;
+      case FIXED:
+        final Types.FixedType fixedType = (Types.FixedType) field.type();
+        arrowType = new ArrowType.FixedSizeBinary(fixedType.length());
         break;
       case BOOLEAN:
         arrowType = ArrowType.Bool.INSTANCE;
@@ -102,8 +101,10 @@ public class ArrowSchemaUtil {
         arrowType = new ArrowType.FixedSizeBinary(16);
         break;
       case TIMESTAMP:
-        arrowType = new ArrowType.Timestamp(TimeUnit.MICROSECOND,
-            ((Types.TimestampType) field.type()).shouldAdjustToUTC() ? "UTC" : null);
+        arrowType =
+            new ArrowType.Timestamp(
+                TimeUnit.MICROSECOND,
+                ((Types.TimestampType) field.type()).shouldAdjustToUTC() ? "UTC" : null);
         break;
       case DATE:
         arrowType = new ArrowType.Date(DateUnit.DAY);
@@ -129,14 +130,15 @@ public class ArrowSchemaUtil {
         final MapType mapType = field.type().asMapType();
         arrowType = new ArrowType.Map(false);
         List<Field> entryFields = Lists.transform(mapType.fields(), ArrowSchemaUtil::convert);
-        Field entry = new Field("",
-            new FieldType(field.isOptional(), arrowType, null), entryFields);
+        Field entry =
+            new Field("", new FieldType(field.isOptional(), arrowType, null), entryFields);
         children.add(entry);
         break;
       default:
         throw new UnsupportedOperationException("Unsupported field type: " + field);
     }
 
-    return new Field(field.name(), new FieldType(field.isOptional(), arrowType, null, metadata), children);
+    return new Field(
+        field.name(), new FieldType(field.isOptional(), arrowType, null, metadata), children);
   }
 }

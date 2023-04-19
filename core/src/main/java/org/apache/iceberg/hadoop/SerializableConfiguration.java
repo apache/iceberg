@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.hadoop;
 
 import java.io.IOException;
@@ -25,9 +24,7 @@ import java.io.ObjectOutputStream;
 import java.io.Serializable;
 import org.apache.hadoop.conf.Configuration;
 
-/**
- * Wraps a {@link Configuration} object in a {@link Serializable} layer.
- */
+/** Wraps a {@link Configuration} object in a {@link Serializable} layer. */
 public class SerializableConfiguration implements Serializable {
 
   private transient Configuration hadoopConf;

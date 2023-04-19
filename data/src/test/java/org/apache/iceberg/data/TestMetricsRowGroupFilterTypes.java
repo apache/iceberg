@@ -16,8 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.data;
+
+import static org.apache.iceberg.expressions.Expressions.equal;
+import static org.apache.iceberg.types.Types.NestedField.optional;
 
 import java.io.File;
 import java.io.IOException;
@@ -31,7 +33,6 @@ import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
-import java.util.Locale;
 import java.util.UUID;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
@@ -76,62 +77,62 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
-import static org.apache.iceberg.expressions.Expressions.equal;
-import static org.apache.iceberg.types.Types.NestedField.optional;
-
 @RunWith(Parameterized.class)
 public class TestMetricsRowGroupFilterTypes {
-  private static final Schema SCHEMA = new Schema(
-      optional(1, "boolean", BooleanType.get()),
-      optional(2, "int", IntegerType.get()),
-      optional(3, "long", LongType.get()),
-      optional(4, "float", FloatType.get()),
-      optional(5, "double", DoubleType.get()),
-      optional(6, "date", DateType.get()),
-      optional(7, "time", TimeType.get()),
-      optional(8, "timestamp", TimestampType.withoutZone()),
-      optional(9, "timestamptz", TimestampType.withZone()),
-      optional(10, "string", StringType.get()),
-      optional(11, "uuid", UUIDType.get()),
-      optional(12, "fixed", FixedType.ofLength(4)),
-      optional(13, "binary", BinaryType.get()),
-      optional(14, "int_decimal", Types.DecimalType.of(8, 2)),
-      optional(15, "long_decimal", Types.DecimalType.of(14, 2)),
-      optional(16, "fixed_decimal", Types.DecimalType.of(31, 2))
-  );
+  private static final Schema SCHEMA =
+      new Schema(
+          optional(1, "boolean", BooleanType.get()),
+          optional(2, "int", IntegerType.get()),
+          optional(3, "long", LongType.get()),
+          optional(4, "float", FloatType.get()),
+          optional(5, "double", DoubleType.get()),
+          optional(6, "date", DateType.get()),
+          optional(7, "time", TimeType.get()),
+          optional(8, "timestamp", TimestampType.withoutZone()),
+          optional(9, "timestamptz", TimestampType.withZone()),
+          optional(10, "string", StringType.get()),
+          optional(11, "uuid", UUIDType.get()),
+          optional(12, "fixed", FixedType.ofLength(4)),
+          optional(13, "binary", BinaryType.get()),
+          optional(14, "int_decimal", Types.DecimalType.of(8, 2)),
+          optional(15, "long_decimal", Types.DecimalType.of(14, 2)),
+          optional(16, "fixed_decimal", Types.DecimalType.of(31, 2)));
 
-  private static final Schema FILE_SCHEMA = new Schema(
-      optional(1, "_boolean", BooleanType.get()),
-      optional(2, "_int", IntegerType.get()),
-      optional(3, "_long", LongType.get()),
-      optional(4, "_float", FloatType.get()),
-      optional(5, "_double", DoubleType.get()),
-      optional(6, "_date", DateType.get()),
-      optional(7, "_time", TimeType.get()),
-      optional(8, "_timestamp", TimestampType.withoutZone()),
-      optional(9, "_timestamptz", TimestampType.withZone()),
-      optional(10, "_string", StringType.get()),
-      optional(11, "_uuid", UUIDType.get()),
-      optional(12, "_fixed", FixedType.ofLength(4)),
-      optional(13, "_binary", BinaryType.get()),
-      optional(14, "_int_decimal", Types.DecimalType.of(8, 2)),
-      optional(15, "_long_decimal", Types.DecimalType.of(14, 2)),
-      optional(16, "_fixed_decimal", Types.DecimalType.of(31, 2))
-  );
+  private static final Schema FILE_SCHEMA =
+      new Schema(
+          optional(1, "_boolean", BooleanType.get()),
+          optional(2, "_int", IntegerType.get()),
+          optional(3, "_long", LongType.get()),
+          optional(4, "_float", FloatType.get()),
+          optional(5, "_double", DoubleType.get()),
+          optional(6, "_date", DateType.get()),
+          optional(7, "_time", TimeType.get()),
+          optional(8, "_timestamp", TimestampType.withoutZone()),
+          optional(9, "_timestamptz", TimestampType.withZone()),
+          optional(10, "_string", StringType.get()),
+          optional(11, "_uuid", UUIDType.get()),
+          optional(12, "_fixed", FixedType.ofLength(4)),
+          optional(13, "_binary", BinaryType.get()),
+          optional(14, "_int_decimal", Types.DecimalType.of(8, 2)),
+          optional(15, "_long_decimal", Types.DecimalType.of(14, 2)),
+          optional(16, "_fixed_decimal", Types.DecimalType.of(31, 2)));
 
   private static final File ORC_FILE = new File("/tmp/stats-row-group-filter-types-test.orc");
 
-  private static final File PARQUET_FILE = new File("/tmp/stats-row-group-filter-types-test.parquet");
+  private static final File PARQUET_FILE =
+      new File("/tmp/stats-row-group-filter-types-test.parquet");
   private static MessageType parquetSchema = null;
   private static BlockMetaData rowGroupMetadata = null;
 
   private static final UUID uuid = UUID.randomUUID();
-  private static final LocalDate date =  LocalDate.parse("2018-06-29", DateTimeFormatter.ISO_LOCAL_DATE);
-  private static final LocalTime time = LocalTime.parse("10:02:34.000000", DateTimeFormatter.ISO_LOCAL_TIME);
-  private static final OffsetDateTime timestamptz = OffsetDateTime.parse("2018-06-29T10:02:34.000000+00:00",
-      DateTimeFormatter.ISO_DATE_TIME);
-  private static final LocalDateTime timestamp = LocalDateTime.parse("2018-06-29T10:02:34.000000",
-      DateTimeFormatter.ISO_LOCAL_DATE_TIME);
+  private static final LocalDate date =
+      LocalDate.parse("2018-06-29", DateTimeFormatter.ISO_LOCAL_DATE);
+  private static final LocalTime time =
+      LocalTime.parse("10:02:34.000000", DateTimeFormatter.ISO_LOCAL_TIME);
+  private static final OffsetDateTime timestamptz =
+      OffsetDateTime.parse("2018-06-29T10:02:34.000000+00:00", DateTimeFormatter.ISO_DATE_TIME);
+  private static final LocalDateTime timestamp =
+      LocalDateTime.parse("2018-06-29T10:02:34.000000", DateTimeFormatter.ISO_LOCAL_DATE_TIME);
   private static final byte[] fixed = "abcd".getBytes(StandardCharsets.UTF_8);
 
   @Before
@@ -150,8 +151,9 @@ public class TestMetricsRowGroupFilterTypes {
       record.setField("_timestamp", timestamp);
       record.setField("_timestamptz", timestamptz);
       record.setField("_string", "tapir");
-      // record.setField("_uuid", uuid); // Disable writing UUID value as GenericParquetWriter does not handle UUID type
-                                         // correctly; Also UUID tests are disabled for both ORC and Parquet anyway
+      // record.setField("_uuid", uuid); // Disable writing UUID value as GenericParquetWriter does
+      // not handle UUID type
+      // correctly; Also UUID tests are disabled for both ORC and Parquet anyway
       record.setField("_fixed", fixed);
       record.setField("_binary", ByteBuffer.wrap("xyz".getBytes(StandardCharsets.UTF_8)));
       record.setField("_int_decimal", new BigDecimal("77.77"));
@@ -167,7 +169,8 @@ public class TestMetricsRowGroupFilterTypes {
         createParquetInputFile(records);
         break;
       default:
-        throw new UnsupportedOperationException("Row group filter types tests not supported for " + format);
+        throw new UnsupportedOperationException(
+            "Row group filter types tests not supported for " + format);
     }
   }
 
@@ -177,16 +180,18 @@ public class TestMetricsRowGroupFilterTypes {
     }
 
     OutputFile outFile = Files.localOutput(ORC_FILE);
-    try (FileAppender<Record> appender = ORC.write(outFile)
-        .schema(FILE_SCHEMA)
-        .createWriterFunc(GenericOrcWriter::buildWriter)
-        .build()) {
+    try (FileAppender<Record> appender =
+        ORC.write(outFile)
+            .schema(FILE_SCHEMA)
+            .createWriterFunc(GenericOrcWriter::buildWriter)
+            .build()) {
       appender.addAll(records);
     }
 
     InputFile inFile = Files.localInput(ORC_FILE);
-    try (Reader reader = OrcFile.createReader(new Path(inFile.location()),
-        OrcFile.readerOptions(new Configuration()))) {
+    try (Reader reader =
+        OrcFile.createReader(
+            new Path(inFile.location()), OrcFile.readerOptions(new Configuration()))) {
       Assert.assertEquals("Should create only one stripe", 1, reader.getStripes().size());
     }
 
@@ -199,10 +204,11 @@ public class TestMetricsRowGroupFilterTypes {
     }
 
     OutputFile outFile = Files.localOutput(PARQUET_FILE);
-    try (FileAppender<Record> appender = Parquet.write(outFile)
-        .schema(FILE_SCHEMA)
-        .createWriterFunc(GenericParquetWriter::buildWriter)
-        .build()) {
+    try (FileAppender<Record> appender =
+        Parquet.write(outFile)
+            .schema(FILE_SCHEMA)
+            .createWriterFunc(GenericParquetWriter::buildWriter)
+            .build()) {
       appender.addAll(records);
     }
 
@@ -224,45 +230,53 @@ public class TestMetricsRowGroupFilterTypes {
   @Parameterized.Parameters(name = "format = {0} column = {1} readValue = {2} skipValue = {3}")
   public static Object[][] parameters() {
     return new Object[][] {
-        { "parquet", "boolean", false, true },
-        { "parquet", "int", 5, 55 },
-        { "parquet", "long", 5_000_000_049L, 5_000L },
-        { "parquet", "float", 1.97f, 2.11f },
-        { "parquet", "double", 2.11d, 1.97d },
-        { "parquet", "date", "2018-06-29", "2018-05-03" },
-        { "parquet", "time", "10:02:34.000000", "10:02:34.000001" },
-        { "parquet", "timestamp", "2018-06-29T10:02:34.000000", "2018-06-29T15:02:34.000000" },
-        { "parquet", "timestamptz", "2018-06-29T10:02:34.000000+00:00", "2018-06-29T10:02:34.000000-07:00" },
-        { "parquet", "string", "tapir", "monthly" },
-        // { "parquet", "uuid", uuid, UUID.randomUUID() }, // not supported yet
-        { "parquet", "fixed", "abcd".getBytes(StandardCharsets.UTF_8), new byte[] { 0, 1, 2, 3 } },
-        { "parquet", "binary", "xyz".getBytes(StandardCharsets.UTF_8), new byte[] { 0, 1, 2, 3, 4, 5 } },
-        { "parquet", "int_decimal", "77.77", "12.34" },
-        { "parquet", "long_decimal", "88.88", "12.34" },
-        { "parquet", "fixed_decimal", "99.99", "12.34" },
-
-        { "orc", "boolean", false, true },
-        { "orc", "int", 5, 55 },
-        { "orc", "long", 5_000_000_049L, 5_000L },
-        { "orc", "float", 1.97f, 2.11f },
-        { "orc", "double", 2.11d, 1.97d },
-        { "orc", "date", "2018-06-29", "2018-05-03" },
-        { "orc", "time", "10:02:34.000000", "10:02:34.000001" },
-        { "orc", "timestamp", "2018-06-29T10:02:34.000000", "2018-06-29T15:02:34.000000" },
-        { "orc", "timestamptz", "2018-06-29T10:02:34.000000+00:00", "2018-06-29T10:02:34.000000-07:00" },
-        { "orc", "string", "tapir", "monthly" },
-        // uuid, fixed and binary types not supported yet
-        // { "orc", "uuid", uuid, UUID.randomUUID() },
-        // { "orc", "fixed", "abcd".getBytes(StandardCharsets.UTF_8), new byte[] { 0, 1, 2, 3 } },
-        // { "orc", "binary", "xyz".getBytes(StandardCharsets.UTF_8), new byte[] { 0, 1, 2, 3, 4, 5 } },
-        { "orc", "int_decimal", "77.77", "12.34" },
-        { "orc", "long_decimal", "88.88", "12.34" },
-        { "orc", "fixed_decimal", "99.99", "12.34" },
+      {"parquet", "boolean", false, true},
+      {"parquet", "int", 5, 55},
+      {"parquet", "long", 5_000_000_049L, 5_000L},
+      {"parquet", "float", 1.97f, 2.11f},
+      {"parquet", "double", 2.11d, 1.97d},
+      {"parquet", "date", "2018-06-29", "2018-05-03"},
+      {"parquet", "time", "10:02:34.000000", "10:02:34.000001"},
+      {"parquet", "timestamp", "2018-06-29T10:02:34.000000", "2018-06-29T15:02:34.000000"},
+      {
+        "parquet",
+        "timestamptz",
+        "2018-06-29T10:02:34.000000+00:00",
+        "2018-06-29T10:02:34.000000-07:00"
+      },
+      {"parquet", "string", "tapir", "monthly"},
+      // { "parquet", "uuid", uuid, UUID.randomUUID() }, // not supported yet
+      {"parquet", "fixed", "abcd".getBytes(StandardCharsets.UTF_8), new byte[] {0, 1, 2, 3}},
+      {"parquet", "binary", "xyz".getBytes(StandardCharsets.UTF_8), new byte[] {0, 1, 2, 3, 4, 5}},
+      {"parquet", "int_decimal", "77.77", "12.34"},
+      {"parquet", "long_decimal", "88.88", "12.34"},
+      {"parquet", "fixed_decimal", "99.99", "12.34"},
+      {"orc", "boolean", false, true},
+      {"orc", "int", 5, 55},
+      {"orc", "long", 5_000_000_049L, 5_000L},
+      {"orc", "float", 1.97f, 2.11f},
+      {"orc", "double", 2.11d, 1.97d},
+      {"orc", "date", "2018-06-29", "2018-05-03"},
+      {"orc", "time", "10:02:34.000000", "10:02:34.000001"},
+      {"orc", "timestamp", "2018-06-29T10:02:34.000000", "2018-06-29T15:02:34.000000"},
+      {
+        "orc", "timestamptz", "2018-06-29T10:02:34.000000+00:00", "2018-06-29T10:02:34.000000-07:00"
+      },
+      {"orc", "string", "tapir", "monthly"},
+      // uuid, fixed and binary types not supported yet
+      // { "orc", "uuid", uuid, UUID.randomUUID() },
+      // { "orc", "fixed", "abcd".getBytes(StandardCharsets.UTF_8), new byte[] { 0, 1, 2, 3 } },
+      // { "orc", "binary", "xyz".getBytes(StandardCharsets.UTF_8), new byte[] { 0, 1, 2, 3, 4, 5 }
+      // },
+      {"orc", "int_decimal", "77.77", "12.34"},
+      {"orc", "long_decimal", "88.88", "12.34"},
+      {"orc", "fixed_decimal", "99.99", "12.34"},
     };
   }
 
-  public TestMetricsRowGroupFilterTypes(String format, String column, Object readValue, Object skipValue) {
-    this.format = FileFormat.valueOf(format.toUpperCase(Locale.ENGLISH));
+  public TestMetricsRowGroupFilterTypes(
+      String format, String column, Object readValue, Object skipValue) {
+    this.format = FileFormat.fromString(format);
     this.column = column;
     this.readValue = readValue;
     this.skipValue = skipValue;
@@ -284,16 +298,18 @@ public class TestMetricsRowGroupFilterTypes {
       case PARQUET:
         return shouldReadParquet(value);
       default:
-        throw new UnsupportedOperationException("Row group filter types tests not supported for " + format);
+        throw new UnsupportedOperationException(
+            "Row group filter types tests not supported for " + format);
     }
   }
 
   private boolean shouldReadOrc(Object value) {
-    try (CloseableIterable<Record> reader = ORC.read(Files.localInput(ORC_FILE))
-        .project(SCHEMA)
-        .createReaderFunc(fileSchema -> GenericOrcReader.buildReader(SCHEMA, fileSchema))
-        .filter(Expressions.equal(column, value))
-        .build()) {
+    try (CloseableIterable<Record> reader =
+        ORC.read(Files.localInput(ORC_FILE))
+            .project(SCHEMA)
+            .createReaderFunc(fileSchema -> GenericOrcReader.buildReader(SCHEMA, fileSchema))
+            .filter(Expressions.equal(column, value))
+            .build()) {
       return Lists.newArrayList(reader).size() > 0;
     } catch (IOException e) {
       throw new UncheckedIOException(e);

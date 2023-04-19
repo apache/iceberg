@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 class CommitCallbackTransaction implements Transaction {
@@ -103,8 +102,18 @@ class CommitCallbackTransaction implements Transaction {
   }
 
   @Override
+  public UpdateStatistics updateStatistics() {
+    return wrapped.updateStatistics();
+  }
+
+  @Override
   public ExpireSnapshots expireSnapshots() {
     return wrapped.expireSnapshots();
+  }
+
+  @Override
+  public ManageSnapshots manageSnapshots() {
+    return wrapped.manageSnapshots();
   }
 
   @Override

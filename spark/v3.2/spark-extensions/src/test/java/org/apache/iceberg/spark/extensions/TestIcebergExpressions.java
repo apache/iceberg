@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.extensions;
 
 import java.math.BigDecimal;
@@ -31,7 +30,8 @@ import org.junit.Test;
 
 public class TestIcebergExpressions extends SparkExtensionsTestBase {
 
-  public TestIcebergExpressions(String catalogName, String implementation, Map<String, String> config) {
+  public TestIcebergExpressions(
+      String catalogName, String implementation, Map<String, String> config) {
     super(catalogName, implementation, config);
   }
 
@@ -44,26 +44,30 @@ public class TestIcebergExpressions extends SparkExtensionsTestBase {
 
   @Test
   public void testTruncateExpressions() {
-    sql("CREATE TABLE %s ( " +
-        "  int_c INT, long_c LONG, dec_c DECIMAL(4, 2), str_c STRING, binary_c BINARY " +
-        ") USING iceberg", tableName);
+    sql(
+        "CREATE TABLE %s ( "
+            + "  int_c INT, long_c LONG, dec_c DECIMAL(4, 2), str_c STRING, binary_c BINARY "
+            + ") USING iceberg",
+        tableName);
 
-    sql("CREATE TEMPORARY VIEW emp " +
-        "AS SELECT * FROM VALUES (101, 10001, 10.65, '101-Employee', CAST('1234' AS BINARY)) " +
-        "AS EMP(int_c, long_c, dec_c, str_c, binary_c)");
+    sql(
+        "CREATE TEMPORARY VIEW emp "
+            + "AS SELECT * FROM VALUES (101, 10001, 10.65, '101-Employee', CAST('1234' AS BINARY)) "
+            + "AS EMP(int_c, long_c, dec_c, str_c, binary_c)");
 
     sql("INSERT INTO %s SELECT * FROM emp", tableName);
 
     Dataset<Row> df = spark.sql("SELECT * FROM " + tableName);
     df.select(
-        new Column(new IcebergTruncateTransform(df.col("int_c").expr(), 2)).as("int_c"),
-        new Column(new IcebergTruncateTransform(df.col("long_c").expr(), 2)).as("long_c"),
-        new Column(new IcebergTruncateTransform(df.col("dec_c").expr(), 50)).as("dec_c"),
-        new Column(new IcebergTruncateTransform(df.col("str_c").expr(), 2)).as("str_c"),
-        new Column(new IcebergTruncateTransform(df.col("binary_c").expr(), 2)).as("binary_c")
-    ).createOrReplaceTempView("v");
+            new Column(new IcebergTruncateTransform(df.col("int_c").expr(), 2)).as("int_c"),
+            new Column(new IcebergTruncateTransform(df.col("long_c").expr(), 2)).as("long_c"),
+            new Column(new IcebergTruncateTransform(df.col("dec_c").expr(), 50)).as("dec_c"),
+            new Column(new IcebergTruncateTransform(df.col("str_c").expr(), 2)).as("str_c"),
+            new Column(new IcebergTruncateTransform(df.col("binary_c").expr(), 2)).as("binary_c"))
+        .createOrReplaceTempView("v");
 
-    assertEquals("Should have expected rows",
+    assertEquals(
+        "Should have expected rows",
         ImmutableList.of(row(100, 10000L, new BigDecimal("10.50"), "10", "12")),
         sql("SELECT int_c, long_c, dec_c, str_c, CAST(binary_c AS STRING) FROM v"));
   }

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.avro;
 
 import java.util.List;
@@ -105,8 +104,8 @@ class SchemaToType extends AvroSchemaVisitor<Type> {
 
   @Override
   public Type union(Schema union, List<Type> options) {
-    Preconditions.checkArgument(AvroSchemaUtil.isOptionSchema(union),
-        "Unsupported type: non-option union: %s", union);
+    Preconditions.checkArgument(
+        AvroSchemaUtil.isOptionSchema(union), "Unsupported type: non-option union: %s", union);
     // records, arrays, and maps will check nullability later
     if (options.get(0) == null) {
       return options.get(1);
@@ -120,8 +119,10 @@ class SchemaToType extends AvroSchemaVisitor<Type> {
     if (array.getLogicalType() instanceof LogicalMap) {
       // map stored as an array
       Schema keyValueSchema = array.getElementType();
-      Preconditions.checkArgument(AvroSchemaUtil.isKeyValueSchema(keyValueSchema),
-          "Invalid key-value pair schema: %s", keyValueSchema);
+      Preconditions.checkArgument(
+          AvroSchemaUtil.isKeyValueSchema(keyValueSchema),
+          "Invalid key-value pair schema: %s",
+          keyValueSchema);
 
       Types.StructType keyValueType = elementType.asStructType();
       Types.NestedField keyField = keyValueType.field("key");
@@ -174,14 +175,12 @@ class SchemaToType extends AvroSchemaVisitor<Type> {
       } else if (logical instanceof LogicalTypes.Date) {
         return Types.DateType.get();
 
-      } else if (
-          logical instanceof LogicalTypes.TimeMillis ||
-          logical instanceof LogicalTypes.TimeMicros) {
+      } else if (logical instanceof LogicalTypes.TimeMillis
+          || logical instanceof LogicalTypes.TimeMicros) {
         return Types.TimeType.get();
 
-      } else if (
-          logical instanceof LogicalTypes.TimestampMillis ||
-          logical instanceof LogicalTypes.TimestampMicros) {
+      } else if (logical instanceof LogicalTypes.TimestampMillis
+          || logical instanceof LogicalTypes.TimestampMicros) {
         if (AvroSchemaUtil.isTimestamptz(primitive)) {
           return Types.TimestampType.withZone();
         } else {
@@ -215,7 +214,6 @@ class SchemaToType extends AvroSchemaVisitor<Type> {
         return null;
     }
 
-    throw new UnsupportedOperationException(
-        "Unsupported primitive type: " + primitive);
+    throw new UnsupportedOperationException("Unsupported primitive type: " + primitive);
   }
 }

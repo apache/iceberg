@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.sql;
 
 import java.io.File;
@@ -56,7 +55,8 @@ public class TestNamespaceSQL extends SparkCatalogTestBase {
 
   @Test
   public void testCreateNamespace() {
-    Assert.assertFalse("Namespace should not already exist", validationNamespaceCatalog.namespaceExists(NS));
+    Assert.assertFalse(
+        "Namespace should not already exist", validationNamespaceCatalog.namespaceExists(NS));
 
     sql("CREATE NAMESPACE %s", fullNamespace);
 
@@ -76,7 +76,8 @@ public class TestNamespaceSQL extends SparkCatalogTestBase {
 
   @Test
   public void testDropEmptyNamespace() {
-    Assert.assertFalse("Namespace should not already exist", validationNamespaceCatalog.namespaceExists(NS));
+    Assert.assertFalse(
+        "Namespace should not already exist", validationNamespaceCatalog.namespaceExists(NS));
 
     sql("CREATE NAMESPACE %s", fullNamespace);
 
@@ -84,23 +85,28 @@ public class TestNamespaceSQL extends SparkCatalogTestBase {
 
     sql("DROP NAMESPACE %s", fullNamespace);
 
-    Assert.assertFalse("Namespace should have been dropped", validationNamespaceCatalog.namespaceExists(NS));
+    Assert.assertFalse(
+        "Namespace should have been dropped", validationNamespaceCatalog.namespaceExists(NS));
   }
 
   @Test
   public void testDropNonEmptyNamespace() {
     Assume.assumeFalse("Session catalog has flaky behavior", "spark_catalog".equals(catalogName));
 
-    Assert.assertFalse("Namespace should not already exist", validationNamespaceCatalog.namespaceExists(NS));
+    Assert.assertFalse(
+        "Namespace should not already exist", validationNamespaceCatalog.namespaceExists(NS));
 
     sql("CREATE NAMESPACE %s", fullNamespace);
     sql("CREATE TABLE %s.table (id bigint) USING iceberg", fullNamespace);
 
     Assert.assertTrue("Namespace should exist", validationNamespaceCatalog.namespaceExists(NS));
-    Assert.assertTrue("Table should exist", validationCatalog.tableExists(TableIdentifier.of(NS, "table")));
+    Assert.assertTrue(
+        "Table should exist", validationCatalog.tableExists(TableIdentifier.of(NS, "table")));
 
-    AssertHelpers.assertThrows("Should fail if trying to delete a non-empty namespace",
-        SparkException.class, "non-empty namespace",
+    AssertHelpers.assertThrows(
+        "Should fail if trying to delete a non-empty namespace",
+        SparkException.class,
+        "non-empty namespace",
         () -> sql("DROP NAMESPACE %s", fullNamespace));
 
     sql("DROP TABLE %s.table", fullNamespace);
@@ -108,7 +114,8 @@ public class TestNamespaceSQL extends SparkCatalogTestBase {
 
   @Test
   public void testListTables() {
-    Assert.assertFalse("Namespace should not already exist", validationNamespaceCatalog.namespaceExists(NS));
+    Assert.assertFalse(
+        "Namespace should not already exist", validationNamespaceCatalog.namespaceExists(NS));
 
     sql("CREATE NAMESPACE %s", fullNamespace);
 
@@ -126,7 +133,8 @@ public class TestNamespaceSQL extends SparkCatalogTestBase {
 
   @Test
   public void testListNamespace() {
-    Assert.assertFalse("Namespace should not already exist", validationNamespaceCatalog.namespaceExists(NS));
+    Assert.assertFalse(
+        "Namespace should not already exist", validationNamespaceCatalog.namespaceExists(NS));
 
     sql("CREATE NAMESPACE %s", fullNamespace);
 
@@ -136,17 +144,23 @@ public class TestNamespaceSQL extends SparkCatalogTestBase {
 
     if (isHadoopCatalog) {
       Assert.assertEquals("Should have 1 namespace", 1, namespaces.size());
-      Set<String> namespaceNames = namespaces.stream().map(arr -> arr[0].toString()).collect(Collectors.toSet());
+      Set<String> namespaceNames =
+          namespaces.stream().map(arr -> arr[0].toString()).collect(Collectors.toSet());
       Assert.assertEquals("Should have only db namespace", ImmutableSet.of("db"), namespaceNames);
     } else {
       Assert.assertEquals("Should have 2 namespaces", 2, namespaces.size());
-      Set<String> namespaceNames = namespaces.stream().map(arr -> arr[0].toString()).collect(Collectors.toSet());
-      Assert.assertEquals("Should have default and db namespaces", ImmutableSet.of("default", "db"), namespaceNames);
+      Set<String> namespaceNames =
+          namespaces.stream().map(arr -> arr[0].toString()).collect(Collectors.toSet());
+      Assert.assertEquals(
+          "Should have default and db namespaces",
+          ImmutableSet.of("default", "db"),
+          namespaceNames);
     }
 
     List<Object[]> nestedNamespaces = sql("SHOW NAMESPACES IN %s", fullNamespace);
 
-    Set<String> nestedNames = nestedNamespaces.stream().map(arr -> arr[0].toString()).collect(Collectors.toSet());
+    Set<String> nestedNames =
+        nestedNamespaces.stream().map(arr -> arr[0].toString()).collect(Collectors.toSet());
     Assert.assertEquals("Should not have nested namespaces", ImmutableSet.of(), nestedNames);
   }
 
@@ -154,7 +168,8 @@ public class TestNamespaceSQL extends SparkCatalogTestBase {
   public void testCreateNamespaceWithMetadata() {
     Assume.assumeFalse("HadoopCatalog does not support namespace metadata", isHadoopCatalog);
 
-    Assert.assertFalse("Namespace should not already exist", validationNamespaceCatalog.namespaceExists(NS));
+    Assert.assertFalse(
+        "Namespace should not already exist", validationNamespaceCatalog.namespaceExists(NS));
 
     sql("CREATE NAMESPACE %s WITH PROPERTIES ('prop'='value')", fullNamespace);
 
@@ -162,14 +177,16 @@ public class TestNamespaceSQL extends SparkCatalogTestBase {
 
     Map<String, String> nsMetadata = validationNamespaceCatalog.loadNamespaceMetadata(NS);
 
-    Assert.assertEquals("Namespace should have expected prop value", "value", nsMetadata.get("prop"));
+    Assert.assertEquals(
+        "Namespace should have expected prop value", "value", nsMetadata.get("prop"));
   }
 
   @Test
   public void testCreateNamespaceWithComment() {
     Assume.assumeFalse("HadoopCatalog does not support namespace metadata", isHadoopCatalog);
 
-    Assert.assertFalse("Namespace should not already exist", validationNamespaceCatalog.namespaceExists(NS));
+    Assert.assertFalse(
+        "Namespace should not already exist", validationNamespaceCatalog.namespaceExists(NS));
 
     sql("CREATE NAMESPACE %s COMMENT 'namespace doc'", fullNamespace);
 
@@ -177,14 +194,16 @@ public class TestNamespaceSQL extends SparkCatalogTestBase {
 
     Map<String, String> nsMetadata = validationNamespaceCatalog.loadNamespaceMetadata(NS);
 
-    Assert.assertEquals("Namespace should have expected comment", "namespace doc", nsMetadata.get("comment"));
+    Assert.assertEquals(
+        "Namespace should have expected comment", "namespace doc", nsMetadata.get("comment"));
   }
 
   @Test
   public void testCreateNamespaceWithLocation() throws Exception {
     Assume.assumeFalse("HadoopCatalog does not support namespace locations", isHadoopCatalog);
 
-    Assert.assertFalse("Namespace should not already exist", validationNamespaceCatalog.namespaceExists(NS));
+    Assert.assertFalse(
+        "Namespace should not already exist", validationNamespaceCatalog.namespaceExists(NS));
 
     File location = temp.newFile();
     Assert.assertTrue(location.delete());
@@ -195,27 +214,32 @@ public class TestNamespaceSQL extends SparkCatalogTestBase {
 
     Map<String, String> nsMetadata = validationNamespaceCatalog.loadNamespaceMetadata(NS);
 
-    Assert.assertEquals("Namespace should have expected location",
-        "file:" + location.getPath(), nsMetadata.get("location"));
+    Assert.assertEquals(
+        "Namespace should have expected location",
+        "file:" + location.getPath(),
+        nsMetadata.get("location"));
   }
 
   @Test
   public void testSetProperties() {
     Assume.assumeFalse("HadoopCatalog does not support namespace metadata", isHadoopCatalog);
 
-    Assert.assertFalse("Namespace should not already exist", validationNamespaceCatalog.namespaceExists(NS));
+    Assert.assertFalse(
+        "Namespace should not already exist", validationNamespaceCatalog.namespaceExists(NS));
 
     sql("CREATE NAMESPACE %s", fullNamespace);
 
     Assert.assertTrue("Namespace should exist", validationNamespaceCatalog.namespaceExists(NS));
 
     Map<String, String> defaultMetadata = validationNamespaceCatalog.loadNamespaceMetadata(NS);
-    Assert.assertFalse("Default metadata should not have custom property", defaultMetadata.containsKey("prop"));
+    Assert.assertFalse(
+        "Default metadata should not have custom property", defaultMetadata.containsKey("prop"));
 
     sql("ALTER NAMESPACE %s SET PROPERTIES ('prop'='value')", fullNamespace);
 
     Map<String, String> nsMetadata = validationNamespaceCatalog.loadNamespaceMetadata(NS);
 
-    Assert.assertEquals("Namespace should have expected prop value", "value", nsMetadata.get("prop"));
+    Assert.assertEquals(
+        "Namespace should have expected prop value", "value", nsMetadata.get("prop"));
   }
 }

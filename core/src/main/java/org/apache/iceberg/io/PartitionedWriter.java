@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.io;
 
 import java.io.IOException;
@@ -37,15 +36,20 @@ public abstract class PartitionedWriter<T> extends BaseTaskWriter<T> {
   private PartitionKey currentKey = null;
   private RollingFileWriter currentWriter = null;
 
-  protected PartitionedWriter(PartitionSpec spec, FileFormat format, FileAppenderFactory<T> appenderFactory,
-                           OutputFileFactory fileFactory, FileIO io, long targetFileSize) {
+  protected PartitionedWriter(
+      PartitionSpec spec,
+      FileFormat format,
+      FileAppenderFactory<T> appenderFactory,
+      OutputFileFactory fileFactory,
+      FileIO io,
+      long targetFileSize) {
     super(spec, format, appenderFactory, fileFactory, io, targetFileSize);
   }
 
   /**
    * Create a PartitionKey from the values in row.
-   * <p>
-   * Any PartitionKey returned by this method can be reused by the implementation.
+   *
+   * <p>Any PartitionKey returned by this method can be reused by the implementation.
    *
    * @param row a data row
    */

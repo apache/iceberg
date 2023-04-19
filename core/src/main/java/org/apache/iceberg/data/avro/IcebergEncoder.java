@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.data.avro;
 
 import java.io.ByteArrayOutputStream;
@@ -41,8 +40,7 @@ public class IcebergEncoder<D> implements MessageEncoder<D> {
   private static final ThreadLocal<BufferOutputStream> TEMP =
       ThreadLocal.withInitial(BufferOutputStream::new);
 
-  private static final ThreadLocal<BinaryEncoder> ENCODER =
-      new ThreadLocal<>();
+  private static final ThreadLocal<BinaryEncoder> ENCODER = new ThreadLocal<>();
 
   private final byte[] headerBytes;
   private final boolean copyOutputBytes;
@@ -51,8 +49,8 @@ public class IcebergEncoder<D> implements MessageEncoder<D> {
   /**
    * Creates a new {@link MessageEncoder} that will deconstruct datum instances described by the
    * {@link Schema schema}.
-   * <p>
-   * Buffers returned by {@code encode} are copied and will not be modified by future calls to
+   *
+   * <p>Buffers returned by {@code encode} are copied and will not be modified by future calls to
    * {@code encode}.
    *
    * @param schema the {@link Schema} for datum instances
@@ -64,11 +62,11 @@ public class IcebergEncoder<D> implements MessageEncoder<D> {
   /**
    * Creates a new {@link MessageEncoder} that will deconstruct datum instances described by the
    * {@link Schema schema}.
-   * <p>
-   * If {@code shouldCopy} is true, then buffers returned by {@code encode} are copied and will
+   *
+   * <p>If {@code shouldCopy} is true, then buffers returned by {@code encode} are copied and will
    * not be modified by future calls to {@code encode}.
-   * <p>
-   * If {@code shouldCopy} is false, then buffers returned by {@code encode} wrap a thread-local
+   *
+   * <p>If {@code shouldCopy} is false, then buffers returned by {@code encode} wrap a thread-local
    * buffer that can be reused by future calls to {@code encode}, but may not be. Callers should
    * only set {@code shouldCopy} to false if the buffer will be copied before the current thread's
    * next call to {@code encode}.
@@ -81,7 +79,6 @@ public class IcebergEncoder<D> implements MessageEncoder<D> {
     org.apache.avro.Schema avroSchema = AvroSchemaUtil.convert(schema, "table");
     this.writer = DataWriter.create(avroSchema);
     this.headerBytes = getWriteHeader(avroSchema);
-
   }
 
   @Override
@@ -108,8 +105,7 @@ public class IcebergEncoder<D> implements MessageEncoder<D> {
   }
 
   private static class BufferOutputStream extends ByteArrayOutputStream {
-    BufferOutputStream() {
-    }
+    BufferOutputStream() {}
 
     ByteBuffer toBufferWithoutCopy() {
       return ByteBuffer.wrap(buf, 0, count);

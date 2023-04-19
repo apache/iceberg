@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import java.io.ObjectStreamException;
@@ -55,11 +54,8 @@ class SerializableByteBufferMap implements Map<Integer, ByteBuffer>, Serializabl
     private int[] keys = null;
     private byte[][] values = null;
 
-    /**
-     * Constructor for Java serialization.
-     */
-    MapSerializationProxy() {
-    }
+    /** Constructor for Java serialization. */
+    MapSerializationProxy() {}
 
     MapSerializationProxy(int[] keys, byte[][] values) {
       this.keys = keys;

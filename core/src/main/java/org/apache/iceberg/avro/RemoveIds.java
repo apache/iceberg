@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.avro;
 
 import java.util.List;
@@ -72,7 +71,8 @@ public class RemoveIds extends AvroSchemaVisitor<Schema> {
   }
 
   private static Schema.Field copyField(Schema.Field field, Schema newSchema) {
-    Schema.Field copy = new Schema.Field(field.name(), newSchema, field.doc(), field.defaultVal(), field.order());
+    Schema.Field copy =
+        new Schema.Field(field.name(), newSchema, field.doc(), field.defaultVal(), field.order());
     for (Map.Entry<String, Object> prop : field.getObjectProps().entrySet()) {
       String key = prop.getKey();
       if (!Objects.equals(key, AvroSchemaUtil.FIELD_ID_PROP)) {
@@ -83,7 +83,8 @@ public class RemoveIds extends AvroSchemaVisitor<Schema> {
   }
 
   static Schema removeIds(org.apache.iceberg.Schema schema) {
-    return AvroSchemaVisitor.visit(AvroSchemaUtil.convert(schema.asStruct(), "table"), new RemoveIds());
+    return AvroSchemaVisitor.visit(
+        AvroSchemaUtil.convert(schema.asStruct(), "table"), new RemoveIds());
   }
 
   public static Schema removeIds(Schema schema) {

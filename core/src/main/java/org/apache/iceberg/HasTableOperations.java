@@ -16,12 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
-/**
- * Used to expose a table's TableOperations.
- */
+/** Used to expose a table's TableOperations. */
 public interface HasTableOperations {
   TableOperations operations();
 }

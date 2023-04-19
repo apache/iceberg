@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.io;
 
 import java.io.IOException;
@@ -29,15 +28,20 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 public abstract class PartitionedFanoutWriter<T> extends BaseTaskWriter<T> {
   private final Map<PartitionKey, RollingFileWriter> writers = Maps.newHashMap();
 
-  protected PartitionedFanoutWriter(PartitionSpec spec, FileFormat format, FileAppenderFactory<T> appenderFactory,
-                          OutputFileFactory fileFactory, FileIO io, long targetFileSize) {
+  protected PartitionedFanoutWriter(
+      PartitionSpec spec,
+      FileFormat format,
+      FileAppenderFactory<T> appenderFactory,
+      OutputFileFactory fileFactory,
+      FileIO io,
+      long targetFileSize) {
     super(spec, format, appenderFactory, fileFactory, io, targetFileSize);
   }
 
   /**
    * Create a PartitionKey from the values in row.
-   * <p>
-   * Any PartitionKey returned by this method can be reused by the implementation.
+   *
+   * <p>Any PartitionKey returned by this method can be reused by the implementation.
    *
    * @param row a data row
    */
@@ -49,7 +53,8 @@ public abstract class PartitionedFanoutWriter<T> extends BaseTaskWriter<T> {
 
     RollingFileWriter writer = writers.get(partitionKey);
     if (writer == null) {
-      // NOTICE: we need to copy a new partition key here, in case of messing up the keys in writers.
+      // NOTICE: we need to copy a new partition key here, in case of messing up the keys in
+      // writers.
       PartitionKey copiedKey = partitionKey.copy();
       writer = new RollingFileWriter(copiedKey);
       writers.put(copiedKey, writer);

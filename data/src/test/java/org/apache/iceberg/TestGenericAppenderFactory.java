@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import java.util.List;
@@ -39,11 +38,14 @@ public class TestGenericAppenderFactory extends TestAppenderFactory<Record> {
   }
 
   @Override
-  protected FileAppenderFactory<Record> createAppenderFactory(List<Integer> equalityFieldIds,
-                                                              Schema eqDeleteSchema,
-                                                              Schema posDeleteRowSchema) {
-    return new GenericAppenderFactory(table.schema(), table.spec(), ArrayUtil.toIntArray(equalityFieldIds),
-        eqDeleteSchema, posDeleteRowSchema);
+  protected FileAppenderFactory<Record> createAppenderFactory(
+      List<Integer> equalityFieldIds, Schema eqDeleteSchema, Schema posDeleteRowSchema) {
+    return new GenericAppenderFactory(
+        table.schema(),
+        table.spec(),
+        ArrayUtil.toIntArray(equalityFieldIds),
+        eqDeleteSchema,
+        posDeleteRowSchema);
   }
 
   @Override

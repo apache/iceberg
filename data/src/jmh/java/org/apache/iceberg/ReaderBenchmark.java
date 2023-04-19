@@ -16,8 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
+
+import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.apache.iceberg.types.Types.NestedField.required;
 
 import java.io.File;
 import java.io.IOException;
@@ -41,9 +43,6 @@ import org.openjdk.jmh.annotations.Warmup;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static org.apache.iceberg.types.Types.NestedField.optional;
-import static org.apache.iceberg.types.Types.NestedField.required;
-
 @Fork(1)
 @State(Scope.Benchmark)
 @Warmup(iterations = 3)
@@ -52,15 +51,16 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 public abstract class ReaderBenchmark {
   private static final Logger LOG = LoggerFactory.getLogger(ReaderBenchmark.class);
 
-  private static final Schema TEST_SCHEMA = new Schema(
-      required(1, "longCol", Types.LongType.get()),
-      required(2, "intCol", Types.IntegerType.get()),
-      required(3, "floatCol", Types.FloatType.get()),
-      optional(4, "doubleCol", Types.DoubleType.get()),
-      optional(5, "decimalCol", Types.DecimalType.of(20, 5)),
-      optional(6, "dateCol", Types.DateType.get()),
-      optional(7, "timestampCol", Types.TimestampType.withZone()),
-      optional(8, "stringCol", Types.StringType.get()));
+  private static final Schema TEST_SCHEMA =
+      new Schema(
+          required(1, "longCol", Types.LongType.get()),
+          required(2, "intCol", Types.IntegerType.get()),
+          required(3, "floatCol", Types.FloatType.get()),
+          optional(4, "doubleCol", Types.DoubleType.get()),
+          optional(5, "decimalCol", Types.DecimalType.of(20, 5)),
+          optional(6, "dateCol", Types.DateType.get()),
+          optional(7, "timestampCol", Types.TimestampType.withZone()),
+          optional(8, "stringCol", Types.StringType.get()));
 
   private static final int NUM_ROWS = 2500000;
   private static final int SEED = -1;

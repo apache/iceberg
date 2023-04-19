@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.io;
 
 import java.io.IOException;
@@ -34,12 +33,14 @@ public class BasePositionDeltaWriter<T> implements PositionDeltaWriter<T> {
 
   private boolean closed;
 
-  public BasePositionDeltaWriter(PartitioningWriter<T, DataWriteResult> insertWriter,
-                                 PartitioningWriter<T, DataWriteResult> updateWriter,
-                                 PartitioningWriter<PositionDelete<T>, DeleteWriteResult> deleteWriter) {
+  public BasePositionDeltaWriter(
+      PartitioningWriter<T, DataWriteResult> insertWriter,
+      PartitioningWriter<T, DataWriteResult> updateWriter,
+      PartitioningWriter<PositionDelete<T>, DeleteWriteResult> deleteWriter) {
     Preconditions.checkArgument(insertWriter != null, "Insert writer cannot be null");
     Preconditions.checkArgument(updateWriter != null, "Update writer cannot be null");
-    Preconditions.checkArgument(insertWriter != updateWriter, "Update and insert writers must be different");
+    Preconditions.checkArgument(
+        insertWriter != updateWriter, "Update and insert writers must be different");
     Preconditions.checkArgument(deleteWriter != null, "Delete writer cannot be null");
 
     this.insertWriter = insertWriter;

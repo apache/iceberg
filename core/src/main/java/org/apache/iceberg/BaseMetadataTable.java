@@ -16,64 +16,97 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import java.io.Serializable;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.transforms.Transforms;
 
 /**
  * Base class for metadata tables.
- * <p>
- * Serializing and deserializing a metadata table object returns a read only implementation of the metadata table
- * using a {@link StaticTableOperations}. This way no Catalog related calls are needed when reading the table data after
- * deserialization.
+ *
+ * <p>Serializing and deserializing a metadata table object returns a read only implementation of
+ * the metadata table using a {@link StaticTableOperations}. This way no Catalog related calls are
+ * needed when reading the table data after deserialization.
  */
-public abstract class BaseMetadataTable implements Table, HasTableOperations, Serializable {
+public abstract class BaseMetadataTable extends BaseReadOnlyTable
+    implements HasTableOperations, Serializable {
   private final PartitionSpec spec = PartitionSpec.unpartitioned();
   private final SortOrder sortOrder = SortOrder.unsorted();
-  private final TableOperations ops;
-  private final Table table;
+  private final BaseTable table;
   private final String name;
 
-  protected BaseMetadataTable(TableOperations ops, Table table, String name) {
-    this.ops = ops;
-    this.table = table;
+  protected BaseMetadataTable(Table table, String name) {
+    super("metadata");
+    Preconditions.checkArgument(
+        table instanceof BaseTable, "Cannot create metadata table for non-data table: %s", table);
+    this.table = (BaseTable) table;
     this.name = name;
   }
 
   /**
-   * This method transforms the table's partition spec to a spec that is used to rewrite the user-provided filter
-   * expression against the given metadata table.
-   * <p>
-   * The resulting partition spec maps partition.X fields to partition X using an identity partition transform.
-   * When this spec is used to project an expression for the given metadata table, the projection will remove
-   * predicates for non-partition fields (not in the spec) and will remove the "partition." prefix from fields.
+   * This method transforms the table's partition spec to a spec that is used to rewrite the
+   * user-provided filter expression against the given metadata table.
+   *
+   * <p>The resulting partition spec maps partition.X fields to partition X using an identity
+   * partition transform. When this spec is used to project an expression for the given metadata
+   * table, the projection will remove predicates for non-partition fields (not in the spec) and
+   * will remove the "partition." prefix from fields.
    *
    * @param metadataTableSchema schema of the metadata table
    * @param spec spec on which the metadata table schema is based
-   * @return a spec used to rewrite the metadata table filters to partition filters using an inclusive projection
+   * @return a spec used to rewrite the metadata table filters to partition filters using an
+   *     inclusive projection
    */
   static PartitionSpec transformSpec(Schema metadataTableSchema, PartitionSpec spec) {
-    PartitionSpec.Builder identitySpecBuilder = PartitionSpec.builderFor(metadataTableSchema).checkConflicts(false);
-    spec.fields().forEach(pf -> identitySpecBuilder.add(pf.fieldId(), pf.name(), "identity"));
-    return identitySpecBuilder.build();
+    PartitionSpec.Builder builder =
+        PartitionSpec.builderFor(metadataTableSchema)
+            .withSpecId(spec.specId())
+            .checkConflicts(false);
+
+    for (PartitionField field : spec.fields()) {
+      builder.add(field.fieldId(), field.fieldId(), field.name(), Transforms.identity());
+    }
+    return builder.build();
+  }
+
+  /**
+   * This method transforms the given partition specs to specs that are used to rewrite the
+   * user-provided filter expression against the given metadata table.
+   *
+   * <p>See: {@link #transformSpec(Schema, PartitionSpec)}
+   *
+   * @param metadataTableSchema schema of the metadata table
+   * @param specs specs on which the metadata table schema is based
+   * @return specs used to rewrite the metadata table filters to partition filters using an
+   *     inclusive projection
+   */
+  static Map<Integer, PartitionSpec> transformSpecs(
+      Schema metadataTableSchema, Map<Integer, PartitionSpec> specs) {
+    return specs.values().stream()
+        .map(spec -> transformSpec(metadataTableSchema, spec))
+        .collect(Collectors.toMap(PartitionSpec::specId, spec -> spec));
   }
 
   abstract MetadataTableType metadataTableType();
 
-  protected Table table() {
+  protected BaseTable table() {
     return table;
   }
 
+  /** @deprecated will be removed in 1.4.0; do not use metadata table TableOperations */
   @Override
+  @Deprecated
   public TableOperations operations() {
-    return ops;
+    return table.operations();
   }
 
   @Override
@@ -157,83 +190,13 @@ public abstract class BaseMetadataTable implements Table, HasTableOperations, Se
   }
 
   @Override
-  public UpdateSchema updateSchema() {
-    throw new UnsupportedOperationException("Cannot update the schema of a metadata table");
+  public List<StatisticsFile> statisticsFiles() {
+    return ImmutableList.of();
   }
 
   @Override
-  public UpdatePartitionSpec updateSpec() {
-    throw new UnsupportedOperationException("Cannot update the partition spec of a metadata table");
-  }
-
-  @Override
-  public UpdateProperties updateProperties() {
-    throw new UnsupportedOperationException("Cannot update the properties of a metadata table");
-  }
-
-  @Override
-  public ReplaceSortOrder replaceSortOrder() {
-    throw new UnsupportedOperationException("Cannot update the sort order of a metadata table");
-  }
-
-  @Override
-  public UpdateLocation updateLocation() {
-    throw new UnsupportedOperationException("Cannot update the location of a metadata table");
-  }
-
-  @Override
-  public AppendFiles newAppend() {
-    throw new UnsupportedOperationException("Cannot append to a metadata table");
-  }
-
-  @Override
-  public RewriteFiles newRewrite() {
-    throw new UnsupportedOperationException("Cannot rewrite in a metadata table");
-  }
-
-  @Override
-  public RewriteManifests rewriteManifests() {
-    throw new UnsupportedOperationException("Cannot rewrite manifests in a metadata table");
-  }
-
-  @Override
-  public OverwriteFiles newOverwrite() {
-    throw new UnsupportedOperationException("Cannot overwrite in a metadata table");
-  }
-
-  @Override
-  public RowDelta newRowDelta() {
-    throw new UnsupportedOperationException("Cannot remove or replace rows in a metadata table");
-  }
-
-  @Override
-  public ReplacePartitions newReplacePartitions() {
-    throw new UnsupportedOperationException("Cannot replace partitions in a metadata table");
-  }
-
-  @Override
-  public DeleteFiles newDelete() {
-    throw new UnsupportedOperationException("Cannot delete from a metadata table");
-  }
-
-  @Override
-  public ExpireSnapshots expireSnapshots() {
-    throw new UnsupportedOperationException("Cannot expire snapshots from a metadata table");
-  }
-
-  @Override
-  public Rollback rollback() {
-    throw new UnsupportedOperationException("Cannot roll back a metadata table");
-  }
-
-  @Override
-  public ManageSnapshots manageSnapshots() {
-    throw new UnsupportedOperationException("Cannot manage snapshots in a metadata table");
-  }
-
-  @Override
-  public Transaction newTransaction() {
-    throw new UnsupportedOperationException("Cannot create transactions for a metadata table");
+  public Map<String, SnapshotRef> refs() {
+    return table().refs();
   }
 
   @Override

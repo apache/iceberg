@@ -16,8 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.avro;
+
+import static java.util.Collections.emptyIterator;
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -45,11 +46,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.UUIDUtil;
 
-import static java.util.Collections.emptyIterator;
-
 public class ValueReaders {
-  private ValueReaders() {
-  }
+  private ValueReaders() {}
 
   public static ValueReader<Object> nulls() {
     return NullReader.INSTANCE;
@@ -131,15 +129,18 @@ public class ValueReaders {
     return new ArrayReader<>(elementReader);
   }
 
-  public static <K, V> ValueReader<Map<K, V>> arrayMap(ValueReader<K> keyReader, ValueReader<V> valueReader) {
+  public static <K, V> ValueReader<Map<K, V>> arrayMap(
+      ValueReader<K> keyReader, ValueReader<V> valueReader) {
     return new ArrayMapReader<>(keyReader, valueReader);
   }
 
-  public static <K, V> ValueReader<Map<K, V>> map(ValueReader<K> keyReader, ValueReader<V> valueReader) {
+  public static <K, V> ValueReader<Map<K, V>> map(
+      ValueReader<K> keyReader, ValueReader<V> valueReader) {
     return new MapReader<>(keyReader, valueReader);
   }
 
-  public static ValueReader<GenericData.Record> record(List<ValueReader<?>> readers, Schema recordSchema) {
+  public static ValueReader<GenericData.Record> record(
+      List<ValueReader<?>> readers, Schema recordSchema) {
     return new RecordReader(readers, recordSchema);
   }
 
@@ -151,8 +152,7 @@ public class ValueReaders {
   private static class NullReader implements ValueReader<Object> {
     private static final NullReader INSTANCE = new NullReader();
 
-    private NullReader() {
-    }
+    private NullReader() {}
 
     @Override
     public Object read(Decoder decoder, Object ignored) throws IOException {
@@ -164,8 +164,7 @@ public class ValueReaders {
   private static class BooleanReader implements ValueReader<Boolean> {
     private static final BooleanReader INSTANCE = new BooleanReader();
 
-    private BooleanReader() {
-    }
+    private BooleanReader() {}
 
     @Override
     public Boolean read(Decoder decoder, Object ignored) throws IOException {
@@ -176,8 +175,7 @@ public class ValueReaders {
   private static class IntegerReader implements ValueReader<Integer> {
     private static final IntegerReader INSTANCE = new IntegerReader();
 
-    private IntegerReader() {
-    }
+    private IntegerReader() {}
 
     @Override
     public Integer read(Decoder decoder, Object ignored) throws IOException {
@@ -188,8 +186,7 @@ public class ValueReaders {
   private static class LongReader implements ValueReader<Long> {
     private static final LongReader INSTANCE = new LongReader();
 
-    private LongReader() {
-    }
+    private LongReader() {}
 
     @Override
     public Long read(Decoder decoder, Object ignored) throws IOException {
@@ -200,8 +197,7 @@ public class ValueReaders {
   private static class FloatReader implements ValueReader<Float> {
     private static final FloatReader INSTANCE = new FloatReader();
 
-    private FloatReader() {
-    }
+    private FloatReader() {}
 
     @Override
     public Float read(Decoder decoder, Object ignored) throws IOException {
@@ -212,8 +208,7 @@ public class ValueReaders {
   private static class DoubleReader implements ValueReader<Double> {
     private static final DoubleReader INSTANCE = new DoubleReader();
 
-    private DoubleReader() {
-    }
+    private DoubleReader() {}
 
     @Override
     public Double read(Decoder decoder, Object ignored) throws IOException {
@@ -225,25 +220,23 @@ public class ValueReaders {
     private static final StringReader INSTANCE = new StringReader();
     private final ThreadLocal<Utf8> reusedTempUtf8 = ThreadLocal.withInitial(Utf8::new);
 
-    private StringReader() {
-    }
+    private StringReader() {}
 
     @Override
     public String read(Decoder decoder, Object ignored) throws IOException {
       // use the decoder's readString(Utf8) method because it may be a resolving decoder
       this.reusedTempUtf8.set(decoder.readString(reusedTempUtf8.get()));
       return reusedTempUtf8.get().toString();
-//      int length = decoder.readInt();
-//      byte[] bytes = new byte[length];
-//      decoder.readFixed(bytes, 0, length);
+      //      int length = decoder.readInt();
+      //      byte[] bytes = new byte[length];
+      //      decoder.readFixed(bytes, 0, length);
     }
   }
 
   private static class Utf8Reader implements ValueReader<Utf8> {
     private static final Utf8Reader INSTANCE = new Utf8Reader();
 
-    private Utf8Reader() {
-    }
+    private Utf8Reader() {}
 
     @Override
     public Utf8 read(Decoder decoder, Object reuse) throws IOException {
@@ -253,23 +246,24 @@ public class ValueReaders {
       } else {
         return decoder.readString(null);
       }
-//      int length = decoder.readInt();
-//      byte[] bytes = new byte[length];
-//      decoder.readFixed(bytes, 0, length);
+      //      int length = decoder.readInt();
+      //      byte[] bytes = new byte[length];
+      //      decoder.readFixed(bytes, 0, length);
     }
   }
 
   private static class UUIDReader implements ValueReader<UUID> {
-    private static final ThreadLocal<ByteBuffer> BUFFER = ThreadLocal.withInitial(() -> {
-      ByteBuffer buffer = ByteBuffer.allocate(16);
-      buffer.order(ByteOrder.BIG_ENDIAN);
-      return buffer;
-    });
+    private static final ThreadLocal<ByteBuffer> BUFFER =
+        ThreadLocal.withInitial(
+            () -> {
+              ByteBuffer buffer = ByteBuffer.allocate(16);
+              buffer.order(ByteOrder.BIG_ENDIAN);
+              return buffer;
+            });
 
     private static final UUIDReader INSTANCE = new UUIDReader();
 
-    private UUIDReader() {
-    }
+    private UUIDReader() {}
 
     @Override
     @SuppressWarnings("ByteBufferBackingArray")
@@ -334,8 +328,7 @@ public class ValueReaders {
   private static class BytesReader implements ValueReader<byte[]> {
     private static final BytesReader INSTANCE = new BytesReader();
 
-    private BytesReader() {
-    }
+    private BytesReader() {}
 
     @Override
     public byte[] read(Decoder decoder, Object reuse) throws IOException {
@@ -346,18 +339,17 @@ public class ValueReaders {
       // a new buffer. since the usual case requires an allocation anyway to get the size right,
       // just allocate every time.
       return decoder.readBytes(null).array();
-//      int length = decoder.readInt();
-//      byte[] bytes = new byte[length];
-//      decoder.readFixed(bytes, 0, length);
-//      return bytes;
+      //      int length = decoder.readInt();
+      //      byte[] bytes = new byte[length];
+      //      decoder.readFixed(bytes, 0, length);
+      //      return bytes;
     }
   }
 
   private static class ByteBufferReader implements ValueReader<ByteBuffer> {
     private static final ByteBufferReader INSTANCE = new ByteBufferReader();
 
-    private ByteBufferReader() {
-    }
+    private ByteBufferReader() {}
 
     @Override
     public ByteBuffer read(Decoder decoder, Object reuse) throws IOException {
@@ -367,10 +359,10 @@ public class ValueReaders {
       } else {
         return decoder.readBytes(null);
       }
-//      int length = decoder.readInt();
-//      byte[] bytes = new byte[length];
-//      decoder.readFixed(bytes, 0, length);
-//      return bytes;
+      //      int length = decoder.readInt();
+      //      byte[] bytes = new byte[length];
+      //      decoder.readFixed(bytes, 0, length);
+      //      return bytes;
     }
   }
 
@@ -494,9 +486,8 @@ public class ValueReaders {
       }
 
       long chunkLength = decoder.readArrayStart();
-      Iterator<Map.Entry<?, ?>> kvIter = lastMap != null ?
-          lastMap.entrySet().iterator() :
-          emptyIterator();
+      Iterator<Map.Entry<?, ?>> kvIter =
+          lastMap != null ? lastMap.entrySet().iterator() : emptyIterator();
 
       while (chunkLength > 0) {
         for (long i = 0; i < chunkLength; i += 1) {
@@ -548,9 +539,8 @@ public class ValueReaders {
       }
 
       long chunkLength = decoder.readMapStart();
-      Iterator<Map.Entry<?, ?>> kvIter = lastMap != null ?
-          lastMap.entrySet().iterator() :
-          emptyIterator();
+      Iterator<Map.Entry<?, ?>> kvIter =
+          lastMap != null ? lastMap.entrySet().iterator() : emptyIterator();
 
       while (chunkLength > 0) {
         for (long i = 0; i < chunkLength; i += 1) {
@@ -599,12 +589,13 @@ public class ValueReaders {
         this.positions = new int[0];
         this.constants = new Object[0];
       } else {
-        this.positions = new int[]{isDeletedColumnPos};
-        this.constants = new Object[]{false};
+        this.positions = new int[] {isDeletedColumnPos};
+        this.constants = new Object[] {false};
       }
     }
 
-    protected StructReader(List<ValueReader<?>> readers, Types.StructType struct, Map<Integer, ?> idToConstant) {
+    protected StructReader(
+        List<ValueReader<?>> readers, Types.StructType struct, Map<Integer, ?> idToConstant) {
       this.readers = readers.toArray(new ValueReader[0]);
 
       List<Types.NestedField> fields = struct.fields();
@@ -720,10 +711,11 @@ public class ValueReaders {
     IndexedRecordReader(List<ValueReader<?>> readers, Class<R> recordClass, Schema schema) {
       super(readers, schema);
       this.recordClass = recordClass;
-      this.ctor = DynConstructors.builder(IndexedRecord.class)
-          .hiddenImpl(recordClass, Schema.class)
-          .hiddenImpl(recordClass)
-          .build();
+      this.ctor =
+          DynConstructors.builder(IndexedRecord.class)
+              .hiddenImpl(recordClass, Schema.class)
+              .hiddenImpl(recordClass)
+              .build();
       this.schema = schema;
     }
 

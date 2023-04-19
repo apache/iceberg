@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.data;
 
 import java.io.IOException;
@@ -50,8 +49,9 @@ public class SparkAvroWriter implements MetricsAwareDatumWriter<InternalRow> {
   @Override
   @SuppressWarnings("unchecked")
   public void setSchema(Schema schema) {
-    this.writer = (ValueWriter<InternalRow>) AvroWithSparkSchemaVisitor
-        .visit(dsSchema, schema, new WriteBuilder());
+    this.writer =
+        (ValueWriter<InternalRow>)
+            AvroWithSparkSchemaVisitor.visit(dsSchema, schema, new WriteBuilder());
   }
 
   @Override
@@ -66,17 +66,23 @@ public class SparkAvroWriter implements MetricsAwareDatumWriter<InternalRow> {
 
   private static class WriteBuilder extends AvroWithSparkSchemaVisitor<ValueWriter<?>> {
     @Override
-    public ValueWriter<?> record(DataType struct, Schema record, List<String> names, List<ValueWriter<?>> fields) {
-      return SparkValueWriters.struct(fields, IntStream.range(0, names.size())
-          .mapToObj(i -> fieldNameAndType(struct, i).second()).collect(Collectors.toList()));
+    public ValueWriter<?> record(
+        DataType struct, Schema record, List<String> names, List<ValueWriter<?>> fields) {
+      return SparkValueWriters.struct(
+          fields,
+          IntStream.range(0, names.size())
+              .mapToObj(i -> fieldNameAndType(struct, i).second())
+              .collect(Collectors.toList()));
     }
 
     @Override
     public ValueWriter<?> union(DataType type, Schema union, List<ValueWriter<?>> options) {
-      Preconditions.checkArgument(options.contains(ValueWriters.nulls()),
-          "Cannot create writer for non-option union: %s", union);
-      Preconditions.checkArgument(options.size() == 2,
-          "Cannot create writer for non-option union: %s", union);
+      Preconditions.checkArgument(
+          options.contains(ValueWriters.nulls()),
+          "Cannot create writer for non-option union: %s",
+          union);
+      Preconditions.checkArgument(
+          options.size() == 2, "Cannot create writer for non-option union: %s", union);
       if (union.getTypes().get(0).getType() == Schema.Type.NULL) {
         return ValueWriters.option(0, options.get(1));
       } else {
@@ -91,12 +97,15 @@ public class SparkAvroWriter implements MetricsAwareDatumWriter<InternalRow> {
 
     @Override
     public ValueWriter<?> map(DataType sMap, Schema map, ValueWriter<?> valueReader) {
-      return SparkValueWriters.map(SparkValueWriters.strings(), mapKeyType(sMap), valueReader, mapValueType(sMap));
+      return SparkValueWriters.map(
+          SparkValueWriters.strings(), mapKeyType(sMap), valueReader, mapValueType(sMap));
     }
 
     @Override
-    public ValueWriter<?> map(DataType sMap, Schema map, ValueWriter<?> keyWriter, ValueWriter<?> valueWriter) {
-      return SparkValueWriters.arrayMap(keyWriter, mapKeyType(sMap), valueWriter, mapValueType(sMap));
+    public ValueWriter<?> map(
+        DataType sMap, Schema map, ValueWriter<?> keyWriter, ValueWriter<?> valueWriter) {
+      return SparkValueWriters.arrayMap(
+          keyWriter, mapKeyType(sMap), valueWriter, mapValueType(sMap));
     }
 
     @Override

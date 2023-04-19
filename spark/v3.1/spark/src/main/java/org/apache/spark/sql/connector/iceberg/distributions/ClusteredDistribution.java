@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.spark.sql.connector.iceberg.distributions;
 
 import org.apache.spark.annotation.Experimental;
@@ -30,8 +29,6 @@ import org.apache.spark.sql.connector.expressions.Expression;
  */
 @Experimental
 public interface ClusteredDistribution extends Distribution {
-  /**
-   * Returns clustering expressions.
-   */
+  /** Returns clustering expressions. */
   Expression[] clustering();
 }

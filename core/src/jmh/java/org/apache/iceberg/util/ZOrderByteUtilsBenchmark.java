@@ -16,8 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
-
 package org.apache.iceberg.util;
 
 import java.nio.ByteBuffer;
@@ -77,8 +75,9 @@ public class ZOrderByteUtilsBenchmark {
     int outputSize = ZOrderByteUtils.PRIMITIVE_BUFFER_SIZE * 4;
     ByteBuffer outputBuffer = ByteBuffer.allocate(outputSize);
 
-    for (int i = 0; i < fourColumnInput.length; i++) {
-      byte[] interleavedBytes = ZOrderByteUtils.interleaveBits(fourColumnInput[i], outputSize,  outputBuffer);
+    for (byte[][] columnsBinary : fourColumnInput) {
+      byte[] interleavedBytes =
+          ZOrderByteUtils.interleaveBits(columnsBinary, outputSize, outputBuffer);
       blackhole.consume(interleavedBytes);
     }
   }
@@ -90,7 +89,8 @@ public class ZOrderByteUtilsBenchmark {
     ByteBuffer outputBuffer = ByteBuffer.allocate(outputSize);
 
     for (int i = 0; i < fourColumnInput.length; i++) {
-      byte[] interleavedBytes = ZOrderByteUtils.interleaveBits(threeColumnInput[i], outputSize,  outputBuffer);
+      byte[] interleavedBytes =
+          ZOrderByteUtils.interleaveBits(threeColumnInput[i], outputSize, outputBuffer);
       blackhole.consume(interleavedBytes);
     }
   }
@@ -102,7 +102,8 @@ public class ZOrderByteUtilsBenchmark {
     ByteBuffer outputBuffer = ByteBuffer.allocate(outputSize);
 
     for (int i = 0; i < fourColumnInput.length; i++) {
-      byte[] interleavedBytes = ZOrderByteUtils.interleaveBits(twoColumnInput[i], outputSize,  outputBuffer);
+      byte[] interleavedBytes =
+          ZOrderByteUtils.interleaveBits(twoColumnInput[i], outputSize, outputBuffer);
       blackhole.consume(interleavedBytes);
     }
   }
@@ -113,8 +114,9 @@ public class ZOrderByteUtilsBenchmark {
     int outputSize = 8;
     ByteBuffer outputBuffer = ByteBuffer.allocate(outputSize);
 
-    for (int i = 0; i < fourColumnInput.length; i++) {
-      byte[] interleavedBytes = ZOrderByteUtils.interleaveBits(fourColumnInput[i], outputSize,  outputBuffer);
+    for (byte[][] columnsBinary : fourColumnInput) {
+      byte[] interleavedBytes =
+          ZOrderByteUtils.interleaveBits(columnsBinary, outputSize, outputBuffer);
       blackhole.consume(interleavedBytes);
     }
   }

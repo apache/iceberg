@@ -16,8 +16,15 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.parquet;
+
+import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.BINARY;
+import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.BOOLEAN;
+import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.DOUBLE;
+import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.FIXED_LEN_BYTE_ARRAY;
+import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.FLOAT;
+import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.INT32;
+import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.INT64;
 
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.avro.AvroSchemaUtil;
@@ -38,25 +45,17 @@ import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.Type;
 import org.apache.parquet.schema.Types;
 
-import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.BINARY;
-import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.BOOLEAN;
-import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.DOUBLE;
-import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.FIXED_LEN_BYTE_ARRAY;
-import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.FLOAT;
-import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.INT32;
-import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.INT64;
-
 public class TypeToMessageType {
   public static final int DECIMAL_INT32_MAX_DIGITS = 9;
   public static final int DECIMAL_INT64_MAX_DIGITS = 18;
   private static final LogicalTypeAnnotation STRING = LogicalTypeAnnotation.stringType();
   private static final LogicalTypeAnnotation DATE = LogicalTypeAnnotation.dateType();
-  private static final LogicalTypeAnnotation TIME_MICROS = LogicalTypeAnnotation
-      .timeType(false /* not adjusted to UTC */, TimeUnit.MICROS);
-  private static final LogicalTypeAnnotation TIMESTAMP_MICROS = LogicalTypeAnnotation
-      .timestampType(false /* not adjusted to UTC */, TimeUnit.MICROS);
-  private static final LogicalTypeAnnotation TIMESTAMPTZ_MICROS = LogicalTypeAnnotation
-      .timestampType(true /* adjusted to UTC */, TimeUnit.MICROS);
+  private static final LogicalTypeAnnotation TIME_MICROS =
+      LogicalTypeAnnotation.timeType(false /* not adjusted to UTC */, TimeUnit.MICROS);
+  private static final LogicalTypeAnnotation TIMESTAMP_MICROS =
+      LogicalTypeAnnotation.timestampType(false /* not adjusted to UTC */, TimeUnit.MICROS);
+  private static final LogicalTypeAnnotation TIMESTAMPTZ_MICROS =
+      LogicalTypeAnnotation.timestampType(true /* adjusted to UTC */, TimeUnit.MICROS);
 
   public MessageType convert(Schema schema, String name) {
     Types.MessageTypeBuilder builder = Types.buildMessage();
@@ -79,8 +78,8 @@ public class TypeToMessageType {
   }
 
   public Type field(NestedField field) {
-    Type.Repetition repetition = field.isOptional() ?
-        Type.Repetition.OPTIONAL : Type.Repetition.REQUIRED;
+    Type.Repetition repetition =
+        field.isOptional() ? Type.Repetition.OPTIONAL : Type.Repetition.REQUIRED;
     int id = field.fieldId();
     String name = field.name();
 
@@ -118,7 +117,8 @@ public class TypeToMessageType {
         .named(AvroSchemaUtil.makeCompatibleName(name));
   }
 
-  public Type primitive(PrimitiveType primitive, Type.Repetition repetition, int id, String originalName) {
+  public Type primitive(
+      PrimitiveType primitive, Type.Repetition repetition, int id, String originalName) {
     String name = AvroSchemaUtil.makeCompatibleName(originalName);
     switch (primitive.typeId()) {
       case BOOLEAN:
@@ -148,7 +148,8 @@ public class TypeToMessageType {
       case FIXED:
         FixedType fixed = (FixedType) primitive;
 
-        return Types.primitive(FIXED_LEN_BYTE_ARRAY, repetition).length(fixed.length())
+        return Types.primitive(FIXED_LEN_BYTE_ARRAY, repetition)
+            .length(fixed.length())
             .id(id)
             .named(name);
 
@@ -172,17 +173,19 @@ public class TypeToMessageType {
         } else {
           // store as a fixed-length array
           int minLength = TypeUtil.decimalRequiredBytes(decimal.precision());
-          return Types.primitive(FIXED_LEN_BYTE_ARRAY, repetition).length(minLength)
+          return Types.primitive(FIXED_LEN_BYTE_ARRAY, repetition)
+              .length(minLength)
               .as(decimalAnnotation(decimal.precision(), decimal.scale()))
               .id(id)
               .named(name);
         }
 
       case UUID:
-        return Types.primitive(FIXED_LEN_BYTE_ARRAY, repetition).length(16)
-                .as(LogicalTypeAnnotation.uuidType())
-                .id(id)
-                .named(name);
+        return Types.primitive(FIXED_LEN_BYTE_ARRAY, repetition)
+            .length(16)
+            .as(LogicalTypeAnnotation.uuidType())
+            .id(id)
+            .named(name);
 
       default:
         throw new UnsupportedOperationException("Unsupported type for Parquet: " + primitive);

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.expressions;
 
 class RewriteNot extends ExpressionVisitors.ExpressionVisitor<Expression> {
@@ -26,8 +25,7 @@ class RewriteNot extends ExpressionVisitors.ExpressionVisitor<Expression> {
     return INSTANCE;
   }
 
-  private RewriteNot() {
-  }
+  private RewriteNot() {}
 
   @Override
   public Expression alwaysTrue() {

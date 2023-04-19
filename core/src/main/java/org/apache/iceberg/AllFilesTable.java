@@ -16,31 +16,30 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import org.apache.iceberg.io.CloseableIterable;
 
 /**
  * A {@link Table} implementation that exposes its valid files as rows.
- * <p>
- * A valid file is one that is readable from any snapshot currently tracked by the table.
- * <p>
- * This table may return duplicate rows.
+ *
+ * <p>A valid file is one that is readable from any snapshot currently tracked by the table.
+ *
+ * <p>This table may return duplicate rows.
  */
 public class AllFilesTable extends BaseFilesTable {
 
-  AllFilesTable(TableOperations ops, Table table) {
-    this(ops, table, table.name() + ".all_files");
+  AllFilesTable(Table table) {
+    this(table, table.name() + ".all_files");
   }
 
-  AllFilesTable(TableOperations ops, Table table, String name) {
-    super(ops, table, name);
+  AllFilesTable(Table table, String name) {
+    super(table, name);
   }
 
   @Override
   public TableScan newScan() {
-    return new AllFilesTableScan(operations(), table(), schema());
+    return new AllFilesTableScan(table(), schema());
   }
 
   @Override
@@ -50,23 +49,22 @@ public class AllFilesTable extends BaseFilesTable {
 
   public static class AllFilesTableScan extends BaseAllFilesTableScan {
 
-    AllFilesTableScan(TableOperations ops, Table table, Schema schema) {
-      super(ops, table, schema, MetadataTableType.ALL_FILES);
+    AllFilesTableScan(Table table, Schema schema) {
+      super(table, schema, MetadataTableType.ALL_FILES);
     }
 
-    private AllFilesTableScan(TableOperations ops, Table table, Schema schema,
-                              TableScanContext context) {
-      super(ops, table, schema, MetadataTableType.ALL_FILES, context);
+    private AllFilesTableScan(Table table, Schema schema, TableScanContext context) {
+      super(table, schema, MetadataTableType.ALL_FILES, context);
     }
 
     @Override
-    protected TableScan newRefinedScan(TableOperations ops, Table table, Schema schema, TableScanContext context) {
-      return new AllFilesTableScan(ops, table, schema, context);
+    protected TableScan newRefinedScan(Table table, Schema schema, TableScanContext context) {
+      return new AllFilesTableScan(table, schema, context);
     }
 
     @Override
     protected CloseableIterable<ManifestFile> manifests() {
-      return reachableManifests(snapshot -> snapshot.allManifests(tableOps().io()));
+      return reachableManifests(snapshot -> snapshot.allManifests(table().io()));
     }
   }
 }

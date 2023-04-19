@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.aliyun;
 
 import java.io.Serializable;
@@ -26,41 +25,43 @@ import org.apache.iceberg.util.PropertyUtil;
 
 public class AliyunProperties implements Serializable {
   /**
-   * The domain name used to access OSS. OSS uses HTTP Restful APIs to provide services. Different regions are accessed
-   * by using different endpoints. For the same region, access over the internal network or over the Internet also uses
-   * different endpoints. For more information, see:
+   * The domain name used to access OSS. OSS uses HTTP Restful APIs to provide services. Different
+   * regions are accessed by using different endpoints. For the same region, access over the
+   * internal network or over the Internet also uses different endpoints. For more information, see:
    * https://www.alibabacloud.com/help/doc-detail/31837.htm
    */
   public static final String OSS_ENDPOINT = "oss.endpoint";
 
   /**
-   * Aliyun uses an AccessKey pair, which includes an AccessKey ID and an AccessKey secret to implement symmetric
-   * encryption and verify the identity of a requester. The AccessKey ID is used to identify a user.
-   * <p>
-   * For more information about how to obtain an AccessKey pair, see:
+   * Aliyun uses an AccessKey pair, which includes an AccessKey ID and an AccessKey secret to
+   * implement symmetric encryption and verify the identity of a requester. The AccessKey ID is used
+   * to identify a user.
+   *
+   * <p>For more information about how to obtain an AccessKey pair, see:
    * https://www.alibabacloud.com/help/doc-detail/53045.htm
    */
   public static final String CLIENT_ACCESS_KEY_ID = "client.access-key-id";
 
   /**
-   * Aliyun uses an AccessKey pair, which includes an AccessKey ID and an AccessKey secret to implement symmetric
-   * encryption and verify the identity of a requester. The AccessKey secret is used to encrypt and verify the
-   * signature string.
-   * <p>
-   * For more information about how to obtain an AccessKey pair, see:
+   * Aliyun uses an AccessKey pair, which includes an AccessKey ID and an AccessKey secret to
+   * implement symmetric encryption and verify the identity of a requester. The AccessKey secret is
+   * used to encrypt and verify the signature string.
+   *
+   * <p>For more information about how to obtain an AccessKey pair, see:
    * https://www.alibabacloud.com/help/doc-detail/53045.htm
    */
   public static final String CLIENT_ACCESS_KEY_SECRET = "client.access-key-secret";
 
   /**
-   * The implementation class of {@link AliyunClientFactory} to customize Aliyun client configurations.
-   * If set, all Aliyun clients will be initialized by the specified factory.
-   * If not set, {@link AliyunClientFactories#defaultFactory()} is used as default factory.
+   * The implementation class of {@link AliyunClientFactory} to customize Aliyun client
+   * configurations. If set, all Aliyun clients will be initialized by the specified factory. If not
+   * set, {@link AliyunClientFactories#defaultFactory()} is used as default factory.
    */
   public static final String CLIENT_FACTORY = "client.factory-impl";
 
   /**
-   * Location to put staging files for uploading to OSS, defaults to the directory value of java.io.tmpdir.
+   * Location to put staging files for uploading to OSS, defaults to the directory value of
+   * java.io.tmpdir.
    */
   public static final String OSS_STAGING_DIRECTORY = "oss.staging-dir";
 
@@ -79,8 +80,9 @@ public class AliyunProperties implements Serializable {
     this.accessKeyId = properties.get(CLIENT_ACCESS_KEY_ID);
     this.accessKeySecret = properties.get(CLIENT_ACCESS_KEY_SECRET);
 
-    this.ossStagingDirectory = PropertyUtil.propertyAsString(properties, OSS_STAGING_DIRECTORY,
-        System.getProperty("java.io.tmpdir"));
+    this.ossStagingDirectory =
+        PropertyUtil.propertyAsString(
+            properties, OSS_STAGING_DIRECTORY, System.getProperty("java.io.tmpdir"));
   }
 
   public String ossEndpoint() {

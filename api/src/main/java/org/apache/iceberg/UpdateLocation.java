@@ -16,12 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
-/**
- * API for setting a table's base location.
- */
+/** API for setting a table's base location. */
 public interface UpdateLocation extends PendingUpdate<String> {
   /**
    * Set the table's location.

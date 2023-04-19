@@ -16,11 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.orc;
 
 import org.apache.orc.storage.ql.exec.vector.ColumnVector;
-
 
 public interface OrcValueReader<T> {
   default T read(ColumnVector vector, int row) {
@@ -34,6 +32,5 @@ public interface OrcValueReader<T> {
 
   T nonNullRead(ColumnVector vector, int row);
 
-  default void setBatchContext(long batchOffsetInFile) {
-  }
+  default void setBatchContext(long batchOffsetInFile) {}
 }

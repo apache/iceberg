@@ -1,0 +1,87 @@
+#
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+#
+
+name: "Python Integration"
+on:
+  push:
+    branches:
+    - 'master'
+    - '0.**'
+    tags:
+    - 'apache-iceberg-**'
+  pull_request:
+    paths:
+    - '.github/workflows/python-ci.yml'
+    - 'python/**'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  integration-test:
+    runs-on: ubuntu-20.04
+
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        fetch-depth: 2
+    - shell: pwsh
+      id: check_file_changed
+      run: |
+        $diff = git diff --name-only HEAD^ HEAD
+        $SourceDiff = $diff | Where-Object { $_ -match '^python/dev/.+$' }
+        $HasDiff = $SourceDiff.Length -gt 0
+        Write-Host "::set-output name=docs_changed::$HasDiff"
+    - name: Restore image
+      id: cache-docker
+      uses: actions/cache@v3
+      with:
+        path: ci/cache/docker/python
+        key: cache-mintegration
+    - name: Update Image Cache if cache miss
+      if: steps.cache-docker.outputs.cache-hit != 'true' || steps.check_file_changed.outputs.docs_changed == 'True'
+      run: |
+        docker build -t python-integration python/dev/ && \
+        mkdir -p ci/cache/docker/python && \
+        docker image save python-integration --output ./ci/cache/docker/python/python-integration.tar
+    - name: Use Image Cache if cache hit
+      if: steps.cache-docker.outputs.cache-hit == 'true'
+      run: docker image load --input ./ci/cache/docker/python/python-integration.tar
+    - name: Run Apache-Spark setup
+      working-directory: ./python
+      run: |
+        docker-compose -f dev/docker-compose-integration.yml up -d
+        sleep 10
+    - name: Install poetry
+      run: pip install poetry
+    - uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+        cache: poetry
+        cache-dependency-path: ./python/poetry.lock
+    - name: Install
+      working-directory: ./python
+      run: make install
+    - name: Tests
+      working-directory: ./python
+      run: make test-integration
+    - name: Show debug logs
+      if: ${{ failure() }}
+      run: docker-compose -f python/dev/docker-compose.yml logs

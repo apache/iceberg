@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.util;
 
 import java.util.List;
@@ -42,8 +41,7 @@ public class TestInMemoryLockManager {
   private String lockEntityId;
   private String ownerId;
 
-  @Rule
-  public Timeout timeout = new Timeout(5, TimeUnit.SECONDS);
+  @Rule public Timeout timeout = new Timeout(5, TimeUnit.SECONDS);
 
   @Before
   public void before() {
@@ -60,7 +58,8 @@ public class TestInMemoryLockManager {
   @Test
   public void testAcquireOnceSingleProcess() {
     lockManager.acquireOnce(lockEntityId, ownerId);
-    AssertHelpers.assertThrows("should fail when acquire again",
+    AssertHelpers.assertThrows(
+        "should fail when acquire again",
         IllegalStateException.class,
         "currently held",
         () -> lockManager.acquireOnce(lockEntityId, ownerId));
@@ -68,99 +67,106 @@ public class TestInMemoryLockManager {
 
   @Test
   public void testAcquireOnceMultiProcesses() {
-    List<Boolean> results = IntStream.range(0, 10).parallel()
-        .mapToObj(i -> {
-          try {
-            lockManager.acquireOnce(lockEntityId, ownerId);
-            return true;
-          } catch (IllegalStateException e) {
-            return false;
-          }
-        })
-        .collect(Collectors.toList());
+    List<Boolean> results =
+        IntStream.range(0, 10)
+            .parallel()
+            .mapToObj(
+                i -> {
+                  try {
+                    lockManager.acquireOnce(lockEntityId, ownerId);
+                    return true;
+                  } catch (IllegalStateException e) {
+                    return false;
+                  }
+                })
+            .collect(Collectors.toList());
     Assert.assertEquals(
-        "only 1 thread should have acquired the lock",
-        1, results.stream().filter(s -> s).count());
+        "only 1 thread should have acquired the lock", 1, results.stream().filter(s -> s).count());
   }
 
   @Test
   public void testReleaseAndAcquire() {
     Assert.assertTrue(lockManager.acquire(lockEntityId, ownerId));
     Assert.assertTrue(lockManager.release(lockEntityId, ownerId));
-    Assert.assertTrue("acquire after release should succeed", lockManager.acquire(lockEntityId, ownerId));
+    Assert.assertTrue(
+        "acquire after release should succeed", lockManager.acquire(lockEntityId, ownerId));
   }
 
   @Test
   public void testReleaseWithWrongOwner() {
     Assert.assertTrue(lockManager.acquire(lockEntityId, ownerId));
-    Assert.assertFalse("should return false if ownerId is wrong",
+    Assert.assertFalse(
+        "should return false if ownerId is wrong",
         lockManager.release(lockEntityId, UUID.randomUUID().toString()));
   }
 
   @Test
   public void testAcquireSingleProcess() throws Exception {
-    lockManager.initialize(ImmutableMap.of(
-        CatalogProperties.LOCK_ACQUIRE_INTERVAL_MS, "500",
-        CatalogProperties.LOCK_ACQUIRE_TIMEOUT_MS, "2000"
-    ));
+    lockManager.initialize(
+        ImmutableMap.of(
+            CatalogProperties.LOCK_ACQUIRE_INTERVAL_MS, "500",
+            CatalogProperties.LOCK_ACQUIRE_TIMEOUT_MS, "2000"));
     Assert.assertTrue(lockManager.acquire(lockEntityId, ownerId));
     String oldOwner = ownerId;
 
-    CompletableFuture.supplyAsync(() -> {
-      try {
-        Thread.sleep(200);
-      } catch (InterruptedException e) {
-        throw new RuntimeException(e);
-      }
-      Assert.assertTrue(lockManager.release(lockEntityId, oldOwner));
-      return null;
-    });
+    CompletableFuture.supplyAsync(
+        () -> {
+          try {
+            Thread.sleep(200);
+          } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+          }
+          Assert.assertTrue(lockManager.release(lockEntityId, oldOwner));
+          return null;
+        });
 
     ownerId = UUID.randomUUID().toString();
     long start = System.currentTimeMillis();
     Assert.assertTrue(lockManager.acquire(lockEntityId, ownerId));
-    Assert.assertTrue("should succeed after 200ms",
-        System.currentTimeMillis() - start >= 200);
+    Assert.assertTrue("should succeed after 200ms", System.currentTimeMillis() - start >= 200);
   }
 
   @Test
   public void testAcquireMultiProcessAllSucceed() {
-    lockManager.initialize(ImmutableMap.of(
-        CatalogProperties.LOCK_ACQUIRE_INTERVAL_MS, "500"
-    ));
+    lockManager.initialize(ImmutableMap.of(CatalogProperties.LOCK_ACQUIRE_INTERVAL_MS, "500"));
     long start = System.currentTimeMillis();
-    List<Boolean> results = IntStream.range(0, 3).parallel()
-        .mapToObj(i -> {
-          String owner = UUID.randomUUID().toString();
-          boolean succeeded = lockManager.acquire(lockEntityId, owner);
-          if (succeeded) {
-            try {
-              Thread.sleep(1000);
-            } catch (InterruptedException e) {
-              throw new RuntimeException(e);
-            }
-            Assert.assertTrue(lockManager.release(lockEntityId, owner));
-          }
-          return succeeded;
-        })
-        .collect(Collectors.toList());
-    Assert.assertEquals("all lock acquire should succeed sequentially",
-        3, results.stream().filter(s -> s).count());
+    List<Boolean> results =
+        IntStream.range(0, 3)
+            .parallel()
+            .mapToObj(
+                i -> {
+                  String owner = UUID.randomUUID().toString();
+                  boolean succeeded = lockManager.acquire(lockEntityId, owner);
+                  if (succeeded) {
+                    try {
+                      Thread.sleep(1000);
+                    } catch (InterruptedException e) {
+                      throw new RuntimeException(e);
+                    }
+                    Assert.assertTrue(lockManager.release(lockEntityId, owner));
+                  }
+                  return succeeded;
+                })
+            .collect(Collectors.toList());
+    Assert.assertEquals(
+        "all lock acquire should succeed sequentially", 3, results.stream().filter(s -> s).count());
     Assert.assertTrue("must take more than 3 seconds", System.currentTimeMillis() - start >= 3000);
   }
 
   @Test
   public void testAcquireMultiProcessOnlyOneSucceed() {
-    lockManager.initialize(ImmutableMap.of(
-        CatalogProperties.LOCK_HEARTBEAT_INTERVAL_MS, "100",
-        CatalogProperties.LOCK_ACQUIRE_INTERVAL_MS, "500",
-        CatalogProperties.LOCK_ACQUIRE_TIMEOUT_MS, "2000"
-    ));
+    lockManager.initialize(
+        ImmutableMap.of(
+            CatalogProperties.LOCK_HEARTBEAT_INTERVAL_MS, "100",
+            CatalogProperties.LOCK_ACQUIRE_INTERVAL_MS, "500",
+            CatalogProperties.LOCK_ACQUIRE_TIMEOUT_MS, "2000"));
 
-    List<Boolean> results = IntStream.range(0, 3).parallel()
-        .mapToObj(i -> lockManager.acquire(lockEntityId, ownerId))
-        .collect(Collectors.toList());
-    Assert.assertEquals("only 1 thread should have acquired the lock",
-        1, results.stream().filter(s -> s).count());
+    List<Boolean> results =
+        IntStream.range(0, 3)
+            .parallel()
+            .mapToObj(i -> lockManager.acquire(lockEntityId, ownerId))
+            .collect(Collectors.toList());
+    Assert.assertEquals(
+        "only 1 thread should have acquired the lock", 1, results.stream().filter(s -> s).count());
   }
 }

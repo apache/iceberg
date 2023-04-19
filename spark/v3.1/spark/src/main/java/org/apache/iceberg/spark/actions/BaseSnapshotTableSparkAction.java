@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.actions;
 
 import java.util.Map;
@@ -44,9 +43,8 @@ import org.slf4j.LoggerFactory;
 import scala.collection.JavaConverters;
 
 /**
- * Creates a new Iceberg table based on a source Spark table. The new Iceberg table will
- * have a different data and metadata directory allowing it to exist independently of the
- * source table.
+ * Creates a new Iceberg table based on a source Spark table. The new Iceberg table will have a
+ * different data and metadata directory allowing it to exist independently of the source table.
  */
 public class BaseSnapshotTableSparkAction
     extends BaseTableCreationSparkAction<SnapshotTable, SnapshotTable.Result>
@@ -58,13 +56,18 @@ public class BaseSnapshotTableSparkAction
   private Identifier destTableIdent;
   private String destTableLocation = null;
 
-  BaseSnapshotTableSparkAction(SparkSession spark, CatalogPlugin sourceCatalog, Identifier sourceTableIdent) {
+  BaseSnapshotTableSparkAction(
+      SparkSession spark, CatalogPlugin sourceCatalog, Identifier sourceTableIdent) {
     super(spark, sourceCatalog, sourceTableIdent);
   }
 
   // used by the old constructor
-  public BaseSnapshotTableSparkAction(SparkSession spark, CatalogPlugin sourceCatalog, Identifier sourceTableIdent,
-                                      CatalogPlugin destCatalog, Identifier destTableIdent) {
+  public BaseSnapshotTableSparkAction(
+      SparkSession spark,
+      CatalogPlugin sourceCatalog,
+      Identifier sourceTableIdent,
+      CatalogPlugin destCatalog,
+      Identifier destTableIdent) {
     super(spark, sourceCatalog, sourceTableIdent);
     this.destCatalog = checkDestinationCatalog(destCatalog);
     this.destTableIdent = destTableIdent;
@@ -89,7 +92,8 @@ public class BaseSnapshotTableSparkAction
   public SnapshotTable as(String ident) {
     String ctx = "snapshot destination";
     CatalogPlugin defaultCatalog = spark().sessionState().catalogManager().currentCatalog();
-    CatalogAndIdentifier catalogAndIdent = Spark3Util.catalogAndIdentifier(ctx, spark(), ident, defaultCatalog);
+    CatalogAndIdentifier catalogAndIdent =
+        Spark3Util.catalogAndIdentifier(ctx, spark(), ident, defaultCatalog);
     this.destCatalog = checkDestinationCatalog(catalogAndIdent.catalog());
     this.destTableIdent = catalogAndIdent.identifier();
     return this;
@@ -115,11 +119,13 @@ public class BaseSnapshotTableSparkAction
   }
 
   private SnapshotTable.Result doExecute() {
-    Preconditions.checkArgument(destCatalog() != null && destTableIdent() != null,
-        "The destination catalog and identifier cannot be null. " +
-        "Make sure to configure the action with a valid destination table identifier via the `as` method.");
+    Preconditions.checkArgument(
+        destCatalog() != null && destTableIdent() != null,
+        "The destination catalog and identifier cannot be null. "
+            + "Make sure to configure the action with a valid destination table identifier via the `as` method.");
 
-    LOG.info("Staging a new Iceberg table {} as a snapshot of {}", destTableIdent(), sourceTableIdent());
+    LOG.info(
+        "Staging a new Iceberg table {} as a snapshot of {}", destTableIdent(), sourceTableIdent());
     StagedSparkTable stagedTable = stageDestTable();
     Table icebergTable = stagedTable.table();
 
@@ -151,8 +157,12 @@ public class BaseSnapshotTableSparkAction
     }
 
     Snapshot snapshot = icebergTable.currentSnapshot();
-    long importedDataFilesCount = Long.parseLong(snapshot.summary().get(SnapshotSummary.TOTAL_DATA_FILES_PROP));
-    LOG.info("Successfully loaded Iceberg metadata for {} files to {}", importedDataFilesCount, destTableIdent());
+    long importedDataFilesCount =
+        Long.parseLong(snapshot.summary().get(SnapshotSummary.TOTAL_DATA_FILES_PROP));
+    LOG.info(
+        "Successfully loaded Iceberg metadata for {} files to {}",
+        importedDataFilesCount,
+        destTableIdent());
     return new BaseSnapshotTableActionResult(importedDataFilesCount);
   }
 
@@ -190,22 +200,27 @@ public class BaseSnapshotTableSparkAction
   @Override
   protected TableCatalog checkSourceCatalog(CatalogPlugin catalog) {
     // currently the import code relies on being able to look up the table in the session catalog
-    Preconditions.checkArgument(catalog.name().equalsIgnoreCase("spark_catalog"),
-        "Cannot snapshot a table that isn't in the session catalog (i.e. spark_catalog). " +
-        "Found source catalog: %s.", catalog.name());
+    Preconditions.checkArgument(
+        catalog.name().equalsIgnoreCase("spark_catalog"),
+        "Cannot snapshot a table that isn't in the session catalog (i.e. spark_catalog). "
+            + "Found source catalog: %s.",
+        catalog.name());
 
-    Preconditions.checkArgument(catalog instanceof TableCatalog,
+    Preconditions.checkArgument(
+        catalog instanceof TableCatalog,
         "Cannot snapshot as catalog %s of class %s in not a table catalog",
-        catalog.name(), catalog.getClass().getName());
+        catalog.name(),
+        catalog.getClass().getName());
 
     return (TableCatalog) catalog;
   }
 
   @Override
   public SnapshotTable tableLocation(String location) {
-    Preconditions.checkArgument(!sourceTableLocation().equals(location),
-        "The snapshot table location cannot be same as the source table location. " +
-        "This would mix snapshot table files with original table files.");
+    Preconditions.checkArgument(
+        !sourceTableLocation().equals(location),
+        "The snapshot table location cannot be same as the source table location. "
+            + "This would mix snapshot table files with original table files.");
     this.destTableLocation = location;
     return this;
   }

@@ -16,25 +16,18 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
-import java.time.Instant;
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
-import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.List;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.util.DateTimeUtil;
 
 public class FindFiles {
-  private FindFiles() {
-  }
-
-  private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS");
+  private FindFiles() {}
 
   public static Builder in(Table table) {
     return new Builder(table);
@@ -77,10 +70,12 @@ public class FindFiles {
      * @return this for method chaining
      */
     public Builder inSnapshot(long findSnapshotId) {
-      Preconditions.checkArgument(this.snapshotId == null,
-          "Cannot set snapshot multiple times, already set to id=%s", findSnapshotId);
-      Preconditions.checkArgument(table.snapshot(findSnapshotId) != null,
-          "Cannot find snapshot for id=%s", findSnapshotId);
+      Preconditions.checkArgument(
+          this.snapshotId == null,
+          "Cannot set snapshot multiple times, already set to id=%s",
+          findSnapshotId);
+      Preconditions.checkArgument(
+          table.snapshot(findSnapshotId) != null, "Cannot find snapshot for id=%s", findSnapshotId);
       this.snapshotId = findSnapshotId;
       return this;
     }
@@ -92,8 +87,10 @@ public class FindFiles {
      * @return this for method chaining
      */
     public Builder asOfTime(long timestampMillis) {
-      Preconditions.checkArgument(this.snapshotId == null,
-          "Cannot set snapshot multiple times, already set to id=%s", snapshotId);
+      Preconditions.checkArgument(
+          this.snapshotId == null,
+          "Cannot set snapshot multiple times, already set to id=%s",
+          snapshotId);
 
       Long lastSnapshotId = null;
       for (HistoryEntry logEntry : ops.current().snapshotLog()) {
@@ -107,9 +104,10 @@ public class FindFiles {
 
       // the snapshot ID could be null if no entries were older than the requested time. in that
       // case, there is no valid snapshot to read.
-      Preconditions.checkArgument(lastSnapshotId != null,
+      Preconditions.checkArgument(
+          lastSnapshotId != null,
           "Cannot find a snapshot older than %s",
-          DATE_FORMAT.format(LocalDateTime.ofInstant(Instant.ofEpochMilli(timestampMillis), ZoneOffset.UTC)));
+          DateTimeUtil.formatTimestampMillis(timestampMillis));
       return inSnapshot(lastSnapshotId);
     }
 
@@ -166,17 +164,19 @@ public class FindFiles {
      * @return this for method chaining
      */
     public Builder inPartitions(PartitionSpec spec, List<StructLike> partitions) {
-      Preconditions.checkArgument(spec.equals(ops.current().spec(spec.specId())),
-          "Partition spec does not belong to table: %s", table);
+      Preconditions.checkArgument(
+          spec.equals(ops.current().spec(spec.specId())),
+          "Partition spec does not belong to table: %s",
+          table);
 
       Expression partitionSetFilter = Expressions.alwaysFalse();
       for (StructLike partitionData : partitions) {
         Expression partFilter = Expressions.alwaysTrue();
         for (int i = 0; i < spec.fields().size(); i += 1) {
           PartitionField field = spec.fields().get(i);
-          partFilter = Expressions.and(
-              partFilter,
-              Expressions.equal(field.name(), partitionData.get(i, Object.class)));
+          partFilter =
+              Expressions.and(
+                  partFilter, Expressions.equal(field.name(), partitionData.get(i, Object.class)));
         }
         partitionSetFilter = Expressions.or(partitionSetFilter, partFilter);
       }
@@ -190,12 +190,10 @@ public class FindFiles {
       return this;
     }
 
-    /**
-     * Returns all files in the table that match all of the filters.
-     */
+    /** Returns all files in the table that match all of the filters. */
     public CloseableIterable<DataFile> collect() {
-      Snapshot snapshot = snapshotId != null ?
-          ops.current().snapshot(snapshotId) : ops.current().currentSnapshot();
+      Snapshot snapshot =
+          snapshotId != null ? ops.current().snapshot(snapshotId) : ops.current().currentSnapshot();
 
       // snapshot could be null when the table just gets created
       if (snapshot == null) {
@@ -203,17 +201,17 @@ public class FindFiles {
       }
 
       // when snapshot is not null
-      CloseableIterable<ManifestEntry<DataFile>> entries = new ManifestGroup(ops.io(), snapshot.dataManifests(ops.io()))
-          .specsById(ops.current().specsById())
-          .filterData(rowFilter)
-          .filterFiles(fileFilter)
-          .filterPartitions(partitionFilter)
-          .ignoreDeleted()
-          .caseSensitive(caseSensitive)
-          .entries();
+      CloseableIterable<ManifestEntry<DataFile>> entries =
+          new ManifestGroup(ops.io(), snapshot.dataManifests(ops.io()))
+              .specsById(ops.current().specsById())
+              .filterData(rowFilter)
+              .filterFiles(fileFilter)
+              .filterPartitions(partitionFilter)
+              .ignoreDeleted()
+              .caseSensitive(caseSensitive)
+              .entries();
 
-      return CloseableIterable.transform(entries,
-          entry -> includeColumnStats ? entry.file().copy() : entry.file().copyWithoutStats());
+      return CloseableIterable.transform(entries, entry -> entry.file().copy(includeColumnStats));
     }
   }
 }

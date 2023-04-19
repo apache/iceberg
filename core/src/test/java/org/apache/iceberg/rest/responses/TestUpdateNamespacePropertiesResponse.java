@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.rest.responses;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -29,7 +28,8 @@ import org.apache.iceberg.rest.RequestResponseTestBase;
 import org.junit.Assert;
 import org.junit.Test;
 
-public class TestUpdateNamespacePropertiesResponse extends RequestResponseTestBase<UpdateNamespacePropertiesResponse> {
+public class TestUpdateNamespacePropertiesResponse
+    extends RequestResponseTestBase<UpdateNamespacePropertiesResponse> {
 
   /* Values used to fill in response fields */
   private static final List<String> UPDATED = ImmutableList.of("owner");
@@ -44,7 +44,10 @@ public class TestUpdateNamespacePropertiesResponse extends RequestResponseTestBa
     assertRoundTripSerializesEquallyFrom(
         fullJson,
         UpdateNamespacePropertiesResponse.builder()
-            .addUpdated(UPDATED).addRemoved(REMOVED).addMissing(MISSING).build());
+            .addUpdated(UPDATED)
+            .addRemoved(REMOVED)
+            .addMissing(MISSING)
+            .build());
 
     // Only updated
     String jsonOnlyUpdated = "{\"removed\":[],\"updated\":[\"owner\"],\"missing\":[]}";
@@ -56,7 +59,10 @@ public class TestUpdateNamespacePropertiesResponse extends RequestResponseTestBa
     assertRoundTripSerializesEquallyFrom(
         jsonOnlyUpdated,
         UpdateNamespacePropertiesResponse.builder()
-            .addUpdated(UPDATED).addMissing(EMPTY_LIST).addRemoved(EMPTY_LIST).build());
+            .addUpdated(UPDATED)
+            .addMissing(EMPTY_LIST)
+            .addRemoved(EMPTY_LIST)
+            .build());
 
     // Only removed
     String jsonOnlyRemoved = "{\"removed\":[\"foo\"],\"updated\":[],\"missing\":[]}";
@@ -68,7 +74,10 @@ public class TestUpdateNamespacePropertiesResponse extends RequestResponseTestBa
     assertRoundTripSerializesEquallyFrom(
         jsonOnlyRemoved,
         UpdateNamespacePropertiesResponse.builder()
-            .addRemoved(REMOVED).addUpdated(EMPTY_LIST).addMissing(EMPTY_LIST).build());
+            .addRemoved(REMOVED)
+            .addUpdated(EMPTY_LIST)
+            .addMissing(EMPTY_LIST)
+            .build());
 
     // Only missing
     String jsonOnlyMissing = "{\"removed\":[],\"updated\":[],\"missing\":[\"bar\"]}";
@@ -81,11 +90,13 @@ public class TestUpdateNamespacePropertiesResponse extends RequestResponseTestBa
     assertRoundTripSerializesEquallyFrom(
         jsonOnlyMissing,
         UpdateNamespacePropertiesResponse.builder()
-            .addMissing(MISSING).addUpdated(EMPTY_LIST).addRemoved(EMPTY_LIST).build());
+            .addMissing(MISSING)
+            .addUpdated(EMPTY_LIST)
+            .addRemoved(EMPTY_LIST)
+            .build());
 
     // All fields are empty
-    String jsonWithAllFieldsAsEmptyList =
-        "{\"removed\":[],\"updated\":[],\"missing\":[]}";
+    String jsonWithAllFieldsAsEmptyList = "{\"removed\":[],\"updated\":[],\"missing\":[]}";
     assertRoundTripSerializesEquallyFrom(
         jsonWithAllFieldsAsEmptyList, UpdateNamespacePropertiesResponse.builder().build());
   }
@@ -94,37 +105,39 @@ public class TestUpdateNamespacePropertiesResponse extends RequestResponseTestBa
   // Test cases that can't be constructed with our Builder class e2e but that will parse correctly
   public void testCanDeserializeWithoutDefaultValues() throws JsonProcessingException {
     // only updated
-    UpdateNamespacePropertiesResponse onlyUpdated = UpdateNamespacePropertiesResponse.builder()
-            .addUpdated(UPDATED).build();
-    String jsonOnlyUpdatedOthersNull = "{\"removed\":null,\"updated\":[\"owner\"],\"missing\":null}";
+    UpdateNamespacePropertiesResponse onlyUpdated =
+        UpdateNamespacePropertiesResponse.builder().addUpdated(UPDATED).build();
+    String jsonOnlyUpdatedOthersNull =
+        "{\"removed\":null,\"updated\":[\"owner\"],\"missing\":null}";
     assertEquals(deserialize(jsonOnlyUpdatedOthersNull), onlyUpdated);
 
     String jsonOnlyUpdatedOthersMissing = "{\"updated\":[\"owner\"]}";
     assertEquals(deserialize(jsonOnlyUpdatedOthersMissing), onlyUpdated);
 
     // Only removed
-    UpdateNamespacePropertiesResponse onlyRemoved = UpdateNamespacePropertiesResponse.builder()
-        .addRemoved(REMOVED).build();
-    String jsonOnlyRemovedOthersNull =  "{\"removed\":[\"foo\"],\"updated\":null,\"missing\":null}";
+    UpdateNamespacePropertiesResponse onlyRemoved =
+        UpdateNamespacePropertiesResponse.builder().addRemoved(REMOVED).build();
+    String jsonOnlyRemovedOthersNull = "{\"removed\":[\"foo\"],\"updated\":null,\"missing\":null}";
     assertEquals(deserialize(jsonOnlyRemovedOthersNull), onlyRemoved);
 
-    String jsonOnlyRemovedOthersMissing =  "{\"removed\":[\"foo\"]}";
+    String jsonOnlyRemovedOthersMissing = "{\"removed\":[\"foo\"]}";
     assertEquals(deserialize(jsonOnlyRemovedOthersMissing), onlyRemoved);
 
     // Only missing
-    UpdateNamespacePropertiesResponse onlyMissing = UpdateNamespacePropertiesResponse.builder()
-        .addMissing(MISSING).build();
-    String jsonOnlyMissingFieldOthersNull = "{\"removed\":null,\"updated\":null,\"missing\":[\"bar\"]}";
+    UpdateNamespacePropertiesResponse onlyMissing =
+        UpdateNamespacePropertiesResponse.builder().addMissing(MISSING).build();
+    String jsonOnlyMissingFieldOthersNull =
+        "{\"removed\":null,\"updated\":null,\"missing\":[\"bar\"]}";
     assertEquals(deserialize(jsonOnlyMissingFieldOthersNull), onlyMissing);
 
     String jsonOnlyMissingFieldIsPresent = "{\"missing\":[\"bar\"]}";
     assertEquals(deserialize(jsonOnlyMissingFieldIsPresent), onlyMissing);
 
     // all fields are missing
-    UpdateNamespacePropertiesResponse noValues = UpdateNamespacePropertiesResponse.builder().build();
+    UpdateNamespacePropertiesResponse noValues =
+        UpdateNamespacePropertiesResponse.builder().build();
     String emptyJson = "{}";
     assertEquals(deserialize(emptyJson), noValues);
-
   }
 
   @Test
@@ -135,16 +148,13 @@ public class TestUpdateNamespacePropertiesResponse extends RequestResponseTestBa
     AssertHelpers.assertThrows(
         "A JSON response with an invalid type for one of the fields should fail to parse",
         JsonProcessingException.class,
-        () -> deserialize(jsonInvalidTypeOnRemovedField)
-    );
+        () -> deserialize(jsonInvalidTypeOnRemovedField));
 
-    String jsonInvalidTypeOnUpdatedField =
-        "{\"updated\":\"owner\",\"missing\":[\"bar\"]}";
+    String jsonInvalidTypeOnUpdatedField = "{\"updated\":\"owner\",\"missing\":[\"bar\"]}";
     AssertHelpers.assertThrows(
         "A JSON response with an invalid type for one of the fields should fail to parse",
         JsonProcessingException.class,
-        () -> deserialize(jsonInvalidTypeOnUpdatedField)
-    );
+        () -> deserialize(jsonInvalidTypeOnUpdatedField));
 
     // Valid top-level (array) types, but at least one entry in the list is not the expected type
     String jsonInvalidValueOfTypeIntNestedInRemovedList =
@@ -152,15 +162,13 @@ public class TestUpdateNamespacePropertiesResponse extends RequestResponseTestBa
     AssertHelpers.assertThrows(
         "A JSON response with an invalid type inside one of the list fields should fail to deserialize",
         JsonProcessingException.class,
-        () -> deserialize(jsonInvalidValueOfTypeIntNestedInRemovedList)
-    );
+        () -> deserialize(jsonInvalidValueOfTypeIntNestedInRemovedList));
 
     // Exception comes from Jackson
     AssertHelpers.assertThrows(
         "A null JSON response body should fail to deserialize",
         IllegalArgumentException.class,
-        () -> deserialize(null)
-    );
+        () -> deserialize(null));
   }
 
   @Test
@@ -172,71 +180,62 @@ public class TestUpdateNamespacePropertiesResponse extends RequestResponseTestBa
         "The builder should not allow using null as a property that was updated",
         NullPointerException.class,
         "Invalid updated property: null",
-        () -> UpdateNamespacePropertiesResponse.builder().addUpdated((String) null).build()
-    );
+        () -> UpdateNamespacePropertiesResponse.builder().addUpdated((String) null).build());
 
     AssertHelpers.assertThrows(
         "The builder should not allow passing a null list of properties that were removed",
         NullPointerException.class,
         "Invalid updated property list: null",
-        () -> UpdateNamespacePropertiesResponse.builder().addUpdated((List<String>) null).build()
-    );
+        () -> UpdateNamespacePropertiesResponse.builder().addUpdated((List<String>) null).build());
 
     AssertHelpers.assertThrows(
         "The builder should not allow passing a list of properties that were removed with a null element",
         IllegalArgumentException.class,
         "Invalid updated property: null",
-        () -> UpdateNamespacePropertiesResponse.builder().addUpdated(listContainingNull).build()
-    );
+        () -> UpdateNamespacePropertiesResponse.builder().addUpdated(listContainingNull).build());
 
     // removed
     AssertHelpers.assertThrows(
         "The builder should not allow using null as a property that was removed",
         NullPointerException.class,
         "Invalid removed property: null",
-        () -> UpdateNamespacePropertiesResponse.builder().addRemoved((String) null).build()
-    );
+        () -> UpdateNamespacePropertiesResponse.builder().addRemoved((String) null).build());
 
     AssertHelpers.assertThrows(
         "The builder should not allow passing a null list of properties that were removed",
         NullPointerException.class,
         "Invalid removed property list: null",
-        () -> UpdateNamespacePropertiesResponse.builder().addRemoved((List<String>) null).build()
-    );
+        () -> UpdateNamespacePropertiesResponse.builder().addRemoved((List<String>) null).build());
 
     AssertHelpers.assertThrows(
         "The builder should not allow passing a list of properties that were removed with a null element",
         IllegalArgumentException.class,
         "Invalid removed property: null",
-        () -> UpdateNamespacePropertiesResponse.builder().addRemoved(listContainingNull).build()
-    );
+        () -> UpdateNamespacePropertiesResponse.builder().addRemoved(listContainingNull).build());
 
     // missing
     AssertHelpers.assertThrows(
         "The builder should not allow using null as a property that was missing",
         NullPointerException.class,
         "Invalid missing property: null",
-        () -> UpdateNamespacePropertiesResponse.builder().addMissing((String) null).build()
-    );
+        () -> UpdateNamespacePropertiesResponse.builder().addMissing((String) null).build());
 
     AssertHelpers.assertThrows(
         "The builder should not allow passing a null list of properties that were missing",
         NullPointerException.class,
         "Invalid missing property list: null",
-        () -> UpdateNamespacePropertiesResponse.builder().addMissing((List<String>) null).build()
-    );
+        () -> UpdateNamespacePropertiesResponse.builder().addMissing((List<String>) null).build());
 
     AssertHelpers.assertThrows(
         "The builder should not allow passing a list of properties that were missing with a null element",
         IllegalArgumentException.class,
         "Invalid missing property: null",
-        () -> UpdateNamespacePropertiesResponse.builder().addMissing(listContainingNull).build()
-    );
+        () -> UpdateNamespacePropertiesResponse.builder().addMissing(listContainingNull).build());
   }
 
   @Override
   public String[] allFieldsFromSpec() {
-    return new String[] { "updated", "removed", "missing" };
+    return new String[] {"updated", "removed", "missing"};
   }
 
   @Override
@@ -249,18 +248,26 @@ public class TestUpdateNamespacePropertiesResponse extends RequestResponseTestBa
   }
 
   @Override
-  public void assertEquals(UpdateNamespacePropertiesResponse actual, UpdateNamespacePropertiesResponse expected) {
-    Assert.assertEquals("Properties updated should be equal",
-        Sets.newHashSet(actual.updated()), Sets.newHashSet(expected.updated()));
-    Assert.assertEquals("Properties removed should be equal",
-        Sets.newHashSet(actual.removed()), Sets.newHashSet(expected.removed()));
-    Assert.assertEquals("Properties missing should be equal",
-        Sets.newHashSet(actual.missing()), Sets.newHashSet(expected.missing()));
+  public void assertEquals(
+      UpdateNamespacePropertiesResponse actual, UpdateNamespacePropertiesResponse expected) {
+    Assert.assertEquals(
+        "Properties updated should be equal",
+        Sets.newHashSet(actual.updated()),
+        Sets.newHashSet(expected.updated()));
+    Assert.assertEquals(
+        "Properties removed should be equal",
+        Sets.newHashSet(actual.removed()),
+        Sets.newHashSet(expected.removed()));
+    Assert.assertEquals(
+        "Properties missing should be equal",
+        Sets.newHashSet(actual.missing()),
+        Sets.newHashSet(expected.missing()));
   }
 
   @Override
   public UpdateNamespacePropertiesResponse deserialize(String json) throws JsonProcessingException {
-    UpdateNamespacePropertiesResponse resp = mapper().readValue(json, UpdateNamespacePropertiesResponse.class);
+    UpdateNamespacePropertiesResponse resp =
+        mapper().readValue(json, UpdateNamespacePropertiesResponse.class);
     resp.validate();
     return resp;
   }

@@ -1,0 +1,57 @@
+---
+name: Iceberg Bug report 🐞
+description: Problems, bugs and issues with Apache Iceberg
+labels: ["kind:bug"]
+body:
+  - type: dropdown
+    attributes:
+      label: Apache Iceberg version
+      description: What Apache Iceberg version are you using?
+      multiple: false
+      options:
+        - "1.2.1 (latest release)"
+        - "1.2.0"
+        - "1.1.0"
+        - "1.0.0"
+        - "0.14.1"
+        - "0.14.0"
+        - "0.13.1"
+        - "0.13.0"
+        - "0.12.1"
+        - "0.12.0"
+        - "0.11.1"
+        - "0.11.0"
+        - "main (development)"
+    validations:
+      required: false
+  - type: dropdown
+    attributes:
+      label: Query engine
+      description: Which query engine?
+      multiple: false
+      options:
+        - Spark
+        - Trino
+        - Starburst
+        - Snowflake
+        - Dremio
+        - Starrocks
+        - Doris
+        - EMR
+        - Athena
+        - PrestoDB
+        - Flink
+        - Impala
+        - Hive
+        - Other
+    validations:
+      required: false
+  - type: textarea
+    attributes:
+      label: Please describe the bug 🐞
+      description: >
+        Please describe the problem, what to expect, and how to reproduce.
+        Feel free to include stacktraces and the Iceberg catalog configuration.
+        You can include files by dragging and dropping them here.
+    validations:
+      required: true

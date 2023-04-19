@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.avro;
 
 import java.io.EOFException;
@@ -36,35 +35,33 @@ import org.apache.iceberg.io.DelegatingInputStream;
 import org.apache.iceberg.io.SeekableInputStream;
 
 class AvroIO {
-  private static final byte[] AVRO_MAGIC = new byte[] { 'O', 'b', 'j', 1 };
+  private static final byte[] AVRO_MAGIC = new byte[] {'O', 'b', 'j', 1};
   private static final ValueReader<byte[]> MAGIC_READER = ValueReaders.fixed(AVRO_MAGIC.length);
-  private static final ValueReader<Map<String, String>> META_READER = ValueReaders.map(
-      ValueReaders.strings(), ValueReaders.strings());
+  private static final ValueReader<Map<String, String>> META_READER =
+      ValueReaders.map(ValueReaders.strings(), ValueReaders.strings());
   private static final ValueReader<byte[]> SYNC_READER = ValueReaders.fixed(16);
 
-  private AvroIO() {
-  }
+  private AvroIO() {}
 
-  private static final Class<?> fsDataInputStreamClass = DynClasses.builder()
-      .impl("org.apache.hadoop.fs.FSDataInputStream")
-      .orNull()
-      .build();
+  private static final Class<?> fsDataInputStreamClass =
+      DynClasses.builder().impl("org.apache.hadoop.fs.FSDataInputStream").orNull().build();
 
   private static final boolean relocated =
       "org.apache.avro.file.SeekableInput".equals(SeekableInput.class.getName());
 
   private static final DynConstructors.Ctor<SeekableInput> avroFsInputCtor =
-      !relocated && fsDataInputStreamClass != null ?
-          DynConstructors.builder(SeekableInput.class)
+      !relocated && fsDataInputStreamClass != null
+          ? DynConstructors.builder(SeekableInput.class)
               .impl("org.apache.hadoop.fs.AvroFSInput", fsDataInputStreamClass, Long.TYPE)
-              .build() :
-          null;
+              .build()
+          : null;
 
   static SeekableInput stream(SeekableInputStream stream, long length) {
     if (stream instanceof DelegatingInputStream) {
       InputStream wrapped = ((DelegatingInputStream) stream).getDelegate();
-      if (avroFsInputCtor != null && fsDataInputStreamClass != null &&
-          fsDataInputStreamClass.isInstance(wrapped)) {
+      if (avroFsInputCtor != null
+          && fsDataInputStreamClass != null
+          && fsDataInputStreamClass.isInstance(wrapped)) {
         return avroFsInputCtor.newInstance(wrapped, length);
       }
     }
@@ -159,7 +156,8 @@ class AvroIO {
       // each block consists of:
       //   row-count|compressed-size-in-bytes|block-bytes|sync
 
-      // it is necessary to read the header here because this is the only way to get the expected file sync bytes
+      // it is necessary to read the header here because this is the only way to get the expected
+      // file sync bytes
       byte[] magic = MAGIC_READER.read(decoder, null);
       if (!Arrays.equals(AVRO_MAGIC, magic)) {
         throw new InvalidAvroMagicException("Not an Avro file");
@@ -168,7 +166,8 @@ class AvroIO {
       META_READER.read(decoder, null); // ignore the file metadata, it isn't needed
       byte[] fileSync = SYNC_READER.read(decoder, null);
 
-      // the while loop reads row counts and seeks past the block bytes until the next sync pos is >= start, which
+      // the while loop reads row counts and seeks past the block bytes until the next sync pos is
+      // >= start, which
       // indicates that the next sync is the start of the split.
       byte[] blockSync = new byte[16];
       long nextSyncPos = in.getPos();

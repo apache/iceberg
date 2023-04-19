@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import org.apache.iceberg.util.PropertyUtil;
@@ -25,22 +24,22 @@ abstract class BaseMetadataTableScan extends BaseTableScan {
 
   private final MetadataTableType tableType;
 
-  protected BaseMetadataTableScan(TableOperations ops, Table table, Schema schema, MetadataTableType tableType) {
-    super(ops, table, schema);
+  protected BaseMetadataTableScan(Table table, Schema schema, MetadataTableType tableType) {
+    super(table, schema, new TableScanContext());
     this.tableType = tableType;
   }
 
-  protected BaseMetadataTableScan(TableOperations ops, Table table, Schema schema, MetadataTableType tableType,
-                                  TableScanContext context) {
-    super(ops, table, schema, context);
+  protected BaseMetadataTableScan(
+      Table table, Schema schema, MetadataTableType tableType, TableScanContext context) {
+    super(table, schema, context);
     this.tableType = tableType;
   }
 
   /**
-   * Type of scan being performed, such as {@link MetadataTableType#ALL_DATA_FILES} when scanning
-   * a table's {@link org.apache.iceberg.AllDataFilesTable}.
-   * <p>
-   * Used for logging and error messages.
+   * Type of scan being performed, such as {@link MetadataTableType#ALL_DATA_FILES} when scanning a
+   * table's {@link org.apache.iceberg.AllDataFilesTable}.
+   *
+   * <p>Used for logging and error messages.
    */
   protected MetadataTableType tableType() {
     return tableType;
@@ -60,9 +59,12 @@ abstract class BaseMetadataTableScan extends BaseTableScan {
 
   @Override
   public long targetSplitSize() {
-    long tableValue = tableOps().current().propertyAsLong(
-        TableProperties.METADATA_SPLIT_SIZE,
-        TableProperties.METADATA_SPLIT_SIZE_DEFAULT);
+    long tableValue =
+        ((BaseTable) table())
+            .operations()
+            .current()
+            .propertyAsLong(
+                TableProperties.METADATA_SPLIT_SIZE, TableProperties.METADATA_SPLIT_SIZE_DEFAULT);
     return PropertyUtil.propertyAsLong(options(), TableProperties.SPLIT_SIZE, tableValue);
   }
 }

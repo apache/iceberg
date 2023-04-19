@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.aws.dynamodb;
 
 import java.util.List;
@@ -85,10 +84,8 @@ public class TestDynamoDbLockManager {
     lockManager.acquireOnce(entityId, ownerId);
     Map<String, AttributeValue> key = Maps.newHashMap();
     key.put("entityId", AttributeValue.builder().s(entityId).build());
-    GetItemResponse response = dynamo.getItem(GetItemRequest.builder()
-        .tableName(lockTableName)
-        .key(key)
-        .build());
+    GetItemResponse response =
+        dynamo.getItem(GetItemRequest.builder().tableName(lockTableName).key(key).build());
     Assert.assertTrue("should have item in dynamo after acquire", response.hasItem());
     Assert.assertEquals(entityId, response.item().get("entityId").s());
     Assert.assertEquals(ownerId, response.item().get("ownerId").s());
@@ -98,19 +95,29 @@ public class TestDynamoDbLockManager {
 
   @Test
   public void testAcquireOnceMultiProcesses() throws Exception {
-    List<Boolean> results = POOL.submit(() -> IntStream.range(0, 16).parallel()
-        .mapToObj(i -> {
-          try {
-            DynamoDbLockManager threadLocalLockManager = new DynamoDbLockManager(dynamo, lockTableName);
-            threadLocalLockManager.acquireOnce(entityId, UUID.randomUUID().toString());
-            return true;
-          } catch (ConditionalCheckFailedException e) {
-            return false;
-          }
-        })
-        .collect(Collectors.toList())).get();
-    Assert.assertEquals("should have only 1 process succeeded in acquisition",
-        1, results.stream().filter(s -> s).count());
+    List<Boolean> results =
+        POOL.submit(
+                () ->
+                    IntStream.range(0, 16)
+                        .parallel()
+                        .mapToObj(
+                            i -> {
+                              try {
+                                DynamoDbLockManager threadLocalLockManager =
+                                    new DynamoDbLockManager(dynamo, lockTableName);
+                                threadLocalLockManager.acquireOnce(
+                                    entityId, UUID.randomUUID().toString());
+                                return true;
+                              } catch (ConditionalCheckFailedException e) {
+                                return false;
+                              }
+                            })
+                        .collect(Collectors.toList()))
+            .get();
+    Assert.assertEquals(
+        "should have only 1 process succeeded in acquisition",
+        1,
+        results.stream().filter(s -> s).count());
   }
 
   @Test
@@ -132,76 +139,96 @@ public class TestDynamoDbLockManager {
     Assert.assertTrue(lockManager.acquire(entityId, ownerId));
     String oldOwner = ownerId;
 
-    CompletableFuture.supplyAsync(() -> {
-      try {
-        Thread.sleep(5000);
-      } catch (InterruptedException e) {
-        throw new RuntimeException(e);
-      }
-      Assert.assertTrue(lockManager.release(entityId, oldOwner));
-      return null;
-    });
+    CompletableFuture.supplyAsync(
+        () -> {
+          try {
+            Thread.sleep(5000);
+          } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+          }
+          Assert.assertTrue(lockManager.release(entityId, oldOwner));
+          return null;
+        });
 
     ownerId = UUID.randomUUID().toString();
     long start = System.currentTimeMillis();
     Assert.assertTrue(lockManager.acquire(entityId, ownerId));
-    Assert.assertTrue("should succeed after 5 seconds",
-        System.currentTimeMillis() - start >= 5000);
+    Assert.assertTrue("should succeed after 5 seconds", System.currentTimeMillis() - start >= 5000);
   }
-
 
   @Test
   public void testAcquireMultiProcessAllSucceed() throws Exception {
-    lockManager.initialize(ImmutableMap.of(
-        CatalogProperties.LOCK_ACQUIRE_INTERVAL_MS, "500",
-        CatalogProperties.LOCK_ACQUIRE_TIMEOUT_MS, "100000000",
-        CatalogProperties.LOCK_TABLE, lockTableName
-    ));
+    lockManager.initialize(
+        ImmutableMap.of(
+            CatalogProperties.LOCK_ACQUIRE_INTERVAL_MS, "500",
+            CatalogProperties.LOCK_ACQUIRE_TIMEOUT_MS, "100000000",
+            CatalogProperties.LOCK_TABLE, lockTableName));
     long start = System.currentTimeMillis();
-    List<Boolean> results = POOL.submit(() -> IntStream.range(0, 16).parallel()
-        .mapToObj(i -> {
-          DynamoDbLockManager threadLocalLockManager = new DynamoDbLockManager(dynamo, lockTableName);
-          String owner = UUID.randomUUID().toString();
-          boolean succeeded = threadLocalLockManager.acquire(entityId, owner);
-          if (succeeded) {
-            try {
-              Thread.sleep(1000);
-            } catch (InterruptedException e) {
-              throw new RuntimeException(e);
-            }
-            Assert.assertTrue(threadLocalLockManager.release(entityId, owner));
-          }
-          return succeeded;
-        })
-        .collect(Collectors.toList())).get();
-    Assert.assertEquals("all lock acquire should succeed sequentially",
-        16, results.stream().filter(s -> s).count());
-    Assert.assertTrue("must take more than 16 seconds", System.currentTimeMillis() - start >= 16000);
+    List<Boolean> results =
+        POOL.submit(
+                () ->
+                    IntStream.range(0, 16)
+                        .parallel()
+                        .mapToObj(
+                            i -> {
+                              DynamoDbLockManager threadLocalLockManager =
+                                  new DynamoDbLockManager(dynamo, lockTableName);
+                              String owner = UUID.randomUUID().toString();
+                              boolean succeeded = threadLocalLockManager.acquire(entityId, owner);
+                              if (succeeded) {
+                                try {
+                                  Thread.sleep(1000);
+                                } catch (InterruptedException e) {
+                                  throw new RuntimeException(e);
+                                }
+                                Assert.assertTrue(threadLocalLockManager.release(entityId, owner));
+                              }
+                              return succeeded;
+                            })
+                        .collect(Collectors.toList()))
+            .get();
+    Assert.assertEquals(
+        "all lock acquire should succeed sequentially",
+        16,
+        results.stream().filter(s -> s).count());
+    Assert.assertTrue(
+        "must take more than 16 seconds", System.currentTimeMillis() - start >= 16000);
   }
 
   @Test
   public void testAcquireMultiProcessOnlyOneSucceed() throws Exception {
-    lockManager.initialize(ImmutableMap.of(
-        CatalogProperties.LOCK_ACQUIRE_TIMEOUT_MS, "10000",
-        CatalogProperties.LOCK_TABLE, lockTableName
-    ));
+    lockManager.initialize(
+        ImmutableMap.of(
+            CatalogProperties.LOCK_ACQUIRE_TIMEOUT_MS,
+            "10000",
+            CatalogProperties.LOCK_TABLE,
+            lockTableName));
 
-    List<Boolean> results = POOL.submit(() -> IntStream.range(0, 16).parallel()
-        .mapToObj(i -> {
-          DynamoDbLockManager threadLocalLockManager = new DynamoDbLockManager(dynamo, lockTableName);
-          return threadLocalLockManager.acquire(entityId, ownerId);
-        })
-        .collect(Collectors.toList())).get();
-    Assert.assertEquals("only 1 thread should have acquired the lock",
-        1, results.stream().filter(s -> s).count());
+    List<Boolean> results =
+        POOL.submit(
+                () ->
+                    IntStream.range(0, 16)
+                        .parallel()
+                        .mapToObj(
+                            i -> {
+                              DynamoDbLockManager threadLocalLockManager =
+                                  new DynamoDbLockManager(dynamo, lockTableName);
+                              return threadLocalLockManager.acquire(entityId, ownerId);
+                            })
+                        .collect(Collectors.toList()))
+            .get();
+    Assert.assertEquals(
+        "only 1 thread should have acquired the lock", 1, results.stream().filter(s -> s).count());
   }
 
   @Test
   public void testTableCreationFailure() {
     DynamoDbClient dynamo2 = Mockito.mock(DynamoDbClient.class);
-    Mockito.doThrow(ResourceNotFoundException.class).when(dynamo2)
+    Mockito.doThrow(ResourceNotFoundException.class)
+        .when(dynamo2)
         .describeTable(Mockito.any(DescribeTableRequest.class));
-    AssertHelpers.assertThrows("should fail to initialize the lock manager",
+    AssertHelpers.assertThrows(
+        "should fail to initialize the lock manager",
         IllegalStateException.class,
         "Cannot find Dynamo table",
         () -> new DynamoDbLockManager(dynamo2, lockTableName));

@@ -16,17 +16,16 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import java.util.Map;
 
 /**
  * API for updating table properties.
- * <p>
- * Apply returns the updated table properties as a map for validation.
- * <p>
- * When committing, these changes will be applied to the current table metadata. Commit conflicts
+ *
+ * <p>Apply returns the updated table properties as a map for validation.
+ *
+ * <p>When committing, these changes will be applied to the current table metadata. Commit conflicts
  * will be resolved by applying the pending changes to the new table metadata.
  */
 public interface UpdateProperties extends PendingUpdate<Map<String, String>> {
@@ -52,6 +51,7 @@ public interface UpdateProperties extends PendingUpdate<Map<String, String>> {
 
   /**
    * Set the default file format for the table.
+   *
    * @param format a file format
    * @return this
    */

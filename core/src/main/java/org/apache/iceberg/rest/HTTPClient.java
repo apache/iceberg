@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.rest;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -27,47 +26,76 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Map;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 import org.apache.hc.client5.http.classic.methods.HttpUriRequest;
 import org.apache.hc.client5.http.classic.methods.HttpUriRequestBase;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpResponse;
+import org.apache.hc.client5.http.impl.classic.HttpClientBuilder;
 import org.apache.hc.client5.http.impl.classic.HttpClients;
 import org.apache.hc.core5.http.ContentType;
+import org.apache.hc.core5.http.Header;
 import org.apache.hc.core5.http.HttpHeaders;
+import org.apache.hc.core5.http.HttpRequestInterceptor;
 import org.apache.hc.core5.http.HttpStatus;
 import org.apache.hc.core5.http.Method;
 import org.apache.hc.core5.http.ParseException;
 import org.apache.hc.core5.http.impl.EnglishReasonPhraseCatalog;
 import org.apache.hc.core5.http.io.entity.EntityUtils;
 import org.apache.hc.core5.http.io.entity.StringEntity;
+import org.apache.hc.core5.http.message.BasicHeader;
 import org.apache.hc.core5.io.CloseMode;
 import org.apache.hc.core5.net.URIBuilder;
+import org.apache.iceberg.IcebergBuild;
+import org.apache.iceberg.common.DynConstructors;
+import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.exceptions.RESTException;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.responses.ErrorResponse;
-import org.apache.iceberg.rest.responses.ErrorResponseParser;
+import org.apache.iceberg.util.PropertyUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/**
- * An HttpClient for usage with the REST catalog.
- */
+/** An HttpClient for usage with the REST catalog. */
 public class HTTPClient implements RESTClient {
 
   private static final Logger LOG = LoggerFactory.getLogger(HTTPClient.class);
+  private static final String SIGV4_ENABLED = "rest.sigv4-enabled";
+  private static final String SIGV4_REQUEST_INTERCEPTOR_IMPL =
+      "org.apache.iceberg.aws.RESTSigV4Signer";
+  @VisibleForTesting static final String CLIENT_VERSION_HEADER = "X-Client-Version";
+
+  @VisibleForTesting
+  static final String CLIENT_GIT_COMMIT_SHORT_HEADER = "X-Client-Git-Commit-Short";
 
   private final String uri;
   private final CloseableHttpClient httpClient;
   private final ObjectMapper mapper;
-  private final Map<String, String> baseHeaders;
 
-  private HTTPClient(String uri, Map<String, String> baseHeaders) {
+  private HTTPClient(
+      String uri,
+      Map<String, String> baseHeaders,
+      ObjectMapper objectMapper,
+      HttpRequestInterceptor requestInterceptor) {
     this.uri = uri;
-    this.httpClient = HttpClients.createDefault();
-    this.baseHeaders = baseHeaders != null ? baseHeaders : ImmutableMap.of();
-    this.mapper = RESTObjectMapper.mapper();
+    this.mapper = objectMapper;
+
+    HttpClientBuilder clientBuilder = HttpClients.custom();
+
+    if (baseHeaders != null) {
+      clientBuilder.setDefaultHeaders(
+          baseHeaders.entrySet().stream()
+              .map(e -> new BasicHeader(e.getKey(), e.getValue()))
+              .collect(Collectors.toList()));
+    }
+
+    if (requestInterceptor != null) {
+      clientBuilder.addRequestInterceptorLast(requestInterceptor);
+    }
+
+    this.httpClient = clientBuilder.build();
   }
 
   private static String extractResponseBodyAsString(CloseableHttpResponse response) {
@@ -86,14 +114,17 @@ public class HTTPClient implements RESTClient {
   // Per the spec, the only currently defined / used "success" responses are 200 and 202.
   private static boolean isSuccessful(CloseableHttpResponse response) {
     int code = response.getCode();
-    return code ==  HttpStatus.SC_OK || code == HttpStatus.SC_ACCEPTED || code == HttpStatus.SC_NO_CONTENT;
+    return code == HttpStatus.SC_OK
+        || code == HttpStatus.SC_ACCEPTED
+        || code == HttpStatus.SC_NO_CONTENT;
   }
 
   private static ErrorResponse buildDefaultErrorResponse(CloseableHttpResponse response) {
     String responseReason = response.getReasonPhrase();
     String message =
-        responseReason != null && !responseReason.isEmpty() ? responseReason :
-            EnglishReasonPhraseCatalog.INSTANCE.getReason(response.getCode(), null /* ignored */);
+        responseReason != null && !responseReason.isEmpty()
+            ? responseReason
+            : EnglishReasonPhraseCatalog.INSTANCE.getReason(response.getCode(), null /* ignored */);
     String type = "RESTException";
     return ErrorResponse.builder()
         .responseCode(response.getCode())
@@ -110,13 +141,29 @@ public class HTTPClient implements RESTClient {
 
     if (responseBody != null) {
       try {
-        errorResponse = ErrorResponseParser.fromJson(responseBody);
+        if (errorHandler instanceof ErrorHandler) {
+          errorResponse =
+              ((ErrorHandler) errorHandler).parseResponse(response.getCode(), responseBody);
+        } else {
+          LOG.warn(
+              "Unknown error handler {}, response body won't be parsed",
+              errorHandler.getClass().getName());
+          errorResponse =
+              ErrorResponse.builder()
+                  .responseCode(response.getCode())
+                  .withMessage(responseBody)
+                  .build();
+        }
+
       } catch (UncheckedIOException | IllegalArgumentException e) {
-        // It's possible to receive a non-successful response that isn't a properly defined ErrorResponse
-        // without any bugs in the server implementation. So we ignore this exception and build an error
+        // It's possible to receive a non-successful response that isn't a properly defined
+        // ErrorResponse
+        // without any bugs in the server implementation. So we ignore this exception and build an
+        // error
         // response for the user.
         //
-        // For example, the connection could time out before every reaching the server, in which case we'll
+        // For example, the connection could time out before every reaching the server, in which
+        // case we'll
         // likely get a 5xx with the load balancers default 5xx response.
         LOG.error("Failed to parse an error response. Will create one instead.", e);
       }
@@ -141,25 +188,63 @@ public class HTTPClient implements RESTClient {
       }
       return builder.build();
     } catch (URISyntaxException e) {
-      throw new RESTException("Failed to create request URI from base %s, params %s", baseUri, params);
+      throw new RESTException(
+          "Failed to create request URI from base %s, params %s", baseUri, params);
     }
   }
 
   /**
    * Method to execute an HTTP request and process the corresponding response.
    *
-   * @param method       - HTTP method, such as GET, POST, HEAD, etc.
-   * @param queryParams  - A map of query parameters
-   * @param path         - URL path to send the request to
-   * @param requestBody  - Content to place in the request body
-   * @param responseType - Class of the Response type. Needs to have serializer registered with ObjectMapper
-   * @param errorHandler - Error handler delegated for HTTP responses which handles server error responses
-   * @param <T>          - Class type of the response for deserialization. Must be registered with the ObjectMapper.
+   * @param method - HTTP method, such as GET, POST, HEAD, etc.
+   * @param queryParams - A map of query parameters
+   * @param path - URL path to send the request to
+   * @param requestBody - Content to place in the request body
+   * @param responseType - Class of the Response type. Needs to have serializer registered with
+   *     ObjectMapper
+   * @param errorHandler - Error handler delegated for HTTP responses which handles server error
+   *     responses
+   * @param <T> - Class type of the response for deserialization. Must be registered with the
+   *     ObjectMapper.
    * @return The response entity, parsed and converted to its type T
    */
   private <T> T execute(
-      Method method, String path, Map<String, String> queryParams, Object requestBody, Class<T> responseType,
-      Map<String, String> headers, Consumer<ErrorResponse> errorHandler) {
+      Method method,
+      String path,
+      Map<String, String> queryParams,
+      Object requestBody,
+      Class<T> responseType,
+      Map<String, String> headers,
+      Consumer<ErrorResponse> errorHandler) {
+    return execute(
+        method, path, queryParams, requestBody, responseType, headers, errorHandler, h -> {});
+  }
+
+  /**
+   * Method to execute an HTTP request and process the corresponding response.
+   *
+   * @param method - HTTP method, such as GET, POST, HEAD, etc.
+   * @param queryParams - A map of query parameters
+   * @param path - URL path to send the request to
+   * @param requestBody - Content to place in the request body
+   * @param responseType - Class of the Response type. Needs to have serializer registered with
+   *     ObjectMapper
+   * @param errorHandler - Error handler delegated for HTTP responses which handles server error
+   *     responses
+   * @param responseHeaders The consumer of the response headers
+   * @param <T> - Class type of the response for deserialization. Must be registered with the
+   *     ObjectMapper.
+   * @return The response entity, parsed and converted to its type T
+   */
+  private <T> T execute(
+      Method method,
+      String path,
+      Map<String, String> queryParams,
+      Object requestBody,
+      Class<T> responseType,
+      Map<String, String> headers,
+      Consumer<ErrorResponse> errorHandler,
+      Consumer<Map<String, String>> responseHeaders) {
     if (path.startsWith("/")) {
       throw new RESTException(
           "Received a malformed path for a REST request: %s. Paths should not start with /", path);
@@ -180,9 +265,16 @@ public class HTTPClient implements RESTClient {
     }
 
     try (CloseableHttpResponse response = httpClient.execute(request)) {
+      Map<String, String> respHeaders = Maps.newHashMap();
+      for (Header header : response.getHeaders()) {
+        respHeaders.put(header.getName(), header.getValue());
+      }
+
+      responseHeaders.accept(respHeaders);
 
       // Skip parsing the response stream for any successful request not expecting a response body
-      if (response.getCode() == HttpStatus.SC_NO_CONTENT || (responseType == null && isSuccessful(response))) {
+      if (response.getCode() == HttpStatus.SC_NO_CONTENT
+          || (responseType == null && isSuccessful(response))) {
         return null;
       }
 
@@ -203,8 +295,10 @@ public class HTTPClient implements RESTClient {
         return mapper.readValue(responseBody, responseType);
       } catch (JsonProcessingException e) {
         throw new RESTException(
-            e, "Received a success response code of %d, but failed to parse response body into %s",
-            response.getCode(), responseType.getSimpleName());
+            e,
+            "Received a success response code of %d, but failed to parse response body into %s",
+            response.getCode(),
+            responseType.getSimpleName());
       }
     } catch (IOException e) {
       throw new RESTException(e, "Error occurred while processing %s request", method);
@@ -217,34 +311,72 @@ public class HTTPClient implements RESTClient {
   }
 
   @Override
-  public <T extends RESTResponse> T get(String path, Map<String, String> queryParams, Class<T> responseType,
-                                        Map<String, String> headers, Consumer<ErrorResponse> errorHandler) {
+  public <T extends RESTResponse> T get(
+      String path,
+      Map<String, String> queryParams,
+      Class<T> responseType,
+      Map<String, String> headers,
+      Consumer<ErrorResponse> errorHandler) {
     return execute(Method.GET, path, queryParams, null, responseType, headers, errorHandler);
   }
 
   @Override
-  public <T extends RESTResponse> T post(String path, RESTRequest body, Class<T> responseType,
-                                         Map<String, String> headers, Consumer<ErrorResponse> errorHandler) {
+  public <T extends RESTResponse> T post(
+      String path,
+      RESTRequest body,
+      Class<T> responseType,
+      Map<String, String> headers,
+      Consumer<ErrorResponse> errorHandler) {
     return execute(Method.POST, path, null, body, responseType, headers, errorHandler);
   }
 
   @Override
-  public <T extends RESTResponse> T delete(String path, Class<T> responseType, Map<String, String> headers,
-                                           Consumer<ErrorResponse> errorHandler) {
+  public <T extends RESTResponse> T post(
+      String path,
+      RESTRequest body,
+      Class<T> responseType,
+      Map<String, String> headers,
+      Consumer<ErrorResponse> errorHandler,
+      Consumer<Map<String, String>> responseHeaders) {
+    return execute(
+        Method.POST, path, null, body, responseType, headers, errorHandler, responseHeaders);
+  }
+
+  @Override
+  public <T extends RESTResponse> T delete(
+      String path,
+      Class<T> responseType,
+      Map<String, String> headers,
+      Consumer<ErrorResponse> errorHandler) {
     return execute(Method.DELETE, path, null, null, responseType, headers, errorHandler);
   }
 
   @Override
-  public <T extends RESTResponse> T postForm(String path, Map<String, String> formData, Class<T> responseType,
-                                             Map<String, String> headers, Consumer<ErrorResponse> errorHandler) {
+  public <T extends RESTResponse> T delete(
+      String path,
+      Map<String, String> queryParams,
+      Class<T> responseType,
+      Map<String, String> headers,
+      Consumer<ErrorResponse> errorHandler) {
+    return execute(Method.DELETE, path, queryParams, null, responseType, headers, errorHandler);
+  }
+
+  @Override
+  public <T extends RESTResponse> T postForm(
+      String path,
+      Map<String, String> formData,
+      Class<T> responseType,
+      Map<String, String> headers,
+      Consumer<ErrorResponse> errorHandler) {
     return execute(Method.POST, path, null, formData, responseType, headers, errorHandler);
   }
 
-  private void addRequestHeaders(HttpUriRequest request, Map<String, String> requestHeaders, String bodyMimeType) {
+  private void addRequestHeaders(
+      HttpUriRequest request, Map<String, String> requestHeaders, String bodyMimeType) {
     request.setHeader(HttpHeaders.ACCEPT, ContentType.APPLICATION_JSON.getMimeType());
-    // Many systems require that content type is set regardless and will fail, even on an empty bodied request.
+    // Many systems require that content type is set regardless and will fail, even on an empty
+    // bodied request.
     request.setHeader(HttpHeaders.CONTENT_TYPE, bodyMimeType);
-    baseHeaders.forEach(request::setHeader);
     requestHeaders.forEach(request::setHeader);
   }
 
@@ -253,15 +385,53 @@ public class HTTPClient implements RESTClient {
     httpClient.close(CloseMode.GRACEFUL);
   }
 
-  public static Builder builder() {
-    return new Builder();
+  @VisibleForTesting
+  static HttpRequestInterceptor loadInterceptorDynamically(
+      String impl, Map<String, String> properties) {
+    HttpRequestInterceptor instance;
+
+    DynConstructors.Ctor<HttpRequestInterceptor> ctor;
+    try {
+      ctor =
+          DynConstructors.builder(HttpRequestInterceptor.class)
+              .loader(HTTPClient.class.getClassLoader())
+              .impl(impl)
+              .buildChecked();
+    } catch (NoSuchMethodException e) {
+      throw new IllegalArgumentException(
+          String.format(
+              "Cannot initialize RequestInterceptor, missing no-arg constructor: %s", impl),
+          e);
+    }
+
+    try {
+      instance = ctor.newInstance();
+    } catch (ClassCastException e) {
+      throw new IllegalArgumentException(
+          String.format("Cannot initialize, %s does not implement RequestInterceptor", impl), e);
+    }
+
+    DynMethods.builder("initialize")
+        .hiddenImpl(impl, Map.class)
+        .orNoop()
+        .build(instance)
+        .invoke(properties);
+
+    return instance;
+  }
+
+  public static Builder builder(Map<String, String> properties) {
+    return new Builder(properties);
   }
 
   public static class Builder {
+    private final Map<String, String> properties;
     private final Map<String, String> baseHeaders = Maps.newHashMap();
     private String uri;
+    private ObjectMapper mapper = RESTObjectMapper.mapper();
 
-    private Builder() {
+    private Builder(Map<String, String> properties) {
+      this.properties = properties;
     }
 
     public Builder uri(String baseUri) {
@@ -280,8 +450,22 @@ public class HTTPClient implements RESTClient {
       return this;
     }
 
+    public Builder withObjectMapper(ObjectMapper objectMapper) {
+      this.mapper = objectMapper;
+      return this;
+    }
+
     public HTTPClient build() {
-      return new HTTPClient(uri, baseHeaders);
+      withHeader(CLIENT_VERSION_HEADER, IcebergBuild.fullVersion());
+      withHeader(CLIENT_GIT_COMMIT_SHORT_HEADER, IcebergBuild.gitCommitShortId());
+
+      HttpRequestInterceptor interceptor = null;
+
+      if (PropertyUtil.propertyAsBoolean(properties, SIGV4_ENABLED, false)) {
+        interceptor = loadInterceptorDynamically(SIGV4_REQUEST_INTERCEPTOR_IMPL, properties);
+      }
+
+      return new HTTPClient(uri, baseHeaders, mapper, interceptor);
     }
   }
 

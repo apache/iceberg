@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.source;
 
 import java.io.IOException;
@@ -42,26 +41,32 @@ public class TestSparkMergingMetrics extends TestMergingMetrics<InternalRow> {
 
   @Override
   protected FileAppender<InternalRow> writeAndGetAppender(List<Record> records) throws IOException {
-    Table testTable = new BaseTable(null, "dummy") {
-      @Override
-      public Map<String, String> properties() {
-        return Collections.emptyMap();
-      }
-      @Override
-      public SortOrder sortOrder() {
-        return SortOrder.unsorted();
-      }
-      @Override
-      public PartitionSpec spec() {
-        return PartitionSpec.unpartitioned();
-      }
-    };
+    Table testTable =
+        new BaseTable(null, "dummy") {
+          @Override
+          public Map<String, String> properties() {
+            return Collections.emptyMap();
+          }
+
+          @Override
+          public SortOrder sortOrder() {
+            return SortOrder.unsorted();
+          }
+
+          @Override
+          public PartitionSpec spec() {
+            return PartitionSpec.unpartitioned();
+          }
+        };
 
     FileAppender<InternalRow> appender =
-        SparkAppenderFactory.builderFor(testTable, SCHEMA, SparkSchemaUtil.convert(SCHEMA)).build()
+        SparkAppenderFactory.builderFor(testTable, SCHEMA, SparkSchemaUtil.convert(SCHEMA))
+            .build()
             .newAppender(org.apache.iceberg.Files.localOutput(temp.newFile()), fileFormat);
     try (FileAppender<InternalRow> fileAppender = appender) {
-      records.stream().map(r -> new StructInternalRow(SCHEMA.asStruct()).setStruct(r)).forEach(fileAppender::add);
+      records.stream()
+          .map(r -> new StructInternalRow(SCHEMA.asStruct()).setStruct(r))
+          .forEach(fileAppender::add);
     }
     return appender;
   }

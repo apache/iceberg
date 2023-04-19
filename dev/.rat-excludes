@@ -1,6 +1,7 @@
 version.txt
 versions.lock
 versions.props
+iceberg-build.properties
 .java-version
 books.json
 new-books.json
@@ -22,6 +23,7 @@ gradle/*
 .*\.svg
 .*\.lock
 .*\.json
+.*\.bin
 package-list
 sitemap.xml
 derby.log

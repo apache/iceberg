@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.spark.sql.connector.iceberg.expressions;
 
 import org.apache.spark.annotation.Experimental;
@@ -28,7 +27,8 @@ import org.apache.spark.annotation.Experimental;
  */
 @Experimental
 public enum NullOrdering {
-  NULLS_FIRST, NULLS_LAST;
+  NULLS_FIRST,
+  NULLS_LAST;
 
   @Override
   public String toString() {

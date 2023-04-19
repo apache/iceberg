@@ -16,8 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.expressions;
+
+import static org.apache.iceberg.expressions.Expressions.rewriteNot;
 
 import java.nio.ByteBuffer;
 import java.util.Collection;
@@ -33,29 +34,28 @@ import org.apache.iceberg.expressions.ExpressionVisitors.BoundExpressionVisitor;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Type;
-import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.BinaryUtil;
-
-import static org.apache.iceberg.expressions.Expressions.rewriteNot;
 
 /**
  * Evaluates an {@link Expression} on a {@link ManifestFile} to test whether the file contains
  * matching partitions.
- * <p>
- * For row expressions, evaluation is inclusive: it returns true if a file may match and false if it cannot match.
- * <p>
- * Files are passed to {@link #eval(ManifestFile)}, which returns true if the manifest may contain
- * data files that match the partition expression. Manifest files may be skipped if and only if the
- * return value of {@code eval} is false.
+ *
+ * <p>For row expressions, evaluation is inclusive: it returns true if a file may match and false if
+ * it cannot match.
+ *
+ * <p>Files are passed to {@link #eval(ManifestFile)}, which returns true if the manifest may
+ * contain data files that match the partition expression. Manifest files may be skipped if and only
+ * if the return value of {@code eval} is false.
  */
 public class ManifestEvaluator {
   private static final int IN_PREDICATE_LIMIT = 200;
 
-  private final StructType struct;
   private final Expression expr;
 
-  public static ManifestEvaluator forRowFilter(Expression rowFilter, PartitionSpec spec, boolean caseSensitive) {
-    return new ManifestEvaluator(spec, Projections.inclusive(spec, caseSensitive).project(rowFilter), caseSensitive);
+  public static ManifestEvaluator forRowFilter(
+      Expression rowFilter, PartitionSpec spec, boolean caseSensitive) {
+    return new ManifestEvaluator(
+        spec, Projections.inclusive(spec, caseSensitive).project(rowFilter), caseSensitive);
   }
 
   public static ManifestEvaluator forPartitionFilter(
@@ -64,8 +64,7 @@ public class ManifestEvaluator {
   }
 
   private ManifestEvaluator(PartitionSpec spec, Expression partitionFilter, boolean caseSensitive) {
-    this.struct = spec.partitionType();
-    this.expr = Binder.bind(struct, rewriteNot(partitionFilter), caseSensitive);
+    this.expr = Binder.bind(spec.partitionType(), rewriteNot(partitionFilter), caseSensitive);
   }
 
   /**
@@ -161,8 +160,10 @@ public class ManifestEvaluator {
       PartitionFieldSummary fieldSummary = stats.get(Accessors.toPosition(ref.accessor()));
 
       // if containsNaN is true, containsNull is false and lowerBound is null, all values are NaN
-      if (fieldSummary.containsNaN() != null && fieldSummary.containsNaN() &&
-          !fieldSummary.containsNull() && fieldSummary.lowerBound() == null) {
+      if (fieldSummary.containsNaN() != null
+          && fieldSummary.containsNaN()
+          && !fieldSummary.containsNull()
+          && fieldSummary.lowerBound() == null) {
         return ROWS_CANNOT_MATCH;
       }
 
@@ -287,14 +288,21 @@ public class ManifestEvaluator {
       }
 
       T lower = Conversions.fromByteBuffer(ref.type(), fieldStats.lowerBound());
-      literals = literals.stream().filter(v -> ref.comparator().compare(lower, v) <= 0).collect(Collectors.toList());
+      literals =
+          literals.stream()
+              .filter(v -> ref.comparator().compare(lower, v) <= 0)
+              .collect(Collectors.toList());
       if (literals.isEmpty()) { // if all values are less than lower bound, rows cannot match.
         return ROWS_CANNOT_MATCH;
       }
 
       T upper = Conversions.fromByteBuffer(ref.type(), fieldStats.upperBound());
-      literals = literals.stream().filter(v -> ref.comparator().compare(upper, v) >= 0).collect(Collectors.toList());
-      if (literals.isEmpty()) { // if all remaining values are greater than upper bound, rows cannot match.
+      literals =
+          literals.stream()
+              .filter(v -> ref.comparator().compare(upper, v) >= 0)
+              .collect(Collectors.toList());
+      if (literals
+          .isEmpty()) { // if all remaining values are greater than upper bound, rows cannot match.
         return ROWS_CANNOT_MATCH;
       }
 
@@ -324,7 +332,8 @@ public class ManifestEvaluator {
       ByteBuffer lower = fieldStats.lowerBound();
       // truncate lower bound so that its length in bytes is not greater than the length of prefix
       int lowerLength = Math.min(prefixAsBytes.remaining(), lower.remaining());
-      int lowerCmp = comparator.compare(BinaryUtil.truncateBinary(lower, lowerLength), prefixAsBytes);
+      int lowerCmp =
+          comparator.compare(BinaryUtil.truncateBinary(lower, lowerLength), prefixAsBytes);
       if (lowerCmp > 0) {
         return ROWS_CANNOT_MATCH;
       }
@@ -332,7 +341,8 @@ public class ManifestEvaluator {
       ByteBuffer upper = fieldStats.upperBound();
       // truncate upper bound so that its length in bytes is not greater than the length of prefix
       int upperLength = Math.min(prefixAsBytes.remaining(), upper.remaining());
-      int upperCmp = comparator.compare(BinaryUtil.truncateBinary(upper, upperLength), prefixAsBytes);
+      int upperCmp =
+          comparator.compare(BinaryUtil.truncateBinary(upper, upperLength), prefixAsBytes);
       if (upperCmp < 0) {
         return ROWS_CANNOT_MATCH;
       }
@@ -352,7 +362,8 @@ public class ManifestEvaluator {
       ByteBuffer lower = fieldStats.lowerBound();
       ByteBuffer upper = fieldStats.upperBound();
 
-      // notStartsWith will match unless all values must start with the prefix. This happens when the lower and upper
+      // notStartsWith will match unless all values must start with the prefix. This happens when
+      // the lower and upper
       // bounds both start with the prefix.
       if (lower != null && upper != null) {
         ByteBuffer prefixAsBytes = lit.toByteBuffer();
@@ -364,7 +375,9 @@ public class ManifestEvaluator {
         }
 
         // truncate lower bound to the prefix and check for equality
-        int cmp = comparator.compare(BinaryUtil.truncateBinary(lower, prefixAsBytes.remaining()), prefixAsBytes);
+        int cmp =
+            comparator.compare(
+                BinaryUtil.truncateBinary(lower, prefixAsBytes.remaining()), prefixAsBytes);
         if (cmp == 0) {
           // the lower bound starts with the prefix; check the upper bound
           // if upper is shorter than the prefix, it can't start with the prefix
@@ -372,8 +385,11 @@ public class ManifestEvaluator {
             return ROWS_MIGHT_MATCH;
           }
 
-          // truncate upper bound so that its length in bytes is not greater than the length of prefix
-          cmp = comparator.compare(BinaryUtil.truncateBinary(upper, prefixAsBytes.remaining()), prefixAsBytes);
+          // truncate upper bound so that its length in bytes is not greater than the length of
+          // prefix
+          cmp =
+              comparator.compare(
+                  BinaryUtil.truncateBinary(upper, prefixAsBytes.remaining()), prefixAsBytes);
           if (cmp == 0) {
             // both bounds match the prefix, so all rows must match the prefix and none do not match
             return ROWS_CANNOT_MATCH;

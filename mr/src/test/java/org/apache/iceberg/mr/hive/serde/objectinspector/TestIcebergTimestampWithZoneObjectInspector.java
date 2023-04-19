@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.mr.hive.serde.objectinspector;
 
 import java.sql.Timestamp;
@@ -37,7 +36,8 @@ public class TestIcebergTimestampWithZoneObjectInspector {
     IcebergTimestampWithZoneObjectInspector oi = IcebergTimestampWithZoneObjectInspector.get();
 
     Assert.assertEquals(ObjectInspector.Category.PRIMITIVE, oi.getCategory());
-    Assert.assertEquals(PrimitiveObjectInspector.PrimitiveCategory.TIMESTAMP, oi.getPrimitiveCategory());
+    Assert.assertEquals(
+        PrimitiveObjectInspector.PrimitiveCategory.TIMESTAMP, oi.getPrimitiveCategory());
 
     Assert.assertEquals(TypeInfoFactory.timestampTypeInfo, oi.getTypeInfo());
     Assert.assertEquals(TypeInfoFactory.timestampTypeInfo.getTypeName(), oi.getTypeName());
@@ -64,11 +64,12 @@ public class TestIcebergTimestampWithZoneObjectInspector {
 
     Assert.assertFalse(oi.preferWritable());
 
-    Assert.assertEquals(OffsetDateTime.ofInstant(local.toInstant(ZoneOffset.ofHours(-5)), ZoneOffset.UTC),
-            oi.convert(ts));
+    Assert.assertEquals(
+        OffsetDateTime.ofInstant(local.toInstant(ZoneOffset.ofHours(-5)), ZoneOffset.UTC),
+        oi.convert(ts));
 
-    Assert.assertEquals(offsetDateTime.withOffsetSameInstant(ZoneOffset.UTC),
-            oi.convert(Timestamp.from(offsetDateTime.toInstant())));
+    Assert.assertEquals(
+        offsetDateTime.withOffsetSameInstant(ZoneOffset.UTC),
+        oi.convert(Timestamp.from(offsetDateTime.toInstant())));
   }
-
 }

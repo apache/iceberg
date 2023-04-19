@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.schema;
 
 import java.util.List;
@@ -38,19 +37,25 @@ public abstract class SchemaWithPartnerVisitor<P, R> {
     P listElementPartner(P partnerList);
   }
 
-  public static <P, T> T visit(Schema schema, P partner, SchemaWithPartnerVisitor<P, T> visitor,
-                               PartnerAccessors<P> accessors) {
+  public static <P, T> T visit(
+      Schema schema,
+      P partner,
+      SchemaWithPartnerVisitor<P, T> visitor,
+      PartnerAccessors<P> accessors) {
     return visitor.schema(schema, partner, visit(schema.asStruct(), partner, visitor, accessors));
   }
 
-  public static <P, T> T visit(Type type, P partner, SchemaWithPartnerVisitor<P, T> visitor,
-                               PartnerAccessors<P> accessors) {
+  public static <P, T> T visit(
+      Type type, P partner, SchemaWithPartnerVisitor<P, T> visitor, PartnerAccessors<P> accessors) {
     switch (type.typeId()) {
       case STRUCT:
         Types.StructType struct = type.asNestedType().asStructType();
         List<T> results = Lists.newArrayListWithExpectedSize(struct.fields().size());
         for (Types.NestedField field : struct.fields()) {
-          P fieldPartner = partner != null ? accessors.fieldPartner(partner, field.fieldId(), field.name()) : null;
+          P fieldPartner =
+              partner != null
+                  ? accessors.fieldPartner(partner, field.fieldId(), field.name())
+                  : null;
           visitor.beforeField(field, fieldPartner);
           T result;
           try {
@@ -107,11 +112,9 @@ public abstract class SchemaWithPartnerVisitor<P, R> {
     }
   }
 
-  public void beforeField(Types.NestedField field, P partnerField) {
-  }
+  public void beforeField(Types.NestedField field, P partnerField) {}
 
-  public void afterField(Types.NestedField field, P partnerField) {
-  }
+  public void afterField(Types.NestedField field, P partnerField) {}
 
   public void beforeListElement(Types.NestedField elementField, P partnerField) {
     beforeField(elementField, partnerField);

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.rest.requests;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -33,15 +32,17 @@ public class TestRenameTableRequest extends RequestResponseTestBase<RenameTableR
   /* Values used to fill in request fields */
   private static final Namespace NAMESPACE = Namespace.of("accounting", "tax");
   private static final TableIdentifier TAX_PAID = TableIdentifier.of(NAMESPACE, "paid");
-  private static final TableIdentifier TAX_PAID_RENAMED = TableIdentifier.of(NAMESPACE, "paid_2022");
+  private static final TableIdentifier TAX_PAID_RENAMED =
+      TableIdentifier.of(NAMESPACE, "paid_2022");
 
   @Test
   public void testRoundTripSerDe() throws JsonProcessingException {
     String sourceJson = TableIdentifierParser.toJson(TAX_PAID);
     String destinationJson = TableIdentifierParser.toJson(TAX_PAID_RENAMED);
-    String fullJson = String.format("{\"source\":%s,\"destination\":%s}", sourceJson, destinationJson);
-    RenameTableRequest req = RenameTableRequest.builder()
-        .withSource(TAX_PAID).withDestination(TAX_PAID_RENAMED).build();
+    String fullJson =
+        String.format("{\"source\":%s,\"destination\":%s}", sourceJson, destinationJson);
+    RenameTableRequest req =
+        RenameTableRequest.builder().withSource(TAX_PAID).withDestination(TAX_PAID_RENAMED).build();
 
     assertRoundTripSerializesEquallyFrom(fullJson, req);
   }
@@ -49,58 +50,52 @@ public class TestRenameTableRequest extends RequestResponseTestBase<RenameTableR
   @Test
   public void testDeserializeInvalidRequestThrows() {
     String jsonSourceNullName =
-        "{\"source\":{\"namespace\":[\"accounting\",\"tax\"],\"name\":null}," +
-        "\"destination\":{\"namespace\":[\"accounting\",\"tax\"],\"name\":\"paid_2022\"}}";
+        "{\"source\":{\"namespace\":[\"accounting\",\"tax\"],\"name\":null},"
+            + "\"destination\":{\"namespace\":[\"accounting\",\"tax\"],\"name\":\"paid_2022\"}}";
     AssertHelpers.assertThrows(
         "A JSON request with an invalid source table identifier, with null for the name, should fail to deserialize",
         JsonProcessingException.class,
-        "Cannot parse name to a string value: null",
-        () -> deserialize(jsonSourceNullName)
-    );
+        "Cannot parse to a string value: name: null",
+        () -> deserialize(jsonSourceNullName));
 
     String jsonDestinationNullName =
-        "{\"source\":{\"namespace\":[\"accounting\",\"tax\"],\"name\":\"paid\"}," +
-        "\"destination\":{\"namespace\":[\"accounting\",\"tax\"],\"name\":null}}";
+        "{\"source\":{\"namespace\":[\"accounting\",\"tax\"],\"name\":\"paid\"},"
+            + "\"destination\":{\"namespace\":[\"accounting\",\"tax\"],\"name\":null}}";
     AssertHelpers.assertThrows(
         "A JSON request with an invalid destination table, with null for the name, should fail to deserialize",
         JsonProcessingException.class,
-        "Cannot parse name to a string value: null",
-        () -> deserialize(jsonDestinationNullName)
-    );
+        "Cannot parse to a string value: name: null",
+        () -> deserialize(jsonDestinationNullName));
 
     String jsonSourceMissingName =
-        "{\"source\":{\"namespace\":[\"accounting\",\"tax\"]}," +
-        "\"destination\":{\"name\":\"paid_2022\"}}";
+        "{\"source\":{\"namespace\":[\"accounting\",\"tax\"]},"
+            + "\"destination\":{\"name\":\"paid_2022\"}}";
     AssertHelpers.assertThrows(
         "A JSON request with an invalid source table identifier, with no name, should fail to deserialize",
         JsonProcessingException.class,
-        "Cannot parse missing string name",
-        () -> deserialize(jsonSourceMissingName)
-    );
+        "Cannot parse missing string: name",
+        () -> deserialize(jsonSourceMissingName));
 
     String jsonDestinationMissingName =
-        "{\"source\":{\"namespace\":[\"accounting\",\"tax\"],\"name\":\"paid\"}," +
-        "\"destination\":{\"namespace\":[\"accounting\",\"tax\"]}}";
+        "{\"source\":{\"namespace\":[\"accounting\",\"tax\"],\"name\":\"paid\"},"
+            + "\"destination\":{\"namespace\":[\"accounting\",\"tax\"]}}";
     AssertHelpers.assertThrows(
         "A JSON request with an invalid destination table identifier, with no name, should fail to deserialize",
         JsonProcessingException.class,
-        "Cannot parse missing string name",
-        () -> deserialize(jsonDestinationMissingName)
-    );
+        "Cannot parse missing string: name",
+        () -> deserialize(jsonDestinationMissingName));
 
     String emptyJson = "{}";
     AssertHelpers.assertThrows(
         "An empty JSON object should not parse into a valid RenameTableRequest instance",
         IllegalArgumentException.class,
         "Invalid source table: null",
-        () -> deserialize(emptyJson)
-    );
+        () -> deserialize(emptyJson));
 
     AssertHelpers.assertThrows(
         "An empty JSON request should fail to deserialize",
         IllegalArgumentException.class,
-        () -> deserialize(null)
-    );
+        () -> deserialize(null));
   }
 
   @Test
@@ -109,15 +104,17 @@ public class TestRenameTableRequest extends RequestResponseTestBase<RenameTableR
         "The builder should not allow using null for the source table",
         NullPointerException.class,
         "Invalid source table identifier: null",
-        () -> RenameTableRequest.builder().withSource(null).withDestination(TAX_PAID_RENAMED).build()
-    );
+        () ->
+            RenameTableRequest.builder()
+                .withSource(null)
+                .withDestination(TAX_PAID_RENAMED)
+                .build());
 
     AssertHelpers.assertThrows(
         "The builder should not allow using null for the destination table",
         NullPointerException.class,
         "Invalid destination table identifier: null",
-        () -> RenameTableRequest.builder().withSource(TAX_PAID).withDestination(null).build()
-    );
+        () -> RenameTableRequest.builder().withSource(TAX_PAID).withDestination(null).build());
   }
 
   @Override
@@ -135,8 +132,12 @@ public class TestRenameTableRequest extends RequestResponseTestBase<RenameTableR
 
   @Override
   public void assertEquals(RenameTableRequest actual, RenameTableRequest expected) {
-    Assert.assertEquals("Source table identifier should be equal", expected.source(), actual.source());
-    Assert.assertEquals("Destination table identifier should be equal", expected.destination(), actual.destination());
+    Assert.assertEquals(
+        "Source table identifier should be equal", expected.source(), actual.source());
+    Assert.assertEquals(
+        "Destination table identifier should be equal",
+        expected.destination(),
+        actual.destination());
   }
 
   @Override

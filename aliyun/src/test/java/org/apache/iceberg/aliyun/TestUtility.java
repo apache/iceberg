@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.aliyun;
 
 import org.apache.iceberg.aliyun.oss.AliyunOSSTestRule;
@@ -40,8 +39,7 @@ public class TestUtility {
   private static final String ALIYUN_TEST_OSS_ENDPOINT = "ALIYUN_TEST_OSS_ENDPOINT";
   private static final String ALIYUN_TEST_OSS_WAREHOUSE = "ALIYUN_TEST_OSS_WAREHOUSE";
 
-  private TestUtility() {
-  }
+  private TestUtility() {}
 
   public static AliyunOSSTestRule initialize() {
     AliyunOSSTestRule testRule;
@@ -54,11 +52,15 @@ public class TestUtility {
             DynConstructors.builder(AliyunOSSTestRule.class).impl(implClass).buildChecked();
         testRule = ctor.newInstance();
       } catch (NoSuchMethodException e) {
-        throw new IllegalArgumentException(String.format(
-            "Cannot initialize AliyunOSSTestRule, missing no-arg constructor: %s", implClass), e);
+        throw new IllegalArgumentException(
+            String.format(
+                "Cannot initialize AliyunOSSTestRule, missing no-arg constructor: %s", implClass),
+            e);
       } catch (ClassCastException e) {
-        throw new IllegalArgumentException(String.format(
-            "Cannot initialize AliyunOSSTestRule, %s does not implement it.", implClass), e);
+        throw new IllegalArgumentException(
+            String.format(
+                "Cannot initialize AliyunOSSTestRule, %s does not implement it.", implClass),
+            e);
       }
     } else {
       LOG.info("Initializing AliyunOSSTestRule implementation with default AliyunOSSMockRule");
@@ -94,8 +96,10 @@ public class TestUtility {
 
   private static OSSURI ossWarehouseURI() {
     String ossWarehouse = ossWarehouse();
-    Preconditions.checkNotNull(ossWarehouse,
-        "Please set a correct Aliyun OSS path for environment variable '%s'", ALIYUN_TEST_OSS_WAREHOUSE);
+    Preconditions.checkNotNull(
+        ossWarehouse,
+        "Please set a correct Aliyun OSS path for environment variable '%s'",
+        ALIYUN_TEST_OSS_WAREHOUSE);
 
     return new OSSURI(ossWarehouse);
   }

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.source;
 
 import java.math.BigDecimal;
@@ -128,7 +127,8 @@ class StructInternalRow extends InternalRow {
     } else if (integer instanceof LocalDate) {
       return (int) ((LocalDate) integer).toEpochDay();
     } else {
-      throw new IllegalStateException("Unknown type for int field. Type name: " + integer.getClass().getName());
+      throw new IllegalStateException(
+          "Unknown type for int field. Type name: " + integer.getClass().getName());
     }
   }
 
@@ -143,7 +143,8 @@ class StructInternalRow extends InternalRow {
     } else if (longVal instanceof LocalDate) {
       return ((LocalDate) longVal).toEpochDay();
     } else {
-      throw new IllegalStateException("Unknown type for long field. Type name: " + longVal.getClass().getName());
+      throw new IllegalStateException(
+          "Unknown type for long field. Type name: " + longVal.getClass().getName());
     }
   }
 
@@ -190,7 +191,8 @@ class StructInternalRow extends InternalRow {
     } else if (bytes instanceof byte[]) {
       return (byte[]) bytes;
     } else {
-      throw new IllegalStateException("Unknown type for binary field. Type name: " + bytes.getClass().getName());
+      throw new IllegalStateException(
+          "Unknown type for binary field. Type name: " + bytes.getClass().getName());
     }
   }
 
@@ -206,8 +208,7 @@ class StructInternalRow extends InternalRow {
 
   private InternalRow getStructInternal(int ordinal, int numFields) {
     return new StructInternalRow(
-        type.fields().get(ordinal).type().asStructType(),
-        struct.get(ordinal, StructLike.class));
+        type.fields().get(ordinal).type().asStructType(), struct.get(ordinal, StructLike.class));
   }
 
   @Override
@@ -227,7 +228,8 @@ class StructInternalRow extends InternalRow {
   }
 
   private MapData getMapInternal(int ordinal) {
-    return mapToMapData(type.fields().get(ordinal).type().asMapType(), struct.get(ordinal, Map.class));
+    return mapToMapData(
+        type.fields().get(ordinal).type().asMapType(), struct.get(ordinal, Map.class));
   }
 
   @Override
@@ -292,31 +294,52 @@ class StructInternalRow extends InternalRow {
       case DOUBLE:
         return fillArray(values, array -> (pos, value) -> array[pos] = value);
       case STRING:
-        return fillArray(values, array ->
-            (BiConsumer<Integer, CharSequence>) (pos, seq) -> array[pos] = UTF8String.fromString(seq.toString()));
+        return fillArray(
+            values,
+            array ->
+                (BiConsumer<Integer, CharSequence>)
+                    (pos, seq) -> array[pos] = UTF8String.fromString(seq.toString()));
       case FIXED:
       case BINARY:
-        return fillArray(values, array ->
-            (BiConsumer<Integer, ByteBuffer>) (pos, buf) -> array[pos] = ByteBuffers.toByteArray(buf));
+        return fillArray(
+            values,
+            array ->
+                (BiConsumer<Integer, ByteBuffer>)
+                    (pos, buf) -> array[pos] = ByteBuffers.toByteArray(buf));
       case DECIMAL:
-        return fillArray(values, array ->
-            (BiConsumer<Integer, BigDecimal>) (pos, dec) -> array[pos] = Decimal.apply(dec));
+        return fillArray(
+            values,
+            array ->
+                (BiConsumer<Integer, BigDecimal>) (pos, dec) -> array[pos] = Decimal.apply(dec));
       case STRUCT:
-        return fillArray(values, array -> (BiConsumer<Integer, StructLike>) (pos, tuple) ->
-            array[pos] = new StructInternalRow(elementType.asStructType(), tuple));
+        return fillArray(
+            values,
+            array ->
+                (BiConsumer<Integer, StructLike>)
+                    (pos, tuple) ->
+                        array[pos] = new StructInternalRow(elementType.asStructType(), tuple));
       case LIST:
-        return fillArray(values, array -> (BiConsumer<Integer, Collection<?>>) (pos, list) ->
-            array[pos] = collectionToArrayData(elementType.asListType().elementType(), list));
+        return fillArray(
+            values,
+            array ->
+                (BiConsumer<Integer, Collection<?>>)
+                    (pos, list) ->
+                        array[pos] =
+                            collectionToArrayData(elementType.asListType().elementType(), list));
       case MAP:
-        return fillArray(values, array -> (BiConsumer<Integer, Map<?, ?>>) (pos, map) ->
-            array[pos] = mapToMapData(elementType.asMapType(), map));
+        return fillArray(
+            values,
+            array ->
+                (BiConsumer<Integer, Map<?, ?>>)
+                    (pos, map) -> array[pos] = mapToMapData(elementType.asMapType(), map));
       default:
         throw new UnsupportedOperationException("Unsupported array element type: " + elementType);
     }
   }
 
   @SuppressWarnings("unchecked")
-  private <T> GenericArrayData fillArray(Collection<?> values, Function<Object[], BiConsumer<Integer, T>> makeSetter) {
+  private <T> GenericArrayData fillArray(
+      Collection<?> values, Function<Object[], BiConsumer<Integer, T>> makeSetter) {
     Object[] array = new Object[values.size()];
     BiConsumer<Integer, T> setter = makeSetter.apply(array);
 

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark;
 
 import java.util.Locale;
@@ -159,7 +158,8 @@ class SparkConfParser {
 
     protected T parse(Function<String, T> conversion, T defaultValue) {
       if (optionName != null) {
-        // use lower case comparison as DataSourceOptions.asMap() in Spark 2 returns a lower case map
+        // use lower case comparison as DataSourceOptions.asMap() in Spark 2 returns a lower case
+        // map
         String optionValue = options.get(optionName.toLowerCase(Locale.ROOT));
         if (optionValue != null) {
           return conversion.apply(optionValue);

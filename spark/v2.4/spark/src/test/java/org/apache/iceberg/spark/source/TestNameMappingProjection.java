@@ -16,8 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.source;
+
+import static org.apache.iceberg.TableProperties.DEFAULT_NAME_MAPPING;
+import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.apache.iceberg.types.Types.NestedField.required;
 
 import java.io.File;
 import java.io.IOException;
@@ -57,29 +60,26 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
-import static org.apache.iceberg.TableProperties.DEFAULT_NAME_MAPPING;
-import static org.apache.iceberg.types.Types.NestedField.optional;
-import static org.apache.iceberg.types.Types.NestedField.required;
-
 public class TestNameMappingProjection extends HiveTableBaseTest {
   private static final Configuration CONF = HiveTableBaseTest.hiveConf;
   private static SparkSession spark = null;
 
-  @Rule
-  public TemporaryFolder temp = new TemporaryFolder();
+  @Rule public TemporaryFolder temp = new TemporaryFolder();
 
   @BeforeClass
   public static void startSpark() {
     String metastoreURI = CONF.get(HiveConf.ConfVars.METASTOREURIS.varname);
 
     // Create a spark session.
-    TestNameMappingProjection.spark = SparkSession.builder().master("local[2]")
-        .enableHiveSupport()
-        .config("spark.hadoop.hive.metastore.uris", metastoreURI)
-        .config("hive.exec.dynamic.partition", "true")
-        .config("hive.exec.dynamic.partition.mode", "nonstrict")
-        .config("spark.sql.legacy.allowCreatingManagedTableUsingNonemptyLocation", "true")
-        .getOrCreate();
+    TestNameMappingProjection.spark =
+        SparkSession.builder()
+            .master("local[2]")
+            .enableHiveSupport()
+            .config("spark.hadoop.hive.metastore.uris", metastoreURI)
+            .config("hive.exec.dynamic.partition", "true")
+            .config("hive.exec.dynamic.partition.mode", "nonstrict")
+            .config("spark.sql.legacy.allowCreatingManagedTableUsingNonemptyLocation", "true")
+            .getOrCreate();
   }
 
   @AfterClass
@@ -98,8 +98,9 @@ public class TestNameMappingProjection extends HiveTableBaseTest {
     orcSchema.addField("name", TypeDescription.createString());
 
     Path dataFilePath = new Path(orcFile.toString(), "name-mapping-data.orc");
-    try (org.apache.orc.Writer writer = OrcFile.createWriter(dataFilePath,
-        OrcFile.writerOptions(new Configuration()).setSchema(orcSchema))) {
+    try (org.apache.orc.Writer writer =
+        OrcFile.createWriter(
+            dataFilePath, OrcFile.writerOptions(new Configuration()).setSchema(orcSchema))) {
       VectorizedRowBatch batch = orcSchema.createRowBatch();
       byte[] aliceVal = "Alice".getBytes(StandardCharsets.UTF_8);
       byte[] bobVal = "Bob".getBytes(StandardCharsets.UTF_8);
@@ -121,12 +122,13 @@ public class TestNameMappingProjection extends HiveTableBaseTest {
     }
 
     File fileWithData = new File(dataFilePath.toString());
-    DataFile orcDataFile = DataFiles.builder(PartitionSpec.unpartitioned())
-        .withFormat("orc")
-        .withFileSizeInBytes(fileWithData.length())
-        .withPath(fileWithData.getAbsolutePath())
-        .withRecordCount(2)
-        .build();
+    DataFile orcDataFile =
+        DataFiles.builder(PartitionSpec.unpartitioned())
+            .withFormat("orc")
+            .withFileSizeInBytes(fileWithData.length())
+            .withPath(fileWithData.getAbsolutePath())
+            .withRecordCount(2)
+            .build();
 
     assertNameMappingProjection(orcDataFile, "orc_table");
   }
@@ -134,12 +136,13 @@ public class TestNameMappingProjection extends HiveTableBaseTest {
   @Test
   public void testAvroReaderWithNameMapping() throws IOException {
     File avroFile = temp.newFile();
-    org.apache.avro.Schema avroSchema = SchemaBuilder.record("TestRecord")
-        .namespace("org.apache.iceberg.spark.data")
-        .fields()
-        .requiredInt("id")
-        .requiredString("name")
-        .endRecord();
+    org.apache.avro.Schema avroSchema =
+        SchemaBuilder.record("TestRecord")
+            .namespace("org.apache.iceberg.spark.data")
+            .fields()
+            .requiredInt("id")
+            .requiredString("name")
+            .endRecord();
 
     org.apache.avro.Schema avroSchemaWithoutIds = RemoveIds.removeIds(avroSchema);
 
@@ -159,42 +162,46 @@ public class TestNameMappingProjection extends HiveTableBaseTest {
     dataFileWriter.append(record2);
     dataFileWriter.close();
 
-    DataFile avroDataFile = DataFiles.builder(PartitionSpec.unpartitioned())
-        .withFormat("avro")
-        .withFileSizeInBytes(avroFile.length())
-        .withPath(avroFile.getAbsolutePath())
-        .withRecordCount(2)
-        .build();
+    DataFile avroDataFile =
+        DataFiles.builder(PartitionSpec.unpartitioned())
+            .withFormat("avro")
+            .withFileSizeInBytes(avroFile.length())
+            .withPath(avroFile.getAbsolutePath())
+            .withRecordCount(2)
+            .build();
 
     assertNameMappingProjection(avroDataFile, "avro_table");
   }
 
   private void assertNameMappingProjection(DataFile dataFile, String tableName) {
-    Schema filteredSchema = new Schema(
-        required(1, "name", Types.StringType.get())
-    );
+    Schema filteredSchema = new Schema(required(1, "name", Types.StringType.get()));
     NameMapping nameMapping = MappingUtil.create(filteredSchema);
 
-    Schema tableSchema = new Schema(
-        required(1, "name", Types.StringType.get()),
-        optional(2, "id", Types.IntegerType.get())
-    );
+    Schema tableSchema =
+        new Schema(
+            required(1, "name", Types.StringType.get()),
+            optional(2, "id", Types.IntegerType.get()));
 
-    Table table = catalog.createTable(
-        org.apache.iceberg.catalog.TableIdentifier.of(DB_NAME, tableName),
-        tableSchema,
-        PartitionSpec.unpartitioned());
+    Table table =
+        catalog.createTable(
+            org.apache.iceberg.catalog.TableIdentifier.of(DB_NAME, tableName),
+            tableSchema,
+            PartitionSpec.unpartitioned());
 
-    table.updateProperties()
+    table
+        .updateProperties()
         .set(DEFAULT_NAME_MAPPING, NameMappingParser.toJson(nameMapping))
         .commit();
 
     table.newFastAppend().appendFile(dataFile).commit();
 
-    List<Row> actual = spark.read().format("iceberg")
-        .load(String.format("%s.%s", DB_NAME, tableName))
-        .filter("name='Alice'")
-        .collectAsList();
+    List<Row> actual =
+        spark
+            .read()
+            .format("iceberg")
+            .load(String.format("%s.%s", DB_NAME, tableName))
+            .filter("name='Alice'")
+            .collectAsList();
 
     Assert.assertEquals("Should project 1 record", 1, actual.size());
     Assert.assertEquals("Should equal to 'Alice'", "Alice", actual.get(0).getString(0));

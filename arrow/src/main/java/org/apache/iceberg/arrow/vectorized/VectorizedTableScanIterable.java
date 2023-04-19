@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.arrow.vectorized;
 
 import java.io.IOException;
@@ -27,10 +26,11 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 
 /**
- * A vectorized implementation of the Iceberg reader that iterates over the table scan.
- * See {@link ArrowReader} for details.
+ * A vectorized implementation of the Iceberg reader that iterates over the table scan. See {@link
+ * ArrowReader} for details.
  */
-public class VectorizedTableScanIterable extends CloseableGroup implements CloseableIterable<ColumnarBatch> {
+public class VectorizedTableScanIterable extends CloseableGroup
+    implements CloseableIterable<ColumnarBatch> {
 
   private static final int BATCH_SIZE_IN_NUM_ROWS = 1 << 16;
 
@@ -39,9 +39,8 @@ public class VectorizedTableScanIterable extends CloseableGroup implements Close
 
   /**
    * Create a new instance using default values for {@code batchSize} and {@code reuseContainers}.
-   * The {@code batchSize} is set to {@link #BATCH_SIZE_IN_NUM_ROWS} and {@code reuseContainers}
-   * is set to {@code false}.
-   *
+   * The {@code batchSize} is set to {@link #BATCH_SIZE_IN_NUM_ROWS} and {@code reuseContainers} is
+   * set to {@code false}.
    */
   public VectorizedTableScanIterable(TableScan scan) {
     this(scan, BATCH_SIZE_IN_NUM_ROWS, false);
@@ -50,7 +49,7 @@ public class VectorizedTableScanIterable extends CloseableGroup implements Close
   /**
    * Create a new instance.
    *
-   * See {@link ArrowReader#ArrowReader(TableScan, int, boolean)} for details.
+   * <p>See {@link ArrowReader#ArrowReader(TableScan, int, boolean)} for details.
    */
   public VectorizedTableScanIterable(TableScan scan, int batchSize, boolean reuseContainers) {
     this.reader = new ArrowReader(scan, batchSize, reuseContainers);

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.source;
 
 import com.fasterxml.jackson.core.JsonGenerator;
@@ -46,10 +45,10 @@ class StreamingOffset extends Offset {
    * An implementation of Spark Structured Streaming Offset, to track the current processed files of
    * Iceberg table.
    *
-   * @param snapshotId             The current processed snapshot id.
-   * @param position               The position of last scanned file in snapshot.
-   * @param scanAllFiles           whether to scan all files in a snapshot; for example, to read
-   *                               all data when starting a stream.
+   * @param snapshotId The current processed snapshot id.
+   * @param position The position of last scanned file in snapshot.
+   * @param scanAllFiles whether to scan all files in a snapshot; for example, to read all data when
+   *     starting a stream.
    */
   StreamingOffset(long snapshotId, long position, boolean scanAllFiles) {
     this.snapshotId = snapshotId;
@@ -65,8 +64,10 @@ class StreamingOffset extends Offset {
       // The version of StreamingOffset. The offset was created with a version number
       // used to validate when deserializing from json string.
       int version = JsonUtil.getInt(VERSION, node);
-      Preconditions.checkArgument(version == CURR_VERSION,
-          "Cannot parse offset JSON: offset version %s is not supported", version);
+      Preconditions.checkArgument(
+          version == CURR_VERSION,
+          "Cannot parse offset JSON: offset version %s is not supported",
+          version);
 
       long snapshotId = JsonUtil.getLong(SNAPSHOT_ID, node);
       int position = JsonUtil.getInt(POSITION, node);
@@ -74,7 +75,8 @@ class StreamingOffset extends Offset {
 
       return new StreamingOffset(snapshotId, position, shouldScanAllFiles);
     } catch (IOException e) {
-      throw new IllegalArgumentException(String.format("Failed to parse StreamingOffset from JSON string %s", json), e);
+      throw new IllegalArgumentException(
+          String.format("Failed to parse StreamingOffset from JSON string %s", json), e);
     }
   }
 
@@ -114,9 +116,9 @@ class StreamingOffset extends Offset {
   public boolean equals(Object obj) {
     if (obj instanceof StreamingOffset) {
       StreamingOffset offset = (StreamingOffset) obj;
-      return offset.snapshotId == snapshotId &&
-          offset.position == position &&
-          offset.scanAllFiles == scanAllFiles;
+      return offset.snapshotId == snapshotId
+          && offset.position == position
+          && offset.scanAllFiles == scanAllFiles;
     } else {
       return false;
     }
@@ -129,7 +131,8 @@ class StreamingOffset extends Offset {
 
   @Override
   public String toString() {
-    return String.format("Streaming Offset[%d: position (%d) scan_all_files (%b)]",
-      snapshotId, position, scanAllFiles);
+    return String.format(
+        "Streaming Offset[%d: position (%d) scan_all_files (%b)]",
+        snapshotId, position, scanAllFiles);
   }
 }

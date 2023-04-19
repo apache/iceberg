@@ -16,8 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.mr.hive;
+
+import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.junit.runners.Parameterized.Parameter;
+import static org.junit.runners.Parameterized.Parameters;
 
 import java.io.IOException;
 import java.text.DateFormat;
@@ -47,33 +50,32 @@ import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
-import static org.apache.iceberg.types.Types.NestedField.optional;
-import static org.junit.runners.Parameterized.Parameter;
-import static org.junit.runners.Parameterized.Parameters;
-
 @RunWith(Parameterized.class)
 public class TestHiveIcebergStorageHandlerTimezone {
   private static final Optional<ThreadLocal<DateFormat>> dateFormat =
-      Optional.ofNullable((ThreadLocal<DateFormat>) DynFields.builder()
-          .hiddenImpl(TimestampWritable.class, "threadLocalDateFormat")
-          .defaultAlwaysNull()
-          .buildStatic()
-          .get());
+      Optional.ofNullable(
+          (ThreadLocal<DateFormat>)
+              DynFields.builder()
+                  .hiddenImpl(TimestampWritable.class, "threadLocalDateFormat")
+                  .defaultAlwaysNull()
+                  .buildStatic()
+                  .get());
 
   private static final Optional<ThreadLocal<TimeZone>> localTimeZone =
-      Optional.ofNullable((ThreadLocal<TimeZone>) DynFields.builder()
-          .hiddenImpl(DateWritable.class, "LOCAL_TIMEZONE")
-          .defaultAlwaysNull()
-          .buildStatic()
-          .get());
+      Optional.ofNullable(
+          (ThreadLocal<TimeZone>)
+              DynFields.builder()
+                  .hiddenImpl(DateWritable.class, "LOCAL_TIMEZONE")
+                  .defaultAlwaysNull()
+                  .buildStatic()
+                  .get());
 
   @Parameters(name = "timezone={0}")
   public static Collection<Object[]> parameters() {
     return ImmutableList.of(
         new String[] {"America/New_York"},
         new String[] {"Asia/Kolkata"},
-        new String[] {"UTC/Greenwich"}
-    );
+        new String[] {"UTC/Greenwich"});
   }
 
   private static TestHiveShell shell;
@@ -83,8 +85,7 @@ public class TestHiveIcebergStorageHandlerTimezone {
   @Parameter(0)
   public String timezoneString;
 
-  @Rule
-  public TemporaryFolder temp = new TemporaryFolder();
+  @Rule public TemporaryFolder temp = new TemporaryFolder();
 
   @BeforeClass
   public static void beforeClass() {
@@ -100,13 +101,17 @@ public class TestHiveIcebergStorageHandlerTimezone {
   public void before() throws IOException {
     TimeZone.setDefault(TimeZone.getTimeZone(timezoneString));
 
-    // Magic to clean cached date format and local timezone for Hive where the default timezone is used/stored in the
+    // Magic to clean cached date format and local timezone for Hive where the default timezone is
+    // used/stored in the
     // cached object
     dateFormat.ifPresent(ThreadLocal::remove);
     localTimeZone.ifPresent(ThreadLocal::remove);
 
-    this.testTables = HiveIcebergStorageHandlerTestUtils.testTables(shell, TestTables.TestTableType.HIVE_CATALOG, temp);
-    // Uses spark as an engine so we can detect if we unintentionally try to use any execution engines
+    this.testTables =
+        HiveIcebergStorageHandlerTestUtils.testTables(
+            shell, TestTables.TestTableType.HIVE_CATALOG, temp);
+    // Uses spark as an engine so we can detect if we unintentionally try to use any execution
+    // engines
     HiveIcebergStorageHandlerTestUtils.init(shell, testTables, temp, "spark");
   }
 
@@ -119,18 +124,22 @@ public class TestHiveIcebergStorageHandlerTimezone {
   public void testDateQuery() throws IOException {
     Schema dateSchema = new Schema(optional(1, "d_date", Types.DateType.get()));
 
-    List<Record> records = TestHelper.RecordsBuilder.newInstance(dateSchema)
-        .add(LocalDate.of(2020, 1, 21))
-        .add(LocalDate.of(2020, 1, 24))
-        .build();
+    List<Record> records =
+        TestHelper.RecordsBuilder.newInstance(dateSchema)
+            .add(LocalDate.of(2020, 1, 21))
+            .add(LocalDate.of(2020, 1, 24))
+            .build();
 
     testTables.createTable(shell, "date_test", dateSchema, FileFormat.PARQUET, records);
 
-    List<Object[]> result = shell.executeStatement("SELECT * from date_test WHERE d_date='2020-01-21'");
+    List<Object[]> result =
+        shell.executeStatement("SELECT * from date_test WHERE d_date='2020-01-21'");
     Assert.assertEquals(1, result.size());
     Assert.assertEquals("2020-01-21", result.get(0)[0]);
 
-    result = shell.executeStatement("SELECT * from date_test WHERE d_date in ('2020-01-21', '2020-01-22')");
+    result =
+        shell.executeStatement(
+            "SELECT * from date_test WHERE d_date in ('2020-01-21', '2020-01-22')");
     Assert.assertEquals(1, result.size());
     Assert.assertEquals("2020-01-21", result.get(0)[0]);
 
@@ -146,23 +155,27 @@ public class TestHiveIcebergStorageHandlerTimezone {
   public void testTimestampQuery() throws IOException {
     Schema timestampSchema = new Schema(optional(1, "d_ts", Types.TimestampType.withoutZone()));
 
-    List<Record> records = TestHelper.RecordsBuilder.newInstance(timestampSchema)
-        .add(LocalDateTime.of(2019, 1, 22, 9, 44, 54, 100000000))
-        .add(LocalDateTime.of(2019, 2, 22, 9, 44, 54, 200000000))
-        .build();
+    List<Record> records =
+        TestHelper.RecordsBuilder.newInstance(timestampSchema)
+            .add(LocalDateTime.of(2019, 1, 22, 9, 44, 54, 100000000))
+            .add(LocalDateTime.of(2019, 2, 22, 9, 44, 54, 200000000))
+            .build();
 
     testTables.createTable(shell, "ts_test", timestampSchema, FileFormat.PARQUET, records);
 
-    List<Object[]> result = shell.executeStatement("SELECT d_ts FROM ts_test WHERE d_ts='2019-02-22 09:44:54.2'");
+    List<Object[]> result =
+        shell.executeStatement("SELECT d_ts FROM ts_test WHERE d_ts='2019-02-22 09:44:54.2'");
     Assert.assertEquals(1, result.size());
     Assert.assertEquals("2019-02-22 09:44:54.2", result.get(0)[0]);
 
-    result = shell.executeStatement(
-        "SELECT * FROM ts_test WHERE d_ts in ('2017-01-01 22:30:57.1', '2019-02-22 09:44:54.2')");
+    result =
+        shell.executeStatement(
+            "SELECT * FROM ts_test WHERE d_ts in ('2017-01-01 22:30:57.1', '2019-02-22 09:44:54.2')");
     Assert.assertEquals(1, result.size());
     Assert.assertEquals("2019-02-22 09:44:54.2", result.get(0)[0]);
 
-    result = shell.executeStatement("SELECT d_ts FROM ts_test WHERE d_ts < '2019-02-22 09:44:54.2'");
+    result =
+        shell.executeStatement("SELECT d_ts FROM ts_test WHERE d_ts < '2019-02-22 09:44:54.2'");
     Assert.assertEquals(1, result.size());
     Assert.assertEquals("2019-01-22 09:44:54.1", result.get(0)[0]);
 

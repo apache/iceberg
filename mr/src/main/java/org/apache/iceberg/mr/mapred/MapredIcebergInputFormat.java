@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.mr.mapred;
 
 import java.io.IOException;
@@ -54,8 +53,8 @@ public class MapredIcebergInputFormat<T> implements InputFormat<Void, Container<
   }
 
   /**
-   * Configures the {@code JobConf} to use the {@code MapredIcebergInputFormat} and
-   * returns a helper to add further configuration.
+   * Configures the {@code JobConf} to use the {@code MapredIcebergInputFormat} and returns a helper
+   * to add further configuration.
    *
    * @param job the {@code JobConf} to configure
    */
@@ -66,26 +65,29 @@ public class MapredIcebergInputFormat<T> implements InputFormat<Void, Container<
 
   @Override
   public InputSplit[] getSplits(JobConf job, int numSplits) throws IOException {
-    return innerInputFormat.getSplits(newJobContext(job))
-                           .stream()
-                           .map(InputSplit.class::cast)
-                           .toArray(InputSplit[]::new);
+    return innerInputFormat.getSplits(newJobContext(job)).stream()
+        .map(InputSplit.class::cast)
+        .toArray(InputSplit[]::new);
   }
 
   @Override
-  public RecordReader<Void, Container<T>> getRecordReader(InputSplit split, JobConf job,
-                                                          Reporter reporter) throws IOException {
+  public RecordReader<Void, Container<T>> getRecordReader(
+      InputSplit split, JobConf job, Reporter reporter) throws IOException {
     IcebergSplit icebergSplit = ((IcebergSplitContainer) split).icebergSplit();
     return new MapredIcebergRecordReader<>(innerInputFormat, icebergSplit, job, reporter);
   }
 
-
-  private static final class MapredIcebergRecordReader<T> extends AbstractMapredIcebergRecordReader<Container<T>> {
+  private static final class MapredIcebergRecordReader<T>
+      extends AbstractMapredIcebergRecordReader<Container<T>> {
 
     private final long splitLength; // for getPos()
 
-    MapredIcebergRecordReader(org.apache.iceberg.mr.mapreduce.IcebergInputFormat<T> mapreduceInputFormat,
-                              IcebergSplit split, JobConf job, Reporter reporter) throws IOException {
+    MapredIcebergRecordReader(
+        org.apache.iceberg.mr.mapreduce.IcebergInputFormat<T> mapreduceInputFormat,
+        IcebergSplit split,
+        JobConf job,
+        Reporter reporter)
+        throws IOException {
       super(mapreduceInputFormat, split, job, reporter);
       splitLength = split.getLength();
     }
@@ -114,18 +116,17 @@ public class MapredIcebergInputFormat<T> implements InputFormat<Void, Container<
     public long getPos() throws IOException {
       return (long) (splitLength * getProgress());
     }
-
   }
 
   private static JobContext newJobContext(JobConf job) {
-    JobID jobID = Optional.ofNullable(JobID.forName(job.get(JobContext.ID)))
-            .orElseGet(JobID::new);
+    JobID jobID = Optional.ofNullable(JobID.forName(job.get(JobContext.ID))).orElseGet(JobID::new);
 
     return new JobContextImpl(job, jobID);
   }
 
   public static TaskAttemptContext newTaskAttemptContext(JobConf job, Reporter reporter) {
-    TaskAttemptID taskAttemptID = Optional.ofNullable(TaskAttemptID.forName(job.get(JobContext.TASK_ATTEMPT_ID)))
+    TaskAttemptID taskAttemptID =
+        Optional.ofNullable(TaskAttemptID.forName(job.get(JobContext.TASK_ATTEMPT_ID)))
             .orElseGet(TaskAttemptID::new);
 
     return new CompatibilityTaskAttemptContextImpl(job, taskAttemptID, reporter);
@@ -136,7 +137,8 @@ public class MapredIcebergInputFormat<T> implements InputFormat<Void, Container<
 
     private final Reporter legacyReporter;
 
-    public CompatibilityTaskAttemptContextImpl(Configuration conf, TaskAttemptID taskId, Reporter reporter) {
+    public CompatibilityTaskAttemptContextImpl(
+        Configuration conf, TaskAttemptID taskId, Reporter reporter) {
       super(conf, taskId, toStatusReporter(reporter));
       this.legacyReporter = reporter;
     }

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import java.util.Map;
@@ -25,6 +24,8 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
+import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -35,6 +36,8 @@ import org.slf4j.LoggerFactory;
 
 public abstract class BaseMetastoreCatalog implements Catalog {
   private static final Logger LOG = LoggerFactory.getLogger(BaseMetastoreCatalog.class);
+
+  private MetricsReporter metricsReporter;
 
   @Override
   public Table loadTable(TableIdentifier identifier) {
@@ -51,7 +54,7 @@ public abstract class BaseMetastoreCatalog implements Catalog {
         }
 
       } else {
-        result = new BaseTable(ops, fullTableName(name(), identifier));
+        result = new BaseTable(ops, fullTableName(name(), identifier), metricsReporter());
       }
 
     } else if (isValidMetadataIdentifier(identifier)) {
@@ -63,6 +66,27 @@ public abstract class BaseMetastoreCatalog implements Catalog {
 
     LOG.info("Table loaded by catalog: {}", result);
     return result;
+  }
+
+  @Override
+  public Table registerTable(TableIdentifier identifier, String metadataFileLocation) {
+    Preconditions.checkArgument(
+        identifier != null && isValidIdentifier(identifier), "Invalid identifier: %s", identifier);
+    Preconditions.checkArgument(
+        metadataFileLocation != null && !metadataFileLocation.isEmpty(),
+        "Cannot register an empty metadata file location as a table");
+
+    // Throw an exception if this table already exists in the catalog.
+    if (tableExists(identifier)) {
+      throw new AlreadyExistsException("Table already exists: %s", identifier);
+    }
+
+    TableOperations ops = newTableOps(identifier);
+    InputFile metadataFile = ops.io().newInputFile(metadataFileLocation);
+    TableMetadata metadata = TableMetadataParser.read(ops.io(), metadataFile);
+    ops.commit(null, metadata);
+
+    return new BaseTable(ops, fullTableName(name(), identifier), metricsReporter());
   }
 
   @Override
@@ -80,15 +104,16 @@ public abstract class BaseMetastoreCatalog implements Catalog {
         throw new NoSuchTableException("Table does not exist: %s", baseTableIdentifier);
       }
 
-      return MetadataTableUtils.createMetadataTableInstance(ops, name(), baseTableIdentifier, identifier, type);
+      return MetadataTableUtils.createMetadataTableInstance(
+          ops, name(), baseTableIdentifier, identifier, type);
     } else {
       throw new NoSuchTableException("Table does not exist: %s", identifier);
     }
   }
 
   private boolean isValidMetadataIdentifier(TableIdentifier identifier) {
-    return MetadataTableType.from(identifier.name()) != null &&
-        isValidIdentifier(TableIdentifier.of(identifier.namespace().levels()));
+    return MetadataTableType.from(identifier.name()) != null
+        && isValidIdentifier(TableIdentifier.of(identifier.namespace().levels()));
   }
 
   protected boolean isValidIdentifier(TableIdentifier tableIdentifier) {
@@ -118,7 +143,8 @@ public abstract class BaseMetastoreCatalog implements Catalog {
     private String location = null;
 
     public BaseMetastoreCatalogTableBuilder(TableIdentifier identifier, Schema schema) {
-      Preconditions.checkArgument(isValidIdentifier(identifier), "Invalid table identifier: %s", identifier);
+      Preconditions.checkArgument(
+          isValidIdentifier(identifier), "Invalid table identifier: %s", identifier);
 
       this.identifier = identifier;
       this.schema = schema;
@@ -166,7 +192,8 @@ public abstract class BaseMetastoreCatalog implements Catalog {
 
       String baseLocation = location != null ? location : defaultWarehouseLocation(identifier);
       tableProperties.putAll(tableOverrideProperties());
-      TableMetadata metadata = TableMetadata.newTableMetadata(schema, spec, sortOrder, baseLocation, tableProperties);
+      TableMetadata metadata =
+          TableMetadata.newTableMetadata(schema, spec, sortOrder, baseLocation, tableProperties);
 
       try {
         ops.commit(null, metadata);
@@ -174,7 +201,7 @@ public abstract class BaseMetastoreCatalog implements Catalog {
         throw new AlreadyExistsException("Table was created concurrently: %s", identifier);
       }
 
-      return new BaseTable(ops, fullTableName(name(), identifier));
+      return new BaseTable(ops, fullTableName(name(), identifier), metricsReporter());
     }
 
     @Override
@@ -186,7 +213,8 @@ public abstract class BaseMetastoreCatalog implements Catalog {
 
       String baseLocation = location != null ? location : defaultWarehouseLocation(identifier);
       tableProperties.putAll(tableOverrideProperties());
-      TableMetadata metadata = TableMetadata.newTableMetadata(schema, spec, sortOrder, baseLocation, tableProperties);
+      TableMetadata metadata =
+          TableMetadata.newTableMetadata(schema, spec, sortOrder, baseLocation, tableProperties);
       return Transactions.createTableTransaction(identifier.toString(), ops, metadata);
     }
 
@@ -210,10 +238,12 @@ public abstract class BaseMetastoreCatalog implements Catalog {
       tableProperties.putAll(tableOverrideProperties());
       if (ops.current() != null) {
         String baseLocation = location != null ? location : ops.current().location();
-        metadata = ops.current().buildReplacement(schema, spec, sortOrder, baseLocation, tableProperties);
+        metadata =
+            ops.current().buildReplacement(schema, spec, sortOrder, baseLocation, tableProperties);
       } else {
         String baseLocation = location != null ? location : defaultWarehouseLocation(identifier);
-        metadata = TableMetadata.newTableMetadata(schema, spec, sortOrder, baseLocation, tableProperties);
+        metadata =
+            TableMetadata.newTableMetadata(schema, spec, sortOrder, baseLocation, tableProperties);
       }
 
       if (orCreate) {
@@ -231,7 +261,9 @@ public abstract class BaseMetastoreCatalog implements Catalog {
     private Map<String, String> tableDefaultProperties() {
       Map<String, String> tableDefaultProperties =
           PropertyUtil.propertiesWithPrefix(properties(), CatalogProperties.TABLE_DEFAULT_PREFIX);
-      LOG.info("Table properties set at catalog level through catalog properties: {}", tableDefaultProperties);
+      LOG.info(
+          "Table properties set at catalog level through catalog properties: {}",
+          tableDefaultProperties);
       return tableDefaultProperties;
     }
 
@@ -243,7 +275,9 @@ public abstract class BaseMetastoreCatalog implements Catalog {
     private Map<String, String> tableOverrideProperties() {
       Map<String, String> tableOverrideProperties =
           PropertyUtil.propertiesWithPrefix(properties(), CatalogProperties.TABLE_OVERRIDE_PREFIX);
-      LOG.info("Table properties enforced at catalog level through catalog properties: {}", tableOverrideProperties);
+      LOG.info(
+          "Table properties enforced at catalog level through catalog properties: {}",
+          tableOverrideProperties);
       return tableOverrideProperties;
     }
   }
@@ -269,5 +303,13 @@ public abstract class BaseMetastoreCatalog implements Catalog {
     sb.append(identifier.name());
 
     return sb.toString();
+  }
+
+  private MetricsReporter metricsReporter() {
+    if (metricsReporter == null) {
+      metricsReporter = CatalogUtil.loadMetricsReporter(properties());
+    }
+
+    return metricsReporter;
   }
 }

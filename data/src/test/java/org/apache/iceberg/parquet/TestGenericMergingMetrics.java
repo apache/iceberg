@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.parquet;
 
 import java.io.IOException;
@@ -35,8 +34,9 @@ public class TestGenericMergingMetrics extends TestMergingMetrics<Record> {
 
   @Override
   protected FileAppender<Record> writeAndGetAppender(List<Record> records) throws IOException {
-    FileAppender<Record> appender = new GenericAppenderFactory(SCHEMA).newAppender(
-        org.apache.iceberg.Files.localOutput(temp.newFile()), fileFormat);
+    FileAppender<Record> appender =
+        new GenericAppenderFactory(SCHEMA)
+            .newAppender(org.apache.iceberg.Files.localOutput(temp.newFile()), fileFormat);
     try (FileAppender<Record> fileAppender = appender) {
       records.forEach(fileAppender::add);
     }

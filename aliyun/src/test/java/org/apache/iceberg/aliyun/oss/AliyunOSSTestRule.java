@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.aliyun.oss;
 
 import com.aliyun.oss.OSS;
@@ -26,16 +25,15 @@ import org.junit.runner.Description;
 import org.junit.runners.model.Statement;
 
 /**
- * API for test Aliyun Object Storage Service (OSS) which is either local mock http server or remote aliyun oss server
- * <p>
- * This API includes start,stop OSS service, create OSS client, setup bucket and teardown bucket.
+ * API for test Aliyun Object Storage Service (OSS) which is either local mock http server or remote
+ * aliyun oss server
+ *
+ * <p>This API includes start,stop OSS service, create OSS client, setup bucket and teardown bucket.
  */
 public interface AliyunOSSTestRule extends TestRule {
   UUID RANDOM_UUID = java.util.UUID.randomUUID();
 
-  /**
-   * Returns a specific bucket name for testing purpose.
-   */
+  /** Returns a specific bucket name for testing purpose. */
   default String testBucketName() {
     return String.format("oss-testing-bucket-%s", RANDOM_UUID);
   }
@@ -56,9 +54,10 @@ public interface AliyunOSSTestRule extends TestRule {
   }
 
   /**
-   * Returns the common key prefix for those newly created objects in test cases. For example, we set the test bucket
-   * to be 'oss-testing-bucket' and the key prefix to be 'iceberg-objects/', then the produced objects in test cases
-   * will be:
+   * Returns the common key prefix for those newly created objects in test cases. For example, we
+   * set the test bucket to be 'oss-testing-bucket' and the key prefix to be 'iceberg-objects/',
+   * then the produced objects in test cases will be:
+   *
    * <pre>
    *   oss://oss-testing-bucket/iceberg-objects/a.dat
    *   oss://oss-testing-bucket/iceberg-objects/b.dat
@@ -67,28 +66,21 @@ public interface AliyunOSSTestRule extends TestRule {
    */
   String keyPrefix();
 
-  /**
-   * Start the Aliyun Object storage services application that the OSS client could connect to.
-   */
+  /** Start the Aliyun Object storage services application that the OSS client could connect to. */
   void start();
 
-  /**
-   * Stop the Aliyun object storage services.
-   */
+  /** Stop the Aliyun object storage services. */
   void stop();
 
-  /**
-   * Returns an newly created {@link OSS} client.
-   */
+  /** Returns an newly created {@link OSS} client. */
   OSS createOSSClient();
 
   /**
-   * Preparation work of bucket for the test case, for example we need to check the existence of specific bucket.
+   * Preparation work of bucket for the test case, for example we need to check the existence of
+   * specific bucket.
    */
   void setUpBucket(String bucket);
 
-  /**
-   * Clean all the objects that created from this test suite in the bucket.
-   */
+  /** Clean all the objects that created from this test suite in the bucket. */
   void tearDownBucket(String bucket);
 }

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.sql;
 
 import java.sql.Timestamp;
@@ -50,32 +49,35 @@ public class TestTimestampWithoutZone extends SparkCatalogTestBase {
   private static final String newTableName = "created_table";
   private final Map<String, String> config;
 
-  private static final Schema schema = new Schema(
+  private static final Schema schema =
+      new Schema(
           Types.NestedField.required(1, "id", Types.LongType.get()),
           Types.NestedField.required(2, "ts", Types.TimestampType.withoutZone()),
-          Types.NestedField.required(3, "tsz", Types.TimestampType.withZone())
-  );
+          Types.NestedField.required(3, "tsz", Types.TimestampType.withZone()));
 
-  private final List<Object[]> values = ImmutableList.of(
+  private final List<Object[]> values =
+      ImmutableList.of(
           row(1L, toTimestamp("2021-01-01T00:00:00.0"), toTimestamp("2021-02-01T00:00:00.0")),
           row(2L, toTimestamp("2021-01-01T00:00:00.0"), toTimestamp("2021-02-01T00:00:00.0")),
-          row(3L, toTimestamp("2021-01-01T00:00:00.0"), toTimestamp("2021-02-01T00:00:00.0"))
-  );
+          row(3L, toTimestamp("2021-01-01T00:00:00.0"), toTimestamp("2021-02-01T00:00:00.0")));
 
   @Parameterized.Parameters(name = "catalogName = {0}, implementation = {1}, config = {2}")
   public static Object[][] parameters() {
-    return new Object[][]{{"spark_catalog",
-            SparkSessionCatalog.class.getName(),
-            ImmutableMap.of(
-                    "type", "hive",
-                    "default-namespace", "default",
-                    "parquet-enabled", "true",
-                    "cache-enabled", "false"
-            )}
+    return new Object[][] {
+      {
+        "spark_catalog",
+        SparkSessionCatalog.class.getName(),
+        ImmutableMap.of(
+            "type", "hive",
+            "default-namespace", "default",
+            "parquet-enabled", "true",
+            "cache-enabled", "false")
+      }
     };
   }
 
-  public TestTimestampWithoutZone(String catalogName, String implementation, Map<String, String> config) {
+  public TestTimestampWithoutZone(
+      String catalogName, String implementation, Map<String, String> config) {
     super(catalogName, implementation, config);
     this.config = config;
   }
@@ -94,8 +96,10 @@ public class TestTimestampWithoutZone extends SparkCatalogTestBase {
   @Test
   public void testWriteTimestampWithoutZoneError() {
     AssertHelpers.assertThrows(
-        String.format("Write operation performed on a timestamp without timezone field while " +
-            "'%s' set to false should throw exception", SparkSQLProperties.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE),
+        String.format(
+            "Write operation performed on a timestamp without timezone field while "
+                + "'%s' set to false should throw exception",
+            SparkSQLProperties.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE),
         IllegalArgumentException.class,
         SparkUtil.TIMESTAMP_WITHOUT_TIMEZONE_ERROR,
         () -> sql("INSERT INTO %s VALUES %s", tableName, rowToSqlValues(values)));
@@ -103,72 +107,98 @@ public class TestTimestampWithoutZone extends SparkCatalogTestBase {
 
   @Test
   public void testAppendTimestampWithoutZone() {
-    withSQLConf(ImmutableMap.of(SparkSQLProperties.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE, "true"), () -> {
-      sql("INSERT INTO %s VALUES %s", tableName, rowToSqlValues(values));
+    withSQLConf(
+        ImmutableMap.of(SparkSQLProperties.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE, "true"),
+        () -> {
+          sql("INSERT INTO %s VALUES %s", tableName, rowToSqlValues(values));
 
-      Assert.assertEquals("Should have " + values.size() + " row",
-              (long) values.size(), scalarSql("SELECT count(*) FROM %s", tableName));
+          Assert.assertEquals(
+              "Should have " + values.size() + " row",
+              (long) values.size(),
+              scalarSql("SELECT count(*) FROM %s", tableName));
 
-      assertEquals("Row data should match expected",
-              values, sql("SELECT * FROM %s ORDER BY id", tableName));
-    });
+          assertEquals(
+              "Row data should match expected",
+              values,
+              sql("SELECT * FROM %s ORDER BY id", tableName));
+        });
   }
 
   @Test
   public void testCreateAsSelectWithTimestampWithoutZone() {
-    withSQLConf(ImmutableMap.of(SparkSQLProperties.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE, "true"), () -> {
-      sql("INSERT INTO %s VALUES %s", tableName, rowToSqlValues(values));
+    withSQLConf(
+        ImmutableMap.of(SparkSQLProperties.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE, "true"),
+        () -> {
+          sql("INSERT INTO %s VALUES %s", tableName, rowToSqlValues(values));
 
-      sql("CREATE TABLE %s USING iceberg AS SELECT * FROM %s", newTableName, tableName);
+          sql("CREATE TABLE %s USING iceberg AS SELECT * FROM %s", newTableName, tableName);
 
-      Assert.assertEquals("Should have " + values.size() + " row", (long) values.size(),
+          Assert.assertEquals(
+              "Should have " + values.size() + " row",
+              (long) values.size(),
               scalarSql("SELECT count(*) FROM %s", newTableName));
 
-      assertEquals("Row data should match expected",
+          assertEquals(
+              "Row data should match expected",
               sql("SELECT * FROM %s ORDER BY id", tableName),
               sql("SELECT * FROM %s ORDER BY id", newTableName));
-    });
+        });
   }
 
   @Test
   public void testCreateNewTableShouldHaveTimestampWithZoneIcebergType() {
-    withSQLConf(ImmutableMap.of(SparkSQLProperties.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE, "true"), () -> {
-      sql("INSERT INTO %s VALUES %s", tableName, rowToSqlValues(values));
+    withSQLConf(
+        ImmutableMap.of(SparkSQLProperties.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE, "true"),
+        () -> {
+          sql("INSERT INTO %s VALUES %s", tableName, rowToSqlValues(values));
 
-      sql("CREATE TABLE %s USING iceberg AS SELECT * FROM %s", newTableName, tableName);
+          sql("CREATE TABLE %s USING iceberg AS SELECT * FROM %s", newTableName, tableName);
 
-      Assert.assertEquals("Should have " + values.size() + " row", (long) values.size(),
+          Assert.assertEquals(
+              "Should have " + values.size() + " row",
+              (long) values.size(),
               scalarSql("SELECT count(*) FROM %s", newTableName));
 
-      assertEquals("Data from created table should match data from base table",
+          assertEquals(
+              "Data from created table should match data from base table",
               sql("SELECT * FROM %s ORDER BY id", tableName),
               sql("SELECT * FROM %s ORDER BY id", newTableName));
 
-      Table createdTable = validationCatalog.loadTable(TableIdentifier.of("default", newTableName));
-      assertFieldsType(createdTable.schema(), Types.TimestampType.withZone(), "ts", "tsz");
-    });
+          Table createdTable =
+              validationCatalog.loadTable(TableIdentifier.of("default", newTableName));
+          assertFieldsType(createdTable.schema(), Types.TimestampType.withZone(), "ts", "tsz");
+        });
   }
 
   @Test
   public void testCreateNewTableShouldHaveTimestampWithoutZoneIcebergType() {
-    withSQLConf(ImmutableMap.of(
+    withSQLConf(
+        ImmutableMap.of(
             SparkSQLProperties.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE, "true",
-            SparkSQLProperties.USE_TIMESTAMP_WITHOUT_TIME_ZONE_IN_NEW_TABLES, "true"), () -> {
-        spark.sessionState().catalogManager().currentCatalog()
+            SparkSQLProperties.USE_TIMESTAMP_WITHOUT_TIME_ZONE_IN_NEW_TABLES, "true"),
+        () -> {
+          spark
+              .sessionState()
+              .catalogManager()
+              .currentCatalog()
               .initialize(catalog.name(), new CaseInsensitiveStringMap(config));
-        sql("INSERT INTO %s VALUES %s", tableName, rowToSqlValues(values));
+          sql("INSERT INTO %s VALUES %s", tableName, rowToSqlValues(values));
 
-        sql("CREATE TABLE %s USING iceberg AS SELECT * FROM %s", newTableName, tableName);
+          sql("CREATE TABLE %s USING iceberg AS SELECT * FROM %s", newTableName, tableName);
 
-        Assert.assertEquals("Should have " + values.size() + " row", (long) values.size(),
+          Assert.assertEquals(
+              "Should have " + values.size() + " row",
+              (long) values.size(),
               scalarSql("SELECT count(*) FROM %s", newTableName));
 
-        assertEquals("Row data should match expected",
+          assertEquals(
+              "Row data should match expected",
               sql("SELECT * FROM %s ORDER BY id", tableName),
               sql("SELECT * FROM %s ORDER BY id", newTableName));
-        Table createdTable = validationCatalog.loadTable(TableIdentifier.of("default", newTableName));
-        assertFieldsType(createdTable.schema(), Types.TimestampType.withoutZone(), "ts", "tsz");
-      });
+          Table createdTable =
+              validationCatalog.loadTable(TableIdentifier.of("default", newTableName));
+          assertFieldsType(createdTable.schema(), Types.TimestampType.withoutZone(), "ts", "tsz");
+        });
   }
 
   private Timestamp toTimestamp(String value) {
@@ -176,21 +206,33 @@ public class TestTimestampWithoutZone extends SparkCatalogTestBase {
   }
 
   private String rowToSqlValues(List<Object[]> rows) {
-    List<String> rowValues = rows.stream().map(row -> {
-      List<String> columns = Arrays.stream(row).map(value -> {
-        if (value instanceof Long) {
-          return value.toString();
-        } else if (value instanceof Timestamp) {
-          return String.format("timestamp '%s'", value);
-        }
-        throw new RuntimeException("Type is not supported");
-      }).collect(Collectors.toList());
-      return "(" + Joiner.on(",").join(columns) + ")";
-    }).collect(Collectors.toList());
+    List<String> rowValues =
+        rows.stream()
+            .map(
+                row -> {
+                  List<String> columns =
+                      Arrays.stream(row)
+                          .map(
+                              value -> {
+                                if (value instanceof Long) {
+                                  return value.toString();
+                                } else if (value instanceof Timestamp) {
+                                  return String.format("timestamp '%s'", value);
+                                }
+                                throw new RuntimeException("Type is not supported");
+                              })
+                          .collect(Collectors.toList());
+                  return "(" + Joiner.on(",").join(columns) + ")";
+                })
+            .collect(Collectors.toList());
     return Joiner.on(",").join(rowValues);
   }
 
   private void assertFieldsType(Schema actual, Type.PrimitiveType expected, String... fields) {
-    actual.select(fields).asStruct().fields().forEach(field -> Assert.assertEquals(expected, field.type()));
+    actual
+        .select(fields)
+        .asStruct()
+        .fields()
+        .forEach(field -> Assert.assertEquals(expected, field.type()));
   }
 }

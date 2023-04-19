@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.util;
 
 import java.util.Collection;
@@ -87,8 +86,9 @@ public class PartitionSet implements Set<Pair<Integer, StructLike>> {
   }
 
   public boolean add(int specId, StructLike struct) {
-    Set<StructLike> partitionSet = partitionSetById.computeIfAbsent(specId,
-        id -> StructLikeSet.create(partitionTypeById.get(id)));
+    Set<StructLike> partitionSet =
+        partitionSetById.computeIfAbsent(
+            specId, id -> StructLikeSet.create(partitionTypeById.get(id)));
     return partitionSet.add(struct);
   }
 
@@ -116,8 +116,12 @@ public class PartitionSet implements Set<Pair<Integer, StructLike>> {
 
   @Override
   public Iterator<Pair<Integer, StructLike>> iterator() {
-    Iterable<Iterable<Pair<Integer, StructLike>>> setsAsPairs = Iterables.transform(partitionSetById.entrySet(),
-        idAndSet -> Iterables.transform(idAndSet.getValue(), struct -> Pair.of(idAndSet.getKey(), struct)));
+    Iterable<Iterable<Pair<Integer, StructLike>>> setsAsPairs =
+        Iterables.transform(
+            partitionSetById.entrySet(),
+            idAndSet ->
+                Iterables.transform(
+                    idAndSet.getValue(), struct -> Pair.of(idAndSet.getKey(), struct)));
 
     return Iterables.concat(setsAsPairs).iterator();
   }

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.expressions;
 
 import java.io.Serializable;
@@ -32,23 +31,23 @@ import org.apache.iceberg.util.NaNUtil;
 
 /**
  * Finds the residuals for an {@link Expression} the partitions in the given {@link PartitionSpec}.
- * <p>
- * A residual expression is made by partially evaluating an expression using partition values. For
- * example, if a table is partitioned by day(utc_timestamp) and is read with a filter expression
+ *
+ * <p>A residual expression is made by partially evaluating an expression using partition values.
+ * For example, if a table is partitioned by day(utc_timestamp) and is read with a filter expression
  * utc_timestamp &gt;= a and utc_timestamp &lt;= b, then there are 4 possible residuals expressions
  * for the partition data, d:
+ *
  * <ul>
- * <li>If d &gt; day(a) and d &lt; day(b), the residual is always true</li>
- * <li>If d == day(a) and d != day(b), the residual is utc_timestamp &gt;= a</li>
- * <li>if d == day(b) and d != day(a), the residual is utc_timestamp &lt;= b</li>
- * <li>If d == day(a) == day(b), the residual is utc_timestamp &gt;= a and utc_timestamp &lt;= b
- * </li>
+ *   <li>If d &gt; day(a) and d &lt; day(b), the residual is always true
+ *   <li>If d == day(a) and d != day(b), the residual is utc_timestamp &gt;= a
+ *   <li>if d == day(b) and d != day(a), the residual is utc_timestamp &lt;= b
+ *   <li>If d == day(a) == day(b), the residual is utc_timestamp &gt;= a and utc_timestamp &lt;= b
  * </ul>
- * <p>
- * Partition data is passed using {@link StructLike}. Residuals are returned by
- * {@link #residualFor(StructLike)}.
- * <p>
- * This class is thread-safe.
+ *
+ * <p>Partition data is passed using {@link StructLike}. Residuals are returned by {@link
+ * #residualFor(StructLike)}.
+ *
+ * <p>This class is thread-safe.
  */
 public class ResidualEvaluator implements Serializable {
   private static class UnpartitionedResidualEvaluator extends ResidualEvaluator {
@@ -211,12 +210,16 @@ public class ResidualEvaluator implements Serializable {
 
     @Override
     public <T> Expression startsWith(BoundReference<T> ref, Literal<T> lit) {
-      return ((String) ref.eval(struct)).startsWith((String) lit.value()) ? alwaysTrue() : alwaysFalse();
+      return ((String) ref.eval(struct)).startsWith((String) lit.value())
+          ? alwaysTrue()
+          : alwaysFalse();
     }
 
     @Override
     public <T> Expression notStartsWith(BoundReference<T> ref, Literal<T> lit) {
-      return ((String) ref.eval(struct)).startsWith((String) lit.value()) ? alwaysFalse() : alwaysTrue();
+      return ((String) ref.eval(struct)).startsWith((String) lit.value())
+          ? alwaysFalse()
+          : alwaysTrue();
     }
 
     @Override
@@ -238,7 +241,8 @@ public class ResidualEvaluator implements Serializable {
       for (PartitionField part : parts) {
 
         // checking the strict projection
-        UnboundPredicate<?> strictProjection = ((Transform<T, ?>) part.transform()).projectStrict(part.name(), pred);
+        UnboundPredicate<?> strictProjection =
+            ((Transform<T, ?>) part.transform()).projectStrict(part.name(), pred);
         Expression strictResult = null;
 
         if (strictProjection != null) {
@@ -246,7 +250,8 @@ public class ResidualEvaluator implements Serializable {
           if (bound instanceof BoundPredicate) {
             strictResult = super.predicate((BoundPredicate<?>) bound);
           } else {
-            // if the result is not a predicate, then it must be a constant like alwaysTrue or alwaysFalse
+            // if the result is not a predicate, then it must be a constant like alwaysTrue or
+            // alwaysFalse
             strictResult = bound;
           }
         }
@@ -257,7 +262,8 @@ public class ResidualEvaluator implements Serializable {
         }
 
         // checking the inclusive projection
-        UnboundPredicate<?> inclusiveProjection = ((Transform<T, ?>) part.transform()).project(part.name(), pred);
+        UnboundPredicate<?> inclusiveProjection =
+            ((Transform<T, ?>) part.transform()).project(part.name(), pred);
         Expression inclusiveResult = null;
         if (inclusiveProjection != null) {
           Expression boundInclusive = inclusiveProjection.bind(spec.partitionType(), caseSensitive);
@@ -265,7 +271,8 @@ public class ResidualEvaluator implements Serializable {
             // using predicate method specific to inclusive
             inclusiveResult = super.predicate((BoundPredicate<?>) boundInclusive);
           } else {
-            // if the result is not a predicate, then it must be a constant like alwaysTrue or alwaysFalse
+            // if the result is not a predicate, then it must be a constant like alwaysTrue or
+            // alwaysFalse
             inclusiveResult = boundInclusive;
           }
         }
@@ -274,7 +281,6 @@ public class ResidualEvaluator implements Serializable {
           // If inclusive is false, returning false
           return Expressions.alwaysFalse();
         }
-
       }
 
       // neither strict not inclusive predicate was conclusive, returning the original pred

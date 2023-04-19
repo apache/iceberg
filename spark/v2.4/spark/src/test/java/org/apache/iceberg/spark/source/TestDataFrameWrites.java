@@ -16,8 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.source;
+
+import static org.apache.iceberg.spark.SparkSchemaUtil.convert;
+import static org.apache.iceberg.spark.data.TestHelpers.assertEqualsSafe;
+import static org.apache.iceberg.spark.data.TestHelpers.assertEqualsUnsafe;
 
 import java.io.File;
 import java.io.IOException;
@@ -60,6 +63,7 @@ import org.apache.spark.sql.SaveMode;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.encoders.RowEncoder;
+import org.assertj.core.api.Assertions;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.Assume;
@@ -67,10 +71,6 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
-
-import static org.apache.iceberg.spark.SparkSchemaUtil.convert;
-import static org.apache.iceberg.spark.data.TestHelpers.assertEqualsSafe;
-import static org.apache.iceberg.spark.data.TestHelpers.assertEqualsUnsafe;
 
 @RunWith(Parameterized.class)
 public class TestDataFrameWrites extends AvroDataTest {
@@ -80,7 +80,7 @@ public class TestDataFrameWrites extends AvroDataTest {
 
   @Parameterized.Parameters(name = "format = {0}")
   public static Object[] parameters() {
-    return new Object[] { "parquet", "avro", "orc" };
+    return new Object[] {"parquet", "avro", "orc"};
   }
 
   public TestDataFrameWrites(String format) {
@@ -92,32 +92,36 @@ public class TestDataFrameWrites extends AvroDataTest {
 
   private Map<String, String> tableProperties;
 
-  private org.apache.spark.sql.types.StructType sparkSchema = new org.apache.spark.sql.types.StructType(
-      new org.apache.spark.sql.types.StructField[] {
-          new org.apache.spark.sql.types.StructField(
-              "optionalField",
-              org.apache.spark.sql.types.DataTypes.StringType,
-              true,
-              org.apache.spark.sql.types.Metadata.empty()),
-          new org.apache.spark.sql.types.StructField(
-              "requiredField",
-              org.apache.spark.sql.types.DataTypes.StringType,
-              false,
-              org.apache.spark.sql.types.Metadata.empty())
-      });
+  private org.apache.spark.sql.types.StructType sparkSchema =
+      new org.apache.spark.sql.types.StructType(
+          new org.apache.spark.sql.types.StructField[] {
+            new org.apache.spark.sql.types.StructField(
+                "optionalField",
+                org.apache.spark.sql.types.DataTypes.StringType,
+                true,
+                org.apache.spark.sql.types.Metadata.empty()),
+            new org.apache.spark.sql.types.StructField(
+                "requiredField",
+                org.apache.spark.sql.types.DataTypes.StringType,
+                false,
+                org.apache.spark.sql.types.Metadata.empty())
+          });
 
-  private Schema icebergSchema = new Schema(
-      Types.NestedField.optional(1, "optionalField", Types.StringType.get()),
-      Types.NestedField.required(2, "requiredField", Types.StringType.get()));
+  private Schema icebergSchema =
+      new Schema(
+          Types.NestedField.optional(1, "optionalField", Types.StringType.get()),
+          Types.NestedField.required(2, "requiredField", Types.StringType.get()));
 
-  private List<String> data0 = Arrays.asList(
-      "{\"optionalField\": \"a1\", \"requiredField\": \"bid_001\"}",
-      "{\"optionalField\": \"a2\", \"requiredField\": \"bid_002\"}");
-  private List<String> data1 = Arrays.asList(
-      "{\"optionalField\": \"d1\", \"requiredField\": \"bid_101\"}",
-      "{\"optionalField\": \"d2\", \"requiredField\": \"bid_102\"}",
-      "{\"optionalField\": \"d3\", \"requiredField\": \"bid_103\"}",
-      "{\"optionalField\": \"d4\", \"requiredField\": \"bid_104\"}");
+  private List<String> data0 =
+      Arrays.asList(
+          "{\"optionalField\": \"a1\", \"requiredField\": \"bid_001\"}",
+          "{\"optionalField\": \"a2\", \"requiredField\": \"bid_002\"}");
+  private List<String> data1 =
+      Arrays.asList(
+          "{\"optionalField\": \"d1\", \"requiredField\": \"bid_101\"}",
+          "{\"optionalField\": \"d2\", \"requiredField\": \"bid_102\"}",
+          "{\"optionalField\": \"d3\", \"requiredField\": \"bid_103\"}",
+          "{\"optionalField\": \"d4\", \"requiredField\": \"bid_104\"}");
 
   @BeforeClass
   public static void startSpark() {
@@ -145,8 +149,10 @@ public class TestDataFrameWrites extends AvroDataTest {
     File location = createTableFolder();
     File tablePropertyDataLocation = temp.newFolder("test-table-property-data-dir");
     Table table = createTable(new Schema(SUPPORTED_PRIMITIVES.fields()), location);
-    table.updateProperties().set(
-        TableProperties.WRITE_DATA_LOCATION, tablePropertyDataLocation.getAbsolutePath()).commit();
+    table
+        .updateProperties()
+        .set(TableProperties.WRITE_DATA_LOCATION, tablePropertyDataLocation.getAbsolutePath())
+        .commit();
     writeAndValidateWithLocations(table, location, tablePropertyDataLocation);
   }
 
@@ -162,7 +168,8 @@ public class TestDataFrameWrites extends AvroDataTest {
     return tables.create(schema, PartitionSpec.unpartitioned(), location.toString());
   }
 
-  private void writeAndValidateWithLocations(Table table, File location, File expectedDataDir) throws IOException {
+  private void writeAndValidateWithLocations(Table table, File location, File expectedDataDir)
+      throws IOException {
     Schema tableSchema = table.schema(); // use the table schema because ids are reassigned
 
     table.updateProperties().set(TableProperties.DEFAULT_FILE_FORMAT, format).commit();
@@ -179,47 +186,56 @@ public class TestDataFrameWrites extends AvroDataTest {
     while (expectedIter.hasNext() && actualIter.hasNext()) {
       assertEqualsSafe(tableSchema.asStruct(), expectedIter.next(), actualIter.next());
     }
-    Assert.assertEquals("Both iterators should be exhausted", expectedIter.hasNext(), actualIter.hasNext());
+    Assert.assertEquals(
+        "Both iterators should be exhausted", expectedIter.hasNext(), actualIter.hasNext());
 
-    table.currentSnapshot().addedFiles().forEach(dataFile ->
-        Assert.assertTrue(
-            String.format(
-                "File should have the parent directory %s, but has: %s.",
-                expectedDataDir.getAbsolutePath(),
-                dataFile.path()),
-            URI.create(dataFile.path().toString()).getPath().startsWith(expectedDataDir.getAbsolutePath())));
+    table
+        .currentSnapshot()
+        .addedDataFiles(table.io())
+        .forEach(
+            dataFile ->
+                Assert.assertTrue(
+                    String.format(
+                        "File should have the parent directory %s, but has: %s.",
+                        expectedDataDir.getAbsolutePath(), dataFile.path()),
+                    URI.create(dataFile.path().toString())
+                        .getPath()
+                        .startsWith(expectedDataDir.getAbsolutePath())));
   }
 
   private List<Row> readTable(String location) {
-    Dataset<Row> result = spark.read()
-        .format("iceberg")
-        .load(location);
+    Dataset<Row> result = spark.read().format("iceberg").load(location);
 
     return result.collectAsList();
   }
 
-  private void writeData(Iterable<Record> records, Schema schema, String location) throws IOException {
+  private void writeData(Iterable<Record> records, Schema schema, String location)
+      throws IOException {
     Dataset<Row> df = createDataset(records, schema);
     DataFrameWriter<?> writer = df.write().format("iceberg").mode("append");
     writer.save(location);
   }
 
-  private void writeDataWithFailOnPartition(Iterable<Record> records, Schema schema, String location)
-      throws IOException, SparkException {
+  private void writeDataWithFailOnPartition(
+      Iterable<Record> records, Schema schema, String location) throws IOException, SparkException {
     final int numPartitions = 10;
     final int partitionToFail = new Random().nextInt(numPartitions);
-    MapPartitionsFunction<Row, Row> failOnFirstPartitionFunc = (MapPartitionsFunction<Row, Row>) input -> {
-      int partitionId = TaskContext.getPartitionId();
+    MapPartitionsFunction<Row, Row> failOnFirstPartitionFunc =
+        (MapPartitionsFunction<Row, Row>)
+            input -> {
+              int partitionId = TaskContext.getPartitionId();
 
-      if (partitionId == partitionToFail) {
-        throw new SparkException(String.format("Intended exception in partition %d !", partitionId));
-      }
-      return input;
-    };
+              if (partitionId == partitionToFail) {
+                throw new SparkException(
+                    String.format("Intended exception in partition %d !", partitionId));
+              }
+              return input;
+            };
 
-    Dataset<Row> df = createDataset(records, schema)
-        .repartition(numPartitions)
-        .mapPartitions(failOnFirstPartitionFunc, RowEncoder.apply(convert(schema)));
+    Dataset<Row> df =
+        createDataset(records, schema)
+            .repartition(numPartitions)
+            .mapPartitions(failOnFirstPartitionFunc, RowEncoder.apply(convert(schema)));
     // This trick is needed because Spark 3 handles decimal overflow in RowEncoder which "changes"
     // nullability of the column to "true" regardless of original nullability.
     // Setting "check-nullability" option to "false" doesn't help as it fails at Spark analyzer.
@@ -234,10 +250,8 @@ public class TestDataFrameWrites extends AvroDataTest {
     File testFile = temp.newFile();
     Assert.assertTrue("Delete should succeed", testFile.delete());
 
-    try (FileAppender<Record> writer = Avro.write(Files.localOutput(testFile))
-        .schema(schema)
-        .named("test")
-        .build()) {
+    try (FileAppender<Record> writer =
+        Avro.write(Files.localOutput(testFile)).schema(schema).named("test").build()) {
       for (Record rec : records) {
         writer.add(rec);
       }
@@ -245,10 +259,11 @@ public class TestDataFrameWrites extends AvroDataTest {
 
     // make sure the dataframe matches the records before moving on
     List<InternalRow> rows = Lists.newArrayList();
-    try (AvroIterable<InternalRow> reader = Avro.read(Files.localInput(testFile))
-        .createReaderFunc(SparkAvroReader::new)
-        .project(schema)
-        .build()) {
+    try (AvroIterable<InternalRow> reader =
+        Avro.read(Files.localInput(testFile))
+            .createReaderFunc(SparkAvroReader::new)
+            .project(schema)
+            .build()) {
 
       Iterator<Record> recordIter = records.iterator();
       Iterator<InternalRow> readIter = reader.iterator();
@@ -257,7 +272,8 @@ public class TestDataFrameWrites extends AvroDataTest {
         assertEqualsUnsafe(schema.asStruct(), recordIter.next(), row);
         rows.add(row);
       }
-      Assert.assertEquals("Both iterators should be exhausted", recordIter.hasNext(), readIter.hasNext());
+      Assert.assertEquals(
+          "Both iterators should be exhausted", recordIter.hasNext(), readIter.hasNext());
     }
 
     JavaRDD<InternalRow> rdd = sc.parallelize(rows);
@@ -266,7 +282,8 @@ public class TestDataFrameWrites extends AvroDataTest {
 
   @Test
   public void testNullableWithWriteOption() throws IOException {
-    Assume.assumeTrue("Spark 3.0 rejects writing nulls to a required column", spark.version().startsWith("2"));
+    Assume.assumeTrue(
+        "Spark 3 rejects writing nulls to a required column", spark.version().startsWith("2"));
 
     File location = new File(temp.newFolder("parquet"), "test");
     String sourcePath = String.format("%s/nullable_poc/sourceFolder/", location.toString());
@@ -276,9 +293,11 @@ public class TestDataFrameWrites extends AvroDataTest {
 
     // read this and append to iceberg dataset
     spark
-        .read().schema(sparkSchema).json(
-        JavaSparkContext.fromSparkContext(spark.sparkContext()).parallelize(data1))
-        .write().parquet(sourcePath);
+        .read()
+        .schema(sparkSchema)
+        .json(JavaSparkContext.fromSparkContext(spark.sparkContext()).parallelize(data1))
+        .write()
+        .parquet(sourcePath);
 
     // this is our iceberg dataset to which we will append data
     new HadoopTables(spark.sessionState().newHadoopConf())
@@ -290,15 +309,24 @@ public class TestDataFrameWrites extends AvroDataTest {
 
     // this is the initial data inside the iceberg dataset
     spark
-        .read().schema(sparkSchema).json(
-        JavaSparkContext.fromSparkContext(spark.sparkContext()).parallelize(data0))
-        .write().format("iceberg").mode(SaveMode.Append).save(targetPath);
+        .read()
+        .schema(sparkSchema)
+        .json(JavaSparkContext.fromSparkContext(spark.sparkContext()).parallelize(data0))
+        .write()
+        .format("iceberg")
+        .mode(SaveMode.Append)
+        .save(targetPath);
 
     // read from parquet and append to iceberg w/ nullability check disabled
     spark
-        .read().schema(SparkSchemaUtil.convert(icebergSchema)).parquet(sourcePath)
-        .write().format("iceberg").option(SparkWriteOptions.CHECK_NULLABILITY, false)
-        .mode(SaveMode.Append).save(targetPath);
+        .read()
+        .schema(SparkSchemaUtil.convert(icebergSchema))
+        .parquet(sourcePath)
+        .write()
+        .format("iceberg")
+        .option(SparkWriteOptions.CHECK_NULLABILITY, false)
+        .mode(SaveMode.Append)
+        .save(targetPath);
 
     // read all data
     List<Row> rows = spark.read().format("iceberg").load(targetPath).collectAsList();
@@ -307,7 +335,8 @@ public class TestDataFrameWrites extends AvroDataTest {
 
   @Test
   public void testNullableWithSparkSqlOption() throws IOException {
-    Assume.assumeTrue("Spark 3.0 rejects writing nulls to a required column", spark.version().startsWith("2"));
+    Assume.assumeTrue(
+        "Spark 3 rejects writing nulls to a required column", spark.version().startsWith("2"));
 
     File location = new File(temp.newFolder("parquet"), "test");
     String sourcePath = String.format("%s/nullable_poc/sourceFolder/", location.toString());
@@ -317,15 +346,18 @@ public class TestDataFrameWrites extends AvroDataTest {
 
     // read this and append to iceberg dataset
     spark
-        .read().schema(sparkSchema).json(
-        JavaSparkContext.fromSparkContext(spark.sparkContext()).parallelize(data1))
-        .write().parquet(sourcePath);
+        .read()
+        .schema(sparkSchema)
+        .json(JavaSparkContext.fromSparkContext(spark.sparkContext()).parallelize(data1))
+        .write()
+        .parquet(sourcePath);
 
-    SparkSession newSparkSession = SparkSession.builder()
-        .master("local[2]")
-        .appName("NullableTest")
-        .config(SparkSQLProperties.CHECK_NULLABILITY, false)
-        .getOrCreate();
+    SparkSession newSparkSession =
+        SparkSession.builder()
+            .master("local[2]")
+            .appName("NullableTest")
+            .config(SparkSQLProperties.CHECK_NULLABILITY, false)
+            .getOrCreate();
 
     // this is our iceberg dataset to which we will append data
     new HadoopTables(newSparkSession.sessionState().newHadoopConf())
@@ -337,19 +369,27 @@ public class TestDataFrameWrites extends AvroDataTest {
 
     // this is the initial data inside the iceberg dataset
     newSparkSession
-        .read().schema(sparkSchema).json(
-        JavaSparkContext.fromSparkContext(spark.sparkContext()).parallelize(data0))
-        .write().format("iceberg").mode(SaveMode.Append).save(targetPath);
+        .read()
+        .schema(sparkSchema)
+        .json(JavaSparkContext.fromSparkContext(spark.sparkContext()).parallelize(data0))
+        .write()
+        .format("iceberg")
+        .mode(SaveMode.Append)
+        .save(targetPath);
 
     // read from parquet and append to iceberg
     newSparkSession
-        .read().schema(SparkSchemaUtil.convert(icebergSchema)).parquet(sourcePath)
-        .write().format("iceberg").mode(SaveMode.Append).save(targetPath);
+        .read()
+        .schema(SparkSchemaUtil.convert(icebergSchema))
+        .parquet(sourcePath)
+        .write()
+        .format("iceberg")
+        .mode(SaveMode.Append)
+        .save(targetPath);
 
     // read all data
     List<Row> rows = newSparkSession.read().format("iceberg").load(targetPath).collectAsList();
     Assert.assertEquals("Should contain 6 rows", 6, rows.size());
-
   }
 
   @Test
@@ -366,13 +406,10 @@ public class TestDataFrameWrites extends AvroDataTest {
     Snapshot snapshotBeforeFailingWrite = table.currentSnapshot();
     List<Row> resultBeforeFailingWrite = readTable(location.toString());
 
-    try {
-      Iterable<Record> records2 = RandomData.generate(schema, 100, 0L);
-      writeDataWithFailOnPartition(records2, schema, location.toString());
-      Assert.fail("The query should fail");
-    } catch (SparkException e) {
-      // no-op
-    }
+    Iterable<Record> records2 = RandomData.generate(schema, 100, 0L);
+    Assertions.assertThatThrownBy(
+            () -> writeDataWithFailOnPartition(records2, schema, location.toString()))
+        .isInstanceOf(SparkException.class);
 
     table.refresh();
 

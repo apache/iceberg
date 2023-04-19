@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.data.parquet;
 
 import java.time.Instant;
@@ -48,7 +47,8 @@ public abstract class BaseParquetWriter<T> {
     return (ParquetValueWriter<T>) ParquetTypeVisitor.visit(type, new WriteBuilder(type));
   }
 
-  protected abstract ParquetValueWriters.StructWriter<T> createStructWriter(List<ParquetValueWriter<?>> writers);
+  protected abstract ParquetValueWriters.StructWriter<T> createStructWriter(
+      List<ParquetValueWriter<?>> writers);
 
   private class WriteBuilder extends ParquetTypeVisitor<ParquetValueWriter<?>> {
     private final MessageType type;
@@ -58,14 +58,15 @@ public abstract class BaseParquetWriter<T> {
     }
 
     @Override
-    public ParquetValueWriter<?> message(MessageType message, List<ParquetValueWriter<?>> fieldWriters) {
+    public ParquetValueWriter<?> message(
+        MessageType message, List<ParquetValueWriter<?>> fieldWriters) {
 
       return struct(message.asGroupType(), fieldWriters);
     }
 
     @Override
-    public ParquetValueWriter<?> struct(GroupType struct,
-                                        List<ParquetValueWriter<?>> fieldWriters) {
+    public ParquetValueWriter<?> struct(
+        GroupType struct, List<ParquetValueWriter<?>> fieldWriters) {
       List<Type> fields = struct.getFields();
       List<ParquetValueWriter<?>> writers = Lists.newArrayListWithExpectedSize(fieldWriters.size());
       for (int i = 0; i < fields.size(); i += 1) {
@@ -88,14 +89,13 @@ public abstract class BaseParquetWriter<T> {
       Type elementType = repeated.getType(0);
       int elementD = type.getMaxDefinitionLevel(path(elementType.getName()));
 
-      return ParquetValueWriters.collections(repeatedD, repeatedR,
-          ParquetValueWriters.option(elementType, elementD, elementWriter));
+      return ParquetValueWriters.collections(
+          repeatedD, repeatedR, ParquetValueWriters.option(elementType, elementD, elementWriter));
     }
 
     @Override
-    public ParquetValueWriter<?> map(GroupType map,
-                                     ParquetValueWriter<?> keyWriter,
-                                     ParquetValueWriter<?> valueWriter) {
+    public ParquetValueWriter<?> map(
+        GroupType map, ParquetValueWriter<?> keyWriter, ParquetValueWriter<?> valueWriter) {
       GroupType repeatedKeyValue = map.getFields().get(0).asGroupType();
       String[] repeatedPath = currentPath();
 
@@ -107,7 +107,9 @@ public abstract class BaseParquetWriter<T> {
       Type valueType = repeatedKeyValue.getType(1);
       int valueD = type.getMaxDefinitionLevel(path(valueType.getName()));
 
-      return ParquetValueWriters.maps(repeatedD, repeatedR,
+      return ParquetValueWriters.maps(
+          repeatedD,
+          repeatedR,
           ParquetValueWriters.option(keyType, keyD, keyWriter),
           ParquetValueWriters.option(valueType, valueD, valueWriter));
     }
@@ -145,8 +147,9 @@ public abstract class BaseParquetWriter<T> {
     }
   }
 
-  private static class LogicalTypeWriterVisitor implements
-      LogicalTypeAnnotation.LogicalTypeAnnotationVisitor<ParquetValueWriters.PrimitiveWriter<?>> {
+  private static class LogicalTypeWriterVisitor
+      implements LogicalTypeAnnotation.LogicalTypeAnnotationVisitor<
+          ParquetValueWriters.PrimitiveWriter<?>> {
     private final ColumnDescriptor desc;
 
     private LogicalTypeWriterVisitor(ColumnDescriptor desc) {
@@ -170,15 +173,18 @@ public abstract class BaseParquetWriter<T> {
         LogicalTypeAnnotation.DecimalLogicalTypeAnnotation decimalType) {
       switch (desc.getPrimitiveType().getPrimitiveTypeName()) {
         case INT32:
-          return Optional.of(ParquetValueWriters.decimalAsInteger(
-              desc, decimalType.getPrecision(), decimalType.getScale()));
+          return Optional.of(
+              ParquetValueWriters.decimalAsInteger(
+                  desc, decimalType.getPrecision(), decimalType.getScale()));
         case INT64:
-          return Optional.of(ParquetValueWriters.decimalAsLong(
-              desc, decimalType.getPrecision(), decimalType.getScale()));
+          return Optional.of(
+              ParquetValueWriters.decimalAsLong(
+                  desc, decimalType.getPrecision(), decimalType.getScale()));
         case BINARY:
         case FIXED_LEN_BYTE_ARRAY:
-          return Optional.of(ParquetValueWriters.decimalAsFixed(
-              desc, decimalType.getPrecision(), decimalType.getScale()));
+          return Optional.of(
+              ParquetValueWriters.decimalAsFixed(
+                  desc, decimalType.getPrecision(), decimalType.getScale()));
       }
       return Optional.empty();
     }
@@ -198,8 +204,10 @@ public abstract class BaseParquetWriter<T> {
     @Override
     public Optional<ParquetValueWriters.PrimitiveWriter<?>> visit(
         LogicalTypeAnnotation.TimestampLogicalTypeAnnotation timestampType) {
-      Preconditions.checkArgument(LogicalTypeAnnotation.TimeUnit.MICROS.equals(timestampType.getUnit()),
-          "Cannot write timestamp in %s, only MICROS is supported", timestampType.getUnit());
+      Preconditions.checkArgument(
+          LogicalTypeAnnotation.TimeUnit.MICROS.equals(timestampType.getUnit()),
+          "Cannot write timestamp in %s, only MICROS is supported",
+          timestampType.getUnit());
       if (timestampType.isAdjustedToUTC()) {
         return Optional.of(new TimestamptzWriter(desc));
       } else {
@@ -210,7 +218,8 @@ public abstract class BaseParquetWriter<T> {
     @Override
     public Optional<ParquetValueWriters.PrimitiveWriter<?>> visit(
         LogicalTypeAnnotation.IntLogicalTypeAnnotation intType) {
-      Preconditions.checkArgument(intType.isSigned() || intType.getBitWidth() < 64,
+      Preconditions.checkArgument(
+          intType.isSigned() || intType.getBitWidth() < 64,
           "Cannot read uint64: not a supported Java type");
       if (intType.getBitWidth() < 64) {
         return Optional.of(ParquetValueWriters.ints(desc));
@@ -264,12 +273,13 @@ public abstract class BaseParquetWriter<T> {
 
     @Override
     public void write(int repetitionLevel, LocalDateTime value) {
-      column.writeLong(repetitionLevel,
-          ChronoUnit.MICROS.between(EPOCH, value.atOffset(ZoneOffset.UTC)));
+      column.writeLong(
+          repetitionLevel, ChronoUnit.MICROS.between(EPOCH, value.atOffset(ZoneOffset.UTC)));
     }
   }
 
-  private static class TimestamptzWriter extends ParquetValueWriters.PrimitiveWriter<OffsetDateTime> {
+  private static class TimestamptzWriter
+      extends ParquetValueWriters.PrimitiveWriter<OffsetDateTime> {
     private TimestamptzWriter(ColumnDescriptor desc) {
       super(desc);
     }

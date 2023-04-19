@@ -16,23 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import java.util.List;
-import org.apache.iceberg.expressions.Expression;
 
-/**
- * A scan task over a range of a single file.
- */
-public interface FileScanTask extends ScanTask {
-  /**
-   * The {@link DataFile file} to scan.
-   *
-   * @return the file to scan
-   */
-  DataFile file();
-
+/** A scan task over a range of bytes in a single data file. */
+public interface FileScanTask extends ContentScanTask<DataFile>, SplittableScanTask<FileScanTask> {
   /**
    * A list of {@link DeleteFile delete files} to apply when reading the task's data file.
    *
@@ -40,44 +29,15 @@ public interface FileScanTask extends ScanTask {
    */
   List<DeleteFile> deletes();
 
-  /**
-   * The {@link PartitionSpec spec} used to store this file.
-   *
-   * @return the partition spec from this file's manifest
-   */
-  PartitionSpec spec();
+  @Override
+  default long sizeBytes() {
+    return length() + deletes().stream().mapToLong(ContentFile::fileSizeInBytes).sum();
+  }
 
-  /**
-   * The starting position of this scan range in the file.
-   *
-   * @return the start position of this scan range
-   */
-  long start();
-
-  /**
-   * The number of bytes to scan from the {@link #start()} position in the file.
-   *
-   * @return the length of this scan range in bytes
-   */
-  long length();
-
-  /**
-   * Returns the residual expression that should be applied to rows in this file scan.
-   * <p>
-   * The residual expression for a file is a filter expression created from the scan's filter, inclusive
-   * any predicates that are true or false for the entire file removed, based on the file's
-   * partition data.
-   *
-   * @return a residual expression to apply to rows from this scan
-   */
-  Expression residual();
-
-  /**
-   * Splits this scan task into component {@link FileScanTask scan tasks}, each of {@code splitSize} size
-   * @param splitSize The size of a component scan task
-   * @return an Iterable of {@link FileScanTask scan tasks}
-   */
-  Iterable<FileScanTask> split(long splitSize);
+  @Override
+  default int filesCount() {
+    return 1 + deletes().size();
+  }
 
   @Override
   default boolean isFileScanTask() {

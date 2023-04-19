@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.source;
 
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -40,5 +39,4 @@ public class TestIcebergSource extends IcebergSource {
   public String extractCatalog(CaseInsensitiveStringMap options) {
     return SparkSession.active().sessionState().catalogManager().currentCatalog().name();
   }
-
 }

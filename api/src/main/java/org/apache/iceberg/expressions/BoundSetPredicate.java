@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.expressions;
 
 import java.util.Set;
@@ -29,8 +28,10 @@ public class BoundSetPredicate<T> extends BoundPredicate<T> {
 
   BoundSetPredicate(Operation op, BoundTerm<T> term, Set<T> lits) {
     super(op, term);
-    Preconditions.checkArgument(op == Operation.IN || op == Operation.NOT_IN,
-        "%s predicate does not support a literal set", op);
+    Preconditions.checkArgument(
+        op == Operation.IN || op == Operation.NOT_IN,
+        "%s predicate does not support a literal set",
+        op);
     this.literalSet = lits;
   }
 
@@ -67,7 +68,8 @@ public class BoundSetPredicate<T> extends BoundPredicate<T> {
 
   @Override
   public boolean isEquivalentTo(Expression other) {
-    // only check bound set predicate; binding will convert sets of a single item to a literal predicate
+    // only check bound set predicate; binding will convert sets of a single item to a literal
+    // predicate
     if (op() == other.op()) {
       BoundSetPredicate<?> pred = (BoundSetPredicate<?>) other;
       return literalSet().equals(pred.literalSet());

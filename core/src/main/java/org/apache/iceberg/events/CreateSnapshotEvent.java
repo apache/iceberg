@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.events;
 
 import java.util.Map;
@@ -29,7 +28,11 @@ public final class CreateSnapshotEvent {
   private final Map<String, String> summary;
 
   public CreateSnapshotEvent(
-      String tableName, String operation, long snapshotId, long sequenceNumber, Map<String, String> summary) {
+      String tableName,
+      String operation,
+      long snapshotId,
+      long sequenceNumber,
+      Map<String, String> summary) {
     this.tableName = tableName;
     this.operation = operation;
     this.snapshotId = snapshotId;

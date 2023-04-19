@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.arrow.vectorized;
 
 import java.util.Arrays;
@@ -25,8 +24,8 @@ import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
- * This class is inspired by Spark's {@code ColumnarBatch}.
- * This class wraps a columnar batch in the result set of an Iceberg table query.
+ * This class is inspired by Spark's {@code ColumnarBatch}. This class wraps a columnar batch in the
+ * result set of an Iceberg table query.
  */
 public class ColumnarBatch implements AutoCloseable {
 
@@ -36,27 +35,32 @@ public class ColumnarBatch implements AutoCloseable {
   ColumnarBatch(int numRows, ColumnVector[] columns) {
     for (int i = 0; i < columns.length; i++) {
       int columnValueCount = columns[i].getFieldVector().getValueCount();
-      Preconditions.checkArgument(numRows == columnValueCount,
-          "Number of rows (=" + numRows + ") != column[" + i + "] size (=" + columnValueCount + ")");
+      Preconditions.checkArgument(
+          numRows == columnValueCount,
+          "Number of rows (="
+              + numRows
+              + ") != column["
+              + i
+              + "] size (="
+              + columnValueCount
+              + ")");
     }
     this.numRows = numRows;
     this.columns = columns;
   }
 
   /**
-   * Create a new instance of {@link VectorSchemaRoot}
-   * from the arrow vectors stored in this arrow batch.
-   * The arrow vectors are owned by the reader.
+   * Create a new instance of {@link VectorSchemaRoot} from the arrow vectors stored in this arrow
+   * batch. The arrow vectors are owned by the reader.
    */
   public VectorSchemaRoot createVectorSchemaRootFromVectors() {
-    return VectorSchemaRoot.of(Arrays.stream(columns)
-        .map(ColumnVector::getFieldVector)
-        .toArray(FieldVector[]::new));
+    return VectorSchemaRoot.of(
+        Arrays.stream(columns).map(ColumnVector::getFieldVector).toArray(FieldVector[]::new));
   }
 
   /**
-   * Called to close all the columns in this batch. It is not valid to access the data after calling this. This must be
-   * called at the end to clean up memory allocations.
+   * Called to close all the columns in this batch. It is not valid to access the data after calling
+   * this. This must be called at the end to clean up memory allocations.
    */
   @Override
   public void close() {
@@ -65,23 +69,17 @@ public class ColumnarBatch implements AutoCloseable {
     }
   }
 
-  /**
-   * Returns the number of columns that make up this batch.
-   */
+  /** Returns the number of columns that make up this batch. */
   public int numCols() {
     return columns.length;
   }
 
-  /**
-   * Returns the number of rows for read, including filtered rows.
-   */
+  /** Returns the number of rows for read, including filtered rows. */
   public int numRows() {
     return numRows;
   }
 
-  /**
-   * Returns the column at `ordinal`.
-   */
+  /** Returns the column at `ordinal`. */
   public ColumnVector column(int ordinal) {
     return columns[ordinal];
   }

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.util;
 
 import org.apache.iceberg.NullOrder;
@@ -39,13 +38,19 @@ class CopySortOrderFields implements SortOrderVisitor<Void> {
   }
 
   @Override
-  public Void bucket(String sourceName, int sourceId, int numBuckets, SortDirection direction, NullOrder nullOrder) {
+  public Void bucket(
+      String sourceName,
+      int sourceId,
+      int numBuckets,
+      SortDirection direction,
+      NullOrder nullOrder) {
     builder.sortBy(Expressions.bucket(sourceName, numBuckets), direction, nullOrder);
     return null;
   }
 
   @Override
-  public Void truncate(String sourceName, int sourceId, int width, SortDirection direction, NullOrder nullOrder) {
+  public Void truncate(
+      String sourceName, int sourceId, int width, SortDirection direction, NullOrder nullOrder) {
     builder.sortBy(Expressions.truncate(sourceName, width), direction, nullOrder);
     return null;
   }

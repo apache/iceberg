@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.types;
 
 import java.util.List;
@@ -34,8 +33,8 @@ class PruneColumns extends TypeUtil.SchemaVisitor<Type> {
 
   /**
    * Visits a schema and returns only the fields selected by the id set.
-   * <p>
-   * When selectFullTypes is false selecting list or map types is undefined and forbidden.
+   *
+   * <p>When selectFullTypes is false selecting list or map types is undefined and forbidden.
    *
    * @param selected ids of elements to return
    * @param selectFullTypes whether to select all subfields of a selected nested type
@@ -68,10 +67,12 @@ class PruneColumns extends TypeUtil.SchemaVisitor<Type> {
         sameTypes = false; // signal that some types were altered
         if (field.isOptional()) {
           selectedFields.add(
-              Types.NestedField.optional(field.fieldId(), field.name(), projectedType, field.doc()));
+              Types.NestedField.optional(
+                  field.fieldId(), field.name(), projectedType, field.doc()));
         } else {
           selectedFields.add(
-              Types.NestedField.required(field.fieldId(), field.name(), projectedType, field.doc()));
+              Types.NestedField.required(
+                  field.fieldId(), field.name(), projectedType, field.doc()));
         }
       }
     }
@@ -95,9 +96,12 @@ class PruneColumns extends TypeUtil.SchemaVisitor<Type> {
       } else if (field.type().isStructType()) {
         return projectSelectedStruct(fieldResult);
       } else {
-        Preconditions.checkArgument(!field.type().isNestedType(),
+        Preconditions.checkArgument(
+            !field.type().isNestedType(),
             "Cannot explicitly project List or Map types, %s:%s of type %s was selected",
-            field.fieldId(), field.name(), field.type());
+            field.fieldId(),
+            field.name(),
+            field.type());
         // Selected non-struct field
         return field.type();
       }
@@ -117,9 +121,11 @@ class PruneColumns extends TypeUtil.SchemaVisitor<Type> {
         StructType projectedStruct = projectSelectedStruct(elementResult);
         return projectList(list, projectedStruct);
       } else {
-        Preconditions.checkArgument(list.elementType().isPrimitiveType(),
+        Preconditions.checkArgument(
+            list.elementType().isPrimitiveType(),
             "Cannot explicitly project List or Map types, List element %s of type %s was selected",
-            list.elementId(), list.elementType());
+            list.elementId(),
+            list.elementType());
         return list;
       }
     } else if (elementResult != null) {
@@ -137,9 +143,11 @@ class PruneColumns extends TypeUtil.SchemaVisitor<Type> {
         Type projectedStruct = projectSelectedStruct(valueResult);
         return projectMap(map, projectedStruct);
       } else {
-        Preconditions.checkArgument(map.valueType().isPrimitiveType(),
+        Preconditions.checkArgument(
+            map.valueType().isPrimitiveType(),
             "Cannot explicitly project List or Map types, Map value %s of type %s was selected",
-            map.valueId(), map.valueType());
+            map.valueId(),
+            map.valueType());
         return map;
       }
     } else if (valueResult != null) {
@@ -157,7 +165,8 @@ class PruneColumns extends TypeUtil.SchemaVisitor<Type> {
   }
 
   private ListType projectList(ListType list, Type elementResult) {
-    Preconditions.checkArgument(elementResult != null, "Cannot project a list when the element result is null");
+    Preconditions.checkArgument(
+        elementResult != null, "Cannot project a list when the element result is null");
     if (list.elementType() == elementResult) {
       return list;
     } else if (list.isElementOptional()) {
@@ -168,7 +177,8 @@ class PruneColumns extends TypeUtil.SchemaVisitor<Type> {
   }
 
   private MapType projectMap(MapType map, Type valueResult) {
-    Preconditions.checkArgument(valueResult != null, "Attempted to project a map without a defined map value type");
+    Preconditions.checkArgument(
+        valueResult != null, "Attempted to project a map without a defined map value type");
     if (map.valueType() == valueResult) {
       return map;
     } else if (map.isValueOptional()) {
@@ -181,6 +191,7 @@ class PruneColumns extends TypeUtil.SchemaVisitor<Type> {
   /**
    * If select full types is disabled we need to recreate the struct with only the selected
    * subfields. If no subfields are selected we return an empty struct.
+   *
    * @param projectedField subfields already selected in this projection
    * @return projected struct
    */

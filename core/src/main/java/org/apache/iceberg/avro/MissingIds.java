@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.avro;
 
 import java.util.List;
@@ -26,11 +25,11 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 
 /**
  * Returns true once the first node is found with ID property missing. Reverse of {@link HasIds}
- * <p>
- * Note: To use {@link AvroSchemaUtil#toIceberg(Schema)} on an avro schema, the avro schema need to be either
- * have IDs on every node or not have IDs at all. Invoke {@link AvroSchemaUtil#hasIds(Schema)} only proves
- * that the schema has at least one ID, and not sufficient condition for invoking
- * {@link AvroSchemaUtil#toIceberg(Schema)} on the schema.
+ *
+ * <p>Note: To use {@link AvroSchemaUtil#toIceberg(Schema)} on an avro schema, the avro schema need
+ * to be either have IDs on every node or not have IDs at all. Invoke {@link
+ * AvroSchemaUtil#hasIds(Schema)} only proves that the schema has at least one ID, and not
+ * sufficient condition for invoking {@link AvroSchemaUtil#toIceberg(Schema)} on the schema.
  */
 class MissingIds extends AvroCustomOrderSchemaVisitor<Boolean, Boolean> {
   @Override
@@ -47,9 +46,9 @@ class MissingIds extends AvroCustomOrderSchemaVisitor<Boolean, Boolean> {
   @Override
   public Boolean map(Schema map, Supplier<Boolean> value) {
     // either this map node is missing (key/value) ID, or the subtree is missing ID somewhere
-    return !AvroSchemaUtil.hasProperty(map, AvroSchemaUtil.KEY_ID_PROP) ||
-        !AvroSchemaUtil.hasProperty(map, AvroSchemaUtil.VALUE_ID_PROP) ||
-        value.get();
+    return !AvroSchemaUtil.hasProperty(map, AvroSchemaUtil.KEY_ID_PROP)
+        || !AvroSchemaUtil.hasProperty(map, AvroSchemaUtil.VALUE_ID_PROP)
+        || value.get();
   }
 
   @Override
@@ -65,7 +64,8 @@ class MissingIds extends AvroCustomOrderSchemaVisitor<Boolean, Boolean> {
 
   @Override
   public Boolean primitive(Schema primitive) {
-    // primitive node cannot be missing ID as Iceberg do not assign primitive node IDs in the first place
+    // primitive node cannot be missing ID as Iceberg do not assign primitive node IDs in the first
+    // place
     return false;
   }
 }

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.io;
 
 import java.io.IOException;
@@ -27,8 +26,8 @@ import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
- * A rolling writer capable of splitting incoming data or deletes into multiple files within one spec/partition
- * based on the target file size.
+ * A rolling writer capable of splitting incoming data or deletes into multiple files within one
+ * spec/partition based on the target file size.
  */
 abstract class RollingFileWriter<T, W extends FileWriter<T, R>, R> implements FileWriter<T, R> {
   private static final int ROWS_DIVISOR = 1000;
@@ -45,8 +44,12 @@ abstract class RollingFileWriter<T, W extends FileWriter<T, R>, R> implements Fi
 
   private boolean closed = false;
 
-  protected RollingFileWriter(OutputFileFactory fileFactory, FileIO io, long targetFileSizeInBytes,
-                              PartitionSpec spec, StructLike partition) {
+  protected RollingFileWriter(
+      OutputFileFactory fileFactory,
+      FileIO io,
+      long targetFileSizeInBytes,
+      PartitionSpec spec,
+      StructLike partition) {
     this.fileFactory = fileFactory;
     this.io = io;
     this.targetFileSizeInBytes = targetFileSizeInBytes;
@@ -78,7 +81,8 @@ abstract class RollingFileWriter<T, W extends FileWriter<T, R>, R> implements Fi
 
   @Override
   public long length() {
-    throw new UnsupportedOperationException(this.getClass().getName() + " does not implement length");
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " does not implement length");
   }
 
   @Override
@@ -124,7 +128,8 @@ abstract class RollingFileWriter<T, W extends FileWriter<T, R>, R> implements Fi
         try {
           io.deleteFile(currentFile.encryptingOutputFile());
         } catch (UncheckedIOException e) {
-          // the file may not have been created, and it isn't worth failing the job to clean up, skip deleting
+          // the file may not have been created, and it isn't worth failing the job to clean up,
+          // skip deleting
         }
       } else {
         addResult(currentWriter.result());

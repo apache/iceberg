@@ -16,15 +16,18 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.source;
+
+import static org.apache.iceberg.Files.localOutput;
+import static org.apache.spark.sql.catalyst.util.DateTimeUtils.fromJavaTimestamp;
+import static org.apache.spark.sql.functions.callUDF;
+import static org.apache.spark.sql.functions.column;
 
 import java.io.File;
 import java.io.IOException;
 import java.sql.Timestamp;
 import java.time.OffsetDateTime;
 import java.util.List;
-import java.util.Locale;
 import java.util.UUID;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.DataFile;
@@ -78,41 +81,31 @@ import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
-import static org.apache.iceberg.Files.localOutput;
-import static org.apache.spark.sql.catalyst.util.DateTimeUtils.fromJavaTimestamp;
-import static org.apache.spark.sql.functions.callUDF;
-import static org.apache.spark.sql.functions.column;
-
 @RunWith(Parameterized.class)
 public class TestFilteredScan {
   private static final Configuration CONF = new Configuration();
   private static final HadoopTables TABLES = new HadoopTables(CONF);
 
-  private static final Schema SCHEMA = new Schema(
-      Types.NestedField.required(1, "id", Types.LongType.get()),
-      Types.NestedField.optional(2, "ts", Types.TimestampType.withZone()),
-      Types.NestedField.optional(3, "data", Types.StringType.get())
-  );
+  private static final Schema SCHEMA =
+      new Schema(
+          Types.NestedField.required(1, "id", Types.LongType.get()),
+          Types.NestedField.optional(2, "ts", Types.TimestampType.withZone()),
+          Types.NestedField.optional(3, "data", Types.StringType.get()));
 
-  private static final PartitionSpec BUCKET_BY_ID = PartitionSpec.builderFor(SCHEMA)
-      .bucket("id", 4)
-      .build();
+  private static final PartitionSpec BUCKET_BY_ID =
+      PartitionSpec.builderFor(SCHEMA).bucket("id", 4).build();
 
-  private static final PartitionSpec PARTITION_BY_DAY = PartitionSpec.builderFor(SCHEMA)
-      .day("ts")
-      .build();
+  private static final PartitionSpec PARTITION_BY_DAY =
+      PartitionSpec.builderFor(SCHEMA).day("ts").build();
 
-  private static final PartitionSpec PARTITION_BY_HOUR = PartitionSpec.builderFor(SCHEMA)
-      .hour("ts")
-      .build();
+  private static final PartitionSpec PARTITION_BY_HOUR =
+      PartitionSpec.builderFor(SCHEMA).hour("ts").build();
 
-  private static final PartitionSpec PARTITION_BY_DATA = PartitionSpec.builderFor(SCHEMA)
-      .identity("data")
-      .build();
+  private static final PartitionSpec PARTITION_BY_DATA =
+      PartitionSpec.builderFor(SCHEMA).identity("data").build();
 
-  private static final PartitionSpec PARTITION_BY_ID = PartitionSpec.builderFor(SCHEMA)
-      .identity("id")
-      .build();
+  private static final PartitionSpec PARTITION_BY_ID =
+      PartitionSpec.builderFor(SCHEMA).identity("id").build();
 
   private static SparkSession spark = null;
 
@@ -125,14 +118,20 @@ public class TestFilteredScan {
     spark.udf().register("bucket4", (UDF1<Long, Integer>) bucket4::apply, IntegerType$.MODULE$);
 
     Transform<Long, Integer> day = Transforms.day(Types.TimestampType.withZone());
-    spark.udf().register("ts_day",
-        (UDF1<Timestamp, Integer>) timestamp -> day.apply((Long) fromJavaTimestamp(timestamp)),
-        IntegerType$.MODULE$);
+    spark
+        .udf()
+        .register(
+            "ts_day",
+            (UDF1<Timestamp, Integer>) timestamp -> day.apply((Long) fromJavaTimestamp(timestamp)),
+            IntegerType$.MODULE$);
 
     Transform<Long, Integer> hour = Transforms.hour(Types.TimestampType.withZone());
-    spark.udf().register("ts_hour",
-        (UDF1<Timestamp, Integer>) timestamp -> hour.apply((Long) fromJavaTimestamp(timestamp)),
-        IntegerType$.MODULE$);
+    spark
+        .udf()
+        .register(
+            "ts_hour",
+            (UDF1<Timestamp, Integer>) timestamp -> hour.apply((Long) fromJavaTimestamp(timestamp)),
+            IntegerType$.MODULE$);
 
     spark.udf().register("data_ident", (UDF1<String, String>) data -> data, StringType$.MODULE$);
     spark.udf().register("id_ident", (UDF1<Long, Long>) id -> id, LongType$.MODULE$);
@@ -145,8 +144,7 @@ public class TestFilteredScan {
     currentSpark.stop();
   }
 
-  @Rule
-  public TemporaryFolder temp = new TemporaryFolder();
+  @Rule public TemporaryFolder temp = new TemporaryFolder();
 
   private final String format;
   private final boolean vectorized;
@@ -154,11 +152,11 @@ public class TestFilteredScan {
   @Parameterized.Parameters(name = "format = {0}, vectorized = {1}")
   public static Object[][] parameters() {
     return new Object[][] {
-        { "parquet", false },
-        { "parquet", true },
-        { "avro", false },
-        { "orc", false },
-        { "orc", true }
+      {"parquet", false},
+      {"parquet", true},
+      {"avro", false},
+      {"orc", false},
+      {"orc", true}
     };
   }
 
@@ -181,32 +179,32 @@ public class TestFilteredScan {
     Table table = TABLES.create(SCHEMA, PartitionSpec.unpartitioned(), unpartitioned.toString());
     Schema tableSchema = table.schema(); // use the table schema because ids are reassigned
 
-    FileFormat fileFormat = FileFormat.valueOf(format.toUpperCase(Locale.ENGLISH));
+    FileFormat fileFormat = FileFormat.fromString(format);
 
     File testFile = new File(dataFolder, fileFormat.addExtension(UUID.randomUUID().toString()));
 
     // create records using the table's schema
     this.records = testRecords(tableSchema);
 
-    try (FileAppender<Record> writer = new GenericAppenderFactory(tableSchema).newAppender(
-        localOutput(testFile), fileFormat)) {
+    try (FileAppender<Record> writer =
+        new GenericAppenderFactory(tableSchema).newAppender(localOutput(testFile), fileFormat)) {
       writer.addAll(records);
     }
 
-    DataFile file = DataFiles.builder(PartitionSpec.unpartitioned())
-        .withRecordCount(records.size())
-        .withFileSizeInBytes(testFile.length())
-        .withPath(testFile.toString())
-        .build();
+    DataFile file =
+        DataFiles.builder(PartitionSpec.unpartitioned())
+            .withRecordCount(records.size())
+            .withFileSizeInBytes(testFile.length())
+            .withPath(testFile.toString())
+            .build();
 
     table.newAppend().appendFile(file).commit();
   }
 
   @Test
   public void testUnpartitionedIDFilters() {
-    DataSourceOptions options = new DataSourceOptions(ImmutableMap.of(
-        "path", unpartitioned.toString())
-    );
+    DataSourceOptions options =
+        new DataSourceOptions(ImmutableMap.of("path", unpartitioned.toString()));
 
     IcebergSource source = new IcebergSource();
 
@@ -219,16 +217,15 @@ public class TestFilteredScan {
       Assert.assertEquals("Should only create one task for a small file", 1, tasks.size());
 
       // validate row filtering
-      assertEqualsSafe(SCHEMA.asStruct(), expected(i),
-          read(unpartitioned.toString(), vectorized, "id = " + i));
+      assertEqualsSafe(
+          SCHEMA.asStruct(), expected(i), read(unpartitioned.toString(), vectorized, "id = " + i));
     }
   }
 
   @Test
   public void testUnpartitionedCaseInsensitiveIDFilters() {
-    DataSourceOptions options = new DataSourceOptions(ImmutableMap.of(
-        "path", unpartitioned.toString())
-    );
+    DataSourceOptions options =
+        new DataSourceOptions(ImmutableMap.of("path", unpartitioned.toString()));
 
     // set spark.sql.caseSensitive to false
     String caseSensitivityBeforeTest = TestFilteredScan.spark.conf().get("spark.sql.caseSensitive");
@@ -240,13 +237,17 @@ public class TestFilteredScan {
       for (int i = 0; i < 10; i += 1) {
         DataSourceReader reader = source.createReader(options);
 
-        pushFilters(reader, EqualTo.apply("ID", i)); // note lower(ID) == lower(id), so there must be a match
+        pushFilters(
+            reader,
+            EqualTo.apply("ID", i)); // note lower(ID) == lower(id), so there must be a match
 
         List<InputPartition<InternalRow>> tasks = reader.planInputPartitions();
         Assert.assertEquals("Should only create one task for a small file", 1, tasks.size());
 
         // validate row filtering
-        assertEqualsSafe(SCHEMA.asStruct(), expected(i),
+        assertEqualsSafe(
+            SCHEMA.asStruct(),
+            expected(i),
             read(unpartitioned.toString(), vectorized, "id = " + i));
       }
     } finally {
@@ -257,9 +258,8 @@ public class TestFilteredScan {
 
   @Test
   public void testUnpartitionedTimestampFilter() {
-    DataSourceOptions options = new DataSourceOptions(ImmutableMap.of(
-        "path", unpartitioned.toString())
-    );
+    DataSourceOptions options =
+        new DataSourceOptions(ImmutableMap.of("path", unpartitioned.toString()));
 
     IcebergSource source = new IcebergSource();
 
@@ -270,22 +270,25 @@ public class TestFilteredScan {
     List<InputPartition<InternalRow>> tasks = reader.planInputPartitions();
     Assert.assertEquals("Should only create one task for a small file", 1, tasks.size());
 
-    assertEqualsSafe(SCHEMA.asStruct(), expected(5, 6, 7, 8, 9),
-        read(unpartitioned.toString(), vectorized, "ts < cast('2017-12-22 00:00:00+00:00' as timestamp)"));
+    assertEqualsSafe(
+        SCHEMA.asStruct(),
+        expected(5, 6, 7, 8, 9),
+        read(
+            unpartitioned.toString(),
+            vectorized,
+            "ts < cast('2017-12-22 00:00:00+00:00' as timestamp)"));
   }
 
   @Test
   public void testBucketPartitionedIDFilters() {
     File location = buildPartitionedTable("bucketed_by_id", BUCKET_BY_ID, "bucket4", "id");
 
-    DataSourceOptions options = new DataSourceOptions(ImmutableMap.of(
-        "path", location.toString())
-    );
+    DataSourceOptions options = new DataSourceOptions(ImmutableMap.of("path", location.toString()));
 
     IcebergSource source = new IcebergSource();
     DataSourceReader unfiltered = source.createReader(options);
-    Assert.assertEquals("Unfiltered table should created 4 read tasks",
-        4, unfiltered.planInputPartitions().size());
+    Assert.assertEquals(
+        "Unfiltered table should created 4 read tasks", 4, unfiltered.planInputPartitions().size());
 
     for (int i = 0; i < 10; i += 1) {
       DataSourceReader reader = source.createReader(options);
@@ -298,7 +301,8 @@ public class TestFilteredScan {
       Assert.assertEquals("Should create one task for a single bucket", 1, tasks.size());
 
       // validate row filtering
-      assertEqualsSafe(SCHEMA.asStruct(), expected(i), read(location.toString(), vectorized, "id = " + i));
+      assertEqualsSafe(
+          SCHEMA.asStruct(), expected(i), read(location.toString(), vectorized, "id = " + i));
     }
   }
 
@@ -307,14 +311,12 @@ public class TestFilteredScan {
   public void testDayPartitionedTimestampFilters() {
     File location = buildPartitionedTable("partitioned_by_day", PARTITION_BY_DAY, "ts_day", "ts");
 
-    DataSourceOptions options = new DataSourceOptions(ImmutableMap.of(
-        "path", location.toString())
-    );
+    DataSourceOptions options = new DataSourceOptions(ImmutableMap.of("path", location.toString()));
 
     IcebergSource source = new IcebergSource();
     DataSourceReader unfiltered = source.createReader(options);
-    Assert.assertEquals("Unfiltered table should created 2 read tasks",
-        2, unfiltered.planInputPartitions().size());
+    Assert.assertEquals(
+        "Unfiltered table should created 2 read tasks", 2, unfiltered.planInputPartitions().size());
 
     {
       DataSourceReader reader = source.createReader(options);
@@ -324,39 +326,50 @@ public class TestFilteredScan {
       List<InputPartition<InternalRow>> tasks = reader.planInputPartitions();
       Assert.assertEquals("Should create one task for 2017-12-21", 1, tasks.size());
 
-      assertEqualsSafe(SCHEMA.asStruct(), expected(5, 6, 7, 8, 9),
-          read(location.toString(), vectorized, "ts < cast('2017-12-22 00:00:00+00:00' as timestamp)"));
+      assertEqualsSafe(
+          SCHEMA.asStruct(),
+          expected(5, 6, 7, 8, 9),
+          read(
+              location.toString(),
+              vectorized,
+              "ts < cast('2017-12-22 00:00:00+00:00' as timestamp)"));
     }
 
     {
       DataSourceReader reader = source.createReader(options);
 
-      pushFilters(reader, And.apply(
-          GreaterThan.apply("ts", "2017-12-22T06:00:00+00:00"),
-          LessThan.apply("ts", "2017-12-22T08:00:00+00:00")));
+      pushFilters(
+          reader,
+          And.apply(
+              GreaterThan.apply("ts", "2017-12-22T06:00:00+00:00"),
+              LessThan.apply("ts", "2017-12-22T08:00:00+00:00")));
 
       List<InputPartition<InternalRow>> tasks = reader.planInputPartitions();
       Assert.assertEquals("Should create one task for 2017-12-22", 1, tasks.size());
 
-      assertEqualsSafe(SCHEMA.asStruct(), expected(1, 2), read(location.toString(), vectorized,
-          "ts > cast('2017-12-22 06:00:00+00:00' as timestamp) and " +
-              "ts < cast('2017-12-22 08:00:00+00:00' as timestamp)"));
+      assertEqualsSafe(
+          SCHEMA.asStruct(),
+          expected(1, 2),
+          read(
+              location.toString(),
+              vectorized,
+              "ts > cast('2017-12-22 06:00:00+00:00' as timestamp) and "
+                  + "ts < cast('2017-12-22 08:00:00+00:00' as timestamp)"));
     }
   }
 
   @SuppressWarnings("checkstyle:AvoidNestedBlocks")
   @Test
   public void testHourPartitionedTimestampFilters() {
-    File location = buildPartitionedTable("partitioned_by_hour", PARTITION_BY_HOUR, "ts_hour", "ts");
+    File location =
+        buildPartitionedTable("partitioned_by_hour", PARTITION_BY_HOUR, "ts_hour", "ts");
 
-    DataSourceOptions options = new DataSourceOptions(ImmutableMap.of(
-        "path", location.toString())
-    );
+    DataSourceOptions options = new DataSourceOptions(ImmutableMap.of("path", location.toString()));
 
     IcebergSource source = new IcebergSource();
     DataSourceReader unfiltered = source.createReader(options);
-    Assert.assertEquals("Unfiltered table should created 9 read tasks",
-        9, unfiltered.planInputPartitions().size());
+    Assert.assertEquals(
+        "Unfiltered table should created 9 read tasks", 9, unfiltered.planInputPartitions().size());
 
     {
       DataSourceReader reader = source.createReader(options);
@@ -366,23 +379,35 @@ public class TestFilteredScan {
       List<InputPartition<InternalRow>> tasks = reader.planInputPartitions();
       Assert.assertEquals("Should create 4 tasks for 2017-12-21: 15, 17, 21, 22", 4, tasks.size());
 
-      assertEqualsSafe(SCHEMA.asStruct(), expected(8, 9, 7, 6, 5),
-          read(location.toString(), vectorized, "ts < cast('2017-12-22 00:00:00+00:00' as timestamp)"));
+      assertEqualsSafe(
+          SCHEMA.asStruct(),
+          expected(8, 9, 7, 6, 5),
+          read(
+              location.toString(),
+              vectorized,
+              "ts < cast('2017-12-22 00:00:00+00:00' as timestamp)"));
     }
 
     {
       DataSourceReader reader = source.createReader(options);
 
-      pushFilters(reader, And.apply(
-          GreaterThan.apply("ts", "2017-12-22T06:00:00+00:00"),
-          LessThan.apply("ts", "2017-12-22T08:00:00+00:00")));
+      pushFilters(
+          reader,
+          And.apply(
+              GreaterThan.apply("ts", "2017-12-22T06:00:00+00:00"),
+              LessThan.apply("ts", "2017-12-22T08:00:00+00:00")));
 
       List<InputPartition<InternalRow>> tasks = reader.planInputPartitions();
       Assert.assertEquals("Should create 2 tasks for 2017-12-22: 6, 7", 2, tasks.size());
 
-      assertEqualsSafe(SCHEMA.asStruct(), expected(2, 1), read(location.toString(), vectorized,
-          "ts > cast('2017-12-22 06:00:00+00:00' as timestamp) and " +
-              "ts < cast('2017-12-22 08:00:00+00:00' as timestamp)"));
+      assertEqualsSafe(
+          SCHEMA.asStruct(),
+          expected(2, 1),
+          read(
+              location.toString(),
+              vectorized,
+              "ts > cast('2017-12-22 06:00:00+00:00' as timestamp) and "
+                  + "ts < cast('2017-12-22 08:00:00+00:00' as timestamp)"));
     }
   }
 
@@ -396,10 +421,15 @@ public class TestFilteredScan {
         expected.add(projectFlat(actualProjection, rec));
       }
 
-      assertEqualsSafe(actualProjection.asStruct(), expected, read(
-          unpartitioned.toString(), vectorized,
-          "ts < cast('2017-12-22 00:00:00+00:00' as timestamp)",
-          "id", "data"));
+      assertEqualsSafe(
+          actualProjection.asStruct(),
+          expected,
+          read(
+              unpartitioned.toString(),
+              vectorized,
+              "ts < cast('2017-12-22 00:00:00+00:00' as timestamp)",
+              "id",
+              "data"));
     }
 
     {
@@ -411,57 +441,63 @@ public class TestFilteredScan {
         expected.add(projectFlat(actualProjection, rec));
       }
 
-      assertEqualsSafe(actualProjection.asStruct(), expected, read(
-          unpartitioned.toString(), vectorized,
-          "ts > cast('2017-12-22 06:00:00+00:00' as timestamp) and " +
-              "ts < cast('2017-12-22 08:00:00+00:00' as timestamp)",
-          "id"));
+      assertEqualsSafe(
+          actualProjection.asStruct(),
+          expected,
+          read(
+              unpartitioned.toString(),
+              vectorized,
+              "ts > cast('2017-12-22 06:00:00+00:00' as timestamp) and "
+                  + "ts < cast('2017-12-22 08:00:00+00:00' as timestamp)",
+              "id"));
     }
   }
 
   @Test
   public void testInFilter() {
-    File location = buildPartitionedTable("partitioned_by_data", PARTITION_BY_DATA, "data_ident", "data");
+    File location =
+        buildPartitionedTable("partitioned_by_data", PARTITION_BY_DATA, "data_ident", "data");
 
-    DataSourceOptions options = new DataSourceOptions(ImmutableMap.of(
-        "path", location.toString())
-    );
+    DataSourceOptions options = new DataSourceOptions(ImmutableMap.of("path", location.toString()));
 
     IcebergSource source = new IcebergSource();
     DataSourceReader reader = source.createReader(options);
-    pushFilters(reader, new In("data", new String[]{"foo", "junction", "brush", null}));
+    pushFilters(reader, new In("data", new String[] {"foo", "junction", "brush", null}));
 
     Assert.assertEquals(2, reader.planInputPartitions().size());
   }
 
   @Test
   public void testInFilterForTimestamp() {
-    File location = buildPartitionedTable("partitioned_by_hour", PARTITION_BY_HOUR, "ts_hour", "ts");
+    File location =
+        buildPartitionedTable("partitioned_by_hour", PARTITION_BY_HOUR, "ts_hour", "ts");
 
-    DataSourceOptions options = new DataSourceOptions(ImmutableMap.of(
-        "path", location.toString())
-    );
+    DataSourceOptions options = new DataSourceOptions(ImmutableMap.of("path", location.toString()));
 
     IcebergSource source = new IcebergSource();
     DataSourceReader reader = source.createReader(options);
-    pushFilters(reader, new In("ts", new Timestamp[]{
-        new Timestamp(instant("2017-12-22T00:00:00.123+00:00") / 1000),
-        new Timestamp(instant("2017-12-22T09:20:44.294+00:00") / 1000),
-        new Timestamp(instant("2017-12-22T00:34:00.184+00:00") / 1000),
-        new Timestamp(instant("2017-12-21T15:15:16.230+00:00") / 1000),
-        null
-    }));
+    pushFilters(
+        reader,
+        new In(
+            "ts",
+            new Timestamp[] {
+              new Timestamp(instant("2017-12-22T00:00:00.123+00:00") / 1000),
+              new Timestamp(instant("2017-12-22T09:20:44.294+00:00") / 1000),
+              new Timestamp(instant("2017-12-22T00:34:00.184+00:00") / 1000),
+              new Timestamp(instant("2017-12-21T15:15:16.230+00:00") / 1000),
+              null
+            }));
 
-    Assert.assertEquals("Should create 1 task for 2017-12-21: 15", 1, reader.planInputPartitions().size());
+    Assert.assertEquals(
+        "Should create 1 task for 2017-12-21: 15", 1, reader.planInputPartitions().size());
   }
 
   @Test
   public void testPartitionedByDataStartsWithFilter() {
-    File location = buildPartitionedTable("partitioned_by_data", PARTITION_BY_DATA, "data_ident", "data");
+    File location =
+        buildPartitionedTable("partitioned_by_data", PARTITION_BY_DATA, "data_ident", "data");
 
-    DataSourceOptions options = new DataSourceOptions(ImmutableMap.of(
-        "path", location.toString())
-    );
+    DataSourceOptions options = new DataSourceOptions(ImmutableMap.of("path", location.toString()));
 
     IcebergSource source = new IcebergSource();
     DataSourceReader reader = source.createReader(options);
@@ -474,9 +510,7 @@ public class TestFilteredScan {
   public void testPartitionedByIdStartsWith() {
     File location = buildPartitionedTable("partitioned_by_id", PARTITION_BY_ID, "id_ident", "id");
 
-    DataSourceOptions options = new DataSourceOptions(ImmutableMap.of(
-        "path", location.toString())
-    );
+    DataSourceOptions options = new DataSourceOptions(ImmutableMap.of("path", location.toString()));
 
     IcebergSource source = new IcebergSource();
     DataSourceReader reader = source.createReader(options);
@@ -487,15 +521,15 @@ public class TestFilteredScan {
 
   @Test
   public void testUnpartitionedStartsWith() {
-    Dataset<Row> df = spark.read()
-        .format("iceberg")
-        .option(SparkReadOptions.VECTORIZATION_ENABLED, String.valueOf(vectorized))
-        .load(unpartitioned.toString());
+    Dataset<Row> df =
+        spark
+            .read()
+            .format("iceberg")
+            .option(SparkReadOptions.VECTORIZATION_ENABLED, String.valueOf(vectorized))
+            .load(unpartitioned.toString());
 
-    List<String> matchedData = df.select("data")
-        .where("data LIKE 'jun%'")
-        .as(Encoders.STRING())
-        .collectAsList();
+    List<String> matchedData =
+        df.select("data").where("data LIKE 'jun%'").as(Encoders.STRING()).collectAsList();
 
     Assert.assertEquals(1, matchedData.size());
     Assert.assertEquals("junction", matchedData.get(0));
@@ -511,8 +545,8 @@ public class TestFilteredScan {
     return result;
   }
 
-  public static void assertEqualsUnsafe(Types.StructType struct,
-                                        List<Record> expected, List<UnsafeRow> actual) {
+  public static void assertEqualsUnsafe(
+      Types.StructType struct, List<Record> expected, List<UnsafeRow> actual) {
     // TODO: match records by ID
     int numRecords = Math.min(expected.size(), actual.size());
     for (int i = 0; i < numRecords; i += 1) {
@@ -521,8 +555,8 @@ public class TestFilteredScan {
     Assert.assertEquals("Number of results should match expected", expected.size(), actual.size());
   }
 
-  public static void assertEqualsSafe(Types.StructType struct,
-                                      List<Record> expected, List<Row> actual) {
+  public static void assertEqualsSafe(
+      Types.StructType struct, List<Record> expected, List<Row> actual) {
     // TODO: match records by ID
     int numRecords = Math.min(expected.size(), actual.size());
     for (int i = 0; i < numRecords; i += 1) {
@@ -545,7 +579,8 @@ public class TestFilteredScan {
     filterable.pushFilters(filters);
   }
 
-  private File buildPartitionedTable(String desc, PartitionSpec spec, String udf, String partitionColumn) {
+  private File buildPartitionedTable(
+      String desc, PartitionSpec spec, String udf, String partitionColumn) {
     File location = new File(parent, desc);
     Table byId = TABLES.create(SCHEMA, spec, location.toString());
 
@@ -554,10 +589,12 @@ public class TestFilteredScan {
     byId.updateProperties().set("read.split.target-size", "2048").commit();
 
     // copy the unpartitioned table into the partitioned table to produce the partitioned data
-    Dataset<Row> allRows = spark.read()
-        .format("iceberg")
-        .option(SparkReadOptions.VECTORIZATION_ENABLED, String.valueOf(vectorized))
-        .load(unpartitioned.toString());
+    Dataset<Row> allRows =
+        spark
+            .read()
+            .format("iceberg")
+            .option(SparkReadOptions.VECTORIZATION_ENABLED, String.valueOf(vectorized))
+            .load(unpartitioned.toString());
 
     allRows
         .coalesce(1) // ensure only 1 file per partition is written
@@ -583,19 +620,23 @@ public class TestFilteredScan {
         record(schema, 6L, parse("2017-12-21T21:55:30.589712+00:00"), "element"),
         record(schema, 7L, parse("2017-12-21T17:31:14.532797+00:00"), "limited"),
         record(schema, 8L, parse("2017-12-21T15:21:51.237521+00:00"), "global"),
-        record(schema, 9L, parse("2017-12-21T15:02:15.230570+00:00"), "goldfish")
-    );
+        record(schema, 9L, parse("2017-12-21T15:02:15.230570+00:00"), "goldfish"));
   }
 
   private static List<Row> read(String table, boolean vectorized, String expr) {
     return read(table, vectorized, expr, "*");
   }
 
-  private static List<Row> read(String table, boolean vectorized, String expr, String select0, String... selectN) {
-    Dataset<Row> dataset = spark.read().format("iceberg")
-        .option(SparkReadOptions.VECTORIZATION_ENABLED, String.valueOf(vectorized))
-        .load(table).filter(expr)
-        .select(select0, selectN);
+  private static List<Row> read(
+      String table, boolean vectorized, String expr, String select0, String... selectN) {
+    Dataset<Row> dataset =
+        spark
+            .read()
+            .format("iceberg")
+            .option(SparkReadOptions.VECTORIZATION_ENABLED, String.valueOf(vectorized))
+            .load(table)
+            .filter(expr)
+            .select(select0, selectN);
     return dataset.collectAsList();
   }
 

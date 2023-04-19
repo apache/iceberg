@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.io;
 
 import java.io.Serializable;
@@ -33,9 +32,8 @@ public class WriteResult implements Serializable {
   private DeleteFile[] deleteFiles;
   private CharSequence[] referencedDataFiles;
 
-  private WriteResult(List<DataFile> dataFiles,
-                      List<DeleteFile> deleteFiles,
-                      CharSequenceSet referencedDataFiles) {
+  private WriteResult(
+      List<DataFile> dataFiles, List<DeleteFile> deleteFiles, CharSequenceSet referencedDataFiles) {
     this.dataFiles = dataFiles.toArray(new DataFile[0]);
     this.deleteFiles = deleteFiles.toArray(new DeleteFile[0]);
     this.referencedDataFiles = referencedDataFiles.toArray(new CharSequence[0]);

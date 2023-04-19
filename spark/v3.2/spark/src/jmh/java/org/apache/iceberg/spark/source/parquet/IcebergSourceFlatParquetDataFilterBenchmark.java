@@ -16,8 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.source.parquet;
+
+import static org.apache.iceberg.TableProperties.SPLIT_OPEN_FILE_COST;
+import static org.apache.spark.sql.functions.current_date;
+import static org.apache.spark.sql.functions.date_add;
+import static org.apache.spark.sql.functions.expr;
 
 import java.io.IOException;
 import java.util.Map;
@@ -31,21 +35,15 @@ import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.TearDown;
 import org.openjdk.jmh.annotations.Threads;
 
-import static org.apache.iceberg.TableProperties.SPLIT_OPEN_FILE_COST;
-import static org.apache.spark.sql.functions.current_date;
-import static org.apache.spark.sql.functions.date_add;
-import static org.apache.spark.sql.functions.expr;
-
 /**
  * A benchmark that evaluates the file skipping capabilities in the Spark data source for Iceberg.
  *
- * This class uses a dataset with a flat schema, where the records are clustered according to the
+ * <p>This class uses a dataset with a flat schema, where the records are clustered according to the
  * column used in the filter predicate.
  *
- * The performance is compared to the built-in file source in Spark.
+ * <p>The performance is compared to the built-in file source in Spark.
  *
- * To run this benchmark for spark-3.2:
- * <code>
+ * <p>To run this benchmark for spark-3.2: <code>
  *   ./gradlew -DsparkVersions=3.2 :iceberg-spark:iceberg-spark-3.2_2.12:jmh
  *       -PjmhIncludeRegex=IcebergSourceFlatParquetDataFilterBenchmark
  *       -PjmhOutputPath=benchmark/iceberg-source-flat-parquet-data-filter-benchmark-result.txt
@@ -74,11 +72,14 @@ public class IcebergSourceFlatParquetDataFilterBenchmark extends IcebergSourceFl
   public void readWithFilterIceberg() {
     Map<String, String> tableProperties = Maps.newHashMap();
     tableProperties.put(SPLIT_OPEN_FILE_COST, Integer.toString(128 * 1024 * 1024));
-    withTableProperties(tableProperties, () -> {
-      String tableLocation = table().location();
-      Dataset<Row> df = spark().read().format("iceberg").load(tableLocation).filter(FILTER_COND);
-      materialize(df);
-    });
+    withTableProperties(
+        tableProperties,
+        () -> {
+          String tableLocation = table().location();
+          Dataset<Row> df =
+              spark().read().format("iceberg").load(tableLocation).filter(FILTER_COND);
+          materialize(df);
+        });
   }
 
   @Benchmark
@@ -87,10 +88,12 @@ public class IcebergSourceFlatParquetDataFilterBenchmark extends IcebergSourceFl
     Map<String, String> conf = Maps.newHashMap();
     conf.put(SQLConf.PARQUET_VECTORIZED_READER_ENABLED().key(), "true");
     conf.put(SQLConf.FILES_OPEN_COST_IN_BYTES().key(), Integer.toString(128 * 1024 * 1024));
-    withSQLConf(conf, () -> {
-      Dataset<Row> df = spark().read().parquet(dataLocation()).filter(FILTER_COND);
-      materialize(df);
-    });
+    withSQLConf(
+        conf,
+        () -> {
+          Dataset<Row> df = spark().read().parquet(dataLocation()).filter(FILTER_COND);
+          materialize(df);
+        });
   }
 
   @Benchmark
@@ -99,23 +102,27 @@ public class IcebergSourceFlatParquetDataFilterBenchmark extends IcebergSourceFl
     Map<String, String> conf = Maps.newHashMap();
     conf.put(SQLConf.PARQUET_VECTORIZED_READER_ENABLED().key(), "false");
     conf.put(SQLConf.FILES_OPEN_COST_IN_BYTES().key(), Integer.toString(128 * 1024 * 1024));
-    withSQLConf(conf, () -> {
-      Dataset<Row> df = spark().read().parquet(dataLocation()).filter(FILTER_COND);
-      materialize(df);
-    });
+    withSQLConf(
+        conf,
+        () -> {
+          Dataset<Row> df = spark().read().parquet(dataLocation()).filter(FILTER_COND);
+          materialize(df);
+        });
   }
 
   private void appendData() {
     for (int fileNum = 1; fileNum < NUM_FILES; fileNum++) {
-      Dataset<Row> df = spark().range(NUM_ROWS)
-          .withColumnRenamed("id", "longCol")
-          .withColumn("intCol", expr("CAST(longCol AS INT)"))
-          .withColumn("floatCol", expr("CAST(longCol AS FLOAT)"))
-          .withColumn("doubleCol", expr("CAST(longCol AS DOUBLE)"))
-          .withColumn("decimalCol", expr("CAST(longCol AS DECIMAL(20, 5))"))
-          .withColumn("dateCol", date_add(current_date(), fileNum))
-          .withColumn("timestampCol", expr("TO_TIMESTAMP(dateCol)"))
-          .withColumn("stringCol", expr("CAST(dateCol AS STRING)"));
+      Dataset<Row> df =
+          spark()
+              .range(NUM_ROWS)
+              .withColumnRenamed("id", "longCol")
+              .withColumn("intCol", expr("CAST(longCol AS INT)"))
+              .withColumn("floatCol", expr("CAST(longCol AS FLOAT)"))
+              .withColumn("doubleCol", expr("CAST(longCol AS DOUBLE)"))
+              .withColumn("decimalCol", expr("CAST(longCol AS DECIMAL(20, 5))"))
+              .withColumn("dateCol", date_add(current_date(), fileNum))
+              .withColumn("timestampCol", expr("TO_TIMESTAMP(dateCol)"))
+              .withColumn("stringCol", expr("CAST(dateCol AS STRING)"));
       appendAsFile(df);
     }
   }

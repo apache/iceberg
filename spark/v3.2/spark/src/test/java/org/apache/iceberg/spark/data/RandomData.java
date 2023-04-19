@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.data;
 
 import java.math.BigDecimal;
@@ -53,8 +52,7 @@ public class RandomData {
   // Default percentage of number of values that are null for optional fields
   public static final float DEFAULT_NULL_PERCENTAGE = 0.05f;
 
-  private RandomData() {
-  }
+  private RandomData() {}
 
   public static List<Record> generateList(Schema schema, int numRecords, long seed) {
     RandomDataGenerator generator = new RandomDataGenerator(schema, seed, DEFAULT_NULL_PERCENTAGE);
@@ -67,63 +65,71 @@ public class RandomData {
   }
 
   public static Iterable<InternalRow> generateSpark(Schema schema, int numRecords, long seed) {
-    return () -> new Iterator<InternalRow>() {
-      private SparkRandomDataGenerator generator = new SparkRandomDataGenerator(seed);
-      private int count = 0;
+    return () ->
+        new Iterator<InternalRow>() {
+          private SparkRandomDataGenerator generator = new SparkRandomDataGenerator(seed);
+          private int count = 0;
 
-      @Override
-      public boolean hasNext() {
-        return count < numRecords;
-      }
+          @Override
+          public boolean hasNext() {
+            return count < numRecords;
+          }
 
-      @Override
-      public InternalRow next() {
-        if (count >= numRecords) {
-          throw new NoSuchElementException();
-        }
-        count += 1;
-        return (InternalRow) TypeUtil.visit(schema, generator);
-      }
-    };
+          @Override
+          public InternalRow next() {
+            if (count >= numRecords) {
+              throw new NoSuchElementException();
+            }
+            count += 1;
+            return (InternalRow) TypeUtil.visit(schema, generator);
+          }
+        };
   }
 
   public static Iterable<Record> generate(Schema schema, int numRecords, long seed) {
-    return newIterable(() -> new RandomDataGenerator(schema, seed, DEFAULT_NULL_PERCENTAGE), schema, numRecords);
+    return newIterable(
+        () -> new RandomDataGenerator(schema, seed, DEFAULT_NULL_PERCENTAGE), schema, numRecords);
   }
 
-  public static Iterable<Record> generate(Schema schema, int numRecords, long seed, float nullPercentage) {
-    return newIterable(() -> new RandomDataGenerator(schema, seed, nullPercentage), schema, numRecords);
+  public static Iterable<Record> generate(
+      Schema schema, int numRecords, long seed, float nullPercentage) {
+    return newIterable(
+        () -> new RandomDataGenerator(schema, seed, nullPercentage), schema, numRecords);
   }
 
-  public static Iterable<Record> generateFallbackData(Schema schema, int numRecords, long seed, long numDictRecords) {
-    return newIterable(() -> new FallbackDataGenerator(schema, seed, numDictRecords), schema, numRecords);
+  public static Iterable<Record> generateFallbackData(
+      Schema schema, int numRecords, long seed, long numDictRecords) {
+    return newIterable(
+        () -> new FallbackDataGenerator(schema, seed, numDictRecords), schema, numRecords);
   }
 
   public static Iterable<GenericData.Record> generateDictionaryEncodableData(
       Schema schema, int numRecords, long seed, float nullPercentage) {
-    return newIterable(() -> new DictionaryEncodedDataGenerator(schema, seed, nullPercentage), schema, numRecords);
+    return newIterable(
+        () -> new DictionaryEncodedDataGenerator(schema, seed, nullPercentage), schema, numRecords);
   }
 
-  private static Iterable<Record> newIterable(Supplier<RandomDataGenerator> newGenerator,
-                                              Schema schema, int numRecords) {
-    return () -> new Iterator<Record>() {
-      private int count = 0;
-      private RandomDataGenerator generator = newGenerator.get();
+  private static Iterable<Record> newIterable(
+      Supplier<RandomDataGenerator> newGenerator, Schema schema, int numRecords) {
+    return () ->
+        new Iterator<Record>() {
+          private int count = 0;
+          private RandomDataGenerator generator = newGenerator.get();
 
-      @Override
-      public boolean hasNext() {
-        return count < numRecords;
-      }
+          @Override
+          public boolean hasNext() {
+            return count < numRecords;
+          }
 
-      @Override
-      public Record next() {
-        if (count >= numRecords) {
-          throw new NoSuchElementException();
-        }
-        count += 1;
-        return (Record) TypeUtil.visit(schema, generator);
-      }
-    };
+          @Override
+          public Record next() {
+            if (count >= numRecords) {
+              throw new NoSuchElementException();
+            }
+            count += 1;
+            return (Record) TypeUtil.visit(schema, generator);
+          }
+        };
   }
 
   private static class RandomDataGenerator extends TypeUtil.CustomOrderSchemaVisitor<Object> {
@@ -218,8 +224,7 @@ public class RandomData {
       // them here.
       switch (primitive.typeId()) {
         case FIXED:
-          return new GenericData.Fixed(typeToSchema.get(primitive),
-              (byte[]) result);
+          return new GenericData.Fixed(typeToSchema.get(primitive), (byte[]) result);
         case BINARY:
           return ByteBuffer.wrap((byte[]) result);
         case UUID:

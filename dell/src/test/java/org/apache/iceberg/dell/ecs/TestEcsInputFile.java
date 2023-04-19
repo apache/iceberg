@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.dell.ecs;
 
 import com.emc.object.s3.request.PutObjectRequest;
@@ -31,26 +30,24 @@ import org.junit.Test;
 
 public class TestEcsInputFile {
 
-  @ClassRule
-  public static EcsS3MockRule rule = EcsS3MockRule.create();
+  @ClassRule public static EcsS3MockRule rule = EcsS3MockRule.create();
 
   @Test
   public void testAbsentFile() {
     String objectName = rule.randomObjectName();
-    EcsInputFile inputFile = EcsInputFile.fromLocation(
-        new EcsURI(rule.bucket(), objectName).toString(),
-        rule.client());
+    EcsInputFile inputFile =
+        EcsInputFile.fromLocation(new EcsURI(rule.bucket(), objectName).toString(), rule.client());
     Assert.assertFalse("File is absent", inputFile.exists());
   }
 
   @Test
   public void testFileRead() throws IOException {
     String objectName = rule.randomObjectName();
-    EcsInputFile inputFile = EcsInputFile.fromLocation(
-        new EcsURI(rule.bucket(), objectName).toString(),
-        rule.client());
+    EcsInputFile inputFile =
+        EcsInputFile.fromLocation(new EcsURI(rule.bucket(), objectName).toString(), rule.client());
 
-    rule.client().putObject(new PutObjectRequest(rule.bucket(), objectName, "0123456789".getBytes()));
+    rule.client()
+        .putObject(new PutObjectRequest(rule.bucket(), objectName, "0123456789".getBytes()));
 
     Assert.assertTrue("File should exists", inputFile.exists());
     Assert.assertEquals("File length should be 10", 10, inputFile.getLength());

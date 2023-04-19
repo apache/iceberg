@@ -16,8 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.source.orc;
+
+import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.apache.iceberg.types.Types.NestedField.required;
 
 import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
@@ -30,13 +32,10 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.source.IcebergSourceBenchmark;
 import org.apache.iceberg.types.Types;
 
-import static org.apache.iceberg.types.Types.NestedField.optional;
-import static org.apache.iceberg.types.Types.NestedField.required;
-
-
 /**
- * Same as {@link org.apache.iceberg.spark.source.IcebergSourceFlatDataBenchmark} but we disable the Timestamp with
- * zone type for ORC performance tests as Spark native reader does not support ORC's TIMESTAMP_INSTANT type
+ * Same as {@link org.apache.iceberg.spark.source.IcebergSourceFlatDataBenchmark} but we disable the
+ * Timestamp with zone type for ORC performance tests as Spark native reader does not support ORC's
+ * TIMESTAMP_INSTANT type
  */
 public abstract class IcebergSourceFlatORCDataBenchmark extends IcebergSourceBenchmark {
 
@@ -47,17 +46,19 @@ public abstract class IcebergSourceFlatORCDataBenchmark extends IcebergSourceBen
 
   @Override
   protected final Table initTable() {
-    Schema schema = new Schema(
-        required(1, "longCol", Types.LongType.get()),
-        required(2, "intCol", Types.IntegerType.get()),
-        required(3, "floatCol", Types.FloatType.get()),
-        optional(4, "doubleCol", Types.DoubleType.get()),
-        optional(5, "decimalCol", Types.DecimalType.of(20, 5)),
-        optional(6, "dateCol", Types.DateType.get()),
-        // Disable timestamp column for ORC performance tests as Spark native reader does not support ORC's
-        // TIMESTAMP_INSTANT type
-        // optional(7, "timestampCol", Types.TimestampType.withZone()),
-        optional(8, "stringCol", Types.StringType.get()));
+    Schema schema =
+        new Schema(
+            required(1, "longCol", Types.LongType.get()),
+            required(2, "intCol", Types.IntegerType.get()),
+            required(3, "floatCol", Types.FloatType.get()),
+            optional(4, "doubleCol", Types.DoubleType.get()),
+            optional(5, "decimalCol", Types.DecimalType.of(20, 5)),
+            optional(6, "dateCol", Types.DateType.get()),
+            // Disable timestamp column for ORC performance tests as Spark native reader does not
+            // support ORC's
+            // TIMESTAMP_INSTANT type
+            // optional(7, "timestampCol", Types.TimestampType.withZone()),
+            optional(8, "stringCol", Types.StringType.get()));
     PartitionSpec partitionSpec = PartitionSpec.unpartitioned();
     HadoopTables tables = new HadoopTables(hadoopConf());
     Map<String, String> properties = Maps.newHashMap();

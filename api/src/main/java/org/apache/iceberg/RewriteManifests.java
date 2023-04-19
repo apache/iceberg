@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import java.util.function.Function;
@@ -24,16 +23,16 @@ import java.util.function.Predicate;
 
 /**
  * API for rewriting manifests for a table.
- * <p>
- * This API accumulates manifest files, produces a new {@link Snapshot} of the table
- * described only by the manifest files that were added, and commits that snapshot as the
- * current.
- * <p>
- * This API can be used to rewrite matching manifests according to a clustering function as well as
- * to replace specific manifests. Manifests that are deleted or added directly are ignored during
- * the rewrite process. The set of active files in replaced manifests must be the same as in new manifests.
- * <p>
- * When committing, these changes will be applied to the latest table snapshot. Commit conflicts
+ *
+ * <p>This API accumulates manifest files, produces a new {@link Snapshot} of the table described
+ * only by the manifest files that were added, and commits that snapshot as the current.
+ *
+ * <p>This API can be used to rewrite matching manifests according to a clustering function as well
+ * as to replace specific manifests. Manifests that are deleted or added directly are ignored during
+ * the rewrite process. The set of active files in replaced manifests must be the same as in new
+ * manifests.
+ *
+ * <p>When committing, these changes will be applied to the latest table snapshot. Commit conflicts
  * will be resolved by applying the changes to the new latest snapshot and reattempting the commit.
  */
 public interface RewriteManifests extends SnapshotUpdate<RewriteManifests> {
@@ -51,11 +50,11 @@ public interface RewriteManifests extends SnapshotUpdate<RewriteManifests> {
 
   /**
    * Determines which existing {@link ManifestFile} for the table should be rewritten. Manifests
-   * that do not match the predicate are kept as-is. If this is not called and no predicate is set, then
-   * all manifests will be rewritten.
+   * that do not match the predicate are kept as-is. If this is not called and no predicate is set,
+   * then all manifests will be rewritten.
    *
-   * @param predicate Predicate used to determine which manifests to rewrite. If true then the manifest
-   *                  file will be included for rewrite. If false then then manifest is kept as-is.
+   * @param predicate Predicate used to determine which manifests to rewrite. If true then the
+   *     manifest file will be included for rewrite. If false then then manifest is kept as-is.
    * @return this for method chaining
    */
   RewriteManifests rewriteIf(Predicate<ManifestFile> predicate);
@@ -71,17 +70,17 @@ public interface RewriteManifests extends SnapshotUpdate<RewriteManifests> {
   /**
    * Adds a {@link ManifestFile manifest file} to the table. The added manifest cannot contain new
    * or deleted files.
-   * <p>
-   * By default, the manifest will be rewritten to ensure all entries have explicit snapshot IDs.
-   * In that case, it is always the responsibility of the caller to manage the lifecycle of
-   * the original manifest.
-   * <p>
-   * If manifest entries are allowed to inherit the snapshot ID assigned on commit, the manifest
+   *
+   * <p>By default, the manifest will be rewritten to ensure all entries have explicit snapshot IDs.
+   * In that case, it is always the responsibility of the caller to manage the lifecycle of the
+   * original manifest.
+   *
+   * <p>If manifest entries are allowed to inherit the snapshot ID assigned on commit, the manifest
    * should never be deleted manually if the commit succeeds as it will become part of the table
    * metadata and will be cleaned up on expiry. If the manifest gets merged with others while
-   * preparing a new snapshot, it will be deleted automatically if this operation is successful.
-   * If the commit fails, the manifest will never be deleted and it is up to the caller whether
-   * to delete or reuse it.
+   * preparing a new snapshot, it will be deleted automatically if this operation is successful. If
+   * the commit fails, the manifest will never be deleted and it is up to the caller whether to
+   * delete or reuse it.
    *
    * @param manifest a manifest to add
    * @return this for method chaining

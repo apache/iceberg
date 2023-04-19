@@ -16,18 +16,23 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
+
+import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.apache.iceberg.types.Types.NestedField.required;
 
 import java.io.File;
 import java.io.IOException;
 import java.util.Map;
+import org.apache.hadoop.conf.Configurable;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.FileIOParser;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.spark.source.SerializableTableWithSize;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Before;
@@ -35,36 +40,29 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
-import static org.apache.iceberg.types.Types.NestedField.optional;
-import static org.apache.iceberg.types.Types.NestedField.required;
-
 public class TestFileIOSerialization {
 
   private static final Configuration CONF = new Configuration();
   private static final HadoopTables TABLES = new HadoopTables(CONF);
 
-  private static final Schema SCHEMA = new Schema(
-      required(1, "id", Types.LongType.get()),
-      optional(2, "data", Types.StringType.get()),
-      required(3, "date", Types.StringType.get()),
-      optional(4, "double", Types.DoubleType.get()));
+  private static final Schema SCHEMA =
+      new Schema(
+          required(1, "id", Types.LongType.get()),
+          optional(2, "data", Types.StringType.get()),
+          required(3, "date", Types.StringType.get()),
+          optional(4, "double", Types.DoubleType.get()));
 
-  private static final PartitionSpec SPEC = PartitionSpec
-      .builderFor(SCHEMA)
-      .identity("date")
-      .build();
+  private static final PartitionSpec SPEC =
+      PartitionSpec.builderFor(SCHEMA).identity("date").build();
 
-  private static final SortOrder SORT_ORDER = SortOrder.builderFor(SCHEMA)
-      .asc("id")
-      .build();
+  private static final SortOrder SORT_ORDER = SortOrder.builderFor(SCHEMA).asc("id").build();
 
   static {
     CONF.set("k1", "v1");
     CONF.set("k2", "v2");
   }
 
-  @Rule
-  public TemporaryFolder temp = new TemporaryFolder();
+  @Rule public TemporaryFolder temp = new TemporaryFolder();
   private Table table;
 
   @Before
@@ -82,7 +80,7 @@ public class TestFileIOSerialization {
     FileIO io = table.io();
     Configuration expectedConf = ((HadoopFileIO) io).conf();
 
-    Table serializableTable = SerializableTable.copyOf(table);
+    Table serializableTable = SerializableTableWithSize.copyOf(table);
     FileIO deserializedIO = KryoHelpers.roundTripSerialize(serializableTable.io());
     Configuration actualConf = ((HadoopFileIO) deserializedIO).conf();
 
@@ -96,7 +94,7 @@ public class TestFileIOSerialization {
     FileIO io = table.io();
     Configuration expectedConf = ((HadoopFileIO) io).conf();
 
-    Table serializableTable = SerializableTable.copyOf(table);
+    Table serializableTable = SerializableTableWithSize.copyOf(table);
     FileIO deserializedIO = TestHelpers.roundTripSerialize(serializableTable.io());
     Configuration actualConf = ((HadoopFileIO) deserializedIO).conf();
 
@@ -109,5 +107,22 @@ public class TestFileIOSerialization {
     Map<String, String> map = Maps.newHashMapWithExpectedSize(conf.size());
     conf.forEach(entry -> map.put(entry.getKey(), entry.getValue()));
     return map;
+  }
+
+  @Test
+  public void testFileIOJsonSerialization() {
+    FileIO io = table.io();
+    Object conf;
+    if (io instanceof Configurable) {
+      conf = ((Configurable) io).getConf();
+    } else {
+      conf = null;
+    }
+
+    String json = FileIOParser.toJson(io);
+    try (FileIO deserialized = FileIOParser.fromJson(json, conf)) {
+      Assert.assertTrue(deserialized instanceof HadoopFileIO);
+      Assert.assertEquals(io.properties(), deserialized.properties());
+    }
   }
 }

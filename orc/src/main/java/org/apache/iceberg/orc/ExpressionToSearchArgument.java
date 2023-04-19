@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.orc;
 
 import java.math.BigDecimal;
@@ -42,29 +41,29 @@ import org.apache.orc.storage.ql.io.sarg.SearchArgument.TruthValue;
 import org.apache.orc.storage.ql.io.sarg.SearchArgumentFactory;
 import org.apache.orc.storage.serde2.io.HiveDecimalWritable;
 
-class ExpressionToSearchArgument extends ExpressionVisitors.BoundVisitor<ExpressionToSearchArgument.Action> {
+class ExpressionToSearchArgument
+    extends ExpressionVisitors.BoundVisitor<ExpressionToSearchArgument.Action> {
 
   static SearchArgument convert(Expression expr, TypeDescription readSchema) {
-    Map<Integer, String> idToColumnName = ORCSchemaUtil.idToOrcName(ORCSchemaUtil.convert(readSchema));
+    Map<Integer, String> idToColumnName =
+        ORCSchemaUtil.idToOrcName(ORCSchemaUtil.convert(readSchema));
     SearchArgument.Builder builder = SearchArgumentFactory.newBuilder();
-    ExpressionVisitors.visit(expr, new ExpressionToSearchArgument(builder, idToColumnName)).invoke();
+    ExpressionVisitors.visit(expr, new ExpressionToSearchArgument(builder, idToColumnName))
+        .invoke();
     return builder.build();
   }
 
-  // Currently every predicate in ORC requires a PredicateLeaf.Type field which is not available for these Iceberg types
-  private static final Set<TypeID> UNSUPPORTED_TYPES = ImmutableSet.of(
-      TypeID.BINARY,
-      TypeID.FIXED,
-      TypeID.UUID,
-      TypeID.STRUCT,
-      TypeID.MAP,
-      TypeID.LIST
-  );
+  // Currently every predicate in ORC requires a PredicateLeaf.Type field which is not available for
+  // these Iceberg types
+  private static final Set<TypeID> UNSUPPORTED_TYPES =
+      ImmutableSet.of(
+          TypeID.BINARY, TypeID.FIXED, TypeID.UUID, TypeID.STRUCT, TypeID.MAP, TypeID.LIST);
 
   private SearchArgument.Builder builder;
   private Map<Integer, String> idToColumnName;
 
-  private ExpressionToSearchArgument(SearchArgument.Builder builder, Map<Integer, String> idToColumnName) {
+  private ExpressionToSearchArgument(
+      SearchArgument.Builder builder, Map<Integer, String> idToColumnName) {
     this.builder = builder;
     this.idToColumnName = idToColumnName;
   }
@@ -110,24 +109,26 @@ class ExpressionToSearchArgument extends ExpressionVisitors.BoundVisitor<Express
 
   @Override
   public <T> Action isNull(Bound<T> expr) {
-    return () -> this.builder.isNull(idToColumnName.get(expr.ref().fieldId()),
-        type(expr.ref().type()));
+    return () ->
+        this.builder.isNull(idToColumnName.get(expr.ref().fieldId()), type(expr.ref().type()));
   }
 
   @Override
   public <T> Action notNull(Bound<T> expr) {
-    return () -> this.builder.startNot()
-        .isNull(idToColumnName.get(expr.ref().fieldId()),
-            type(expr.ref().type()))
-        .end();
+    return () ->
+        this.builder
+            .startNot()
+            .isNull(idToColumnName.get(expr.ref().fieldId()), type(expr.ref().type()))
+            .end();
   }
 
   @Override
   public <T> Action isNaN(Bound<T> expr) {
-    return () -> this.builder.equals(
-        idToColumnName.get(expr.ref().fieldId()),
-        type(expr.ref().type()),
-        literal(expr.ref().type(), getNaNForType(expr.ref().type())));
+    return () ->
+        this.builder.equals(
+            idToColumnName.get(expr.ref().fieldId()),
+            type(expr.ref().type()),
+            literal(expr.ref().type(), getNaNForType(expr.ref().type())));
   }
 
   private Object getNaNForType(Type type) {
@@ -155,45 +156,57 @@ class ExpressionToSearchArgument extends ExpressionVisitors.BoundVisitor<Express
 
   @Override
   public <T> Action lt(Bound<T> expr, Literal<T> lit) {
-    return () -> this.builder.lessThan(idToColumnName.get(expr.ref().fieldId()),
-        type(expr.ref().type()),
-        literal(expr.ref().type(), lit.value()));
+    return () ->
+        this.builder.lessThan(
+            idToColumnName.get(expr.ref().fieldId()),
+            type(expr.ref().type()),
+            literal(expr.ref().type(), lit.value()));
   }
 
   @Override
   public <T> Action ltEq(Bound<T> expr, Literal<T> lit) {
-    return () -> this.builder.lessThanEquals(idToColumnName.get(expr.ref().fieldId()),
-        type(expr.ref().type()),
-        literal(expr.ref().type(), lit.value()));
+    return () ->
+        this.builder.lessThanEquals(
+            idToColumnName.get(expr.ref().fieldId()),
+            type(expr.ref().type()),
+            literal(expr.ref().type(), lit.value()));
   }
 
   @Override
   public <T> Action gt(Bound<T> expr, Literal<T> lit) {
     // ORC SearchArguments do not have a greaterThan predicate, so we use not(lessThanOrEquals)
     // e.g. x > 5 => not(x <= 5)
-    return () -> this.builder.startNot()
-          .lessThanEquals(idToColumnName.get(expr.ref().fieldId()),
-              type(expr.ref().type()),
-              literal(expr.ref().type(), lit.value()))
-          .end();
+    return () ->
+        this.builder
+            .startNot()
+            .lessThanEquals(
+                idToColumnName.get(expr.ref().fieldId()),
+                type(expr.ref().type()),
+                literal(expr.ref().type(), lit.value()))
+            .end();
   }
 
   @Override
   public <T> Action gtEq(Bound<T> expr, Literal<T> lit) {
     // ORC SearchArguments do not have a greaterThanOrEquals predicate, so we use not(lessThan)
     // e.g. x >= 5 => not(x < 5)
-    return () -> this.builder.startNot()
-          .lessThan(idToColumnName.get(expr.ref().fieldId()),
-              type(expr.ref().type()),
-              literal(expr.ref().type(), lit.value()))
-          .end();
+    return () ->
+        this.builder
+            .startNot()
+            .lessThan(
+                idToColumnName.get(expr.ref().fieldId()),
+                type(expr.ref().type()),
+                literal(expr.ref().type(), lit.value()))
+            .end();
   }
 
   @Override
   public <T> Action eq(Bound<T> expr, Literal<T> lit) {
-    return () -> this.builder.equals(idToColumnName.get(expr.ref().fieldId()),
-        type(expr.ref().type()),
-        literal(expr.ref().type(), lit.value()));
+    return () ->
+        this.builder.equals(
+            idToColumnName.get(expr.ref().fieldId()),
+            type(expr.ref().type()),
+            literal(expr.ref().type(), lit.value()));
   }
 
   @Override
@@ -215,10 +228,11 @@ class ExpressionToSearchArgument extends ExpressionVisitors.BoundVisitor<Express
 
   @Override
   public <T> Action in(Bound<T> expr, Set<T> literalSet) {
-    return () -> this.builder.in(
-        idToColumnName.get(expr.ref().fieldId()),
-        type(expr.ref().type()),
-        literalSet.stream().map(lit -> literal(expr.ref().type(), lit)).toArray(Object[]::new));
+    return () ->
+        this.builder.in(
+            idToColumnName.get(expr.ref().fieldId()),
+            type(expr.ref().type()),
+            literalSet.stream().map(lit -> literal(expr.ref().type(), lit)).toArray(Object[]::new));
   }
 
   @Override
@@ -240,14 +254,16 @@ class ExpressionToSearchArgument extends ExpressionVisitors.BoundVisitor<Express
 
   @Override
   public <T> Action startsWith(Bound<T> expr, Literal<T> lit) {
-    // Cannot push down STARTS_WITH operator to ORC, so return TruthValue.YES_NO_NULL which signifies
+    // Cannot push down STARTS_WITH operator to ORC, so return TruthValue.YES_NO_NULL which
+    // signifies
     // that this predicate cannot help with filtering
     return () -> this.builder.literal(TruthValue.YES_NO_NULL);
   }
 
   @Override
   public <T> Action notStartsWith(Bound<T> expr, Literal<T> lit) {
-    // Cannot push down NOT_STARTS_WITH operator to ORC, so return TruthValue.YES_NO_NULL which signifies
+    // Cannot push down NOT_STARTS_WITH operator to ORC, so return TruthValue.YES_NO_NULL which
+    // signifies
     // that this predicate cannot help with filtering
     return () -> this.builder.literal(TruthValue.YES_NO_NULL);
   }
@@ -255,7 +271,8 @@ class ExpressionToSearchArgument extends ExpressionVisitors.BoundVisitor<Express
   @Override
   public <T> Action predicate(BoundPredicate<T> pred) {
     if (UNSUPPORTED_TYPES.contains(pred.ref().type().typeId())) {
-      // Cannot push down predicates for types which cannot be represented in PredicateLeaf.Type, so return
+      // Cannot push down predicates for types which cannot be represented in PredicateLeaf.Type, so
+      // return
       // TruthValue.YES_NO_NULL which signifies that this predicate cannot help with filtering
       return () -> this.builder.literal(TruthValue.YES_NO_NULL);
     } else {
@@ -288,7 +305,8 @@ class ExpressionToSearchArgument extends ExpressionVisitors.BoundVisitor<Express
       case DECIMAL:
         return PredicateLeaf.Type.DECIMAL;
       default:
-        throw new UnsupportedOperationException("Type " + icebergType + " not supported in ORC SearchArguments");
+        throw new UnsupportedOperationException(
+            "Type " + icebergType + " not supported in ORC SearchArguments");
     }
   }
 
@@ -309,14 +327,15 @@ class ExpressionToSearchArgument extends ExpressionVisitors.BoundVisitor<Express
         return Date.valueOf(LocalDate.ofEpochDay((Integer) icebergLiteral));
       case TIMESTAMP:
         long microsFromEpoch = (Long) icebergLiteral;
-        return Timestamp.from(Instant.ofEpochSecond(
-            Math.floorDiv(microsFromEpoch, 1_000_000),
-            Math.floorMod(microsFromEpoch, 1_000_000) * 1_000
-        ));
+        return Timestamp.from(
+            Instant.ofEpochSecond(
+                Math.floorDiv(microsFromEpoch, 1_000_000),
+                Math.floorMod(microsFromEpoch, 1_000_000) * 1_000));
       case DECIMAL:
         return new HiveDecimalWritable(HiveDecimal.create((BigDecimal) icebergLiteral, false));
       default:
-        throw new UnsupportedOperationException("Type " + icebergType + " not supported in ORC SearchArguments");
+        throw new UnsupportedOperationException(
+            "Type " + icebergType + " not supported in ORC SearchArguments");
     }
   }
 }

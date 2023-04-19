@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.util;
 
 import java.nio.ByteBuffer;
@@ -25,8 +24,7 @@ import java.util.UUID;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 public class UUIDUtil {
-  private UUIDUtil() {
-  }
+  private UUIDUtil() {}
 
   public static UUID convert(byte[] buf) {
     Preconditions.checkArgument(buf.length == 16, "UUID require 16 bytes");
@@ -36,10 +34,16 @@ public class UUIDUtil {
   }
 
   public static UUID convert(byte[] buf, int offset) {
-    Preconditions.checkArgument(offset >= 0 && offset < buf.length,
-        "Offset overflow, offset=%s, length=%s", offset, buf.length);
-    Preconditions.checkArgument(offset + 16 <= buf.length,
-        "UUID require 16 bytes, offset=%s, length=%s", offset, buf.length);
+    Preconditions.checkArgument(
+        offset >= 0 && offset < buf.length,
+        "Offset overflow, offset=%s, length=%s",
+        offset,
+        buf.length);
+    Preconditions.checkArgument(
+        offset + 16 <= buf.length,
+        "UUID require 16 bytes, offset=%s, length=%s",
+        offset,
+        buf.length);
 
     ByteBuffer bb = ByteBuffer.wrap(buf, offset, 16);
     bb.order(ByteOrder.BIG_ENDIAN);

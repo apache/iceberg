@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.orc;
 
 import java.util.List;
@@ -27,7 +26,8 @@ class HasIds extends OrcSchemaVisitor<Boolean> {
 
   @Override
   public Boolean record(TypeDescription record, List<String> names, List<Boolean> fields) {
-    return ORCSchemaUtil.icebergID(record).isPresent() || fields.stream().anyMatch(Predicate.isEqual(true));
+    return ORCSchemaUtil.icebergID(record).isPresent()
+        || fields.stream().anyMatch(Predicate.isEqual(true));
   }
 
   @Override

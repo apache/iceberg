@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.common;
 
 import java.util.Set;
@@ -25,8 +24,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 
 public class DynClasses {
 
-  private DynClasses() {
-  }
+  private DynClasses() {}
 
   public static Builder builder() {
     return new Builder();
@@ -38,13 +36,12 @@ public class DynClasses {
     private boolean nullOk = false;
     private Set<String> classNames = Sets.newLinkedHashSet();
 
-    private Builder() {
-    }
+    private Builder() {}
 
     /**
      * Set the {@link ClassLoader} used to lookup classes by name.
-     * <p>
-     * If not set, the current thread's ClassLoader is used.
+     *
+     * <p>If not set, the current thread's ClassLoader is used.
      *
      * @param newLoader a ClassLoader
      * @return this Builder for method chaining
@@ -77,8 +74,8 @@ public class DynClasses {
     }
 
     /**
-     * Instructs this builder to return null if no class is found, rather than
-     * throwing an Exception.
+     * Instructs this builder to return null if no class is found, rather than throwing an
+     * Exception.
      *
      * @return this Builder for method chaining
      */
@@ -88,8 +85,7 @@ public class DynClasses {
     }
 
     /**
-     * Returns the first implementation or throws ClassNotFoundException if
-     * one was not found.
+     * Returns the first implementation or throws ClassNotFoundException if one was not found.
      *
      * @param <S> Java superclass
      * @return a {@link Class} for the first implementation found
@@ -98,15 +94,14 @@ public class DynClasses {
     @SuppressWarnings("unchecked")
     public <S> Class<? extends S> buildChecked() throws ClassNotFoundException {
       if (!nullOk && foundClass == null) {
-        throw new ClassNotFoundException("Cannot find class; alternatives: " +
-            Joiner.on(", ").join(classNames));
+        throw new ClassNotFoundException(
+            "Cannot find class; alternatives: " + Joiner.on(", ").join(classNames));
       }
       return (Class<? extends S>) foundClass;
     }
 
     /**
-     * Returns the first implementation or throws RuntimeException if one was
-     * not found.
+     * Returns the first implementation or throws RuntimeException if one was not found.
      *
      * @param <S> Java superclass
      * @return a {@link Class} for the first implementation found
@@ -115,8 +110,8 @@ public class DynClasses {
     @SuppressWarnings("unchecked")
     public <S> Class<? extends S> build() {
       if (!nullOk && foundClass == null) {
-        throw new RuntimeException("Cannot find class; alternatives: " +
-            Joiner.on(", ").join(classNames));
+        throw new RuntimeException(
+            "Cannot find class; alternatives: " + Joiner.on(", ").join(classNames));
       }
       return (Class<? extends S>) foundClass;
     }

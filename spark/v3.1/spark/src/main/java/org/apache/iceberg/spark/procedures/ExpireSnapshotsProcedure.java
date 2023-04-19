@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.procedures;
 
 import java.util.concurrent.ExecutorService;
@@ -47,19 +46,25 @@ import org.apache.spark.sql.types.StructType;
  */
 public class ExpireSnapshotsProcedure extends BaseProcedure {
 
-  private static final ProcedureParameter[] PARAMETERS = new ProcedureParameter[] {
-      ProcedureParameter.required("table", DataTypes.StringType),
-      ProcedureParameter.optional("older_than", DataTypes.TimestampType),
-      ProcedureParameter.optional("retain_last", DataTypes.IntegerType),
-      ProcedureParameter.optional("max_concurrent_deletes", DataTypes.IntegerType),
-      ProcedureParameter.optional("stream_results", DataTypes.BooleanType)
-  };
+  private static final ProcedureParameter[] PARAMETERS =
+      new ProcedureParameter[] {
+        ProcedureParameter.required("table", DataTypes.StringType),
+        ProcedureParameter.optional("older_than", DataTypes.TimestampType),
+        ProcedureParameter.optional("retain_last", DataTypes.IntegerType),
+        ProcedureParameter.optional("max_concurrent_deletes", DataTypes.IntegerType),
+        ProcedureParameter.optional("stream_results", DataTypes.BooleanType),
+        ProcedureParameter.optional("snapshot_ids", DataTypes.createArrayType(DataTypes.LongType))
+      };
 
-  private static final StructType OUTPUT_TYPE = new StructType(new StructField[]{
-      new StructField("deleted_data_files_count", DataTypes.LongType, true, Metadata.empty()),
-      new StructField("deleted_manifest_files_count", DataTypes.LongType, true, Metadata.empty()),
-      new StructField("deleted_manifest_lists_count", DataTypes.LongType, true, Metadata.empty())
-  });
+  private static final StructType OUTPUT_TYPE =
+      new StructType(
+          new StructField[] {
+            new StructField("deleted_data_files_count", DataTypes.LongType, true, Metadata.empty()),
+            new StructField(
+                "deleted_manifest_files_count", DataTypes.LongType, true, Metadata.empty()),
+            new StructField(
+                "deleted_manifest_lists_count", DataTypes.LongType, true, Metadata.empty())
+          });
 
   public static ProcedureBuilder builder() {
     return new BaseProcedure.Builder<ExpireSnapshotsProcedure>() {
@@ -85,48 +90,61 @@ public class ExpireSnapshotsProcedure extends BaseProcedure {
   }
 
   @Override
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
   public InternalRow[] call(InternalRow args) {
     Identifier tableIdent = toIdentifier(args.getString(0), PARAMETERS[0].name());
     Long olderThanMillis = args.isNullAt(1) ? null : DateTimeUtil.microsToMillis(args.getLong(1));
     Integer retainLastNum = args.isNullAt(2) ? null : args.getInt(2);
     Integer maxConcurrentDeletes = args.isNullAt(3) ? null : args.getInt(3);
     Boolean streamResult = args.isNullAt(4) ? null : args.getBoolean(4);
+    long[] snapshotIds = args.isNullAt(5) ? null : args.getArray(5).toLongArray();
 
-    Preconditions.checkArgument(maxConcurrentDeletes == null || maxConcurrentDeletes > 0,
-        "max_concurrent_deletes should have value > 0,  value: " + maxConcurrentDeletes);
+    Preconditions.checkArgument(
+        maxConcurrentDeletes == null || maxConcurrentDeletes > 0,
+        "max_concurrent_deletes should have value > 0, value: %s",
+        maxConcurrentDeletes);
 
-    return modifyIcebergTable(tableIdent, table -> {
-      ExpireSnapshots action = actions().expireSnapshots(table);
+    return modifyIcebergTable(
+        tableIdent,
+        table -> {
+          ExpireSnapshots action = actions().expireSnapshots(table);
 
-      if (olderThanMillis != null) {
-        action.expireOlderThan(olderThanMillis);
-      }
+          if (olderThanMillis != null) {
+            action.expireOlderThan(olderThanMillis);
+          }
 
-      if (retainLastNum != null) {
-        action.retainLast(retainLastNum);
-      }
+          if (retainLastNum != null) {
+            action.retainLast(retainLastNum);
+          }
 
-      if (maxConcurrentDeletes != null && maxConcurrentDeletes > 0) {
-        action.executeDeleteWith(expireService(maxConcurrentDeletes));
-      }
+          if (maxConcurrentDeletes != null) {
+            action.executeDeleteWith(expireService(maxConcurrentDeletes));
+          }
 
-      if (streamResult != null) {
-        action.option(BaseExpireSnapshotsSparkAction.STREAM_RESULTS, Boolean.toString(streamResult));
-      }
+          if (snapshotIds != null) {
+            for (long snapshotId : snapshotIds) {
+              action.expireSnapshotId(snapshotId);
+            }
+          }
 
-      ExpireSnapshots.Result result = action.execute();
+          if (streamResult != null) {
+            action.option(
+                BaseExpireSnapshotsSparkAction.STREAM_RESULTS, Boolean.toString(streamResult));
+          }
 
-      return toOutputRows(result);
-    });
+          ExpireSnapshots.Result result = action.execute();
+
+          return toOutputRows(result);
+        });
   }
 
   private InternalRow[] toOutputRows(ExpireSnapshots.Result result) {
-    InternalRow row = newInternalRow(
-        result.deletedDataFilesCount(),
-        result.deletedManifestsCount(),
-        result.deletedManifestListsCount()
-    );
-    return new InternalRow[]{row};
+    InternalRow row =
+        newInternalRow(
+            result.deletedDataFilesCount(),
+            result.deletedManifestsCount(),
+            result.deletedManifestListsCount());
+    return new InternalRow[] {row};
   }
 
   @Override
@@ -136,10 +154,9 @@ public class ExpireSnapshotsProcedure extends BaseProcedure {
 
   private ExecutorService expireService(int concurrentDeletes) {
     return MoreExecutors.getExitingExecutorService(
-        (ThreadPoolExecutor) Executors.newFixedThreadPool(
-            concurrentDeletes,
-            new ThreadFactoryBuilder()
-                .setNameFormat("expire-snapshots-%d")
-                .build()));
+        (ThreadPoolExecutor)
+            Executors.newFixedThreadPool(
+                concurrentDeletes,
+                new ThreadFactoryBuilder().setNameFormat("expire-snapshots-%d").build()));
   }
 }

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.parquet;
 
 import java.math.BigDecimal;
@@ -28,11 +27,11 @@ import java.util.function.Function;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.types.Type;
 import org.apache.parquet.io.api.Binary;
+import org.apache.parquet.schema.LogicalTypeAnnotation.DecimalLogicalTypeAnnotation;
 import org.apache.parquet.schema.PrimitiveType;
 
 class ParquetConversions {
-  private ParquetConversions() {
-  }
+  private ParquetConversions() {}
 
   @SuppressWarnings("unchecked")
   static <T> Literal<T> fromParquetPrimitive(Type type, PrimitiveType parquetType, Object value) {
@@ -68,14 +67,15 @@ class ParquetConversions {
     }
   }
 
-  static Function<Object, Object> converterFromParquet(PrimitiveType parquetType, Type icebergType) {
+  static Function<Object, Object> converterFromParquet(
+      PrimitiveType parquetType, Type icebergType) {
     Function<Object, Object> fromParquet = converterFromParquet(parquetType);
     if (icebergType != null) {
-      if (icebergType.typeId() == Type.TypeID.LONG &&
-          parquetType.getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.INT32) {
+      if (icebergType.typeId() == Type.TypeID.LONG
+          && parquetType.getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.INT32) {
         return value -> ((Integer) fromParquet.apply(value)).longValue();
-      } else if (icebergType.typeId() == Type.TypeID.DOUBLE &&
-          parquetType.getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.FLOAT) {
+      } else if (icebergType.typeId() == Type.TypeID.DOUBLE
+          && parquetType.getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.FLOAT) {
         return value -> ((Float) fromParquet.apply(value)).doubleValue();
       }
     }
@@ -90,7 +90,9 @@ class ParquetConversions {
           // decode to CharSequence to avoid copying into a new String
           return binary -> StandardCharsets.UTF_8.decode(((Binary) binary).toByteBuffer());
         case DECIMAL:
-          int scale = type.getDecimalMetadata().getScale();
+          DecimalLogicalTypeAnnotation decimal =
+              (DecimalLogicalTypeAnnotation) type.getLogicalTypeAnnotation();
+          int scale = decimal.getScale();
           switch (type.getPrimitiveTypeName()) {
             case INT32:
             case INT64:

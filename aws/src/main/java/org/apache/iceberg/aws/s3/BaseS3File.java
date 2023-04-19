@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.aws.s3;
 
 import org.apache.iceberg.aws.AwsProperties;
@@ -80,9 +79,8 @@ abstract class BaseS3File {
 
   protected HeadObjectResponse getObjectMetadata() throws S3Exception {
     if (metadata == null) {
-      HeadObjectRequest.Builder requestBuilder = HeadObjectRequest.builder()
-          .bucket(uri().bucket())
-          .key(uri().key());
+      HeadObjectRequest.Builder requestBuilder =
+          HeadObjectRequest.builder().bucket(uri().bucket()).key(uri().key());
       S3RequestUtil.configureEncryption(awsProperties, requestBuilder);
       metadata = client().headObject(requestBuilder.build());
     }
@@ -94,5 +92,4 @@ abstract class BaseS3File {
   public String toString() {
     return uri.toString();
   }
-
 }

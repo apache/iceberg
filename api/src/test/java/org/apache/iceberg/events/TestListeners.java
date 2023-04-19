@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.events;
 
 import org.junit.Assert;
@@ -28,11 +27,9 @@ public class TestListeners {
     Listeners.register(TestListener.get()::event2, Event2.class);
   }
 
-  public static class Event1 {
-  }
+  public static class Event1 {}
 
-  public static class Event2 {
-  }
+  public static class Event2 {}
 
   public static class TestListener {
     private static final TestListener INSTANCE = new TestListener();

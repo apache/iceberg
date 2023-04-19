@@ -16,8 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.source;
+
+import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.apache.iceberg.types.Types.NestedField.required;
 
 import java.io.File;
 import java.io.IOException;
@@ -55,27 +57,21 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
-import static org.apache.iceberg.types.Types.NestedField.optional;
-import static org.apache.iceberg.types.Types.NestedField.required;
-
 public class TestSparkTableUtilWithInMemoryCatalog {
 
   private static final HadoopTables TABLES = new HadoopTables(new Configuration());
-  private static final Schema SCHEMA = new Schema(
-      optional(1, "id", Types.IntegerType.get()),
-      optional(2, "data", Types.StringType.get())
-  );
-  private static final PartitionSpec SPEC = PartitionSpec.builderFor(SCHEMA)
-      .identity("data")
-      .build();
+  private static final Schema SCHEMA =
+      new Schema(
+          optional(1, "id", Types.IntegerType.get()), optional(2, "data", Types.StringType.get()));
+  private static final PartitionSpec SPEC =
+      PartitionSpec.builderFor(SCHEMA).identity("data").build();
 
   private static SparkSession spark;
 
   @BeforeClass
   public static void startSpark() {
-    TestSparkTableUtilWithInMemoryCatalog.spark = SparkSession.builder()
-        .master("local[2]")
-        .getOrCreate();
+    TestSparkTableUtilWithInMemoryCatalog.spark =
+        SparkSession.builder().master("local[2]").getOrCreate();
   }
 
   @AfterClass
@@ -85,8 +81,7 @@ public class TestSparkTableUtilWithInMemoryCatalog {
     currentSpark.stop();
   }
 
-  @Rule
-  public TemporaryFolder temp = new TemporaryFolder();
+  @Rule public TemporaryFolder temp = new TemporaryFolder();
 
   private String tableLocation = null;
 
@@ -103,32 +98,35 @@ public class TestSparkTableUtilWithInMemoryCatalog {
     props.put(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "data", "full");
     Table table = TABLES.create(SCHEMA, PartitionSpec.unpartitioned(), props, tableLocation);
 
-    List<SimpleRecord> records = Lists.newArrayList(
-        new SimpleRecord(1, "a"),
-        new SimpleRecord(2, "b"),
-        new SimpleRecord(3, "c")
-    );
+    List<SimpleRecord> records =
+        Lists.newArrayList(
+            new SimpleRecord(1, "a"), new SimpleRecord(2, "b"), new SimpleRecord(3, "c"));
 
     File parquetTableDir = temp.newFolder("parquet_table");
     String parquetTableLocation = parquetTableDir.toURI().toString();
 
     try {
       Dataset<Row> inputDF = spark.createDataFrame(records, SimpleRecord.class).coalesce(1);
-      inputDF.select("id", "data").write()
+      inputDF
+          .select("id", "data")
+          .write()
           .format("parquet")
           .mode("append")
           .option("path", parquetTableLocation)
           .saveAsTable("parquet_table");
 
       File stagingDir = temp.newFolder("staging-dir");
-      SparkTableUtil.importSparkTable(spark, new TableIdentifier("parquet_table"), table, stagingDir.toString());
+      SparkTableUtil.importSparkTable(
+          spark, new TableIdentifier("parquet_table"), table, stagingDir.toString());
 
-      List<SimpleRecord> actualRecords = spark.read()
-          .format("iceberg")
-          .load(tableLocation)
-          .orderBy("id")
-          .as(Encoders.bean(SimpleRecord.class))
-          .collectAsList();
+      List<SimpleRecord> actualRecords =
+          spark
+              .read()
+              .format("iceberg")
+              .load(tableLocation)
+              .orderBy("id")
+              .as(Encoders.bean(SimpleRecord.class))
+              .collectAsList();
 
       Assert.assertEquals("Result rows should match", records, actualRecords);
 
@@ -149,18 +147,18 @@ public class TestSparkTableUtilWithInMemoryCatalog {
     props.put(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "data", "full");
     Table table = TABLES.create(SCHEMA, SPEC, props, tableLocation);
 
-    List<SimpleRecord> records = Lists.newArrayList(
-        new SimpleRecord(1, "a"),
-        new SimpleRecord(2, "b"),
-        new SimpleRecord(3, "c")
-    );
+    List<SimpleRecord> records =
+        Lists.newArrayList(
+            new SimpleRecord(1, "a"), new SimpleRecord(2, "b"), new SimpleRecord(3, "c"));
 
     File parquetTableDir = temp.newFolder("parquet_table");
     String parquetTableLocation = parquetTableDir.toURI().toString();
 
     try {
       Dataset<Row> inputDF = spark.createDataFrame(records, SimpleRecord.class);
-      inputDF.select("id", "data").write()
+      inputDF
+          .select("id", "data")
+          .write()
           .format("parquet")
           .mode("append")
           .option("path", parquetTableLocation)
@@ -169,21 +167,26 @@ public class TestSparkTableUtilWithInMemoryCatalog {
 
       Assert.assertEquals(
           "Should have 3 partitions",
-          3, SparkTableUtil.getPartitions(spark, "parquet_table").size());
+          3,
+          SparkTableUtil.getPartitions(spark, "parquet_table").size());
 
       Assert.assertEquals(
           "Should have 1 partition where data = 'a'",
-          1, SparkTableUtil.getPartitionsByFilter(spark, "parquet_table", "data = 'a'").size());
+          1,
+          SparkTableUtil.getPartitionsByFilter(spark, "parquet_table", "data = 'a'").size());
 
       File stagingDir = temp.newFolder("staging-dir");
-      SparkTableUtil.importSparkTable(spark, new TableIdentifier("parquet_table"), table, stagingDir.toString());
+      SparkTableUtil.importSparkTable(
+          spark, new TableIdentifier("parquet_table"), table, stagingDir.toString());
 
-      List<SimpleRecord> actualRecords = spark.read()
-          .format("iceberg")
-          .load(tableLocation)
-          .orderBy("id")
-          .as(Encoders.bean(SimpleRecord.class))
-          .collectAsList();
+      List<SimpleRecord> actualRecords =
+          spark
+              .read()
+              .format("iceberg")
+              .load(tableLocation)
+              .orderBy("id")
+              .as(Encoders.bean(SimpleRecord.class))
+              .collectAsList();
 
       Assert.assertEquals("Result rows should match", records, actualRecords);
 
@@ -202,18 +205,18 @@ public class TestSparkTableUtilWithInMemoryCatalog {
   public void testImportPartitions() throws IOException {
     Table table = TABLES.create(SCHEMA, SPEC, tableLocation);
 
-    List<SimpleRecord> records = Lists.newArrayList(
-        new SimpleRecord(1, "a"),
-        new SimpleRecord(2, "b"),
-        new SimpleRecord(3, "c")
-    );
+    List<SimpleRecord> records =
+        Lists.newArrayList(
+            new SimpleRecord(1, "a"), new SimpleRecord(2, "b"), new SimpleRecord(3, "c"));
 
     File parquetTableDir = temp.newFolder("parquet_table");
     String parquetTableLocation = parquetTableDir.toURI().toString();
 
     try {
       Dataset<Row> inputDF = spark.createDataFrame(records, SimpleRecord.class);
-      inputDF.select("id", "data").write()
+      inputDF
+          .select("id", "data")
+          .write()
           .format("parquet")
           .mode("append")
           .option("path", parquetTableLocation)
@@ -221,17 +224,21 @@ public class TestSparkTableUtilWithInMemoryCatalog {
           .saveAsTable("parquet_table");
 
       File stagingDir = temp.newFolder("staging-dir");
-      List<SparkPartition> partitions = SparkTableUtil.getPartitionsByFilter(spark, "parquet_table", "data = 'a'");
-      SparkTableUtil.importSparkPartitions(spark, partitions, table, table.spec(), stagingDir.toString());
+      List<SparkPartition> partitions =
+          SparkTableUtil.getPartitionsByFilter(spark, "parquet_table", "data = 'a'");
+      SparkTableUtil.importSparkPartitions(
+          spark, partitions, table, table.spec(), stagingDir.toString());
 
       List<SimpleRecord> expectedRecords = Lists.newArrayList(new SimpleRecord(1, "a"));
 
-      List<SimpleRecord> actualRecords = spark.read()
-          .format("iceberg")
-          .load(tableLocation)
-          .orderBy("id")
-          .as(Encoders.bean(SimpleRecord.class))
-          .collectAsList();
+      List<SimpleRecord> actualRecords =
+          spark
+              .read()
+              .format("iceberg")
+              .load(tableLocation)
+              .orderBy("id")
+              .as(Encoders.bean(SimpleRecord.class))
+              .collectAsList();
 
       Assert.assertEquals("Result rows should match", expectedRecords, actualRecords);
     } finally {
@@ -243,22 +250,20 @@ public class TestSparkTableUtilWithInMemoryCatalog {
   public void testImportPartitionsWithSnapshotInheritance() throws IOException {
     Table table = TABLES.create(SCHEMA, SPEC, tableLocation);
 
-    table.updateProperties()
-        .set(TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED, "true")
-        .commit();
+    table.updateProperties().set(TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED, "true").commit();
 
-    List<SimpleRecord> records = Lists.newArrayList(
-        new SimpleRecord(1, "a"),
-        new SimpleRecord(2, "b"),
-        new SimpleRecord(3, "c")
-    );
+    List<SimpleRecord> records =
+        Lists.newArrayList(
+            new SimpleRecord(1, "a"), new SimpleRecord(2, "b"), new SimpleRecord(3, "c"));
 
     File parquetTableDir = temp.newFolder("parquet_table");
     String parquetTableLocation = parquetTableDir.toURI().toString();
 
     try {
       Dataset<Row> inputDF = spark.createDataFrame(records, SimpleRecord.class);
-      inputDF.select("id", "data").write()
+      inputDF
+          .select("id", "data")
+          .write()
           .format("parquet")
           .mode("append")
           .option("path", parquetTableLocation)
@@ -266,17 +271,21 @@ public class TestSparkTableUtilWithInMemoryCatalog {
           .saveAsTable("parquet_table");
 
       File stagingDir = temp.newFolder("staging-dir");
-      List<SparkPartition> partitions = SparkTableUtil.getPartitionsByFilter(spark, "parquet_table", "data = 'a'");
-      SparkTableUtil.importSparkPartitions(spark, partitions, table, table.spec(), stagingDir.toString());
+      List<SparkPartition> partitions =
+          SparkTableUtil.getPartitionsByFilter(spark, "parquet_table", "data = 'a'");
+      SparkTableUtil.importSparkPartitions(
+          spark, partitions, table, table.spec(), stagingDir.toString());
 
       List<SimpleRecord> expectedRecords = Lists.newArrayList(new SimpleRecord(1, "a"));
 
-      List<SimpleRecord> actualRecords = spark.read()
-          .format("iceberg")
-          .load(tableLocation)
-          .orderBy("id")
-          .as(Encoders.bean(SimpleRecord.class))
-          .collectAsList();
+      List<SimpleRecord> actualRecords =
+          spark
+              .read()
+              .format("iceberg")
+              .load(tableLocation)
+              .orderBy("id")
+              .as(Encoders.bean(SimpleRecord.class))
+              .collectAsList();
 
       Assert.assertEquals("Result rows should match", expectedRecords, actualRecords);
     } finally {
@@ -290,31 +299,47 @@ public class TestSparkTableUtilWithInMemoryCatalog {
     String parquetTableLocation = parquetTableDir.toURI().toString();
 
     try {
-      Dataset<Row> df1 = spark.range(1, 2)
-          .withColumn("extra_col", functions.lit(-1))
-          .withColumn("struct", functions.expr("named_struct('nested_1', 'a', 'nested_2', 'd', 'nested_3', 'f')"));
-      Dataset<Row> df2 = spark.range(2, 3)
-          .withColumn("extra_col", functions.lit(-1))
-          .withColumn("struct", functions.expr("named_struct('nested_1', 'b', 'nested_2', 'e', 'nested_3', 'g')"));
-      df1.union(df2).coalesce(1).select("id", "extra_col", "struct").write()
+      Dataset<Row> df1 =
+          spark
+              .range(1, 2)
+              .withColumn("extra_col", functions.lit(-1))
+              .withColumn(
+                  "struct",
+                  functions.expr(
+                      "named_struct('nested_1', 'a', 'nested_2', 'd', 'nested_3', 'f')"));
+      Dataset<Row> df2 =
+          spark
+              .range(2, 3)
+              .withColumn("extra_col", functions.lit(-1))
+              .withColumn(
+                  "struct",
+                  functions.expr(
+                      "named_struct('nested_1', 'b', 'nested_2', 'e', 'nested_3', 'g')"));
+      df1.union(df2)
+          .coalesce(1)
+          .select("id", "extra_col", "struct")
+          .write()
           .format("parquet")
           .mode("append")
           .option("path", parquetTableLocation)
           .saveAsTable("parquet_table");
 
       // don't include `extra_col` and `nested_2` on purpose
-      Schema schema = new Schema(
-          optional(1, "id", Types.LongType.get()),
-          required(2, "struct", Types.StructType.of(
-              required(3, "nested_1", Types.StringType.get()),
-              required(4, "nested_3", Types.StringType.get())
-          ))
-      );
+      Schema schema =
+          new Schema(
+              optional(1, "id", Types.LongType.get()),
+              required(
+                  2,
+                  "struct",
+                  Types.StructType.of(
+                      required(3, "nested_1", Types.StringType.get()),
+                      required(4, "nested_3", Types.StringType.get()))));
       Table table = TABLES.create(schema, PartitionSpec.unpartitioned(), tableLocation);
 
       // assign a custom metrics config and a name mapping
       NameMapping nameMapping = MappingUtil.create(schema);
-      table.updateProperties()
+      table
+          .updateProperties()
           .set(TableProperties.DEFAULT_WRITE_METRICS_MODE, "counts")
           .set(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "id", "full")
           .set(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "struct.nested_3", "full")
@@ -322,23 +347,32 @@ public class TestSparkTableUtilWithInMemoryCatalog {
           .commit();
 
       File stagingDir = temp.newFolder("staging-dir");
-      SparkTableUtil.importSparkTable(spark, new TableIdentifier("parquet_table"), table, stagingDir.toString());
+      SparkTableUtil.importSparkTable(
+          spark, new TableIdentifier("parquet_table"), table, stagingDir.toString());
 
       // validate we get the expected results back
-      List<Row> expected = spark.table("parquet_table")
-          .select("id", "struct.nested_1", "struct.nested_3")
-          .collectAsList();
-      List<Row> actual = spark.read().format("iceberg").load(tableLocation)
-          .select("id", "struct.nested_1", "struct.nested_3")
-          .collectAsList();
+      List<Row> expected =
+          spark
+              .table("parquet_table")
+              .select("id", "struct.nested_1", "struct.nested_3")
+              .collectAsList();
+      List<Row> actual =
+          spark
+              .read()
+              .format("iceberg")
+              .load(tableLocation)
+              .select("id", "struct.nested_1", "struct.nested_3")
+              .collectAsList();
       Assert.assertEquals("Rows must match", expected, actual);
 
       // validate we persisted correct metrics
       Dataset<Row> fileDF = spark.read().format("iceberg").load(tableLocation + "#files");
 
       List<Row> bounds = fileDF.select("lower_bounds", "upper_bounds").collectAsList();
-      Assert.assertEquals("Must have lower bounds for 2 columns", 2, bounds.get(0).getMap(0).size());
-      Assert.assertEquals("Must have upper bounds for 2 columns", 2, bounds.get(0).getMap(1).size());
+      Assert.assertEquals(
+          "Must have lower bounds for 2 columns", 2, bounds.get(0).getMap(0).size());
+      Assert.assertEquals(
+          "Must have upper bounds for 2 columns", 2, bounds.get(0).getMap(1).size());
 
       Types.NestedField nestedField1 = table.schema().findField("struct.nested_1");
       checkFieldMetrics(fileDF, nestedField1, true);
@@ -359,15 +393,26 @@ public class TestSparkTableUtilWithInMemoryCatalog {
     String parquetTableLocation = parquetTableDir.toURI().toString();
 
     try {
-      Dataset<Row> df1 = spark.range(1, 2)
-          .withColumn("extra_col", functions.lit(-1))
-          .withColumn("struct", functions.expr("named_struct('nested_1', 'a', 'nested_2', 'd', 'nested_3', 'f')"))
-          .withColumn("data", functions.lit("Z"));
-      Dataset<Row> df2 = spark.range(2, 3)
-          .withColumn("extra_col", functions.lit(-1))
-          .withColumn("struct", functions.expr("named_struct('nested_1', 'b', 'nested_2', 'e', 'nested_3', 'g')"))
-          .withColumn("data", functions.lit("Z"));
-      df1.union(df2).coalesce(1).select("id", "extra_col", "struct", "data").write()
+      Dataset<Row> df1 =
+          spark
+              .range(1, 2)
+              .withColumn("extra_col", functions.lit(-1))
+              .withColumn(
+                  "struct",
+                  functions.expr("named_struct('nested_1', 'a', 'nested_2', 'd', 'nested_3', 'f')"))
+              .withColumn("data", functions.lit("Z"));
+      Dataset<Row> df2 =
+          spark
+              .range(2, 3)
+              .withColumn("extra_col", functions.lit(-1))
+              .withColumn(
+                  "struct",
+                  functions.expr("named_struct('nested_1', 'b', 'nested_2', 'e', 'nested_3', 'g')"))
+              .withColumn("data", functions.lit("Z"));
+      df1.union(df2)
+          .coalesce(1)
+          .select("id", "extra_col", "struct", "data")
+          .write()
           .format("parquet")
           .mode("append")
           .option("path", parquetTableLocation)
@@ -375,22 +420,23 @@ public class TestSparkTableUtilWithInMemoryCatalog {
           .saveAsTable("parquet_table");
 
       // don't include `extra_col` and `nested_2` on purpose
-      Schema schema = new Schema(
-          optional(1, "id", Types.LongType.get()),
-          required(2, "struct", Types.StructType.of(
-              required(4, "nested_1", Types.StringType.get()),
-              required(5, "nested_3", Types.StringType.get())
-          )),
-          required(3, "data", Types.StringType.get())
-      );
-      PartitionSpec spec = PartitionSpec.builderFor(schema)
-          .identity("data")
-          .build();
+      Schema schema =
+          new Schema(
+              optional(1, "id", Types.LongType.get()),
+              required(
+                  2,
+                  "struct",
+                  Types.StructType.of(
+                      required(4, "nested_1", Types.StringType.get()),
+                      required(5, "nested_3", Types.StringType.get()))),
+              required(3, "data", Types.StringType.get()));
+      PartitionSpec spec = PartitionSpec.builderFor(schema).identity("data").build();
       Table table = TABLES.create(schema, spec, tableLocation);
 
       // assign a custom metrics config and a name mapping
       NameMapping nameMapping = MappingUtil.create(schema);
-      table.updateProperties()
+      table
+          .updateProperties()
           .set(TableProperties.DEFAULT_WRITE_METRICS_MODE, "counts")
           .set(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "id", "full")
           .set(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "struct.nested_3", "full")
@@ -398,23 +444,32 @@ public class TestSparkTableUtilWithInMemoryCatalog {
           .commit();
 
       File stagingDir = temp.newFolder("staging-dir");
-      SparkTableUtil.importSparkTable(spark, new TableIdentifier("parquet_table"), table, stagingDir.toString());
+      SparkTableUtil.importSparkTable(
+          spark, new TableIdentifier("parquet_table"), table, stagingDir.toString());
 
       // validate we get the expected results back
-      List<Row> expected = spark.table("parquet_table")
-          .select("id", "struct.nested_1", "struct.nested_3", "data")
-          .collectAsList();
-      List<Row> actual = spark.read().format("iceberg").load(tableLocation)
-          .select("id", "struct.nested_1", "struct.nested_3", "data")
-          .collectAsList();
+      List<Row> expected =
+          spark
+              .table("parquet_table")
+              .select("id", "struct.nested_1", "struct.nested_3", "data")
+              .collectAsList();
+      List<Row> actual =
+          spark
+              .read()
+              .format("iceberg")
+              .load(tableLocation)
+              .select("id", "struct.nested_1", "struct.nested_3", "data")
+              .collectAsList();
       Assert.assertEquals("Rows must match", expected, actual);
 
       // validate we persisted correct metrics
       Dataset<Row> fileDF = spark.read().format("iceberg").load(tableLocation + "#files");
 
       List<Row> bounds = fileDF.select("lower_bounds", "upper_bounds").collectAsList();
-      Assert.assertEquals("Must have lower bounds for 2 columns", 2, bounds.get(0).getMap(0).size());
-      Assert.assertEquals("Must have upper bounds for 2 columns", 2, bounds.get(0).getMap(1).size());
+      Assert.assertEquals(
+          "Must have lower bounds for 2 columns", 2, bounds.get(0).getMap(0).size());
+      Assert.assertEquals(
+          "Must have upper bounds for 2 columns", 2, bounds.get(0).getMap(1).size());
 
       Types.NestedField nestedField1 = table.schema().findField("struct.nested_1");
       checkFieldMetrics(fileDF, nestedField1, true);
@@ -439,34 +494,40 @@ public class TestSparkTableUtilWithInMemoryCatalog {
 
       Column timestampColumn = functions.to_timestamp(functions.lit("2010-03-20 10:40:30.1234"));
       Dataset<Row> df = spark.range(1, 10).withColumn("tmp_col", timestampColumn);
-      df.coalesce(1).select("id", "tmp_col").write()
+      df.coalesce(1)
+          .select("id", "tmp_col")
+          .write()
           .format("parquet")
           .mode("append")
           .option("path", parquetTableLocation)
           .saveAsTable("parquet_table");
 
-      Schema schema = new Schema(
-          optional(1, "id", Types.LongType.get()),
-          optional(2, "tmp_col", Types.TimestampType.withZone())
-      );
+      Schema schema =
+          new Schema(
+              optional(1, "id", Types.LongType.get()),
+              optional(2, "tmp_col", Types.TimestampType.withZone()));
       Table table = TABLES.create(schema, PartitionSpec.unpartitioned(), tableLocation);
 
       // assign a custom metrics config and disable vectorized reads
-      table.updateProperties()
+      table
+          .updateProperties()
           .set(TableProperties.DEFAULT_WRITE_METRICS_MODE, "full")
           .set(TableProperties.PARQUET_VECTORIZATION_ENABLED, "false")
           .commit();
 
       File stagingDir = temp.newFolder("staging-dir");
-      SparkTableUtil.importSparkTable(spark, new TableIdentifier("parquet_table"), table, stagingDir.toString());
+      SparkTableUtil.importSparkTable(
+          spark, new TableIdentifier("parquet_table"), table, stagingDir.toString());
 
       // validate we get the expected results back
-      List<Row> expected = spark.table("parquet_table")
-          .select("id", "tmp_col")
-          .collectAsList();
-      List<Row> actual = spark.read().format("iceberg").load(tableLocation)
-          .select("id", "tmp_col")
-          .collectAsList();
+      List<Row> expected = spark.table("parquet_table").select("id", "tmp_col").collectAsList();
+      List<Row> actual =
+          spark
+              .read()
+              .format("iceberg")
+              .load(tableLocation)
+              .select("id", "tmp_col")
+              .collectAsList();
       Assert.assertEquals("Rows must match", expected, actual);
 
       // validate we did not persist metrics for INT96
@@ -482,32 +543,38 @@ public class TestSparkTableUtilWithInMemoryCatalog {
     }
   }
 
-  private void checkFieldMetrics(Dataset<Row> fileDF, Types.NestedField field, Object min, Object max) {
-    List<Row> metricRows = fileDF
-        .selectExpr(
-            String.format("lower_bounds['%d']", field.fieldId()),
-            String.format("upper_bounds['%d']", field.fieldId())
-        )
-        .collectAsList();
+  private void checkFieldMetrics(
+      Dataset<Row> fileDF, Types.NestedField field, Object min, Object max) {
+    List<Row> metricRows =
+        fileDF
+            .selectExpr(
+                String.format("lower_bounds['%d']", field.fieldId()),
+                String.format("upper_bounds['%d']", field.fieldId()))
+            .collectAsList();
 
     // we compare string representations not to deal with HeapCharBuffers for strings
-    Object actualMin = Conversions.fromByteBuffer(field.type(), ByteBuffer.wrap(metricRows.get(0).getAs(0)));
+    Object actualMin =
+        Conversions.fromByteBuffer(field.type(), ByteBuffer.wrap(metricRows.get(0).getAs(0)));
     Assert.assertEquals("Min value should match", min.toString(), actualMin.toString());
-    Object actualMax = Conversions.fromByteBuffer(field.type(), ByteBuffer.wrap(metricRows.get(0).getAs(1)));
+    Object actualMax =
+        Conversions.fromByteBuffer(field.type(), ByteBuffer.wrap(metricRows.get(0).getAs(1)));
     Assert.assertEquals("Max value should match", max.toString(), actualMax.toString());
   }
 
   private void checkFieldMetrics(Dataset<Row> fileDF, Types.NestedField field, boolean isNull) {
-    List<Row> metricRows = fileDF
-        .selectExpr(
-            String.format("lower_bounds['%d']", field.fieldId()),
-            String.format("upper_bounds['%d']", field.fieldId())
-        )
-        .collectAsList();
+    List<Row> metricRows =
+        fileDF
+            .selectExpr(
+                String.format("lower_bounds['%d']", field.fieldId()),
+                String.format("upper_bounds['%d']", field.fieldId()))
+            .collectAsList();
 
-    metricRows.forEach(row -> {
-      Assert.assertEquals("Invalid metrics for column: " + field.name(), isNull, row.isNullAt(0));
-      Assert.assertEquals("Invalid metrics for column: " + field.name(), isNull, row.isNullAt(1));
-    });
+    metricRows.forEach(
+        row -> {
+          Assert.assertEquals(
+              "Invalid metrics for column: " + field.name(), isNull, row.isNullAt(0));
+          Assert.assertEquals(
+              "Invalid metrics for column: " + field.name(), isNull, row.isNullAt(1));
+        });
   }
 }

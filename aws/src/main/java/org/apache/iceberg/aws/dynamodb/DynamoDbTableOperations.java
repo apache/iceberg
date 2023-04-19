@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.aws.dynamodb;
 
 import java.util.List;
@@ -27,6 +26,7 @@ import java.util.stream.Collectors;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.aws.AwsProperties;
+import org.apache.iceberg.aws.util.RetryDetector;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
@@ -80,17 +80,21 @@ class DynamoDbTableOperations extends BaseMetastoreTableOperations {
   @Override
   protected void doRefresh() {
     String metadataLocation = null;
-    GetItemResponse table = dynamo.getItem(GetItemRequest.builder()
-        .tableName(awsProperties.dynamoDbTableName())
-        .consistentRead(true)
-        .key(DynamoDbCatalog.tablePrimaryKey(tableIdentifier))
-        .build());
+    GetItemResponse table =
+        dynamo.getItem(
+            GetItemRequest.builder()
+                .tableName(awsProperties.dynamoDbTableName())
+                .consistentRead(true)
+                .key(DynamoDbCatalog.tablePrimaryKey(tableIdentifier))
+                .build());
     if (table.hasItem()) {
       metadataLocation = getMetadataLocation(table);
     } else {
       if (currentMetadataLocation() != null) {
-        throw new NoSuchTableException("Cannot find table %s after refresh, " +
-            "maybe another process deleted it or revoked your access permission", tableName());
+        throw new NoSuchTableException(
+            "Cannot find table %s after refresh, "
+                + "maybe another process deleted it or revoked your access permission",
+            tableName());
       }
     }
 
@@ -99,32 +103,50 @@ class DynamoDbTableOperations extends BaseMetastoreTableOperations {
 
   @Override
   protected void doCommit(TableMetadata base, TableMetadata metadata) {
-    String newMetadataLocation = writeNewMetadata(metadata, currentVersion() + 1);
+    boolean newTable = base == null;
+    String newMetadataLocation = writeNewMetadataIfRequired(newTable, metadata);
     CommitStatus commitStatus = CommitStatus.FAILURE;
+    RetryDetector retryDetector = new RetryDetector();
     Map<String, AttributeValue> tableKey = DynamoDbCatalog.tablePrimaryKey(tableIdentifier);
     try {
-      GetItemResponse table = dynamo.getItem(GetItemRequest.builder()
-          .tableName(awsProperties.dynamoDbTableName())
-          .consistentRead(true)
-          .key(tableKey)
-          .build());
+      GetItemResponse table =
+          dynamo.getItem(
+              GetItemRequest.builder()
+                  .tableName(awsProperties.dynamoDbTableName())
+                  .consistentRead(true)
+                  .key(tableKey)
+                  .build());
       checkMetadataLocation(table, base);
       Map<String, String> properties = prepareProperties(table, newMetadataLocation);
-      persistTable(tableKey, table, properties);
+      persistTable(tableKey, table, properties, retryDetector);
       commitStatus = CommitStatus.SUCCESS;
-    } catch (ConditionalCheckFailedException e) {
-      throw new CommitFailedException(e, "Cannot commit %s: concurrent update detected", tableName());
+    } catch (CommitFailedException e) {
+      // any explicit commit failures are passed up and out to the retry handler
+      throw e;
     } catch (RuntimeException persistFailure) {
-      LOG.error("Confirming if commit to {} indeed failed to persist, attempting to reconnect and check.",
-          fullTableName, persistFailure);
-      commitStatus = checkCommitStatus(newMetadataLocation, metadata);
+      boolean conditionCheckFailed = persistFailure instanceof ConditionalCheckFailedException;
+
+      // If we got an exception we weren't expecting, or we got a ConditionalCheckFailedException
+      // but retries were performed, attempt to reconcile the actual commit status.
+      if (!conditionCheckFailed || retryDetector.retried()) {
+        LOG.warn(
+            "Received unexpected failure when committing to {}, validating if commit ended up succeeding.",
+            fullTableName,
+            persistFailure);
+        commitStatus = checkCommitStatus(newMetadataLocation, metadata);
+      }
+
+      if (commitStatus != CommitStatus.SUCCESS && conditionCheckFailed) {
+        throw new CommitFailedException(
+            persistFailure, "Cannot commit %s: concurrent update detected", tableName());
+      }
 
       switch (commitStatus) {
         case SUCCESS:
           break;
         case FAILURE:
-          throw new CommitFailedException(persistFailure,
-              "Cannot commit %s due to unexpected exception", tableName());
+          throw new CommitFailedException(
+              persistFailure, "Cannot commit %s due to unexpected exception", tableName());
         case UNKNOWN:
           throw new CommitStateUnknownException(persistFailure);
       }
@@ -135,8 +157,7 @@ class DynamoDbTableOperations extends BaseMetastoreTableOperations {
           io().deleteFile(newMetadataLocation);
         }
       } catch (RuntimeException e) {
-        LOG.error("Fail to cleanup metadata file at {}", newMetadataLocation, e);
-        throw e;
+        LOG.error("Failed to cleanup metadata file at {}", newMetadataLocation, e);
       }
     }
   }
@@ -155,8 +176,10 @@ class DynamoDbTableOperations extends BaseMetastoreTableOperations {
     return table.item().get(DynamoDbCatalog.toPropertyCol(METADATA_LOCATION_PROP)).s();
   }
 
-  private Map<String, String> prepareProperties(GetItemResponse response, String newMetadataLocation) {
-    Map<String, String> properties = response.hasItem() ? getProperties(response) : Maps.newHashMap();
+  private Map<String, String> prepareProperties(
+      GetItemResponse response, String newMetadataLocation) {
+    Map<String, String> properties =
+        response.hasItem() ? getProperties(response) : Maps.newHashMap();
     properties.put(TABLE_TYPE_PROP, ICEBERG_TABLE_TYPE_VALUE.toUpperCase(Locale.ENGLISH));
     properties.put(METADATA_LOCATION_PROP, newMetadataLocation);
     if (currentMetadataLocation() != null && !currentMetadataLocation().isEmpty()) {
@@ -169,10 +192,16 @@ class DynamoDbTableOperations extends BaseMetastoreTableOperations {
   private Map<String, String> getProperties(GetItemResponse table) {
     return table.item().entrySet().stream()
         .filter(e -> DynamoDbCatalog.isProperty(e.getKey()))
-        .collect(Collectors.toMap(e -> DynamoDbCatalog.toPropertyKey(e.getKey()), e -> e.getValue().s()));
+        .collect(
+            Collectors.toMap(
+                e -> DynamoDbCatalog.toPropertyKey(e.getKey()), e -> e.getValue().s()));
   }
 
-  void persistTable(Map<String, AttributeValue> tableKey, GetItemResponse table, Map<String, String> parameters) {
+  void persistTable(
+      Map<String, AttributeValue> tableKey,
+      GetItemResponse table,
+      Map<String, String> parameters,
+      RetryDetector retryDetector) {
     if (table.hasItem()) {
       LOG.debug("Committing existing DynamoDb catalog table: {}", tableName());
       List<String> updateParts = Lists.newArrayList();
@@ -185,31 +214,37 @@ class DynamoDbTableOperations extends BaseMetastoreTableOperations {
         idx++;
         updateParts.add(attributeKey + " = " + attributeValue);
         attributeNames.put(attributeKey, DynamoDbCatalog.toPropertyCol(property.getKey()));
-        attributeValues.put(attributeValue, AttributeValue.builder().s(property.getValue()).build());
+        attributeValues.put(
+            attributeValue, AttributeValue.builder().s(property.getValue()).build());
       }
       DynamoDbCatalog.updateCatalogEntryMetadata(updateParts, attributeValues);
       String updateExpression = "SET " + DynamoDbCatalog.COMMA.join(updateParts);
       attributeValues.put(":v", table.item().get(DynamoDbCatalog.COL_VERSION));
-      dynamo.updateItem(UpdateItemRequest.builder()
-          .tableName(awsProperties.dynamoDbTableName())
-          .key(tableKey)
-          .conditionExpression(DynamoDbCatalog.COL_VERSION + " = :v")
-          .updateExpression(updateExpression)
-          .expressionAttributeValues(attributeValues)
-          .expressionAttributeNames(attributeNames)
-          .build());
+      dynamo.updateItem(
+          UpdateItemRequest.builder()
+              .overrideConfiguration(c -> c.addMetricPublisher(retryDetector))
+              .tableName(awsProperties.dynamoDbTableName())
+              .key(tableKey)
+              .conditionExpression(DynamoDbCatalog.COL_VERSION + " = :v")
+              .updateExpression(updateExpression)
+              .expressionAttributeValues(attributeValues)
+              .expressionAttributeNames(attributeNames)
+              .build());
     } else {
       LOG.debug("Committing new DynamoDb catalog table: {}", tableName());
       Map<String, AttributeValue> values = Maps.newHashMap(tableKey);
-      parameters.forEach((k, v) -> values.put(DynamoDbCatalog.toPropertyCol(k),
-          AttributeValue.builder().s(v).build()));
+      parameters.forEach(
+          (k, v) ->
+              values.put(DynamoDbCatalog.toPropertyCol(k), AttributeValue.builder().s(v).build()));
       DynamoDbCatalog.setNewCatalogEntryMetadata(values);
 
-      dynamo.putItem(PutItemRequest.builder()
-          .tableName(awsProperties.dynamoDbTableName())
-          .item(values)
-          .conditionExpression("attribute_not_exists(" + DynamoDbCatalog.COL_VERSION + ")")
-          .build());
+      dynamo.putItem(
+          PutItemRequest.builder()
+              .overrideConfiguration(c -> c.addMetricPublisher(retryDetector))
+              .tableName(awsProperties.dynamoDbTableName())
+              .item(values)
+              .conditionExpression("attribute_not_exists(" + DynamoDbCatalog.COL_VERSION + ")")
+              .build());
     }
   }
 }

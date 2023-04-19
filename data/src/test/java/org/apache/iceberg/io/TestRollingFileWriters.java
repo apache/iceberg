@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.io;
 
 import java.io.File;
@@ -41,12 +40,12 @@ public abstract class TestRollingFileWriters<T> extends WriterTestBase<T> {
   @Parameterized.Parameters(name = "FileFormat={0}, Partitioned={1}")
   public static Object[] parameters() {
     return new Object[][] {
-        new Object[]{FileFormat.AVRO, false},
-        new Object[]{FileFormat.AVRO, true},
-        new Object[]{FileFormat.PARQUET, false},
-        new Object[]{FileFormat.PARQUET, true},
-        new Object[]{FileFormat.ORC, false},
-        new Object[]{FileFormat.ORC, true}
+      new Object[] {FileFormat.AVRO, false},
+      new Object[] {FileFormat.AVRO, true},
+      new Object[] {FileFormat.PARQUET, false},
+      new Object[] {FileFormat.PARQUET, true},
+      new Object[] {FileFormat.ORC, false},
+      new Object[] {FileFormat.ORC, true}
     };
   }
 
@@ -93,9 +92,9 @@ public abstract class TestRollingFileWriters<T> extends WriterTestBase<T> {
   @Test
   public void testRollingDataWriterNoRecords() throws IOException {
     FileWriterFactory<T> writerFactory = newWriterFactory(table.schema());
-    RollingDataWriter<T> writer = new RollingDataWriter<>(
-        writerFactory, fileFactory, table.io(),
-        DEFAULT_FILE_SIZE, table.spec(), partition);
+    RollingDataWriter<T> writer =
+        new RollingDataWriter<>(
+            writerFactory, fileFactory, table.io(), DEFAULT_FILE_SIZE, table.spec(), partition);
 
     writer.close();
     Assert.assertEquals("Must be no data files", 0, writer.result().dataFiles().size());
@@ -107,9 +106,9 @@ public abstract class TestRollingFileWriters<T> extends WriterTestBase<T> {
   @Test
   public void testRollingDataWriterSplitData() throws IOException {
     FileWriterFactory<T> writerFactory = newWriterFactory(table.schema());
-    RollingDataWriter<T> writer = new RollingDataWriter<>(
-        writerFactory, fileFactory, table.io(),
-        SMALL_FILE_SIZE, table.spec(), partition);
+    RollingDataWriter<T> writer =
+        new RollingDataWriter<>(
+            writerFactory, fileFactory, table.io(), SMALL_FILE_SIZE, table.spec(), partition);
 
     List<T> rows = Lists.newArrayListWithExpectedSize(4 * FILE_SIZE_CHECK_ROWS_DIVISOR);
     for (int index = 0; index < 4 * FILE_SIZE_CHECK_ROWS_DIVISOR; index++) {
@@ -130,10 +129,11 @@ public abstract class TestRollingFileWriters<T> extends WriterTestBase<T> {
   public void testRollingEqualityDeleteWriterNoRecords() throws IOException {
     List<Integer> equalityFieldIds = ImmutableList.of(table.schema().findField("id").fieldId());
     Schema equalityDeleteRowSchema = table.schema().select("id");
-    FileWriterFactory<T> writerFactory = newWriterFactory(table.schema(), equalityFieldIds, equalityDeleteRowSchema);
-    RollingEqualityDeleteWriter<T> writer = new RollingEqualityDeleteWriter<>(
-        writerFactory, fileFactory, table.io(),
-        DEFAULT_FILE_SIZE, table.spec(), partition);
+    FileWriterFactory<T> writerFactory =
+        newWriterFactory(table.schema(), equalityFieldIds, equalityDeleteRowSchema);
+    RollingEqualityDeleteWriter<T> writer =
+        new RollingEqualityDeleteWriter<>(
+            writerFactory, fileFactory, table.io(), DEFAULT_FILE_SIZE, table.spec(), partition);
 
     writer.close();
     Assert.assertEquals(0, writer.result().deleteFiles().size());
@@ -150,10 +150,11 @@ public abstract class TestRollingFileWriters<T> extends WriterTestBase<T> {
   public void testRollingEqualityDeleteWriterSplitDeletes() throws IOException {
     List<Integer> equalityFieldIds = ImmutableList.of(table.schema().findField("id").fieldId());
     Schema equalityDeleteRowSchema = table.schema().select("id");
-    FileWriterFactory<T> writerFactory = newWriterFactory(table.schema(), equalityFieldIds, equalityDeleteRowSchema);
-    RollingEqualityDeleteWriter<T> writer = new RollingEqualityDeleteWriter<>(
-        writerFactory, fileFactory, table.io(),
-        SMALL_FILE_SIZE, table.spec(), partition);
+    FileWriterFactory<T> writerFactory =
+        newWriterFactory(table.schema(), equalityFieldIds, equalityDeleteRowSchema);
+    RollingEqualityDeleteWriter<T> writer =
+        new RollingEqualityDeleteWriter<>(
+            writerFactory, fileFactory, table.io(), SMALL_FILE_SIZE, table.spec(), partition);
 
     List<T> deletes = Lists.newArrayListWithExpectedSize(4 * FILE_SIZE_CHECK_ROWS_DIVISOR);
     for (int index = 0; index < 4 * FILE_SIZE_CHECK_ROWS_DIVISOR; index++) {
@@ -176,9 +177,9 @@ public abstract class TestRollingFileWriters<T> extends WriterTestBase<T> {
   @Test
   public void testRollingPositionDeleteWriterNoRecords() throws IOException {
     FileWriterFactory<T> writerFactory = newWriterFactory(table.schema());
-    RollingPositionDeleteWriter<T> writer = new RollingPositionDeleteWriter<>(
-        writerFactory, fileFactory, table.io(),
-        DEFAULT_FILE_SIZE, table.spec(), partition);
+    RollingPositionDeleteWriter<T> writer =
+        new RollingPositionDeleteWriter<>(
+            writerFactory, fileFactory, table.io(), DEFAULT_FILE_SIZE, table.spec(), partition);
 
     writer.close();
     Assert.assertEquals(0, writer.result().deleteFiles().size());
@@ -194,11 +195,12 @@ public abstract class TestRollingFileWriters<T> extends WriterTestBase<T> {
   @Test
   public void testRollingPositionDeleteWriterSplitDeletes() throws IOException {
     FileWriterFactory<T> writerFactory = newWriterFactory(table.schema());
-    RollingPositionDeleteWriter<T> writer = new RollingPositionDeleteWriter<>(
-        writerFactory, fileFactory, table.io(),
-        SMALL_FILE_SIZE, table.spec(), partition);
+    RollingPositionDeleteWriter<T> writer =
+        new RollingPositionDeleteWriter<>(
+            writerFactory, fileFactory, table.io(), SMALL_FILE_SIZE, table.spec(), partition);
 
-    List<PositionDelete<T>> deletes = Lists.newArrayListWithExpectedSize(4 * FILE_SIZE_CHECK_ROWS_DIVISOR);
+    List<PositionDelete<T>> deletes =
+        Lists.newArrayListWithExpectedSize(4 * FILE_SIZE_CHECK_ROWS_DIVISOR);
     for (int index = 0; index < 4 * FILE_SIZE_CHECK_ROWS_DIVISOR; index++) {
       deletes.add(positionDelete("path/to/data/file-1.parquet", index, null));
     }

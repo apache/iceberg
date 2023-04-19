@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.procedures;
 
 import java.util.Map;
@@ -35,14 +34,18 @@ import org.apache.spark.sql.types.StructType;
 import scala.runtime.BoxedUnit;
 
 class MigrateTableProcedure extends BaseProcedure {
-  private static final ProcedureParameter[] PARAMETERS = new ProcedureParameter[]{
-      ProcedureParameter.required("table", DataTypes.StringType),
-      ProcedureParameter.optional("properties", STRING_MAP)
-  };
+  private static final ProcedureParameter[] PARAMETERS =
+      new ProcedureParameter[] {
+        ProcedureParameter.required("table", DataTypes.StringType),
+        ProcedureParameter.optional("properties", STRING_MAP),
+        ProcedureParameter.optional("drop_backup", DataTypes.BooleanType)
+      };
 
-  private static final StructType OUTPUT_TYPE = new StructType(new StructField[]{
-      new StructField("migrated_files_count", DataTypes.LongType, false, Metadata.empty())
-  });
+  private static final StructType OUTPUT_TYPE =
+      new StructType(
+          new StructField[] {
+            new StructField("migrated_files_count", DataTypes.LongType, false, Metadata.empty())
+          });
 
   private MigrateTableProcedure(TableCatalog tableCatalog) {
     super(tableCatalog);
@@ -70,19 +73,34 @@ class MigrateTableProcedure extends BaseProcedure {
   @Override
   public InternalRow[] call(InternalRow args) {
     String tableName = args.getString(0);
-    Preconditions.checkArgument(tableName != null && !tableName.isEmpty(),
+    Preconditions.checkArgument(
+        tableName != null && !tableName.isEmpty(),
         "Cannot handle an empty identifier for argument table");
 
     Map<String, String> properties = Maps.newHashMap();
     if (!args.isNullAt(1)) {
-      args.getMap(1).foreach(DataTypes.StringType, DataTypes.StringType,
-          (k, v) -> {
-            properties.put(k.toString(), v.toString());
-            return BoxedUnit.UNIT;
-          });
+      args.getMap(1)
+          .foreach(
+              DataTypes.StringType,
+              DataTypes.StringType,
+              (k, v) -> {
+                properties.put(k.toString(), v.toString());
+                return BoxedUnit.UNIT;
+              });
     }
 
-    MigrateTable.Result result = SparkActions.get().migrateTable(tableName).tableProperties(properties).execute();
+    boolean dropBackup = args.isNullAt(2) ? false : args.getBoolean(2);
+
+    MigrateTable migrateTable =
+        SparkActions.get().migrateTable(tableName).tableProperties(properties);
+
+    MigrateTable.Result result;
+    if (dropBackup) {
+      result = migrateTable.dropBackup().execute();
+    } else {
+      result = migrateTable.execute();
+    }
+
     return new InternalRow[] {newInternalRow(result.migratedDataFilesCount())};
   }
 

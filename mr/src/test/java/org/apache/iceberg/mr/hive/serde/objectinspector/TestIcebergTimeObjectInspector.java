@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.mr.hive.serde.objectinspector;
 
 import java.time.LocalTime;
@@ -35,7 +34,8 @@ public class TestIcebergTimeObjectInspector {
     IcebergTimeObjectInspector oi = IcebergTimeObjectInspector.get();
 
     Assert.assertEquals(ObjectInspector.Category.PRIMITIVE, oi.getCategory());
-    Assert.assertEquals(PrimitiveObjectInspector.PrimitiveCategory.STRING, oi.getPrimitiveCategory());
+    Assert.assertEquals(
+        PrimitiveObjectInspector.PrimitiveCategory.STRING, oi.getPrimitiveCategory());
 
     Assert.assertEquals(TypeInfoFactory.stringTypeInfo, oi.getTypeInfo());
     Assert.assertEquals(TypeInfoFactory.stringTypeInfo.getTypeName(), oi.getTypeName());

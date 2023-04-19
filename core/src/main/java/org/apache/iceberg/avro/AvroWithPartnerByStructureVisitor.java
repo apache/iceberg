@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.avro;
 
 import java.util.Deque;
@@ -27,15 +26,16 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.Pair;
 
 /**
- * A abstract avro schema visitor with partner type. The visitor rely on the structure matching exactly and are
- * guaranteed that because both schemas are derived from the same Iceberg schema.
+ * A abstract avro schema visitor with partner type. The visitor rely on the structure matching
+ * exactly and are guaranteed that because both schemas are derived from the same Iceberg schema.
  *
  * @param <P> Partner type.
  * @param <T> Return T.
  */
 public abstract class AvroWithPartnerByStructureVisitor<P, T> {
 
-  public static <P, T> T visit(P partner, Schema schema, AvroWithPartnerByStructureVisitor<P, T> visitor) {
+  public static <P, T> T visit(
+      P partner, Schema schema, AvroWithPartnerByStructureVisitor<P, T> visitor) {
     switch (schema.getType()) {
       case RECORD:
         return visitRecord(partner, schema, visitor);
@@ -49,9 +49,9 @@ public abstract class AvroWithPartnerByStructureVisitor<P, T> {
       case MAP:
         P keyType = visitor.mapKeyType(partner);
         Preconditions.checkArgument(
-            visitor.isStringType(keyType),
-            "Invalid map: %s is not a string", keyType);
-        return visitor.map(partner, schema, visit(visitor.mapValueType(partner), schema.getValueType(), visitor));
+            visitor.isStringType(keyType), "Invalid map: %s is not a string", keyType);
+        return visitor.map(
+            partner, schema, visit(visitor.mapValueType(partner), schema.getValueType(), visitor));
 
       default:
         return visitor.primitive(partner, schema);
@@ -60,11 +60,12 @@ public abstract class AvroWithPartnerByStructureVisitor<P, T> {
 
   // ---------------------------------- Static helpers ---------------------------------------------
 
-  private static <P, T> T visitRecord(P struct, Schema record, AvroWithPartnerByStructureVisitor<P, T> visitor) {
+  private static <P, T> T visitRecord(
+      P struct, Schema record, AvroWithPartnerByStructureVisitor<P, T> visitor) {
     // check to make sure this hasn't been visited before
     String name = record.getFullName();
-    Preconditions.checkState(!visitor.recordLevels.contains(name),
-        "Cannot process recursive Avro record %s", name);
+    Preconditions.checkState(
+        !visitor.recordLevels.contains(name), "Cannot process recursive Avro record %s", name);
     List<Schema.Field> fields = record.getFields();
 
     visitor.recordLevels.push(name);
@@ -75,8 +76,11 @@ public abstract class AvroWithPartnerByStructureVisitor<P, T> {
       Pair<String, P> nameAndType = visitor.fieldNameAndType(struct, i);
       String fieldName = nameAndType.first();
       Schema.Field field = fields.get(i);
-      Preconditions.checkArgument(AvroSchemaUtil.makeCompatibleName(fieldName).equals(field.name()),
-          "Structs do not match: field %s != %s", fieldName, field.name());
+      Preconditions.checkArgument(
+          AvroSchemaUtil.makeCompatibleName(fieldName).equals(field.name()),
+          "Structs do not match: field %s != %s",
+          fieldName,
+          field.name());
       results.add(visit(nameAndType.second(), field.schema(), visitor));
       names.add(fieldName);
     }
@@ -86,10 +90,11 @@ public abstract class AvroWithPartnerByStructureVisitor<P, T> {
     return visitor.record(struct, record, names, results);
   }
 
-  private static <P, T> T visitUnion(P type, Schema union, AvroWithPartnerByStructureVisitor<P, T> visitor) {
+  private static <P, T> T visitUnion(
+      P type, Schema union, AvroWithPartnerByStructureVisitor<P, T> visitor) {
     List<Schema> types = union.getTypes();
-    Preconditions.checkArgument(AvroSchemaUtil.isOptionSchema(union),
-        "Cannot visit non-option union: %s", union);
+    Preconditions.checkArgument(
+        AvroSchemaUtil.isOptionSchema(union), "Cannot visit non-option union: %s", union);
     List<T> options = Lists.newArrayListWithExpectedSize(types.size());
     for (Schema branch : types) {
       if (branch.getType() == Schema.Type.NULL) {
@@ -101,27 +106,31 @@ public abstract class AvroWithPartnerByStructureVisitor<P, T> {
     return visitor.union(type, union, options);
   }
 
-  private static <P, T> T visitArray(P type, Schema array, AvroWithPartnerByStructureVisitor<P, T> visitor) {
+  private static <P, T> T visitArray(
+      P type, Schema array, AvroWithPartnerByStructureVisitor<P, T> visitor) {
     if (array.getLogicalType() instanceof LogicalMap || visitor.isMapType(type)) {
       Preconditions.checkState(
           AvroSchemaUtil.isKeyValueSchema(array.getElementType()),
-          "Cannot visit invalid logical map type: %s", array);
+          "Cannot visit invalid logical map type: %s",
+          array);
       List<Schema.Field> keyValueFields = array.getElementType().getFields();
-      return visitor.map(type, array,
+      return visitor.map(
+          type,
+          array,
           visit(visitor.mapKeyType(type), keyValueFields.get(0).schema(), visitor),
           visit(visitor.mapValueType(type), keyValueFields.get(1).schema(), visitor));
 
     } else {
-      return visitor.array(type, array, visit(visitor.arrayElementType(type), array.getElementType(), visitor));
+      return visitor.array(
+          type, array, visit(visitor.arrayElementType(type), array.getElementType(), visitor));
     }
   }
 
-  /**
-   * Just for checking state.
-   */
+  /** Just for checking state. */
   private Deque<String> recordLevels = Lists.newLinkedList();
 
-  // ---------------------------------- Partner type methods ---------------------------------------------
+  // ---------------------------------- Partner type methods
+  // ---------------------------------------------
 
   protected abstract boolean isMapType(P type);
 
@@ -130,6 +139,7 @@ public abstract class AvroWithPartnerByStructureVisitor<P, T> {
   protected abstract P arrayElementType(P arrayType);
 
   protected abstract P mapKeyType(P mapType);
+
   protected abstract P mapValueType(P mapType);
 
   protected abstract Pair<String, P> fieldNameAndType(P structType, int pos);

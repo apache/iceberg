@@ -16,16 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
-/**
- * Configuration properties that are controlled by Java system properties.
- */
+/** Configuration properties that are controlled by Java system properties. */
 public class SystemProperties {
 
-  private SystemProperties() {
-  }
+  private SystemProperties() {}
 
   /**
    * Sets the size of the worker pool. The worker pool limits the number of tasks concurrently
@@ -34,10 +30,16 @@ public class SystemProperties {
    */
   public static final String WORKER_THREAD_POOL_SIZE_PROP = "iceberg.worker.num-threads";
 
-  /**
-   * Whether to use the shared worker pool when planning table scans.
-   */
+  /** Whether to use the shared worker pool when planning table scans. */
   public static final String SCAN_THREAD_POOL_ENABLED = "iceberg.scan.plan-in-worker-pool";
+
+  /**
+   * Maximum number of distinct {@link org.apache.iceberg.io.FileIO} that is allowed to have
+   * associated {@link org.apache.iceberg.io.ContentCache} in memory at a time.
+   */
+  public static final String IO_MANIFEST_CACHE_MAX_FILEIO = "iceberg.io.manifest.cache.fileio-max";
+
+  public static final int IO_MANIFEST_CACHE_MAX_FILEIO_DEFAULT = 8;
 
   static boolean getBoolean(String systemProperty, boolean defaultValue) {
     String value = System.getProperty(systemProperty);

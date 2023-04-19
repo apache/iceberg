@@ -16,22 +16,28 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.extensions;
 
 import java.util.Map;
+import org.apache.iceberg.RowLevelOperationMode;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 
 public class TestCopyOnWriteMerge extends TestMerge {
 
-  public TestCopyOnWriteMerge(String catalogName, String implementation, Map<String, String> config,
-                              String fileFormat, boolean vectorized, String distributionMode) {
+  public TestCopyOnWriteMerge(
+      String catalogName,
+      String implementation,
+      Map<String, String> config,
+      String fileFormat,
+      boolean vectorized,
+      String distributionMode) {
     super(catalogName, implementation, config, fileFormat, vectorized, distributionMode);
   }
 
   @Override
   protected Map<String, String> extraTableProperties() {
-    return ImmutableMap.of(TableProperties.MERGE_MODE, "copy-on-write");
+    return ImmutableMap.of(
+        TableProperties.MERGE_MODE, RowLevelOperationMode.COPY_ON_WRITE.modeName());
   }
 }

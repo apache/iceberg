@@ -16,8 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.source;
+
+import static org.apache.spark.sql.connector.iceberg.write.RowLevelOperation.Command.DELETE;
+import static org.apache.spark.sql.connector.iceberg.write.RowLevelOperation.Command.UPDATE;
 
 import org.apache.iceberg.IsolationLevel;
 import org.apache.iceberg.MetadataColumns;
@@ -34,9 +36,6 @@ import org.apache.spark.sql.connector.read.ScanBuilder;
 import org.apache.spark.sql.connector.write.WriteBuilder;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 
-import static org.apache.spark.sql.connector.iceberg.write.RowLevelOperation.Command.DELETE;
-import static org.apache.spark.sql.connector.iceberg.write.RowLevelOperation.Command.UPDATE;
-
 class SparkCopyOnWriteOperation implements RowLevelOperation {
 
   private final SparkSession spark;
@@ -49,8 +48,8 @@ class SparkCopyOnWriteOperation implements RowLevelOperation {
   private Scan configuredScan;
   private WriteBuilder lazyWriteBuilder;
 
-  SparkCopyOnWriteOperation(SparkSession spark, Table table, RowLevelOperationInfo info,
-                            IsolationLevel isolationLevel) {
+  SparkCopyOnWriteOperation(
+      SparkSession spark, Table table, RowLevelOperationInfo info, IsolationLevel isolationLevel) {
     this.spark = spark;
     this.table = table;
     this.command = info.command();
@@ -65,14 +64,15 @@ class SparkCopyOnWriteOperation implements RowLevelOperation {
   @Override
   public ScanBuilder newScanBuilder(CaseInsensitiveStringMap options) {
     if (lazyScanBuilder == null) {
-      lazyScanBuilder = new SparkScanBuilder(spark, table, options) {
-        @Override
-        public Scan build() {
-          Scan scan = super.buildCopyOnWriteScan();
-          SparkCopyOnWriteOperation.this.configuredScan = scan;
-          return scan;
-        }
-      };
+      lazyScanBuilder =
+          new SparkScanBuilder(spark, table, options) {
+            @Override
+            public Scan build() {
+              Scan scan = super.buildCopyOnWriteScan();
+              SparkCopyOnWriteOperation.this.configuredScan = scan;
+              return scan;
+            }
+          };
     }
 
     return lazyScanBuilder;
@@ -95,9 +95,9 @@ class SparkCopyOnWriteOperation implements RowLevelOperation {
     NamedReference pos = Expressions.column(MetadataColumns.ROW_POSITION.name());
 
     if (command == DELETE || command == UPDATE) {
-      return new NamedReference[]{file, pos};
+      return new NamedReference[] {file, pos};
     } else {
-      return new NamedReference[]{file};
+      return new NamedReference[] {file};
     }
   }
 }

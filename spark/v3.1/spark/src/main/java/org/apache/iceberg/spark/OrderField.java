@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark;
 
 import org.apache.iceberg.NullOrder;
@@ -27,40 +26,55 @@ import org.apache.spark.sql.connector.iceberg.expressions.SortDirection;
 import org.apache.spark.sql.connector.iceberg.expressions.SortOrder;
 
 class OrderField implements SortOrder {
-  static OrderField column(String fieldName, org.apache.iceberg.SortDirection direction, NullOrder nullOrder) {
+  static OrderField column(
+      String fieldName, org.apache.iceberg.SortDirection direction, NullOrder nullOrder) {
     return new OrderField(Expressions.column(fieldName), toSpark(direction), toSpark(nullOrder));
   }
 
-  static OrderField bucket(String fieldName, int numBuckets, org.apache.iceberg.SortDirection direction,
-                           NullOrder nullOrder) {
-    return new OrderField(Expressions.bucket(numBuckets, fieldName), toSpark(direction), toSpark(nullOrder));
+  static OrderField bucket(
+      String fieldName,
+      int numBuckets,
+      org.apache.iceberg.SortDirection direction,
+      NullOrder nullOrder) {
+    return new OrderField(
+        Expressions.bucket(numBuckets, fieldName), toSpark(direction), toSpark(nullOrder));
   }
 
-  static OrderField truncate(String fieldName, int width, org.apache.iceberg.SortDirection direction,
-                             NullOrder nullOrder) {
-    return new OrderField(Expressions.apply(
-      "truncate", Expressions.column(fieldName), Expressions.literal(width)),
-      toSpark(direction), toSpark(nullOrder));
+  static OrderField truncate(
+      String fieldName,
+      int width,
+      org.apache.iceberg.SortDirection direction,
+      NullOrder nullOrder) {
+    return new OrderField(
+        Expressions.apply("truncate", Expressions.column(fieldName), Expressions.literal(width)),
+        toSpark(direction),
+        toSpark(nullOrder));
   }
 
-  static OrderField year(String fieldName, org.apache.iceberg.SortDirection direction, NullOrder nullOrder) {
+  static OrderField year(
+      String fieldName, org.apache.iceberg.SortDirection direction, NullOrder nullOrder) {
     return new OrderField(Expressions.years(fieldName), toSpark(direction), toSpark(nullOrder));
   }
 
-  static OrderField month(String fieldName, org.apache.iceberg.SortDirection direction, NullOrder nullOrder) {
+  static OrderField month(
+      String fieldName, org.apache.iceberg.SortDirection direction, NullOrder nullOrder) {
     return new OrderField(Expressions.months(fieldName), toSpark(direction), toSpark(nullOrder));
   }
 
-  static OrderField day(String fieldName, org.apache.iceberg.SortDirection direction, NullOrder nullOrder) {
+  static OrderField day(
+      String fieldName, org.apache.iceberg.SortDirection direction, NullOrder nullOrder) {
     return new OrderField(Expressions.days(fieldName), toSpark(direction), toSpark(nullOrder));
   }
 
-  static OrderField hour(String fieldName, org.apache.iceberg.SortDirection direction, NullOrder nullOrder) {
+  static OrderField hour(
+      String fieldName, org.apache.iceberg.SortDirection direction, NullOrder nullOrder) {
     return new OrderField(Expressions.hours(fieldName), toSpark(direction), toSpark(nullOrder));
   }
 
   private static SortDirection toSpark(org.apache.iceberg.SortDirection direction) {
-    return direction == org.apache.iceberg.SortDirection.ASC ? SortDirection.ASCENDING : SortDirection.DESCENDING;
+    return direction == org.apache.iceberg.SortDirection.ASC
+        ? SortDirection.ASCENDING
+        : SortDirection.DESCENDING;
   }
 
   private static NullOrdering toSpark(NullOrder nullOrder) {
@@ -94,9 +108,10 @@ class OrderField implements SortOrder {
 
   @Override
   public String describe() {
-    return String.format("%s %s %s",
-      expr.describe(),
-      direction == SortDirection.ASCENDING ? "ASC" : "DESC",
-      nullOrder == NullOrdering.NULLS_FIRST ? "NULLS FIRST" : "NULLS LAST");
+    return String.format(
+        "%s %s %s",
+        expr.describe(),
+        direction == SortDirection.ASCENDING ? "ASC" : "DESC",
+        nullOrder == NullOrdering.NULLS_FIRST ? "NULLS FIRST" : "NULLS LAST");
   }
 }

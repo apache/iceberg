@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.source;
 
 import java.util.Map;
@@ -32,12 +31,14 @@ import org.apache.spark.sql.connector.catalog.SupportsNamespaces;
 import org.apache.spark.sql.connector.catalog.Table;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
 
-public class TestSparkCatalog<T extends TableCatalog & SupportsNamespaces> extends SparkSessionCatalog<T> {
+public class TestSparkCatalog<T extends TableCatalog & SupportsNamespaces>
+    extends SparkSessionCatalog<T> {
 
   private static final Map<Identifier, Table> tableMap = Maps.newHashMap();
 
   public static void setTable(Identifier ident, Table table) {
-    Preconditions.checkArgument(!tableMap.containsKey(ident), "Cannot set " + ident + ". It is already set");
+    Preconditions.checkArgument(
+        !tableMap.containsKey(ident), "Cannot set " + ident + ". It is already set");
     tableMap.put(ident, table);
   }
 

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.util;
 
 import java.util.Comparator;
@@ -33,8 +32,7 @@ import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
 public class ManifestFileUtil {
-  private ManifestFileUtil() {
-  }
+  private ManifestFileUtil() {}
 
   private static class FieldSummary<T> {
     private final Comparator<T> comparator;
@@ -103,9 +101,10 @@ public class ManifestFileUtil {
     return true;
   }
 
-  public static boolean canContainAny(ManifestFile manifest,
-                                      Iterable<StructLike> partitions,
-                                      Function<Integer, PartitionSpec> specLookup) {
+  public static boolean canContainAny(
+      ManifestFile manifest,
+      Iterable<StructLike> partitions,
+      Function<Integer, PartitionSpec> specLookup) {
     if (manifest.partitions() == null) {
       return true;
     }
@@ -121,9 +120,10 @@ public class ManifestFileUtil {
     return false;
   }
 
-  public static boolean canContainAny(ManifestFile manifest,
-                                      Iterable<Pair<Integer, StructLike>> partitions,
-                                      Map<Integer, PartitionSpec> specsById) {
+  public static boolean canContainAny(
+      ManifestFile manifest,
+      Iterable<Pair<Integer, StructLike>> partitions,
+      Map<Integer, PartitionSpec> specsById) {
     if (manifest.partitions() == null) {
       return true;
     }
@@ -131,7 +131,8 @@ public class ManifestFileUtil {
     List<FieldSummary<?>> summaries = summaries(manifest, specsById::get);
 
     for (Pair<Integer, StructLike> partition : partitions) {
-      if (partition.first() == manifest.partitionSpecId() && canContain(summaries, partition.second())) {
+      if (partition.first() == manifest.partitionSpecId()
+          && canContain(summaries, partition.second())) {
         return true;
       }
     }
@@ -139,7 +140,8 @@ public class ManifestFileUtil {
     return false;
   }
 
-  private static List<FieldSummary<?>> summaries(ManifestFile manifest, Function<Integer, PartitionSpec> specLookup) {
+  private static List<FieldSummary<?>> summaries(
+      ManifestFile manifest, Function<Integer, PartitionSpec> specLookup) {
     Types.StructType partitionType = specLookup.apply(manifest.partitionSpecId()).partitionType();
     List<ManifestFile.PartitionFieldSummary> fieldSummaries = manifest.partitions();
     List<Types.NestedField> fields = partitionType.fields();

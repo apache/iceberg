@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.hadoop;
 
 import java.io.IOException;
@@ -29,10 +28,15 @@ import org.apache.hadoop.fs.BlockLocation;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.CombinedScanTask;
+import org.apache.iceberg.ContentScanTask;
 import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.ScanTask;
+import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.io.ResolvingFileIO;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -41,10 +45,11 @@ public class Util {
 
   public static final String VERSION_HINT_FILENAME = "version-hint.text";
 
+  private static final Set<String> LOCALITY_WHITELIST_FS = ImmutableSet.of("hdfs");
+
   private static final Logger LOG = LoggerFactory.getLogger(Util.class);
 
-  private Util() {
-  }
+  private Util() {}
 
   public static FileSystem getFs(Path path, Configuration conf) {
     try {
@@ -71,25 +76,67 @@ public class Util {
     return locationSets.toArray(new String[0]);
   }
 
-  public static String[] blockLocations(FileIO io, CombinedScanTask task) {
+  public static String[] blockLocations(FileIO io, ScanTaskGroup<?> taskGroup) {
     Set<String> locations = Sets.newHashSet();
-    for (FileScanTask f : task.files()) {
-      InputFile in = io.newInputFile(f.file().path().toString());
-      if (in instanceof HadoopInputFile) {
-        Collections.addAll(locations, ((HadoopInputFile) in).getBlockLocations(f.start(), f.length()));
+
+    for (ScanTask task : taskGroup.tasks()) {
+      if (task instanceof ContentScanTask) {
+        Collections.addAll(locations, blockLocations(io, (ContentScanTask<?>) task));
       }
     }
 
     return locations.toArray(HadoopInputFile.NO_LOCATION_PREFERENCE);
   }
 
+  public static boolean mayHaveBlockLocations(FileIO io, String location) {
+    if (usesHadoopFileIO(io, location)) {
+      InputFile inputFile = io.newInputFile(location);
+      if (inputFile instanceof HadoopInputFile) {
+        String scheme = ((HadoopInputFile) inputFile).getFileSystem().getScheme();
+        return LOCALITY_WHITELIST_FS.contains(scheme);
+
+      } else {
+        return false;
+      }
+    }
+
+    return false;
+  }
+
+  private static String[] blockLocations(FileIO io, ContentScanTask<?> task) {
+    String location = task.file().path().toString();
+    if (usesHadoopFileIO(io, location)) {
+      InputFile inputFile = io.newInputFile(location);
+      if (inputFile instanceof HadoopInputFile) {
+        return ((HadoopInputFile) inputFile).getBlockLocations(task.start(), task.length());
+
+      } else {
+        return HadoopInputFile.NO_LOCATION_PREFERENCE;
+      }
+    } else {
+      return HadoopInputFile.NO_LOCATION_PREFERENCE;
+    }
+  }
+
+  private static boolean usesHadoopFileIO(FileIO io, String location) {
+    if (io instanceof HadoopFileIO) {
+      return true;
+
+    } else if (io instanceof ResolvingFileIO) {
+      ResolvingFileIO resolvingFileIO = (ResolvingFileIO) io;
+      return HadoopFileIO.class.isAssignableFrom(resolvingFileIO.ioClass(location));
+
+    } else {
+      return false;
+    }
+  }
+
   /**
    * From Apache Spark
    *
-   * Convert URI to String.
-   * Since URI.toString does not decode the uri, e.g. change '%25' to '%'.
-   * Here we create a hadoop Path with the given URI, and rely on Path.toString
-   * to decode the uri
+   * <p>Convert URI to String. Since URI.toString does not decode the uri, e.g. change '%25' to '%'.
+   * Here we create a hadoop Path with the given URI, and rely on Path.toString to decode the uri
+   *
    * @param uri the URI of the path
    * @return the String of the path
    */

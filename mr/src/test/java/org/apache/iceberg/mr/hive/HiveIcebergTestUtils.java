@@ -16,8 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.mr.hive;
+
+import static org.apache.iceberg.types.Types.NestedField.optional;
 
 import java.io.File;
 import java.io.IOException;
@@ -64,32 +65,43 @@ import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ByteBuffers;
 import org.junit.Assert;
 
-import static org.apache.iceberg.types.Types.NestedField.optional;
-
 public class HiveIcebergTestUtils {
   // TODO: Can this be a constant all around the Iceberg tests?
-  public static final Schema FULL_SCHEMA = new Schema(
-      // TODO: Create tests for field case insensitivity.
-      optional(1, "boolean_type", Types.BooleanType.get()),
-      optional(2, "integer_type", Types.IntegerType.get()),
-      optional(3, "long_type", Types.LongType.get()),
-      optional(4, "float_type", Types.FloatType.get()),
-      optional(5, "double_type", Types.DoubleType.get()),
-      optional(6, "date_type", Types.DateType.get()),
-      optional(7, "tstz", Types.TimestampType.withZone()),
-      optional(8, "ts", Types.TimestampType.withoutZone()),
-      optional(9, "string_type", Types.StringType.get()),
-      optional(10, "fixed_type", Types.FixedType.ofLength(3)),
-      optional(11, "binary_type", Types.BinaryType.get()),
-      optional(12, "decimal_type", Types.DecimalType.of(38, 10)),
-      optional(13, "time_type", Types.TimeType.get()),
-      optional(14, "uuid_type", Types.UUIDType.get()));
+  public static final Schema FULL_SCHEMA =
+      new Schema(
+          // TODO: Create tests for field case insensitivity.
+          optional(1, "boolean_type", Types.BooleanType.get()),
+          optional(2, "integer_type", Types.IntegerType.get()),
+          optional(3, "long_type", Types.LongType.get()),
+          optional(4, "float_type", Types.FloatType.get()),
+          optional(5, "double_type", Types.DoubleType.get()),
+          optional(6, "date_type", Types.DateType.get()),
+          optional(7, "tstz", Types.TimestampType.withZone()),
+          optional(8, "ts", Types.TimestampType.withoutZone()),
+          optional(9, "string_type", Types.StringType.get()),
+          optional(10, "fixed_type", Types.FixedType.ofLength(3)),
+          optional(11, "binary_type", Types.BinaryType.get()),
+          optional(12, "decimal_type", Types.DecimalType.of(38, 10)),
+          optional(13, "time_type", Types.TimeType.get()),
+          optional(14, "uuid_type", Types.UUIDType.get()));
 
   public static final StandardStructObjectInspector FULL_SCHEMA_OBJECT_INSPECTOR =
       ObjectInspectorFactory.getStandardStructObjectInspector(
-          Arrays.asList("boolean_type", "integer_type", "long_type", "float_type", "double_type",
-              "date_type", "tstz", "ts", "string_type", "fixed_type", "binary_type", "decimal_type",
-              "time_type", "uuid_type"),
+          Arrays.asList(
+              "boolean_type",
+              "integer_type",
+              "long_type",
+              "float_type",
+              "double_type",
+              "date_type",
+              "tstz",
+              "ts",
+              "string_type",
+              "fixed_type",
+              "binary_type",
+              "decimal_type",
+              "time_type",
+              "uuid_type"),
           Arrays.asList(
               PrimitiveObjectInspectorFactory.writableBooleanObjectInspector,
               PrimitiveObjectInspectorFactory.writableIntObjectInspector,
@@ -104,8 +116,7 @@ public class HiveIcebergTestUtils {
               PrimitiveObjectInspectorFactory.writableBinaryObjectInspector,
               PrimitiveObjectInspectorFactory.writableHiveDecimalObjectInspector,
               PrimitiveObjectInspectorFactory.writableStringObjectInspector,
-              PrimitiveObjectInspectorFactory.writableStringObjectInspector
-          ));
+              PrimitiveObjectInspectorFactory.writableStringObjectInspector));
 
   private HiveIcebergTestUtils() {
     // Empty constructor for the utility class
@@ -113,6 +124,7 @@ public class HiveIcebergTestUtils {
 
   /**
    * Generates a test record where every field has a value.
+   *
    * @return Record with every field set
    */
   public static Record getTestRecord() {
@@ -127,8 +139,8 @@ public class HiveIcebergTestUtils {
     record.set(6, OffsetDateTime.of(2017, 11, 22, 11, 30, 7, 0, ZoneOffset.ofHours(2)));
     record.set(7, LocalDateTime.of(2019, 2, 22, 9, 44, 54));
     record.set(8, "kilenc");
-    record.set(9, new byte[]{0, 1, 2});
-    record.set(10, ByteBuffer.wrap(new byte[]{0, 1, 2, 3}));
+    record.set(9, new byte[] {0, 1, 2});
+    record.set(10, ByteBuffer.wrap(new byte[] {0, 1, 2, 3}));
     record.set(11, new BigDecimal("0.0000000013"));
     record.set(12, LocalTime.of(11, 33));
     record.set(13, UUID.fromString("73689599-d7fc-4dfb-b94e-106ff20284a5"));
@@ -138,6 +150,7 @@ public class HiveIcebergTestUtils {
 
   /**
    * Record with every field set to null.
+   *
    * @return Empty record
    */
   public static Record getNullTestRecord() {
@@ -152,6 +165,7 @@ public class HiveIcebergTestUtils {
 
   /**
    * Hive values for the test record.
+   *
    * @param record The original Iceberg record
    * @return The Hive 'record' containing the same values
    */
@@ -170,28 +184,33 @@ public class HiveIcebergTestUtils {
         new BytesWritable(ByteBuffers.toByteArray(record.get(10, ByteBuffer.class))),
         new HiveDecimalWritable(HiveDecimal.create(record.get(11, BigDecimal.class))),
         new Text(record.get(12, LocalTime.class).toString()),
-        new Text(record.get(13, UUID.class).toString())
-    );
+        new Text(record.get(13, UUID.class).toString()));
   }
 
   /**
    * Converts a list of Object arrays to a list of Iceberg records.
+   *
    * @param schema The schema of the Iceberg record
    * @param rows The data of the records
    * @return The list of the converted records
    */
   public static List<Record> valueForRow(Schema schema, List<Object[]> rows) {
-    return rows.stream().map(row -> {
-      Record record = GenericRecord.create(schema);
-      for (int i = 0; i < row.length; ++i) {
-        record.set(i, row[i]);
-      }
-      return record;
-    }).collect(Collectors.toList());
+    return rows.stream()
+        .map(
+            row -> {
+              Record record = GenericRecord.create(schema);
+              for (int i = 0; i < row.length; ++i) {
+                record.set(i, row[i]);
+              }
+              return record;
+            })
+        .collect(Collectors.toList());
   }
 
   /**
-   * Check if 2 Iceberg records are the same or not. Compares OffsetDateTimes only by the Intant they represent.
+   * Check if 2 Iceberg records are the same or not. Compares OffsetDateTimes only by the Intant
+   * they represent.
+   *
    * @param expected The expected record
    * @param actual The actual record
    */
@@ -199,7 +218,8 @@ public class HiveIcebergTestUtils {
     for (int i = 0; i < expected.size(); ++i) {
       if (expected.get(i) instanceof OffsetDateTime) {
         // For OffsetDateTime we just compare the actual instant
-        Assert.assertEquals(((OffsetDateTime) expected.get(i)).toInstant(),
+        Assert.assertEquals(
+            ((OffsetDateTime) expected.get(i)).toInstant(),
             ((OffsetDateTime) actual.get(i)).toInstant());
       } else if (expected.get(i) instanceof byte[]) {
         Assert.assertArrayEquals((byte[]) expected.get(i), (byte[]) actual.get(i));
@@ -210,14 +230,16 @@ public class HiveIcebergTestUtils {
   }
 
   /**
-   * Validates whether the table contains the expected records. The results should be sorted by a unique key so we do
-   * not end up with flaky tests.
+   * Validates whether the table contains the expected records. The results should be sorted by a
+   * unique key so we do not end up with flaky tests.
+   *
    * @param table The table we should read the records from
    * @param expected The expected list of Records
    * @param sortBy The column position by which we will sort
    * @throws IOException Exceptions when reading the table data
    */
-  public static void validateData(Table table, List<Record> expected, int sortBy) throws IOException {
+  public static void validateData(Table table, List<Record> expected, int sortBy)
+      throws IOException {
     // Refresh the table, so we get the new data as well
     table.refresh();
     List<Record> records = Lists.newArrayListWithExpectedSize(expected.size());
@@ -229,8 +251,9 @@ public class HiveIcebergTestUtils {
   }
 
   /**
-   * Validates whether the 2 sets of records are the same. The results should be sorted by a unique key so we do
-   * not end up with flaky tests.
+   * Validates whether the 2 sets of records are the same. The results should be sorted by a unique
+   * key so we do not end up with flaky tests.
+   *
    * @param expected The expected list of Records
    * @param actual The actual list of Records
    * @param sortBy The column position by which we will sort
@@ -251,19 +274,23 @@ public class HiveIcebergTestUtils {
   /**
    * Validates the number of files under a {@link Table} generated by a specific queryId and jobId.
    * Validates that the commit files are removed.
+   *
    * @param table The table we are checking
    * @param conf The configuration used for generating the job location
    * @param jobId The jobId which generated the files
    * @param dataFileNum The expected number of data files (TABLE_LOCATION/data/*)
    */
-  public static void validateFiles(Table table, Configuration conf, JobID jobId, int dataFileNum) throws IOException {
-    List<Path> dataFiles = Files.walk(Paths.get(table.location() + "/data"))
-        .filter(Files::isRegularFile)
-        .filter(path -> !path.getFileName().toString().startsWith("."))
-        .collect(Collectors.toList());
+  public static void validateFiles(Table table, Configuration conf, JobID jobId, int dataFileNum)
+      throws IOException {
+    List<Path> dataFiles =
+        Files.walk(Paths.get(table.location() + "/data"))
+            .filter(Files::isRegularFile)
+            .filter(path -> !path.getFileName().toString().startsWith("."))
+            .collect(Collectors.toList());
 
     Assert.assertEquals(dataFileNum, dataFiles.size());
     Assert.assertFalse(
-        new File(HiveIcebergOutputCommitter.generateJobLocation(table.location(), conf, jobId)).exists());
+        new File(HiveIcebergOutputCommitter.generateJobLocation(table.location(), conf, jobId))
+            .exists());
   }
 }

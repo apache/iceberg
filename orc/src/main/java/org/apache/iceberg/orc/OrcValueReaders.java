@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.orc;
 
 import java.util.Arrays;
@@ -30,10 +29,8 @@ import org.apache.orc.storage.ql.exec.vector.DoubleColumnVector;
 import org.apache.orc.storage.ql.exec.vector.LongColumnVector;
 import org.apache.orc.storage.ql.exec.vector.StructColumnVector;
 
-
 public class OrcValueReaders {
-  private OrcValueReaders() {
-  }
+  private OrcValueReaders() {}
 
   public static OrcValueReader<Boolean> booleans() {
     return BooleanReader.INSTANCE;
@@ -66,8 +63,7 @@ public class OrcValueReaders {
   private static class BooleanReader implements OrcValueReader<Boolean> {
     static final BooleanReader INSTANCE = new BooleanReader();
 
-    private BooleanReader() {
-    }
+    private BooleanReader() {}
 
     @Override
     public Boolean nonNullRead(ColumnVector vector, int row) {
@@ -78,8 +74,7 @@ public class OrcValueReaders {
   private static class IntegerReader implements OrcValueReader<Integer> {
     static final IntegerReader INSTANCE = new IntegerReader();
 
-    private IntegerReader() {
-    }
+    private IntegerReader() {}
 
     @Override
     public Integer nonNullRead(ColumnVector vector, int row) {
@@ -90,8 +85,7 @@ public class OrcValueReaders {
   private static class LongReader implements OrcValueReader<Long> {
     static final LongReader INSTANCE = new LongReader();
 
-    private LongReader() {
-    }
+    private LongReader() {}
 
     @Override
     public Long nonNullRead(ColumnVector vector, int row) {
@@ -102,8 +96,7 @@ public class OrcValueReaders {
   private static class FloatReader implements OrcValueReader<Float> {
     private static final FloatReader INSTANCE = new FloatReader();
 
-    private FloatReader() {
-    }
+    private FloatReader() {}
 
     @Override
     public Float nonNullRead(ColumnVector vector, int row) {
@@ -114,8 +107,7 @@ public class OrcValueReaders {
   private static class DoubleReader implements OrcValueReader<Double> {
     private static final DoubleReader INSTANCE = new DoubleReader();
 
-    private DoubleReader() {
-    }
+    private DoubleReader() {}
 
     @Override
     public Double nonNullRead(ColumnVector vector, int row) {
@@ -126,15 +118,16 @@ public class OrcValueReaders {
   private static class BytesReader implements OrcValueReader<byte[]> {
     private static final BytesReader INSTANCE = new BytesReader();
 
-    private BytesReader() {
-    }
+    private BytesReader() {}
 
     @Override
     public byte[] nonNullRead(ColumnVector vector, int row) {
       BytesColumnVector bytesVector = (BytesColumnVector) vector;
 
       return Arrays.copyOfRange(
-          bytesVector.vector[row], bytesVector.start[row], bytesVector.start[row] + bytesVector.length[row]);
+          bytesVector.vector[row],
+          bytesVector.start[row],
+          bytesVector.start[row] + bytesVector.length[row]);
     }
   }
 
@@ -142,7 +135,8 @@ public class OrcValueReaders {
     private final OrcValueReader<?>[] readers;
     private final boolean[] isConstantOrMetadataField;
 
-    protected StructReader(List<OrcValueReader<?>> readers, Types.StructType struct, Map<Integer, ?> idToConstant) {
+    protected StructReader(
+        List<OrcValueReader<?>> readers, Types.StructType struct, Map<Integer, ?> idToConstant) {
       List<Types.NestedField> fields = struct.fields();
       this.readers = new OrcValueReader[fields.size()];
       this.isConstantOrMetadataField = new boolean[fields.size()];

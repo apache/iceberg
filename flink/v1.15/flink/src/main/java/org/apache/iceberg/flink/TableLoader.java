@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.flink;
 
 import java.io.Closeable;
@@ -31,15 +30,19 @@ import org.apache.iceberg.hadoop.SerializableConfiguration;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 
 /**
- * Serializable loader to load an Iceberg {@link Table}.
- * Flink needs to get {@link Table} objects in the cluster (for example, to get splits), not just on the client side.
- * So we need an Iceberg table loader to get the {@link Table} object.
+ * Serializable loader to load an Iceberg {@link Table}. Flink needs to get {@link Table} objects in
+ * the cluster (for example, to get splits), not just on the client side. So we need an Iceberg
+ * table loader to get the {@link Table} object.
  */
-public interface TableLoader extends Closeable, Serializable {
+public interface TableLoader extends Closeable, Serializable, Cloneable {
 
   void open();
 
   Table loadTable();
+
+  /** Clone a TableLoader */
+  @SuppressWarnings({"checkstyle:NoClone", "checkstyle:SuperClone"})
+  TableLoader clone();
 
   static TableLoader fromCatalog(CatalogLoader catalogLoader, TableIdentifier identifier) {
     return new CatalogTableLoader(catalogLoader, identifier);
@@ -74,18 +77,22 @@ public interface TableLoader extends Closeable, Serializable {
 
     @Override
     public Table loadTable() {
+      FlinkEnvironmentContext.init();
       return tables.load(location);
     }
 
     @Override
-    public void close() {
+    @SuppressWarnings({"checkstyle:NoClone", "checkstyle:SuperClone"})
+    public TableLoader clone() {
+      return new HadoopTableLoader(location, new Configuration(hadoopConf.get()));
     }
 
     @Override
+    public void close() {}
+
+    @Override
     public String toString() {
-      return MoreObjects.toStringHelper(this)
-          .add("location", location)
-          .toString();
+      return MoreObjects.toStringHelper(this).add("location", location).toString();
     }
   }
 
@@ -110,7 +117,14 @@ public interface TableLoader extends Closeable, Serializable {
 
     @Override
     public Table loadTable() {
+      FlinkEnvironmentContext.init();
       return catalog.loadTable(TableIdentifier.parse(identifier));
+    }
+
+    @Override
+    @SuppressWarnings({"checkstyle:NoClone", "checkstyle:SuperClone"})
+    public TableLoader clone() {
+      return new CatalogTableLoader(catalogLoader.clone(), TableIdentifier.parse(identifier));
     }
 
     @Override

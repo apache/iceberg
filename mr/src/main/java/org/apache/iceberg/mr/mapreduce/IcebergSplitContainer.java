@@ -16,11 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.mr.mapreduce;
 
 public interface IcebergSplitContainer {
 
   IcebergSplit icebergSplit();
-
 }

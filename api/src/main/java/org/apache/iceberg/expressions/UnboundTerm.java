@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.expressions;
 
 /**
@@ -24,5 +23,4 @@ package org.apache.iceberg.expressions;
  *
  * @param <T> the Java type of values produced by this term
  */
-public interface UnboundTerm<T> extends Unbound<T, BoundTerm<T>>, Term {
-}
+public interface UnboundTerm<T> extends Unbound<T, BoundTerm<T>>, Term {}

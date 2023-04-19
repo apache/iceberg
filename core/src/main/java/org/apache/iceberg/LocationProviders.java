@@ -16,50 +16,58 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.transforms.Transform;
-import org.apache.iceberg.transforms.Transforms;
-import org.apache.iceberg.types.Types;
+import org.apache.iceberg.relocated.com.google.common.hash.HashCode;
+import org.apache.iceberg.relocated.com.google.common.hash.HashFunction;
+import org.apache.iceberg.relocated.com.google.common.hash.Hashing;
+import org.apache.iceberg.relocated.com.google.common.io.BaseEncoding;
 import org.apache.iceberg.util.LocationUtil;
 import org.apache.iceberg.util.PropertyUtil;
 
 public class LocationProviders {
 
-  private LocationProviders() {
-  }
+  private LocationProviders() {}
 
-  public static LocationProvider locationsFor(String inputLocation, Map<String, String> properties) {
+  public static LocationProvider locationsFor(
+      String inputLocation, Map<String, String> properties) {
     String location = LocationUtil.stripTrailingSlash(inputLocation);
     if (properties.containsKey(TableProperties.WRITE_LOCATION_PROVIDER_IMPL)) {
       String impl = properties.get(TableProperties.WRITE_LOCATION_PROVIDER_IMPL);
       DynConstructors.Ctor<LocationProvider> ctor;
       try {
-        ctor = DynConstructors.builder(LocationProvider.class)
-            .impl(impl, String.class, Map.class)
-            .impl(impl).buildChecked(); // fall back to no-arg constructor
+        ctor =
+            DynConstructors.builder(LocationProvider.class)
+                .impl(impl, String.class, Map.class)
+                .impl(impl)
+                .buildChecked(); // fall back to no-arg constructor
       } catch (NoSuchMethodException e) {
-        throw new IllegalArgumentException(String.format(
-            "Unable to find a constructor for implementation %s of %s. " +
-                "Make sure the implementation is in classpath, and that it either " +
-                "has a public no-arg constructor or a two-arg constructor " +
-                "taking in the string base table location and its property string map.",
-            impl, LocationProvider.class), e);
+        throw new IllegalArgumentException(
+            String.format(
+                "Unable to find a constructor for implementation %s of %s. "
+                    + "Make sure the implementation is in classpath, and that it either "
+                    + "has a public no-arg constructor or a two-arg constructor "
+                    + "taking in the string base table location and its property string map.",
+                impl, LocationProvider.class),
+            e);
       }
       try {
         return ctor.newInstance(location, properties);
       } catch (ClassCastException e) {
         throw new IllegalArgumentException(
-            String.format("Provided implementation for dynamic instantiation should implement %s.",
-                LocationProvider.class), e);
+            String.format(
+                "Provided implementation for dynamic instantiation should implement %s.",
+                LocationProvider.class),
+            e);
       }
-    } else if (PropertyUtil.propertyAsBoolean(properties,
+    } else if (PropertyUtil.propertyAsBoolean(
+        properties,
         TableProperties.OBJECT_STORE_ENABLED,
         TableProperties.OBJECT_STORE_ENABLED_DEFAULT)) {
       return new ObjectStoreLocationProvider(location, properties);
@@ -98,15 +106,18 @@ public class LocationProviders {
   }
 
   static class ObjectStoreLocationProvider implements LocationProvider {
-    private static final Transform<String, Integer> HASH_FUNC = Transforms
-        .bucket(Types.StringType.get(), Integer.MAX_VALUE);
 
+    private static final HashFunction HASH_FUNC = Hashing.murmur3_32_fixed();
+    private static final BaseEncoding BASE64_ENCODER = BaseEncoding.base64Url().omitPadding();
+    private static final ThreadLocal<byte[]> TEMP = ThreadLocal.withInitial(() -> new byte[4]);
     private final String storageLocation;
     private final String context;
 
     ObjectStoreLocationProvider(String tableLocation, Map<String, String> properties) {
-      this.storageLocation = LocationUtil.stripTrailingSlash(dataLocation(properties, tableLocation));
-      // if the storage location is within the table prefix, don't add table and database name context
+      this.storageLocation =
+          LocationUtil.stripTrailingSlash(dataLocation(properties, tableLocation));
+      // if the storage location is within the table prefix, don't add table and database name
+      // context
       if (storageLocation.startsWith(tableLocation)) {
         this.context = null;
       } else {
@@ -135,11 +146,11 @@ public class LocationProviders {
 
     @Override
     public String newDataLocation(String filename) {
-      int hash = HASH_FUNC.apply(filename);
+      String hash = computeHash(filename);
       if (context != null) {
-        return String.format("%s/%08x/%s/%s", storageLocation, hash, context, filename);
+        return String.format("%s/%s/%s/%s", storageLocation, hash, context, filename);
       } else {
-        return String.format("%s/%08x/%s", storageLocation, hash, filename);
+        return String.format("%s/%s/%s", storageLocation, hash, filename);
       }
     }
 
@@ -155,10 +166,16 @@ public class LocationProviders {
       }
 
       Preconditions.checkState(
-          !resolvedContext.endsWith("/"),
-          "Path context must not end with a slash.");
+          !resolvedContext.endsWith("/"), "Path context must not end with a slash.");
 
       return resolvedContext;
+    }
+
+    private String computeHash(String fileName) {
+      byte[] bytes = TEMP.get();
+      HashCode hash = HASH_FUNC.hashString(fileName, StandardCharsets.UTF_8);
+      hash.writeBytesTo(bytes, 0, 4);
+      return BASE64_ENCODER.encode(bytes);
     }
   }
 }

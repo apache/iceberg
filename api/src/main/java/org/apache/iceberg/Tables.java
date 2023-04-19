@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import java.util.Map;
@@ -25,8 +24,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 /**
  * Generic interface for creating and loading a table implementation.
  *
- * The 'tableIdentifier' field should be interpreted by the underlying
- * implementation (e.g. database.table_name)
+ * <p>The 'tableIdentifier' field should be interpreted by the underlying implementation (e.g.
+ * database.table_name)
  */
 public interface Tables {
   default Table create(Schema schema, String tableIdentifier) {
@@ -37,16 +36,19 @@ public interface Tables {
     return create(schema, spec, ImmutableMap.of(), tableIdentifier);
   }
 
-  default Table create(Schema schema, PartitionSpec spec, Map<String, String> properties, String tableIdentifier) {
+  default Table create(
+      Schema schema, PartitionSpec spec, Map<String, String> properties, String tableIdentifier) {
     return create(schema, spec, SortOrder.unsorted(), properties, tableIdentifier);
   }
 
-  default Table create(Schema schema,
-                       PartitionSpec spec,
-                       SortOrder order,
-                       Map<String, String> properties,
-                       String tableIdentifier) {
-    throw new UnsupportedOperationException(this.getClass().getName() + " does not implement create with a sort order");
+  default Table create(
+      Schema schema,
+      PartitionSpec spec,
+      SortOrder order,
+      Map<String, String> properties,
+      String tableIdentifier) {
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " does not implement create with a sort order");
   }
 
   Table load(String tableIdentifier);

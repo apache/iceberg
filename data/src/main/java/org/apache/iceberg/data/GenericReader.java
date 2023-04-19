@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.data;
 
 import java.io.Serializable;
@@ -61,7 +60,8 @@ class GenericReader implements Serializable {
   }
 
   CloseableIterator<Record> open(CloseableIterable<CombinedScanTask> tasks) {
-    Iterable<FileScanTask> fileTasks = Iterables.concat(Iterables.transform(tasks, CombinedScanTask::files));
+    Iterable<FileScanTask> fileTasks =
+        Iterables.concat(Iterables.transform(tasks, CombinedScanTask::files));
     return CloseableIterable.concat(Iterables.transform(fileTasks, this::open)).iterator();
   }
 
@@ -80,8 +80,8 @@ class GenericReader implements Serializable {
     return records;
   }
 
-  private CloseableIterable<Record> applyResidual(CloseableIterable<Record> records, Schema recordSchema,
-                                                  Expression residual) {
+  private CloseableIterable<Record> applyResidual(
+      CloseableIterable<Record> records, Schema recordSchema, Expression residual) {
     if (residual != null && residual != Expressions.alwaysTrue()) {
       InternalRecordWrapper wrapper = new InternalRecordWrapper(recordSchema.asStruct());
       Evaluator filter = new Evaluator(recordSchema.asStruct(), residual, caseSensitive);
@@ -91,18 +91,19 @@ class GenericReader implements Serializable {
     return records;
   }
 
-
   private CloseableIterable<Record> openFile(FileScanTask task, Schema fileProjection) {
     InputFile input = io.newInputFile(task.file().path().toString());
-    Map<Integer, ?> partition = PartitionUtil.constantsMap(task, IdentityPartitionConverters::convertConstant);
+    Map<Integer, ?> partition =
+        PartitionUtil.constantsMap(task, IdentityPartitionConverters::convertConstant);
 
     switch (task.file().format()) {
       case AVRO:
-        Avro.ReadBuilder avro = Avro.read(input)
-            .project(fileProjection)
-            .createReaderFunc(
-                avroSchema -> DataReader.create(fileProjection, avroSchema, partition))
-            .split(task.start(), task.length());
+        Avro.ReadBuilder avro =
+            Avro.read(input)
+                .project(fileProjection)
+                .createReaderFunc(
+                    avroSchema -> DataReader.create(fileProjection, avroSchema, partition))
+                .split(task.start(), task.length());
 
         if (reuseContainers) {
           avro.reuseContainers();
@@ -111,11 +112,14 @@ class GenericReader implements Serializable {
         return avro.build();
 
       case PARQUET:
-        Parquet.ReadBuilder parquet = Parquet.read(input)
-            .project(fileProjection)
-            .createReaderFunc(fileSchema -> GenericParquetReaders.buildReader(fileProjection, fileSchema, partition))
-            .split(task.start(), task.length())
-            .filter(task.residual());
+        Parquet.ReadBuilder parquet =
+            Parquet.read(input)
+                .project(fileProjection)
+                .createReaderFunc(
+                    fileSchema ->
+                        GenericParquetReaders.buildReader(fileProjection, fileSchema, partition))
+                .split(task.start(), task.length())
+                .filter(task.residual());
 
         if (reuseContainers) {
           parquet.reuseContainers();
@@ -124,19 +128,24 @@ class GenericReader implements Serializable {
         return parquet.build();
 
       case ORC:
-        Schema projectionWithoutConstantAndMetadataFields = TypeUtil.selectNot(fileProjection,
-            Sets.union(partition.keySet(), MetadataColumns.metadataFieldIds()));
-        ORC.ReadBuilder orc = ORC.read(input)
-            .project(projectionWithoutConstantAndMetadataFields)
-            .createReaderFunc(fileSchema -> GenericOrcReader.buildReader(fileProjection, fileSchema, partition))
-            .split(task.start(), task.length())
-            .filter(task.residual());
+        Schema projectionWithoutConstantAndMetadataFields =
+            TypeUtil.selectNot(
+                fileProjection, Sets.union(partition.keySet(), MetadataColumns.metadataFieldIds()));
+        ORC.ReadBuilder orc =
+            ORC.read(input)
+                .project(projectionWithoutConstantAndMetadataFields)
+                .createReaderFunc(
+                    fileSchema ->
+                        GenericOrcReader.buildReader(fileProjection, fileSchema, partition))
+                .split(task.start(), task.length())
+                .filter(task.residual());
 
         return orc.build();
 
       default:
-        throw new UnsupportedOperationException(String.format("Cannot read %s file: %s",
-            task.file().format().name(), task.file().path()));
+        throw new UnsupportedOperationException(
+            String.format(
+                "Cannot read %s file: %s", task.file().format().name(), task.file().path()));
     }
   }
 
@@ -149,8 +158,9 @@ class GenericReader implements Serializable {
 
     @Override
     public CloseableIterator<Record> iterator() {
-      CloseableIterator<Record> iter = CloseableIterable.concat(
-          Iterables.transform(task.files(), GenericReader.this::open)).iterator();
+      CloseableIterator<Record> iter =
+          CloseableIterable.concat(Iterables.transform(task.files(), GenericReader.this::open))
+              .iterator();
       addCloseable(iter);
       return iter;
     }

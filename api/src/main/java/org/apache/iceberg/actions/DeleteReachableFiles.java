@@ -16,39 +16,44 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.actions;
 
 import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.SupportsBulkOperations;
+import org.immutables.value.Value;
 
 /**
  * An action that deletes all files referenced by a table metadata file.
- * <p>
- * This action will irreversibly delete all reachable files such as data files, manifests,
- * manifest lists and should be used to clean up the underlying storage once a table is dropped
- * and no longer needed.
- * <p>
- * Implementations may use a query engine to distribute parts of work.
+ *
+ * <p>This action will irreversibly delete all reachable files such as data files, manifests,
+ * manifest lists and should be used to clean up the underlying storage once a table is dropped and
+ * no longer needed.
+ *
+ * <p>Implementations may use a query engine to distribute parts of work.
  */
-public interface DeleteReachableFiles extends Action<DeleteReachableFiles, DeleteReachableFiles.Result> {
+@Value.Enclosing
+public interface DeleteReachableFiles
+    extends Action<DeleteReachableFiles, DeleteReachableFiles.Result> {
 
   /**
    * Passes an alternative delete implementation that will be used for files.
    *
-   * @param deleteFunc a function that will be called to delete files.
-   *                   The function accepts path to file as an argument.
+   * @param deleteFunc a function that will be called to delete files. The function accepts path to
+   *     file as an argument.
    * @return this for method chaining
    */
   DeleteReachableFiles deleteWith(Consumer<String> deleteFunc);
 
   /**
-   * Passes an alternative executor service that will be used for files removal.
-   * <p>
-   * If this method is not called, files will be deleted in the current thread.
+   * Passes an alternative executor service that will be used for files removal. This service will
+   * only be used if a custom delete function is provided by {@link #deleteWith(Consumer)} or if the
+   * FileIO does not {@link SupportsBulkOperations support bulk deletes}. Otherwise, parallelism
+   * should be controlled by the IO specific {@link SupportsBulkOperations#deleteFiles(Iterable)
+   * deleteFiles} method.
    *
-   *  @param executorService the service to use
+   * @param executorService the service to use
    * @return this for method chaining
    */
   DeleteReachableFiles executeDeleteWith(ExecutorService executorService);
@@ -61,29 +66,26 @@ public interface DeleteReachableFiles extends Action<DeleteReachableFiles, Delet
    */
   DeleteReachableFiles io(FileIO io);
 
-  /**
-   * The action result that contains a summary of the execution.
-   */
+  /** The action result that contains a summary of the execution. */
+  @Value.Immutable
   interface Result {
 
-    /**
-     * Returns the number of deleted data files.
-     */
+    /** Returns the number of deleted data files. */
     long deletedDataFilesCount();
 
-    /**
-     * Returns the number of deleted manifests.
-     */
+    /** Returns the number of deleted equality delete files. */
+    long deletedEqualityDeleteFilesCount();
+
+    /** Returns the number of deleted position delete files. */
+    long deletedPositionDeleteFilesCount();
+
+    /** Returns the number of deleted manifests. */
     long deletedManifestsCount();
 
-    /**
-     * Returns the number of deleted manifest lists.
-     */
+    /** Returns the number of deleted manifest lists. */
     long deletedManifestListsCount();
 
-    /**
-     * Returns the number of deleted metadata json, version hint files.
-     */
+    /** Returns the number of deleted metadata json, version hint files. */
     long deletedOtherFilesCount();
   }
 }

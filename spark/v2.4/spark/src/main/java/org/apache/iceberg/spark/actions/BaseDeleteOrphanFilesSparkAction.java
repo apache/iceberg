@@ -16,8 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.actions;
+
+import static org.apache.iceberg.TableProperties.GC_ENABLED;
+import static org.apache.iceberg.TableProperties.GC_ENABLED_DEFAULT;
 
 import java.io.File;
 import java.io.IOException;
@@ -57,35 +59,37 @@ import org.apache.spark.util.SerializableConfiguration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static org.apache.iceberg.TableProperties.GC_ENABLED;
-import static org.apache.iceberg.TableProperties.GC_ENABLED_DEFAULT;
-
 /**
  * An action that removes orphan metadata and data files by listing a given location and comparing
  * the actual files in that location with data and metadata files referenced by all valid snapshots.
  * The location must be accessible for listing via the Hadoop {@link FileSystem}.
- * <p>
- * By default, this action cleans up the table location returned by {@link Table#location()} and
- * removes unreachable files that are older than 3 days using {@link Table#io()}. The behavior can be modified
- * by passing a custom location to {@link #location} and a custom timestamp to {@link #olderThan(long)}.
- * For example, someone might point this action to the data folder to clean up only orphan data files.
- * In addition, there is a way to configure an alternative delete method via {@link #deleteWith(Consumer)}.
- * <p>
- * <em>Note:</em> It is dangerous to call this action with a short retention interval as it might corrupt
- * the state of the table if another operation is writing at the same time.
+ *
+ * <p>By default, this action cleans up the table location returned by {@link Table#location()} and
+ * removes unreachable files that are older than 3 days using {@link Table#io()}. The behavior can
+ * be modified by passing a custom location to {@link #location} and a custom timestamp to {@link
+ * #olderThan(long)}. For example, someone might point this action to the data folder to clean up
+ * only orphan data files. In addition, there is a way to configure an alternative delete method via
+ * {@link #deleteWith(Consumer)}.
+ *
+ * <p><em>Note:</em> It is dangerous to call this action with a short retention interval as it might
+ * corrupt the state of the table if another operation is writing at the same time.
  */
 public class BaseDeleteOrphanFilesSparkAction
-    extends BaseSparkAction<DeleteOrphanFiles, DeleteOrphanFiles.Result> implements DeleteOrphanFiles {
+    extends BaseSparkAction<DeleteOrphanFiles, DeleteOrphanFiles.Result>
+    implements DeleteOrphanFiles {
 
   private static final Logger LOG = LoggerFactory.getLogger(BaseDeleteOrphanFilesSparkAction.class);
-  private static final UserDefinedFunction filenameUDF = functions.udf((String path) -> {
-    int lastIndex = path.lastIndexOf(File.separator);
-    if (lastIndex == -1) {
-      return path;
-    } else {
-      return path.substring(lastIndex + 1);
-    }
-  }, DataTypes.StringType);
+  private static final UserDefinedFunction filenameUDF =
+      functions.udf(
+          (String path) -> {
+            int lastIndex = path.lastIndexOf(File.separator);
+            if (lastIndex == -1) {
+              return path;
+            } else {
+              return path.substring(lastIndex + 1);
+            }
+          },
+          DataTypes.StringType);
 
   private static final ExecutorService DEFAULT_DELETE_EXECUTOR_SERVICE = null;
 
@@ -95,12 +99,13 @@ public class BaseDeleteOrphanFilesSparkAction
 
   private String location = null;
   private long olderThanTimestamp = System.currentTimeMillis() - TimeUnit.DAYS.toMillis(3);
-  private Consumer<String> deleteFunc = new Consumer<String>() {
-    @Override
-    public void accept(String file) {
-      table.io().deleteFile(file);
-    }
-  };
+  private Consumer<String> deleteFunc =
+      new Consumer<String>() {
+        @Override
+        public void accept(String file) {
+          table.io().deleteFile(file);
+        }
+      };
 
   private ExecutorService deleteExecutorService = DEFAULT_DELETE_EXECUTOR_SERVICE;
 
@@ -108,7 +113,8 @@ public class BaseDeleteOrphanFilesSparkAction
     super(spark);
 
     this.hadoopConf = new SerializableConfiguration(spark.sessionState().newHadoopConf());
-    this.partitionDiscoveryParallelism = spark.sessionState().conf().parallelPartitionDiscoveryParallelism();
+    this.partitionDiscoveryParallelism =
+        spark.sessionState().conf().parallelPartitionDiscoveryParallelism();
     this.table = table;
     this.location = table.location();
 
@@ -158,7 +164,8 @@ public class BaseDeleteOrphanFilesSparkAction
     if (location != null) {
       options.add("location=" + location);
     }
-    return String.format("Removing orphan files (%s) from %s", Joiner.on(',').join(options), table.name());
+    return String.format(
+        "Removing orphan files (%s) from %s", Joiner.on(',').join(options), table.name());
   }
 
   private DeleteOrphanFiles.Result doExecute() {
@@ -172,9 +179,8 @@ public class BaseDeleteOrphanFilesSparkAction
     Column nameEqual = actualFileName.equalTo(validFileName);
     Column actualContains = actualFileDF.col("file_path").contains(validFileDF.col("file_path"));
     Column joinCond = nameEqual.and(actualContains);
-    List<String> orphanFiles = actualFileDF.join(validFileDF, joinCond, "leftanti")
-        .as(Encoders.STRING())
-        .collectAsList();
+    List<String> orphanFiles =
+        actualFileDF.join(validFileDF, joinCond, "leftanti").as(Encoders.STRING()).collectAsList();
 
     Tasks.foreach(orphanFiles)
         .noRetry()
@@ -205,15 +211,23 @@ public class BaseDeleteOrphanFilesSparkAction
     JavaRDD<String> subDirRDD = sparkContext().parallelize(subDirs, parallelism);
 
     Broadcast<SerializableConfiguration> conf = sparkContext().broadcast(hadoopConf);
-    JavaRDD<String> matchingLeafFileRDD = subDirRDD.mapPartitions(listDirsRecursively(conf, olderThanTimestamp));
+    JavaRDD<String> matchingLeafFileRDD =
+        subDirRDD.mapPartitions(listDirsRecursively(conf, olderThanTimestamp));
 
     JavaRDD<String> completeMatchingFileRDD = matchingFileRDD.union(matchingLeafFileRDD);
-    return spark().createDataset(completeMatchingFileRDD.rdd(), Encoders.STRING()).toDF("file_path");
+    return spark()
+        .createDataset(completeMatchingFileRDD.rdd(), Encoders.STRING())
+        .toDF("file_path");
   }
 
   private static void listDirRecursively(
-      String dir, Predicate<FileStatus> predicate, Configuration conf, int maxDepth,
-      int maxDirectSubDirs, List<String> remainingSubDirs, List<String> matchingFiles) {
+      String dir,
+      Predicate<FileStatus> predicate,
+      Configuration conf,
+      int maxDepth,
+      int maxDirectSubDirs,
+      List<String> remainingSubDirs,
+      List<String> matchingFiles) {
 
     // stop listing whenever we reach the max depth
     if (maxDepth <= 0) {
@@ -242,7 +256,14 @@ public class BaseDeleteOrphanFilesSparkAction
       }
 
       for (String subDir : subDirs) {
-        listDirRecursively(subDir, predicate, conf, maxDepth - 1, maxDirectSubDirs, remainingSubDirs, matchingFiles);
+        listDirRecursively(
+            subDir,
+            predicate,
+            conf,
+            maxDepth - 1,
+            maxDirectSubDirs,
+            remainingSubDirs,
+            matchingFiles);
       }
     } catch (IOException e) {
       throw new RuntimeIOException(e);
@@ -250,8 +271,7 @@ public class BaseDeleteOrphanFilesSparkAction
   }
 
   private static FlatMapFunction<Iterator<String>, String> listDirsRecursively(
-      Broadcast<SerializableConfiguration> conf,
-      long olderThanTimestamp) {
+      Broadcast<SerializableConfiguration> conf, long olderThanTimestamp) {
 
     return dirs -> {
       List<String> subDirs = Lists.newArrayList();
@@ -262,12 +282,15 @@ public class BaseDeleteOrphanFilesSparkAction
       int maxDepth = 2000;
       int maxDirectSubDirs = Integer.MAX_VALUE;
 
-      dirs.forEachRemaining(dir -> {
-        listDirRecursively(dir, predicate, conf.value().value(), maxDepth, maxDirectSubDirs, subDirs, files);
-      });
+      dirs.forEachRemaining(
+          dir -> {
+            listDirRecursively(
+                dir, predicate, conf.value().value(), maxDepth, maxDirectSubDirs, subDirs, files);
+          });
 
       if (!subDirs.isEmpty()) {
-        throw new RuntimeException("Could not list subdirectories, reached maximum subdirectory depth: " + maxDepth);
+        throw new RuntimeException(
+            "Could not list subdirectories, reached maximum subdirectory depth: " + maxDepth);
       }
 
       return files.iterator();

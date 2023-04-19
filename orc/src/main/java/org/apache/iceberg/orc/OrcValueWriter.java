@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.orc;
 
 import java.util.stream.Stream;
@@ -28,8 +27,8 @@ public interface OrcValueWriter<T> {
   /**
    * Take a value from the data value and add it to the ORC output.
    *
-   * @param rowId  the row in the ColumnVector
-   * @param data   the data value to write.
+   * @param rowId the row in the ColumnVector
+   * @param data the data value to write.
    * @param output the ColumnVector to put the value into
    */
   default void write(int rowId, T data, ColumnVector output) {
@@ -49,9 +48,7 @@ public interface OrcValueWriter<T> {
     // no op
   }
 
-  /**
-   * Returns a stream of {@link FieldMetrics} that this OrcValueWriter keeps track of.
-   */
+  /** Returns a stream of {@link FieldMetrics} that this OrcValueWriter keeps track of. */
   default Stream<FieldMetrics<?>> metrics() {
     return Stream.empty();
   }

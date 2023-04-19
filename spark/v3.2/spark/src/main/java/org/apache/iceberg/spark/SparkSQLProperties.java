@@ -16,19 +16,18 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark;
 
 public class SparkSQLProperties {
 
-  private SparkSQLProperties() {
-  }
+  private SparkSQLProperties() {}
 
   // Controls whether vectorized reads are enabled
   public static final String VECTORIZATION_ENABLED = "spark.sql.iceberg.vectorization.enabled";
 
   // Controls whether reading/writing timestamps without timezones is allowed
-  public static final String HANDLE_TIMESTAMP_WITHOUT_TIMEZONE = "spark.sql.iceberg.handle-timestamp-without-timezone";
+  public static final String HANDLE_TIMESTAMP_WITHOUT_TIMEZONE =
+      "spark.sql.iceberg.handle-timestamp-without-timezone";
   public static final boolean HANDLE_TIMESTAMP_WITHOUT_TIMEZONE_DEFAULT = false;
 
   // Controls whether timestamp types for new tables should be stored with timezone info
@@ -43,4 +42,7 @@ public class SparkSQLProperties {
   // Controls whether to check the order of fields during writes
   public static final String CHECK_ORDERING = "spark.sql.iceberg.check-ordering";
   public static final boolean CHECK_ORDERING_DEFAULT = true;
+
+  // Controls write distribution mode
+  public static final String DISTRIBUTION_MODE = "spark.sql.iceberg.distribution-mode";
 }

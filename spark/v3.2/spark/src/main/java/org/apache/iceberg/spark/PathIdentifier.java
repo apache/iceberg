@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark;
 
 import java.util.List;
@@ -36,9 +35,10 @@ public class PathIdentifier implements Identifier {
     this.location = location;
     List<String> pathParts = SPLIT.splitToList(location);
     name = Iterables.getLast(pathParts);
-    namespace = pathParts.size() > 1 ?
-        new String[]{JOIN.join(pathParts.subList(0, pathParts.size() - 1))} :
-        new String[0];
+    namespace =
+        pathParts.size() > 1
+            ? new String[] {JOIN.join(pathParts.subList(0, pathParts.size() - 1))}
+            : new String[0];
   }
 
   @Override

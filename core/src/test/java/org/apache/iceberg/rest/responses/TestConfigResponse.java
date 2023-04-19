@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.rest.responses;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -31,7 +30,8 @@ import org.junit.Test;
 
 public class TestConfigResponse extends RequestResponseTestBase<ConfigResponse> {
 
-  private static final Map<String, String> DEFAULTS = ImmutableMap.of("warehouse", "s3://bucket/warehouse");
+  private static final Map<String, String> DEFAULTS =
+      ImmutableMap.of("warehouse", "s3://bucket/warehouse");
   private static final Map<String, String> OVERRIDES = ImmutableMap.of("clients", "5");
 
   private static final Map<String, String> DEFAULTS_WITH_NULL_VALUE = Maps.newHashMap();
@@ -47,33 +47,32 @@ public class TestConfigResponse extends RequestResponseTestBase<ConfigResponse> 
   // Test cases that are JSON that can be created via the Builder
   public void testRoundTripSerDe() throws JsonProcessingException {
     // Both fields have values without nulls
-    String fullJson = "{\"defaults\":{\"warehouse\":\"s3://bucket/warehouse\"},\"overrides\":{\"clients\":\"5\"}}";
+    String fullJson =
+        "{\"defaults\":{\"warehouse\":\"s3://bucket/warehouse\"},\"overrides\":{\"clients\":\"5\"}}";
+    assertRoundTripSerializesEquallyFrom(
+        fullJson, ConfigResponse.builder().withOverrides(OVERRIDES).withDefaults(DEFAULTS).build());
     assertRoundTripSerializesEquallyFrom(
         fullJson,
         ConfigResponse.builder()
-            .withOverrides(OVERRIDES).withDefaults(DEFAULTS).build());
-    assertRoundTripSerializesEquallyFrom(
-        fullJson,
-        ConfigResponse.builder()
-            .withOverride("clients", "5").withDefault("warehouse", "s3://bucket/warehouse").build());
+            .withOverride("clients", "5")
+            .withDefault("warehouse", "s3://bucket/warehouse")
+            .build());
 
     // `defaults` is empty
     String jsonEmptyDefaults = "{\"defaults\":{},\"overrides\":{\"clients\":\"5\"}}";
     assertRoundTripSerializesEquallyFrom(
-        jsonEmptyDefaults,
-        ConfigResponse.builder().withOverrides(OVERRIDES).build());
+        jsonEmptyDefaults, ConfigResponse.builder().withOverrides(OVERRIDES).build());
     assertRoundTripSerializesEquallyFrom(
         jsonEmptyDefaults,
         ConfigResponse.builder().withOverrides(OVERRIDES).withDefaults(ImmutableMap.of()).build());
     assertRoundTripSerializesEquallyFrom(
-        jsonEmptyDefaults,
-        ConfigResponse.builder().withOverride("clients", "5").build());
+        jsonEmptyDefaults, ConfigResponse.builder().withOverride("clients", "5").build());
 
     // `overrides` is empty
-    String jsonEmptyOverrides = "{\"defaults\":{\"warehouse\":\"s3://bucket/warehouse\"},\"overrides\":{}}";
+    String jsonEmptyOverrides =
+        "{\"defaults\":{\"warehouse\":\"s3://bucket/warehouse\"},\"overrides\":{}}";
     assertRoundTripSerializesEquallyFrom(
-        jsonEmptyOverrides,
-        ConfigResponse.builder().withDefaults(DEFAULTS).build());
+        jsonEmptyOverrides, ConfigResponse.builder().withDefaults(DEFAULTS).build());
     assertRoundTripSerializesEquallyFrom(
         jsonEmptyOverrides,
         ConfigResponse.builder().withDefault("warehouse", "s3://bucket/warehouse").build());
@@ -83,12 +82,13 @@ public class TestConfigResponse extends RequestResponseTestBase<ConfigResponse> 
 
     // Both are empty
     String emptyJson = "{\"defaults\":{},\"overrides\":{}}";
+    assertRoundTripSerializesEquallyFrom(emptyJson, ConfigResponse.builder().build());
     assertRoundTripSerializesEquallyFrom(
         emptyJson,
-        ConfigResponse.builder().build());
-    assertRoundTripSerializesEquallyFrom(
-        emptyJson,
-        ConfigResponse.builder().withOverrides(ImmutableMap.of()).withDefaults(ImmutableMap.of()).build());
+        ConfigResponse.builder()
+            .withOverrides(ImmutableMap.of())
+            .withDefaults(ImmutableMap.of())
+            .build());
   }
 
   @Test
@@ -97,7 +97,8 @@ public class TestConfigResponse extends RequestResponseTestBase<ConfigResponse> 
     ConfigResponse noOverrides = ConfigResponse.builder().withDefaults(DEFAULTS).build();
     String jsonMissingOverrides = "{\"defaults\":{\"warehouse\":\"s3://bucket/warehouse\"}}";
     assertEquals(deserialize(jsonMissingOverrides), noOverrides);
-    String jsonNullOverrides = "{\"defaults\":{\"warehouse\":\"s3://bucket/warehouse\"},\"overrides\":null}";
+    String jsonNullOverrides =
+        "{\"defaults\":{\"warehouse\":\"s3://bucket/warehouse\"},\"overrides\":null}";
     assertEquals(deserialize(jsonNullOverrides), noOverrides);
 
     ConfigResponse noDefaults = ConfigResponse.builder().withOverrides(OVERRIDES).build();
@@ -120,22 +121,24 @@ public class TestConfigResponse extends RequestResponseTestBase<ConfigResponse> 
     assertRoundTripSerializesEquallyFrom(
         jsonNullValueInDefaults,
         ConfigResponse.builder()
-            .withDefaults(DEFAULTS_WITH_NULL_VALUE).withOverrides(OVERRIDES).build());
+            .withDefaults(DEFAULTS_WITH_NULL_VALUE)
+            .withOverrides(OVERRIDES)
+            .build());
     assertRoundTripSerializesEquallyFrom(
         jsonNullValueInDefaults,
-        ConfigResponse.builder()
-            .withDefault("warehouse", null).withOverrides(OVERRIDES).build());
+        ConfigResponse.builder().withDefault("warehouse", null).withOverrides(OVERRIDES).build());
 
     String jsonNullValueInOverrides =
         "{\"defaults\":{\"warehouse\":\"s3://bucket/warehouse\"},\"overrides\":{\"clients\":null}}";
     assertRoundTripSerializesEquallyFrom(
         jsonNullValueInOverrides,
         ConfigResponse.builder()
-            .withDefaults(DEFAULTS).withOverrides(OVERRIDES_WITH_NULL_VALUE).build());
+            .withDefaults(DEFAULTS)
+            .withOverrides(OVERRIDES_WITH_NULL_VALUE)
+            .build());
     assertRoundTripSerializesEquallyFrom(
         jsonNullValueInOverrides,
-        ConfigResponse.builder()
-            .withDefaults(DEFAULTS).withOverride("clients", null).build());
+        ConfigResponse.builder().withDefaults(DEFAULTS).withOverride("clients", null).build());
   }
 
   @Test
@@ -145,22 +148,19 @@ public class TestConfigResponse extends RequestResponseTestBase<ConfigResponse> 
     AssertHelpers.assertThrows(
         "A JSON response with the wrong type for the defaults field should fail to deserialize",
         JsonProcessingException.class,
-        () -> deserialize(jsonDefaultsHasWrongType)
-    );
+        () -> deserialize(jsonDefaultsHasWrongType));
 
     String jsonOverridesHasWrongType =
         "{\"defaults\":{\"warehouse\":\"s3://bucket/warehouse\"},\"overrides\":\"clients\"}";
     AssertHelpers.assertThrows(
         "A JSON response with the wrong type for the overrides field should fail to deserialize",
         JsonProcessingException.class,
-        () -> deserialize(jsonOverridesHasWrongType)
-    );
+        () -> deserialize(jsonOverridesHasWrongType));
 
     AssertHelpers.assertThrows(
         "A null JSON response body should fail to deserialize",
         IllegalArgumentException.class,
-        () -> deserialize(null)
-    );
+        () -> deserialize(null));
   }
 
   @Test
@@ -169,29 +169,25 @@ public class TestConfigResponse extends RequestResponseTestBase<ConfigResponse> 
         "The builder should not allow using null as a key in the properties to override",
         NullPointerException.class,
         "Invalid override property: null",
-        () -> ConfigResponse.builder().withOverride(null, "100").build()
-    );
+        () -> ConfigResponse.builder().withOverride(null, "100").build());
 
     AssertHelpers.assertThrows(
         "The builder should not allow using null as a key in the default properties",
         NullPointerException.class,
         "Invalid default property: null",
-        () -> ConfigResponse.builder().withDefault(null, "100").build()
-    );
+        () -> ConfigResponse.builder().withDefault(null, "100").build());
 
     AssertHelpers.assertThrows(
         "The builder should not allow passing a null map of config properties to override",
         NullPointerException.class,
         "Invalid override properties map: null",
-        () -> ConfigResponse.builder().withOverrides(null).build()
-    );
+        () -> ConfigResponse.builder().withOverrides(null).build());
 
     AssertHelpers.assertThrows(
         "The builder should not allow passing a null map of default config properties",
         NullPointerException.class,
         "Invalid default properties map: null",
-        () -> ConfigResponse.builder().withDefaults(null).build()
-    );
+        () -> ConfigResponse.builder().withDefaults(null).build());
 
     Map<String, String> mapWithNullKey = Maps.newHashMap();
     mapWithNullKey.put(null, "a");
@@ -200,15 +196,13 @@ public class TestConfigResponse extends RequestResponseTestBase<ConfigResponse> 
         "The builder should not allow passing a map of default config properties with a null key",
         IllegalArgumentException.class,
         "Invalid default property: null",
-        () -> ConfigResponse.builder().withDefaults(mapWithNullKey).build()
-    );
+        () -> ConfigResponse.builder().withDefaults(mapWithNullKey).build());
 
     AssertHelpers.assertThrows(
         "The builder should not allow passing a map of properties to override with a null key",
         IllegalArgumentException.class,
         "Invalid override property: null",
-        () -> ConfigResponse.builder().withOverrides(mapWithNullKey).build()
-    );
+        () -> ConfigResponse.builder().withOverrides(mapWithNullKey).build());
   }
 
   @Test
@@ -221,20 +215,23 @@ public class TestConfigResponse extends RequestResponseTestBase<ConfigResponse> 
     Map<String, String> defaults = ImmutableMap.of("a", "from_defaults");
     Map<String, String> clientConfig = ImmutableMap.of("a", "from_client", "c", "from_client");
 
-    ConfigResponse resp = ConfigResponse.builder()
-            .withOverrides(overrides).withDefaults(defaults).build();
+    ConfigResponse resp =
+        ConfigResponse.builder().withOverrides(overrides).withDefaults(defaults).build();
 
-    // "a" isn't present as it was marked as `null` in the overrides, so the provided client configuration is discarded
+    // "a" isn't present as it was marked as `null` in the overrides, so the provided client
+    // configuration is discarded
     Map<String, String> merged = resp.merge(clientConfig);
-    Map<String, String> expected = ImmutableMap.of(
+    Map<String, String> expected =
+        ImmutableMap.of(
             "b", "from_overrides",
-            "c", "from_client"
-    );
+            "c", "from_client");
 
     Assert.assertEquals(
         "The merged properties map should use values from defaults, then client config, and finally overrides",
-        expected, merged);
-    Assert.assertFalse("The merged properties map should omit keys with null values", merged.containsValue(null));
+        expected,
+        merged);
+    Assert.assertFalse(
+        "The merged properties map should omit keys with null values", merged.containsValue(null));
   }
 
   @Override
@@ -244,18 +241,19 @@ public class TestConfigResponse extends RequestResponseTestBase<ConfigResponse> 
 
   @Override
   public ConfigResponse createExampleInstance() {
-    return ConfigResponse.builder()
-        .withDefaults(DEFAULTS)
-        .withOverrides(OVERRIDES)
-        .build();
+    return ConfigResponse.builder().withDefaults(DEFAULTS).withOverrides(OVERRIDES).build();
   }
 
   @Override
   public void assertEquals(ConfigResponse actual, ConfigResponse expected) {
-    Assert.assertEquals("Config properties to use as defaults should be equal",
-        actual.defaults(), expected.defaults());
-    Assert.assertEquals("Config properties to use as overrides should be equal",
-        actual.overrides(), expected.overrides());
+    Assert.assertEquals(
+        "Config properties to use as defaults should be equal",
+        actual.defaults(),
+        expected.defaults());
+    Assert.assertEquals(
+        "Config properties to use as overrides should be equal",
+        actual.overrides(),
+        expected.overrides());
   }
 
   @Override

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.io;
 
 import java.io.IOException;
@@ -35,17 +34,17 @@ import org.apache.iceberg.util.StructLikeSet;
 /**
  * A writer capable of writing to multiple specs and partitions that requires the incoming records
  * to be clustered by partition spec and by partition within each spec.
- * <p>
- * As opposed to {@link FanoutWriter}, this writer keeps at most one file open to reduce
- * the memory consumption. Prefer using this writer whenever the incoming records can be clustered
- * by spec/partition.
+ *
+ * <p>As opposed to {@link FanoutWriter}, this writer keeps at most one file open to reduce the
+ * memory consumption. Prefer using this writer whenever the incoming records can be clustered by
+ * spec/partition.
  */
 abstract class ClusteredWriter<T, R> implements PartitioningWriter<T, R> {
 
   private static final String NOT_CLUSTERED_ROWS_ERROR_MSG_TEMPLATE =
-      "Incoming records violate the writer assumption that records are clustered by spec and " +
-      "by partition within each spec. Either cluster the incoming records or switch to fanout writers.\n" +
-      "Encountered records that belong to already closed files:\n";
+      "Incoming records violate the writer assumption that records are clustered by spec and "
+          + "by partition within each spec. Either cluster the incoming records or switch to fanout writers.\n"
+          + "Encountered records that belong to already closed files:\n";
 
   private final Set<Integer> completedSpecIds = Sets.newHashSet();
 
@@ -86,12 +85,14 @@ abstract class ClusteredWriter<T, R> implements PartitioningWriter<T, R> {
       this.currentPartition = StructCopy.copy(partition);
       this.currentWriter = newWriter(currentSpec, currentPartition);
 
-    } else if (partition != currentPartition && partitionComparator.compare(partition, currentPartition) != 0) {
+    } else if (partition != currentPartition
+        && partitionComparator.compare(partition, currentPartition) != 0) {
       closeCurrentWriter();
       completedPartitions.add(currentPartition);
 
       if (completedPartitions.contains(partition)) {
-        String errorCtx = String.format("partition '%s' in spec %s", spec.partitionToPath(partition), spec);
+        String errorCtx =
+            String.format("partition '%s' in spec %s", spec.partitionToPath(partition), spec);
         throw new IllegalStateException(NOT_CLUSTERED_ROWS_ERROR_MSG_TEMPLATE + errorCtx);
       }
 
@@ -131,9 +132,13 @@ abstract class ClusteredWriter<T, R> implements PartitioningWriter<T, R> {
     return aggregatedResult();
   }
 
-  protected EncryptedOutputFile newOutputFile(OutputFileFactory fileFactory, PartitionSpec spec, StructLike partition) {
-    Preconditions.checkArgument(spec.isUnpartitioned() || partition != null,
+  protected EncryptedOutputFile newOutputFile(
+      OutputFileFactory fileFactory, PartitionSpec spec, StructLike partition) {
+    Preconditions.checkArgument(
+        spec.isUnpartitioned() || partition != null,
         "Partition must not be null when creating output file for partitioned spec");
-    return partition == null ? fileFactory.newOutputFile() : fileFactory.newOutputFile(spec, partition);
+    return partition == null
+        ? fileFactory.newOutputFile()
+        : fileFactory.newOutputFile(spec, partition);
   }
 }

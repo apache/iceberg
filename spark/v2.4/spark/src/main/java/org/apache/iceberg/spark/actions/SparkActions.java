@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.actions;
 
 import org.apache.iceberg.actions.ActionsProvider;
@@ -24,9 +23,9 @@ import org.apache.spark.sql.SparkSession;
 
 /**
  * An implementation of {@link ActionsProvider} for Spark.
- * <p>
- * This class is the primary API for interacting with actions in Spark that users should use
- * to instantiate particular actions.
+ *
+ * <p>This class is the primary API for interacting with actions in Spark that users should use to
+ * instantiate particular actions.
  */
 public class SparkActions extends BaseSparkActions {
 

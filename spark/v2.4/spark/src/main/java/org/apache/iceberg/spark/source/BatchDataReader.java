@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.source;
 
 import java.util.Map;
@@ -50,7 +49,8 @@ class BatchDataReader extends BaseDataReader<ColumnarBatch> {
   private final boolean caseSensitive;
   private final int batchSize;
 
-  BatchDataReader(CombinedScanTask task, Table table, Schema expectedSchema, boolean caseSensitive, int size) {
+  BatchDataReader(
+      CombinedScanTask task, Table table, Schema expectedSchema, boolean caseSensitive, int size) {
     super(table, task);
     this.expectedSchema = expectedSchema;
     this.nameMapping = table.properties().get(TableProperties.DEFAULT_NAME_MAPPING);
@@ -71,18 +71,26 @@ class BatchDataReader extends BaseDataReader<ColumnarBatch> {
     InputFile location = getInputFile(task);
     Preconditions.checkNotNull(location, "Could not find InputFile associated with FileScanTask");
     if (task.file().format() == FileFormat.PARQUET) {
-      Parquet.ReadBuilder builder = Parquet.read(location)
-          .project(expectedSchema)
-          .split(task.start(), task.length())
-          .createBatchedReaderFunc(fileSchema -> VectorizedSparkParquetReaders.buildReader(expectedSchema,
-              fileSchema, /* setArrowValidityVector */ NullCheckingForGet.NULL_CHECKING_ENABLED, idToConstant))
-          .recordsPerBatch(batchSize)
-          .filter(task.residual())
-          .caseSensitive(caseSensitive)
-          // Spark eagerly consumes the batches. So the underlying memory allocated could be reused
-          // without worrying about subsequent reads clobbering over each other. This improves
-          // read performance as every batch read doesn't have to pay the cost of allocating memory.
-          .reuseContainers();
+      Parquet.ReadBuilder builder =
+          Parquet.read(location)
+              .project(expectedSchema)
+              .split(task.start(), task.length())
+              .createBatchedReaderFunc(
+                  fileSchema ->
+                      VectorizedSparkParquetReaders.buildReader(
+                          expectedSchema,
+                          fileSchema, /* setArrowValidityVector */
+                          NullCheckingForGet.NULL_CHECKING_ENABLED,
+                          idToConstant))
+              .recordsPerBatch(batchSize)
+              .filter(task.residual())
+              .caseSensitive(caseSensitive)
+              // Spark eagerly consumes the batches. So the underlying memory allocated could be
+              // reused
+              // without worrying about subsequent reads clobbering over each other. This improves
+              // read performance as every batch read doesn't have to pay the cost of allocating
+              // memory.
+              .reuseContainers();
 
       if (nameMapping != null) {
         builder.withNameMapping(NameMappingParser.fromJson(nameMapping));
@@ -92,16 +100,21 @@ class BatchDataReader extends BaseDataReader<ColumnarBatch> {
     } else if (task.file().format() == FileFormat.ORC) {
       Set<Integer> constantFieldIds = idToConstant.keySet();
       Set<Integer> metadataFieldIds = MetadataColumns.metadataFieldIds();
-      Sets.SetView<Integer> constantAndMetadataFieldIds = Sets.union(constantFieldIds, metadataFieldIds);
-      Schema schemaWithoutConstantAndMetadataFields = TypeUtil.selectNot(expectedSchema, constantAndMetadataFieldIds);
-      ORC.ReadBuilder builder = ORC.read(location)
-          .project(schemaWithoutConstantAndMetadataFields)
-          .split(task.start(), task.length())
-          .createBatchedReaderFunc(fileSchema -> VectorizedSparkOrcReaders.buildReader(expectedSchema, fileSchema,
-              idToConstant))
-          .recordsPerBatch(batchSize)
-          .filter(task.residual())
-          .caseSensitive(caseSensitive);
+      Sets.SetView<Integer> constantAndMetadataFieldIds =
+          Sets.union(constantFieldIds, metadataFieldIds);
+      Schema schemaWithoutConstantAndMetadataFields =
+          TypeUtil.selectNot(expectedSchema, constantAndMetadataFieldIds);
+      ORC.ReadBuilder builder =
+          ORC.read(location)
+              .project(schemaWithoutConstantAndMetadataFields)
+              .split(task.start(), task.length())
+              .createBatchedReaderFunc(
+                  fileSchema ->
+                      VectorizedSparkOrcReaders.buildReader(
+                          expectedSchema, fileSchema, idToConstant))
+              .recordsPerBatch(batchSize)
+              .filter(task.residual())
+              .caseSensitive(caseSensitive);
 
       if (nameMapping != null) {
         builder.withNameMapping(NameMappingParser.fromJson(nameMapping));

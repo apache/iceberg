@@ -16,10 +16,11 @@
 # under the License.
 
 import random
+from typing import List
 
 import pytest
 
-from iceberg.utils.bin_packing import PackingIterator
+from pyiceberg.utils.bin_packing import PackingIterator
 
 
 @pytest.mark.parametrize(
@@ -35,11 +36,11 @@ from iceberg.utils.bin_packing import PackingIterator
         ),  # sparse
     ],
 )
-def test_bin_packing(splits, lookback, split_size, open_cost):
-    def weight_func(x):
+def test_bin_packing(splits: List[int], lookback: int, split_size: int, open_cost: int) -> None:
+    def weight_func(x: int) -> int:
         return max(x, open_cost)
 
-    item_list_sums = [sum(item) for item in PackingIterator(splits, split_size, lookback, weight_func)]
+    item_list_sums: List[int] = [sum(item) for item in PackingIterator(splits, split_size, lookback, weight_func)]
     assert all([split_size >= item_sum >= 0 for item_sum in item_list_sums])
 
 
@@ -76,8 +77,10 @@ def test_bin_packing(splits, lookback, split_size, open_cost):
         ),
     ],
 )
-def test_bin_packing_lookback(splits, target_weight, lookback, largest_bin_first, expected_lists):
-    def weight_func(x):
+def test_bin_packing_lookback(
+    splits: List[int], target_weight: int, lookback: int, largest_bin_first: bool, expected_lists: List[List[int]]
+) -> None:
+    def weight_func(x: int) -> int:
         return x
 
-    assert [item for item in PackingIterator(splits, target_weight, lookback, weight_func, largest_bin_first)] == expected_lists
+    assert list(PackingIterator(splits, target_weight, lookback, weight_func, largest_bin_first)) == expected_lists

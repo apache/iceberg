@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.nessie;
 
 import java.io.IOException;
@@ -34,15 +33,16 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.RegisterExtension;
 import org.junit.jupiter.api.io.TempDir;
 import org.projectnessie.client.api.NessieApiV1;
-import org.projectnessie.client.http.HttpClientBuilder;
+import org.projectnessie.client.ext.NessieApiVersion;
+import org.projectnessie.client.ext.NessieApiVersions;
+import org.projectnessie.client.ext.NessieClientFactory;
+import org.projectnessie.client.ext.NessieClientUri;
 import org.projectnessie.error.NessieConflictException;
 import org.projectnessie.error.NessieNotFoundException;
 import org.projectnessie.jaxrs.ext.NessieJaxRsExtension;
-import org.projectnessie.jaxrs.ext.NessieUri;
 import org.projectnessie.model.Branch;
 import org.projectnessie.model.Reference;
 import org.projectnessie.model.Tag;
-import org.projectnessie.server.store.TableCommitMetaStoreWorker;
 import org.projectnessie.versioned.persist.adapter.DatabaseAdapter;
 import org.projectnessie.versioned.persist.inmem.InmemoryDatabaseAdapterFactory;
 import org.projectnessie.versioned.persist.inmem.InmemoryTestConnectionProviderSource;
@@ -54,40 +54,35 @@ import org.projectnessie.versioned.persist.tests.extension.NessieExternalDatabas
 @ExtendWith(DatabaseAdapterExtension.class)
 @NessieDbAdapterName(InmemoryDatabaseAdapterFactory.NAME)
 @NessieExternalDatabase(InmemoryTestConnectionProviderSource.class)
+@NessieApiVersions(versions = NessieApiVersion.V1)
 public class TestNessieCatalog extends CatalogTests<NessieCatalog> {
 
-  @NessieDbAdapter(storeWorker = TableCommitMetaStoreWorker.class)
-  static DatabaseAdapter databaseAdapter;
+  @NessieDbAdapter static DatabaseAdapter databaseAdapter;
 
   @RegisterExtension
-  static NessieJaxRsExtension server = new NessieJaxRsExtension(() -> databaseAdapter);
+  static NessieJaxRsExtension server =
+      NessieJaxRsExtension.jaxRsExtensionForDatabaseAdapter(() -> databaseAdapter);
 
   @TempDir public Path temp;
 
   private NessieCatalog catalog;
   private NessieApiV1 api;
   private Configuration hadoopConfig;
+  private String initialHashOfDefaultBranch;
   private String uri;
 
   @BeforeEach
-  public void beforeEach(@NessieUri URI nessieUri) throws IOException {
-    this.uri = nessieUri.toString();
-    this.api = HttpClientBuilder.builder().withUri(this.uri).build(NessieApiV1.class);
-
-    resetData();
-
-    try {
-      api.createReference().reference(Branch.of("main", null)).create();
-    } catch (Exception e) {
-      // ignore, already created. Can't run this in BeforeAll as quarkus hasn't disabled auth
-    }
-
+  public void setUp(NessieClientFactory clientFactory, @NessieClientUri URI nessieUri)
+      throws NessieNotFoundException {
+    api = clientFactory.make();
+    initialHashOfDefaultBranch = api.getDefaultBranch().getHash();
+    uri = nessieUri.toASCIIString();
     hadoopConfig = new Configuration();
     catalog = initNessieCatalog("main");
   }
 
   @AfterEach
-  public void afterEach() throws NessieConflictException, NessieNotFoundException {
+  public void afterEach() throws IOException {
     resetData();
     try {
       if (catalog != null) {
@@ -102,14 +97,19 @@ public class TestNessieCatalog extends CatalogTests<NessieCatalog> {
   }
 
   private void resetData() throws NessieConflictException, NessieNotFoundException {
+    Branch defaultBranch = api.getDefaultBranch();
     for (Reference r : api.getAllReferences().get().getReferences()) {
-      if (r instanceof Branch) {
+      if (r instanceof Branch && !r.getName().equals(defaultBranch.getName())) {
         api.deleteBranch().branch((Branch) r).delete();
-      } else {
+      }
+      if (r instanceof Tag) {
         api.deleteTag().tag((Tag) r).delete();
       }
     }
-    api.createReference().reference(Branch.of("main", null)).create();
+    api.assignBranch()
+        .assignTo(Branch.of(defaultBranch.getName(), initialHashOfDefaultBranch))
+        .branch(defaultBranch)
+        .assign();
   }
 
   private NessieCatalog initNessieCatalog(String ref) {
@@ -132,6 +132,16 @@ public class TestNessieCatalog extends CatalogTests<NessieCatalog> {
   @Override
   protected NessieCatalog catalog() {
     return catalog;
+  }
+
+  @Override
+  protected boolean requiresNamespaceCreate() {
+    return true;
+  }
+
+  @Override
+  protected boolean supportsNestedNamespaces() {
+    return true;
   }
 
   @Override

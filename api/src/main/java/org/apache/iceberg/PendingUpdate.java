@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import org.apache.iceberg.exceptions.CommitFailedException;
@@ -32,8 +31,8 @@ public interface PendingUpdate<T> {
 
   /**
    * Apply the pending changes and return the uncommitted changes for validation.
-   * <p>
-   * This does not result in a permanent update.
+   *
+   * <p>This does not result in a permanent update.
    *
    * @return the uncommitted changes that would be committed by calling {@link #commit()}
    * @throws ValidationException If the pending changes cannot be applied to the current metadata
@@ -43,20 +42,21 @@ public interface PendingUpdate<T> {
 
   /**
    * Apply the pending changes and commit.
-   * <p>
-   * Changes are committed by calling the underlying table's commit method.
-   * <p>
-   * Once the commit is successful, the updated table will be refreshed.
+   *
+   * <p>Changes are committed by calling the underlying table's commit method.
+   *
+   * <p>Once the commit is successful, the updated table will be refreshed.
    *
    * @throws ValidationException If the update cannot be applied to the current table metadata.
    * @throws CommitFailedException If the update cannot be committed due to conflicts.
-   * @throws CommitStateUnknownException If the update success or failure is unknown, no cleanup should be done in
-   * this case.
+   * @throws CommitStateUnknownException If the update success or failure is unknown, no cleanup
+   *     should be done in this case.
    */
   void commit();
 
   /**
    * Generates update event to notify about metadata changes
+   *
    * @return the generated event
    */
   default Object updateEvent() {

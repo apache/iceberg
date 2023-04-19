@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.data;
 
 import org.apache.avro.generic.GenericData;
@@ -24,14 +23,10 @@ import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.DateTimeUtil;
 
-
 public class IdentityPartitionConverters {
-  private IdentityPartitionConverters() {
-  }
+  private IdentityPartitionConverters() {}
 
-  /**
-   * Conversions from internal representations to Iceberg generic values.
-   */
+  /** Conversions from internal representations to Iceberg generic values. */
   public static Object convertConstant(Type type, Object value) {
     if (value == null) {
       return null;

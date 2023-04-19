@@ -7,7 +7,7 @@
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.dell.ecs;
 
 import java.util.Map;
@@ -30,7 +29,8 @@ public class TestPropertiesSerDesUtil {
   public void testPropertiesSerDes() {
     Map<String, String> properties = ImmutableMap.of("a", "a", "b", "b");
     byte[] byteValue = PropertiesSerDesUtil.toBytes(properties);
-    Map<String, String> result = PropertiesSerDesUtil.read(byteValue, PropertiesSerDesUtil.currentVersion());
+    Map<String, String> result =
+        PropertiesSerDesUtil.read(byteValue, PropertiesSerDesUtil.currentVersion());
     Assert.assertEquals("Ser/Des will return the same content.", properties, result);
   }
 }

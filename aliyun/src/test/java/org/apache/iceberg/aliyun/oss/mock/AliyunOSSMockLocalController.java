@@ -16,8 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.aliyun.oss.mock;
+
+import static org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR;
+import static org.springframework.http.HttpStatus.OK;
+import static org.springframework.http.HttpStatus.PARTIAL_CONTENT;
+import static org.springframework.http.HttpStatus.REQUESTED_RANGE_NOT_SATISFIABLE;
 
 import com.aliyun.oss.OSSErrorCode;
 import com.aliyun.oss.model.Bucket;
@@ -47,17 +51,11 @@ import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 
-import static org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR;
-import static org.springframework.http.HttpStatus.OK;
-import static org.springframework.http.HttpStatus.PARTIAL_CONTENT;
-import static org.springframework.http.HttpStatus.REQUESTED_RANGE_NOT_SATISFIABLE;
-
 @RestController
 public class AliyunOSSMockLocalController {
   private static final Logger LOG = LoggerFactory.getLogger(AliyunOSSMockLocalController.class);
 
-  @Autowired
-  private AliyunOSSMockLocalStore localStore;
+  @Autowired private AliyunOSSMockLocalStore localStore;
 
   private static String filenameFrom(@PathVariable String bucketName, HttpServletRequest request) {
     String requestUri = request.getRequestURI();
@@ -67,13 +65,17 @@ public class AliyunOSSMockLocalController {
   @RequestMapping(value = "/{bucketName}", method = RequestMethod.PUT, produces = "application/xml")
   public void putBucket(@PathVariable String bucketName) throws IOException {
     if (localStore.getBucket(bucketName) != null) {
-      throw new OssException(409, OSSErrorCode.BUCKET_ALREADY_EXISTS, bucketName + " already exists.");
+      throw new OssException(
+          409, OSSErrorCode.BUCKET_ALREADY_EXISTS, bucketName + " already exists.");
     }
 
     localStore.createBucket(bucketName);
   }
 
-  @RequestMapping(value = "/{bucketName}", method = RequestMethod.DELETE, produces = "application/xml")
+  @RequestMapping(
+      value = "/{bucketName}",
+      method = RequestMethod.DELETE,
+      produces = "application/xml")
   public void deleteBucket(@PathVariable String bucketName) throws IOException {
     verifyBucketExistence(bucketName);
 
@@ -81,17 +83,19 @@ public class AliyunOSSMockLocalController {
   }
 
   @RequestMapping(value = "/{bucketName:.+}/**", method = RequestMethod.PUT)
-  public ResponseEntity<String> putObject(@PathVariable String bucketName, HttpServletRequest request) {
+  public ResponseEntity<String> putObject(
+      @PathVariable String bucketName, HttpServletRequest request) {
     verifyBucketExistence(bucketName);
     String filename = filenameFrom(bucketName, request);
     try (ServletInputStream inputStream = request.getInputStream()) {
-      ObjectMetadata metadata = localStore.putObject(
-          bucketName,
-          filename,
-          inputStream,
-          request.getContentType(),
-          request.getHeader(HttpHeaders.CONTENT_ENCODING),
-          ImmutableMap.of());
+      ObjectMetadata metadata =
+          localStore.putObject(
+              bucketName,
+              filename,
+              inputStream,
+              request.getContentType(),
+              request.getHeader(HttpHeaders.CONTENT_ENCODING),
+              ImmutableMap.of());
 
       HttpHeaders responseHeaders = new HttpHeaders();
       responseHeaders.setETag("\"" + metadata.getContentMD5() + "\"");
@@ -112,7 +116,8 @@ public class AliyunOSSMockLocalController {
   }
 
   @RequestMapping(value = "/{bucketName:.+}/**", method = RequestMethod.HEAD)
-  public ResponseEntity<String> getObjectMeta(@PathVariable String bucketName, HttpServletRequest request) {
+  public ResponseEntity<String> getObjectMeta(
+      @PathVariable String bucketName, HttpServletRequest request) {
     verifyBucketExistence(bucketName);
     ObjectMetadata metadata = verifyObjectExistence(bucketName, filenameFrom(bucketName, request));
 
@@ -133,7 +138,8 @@ public class AliyunOSSMockLocalController {
       @PathVariable String bucketName,
       @RequestHeader(value = "Range", required = false) Range range,
       HttpServletRequest request,
-      HttpServletResponse response) throws IOException {
+      HttpServletResponse response)
+      throws IOException {
     verifyBucketExistence(bucketName);
 
     String filename = filenameFrom(bucketName, request);
@@ -158,8 +164,11 @@ public class AliyunOSSMockLocalController {
 
       response.setStatus(PARTIAL_CONTENT.value());
       response.setHeader(HttpHeaders.ACCEPT_RANGES, "bytes");
-      response.setHeader(HttpHeaders.CONTENT_RANGE, String.format("bytes %s-%s/%s",
-          range.start(), bytesToRead + range.start() + 1, metadata.getContentLength()));
+      response.setHeader(
+          HttpHeaders.CONTENT_RANGE,
+          String.format(
+              "bytes %s-%s/%s",
+              range.start(), bytesToRead + range.start() + 1, metadata.getContentLength()));
       response.setHeader(HttpHeaders.ETAG, "\"" + metadata.getContentMD5() + "\"");
       response.setDateHeader(HttpHeaders.LAST_MODIFIED, metadata.getLastModificationDate());
       response.setContentType(metadata.getContentType());
@@ -189,7 +198,8 @@ public class AliyunOSSMockLocalController {
   private void verifyBucketExistence(String bucketName) {
     Bucket bucket = localStore.getBucket(bucketName);
     if (bucket == null) {
-      throw new OssException(404, OSSErrorCode.NO_SUCH_BUCKET, "The specified bucket does not exist. ");
+      throw new OssException(
+          404, OSSErrorCode.NO_SUCH_BUCKET, "The specified bucket does not exist. ");
     }
   }
 
@@ -198,7 +208,8 @@ public class AliyunOSSMockLocalController {
     try {
       objectMetadata = localStore.getObjectMetadata(bucketName, filename);
     } catch (IOException e) {
-      LOG.error("Failed to get the object metadata, bucket: {}, object: {}.", bucketName, filename, e);
+      LOG.error(
+          "Failed to get the object metadata, bucket: {}, object: {}.", bucketName, filename, e);
     }
 
     if (objectMetadata == null) {
@@ -222,9 +233,7 @@ public class AliyunOSSMockLocalController {
       HttpHeaders headers = new HttpHeaders();
       headers.setContentType(MediaType.APPLICATION_XML);
 
-      return ResponseEntity.status(ex.status)
-          .headers(headers)
-          .body(errorResponse);
+      return ResponseEntity.status(ex.status).headers(headers).body(errorResponse);
     }
   }
 

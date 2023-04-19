@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import java.io.Serializable;
@@ -25,23 +24,33 @@ import java.util.Map;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
+import org.apache.iceberg.metrics.LoggingMetricsReporter;
+import org.apache.iceberg.metrics.MetricsReporter;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
  * Base {@link Table} implementation.
- * <p>
- * This can be extended by providing a {@link TableOperations} to the constructor.
- * <p>
- * Serializing and deserializing a BaseTable object returns a read only implementation of the BaseTable using a
- * {@link StaticTableOperations}. This way no Catalog related calls are needed when reading the table data after
- * deserialization.
+ *
+ * <p>This can be extended by providing a {@link TableOperations} to the constructor.
+ *
+ * <p>Serializing and deserializing a BaseTable object returns a read only implementation of the
+ * BaseTable using a {@link StaticTableOperations}. This way no Catalog related calls are needed
+ * when reading the table data after deserialization.
  */
 public class BaseTable implements Table, HasTableOperations, Serializable {
   private final TableOperations ops;
   private final String name;
+  private final MetricsReporter reporter;
 
   public BaseTable(TableOperations ops, String name) {
+    this(ops, name, LoggingMetricsReporter.instance());
+  }
+
+  public BaseTable(TableOperations ops, String name, MetricsReporter reporter) {
+    Preconditions.checkNotNull(reporter, "reporter cannot be null");
     this.ops = ops;
     this.name = name;
+    this.reporter = reporter;
   }
 
   @Override
@@ -61,12 +70,18 @@ public class BaseTable implements Table, HasTableOperations, Serializable {
 
   @Override
   public TableScan newScan() {
-    return new DataTableScan(ops, this);
+    return new DataTableScan(this, schema(), new TableScanContext().reportWith(reporter));
   }
 
   @Override
   public IncrementalAppendScan newIncrementalAppendScan() {
-    return new BaseIncrementalAppendScan(ops, this);
+    return new BaseIncrementalAppendScan(
+        this, schema(), new TableScanContext().reportWith(reporter));
+  }
+
+  @Override
+  public IncrementalChangelogScan newIncrementalChangelogScan() {
+    return new BaseIncrementalChangelogScan(this);
   }
 
   @Override
@@ -156,52 +171,52 @@ public class BaseTable implements Table, HasTableOperations, Serializable {
 
   @Override
   public AppendFiles newAppend() {
-    return new MergeAppend(name, ops);
+    return new MergeAppend(name, ops).reportWith(reporter);
   }
 
   @Override
   public AppendFiles newFastAppend() {
-    return new FastAppend(name, ops);
+    return new FastAppend(name, ops).reportWith(reporter);
   }
 
   @Override
   public RewriteFiles newRewrite() {
-    return new BaseRewriteFiles(name, ops);
+    return new BaseRewriteFiles(name, ops).reportWith(reporter);
   }
 
   @Override
   public RewriteManifests rewriteManifests() {
-    return new BaseRewriteManifests(ops);
+    return new BaseRewriteManifests(ops).reportWith(reporter);
   }
 
   @Override
   public OverwriteFiles newOverwrite() {
-    return new BaseOverwriteFiles(name, ops);
+    return new BaseOverwriteFiles(name, ops).reportWith(reporter);
   }
 
   @Override
   public RowDelta newRowDelta() {
-    return new BaseRowDelta(name, ops);
+    return new BaseRowDelta(name, ops).reportWith(reporter);
   }
 
   @Override
   public ReplacePartitions newReplacePartitions() {
-    return new BaseReplacePartitions(name, ops);
+    return new BaseReplacePartitions(name, ops).reportWith(reporter);
   }
 
   @Override
   public DeleteFiles newDelete() {
-    return new StreamingDelete(name, ops);
+    return new StreamingDelete(name, ops).reportWith(reporter);
+  }
+
+  @Override
+  public UpdateStatistics updateStatistics() {
+    return new SetStatistics(ops);
   }
 
   @Override
   public ExpireSnapshots expireSnapshots() {
     return new RemoveSnapshots(ops);
-  }
-
-  @Override
-  public Rollback rollback() {
-    return new RollbackToSnapshot(name, ops);
   }
 
   @Override
@@ -211,22 +226,32 @@ public class BaseTable implements Table, HasTableOperations, Serializable {
 
   @Override
   public Transaction newTransaction() {
-    return Transactions.newTransaction(name, ops);
+    return Transactions.newTransaction(name, ops, reporter);
   }
 
   @Override
   public FileIO io() {
-    return operations().io();
+    return ops.io();
   }
 
   @Override
   public EncryptionManager encryption() {
-    return operations().encryption();
+    return ops.encryption();
   }
 
   @Override
   public LocationProvider locationProvider() {
-    return operations().locationProvider();
+    return ops.locationProvider();
+  }
+
+  @Override
+  public List<StatisticsFile> statisticsFiles() {
+    return ops.current().statisticsFiles();
+  }
+
+  @Override
+  public Map<String, SnapshotRef> refs() {
+    return ops.current().refs();
   }
 
   @Override

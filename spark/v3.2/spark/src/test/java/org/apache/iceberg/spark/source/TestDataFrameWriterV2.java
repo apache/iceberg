@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.source;
 
 import org.apache.iceberg.AssertHelpers;
@@ -44,27 +43,35 @@ public class TestDataFrameWriterV2 extends SparkTestBaseWithCatalog {
 
   @Test
   public void testMergeSchemaFailsWithoutWriterOption() throws Exception {
-    sql("ALTER TABLE %s SET TBLPROPERTIES ('%s'='true')", tableName, TableProperties.SPARK_WRITE_ACCEPT_ANY_SCHEMA);
+    sql(
+        "ALTER TABLE %s SET TBLPROPERTIES ('%s'='true')",
+        tableName, TableProperties.SPARK_WRITE_ACCEPT_ANY_SCHEMA);
 
-    Dataset<Row> twoColDF = jsonToDF(
-        "id bigint, data string",
-        "{ \"id\": 1, \"data\": \"a\" }",
-        "{ \"id\": 2, \"data\": \"b\" }");
+    Dataset<Row> twoColDF =
+        jsonToDF(
+            "id bigint, data string",
+            "{ \"id\": 1, \"data\": \"a\" }",
+            "{ \"id\": 2, \"data\": \"b\" }");
 
     twoColDF.writeTo(tableName).append();
 
-    assertEquals("Should have initial 2-column rows",
+    assertEquals(
+        "Should have initial 2-column rows",
         ImmutableList.of(row(1L, "a"), row(2L, "b")),
         sql("select * from %s order by id", tableName));
 
-    Dataset<Row> threeColDF = jsonToDF(
-        "id bigint, data string, new_col float",
-        "{ \"id\": 3, \"data\": \"c\", \"new_col\": 12.06 }",
-        "{ \"id\": 4, \"data\": \"d\", \"new_col\": 14.41 }");
+    Dataset<Row> threeColDF =
+        jsonToDF(
+            "id bigint, data string, new_col float",
+            "{ \"id\": 3, \"data\": \"c\", \"new_col\": 12.06 }",
+            "{ \"id\": 4, \"data\": \"d\", \"new_col\": 14.41 }");
 
-    // this has a different error message than the case without accept-any-schema because it uses Iceberg checks
-    AssertHelpers.assertThrows("Should fail when merge-schema is not enabled on the writer",
-        IllegalArgumentException.class, "Field new_col not found in source schema",
+    // this has a different error message than the case without accept-any-schema because it uses
+    // Iceberg checks
+    AssertHelpers.assertThrows(
+        "Should fail when merge-schema is not enabled on the writer",
+        IllegalArgumentException.class,
+        "Field new_col not found in source schema",
         () -> {
           try {
             threeColDF.writeTo(tableName).append();
@@ -77,24 +84,29 @@ public class TestDataFrameWriterV2 extends SparkTestBaseWithCatalog {
 
   @Test
   public void testMergeSchemaWithoutAcceptAnySchema() throws Exception {
-    Dataset<Row> twoColDF = jsonToDF(
-        "id bigint, data string",
-        "{ \"id\": 1, \"data\": \"a\" }",
-        "{ \"id\": 2, \"data\": \"b\" }");
+    Dataset<Row> twoColDF =
+        jsonToDF(
+            "id bigint, data string",
+            "{ \"id\": 1, \"data\": \"a\" }",
+            "{ \"id\": 2, \"data\": \"b\" }");
 
     twoColDF.writeTo(tableName).append();
 
-    assertEquals("Should have initial 2-column rows",
+    assertEquals(
+        "Should have initial 2-column rows",
         ImmutableList.of(row(1L, "a"), row(2L, "b")),
         sql("select * from %s order by id", tableName));
 
-    Dataset<Row> threeColDF = jsonToDF(
-        "id bigint, data string, new_col float",
-        "{ \"id\": 3, \"data\": \"c\", \"new_col\": 12.06 }",
-        "{ \"id\": 4, \"data\": \"d\", \"new_col\": 14.41 }");
+    Dataset<Row> threeColDF =
+        jsonToDF(
+            "id bigint, data string, new_col float",
+            "{ \"id\": 3, \"data\": \"c\", \"new_col\": 12.06 }",
+            "{ \"id\": 4, \"data\": \"d\", \"new_col\": 14.41 }");
 
-    AssertHelpers.assertThrows("Should fail when accept-any-schema is not enabled on the table",
-        AnalysisException.class, "too many data columns",
+    AssertHelpers.assertThrows(
+        "Should fail when accept-any-schema is not enabled on the table",
+        AnalysisException.class,
+        "too many data columns",
         () -> {
           try {
             threeColDF.writeTo(tableName).option("merge-schema", "true").append();
@@ -107,55 +119,69 @@ public class TestDataFrameWriterV2 extends SparkTestBaseWithCatalog {
 
   @Test
   public void testMergeSchemaSparkProperty() throws Exception {
-    sql("ALTER TABLE %s SET TBLPROPERTIES ('%s'='true')", tableName, TableProperties.SPARK_WRITE_ACCEPT_ANY_SCHEMA);
+    sql(
+        "ALTER TABLE %s SET TBLPROPERTIES ('%s'='true')",
+        tableName, TableProperties.SPARK_WRITE_ACCEPT_ANY_SCHEMA);
 
-    Dataset<Row> twoColDF = jsonToDF(
-        "id bigint, data string",
-        "{ \"id\": 1, \"data\": \"a\" }",
-        "{ \"id\": 2, \"data\": \"b\" }");
+    Dataset<Row> twoColDF =
+        jsonToDF(
+            "id bigint, data string",
+            "{ \"id\": 1, \"data\": \"a\" }",
+            "{ \"id\": 2, \"data\": \"b\" }");
 
     twoColDF.writeTo(tableName).append();
 
-    assertEquals("Should have initial 2-column rows",
+    assertEquals(
+        "Should have initial 2-column rows",
         ImmutableList.of(row(1L, "a"), row(2L, "b")),
         sql("select * from %s order by id", tableName));
 
-    Dataset<Row> threeColDF = jsonToDF(
-        "id bigint, data string, new_col float",
-        "{ \"id\": 3, \"data\": \"c\", \"new_col\": 12.06 }",
-        "{ \"id\": 4, \"data\": \"d\", \"new_col\": 14.41 }");
+    Dataset<Row> threeColDF =
+        jsonToDF(
+            "id bigint, data string, new_col float",
+            "{ \"id\": 3, \"data\": \"c\", \"new_col\": 12.06 }",
+            "{ \"id\": 4, \"data\": \"d\", \"new_col\": 14.41 }");
 
     threeColDF.writeTo(tableName).option("mergeSchema", "true").append();
 
-    assertEquals("Should have 3-column rows",
-        ImmutableList.of(row(1L, "a", null), row(2L, "b", null), row(3L, "c", 12.06F), row(4L, "d", 14.41F)),
+    assertEquals(
+        "Should have 3-column rows",
+        ImmutableList.of(
+            row(1L, "a", null), row(2L, "b", null), row(3L, "c", 12.06F), row(4L, "d", 14.41F)),
         sql("select * from %s order by id", tableName));
   }
 
   @Test
   public void testMergeSchemaIcebergProperty() throws Exception {
-    sql("ALTER TABLE %s SET TBLPROPERTIES ('%s'='true')", tableName, TableProperties.SPARK_WRITE_ACCEPT_ANY_SCHEMA);
+    sql(
+        "ALTER TABLE %s SET TBLPROPERTIES ('%s'='true')",
+        tableName, TableProperties.SPARK_WRITE_ACCEPT_ANY_SCHEMA);
 
-    Dataset<Row> twoColDF = jsonToDF(
-        "id bigint, data string",
-        "{ \"id\": 1, \"data\": \"a\" }",
-        "{ \"id\": 2, \"data\": \"b\" }");
+    Dataset<Row> twoColDF =
+        jsonToDF(
+            "id bigint, data string",
+            "{ \"id\": 1, \"data\": \"a\" }",
+            "{ \"id\": 2, \"data\": \"b\" }");
 
     twoColDF.writeTo(tableName).append();
 
-    assertEquals("Should have initial 2-column rows",
+    assertEquals(
+        "Should have initial 2-column rows",
         ImmutableList.of(row(1L, "a"), row(2L, "b")),
         sql("select * from %s order by id", tableName));
 
-    Dataset<Row> threeColDF = jsonToDF(
-        "id bigint, data string, new_col float",
-        "{ \"id\": 3, \"data\": \"c\", \"new_col\": 12.06 }",
-        "{ \"id\": 4, \"data\": \"d\", \"new_col\": 14.41 }");
+    Dataset<Row> threeColDF =
+        jsonToDF(
+            "id bigint, data string, new_col float",
+            "{ \"id\": 3, \"data\": \"c\", \"new_col\": 12.06 }",
+            "{ \"id\": 4, \"data\": \"d\", \"new_col\": 14.41 }");
 
     threeColDF.writeTo(tableName).option("merge-schema", "true").append();
 
-    assertEquals("Should have 3-column rows",
-        ImmutableList.of(row(1L, "a", null), row(2L, "b", null), row(3L, "c", 12.06F), row(4L, "d", 14.41F)),
+    assertEquals(
+        "Should have 3-column rows",
+        ImmutableList.of(
+            row(1L, "a", null), row(2L, "b", null), row(3L, "c", 12.06F), row(4L, "d", 14.41F)),
         sql("select * from %s order by id", tableName));
   }
 }

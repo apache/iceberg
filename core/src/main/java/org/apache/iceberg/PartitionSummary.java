@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import java.util.Arrays;
@@ -75,7 +74,9 @@ class PartitionSummary {
     }
 
     public PartitionFieldSummary toSummary() {
-      return new GenericPartitionFieldSummary(containsNull, containsNaN,
+      return new GenericPartitionFieldSummary(
+          containsNull,
+          containsNaN,
           min != null ? Conversions.toByteBuffer(type, min) : null,
           max != null ? Conversions.toByteBuffer(type, max) : null);
     }

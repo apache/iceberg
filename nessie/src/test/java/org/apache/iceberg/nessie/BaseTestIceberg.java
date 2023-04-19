@@ -16,8 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.nessie;
+
+import static org.apache.iceberg.types.Types.NestedField.required;
 
 import java.io.IOException;
 import java.net.URI;
@@ -34,7 +35,9 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.avro.Avro;
+import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -47,15 +50,16 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.RegisterExtension;
 import org.junit.jupiter.api.io.TempDir;
 import org.projectnessie.client.api.NessieApiV1;
-import org.projectnessie.client.http.HttpClientBuilder;
+import org.projectnessie.client.ext.NessieApiVersion;
+import org.projectnessie.client.ext.NessieApiVersions;
+import org.projectnessie.client.ext.NessieClientFactory;
+import org.projectnessie.client.ext.NessieClientUri;
 import org.projectnessie.error.NessieConflictException;
 import org.projectnessie.error.NessieNotFoundException;
 import org.projectnessie.jaxrs.ext.NessieJaxRsExtension;
-import org.projectnessie.jaxrs.ext.NessieUri;
 import org.projectnessie.model.Branch;
 import org.projectnessie.model.Reference;
 import org.projectnessie.model.Tag;
-import org.projectnessie.server.store.TableCommitMetaStoreWorker;
 import org.projectnessie.versioned.persist.adapter.DatabaseAdapter;
 import org.projectnessie.versioned.persist.inmem.InmemoryDatabaseAdapterFactory;
 import org.projectnessie.versioned.persist.inmem.InmemoryTestConnectionProviderSource;
@@ -66,27 +70,27 @@ import org.projectnessie.versioned.persist.tests.extension.NessieExternalDatabas
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static org.apache.iceberg.types.Types.NestedField.required;
-
 @ExtendWith(DatabaseAdapterExtension.class)
 @NessieDbAdapterName(InmemoryDatabaseAdapterFactory.NAME)
 @NessieExternalDatabase(InmemoryTestConnectionProviderSource.class)
+@NessieApiVersions(versions = NessieApiVersion.V1)
 public abstract class BaseTestIceberg {
 
-  @NessieDbAdapter(storeWorker = TableCommitMetaStoreWorker.class)
-  static DatabaseAdapter databaseAdapter;
+  @NessieDbAdapter static DatabaseAdapter databaseAdapter;
+
   @RegisterExtension
-  static NessieJaxRsExtension server = new NessieJaxRsExtension(() -> databaseAdapter);
+  static NessieJaxRsExtension server =
+      NessieJaxRsExtension.jaxRsExtensionForDatabaseAdapter(() -> databaseAdapter);
 
   private static final Logger LOG = LoggerFactory.getLogger(BaseTestIceberg.class);
 
-  @TempDir
-  public Path temp;
+  @TempDir public Path temp;
 
   protected NessieCatalog catalog;
   protected NessieApiV1 api;
   protected Configuration hadoopConfig;
   protected final String branch;
+  private String initialHashOfDefaultBranch;
   protected String uri;
 
   public BaseTestIceberg(String branch) {
@@ -94,27 +98,35 @@ public abstract class BaseTestIceberg {
   }
 
   private void resetData() throws NessieConflictException, NessieNotFoundException {
+    Branch defaultBranch = api.getDefaultBranch();
     for (Reference r : api.getAllReferences().get().getReferences()) {
-      if (r instanceof Branch) {
+      if (r instanceof Branch && !r.getName().equals(defaultBranch.getName())) {
         api.deleteBranch().branch((Branch) r).delete();
-      } else {
+      }
+      if (r instanceof Tag) {
         api.deleteTag().tag((Tag) r).delete();
       }
     }
-    api.createReference().reference(Branch.of("main", null)).create();
+
+    // Reset default branch "main", if necessary
+    if (!defaultBranch.getHash().equals(initialHashOfDefaultBranch)) {
+      api.assignBranch()
+          .assignTo(Branch.of(defaultBranch.getName(), initialHashOfDefaultBranch))
+          .branch(defaultBranch)
+          .assign();
+    }
   }
 
   @BeforeEach
-  public void beforeEach(@NessieUri URI nessieUri) throws IOException {
-    this.uri = nessieUri.toString();
-    this.api = HttpClientBuilder.builder().withUri(this.uri).build(NessieApiV1.class);
+  public void beforeEach(NessieClientFactory clientFactory, @NessieClientUri URI nessieUri)
+      throws IOException {
+    this.uri = nessieUri.toASCIIString();
+    this.api = clientFactory.make();
 
-    resetData();
-
-    try {
+    Branch defaultBranch = api.getDefaultBranch();
+    initialHashOfDefaultBranch = defaultBranch.getHash();
+    if (!branch.equals(defaultBranch.getName())) {
       api.createReference().reference(Branch.of(branch, null)).create();
-    } catch (Exception e) {
-      // ignore, already created. Can't run this in BeforeAll as quarkus hasn't disabled auth
     }
 
     hadoopConfig = new Configuration();
@@ -128,20 +140,22 @@ public abstract class BaseTestIceberg {
   NessieCatalog initCatalog(String ref, String hash) {
     NessieCatalog newCatalog = new NessieCatalog();
     newCatalog.setConf(hadoopConfig);
-    ImmutableMap.Builder<String, String> options = ImmutableMap.<String, String>builder()
-        .put("ref", ref)
-        .put(CatalogProperties.URI, uri)
-        .put("auth-type", "NONE")
-        .put(CatalogProperties.WAREHOUSE_LOCATION, temp.toUri().toString());
+    ImmutableMap.Builder<String, String> options =
+        ImmutableMap.<String, String>builder()
+            .put("ref", ref)
+            .put(CatalogProperties.URI, uri)
+            .put("auth-type", "NONE")
+            .put(CatalogProperties.WAREHOUSE_LOCATION, temp.toUri().toString());
     if (null != hash) {
       options.put("ref.hash", hash);
     }
-    newCatalog.initialize("nessie", options.build());
+    newCatalog.initialize("nessie", options.buildOrThrow());
     return newCatalog;
   }
 
   protected Table createTable(TableIdentifier tableIdentifier, int count) {
     try {
+      createMissingNamespaces(tableIdentifier);
       return catalog.createTable(tableIdentifier, schema(count));
     } catch (Throwable t) {
       LOG.error("unable to do create " + tableIdentifier.toString(), t);
@@ -150,8 +164,35 @@ public abstract class BaseTestIceberg {
   }
 
   protected void createTable(TableIdentifier tableIdentifier) {
+    createMissingNamespaces(tableIdentifier);
     Schema schema = new Schema(StructType.of(required(1, "id", LongType.get())).fields());
     catalog.createTable(tableIdentifier, schema).location();
+  }
+
+  protected Table createTable(TableIdentifier tableIdentifier, Schema schema) {
+    createMissingNamespaces(tableIdentifier);
+    return catalog.createTable(tableIdentifier, schema);
+  }
+
+  protected void createMissingNamespaces(TableIdentifier tableIdentifier) {
+    createMissingNamespaces(catalog, tableIdentifier);
+  }
+
+  protected static void createMissingNamespaces(
+      NessieCatalog catalog, TableIdentifier tableIdentifier) {
+    createMissingNamespaces(catalog, tableIdentifier.namespace());
+  }
+
+  protected static void createMissingNamespaces(NessieCatalog catalog, Namespace namespace) {
+    List<String> elements = Lists.newArrayList();
+    for (int i = 0; i < namespace.length(); i++) {
+      elements.add(namespace.level(i));
+      try {
+        catalog.createNamespace(Namespace.of(elements.toArray(new String[0])));
+      } catch (AlreadyExistsException ignore) {
+        // ignore
+      }
+    }
   }
 
   protected static Schema schema(int count) {
@@ -174,6 +215,8 @@ public abstract class BaseTestIceberg {
 
   @AfterEach
   public void afterEach() throws Exception {
+    resetData();
+
     try {
       if (catalog != null) {
         catalog.close();
@@ -194,15 +237,12 @@ public abstract class BaseTestIceberg {
     return icebergOps.currentMetadataLocation();
   }
 
-  static String writeRecordsToFile(Table table, Schema schema, String filename,
-      List<Record> records)
-      throws IOException {
-    String fileLocation = table.location().replace("file:", "") +
-        String.format("/data/%s.avro", filename);
-    try (FileAppender<Record> writer = Avro.write(Files.localOutput(fileLocation))
-        .schema(schema)
-        .named("test")
-        .build()) {
+  static String writeRecordsToFile(
+      Table table, Schema schema, String filename, List<Record> records) throws IOException {
+    String fileLocation =
+        table.location().replace("file:", "") + String.format("/data/%s.avro", filename);
+    try (FileAppender<Record> writer =
+        Avro.write(Files.localOutput(fileLocation)).schema(schema).named("test").build()) {
       for (Record rec : records) {
         writer.add(rec);
       }

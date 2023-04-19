@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import java.io.IOException;
@@ -38,7 +37,7 @@ import org.junit.runners.Parameterized;
 public class TestManifestReader extends TableTestBase {
   @Parameterized.Parameters(name = "formatVersion = {0}")
   public static Object[] parameters() {
-    return new Object[] { 1, 2 };
+    return new Object[] {1, 2};
   }
 
   public TestManifestReader(int formatVersion) {
@@ -59,16 +58,18 @@ public class TestManifestReader extends TableTestBase {
   @Test
   public void testReaderWithFilterWithoutSelect() throws IOException {
     ManifestFile manifest = writeManifest(1000L, FILE_A, FILE_B, FILE_C);
-    try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, FILE_IO)
-        .filterRows(Expressions.equal("id", 0))) {
-      List<String> files = Streams.stream(reader)
-          .map(file -> file.path().toString())
-          .collect(Collectors.toList());
+    try (ManifestReader<DataFile> reader =
+        ManifestFiles.read(manifest, FILE_IO).filterRows(Expressions.equal("id", 0))) {
+      List<String> files =
+          Streams.stream(reader).map(file -> file.path().toString()).collect(Collectors.toList());
 
-      // note that all files are returned because the reader returns data files that may match, and the partition is
+      // note that all files are returned because the reader returns data files that may match, and
+      // the partition is
       // bucketing by data, which doesn't help filter files
-      Assert.assertEquals("Should read the expected files",
-          Lists.newArrayList(FILE_A.path(), FILE_B.path(), FILE_C.path()), files);
+      Assert.assertEquals(
+          "Should read the expected files",
+          Lists.newArrayList(FILE_A.path(), FILE_B.path(), FILE_C.path()),
+          files);
     }
   }
 
@@ -77,7 +78,8 @@ public class TestManifestReader extends TableTestBase {
     ManifestFile manifest = writeManifest(FILE_A, FILE_B);
     AssertHelpers.assertThrows(
         "Should not be possible to read manifest without explicit snapshot ids and inheritable metadata",
-        IllegalArgumentException.class, "Cannot read from ManifestFile with null (unassigned) snapshot ID",
+        IllegalArgumentException.class,
+        "Cannot read from ManifestFile with null (unassigned) snapshot ID",
         () -> ManifestFiles.read(manifest, FILE_IO));
   }
 
@@ -88,7 +90,8 @@ public class TestManifestReader extends TableTestBase {
       ManifestEntry<DataFile> entry = Iterables.getOnlyElement(reader.entries());
       Assert.assertEquals(123L, (long) entry.snapshotId());
 
-      List<Types.NestedField> fields = ((PartitionData) entry.file().partition()).getPartitionType().fields();
+      List<Types.NestedField> fields =
+          ((PartitionData) entry.file().partition()).getPartitionType().fields();
       Assert.assertEquals(1, fields.size());
       Assert.assertEquals(1000, fields.get(0).fieldId());
       Assert.assertEquals("data_bucket", fields.get(0).name());
@@ -98,10 +101,8 @@ public class TestManifestReader extends TableTestBase {
 
   @Test
   public void testManifestReaderWithUpdatedPartitionMetadataForV1Table() throws IOException {
-    PartitionSpec spec = PartitionSpec.builderFor(table.schema())
-        .bucket("id", 8)
-        .bucket("data", 16)
-        .build();
+    PartitionSpec spec =
+        PartitionSpec.builderFor(table.schema()).bucket("id", 8).bucket("data", 16).build();
     table.ops().commit(table.ops().current(), table.ops().current().updatePartitionSpec(spec));
 
     ManifestFile manifest = writeManifest(1000L, manifestEntry(Status.EXISTING, 123L, FILE_A));
@@ -109,7 +110,8 @@ public class TestManifestReader extends TableTestBase {
       ManifestEntry<DataFile> entry = Iterables.getOnlyElement(reader.entries());
       Assert.assertEquals(123L, (long) entry.snapshotId());
 
-      List<Types.NestedField> fields = ((PartitionData) entry.file().partition()).getPartitionType().fields();
+      List<Types.NestedField> fields =
+          ((PartitionData) entry.file().partition()).getPartitionType().fields();
       Assert.assertEquals(2, fields.size());
       Assert.assertEquals(1000, fields.get(0).fieldId());
       Assert.assertEquals("id_bucket", fields.get(0).name());
@@ -128,7 +130,8 @@ public class TestManifestReader extends TableTestBase {
       long expectedPos = 0L;
       for (DataFile file : reader) {
         Assert.assertEquals("Position should match", (Long) expectedPos, file.pos());
-        Assert.assertEquals("Position from field index should match", expectedPos, ((BaseFile) file).get(17));
+        Assert.assertEquals(
+            "Position from field index should match", expectedPos, ((BaseFile) file).get(17));
         expectedPos += 1;
       }
     }
@@ -137,12 +140,15 @@ public class TestManifestReader extends TableTestBase {
   @Test
   public void testDeleteFilePositions() throws IOException {
     Assume.assumeTrue("Delete files only work for format version 2", formatVersion == 2);
-    ManifestFile manifest = writeDeleteManifest(formatVersion, 1000L, FILE_A_DELETES, FILE_B_DELETES);
-    try (ManifestReader<DeleteFile> reader = ManifestFiles.readDeleteManifest(manifest, FILE_IO, null)) {
+    ManifestFile manifest =
+        writeDeleteManifest(formatVersion, 1000L, FILE_A_DELETES, FILE_B_DELETES);
+    try (ManifestReader<DeleteFile> reader =
+        ManifestFiles.readDeleteManifest(manifest, FILE_IO, null)) {
       long expectedPos = 0L;
       for (DeleteFile file : reader) {
         Assert.assertEquals("Position should match", (Long) expectedPos, file.pos());
-        Assert.assertEquals("Position from field index should match", expectedPos, ((BaseFile) file).get(17));
+        Assert.assertEquals(
+            "Position from field index should match", expectedPos, ((BaseFile) file).get(17));
         expectedPos += 1;
       }
     }

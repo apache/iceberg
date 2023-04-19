@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import java.util.List;
@@ -24,8 +23,8 @@ import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.util.PartitionSet;
 
-public class BaseReplacePartitions
-    extends MergingSnapshotProducer<ReplacePartitions> implements ReplacePartitions {
+public class BaseReplacePartitions extends MergingSnapshotProducer<ReplacePartitions>
+    implements ReplacePartitions {
 
   private final PartitionSet replacedPartitions;
   private Long startingSnapshotId;
@@ -81,35 +80,44 @@ public class BaseReplacePartitions
   }
 
   @Override
-  public void validate(TableMetadata currentMetadata) {
+  public BaseReplacePartitions toBranch(String branch) {
+    targetBranch(branch);
+    return this;
+  }
+
+  @Override
+  public void validate(TableMetadata currentMetadata, Snapshot parent) {
     if (validateConflictingData) {
       if (dataSpec().isUnpartitioned()) {
-        validateAddedDataFiles(currentMetadata, startingSnapshotId, Expressions.alwaysTrue());
+        validateAddedDataFiles(
+            currentMetadata, startingSnapshotId, Expressions.alwaysTrue(), parent);
       } else {
-        validateAddedDataFiles(currentMetadata, startingSnapshotId, replacedPartitions);
+        validateAddedDataFiles(currentMetadata, startingSnapshotId, replacedPartitions, parent);
       }
     }
 
     if (validateConflictingDeletes) {
       if (dataSpec().isUnpartitioned()) {
-        validateDeletedDataFiles(currentMetadata, startingSnapshotId, Expressions.alwaysTrue());
-        validateNoNewDeleteFiles(currentMetadata, startingSnapshotId, Expressions.alwaysTrue());
+        validateDeletedDataFiles(
+            currentMetadata, startingSnapshotId, Expressions.alwaysTrue(), parent);
+        validateNoNewDeleteFiles(
+            currentMetadata, startingSnapshotId, Expressions.alwaysTrue(), parent);
       } else {
-        validateDeletedDataFiles(currentMetadata, startingSnapshotId, replacedPartitions);
-        validateNoNewDeleteFiles(currentMetadata, startingSnapshotId, replacedPartitions);
+        validateDeletedDataFiles(currentMetadata, startingSnapshotId, replacedPartitions, parent);
+        validateNoNewDeleteFiles(currentMetadata, startingSnapshotId, replacedPartitions, parent);
       }
     }
   }
 
   @Override
-  public List<ManifestFile> apply(TableMetadata base) {
+  public List<ManifestFile> apply(TableMetadata base, Snapshot snapshot) {
     if (dataSpec().fields().size() <= 0) {
       // replace all data in an unpartitioned table
       deleteByRowFilter(Expressions.alwaysTrue());
     }
 
     try {
-      return super.apply(base);
+      return super.apply(base, snapshot);
     } catch (ManifestFilterManager.DeleteException e) {
       throw new ValidationException(
           "Cannot commit file that conflicts with existing partition: %s", e.partition());

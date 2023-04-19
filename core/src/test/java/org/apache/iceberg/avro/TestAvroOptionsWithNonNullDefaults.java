@@ -16,8 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.avro;
+
+import static org.apache.avro.Schema.Type.INT;
+import static org.apache.avro.Schema.Type.LONG;
+import static org.apache.avro.Schema.Type.NULL;
 
 import java.io.File;
 import java.io.IOException;
@@ -34,23 +37,24 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
-import static org.apache.avro.Schema.Type.INT;
-import static org.apache.avro.Schema.Type.LONG;
-import static org.apache.avro.Schema.Type.NULL;
-
 public class TestAvroOptionsWithNonNullDefaults {
 
-  @Rule
-  public TemporaryFolder temp = new TemporaryFolder();
+  @Rule public TemporaryFolder temp = new TemporaryFolder();
 
   @Test
   public void writeAndValidateOptionWithNonNullDefaultsPruning() throws IOException {
-    Schema writeSchema = Schema.createRecord("root", null, null, false,
-        ImmutableList.of(
-            new Schema.Field("field", Schema.createUnion(Schema.createArray(Schema.create(INT)), Schema.create(NULL)),
-                null, ImmutableList.of())
-        )
-    );
+    Schema writeSchema =
+        Schema.createRecord(
+            "root",
+            null,
+            null,
+            false,
+            ImmutableList.of(
+                new Schema.Field(
+                    "field",
+                    Schema.createUnion(Schema.createArray(Schema.create(INT)), Schema.create(NULL)),
+                    null,
+                    ImmutableList.of())));
 
     GenericData.Record record1 = new GenericData.Record(writeSchema);
     record1.put("field", ImmutableList.of(1, 2, 3));
@@ -60,7 +64,8 @@ public class TestAvroOptionsWithNonNullDefaults {
     File testFile = temp.newFile();
     Assert.assertTrue("Delete should succeed", testFile.delete());
 
-    try (DataFileWriter<GenericData.Record> writer = new DataFileWriter<>(new GenericDatumWriter<>())) {
+    try (DataFileWriter<GenericData.Record> writer =
+        new DataFileWriter<>(new GenericDatumWriter<>())) {
       writer.create(writeSchema, testFile);
       writer.append(record1);
       writer.append(record2);
@@ -70,8 +75,8 @@ public class TestAvroOptionsWithNonNullDefaults {
 
     org.apache.iceberg.Schema readIcebergSchema = AvroSchemaUtil.toIceberg(writeSchema);
     List<GenericData.Record> rows;
-    try (AvroIterable<GenericData.Record> reader = Avro.read(Files.localInput(testFile))
-        .project(readIcebergSchema).build()) {
+    try (AvroIterable<GenericData.Record> reader =
+        Avro.read(Files.localInput(testFile)).project(readIcebergSchema).build()) {
       rows = Lists.newArrayList(reader);
     }
 
@@ -82,11 +87,18 @@ public class TestAvroOptionsWithNonNullDefaults {
 
   @Test
   public void writeAndValidateOptionWithNonNullDefaultsEvolution() throws IOException {
-    Schema writeSchema = Schema.createRecord("root", null, null, false,
-        ImmutableList.of(
-            new Schema.Field("field", Schema.createUnion(Schema.create(INT), Schema.create(NULL)), null, -1)
-        )
-    );
+    Schema writeSchema =
+        Schema.createRecord(
+            "root",
+            null,
+            null,
+            false,
+            ImmutableList.of(
+                new Schema.Field(
+                    "field",
+                    Schema.createUnion(Schema.create(INT), Schema.create(NULL)),
+                    null,
+                    -1)));
 
     GenericData.Record record1 = new GenericData.Record(writeSchema);
     record1.put("field", 1);
@@ -96,17 +108,25 @@ public class TestAvroOptionsWithNonNullDefaults {
     File testFile = temp.newFile();
     Assert.assertTrue("Delete should succeed", testFile.delete());
 
-    try (DataFileWriter<GenericData.Record> writer = new DataFileWriter<>(new GenericDatumWriter<>())) {
+    try (DataFileWriter<GenericData.Record> writer =
+        new DataFileWriter<>(new GenericDatumWriter<>())) {
       writer.create(writeSchema, testFile);
       writer.append(record1);
       writer.append(record2);
     }
 
-    Schema readSchema = Schema.createRecord("root", null, null, false,
-        ImmutableList.of(
-            new Schema.Field("field", Schema.createUnion(Schema.create(LONG), Schema.create(NULL)), null, -1L)
-        )
-    );
+    Schema readSchema =
+        Schema.createRecord(
+            "root",
+            null,
+            null,
+            false,
+            ImmutableList.of(
+                new Schema.Field(
+                    "field",
+                    Schema.createUnion(Schema.create(LONG), Schema.create(NULL)),
+                    null,
+                    -1L)));
 
     GenericData.Record expectedRecord1 = new GenericData.Record(readSchema);
     expectedRecord1.put("field", 1L);
@@ -116,8 +136,8 @@ public class TestAvroOptionsWithNonNullDefaults {
 
     org.apache.iceberg.Schema readIcebergSchema = AvroSchemaUtil.toIceberg(readSchema);
     List<GenericData.Record> rows;
-    try (AvroIterable<GenericData.Record> reader = Avro.read(Files.localInput(testFile))
-        .project(readIcebergSchema).build()) {
+    try (AvroIterable<GenericData.Record> reader =
+        Avro.read(Files.localInput(testFile)).project(readIcebergSchema).build()) {
       rows = Lists.newArrayList(reader);
     }
 

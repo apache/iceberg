@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import java.util.function.Function;
@@ -25,21 +24,28 @@ import org.apache.iceberg.io.CloseableIterable;
 class StaticTableScan extends BaseMetadataTableScan {
   private final Function<StaticTableScan, DataTask> buildTask;
 
-  StaticTableScan(TableOperations ops, Table table, Schema schema, MetadataTableType tableType,
-                  Function<StaticTableScan, DataTask> buildTask) {
-    super(ops, table, schema, tableType);
+  StaticTableScan(
+      Table table,
+      Schema schema,
+      MetadataTableType tableType,
+      Function<StaticTableScan, DataTask> buildTask) {
+    super(table, schema, tableType);
     this.buildTask = buildTask;
   }
 
-  StaticTableScan(TableOperations ops, Table table, Schema schema, MetadataTableType tableType,
-                  Function<StaticTableScan, DataTask> buildTask, TableScanContext context) {
-    super(ops, table, schema, tableType, context);
+  StaticTableScan(
+      Table table,
+      Schema schema,
+      MetadataTableType tableType,
+      Function<StaticTableScan, DataTask> buildTask,
+      TableScanContext context) {
+    super(table, schema, tableType, context);
     this.buildTask = buildTask;
   }
 
   @Override
-  protected TableScan newRefinedScan(TableOperations ops, Table table, Schema schema, TableScanContext context) {
-    return new StaticTableScan(ops, table, schema, tableType(), buildTask, context);
+  protected TableScan newRefinedScan(Table table, Schema schema, TableScanContext context) {
+    return new StaticTableScan(table, schema, tableType(), buildTask, context);
   }
 
   @Override

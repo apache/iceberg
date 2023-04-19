@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.rest.responses;
 
 import java.util.Map;
@@ -28,16 +27,18 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.RESTResponse;
 
 /**
- * Represents a response to requesting server-side provided configuration for the REST catalog.
- * This allows client provided values to be overridden by the server or defaulted if not provided by the client.
- * <p>
- * The catalog properties, with overrides and defaults applied, should be used to configure the catalog and for all
- * subsequent requests after this initial config request.
- * <p>
- * Configuration from the server consists of two sets of key/value pairs.
+ * Represents a response to requesting server-side provided configuration for the REST catalog. This
+ * allows client provided values to be overridden by the server or defaulted if not provided by the
+ * client.
+ *
+ * <p>The catalog properties, with overrides and defaults applied, should be used to configure the
+ * catalog and for all subsequent requests after this initial config request.
+ *
+ * <p>Configuration from the server consists of two sets of key/value pairs.
+ *
  * <ul>
- *   <li> defaults - properties that should be used as default configuration </li>
- *   <li> overrides - properties that should be used to override client configuration </li>
+ *   <li>defaults - properties that should be used as default configuration
+ *   <li>overrides - properties that should be used to override client configuration
  * </ul>
  */
 public class ConfigResponse implements RESTResponse {
@@ -56,12 +57,11 @@ public class ConfigResponse implements RESTResponse {
   }
 
   @Override
-  public void validate() {
-  }
+  public void validate() {}
 
   /**
-   * Properties that should be used as default configuration. {@code defaults} have the lowest priority
-   * and should be applied before the client provided configuration.
+   * Properties that should be used as default configuration. {@code defaults} have the lowest
+   * priority and should be applied before the client provided configuration.
    *
    * @return properties that should be used as default configuration
    */
@@ -70,8 +70,9 @@ public class ConfigResponse implements RESTResponse {
   }
 
   /**
-   * Properties that should be used to override client configuration. {@code overrides} have the highest priority
-   * and should be applied after defaults and any client-provided configuration properties.
+   * Properties that should be used to override client configuration. {@code overrides} have the
+   * highest priority and should be applied after defaults and any client-provided configuration
+   * properties.
    *
    * @return properties that should be given higher precedence than any client provided input
    */
@@ -84,10 +85,12 @@ public class ConfigResponse implements RESTResponse {
    * properties map which will be used for instantiating and configuring the REST catalog.
    *
    * @param clientProperties - Client provided configuration
-   * @return Merged configuration, with precedence in the order overrides, then client properties, and then defaults.
+   * @return Merged configuration, with precedence in the order overrides, then client properties,
+   *     and then defaults.
    */
   public Map<String, String> merge(Map<String, String> clientProperties) {
-    Preconditions.checkNotNull(clientProperties,
+    Preconditions.checkNotNull(
+        clientProperties,
         "Cannot merge client properties with server-provided properties. Invalid client configuration: null");
     Map<String, String> merged = defaults != null ? Maps.newHashMap(defaults) : Maps.newHashMap();
     merged.putAll(clientProperties);
@@ -132,22 +135,20 @@ public class ConfigResponse implements RESTResponse {
       return this;
     }
 
-    /**
-     * Adds the passed in map entries to the existing `defaults` of this Builder.
-     */
+    /** Adds the passed in map entries to the existing `defaults` of this Builder. */
     public Builder withDefaults(Map<String, String> defaultsToAdd) {
       Preconditions.checkNotNull(defaultsToAdd, "Invalid default properties map: null");
-      Preconditions.checkArgument(!defaultsToAdd.containsKey(null), "Invalid default property: null");
+      Preconditions.checkArgument(
+          !defaultsToAdd.containsKey(null), "Invalid default property: null");
       defaults.putAll(defaultsToAdd);
       return this;
     }
 
-    /**
-     * Adds the passed in map entries to the existing `overrides` of this Builder.
-     */
+    /** Adds the passed in map entries to the existing `overrides` of this Builder. */
     public Builder withOverrides(Map<String, String> overridesToAdd) {
       Preconditions.checkNotNull(overridesToAdd, "Invalid override properties map: null");
-      Preconditions.checkArgument(!overridesToAdd.containsKey(null), "Invalid override property: null");
+      Preconditions.checkArgument(
+          !overridesToAdd.containsKey(null), "Invalid override property: null");
       overrides.putAll(overridesToAdd);
       return this;
     }

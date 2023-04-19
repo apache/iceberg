@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import org.apache.iceberg.io.CloseableIterable;
@@ -24,31 +23,33 @@ import org.apache.iceberg.types.Types;
 
 /**
  * A {@link Table} implementation that exposes a table's known snapshots as rows.
- * <p>
- * This does not include snapshots that have been expired using {@link ExpireSnapshots}.
+ *
+ * <p>This does not include snapshots that have been expired using {@link ExpireSnapshots}.
  */
 public class SnapshotsTable extends BaseMetadataTable {
-  private static final Schema SNAPSHOT_SCHEMA = new Schema(
-      Types.NestedField.required(1, "committed_at", Types.TimestampType.withZone()),
-      Types.NestedField.required(2, "snapshot_id", Types.LongType.get()),
-      Types.NestedField.optional(3, "parent_id", Types.LongType.get()),
-      Types.NestedField.optional(4, "operation", Types.StringType.get()),
-      Types.NestedField.optional(5, "manifest_list", Types.StringType.get()),
-      Types.NestedField.optional(6, "summary",
-          Types.MapType.ofRequired(7, 8, Types.StringType.get(), Types.StringType.get()))
-  );
+  private static final Schema SNAPSHOT_SCHEMA =
+      new Schema(
+          Types.NestedField.required(1, "committed_at", Types.TimestampType.withZone()),
+          Types.NestedField.required(2, "snapshot_id", Types.LongType.get()),
+          Types.NestedField.optional(3, "parent_id", Types.LongType.get()),
+          Types.NestedField.optional(4, "operation", Types.StringType.get()),
+          Types.NestedField.optional(5, "manifest_list", Types.StringType.get()),
+          Types.NestedField.optional(
+              6,
+              "summary",
+              Types.MapType.ofRequired(7, 8, Types.StringType.get(), Types.StringType.get())));
 
-  SnapshotsTable(TableOperations ops, Table table) {
-    this(ops, table, table.name() + ".snapshots");
+  SnapshotsTable(Table table) {
+    this(table, table.name() + ".snapshots");
   }
 
-  SnapshotsTable(TableOperations ops, Table table, String name) {
-    super(ops, table, name);
+  SnapshotsTable(Table table, String name) {
+    super(table, name);
   }
 
   @Override
   public TableScan newScan() {
-    return new SnapshotsTableScan(operations(), table());
+    return new SnapshotsTableScan(table());
   }
 
   @Override
@@ -57,12 +58,12 @@ public class SnapshotsTable extends BaseMetadataTable {
   }
 
   private DataTask task(BaseTableScan scan) {
-    TableOperations ops = operations();
     return StaticDataTask.of(
-        ops.io().newInputFile(ops.current().metadataFileLocation()),
-        schema(), scan.schema(), ops.current().snapshots(),
-        SnapshotsTable::snapshotToRow
-    );
+        table().io().newInputFile(table().operations().current().metadataFileLocation()),
+        schema(),
+        scan.schema(),
+        table().snapshots(),
+        SnapshotsTable::snapshotToRow);
   }
 
   @Override
@@ -71,22 +72,24 @@ public class SnapshotsTable extends BaseMetadataTable {
   }
 
   private class SnapshotsTableScan extends StaticTableScan {
-    SnapshotsTableScan(TableOperations ops, Table table) {
-      super(ops, table, SNAPSHOT_SCHEMA, MetadataTableType.SNAPSHOTS, SnapshotsTable.this::task);
+    SnapshotsTableScan(Table table) {
+      super(table, SNAPSHOT_SCHEMA, MetadataTableType.SNAPSHOTS, SnapshotsTable.this::task);
     }
 
-    SnapshotsTableScan(TableOperations ops, Table table, TableScanContext context) {
-      super(ops, table, SNAPSHOT_SCHEMA, MetadataTableType.SNAPSHOTS, SnapshotsTable.this::task, context);
+    SnapshotsTableScan(Table table, TableScanContext context) {
+      super(
+          table, SNAPSHOT_SCHEMA, MetadataTableType.SNAPSHOTS, SnapshotsTable.this::task, context);
     }
 
     @Override
-    protected TableScan newRefinedScan(TableOperations ops, Table table, Schema schema, TableScanContext context) {
-      return new SnapshotsTableScan(ops, table, context);
+    protected TableScan newRefinedScan(Table table, Schema schema, TableScanContext context) {
+      return new SnapshotsTableScan(table, context);
     }
 
     @Override
     public CloseableIterable<FileScanTask> planFiles() {
-      // override planFiles to avoid the check for a current snapshot because this metadata table is for all snapshots
+      // override planFiles to avoid the check for a current snapshot because this metadata table is
+      // for all snapshots
       return CloseableIterable.withNoopClose(SnapshotsTable.this.task(this));
     }
   }
@@ -98,7 +101,6 @@ public class SnapshotsTable extends BaseMetadataTable {
         snap.parentId(),
         snap.operation(),
         snap.manifestListLocation(),
-        snap.summary()
-    );
+        snap.summary());
   }
 }

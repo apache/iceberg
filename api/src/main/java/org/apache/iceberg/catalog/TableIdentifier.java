@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.catalog;
 
 import java.util.Arrays;
@@ -25,9 +24,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 
-/**
- * Identifies a table in iceberg catalog.
- */
+/** Identifies a table in iceberg catalog. */
 public class TableIdentifier {
 
   private static final Splitter DOT = Splitter.on('.');
@@ -37,8 +34,10 @@ public class TableIdentifier {
 
   public static TableIdentifier of(String... names) {
     Preconditions.checkArgument(names != null, "Cannot create table identifier from null array");
-    Preconditions.checkArgument(names.length > 0, "Cannot create table identifier without a table name");
-    return new TableIdentifier(Namespace.of(Arrays.copyOf(names, names.length - 1)), names[names.length - 1]);
+    Preconditions.checkArgument(
+        names.length > 0, "Cannot create table identifier without a table name");
+    return new TableIdentifier(
+        Namespace.of(Arrays.copyOf(names, names.length - 1)), names[names.length - 1]);
   }
 
   public static TableIdentifier of(Namespace namespace, String name) {
@@ -52,7 +51,8 @@ public class TableIdentifier {
   }
 
   private TableIdentifier(Namespace namespace, String name) {
-    Preconditions.checkArgument(name != null && !name.isEmpty(), "Invalid table name: null or empty");
+    Preconditions.checkArgument(
+        name != null && !name.isEmpty(), "Invalid table name: null or empty");
     Preconditions.checkArgument(namespace != null, "Invalid Namespace: null");
     this.namespace = namespace;
     this.name = name;
@@ -60,30 +60,26 @@ public class TableIdentifier {
 
   /**
    * Whether the namespace is empty.
+   *
    * @return true if the namespace is not empty, false otherwise
    */
   public boolean hasNamespace() {
     return !namespace.isEmpty();
   }
 
-  /**
-   * Returns the identifier namespace.
-   */
+  /** Returns the identifier namespace. */
   public Namespace namespace() {
     return namespace;
   }
 
-  /**
-   * Returns the identifier name.
-   */
+  /** Returns the identifier name. */
   public String name() {
     return name;
   }
 
   public TableIdentifier toLowerCase() {
-    String[] newLevels = Arrays.stream(namespace().levels())
-        .map(String::toLowerCase)
-        .toArray(String[]::new);
+    String[] newLevels =
+        Arrays.stream(namespace().levels()).map(String::toLowerCase).toArray(String[]::new);
     String newName = name().toLowerCase();
     return TableIdentifier.of(Namespace.of(newLevels), newName);
   }

@@ -16,62 +16,52 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.actions;
 
 import org.apache.iceberg.Table;
 
-/**
- * An API that should be implemented by query engine integrations for providing actions.
- */
+/** An API that should be implemented by query engine integrations for providing actions. */
 public interface ActionsProvider {
 
-  /**
-   * Instantiates an action to snapshot an existing table as a new Iceberg table.
-   */
+  /** Instantiates an action to snapshot an existing table as a new Iceberg table. */
   default SnapshotTable snapshotTable(String sourceTableIdent) {
-    throw new UnsupportedOperationException(this.getClass().getName() + " does not implement snapshotTable");
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " does not implement snapshotTable");
   }
 
-  /**
-   * Instantiates an action to migrate an existing table to Iceberg.
-   */
+  /** Instantiates an action to migrate an existing table to Iceberg. */
   default MigrateTable migrateTable(String tableIdent) {
-    throw new UnsupportedOperationException(this.getClass().getName() + " does not implement migrateTable");
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " does not implement migrateTable");
   }
 
-  /**
-   * Instantiates an action to delete orphan files.
-   */
+  /** Instantiates an action to delete orphan files. */
   default DeleteOrphanFiles deleteOrphanFiles(Table table) {
-    throw new UnsupportedOperationException(this.getClass().getName() + " does not implement deleteOrphanFiles");
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " does not implement deleteOrphanFiles");
   }
 
-  /**
-   * Instantiates an action to rewrite manifests.
-   */
+  /** Instantiates an action to rewrite manifests. */
   default RewriteManifests rewriteManifests(Table table) {
-    throw new UnsupportedOperationException(this.getClass().getName() + " does not implement rewriteManifests");
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " does not implement rewriteManifests");
   }
 
-  /**
-   * Instantiates an action to rewrite data files.
-   */
+  /** Instantiates an action to rewrite data files. */
   default RewriteDataFiles rewriteDataFiles(Table table) {
-    throw new UnsupportedOperationException(this.getClass().getName() + " does not implement rewriteDataFiles");
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " does not implement rewriteDataFiles");
   }
 
-  /**
-   * Instantiates an action to expire snapshots.
-   */
+  /** Instantiates an action to expire snapshots. */
   default ExpireSnapshots expireSnapshots(Table table) {
-    throw new UnsupportedOperationException(this.getClass().getName() + " does not implement expireSnapshots");
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " does not implement expireSnapshots");
   }
 
-  /**
-   * Instantiates an action to delete all the files reachable from given metadata location.
-   */
+  /** Instantiates an action to delete all the files reachable from given metadata location. */
   default DeleteReachableFiles deleteReachableFiles(String metadataLocation) {
-    throw new UnsupportedOperationException(this.getClass().getName() + " does not implement deleteReachableFiles");
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " does not implement deleteReachableFiles");
   }
 }

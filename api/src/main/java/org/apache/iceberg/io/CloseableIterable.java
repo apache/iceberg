@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.io;
 
 import java.io.Closeable;
@@ -27,13 +26,14 @@ import java.util.NoSuchElementException;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.metrics.Counter;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 
 public interface CloseableIterable<T> extends Iterable<T>, Closeable {
 
   /**
-   * Returns an closeable iterator over elements of type {@code T}.
+   * Returns a closeable iterator over elements of type {@code T}.
    *
    * @return an {@link CloseableIterator}.
    */
@@ -47,8 +47,7 @@ public interface CloseableIterable<T> extends Iterable<T>, Closeable {
   static <E> CloseableIterable<E> withNoopClose(Iterable<E> iterable) {
     return new CloseableIterable<E>() {
       @Override
-      public void close() {
-      }
+      public void close() {}
 
       @Override
       public CloseableIterator<E> iterator() {
@@ -75,17 +74,107 @@ public interface CloseableIterable<T> extends Iterable<T>, Closeable {
     };
   }
 
-  static <E> CloseableIterable<E> filter(CloseableIterable<E> iterable, Predicate<E> pred) {
-    return combine(() -> new FilterIterator<E>(iterable.iterator()) {
+  /**
+   * Will run the given runnable when {@link CloseableIterable#close()} has been called.
+   *
+   * @param iterable The underlying {@link CloseableIterable} to iterate over
+   * @param onCompletionRunnable The runnable to run after the underlying iterable was closed
+   * @param <E> The type of the underlying iterable
+   * @return A new {@link CloseableIterable} where the runnable will be executed as the final step
+   *     after {@link CloseableIterable#close()} has been called
+   */
+  static <E> CloseableIterable<E> whenComplete(
+      CloseableIterable<E> iterable, Runnable onCompletionRunnable) {
+    Preconditions.checkNotNull(onCompletionRunnable, "Invalid runnable: null");
+    return new CloseableIterable<E>() {
       @Override
-      protected boolean shouldKeep(E item) {
-        return pred.test(item);
+      public void close() throws IOException {
+        try {
+          iterable.close();
+        } finally {
+          onCompletionRunnable.run();
+        }
       }
-    }, iterable);
+
+      @Override
+      public CloseableIterator<E> iterator() {
+        return iterable.iterator();
+      }
+    };
   }
 
-  static <I, O> CloseableIterable<O> transform(CloseableIterable<I> iterable, Function<I, O> transform) {
-    Preconditions.checkNotNull(transform, "Cannot apply a null transform");
+  static <E> CloseableIterable<E> filter(CloseableIterable<E> iterable, Predicate<E> pred) {
+    return combine(
+        () ->
+            new FilterIterator<E>(iterable.iterator()) {
+              @Override
+              protected boolean shouldKeep(E item) {
+                return pred.test(item);
+              }
+            },
+        iterable);
+  }
+
+  /**
+   * Filters the given {@link CloseableIterable} and counts the number of elements that do not match
+   * the predicate by incrementing the {@link Counter}.
+   *
+   * @param skipCounter The {@link Counter} instance to increment on each skipped item during
+   *     filtering.
+   * @param iterable The underlying {@link CloseableIterable} to filter.
+   * @param <E> The underlying type to be iterated.
+   * @return A filtered {@link CloseableIterable} where the given skipCounter is incremented
+   *     whenever the predicate does not match.
+   */
+  static <E> CloseableIterable<E> filter(
+      Counter skipCounter, CloseableIterable<E> iterable, Predicate<E> pred) {
+    Preconditions.checkArgument(null != skipCounter, "Invalid counter: null");
+    Preconditions.checkArgument(null != iterable, "Invalid iterable: null");
+    Preconditions.checkArgument(null != pred, "Invalid predicate: null");
+    return combine(
+        () ->
+            new FilterIterator<E>(iterable.iterator()) {
+              @Override
+              protected boolean shouldKeep(E item) {
+                boolean matches = pred.test(item);
+                if (!matches) {
+                  skipCounter.increment();
+                }
+                return matches;
+              }
+            },
+        iterable);
+  }
+
+  /**
+   * Counts the number of elements in the given {@link CloseableIterable} by incrementing the {@link
+   * Counter} instance for each {@link Iterator#next()} call.
+   *
+   * @param counter The {@link Counter} instance to increment on each {@link Iterator#next()} call.
+   * @param iterable The underlying {@link CloseableIterable} to count
+   * @param <T> The underlying type to be iterated.
+   * @return A {@link CloseableIterable} that increments the given counter on each {@link
+   *     Iterator#next()} call.
+   */
+  static <T> CloseableIterable<T> count(Counter counter, CloseableIterable<T> iterable) {
+    Preconditions.checkArgument(null != counter, "Invalid counter: null");
+    Preconditions.checkArgument(null != iterable, "Invalid iterable: null");
+    return new CloseableIterable<T>() {
+      @Override
+      public CloseableIterator<T> iterator() {
+        return CloseableIterator.count(counter, iterable.iterator());
+      }
+
+      @Override
+      public void close() throws IOException {
+        iterable.close();
+      }
+    };
+  }
+
+  static <I, O> CloseableIterable<O> transform(
+      CloseableIterable<I> iterable, Function<I, O> transform) {
+    Preconditions.checkNotNull(transform, "Invalid transform: null");
 
     return new CloseableIterable<O>() {
       @Override
@@ -118,12 +207,7 @@ public interface CloseableIterable<T> extends Iterable<T>, Closeable {
   }
 
   static <E> CloseableIterable<E> concat(Iterable<CloseableIterable<E>> iterable) {
-    Iterator<CloseableIterable<E>> iterables = iterable.iterator();
-    if (!iterables.hasNext()) {
-      return empty();
-    } else {
-      return new ConcatCloseableIterable<>(iterable);
-    }
+    return new ConcatCloseableIterable<>(iterable);
   }
 
   class ConcatCloseableIterable<E> extends CloseableGroup implements CloseableIterable<E> {
@@ -148,8 +232,6 @@ public interface CloseableIterable<T> extends Iterable<T>, Closeable {
 
       private ConcatCloseableIterator(Iterable<CloseableIterable<E>> inputs) {
         this.iterables = inputs.iterator();
-        this.currentIterable = iterables.next();
-        this.currentIterator = currentIterable.iterator();
       }
 
       @Override
@@ -158,13 +240,15 @@ public interface CloseableIterable<T> extends Iterable<T>, Closeable {
           return false;
         }
 
-        if (currentIterator.hasNext()) {
+        if (null != currentIterator && currentIterator.hasNext()) {
           return true;
         }
 
         while (iterables.hasNext()) {
           try {
-            currentIterable.close();
+            if (null != currentIterable) {
+              currentIterable.close();
+            }
           } catch (IOException e) {
             throw new RuntimeIOException(e, "Failed to close iterable");
           }
@@ -178,7 +262,9 @@ public interface CloseableIterable<T> extends Iterable<T>, Closeable {
         }
 
         try {
-          currentIterable.close();
+          if (null != currentIterable) {
+            currentIterable.close();
+          }
         } catch (IOException e) {
           throw new RuntimeIOException(e, "Failed to close iterable");
         }
@@ -193,7 +279,9 @@ public interface CloseableIterable<T> extends Iterable<T>, Closeable {
       @Override
       public void close() throws IOException {
         if (!closed) {
-          currentIterable.close();
+          if (null != currentIterable) {
+            currentIterable.close();
+          }
           this.closed = true;
           this.currentIterator = null;
           this.currentIterable = null;
@@ -210,5 +298,4 @@ public interface CloseableIterable<T> extends Iterable<T>, Closeable {
       }
     }
   }
-
 }

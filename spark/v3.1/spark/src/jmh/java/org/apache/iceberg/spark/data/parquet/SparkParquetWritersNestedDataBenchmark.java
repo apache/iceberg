@@ -16,8 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.data.parquet;
+
+import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.apache.iceberg.types.Types.NestedField.required;
 
 import java.io.File;
 import java.io.IOException;
@@ -45,15 +47,11 @@ import org.openjdk.jmh.annotations.TearDown;
 import org.openjdk.jmh.annotations.Threads;
 import org.openjdk.jmh.annotations.Warmup;
 
-import static org.apache.iceberg.types.Types.NestedField.optional;
-import static org.apache.iceberg.types.Types.NestedField.required;
-
 /**
- * A benchmark that evaluates the performance of writing nested Parquet data using
- * Iceberg and Spark Parquet writers.
+ * A benchmark that evaluates the performance of writing nested Parquet data using Iceberg and Spark
+ * Parquet writers.
  *
- * To run this benchmark for spark-3.1:
- * <code>
+ * <p>To run this benchmark for spark-3.1: <code>
  *   ./gradlew -DsparkVersions=3.1 :iceberg-spark:iceberg-spark-3.1_2.12:jmh
  *       -PjmhIncludeRegex=SparkParquetWritersNestedDataBenchmark
  *       -PjmhOutputPath=benchmark/spark-parquet-writers-nested-data-benchmark-result.txt
@@ -66,14 +64,16 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 @BenchmarkMode(Mode.SingleShotTime)
 public class SparkParquetWritersNestedDataBenchmark {
 
-  private static final Schema SCHEMA = new Schema(
-      required(0, "id", Types.LongType.get()),
-      optional(4, "nested", Types.StructType.of(
-          required(1, "col1", Types.StringType.get()),
-          required(2, "col2", Types.DoubleType.get()),
-          required(3, "col3", Types.LongType.get())
-      ))
-  );
+  private static final Schema SCHEMA =
+      new Schema(
+          required(0, "id", Types.LongType.get()),
+          optional(
+              4,
+              "nested",
+              Types.StructType.of(
+                  required(1, "col1", Types.StringType.get()),
+                  required(2, "col2", Types.DoubleType.get()),
+                  required(3, "col3", Types.LongType.get()))));
   private static final int NUM_RECORDS = 1000000;
   private Iterable<InternalRow> rows;
   private File dataFile;
@@ -95,10 +95,13 @@ public class SparkParquetWritersNestedDataBenchmark {
   @Benchmark
   @Threads(1)
   public void writeUsingIcebergWriter() throws IOException {
-    try (FileAppender<InternalRow> writer = Parquet.write(Files.localOutput(dataFile))
-        .createWriterFunc(msgType -> SparkParquetWriters.buildWriter(SparkSchemaUtil.convert(SCHEMA), msgType))
-        .schema(SCHEMA)
-        .build()) {
+    try (FileAppender<InternalRow> writer =
+        Parquet.write(Files.localOutput(dataFile))
+            .createWriterFunc(
+                msgType ->
+                    SparkParquetWriters.buildWriter(SparkSchemaUtil.convert(SCHEMA), msgType))
+            .schema(SCHEMA)
+            .build()) {
 
       writer.addAll(rows);
     }
@@ -108,15 +111,16 @@ public class SparkParquetWritersNestedDataBenchmark {
   @Threads(1)
   public void writeUsingSparkWriter() throws IOException {
     StructType sparkSchema = SparkSchemaUtil.convert(SCHEMA);
-    try (FileAppender<InternalRow> writer = Parquet.write(Files.localOutput(dataFile))
-        .writeSupport(new ParquetWriteSupport())
-        .set("org.apache.spark.sql.parquet.row.attributes", sparkSchema.json())
-        .set("spark.sql.parquet.writeLegacyFormat", "false")
-        .set("spark.sql.parquet.binaryAsString", "false")
-        .set("spark.sql.parquet.int96AsTimestamp", "false")
-        .set("spark.sql.parquet.outputTimestampType", "TIMESTAMP_MICROS")
-        .schema(SCHEMA)
-        .build()) {
+    try (FileAppender<InternalRow> writer =
+        Parquet.write(Files.localOutput(dataFile))
+            .writeSupport(new ParquetWriteSupport())
+            .set("org.apache.spark.sql.parquet.row.attributes", sparkSchema.json())
+            .set("spark.sql.parquet.writeLegacyFormat", "false")
+            .set("spark.sql.parquet.binaryAsString", "false")
+            .set("spark.sql.parquet.int96AsTimestamp", "false")
+            .set("spark.sql.parquet.outputTimestampType", "TIMESTAMP_MICROS")
+            .schema(SCHEMA)
+            .build()) {
 
       writer.addAll(rows);
     }

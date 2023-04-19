@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import java.io.Serializable;
@@ -86,11 +85,11 @@ public class SnapshotRef implements Serializable {
     }
 
     SnapshotRef ref = (SnapshotRef) other;
-    return ref.snapshotId == snapshotId &&
-        Objects.equals(ref.type(), type) &&
-        Objects.equals(ref.maxRefAgeMs(), maxRefAgeMs) &&
-        Objects.equals(ref.minSnapshotsToKeep(), minSnapshotsToKeep) &&
-        Objects.equals(ref.maxSnapshotAgeMs(), maxSnapshotAgeMs);
+    return ref.snapshotId == snapshotId
+        && Objects.equals(ref.type(), type)
+        && Objects.equals(ref.maxRefAgeMs(), maxRefAgeMs)
+        && Objects.equals(ref.minSnapshotsToKeep(), minSnapshotsToKeep)
+        && Objects.equals(ref.maxSnapshotAgeMs(), maxSnapshotAgeMs);
   }
 
   @Override
@@ -100,8 +99,7 @@ public class SnapshotRef implements Serializable {
         this.type,
         this.maxRefAgeMs,
         this.maxSnapshotAgeMs,
-        this.minSnapshotsToKeep
-    );
+        this.minSnapshotsToKeep);
   }
 
   public static Builder tagBuilder(long snapshotId) {
@@ -120,11 +118,13 @@ public class SnapshotRef implements Serializable {
   }
 
   /**
-   * Creates a ref builder from the given ref and its properties but the ref will now point to the given snapshotId.
+   * Creates a ref builder from the given ref and its properties but the ref will now point to the
+   * given snapshotId.
    *
    * @param ref Ref to build from
    * @param snapshotId snapshotID to use.
-   * @return ref builder with the same retention properties as given ref, but the ref will point to the passed in id
+   * @return ref builder with the same retention properties as given ref, but the ref will point to
+   *     the passed in id
    */
   public static Builder builderFrom(SnapshotRef ref, long snapshotId) {
     return new Builder(ref.type(), snapshotId)
@@ -152,25 +152,28 @@ public class SnapshotRef implements Serializable {
     }
 
     public Builder minSnapshotsToKeep(Integer value) {
-      Preconditions.checkArgument(value == null || !type.equals(SnapshotRefType.TAG),
+      Preconditions.checkArgument(
+          value == null || !type.equals(SnapshotRefType.TAG),
           "Tags do not support setting minSnapshotsToKeep");
-      Preconditions.checkArgument(value == null || value > 0,
-          "Min snapshots to keep must be greater than 0");
+      Preconditions.checkArgument(
+          value == null || value > 0, "Min snapshots to keep must be greater than 0");
       this.minSnapshotsToKeep = value;
       return this;
     }
 
     public Builder maxSnapshotAgeMs(Long value) {
-      Preconditions.checkArgument(value == null || !type.equals(SnapshotRefType.TAG),
+      Preconditions.checkArgument(
+          value == null || !type.equals(SnapshotRefType.TAG),
           "Tags do not support setting maxSnapshotAgeMs");
-      Preconditions.checkArgument(value == null || value > 0,
-          "Max snapshot age must be greater than 0 ms");
+      Preconditions.checkArgument(
+          value == null || value > 0, "Max snapshot age must be greater than 0 ms");
       this.maxSnapshotAgeMs = value;
       return this;
     }
 
     public Builder maxRefAgeMs(Long value) {
-      Preconditions.checkArgument(value == null || value > 0, "Max reference age must be greater than 0");
+      Preconditions.checkArgument(
+          value == null || value > 0, "Max reference age must be greater than 0");
       this.maxRefAgeMs = value;
       return this;
     }

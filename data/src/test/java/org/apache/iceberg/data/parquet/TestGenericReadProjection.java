@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.data.parquet;
 
 import java.io.File;
@@ -36,17 +35,20 @@ public class TestGenericReadProjection extends TestReadProjection {
     File file = temp.newFile(desc + ".parquet");
     file.delete();
 
-    try (FileAppender<Record> appender = Parquet.write(Files.localOutput(file))
-        .schema(writeSchema)
-        .createWriterFunc(GenericParquetWriter::buildWriter)
-        .build()) {
+    try (FileAppender<Record> appender =
+        Parquet.write(Files.localOutput(file))
+            .schema(writeSchema)
+            .createWriterFunc(GenericParquetWriter::buildWriter)
+            .build()) {
       appender.add(record);
     }
 
-    Iterable<Record> records = Parquet.read(Files.localInput(file))
-        .project(readSchema)
-        .createReaderFunc(fileSchema -> GenericParquetReaders.buildReader(readSchema, fileSchema))
-        .build();
+    Iterable<Record> records =
+        Parquet.read(Files.localInput(file))
+            .project(readSchema)
+            .createReaderFunc(
+                fileSchema -> GenericParquetReaders.buildReader(readSchema, fileSchema))
+            .build();
 
     return Iterables.getOnlyElement(records);
   }

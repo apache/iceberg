@@ -16,16 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark;
 
-/**
- * Spark DF read options
- */
+/** Spark DF read options */
 public class SparkReadOptions {
 
-  private SparkReadOptions() {
-  }
+  private SparkReadOptions() {}
 
   // Snapshot ID of the table snapshot to read
   public static final String SNAPSHOT_ID = "snapshot-id";
@@ -35,6 +31,12 @@ public class SparkReadOptions {
 
   // End snapshot ID used in incremental scans (inclusive)
   public static final String END_SNAPSHOT_ID = "end-snapshot-id";
+
+  // Start timestamp used in multi-snapshot scans (exclusive)
+  public static final String START_TIMESTAMP = "start-timestamp";
+
+  // End timestamp used in multi-snapshot scans (inclusive)
+  public static final String END_TIMESTAMP = "end-timestamp";
 
   // A timestamp in milliseconds; the snapshot used will be the snapshot current at this time.
   public static final String AS_OF_TIMESTAMP = "as-of-timestamp";
@@ -62,11 +64,13 @@ public class SparkReadOptions {
   public static final boolean STREAMING_SKIP_DELETE_SNAPSHOTS_DEFAULT = false;
 
   // skip snapshots of type overwrite while reading stream out of iceberg table
-  public static final String STREAMING_SKIP_OVERWRITE_SNAPSHOTS = "streaming-skip-overwrite-snapshots";
+  public static final String STREAMING_SKIP_OVERWRITE_SNAPSHOTS =
+      "streaming-skip-overwrite-snapshots";
   public static final boolean STREAMING_SKIP_OVERWRITE_SNAPSHOTS_DEFAULT = false;
 
   // Controls whether to allow reading timestamps without zone info
-  public static final String HANDLE_TIMESTAMP_WITHOUT_TIMEZONE = "handle-timestamp-without-timezone";
+  public static final String HANDLE_TIMESTAMP_WITHOUT_TIMEZONE =
+      "handle-timestamp-without-timezone";
 
   // Controls whether to report locality information to Spark while allocating input partitions
   public static final String LOCALITY = "locality";

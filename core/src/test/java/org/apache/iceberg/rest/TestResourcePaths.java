@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.rest;
 
 import org.apache.iceberg.catalog.Namespace;
@@ -27,7 +26,8 @@ import org.junit.Test;
 
 public class TestResourcePaths {
   private final String prefix = "ws/catalog";
-  private final ResourcePaths withPrefix = ResourcePaths.forCatalogProperties(ImmutableMap.of("prefix", prefix));
+  private final ResourcePaths withPrefix =
+      ResourcePaths.forCatalogProperties(ImmutableMap.of("prefix", prefix));
   private final ResourcePaths withoutPrefix = ResourcePaths.forCatalogProperties(ImmutableMap.of());
 
   @Test
@@ -66,21 +66,24 @@ public class TestResourcePaths {
   @Test
   public void testNamespaceProperties() {
     Namespace ns = Namespace.of("ns");
-    Assert.assertEquals("v1/ws/catalog/namespaces/ns/properties", withPrefix.namespaceProperties(ns));
+    Assert.assertEquals(
+        "v1/ws/catalog/namespaces/ns/properties", withPrefix.namespaceProperties(ns));
     Assert.assertEquals("v1/namespaces/ns/properties", withoutPrefix.namespaceProperties(ns));
   }
 
   @Test
   public void testNamespacePropertiesWithSlash() {
     Namespace ns = Namespace.of("n/s");
-    Assert.assertEquals("v1/ws/catalog/namespaces/n%2Fs/properties", withPrefix.namespaceProperties(ns));
+    Assert.assertEquals(
+        "v1/ws/catalog/namespaces/n%2Fs/properties", withPrefix.namespaceProperties(ns));
     Assert.assertEquals("v1/namespaces/n%2Fs/properties", withoutPrefix.namespaceProperties(ns));
   }
 
   @Test
   public void testNamespacePropertiesWithMultipartNamespace() {
     Namespace ns = Namespace.of("n", "s");
-    Assert.assertEquals("v1/ws/catalog/namespaces/n%1Fs/properties", withPrefix.namespaceProperties(ns));
+    Assert.assertEquals(
+        "v1/ws/catalog/namespaces/n%1Fs/properties", withPrefix.namespaceProperties(ns));
     Assert.assertEquals("v1/namespaces/n%1Fs/properties", withoutPrefix.namespaceProperties(ns));
   }
 

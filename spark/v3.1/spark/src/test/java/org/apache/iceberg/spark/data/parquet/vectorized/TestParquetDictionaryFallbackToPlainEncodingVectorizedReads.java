@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.data.parquet.vectorized;
 
 import java.io.File;
@@ -33,7 +32,8 @@ import org.apache.iceberg.spark.data.RandomData;
 import org.junit.Ignore;
 import org.junit.Test;
 
-public class TestParquetDictionaryFallbackToPlainEncodingVectorizedReads extends TestParquetVectorizedReads {
+public class TestParquetDictionaryFallbackToPlainEncodingVectorizedReads
+    extends TestParquetVectorizedReads {
   private static final int NUM_ROWS = 1_000_000;
 
   @Override
@@ -42,15 +42,20 @@ public class TestParquetDictionaryFallbackToPlainEncodingVectorizedReads extends
   }
 
   @Override
-  Iterable<GenericData.Record> generateData(Schema schema, int numRecords, long seed, float nullPercentage,
-                                            Function<GenericData.Record, GenericData.Record> transform) {
+  Iterable<GenericData.Record> generateData(
+      Schema schema,
+      int numRecords,
+      long seed,
+      float nullPercentage,
+      Function<GenericData.Record, GenericData.Record> transform) {
     // TODO: take into account nullPercentage when generating fallback encoding data
     Iterable data = RandomData.generateFallbackData(schema, numRecords, seed, numRecords / 20);
     return transform == IDENTITY ? data : Iterables.transform(data, transform);
   }
 
   @Override
-  FileAppender<GenericData.Record> getParquetWriter(Schema schema, File testFile) throws IOException {
+  FileAppender<GenericData.Record> getParquetWriter(Schema schema, File testFile)
+      throws IOException {
     return Parquet.write(Files.localOutput(testFile))
         .schema(schema)
         .named("test")
@@ -61,14 +66,10 @@ public class TestParquetDictionaryFallbackToPlainEncodingVectorizedReads extends
   @Test
   @Override
   @Ignore // Fallback encoding not triggered when data is mostly null
-  public void testMostlyNullsForOptionalFields() {
-
-  }
+  public void testMostlyNullsForOptionalFields() {}
 
   @Test
   @Override
   @Ignore // Ignored since this code path is already tested in TestParquetVectorizedReads
-  public void testVectorizedReadsWithNewContainers() throws IOException {
-
-  }
+  public void testVectorizedReadsWithNewContainers() throws IOException {}
 }

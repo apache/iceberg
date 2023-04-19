@@ -16,8 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.examples;
+
+import static org.apache.iceberg.types.Types.NestedField.optional;
 
 import java.io.File;
 import java.io.IOException;
@@ -41,19 +42,14 @@ import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static org.apache.iceberg.types.Types.NestedField.optional;
-
-/**
- * This class tests how Iceberg handles concurrency when reading and writing at the same time
- */
+/** This class tests how Iceberg handles concurrency when reading and writing at the same time */
 public class ConcurrencyTest {
 
   private static final Logger log = LoggerFactory.getLogger(ConcurrencyTest.class);
 
-  private Schema schema = new Schema(
-      optional(1, "key", Types.LongType.get()),
-      optional(2, "value", Types.StringType.get())
-  );
+  private Schema schema =
+      new Schema(
+          optional(1, "key", Types.LongType.get()), optional(2, "value", Types.StringType.get()));
   private SparkSession spark;
   private File tableLocation;
   private Table table;
@@ -78,8 +74,8 @@ public class ConcurrencyTest {
   }
 
   /**
-   * The test creates 500 read tasks and one really long write (writing 1 mil rows)
-   * and uses threading to call the tasks concurrently.
+   * The test creates 500 read tasks and one really long write (writing 1 mil rows) and uses
+   * threading to call the tasks concurrently.
    */
   @Test
   public void writingAndReadingConcurrently() throws InterruptedException {
@@ -102,17 +98,17 @@ public class ConcurrencyTest {
   }
 
   private Void readTable() {
-    Dataset<Row> results = spark.read()
-        .format("iceberg")
-        .load(tableLocation.toString());
+    Dataset<Row> results = spark.read().format("iceberg").load(tableLocation.toString());
 
     log.info("" + results.count());
     return null;
   }
+
   private Void writeToTable(List<SimpleRecord> writeData) {
     log.info("WRITING!");
     Dataset<Row> df = spark.createDataFrame(writeData, SimpleRecord.class);
-    df.select("key",  "value").write()
+    df.select("key", "value")
+        .write()
         .format("iceberg")
         .mode("append")
         .save(tableLocation.toString());

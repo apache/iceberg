@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.actions;
 
 import java.util.Map;
@@ -24,30 +23,22 @@ import java.util.Set;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.Table;
 
-/**
- * A strategy for an action to rewrite position delete files.
- */
+/** A strategy for an action to rewrite position delete files. */
 public interface RewritePositionDeleteStrategy {
 
-  /**
-   * Returns the name of this rewrite deletes strategy
-   */
+  /** Returns the name of this rewrite deletes strategy */
   String name();
 
-  /**
-   * Returns the table being modified by this rewrite strategy
-   */
+  /** Returns the table being modified by this rewrite strategy */
   Table table();
 
   /**
-   * Returns a set of options which this rewrite strategy can use. This is an allowed-list and any options not
-   * specified here will be rejected at runtime.
+   * Returns a set of options which this rewrite strategy can use. This is an allowed-list and any
+   * options not specified here will be rejected at runtime.
    */
   Set<String> validOptions();
 
-  /**
-   * Sets options to be used with this strategy
-   */
+  /** Sets options to be used with this strategy */
   RewritePositionDeleteStrategy options(Map<String, String> options);
 
   /**
@@ -59,9 +50,9 @@ public interface RewritePositionDeleteStrategy {
   Iterable<DeleteFile> selectDeleteFiles(Iterable<DeleteFile> deleteFiles);
 
   /**
-   * Groups into lists which will be processed in a single executable unit. Each group will end up being
-   * committed as an independent set of changes. This creates the jobs which will eventually be run as by the underlying
-   * Action.
+   * Groups into lists which will be processed in a single executable unit. Each group will end up
+   * being committed as an independent set of changes. This creates the jobs which will eventually
+   * be run as by the underlying Action.
    *
    * @param deleteFiles iterable of DeleteFile to be rewritten
    * @return iterable of lists of FileScanTasks which will be processed together

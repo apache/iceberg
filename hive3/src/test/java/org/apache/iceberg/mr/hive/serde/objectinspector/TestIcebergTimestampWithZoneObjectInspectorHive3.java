@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.mr.hive.serde.objectinspector;
 
 import java.time.LocalDateTime;
@@ -35,10 +34,12 @@ public class TestIcebergTimestampWithZoneObjectInspectorHive3 {
 
   @Test
   public void testIcebergTimestampLocalTZObjectInspector() {
-    IcebergTimestampWithZoneObjectInspectorHive3 oi = IcebergTimestampWithZoneObjectInspectorHive3.get();
+    IcebergTimestampWithZoneObjectInspectorHive3 oi =
+        IcebergTimestampWithZoneObjectInspectorHive3.get();
 
     Assert.assertEquals(ObjectInspector.Category.PRIMITIVE, oi.getCategory());
-    Assert.assertEquals(PrimitiveObjectInspector.PrimitiveCategory.TIMESTAMPLOCALTZ, oi.getPrimitiveCategory());
+    Assert.assertEquals(
+        PrimitiveObjectInspector.PrimitiveCategory.TIMESTAMPLOCALTZ, oi.getPrimitiveCategory());
 
     Assert.assertEquals(TypeInfoFactory.timestampLocalTZTypeInfo, oi.getTypeInfo());
     Assert.assertEquals(TypeInfoFactory.timestampLocalTZTypeInfo.getTypeName(), oi.getTypeName());
@@ -52,16 +53,19 @@ public class TestIcebergTimestampWithZoneObjectInspectorHive3 {
     Assert.assertNull(oi.convert(null));
 
     LocalDateTime dateTimeAtUTC = LocalDateTime.of(2020, 12, 10, 15, 55, 20, 30000);
-    OffsetDateTime offsetDateTime = OffsetDateTime.of(dateTimeAtUTC.plusHours(4), ZoneOffset.ofHours(4));
+    OffsetDateTime offsetDateTime =
+        OffsetDateTime.of(dateTimeAtUTC.plusHours(4), ZoneOffset.ofHours(4));
     TimestampTZ ts = new TimestampTZ(dateTimeAtUTC.atZone(ZoneId.of("UTC")));
 
     Assert.assertEquals(ts, oi.getPrimitiveJavaObject(offsetDateTime));
-    Assert.assertEquals(new TimestampLocalTZWritable(ts), oi.getPrimitiveWritableObject(offsetDateTime));
+    Assert.assertEquals(
+        new TimestampLocalTZWritable(ts), oi.getPrimitiveWritableObject(offsetDateTime));
 
     // try with another offset as well
     offsetDateTime = OffsetDateTime.of(dateTimeAtUTC.plusHours(11), ZoneOffset.ofHours(11));
     Assert.assertEquals(ts, oi.getPrimitiveJavaObject(offsetDateTime));
-    Assert.assertEquals(new TimestampLocalTZWritable(ts), oi.getPrimitiveWritableObject(offsetDateTime));
+    Assert.assertEquals(
+        new TimestampLocalTZWritable(ts), oi.getPrimitiveWritableObject(offsetDateTime));
 
     TimestampTZ copy = (TimestampTZ) oi.copyObject(ts);
 
@@ -72,5 +76,4 @@ public class TestIcebergTimestampWithZoneObjectInspectorHive3 {
 
     Assert.assertEquals(OffsetDateTime.of(dateTimeAtUTC, ZoneOffset.UTC), oi.convert(ts));
   }
-
 }

@@ -16,8 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.source;
+
+import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.apache.iceberg.types.Types.NestedField.required;
 
 import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
@@ -29,9 +31,6 @@ import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
 
-import static org.apache.iceberg.types.Types.NestedField.optional;
-import static org.apache.iceberg.types.Types.NestedField.required;
-
 public abstract class IcebergSourceNestedDataBenchmark extends IcebergSourceBenchmark {
 
   @Override
@@ -41,14 +40,16 @@ public abstract class IcebergSourceNestedDataBenchmark extends IcebergSourceBenc
 
   @Override
   protected final Table initTable() {
-    Schema schema = new Schema(
-        required(0, "id", Types.LongType.get()),
-        optional(4, "nested", Types.StructType.of(
-            required(1, "col1", Types.StringType.get()),
-            required(2, "col2", Types.DoubleType.get()),
-            required(3, "col3", Types.LongType.get())
-        ))
-    );
+    Schema schema =
+        new Schema(
+            required(0, "id", Types.LongType.get()),
+            optional(
+                4,
+                "nested",
+                Types.StructType.of(
+                    required(1, "col1", Types.StringType.get()),
+                    required(2, "col2", Types.DoubleType.get()),
+                    required(3, "col3", Types.LongType.get()))));
     PartitionSpec partitionSpec = PartitionSpec.unpartitioned();
     HadoopTables tables = new HadoopTables(hadoopConf());
     Map<String, String> properties = Maps.newHashMap();

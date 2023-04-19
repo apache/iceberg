@@ -16,12 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.expressions;
 
 import org.apache.iceberg.StructLike;
 
-public abstract class BoundPredicate<T> extends Predicate<T, BoundTerm<T>> implements Bound<Boolean> {
+public abstract class BoundPredicate<T> extends Predicate<T, BoundTerm<T>>
+    implements Bound<Boolean> {
   protected BoundPredicate(Operation op, BoundTerm<T> term) {
     super(op, term);
   }

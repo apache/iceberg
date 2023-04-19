@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import org.junit.Assert;
@@ -26,8 +25,10 @@ public class TestTransformSerialization extends PartitionSpecTestBase {
   @Test
   public void testTransforms() throws Exception {
     for (PartitionSpec spec : SPECS) {
-      Assert.assertEquals("Deserialization should produce equal partition spec",
-          spec, TestHelpers.roundTripSerialize(spec));
+      Assert.assertEquals(
+          "Deserialization should produce equal partition spec",
+          spec,
+          TestHelpers.roundTripSerialize(spec));
     }
   }
 }

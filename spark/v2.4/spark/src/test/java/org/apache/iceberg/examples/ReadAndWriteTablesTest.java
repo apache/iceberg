@@ -16,8 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.examples;
+
+import static org.apache.iceberg.types.Types.NestedField.optional;
 
 import java.io.File;
 import java.io.IOException;
@@ -38,11 +39,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import static org.apache.iceberg.types.Types.NestedField.optional;
-
-/**
- * This test class uses Spark to create partitioned and unpartitioned tables locally.
- */
+/** This test class uses Spark to create partitioned and unpartitioned tables locally. */
 public class ReadAndWriteTablesTest {
 
   private SparkSession spark;
@@ -58,72 +55,65 @@ public class ReadAndWriteTablesTest {
     pathToTable = Files.createTempDirectory("temp").toFile();
     tables = new HadoopTables(spark.sessionState().newHadoopConf());
 
-    schema = new Schema(
-        optional(1, "id", Types.IntegerType.get()),
-        optional(2, "data", Types.StringType.get())
-    );
+    schema =
+        new Schema(
+            optional(1, "id", Types.IntegerType.get()),
+            optional(2, "data", Types.StringType.get()));
   }
 
   @Test
   public void createUnpartitionedTable() {
     table = tables.create(schema, pathToTable.toString());
 
-    List<SimpleRecord> expected = Lists.newArrayList(
-        new SimpleRecord(1, "a"),
-        new SimpleRecord(2, "b"),
-        new SimpleRecord(3, "c")
-    );
+    List<SimpleRecord> expected =
+        Lists.newArrayList(
+            new SimpleRecord(1, "a"), new SimpleRecord(2, "b"), new SimpleRecord(3, "c"));
 
     Dataset<Row> df = spark.createDataFrame(expected, SimpleRecord.class);
 
-    df.select("id", "data").write()
-        .format("iceberg")
-        .mode("append")
-        .save(pathToTable.toString());
+    df.select("id", "data").write().format("iceberg").mode("append").save(pathToTable.toString());
 
     table.refresh();
   }
 
   @Test
   public void createPartitionedTable() {
-    PartitionSpec spec = PartitionSpec.builderFor(schema)
-        .identity("id")
-        .build();
+    PartitionSpec spec = PartitionSpec.builderFor(schema).identity("id").build();
 
     table = tables.create(schema, spec, pathToTable.toString());
 
-    List<SimpleRecord> expected = Lists.newArrayList(
-        new SimpleRecord(1, "a"),
-        new SimpleRecord(2, "b"),
-        new SimpleRecord(3, "c")
-    );
+    List<SimpleRecord> expected =
+        Lists.newArrayList(
+            new SimpleRecord(1, "a"), new SimpleRecord(2, "b"), new SimpleRecord(3, "c"));
 
     Dataset<Row> df = spark.createDataFrame(expected, SimpleRecord.class);
 
-    df.select("id", "data").write()
-        .format("iceberg")
-        .mode("append")
-        .save(pathToTable.toString());
+    df.select("id", "data").write().format("iceberg").mode("append").save(pathToTable.toString());
 
     table.refresh();
   }
 
   @Test
   public void writeDataFromJsonFile() {
-    Schema bookSchema = new Schema(
-        optional(1, "title", Types.StringType.get()),
-        optional(2, "price", Types.LongType.get()),
-        optional(3, "author", Types.StringType.get()),
-        optional(4, "published", Types.TimestampType.withZone()),
-        optional(5, "genre", Types.StringType.get())
-    );
+    Schema bookSchema =
+        new Schema(
+            optional(1, "title", Types.StringType.get()),
+            optional(2, "price", Types.LongType.get()),
+            optional(3, "author", Types.StringType.get()),
+            optional(4, "published", Types.TimestampType.withZone()),
+            optional(5, "genre", Types.StringType.get()));
 
     table = tables.create(bookSchema, pathToTable.toString());
 
     Dataset<Row> df = spark.read().json("src/test/resources/data/books.json");
 
-    df.select(df.col("title"), df.col("price"), df.col("author"),
-        df.col("published").cast(DataTypes.TimestampType), df.col("genre")).write()
+    df.select(
+            df.col("title"),
+            df.col("price"),
+            df.col("author"),
+            df.col("published").cast(DataTypes.TimestampType),
+            df.col("genre"))
+        .write()
         .format("iceberg")
         .mode("append")
         .save(pathToTable.toString());
@@ -135,9 +125,7 @@ public class ReadAndWriteTablesTest {
   public void readFromIcebergTableWithSpark() {
     table = tables.create(schema, pathToTable.toString());
 
-    Dataset<Row> results = spark.read()
-        .format("iceberg")
-        .load(pathToTable.toString());
+    Dataset<Row> results = spark.read().format("iceberg").load(pathToTable.toString());
 
     results.createOrReplaceTempView("table");
     spark.sql("select * from table").show();
@@ -147,10 +135,8 @@ public class ReadAndWriteTablesTest {
   public void readFromPartitionedTableWithFilter() {
     table = tables.create(schema, pathToTable.toString());
 
-    Dataset<Row> results = spark.read()
-        .format("iceberg")
-        .load(pathToTable.toString())
-        .filter("data != \"b\"");
+    Dataset<Row> results =
+        spark.read().format("iceberg").load(pathToTable.toString()).filter("data != \"b\"");
 
     results.createOrReplaceTempView("table");
     spark.sql("SELECT * FROM table").show();

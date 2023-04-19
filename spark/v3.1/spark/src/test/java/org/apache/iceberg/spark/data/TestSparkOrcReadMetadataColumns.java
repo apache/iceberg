@@ -16,8 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.data;
+
+import static org.apache.iceberg.types.Types.NestedField.required;
 
 import java.io.File;
 import java.io.IOException;
@@ -57,21 +58,18 @@ import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
-import static org.apache.iceberg.types.Types.NestedField.required;
-
 @RunWith(Parameterized.class)
 public class TestSparkOrcReadMetadataColumns {
-  private static final Schema DATA_SCHEMA = new Schema(
-      required(100, "id", Types.LongType.get()),
-      required(101, "data", Types.StringType.get())
-  );
+  private static final Schema DATA_SCHEMA =
+      new Schema(
+          required(100, "id", Types.LongType.get()), required(101, "data", Types.StringType.get()));
 
-  private static final Schema PROJECTION_SCHEMA = new Schema(
-      required(100, "id", Types.LongType.get()),
-      required(101, "data", Types.StringType.get()),
-      MetadataColumns.ROW_POSITION,
-      MetadataColumns.IS_DELETED
-  );
+  private static final Schema PROJECTION_SCHEMA =
+      new Schema(
+          required(100, "id", Types.LongType.get()),
+          required(101, "data", Types.StringType.get()),
+          MetadataColumns.ROW_POSITION,
+          MetadataColumns.IS_DELETED);
 
   private static final int NUM_ROWS = 1000;
   private static final List<InternalRow> DATA_ROWS;
@@ -99,11 +97,10 @@ public class TestSparkOrcReadMetadataColumns {
 
   @Parameterized.Parameters(name = "vectorized = {0}")
   public static Object[] parameters() {
-    return new Object[] { false, true };
+    return new Object[] {false, true};
   }
 
-  @Rule
-  public TemporaryFolder temp = new TemporaryFolder();
+  @Rule public TemporaryFolder temp = new TemporaryFolder();
 
   private boolean vectorized;
   private File testFile;
@@ -117,14 +114,15 @@ public class TestSparkOrcReadMetadataColumns {
     testFile = temp.newFile();
     Assert.assertTrue("Delete should succeed", testFile.delete());
 
-    try (FileAppender<InternalRow> writer = ORC.write(Files.localOutput(testFile))
-        .createWriterFunc(SparkOrcWriter::new)
-        .schema(DATA_SCHEMA)
-        // write in such a way that the file contains 10 stripes each with 100 rows
-        .set("iceberg.orc.vectorbatch.size", "100")
-        .set(OrcConf.ROWS_BETWEEN_CHECKS.getAttribute(), "100")
-        .set(OrcConf.STRIPE_SIZE.getAttribute(), "1")
-        .build()) {
+    try (FileAppender<InternalRow> writer =
+        ORC.write(Files.localOutput(testFile))
+            .createWriterFunc(SparkOrcWriter::new)
+            .schema(DATA_SCHEMA)
+            // write in such a way that the file contains 10 stripes each with 100 rows
+            .set("iceberg.orc.vectorbatch.size", "100")
+            .set(OrcConf.ROWS_BETWEEN_CHECKS.getAttribute(), "100")
+            .set(OrcConf.STRIPE_SIZE.getAttribute(), "1")
+            .build()) {
       writer.addAll(DATA_ROWS);
     }
   }
@@ -136,41 +134,54 @@ public class TestSparkOrcReadMetadataColumns {
 
   @Test
   public void testReadRowNumbersWithFilter() throws IOException {
-    readAndValidate(Expressions.greaterThanOrEqual("id", 500), null, null, EXPECTED_ROWS.subList(500, 1000));
+    readAndValidate(
+        Expressions.greaterThanOrEqual("id", 500), null, null, EXPECTED_ROWS.subList(500, 1000));
   }
 
   @Test
   public void testReadRowNumbersWithSplits() throws IOException {
     Reader reader;
     try {
-      OrcFile.ReaderOptions readerOptions = OrcFile.readerOptions(new Configuration()).useUTCTimestamp(true);
-      reader =  OrcFile.createReader(new Path(testFile.toString()), readerOptions);
+      OrcFile.ReaderOptions readerOptions =
+          OrcFile.readerOptions(new Configuration()).useUTCTimestamp(true);
+      reader = OrcFile.createReader(new Path(testFile.toString()), readerOptions);
     } catch (IOException ioe) {
       throw new RuntimeIOException(ioe, "Failed to open file: %s", testFile);
     }
-    List<Long> splitOffsets = reader.getStripes().stream().map(StripeInformation::getOffset)
-        .collect(Collectors.toList());
-    List<Long> splitLengths = reader.getStripes().stream().map(StripeInformation::getLength)
-        .collect(Collectors.toList());
+    List<Long> splitOffsets =
+        reader.getStripes().stream().map(StripeInformation::getOffset).collect(Collectors.toList());
+    List<Long> splitLengths =
+        reader.getStripes().stream().map(StripeInformation::getLength).collect(Collectors.toList());
 
     for (int i = 0; i < 10; i++) {
-      readAndValidate(null, splitOffsets.get(i), splitLengths.get(i), EXPECTED_ROWS.subList(i * 100, (i + 1) * 100));
+      readAndValidate(
+          null,
+          splitOffsets.get(i),
+          splitLengths.get(i),
+          EXPECTED_ROWS.subList(i * 100, (i + 1) * 100));
     }
   }
 
-  private void readAndValidate(Expression filter, Long splitStart, Long splitLength, List<InternalRow> expected)
+  private void readAndValidate(
+      Expression filter, Long splitStart, Long splitLength, List<InternalRow> expected)
       throws IOException {
-    Schema projectionWithoutMetadataFields = TypeUtil.selectNot(PROJECTION_SCHEMA, MetadataColumns.metadataFieldIds());
+    Schema projectionWithoutMetadataFields =
+        TypeUtil.selectNot(PROJECTION_SCHEMA, MetadataColumns.metadataFieldIds());
     CloseableIterable<InternalRow> reader = null;
     try {
-      ORC.ReadBuilder builder = ORC.read(Files.localInput(testFile))
-          .project(projectionWithoutMetadataFields);
+      ORC.ReadBuilder builder =
+          ORC.read(Files.localInput(testFile)).project(projectionWithoutMetadataFields);
 
       if (vectorized) {
-        builder = builder.createBatchedReaderFunc(readOrcSchema ->
-            VectorizedSparkOrcReaders.buildReader(PROJECTION_SCHEMA, readOrcSchema, ImmutableMap.of()));
+        builder =
+            builder.createBatchedReaderFunc(
+                readOrcSchema ->
+                    VectorizedSparkOrcReaders.buildReader(
+                        PROJECTION_SCHEMA, readOrcSchema, ImmutableMap.of()));
       } else {
-        builder = builder.createReaderFunc(readOrcSchema -> new SparkOrcReader(PROJECTION_SCHEMA, readOrcSchema));
+        builder =
+            builder.createReaderFunc(
+                readOrcSchema -> new SparkOrcReader(PROJECTION_SCHEMA, readOrcSchema));
       }
 
       if (filter != null) {

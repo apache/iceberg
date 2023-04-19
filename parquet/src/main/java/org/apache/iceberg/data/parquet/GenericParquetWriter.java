@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.data.parquet;
 
 import java.util.List;
@@ -28,8 +27,7 @@ import org.apache.parquet.schema.MessageType;
 public class GenericParquetWriter extends BaseParquetWriter<Record> {
   private static final GenericParquetWriter INSTANCE = new GenericParquetWriter();
 
-  private GenericParquetWriter() {
-  }
+  private GenericParquetWriter() {}
 
   public static ParquetValueWriter<Record> buildWriter(MessageType type) {
     return INSTANCE.createWriter(type);

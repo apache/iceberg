@@ -16,12 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.source;
 
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import org.apache.iceberg.IncrementalChangelogScan;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
@@ -41,17 +41,28 @@ import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.connector.read.Scan;
 import org.apache.spark.sql.connector.read.ScanBuilder;
+import org.apache.spark.sql.connector.read.Statistics;
 import org.apache.spark.sql.connector.read.SupportsPushDownFilters;
 import org.apache.spark.sql.connector.read.SupportsPushDownRequiredColumns;
+import org.apache.spark.sql.connector.read.SupportsReportStatistics;
 import org.apache.spark.sql.sources.Filter;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-public class SparkScanBuilder implements ScanBuilder, SupportsPushDownFilters, SupportsPushDownRequiredColumns {
+public class SparkScanBuilder
+    implements ScanBuilder,
+        SupportsPushDownFilters,
+        SupportsPushDownRequiredColumns,
+        SupportsReportStatistics {
+
+  private static final Logger LOG = LoggerFactory.getLogger(SparkScanBuilder.class);
   private static final Filter[] NO_FILTERS = new Filter[0];
 
   private final SparkSession spark;
@@ -65,7 +76,8 @@ public class SparkScanBuilder implements ScanBuilder, SupportsPushDownFilters, S
   private List<Expression> filterExpressions = null;
   private Filter[] pushedFilters = NO_FILTERS;
 
-  SparkScanBuilder(SparkSession spark, Table table, Schema schema, CaseInsensitiveStringMap options) {
+  SparkScanBuilder(
+      SparkSession spark, Table table, Schema schema, CaseInsensitiveStringMap options) {
     this.spark = spark;
     this.table = table;
     this.schema = schema;
@@ -96,7 +108,17 @@ public class SparkScanBuilder implements ScanBuilder, SupportsPushDownFilters, S
     List<Filter> pushed = Lists.newArrayListWithExpectedSize(filters.length);
 
     for (Filter filter : filters) {
-      Expression expr = SparkFilters.convert(filter);
+      Expression expr = null;
+      try {
+        expr = SparkFilters.convert(filter);
+      } catch (IllegalArgumentException e) {
+        // converting to Iceberg Expression failed, so this expression cannot be pushed down
+        LOG.info(
+            "Failed to convert filter to Iceberg expression, skipping push down for this expression: {}. {}",
+            filter,
+            e.getMessage());
+      }
+
       if (expr != null) {
         try {
           Binder.bind(schema.asStruct(), expr, caseSensitive);
@@ -104,6 +126,10 @@ public class SparkScanBuilder implements ScanBuilder, SupportsPushDownFilters, S
           pushed.add(filter);
         } catch (ValidationException e) {
           // binding to the table schema failed, so this expression cannot be pushed down
+          LOG.info(
+              "Failed to bind expression to table schema, skipping push down for this expression: {}. {}",
+              filter,
+              e.getMessage());
         }
       }
     }
@@ -123,12 +149,16 @@ public class SparkScanBuilder implements ScanBuilder, SupportsPushDownFilters, S
 
   @Override
   public void pruneColumns(StructType requestedSchema) {
-    StructType requestedProjection = new StructType(Stream.of(requestedSchema.fields())
-        .filter(field -> MetadataColumns.nonMetadataColumn(field.name()))
-        .toArray(StructField[]::new));
+    StructType requestedProjection =
+        new StructType(
+            Stream.of(requestedSchema.fields())
+                .filter(field -> MetadataColumns.nonMetadataColumn(field.name()))
+                .toArray(StructField[]::new));
 
-    // the projection should include all columns that will be returned, including those only used in filters
-    this.schema = SparkSchemaUtil.prune(schema, requestedProjection, filterExpression(), caseSensitive);
+    // the projection should include all columns that will be returned, including those only used in
+    // filters
+    this.schema =
+        SparkSchemaUtil.prune(schema, requestedProjection, filterExpression(), caseSensitive);
 
     Stream.of(requestedSchema.fields())
         .map(StructField::name)
@@ -139,10 +169,11 @@ public class SparkScanBuilder implements ScanBuilder, SupportsPushDownFilters, S
 
   private Schema schemaWithMetadataColumns() {
     // metadata columns
-    List<Types.NestedField> fields = metaColumns.stream()
-        .distinct()
-        .map(name -> MetadataColumns.metadataColumn(table, name))
-        .collect(Collectors.toList());
+    List<Types.NestedField> fields =
+        metaColumns.stream()
+            .distinct()
+            .map(name -> MetadataColumns.metadataColumn(table, name))
+            .collect(Collectors.toList());
     Schema meta = new Schema(fields);
 
     // schema or rows returned by readers
@@ -154,30 +185,48 @@ public class SparkScanBuilder implements ScanBuilder, SupportsPushDownFilters, S
     Long snapshotId = readConf.snapshotId();
     Long asOfTimestamp = readConf.asOfTimestamp();
 
-    Preconditions.checkArgument(snapshotId == null || asOfTimestamp == null,
+    Preconditions.checkArgument(
+        snapshotId == null || asOfTimestamp == null,
         "Cannot set both %s and %s to select which table snapshot to scan",
-        SparkReadOptions.SNAPSHOT_ID, SparkReadOptions.AS_OF_TIMESTAMP);
+        SparkReadOptions.SNAPSHOT_ID,
+        SparkReadOptions.AS_OF_TIMESTAMP);
 
     Long startSnapshotId = readConf.startSnapshotId();
     Long endSnapshotId = readConf.endSnapshotId();
 
     if (snapshotId != null || asOfTimestamp != null) {
-      Preconditions.checkArgument(startSnapshotId == null && endSnapshotId == null,
+      Preconditions.checkArgument(
+          startSnapshotId == null && endSnapshotId == null,
           "Cannot set %s and %s for incremental scans when either %s or %s is set",
-          SparkReadOptions.START_SNAPSHOT_ID, SparkReadOptions.END_SNAPSHOT_ID,
-          SparkReadOptions.SNAPSHOT_ID, SparkReadOptions.AS_OF_TIMESTAMP);
+          SparkReadOptions.START_SNAPSHOT_ID,
+          SparkReadOptions.END_SNAPSHOT_ID,
+          SparkReadOptions.SNAPSHOT_ID,
+          SparkReadOptions.AS_OF_TIMESTAMP);
     }
 
-    Preconditions.checkArgument(startSnapshotId != null || endSnapshotId == null,
+    Preconditions.checkArgument(
+        startSnapshotId != null || endSnapshotId == null,
         "Cannot set only %s for incremental scans. Please, set %s too.",
-        SparkReadOptions.END_SNAPSHOT_ID, SparkReadOptions.START_SNAPSHOT_ID);
+        SparkReadOptions.END_SNAPSHOT_ID,
+        SparkReadOptions.START_SNAPSHOT_ID);
+
+    Long startTimestamp = readConf.startTimestamp();
+    Long endTimestamp = readConf.endTimestamp();
+    Preconditions.checkArgument(
+        startTimestamp == null && endTimestamp == null,
+        "Cannot set %s or %s for incremental scans and batch scan. They are only valid for "
+            + "changelog scans.",
+        SparkReadOptions.START_TIMESTAMP,
+        SparkReadOptions.END_TIMESTAMP);
 
     Schema expectedSchema = schemaWithMetadataColumns();
 
-    TableScan scan = table.newScan()
-        .caseSensitive(caseSensitive)
-        .filter(filterExpression())
-        .project(expectedSchema);
+    TableScan scan =
+        table
+            .newScan()
+            .caseSensitive(caseSensitive)
+            .filter(filterExpression())
+            .project(expectedSchema);
 
     if (snapshotId != null) {
       scan = scan.useSnapshot(snapshotId);
@@ -200,66 +249,153 @@ public class SparkScanBuilder implements ScanBuilder, SupportsPushDownFilters, S
     return new SparkBatchQueryScan(spark, table, scan, readConf, expectedSchema, filterExpressions);
   }
 
-  public Scan buildMergeOnReadScan() {
-    Preconditions.checkArgument(readConf.snapshotId() == null && readConf.asOfTimestamp() == null,
-        "Cannot set time travel options %s and %s for row-level command scans",
-        SparkReadOptions.SNAPSHOT_ID, SparkReadOptions.AS_OF_TIMESTAMP);
+  public Scan buildChangelogScan() {
+    Preconditions.checkArgument(
+        readConf.snapshotId() == null && readConf.asOfTimestamp() == null,
+        "Cannot set neither %s nor %s for changelogs",
+        SparkReadOptions.SNAPSHOT_ID,
+        SparkReadOptions.AS_OF_TIMESTAMP);
 
-    Preconditions.checkArgument(readConf.startSnapshotId() == null && readConf.endSnapshotId() == null,
+    Long startSnapshotId = readConf.startSnapshotId();
+    Long endSnapshotId = readConf.endSnapshotId();
+    Long startTimestamp = readConf.startTimestamp();
+    Long endTimestamp = readConf.endTimestamp();
+
+    Preconditions.checkArgument(
+        !(startSnapshotId != null && startTimestamp != null),
+        "Cannot set both %s and %s for changelogs",
+        SparkReadOptions.START_SNAPSHOT_ID,
+        SparkReadOptions.START_TIMESTAMP);
+
+    Preconditions.checkArgument(
+        !(endSnapshotId != null && endTimestamp != null),
+        "Cannot set both %s and %s for changelogs",
+        SparkReadOptions.END_SNAPSHOT_ID,
+        SparkReadOptions.END_TIMESTAMP);
+
+    if (startTimestamp != null && endTimestamp != null) {
+      Preconditions.checkArgument(
+          startTimestamp < endTimestamp,
+          "Cannot set %s to be greater than %s for changelogs",
+          SparkReadOptions.START_TIMESTAMP,
+          SparkReadOptions.END_TIMESTAMP);
+    }
+
+    if (startTimestamp != null) {
+      startSnapshotId = getStartSnapshotId(startTimestamp);
+    }
+
+    if (endTimestamp != null) {
+      endSnapshotId = SnapshotUtil.snapshotIdAsOfTime(table, endTimestamp);
+    }
+
+    Schema expectedSchema = schemaWithMetadataColumns();
+
+    IncrementalChangelogScan scan =
+        table
+            .newIncrementalChangelogScan()
+            .caseSensitive(caseSensitive)
+            .filter(filterExpression())
+            .project(expectedSchema);
+
+    if (startSnapshotId != null) {
+      scan = scan.fromSnapshotExclusive(startSnapshotId);
+    }
+
+    if (endSnapshotId != null) {
+      scan = scan.toSnapshot(endSnapshotId);
+    }
+
+    scan = configureSplitPlanning(scan);
+
+    return new SparkChangelogScan(spark, table, scan, readConf, expectedSchema, filterExpressions);
+  }
+
+  private Long getStartSnapshotId(Long startTimestamp) {
+    Snapshot oldestSnapshotAfter = SnapshotUtil.oldestAncestorAfter(table, startTimestamp);
+    Preconditions.checkArgument(
+        oldestSnapshotAfter != null,
+        "Cannot find a snapshot older than %s for table %s",
+        startTimestamp,
+        table.name());
+
+    if (oldestSnapshotAfter.timestampMillis() == startTimestamp) {
+      return oldestSnapshotAfter.snapshotId();
+    } else {
+      return oldestSnapshotAfter.parentId();
+    }
+  }
+
+  public Scan buildMergeOnReadScan() {
+    Preconditions.checkArgument(
+        readConf.snapshotId() == null && readConf.asOfTimestamp() == null,
+        "Cannot set time travel options %s and %s for row-level command scans",
+        SparkReadOptions.SNAPSHOT_ID,
+        SparkReadOptions.AS_OF_TIMESTAMP);
+
+    Preconditions.checkArgument(
+        readConf.startSnapshotId() == null && readConf.endSnapshotId() == null,
         "Cannot set incremental scan options %s and %s for row-level command scans",
-        SparkReadOptions.START_SNAPSHOT_ID, SparkReadOptions.END_SNAPSHOT_ID);
+        SparkReadOptions.START_SNAPSHOT_ID,
+        SparkReadOptions.END_SNAPSHOT_ID);
 
     Snapshot snapshot = table.currentSnapshot();
 
     if (snapshot == null) {
-      return new SparkBatchQueryScan(spark, table, null, readConf, schemaWithMetadataColumns(), filterExpressions);
+      return new SparkBatchQueryScan(
+          spark, table, null, readConf, schemaWithMetadataColumns(), filterExpressions);
     }
 
     // remember the current snapshot ID for commit validation
     long snapshotId = snapshot.snapshotId();
 
-    CaseInsensitiveStringMap adjustedOptions = Spark3Util.setOption(
-        SparkReadOptions.SNAPSHOT_ID,
-        Long.toString(snapshotId),
-        options);
+    CaseInsensitiveStringMap adjustedOptions =
+        Spark3Util.setOption(SparkReadOptions.SNAPSHOT_ID, Long.toString(snapshotId), options);
     SparkReadConf adjustedReadConf = new SparkReadConf(spark, table, adjustedOptions);
 
     Schema expectedSchema = schemaWithMetadataColumns();
 
-    TableScan scan = table.newScan()
-        .useSnapshot(snapshotId)
-        .caseSensitive(caseSensitive)
-        .filter(filterExpression())
-        .project(expectedSchema);
+    TableScan scan =
+        table
+            .newScan()
+            .useSnapshot(snapshotId)
+            .caseSensitive(caseSensitive)
+            .filter(filterExpression())
+            .project(expectedSchema);
 
     scan = configureSplitPlanning(scan);
 
-    return new SparkBatchQueryScan(spark, table, scan, adjustedReadConf, expectedSchema, filterExpressions);
+    return new SparkBatchQueryScan(
+        spark, table, scan, adjustedReadConf, expectedSchema, filterExpressions);
   }
 
   public Scan buildCopyOnWriteScan() {
     Snapshot snapshot = table.currentSnapshot();
 
     if (snapshot == null) {
-      return new SparkCopyOnWriteScan(spark, table, readConf, schemaWithMetadataColumns(), filterExpressions);
+      return new SparkCopyOnWriteScan(
+          spark, table, readConf, schemaWithMetadataColumns(), filterExpressions);
     }
 
     Schema expectedSchema = schemaWithMetadataColumns();
 
-    TableScan scan = table.newScan()
-        .useSnapshot(snapshot.snapshotId())
-        .ignoreResiduals()
-        .caseSensitive(caseSensitive)
-        .filter(filterExpression())
-        .project(expectedSchema);
+    TableScan scan =
+        table
+            .newScan()
+            .useSnapshot(snapshot.snapshotId())
+            .ignoreResiduals()
+            .caseSensitive(caseSensitive)
+            .filter(filterExpression())
+            .project(expectedSchema);
 
     scan = configureSplitPlanning(scan);
 
-    return new SparkCopyOnWriteScan(spark, table, scan, snapshot, readConf, expectedSchema, filterExpressions);
+    return new SparkCopyOnWriteScan(
+        spark, table, scan, snapshot, readConf, expectedSchema, filterExpressions);
   }
 
-  private TableScan configureSplitPlanning(TableScan scan) {
-    TableScan configuredScan = scan;
+  private <T extends org.apache.iceberg.Scan<T, ?, ?>> T configureSplitPlanning(T scan) {
+    T configuredScan = scan;
 
     Long splitSize = readConf.splitSizeOption();
     if (splitSize != null) {
@@ -268,14 +404,27 @@ public class SparkScanBuilder implements ScanBuilder, SupportsPushDownFilters, S
 
     Integer splitLookback = readConf.splitLookbackOption();
     if (splitLookback != null) {
-      configuredScan = configuredScan.option(TableProperties.SPLIT_LOOKBACK, String.valueOf(splitLookback));
+      configuredScan =
+          configuredScan.option(TableProperties.SPLIT_LOOKBACK, String.valueOf(splitLookback));
     }
 
     Long splitOpenFileCost = readConf.splitOpenFileCostOption();
     if (splitOpenFileCost != null) {
-      configuredScan = configuredScan.option(TableProperties.SPLIT_OPEN_FILE_COST, String.valueOf(splitOpenFileCost));
+      configuredScan =
+          configuredScan.option(
+              TableProperties.SPLIT_OPEN_FILE_COST, String.valueOf(splitOpenFileCost));
     }
 
     return configuredScan;
+  }
+
+  @Override
+  public Statistics estimateStatistics() {
+    return ((SparkScan) build()).estimateStatistics();
+  }
+
+  @Override
+  public StructType readSchema() {
+    return build().readSchema();
   }
 }

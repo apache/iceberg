@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.aws.s3;
 
 import java.io.IOException;
@@ -36,9 +35,7 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 import software.amazon.awssdk.services.s3.S3Client;
 
-/**
- * Long-running tests to ensure multipart upload logic is resilient
- */
+/** Long-running tests to ensure multipart upload logic is resilient */
 public class TestS3MultipartUpload {
 
   private final Random random = new Random(1);
@@ -75,7 +72,8 @@ public class TestS3MultipartUpload {
   public void testManyPartsWriteWithInt() throws IOException {
     int parts = 200;
     writeInts(objectUri, parts, random::nextInt);
-    Assert.assertEquals(parts * (long) AwsProperties.S3FILEIO_MULTIPART_SIZE_MIN,
+    Assert.assertEquals(
+        parts * (long) AwsProperties.S3FILEIO_MULTIPART_SIZE_MIN,
         io.newInputFile(objectUri).getLength());
   }
 
@@ -83,11 +81,15 @@ public class TestS3MultipartUpload {
   public void testManyPartsWriteWithBytes() throws IOException {
     int parts = 200;
     byte[] bytes = new byte[AwsProperties.S3FILEIO_MULTIPART_SIZE_MIN];
-    writeBytes(objectUri, parts, () -> {
-      random.nextBytes(bytes);
-      return bytes;
-    });
-    Assert.assertEquals(parts * (long) AwsProperties.S3FILEIO_MULTIPART_SIZE_MIN,
+    writeBytes(
+        objectUri,
+        parts,
+        () -> {
+          random.nextBytes(bytes);
+          return bytes;
+        });
+    Assert.assertEquals(
+        parts * (long) AwsProperties.S3FILEIO_MULTIPART_SIZE_MIN,
         io.newInputFile(objectUri).getLength());
   }
 
@@ -117,8 +119,7 @@ public class TestS3MultipartUpload {
   @Test
   public void testParallelUpload() throws IOException {
     int threads = 16;
-    IntStream.range(0, threads).parallel()
-        .forEach(d -> writeInts(objectUri + d, 3, () -> d));
+    IntStream.range(0, threads).parallel().forEach(d -> writeInts(objectUri + d, 3, () -> d));
 
     for (int i = 0; i < threads; i++) {
       final int d = i;

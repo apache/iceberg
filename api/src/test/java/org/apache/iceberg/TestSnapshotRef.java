@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import org.junit.Assert;
@@ -45,9 +44,7 @@ public class TestSnapshotRef {
 
   @Test
   public void testTagWithOverride() {
-    SnapshotRef ref = SnapshotRef.branchBuilder(1L)
-        .maxRefAgeMs(10L)
-        .build();
+    SnapshotRef ref = SnapshotRef.branchBuilder(1L).maxRefAgeMs(10L).build();
     Assert.assertEquals(1L, ref.snapshotId());
     Assert.assertEquals(SnapshotRefType.BRANCH, ref.type());
     Assert.assertEquals(10L, (long) ref.maxRefAgeMs());
@@ -55,11 +52,12 @@ public class TestSnapshotRef {
 
   @Test
   public void testBranchWithOverride() {
-    SnapshotRef ref = SnapshotRef.branchBuilder(1L)
-        .minSnapshotsToKeep(10)
-        .maxSnapshotAgeMs(20L)
-        .maxRefAgeMs(30L)
-        .build();
+    SnapshotRef ref =
+        SnapshotRef.branchBuilder(1L)
+            .minSnapshotsToKeep(10)
+            .maxSnapshotAgeMs(20L)
+            .maxRefAgeMs(30L)
+            .build();
     Assert.assertEquals(1L, ref.snapshotId());
     Assert.assertEquals(SnapshotRefType.BRANCH, ref.type());
     Assert.assertEquals(10, (int) ref.minSnapshotsToKeep());
@@ -69,7 +67,8 @@ public class TestSnapshotRef {
 
   @Test
   public void testNoTypeFailure() {
-    AssertHelpers.assertThrows("Snapshot reference type must be specified",
+    AssertHelpers.assertThrows(
+        "Snapshot reference type must be specified",
         IllegalArgumentException.class,
         "Snapshot reference type must not be null",
         () -> SnapshotRef.builderFor(1L, null).build());
@@ -77,49 +76,43 @@ public class TestSnapshotRef {
 
   @Test
   public void testTagBuildFailures() {
-    AssertHelpers.assertThrows("Max reference age must be greater than 0 for tag",
+    AssertHelpers.assertThrows(
+        "Max reference age must be greater than 0 for tag",
         IllegalArgumentException.class,
         "Max reference age must be greater than 0",
-        () -> SnapshotRef.tagBuilder(1L)
-            .maxRefAgeMs(-1L)
-            .build());
+        () -> SnapshotRef.tagBuilder(1L).maxRefAgeMs(-1L).build());
 
-    AssertHelpers.assertThrows("Tags do not support setting minSnapshotsToKeep",
+    AssertHelpers.assertThrows(
+        "Tags do not support setting minSnapshotsToKeep",
         IllegalArgumentException.class,
         "Tags do not support setting minSnapshotsToKeep",
-        () -> SnapshotRef.tagBuilder(1L)
-            .minSnapshotsToKeep(2)
-            .build());
+        () -> SnapshotRef.tagBuilder(1L).minSnapshotsToKeep(2).build());
 
-    AssertHelpers.assertThrows("Tags do not support setting maxSnapshotAgeMs",
+    AssertHelpers.assertThrows(
+        "Tags do not support setting maxSnapshotAgeMs",
         IllegalArgumentException.class,
         "Tags do not support setting maxSnapshotAgeMs",
-        () -> SnapshotRef.tagBuilder(1L)
-            .maxSnapshotAgeMs(2L)
-            .build());
+        () -> SnapshotRef.tagBuilder(1L).maxSnapshotAgeMs(2L).build());
   }
 
   @Test
   public void testBranchBuildFailures() {
-    AssertHelpers.assertThrows("Max snapshot age must be greater than 0",
+    AssertHelpers.assertThrows(
+        "Max snapshot age must be greater than 0",
         IllegalArgumentException.class,
         "Max snapshot age must be greater than 0",
-        () -> SnapshotRef.branchBuilder(1L)
-            .maxSnapshotAgeMs(-1L)
-            .build());
+        () -> SnapshotRef.branchBuilder(1L).maxSnapshotAgeMs(-1L).build());
 
-    AssertHelpers.assertThrows("Min snapshots to keep must be greater than 0",
+    AssertHelpers.assertThrows(
+        "Min snapshots to keep must be greater than 0",
         IllegalArgumentException.class,
         "Min snapshots to keep must be greater than 0",
-        () -> SnapshotRef.branchBuilder(1L)
-            .minSnapshotsToKeep(-1)
-            .build());
+        () -> SnapshotRef.branchBuilder(1L).minSnapshotsToKeep(-1).build());
 
-    AssertHelpers.assertThrows("Max reference age must be greater than 0 for branch",
+    AssertHelpers.assertThrows(
+        "Max reference age must be greater than 0 for branch",
         IllegalArgumentException.class,
         "Max reference age must be greater than 0",
-        () -> SnapshotRef.branchBuilder(1L)
-            .maxRefAgeMs(-1L)
-            .build());
+        () -> SnapshotRef.branchBuilder(1L).maxRefAgeMs(-1L).build());
   }
 }

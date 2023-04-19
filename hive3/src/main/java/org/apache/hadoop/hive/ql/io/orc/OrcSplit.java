@@ -7,15 +7,15 @@
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
-
 package org.apache.hadoop.hive.ql.io.orc;
 
 import java.io.ByteArrayOutputStream;
@@ -43,18 +43,17 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * In order to fix some compatibility issues with ORC support with Hive 3.x and the shaded ORC libraries,
- * this class has been copied from Hive 3.x source code. However, this class should be removed once
- * Hive 4 is out.
+ * In order to fix some compatibility issues with ORC support with Hive 3.x and the shaded ORC
+ * libraries, this class has been copied from Hive 3.x source code. However, this class should be
+ * removed once Hive 4 is out.
  */
 public class OrcSplit extends FileSplit implements ColumnarSplit, LlapAwareSplit {
   private static final Logger LOG = LoggerFactory.getLogger(OrcSplit.class);
   private OrcTail orcTail;
   private boolean hasFooter;
-  /**
-   * This means {@link AcidUtils.AcidBaseFileType#ORIGINAL_BASE}
-   */
+  /** This means {@link AcidUtils.AcidBaseFileType#ORIGINAL_BASE} */
   private boolean isOriginal;
+
   private boolean hasBase;
   // partition root
   private Path rootDir;
@@ -76,9 +75,19 @@ public class OrcSplit extends FileSplit implements ColumnarSplit, LlapAwareSplit
     super(null, 0, 0, (String[]) null);
   }
 
-  public OrcSplit(Path path, Object fileId, long offset, long length, String[] hosts,
-                  OrcTail orcTail, boolean isOriginal, boolean hasBase,
-                  List<AcidInputFormat.DeltaMetaData> deltas, long projectedDataSize, long fileLen, Path rootDir) {
+  public OrcSplit(
+      Path path,
+      Object fileId,
+      long offset,
+      long length,
+      String[] hosts,
+      OrcTail orcTail,
+      boolean isOriginal,
+      boolean hasBase,
+      List<AcidInputFormat.DeltaMetaData> deltas,
+      long projectedDataSize,
+      long fileLen,
+      Path rootDir) {
     super(path, offset, length, hosts);
     // For HDFS, we could avoid serializing file ID and just replace the path with inode-based
     // path. However, that breaks bunch of stuff because Hive later looks up things by split path.
@@ -108,19 +117,22 @@ public class OrcSplit extends FileSplit implements ColumnarSplit, LlapAwareSplit
 
     out.write(bos.toByteArray());
     if (LOG.isTraceEnabled()) {
-      LOG.trace("Writing additional {} bytes to OrcSplit as payload. Required {} bytes.",
-              additional, required);
+      LOG.trace(
+          "Writing additional {} bytes to OrcSplit as payload. Required {} bytes.",
+          additional,
+          required);
     }
   }
 
   private void writeAdditionalPayload(final DataOutputStream out) throws IOException {
     boolean isFileIdLong = fileKey instanceof Long;
     boolean isFileIdWritable = fileKey instanceof Writable;
-    int flags = (hasBase ? BASE_FLAG : 0) |
-            (isOriginal ? ORIGINAL_FLAG : 0) |
-            (hasFooter ? FOOTER_FLAG : 0) |
-            (isFileIdLong ? HAS_LONG_FILEID_FLAG : 0) |
-            (isFileIdWritable ? HAS_SYNTHETIC_FILEID_FLAG : 0);
+    int flags =
+        (hasBase ? BASE_FLAG : 0)
+            | (isOriginal ? ORIGINAL_FLAG : 0)
+            | (hasFooter ? FOOTER_FLAG : 0)
+            | (isFileIdLong ? HAS_LONG_FILEID_FLAG : 0)
+            | (isFileIdWritable ? HAS_SYNTHETIC_FILEID_FLAG : 0);
     out.writeByte(flags);
     out.writeInt(deltas.size());
     for (AcidInputFormat.DeltaMetaData delta : deltas) {
@@ -191,12 +203,11 @@ public class OrcSplit extends FileSplit implements ColumnarSplit, LlapAwareSplit
   }
 
   /**
-   * @return {@code true} if file schema doesn't have Acid metadata columns
-   * Such file may be in a delta_x_y/ or base_x due to being added via
-   * "load data" command.  It could be at partition|table root due to table having
-   * been converted from non-acid to acid table.  It could even be something like
-   * "warehouse/t/HIVE_UNION_SUBDIR_15/000000_0" if it was written by an
-   * "insert into t select ... from A union all select ... from B"
+   * @return {@code true} if file schema doesn't have Acid metadata columns Such file may be in a
+   *     delta_x_y/ or base_x due to being added via "load data" command. It could be at
+   *     partition|table root due to table having been converted from non-acid to acid table. It
+   *     could even be something like "warehouse/t/HIVE_UNION_SUBDIR_15/000000_0" if it was written
+   *     by an "insert into t select ... from A union all select ... from B"
    */
   public boolean isOriginal() {
     return isOriginal;
@@ -219,8 +230,8 @@ public class OrcSplit extends FileSplit implements ColumnarSplit, LlapAwareSplit
   }
 
   /**
-   * If this method returns true, then for sure it is ACID.
-   * However, if it returns false.. it could be ACID or non-ACID.
+   * If this method returns true, then for sure it is ACID. However, if it returns false.. it could
+   * be ACID or non-ACID.
    *
    * @return true if is ACID
    */
@@ -248,8 +259,8 @@ public class OrcSplit extends FileSplit implements ColumnarSplit, LlapAwareSplit
     final boolean isVectorized = HiveConf.getBoolVar(conf, ConfVars.HIVE_VECTORIZATION_ENABLED);
     Boolean isSplitUpdate = null;
     if (isAcidRead) {
-      final AcidUtils.AcidOperationalProperties acidOperationalProperties
-              = AcidUtils.getAcidOperationalProperties(conf);
+      final AcidUtils.AcidOperationalProperties acidOperationalProperties =
+          AcidUtils.getAcidOperationalProperties(conf);
       isSplitUpdate = acidOperationalProperties.isSplitUpdate();
     }
 
@@ -276,8 +287,22 @@ public class OrcSplit extends FileSplit implements ColumnarSplit, LlapAwareSplit
 
   @Override
   public String toString() {
-    return "OrcSplit [" + getPath() + ", start=" + getStart() + ", length=" + getLength() +
-            ", isOriginal=" + isOriginal + ", fileLength=" + fileLen + ", hasFooter=" + hasFooter +
-            ", hasBase=" + hasBase + ", deltas=" + (deltas == null ? 0 : deltas.size()) + "]";
+    return "OrcSplit ["
+        + getPath()
+        + ", start="
+        + getStart()
+        + ", length="
+        + getLength()
+        + ", isOriginal="
+        + isOriginal
+        + ", fileLength="
+        + fileLen
+        + ", hasFooter="
+        + hasFooter
+        + ", hasBase="
+        + hasBase
+        + ", deltas="
+        + (deltas == null ? 0 : deltas.size())
+        + "]";
   }
 }

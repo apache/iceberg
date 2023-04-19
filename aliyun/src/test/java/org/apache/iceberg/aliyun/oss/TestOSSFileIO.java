@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.aliyun.oss;
 
 import com.aliyun.oss.OSS;
@@ -74,7 +73,8 @@ public class TestOSSFileIO extends AliyunOSSTestBase {
     writeOSSData(out, data);
 
     OSSURI uri = new OSSURI(location);
-    Assert.assertTrue("OSS file should exist", ossClient().get().doesObjectExist(uri.bucket(), uri.key()));
+    Assert.assertTrue(
+        "OSS file should exist", ossClient().get().doesObjectExist(uri.bucket(), uri.key()));
     Assert.assertEquals("Should have expected location", location, out.location());
     Assert.assertEquals("Should have expected length", dataSize, ossDataLength(uri));
     Assert.assertArrayEquals("Should have expected content", data, ossDataContent(uri, dataSize));
@@ -118,7 +118,8 @@ public class TestOSSFileIO extends AliyunOSSTestBase {
 
     byte[] data = SerializationUtil.serializeToBytes(file);
     FileIO expectedFileIO = SerializationUtil.deserializeFromBytes(data);
-    Assert.assertTrue("The deserialized FileIO should be OSSFileIO", expectedFileIO instanceof OSSFileIO);
+    Assert.assertTrue(
+        "The deserialized FileIO should be OSSFileIO", expectedFileIO instanceof OSSFileIO);
   }
 
   @Test
@@ -126,7 +127,8 @@ public class TestOSSFileIO extends AliyunOSSTestBase {
     String endpoint = "iceberg-test-oss.aliyun.com";
     String accessKeyId = UUID.randomUUID().toString();
     String accessSecret = UUID.randomUUID().toString();
-    SerializableSupplier<OSS> pre = () -> new OSSClientBuilder().build(endpoint, accessKeyId, accessSecret);
+    SerializableSupplier<OSS> pre =
+        () -> new OSSClientBuilder().build(endpoint, accessKeyId, accessSecret);
 
     byte[] data = SerializationUtil.serializeToBytes(pre);
     SerializableSupplier<OSS> post = SerializationUtil.deserializeFromBytes(data);
@@ -135,12 +137,16 @@ public class TestOSSFileIO extends AliyunOSSTestBase {
     Assert.assertTrue("Should be instance of oss client", client instanceof OSSClient);
 
     OSSClient oss = (OSSClient) client;
-    Assert.assertEquals("Should have expected endpoint",
-        new URI("http://" + endpoint), oss.getEndpoint());
-    Assert.assertEquals("Should have expected access key",
-        accessKeyId, oss.getCredentialsProvider().getCredentials().getAccessKeyId());
-    Assert.assertEquals("Should have expected secret key",
-        accessSecret, oss.getCredentialsProvider().getCredentials().getSecretAccessKey());
+    Assert.assertEquals(
+        "Should have expected endpoint", new URI("http://" + endpoint), oss.getEndpoint());
+    Assert.assertEquals(
+        "Should have expected access key",
+        accessKeyId,
+        oss.getCredentialsProvider().getCredentials().getAccessKeyId());
+    Assert.assertEquals(
+        "Should have expected secret key",
+        accessSecret,
+        oss.getCredentialsProvider().getCredentials().getSecretAccessKey());
   }
 
   private FileIO fileIO() {
@@ -158,7 +164,11 @@ public class TestOSSFileIO extends AliyunOSSTestBase {
   }
 
   private long ossDataLength(OSSURI uri) {
-    return ossClient().get().getObject(uri.bucket(), uri.key()).getObjectMetadata().getContentLength();
+    return ossClient()
+        .get()
+        .getObject(uri.bucket(), uri.key())
+        .getObjectMetadata()
+        .getContentLength();
   }
 
   private byte[] ossDataContent(OSSURI uri, int dataSize) throws IOException {
@@ -170,7 +180,8 @@ public class TestOSSFileIO extends AliyunOSSTestBase {
   }
 
   private void writeOSSData(OutputFile out, byte[] data) throws IOException {
-    try (OutputStream os = out.create(); InputStream is = new ByteArrayInputStream(data)) {
+    try (OutputStream os = out.create();
+        InputStream is = new ByteArrayInputStream(data)) {
       ByteStreams.copy(is, os);
     }
   }

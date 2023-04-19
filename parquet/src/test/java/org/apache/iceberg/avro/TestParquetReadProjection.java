@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.avro;
 
 import java.io.File;
@@ -30,24 +29,19 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 
 public class TestParquetReadProjection extends TestReadProjection {
   @Override
-  protected GenericData.Record writeAndRead(String desc,
-                                            Schema writeSchema,
-                                            Schema readSchema,
-                                            GenericData.Record record)
+  protected GenericData.Record writeAndRead(
+      String desc, Schema writeSchema, Schema readSchema, GenericData.Record record)
       throws IOException {
     File file = temp.newFile(desc + ".parquet");
     file.delete();
 
-    try (FileAppender<GenericData.Record> appender = Parquet.write(Files.localOutput(file))
-        .schema(writeSchema)
-        .build()) {
+    try (FileAppender<GenericData.Record> appender =
+        Parquet.write(Files.localOutput(file)).schema(writeSchema).build()) {
       appender.add(record);
     }
 
-    Iterable<GenericData.Record> records = Parquet.read(Files.localInput(file))
-        .project(readSchema)
-        .callInit()
-        .build();
+    Iterable<GenericData.Record> records =
+        Parquet.read(Files.localInput(file)).project(readSchema).callInit().build();
 
     return Iterables.getOnlyElement(records);
   }

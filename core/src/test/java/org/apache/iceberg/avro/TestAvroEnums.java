@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.avro;
 
 import java.io.File;
@@ -38,20 +37,20 @@ import org.junit.rules.TemporaryFolder;
 
 public class TestAvroEnums {
 
-  @Rule
-  public TemporaryFolder temp = new TemporaryFolder();
+  @Rule public TemporaryFolder temp = new TemporaryFolder();
 
   @Test
   public void writeAndValidateEnums() throws IOException {
-    org.apache.avro.Schema avroSchema = SchemaBuilder.record("root")
-        .fields()
-        .name("enumCol")
-        .type()
-        .nullable()
-        .enumeration("testEnum")
-        .symbols("SYMB1", "SYMB2")
-        .enumDefault("SYMB2")
-        .endRecord();
+    org.apache.avro.Schema avroSchema =
+        SchemaBuilder.record("root")
+            .fields()
+            .name("enumCol")
+            .type()
+            .nullable()
+            .enumeration("testEnum")
+            .symbols("SYMB1", "SYMB2")
+            .enumDefault("SYMB2")
+            .endRecord();
 
     org.apache.avro.Schema enumSchema = avroSchema.getField("enumCol").schema().getTypes().get(0);
     Record enumRecord1 = new GenericData.Record(avroSchema);
@@ -73,11 +72,13 @@ public class TestAvroEnums {
 
     Schema schema = new Schema(AvroSchemaUtil.convert(avroSchema).asStructType().fields());
     List<GenericData.Record> rows;
-    try (AvroIterable<GenericData.Record> reader = Avro.read(Files.localInput(testFile)).project(schema).build()) {
+    try (AvroIterable<GenericData.Record> reader =
+        Avro.read(Files.localInput(testFile)).project(schema).build()) {
       rows = Lists.newArrayList(reader);
     }
 
-    // Iceberg will return enums as strings, so compare String value of enum field instead of comparing Record objects
+    // Iceberg will return enums as strings, so compare String value of enum field instead of
+    // comparing Record objects
     for (int i = 0; i < expected.size(); i += 1) {
       String expectedEnumString =
           expected.get(i).get("enumCol") == null ? null : expected.get(i).get("enumCol").toString();

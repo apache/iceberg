@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.transforms;
 
 import java.util.List;
@@ -31,9 +30,11 @@ public interface SortOrderVisitor<T> {
 
   T field(String sourceName, int sourceId, SortDirection direction, NullOrder nullOrder);
 
-  T bucket(String sourceName, int sourceId, int width, SortDirection direction, NullOrder nullOrder);
+  T bucket(
+      String sourceName, int sourceId, int width, SortDirection direction, NullOrder nullOrder);
 
-  T truncate(String sourceName, int sourceId, int width, SortDirection direction, NullOrder nullOrder);
+  T truncate(
+      String sourceName, int sourceId, int width, SortDirection direction, NullOrder nullOrder);
 
   T year(String sourceName, int sourceId, SortDirection direction, NullOrder nullOrder);
 
@@ -43,8 +44,14 @@ public interface SortOrderVisitor<T> {
 
   T hour(String sourceName, int sourceId, SortDirection direction, NullOrder nullOrder);
 
-  default T unknown(String sourceName, int sourceId, String transform, SortDirection direction, NullOrder nullOrder) {
-    throw new UnsupportedOperationException(String.format("Unknown transform %s is not supported", transform));
+  default T unknown(
+      String sourceName,
+      int sourceId,
+      String transform,
+      SortDirection direction,
+      NullOrder nullOrder) {
+    throw new UnsupportedOperationException(
+        String.format("Unknown transform %s is not supported", transform));
   }
 
   /**
@@ -65,24 +72,44 @@ public interface SortOrderVisitor<T> {
       Transform<?, ?> transform = field.transform();
 
       if (transform == null || transform instanceof Identity) {
-        results.add(visitor.field(sourceName, field.sourceId(), field.direction(), field.nullOrder()));
+        results.add(
+            visitor.field(sourceName, field.sourceId(), field.direction(), field.nullOrder()));
       } else if (transform instanceof Bucket) {
         int numBuckets = ((Bucket<?>) transform).numBuckets();
-        results.add(visitor.bucket(sourceName, field.sourceId(), numBuckets, field.direction(), field.nullOrder()));
+        results.add(
+            visitor.bucket(
+                sourceName, field.sourceId(), numBuckets, field.direction(), field.nullOrder()));
       } else if (transform instanceof Truncate) {
         int width = ((Truncate<?>) transform).width();
-        results.add(visitor.truncate(sourceName, field.sourceId(), width, field.direction(), field.nullOrder()));
-      } else if (transform == Dates.YEAR || transform == Timestamps.YEAR) {
-        results.add(visitor.year(sourceName, field.sourceId(), field.direction(), field.nullOrder()));
-      } else if (transform == Dates.MONTH || transform == Timestamps.MONTH) {
-        results.add(visitor.month(sourceName, field.sourceId(), field.direction(), field.nullOrder()));
-      } else if (transform == Dates.DAY || transform == Timestamps.DAY) {
-        results.add(visitor.day(sourceName, field.sourceId(), field.direction(), field.nullOrder()));
-      } else if (transform == Timestamps.HOUR) {
-        results.add(visitor.hour(sourceName, field.sourceId(), field.direction(), field.nullOrder()));
+        results.add(
+            visitor.truncate(
+                sourceName, field.sourceId(), width, field.direction(), field.nullOrder()));
+      } else if (transform == Dates.YEAR
+          || transform == Timestamps.YEAR
+          || transform instanceof Years) {
+        results.add(
+            visitor.year(sourceName, field.sourceId(), field.direction(), field.nullOrder()));
+      } else if (transform == Dates.MONTH
+          || transform == Timestamps.MONTH
+          || transform instanceof Months) {
+        results.add(
+            visitor.month(sourceName, field.sourceId(), field.direction(), field.nullOrder()));
+      } else if (transform == Dates.DAY
+          || transform == Timestamps.DAY
+          || transform instanceof Days) {
+        results.add(
+            visitor.day(sourceName, field.sourceId(), field.direction(), field.nullOrder()));
+      } else if (transform == Timestamps.HOUR || transform instanceof Hours) {
+        results.add(
+            visitor.hour(sourceName, field.sourceId(), field.direction(), field.nullOrder()));
       } else if (transform instanceof UnknownTransform) {
-        results.add(visitor.unknown(
-            sourceName, field.sourceId(), transform.toString(), field.direction(), field.nullOrder()));
+        results.add(
+            visitor.unknown(
+                sourceName,
+                field.sourceId(),
+                transform.toString(),
+                field.direction(),
+                field.nullOrder()));
       }
     }
 

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.actions;
 
 import java.util.List;
@@ -33,7 +32,6 @@ import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
-import org.apache.spark.sql.internal.SQLConf;
 
 public class Spark3BinPackStrategy extends BinPackStrategy {
   private final Table table;
@@ -57,18 +55,18 @@ public class Spark3BinPackStrategy extends BinPackStrategy {
     try {
       manager.stageTasks(table, groupID, filesToRewrite);
 
-      // Disable Adaptive Query Execution as this may change the output partitioning of our write
-      SparkSession cloneSession = spark.cloneSession();
-      cloneSession.conf().set(SQLConf.ADAPTIVE_EXECUTION_ENABLED().key(), false);
-
-      Dataset<Row> scanDF = cloneSession.read().format("iceberg")
-          .option(SparkReadOptions.FILE_SCAN_TASK_SET_ID, groupID)
-          .option(SparkReadOptions.SPLIT_SIZE, splitSize(inputFileSize(filesToRewrite)))
-          .option(SparkReadOptions.FILE_OPEN_COST, "0")
-          .load(table.name());
+      Dataset<Row> scanDF =
+          spark
+              .read()
+              .format("iceberg")
+              .option(SparkReadOptions.FILE_SCAN_TASK_SET_ID, groupID)
+              .option(SparkReadOptions.SPLIT_SIZE, splitSize(inputFileSize(filesToRewrite)))
+              .option(SparkReadOptions.FILE_OPEN_COST, "0")
+              .load(table.name());
 
       // write the packed data into new files where each split becomes a new file
-      scanDF.write()
+      scanDF
+          .write()
           .format("iceberg")
           .option(SparkWriteOptions.REWRITTEN_FILE_SCAN_TASK_SET_ID, groupID)
           .option(SparkWriteOptions.TARGET_FILE_SIZE_BYTES, writeMaxFileSize())

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.mr.hive;
 
 import java.io.DataInput;
@@ -33,15 +32,17 @@ public class HiveIcebergSplit extends FileSplit implements IcebergSplitContainer
 
   private IcebergSplit innerSplit;
 
-  // Hive uses the path name of a split to map it back to a partition (`PartitionDesc`) or table description object
-  // (`TableDesc`) which specifies the relevant input format for reading the files belonging to that partition or table.
-  // That way, `HiveInputFormat` and `CombineHiveInputFormat` can read files with different file formats in the same
+  // Hive uses the path name of a split to map it back to a partition (`PartitionDesc`) or table
+  // description object
+  // (`TableDesc`) which specifies the relevant input format for reading the files belonging to that
+  // partition or table.
+  // That way, `HiveInputFormat` and `CombineHiveInputFormat` can read files with different file
+  // formats in the same
   // MapReduce job and merge compatible splits together.
   private String tableLocation;
 
   // public no-argument constructor for deserialization
-  public HiveIcebergSplit() {
-  }
+  public HiveIcebergSplit() {}
 
   HiveIcebergSplit(IcebergSplit split, String tableLocation) {
     this.innerSplit = split;

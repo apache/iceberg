@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.avro;
 
 import java.io.IOException;
@@ -42,8 +41,8 @@ public class AvroIterable<D> extends CloseableGroup implements CloseableIterable
   private final boolean reuseContainers;
   private Map<String, String> metadata = null;
 
-  AvroIterable(InputFile file, DatumReader<D> reader,
-               Long start, Long length, boolean reuseContainers) {
+  AvroIterable(
+      InputFile file, DatumReader<D> reader, Long start, Long length, boolean reuseContainers) {
     this.file = file;
     this.reader = reader;
     this.start = start;
@@ -78,8 +77,8 @@ public class AvroIterable<D> extends CloseableGroup implements CloseableIterable
 
     if (start != null) {
       if (reader instanceof SupportsRowPosition) {
-        ((SupportsRowPosition) reader).setRowPositionSupplier(
-            () -> AvroIO.findStartingRowPos(file::newStream, start));
+        ((SupportsRowPosition) reader)
+            .setRowPositionSupplier(() -> AvroIO.findStartingRowPos(file::newStream, start));
       }
       fileReader = new AvroRangeIterator<>(fileReader, start, end);
     } else if (reader instanceof SupportsRowPosition) {
@@ -97,8 +96,8 @@ public class AvroIterable<D> extends CloseableGroup implements CloseableIterable
 
   private DataFileReader<D> newFileReader() {
     try {
-      return (DataFileReader<D>) DataFileReader.openReader(
-          AvroIO.stream(file.newStream(), file.getLength()), reader);
+      return (DataFileReader<D>)
+          DataFileReader.openReader(AvroIO.stream(file.newStream(), file.getLength()), reader);
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to open file: %s", file);
     }

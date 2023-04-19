@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.data;
 
 import java.io.File;
@@ -44,13 +43,13 @@ import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
 public class TestDataFileIndexStatsFilters {
-  private static final Schema SCHEMA = new Schema(
-      Types.NestedField.optional(1, "id", Types.IntegerType.get()),
-      Types.NestedField.optional(2, "data", Types.StringType.get()),
-      Types.NestedField.required(3, "category", Types.StringType.get()));
+  private static final Schema SCHEMA =
+      new Schema(
+          Types.NestedField.optional(1, "id", Types.IntegerType.get()),
+          Types.NestedField.optional(2, "data", Types.StringType.get()),
+          Types.NestedField.required(3, "category", Types.StringType.get()));
 
-  @Rule
-  public TemporaryFolder temp = new TemporaryFolder();
+  @Rule public TemporaryFolder temp = new TemporaryFolder();
 
   private Table table;
   private List<Record> records = null;
@@ -76,10 +75,20 @@ public class TestDataFileIndexStatsFilters {
     records.add(record.copy("id", 8, "data", null, "category", "even"));
 
     this.dataFile = FileHelpers.writeDataFile(table, Files.localOutput(temp.newFile()), records);
-    this.dataFileWithoutNulls = FileHelpers.writeDataFile(table, Files.localOutput(temp.newFile()),
-        records.stream().filter(rec -> rec.getField("data") != null).collect(Collectors.toList()));
-    this.dataFileOnlyNulls = FileHelpers.writeDataFile(table, Files.localOutput(temp.newFile()),
-        records.stream().filter(rec -> rec.getField("data") == null).collect(Collectors.toList()));
+    this.dataFileWithoutNulls =
+        FileHelpers.writeDataFile(
+            table,
+            Files.localOutput(temp.newFile()),
+            records.stream()
+                .filter(rec -> rec.getField("data") != null)
+                .collect(Collectors.toList()));
+    this.dataFileOnlyNulls =
+        FileHelpers.writeDataFile(
+            table,
+            Files.localOutput(temp.newFile()),
+            records.stream()
+                .filter(rec -> rec.getField("data") == null)
+                .collect(Collectors.toList()));
   }
 
   @After
@@ -89,17 +98,16 @@ public class TestDataFileIndexStatsFilters {
 
   @Test
   public void testPositionDeletePlanningPath() throws IOException {
-    table.newAppend()
-        .appendFile(dataFile)
-        .commit();
+    table.newAppend().appendFile(dataFile).commit();
 
     List<Pair<CharSequence, Long>> deletes = Lists.newArrayList();
     deletes.add(Pair.of(dataFile.path(), 0L));
     deletes.add(Pair.of(dataFile.path(), 1L));
 
-    Pair<DeleteFile, CharSequenceSet> posDeletes = FileHelpers.writeDeleteFile(
-        table, Files.localOutput(temp.newFile()), deletes);
-    table.newRowDelta()
+    Pair<DeleteFile, CharSequenceSet> posDeletes =
+        FileHelpers.writeDeleteFile(table, Files.localOutput(temp.newFile()), deletes);
+    table
+        .newRowDelta()
         .addDeletes(posDeletes.first())
         .validateDataFilesExist(posDeletes.second())
         .commit();
@@ -116,17 +124,16 @@ public class TestDataFileIndexStatsFilters {
 
   @Test
   public void testPositionDeletePlanningPathFilter() throws IOException {
-    table.newAppend()
-        .appendFile(dataFile)
-        .commit();
+    table.newAppend().appendFile(dataFile).commit();
 
     List<Pair<CharSequence, Long>> deletes = Lists.newArrayList();
     deletes.add(Pair.of("some-other-file.parquet", 0L));
     deletes.add(Pair.of("some-other-file.parquet", 1L));
 
-    Pair<DeleteFile, CharSequenceSet> posDeletes = FileHelpers.writeDeleteFile(
-        table, Files.localOutput(temp.newFile()), deletes);
-    table.newRowDelta()
+    Pair<DeleteFile, CharSequenceSet> posDeletes =
+        FileHelpers.writeDeleteFile(table, Files.localOutput(temp.newFile()), deletes);
+    table
+        .newRowDelta()
         .addDeletes(posDeletes.first())
         .validateDataFilesExist(posDeletes.second())
         .commit();
@@ -138,26 +145,24 @@ public class TestDataFileIndexStatsFilters {
 
     Assert.assertEquals("Should produce one task", 1, tasks.size());
     FileScanTask task = tasks.get(0);
-    Assert.assertEquals("Should not have delete file, filtered by file_path stats", 0, task.deletes().size());
+    Assert.assertEquals(
+        "Should not have delete file, filtered by file_path stats", 0, task.deletes().size());
   }
 
   @Test
   public void testEqualityDeletePlanningStats() throws IOException {
-    table.newAppend()
-        .appendFile(dataFile)
-        .commit();
+    table.newAppend().appendFile(dataFile).commit();
 
     List<Record> deletes = Lists.newArrayList();
     Schema deleteRowSchema = SCHEMA.select("data");
     Record delete = GenericRecord.create(deleteRowSchema);
     deletes.add(delete.copy("data", "d"));
 
-    DeleteFile posDeletes = FileHelpers.writeDeleteFile(
-        table, Files.localOutput(temp.newFile()), deletes, deleteRowSchema);
+    DeleteFile posDeletes =
+        FileHelpers.writeDeleteFile(
+            table, Files.localOutput(temp.newFile()), deletes, deleteRowSchema);
 
-    table.newRowDelta()
-        .addDeletes(posDeletes)
-        .commit();
+    table.newRowDelta().addDeletes(posDeletes).commit();
 
     List<FileScanTask> tasks;
     try (CloseableIterable<FileScanTask> tasksIterable = table.newScan().planFiles()) {
@@ -166,14 +171,13 @@ public class TestDataFileIndexStatsFilters {
 
     Assert.assertEquals("Should produce one task", 1, tasks.size());
     FileScanTask task = tasks.get(0);
-    Assert.assertEquals("Should have one delete file, data contains a matching value", 1, task.deletes().size());
+    Assert.assertEquals(
+        "Should have one delete file, data contains a matching value", 1, task.deletes().size());
   }
 
   @Test
   public void testEqualityDeletePlanningStatsFilter() throws IOException {
-    table.newAppend()
-        .appendFile(dataFile)
-        .commit();
+    table.newAppend().appendFile(dataFile).commit();
 
     List<Record> deletes = Lists.newArrayList();
     Schema deleteRowSchema = table.schema().select("data");
@@ -182,12 +186,11 @@ public class TestDataFileIndexStatsFilters {
     deletes.add(delete.copy("data", "y"));
     deletes.add(delete.copy("data", "z"));
 
-    DeleteFile posDeletes = FileHelpers.writeDeleteFile(
-        table, Files.localOutput(temp.newFile()), deletes, deleteRowSchema);
+    DeleteFile posDeletes =
+        FileHelpers.writeDeleteFile(
+            table, Files.localOutput(temp.newFile()), deletes, deleteRowSchema);
 
-    table.newRowDelta()
-        .addDeletes(posDeletes)
-        .commit();
+    table.newRowDelta().addDeletes(posDeletes).commit();
 
     List<FileScanTask> tasks;
     try (CloseableIterable<FileScanTask> tasksIterable = table.newScan().planFiles()) {
@@ -196,26 +199,24 @@ public class TestDataFileIndexStatsFilters {
 
     Assert.assertEquals("Should produce one task", 1, tasks.size());
     FileScanTask task = tasks.get(0);
-    Assert.assertEquals("Should not have delete file, filtered by data column stats", 0, task.deletes().size());
+    Assert.assertEquals(
+        "Should not have delete file, filtered by data column stats", 0, task.deletes().size());
   }
 
   @Test
   public void testEqualityDeletePlanningStatsNullValueWithAllNullDeletes() throws IOException {
-    table.newAppend()
-        .appendFile(dataFile)
-        .commit();
+    table.newAppend().appendFile(dataFile).commit();
 
     List<Record> deletes = Lists.newArrayList();
     Schema deleteRowSchema = SCHEMA.select("data");
     Record delete = GenericRecord.create(deleteRowSchema);
     deletes.add(delete.copy("data", null));
 
-    DeleteFile posDeletes = FileHelpers.writeDeleteFile(
-        table, Files.localOutput(temp.newFile()), deletes, deleteRowSchema);
+    DeleteFile posDeletes =
+        FileHelpers.writeDeleteFile(
+            table, Files.localOutput(temp.newFile()), deletes, deleteRowSchema);
 
-    table.newRowDelta()
-        .addDeletes(posDeletes)
-        .commit();
+    table.newRowDelta().addDeletes(posDeletes).commit();
 
     List<FileScanTask> tasks;
     try (CloseableIterable<FileScanTask> tasksIterable = table.newScan().planFiles()) {
@@ -224,12 +225,14 @@ public class TestDataFileIndexStatsFilters {
 
     Assert.assertEquals("Should produce one task", 1, tasks.size());
     FileScanTask task = tasks.get(0);
-    Assert.assertEquals("Should have delete file, data contains a null value", 1, task.deletes().size());
+    Assert.assertEquals(
+        "Should have delete file, data contains a null value", 1, task.deletes().size());
   }
 
   @Test
   public void testEqualityDeletePlanningStatsNoNullValuesWithAllNullDeletes() throws IOException {
-    table.newAppend()
+    table
+        .newAppend()
         .appendFile(dataFileWithoutNulls) // note that there are no nulls in the data column
         .commit();
 
@@ -238,12 +241,11 @@ public class TestDataFileIndexStatsFilters {
     Record delete = GenericRecord.create(deleteRowSchema);
     deletes.add(delete.copy("data", null));
 
-    DeleteFile posDeletes = FileHelpers.writeDeleteFile(
-        table, Files.localOutput(temp.newFile()), deletes, deleteRowSchema);
+    DeleteFile posDeletes =
+        FileHelpers.writeDeleteFile(
+            table, Files.localOutput(temp.newFile()), deletes, deleteRowSchema);
 
-    table.newRowDelta()
-        .addDeletes(posDeletes)
-        .commit();
+    table.newRowDelta().addDeletes(posDeletes).commit();
 
     List<FileScanTask> tasks;
     try (CloseableIterable<FileScanTask> tasksIterable = table.newScan().planFiles()) {
@@ -252,12 +254,14 @@ public class TestDataFileIndexStatsFilters {
 
     Assert.assertEquals("Should produce one task", 1, tasks.size());
     FileScanTask task = tasks.get(0);
-    Assert.assertEquals("Should have no delete files, data contains no null values", 0, task.deletes().size());
+    Assert.assertEquals(
+        "Should have no delete files, data contains no null values", 0, task.deletes().size());
   }
 
   @Test
   public void testEqualityDeletePlanningStatsAllNullValuesWithNoNullDeletes() throws IOException {
-    table.newAppend()
+    table
+        .newAppend()
         .appendFile(dataFileOnlyNulls) // note that there are only nulls in the data column
         .commit();
 
@@ -266,12 +270,11 @@ public class TestDataFileIndexStatsFilters {
     Record delete = GenericRecord.create(deleteRowSchema);
     deletes.add(delete.copy("data", "d"));
 
-    DeleteFile posDeletes = FileHelpers.writeDeleteFile(
-        table, Files.localOutput(temp.newFile()), deletes, deleteRowSchema);
+    DeleteFile posDeletes =
+        FileHelpers.writeDeleteFile(
+            table, Files.localOutput(temp.newFile()), deletes, deleteRowSchema);
 
-    table.newRowDelta()
-        .addDeletes(posDeletes)
-        .commit();
+    table.newRowDelta().addDeletes(posDeletes).commit();
 
     List<FileScanTask> tasks;
     try (CloseableIterable<FileScanTask> tasksIterable = table.newScan().planFiles()) {
@@ -280,12 +283,15 @@ public class TestDataFileIndexStatsFilters {
 
     Assert.assertEquals("Should produce one task", 1, tasks.size());
     FileScanTask task = tasks.get(0);
-    Assert.assertEquals("Should have no delete files, data contains no null values", 0, task.deletes().size());
+    Assert.assertEquals(
+        "Should have no delete files, data contains no null values", 0, task.deletes().size());
   }
 
   @Test
-  public void testEqualityDeletePlanningStatsSomeNullValuesWithSomeNullDeletes() throws IOException {
-    table.newAppend()
+  public void testEqualityDeletePlanningStatsSomeNullValuesWithSomeNullDeletes()
+      throws IOException {
+    table
+        .newAppend()
         .appendFile(dataFile) // note that there are some nulls in the data column
         .commit();
 
@@ -296,12 +302,11 @@ public class TestDataFileIndexStatsFilters {
     deletes.add(delete.copy("data", null));
     deletes.add(delete.copy("data", "x"));
 
-    DeleteFile posDeletes = FileHelpers.writeDeleteFile(
-        table, Files.localOutput(temp.newFile()), deletes, deleteRowSchema);
+    DeleteFile posDeletes =
+        FileHelpers.writeDeleteFile(
+            table, Files.localOutput(temp.newFile()), deletes, deleteRowSchema);
 
-    table.newRowDelta()
-        .addDeletes(posDeletes)
-        .commit();
+    table.newRowDelta().addDeletes(posDeletes).commit();
 
     List<FileScanTask> tasks;
     try (CloseableIterable<FileScanTask> tasksIterable = table.newScan().planFiles()) {
@@ -310,6 +315,7 @@ public class TestDataFileIndexStatsFilters {
 
     Assert.assertEquals("Should produce one task", 1, tasks.size());
     FileScanTask task = tasks.get(0);
-    Assert.assertEquals("Should have one delete file, data and deletes have null values", 1, task.deletes().size());
+    Assert.assertEquals(
+        "Should have one delete file, data and deletes have null values", 1, task.deletes().size());
   }
 }

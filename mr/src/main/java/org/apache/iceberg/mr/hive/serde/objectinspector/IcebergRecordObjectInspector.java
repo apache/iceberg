@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.mr.hive.serde.objectinspector;
 
 import java.util.Collections;
@@ -35,11 +34,12 @@ import org.apache.iceberg.types.Types;
 public final class IcebergRecordObjectInspector extends StructObjectInspector {
 
   private static final IcebergRecordObjectInspector EMPTY =
-          new IcebergRecordObjectInspector(Types.StructType.of(), Collections.emptyList());
+      new IcebergRecordObjectInspector(Types.StructType.of(), Collections.emptyList());
 
   private final List<IcebergRecordStructField> structFields;
 
-  public IcebergRecordObjectInspector(Types.StructType structType, List<ObjectInspector> objectInspectors) {
+  public IcebergRecordObjectInspector(
+      Types.StructType structType, List<ObjectInspector> objectInspectors) {
     Preconditions.checkArgument(structType.fields().size() == objectInspectors.size());
 
     this.structFields = Lists.newArrayListWithExpectedSize(structType.fields().size());
@@ -48,9 +48,15 @@ public final class IcebergRecordObjectInspector extends StructObjectInspector {
 
     for (Types.NestedField field : structType.fields()) {
       ObjectInspector oi = objectInspectors.get(position);
-      Types.NestedField fieldInLowercase = Types.NestedField.of(field.fieldId(), field.isOptional(),
-              field.name().toLowerCase(), field.type(), field.doc());
-      IcebergRecordStructField structField = new IcebergRecordStructField(fieldInLowercase, oi, position);
+      Types.NestedField fieldInLowercase =
+          Types.NestedField.of(
+              field.fieldId(),
+              field.isOptional(),
+              field.name().toLowerCase(),
+              field.type(),
+              field.doc());
+      IcebergRecordStructField structField =
+          new IcebergRecordStructField(fieldInLowercase, oi, position);
       structFields.add(structField);
       position++;
     }
@@ -72,16 +78,21 @@ public final class IcebergRecordObjectInspector extends StructObjectInspector {
 
   @Override
   public Object getStructFieldData(Object o, StructField structField) {
+    if (o == null) {
+      return null;
+    }
+
     return ((Record) o).get(((IcebergRecordStructField) structField).position());
   }
 
   @Override
   public List<Object> getStructFieldsDataAsList(Object o) {
+    if (o == null) {
+      return null;
+    }
+
     Record record = (Record) o;
-    return structFields
-            .stream()
-            .map(f -> record.get(f.position()))
-            .collect(Collectors.toList());
+    return structFields.stream().map(f -> record.get(f.position())).collect(Collectors.toList());
   }
 
   @Override
@@ -167,7 +178,5 @@ public final class IcebergRecordObjectInspector extends StructObjectInspector {
     public int hashCode() {
       return Objects.hash(field, oi, position);
     }
-
   }
-
 }

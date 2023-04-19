@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import java.util.Map;
@@ -25,8 +24,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.SnapshotUtil;
 
 /**
- * ToDo: Add SetSnapshotOperation operations such as setCurrentSnapshot, rollBackTime, rollbackTo
- * to this class so that we can support those operations for refs.
+ * ToDo: Add SetSnapshotOperation operations such as setCurrentSnapshot, rollBackTime, rollbackTo to
+ * this class so that we can support those operations for refs.
  */
 class UpdateSnapshotReferencesOperation implements PendingUpdate<Map<String, SnapshotRef>> {
 
@@ -115,7 +114,8 @@ class UpdateSnapshotReferencesOperation implements PendingUpdate<Map<String, Sna
     return replaceBranch(name, source, true);
   }
 
-  private UpdateSnapshotReferencesOperation replaceBranch(String name, String source, boolean fastForward) {
+  private UpdateSnapshotReferencesOperation replaceBranch(
+      String name, String source, boolean fastForward) {
     Preconditions.checkNotNull(name, "Target branch cannot be null");
     Preconditions.checkNotNull(source, "Source ref cannot be null");
     SnapshotRef sourceRef = updatedRefs.get(source);
@@ -132,10 +132,11 @@ class UpdateSnapshotReferencesOperation implements PendingUpdate<Map<String, Sna
     SnapshotRef updatedRef = SnapshotRef.builderFrom(refToUpdate, sourceRef.snapshotId()).build();
 
     if (fastForward) {
-      boolean targetIsAncestor = SnapshotUtil.isAncestorOf(sourceRef.snapshotId(),
-          refToUpdate.snapshotId(), base::snapshot);
-      Preconditions.checkArgument(targetIsAncestor,
-          "Cannot fast-forward: %s is not an ancestor of %s", name, source);
+      boolean targetIsAncestor =
+          SnapshotUtil.isAncestorOf(
+              sourceRef.snapshotId(), refToUpdate.snapshotId(), base::snapshot);
+      Preconditions.checkArgument(
+          targetIsAncestor, "Cannot fast-forward: %s is not an ancestor of %s", name, source);
     }
 
     updatedRefs.put(name, updatedRef);
@@ -152,13 +153,13 @@ class UpdateSnapshotReferencesOperation implements PendingUpdate<Map<String, Sna
     return this;
   }
 
-  public UpdateSnapshotReferencesOperation setMinSnapshotsToKeep(String name, int minSnapshotsToKeep) {
+  public UpdateSnapshotReferencesOperation setMinSnapshotsToKeep(
+      String name, int minSnapshotsToKeep) {
     Preconditions.checkNotNull(name, "Branch name cannot be null");
     SnapshotRef ref = updatedRefs.get(name);
     Preconditions.checkArgument(ref != null, "Branch does not exist: %s", name);
-    SnapshotRef updateBranch = SnapshotRef.builderFrom(ref)
-        .minSnapshotsToKeep(minSnapshotsToKeep)
-        .build();
+    SnapshotRef updateBranch =
+        SnapshotRef.builderFrom(ref).minSnapshotsToKeep(minSnapshotsToKeep).build();
     updatedRefs.put(name, updateBranch);
     return this;
   }
@@ -167,9 +168,8 @@ class UpdateSnapshotReferencesOperation implements PendingUpdate<Map<String, Sna
     Preconditions.checkNotNull(name, "Branch name cannot be null");
     SnapshotRef ref = updatedRefs.get(name);
     Preconditions.checkArgument(ref != null, "Branch does not exist: %s", name);
-    SnapshotRef updateBranch = SnapshotRef.builderFrom(ref)
-        .maxSnapshotAgeMs(maxSnapshotAgeMs)
-        .build();
+    SnapshotRef updateBranch =
+        SnapshotRef.builderFrom(ref).maxSnapshotAgeMs(maxSnapshotAgeMs).build();
     updatedRefs.put(name, updateBranch);
     return this;
   }
@@ -178,9 +178,7 @@ class UpdateSnapshotReferencesOperation implements PendingUpdate<Map<String, Sna
     Preconditions.checkNotNull(name, "Reference name cannot be null");
     SnapshotRef ref = updatedRefs.get(name);
     Preconditions.checkArgument(ref != null, "Ref does not exist: %s", name);
-    SnapshotRef updatedRef = SnapshotRef.builderFrom(ref)
-        .maxRefAgeMs(maxRefAgeMs)
-        .build();
+    SnapshotRef updatedRef = SnapshotRef.builderFrom(ref).maxRefAgeMs(maxRefAgeMs).build();
     updatedRefs.put(name, updatedRef);
     return this;
   }

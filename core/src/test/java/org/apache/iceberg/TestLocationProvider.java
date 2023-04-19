@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import java.util.List;
@@ -33,8 +32,7 @@ public class TestLocationProvider extends TableTestBase {
   @Parameterized.Parameters
   public static Object[][] parameters() {
     return new Object[][] {
-        new Object[] { 1 },
-        new Object[] { 2 },
+      new Object[] {1}, new Object[] {2},
     };
   }
 
@@ -47,7 +45,8 @@ public class TestLocationProvider extends TableTestBase {
     String tableLocation;
     Map<String, String> properties;
 
-    public TwoArgDynamicallyLoadedLocationProvider(String tableLocation, Map<String, String> properties) {
+    public TwoArgDynamicallyLoadedLocationProvider(
+        String tableLocation, Map<String, String> properties) {
       this.tableLocation = tableLocation;
       this.properties = properties;
     }
@@ -81,8 +80,7 @@ public class TestLocationProvider extends TableTestBase {
   // publicly visible for testing to be dynamically loaded
   public static class InvalidArgTypesDynamicallyLoadedLocationProvider implements LocationProvider {
 
-    public InvalidArgTypesDynamicallyLoadedLocationProvider(Integer bogusArg1, String bogusArg2) {
-    }
+    public InvalidArgTypesDynamicallyLoadedLocationProvider(Integer bogusArg1, String bogusArg2) {}
 
     @Override
     public String newDataLocation(String filename) {
@@ -102,184 +100,191 @@ public class TestLocationProvider extends TableTestBase {
 
   @Test
   public void testDefaultLocationProvider() {
-    this.table.updateProperties()
-        .commit();
+    this.table.updateProperties().commit();
 
     this.table.locationProvider().newDataLocation("my_file");
     Assert.assertEquals(
         "Default data path should have table location as root",
         String.format("%s/data/%s", this.table.location(), "my_file"),
-        this.table.locationProvider().newDataLocation("my_file")
-    );
+        this.table.locationProvider().newDataLocation("my_file"));
   }
 
   @Test
   public void testDefaultLocationProviderWithCustomDataLocation() {
-    this.table.updateProperties()
-        .set(TableProperties.WRITE_DATA_LOCATION, "new_location")
-        .commit();
+    this.table.updateProperties().set(TableProperties.WRITE_DATA_LOCATION, "new_location").commit();
 
     this.table.locationProvider().newDataLocation("my_file");
     Assert.assertEquals(
         "Default location provider should allow custom path location",
         "new_location/my_file",
-        this.table.locationProvider().newDataLocation("my_file")
-    );
+        this.table.locationProvider().newDataLocation("my_file"));
   }
 
   @Test
   public void testNoArgDynamicallyLoadedLocationProvider() {
-    String invalidImpl = String.format("%s$%s",
-        this.getClass().getCanonicalName(),
-        NoArgDynamicallyLoadedLocationProvider.class.getSimpleName());
-    this.table.updateProperties()
+    String invalidImpl =
+        String.format(
+            "%s$%s",
+            this.getClass().getCanonicalName(),
+            NoArgDynamicallyLoadedLocationProvider.class.getSimpleName());
+    this.table
+        .updateProperties()
         .set(TableProperties.WRITE_LOCATION_PROVIDER_IMPL, invalidImpl)
         .commit();
 
     Assert.assertEquals(
         "Custom provider should take base table location",
         "test_no_arg_provider/my_file",
-        this.table.locationProvider().newDataLocation("my_file")
-    );
+        this.table.locationProvider().newDataLocation("my_file"));
   }
 
   @Test
   public void testTwoArgDynamicallyLoadedLocationProvider() {
-    this.table.updateProperties()
-        .set(TableProperties.WRITE_LOCATION_PROVIDER_IMPL,
-            String.format("%s$%s",
+    this.table
+        .updateProperties()
+        .set(
+            TableProperties.WRITE_LOCATION_PROVIDER_IMPL,
+            String.format(
+                "%s$%s",
                 this.getClass().getCanonicalName(),
                 TwoArgDynamicallyLoadedLocationProvider.class.getSimpleName()))
         .commit();
 
-    Assert.assertTrue(String.format("Table should load impl defined in its properties"),
-        this.table.locationProvider() instanceof TwoArgDynamicallyLoadedLocationProvider
-    );
+    Assert.assertTrue(
+        String.format("Table should load impl defined in its properties"),
+        this.table.locationProvider() instanceof TwoArgDynamicallyLoadedLocationProvider);
 
     Assert.assertEquals(
         "Custom provider should take base table location",
         String.format("%s/test_custom_provider/%s", this.table.location(), "my_file"),
-        this.table.locationProvider().newDataLocation("my_file")
-    );
+        this.table.locationProvider().newDataLocation("my_file"));
   }
 
   @Test
   public void testDynamicallyLoadedLocationProviderNotFound() {
-    String nonExistentImpl = String.format("%s$NonExistent%s",
-        this.getClass().getCanonicalName(),
-        TwoArgDynamicallyLoadedLocationProvider.class.getSimpleName());
-    this.table.updateProperties()
+    String nonExistentImpl =
+        String.format(
+            "%s$NonExistent%s",
+            this.getClass().getCanonicalName(),
+            TwoArgDynamicallyLoadedLocationProvider.class.getSimpleName());
+    this.table
+        .updateProperties()
         .set(TableProperties.WRITE_LOCATION_PROVIDER_IMPL, nonExistentImpl)
         .commit();
 
-    AssertHelpers.assertThrows("Non-existent implementation should fail on finding constructor",
+    AssertHelpers.assertThrows(
+        "Non-existent implementation should fail on finding constructor",
         IllegalArgumentException.class,
-        String.format("Unable to find a constructor for implementation %s of %s. ",
+        String.format(
+            "Unable to find a constructor for implementation %s of %s. ",
             nonExistentImpl, LocationProvider.class),
-        () -> table.locationProvider()
-    );
+        () -> table.locationProvider());
   }
 
   @Test
   public void testInvalidNoInterfaceDynamicallyLoadedLocationProvider() {
-    String invalidImpl = String.format("%s$%s",
-        this.getClass().getCanonicalName(),
-        InvalidNoInterfaceDynamicallyLoadedLocationProvider.class.getSimpleName());
-    this.table.updateProperties()
+    String invalidImpl =
+        String.format(
+            "%s$%s",
+            this.getClass().getCanonicalName(),
+            InvalidNoInterfaceDynamicallyLoadedLocationProvider.class.getSimpleName());
+    this.table
+        .updateProperties()
         .set(TableProperties.WRITE_LOCATION_PROVIDER_IMPL, invalidImpl)
         .commit();
 
     AssertHelpers.assertThrows(
         "Class with missing interface implementation should fail on instantiation.",
         IllegalArgumentException.class,
-        String.format("Provided implementation for dynamic instantiation should implement %s",
+        String.format(
+            "Provided implementation for dynamic instantiation should implement %s",
             LocationProvider.class),
-        () -> table.locationProvider()
-    );
+        () -> table.locationProvider());
   }
 
   @Test
   public void testInvalidArgTypesDynamicallyLoadedLocationProvider() {
-    String invalidImpl = String.format("%s$%s",
-        this.getClass().getCanonicalName(),
-        InvalidArgTypesDynamicallyLoadedLocationProvider.class.getSimpleName());
-    this.table.updateProperties()
+    String invalidImpl =
+        String.format(
+            "%s$%s",
+            this.getClass().getCanonicalName(),
+            InvalidArgTypesDynamicallyLoadedLocationProvider.class.getSimpleName());
+    this.table
+        .updateProperties()
         .set(TableProperties.WRITE_LOCATION_PROVIDER_IMPL, invalidImpl)
         .commit();
 
-    AssertHelpers.assertThrows("Implementation with invalid arg types should fail on finding constructor",
+    AssertHelpers.assertThrows(
+        "Implementation with invalid arg types should fail on finding constructor",
         IllegalArgumentException.class,
-        String.format("Unable to find a constructor for implementation %s of %s. ",
+        String.format(
+            "Unable to find a constructor for implementation %s of %s. ",
             invalidImpl, LocationProvider.class),
-        () -> table.locationProvider()
-    );
+        () -> table.locationProvider());
   }
 
   @Test
   public void testObjectStorageLocationProviderPathResolution() {
-    table.updateProperties()
-        .set(TableProperties.OBJECT_STORE_ENABLED, "true")
-        .commit();
+    table.updateProperties().set(TableProperties.OBJECT_STORE_ENABLED, "true").commit();
 
-    Assert.assertTrue("default data location should be used when object storage path not set",
+    Assert.assertTrue(
+        "default data location should be used when object storage path not set",
         table.locationProvider().newDataLocation("file").contains(table.location() + "/data"));
 
     String folderPath = "s3://random/folder/location";
-    table.updateProperties()
+    table
+        .updateProperties()
         .set(TableProperties.WRITE_FOLDER_STORAGE_LOCATION, folderPath)
         .commit();
 
-    Assert.assertTrue("folder storage path should be used when set",
+    Assert.assertTrue(
+        "folder storage path should be used when set",
         table.locationProvider().newDataLocation("file").contains(folderPath));
 
     String objectPath = "s3://random/object/location";
-    table.updateProperties()
-        .set(TableProperties.OBJECT_STORE_PATH, objectPath)
-        .commit();
+    table.updateProperties().set(TableProperties.OBJECT_STORE_PATH, objectPath).commit();
 
-    Assert.assertTrue("object storage path should be used when set",
+    Assert.assertTrue(
+        "object storage path should be used when set",
         table.locationProvider().newDataLocation("file").contains(objectPath));
 
     String dataPath = "s3://random/data/location";
-    table.updateProperties()
-        .set(TableProperties.WRITE_DATA_LOCATION, dataPath)
-        .commit();
+    table.updateProperties().set(TableProperties.WRITE_DATA_LOCATION, dataPath).commit();
 
-    Assert.assertTrue("write data path should be used when set",
+    Assert.assertTrue(
+        "write data path should be used when set",
         table.locationProvider().newDataLocation("file").contains(dataPath));
   }
 
   @Test
   public void testDefaultStorageLocationProviderPathResolution() {
-    table.updateProperties()
-        .set(TableProperties.OBJECT_STORE_ENABLED, "false")
-        .commit();
+    table.updateProperties().set(TableProperties.OBJECT_STORE_ENABLED, "false").commit();
 
-    Assert.assertTrue("default data location should be used when object storage path not set",
+    Assert.assertTrue(
+        "default data location should be used when object storage path not set",
         table.locationProvider().newDataLocation("file").contains(table.location() + "/data"));
 
     String folderPath = "s3://random/folder/location";
-    table.updateProperties()
+    table
+        .updateProperties()
         .set(TableProperties.WRITE_FOLDER_STORAGE_LOCATION, folderPath)
         .commit();
 
-    Assert.assertTrue("folder storage path should be used when set",
+    Assert.assertTrue(
+        "folder storage path should be used when set",
         table.locationProvider().newDataLocation("file").contains(folderPath));
 
     String dataPath = "s3://random/data/location";
-    table.updateProperties()
-        .set(TableProperties.WRITE_DATA_LOCATION, dataPath)
-        .commit();
+    table.updateProperties().set(TableProperties.WRITE_DATA_LOCATION, dataPath).commit();
 
-    Assert.assertTrue("write data path should be used when set",
+    Assert.assertTrue(
+        "write data path should be used when set",
         table.locationProvider().newDataLocation("file").contains(dataPath));
   }
 
   @Test
   public void testObjectStorageWithinTableLocation() {
-    table.updateProperties()
-        .set(TableProperties.OBJECT_STORE_ENABLED, "true")
-        .commit();
+    table.updateProperties().set(TableProperties.OBJECT_STORE_ENABLED, "true").commit();
 
     String fileLocation = table.locationProvider().newDataLocation("test.parquet");
     String relativeLocation = fileLocation.replaceFirst(table.location(), "");
@@ -289,6 +294,7 @@ public class TestLocationProvider extends TableTestBase {
     Assert.assertTrue("First part should be empty", parts.get(0).isEmpty());
     Assert.assertEquals("Second part should be data", "data", parts.get(1));
     Assert.assertFalse("Third part should be a hash value", parts.get(2).isEmpty());
-    Assert.assertEquals("Fourth part should be the file name passed in", "test.parquet", parts.get(3));
+    Assert.assertEquals(
+        "Fourth part should be the file name passed in", "test.parquet", parts.get(3));
   }
 }

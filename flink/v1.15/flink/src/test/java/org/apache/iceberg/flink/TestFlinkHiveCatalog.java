@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.flink;
 
 import java.io.File;
@@ -36,8 +35,7 @@ import org.junit.rules.TemporaryFolder;
 
 public class TestFlinkHiveCatalog extends FlinkTestBase {
 
-  @Rule
-  public TemporaryFolder tempFolder = new TemporaryFolder();
+  @Rule public TemporaryFolder tempFolder = new TemporaryFolder();
 
   @Test
   public void testCreateCatalogWithWarehouseLocation() throws IOException {
@@ -61,7 +59,8 @@ public class TestFlinkHiveCatalog extends FlinkTestBase {
     try (FileOutputStream fos = new FileOutputStream(hiveSiteXML)) {
       Configuration newConf = new Configuration(hiveConf);
       // Set another new directory which is different with the hive metastore's warehouse path.
-      newConf.set(HiveConf.ConfVars.METASTOREWAREHOUSE.varname, "file://" + warehouseDir.getAbsolutePath());
+      newConf.set(
+          HiveConf.ConfVars.METASTOREWAREHOUSE.varname, "file://" + warehouseDir.getAbsolutePath());
       newConf.writeXml(fos);
     }
     Assert.assertTrue("hive-site.xml should be created now.", Files.exists(hiveSiteXML.toPath()));
@@ -77,8 +76,11 @@ public class TestFlinkHiveCatalog extends FlinkTestBase {
     checkSQLQuery(props, warehouseDir);
   }
 
-  private void checkSQLQuery(Map<String, String> catalogProperties, File warehouseDir) throws IOException {
-    sql("CREATE CATALOG test_catalog WITH %s", FlinkCatalogTestBase.toWithClause(catalogProperties));
+  private void checkSQLQuery(Map<String, String> catalogProperties, File warehouseDir)
+      throws IOException {
+    sql(
+        "CREATE CATALOG test_catalog WITH %s",
+        FlinkCatalogTestBase.toWithClause(catalogProperties));
     sql("USE CATALOG test_catalog");
     sql("CREATE DATABASE test_db");
     sql("USE test_db");
@@ -93,7 +95,8 @@ public class TestFlinkHiveCatalog extends FlinkTestBase {
 
     Path dataPath = tablePath.resolve("data");
     Assert.assertTrue("Table data path should exist", Files.exists(dataPath));
-    Assert.assertEquals("Should have a .crc file and a .parquet file", 2, Files.list(dataPath).count());
+    Assert.assertEquals(
+        "Should have a .crc file and a .parquet file", 2, Files.list(dataPath).count());
 
     sql("DROP TABLE test_table");
     sql("DROP DATABASE test_db");

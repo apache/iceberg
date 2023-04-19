@@ -16,23 +16,17 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.types;
 
 import java.io.ObjectStreamException;
 import java.io.Serializable;
 
-/**
- * Replacement for primitive types in Java Serialization.
- */
+/** Replacement for primitive types in Java Serialization. */
 class PrimitiveHolder implements Serializable {
   private String typeAsString = null;
 
-  /**
-   * Constructor for Java serialization.
-   */
-  PrimitiveHolder() {
-  }
+  /** Constructor for Java serialization. */
+  PrimitiveHolder() {}
 
   PrimitiveHolder(String typeAsString) {
     this.typeAsString = typeAsString;

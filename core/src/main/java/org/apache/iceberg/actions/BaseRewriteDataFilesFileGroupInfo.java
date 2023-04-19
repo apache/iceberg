@@ -16,18 +16,23 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.actions;
 
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 
+/**
+ * @deprecated will be removed in 1.4.0; use {@link
+ *     ImmutableRewriteDataFiles.FileGroupInfo#builder()} instead.
+ */
+@Deprecated
 public class BaseRewriteDataFilesFileGroupInfo implements RewriteDataFiles.FileGroupInfo {
   private final int globalIndex;
   private final int partitionIndex;
   private final StructLike partition;
 
-  public BaseRewriteDataFilesFileGroupInfo(int globalIndex, int partitionIndex, StructLike partition) {
+  public BaseRewriteDataFilesFileGroupInfo(
+      int globalIndex, int partitionIndex, StructLike partition) {
     this.globalIndex = globalIndex;
     this.partitionIndex = partitionIndex;
     this.partition = partition;

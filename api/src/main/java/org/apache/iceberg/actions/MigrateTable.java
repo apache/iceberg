@@ -16,18 +16,17 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.actions;
 
 import java.util.Map;
+import org.immutables.value.Value;
 
-/**
- * An action that migrates an existing table to Iceberg.
- */
+/** An action that migrates an existing table to Iceberg. */
+@Value.Enclosing
 public interface MigrateTable extends Action<MigrateTable, MigrateTable.Result> {
   /**
-   * Sets table properties in the newly created Iceberg table. Any properties with
-   * the same key name will be overwritten.
+   * Sets table properties in the newly created Iceberg table. Any properties with the same key name
+   * will be overwritten.
    *
    * @param properties a map of properties to set
    * @return this for method chaining
@@ -35,8 +34,8 @@ public interface MigrateTable extends Action<MigrateTable, MigrateTable.Result> 
   MigrateTable tableProperties(Map<String, String> properties);
 
   /**
-   * Sets a table property in the newly created Iceberg table. Any properties
-   * with the same key will be overwritten.
+   * Sets a table property in the newly created Iceberg table. Any properties with the same key will
+   * be overwritten.
    *
    * @param name a table property name
    * @param value a table property value
@@ -45,12 +44,18 @@ public interface MigrateTable extends Action<MigrateTable, MigrateTable.Result> 
   MigrateTable tableProperty(String name, String value);
 
   /**
-   * The action result that contains a summary of the execution.
+   * Drops the backup of the original table after a successful migration
+   *
+   * @return this for method chaining
    */
+  default MigrateTable dropBackup() {
+    throw new UnsupportedOperationException("Dropping a backup is not supported");
+  }
+
+  /** The action result that contains a summary of the execution. */
+  @Value.Immutable
   interface Result {
-    /**
-     * Returns the number of migrated data files.
-     */
+    /** Returns the number of migrated data files. */
     long migratedDataFilesCount();
   }
 }

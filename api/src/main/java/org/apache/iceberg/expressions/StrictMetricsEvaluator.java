@@ -16,8 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.expressions;
+
+import static org.apache.iceberg.expressions.Expressions.rewriteNot;
 
 import java.nio.ByteBuffer;
 import java.util.Collection;
@@ -34,22 +35,20 @@ import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.NaNUtil;
 
-import static org.apache.iceberg.expressions.Expressions.rewriteNot;
-
 /**
  * Evaluates an {@link Expression} on a {@link DataFile} to test whether all rows in the file match.
- * <p>
- * This evaluation is strict: it returns true if all rows in a file must match the expression. For
- * example, if a file's ts column has min X and max Y, this evaluator will return true for ts &lt; Y+1
- * but not for ts &lt; Y-1.
- * <p>
- * Files are passed to {@link #eval(ContentFile)}, which returns true if all rows in the file must
- * contain matching rows and false if the file may contain rows that do not match.
- * <p>
- * Due to the comparison implementation of ORC stats, for float/double columns in ORC files, if the first
- * value in a file is NaN, metrics of this file will report NaN for both upper and lower bound despite
- * that the column could contain non-NaN data. Thus in some scenarios explicitly checks for NaN is necessary
- * in order to not include files that may contain rows that don't match.
+ *
+ * <p>This evaluation is strict: it returns true if all rows in a file must match the expression.
+ * For example, if a file's ts column has min X and max Y, this evaluator will return true for ts
+ * &lt; Y+1 but not for ts &lt; Y-1.
+ *
+ * <p>Files are passed to {@link #eval(ContentFile)}, which returns true if all rows in the file
+ * must contain matching rows and false if the file may contain rows that do not match.
+ *
+ * <p>Due to the comparison implementation of ORC stats, for float/double columns in ORC files, if
+ * the first value in a file is NaN, metrics of this file will report NaN for both upper and lower
+ * bound despite that the column could contain non-NaN data. Thus in some scenarios explicitly
+ * checks for NaN is necessary in order to not include files that may contain rows that don't match.
  */
 public class StrictMetricsEvaluator {
   private final Schema schema;
@@ -70,7 +69,8 @@ public class StrictMetricsEvaluator {
    * Test whether all records within the file match the expression.
    *
    * @param file a data file
-   * @return false if the file may contain any row that doesn't match the expression, true otherwise.
+   * @return false if the file may contain any row that doesn't match the expression, true
+   *     otherwise.
    */
   public boolean eval(ContentFile<?> file) {
     // TODO: detect the case where a column is missing from the file using file's max field id.
@@ -103,10 +103,14 @@ public class StrictMetricsEvaluator {
 
     @Override
     public <T> Boolean handleNonReference(Bound<T> term) {
-      // If the term in any expression is not a direct reference, assume that rows may not match. This happens when
-      // transforms or other expressions are passed to this evaluator. For example, bucket16(x) = 0 can't be determined
-      // because this visitor operates on data metrics and not partition values. It may be possible to un-transform
-      // expressions for order preserving transforms in the future, but this is not currently supported.
+      // If the term in any expression is not a direct reference, assume that rows may not match.
+      // This happens when
+      // transforms or other expressions are passed to this evaluator. For example, bucket16(x) = 0
+      // can't be determined
+      // because this visitor operates on data metrics and not partition values. It may be possible
+      // to un-transform
+      // expressions for order preserving transforms in the future, but this is not currently
+      // supported.
       return ROWS_MIGHT_NOT_MATCH;
     }
 
@@ -140,8 +144,8 @@ public class StrictMetricsEvaluator {
       // no need to check whether the field is required because binding evaluates that case
       // if the column has any non-null values, the expression does not match
       int id = ref.fieldId();
-      Preconditions.checkNotNull(struct.field(id),
-          "Cannot filter by nested column: %s", schema.findField(id));
+      Preconditions.checkNotNull(
+          struct.field(id), "Cannot filter by nested column: %s", schema.findField(id));
 
       if (containsNullsOnly(id)) {
         return ROWS_MUST_MATCH;
@@ -155,8 +159,8 @@ public class StrictMetricsEvaluator {
       // no need to check whether the field is required because binding evaluates that case
       // if the column has any null values, the expression does not match
       int id = ref.fieldId();
-      Preconditions.checkNotNull(struct.field(id),
-          "Cannot filter by nested column: %s", schema.findField(id));
+      Preconditions.checkNotNull(
+          struct.field(id), "Cannot filter by nested column: %s", schema.findField(id));
 
       if (nullCounts != null && nullCounts.containsKey(id) && nullCounts.get(id) == 0) {
         return ROWS_MUST_MATCH;
@@ -304,8 +308,10 @@ public class StrictMetricsEvaluator {
         return ROWS_MIGHT_NOT_MATCH;
       }
 
-      if (lowerBounds != null && lowerBounds.containsKey(id) &&
-          upperBounds != null && upperBounds.containsKey(id)) {
+      if (lowerBounds != null
+          && lowerBounds.containsKey(id)
+          && upperBounds != null
+          && upperBounds.containsKey(id)) {
         T lower = Conversions.fromByteBuffer(struct.field(id).type(), lowerBounds.get(id));
 
         int cmp = lit.comparator().compare(lower, lit.value());
@@ -373,8 +379,10 @@ public class StrictMetricsEvaluator {
         return ROWS_MIGHT_NOT_MATCH;
       }
 
-      if (lowerBounds != null && lowerBounds.containsKey(id) &&
-          upperBounds != null && upperBounds.containsKey(id)) {
+      if (lowerBounds != null
+          && lowerBounds.containsKey(id)
+          && upperBounds != null
+          && upperBounds.containsKey(id)) {
         // similar to the implementation in eq, first check if the lower bound is in the set
         T lower = Conversions.fromByteBuffer(struct.field(id).type(), lowerBounds.get(id));
         if (!literalSet.contains(lower)) {
@@ -392,7 +400,8 @@ public class StrictMetricsEvaluator {
           return ROWS_MIGHT_NOT_MATCH;
         }
 
-        // All values must be in the set if the lower bound and the upper bound are in the set and are equal.
+        // All values must be in the set if the lower bound and the upper bound are in the set and
+        // are equal.
         return ROWS_MUST_MATCH;
       }
 
@@ -419,16 +428,25 @@ public class StrictMetricsEvaluator {
           return ROWS_MIGHT_NOT_MATCH;
         }
 
-        literals = literals.stream().filter(v -> ref.comparator().compare(lower, v) <= 0).collect(Collectors.toList());
-        if (literals.isEmpty()) {  // if all values are less than lower bound, rows must match (notIn).
+        literals =
+            literals.stream()
+                .filter(v -> ref.comparator().compare(lower, v) <= 0)
+                .collect(Collectors.toList());
+        if (literals
+            .isEmpty()) { // if all values are less than lower bound, rows must match (notIn).
           return ROWS_MUST_MATCH;
         }
       }
 
       if (upperBounds != null && upperBounds.containsKey(id)) {
         T upper = Conversions.fromByteBuffer(field.type(), upperBounds.get(id));
-        literals = literals.stream().filter(v -> ref.comparator().compare(upper, v) >= 0).collect(Collectors.toList());
-        if (literals.isEmpty()) { // if all remaining values are greater than upper bound, rows must match (notIn).
+        literals =
+            literals.stream()
+                .filter(v -> ref.comparator().compare(upper, v) >= 0)
+                .collect(Collectors.toList());
+        if (literals
+            .isEmpty()) { // if all remaining values are greater than upper bound, rows must match
+          // (notIn).
           return ROWS_MUST_MATCH;
         }
       }
@@ -443,7 +461,8 @@ public class StrictMetricsEvaluator {
 
     @Override
     public <T> Boolean notStartsWith(BoundReference<T> ref, Literal<T> lit) {
-      // TODO: Handle cases that definitely cannot match, such as notStartsWith("x") when the bounds are ["a", "b"].
+      // TODO: Handle cases that definitely cannot match, such as notStartsWith("x") when the bounds
+      // are ["a", "b"].
       return ROWS_MIGHT_NOT_MATCH;
     }
 
@@ -457,14 +476,18 @@ public class StrictMetricsEvaluator {
     }
 
     private boolean containsNullsOnly(Integer id) {
-      return valueCounts != null && valueCounts.containsKey(id) &&
-          nullCounts != null && nullCounts.containsKey(id) &&
-          valueCounts.get(id) - nullCounts.get(id) == 0;
+      return valueCounts != null
+          && valueCounts.containsKey(id)
+          && nullCounts != null
+          && nullCounts.containsKey(id)
+          && valueCounts.get(id) - nullCounts.get(id) == 0;
     }
 
     private boolean containsNaNsOnly(Integer id) {
-      return nanCounts != null && nanCounts.containsKey(id) &&
-          valueCounts != null && nanCounts.get(id).equals(valueCounts.get(id));
+      return nanCounts != null
+          && nanCounts.containsKey(id)
+          && valueCounts != null
+          && nanCounts.get(id).equals(valueCounts.get(id));
     }
   }
 }

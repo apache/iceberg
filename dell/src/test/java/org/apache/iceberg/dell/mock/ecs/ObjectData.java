@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.dell.mock.ecs;
 
 import com.emc.object.Range;
@@ -28,9 +27,7 @@ import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-/**
- * Object data in memory.
- */
+/** Object data in memory. */
 public class ObjectData {
   public final byte[] content;
   public final Map<String, String> userMetadata;

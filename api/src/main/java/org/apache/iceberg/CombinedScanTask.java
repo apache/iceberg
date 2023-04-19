@@ -16,20 +16,23 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import java.util.Collection;
 
-/**
- * A scan task made of several ranges from files.
- */
-public interface CombinedScanTask extends ScanTask {
+/** A scan task made of several ranges from files. */
+public interface CombinedScanTask extends ScanTaskGroup<FileScanTask> {
   /**
    * Return the {@link FileScanTask tasks} in this combined task.
+   *
    * @return a Collection of FileScanTask instances.
    */
   Collection<FileScanTask> files();
+
+  @Override
+  default Collection<FileScanTask> tasks() {
+    return files();
+  }
 
   @Override
   default CombinedScanTask asCombinedScanTask() {

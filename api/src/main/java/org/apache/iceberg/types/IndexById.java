@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.types;
 
 import java.util.List;
@@ -28,7 +27,8 @@ class IndexById extends TypeUtil.SchemaVisitor<Map<Integer, Types.NestedField>> 
   private final Map<Integer, Types.NestedField> index = Maps.newHashMap();
 
   @Override
-  public Map<Integer, Types.NestedField> schema(Schema schema, Map<Integer, Types.NestedField> structResult) {
+  public Map<Integer, Types.NestedField> schema(
+      Schema schema, Map<Integer, Types.NestedField> structResult) {
     return index;
   }
 
@@ -46,7 +46,8 @@ class IndexById extends TypeUtil.SchemaVisitor<Map<Integer, Types.NestedField>> 
   }
 
   @Override
-  public Map<Integer, Types.NestedField> list(Types.ListType list, Map<Integer, Types.NestedField> elementResult) {
+  public Map<Integer, Types.NestedField> list(
+      Types.ListType list, Map<Integer, Types.NestedField> elementResult) {
     for (Types.NestedField field : list.fields()) {
       index.put(field.fieldId(), field);
     }
@@ -55,7 +56,9 @@ class IndexById extends TypeUtil.SchemaVisitor<Map<Integer, Types.NestedField>> 
 
   @Override
   public Map<Integer, Types.NestedField> map(
-      Types.MapType map, Map<Integer, Types.NestedField> keyResult, Map<Integer, Types.NestedField> valueResult) {
+      Types.MapType map,
+      Map<Integer, Types.NestedField> keyResult,
+      Map<Integer, Types.NestedField> valueResult) {
     for (Types.NestedField field : map.fields()) {
       index.put(field.fieldId(), field);
     }

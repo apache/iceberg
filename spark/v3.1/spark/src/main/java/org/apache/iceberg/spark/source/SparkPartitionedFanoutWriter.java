@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.source;
 
 import org.apache.iceberg.FileFormat;
@@ -34,10 +33,15 @@ public class SparkPartitionedFanoutWriter extends PartitionedFanoutWriter<Intern
   private final PartitionKey partitionKey;
   private final InternalRowWrapper internalRowWrapper;
 
-  public SparkPartitionedFanoutWriter(PartitionSpec spec, FileFormat format,
+  public SparkPartitionedFanoutWriter(
+      PartitionSpec spec,
+      FileFormat format,
       FileAppenderFactory<InternalRow> appenderFactory,
-      OutputFileFactory fileFactory, FileIO io, long targetFileSize,
-      Schema schema, StructType sparkSchema) {
+      OutputFileFactory fileFactory,
+      FileIO io,
+      long targetFileSize,
+      Schema schema,
+      StructType sparkSchema) {
     super(spec, format, appenderFactory, fileFactory, io, targetFileSize);
     this.partitionKey = new PartitionKey(spec, schema);
     this.internalRowWrapper = new InternalRowWrapper(sparkSchema);

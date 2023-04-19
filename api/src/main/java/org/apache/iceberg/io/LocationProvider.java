@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.io;
 
 import java.io.Serializable;
@@ -25,8 +24,8 @@ import org.apache.iceberg.StructLike;
 
 /**
  * Interface for providing data file locations to write tasks.
- * <p>
- * Implementations must be {@link Serializable} because instances will be serialized to tasks.
+ *
+ * <p>Implementations must be {@link Serializable} because instances will be serialized to tasks.
  */
 public interface LocationProvider extends Serializable {
   /**

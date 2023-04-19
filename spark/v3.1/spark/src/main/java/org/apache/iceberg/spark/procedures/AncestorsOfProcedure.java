@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.procedures;
 
 import java.util.List;
@@ -35,15 +34,18 @@ import org.apache.spark.sql.types.StructType;
 
 public class AncestorsOfProcedure extends BaseProcedure {
 
-  private static final ProcedureParameter[] PARAMETERS = new ProcedureParameter[] {
-      ProcedureParameter.required("table", DataTypes.StringType),
-      ProcedureParameter.optional("snapshot_id", DataTypes.LongType),
+  private static final ProcedureParameter[] PARAMETERS =
+      new ProcedureParameter[] {
+        ProcedureParameter.required("table", DataTypes.StringType),
+        ProcedureParameter.optional("snapshot_id", DataTypes.LongType),
       };
 
-  private static final StructType OUTPUT_TYPE = new StructType(new StructField[] {
-      new StructField("snapshot_id", DataTypes.LongType, true, Metadata.empty()),
-      new StructField("timestamp", DataTypes.LongType, true, Metadata.empty())
-  });
+  private static final StructType OUTPUT_TYPE =
+      new StructType(
+          new StructField[] {
+            new StructField("snapshot_id", DataTypes.LongType, true, Metadata.empty()),
+            new StructField("timestamp", DataTypes.LongType, true, Metadata.empty())
+          });
 
   private AncestorsOfProcedure(TableCatalog tableCatalog) {
     super(tableCatalog);
@@ -77,11 +79,13 @@ public class AncestorsOfProcedure extends BaseProcedure {
     Table icebergTable = sparkTable.table();
 
     if (toSnapshotId == null) {
-      toSnapshotId = icebergTable.currentSnapshot() != null ? icebergTable.currentSnapshot().snapshotId() : -1;
+      toSnapshotId =
+          icebergTable.currentSnapshot() != null ? icebergTable.currentSnapshot().snapshotId() : -1;
     }
 
-    List<Long> snapshotIds = Lists.newArrayList(
-        SnapshotUtil.ancestorIdsBetween(toSnapshotId, null, icebergTable::snapshot));
+    List<Long> snapshotIds =
+        Lists.newArrayList(
+            SnapshotUtil.ancestorIdsBetween(toSnapshotId, null, icebergTable::snapshot));
 
     return toOutputRow(icebergTable, snapshotIds);
   }

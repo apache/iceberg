@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import org.junit.Assert;
@@ -49,8 +48,10 @@ public class TestFormatVersions extends TableTestBase {
 
     Assert.assertEquals("Should report v2", 2, ops.current().formatVersion());
 
-    AssertHelpers.assertThrows("Should reject a version downgrade",
-        IllegalArgumentException.class, "Cannot downgrade",
+    AssertHelpers.assertThrows(
+        "Should reject a version downgrade",
+        IllegalArgumentException.class,
+        "Cannot downgrade",
         () -> ops.current().upgradeToFormatVersion(1));
 
     Assert.assertEquals("Should report v2", 2, ops.current().formatVersion());
@@ -60,9 +61,14 @@ public class TestFormatVersions extends TableTestBase {
   public void testFormatVersionUpgradeNotSupported() {
     TableOperations ops = table.ops();
     TableMetadata base = ops.current();
-    AssertHelpers.assertThrows("Should reject an unsupported version upgrade",
-        IllegalArgumentException.class, "Cannot upgrade table to unsupported format version",
-        () -> ops.commit(base, base.upgradeToFormatVersion(TableMetadata.SUPPORTED_TABLE_FORMAT_VERSION + 1)));
+    AssertHelpers.assertThrows(
+        "Should reject an unsupported version upgrade",
+        IllegalArgumentException.class,
+        "Cannot upgrade table to unsupported format version",
+        () ->
+            ops.commit(
+                base,
+                base.upgradeToFormatVersion(TableMetadata.SUPPORTED_TABLE_FORMAT_VERSION + 1)));
 
     Assert.assertEquals("Should report v1", 1, ops.current().formatVersion());
   }

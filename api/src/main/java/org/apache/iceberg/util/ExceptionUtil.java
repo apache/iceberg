@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.util;
 
 import org.slf4j.Logger;
@@ -25,8 +24,7 @@ import org.slf4j.LoggerFactory;
 public class ExceptionUtil {
   private static final Logger LOG = LoggerFactory.getLogger(ExceptionUtil.class);
 
-  private ExceptionUtil() {
-  }
+  private ExceptionUtil() {}
 
   @SuppressWarnings("unchecked")
   public static <E extends Exception> void castAndThrow(
@@ -57,16 +55,23 @@ public class ExceptionUtil {
       Block<R, RuntimeException, RuntimeException, RuntimeException> block,
       CatchBlock catchBlock,
       FinallyBlock finallyBlock) {
-    return runSafely(block, catchBlock, finallyBlock,
-        RuntimeException.class, RuntimeException.class, RuntimeException.class);
+    return runSafely(
+        block,
+        catchBlock,
+        finallyBlock,
+        RuntimeException.class,
+        RuntimeException.class,
+        RuntimeException.class);
   }
 
   public static <R, E1 extends Exception> R runSafely(
       Block<R, E1, RuntimeException, RuntimeException> block,
       CatchBlock catchBlock,
       FinallyBlock finallyBlock,
-      Class<? extends E1> e1Class) throws E1 {
-    return runSafely(block, catchBlock, finallyBlock, e1Class, RuntimeException.class, RuntimeException.class);
+      Class<? extends E1> e1Class)
+      throws E1 {
+    return runSafely(
+        block, catchBlock, finallyBlock, e1Class, RuntimeException.class, RuntimeException.class);
   }
 
   public static <R, E1 extends Exception, E2 extends Exception> R runSafely(
@@ -74,17 +79,20 @@ public class ExceptionUtil {
       CatchBlock catchBlock,
       FinallyBlock finallyBlock,
       Class<? extends E1> e1Class,
-      Class<? extends E2> e2Class) throws E1, E2 {
+      Class<? extends E2> e2Class)
+      throws E1, E2 {
     return runSafely(block, catchBlock, finallyBlock, e1Class, e2Class, RuntimeException.class);
   }
 
+  @SuppressWarnings("Finally")
   public static <R, E1 extends Exception, E2 extends Exception, E3 extends Exception> R runSafely(
       Block<R, E1, E2, E3> block,
       CatchBlock catchBlock,
       FinallyBlock finallyBlock,
       Class<? extends E1> e1Class,
       Class<? extends E2> e2Class,
-      Class<? extends E3> e3Class) throws E1, E2, E3 {
+      Class<? extends E3> e3Class)
+      throws E1, E2, E3 {
 
     Throwable failure = null;
     try {
@@ -113,22 +121,23 @@ public class ExceptionUtil {
         try {
           finallyBlock.run();
         } catch (Exception e) {
-          LOG.warn("Suppressing failure in finally block", e);
           if (failure != null) {
+            LOG.warn("Suppressing failure in finally block", e);
             failure.addSuppressed(e);
           } else {
             tryThrowAs(e, e1Class);
             tryThrowAs(e, e2Class);
             tryThrowAs(e, e3Class);
             tryThrowAs(e, RuntimeException.class);
-            throw new RuntimeException("Unknown exception in finally block", failure);
+            throw new RuntimeException("Unknown exception in finally block", e);
           }
         }
       }
     }
   }
 
-  private static <E extends Exception> void tryThrowAs(Throwable failure, Class<E> excClass) throws E {
+  private static <E extends Exception> void tryThrowAs(Throwable failure, Class<E> excClass)
+      throws E {
     if (excClass.isInstance(failure)) {
       throw excClass.cast(failure);
     }

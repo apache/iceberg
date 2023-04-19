@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.aws.s3;
 
 import java.util.Locale;
@@ -34,35 +33,65 @@ import software.amazon.awssdk.services.s3.model.UploadPartRequest;
 @SuppressWarnings("UnnecessaryLambda")
 public class S3RequestUtil {
 
-  private static final Function<ServerSideEncryption, S3Request.Builder> NULL_SSE_SETTER = sse -> null;
+  private static final Function<ServerSideEncryption, S3Request.Builder> NULL_SSE_SETTER =
+      sse -> null;
   private static final Function<String, S3Request.Builder> NULL_STRING_SETTER = s -> null;
 
-  private S3RequestUtil() {
+  private S3RequestUtil() {}
+
+  static void configureEncryption(
+      AwsProperties awsProperties, PutObjectRequest.Builder requestBuilder) {
+    configureEncryption(
+        awsProperties,
+        requestBuilder::serverSideEncryption,
+        requestBuilder::ssekmsKeyId,
+        requestBuilder::sseCustomerAlgorithm,
+        requestBuilder::sseCustomerKey,
+        requestBuilder::sseCustomerKeyMD5);
   }
 
-  static void configureEncryption(AwsProperties awsProperties, PutObjectRequest.Builder requestBuilder) {
-    configureEncryption(awsProperties, requestBuilder::serverSideEncryption, requestBuilder::ssekmsKeyId,
-        requestBuilder::sseCustomerAlgorithm, requestBuilder::sseCustomerKey, requestBuilder::sseCustomerKeyMD5);
+  static void configureEncryption(
+      AwsProperties awsProperties, CreateMultipartUploadRequest.Builder requestBuilder) {
+    configureEncryption(
+        awsProperties,
+        requestBuilder::serverSideEncryption,
+        requestBuilder::ssekmsKeyId,
+        requestBuilder::sseCustomerAlgorithm,
+        requestBuilder::sseCustomerKey,
+        requestBuilder::sseCustomerKeyMD5);
   }
 
-  static void configureEncryption(AwsProperties awsProperties, CreateMultipartUploadRequest.Builder requestBuilder) {
-    configureEncryption(awsProperties, requestBuilder::serverSideEncryption, requestBuilder::ssekmsKeyId,
-        requestBuilder::sseCustomerAlgorithm, requestBuilder::sseCustomerKey, requestBuilder::sseCustomerKeyMD5);
+  static void configureEncryption(
+      AwsProperties awsProperties, UploadPartRequest.Builder requestBuilder) {
+    configureEncryption(
+        awsProperties,
+        NULL_SSE_SETTER,
+        NULL_STRING_SETTER,
+        requestBuilder::sseCustomerAlgorithm,
+        requestBuilder::sseCustomerKey,
+        requestBuilder::sseCustomerKeyMD5);
   }
 
-  static void configureEncryption(AwsProperties awsProperties, UploadPartRequest.Builder requestBuilder) {
-    configureEncryption(awsProperties, NULL_SSE_SETTER, NULL_STRING_SETTER,
-        requestBuilder::sseCustomerAlgorithm, requestBuilder::sseCustomerKey, requestBuilder::sseCustomerKeyMD5);
+  static void configureEncryption(
+      AwsProperties awsProperties, GetObjectRequest.Builder requestBuilder) {
+    configureEncryption(
+        awsProperties,
+        NULL_SSE_SETTER,
+        NULL_STRING_SETTER,
+        requestBuilder::sseCustomerAlgorithm,
+        requestBuilder::sseCustomerKey,
+        requestBuilder::sseCustomerKeyMD5);
   }
 
-  static void configureEncryption(AwsProperties awsProperties, GetObjectRequest.Builder requestBuilder) {
-    configureEncryption(awsProperties, NULL_SSE_SETTER, NULL_STRING_SETTER,
-        requestBuilder::sseCustomerAlgorithm, requestBuilder::sseCustomerKey, requestBuilder::sseCustomerKeyMD5);
-  }
-
-  static void configureEncryption(AwsProperties awsProperties, HeadObjectRequest.Builder requestBuilder) {
-    configureEncryption(awsProperties, NULL_SSE_SETTER, NULL_STRING_SETTER,
-        requestBuilder::sseCustomerAlgorithm, requestBuilder::sseCustomerKey, requestBuilder::sseCustomerKeyMD5);
+  static void configureEncryption(
+      AwsProperties awsProperties, HeadObjectRequest.Builder requestBuilder) {
+    configureEncryption(
+        awsProperties,
+        NULL_SSE_SETTER,
+        NULL_STRING_SETTER,
+        requestBuilder::sseCustomerAlgorithm,
+        requestBuilder::sseCustomerKey,
+        requestBuilder::sseCustomerKeyMD5);
   }
 
   @SuppressWarnings("ReturnValueIgnored")
@@ -100,18 +129,19 @@ public class S3RequestUtil {
     }
   }
 
-  static void configurePermission(AwsProperties awsProperties, PutObjectRequest.Builder requestBuilder) {
+  static void configurePermission(
+      AwsProperties awsProperties, PutObjectRequest.Builder requestBuilder) {
     configurePermission(awsProperties, requestBuilder::acl);
   }
 
-  static void configurePermission(AwsProperties awsProperties, CreateMultipartUploadRequest.Builder requestBuilder) {
+  static void configurePermission(
+      AwsProperties awsProperties, CreateMultipartUploadRequest.Builder requestBuilder) {
     configurePermission(awsProperties, requestBuilder::acl);
   }
 
   @SuppressWarnings("ReturnValueIgnored")
   static void configurePermission(
-      AwsProperties awsProperties,
-      Function<ObjectCannedACL, S3Request.Builder> aclSetter) {
+      AwsProperties awsProperties, Function<ObjectCannedACL, S3Request.Builder> aclSetter) {
     aclSetter.apply(awsProperties.s3FileIoAcl());
   }
 }

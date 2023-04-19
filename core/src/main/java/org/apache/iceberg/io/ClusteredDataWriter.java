@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.io;
 
 import java.util.List;
@@ -26,8 +25,8 @@ import org.apache.iceberg.StructLike;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 /**
- * A data writer capable of writing to multiple specs and partitions that requires the incoming records
- * to be properly clustered by partition spec and by partition within each spec.
+ * A data writer capable of writing to multiple specs and partitions that requires the incoming
+ * records to be properly clustered by partition spec and by partition within each spec.
  */
 public class ClusteredDataWriter<T> extends ClusteredWriter<T, DataWriteResult> {
 
@@ -37,8 +36,11 @@ public class ClusteredDataWriter<T> extends ClusteredWriter<T, DataWriteResult> 
   private final long targetFileSizeInBytes;
   private final List<DataFile> dataFiles;
 
-  public ClusteredDataWriter(FileWriterFactory<T> writerFactory, OutputFileFactory fileFactory,
-                             FileIO io, long targetFileSizeInBytes) {
+  public ClusteredDataWriter(
+      FileWriterFactory<T> writerFactory,
+      OutputFileFactory fileFactory,
+      FileIO io,
+      long targetFileSizeInBytes) {
     this.writerFactory = writerFactory;
     this.fileFactory = fileFactory;
     this.io = io;
@@ -48,7 +50,8 @@ public class ClusteredDataWriter<T> extends ClusteredWriter<T, DataWriteResult> 
 
   @Override
   protected FileWriter<T, DataWriteResult> newWriter(PartitionSpec spec, StructLike partition) {
-    return new RollingDataWriter<>(writerFactory, fileFactory, io, targetFileSizeInBytes, spec, partition);
+    return new RollingDataWriter<>(
+        writerFactory, fileFactory, io, targetFileSizeInBytes, spec, partition);
   }
 
   @Override

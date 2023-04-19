@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.avro;
 
 import org.apache.avro.LogicalType;
@@ -38,9 +37,13 @@ public class LogicalMap extends LogicalType {
   @Override
   public void validate(Schema schema) {
     super.validate(schema);
-    Preconditions.checkArgument(schema.getType() == Schema.Type.ARRAY,
-        "Invalid type for map, must be an array: %s", schema);
-    Preconditions.checkArgument(AvroSchemaUtil.isKeyValueSchema(schema.getElementType()),
-        "Invalid key-value record: %s", schema.getElementType());
+    Preconditions.checkArgument(
+        schema.getType() == Schema.Type.ARRAY,
+        "Invalid type for map, must be an array: %s",
+        schema);
+    Preconditions.checkArgument(
+        AvroSchemaUtil.isKeyValueSchema(schema.getElementType()),
+        "Invalid key-value record: %s",
+        schema.getElementType());
   }
 }

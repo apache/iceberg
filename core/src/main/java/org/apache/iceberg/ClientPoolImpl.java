@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import java.io.Closeable;
@@ -26,7 +25,8 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public abstract class ClientPoolImpl<C, E extends Exception> implements Closeable, ClientPool<C, E> {
+public abstract class ClientPoolImpl<C, E extends Exception>
+    implements Closeable, ClientPool<C, E> {
   private static final Logger LOG = LoggerFactory.getLogger(ClientPoolImpl.class);
 
   private final int poolSize;

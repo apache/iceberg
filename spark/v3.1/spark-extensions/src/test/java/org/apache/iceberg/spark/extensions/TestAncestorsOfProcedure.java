@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.extensions;
 
 import java.util.List;
@@ -30,7 +29,8 @@ import org.junit.Test;
 
 public class TestAncestorsOfProcedure extends SparkExtensionsTestBase {
 
-  public TestAncestorsOfProcedure(String catalogName, String implementation, Map<String, String> config) {
+  public TestAncestorsOfProcedure(
+      String catalogName, String implementation, Map<String, String> config) {
     super(catalogName, implementation, config);
   }
 
@@ -51,14 +51,12 @@ public class TestAncestorsOfProcedure extends SparkExtensionsTestBase {
     Long preSnapshotId = table.currentSnapshot().parentId();
     Long preTimeStamp = table.snapshot(table.currentSnapshot().parentId()).timestampMillis();
 
-    List<Object[]> output = sql("CALL %s.system.ancestors_of('%s')",
-        catalogName, tableIdent);
+    List<Object[]> output = sql("CALL %s.system.ancestors_of('%s')", catalogName, tableIdent);
 
     assertEquals(
         "Procedure output must match",
         ImmutableList.of(
-            row(currentSnapshotId, currentTimestamp),
-            row(preSnapshotId, preTimeStamp)),
+            row(currentSnapshotId, currentTimestamp), row(preSnapshotId, preTimeStamp)),
         output);
   }
 
@@ -77,8 +75,7 @@ public class TestAncestorsOfProcedure extends SparkExtensionsTestBase {
     assertEquals(
         "Procedure output must match",
         ImmutableList.of(
-            row(currentSnapshotId, currentTimestamp),
-            row(preSnapshotId, preTimeStamp)),
+            row(currentSnapshotId, currentTimestamp), row(preSnapshotId, preTimeStamp)),
         sql("CALL %s.system.ancestors_of('%s', %dL)", catalogName, tableIdent, currentSnapshotId));
 
     assertEquals(
@@ -105,7 +102,8 @@ public class TestAncestorsOfProcedure extends SparkExtensionsTestBase {
     Long thirdTimestamp = table.currentSnapshot().timestampMillis();
 
     // roll back
-    sql("CALL %s.system.rollback_to_snapshot('%s', %dL)",
+    sql(
+        "CALL %s.system.rollback_to_snapshot('%s', %dL)",
         catalogName, tableIdent, secondSnapshotId);
 
     sql("INSERT INTO TABLE %s VALUES (4, 'd')", tableName);
@@ -142,22 +140,29 @@ public class TestAncestorsOfProcedure extends SparkExtensionsTestBase {
     assertEquals(
         "Procedure output must match",
         ImmutableList.of(row(firstSnapshotId, firstTimestamp)),
-        sql("CALL %s.system.ancestors_of(snapshot_id => %dL, table => '%s')",
+        sql(
+            "CALL %s.system.ancestors_of(snapshot_id => %dL, table => '%s')",
             catalogName, firstSnapshotId, tableIdent));
   }
 
   @Test
   public void testInvalidAncestorOfCases() {
-    AssertHelpers.assertThrows("Should reject calls without all required args",
-        AnalysisException.class, "Missing required parameters",
+    AssertHelpers.assertThrows(
+        "Should reject calls without all required args",
+        AnalysisException.class,
+        "Missing required parameters",
         () -> sql("CALL %s.system.ancestors_of()", catalogName));
 
-    AssertHelpers.assertThrows("Should reject calls with empty table identifier",
-        IllegalArgumentException.class, "Cannot handle an empty identifier for argument table",
+    AssertHelpers.assertThrows(
+        "Should reject calls with empty table identifier",
+        IllegalArgumentException.class,
+        "Cannot handle an empty identifier for argument table",
         () -> sql("CALL %s.system.ancestors_of('')", catalogName));
 
-    AssertHelpers.assertThrows("Should reject calls with invalid arg types",
-        AnalysisException.class, "Wrong arg type for snapshot_id: cannot cast",
+    AssertHelpers.assertThrows(
+        "Should reject calls with invalid arg types",
+        AnalysisException.class,
+        "Wrong arg type for snapshot_id: cannot cast",
         () -> sql("CALL %s.system.ancestors_of('%s', 1.1)", catalogName, tableIdent));
   }
 }

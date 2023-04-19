@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.source;
 
 import java.util.List;
@@ -55,16 +54,18 @@ class SparkFilesScan extends SparkScan {
     if (tasks == null) {
       FileScanTaskSetManager taskSetManager = FileScanTaskSetManager.get();
       List<FileScanTask> files = taskSetManager.fetchTasks(table(), taskSetID);
-      ValidationException.check(files != null,
+      ValidationException.check(
+          files != null,
           "Task set manager has no tasks for table %s with id %s",
-          table(), taskSetID);
+          table(),
+          taskSetID);
 
-      CloseableIterable<FileScanTask> splitFiles = TableScanUtil.splitFiles(
-          CloseableIterable.withNoopClose(files),
-          splitSize);
-      CloseableIterable<CombinedScanTask> scanTasks = TableScanUtil.planTasks(
-          splitFiles, splitSize,
-          splitLookback, splitOpenFileCost);
+      CloseableIterable<FileScanTask> splitFiles =
+          TableScanUtil.splitFiles(CloseableIterable.withNoopClose(files), splitSize);
+      CloseableIterable<CombinedScanTask> scanTasks =
+          TableScanUtil.planTasks(
+              splitFiles, splitSize,
+              splitLookback, splitOpenFileCost);
       this.tasks = Lists.newArrayList(scanTasks);
     }
 
@@ -82,11 +83,11 @@ class SparkFilesScan extends SparkScan {
     }
 
     SparkFilesScan that = (SparkFilesScan) other;
-    return table().name().equals(that.table().name()) &&
-        Objects.equals(taskSetID, that.taskSetID) &&
-        Objects.equals(splitSize, that.splitSize) &&
-        Objects.equals(splitLookback, that.splitLookback) &&
-        Objects.equals(splitOpenFileCost, that.splitOpenFileCost);
+    return table().name().equals(that.table().name())
+        && Objects.equals(taskSetID, that.taskSetID)
+        && Objects.equals(splitSize, that.splitSize)
+        && Objects.equals(splitLookback, that.splitLookback)
+        && Objects.equals(splitOpenFileCost, that.splitOpenFileCost);
   }
 
   @Override

@@ -16,38 +16,36 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.encryption;
 
 import java.nio.ByteBuffer;
 
 /**
- * Light typedef over a ByteBuffer that indicates that the given bytes represent metadata about
- * an encrypted data file's encryption key.
- * <p>
- * This is preferred over passing a ByteBuffer directly in order to be more explicit.
+ * Light typedef over a ByteBuffer that indicates that the given bytes represent metadata about an
+ * encrypted data file's encryption key.
+ *
+ * <p>This is preferred over passing a ByteBuffer directly in order to be more explicit.
  */
 public interface EncryptionKeyMetadata {
 
-  EncryptionKeyMetadata EMPTY = new EncryptionKeyMetadata() {
-    @Override
-    public ByteBuffer buffer() {
-      return null;
-    }
+  EncryptionKeyMetadata EMPTY =
+      new EncryptionKeyMetadata() {
+        @Override
+        public ByteBuffer buffer() {
+          return null;
+        }
 
-    @Override
-    public EncryptionKeyMetadata copy() {
-      return this;
-    }
-  };
+        @Override
+        public EncryptionKeyMetadata copy() {
+          return this;
+        }
+      };
 
   static EncryptionKeyMetadata empty() {
     return EMPTY;
   }
 
-  /**
-   * Opaque blob representing metadata about a file's encryption key.
-   */
+  /** Opaque blob representing metadata about a file's encryption key. */
   ByteBuffer buffer();
 
   EncryptionKeyMetadata copy();

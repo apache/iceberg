@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.parquet;
 
 import java.util.Map;
@@ -44,7 +43,11 @@ class ParquetReadSupport<T> extends ReadSupport<T> {
   private final boolean callInit;
   private final NameMapping nameMapping;
 
-  ParquetReadSupport(Schema expectedSchema, ReadSupport<T> readSupport, boolean callInit, NameMapping nameMapping) {
+  ParquetReadSupport(
+      Schema expectedSchema,
+      ReadSupport<T> readSupport,
+      boolean callInit,
+      NameMapping nameMapping) {
     this.expectedSchema = expectedSchema;
     this.wrapped = readSupport;
     this.callInit = callInit;
@@ -53,7 +56,8 @@ class ParquetReadSupport<T> extends ReadSupport<T> {
 
   @Override
   @SuppressWarnings("deprecation")
-  public ReadContext init(Configuration configuration, Map<String, String> keyValueMetaData, MessageType fileSchema) {
+  public ReadContext init(
+      Configuration configuration, Map<String, String> keyValueMetaData, MessageType fileSchema) {
     // Columns are selected from the Parquet file by taking the read context's message type and
     // matching to the file's columns by full path, so this must select columns by using the path
     // in the file's schema.
@@ -74,11 +78,13 @@ class ParquetReadSupport<T> extends ReadSupport<T> {
     configuration.set("parquet.avro.write-old-list-structure", "false");
 
     // set Avro schemas in case the reader is Avro
-    AvroReadSupport.setRequestedProjection(configuration,
-        AvroSchemaUtil.convert(expectedSchema, projection.getName()));
-    org.apache.avro.Schema avroReadSchema = AvroSchemaUtil.buildAvroProjection(
-        AvroSchemaUtil.convert(ParquetSchemaUtil.convert(projection), projection.getName()),
-        expectedSchema, ImmutableMap.of());
+    AvroReadSupport.setRequestedProjection(
+        configuration, AvroSchemaUtil.convert(expectedSchema, projection.getName()));
+    org.apache.avro.Schema avroReadSchema =
+        AvroSchemaUtil.buildAvroProjection(
+            AvroSchemaUtil.convert(ParquetSchemaUtil.convert(projection), projection.getName()),
+            expectedSchema,
+            ImmutableMap.of());
     AvroReadSupport.setAvroReadSchema(configuration, ParquetAvro.parquetAvroSchema(avroReadSchema));
 
     // let the context set up read support metadata, but always use the correct projection
@@ -88,20 +94,22 @@ class ParquetReadSupport<T> extends ReadSupport<T> {
         context = wrapped.init(configuration, keyValueMetaData, projection);
       } catch (UnsupportedOperationException e) {
         // try the InitContext version
-        context = wrapped.init(new InitContext(
-            configuration, makeMultimap(keyValueMetaData), projection));
+        context =
+            wrapped.init(
+                new InitContext(configuration, makeMultimap(keyValueMetaData), projection));
       }
     }
 
-    return new ReadContext(projection,
-        context != null ? context.getReadSupportMetadata() : ImmutableMap.of());
+    return new ReadContext(
+        projection, context != null ? context.getReadSupportMetadata() : ImmutableMap.of());
   }
 
   @Override
-  public RecordMaterializer<T> prepareForRead(Configuration configuration,
-                                              Map<String, String> fileMetadata,
-                                              MessageType fileMessageType,
-                                              ReadContext readContext) {
+  public RecordMaterializer<T> prepareForRead(
+      Configuration configuration,
+      Map<String, String> fileMetadata,
+      MessageType fileMessageType,
+      ReadContext readContext) {
     // This is the type created in init that was based on the file's schema. The schema that this
     // will pass to the wrapped ReadSupport needs to match the expected schema's names. Rather than
     // renaming the file's schema, convert the expected schema to Parquet. This relies on writing

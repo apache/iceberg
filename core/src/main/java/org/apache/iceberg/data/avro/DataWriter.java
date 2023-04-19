@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.data.avro;
 
 import java.io.IOException;
@@ -74,10 +73,12 @@ public class DataWriter<T> implements MetricsAwareDatumWriter<T> {
 
     @Override
     public ValueWriter<?> union(Schema union, List<ValueWriter<?>> options) {
-      Preconditions.checkArgument(options.contains(ValueWriters.nulls()),
-          "Cannot create writer for non-option union: %s", union);
-      Preconditions.checkArgument(options.size() == 2,
-          "Cannot create writer for non-option union: %s", union);
+      Preconditions.checkArgument(
+          options.contains(ValueWriters.nulls()),
+          "Cannot create writer for non-option union: %s",
+          union);
+      Preconditions.checkArgument(
+          options.size() == 2, "Cannot create writer for non-option union: %s", union);
       if (union.getTypes().get(0).getType() == Schema.Type.NULL) {
         return ValueWriters.option(0, options.get(1));
       } else {

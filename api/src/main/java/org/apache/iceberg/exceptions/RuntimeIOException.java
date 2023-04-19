@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.exceptions;
 
 import com.google.errorprone.annotations.FormatMethod;
@@ -25,8 +24,7 @@ import java.io.UncheckedIOException;
 
 /**
  * @deprecated Use java.io.UncheckedIOException directly instead.
- *
- * Exception used to wrap {@link IOException} as a {@link RuntimeException} and add context.
+ *     <p>Exception used to wrap {@link IOException} as a {@link RuntimeException} and add context.
  */
 @Deprecated
 public class RuntimeIOException extends UncheckedIOException {
@@ -41,7 +39,7 @@ public class RuntimeIOException extends UncheckedIOException {
   }
 
   @FormatMethod
-  public RuntimeIOException(String message, Object...args) {
+  public RuntimeIOException(String message, Object... args) {
     super(new IOException(String.format(message, args)));
   }
 }
