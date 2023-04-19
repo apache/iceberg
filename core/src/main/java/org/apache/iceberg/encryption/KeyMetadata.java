@@ -23,31 +23,35 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.Map;
 import org.apache.avro.generic.IndexedRecord;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.avro.AvroSchemaUtil;
-import org.apache.iceberg.data.GenericRecord;
-import org.apache.iceberg.data.Record;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types;
 
-public class KeyMetadata implements EncryptionKeyMetadata, IndexedRecord {
-  private static final ThreadLocal<KeyMetadataEncoder<Record>> ENCODER = new ThreadLocal<>();
-  private static final ThreadLocal<KeyMetadataDecoder<Record>> DECODER = new ThreadLocal<>();
-
+class KeyMetadata implements EncryptionKeyMetadata, IndexedRecord {
   private static final String encryptionKeyField = "encryption_key";
   private static final String wrappingKeyIdField = "wrapping_key_id";
   private static final String aadPrefixField = "aad_prefix";
-
-  static final byte V1 = 1;
+  private static final byte V1 = 1;
   private static final Schema SCHEMA_V1 =
       new Schema(
           required(0, encryptionKeyField, Types.BinaryType.get()),
           optional(1, wrappingKeyIdField, Types.StringType.get()),
           optional(2, aadPrefixField, Types.BinaryType.get()));
+  private static final ThreadLocal<KeyMetadataEncoder<IndexedRecord>> ENCODER =
+      ThreadLocal.withInitial(() -> new KeyMetadataEncoder<>(V1));
+  private static final ThreadLocal<KeyMetadataDecoder<IndexedRecord>> DECODER =
+      ThreadLocal.withInitial(() -> new KeyMetadataDecoder<>(V1));
+
+  static final Map<Byte, Schema> supportedSchemaVersions = ImmutableMap.of(V1, SCHEMA_V1);
 
   private String wrappingKeyId;
   private ByteBuffer encryptionKey;
   private ByteBuffer aadPrefix;
+
+  KeyMetadata() {}
 
   KeyMetadata(ByteBuffer encryptionKey, String wrappingKeyId, ByteBuffer aadPrefix) {
     this.wrappingKeyId = wrappingKeyId;
@@ -55,30 +59,22 @@ public class KeyMetadata implements EncryptionKeyMetadata, IndexedRecord {
     this.aadPrefix = aadPrefix;
   }
 
-  public String wrappingKeyId() {
+  String wrappingKeyId() {
     return wrappingKeyId;
   }
 
-  public ByteBuffer encryptionKey() {
+  ByteBuffer encryptionKey() {
     return encryptionKey;
   }
 
-  public ByteBuffer aadPrefix() {
+  ByteBuffer aadPrefix() {
     return aadPrefix;
   }
 
-  public static KeyMetadata parse(ByteBuffer buffer) {
-    KeyMetadataDecoder<Record> decoder = DECODER.get();
-    if (decoder == null) {
-      decoder = new KeyMetadataDecoder<>(V1, SCHEMA_V1);
-      DECODER.set(decoder);
-    }
+  static KeyMetadata parse(ByteBuffer buffer) {
+    KeyMetadataDecoder<IndexedRecord> decoder = DECODER.get();
     try {
-      Record rec = decoder.decode(buffer);
-      return new KeyMetadata(
-          (ByteBuffer) rec.getField(encryptionKeyField),
-          (String) rec.getField(wrappingKeyIdField),
-          (ByteBuffer) rec.getField(aadPrefixField));
+      return (KeyMetadata) decoder.decode(buffer);
     } catch (IOException e) {
       throw new RuntimeException("Failed to parse envelope encryption metadata", e);
     }
@@ -86,19 +82,9 @@ public class KeyMetadata implements EncryptionKeyMetadata, IndexedRecord {
 
   @Override
   public ByteBuffer buffer() {
-    Record rec = GenericRecord.create(SCHEMA_V1.asStruct());
-    rec.setField(encryptionKeyField, encryptionKey);
-    rec.setField(wrappingKeyIdField, wrappingKeyId);
-    rec.setField(aadPrefixField, aadPrefix);
-
-    KeyMetadataEncoder<Record> encoder = ENCODER.get();
-    if (encoder == null) {
-      encoder = new KeyMetadataEncoder<>(V1, SCHEMA_V1);
-      ENCODER.set(encoder);
-    }
-
+    KeyMetadataEncoder<IndexedRecord> encoder = ENCODER.get();
     try {
-      return encoder.encode(rec);
+      return encoder.encode(this);
     } catch (IOException e) {
       throw new RuntimeException("Failed to serialize envelope key metadata", e);
     }
@@ -117,7 +103,7 @@ public class KeyMetadata implements EncryptionKeyMetadata, IndexedRecord {
         this.encryptionKey = (ByteBuffer) v;
         return;
       case 1:
-        this.wrappingKeyId = v.toString();
+        this.wrappingKeyId = (v == null) ? null : v.toString();
         return;
       case 2:
         this.aadPrefix = (ByteBuffer) v;
@@ -143,6 +129,6 @@ public class KeyMetadata implements EncryptionKeyMetadata, IndexedRecord {
 
   @Override
   public org.apache.avro.Schema getSchema() {
-    return AvroSchemaUtil.convert(SCHEMA_V1, "key_metadata");
+    return AvroSchemaUtil.convert(SCHEMA_V1, this.getClass().getCanonicalName());
   }
 }

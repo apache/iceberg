@@ -26,51 +26,79 @@ import org.apache.avro.io.BinaryEncoder;
 import org.apache.avro.io.DatumWriter;
 import org.apache.avro.io.EncoderFactory;
 import org.apache.avro.message.MessageEncoder;
-import org.apache.iceberg.Schema;
 import org.apache.iceberg.avro.AvroSchemaUtil;
-import org.apache.iceberg.data.avro.DataWriter;
+import org.apache.iceberg.avro.GenericAvroWriter;
 
 public class KeyMetadataEncoder<D> implements MessageEncoder<D> {
+  private static final ThreadLocal<BufferOutputStream> TEMP =
+      ThreadLocal.withInitial(BufferOutputStream::new);
+  private static final ThreadLocal<BinaryEncoder> ENCODER = new ThreadLocal<>();
+
   private final byte schemaVersion;
+  private final boolean copyOutputBytes;
   private final DatumWriter<D> writer;
-  private final BufferOutputStream bufferOutputStream;
-  private BinaryEncoder binaryEncoder;
 
   /**
-   * Creates a new {@link MessageEncoder} that will deconstruct datum instances described by the
-   * {@link Schema schema}.
+   * Creates a new {@link MessageEncoder} that will deconstruct {@link KeyMetadata} instances
+   * described by the schema version.
    *
    * <p>Buffers returned by {@code encode} are copied and will not be modified by future calls to
    * {@code encode}.
-   *
-   * @param schema the {@link Schema} for datum instances
    */
-  public KeyMetadataEncoder(byte version, Schema schema) {
-    org.apache.avro.Schema avroSchema = AvroSchemaUtil.convert(schema, "key_metadata");
-    this.writer = DataWriter.create(avroSchema);
-    this.schemaVersion = version;
-    this.bufferOutputStream = new BufferOutputStream();
+  public KeyMetadataEncoder(byte schemaVersion) {
+    this(schemaVersion, true);
+  }
+
+  /**
+   * Creates a new {@link MessageEncoder} that will deconstruct {@link KeyMetadata} instances
+   * described by the schema version.
+   *
+   * <p>If {@code shouldCopy} is true, then buffers returned by {@code encode} are copied and will
+   * not be modified by future calls to {@code encode}.
+   *
+   * <p>If {@code shouldCopy} is false, then buffers returned by {@code encode} wrap a thread-local
+   * buffer that can be reused by future calls to {@code encode}, but may not be. Callers should
+   * only set {@code shouldCopy} to false if the buffer will be copied before the current thread's
+   * next call to {@code encode}.
+   */
+  public KeyMetadataEncoder(byte schemaVersion, boolean shouldCopy) {
+    org.apache.avro.Schema avroSchema =
+        AvroSchemaUtil.convert(
+            KeyMetadata.supportedSchemaVersions.get(schemaVersion),
+            KeyMetadata.class.getCanonicalName());
+    writer = GenericAvroWriter.create(avroSchema);
+    this.schemaVersion = schemaVersion;
+    this.copyOutputBytes = shouldCopy;
   }
 
   @Override
   public ByteBuffer encode(D datum) throws IOException {
-    bufferOutputStream.reset();
+    BufferOutputStream temp = TEMP.get();
+    temp.reset();
+    temp.write(schemaVersion);
+    encode(datum, temp);
 
-    bufferOutputStream.write(schemaVersion);
-    encode(datum, bufferOutputStream);
-
-    return bufferOutputStream.toBufferWithCopy();
+    if (copyOutputBytes) {
+      return temp.toBufferWithCopy();
+    } else {
+      return temp.toBufferWithoutCopy();
+    }
   }
 
   @Override
   public void encode(D datum, OutputStream stream) throws IOException {
-    binaryEncoder = EncoderFactory.get().directBinaryEncoder(stream, binaryEncoder);
-    writer.write(datum, binaryEncoder);
-    binaryEncoder.flush();
+    BinaryEncoder encoder = EncoderFactory.get().directBinaryEncoder(stream, ENCODER.get());
+    ENCODER.set(encoder);
+    writer.write(datum, encoder);
+    encoder.flush();
   }
 
   private static class BufferOutputStream extends ByteArrayOutputStream {
     BufferOutputStream() {}
+
+    ByteBuffer toBufferWithoutCopy() {
+      return ByteBuffer.wrap(buf, 0, count);
+    }
 
     ByteBuffer toBufferWithCopy() {
       return ByteBuffer.wrap(toByteArray());
