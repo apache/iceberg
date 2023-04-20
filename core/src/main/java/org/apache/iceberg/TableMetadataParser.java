@@ -360,7 +360,7 @@ public class TableMetadataParser {
 
     } else {
       Preconditions.checkArgument(
-          formatVersion == 1, "%s must exist in format v%s", SCHEMA, formatVersion);
+          formatVersion == 1 && node.has(SCHEMA), "%s must exist in format v%s", SCHEMA, formatVersion);
 
       schema = SchemaParser.fromJson(JsonUtil.get(SCHEMA, node));
       currentSchemaId = schema.schemaId();
@@ -390,7 +390,7 @@ public class TableMetadataParser {
 
     } else {
       Preconditions.checkArgument(
-          formatVersion == 1, "%s must exist in format v%s", PARTITION_SPEC, formatVersion);
+          formatVersion == 1 && node.has(PARTITION_SPEC), "%s must exist in format v%s", PARTITION_SPEC, formatVersion);
       // partition spec is required for older readers, but is always set to the default if the spec
       // array is set. it is only used to default the spec map is missing, indicating that the
       // table metadata was written by an older writer.
@@ -403,8 +403,6 @@ public class TableMetadataParser {
 
     Integer lastAssignedPartitionId = JsonUtil.getIntOrNull(LAST_PARTITION_ID, node);
     if (lastAssignedPartitionId == null) {
-      Preconditions.checkArgument(
-          formatVersion == 1, "%s must exist in format v%s", LAST_PARTITION_ID, formatVersion);
       lastAssignedPartitionId =
           specs.stream()
               .mapToInt(PartitionSpec::lastAssignedFieldId)
