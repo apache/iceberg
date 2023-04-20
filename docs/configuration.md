@@ -178,13 +178,21 @@ The HMS table locking is a 2-step process:
 | iceberg.hive.lock-heartbeat-interval-ms   | 240000 (4 min)  | The heartbeat interval for the HMS locks.                                    |
 | iceberg.hive.metadata-refresh-max-retries | 2               | Maximum number of retries when the metadata file is missing                  |
 | iceberg.hive.table-level-lock-evict-ms    | 600000 (10 min) | The timeout for the JVM table lock is                                        |
-| iceberg.engine.hive.lock-enabled          | true            | If enabled HMS locks will be used to ensure of the atomicity of the commits  |
+| iceberg.engine.hive.lock-enabled          | true            | Use HMS locks to ensure atomicity of commits                                 |
 
 Note: `iceberg.hive.lock-check-max-wait-ms` and `iceberg.hive.lock-heartbeat-interval-ms` should be less than the [transaction timeout](https://cwiki.apache.org/confluence/display/Hive/Configuration+Properties#ConfigurationProperties-hive.txn.timeout) 
 of the Hive Metastore (`hive.txn.timeout` or `metastore.txn.timeout` in the newer versions). Otherwise, the heartbeats on the lock (which happens during the lock checks) would end up expiring in the 
 Hive Metastore before the lock is retried from Iceberg.
 
-Note: `iceberg.engine.hive.lock-enabled` should only be set to `false` if [HIVE-26882](https://issues.apache.org/jira/browse/HIVE-26882)
-is available on the Hive Metastore server and every writer of a given table is using Iceberg 1.2 or later.
-The `engine.hive.lock-enabled` table property could be used to change this behavior on Table level.
+Warn: Setting `iceberg.engine.hive.lock-enabled`=`false` will cause HiveCatalog to commit to tables without using Hive locks.
+This should only be set to `false` if all following conditions are met:
+ - [HIVE-26882](https://issues.apache.org/jira/browse/HIVE-26882)
+is available on the Hive Metastore server
+ - All other HiveCatalogs committing to tables that this HiveCatalog commits to are also on Iceberg 1.3 or later
+ - All other HiveCatalogs committing to tables that this HiveCatalog commits to have also disabled Hive locks on commit.
+
+**Failing to ensure these conditions risks corrupting the table.**
+
+Even with `iceberg.engine.hive.lock-enabled` set to `false`, a HiveCatalog can still use locks for individual tables by setting the table property `engine.hive.lock-enabled`=`true`.
+This is useful in the case where other HiveCatalogs cannot be upgraded and set to commit without using Hive locks.
 

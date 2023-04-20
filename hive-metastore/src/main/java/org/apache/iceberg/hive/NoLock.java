@@ -18,7 +18,14 @@
  */
 package org.apache.iceberg.hive;
 
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+
 public class NoLock implements HiveLock {
+  public NoLock() {
+    Preconditions.checkArgument(
+        HiveVersion.min(HiveVersion.HIVE_2),
+        "Minimally Hive 2 HMS client is needed to use HIVE-26882 based locking");
+  }
 
   @Override
   public void lock() throws LockException {
