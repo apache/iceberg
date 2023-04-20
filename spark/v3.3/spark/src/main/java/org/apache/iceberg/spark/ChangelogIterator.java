@@ -59,27 +59,33 @@ import org.apache.spark.sql.types.StructType;
  * </ul>
  */
 public class ChangelogIterator implements Iterator<Row> {
-  private static final String DELETE = ChangelogOperation.DELETE.name();
-  private static final String INSERT = ChangelogOperation.INSERT.name();
-  private static final String UPDATE_BEFORE = ChangelogOperation.UPDATE_BEFORE.name();
-  private static final String UPDATE_AFTER = ChangelogOperation.UPDATE_AFTER.name();
+  protected static final String DELETE = ChangelogOperation.DELETE.name();
+  protected static final String INSERT = ChangelogOperation.INSERT.name();
+  protected static final String UPDATE_BEFORE = ChangelogOperation.UPDATE_BEFORE.name();
+  protected static final String UPDATE_AFTER = ChangelogOperation.UPDATE_AFTER.name();
 
   private final Iterator<Row> rowIterator;
   private final int changeTypeIndex;
-  private final List<Integer> identifierFieldIdx;
+  private List<Integer> identifierFieldIdx = null;
   private final int[] indicesForIdentifySameRow;
 
   private Row cachedRow = null;
 
-  private ChangelogIterator(
+  protected ChangelogIterator(
       Iterator<Row> rowIterator, StructType rowType, String[] identifierFields) {
     this.rowIterator = rowIterator;
     this.changeTypeIndex = rowType.fieldIndex(MetadataColumns.CHANGE_TYPE.name());
-    this.identifierFieldIdx =
-        Arrays.stream(identifierFields)
-            .map(column -> rowType.fieldIndex(column.toString()))
-            .collect(Collectors.toList());
+    if (identifierFields != null) {
+      this.identifierFieldIdx =
+          Arrays.stream(identifierFields)
+              .map(column -> rowType.fieldIndex(column.toString()))
+              .collect(Collectors.toList());
+    }
     this.indicesForIdentifySameRow = generateIndicesForIdentifySameRow(rowType.size());
+  }
+
+  protected int getChangeTypeIndex() {
+    return changeTypeIndex;
   }
 
   /**
@@ -95,6 +101,12 @@ public class ChangelogIterator implements Iterator<Row> {
       Iterator<Row> rowIterator, StructType rowType, String[] identifierFields) {
     ChangelogIterator changelogIterator =
         new ChangelogIterator(rowIterator, rowType, identifierFields);
+    return Iterators.filter(changelogIterator, Objects::nonNull);
+  }
+
+  public static Iterator<Row> createCarryoverRemoveIterator(
+      Iterator<Row> rowIterator, StructType rowType) {
+    CarryoverRemoveIterator changelogIterator = new CarryoverRemoveIterator(rowIterator, rowType);
     return Iterators.filter(changelogIterator, Objects::nonNull);
   }
 
@@ -164,6 +176,16 @@ public class ChangelogIterator implements Iterator<Row> {
   }
 
   private boolean isCarryoverRecord(Row currentRow, Row nextRow) {
+    for (int idx : indicesForIdentifySameRow) {
+      if (!isColumnSame(currentRow, nextRow, idx)) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  protected boolean isSameRecord(Row currentRow, Row nextRow) {
     for (int idx : indicesForIdentifySameRow) {
       if (!isColumnSame(currentRow, nextRow, idx)) {
         return false;
