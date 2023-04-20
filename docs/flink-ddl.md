@@ -160,7 +160,7 @@ Table create commands support the commonly used [Flink create clauses](https://n
 * `COMMENT 'table document'` to set a table description.
 * `WITH ('key'='value', ...)` to set [table configuration](../configuration) which will be stored in Iceberg table properties.
 
-Currently, it does not support computed column, primary key and watermark definition etc.
+Currently, it does not support computed column and watermark definition etc.
 
 ### `PARTITIONED BY`
 
