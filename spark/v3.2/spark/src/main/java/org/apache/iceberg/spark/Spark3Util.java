@@ -82,6 +82,7 @@ import org.apache.spark.sql.connector.expressions.Literal;
 import org.apache.spark.sql.connector.expressions.NamedReference;
 import org.apache.spark.sql.connector.expressions.Transform;
 import org.apache.spark.sql.execution.datasources.FileStatusCache;
+import org.apache.spark.sql.execution.datasources.InMemoryFileIndex;
 import org.apache.spark.sql.execution.datasources.InMemoryPartitionPathsIndex;
 import org.apache.spark.sql.execution.datasources.PartitionDirectory;
 import org.apache.spark.sql.execution.datasources.PartitioningAwareFileIndex;
@@ -866,13 +867,7 @@ public class Spark3Util {
                 SparkSchemaUtil.convert(new Schema(partitionSpec.partitionType().fields())));
 
     PartitioningAwareFileIndex fileIndex =
-        new InMemoryPartitionPathsIndex(
-            spark,
-            rootPath,
-            scala.collection.immutable.Map$.MODULE$.empty(),
-            userSpecifiedSchema.get(),
-            fileStatusCache,
-            Option.empty());
+        getFileIndex(spark, rootPath, fileStatusCache, userSpecifiedSchema);
 
     org.apache.spark.sql.execution.datasources.PartitionSpec spec = fileIndex.partitionSpec();
     StructType schema = spec.partitionColumns();
@@ -914,6 +909,33 @@ public class Spark3Util {
                   values, fileStatus.getPath().getParent().toString(), format);
             })
         .collect(Collectors.toList());
+  }
+
+  private static InMemoryPartitionPathsIndex getFileIndex(
+      SparkSession spark,
+      Path rootPath,
+      FileStatusCache fileStatusCache,
+      Option<StructType> userSpecifiedSchema) {
+    if (userSpecifiedSchema.isEmpty()) {
+      // To support deprecated public listPartitions method without userSpecifiedSchema
+      new InMemoryFileIndex(
+          spark,
+          JavaConverters.collectionAsScalaIterableConverter(ImmutableList.of(rootPath))
+              .asScala()
+              .toSeq(),
+          scala.collection.immutable.Map$.MODULE$.empty(),
+          userSpecifiedSchema,
+          fileStatusCache,
+          Option.empty(),
+          Option.empty());
+    }
+    return new InMemoryPartitionPathsIndex(
+        spark,
+        rootPath,
+        scala.collection.immutable.Map$.MODULE$.empty(),
+        userSpecifiedSchema.get(),
+        fileStatusCache,
+        Option.empty());
   }
 
   public static org.apache.spark.sql.catalyst.TableIdentifier toV1TableIdentifier(
