@@ -29,11 +29,7 @@ menu:
 
 To use Iceberg in Spark, first configure [Spark catalogs](../spark-configuration).
 
-Iceberg uses Apache Spark's DataSourceV2 API for data source and catalog implementations. Spark DSv2 is an evolving API with different levels of support in Spark versions. Spark 2.4 does not support SQL DDL.
-
-{{< hint info >}}
-Spark 2.4 can't create Iceberg tables with DDL, instead use Spark 3 or the [Iceberg API](..//java-api-quickstart).
-{{< /hint >}}
+Iceberg uses Apache Spark's DataSourceV2 API for data source and catalog implementations. Spark DSv2 is an evolving API with different levels of support in Spark versions.
 
 ## `CREATE TABLE`
 
@@ -255,18 +251,6 @@ ADD COLUMN points.value.b int
 ```
 
 Note: Altering a map 'key' column by adding columns is not allowed. Only map values can be updated.
-
-In Spark 2.4.4 and later, you can add columns in any position by adding `FIRST` or `AFTER` clauses:
-
-```sql
-ALTER TABLE prod.db.sample
-ADD COLUMN new_column bigint AFTER other_column
-```
-
-```sql
-ALTER TABLE prod.db.sample
-ADD COLUMN nested.new_column bigint FIRST
-```
 
 ### `ALTER TABLE ... RENAME COLUMN`
 
