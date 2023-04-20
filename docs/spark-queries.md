@@ -27,22 +27,7 @@ menu:
 
 # Spark Queries
 
-To use Iceberg in Spark, first configure [Spark catalogs](../spark-configuration).
-
-Iceberg uses Apache Spark's DataSourceV2 API for data source and catalog implementations. Spark DSv2 is an evolving API with different levels of support in Spark versions:
-
-| Feature support                                  | Spark 3 |
-|--------------------------------------------------|-----------|
-| [`SELECT`](#querying-with-sql)                   | ✔️        |
-| [DataFrame reads](#querying-with-dataframes)     | ✔️        |
-| [Metadata table `SELECT`](#inspecting-tables)    | ✔️        |
-| [History metadata table](#history)               | ✔️        |
-| [Snapshots metadata table](#snapshots)           | ✔️        |
-| [Files metadata table](#files)                   | ✔️        |
-| [Manifests metadata table](#manifests)           | ✔️        |
-| [Partitions metadata table](#partitions)         | ✔️        |
-| [All metadata tables](#all-metadata-tables)      | ✔️        |
-
+To use Iceberg in Spark, first configure [Spark catalogs](../spark-configuration). Iceberg uses Apache Spark's DataSourceV2 API for data source and catalog implementations.
 
 ## Querying with SQL
 
