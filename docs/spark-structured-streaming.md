@@ -32,10 +32,6 @@ with different levels of support in Spark versions.
 
 As of Spark 3, DataFrame reads and writes are supported.
 
-| Feature support                                  | Spark 3 | Spark 2.4  | Notes                                          |
-|--------------------------------------------------|-----------|------------|------------------------------------------------|
-| [DataFrame write](#streaming-writes)             | ✔         | ✔          |                                                |
-
 ## Streaming Reads
 
 Iceberg supports processing incremental data in spark structured streaming jobs which starts from a historical timestamp:

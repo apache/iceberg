@@ -124,13 +124,6 @@ spark.sql.catalog.custom_prod.catalog-impl = com.my.custom.CatalogImpl
 spark.sql.catalog.custom_prod.my-additional-catalog-config = my-value
 ```
 
-### Catalogs in Spark 2.4
-
-When using Iceberg 0.11.0 and later, Spark 2.4 can load tables from multiple Iceberg catalogs or from table locations.
-
-Catalogs in 2.4 are configured just like catalogs in 3.x, but only Iceberg catalogs are supported.
-
-
 ## SQL Extensions
 
 Iceberg 0.11.0 and later add an extension module to Spark to add new SQL commands, like `CALL` for stored procedures or `ALTER TABLE ... WRITE ORDERED BY`.
@@ -141,9 +134,6 @@ Using those SQL commands requires adding Iceberg extensions to your Spark enviro
 | Spark extensions property | Iceberg extensions implementation                                   |
 |---------------------------|---------------------------------------------------------------------|
 | `spark.sql.extensions`    | `org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions` |
-
-SQL extensions are not available for Spark 2.4.
-
 
 ## Runtime configuration
 
