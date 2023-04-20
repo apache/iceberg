@@ -33,11 +33,13 @@ import org.apache.hadoop.hive.metastore.api.NoSuchObjectException;
 import org.apache.hadoop.hive.metastore.api.PrincipalType;
 import org.apache.hadoop.hive.metastore.api.Table;
 import org.apache.hadoop.hive.metastore.api.UnknownDBException;
+import org.apache.hive.common.util.HiveVersionInfo;
 import org.apache.iceberg.BaseMetastoreCatalog;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.ClientPool;
+import org.apache.iceberg.EnvironmentContext;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.catalog.Namespace;
@@ -108,6 +110,9 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
             : CatalogUtil.loadFileIO(fileIOImpl, properties, conf);
 
     this.clients = new CachedClientPool(conf, properties);
+
+    EnvironmentContext.put(EnvironmentContext.ENGINE_NAME, "hive");
+    EnvironmentContext.put(EnvironmentContext.ENGINE_VERSION, HiveVersionInfo.getVersion());
   }
 
   @Override
