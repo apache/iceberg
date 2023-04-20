@@ -29,7 +29,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.PropertyUtil;
 
-public class DefaultEncryptionManagerFactory implements EncryptionManagerFactory {
+public class StandardEncryptionManagerFactory implements EncryptionManagerFactory {
   private KeyManagementClient kmsClient;
   private Map<String, String> catalogPropertyMap;
 
@@ -65,7 +65,7 @@ public class DefaultEncryptionManagerFactory implements EncryptionManagerFactory
       // Unencrypted table
       return PlaintextEncryptionManager.INSTANCE;
     } else {
-      return new DefaultEncryptionManager(
+      return new StandardEncryptionManager(
           tableKeyId, kmsClient(encryptionProperties), encryptionProperties);
     }
   }
