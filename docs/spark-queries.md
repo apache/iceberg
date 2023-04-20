@@ -27,22 +27,7 @@ menu:
 
 # Spark Queries
 
-To use Iceberg in Spark, first configure [Spark catalogs](../spark-configuration).
-
-Iceberg uses Apache Spark's DataSourceV2 API for data source and catalog implementations. Spark DSv2 is an evolving API with different levels of support in Spark versions:
-
-| Feature support                                  | Spark 3 | Spark 2.4  | Notes                                          |
-|--------------------------------------------------|-----------|------------|------------------------------------------------|
-| [`SELECT`](#querying-with-sql)                   | ✔️        |            |                                                |
-| [DataFrame reads](#querying-with-dataframes)     | ✔️        | ✔️          |                                                |
-| [Metadata table `SELECT`](#inspecting-tables)    | ✔️        |            |                                                |
-| [History metadata table](#history)               | ✔️        | ✔️          |                                                |
-| [Snapshots metadata table](#snapshots)           | ✔️        | ✔️          |                                                |
-| [Files metadata table](#files)                   | ✔️        | ✔️          |                                                |
-| [Manifests metadata table](#manifests)           | ✔️        | ✔️          |                                                |
-| [Partitions metadata table](#partitions)         | ✔️        | ✔️          |                                                |
-| [All metadata tables](#all-metadata-tables)      | ✔️        | ✔️          |                                                |
-
+To use Iceberg in Spark, first configure [Spark catalogs](../spark-configuration). Iceberg uses Apache Spark's DataSourceV2 API for data source and catalog implementations.
 
 ## Querying with SQL
 
@@ -74,8 +59,6 @@ val df = spark.table("prod.db.table")
 ```
 
 ### Catalogs with DataFrameReader
-
-Iceberg 0.11.0 adds multi-catalog support to `DataFrameReader` in both Spark 3 and 2.4.
 
 Paths and table names can be loaded with Spark's `DataFrameReader` interface. How tables are loaded depends on how
 the identifier is specified. When using `spark.read.format("iceberg").load(table)` or `spark.table(table)` the `table`
@@ -205,29 +188,6 @@ Incremental read works with both V1 and V2 format-version.
 Incremental read is not supported by Spark's SQL syntax.
 {{< /hint >}}
 
-### Spark 2.4
-
-Spark 2.4 requires using the DataFrame reader with `iceberg` as a format, because 2.4 does not support direct SQL queries:
-
-```scala
-// named metastore table
-spark.read.format("iceberg").load("catalog.db.table")
-// Hadoop path table
-spark.read.format("iceberg").load("hdfs://nn:8020/path/to/table")
-```
-
-#### Spark 2.4 with SQL
-
-To run SQL `SELECT` statements on Iceberg tables in 2.4, register the DataFrame as a temporary table:
-
-```scala
-val df = spark.read.format("iceberg").load("db.table")
-df.createOrReplaceTempView("table")
-
-spark.sql("""select count(1) from table""").show()
-```
-
-
 ## Inspecting tables
 
 To inspect a table's history, snapshots, and other metadata, Iceberg supports metadata tables.
@@ -235,8 +195,6 @@ To inspect a table's history, snapshots, and other metadata, Iceberg supports me
 Metadata tables are identified by adding the metadata table name after the original table name. For example, history for `db.table` is read using `db.table.history`.
 
 {{< hint info >}}
-For Spark 2.4, use the `DataFrameReader` API to [inspect tables](#inspecting-with-dataframes).
-
 For Spark 3, prior to 3.2, the Spark [session catalog](../spark-configuration#replacing-the-session-catalog) does not support table names with multipart identifiers such as `catalog.database.table.metadata`. As a workaround, configure an `org.apache.iceberg.spark.SparkCatalog`, or use the Spark `DataFrameReader` API.
 {{< /hint >}}
 
@@ -422,7 +380,7 @@ SELECT * FROM prod.db.table.refs;
 
 ### Inspecting with DataFrames
 
-Metadata tables can be loaded in Spark 2.4 or Spark 3 using the DataFrameReader API:
+Metadata tables can be loaded using the DataFrameReader API:
 
 ```scala
 // named metastore table
