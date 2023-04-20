@@ -331,7 +331,7 @@ public class Parquet {
           parquetWriteBuilder.withBloomFilterEnabled(colPath, Boolean.valueOf(bloomEnabled));
         }
 
-        return new ParquetWriteAdapter<>(parquetWriteBuilder.build(), metricsConfig);
+        return new ParquetWriteAdapter<>(file, parquetWriteBuilder.build(), metricsConfig);
       }
     }
 
@@ -565,7 +565,6 @@ public class Parquet {
 
   public static class DataWriteBuilder {
     private final WriteBuilder appenderBuilder;
-    private final String location;
     private PartitionSpec spec = null;
     private StructLike partition = null;
     private EncryptionKeyMetadata keyMetadata = null;
@@ -573,7 +572,6 @@ public class Parquet {
 
     private DataWriteBuilder(OutputFile file) {
       this.appenderBuilder = write(file);
-      this.location = file.location();
     }
 
     public DataWriteBuilder forTable(Table table) {
@@ -652,7 +650,7 @@ public class Parquet {
 
       FileAppender<T> fileAppender = appenderBuilder.build();
       return new DataWriter<>(
-          fileAppender, FileFormat.PARQUET, location, spec, partition, keyMetadata, sortOrder);
+          fileAppender, FileFormat.PARQUET, spec, partition, keyMetadata, sortOrder);
     }
   }
 

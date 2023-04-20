@@ -52,4 +52,7 @@ public interface FileAppender<D> extends Closeable {
   default List<Long> splitOffsets() {
     return null;
   }
+
+  /** Returns the outputFile of this appender */
+  OutputFile outputFile();
 }

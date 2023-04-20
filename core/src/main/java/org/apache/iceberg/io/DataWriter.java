@@ -32,7 +32,6 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 public class DataWriter<T> implements FileWriter<T, DataWriteResult> {
   private final FileAppender<T> appender;
   private final FileFormat format;
-  private final String location;
   private final PartitionSpec spec;
   private final StructLike partition;
   private final ByteBuffer keyMetadata;
@@ -42,24 +41,21 @@ public class DataWriter<T> implements FileWriter<T, DataWriteResult> {
   public DataWriter(
       FileAppender<T> appender,
       FileFormat format,
-      String location,
       PartitionSpec spec,
       StructLike partition,
       EncryptionKeyMetadata keyMetadata) {
-    this(appender, format, location, spec, partition, keyMetadata, null);
+    this(appender, format, spec, partition, keyMetadata, null);
   }
 
   public DataWriter(
       FileAppender<T> appender,
       FileFormat format,
-      String location,
       PartitionSpec spec,
       StructLike partition,
       EncryptionKeyMetadata keyMetadata,
       SortOrder sortOrder) {
     this.appender = appender;
     this.format = format;
-    this.location = location;
     this.spec = spec;
     this.partition = partition;
     this.keyMetadata = keyMetadata != null ? keyMetadata.buffer() : null;
@@ -83,7 +79,7 @@ public class DataWriter<T> implements FileWriter<T, DataWriteResult> {
       this.dataFile =
           DataFiles.builder(spec)
               .withFormat(format)
-              .withPath(location)
+              .withPath(appender.outputFile().location())
               .withPartition(partition)
               .withEncryptionKeyMetadata(keyMetadata)
               .withFileSizeInBytes(appender.length())

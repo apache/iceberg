@@ -188,6 +188,11 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
     return null;
   }
 
+  @Override
+  public OutputFile outputFile() {
+    return output;
+  }
+
   private void checkSize() {
     if (recordCount >= nextCheckRecordCount) {
       long bufferedSize = writeStore.getBufferedSize();

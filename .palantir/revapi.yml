@@ -413,6 +413,9 @@ acceptedBreaks:
     - code: "java.method.addedToInterface"
       new: "method java.lang.String org.apache.iceberg.view.ViewVersion::operation()"
       justification: "Add operation API to view version"
+    - code: "java.method.addedToInterface"
+      new: "method org.apache.iceberg.io.OutputFile org.apache.iceberg.io.FileAppender<D>::outputFile()"
+      justification: "Returning the outputFile of FileAppender"
     org.apache.iceberg:iceberg-core:
     - code: "java.class.removed"
       old: "class org.apache.iceberg.actions.BaseExpireSnapshotsActionResult"

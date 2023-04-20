@@ -205,7 +205,6 @@ class SparkAppenderFactory implements FileAppenderFactory<InternalRow> {
     return new DataWriter<>(
         newAppender(file.encryptingOutputFile(), format),
         format,
-        file.encryptingOutputFile().location(),
         spec,
         partition,
         file.keyMetadata());

@@ -183,6 +183,11 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
     return writer.length();
   }
 
+  @Override
+  public OutputFile outputFile() {
+    return file;
+  }
+
   public ManifestFile toManifestFile() {
     Preconditions.checkState(closed, "Cannot build ManifestFile, writer is not closed");
     // if the minSequenceNumber is null, then no manifests with a sequence number have been written,
