@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.spark;
 
+import static org.junit.Assert.assertThrows;
+
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
@@ -174,19 +176,34 @@ public class TestChangelogIterator extends SparkTestHelperBase {
   public void testUpdatedRowsWithDuplication() {
     List<Row> rowsWithDuplication =
         Lists.newArrayList(
-            // next two rows are identical
+            // two rows with same identifier fields(id, name)
             new GenericRowWithSchema(new Object[] {1, "a", "data", DELETE}, null),
             new GenericRowWithSchema(new Object[] {1, "a", "data", DELETE}, null),
-            // next two rows are identical
             new GenericRowWithSchema(new Object[] {1, "a", "new_data", INSERT}, null),
             new GenericRowWithSchema(new Object[] {1, "a", "new_data", INSERT}, null));
 
     Iterator<Row> iterator =
         ChangelogIterator.create(rowsWithDuplication.iterator(), SCHEMA, IDENTIFIER_FIELDS);
 
-    //    assertThrows(
-    //        "Rows should match.", IllegalStateException.class, () ->
-    // Lists.newArrayList(iterator));
+    assertThrows(IllegalStateException.class, () -> Lists.newArrayList(iterator));
+
+    // still allow extra insert rows
+    rowsWithDuplication =
+        Lists.newArrayList(
+            new GenericRowWithSchema(new Object[] {1, "a", "data", DELETE}, null),
+            new GenericRowWithSchema(new Object[] {1, "a", "new_data1", INSERT}, null),
+            new GenericRowWithSchema(new Object[] {1, "a", "new_data2", INSERT}, null));
+
+    Iterator<Row> iterator1 =
+        ChangelogIterator.create(rowsWithDuplication.iterator(), SCHEMA, IDENTIFIER_FIELDS);
+
+    assertEquals(
+        "Rows should match.",
+        Lists.newArrayList(
+            new Object[] {1, "a", "data", UPDATE_BEFORE},
+            new Object[] {1, "a", "new_data1", UPDATE_AFTER},
+            new Object[] {1, "a", "new_data2", INSERT}),
+        rowsToJava(Lists.newArrayList(iterator1)));
   }
 
   @Test

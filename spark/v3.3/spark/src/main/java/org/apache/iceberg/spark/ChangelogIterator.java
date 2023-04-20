@@ -25,6 +25,7 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 import org.apache.iceberg.ChangelogOperation;
 import org.apache.iceberg.MetadataColumns;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.RowFactory;
@@ -66,8 +67,9 @@ public class ChangelogIterator implements Iterator<Row> {
 
   private final Iterator<Row> rowIterator;
   private final int changeTypeIndex;
-  private List<Integer> identifierFieldIdx = null;
+  private final String[] identifierFields;
   private final int[] indicesForIdentifySameRow;
+  private List<Integer> identifierFieldIdx = null;
 
   private Row cachedRow = null;
 
@@ -75,6 +77,7 @@ public class ChangelogIterator implements Iterator<Row> {
       Iterator<Row> rowIterator, StructType rowType, String[] identifierFields) {
     this.rowIterator = rowIterator;
     this.changeTypeIndex = rowType.fieldIndex(MetadataColumns.CHANGE_TYPE.name());
+    this.identifierFields = identifierFields;
     if (identifierFields != null) {
       this.identifierFieldIdx =
           Arrays.stream(identifierFields)
@@ -99,8 +102,9 @@ public class ChangelogIterator implements Iterator<Row> {
    */
   public static Iterator<Row> create(
       Iterator<Row> rowIterator, StructType rowType, String[] identifierFields) {
+    Iterator<Row> carryoverRemoveIterator = createCarryoverRemoveIterator(rowIterator, rowType);
     ChangelogIterator changelogIterator =
-        new ChangelogIterator(rowIterator, rowType, identifierFields);
+        new ChangelogIterator(carryoverRemoveIterator, rowType, identifierFields);
     return Iterators.filter(changelogIterator, Objects::nonNull);
   }
 
@@ -133,15 +137,18 @@ public class ChangelogIterator implements Iterator<Row> {
       Row nextRow = rowIterator.next();
       cachedRow = nextRow;
 
-      if (isUpdateOrCarryoverRecord(currentRow, nextRow)) {
-        if (isCarryoverRecord(currentRow, nextRow)) {
-          // set carry-over rows to null for filtering out later
-          currentRow = null;
-          cachedRow = null;
-        } else {
-          currentRow = modify(currentRow, changeTypeIndex, UPDATE_BEFORE);
-          cachedRow = modify(nextRow, changeTypeIndex, UPDATE_AFTER);
-        }
+      if (sameLogicalRow(currentRow, nextRow)) {
+        String nextRowChangeType = nextRow.getString(changeTypeIndex);
+
+        Preconditions.checkState(
+            nextRowChangeType.equals(INSERT),
+            "The next row should be an INSERT row, but it is %s. That means there are multiple"
+                + " rows with the same value of identifier fields(%s). Please make sure the rows are unique.",
+            nextRowChangeType,
+            identifierFields);
+
+        currentRow = modify(currentRow, changeTypeIndex, UPDATE_BEFORE);
+        cachedRow = modify(nextRow, changeTypeIndex, UPDATE_AFTER);
       }
     }
 
@@ -175,16 +182,6 @@ public class ChangelogIterator implements Iterator<Row> {
     return indices;
   }
 
-  private boolean isCarryoverRecord(Row currentRow, Row nextRow) {
-    for (int idx : indicesForIdentifySameRow) {
-      if (!isColumnSame(currentRow, nextRow, idx)) {
-        return false;
-      }
-    }
-
-    return true;
-  }
-
   protected boolean isSameRecord(Row currentRow, Row nextRow) {
     for (int idx : indicesForIdentifySameRow) {
       if (!isColumnSame(currentRow, nextRow, idx)) {
@@ -209,12 +206,6 @@ public class ChangelogIterator implements Iterator<Row> {
     } else {
       return rowIterator.next();
     }
-  }
-
-  private boolean isUpdateOrCarryoverRecord(Row currentRow, Row nextRow) {
-    return sameLogicalRow(currentRow, nextRow)
-        && currentRow.getString(changeTypeIndex).equals(DELETE)
-        && nextRow.getString(changeTypeIndex).equals(INSERT);
   }
 
   private boolean sameLogicalRow(Row currentRow, Row nextRow) {
