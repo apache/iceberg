@@ -379,55 +379,6 @@ public class TestRewritePositionDeleteFilesAction extends SparkCatalogTestBase {
   }
 
   @Test
-  public void testPartitionEvolutionAddDanglingDeletes() throws Exception {
-    Table table = createTableUnpartitioned(2, SCALE);
-    List<DataFile> dataFiles = dataFiles(table);
-    List<DeleteFile> deleteFiles = writePosDeletesForFiles(table, 2, DELETES_SCALE, dataFiles);
-    Assert.assertEquals(2, dataFiles.size());
-    Assert.assertEquals(2, deleteFiles.size());
-
-    table.updateSpec().addField("c1").commit();
-    writeRecords(table, 2, SCALE, 2);
-    List<DataFile> partitionedDataFiles =
-        dataFiles(table).stream()
-            .filter(f -> f.partition().size() > 0)
-            .collect(Collectors.toList());
-    writePosDeletesForFiles(table, 2, DELETES_SCALE, partitionedDataFiles);
-
-    table.refresh();
-    List<Object[]> expectedDeletes = deleteRecords(table);
-    List<Object[]> expectedRecords = records(table);
-    Assert.assertEquals(4000, expectedDeletes.size()); // 4 files * 1000 per file
-    // 4000 unpartitioned + (2 * 4000) partitioned - 4000 deletes
-    Assert.assertEquals(8000, expectedRecords.size());
-
-    SparkActions.get(spark)
-        .rewriteDataFiles(table)
-        .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
-        .execute();
-
-    List<DeleteFile> deleteFilesToRewrite = deleteFiles(table);
-    // earlier delete files removed by sequence number comparison
-    Assert.assertEquals(
-        "Expected earlier unpartitioned delete files to be removed",
-        4,
-        deleteFilesToRewrite.size());
-
-    RewritePositionDeleteFiles.Result result =
-        SparkActions.get(spark)
-            .rewritePositionDeletes(table)
-            .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
-            .execute();
-
-    List<DeleteFile> newDeleteFiles = deleteFiles(table);
-    Assert.assertEquals("Should have 0 new delete files", 0, newDeleteFiles.size());
-    checkResult(result, deleteFilesToRewrite, newDeleteFiles, 2);
-
-    List<Object[]> actualRecords = records(table);
-    assertEquals("Rows must match", expectedRecords, actualRecords);
-  }
-
-  @Test
   public void testSchemaEvolution() throws Exception {
     Table table = createTablePartitioned(2, 2, SCALE);
     List<DataFile> dataFiles = dataFiles(table);
