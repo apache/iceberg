@@ -165,9 +165,13 @@ def test_pyarrow_timestamp_invalid_units() -> None:
 
 def test_pyarrow_timestamp_tz_to_iceberg() -> None:
     pyarrow_type = pa.timestamp(unit="us", tz="UTC")
+    pyarrow_type_zero_offset = pa.timestamp(unit="us", tz="+00:00")
     converted_iceberg_type = visit_pyarrow(pyarrow_type, _ConvertToIceberg())
+    converted_iceberg_type_zero_offset = visit_pyarrow(pyarrow_type_zero_offset, _ConvertToIceberg())
     assert converted_iceberg_type == TimestamptzType()
+    assert converted_iceberg_type_zero_offset == TimestamptzType()
     assert visit(converted_iceberg_type, _ConvertToArrowSchema()) == pyarrow_type
+    assert visit(converted_iceberg_type_zero_offset, _ConvertToArrowSchema()) == pyarrow_type
 
 
 def test_pyarrow_timestamp_tz_invalid_units() -> None:
