@@ -461,6 +461,9 @@ public class TestRewriteDataFilesAction extends FlinkCatalogTestBase {
     // Should not rewrite files from the new commit
     Assert.assertEquals("Action should rewrite 2 data files", 2, result.deletedDataFiles().size());
     Assert.assertEquals("Action should add 1 data file", 1, result.addedDataFiles().size());
+    // The 2 older files with file-sequence-number <= 2 should be rewritten into a new file.
+    // The new file is the one with file-sequence-number == 4.
+    // The new file should use rewrite's starting-sequence-number 2 as its data-sequence-number.
     shouldHaveDataAndFileSequenceNumbers(
         TABLE_NAME_WITH_PK, ImmutableList.of(Pair.of(3L, 3L), Pair.of(3L, 3L), Pair.of(2L, 4L)));
 
@@ -471,6 +474,14 @@ public class TestRewriteDataFilesAction extends FlinkCatalogTestBase {
             SimpleDataUtil.createRecord(1, "hi"), SimpleDataUtil.createRecord(2, "world")));
   }
 
+  /**
+   * Assert that data files and delete files in the table should have expected data sequence numbers
+   * and file sequence numbers
+   *
+   * @param tableName table name
+   * @param expectedSequenceNumbers list of {@link Pair}'s. Each {@link Pair} contains
+   *     (expectedDataSequenceNumber, expectedFileSequenceNumber) of a file.
+   */
   private void shouldHaveDataAndFileSequenceNumbers(
       String tableName, List<Pair<Long, Long>> expectedSequenceNumbers) {
     // "status < 2" for added or existing entries
