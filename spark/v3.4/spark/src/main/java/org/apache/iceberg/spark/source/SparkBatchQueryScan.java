@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.source;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.iceberg.PartitionField;
@@ -39,6 +40,8 @@ import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ExpressionUtil;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.Projections;
+import org.apache.iceberg.metrics.MetricsReport;
+import org.apache.iceberg.metrics.ScanReport;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -46,9 +49,16 @@ import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkFilters;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.SparkSchemaUtil;
+import org.apache.iceberg.spark.source.metrics.SparkReadMetricReporter;
+import org.apache.iceberg.spark.source.metrics.TaskTotalFileSize;
+import org.apache.iceberg.spark.source.metrics.TaskTotalPlanningDuration;
+import org.apache.iceberg.spark.source.metrics.TotalFileSize;
+import org.apache.iceberg.spark.source.metrics.TotalPlanningDuration;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.connector.expressions.NamedReference;
+import org.apache.spark.sql.connector.metric.CustomMetric;
+import org.apache.spark.sql.connector.metric.CustomTaskMetric;
 import org.apache.spark.sql.connector.read.Statistics;
 import org.apache.spark.sql.connector.read.SupportsRuntimeFiltering;
 import org.apache.spark.sql.sources.Filter;
@@ -65,6 +75,7 @@ class SparkBatchQueryScan extends SparkPartitioningAwareScan<PartitionScanTask>
   private final Long endSnapshotId;
   private final Long asOfTimestamp;
   private final String tag;
+  private final SparkReadMetricReporter sparkReadMetricReporter;
   private final List<Expression> runtimeFilterExpressions;
 
   SparkBatchQueryScan(
@@ -73,8 +84,8 @@ class SparkBatchQueryScan extends SparkPartitioningAwareScan<PartitionScanTask>
       Scan<?, ? extends ScanTask, ? extends ScanTaskGroup<?>> scan,
       SparkReadConf readConf,
       Schema expectedSchema,
-      List<Expression> filters) {
-
+      List<Expression> filters,
+      SparkReadMetricReporter sparkReadMetricReporter) {
     super(spark, table, scan, readConf, expectedSchema, filters);
 
     this.snapshotId = readConf.snapshotId();
@@ -82,6 +93,7 @@ class SparkBatchQueryScan extends SparkPartitioningAwareScan<PartitionScanTask>
     this.endSnapshotId = readConf.endSnapshotId();
     this.asOfTimestamp = readConf.asOfTimestamp();
     this.tag = readConf.tag();
+    this.sparkReadMetricReporter = sparkReadMetricReporter;
     this.runtimeFilterExpressions = Lists.newArrayList();
   }
 
@@ -255,5 +267,24 @@ class SparkBatchQueryScan extends SparkPartitioningAwareScan<PartitionScanTask>
         filterExpressions(),
         runtimeFilterExpressions,
         caseSensitive());
+  }
+
+  @Override
+  public CustomTaskMetric[] reportDriverMetrics() {
+    List<CustomTaskMetric> customTaskMetrics = Lists.newArrayList();
+    MetricsReport metricsReport = sparkReadMetricReporter.getMetricsReport();
+    ScanReport scanReport = (ScanReport) metricsReport;
+
+    Optional.ofNullable(scanReport.scanMetrics().totalFileSizeInBytes())
+        .ifPresent(counterResult -> new TaskTotalFileSize(counterResult.value()));
+    Optional.ofNullable(scanReport.scanMetrics().totalPlanningDuration())
+        .ifPresent(timerResult -> new TaskTotalPlanningDuration(timerResult.count()));
+
+    return customTaskMetrics.toArray(new CustomTaskMetric[0]);
+  }
+
+  @Override
+  public CustomMetric[] supportedCustomMetrics() {
+    return new CustomMetric[] {new TotalFileSize(), new TotalPlanningDuration()};
   }
 }

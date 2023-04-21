@@ -52,6 +52,7 @@ import org.apache.iceberg.spark.SparkFilters;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkSchemaUtil;
+import org.apache.iceberg.spark.source.metrics.SparkReadMetricReporter;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
@@ -96,6 +97,7 @@ public class SparkScanBuilder
   private boolean caseSensitive;
   private List<Expression> filterExpressions = null;
   private Filter[] pushedFilters = NO_FILTERS;
+  private SparkReadMetricReporter sparkReadMetricReporter;
 
   SparkScanBuilder(
       SparkSession spark,
@@ -109,6 +111,7 @@ public class SparkScanBuilder
     this.options = options;
     this.readConf = new SparkReadConf(spark, table, branch, options);
     this.caseSensitive = readConf.caseSensitive();
+    this.sparkReadMetricReporter = new SparkReadMetricReporter();
   }
 
   SparkScanBuilder(SparkSession spark, Table table, CaseInsensitiveStringMap options) {
@@ -425,12 +428,15 @@ public class SparkScanBuilder
   private Scan buildBatchScan(Long snapshotId, Long asOfTimestamp, String branch, String tag) {
     Schema expectedSchema = schemaWithMetadataColumns();
 
+    sparkReadMetricReporter = new SparkReadMetricReporter();
+
     BatchScan scan =
         table
             .newBatchScan()
             .caseSensitive(caseSensitive)
             .filter(filterExpression())
-            .project(expectedSchema);
+            .project(expectedSchema)
+            .metricsReporter(sparkReadMetricReporter);
 
     if (snapshotId != null) {
       scan = scan.useSnapshot(snapshotId);
@@ -449,8 +455,8 @@ public class SparkScanBuilder
     }
 
     scan = configureSplitPlanning(scan);
-
-    return new SparkBatchQueryScan(spark, table, scan, readConf, expectedSchema, filterExpressions);
+    return new SparkBatchQueryScan(
+        spark, table, scan, readConf, expectedSchema, filterExpressions, sparkReadMetricReporter);
   }
 
   private Scan buildIncrementalAppendScan(long startSnapshotId, Long endSnapshotId) {
@@ -470,7 +476,8 @@ public class SparkScanBuilder
 
     scan = configureSplitPlanning(scan);
 
-    return new SparkBatchQueryScan(spark, table, scan, readConf, expectedSchema, filterExpressions);
+    return new SparkBatchQueryScan(
+        spark, table, scan, readConf, expectedSchema, filterExpressions, sparkReadMetricReporter);
   }
 
   public Scan buildChangelogScan() {
@@ -573,7 +580,13 @@ public class SparkScanBuilder
 
     if (snapshot == null) {
       return new SparkBatchQueryScan(
-          spark, table, null, readConf, schemaWithMetadataColumns(), filterExpressions);
+          spark,
+          table,
+          null,
+          readConf,
+          schemaWithMetadataColumns(),
+          filterExpressions,
+          sparkReadMetricReporter);
     }
 
     // remember the current snapshot ID for commit validation
@@ -597,7 +610,13 @@ public class SparkScanBuilder
     scan = configureSplitPlanning(scan);
 
     return new SparkBatchQueryScan(
-        spark, table, scan, adjustedReadConf, expectedSchema, filterExpressions);
+        spark,
+        table,
+        scan,
+        adjustedReadConf,
+        expectedSchema,
+        filterExpressions,
+        sparkReadMetricReporter);
   }
 
   public Scan buildCopyOnWriteScan() {
