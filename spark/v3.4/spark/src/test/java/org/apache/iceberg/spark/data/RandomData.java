@@ -329,6 +329,8 @@ public class RandomData {
           return UTF8String.fromString((String) obj);
         case DECIMAL:
           return Decimal.apply((BigDecimal) obj);
+        case UUID:
+          return UTF8String.fromString(UUID.nameUUIDFromBytes((byte[]) obj).toString());
         default:
           return obj;
       }
