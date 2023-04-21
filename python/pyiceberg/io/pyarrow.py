@@ -546,20 +546,20 @@ def _(obj: pa.StructType, visitor: PyArrowSchemaVisitor[T]) -> Optional[T]:
 
 @visit_pyarrow.register(pa.ListType)
 def _(obj: pa.ListType, visitor: PyArrowSchemaVisitor[T]) -> Optional[T]:
-    visitor.before_list_element(obj.value_field)
+    visitor.before_field(obj.value_field)
     list_result = visit_pyarrow(obj.value_field.type, visitor)
-    visitor.after_list_element(obj.value_field)
+    visitor.after_field(obj.value_field)
     return visitor.list(obj, list_result)
 
 
 @visit_pyarrow.register(pa.MapType)
 def _(obj: pa.MapType, visitor: PyArrowSchemaVisitor[T]) -> Optional[T]:
-    visitor.before_map_key(obj.key_field)
+    visitor.before_field(obj.key_field)
     key_result = visit_pyarrow(obj.key_field.type, visitor)
-    visitor.after_map_key(obj.key_field)
-    visitor.before_map_value(obj.item_field)
+    visitor.after_field(obj.key_field)
+    visitor.before_field(obj.item_field)
     value_result = visit_pyarrow(obj.item_field.type, visitor)
-    visitor.after_map_value(obj.item_field)
+    visitor.after_field(obj.item_field)
     return visitor.map(obj, key_result, value_result)
 
 
@@ -576,24 +576,6 @@ class PyArrowSchemaVisitor(Generic[T], ABC):
 
     def after_field(self, field: pa.Field) -> None:
         """Override this method to perform an action immediately after visiting a field."""
-
-    def before_list_element(self, element: pa.Field) -> None:
-        """Override this method to perform an action immediately before visiting a list element."""
-
-    def after_list_element(self, element: pa.Field) -> None:
-        """Override this method to perform an action immediately after visiting a list element."""
-
-    def before_map_key(self, key: pa.Field) -> None:
-        """Override this method to perform an action immediately before visiting a map key."""
-
-    def after_map_key(self, key: pa.Field) -> None:
-        """Override this method to perform an action immediately after visiting a map key."""
-
-    def before_map_value(self, value: pa.Field) -> None:
-        """Override this method to perform an action immediately before visiting a map value."""
-
-    def after_map_value(self, value: pa.Field) -> None:
-        """Override this method to perform an action immediately after visiting a map value."""
 
     @abstractmethod
     def schema(self, schema: pa.Schema, field_results: List[Optional[T]]) -> Optional[T]:
