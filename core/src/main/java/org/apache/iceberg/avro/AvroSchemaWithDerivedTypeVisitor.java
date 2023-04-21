@@ -18,26 +18,29 @@
  */
 package org.apache.iceberg.avro;
 
+import java.util.Deque;
+import java.util.List;
 import org.apache.avro.Schema;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
-import java.util.Deque;
-import java.util.List;
-
 /**
- * Avro schema with Type visitor, where Type is guaranteed to be derived from Avro schema, and Avro schema does not
- * necessarily have field IDs (unlike {@link AvroSchemaWithTypeVisitor}). Avro schema and Iceberg schema fields are matched by position.
+ * Avro schema with Type visitor, where Type is guaranteed to be derived from Avro schema, and Avro
+ * schema does not necessarily have field IDs (unlike {@link AvroSchemaWithTypeVisitor}). Avro
+ * schema and Iceberg schema fields are matched by position.
  */
 public abstract class AvroSchemaWithDerivedTypeVisitor<T> {
   public static <T> T visit(
-      org.apache.iceberg.Schema iSchema, Schema schema, AvroSchemaWithDerivedTypeVisitor<T> visitor) {
+      org.apache.iceberg.Schema iSchema,
+      Schema schema,
+      AvroSchemaWithDerivedTypeVisitor<T> visitor) {
     return visit(iSchema.asStruct(), schema, visitor);
   }
 
-  public static <T> T visit(Type iType, Schema schema, AvroSchemaWithDerivedTypeVisitor<T> visitor) {
+  public static <T> T visit(
+      Type iType, Schema schema, AvroSchemaWithDerivedTypeVisitor<T> visitor) {
     switch (schema.getType()) {
       case RECORD:
         return visitRecord(iType != null ? iType.asStructType() : null, schema, visitor);
@@ -84,7 +87,8 @@ public abstract class AvroSchemaWithDerivedTypeVisitor<T> {
     return visitor.record(struct, record, names, results);
   }
 
-  private static <T> T visitUnion(Type type, Schema union, AvroSchemaWithDerivedTypeVisitor<T> visitor) {
+  private static <T> T visitUnion(
+      Type type, Schema union, AvroSchemaWithDerivedTypeVisitor<T> visitor) {
     List<Schema> types = union.getTypes();
     List<T> options = Lists.newArrayListWithExpectedSize(types.size());
     if (AvroSchemaUtil.isOptionSchema(union)) {
@@ -97,23 +101,24 @@ public abstract class AvroSchemaWithDerivedTypeVisitor<T> {
       }
     } else {
       Preconditions.checkArgument(
-        type instanceof Types.StructType,
-        "Cannot visit invalid Iceberg type: %s for Avro complex union type: %s",
-        type,
-        union);
+          type instanceof Types.StructType,
+          "Cannot visit invalid Iceberg type: %s for Avro complex union type: %s",
+          type,
+          union);
       Types.StructType struct = (Types.StructType) type;
-      int i = 0;
+      int index = 0;
       for (Schema branch : types) {
         if (branch.getType() != Schema.Type.NULL) {
-          options.add(visit(struct.field("field" + i).type(), branch, visitor));
-          i++;
+          options.add(visit(struct.field("field" + index).type(), branch, visitor));
+          index++;
         }
       }
     }
     return visitor.union(type, union, options);
   }
 
-  private static <T> T visitArray(Type type, Schema array, AvroSchemaWithDerivedTypeVisitor<T> visitor) {
+  private static <T> T visitArray(
+      Type type, Schema array, AvroSchemaWithDerivedTypeVisitor<T> visitor) {
     if (array.getLogicalType() instanceof LogicalMap || (type != null && type.isMapType())) {
       Preconditions.checkState(
           AvroSchemaUtil.isKeyValueSchema(array.getElementType()),
