@@ -674,10 +674,11 @@ class _ConvertToIceberg(PyArrowSchemaVisitor[Union[IcebergType, Schema]]):
                 return TimeType()
         elif pa.types.is_timestamp(primitive):
             primitive = cast(pa.TimestampType, primitive)
-            if primitive.unit == "us" and primitive.tz == "UTC":
-                return TimestamptzType()
-            elif primitive.unit == "us" and primitive.tz is None:
-                return TimestampType()
+            if primitive.unit == "us":
+                if primitive.tz == "UTC" or primitive.tz == "+00:00":
+                    return TimestamptzType()
+                elif primitive.tz is None:
+                    return TimestampType()
         elif pa.types.is_binary(primitive):
             return BinaryType()
         elif pa.types.is_fixed_size_binary(primitive):
