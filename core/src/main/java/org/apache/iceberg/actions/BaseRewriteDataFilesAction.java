@@ -67,6 +67,7 @@ public abstract class BaseRewriteDataFilesAction<ThisT>
   private long targetSizeInBytes;
   private int splitLookback;
   private long splitOpenFileCost;
+  private long totalSize;
 
   protected BaseRewriteDataFilesAction(Table table) {
     this.table = table;
@@ -187,6 +188,18 @@ public abstract class BaseRewriteDataFilesAction<ThisT>
   }
 
   /**
+   * Specify the total size of input files for compaction. Default value is '0' - unlimited.
+   *
+   * @param size total size in bytes
+   * @return this for method chaining
+   */
+  public BaseRewriteDataFilesAction<ThisT> totalSize(long size) {
+    Preconditions.checkArgument(size >= 0L, "Invalid total size %s", size);
+    this.totalSize = size;
+    return this;
+  }
+
+  /**
    * Pass a row Expression to filter DataFiles to be rewritten. Note that all files that may contain
    * data matching the filter may be rewritten.
    *
@@ -228,9 +241,10 @@ public abstract class BaseRewriteDataFilesAction<ThisT>
     Map<StructLikeWrapper, Collection<FileScanTask>> groupedTasks =
         groupTasksByPartition(fileScanTasks.iterator());
     Map<StructLikeWrapper, Collection<FileScanTask>> filteredGroupedTasks =
-        groupedTasks.entrySet().stream()
-            .filter(kv -> kv.getValue().size() > 1)
-            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+        limitBySize(
+            groupedTasks.entrySet().stream()
+                .filter(kv -> kv.getValue().size() > 1)
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)));
 
     // Nothing to rewrite if there's only one DataFile in each partition.
     if (filteredGroupedTasks.isEmpty()) {
@@ -280,6 +294,28 @@ public abstract class BaseRewriteDataFilesAction<ThisT>
       LOG.warn("Failed to close task iterator", e);
     }
     return tasksGroupedByPartition.asMap();
+  }
+
+  private Map<StructLikeWrapper, Collection<FileScanTask>> limitBySize(
+      Map<StructLikeWrapper, Collection<FileScanTask>> input) {
+    if (totalSize == 0) {
+      return input;
+    }
+    ListMultimap<StructLikeWrapper, FileScanTask> result =
+        Multimaps.newListMultimap(Maps.newHashMap(), Lists::newArrayList);
+
+    long size = 0;
+
+    for (Map.Entry<StructLikeWrapper, Collection<FileScanTask>> entry : input.entrySet()) {
+      for (FileScanTask task : entry.getValue()) {
+        if (size + task.length() > totalSize) {
+          return result.asMap();
+        }
+        result.put(entry.getKey(), task);
+        size += task.length();
+      }
+    }
+    return result.asMap();
   }
 
   private void replaceDataFiles(
