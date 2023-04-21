@@ -47,7 +47,7 @@ import org.slf4j.LoggerFactory;
 class DataStatisticsCoordinator<K> implements OperatorCoordinator {
   private static final Logger LOG = LoggerFactory.getLogger(DataStatisticsCoordinator.class);
 
-  private static final double EXPECTED_DATA_STATISTICS_RECEIVED_PERCENTAGE = 0.8;
+  private static final double EXPECTED_DATA_STATISTICS_RECEIVED_PERCENTAGE = 80;
 
   private final String operatorName;
   // A single-thread executor to handle all the actions for coordinator
@@ -83,12 +83,24 @@ class DataStatisticsCoordinator<K> implements OperatorCoordinator {
   @Override
   public void close() throws Exception {
     LOG.info("Closing data statistics coordinator for {}.", operatorName);
-    if (started) {
-      coordinatorExecutor.shutdown();
+    coordinatorExecutor.shutdown();
+    try {
       if (!coordinatorExecutor.awaitTermination(5, TimeUnit.SECONDS)) {
-        LOG.warn("Fail to shut down DataStatisticsCoordinator gracefully. Shutting down now");
+        LOG.warn(
+            "Fail to shut down data statistics coordinator {} gracefully. Shutting down now",
+            operatorName);
         coordinatorExecutor.shutdownNow();
+        if (!coordinatorExecutor.awaitTermination(5, TimeUnit.SECONDS)) {
+          LOG.warn("Fail to terminate data statistics coordinator {}", operatorName);
+          return;
+        }
       }
+      LOG.info("Data statistics coordinator for {} closed.", operatorName);
+    } catch (InterruptedException e) {
+      coordinatorExecutor.shutdownNow();
+      Thread.currentThread().interrupt();
+      LOG.error(
+          "Errors occurred while closing the data statistics coordinator {}.", operatorName, e);
     }
   }
 
@@ -116,9 +128,7 @@ class DataStatisticsCoordinator<K> implements OperatorCoordinator {
   }
 
   private void ensureStarted() {
-    if (!this.started) {
-      throw new IllegalStateException("The coordinator has not started yet.");
-    }
+    Preconditions.checkState(started, "The coordinator has not started yet.");
   }
 
   private void handleDataStatisticRequest(int subtask, DataStatisticsEvent<K> event) {
@@ -138,7 +148,7 @@ class DataStatisticsCoordinator<K> implements OperatorCoordinator {
     }
 
     if (inProgressAggregator.checkpointId() < checkpointId) {
-      if ((double) inProgressAggregator.aggregatedSubtasksCount() / context.parallelism()
+      if ((double) inProgressAggregator.aggregatedSubtasksCount() / context.parallelism() * 100
           >= EXPECTED_DATA_STATISTICS_RECEIVED_PERCENTAGE) {
         lastCompletedAggregator = inProgressAggregator;
         LOG.info(

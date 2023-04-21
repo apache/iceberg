@@ -59,16 +59,16 @@ class GlobalStatisticsAggregator<K> implements Serializable {
         checkpointId);
     if (!subtaskSet.add(subtask)) {
       LOG.debug(
-          "Receive duplicated data statistics for checkpoint {} subtask {}. Ignore it.",
-          checkpointId,
-          subtask);
+          "Ignore duplicated data statistics from subtask {} for checkpoint {}.",
+          subtask,
+          checkpointId);
       return;
     }
 
     dataStatistics.merge(event.dataStatistics());
   }
 
-  long aggregatedSubtasksCount() {
+  int aggregatedSubtasksCount() {
     return subtaskSet.size();
   }
 
