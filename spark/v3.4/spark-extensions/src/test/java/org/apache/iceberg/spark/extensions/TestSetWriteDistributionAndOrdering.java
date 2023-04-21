@@ -79,14 +79,15 @@ public class TestSetWriteDistributionAndOrdering extends SparkExtensionsTestBase
             () -> {
               sql("ALTER TABLE %s WRITE ORDERED BY category, id", tableName);
             })
-        .isInstanceOf(ValidationException.class);
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("Cannot find field 'category' in struct");
 
     sql("SET %s=false", SQLConf.CASE_SENSITIVE().key());
-    Assertions.assertThatNoException()
-        .isThrownBy(
-            () -> {
-              sql("ALTER TABLE %s WRITE ORDERED BY category, id", tableName);
-            });
+    sql("ALTER TABLE %s WRITE ORDERED BY category, id", tableName);
+    table = validationCatalog.loadTable(tableIdent);
+    SortOrder expected =
+        SortOrder.builderFor(table.schema()).withOrderId(1).asc("Category").asc("Id").build();
+    Assert.assertEquals("Should have expected order", expected, table.sortOrder());
   }
 
   @Test
