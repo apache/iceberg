@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.metrics;
 
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -36,7 +35,6 @@ public class LoggingMetricsReporter implements MetricsReporter {
 
   @Override
   public void report(MetricsReport report) {
-    Preconditions.checkArgument(null != report, "Invalid metrics report: null");
     LOG.info("Received metrics report: {}", report);
   }
 }
