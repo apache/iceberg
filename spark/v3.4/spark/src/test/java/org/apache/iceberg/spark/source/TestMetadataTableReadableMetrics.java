@@ -26,6 +26,7 @@ import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.util.Base64;
 import java.util.List;
+import java.util.Map;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.PartitionSpec;
@@ -45,7 +46,6 @@ import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.junit.After;
-import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -76,6 +76,8 @@ public class TestMetadataTableReadableMetrics extends SparkTestBaseWithCatalog {
           optional(7, "stringCol", Types.StringType.get()),
           optional(8, "fixedCol", Types.FixedType.ofLength(3)),
           optional(9, "binaryCol", Types.BinaryType.get()));
+
+  private DataFile dataFile;
 
   public TestMetadataTableReadableMetrics() {
     // only SparkCatalog supports metadata table sql queries
@@ -123,8 +125,7 @@ public class TestMetadataTableReadableMetrics extends SparkTestBaseWithCatalog {
             createPrimitiveRecord(
                 false, 2, 2L, Float.NaN, 2.0D, new BigDecimal("2.00"), "2", null, null));
 
-    DataFile dataFile =
-        FileHelpers.writeDataFile(table, Files.localOutput(temp.newFile()), records);
+    dataFile = FileHelpers.writeDataFile(table, Files.localOutput(temp.newFile()), records);
     table.newAppend().appendFile(dataFile).commit();
     return table;
   }
@@ -142,8 +143,7 @@ public class TestMetadataTableReadableMetrics extends SparkTestBaseWithCatalog {
             createNestedRecord(0L, 0.0),
             createNestedRecord(1L, Double.NaN),
             createNestedRecord(null, null));
-    DataFile dataFile =
-        FileHelpers.writeDataFile(table, Files.localOutput(temp.newFile()), records);
+    dataFile = FileHelpers.writeDataFile(table, Files.localOutput(temp.newFile()), records);
     table.newAppend().appendFile(dataFile).commit();
   }
 
@@ -191,33 +191,76 @@ public class TestMetadataTableReadableMetrics extends SparkTestBaseWithCatalog {
   }
 
   @Test
-  @Ignore
   public void testPrimitiveColumns() throws Exception {
     createPrimitiveTable();
+    Map<Integer, Long> columSizeStats = dataFile.columnSizes();
 
     Object[] binaryCol =
         row(
-            59L,
+            columSizeStats.get(PRIMITIVE_SCHEMA.findField("binaryCol").fieldId()),
             4L,
             2L,
             null,
             Base64.getDecoder().decode("1111"),
             Base64.getDecoder().decode("2222"));
-    Object[] booleanCol = row(44L, 4L, 0L, null, false, true);
-    Object[] decimalCol = row(97L, 4L, 1L, null, new BigDecimal("1.00"), new BigDecimal("2.00"));
-    Object[] doubleCol = row(99L, 4L, 0L, 1L, 1.0D, 2.0D);
+    Object[] booleanCol =
+        row(
+            columSizeStats.get(PRIMITIVE_SCHEMA.findField("booleanCol").fieldId()),
+            4L,
+            0L,
+            null,
+            false,
+            true);
+    Object[] decimalCol =
+        row(
+            columSizeStats.get(PRIMITIVE_SCHEMA.findField("decimalCol").fieldId()),
+            4L,
+            1L,
+            null,
+            new BigDecimal("1.00"),
+            new BigDecimal("2.00"));
+    Object[] doubleCol =
+        row(
+            columSizeStats.get(PRIMITIVE_SCHEMA.findField("doubleCol").fieldId()),
+            4L,
+            0L,
+            1L,
+            1.0D,
+            2.0D);
     Object[] fixedCol =
         row(
-            55L,
+            columSizeStats.get(PRIMITIVE_SCHEMA.findField("fixedCol").fieldId()),
             4L,
             2L,
             null,
             Base64.getDecoder().decode("1111"),
             Base64.getDecoder().decode("2222"));
-    Object[] floatCol = row(90L, 4L, 0L, 2L, 0f, 0f);
-    Object[] intCol = row(91L, 4L, 0L, null, 1, 2);
-    Object[] longCol = row(91L, 4L, 0L, null, 1L, 2L);
-    Object[] stringCol = row(99L, 4L, 0L, null, "1", "2");
+    Object[] floatCol =
+        row(
+            columSizeStats.get(PRIMITIVE_SCHEMA.findField("floatCol").fieldId()),
+            4L,
+            0L,
+            2L,
+            0f,
+            0f);
+    Object[] intCol =
+        row(columSizeStats.get(PRIMITIVE_SCHEMA.findField("intCol").fieldId()), 4L, 0L, null, 1, 2);
+    Object[] longCol =
+        row(
+            columSizeStats.get(PRIMITIVE_SCHEMA.findField("longCol").fieldId()),
+            4L,
+            0L,
+            null,
+            1L,
+            2L);
+    Object[] stringCol =
+        row(
+            columSizeStats.get(PRIMITIVE_SCHEMA.findField("stringCol").fieldId()),
+            4L,
+            0L,
+            null,
+            "1",
+            "2");
 
     Object[] metrics =
         row(

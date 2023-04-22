@@ -174,7 +174,6 @@ project(":iceberg-spark:iceberg-spark-extensions-${sparkMajorVersion}_${scalaVer
   }
 
   test {
-    useJUnitPlatform()
     jvmArgs += project.property('extraJvmArgs')
   }
 }
