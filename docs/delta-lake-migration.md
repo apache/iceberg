@@ -103,6 +103,7 @@ The following table properties are added to the Iceberg table to be created by d
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.iceberg.delta.DeltaLakeToIcebergMigrationActionsProvider;
 
 String sourceDeltaLakeTableLocation = "s3://my-bucket/delta-table";
 String destTableLocation = "s3://my-bucket/iceberg-table";
