@@ -122,16 +122,16 @@ public interface TableLoader extends Closeable, Serializable, Cloneable {
     }
 
     @Override
-    @SuppressWarnings({"checkstyle:NoClone", "checkstyle:SuperClone"})
-    public TableLoader clone() {
-      return new CatalogTableLoader(catalogLoader.clone(), TableIdentifier.parse(identifier));
-    }
-
-    @Override
     public void close() throws IOException {
       if (catalog instanceof Closeable) {
         ((Closeable) catalog).close();
       }
+    }
+
+    @Override
+    @SuppressWarnings({"checkstyle:NoClone", "checkstyle:SuperClone"})
+    public TableLoader clone() {
+      return new CatalogTableLoader(catalogLoader.clone(), TableIdentifier.parse(identifier));
     }
 
     @Override

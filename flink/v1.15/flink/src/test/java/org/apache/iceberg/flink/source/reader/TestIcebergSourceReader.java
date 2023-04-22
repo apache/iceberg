@@ -19,6 +19,7 @@
 package org.apache.iceberg.flink.source.reader;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import org.apache.flink.api.connector.source.SourceReaderContext;
 import org.apache.flink.configuration.Configuration;
@@ -106,7 +107,8 @@ public class TestIcebergSourceReader {
             null,
             true,
             new HadoopFileIO(new org.apache.hadoop.conf.Configuration()),
-            new PlaintextEncryptionManager());
+            new PlaintextEncryptionManager(),
+            Collections.emptyList());
     return new IcebergSourceReader<>(readerMetrics, readerFunction, readerContext);
   }
 }
