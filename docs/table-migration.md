@@ -44,11 +44,11 @@ Apache Iceberg supports the in-place metadata migration approach, which includes
 ## Snapshot Table
 The Snapshot Table action creates a new iceberg table with a different name and with the same schema and partitioning as the source table, leaving the source table unchanged during and after the action.
 
-- Create a new Iceberg table with the same metadata (schema, partition spec, etc.) as the source table and a different name.
+- Create a new Iceberg table with the same metadata (schema, partition spec, etc.) as the source table and a different name. Readers and Writers on the source table can continue to work.
 
 ![Snapshot Table Step 1](../../../img/iceberg-snapshotaction-step1.png)
 
-- Commit all data files across all partitions to the new Iceberg table. The source table remains unchanged.
+- Commit all data files across all partitions to the new Iceberg table. The source table remains unchanged. Readers can be switched to the new Iceberg table.
 
 ![Snapshot Table Step 2](../../../img/iceberg-snapshotaction-step2.png)
 
@@ -64,7 +64,7 @@ Stop all writers interacting with the source table. Readers that also support Ic
 
 ![Migrate Table Step 2](../../../img/iceberg-migrateaction-step2.png)
 
-- Commit all data files across all partitions to the new Iceberg table. Drop the source table.
+- Commit all data files across all partitions to the new Iceberg table. Drop the source table. Writers can start writing to the new Iceberg table.
 
 ![Migrate Table Step 3](../../../img/iceberg-migrateaction-step3.png)
 
