@@ -20,6 +20,7 @@ package org.apache.iceberg.flink.source.reader;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import org.apache.flink.table.data.RowData;
 import org.apache.iceberg.BaseCombinedScanTask;
@@ -83,7 +84,8 @@ public class ReaderUtil {
 
   public static DataIterator<RowData> createDataIterator(CombinedScanTask combinedTask) {
     return new DataIterator<>(
-        new RowDataFileScanTaskReader(TestFixtures.SCHEMA, TestFixtures.SCHEMA, null, true),
+        new RowDataFileScanTaskReader(
+            TestFixtures.SCHEMA, TestFixtures.SCHEMA, null, true, Collections.emptyList()),
         combinedTask,
         new HadoopFileIO(new org.apache.hadoop.conf.Configuration()),
         new PlaintextEncryptionManager());
