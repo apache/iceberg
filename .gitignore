@@ -66,3 +66,6 @@ derby.log
 python/.mypy_cache/
 python/htmlcov
 python/coverage.xml
+
+# GCP test files
+gcp/db_folder/
