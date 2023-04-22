@@ -100,11 +100,15 @@ The following table properties are added to the Iceberg table to be created by d
 
 #### Examples
 ```java
+import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.catalog.Catalog;
+import org.apache.hadoop.conf.Configuration;
+
 String sourceDeltaLakeTableLocation = "s3://my-bucket/delta-table";
 String destTableLocation = "s3://my-bucket/iceberg-table";
-org.apache.iceberg.catalog.TableIdentifier destTableIdentifier = TableIdentifier.of("my_db", "my_table");
-org.apache.iceberg.catalog.Catalog icebergCatalog = ...; // Iceberg Catalog fetched from engines like Spark or created via CatalogUtil.loadCatalog
-org.apache.hadoop.conf.Configuration hadoopConf = ...; // Hadoop Configuration fetched from engines like Spark and have proper file system configuration to access the Delta Lake table.
+TableIdentifier destTableIdentifier = TableIdentifier.of("my_db", "my_table");
+Catalog icebergCatalog = ...; // Iceberg Catalog fetched from engines like Spark or created via CatalogUtil.loadCatalog
+Configuration hadoopConf = ...; // Hadoop Configuration fetched from engines like Spark and have proper file system configuration to access the Delta Lake table.
     
 DeltaLakeToIcebergMigrationActionsProvider.defaultActions()
     .snapshotDeltaLakeTable(sourceDeltaLakeTableLocation)
