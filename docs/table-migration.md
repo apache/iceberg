@@ -52,6 +52,8 @@ The Snapshot Table action creates a new iceberg table with a different name and 
 
 ![Snapshot Table Step 2](../../../img/iceberg-snapshotaction-step2.png)
 
+- Eventually, all writers can be switched to the new Iceberg table. Once all writers are transitioned to the new Iceberg table, the migration process will be considered complete.
+
 ## Migrate Table
 The Migrate Table action also creates a new Iceberg table with the same schema and partitioning as the source table. However, during the action execution, it locks and drops the source table from the catalog.
 Consequently, Migrate Table requires all modifications working on the source table to be stopped before the action is performed.
