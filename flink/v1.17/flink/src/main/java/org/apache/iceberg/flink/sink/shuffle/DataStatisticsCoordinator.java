@@ -20,9 +20,7 @@ package org.apache.iceberg.flink.sink.shuffle;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.runtime.operators.coordination.OperatorCoordinator;
 import org.apache.flink.runtime.operators.coordination.OperatorEvent;
@@ -50,8 +48,6 @@ class DataStatisticsCoordinator<K> implements OperatorCoordinator {
   private static final double EXPECTED_DATA_STATISTICS_RECEIVED_PERCENTAGE = 80;
 
   private final String operatorName;
-  // A single-thread executor to handle all the actions for coordinator
-  private final ExecutorService coordinatorExecutor;
   private final DataStatisticsCoordinatorContext<K> context;
   private final DataStatisticsFactory<K> statisticsFactory;
 
@@ -67,10 +63,11 @@ class DataStatisticsCoordinator<K> implements OperatorCoordinator {
     DataStatisticsCoordinatorProvider.CoordinatorExecutorThreadFactory coordinatorThreadFactory =
         new DataStatisticsCoordinatorProvider.CoordinatorExecutorThreadFactory(
             "DataStatisticsCoordinator-" + operatorName, context.getUserCodeClassloader());
-    this.coordinatorExecutor = Executors.newSingleThreadExecutor(coordinatorThreadFactory);
     this.context =
         new DataStatisticsCoordinatorContext<>(
-            coordinatorExecutor, coordinatorThreadFactory, context);
+            Executors.newSingleThreadExecutor(coordinatorThreadFactory),
+            coordinatorThreadFactory,
+            context);
     this.statisticsFactory = statisticsFactory;
   }
 
@@ -83,46 +80,27 @@ class DataStatisticsCoordinator<K> implements OperatorCoordinator {
   @Override
   public void close() throws Exception {
     LOG.info("Closing data statistics coordinator for {}.", operatorName);
-    coordinatorExecutor.shutdown();
-    try {
-      if (!coordinatorExecutor.awaitTermination(5, TimeUnit.SECONDS)) {
-        LOG.warn(
-            "Fail to shut down data statistics coordinator {} gracefully. Shutting down now",
-            operatorName);
-        coordinatorExecutor.shutdownNow();
-        if (!coordinatorExecutor.awaitTermination(5, TimeUnit.SECONDS)) {
-          LOG.warn("Fail to terminate data statistics coordinator {}", operatorName);
-          return;
-        }
-      }
-      LOG.info("Data statistics coordinator for {} closed.", operatorName);
-    } catch (InterruptedException e) {
-      coordinatorExecutor.shutdownNow();
-      Thread.currentThread().interrupt();
-      LOG.error(
-          "Errors occurred while closing the data statistics coordinator {}.", operatorName, e);
-    }
+    context.close();
+    LOG.info("Data statistics coordinator for {} closed.", operatorName);
   }
 
   private void runInCoordinatorThread(
       ThrowingRunnable<Throwable> action, String actionName, Object... actionNameFormatParameters) {
     ensureStarted();
-    coordinatorExecutor.execute(
+    context.runInCoordinatorThread(
         () -> {
           try {
             action.run();
           } catch (Throwable t) {
-            // if we have a JVM critical error, promote it immediately, there is a good
-            // chance the logging or job failing will not succeed anymore
             ExceptionUtils.rethrowIfFatalErrorOrOOM(t);
-
             String actionString = String.format(actionName, actionNameFormatParameters);
             LOG.error(
                 "Uncaught exception in the data statistics {} while {}. Triggering job failover.",
                 operatorName,
                 actionString,
                 t);
-            context.failJob(t);
+
+            this.context.failJob(t);
           }
         });
   }

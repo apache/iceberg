@@ -22,11 +22,13 @@ import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.TimeUnit;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.runtime.operators.coordination.OperatorCoordinator;
 import org.apache.flink.util.ExceptionUtils;
 import org.apache.flink.util.FlinkRuntimeException;
 import org.apache.flink.util.Preconditions;
+import org.apache.flink.util.ThrowableCatchingRunnable;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.slf4j.Logger;
@@ -37,7 +39,7 @@ import org.slf4j.LoggerFactory;
  * {@link DataStatisticsOperator} via {@link OperatorCoordinator.SubtaskGateway}.
  */
 @Internal
-class DataStatisticsCoordinatorContext<K> {
+class DataStatisticsCoordinatorContext<K> implements AutoCloseable {
 
   private static final Logger LOG = LoggerFactory.getLogger(DataStatisticsCoordinatorContext.class);
   private final ExecutorService coordinatorExecutor;
@@ -54,6 +56,27 @@ class DataStatisticsCoordinatorContext<K> {
     this.coordinatorThreadFactory = coordinatorThreadFactory;
     this.operatorCoordinatorContext = operatorCoordinatorContext;
     this.subtaskGateways = new SubtaskGateways(parallelism());
+  }
+
+  @Override
+  public void close() {
+    coordinatorExecutor.shutdown();
+    try {
+      if (!coordinatorExecutor.awaitTermination(5, TimeUnit.SECONDS)) {
+        LOG.warn(
+            "Fail to shut down data statistics coordinator context gracefully. Shutting down now");
+        coordinatorExecutor.shutdownNow();
+        if (!coordinatorExecutor.awaitTermination(5, TimeUnit.SECONDS)) {
+          LOG.warn("Fail to terminate data statistics coordinator context");
+          return;
+        }
+      }
+      LOG.info("Data statistics coordinator context closed.");
+    } catch (InterruptedException e) {
+      coordinatorExecutor.shutdownNow();
+      Thread.currentThread().interrupt();
+      LOG.error("Errors occurred while closing the data statistics coordinator context", e);
+    }
   }
 
   void sendDataStatisticsToSubtasks(long checkpointId, DataStatistics<K> globalDataStatistics) {
@@ -127,6 +150,15 @@ class DataStatisticsCoordinatorContext<K> {
         throw new FlinkRuntimeException(errorMessage, t);
       }
     }
+  }
+
+  public void runInCoordinatorThread(Runnable runnable) {
+    this.coordinatorExecutor.execute(
+        new ThrowableCatchingRunnable(
+            (throwable) -> {
+              this.coordinatorThreadFactory.uncaughtException(Thread.currentThread(), throwable);
+            },
+            runnable));
   }
 
   private static class SubtaskGateways {
