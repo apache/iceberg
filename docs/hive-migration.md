@@ -49,7 +49,7 @@ CALL catalog_name.system.migrate('db.sample')
 ```
 See [Spark Procedure: migrate](../spark-procedures/#migrate) for more details.
 
-## Add Files From Delta Lake Table to Iceberg
+## Add Files From Hive Table to Iceberg
 To add data files from a Hive table to a given Iceberg table, users can run the following Spark SQL:
 ```sql
 CALL spark_catalog.system.add_files(
