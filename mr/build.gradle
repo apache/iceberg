@@ -76,7 +76,6 @@ project(':iceberg-mr') {
   test {
     // testJoinTables / testScanTable
     maxHeapSize '2500m'
-    jvmArgs += project.property('extraJvmArgs')
   }
 }
 

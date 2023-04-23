@@ -106,7 +106,6 @@ project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}") {
 
   test {
     useJUnitPlatform()
-    jvmArgs += project.property('extraJvmArgs')
   }
 
   tasks.withType(Test) {
@@ -166,10 +165,6 @@ project(":iceberg-spark:iceberg-spark-extensions-${sparkMajorVersion}_${scalaVer
     // Required because we remove antlr plugin dependencies from the compile configuration, see note above
     runtimeOnly "org.antlr:antlr4-runtime:4.8"
     antlr "org.antlr:antlr4:4.8"
-  }
-
-  test {
-    jvmArgs += project.property('extraJvmArgs')
   }
 
   generateGrammarSource {

@@ -243,6 +243,8 @@ subprojects {
 
     maxHeapSize = "1500m"
 
+    jvmArgs += project.property('extraJvmArgs')
+
     testLogging {
       events "failed"
       exceptionFormat "full"
@@ -297,9 +299,6 @@ project(':iceberg-bundled-guava') {
 }
 
 project(':iceberg-api') {
-  test {
-      jvmArgs += project.property('extraJvmArgs')
-  }
   dependencies {
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     compileOnly "com.google.errorprone:error_prone_annotations"
@@ -340,7 +339,6 @@ project(':iceberg-common') {
 project(':iceberg-core') {
   test {
     useJUnitPlatform()
-      jvmArgs += project.property('extraJvmArgs')
   }
   dependencies {
     api project(':iceberg-api')
@@ -455,9 +453,6 @@ project(':iceberg-aliyun') {
 }
 
 project(':iceberg-aws') {
-    test {
-        jvmArgs += project.property('extraJvmArgs')
-    }
   dependencies {
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     api project(':iceberg-api')
@@ -598,9 +593,6 @@ project(':iceberg-delta-lake') {
 }
 
 project(':iceberg-gcp') {
-  test {
-      jvmArgs += project.property('extraJvmArgs')
-  }
   dependencies {
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     api project(':iceberg-api')
@@ -752,9 +744,6 @@ project(':iceberg-parquet') {
 }
 
 project(':iceberg-arrow') {
-    test {
-        jvmArgs += project.property('extraJvmArgs')
-    }
   dependencies {
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     api project(':iceberg-api')

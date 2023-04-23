@@ -193,11 +193,11 @@ public class TestMetadataTableReadableMetrics extends SparkTestBaseWithCatalog {
   @Test
   public void testPrimitiveColumns() throws Exception {
     createPrimitiveTable();
-    Map<Integer, Long> columSizeStats = dataFile.columnSizes();
+    Map<Integer, Long> columnSizeStats = dataFile.columnSizes();
 
     Object[] binaryCol =
         row(
-            columSizeStats.get(PRIMITIVE_SCHEMA.findField("binaryCol").fieldId()),
+            columnSizeStats.get(PRIMITIVE_SCHEMA.findField("binaryCol").fieldId()),
             4L,
             2L,
             null,
@@ -205,7 +205,7 @@ public class TestMetadataTableReadableMetrics extends SparkTestBaseWithCatalog {
             Base64.getDecoder().decode("2222"));
     Object[] booleanCol =
         row(
-            columSizeStats.get(PRIMITIVE_SCHEMA.findField("booleanCol").fieldId()),
+            columnSizeStats.get(PRIMITIVE_SCHEMA.findField("booleanCol").fieldId()),
             4L,
             0L,
             null,
@@ -213,7 +213,7 @@ public class TestMetadataTableReadableMetrics extends SparkTestBaseWithCatalog {
             true);
     Object[] decimalCol =
         row(
-            columSizeStats.get(PRIMITIVE_SCHEMA.findField("decimalCol").fieldId()),
+            columnSizeStats.get(PRIMITIVE_SCHEMA.findField("decimalCol").fieldId()),
             4L,
             1L,
             null,
@@ -221,7 +221,7 @@ public class TestMetadataTableReadableMetrics extends SparkTestBaseWithCatalog {
             new BigDecimal("2.00"));
     Object[] doubleCol =
         row(
-            columSizeStats.get(PRIMITIVE_SCHEMA.findField("doubleCol").fieldId()),
+            columnSizeStats.get(PRIMITIVE_SCHEMA.findField("doubleCol").fieldId()),
             4L,
             0L,
             1L,
@@ -229,7 +229,7 @@ public class TestMetadataTableReadableMetrics extends SparkTestBaseWithCatalog {
             2.0D);
     Object[] fixedCol =
         row(
-            columSizeStats.get(PRIMITIVE_SCHEMA.findField("fixedCol").fieldId()),
+            columnSizeStats.get(PRIMITIVE_SCHEMA.findField("fixedCol").fieldId()),
             4L,
             2L,
             null,
@@ -237,17 +237,23 @@ public class TestMetadataTableReadableMetrics extends SparkTestBaseWithCatalog {
             Base64.getDecoder().decode("2222"));
     Object[] floatCol =
         row(
-            columSizeStats.get(PRIMITIVE_SCHEMA.findField("floatCol").fieldId()),
+            columnSizeStats.get(PRIMITIVE_SCHEMA.findField("floatCol").fieldId()),
             4L,
             0L,
             2L,
             0f,
             0f);
     Object[] intCol =
-        row(columSizeStats.get(PRIMITIVE_SCHEMA.findField("intCol").fieldId()), 4L, 0L, null, 1, 2);
+        row(
+            columnSizeStats.get(PRIMITIVE_SCHEMA.findField("intCol").fieldId()),
+            4L,
+            0L,
+            null,
+            1,
+            2);
     Object[] longCol =
         row(
-            columSizeStats.get(PRIMITIVE_SCHEMA.findField("longCol").fieldId()),
+            columnSizeStats.get(PRIMITIVE_SCHEMA.findField("longCol").fieldId()),
             4L,
             0L,
             null,
@@ -255,7 +261,7 @@ public class TestMetadataTableReadableMetrics extends SparkTestBaseWithCatalog {
             2L);
     Object[] stringCol =
         row(
-            columSizeStats.get(PRIMITIVE_SCHEMA.findField("stringCol").fieldId()),
+            columnSizeStats.get(PRIMITIVE_SCHEMA.findField("stringCol").fieldId()),
             4L,
             0L,
             null,

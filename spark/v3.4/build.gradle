@@ -106,7 +106,6 @@ project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}") {
 
   test {
     useJUnitPlatform()
-    jvmArgs += project.property('extraJvmArgs')
   }
 
   tasks.withType(Test) {
@@ -171,10 +170,6 @@ project(":iceberg-spark:iceberg-spark-extensions-${sparkMajorVersion}_${scalaVer
   generateGrammarSource {
     maxHeapSize = "64m"
     arguments += ['-visitor', '-package', 'org.apache.spark.sql.catalyst.parser.extensions']
-  }
-
-  test {
-    jvmArgs += project.property('extraJvmArgs')
   }
 }
 
