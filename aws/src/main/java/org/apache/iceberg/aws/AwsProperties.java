@@ -300,7 +300,7 @@ public class AwsProperties implements Serializable {
 
   public static final String DYNAMODB_TABLE_NAME_DEFAULT = "iceberg";
 
-  public static final String DYNAMODB_V2_SCHEMA_DEFAULT_TABLE_NAME = "iceberg_v2";
+  public static final String DYNAMODB_V2_SCHEMA_DEFAULT_TABLE_NAME = "iceberg_dynamodb_v2";
 
   public static final String DYNAMODB_CATALOG_SCHEMA_VERSION = "dynamodb.catalog.schema-version";
 

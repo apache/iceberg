@@ -19,8 +19,8 @@
 package org.apache.iceberg.aws;
 
 import java.util.Map;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -64,11 +64,9 @@ public class TestAwsProperties {
 
     // invalid schema version
     properties.put(AwsProperties.DYNAMODB_CATALOG_SCHEMA_VERSION, "3");
-    AssertHelpers.assertThrows(
-        "Should fail as invalid dynamodb schema version specified",
-        IllegalArgumentException.class,
-        "Invalid dynamodb catalog schema version",
-        () -> new AwsProperties(properties));
+    Assertions.assertThatThrownBy(() -> new AwsProperties(properties))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Illegal  value 3 for DynamoDb catalog schema version");
   }
 
   @Test
