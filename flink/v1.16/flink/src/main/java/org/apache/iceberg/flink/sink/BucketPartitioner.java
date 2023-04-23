@@ -18,55 +18,70 @@
  */
 package org.apache.iceberg.flink.sink;
 
-import java.util.List;
 import org.apache.flink.api.common.functions.Partitioner;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.iceberg.PartitionSpec;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
-/**
- * This partitioner will redirect elements to writers deterministically so that each writer only
- * targets 1 bucket. If the number of writers is greater than the number of buckets each partitioner
- * will keep a state of multiple writers per bucket as evenly as possible, and will round-robin the
- * requests across them.
- */
+/** This partitioner will redirect elements to writers deterministically. */
 class BucketPartitioner implements Partitioner<Integer> {
 
   private final int maxBuckets;
 
-  private final int[] currentWriterOffset;
+  private final int[] currentWriterForBucket;
 
   BucketPartitioner(PartitionSpec partitionSpec) {
-    List<Tuple2<Integer, Integer>> bucketFields =
-        BucketPartitionerUtils.getBucketFields(partitionSpec);
+    Tuple2<Integer, Integer> bucketFieldInfo =
+        BucketPartitionerUtils.getBucketFieldInfo(partitionSpec);
 
-    // The current implementation only supports ONE bucket
-    Preconditions.checkArgument(
-        bucketFields.size() == 1,
-        BucketPartitionerUtils.BAD_NUMBER_OF_BUCKETS_ERROR_MESSAGE + bucketFields.size());
-
-    this.maxBuckets = bucketFields.get(0).f1;
-    this.currentWriterOffset = new int[this.maxBuckets];
+    this.maxBuckets = bucketFieldInfo.f1;
+    this.currentWriterForBucket = new int[this.maxBuckets];
   }
 
+  /**
+   * If the number of writers <= the number of buckets an evenly distributed number of buckets will
+   * be assigned to each writer. Conversely, if the number of writers > the number of buckets the
+   * logic is handled by the {@link #getPartitionWritersGreaterThanBuckets
+   * getPartitionWritersGreaterThanBuckets} method.
+   *
+   * @param bucketId the bucketId for each request
+   * @param numPartitions the total number of partitions
+   * @return the partition index (writer) to use for each request
+   */
   @Override
   public int partition(Integer bucketId, int numPartitions) {
-    if (numPartitions > maxBuckets) {
-      return getPartitionIndex(bucketId, numPartitions);
-    } else {
+    if (numPartitions <= maxBuckets) {
       return bucketId % numPartitions;
+    } else {
+      return getPartitionWritersGreaterThanBuckets(bucketId, numPartitions);
     }
   }
 
-  private int getPartitionIndex(int bucketId, int numPartitions) {
-    int currentOffset = currentWriterOffset[bucketId];
+  /*-
+   * If the number of writers > the number of buckets each partitioner will keep a state of multiple
+   * writers per bucket as evenly as possible, and will round-robin the requests across them, in
+   * this case each writer will target no more than one bucket at all times.
+   * Example: numPartitions (writers) = 3, maxBuckets = 2
+   * - Writers 0 and 2 -> Bucket 0
+   * - Writer 1 -> Bucket 1
+   * - currentWriterForBucket always has the next writer index to use for a bucket
+   * - maxNumWritersPerBucket determines when to reset the currentWriterForBucket to 0
+   * - When numPartitions is not evenly divisible by maxBuckets, some buckets will have one more writer,
+   * this is determined by extraWriter. In this example Bucket 0 has an "extra writer" to consider when
+   * resetting to 0.
+   *
+   * @param bucketId the bucketId for each request
+   * @param numPartitions the total number of partitions
+   * @return the partition index (writer) to use for each request
+   */
+  private int getPartitionWritersGreaterThanBuckets(int bucketId, int numPartitions) {
+    int currentOffset = currentWriterForBucket[bucketId];
     // When numPartitions is not evenly divisible by maxBuckets
-    int extraPad = bucketId < (numPartitions % maxBuckets) ? 1 : 0;
-    int maxWriterNumOffsets = (numPartitions / maxBuckets) + extraPad;
+    int extraWriter = bucketId < (numPartitions % maxBuckets) ? 1 : 0;
+    int maxNumWritersPerBucket = (numPartitions / maxBuckets) + extraWriter;
 
     // Reset the offset when necessary
-    int nextOffset = currentOffset == maxWriterNumOffsets - 1 ? 0 : currentOffset + 1;
-    currentWriterOffset[bucketId] = nextOffset;
+    int nextOffset = currentOffset == maxNumWritersPerBucket - 1 ? 0 : currentOffset + 1;
+    currentWriterForBucket[bucketId] = nextOffset;
 
     return bucketId + (maxBuckets * currentOffset);
   }

@@ -70,6 +70,12 @@ import org.junit.runners.Parameterized;
 @RunWith(Parameterized.class)
 public class TestBucketPartitionerFlinkIcebergSink {
 
+  private enum TableSchemaType {
+    ONE_BUCKET,
+    IDENTITY_AND_BUCKET,
+    TWO_BUCKETS;
+  }
+
   private static final int NUMBER_TASK_MANAGERS = 1;
   private static final int SLOTS_PER_TASK_MANAGER = 8;
 
@@ -93,15 +99,15 @@ public class TestBucketPartitionerFlinkIcebergSink {
   private static final DataFormatConverters.RowConverter CONVERTER =
       new DataFormatConverters.RowConverter(SimpleDataUtil.FLINK_SCHEMA.getFieldDataTypes());
 
+  // Simple parallelism = 8 throughout the test suite
+  private final int parallelism = NUMBER_TASK_MANAGERS * SLOTS_PER_TASK_MANAGER;
+  private final FileFormat format = FileFormat.PARQUET;
+  private final int numBuckets = 4;
+  private final TableSchemaType tableSchemaType;
+
   private Table table;
   private StreamExecutionEnvironment env;
   private TableLoader tableLoader;
-
-  // Simple parallelism = 8 throughout the test suite
-  private final int parallelism = NUMBER_TASK_MANAGERS * SLOTS_PER_TASK_MANAGER;
-  private final FileFormat format = FileFormat.fromString("parquet");
-  private final int numBuckets = 4;
-  private final TableSchemaType tableSchemaType;
 
   @Parameterized.Parameters(name = "TableSchemaType = {0}")
   public static Object[][] parameters() {
@@ -119,13 +125,11 @@ public class TestBucketPartitionerFlinkIcebergSink {
   @Before
   public void before() throws IOException {
     table = getTable();
-
     env =
         StreamExecutionEnvironment.getExecutionEnvironment(DISABLE_CLASSLOADER_CHECK_CONFIG)
             .enableCheckpointing(100)
             .setParallelism(parallelism)
             .setMaxParallelism(parallelism * 2);
-
     tableLoader = catalogResource.tableLoader();
   }
 
@@ -176,7 +180,6 @@ public class TestBucketPartitionerFlinkIcebergSink {
     //  - All records belong to that bucket
     //  - Each bucket should've been written by valid writers
     //  - Each file should have the expected number of records
-
     int totalRecordCount = 0;
     Map<Integer, List<Integer>> writersPerBucket = Maps.newHashMap(); // <BucketId, Set<WriterId>>
     Map<Integer, Integer> filesPerBucket = Maps.newHashMap(); // <BucketId, NumFiles>
@@ -267,7 +270,6 @@ public class TestBucketPartitionerFlinkIcebergSink {
     // Extracting stats
     TableTestStats stats = extractTableTestStats();
 
-    // Assertions
     // All the records were received
     Assert.assertEquals(totalNumRows, stats.totalRecordCount);
     // Only bucketId = 0 was written
@@ -308,7 +310,6 @@ public class TestBucketPartitionerFlinkIcebergSink {
     // Extracting stats
     TableTestStats stats = extractTableTestStats();
 
-    // Assertions
     // All the records were received
     Assert.assertEquals(totalNumRows, stats.totalRecordCount);
     // Only bucketId = 0 was written
@@ -410,11 +411,5 @@ public class TestBucketPartitionerFlinkIcebergSink {
       this.filesPerBucket = filesPerBucket;
       this.recordsPerFile = recordsPerFile;
     }
-  }
-
-  private enum TableSchemaType {
-    ONE_BUCKET,
-    IDENTITY_AND_BUCKET,
-    TWO_BUCKETS;
   }
 }

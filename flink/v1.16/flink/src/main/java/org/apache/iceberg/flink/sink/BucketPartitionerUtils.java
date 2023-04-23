@@ -23,6 +23,7 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.transforms.PartitionSpecVisitor;
 
 final class BucketPartitionerUtils {
@@ -31,67 +32,73 @@ final class BucketPartitionerUtils {
 
   private BucketPartitionerUtils() {}
 
-  public static boolean hasOneBucketField(PartitionSpec partitionSpec) {
+  static boolean hasOneBucketField(PartitionSpec partitionSpec) {
     List<Tuple2<Integer, Integer>> bucketFields = getBucketFields(partitionSpec);
     return bucketFields != null && bucketFields.size() == 1;
   }
 
-  public static List<Tuple2<Integer, Integer>> getBucketFields(PartitionSpec spec) {
-    return PartitionSpecVisitor.visit(
-            spec,
-            new PartitionSpecVisitor<Tuple2<Integer, Integer>>() {
-              @Override
-              public Tuple2<Integer, Integer> identity(
-                  int fieldId, String sourceName, int sourceId) {
-                return null;
-              }
+  static Tuple2<Integer, Integer> getBucketFieldInfo(PartitionSpec partitionSpec) {
+    List<Tuple2<Integer, Integer>> bucketFields = getBucketFields(partitionSpec);
+    Preconditions.checkArgument(
+        bucketFields.size() == 1,
+        BucketPartitionerUtils.BAD_NUMBER_OF_BUCKETS_ERROR_MESSAGE + bucketFields.size());
+    return bucketFields.get(0);
+  }
 
-              @Override
-              public Tuple2<Integer, Integer> bucket(
-                  int fieldId, String sourceName, int sourceId, int numBuckets) {
-                return new Tuple2<>(fieldId, numBuckets);
-              }
-
-              @Override
-              public Tuple2<Integer, Integer> truncate(
-                  int fieldId, String sourceName, int sourceId, int width) {
-                return null;
-              }
-
-              @Override
-              public Tuple2<Integer, Integer> year(int fieldId, String sourceName, int sourceId) {
-                return null;
-              }
-
-              @Override
-              public Tuple2<Integer, Integer> month(int fieldId, String sourceName, int sourceId) {
-                return null;
-              }
-
-              @Override
-              public Tuple2<Integer, Integer> day(int fieldId, String sourceName, int sourceId) {
-                return null;
-              }
-
-              @Override
-              public Tuple2<Integer, Integer> hour(int fieldId, String sourceName, int sourceId) {
-                return null;
-              }
-
-              @Override
-              public Tuple2<Integer, Integer> alwaysNull(
-                  int fieldId, String sourceName, int sourceId) {
-                return null;
-              }
-
-              @Override
-              public Tuple2<Integer, Integer> unknown(
-                  int fieldId, String sourceName, int sourceId, String transform) {
-                return null;
-              }
-            })
-        .stream()
+  private static List<Tuple2<Integer, Integer>> getBucketFields(PartitionSpec spec) {
+    return PartitionSpecVisitor.visit(spec, new BucketPartitionSpecVisitor()).stream()
         .filter(Objects::nonNull)
         .collect(Collectors.toList());
+  }
+
+  private static class BucketPartitionSpecVisitor
+      implements PartitionSpecVisitor<Tuple2<Integer, Integer>> {
+    @Override
+    public Tuple2<Integer, Integer> identity(int fieldId, String sourceName, int sourceId) {
+      return null;
+    }
+
+    @Override
+    public Tuple2<Integer, Integer> bucket(
+        int fieldId, String sourceName, int sourceId, int numBuckets) {
+      return new Tuple2<>(fieldId, numBuckets);
+    }
+
+    @Override
+    public Tuple2<Integer, Integer> truncate(
+        int fieldId, String sourceName, int sourceId, int width) {
+      return null;
+    }
+
+    @Override
+    public Tuple2<Integer, Integer> year(int fieldId, String sourceName, int sourceId) {
+      return null;
+    }
+
+    @Override
+    public Tuple2<Integer, Integer> month(int fieldId, String sourceName, int sourceId) {
+      return null;
+    }
+
+    @Override
+    public Tuple2<Integer, Integer> day(int fieldId, String sourceName, int sourceId) {
+      return null;
+    }
+
+    @Override
+    public Tuple2<Integer, Integer> hour(int fieldId, String sourceName, int sourceId) {
+      return null;
+    }
+
+    @Override
+    public Tuple2<Integer, Integer> alwaysNull(int fieldId, String sourceName, int sourceId) {
+      return null;
+    }
+
+    @Override
+    public Tuple2<Integer, Integer> unknown(
+        int fieldId, String sourceName, int sourceId, String transform) {
+      return null;
+    }
   }
 }

@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.flink.sink;
 
-import java.util.List;
 import java.util.stream.IntStream;
 import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.api.java.tuple.Tuple2;
@@ -28,11 +27,10 @@ import org.apache.iceberg.PartitionKey;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.flink.RowDataWrapper;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
- * Very similar to the {@link PartitionKeySelector}, but optimized to extract and return an Integer
- * bucketId as the key.
+ * Similar to the {@link PartitionKeySelector}, but extracts and returns an Integer bucketId as the
+ * key. To be used with the {@link BucketPartitioner}.
  */
 class BucketPartitionKeySelector implements KeySelector<RowData, Integer> {
 
@@ -43,21 +41,17 @@ class BucketPartitionKeySelector implements KeySelector<RowData, Integer> {
 
   private transient RowDataWrapper rowDataWrapper;
 
-  BucketPartitionKeySelector(PartitionSpec spec, Schema schema, RowType flinkSchema) {
-    List<Tuple2<Integer, Integer>> bucketFields = BucketPartitionerUtils.getBucketFields(spec);
+  BucketPartitionKeySelector(PartitionSpec partitionSpec, Schema schema, RowType flinkSchema) {
+    Tuple2<Integer, Integer> bucketFieldInfo =
+        BucketPartitionerUtils.getBucketFieldInfo(partitionSpec);
 
-    // The current implementation only supports ONE bucket
-    Preconditions.checkArgument(
-        bucketFields.size() == 1,
-        BucketPartitionerUtils.BAD_NUMBER_OF_BUCKETS_ERROR_MESSAGE + bucketFields.size());
-
-    int bucketFieldId = bucketFields.get(0).f0;
+    int bucketFieldId = bucketFieldInfo.f0;
     this.schema = schema;
-    this.partitionKey = new PartitionKey(spec, schema);
+    this.partitionKey = new PartitionKey(partitionSpec, schema);
     this.flinkSchema = flinkSchema;
     this.bucketFieldPosition =
-        IntStream.range(0, spec.fields().size())
-            .filter(i -> spec.fields().get(i).fieldId() == bucketFieldId)
+        IntStream.range(0, partitionSpec.fields().size())
+            .filter(i -> partitionSpec.fields().get(i).fieldId() == bucketFieldId)
             .toArray()[0];
   }
 
