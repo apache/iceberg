@@ -22,7 +22,12 @@ import org.apache.flink.api.common.functions.Partitioner;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.iceberg.PartitionSpec;
 
-/** This partitioner will redirect elements to writers deterministically. */
+/**
+ * This partitioner will redirect records to writers deterministically based on the Bucket partition
+ * spec. It'll attempt to optimize the file size written depending on whether numPartitions is
+ * greater, less or equal than the maxNumBuckets. Note: The current implementation only supports ONE
+ * bucket in the partition spec.
+ */
 class BucketPartitioner implements Partitioner<Integer> {
 
   private final int maxNumBuckets;
