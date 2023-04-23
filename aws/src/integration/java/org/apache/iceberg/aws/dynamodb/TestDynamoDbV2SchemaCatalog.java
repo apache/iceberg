@@ -18,12 +18,12 @@
  */
 package org.apache.iceberg.aws.dynamodb;
 
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -61,11 +61,10 @@ public class TestDynamoDbV2SchemaCatalog extends TestDynamoDbCatalog {
         namespace.toString(),
         response.item().get("identifier").s());
 
-    AssertHelpers.assertThrows(
-        "should not create duplicated namespace",
-        AlreadyExistsException.class,
-        "already exists",
-        () -> catalog.createNamespace(namespace));
+    Assertions.assertThatThrownBy(() -> catalog.createNamespace(namespace))
+        .as("should not create duplicated namespace")
+        .isInstanceOf(AlreadyExistsException.class)
+        .hasMessageContaining("already exists");
   }
 
   @Test

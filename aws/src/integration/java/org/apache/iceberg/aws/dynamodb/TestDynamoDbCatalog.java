@@ -24,7 +24,6 @@ import java.util.UUID;
 import java.util.concurrent.ForkJoinPool;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
@@ -83,17 +82,15 @@ public abstract class TestDynamoDbCatalog {
 
   @Test
   public void testCreateNamespaceBadName() {
-    AssertHelpers.assertThrows(
-        "should not create namespace with empty level",
-        ValidationException.class,
-        "must not be empty",
-        () -> catalog.createNamespace(Namespace.of("a", "", "b")));
+    Assertions.assertThatThrownBy(() -> catalog.createNamespace(Namespace.of("a", "", "b")))
+        .as("should not create namespace with empty level")
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("must not be empty");
 
-    AssertHelpers.assertThrows(
-        "should not create namespace with dot in level",
-        ValidationException.class,
-        "must not contain dot",
-        () -> catalog.createNamespace(Namespace.of("a", "b.c")));
+    Assertions.assertThatThrownBy(() -> catalog.createNamespace(Namespace.of("a", "b.c")))
+        .as("should not create namespace with dot in level")
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("must not contain dot");
   }
 
   @Test
@@ -152,28 +149,27 @@ public abstract class TestDynamoDbCatalog {
         namespace.toString(),
         response.item().get("namespace").s());
 
-    AssertHelpers.assertThrows(
-        "should not create duplicated table",
-        AlreadyExistsException.class,
-        "already exists",
-        () -> catalog.createTable(tableIdentifier, SCHEMA));
+    Assertions.assertThatThrownBy(() -> catalog.createTable(tableIdentifier, SCHEMA))
+        .as("should not create duplicated table")
+        .isInstanceOf(AlreadyExistsException.class)
+        .hasMessageContaining("already exists");
   }
 
   @Test
   public void testCreateTableBadName() {
     Namespace namespace = Namespace.of(genRandomName());
     catalog.createNamespace(namespace);
-    AssertHelpers.assertThrows(
-        "should not create table name with empty namespace",
-        ValidationException.class,
-        "Table namespace must not be empty",
-        () -> catalog.createTable(TableIdentifier.of(Namespace.empty(), "a"), SCHEMA));
+    Assertions.assertThatThrownBy(
+            () -> catalog.createTable(TableIdentifier.of(Namespace.empty(), "a"), SCHEMA))
+        .as("should not create table name with empty namespace")
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("Table namespace must not be empty");
 
-    AssertHelpers.assertThrows(
-        "should not create table name with dot",
-        ValidationException.class,
-        "must not contain dot",
-        () -> catalog.createTable(TableIdentifier.of(namespace, "a.b"), SCHEMA));
+    Assertions.assertThatThrownBy(
+            () -> catalog.createTable(TableIdentifier.of(namespace, "a.b"), SCHEMA))
+        .as("should not create table name with dot")
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("must not contain dot");
   }
 
   @Test
@@ -214,15 +210,18 @@ public abstract class TestDynamoDbCatalog {
                     .key(DynamoDbCatalog.tablePrimaryKey(tableIdentifier))
                     .build())
             .hasItem());
-    AssertHelpers.assertThrows(
-        "metadata location should be deleted",
-        NoSuchKeyException.class,
-        () ->
-            s3.headObject(
-                HeadObjectRequest.builder()
-                    .bucket(testBucket)
-                    .key(metadataLocation.substring(testBucket.length() + 6)) // s3:// + end slash
-                    .build()));
+
+    Assertions.assertThatThrownBy(
+            () ->
+                s3.headObject(
+                    HeadObjectRequest.builder()
+                        .bucket(testBucket)
+                        .key(
+                            metadataLocation.substring(
+                                testBucket.length() + 6)) // s3:// + end slash
+                        .build()))
+        .as("metadata location should be deleted")
+        .isInstanceOf(NoSuchKeyException.class);
   }
 
   @Test
@@ -235,17 +234,16 @@ public abstract class TestDynamoDbCatalog {
     catalog.createTable(tableIdentifier, SCHEMA);
     TableIdentifier tableIdentifier2 = TableIdentifier.of(namespace2, genRandomName());
 
-    AssertHelpers.assertThrows(
-        "should not be able to rename a table not exist",
-        NoSuchTableException.class,
-        "does not exist",
-        () -> catalog.renameTable(TableIdentifier.of(namespace, "a"), tableIdentifier2));
+    Assertions.assertThatThrownBy(
+            () -> catalog.renameTable(TableIdentifier.of(namespace, "a"), tableIdentifier2))
+        .as("should not be able to rename a table not exist")
+        .isInstanceOf(NoSuchTableException.class)
+        .hasMessageContaining("does not exist");
 
-    AssertHelpers.assertThrows(
-        "should not be able to rename an existing table",
-        AlreadyExistsException.class,
-        "already exists",
-        () -> catalog.renameTable(tableIdentifier, tableIdentifier));
+    Assertions.assertThatThrownBy(() -> catalog.renameTable(tableIdentifier, tableIdentifier))
+        .as("should not be able to rename an existing table")
+        .isInstanceOf(AlreadyExistsException.class)
+        .hasMessageContaining("already exists");
 
     String metadataLocation =
         dynamo
