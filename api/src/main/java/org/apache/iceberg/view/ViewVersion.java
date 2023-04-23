@@ -65,5 +65,8 @@ public interface ViewVersion {
    *
    * @return the string operation which produced the view version
    */
-  String operation();
+  @Value.Derived
+  default String operation() {
+    return summary().get("operation");
+  }
 }

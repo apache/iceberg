@@ -35,7 +35,7 @@ class SQLViewRepresentationParser {
   private static final String DEFAULT_CATALOG = "default-catalog";
   private static final String DEFAULT_NAMESPACE = "default-namespace";
   private static final String FIELD_ALIASES = "field-aliases";
-  private static final String FIELD_COMMENTS = "field-comments";
+  private static final String FIELD_DOCS = "field-docs";
 
   private SQLViewRepresentationParser() {}
 
@@ -64,13 +64,11 @@ class SQLViewRepresentationParser {
     }
 
     if (!view.fieldAliases().isEmpty()) {
-      JsonUtil.writeStringArray(
-          SQLViewRepresentationParser.FIELD_ALIASES, view.fieldAliases(), generator);
+      JsonUtil.writeStringArray(FIELD_ALIASES, view.fieldAliases(), generator);
     }
 
     if (!view.fieldComments().isEmpty()) {
-      JsonUtil.writeStringArray(
-          SQLViewRepresentationParser.FIELD_COMMENTS, view.fieldComments(), generator);
+      JsonUtil.writeStringArray(FIELD_DOCS, view.fieldComments(), generator);
     }
 
     generator.writeEndObject();
@@ -109,7 +107,7 @@ class SQLViewRepresentationParser {
       builder.fieldAliases(fieldAliases);
     }
 
-    List<String> fieldComments = JsonUtil.getStringListOrNull(FIELD_COMMENTS, node);
+    List<String> fieldComments = JsonUtil.getStringListOrNull(FIELD_DOCS, node);
     if (fieldComments != null) {
       builder.fieldComments(fieldComments);
     }
