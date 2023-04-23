@@ -454,7 +454,7 @@ public abstract class TestMetrics {
 
     for (int i = 0; i < recordCount; i++) {
       Record newRecord = GenericRecord.create(SIMPLE_SCHEMA);
-      newRecord.setField("booleanCol", i == 0 ? false : true);
+      newRecord.setField("booleanCol", i != 0);
       newRecord.setField("intCol", i + 1);
       newRecord.setField("longCol", i == 0 ? null : i + 1L);
       newRecord.setField("floatCol", i + 1.0F);

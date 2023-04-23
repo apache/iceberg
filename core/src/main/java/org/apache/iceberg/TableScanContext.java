@@ -26,6 +26,7 @@ import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.metrics.LoggingMetricsReporter;
 import org.apache.iceberg.metrics.MetricsReporter;
+import org.apache.iceberg.metrics.MetricsReporters;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.util.ThreadPools;
@@ -59,7 +60,7 @@ final class TableScanContext {
     this.toSnapshotId = null;
     this.planExecutor = null;
     this.fromSnapshotInclusive = false;
-    this.metricsReporter = LoggingMetricsReporter.instance();
+    this.metricsReporter = null;
   }
 
   private TableScanContext(
@@ -355,7 +356,7 @@ final class TableScanContext {
   }
 
   MetricsReporter metricsReporter() {
-    return metricsReporter;
+    return null == metricsReporter ? LoggingMetricsReporter.instance() : metricsReporter;
   }
 
   TableScanContext reportWith(MetricsReporter reporter) {
@@ -372,6 +373,6 @@ final class TableScanContext {
         toSnapshotId,
         planExecutor,
         fromSnapshotInclusive,
-        reporter);
+        MetricsReporters.combine(metricsReporter, reporter));
   }
 }

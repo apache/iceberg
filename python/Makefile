@@ -17,7 +17,7 @@
 
 install:
 	pip install poetry
-	poetry install -E pyarrow -E hive -E s3fs -E glue -E adlfs -E duckdb
+	poetry install -E pyarrow -E hive -E s3fs -E glue -E adlfs -E duckdb -E ray
 
 check-license:
 	./dev/check-license
@@ -36,7 +36,7 @@ test-integration:
 	docker-compose -f dev/docker-compose-integration.yml kill
 	docker-compose -f dev/docker-compose-integration.yml build
 	docker-compose -f dev/docker-compose-integration.yml up -d
-	sleep 20
+	sleep 30
 	poetry run pytest tests/ -m integration ${PYTEST_ARGS}
 
 test-adlfs:

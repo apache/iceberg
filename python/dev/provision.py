@@ -17,6 +17,7 @@
 import time
 
 from pyspark.sql import SparkSession
+from pyspark.sql.functions import current_date, date_add, expr
 
 spark = SparkSession.builder.getOrCreate()
 
@@ -58,10 +59,49 @@ UNION ALL SELECT
 
 spark.sql(
     """
+  DROP TABLE IF EXISTS test_null_nan_rewritten;
+"""
+)
+
+spark.sql(
+    """
   CREATE TABLE test_null_nan_rewritten
   USING iceberg
   AS SELECT * FROM test_null_nan
 """
+)
+
+spark.sql(
+    """
+  DROP TABLE IF EXISTS test_limit;
+"""
+)
+
+spark.sql(
+    """
+    CREATE TABLE test_limit
+    USING iceberg
+      AS SELECT
+          1            AS idx
+      UNION ALL SELECT
+          2            AS idx
+      UNION ALL SELECT
+          3            AS idx
+      UNION ALL SELECT
+          4            AS idx
+      UNION ALL SELECT
+          5            AS idx
+      UNION ALL SELECT
+          6            AS idx
+      UNION ALL SELECT
+          7            AS idx
+      UNION ALL SELECT
+          8            AS idx
+      UNION ALL SELECT
+          9            AS idx
+      UNION ALL SELECT
+          10           AS idx
+    """
 )
 
 spark.sql(
@@ -93,6 +133,29 @@ spark.sql(
   DELETE FROM test_deletes WHERE deleted = True;
 """
 )
+
+all_types_dataframe = (
+    spark.range(0, 5, 1, 5)
+    .withColumnRenamed("id", "longCol")
+    .withColumn("intCol", expr("CAST(longCol AS INT)"))
+    .withColumn("floatCol", expr("CAST(longCol AS FLOAT)"))
+    .withColumn("doubleCol", expr("CAST(longCol AS DOUBLE)"))
+    .withColumn("dateCol", date_add(current_date(), 1))
+    .withColumn("timestampCol", expr("TO_TIMESTAMP(dateCol)"))
+    .withColumn("stringCol", expr("CAST(dateCol AS STRING)"))
+    .withColumn("booleanCol", expr("longCol > 5"))
+    .withColumn("binaryCol", expr("CAST(longCol AS BINARY)"))
+    .withColumn("byteCol", expr("CAST(longCol AS BYTE)"))
+    .withColumn("decimalCol", expr("CAST(longCol AS DECIMAL(10, 2))"))
+    .withColumn("shortCol", expr("CAST(longCol AS SHORT)"))
+    .withColumn("mapCol", expr("MAP(longCol, decimalCol)"))
+    .withColumn("arrayCol", expr("ARRAY(longCol)"))
+    .withColumn("structCol", expr("STRUCT(mapCol, arrayCol)"))
+)
+
+all_types_dataframe.writeTo("default.test_all_types").tableProperty("format-version", "2").partitionedBy(
+    "intCol"
+).createOrReplace()
 
 while True:
     time.sleep(1)

@@ -35,7 +35,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
-import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
@@ -226,12 +225,6 @@ public class RESTSessionCatalog extends BaseSessionCatalog
     this.conf = newConf;
   }
 
-  /** @deprecated will be removed in 1.3.0; use {@link #setConf(Object)} */
-  @Deprecated
-  public void setConf(Configuration newConf) {
-    setConf((Object) newConf);
-  }
-
   @Override
   public List<TableIdentifier> listTables(SessionContext context, Namespace ns) {
     checkNamespaceIsValid(ns);
@@ -334,6 +327,7 @@ public class RESTSessionCatalog extends BaseSessionCatalog
       tableMetadata =
           TableMetadata.buildFrom(response.tableMetadata())
               .withMetadataLocation(response.metadataLocation())
+              .setPreviousFileLocation(null)
               .setSnapshotsSupplier(
                   () ->
                       loadInternal(context, identifier, SnapshotMode.ALL)
@@ -608,7 +602,8 @@ public class RESTSessionCatalog extends BaseSessionCatalog
               tableFileIO(context, response.config()),
               response.tableMetadata());
 
-      return new BaseTable(ops, fullTableName(ident));
+      return new BaseTable(
+          ops, fullTableName(ident), report -> reportMetrics(ident, report, session::headers));
     }
 
     @Override

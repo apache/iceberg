@@ -163,7 +163,8 @@ public class TestIcebergSourceBoundedGenericRecord {
             null,
             false,
             table.io(),
-            table.encryption());
+            table.encryption(),
+            filters);
 
     IcebergSource.Builder<GenericRecord> sourceBuilder =
         IcebergSource.<GenericRecord>builder()

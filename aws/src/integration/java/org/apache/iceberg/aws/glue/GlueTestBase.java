@@ -34,7 +34,6 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
-import org.apache.iceberg.util.LockManagers;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.slf4j.Logger;
@@ -83,13 +82,7 @@ public class GlueTestBase {
     AwsProperties properties = new AwsProperties();
     properties.setS3FileIoDeleteBatchSize(10);
     glueCatalog.initialize(
-        catalogName,
-        testBucketPath,
-        properties,
-        glue,
-        LockManagers.defaultLockManager(),
-        fileIO,
-        ImmutableMap.of());
+        catalogName, testBucketPath, properties, glue, null, fileIO, ImmutableMap.of());
 
     glueCatalogWithSkipNameValidation = new GlueCatalog();
     AwsProperties propertiesSkipNameValidation = new AwsProperties();
@@ -99,7 +92,7 @@ public class GlueTestBase {
         testBucketPath,
         propertiesSkipNameValidation,
         glue,
-        LockManagers.defaultLockManager(),
+        null,
         fileIO,
         ImmutableMap.of());
   }

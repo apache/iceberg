@@ -196,7 +196,7 @@ and table name validation are skipped, there is no guarantee that downstream sys
 By default, Iceberg uses Glue's optimistic locking for concurrent updates to a table.
 With optimistic locking, each table has a version id. 
 If users retrieve the table metadata, Iceberg records the version id of that table. 
-Users can update the table, but only if the version id on the server side has not changed. 
+Users can update the table as long as the version ID on the server side remains unchanged. 
 If there is a version mismatch, it means that someone else has modified the table before you did. 
 The update attempt fails, because you have a stale version of the table. 
 If this happens, Iceberg refreshes the metadata and checks if there might be potential conflict. 
