@@ -725,7 +725,7 @@ name = "duckdb"
 version = "0.7.1"
 description = "DuckDB embedded database"
 category = "main"
-optional = false
+optional = true
 python-versions = "*"
 files = [
     {file = "duckdb-0.7.1-cp310-cp310-macosx_10_9_universal2.whl", hash = "sha256:3e0170be6cc315c179169dfa3e06485ef7009ef8ce399cd2908f29105ef2c67b"},
@@ -2879,4 +2879,4 @@ zstandard = ["zstandard"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.8"
-content-hash = "554aa51e69b58417a87aae5eee4ba2d98b3c3df88345f50e4ee9e86c0930e772"
+content-hash = "bf81be305ed53714873f61a37cd5c3aa8460f7b3b71c52de17bc6cc83e460207"
