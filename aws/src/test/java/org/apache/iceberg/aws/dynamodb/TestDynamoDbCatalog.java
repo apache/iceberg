@@ -27,7 +27,6 @@ import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.assertj.core.api.Assertions;
-import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mockito;
@@ -35,7 +34,6 @@ import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 import software.amazon.awssdk.services.dynamodb.model.GetItemRequest;
 import software.amazon.awssdk.services.dynamodb.model.GetItemResponse;
-import software.amazon.awssdk.services.glue.model.*;
 
 public class TestDynamoDbCatalog {
 
@@ -60,7 +58,7 @@ public class TestDynamoDbCatalog {
         .when(dynamo)
         .getItem(any(GetItemRequest.class));
     String location = catalogWithSlash.defaultWarehouseLocation(TableIdentifier.of("db", "table"));
-    Assert.assertEquals(WAREHOUSE_PATH + "/db.db/table", location);
+    Assertions.assertThat(location).isEqualTo(WAREHOUSE_PATH + "/db.db/table");
   }
 
   @Test
