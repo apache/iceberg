@@ -18,7 +18,7 @@
  */
 package org.apache.iceberg.flink.source;
 
-import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
@@ -68,8 +68,11 @@ public class TestIcebergSourceBounded extends TestFlinkScan {
   }
 
   @Override
-  protected List<Row> runWithFilter(Expression filter, String sqlFilter) throws Exception {
-    return run(null, Arrays.asList(filter), Maps.newHashMap(), sqlFilter, "*");
+  protected List<Row> runWithFilter(Expression filter, String sqlFilter, boolean caseSensitive)
+      throws Exception {
+    Map<String, String> options = Maps.newHashMap();
+    options.put("case-sensitive", Boolean.toString(caseSensitive));
+    return run(null, Collections.singletonList(filter), options, sqlFilter, "*");
   }
 
   @Override

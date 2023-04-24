@@ -19,7 +19,6 @@
 package org.apache.iceberg.flink.sink.shuffle;
 
 import java.io.Serializable;
-import org.apache.iceberg.flink.sink.shuffle.statistics.DataStatistics;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
@@ -33,7 +32,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
  * After shuffling, a filter and mapper are required to filter out the data distribution weight,
  * unwrap the object and extract the original record type T.
  */
-public class DataStatisticsOrRecord<T, K> implements Serializable {
+class DataStatisticsOrRecord<T, K> implements Serializable {
 
   private static final long serialVersionUID = 1L;
 

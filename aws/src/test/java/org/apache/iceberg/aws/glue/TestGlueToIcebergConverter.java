@@ -22,7 +22,7 @@ import java.util.Map;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
-import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.exceptions.NoSuchIcebergTableException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.assertj.core.api.Assertions;
 import org.junit.Assert;
@@ -47,21 +47,11 @@ public class TestGlueToIcebergConverter {
   }
 
   @Test
-  public void testValidateTable() {
-    Map<String, String> properties =
-        ImmutableMap.of(
-            BaseMetastoreTableOperations.TABLE_TYPE_PROP,
-            BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE);
-    Table table = Table.builder().parameters(properties).build();
-    GlueToIcebergConverter.validateTable(table, "name");
-  }
-
-  @Test
   public void testValidateTableIcebergPropertyNotFound() {
     Table table = Table.builder().parameters(ImmutableMap.of()).build();
 
-    Assertions.assertThatThrownBy(() -> GlueToIcebergConverter.validateTable(table, "name"))
-        .isInstanceOf(ValidationException.class)
+    Assertions.assertThatThrownBy(() -> GlueTableOperations.checkIfTableIsIceberg(table, "name"))
+        .isInstanceOf(NoSuchIcebergTableException.class)
         .hasMessage("Input Glue table is not an iceberg table: name (type=null)");
   }
 
@@ -71,8 +61,8 @@ public class TestGlueToIcebergConverter {
         ImmutableMap.of(BaseMetastoreTableOperations.TABLE_TYPE_PROP, "other");
     Table table = Table.builder().parameters(properties).build();
 
-    Assertions.assertThatThrownBy(() -> GlueToIcebergConverter.validateTable(table, "name"))
-        .isInstanceOf(ValidationException.class)
+    Assertions.assertThatThrownBy(() -> GlueTableOperations.checkIfTableIsIceberg(table, "name"))
+        .isInstanceOf(NoSuchIcebergTableException.class)
         .hasMessage("Input Glue table is not an iceberg table: name (type=other)");
   }
 }

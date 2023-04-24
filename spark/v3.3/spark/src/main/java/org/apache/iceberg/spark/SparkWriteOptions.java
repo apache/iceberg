@@ -57,6 +57,8 @@ public class SparkWriteOptions {
   public static final String HANDLE_TIMESTAMP_WITHOUT_TIMEZONE =
       "handle-timestamp-without-timezone";
 
+  public static final String OUTPUT_SPEC_ID = "output-spec-id";
+
   public static final String OVERWRITE_MODE = "overwrite-mode";
 
   // Overrides the default distribution mode for a write operation

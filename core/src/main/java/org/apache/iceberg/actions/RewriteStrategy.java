@@ -26,6 +26,12 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Table;
 
+/**
+ * A strategy for rewriting files.
+ *
+ * @deprecated since 1.3.0, will be removed in 1.4.0; use {@link FileRewriter} instead.
+ */
+@Deprecated
 public interface RewriteStrategy extends Serializable {
   /** Returns the name of this rewrite strategy */
   String name();

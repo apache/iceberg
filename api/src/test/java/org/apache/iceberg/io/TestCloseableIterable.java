@@ -195,10 +195,11 @@ public class TestCloseableIterable {
                   }
                 });
 
+    AtomicInteger consumedCounter = new AtomicInteger(0);
     try (CloseableIterable<Integer> concat = CloseableIterable.concat(transform)) {
-      concat.forEach(c -> c++);
+      concat.forEach(count -> consumedCounter.getAndIncrement());
     }
-    Assertions.assertThat(counter.get()).isEqualTo(items.size());
+    Assertions.assertThat(counter.get()).isEqualTo(items.size()).isEqualTo(consumedCounter.get());
   }
 
   @Test

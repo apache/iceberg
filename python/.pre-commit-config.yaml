@@ -82,3 +82,5 @@ repos:
           - mdformat-config
           - mdformat-beautysh
           - mdformat-admon
+          - mdformat-mkdocs
+          - mdformat-frontmatter

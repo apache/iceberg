@@ -34,6 +34,7 @@ import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
 import org.apache.iceberg.hadoop.Util;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.Tasks;
@@ -136,14 +137,15 @@ public class FlinkSplitPlanner {
     }
   }
 
-  private enum ScanMode {
+  @VisibleForTesting
+  enum ScanMode {
     BATCH,
     INCREMENTAL_APPEND_SCAN
   }
 
-  private static ScanMode checkScanMode(ScanContext context) {
-    if (context.isStreaming()
-        || context.startSnapshotId() != null
+  @VisibleForTesting
+  static ScanMode checkScanMode(ScanContext context) {
+    if (context.startSnapshotId() != null
         || context.endSnapshotId() != null
         || context.startTag() != null
         || context.endTag() != null) {
