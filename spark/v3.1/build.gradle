@@ -92,6 +92,9 @@ project(':iceberg-spark:iceberg-spark-3.1_2.12') {
 
     testImplementation("org.apache.hadoop:hadoop-minicluster") {
       exclude group: 'org.apache.avro', module: 'avro'
+      // to make sure netty libs only come from project(':iceberg-arrow')
+      exclude group: 'io.netty', module: 'netty-buffer'
+      exclude group: 'io.netty', module: 'netty-common'
     }
     testImplementation project(path: ':iceberg-hive-metastore')
     testImplementation project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
