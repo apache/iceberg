@@ -26,6 +26,7 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkCatalogConfig;
 import org.apache.iceberg.spark.SparkCatalogTestBase;
+import org.apache.spark.sql.SparkSession;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -55,6 +56,7 @@ public class TestSparkWarehouseLocation extends SparkCatalogTestBase {
     sql("DROP TABLE IF EXISTS %s", testTableName);
     sql("DROP NAMESPACE IF EXISTS %s", testNameSpace);
     spark.sessionState().catalogManager().reset();
+    SparkSession.clearDefaultSession();
   }
 
   @Test
@@ -65,14 +67,15 @@ public class TestSparkWarehouseLocation extends SparkCatalogTestBase {
     sql("CREATE TABLE %s (id BIGINT NOT NULL, data STRING) USING iceberg", testTableName);
 
     Table table = Spark3Util.loadIcebergCatalog(spark, catalogName).loadTable(testTableIdentifier);
-    if (SparkCatalogConfig.SPARK.catalogName().equals(catalogName)) {
-      assertThat(table.location())
-          .isEqualTo(spark.sqlContext().conf().warehousePath() + "/default1.db/table");
-    } else if (SparkCatalogConfig.HIVE.catalogName().equals(catalogName)) {
-      assertThat(table.location()).isEqualTo(warehouseLocation + "/default1.db/table");
-    } else if (SparkCatalogConfig.HADOOP.catalogName().equals(catalogName)) {
-      assertThat(table.location()).isEqualTo(warehouseLocation + "/default1/table");
-    }
+    String expectedPath =
+        SparkCatalogConfig.SPARK.catalogName().equals(catalogName)
+            ? spark.sqlContext().conf().warehousePath()
+            : warehouseLocation;
+    expectedPath +=
+        SparkCatalogConfig.HADOOP.catalogName().equals(catalogName)
+            ? "/default1/table"
+            : "/default1.db/table";
+    assertThat(table.location()).isEqualTo(expectedPath);
   }
 
   @Test
@@ -82,15 +85,10 @@ public class TestSparkWarehouseLocation extends SparkCatalogTestBase {
     sql("CREATE NAMESPACE %s", testNameSpace);
     sql("CREATE TABLE %s (id BIGINT NOT NULL, data STRING) USING iceberg", testTableName);
     Table table = Spark3Util.loadIcebergCatalog(spark, catalogName).loadTable(testTableIdentifier);
-    if (SparkCatalogConfig.SPARK.catalogName().equals(catalogName)) {
-      assertThat(table.location())
-          .isEqualTo(spark.sqlContext().conf().warehousePath() + "/default1.db/table");
-    } else if (SparkCatalogConfig.HIVE.catalogName().equals(catalogName)) {
-      assertThat(table.location())
-          .isEqualTo(spark.sqlContext().conf().warehousePath() + "/default1.db/table");
-    } else if (SparkCatalogConfig.HADOOP.catalogName().equals(catalogName)) {
-      assertThat(table.location())
-          .isEqualTo(spark.sqlContext().conf().warehousePath() + "/default1/table");
-    }
+    String expectedPath =
+        SparkCatalogConfig.HADOOP.catalogName().equals(catalogName)
+            ? spark.sqlContext().conf().warehousePath() + "/default1/table"
+            : spark.sqlContext().conf().warehousePath() + "/default1.db/table";
+    assertThat(table.location()).isEqualTo(expectedPath);
   }
 }
