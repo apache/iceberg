@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.flink.source;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import org.apache.flink.annotation.Internal;
@@ -59,13 +58,7 @@ public class RowDataFileScanTaskReader implements FileScanTaskReader<RowData> {
   private final Schema projectedSchema;
   private final String nameMapping;
   private final boolean caseSensitive;
-
   private final FlinkSourceFilter rowFilter;
-
-  public RowDataFileScanTaskReader(
-      Schema tableSchema, Schema projectedSchema, String nameMapping, boolean caseSensitive) {
-    this(tableSchema, projectedSchema, nameMapping, caseSensitive, Collections.emptyList());
-  }
 
   public RowDataFileScanTaskReader(
       Schema tableSchema,
@@ -148,7 +141,6 @@ public class RowDataFileScanTaskReader implements FileScanTaskReader<RowData> {
     if (rowFilter != null) {
       return CloseableIterable.filter(iter, rowFilter::filter);
     }
-
     return iter;
   }
 
