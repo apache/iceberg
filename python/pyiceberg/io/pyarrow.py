@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=redefined-outer-name,arguments-renamed
+# pylint: disable=redefined-outer-name,arguments-renamed,fixme
 """FileIO implementation for reading and writing table files that uses pyarrow.fs
 
 This file contains a FileIO implementation that relies on the filesystem interface provided
@@ -508,9 +508,7 @@ def _read_deletes(fs: FileSystem, data_file: DataFile) -> Dict[str, pa.ChunkedAr
     delete_fragment = _construct_fragment(
         fs, data_file, file_format_kwargs={"dictionary_columns": ("file_path",), "pre_buffer": True, "buffer_size": ONE_MEGABYTE}
     )
-    table = ds.Scanner.from_fragment(
-        fragment=delete_fragment,
-    ).to_table()
+    table = ds.Scanner.from_fragment(fragment=delete_fragment).to_table()
     table.unify_dictionaries()
     return {
         file.as_py(): table.filter(pc.field("file_path") == file).column("pos")
@@ -560,6 +558,33 @@ class _OrderedChunkedArrayConsumer:
             raise StopIteration
 
 
+def _create_positional_deletes(
+    positional_deletes: Optional[List[pa.ChunkedArray]], fn_rows: Callable[[], int]
+) -> Optional[pa.Array]:
+    if positional_deletes is not None and len(positional_deletes) > 0:
+        # It can be that there are multiple delete files on top,
+        # since the delete files themselves are sorted, we need to
+        # weave them together using the _OrderedChunkedArrayConsumer
+        sorted_deleted = _OrderedChunkedArrayConsumer(*positional_deletes)
+
+        def generator() -> Generator[bool, None, None]:
+            deleted_pos = next(sorted_deleted)
+            for pos in range(fn_rows()):
+                if deleted_pos == pos:
+                    yield False
+                    try:
+                        deleted_pos = next(sorted_deleted)
+                    except StopIteration:
+                        deleted_pos = -1
+                else:
+                    yield True
+
+        # Filter on the positions
+        return pa.array(generator(), type=pa.bool_())
+    else:
+        return None
+
+
 def _task_to_table(
     fs: FileSystem,
     task: FileScanTask,
@@ -599,47 +624,44 @@ def _task_to_table(
         if file_schema is None:
             raise ValueError(f"Missing Iceberg schema in Metadata for file: {path}")
 
+        mask = _create_positional_deletes(positional_deletes, fragment.count_rows)
+
         fragment_scanner = ds.Scanner.from_fragment(
             fragment=fragment,
             schema=physical_schema,
-            filter=pyarrow_filter,
+            # This will push down the query to Arrow.
+            # But in case there are positional deletes, we have to apply them first
+            # TODO: Allow to pass in a mask here, so we can push down the positional deletes
+            # https://github.com/apache/arrow/issues/35301
+            filter=pyarrow_filter if mask is None else None,
             columns=[col.name for col in file_project_schema.columns],
         )
 
+        if mask is not None:
+            # In the case of a mask, it is a bit awkward because we first
+            # need to go to a table to apply the bitwise mask, and then
+            # the table is warped into a dataset to apply the expression
+            arrow_table = fragment_scanner.to_table().filter(mask)
+
+            # Apply the user filter
+            if pyarrow_filter is not None:
+                arrow_table = arrow_table.filter(pyarrow_filter)
+
+            if limit:
+                arrow_table = arrow_table.slice(0, limit)
+        else:
+            # If there are no deletes, we can just take the head
+            # and the user-filter is already applied
+            if limit:
+                arrow_table = fragment_scanner.head(limit)
+            else:
+                arrow_table = fragment_scanner.to_table()
+
         if limit:
-            arrow_table = fragment_scanner.head(limit)
             with rows_counter.get_lock():
                 if rows_counter.value >= limit:
                     return None
                 rows_counter.value += len(arrow_table)
-        else:
-            arrow_table = fragment_scanner.to_table()
-
-        if positional_deletes is not None:
-            # It can be that there are multiple delete files on top,
-            # since the delete files themselves are sorted, we need to
-            # weave them together using the _OrderedChunkedArrayConsumer
-            sorted_deleted = _OrderedChunkedArrayConsumer(*positional_deletes)
-
-            def generator() -> Generator[bool, None, None]:
-                deleted_pos = next(sorted_deleted)
-                for pos in range(len(arrow_table)):
-                    if deleted_pos == pos:
-                        yield False
-                        try:
-                            deleted_pos = next(sorted_deleted)
-                        except StopIteration:
-                            deleted_pos = -1
-                    else:
-                        yield True
-
-            # Filter on the positions
-            mask = pa.array(generator(), type=pa.bool_())
-            arrow_table = arrow_table.filter(mask)
-
-            # Apply the user filter
-            if pyarrow_filter is not None:
-                arrow_table.filter(pyarrow_filter)
 
         # If there is no data, we don't have to go through the schema
         if len(arrow_table) > 0:
