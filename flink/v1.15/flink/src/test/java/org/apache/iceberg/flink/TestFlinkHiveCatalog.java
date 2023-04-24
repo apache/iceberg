@@ -100,6 +100,6 @@ public class TestFlinkHiveCatalog extends FlinkTestBase {
 
     sql("DROP TABLE test_table");
     sql("DROP DATABASE test_db");
-    sql("DROP CATALOG test_catalog");
+    dropCatalog("test_catalog", false);
   }
 }
