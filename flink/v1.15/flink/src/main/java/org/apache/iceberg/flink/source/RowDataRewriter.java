@@ -21,6 +21,7 @@ package org.apache.iceberg.flink.source;
 import static org.apache.iceberg.TableProperties.DEFAULT_NAME_MAPPING;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 import org.apache.flink.api.common.functions.RichMapFunction;
@@ -125,7 +126,8 @@ public class RowDataRewriter {
       this.encryptionManager = encryptionManager;
       this.taskWriterFactory = taskWriterFactory;
       this.rowDataReader =
-          new RowDataFileScanTaskReader(schema, schema, nameMapping, caseSensitive);
+          new RowDataFileScanTaskReader(
+              schema, schema, nameMapping, caseSensitive, Collections.emptyList());
     }
 
     @Override

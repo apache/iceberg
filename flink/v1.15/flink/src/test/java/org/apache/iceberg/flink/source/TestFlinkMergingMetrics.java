@@ -37,11 +37,12 @@ import org.junit.Rule;
 import org.junit.rules.TemporaryFolder;
 
 public class TestFlinkMergingMetrics extends TestMergingMetrics<RowData> {
-  @ClassRule public static final TemporaryFolder TEMPORARY_FOLDER = new TemporaryFolder();
+
+  @ClassRule public static final TemporaryFolder TEMP_FOLDER = new TemporaryFolder();
 
   @Rule
   public final HadoopTableResource tableResource =
-      new HadoopTableResource(TEMPORARY_FOLDER, "test_db", "test_table", SCHEMA);
+      new HadoopTableResource(TEMP_FOLDER, "test_db", "test_table", SCHEMA);
 
   public TestFlinkMergingMetrics(FileFormat fileFormat) {
     super(fileFormat);
