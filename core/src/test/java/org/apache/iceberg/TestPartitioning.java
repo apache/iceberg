@@ -396,7 +396,6 @@ public class TestPartitioning {
 
     table.updateSchema().deleteColumn("data").commit();
 
-    // This would throw a NPE
     table.updateSpec().addField("id").commit();
 
     PartitionSpec spec =
