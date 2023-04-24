@@ -77,8 +77,6 @@ public class TestMetadataTableReadableMetrics extends SparkTestBaseWithCatalog {
           optional(8, "fixedCol", Types.FixedType.ofLength(3)),
           optional(9, "binaryCol", Types.BinaryType.get()));
 
-  private DataFile dataFile;
-
   public TestMetadataTableReadableMetrics() {
     // only SparkCatalog supports metadata table sql queries
     super(SparkCatalogConfig.HIVE);
@@ -125,7 +123,8 @@ public class TestMetadataTableReadableMetrics extends SparkTestBaseWithCatalog {
             createPrimitiveRecord(
                 false, 2, 2L, Float.NaN, 2.0D, new BigDecimal("2.00"), "2", null, null));
 
-    dataFile = FileHelpers.writeDataFile(table, Files.localOutput(temp.newFile()), records);
+    DataFile dataFile =
+        FileHelpers.writeDataFile(table, Files.localOutput(temp.newFile()), records);
     table.newAppend().appendFile(dataFile).commit();
     return table;
   }
@@ -143,7 +142,8 @@ public class TestMetadataTableReadableMetrics extends SparkTestBaseWithCatalog {
             createNestedRecord(0L, 0.0),
             createNestedRecord(1L, Double.NaN),
             createNestedRecord(null, null));
-    dataFile = FileHelpers.writeDataFile(table, Files.localOutput(temp.newFile()), records);
+    DataFile dataFile =
+        FileHelpers.writeDataFile(table, Files.localOutput(temp.newFile()), records);
     table.newAppend().appendFile(dataFile).commit();
   }
 
@@ -192,7 +192,8 @@ public class TestMetadataTableReadableMetrics extends SparkTestBaseWithCatalog {
 
   @Test
   public void testPrimitiveColumns() throws Exception {
-    createPrimitiveTable();
+    Table table = createPrimitiveTable();
+    DataFile dataFile = table.currentSnapshot().addedDataFiles(table.io()).iterator().next();
     Map<Integer, Long> columnSizeStats = dataFile.columnSizes();
 
     Object[] binaryCol =
