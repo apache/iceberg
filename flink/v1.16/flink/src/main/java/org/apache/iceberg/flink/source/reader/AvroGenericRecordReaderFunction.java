@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.flink.source.reader;
 
-import java.util.Collections;
 import java.util.List;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.flink.configuration.Configuration;
@@ -58,28 +57,7 @@ public class AvroGenericRecordReaderFunction extends DataIteratorReaderFunction<
         false,
         table.io(),
         table.encryption(),
-        Collections.emptyList());
-  }
-
-  public AvroGenericRecordReaderFunction(
-      String tableName,
-      ReadableConfig config,
-      Schema tableSchema,
-      Schema projectedSchema,
-      String nameMapping,
-      boolean caseSensitive,
-      FileIO io,
-      EncryptionManager encryption) {
-    this(
-        tableName,
-        config,
-        tableSchema,
-        projectedSchema,
-        nameMapping,
-        caseSensitive,
-        io,
-        encryption,
-        Collections.emptyList());
+        null);
   }
 
   public AvroGenericRecordReaderFunction(
