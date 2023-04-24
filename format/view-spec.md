@@ -116,7 +116,7 @@ The SQL representation stores the view definition as a SQL SELECT, with metadata
 | _optional_  | `default-catalog`   | `string`       | Catalog name to use when a reference in the SELECT does not contain a catalog |
 | _optional_  | `default-namespace` | `list<string>` | Namespace to use when a reference in the SELECT is a single identifier |
 | _optional_  | `field-aliases`     | `list<string>` | Column names optionally specified in the create statement |
-| _optional_  | `field-docs`        | `list<string>` | Column descriptions (COMMENT) optionally specified in the create statement |
+| _optional_  | `field-comments`    | `list<string>` | Column descriptions (COMMENT) optionally specified in the create statement |
 
 For example:
 
@@ -144,7 +144,7 @@ This create statement would produce the following `sql` representation metadata:
 | `default-catalog`   | `"prod"` |
 | `default-namespace` | `["default"]` |
 | `field-aliases`     | `["event_count", "event_date"]` |
-| `field-docs`        | `["Count of events", null]` |
+| `field-comments`    | `["Count of events", null]` |
 
 If a create statement does not include column names or comments before `AS`, the fields should be omitted.
 
@@ -214,7 +214,7 @@ s3://bucket/warehouse/default.db/event_agg/metadata/00001-(uuid).metadata.json
       "default-catalog" : "prod",
       "default-namespace" : [ "default" ],
       "field-aliases" : ["event_count", "event_date"],
-      "field-docs" : ["Count of events", null]
+      "field-comments" : ["Count of events", null]
     } ]
   } ],
   "current-schema-id": 1,
@@ -283,7 +283,7 @@ s3://bucket/warehouse/default.db/event_agg/metadata/00002-(uuid).metadata.json
       "default-catalog" : "prod",
       "default-namespace" : [ "default" ],
       "field-aliases" : ["event_count", "event_date"],
-      "field-docs" : ["Count of events", null]
+      "field-comments" : ["Count of events", null]
     } ]
   }, {
     "version-id" : 2,
