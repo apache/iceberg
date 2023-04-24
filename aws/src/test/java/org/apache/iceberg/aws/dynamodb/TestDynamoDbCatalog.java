@@ -39,6 +39,8 @@ public class TestDynamoDbCatalog {
 
   private static final String WAREHOUSE_PATH = "s3://bucket";
   private static final String CATALOG_NAME = "dynamodb";
+  private static final TableIdentifier TABLE_IDENTIFIER = TableIdentifier.of("db", "table");
+
   private DynamoDbClient dynamo;
   private DynamoDbCatalog dynamoCatalog;
 
@@ -57,7 +59,7 @@ public class TestDynamoDbCatalog {
     Mockito.doReturn(GetItemResponse.builder().item(Maps.newHashMap()).build())
         .when(dynamo)
         .getItem(any(GetItemRequest.class));
-    String location = catalogWithSlash.defaultWarehouseLocation(TableIdentifier.of("db", "table"));
+    String location = catalogWithSlash.defaultWarehouseLocation(TABLE_IDENTIFIER);
     Assertions.assertThat(location).isEqualTo(WAREHOUSE_PATH + "/db.db/table");
   }
 
@@ -68,8 +70,7 @@ public class TestDynamoDbCatalog {
         .getItem(any(GetItemRequest.class));
 
     String warehousePath = WAREHOUSE_PATH + "/db.db/table";
-    String defaultWarehouseLocation =
-        dynamoCatalog.defaultWarehouseLocation(TableIdentifier.of("db", "table"));
+    String defaultWarehouseLocation = dynamoCatalog.defaultWarehouseLocation(TABLE_IDENTIFIER);
     Assertions.assertThat(defaultWarehouseLocation).isEqualTo(warehousePath);
   }
 
@@ -86,8 +87,7 @@ public class TestDynamoDbCatalog {
         .when(dynamo)
         .getItem(any(GetItemRequest.class));
 
-    String defaultWarehouseLocation =
-        dynamoCatalog.defaultWarehouseLocation(TableIdentifier.of("db", "table"));
+    String defaultWarehouseLocation = dynamoCatalog.defaultWarehouseLocation(TABLE_IDENTIFIER);
     Assertions.assertThat(defaultWarehouseLocation).isEqualTo("s3://bucket2/db/table");
   }
 
@@ -97,8 +97,7 @@ public class TestDynamoDbCatalog {
         .when(dynamo)
         .getItem(any(GetItemRequest.class));
 
-    Assertions.assertThatThrownBy(
-            () -> dynamoCatalog.defaultWarehouseLocation(TableIdentifier.of("db", "table")))
+    Assertions.assertThatThrownBy(() -> dynamoCatalog.defaultWarehouseLocation(TABLE_IDENTIFIER))
         .as("default warehouse can't be called on non existent namespace")
         .isInstanceOf(NoSuchNamespaceException.class)
         .hasMessageContaining("Cannot find default warehouse location:");
