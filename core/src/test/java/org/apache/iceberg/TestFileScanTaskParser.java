@@ -74,8 +74,8 @@ public class TestFileScanTaskParser {
     }
 
     Assertions.assertThat(expected.schema().sameSchema(actual.schema()))
-        .isTrue()
-        .as("Schema should match");
+        .as("Schema should match")
+        .isTrue();
     Assertions.assertThat(actual.spec()).isEqualTo(expected.spec());
     Assertions.assertThat(
             ExpressionUtil.equivalent(
@@ -83,7 +83,7 @@ public class TestFileScanTaskParser {
                 actual.residual(),
                 TableTestBase.SCHEMA.asStruct(),
                 caseSensitive))
-        .isTrue()
-        .as("Residual expression should match");
+        .as("Residual expression should match")
+        .isTrue();
   }
 }

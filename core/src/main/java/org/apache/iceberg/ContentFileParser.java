@@ -62,34 +62,32 @@ class ContentFileParser {
     Preconditions.checkArgument(contentFile != null, "Invalid content file: null");
     Preconditions.checkArgument(spec != null, "Invalid partition spec: null");
     Preconditions.checkArgument(generator != null, "Invalid JSON generator: null");
+    Preconditions.checkArgument(
+        contentFile.specId() == spec.specId(),
+        "Invalid partition spec id from content file: expected = %s, actual = %s",
+        spec.specId(),
+        contentFile.specId());
+    Preconditions.checkArgument(
+        spec.isPartitioned() == hasPartitionData(contentFile.partition()),
+        "Invalid partition data from content file: expected = %s, actual = %s",
+        spec.isPartitioned() ? "partitioned" : "unpartitioned",
+        hasPartitionData(contentFile.partition()) ? "partitioned" : "unpartitioned");
 
     generator.writeStartObject();
 
     // ignore the ordinal position (ContentFile#pos) of the file in a manifest,
     // as it isn't used and BaseFile constructor doesn't support it.
 
-    Preconditions.checkArgument(
-        contentFile.specId() == spec.specId(),
-        "Invalid partition spec id from content file: expected = %s, actual = %s",
-        spec.specId(),
-        contentFile.specId());
     generator.writeNumberField(SPEC_ID, contentFile.specId());
-
     generator.writeStringField(CONTENT, contentFile.content().name());
     generator.writeStringField(FILE_PATH, contentFile.path().toString());
     generator.writeStringField(FILE_FORMAT, contentFile.format().name());
 
-    Preconditions.checkArgument(
-        spec.isPartitioned() == hasPartitionData(contentFile.partition()),
-        "Invalid partition data from content file: expected = %s, actual = %s",
-        spec.isPartitioned() ? "partitioned" : "unpartitioned",
-        hasPartitionData(contentFile.partition()) ? "partitioned" : "unpartitioned");
     if (contentFile.partition() != null) {
       generator.writeFieldName(PARTITION);
       SingleValueParser.toJson(spec.partitionType(), contentFile.partition(), generator);
     }
 
-    generator.writeNumberField(RECORD_COUNT, contentFile.recordCount());
     generator.writeNumberField(FILE_SIZE, contentFile.fileSizeInBytes());
 
     metricsToJson(contentFile, generator);
@@ -100,15 +98,11 @@ class ContentFileParser {
     }
 
     if (contentFile.splitOffsets() != null) {
-      generator.writeFieldName(SPLIT_OFFSETS);
-      SingleValueParser.toJson(
-          DataFile.SPLIT_OFFSETS.type(), contentFile.splitOffsets(), generator);
+      JsonUtil.writeLongArray(SPLIT_OFFSETS, contentFile.splitOffsets(), generator);
     }
 
     if (contentFile.equalityFieldIds() != null) {
-      generator.writeFieldName(EQUALITY_IDS);
-      SingleValueParser.toJson(
-          DataFile.EQUALITY_IDS.type(), contentFile.equalityFieldIds(), generator);
+      JsonUtil.writeIntegerArray(EQUALITY_IDS, contentFile.equalityFieldIds(), generator);
     }
 
     if (contentFile.sortOrderId() != null) {
@@ -182,6 +176,8 @@ class ContentFileParser {
 
   private static void metricsToJson(ContentFile<?> contentFile, JsonGenerator generator)
       throws IOException {
+    generator.writeNumberField(RECORD_COUNT, contentFile.recordCount());
+
     if (contentFile.columnSizes() != null) {
       generator.writeFieldName(COLUMN_SIZES);
       SingleValueParser.toJson(DataFile.COLUMN_SIZES.type(), contentFile.columnSizes(), generator);

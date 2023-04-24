@@ -79,20 +79,18 @@ public class FileScanTaskParser {
 
   public static FileScanTask fromJson(String json, boolean caseSensitive) {
     Preconditions.checkArgument(json != null, "Invalid JSON string for file scan task: null");
-    return JsonUtil.parse(json, node -> FileScanTaskParser.fromJsonNode(node, caseSensitive));
+    return JsonUtil.parse(json, node -> FileScanTaskParser.fromJson(node, caseSensitive));
   }
 
-  private static FileScanTask fromJsonNode(JsonNode jsonNode, boolean caseSensitive) {
+  private static FileScanTask fromJson(JsonNode jsonNode, boolean caseSensitive) {
     Preconditions.checkArgument(jsonNode != null, "Invalid JSON node for file scan task: null");
     Preconditions.checkArgument(
         jsonNode.isObject(), "Invalid JSON node for file scan task: non-object (%s)", jsonNode);
 
-    JsonNode schemaNode = jsonNode.get(SCHEMA);
-    Schema schema = SchemaParser.fromJson(schemaNode);
+    Schema schema = SchemaParser.fromJson(JsonUtil.get(SCHEMA, jsonNode));
     String schemaString = SchemaParser.toJson(schema);
 
-    JsonNode specNode = jsonNode.get(SPEC);
-    PartitionSpec spec = PartitionSpecParser.fromJson(schema, specNode);
+    PartitionSpec spec = PartitionSpecParser.fromJson(schema, JsonUtil.get(SPEC, jsonNode));
     String specString = PartitionSpecParser.toJson(spec);
 
     DataFile dataFile = null;
