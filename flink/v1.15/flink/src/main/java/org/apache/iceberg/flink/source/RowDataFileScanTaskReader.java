@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.flink.source;
 
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.table.data.RowData;
@@ -29,7 +31,10 @@ import org.apache.iceberg.StructLike;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.data.DeleteFilter;
 import org.apache.iceberg.encryption.InputFilesDecryptor;
+import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
+import org.apache.iceberg.flink.FlinkSourceFilter;
 import org.apache.iceberg.flink.RowDataWrapper;
 import org.apache.iceberg.flink.data.FlinkAvroReader;
 import org.apache.iceberg.flink.data.FlinkOrcReader;
@@ -54,13 +59,31 @@ public class RowDataFileScanTaskReader implements FileScanTaskReader<RowData> {
   private final Schema projectedSchema;
   private final String nameMapping;
   private final boolean caseSensitive;
+  private final FlinkSourceFilter rowFilter;
 
   public RowDataFileScanTaskReader(
       Schema tableSchema, Schema projectedSchema, String nameMapping, boolean caseSensitive) {
+    this(tableSchema, projectedSchema, nameMapping, caseSensitive, Collections.emptyList());
+  }
+
+  public RowDataFileScanTaskReader(
+      Schema tableSchema,
+      Schema projectedSchema,
+      String nameMapping,
+      boolean caseSensitive,
+      List<Expression> filters) {
     this.tableSchema = tableSchema;
     this.projectedSchema = projectedSchema;
     this.nameMapping = nameMapping;
     this.caseSensitive = caseSensitive;
+    if (filters != null && !filters.isEmpty()) {
+      Expression combinedExpression =
+          filters.stream().reduce(Expressions.alwaysTrue(), Expressions::and);
+      this.rowFilter =
+          new FlinkSourceFilter(this.projectedSchema, combinedExpression, this.caseSensitive);
+    } else {
+      this.rowFilter = null;
+    }
   }
 
   @Override
@@ -120,6 +143,9 @@ public class RowDataFileScanTaskReader implements FileScanTaskReader<RowData> {
       }
     }
 
+    if (rowFilter != null) {
+      return CloseableIterable.filter(iter, rowFilter::filter);
+    }
     return iter;
   }
 
