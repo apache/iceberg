@@ -340,11 +340,14 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
         .run(
             location -> {
               TableMetadata metadata = refresh();
-              String currentMetadataFileLocation = metadata.metadataFileLocation();
-              boolean commitSuccess =
-                  currentMetadataFileLocation.equals(newMetadataLocation)
-                      || metadata.previousFiles().stream()
-                          .anyMatch(log -> log.file().equals(newMetadataLocation));
+              boolean commitSuccess = false;
+              if (metadata != null) {
+                String currentMetadataFileLocation = metadata.metadataFileLocation();
+                commitSuccess =
+                    currentMetadataFileLocation.equals(newMetadataLocation)
+                        || metadata.previousFiles().stream()
+                            .anyMatch(log -> log.file().equals(newMetadataLocation));
+              }
               if (commitSuccess) {
                 LOG.info(
                     "Commit status check: Commit to {} of {} succeeded",

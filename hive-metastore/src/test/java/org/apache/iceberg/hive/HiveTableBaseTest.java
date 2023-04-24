@@ -27,6 +27,7 @@ import java.io.File;
 import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.List;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.PartitionSpec;
@@ -52,7 +53,7 @@ public class HiveTableBaseTest extends HiveMetastoreTest {
                   optional(2, "data", Types.LongType.get()))
               .fields());
 
-  private static final PartitionSpec partitionSpec = builderFor(schema).identity("id").build();
+  protected static final PartitionSpec partitionSpec = builderFor(schema).identity("id").build();
 
   private Path tableLocation;
 
@@ -104,5 +105,9 @@ public class HiveTableBaseTest extends HiveMetastoreTest {
     return metadataFiles(tableName).stream()
         .filter(f -> f.endsWith(extension))
         .collect(Collectors.toList());
+  }
+
+  public static String getRandomName() {
+    return UUID.randomUUID().toString().replace("-", "");
   }
 }
