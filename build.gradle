@@ -518,6 +518,7 @@ project(':iceberg-aws') {
   task integrationTest(type: Test) {
     testClassesDirs = sourceSets.integration.output.classesDirs
     classpath = sourceSets.integration.runtimeClasspath
+    jvmArgs += project.property('extraJvmArgs')
   }
 }
 
