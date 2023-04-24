@@ -56,7 +56,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.BucketUtil;
-import org.jetbrains.annotations.NotNull;
 import org.junit.Assert;
 import org.junit.Assume;
 import org.junit.Before;
@@ -175,11 +174,6 @@ public class TestBucketPartitionerFlinkIcebergSink {
   }
 
   private TableTestStats extractTableTestStats() throws IOException {
-    // Assertions:
-    //  - Total record count in table
-    //  - All records belong to that bucket
-    //  - Each bucket should've been written by valid writers
-    //  - Each file should have the expected number of records
     int totalRecordCount = 0;
     Map<Integer, List<Integer>> writersPerBucket = Maps.newHashMap(); // <BucketId, Set<WriterId>>
     Map<Integer, Integer> filesPerBucket = Maps.newHashMap(); // <BucketId, NumFiles>
@@ -232,92 +226,41 @@ public class TestBucketPartitionerFlinkIcebergSink {
     SimpleDataUtil.assertTableRows(table, convertToRowData(allRows));
   }
 
-  // Test 1A: N records sent to the same bucket across all partitions
-  //  - 24 rows (3 batches w/overlap), 4 buckets
-  @Test
-  public void testSendToBucket0A() throws Exception {
-    Assume.assumeFalse(tableSchemaType == TableSchemaType.TWO_BUCKETS);
-
-    // Data generation
-    // We make the number of requests a factor of the parallelism for an easier verification
-    int totalNumRows = parallelism * 3; // 24 rows
-    TableTestStats stats = sendAndAssertBucket0(totalNumRows);
-    // Number of records per file
-    Assert.assertEquals(16, stats.recordsPerFile.get(0).intValue());
-    Assert.assertEquals(8, stats.recordsPerFile.get(4).intValue());
-  }
-
-  // Test 1B: N records sent to the same bucket across all partitions
-  //  - 30 rows (4 batches w/o overlap, uneven first bucket), 4 buckets
-  @Test
-  public void testSendToBucket0B() throws Exception {
-    Assume.assumeTrue(tableSchemaType != TableSchemaType.TWO_BUCKETS);
-
-    // Data generation
-    // We make the number of requests a factor of the parallelism for an easier verification
-    int totalNumRows = 30;
-    TableTestStats stats = sendAndAssertBucket0(totalNumRows);
-    // Number of records per file
-    Assert.assertEquals(16, stats.recordsPerFile.get(0).intValue());
-    Assert.assertEquals(14, stats.recordsPerFile.get(4).intValue());
-  }
-
-  @NotNull
-  private TableTestStats sendAndAssertBucket0(int totalNumRows) throws Exception {
-    List<Row> rows = generateRowsForBucketId(totalNumRows, 0);
-    // Writing to the table
-    testWriteRowData(rows);
-    // Extracting stats
-    TableTestStats stats = extractTableTestStats();
-
-    // All the records were received
-    Assert.assertEquals(totalNumRows, stats.totalRecordCount);
-    // Only bucketId = 0 was written
-    Assert.assertEquals(1, stats.writersPerBucket.size());
-    Assert.assertEquals(1, stats.filesPerBucket.size());
-    Assert.assertTrue(stats.writersPerBucket.containsKey(0));
-    Assert.assertTrue(stats.filesPerBucket.containsKey(0));
-    // Valid writers
-    List<Integer> validWriters = Arrays.asList(0, 4);
-    Assert.assertEquals(validWriters, stats.writersPerBucket.get(0));
-    // Num writers = num created files
-    Assert.assertEquals(validWriters.size(), stats.filesPerBucket.get(0).intValue());
-    // TODO: verify all the records actually hash to bucketId = 0
-    return stats;
-  }
-
-  // Test 2: N records of each bucket value, to all buckets, through the same partitions
-  //  - 16 rows (2 writers per bucket, uneven last bucket), 4 buckets
   @Test
   public void testSendRecordsToAllBucketsEvenly() throws Exception {
     Assume.assumeTrue(tableSchemaType != TableSchemaType.TWO_BUCKETS);
 
-    // Data generation
-    // We make the number of requests a factor of the parallelism for an easier verification
+    // Generating 16 records to be sent (8 writers -> 4 buckets), will be uniformly round-robin'd
+    // to all writers
     int totalNumRows = parallelism * 2;
     int numRowsPerBucket = totalNumRows / numBuckets;
     List<Row> rows = Lists.newArrayListWithCapacity(totalNumRows);
-    List<Row> templateRows = Lists.newArrayListWithCapacity(numBuckets);
+    List<Row> rowsPerBucket = Lists.newArrayListWithCapacity(numBuckets);
     for (int i = 0; i < numBuckets; i++) {
-      templateRows.addAll(generateRowsForBucketId(1, i));
+      rowsPerBucket.addAll(generateRowsForBucketId(1, i));
     }
     for (int i = 0; i < numRowsPerBucket; i++) {
-      rows.addAll(templateRows);
+      rows.addAll(rowsPerBucket);
     }
 
-    // Writing to the table
     testWriteRowData(rows);
-    // Extracting stats
     TableTestStats stats = extractTableTestStats();
 
-    // All the records were received
-    Assert.assertEquals(totalNumRows, stats.totalRecordCount);
-    // Only bucketId = 0 was written
+    Assert.assertEquals(totalNumRows, stats.totalRowCount);
+    // All 4 buckets should've been written to
     Assert.assertEquals(numBuckets, stats.writersPerBucket.size());
-    Assert.assertEquals(numBuckets, stats.filesPerBucket.size());
-    for (int i = 0, j = 4; i < numBuckets; i++, j++) {
+    Assert.assertEquals(numBuckets, stats.numFilesPerBucket.size());
+    // Writer expectation (2 writers per bucket):
+    // - Bucket0 -> Writers [0, 4]
+    // - Bucket1 -> Writers [1, 5]
+    // - Bucket2 -> Writers [2, 6]
+    // - Bucket3 -> Writers [3, 7]
+    for (int i = 0, j = numBuckets; i < numBuckets; i++, j++) {
       Assert.assertEquals(Arrays.asList(i, j), stats.writersPerBucket.get(i));
-      Assert.assertTrue(stats.filesPerBucket.get(i) == 2);
+      // 2 files per bucket (one file is created by each writer)
+      Assert.assertEquals(2, (int) stats.numFilesPerBucket.get(i));
+      // 2 rows per file (total of 16 rows across 8 files)
+      Assert.assertEquals(2, (long) stats.rowsPerFile.get(i));
     }
   }
 
@@ -396,20 +339,20 @@ public class TestBucketPartitionerFlinkIcebergSink {
 
   /** DTO to hold Test Stats */
   private static class TableTestStats {
-    final int totalRecordCount;
-    final Map<Integer, List<Integer>> writersPerBucket; // <BucketId, Set<WriterId>>
-    final Map<Integer, Integer> filesPerBucket; // <BucketId, NumFiles>
-    final Map<Integer, Long> recordsPerFile; // <WriterId, NumRecords>
+    final int totalRowCount;
+    final Map<Integer, List<Integer>> writersPerBucket;
+    final Map<Integer, Integer> numFilesPerBucket;
+    final Map<Integer, Long> rowsPerFile;
 
     TableTestStats(
         int totalRecordCount,
         Map<Integer, List<Integer>> writersPerBucket,
-        Map<Integer, Integer> filesPerBucket,
-        Map<Integer, Long> recordsPerFile) {
-      this.totalRecordCount = totalRecordCount;
+        Map<Integer, Integer> numFilesPerBucket,
+        Map<Integer, Long> rowsPerFile) {
+      this.totalRowCount = totalRecordCount;
       this.writersPerBucket = writersPerBucket;
-      this.filesPerBucket = filesPerBucket;
-      this.recordsPerFile = recordsPerFile;
+      this.numFilesPerBucket = numFilesPerBucket;
+      this.rowsPerFile = rowsPerFile;
     }
   }
 }

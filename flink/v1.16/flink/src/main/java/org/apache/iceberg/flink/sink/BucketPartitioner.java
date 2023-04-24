@@ -32,6 +32,7 @@ class BucketPartitioner implements Partitioner<Integer> {
 
   private final int maxNumBuckets;
 
+  // This always has the OFFSET of the next writer to use for any bucket
   private final int[] currentBucketWriterOffset;
 
   BucketPartitioner(PartitionSpec partitionSpec) {
@@ -70,11 +71,9 @@ class BucketPartitioner implements Partitioner<Integer> {
    * - Records for Bucket 0 will be "round robin" between Writers 0 and 2
    * - Records for Bucket 1 will always use Writer 1
    * Notes:
-   * - currentBucketWriterOffset always has the OFFSET of the next writer to use for any bucket
-   * - maxNumWritersPerBucket determines when to reset the currentWriterForBucket to 0 for bucketId
-   * - When numPartitions is not evenly divisible by maxBuckets, some buckets will have one more writer,
-   * this is determined by extraWriter. In this example Bucket 0 has an "extra writer" to consider when
-   * resetting to 0.
+   * - maxNumWritersPerBucket determines when to reset the currentBucketWriterOffset to 0 for this bucketId
+   * - When numPartitions is not evenly divisible by maxBuckets, some buckets will have one more writer (extraWriter).
+   * In this example Bucket 0 has an "extra writer" to consider before resetting its offset to 0.
    *
    * @param bucketId the bucketId for each request
    * @param numPartitions the total number of partitions
