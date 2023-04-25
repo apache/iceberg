@@ -21,12 +21,12 @@ package org.apache.iceberg.hive;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.anyBoolean;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 import java.io.File;
-import java.net.UnknownHostException;
 import java.util.concurrent.atomic.AtomicReference;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.HasTableOperations;
@@ -35,6 +35,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
+import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.types.Types;
@@ -45,7 +46,7 @@ import org.junit.Test;
 public class TestHiveCommits extends HiveTableBaseTest {
 
   @Test
-  public void testSuppressUnlockExceptions() throws TException, InterruptedException {
+  public void testSuppressUnlockExceptions() {
     Table table = catalog.loadTable(TABLE_IDENTIFIER);
     HiveTableOperations ops = (HiveTableOperations) ((HasTableOperations) table).operations();
 
@@ -63,7 +64,7 @@ public class TestHiveCommits extends HiveTableBaseTest {
 
     AtomicReference<HiveLock> lockRef = new AtomicReference<>();
 
-    when(spyOps.lockObject())
+    when(spyOps.lockObject(metadataV1))
         .thenAnswer(
             i -> {
               HiveLock lock = (HiveLock) i.callRealMethod();
@@ -259,8 +260,7 @@ public class TestHiveCommits extends HiveTableBaseTest {
    * because it isn't the current one during the recheck phase.
    */
   @Test
-  public void testThriftExceptionConcurrentCommit()
-      throws TException, InterruptedException, UnknownHostException {
+  public void testThriftExceptionConcurrentCommit() throws TException, InterruptedException {
     Table table = catalog.loadTable(TABLE_IDENTIFIER);
     HiveTableOperations ops = (HiveTableOperations) ((HasTableOperations) table).operations();
 
@@ -279,11 +279,11 @@ public class TestHiveCommits extends HiveTableBaseTest {
     AtomicReference<HiveLock> lock = new AtomicReference<>();
     doAnswer(
             l -> {
-              lock.set(ops.lockObject());
+              lock.set(ops.lockObject(metadataV1));
               return lock.get();
             })
         .when(spyOps)
-        .lockObject();
+        .lockObject(metadataV1);
 
     concurrentCommitAndThrowException(ops, spyOps, table, lock);
 
@@ -320,6 +320,47 @@ public class TestHiveCommits extends HiveTableBaseTest {
         () -> catalog.createTable(TABLE_IDENTIFIER, schema, PartitionSpec.unpartitioned()));
   }
 
+  /** Uses NoLock and pretends we throw an error because of a concurrent commit */
+  @Test
+  public void testNoLockThriftExceptionConcurrentCommit() throws TException, InterruptedException {
+    Table table = catalog.loadTable(TABLE_IDENTIFIER);
+    HiveTableOperations ops = (HiveTableOperations) ((HasTableOperations) table).operations();
+
+    TableMetadata metadataV1 = ops.current();
+
+    table.updateSchema().addColumn("n", Types.IntegerType.get()).commit();
+
+    ops.refresh();
+
+    TableMetadata metadataV2 = ops.current();
+
+    Assert.assertEquals(2, ops.current().schema().columns().size());
+
+    HiveTableOperations spyOps = spy(ops);
+
+    // Sets NoLock
+    doReturn(new NoLock()).when(spyOps).lockObject(any());
+
+    // Simulate a concurrent table modification error
+    doThrow(
+            new RuntimeException(
+                "MetaException(message:The table has been modified. The parameter value for key 'metadata_location' is"))
+        .when(spyOps)
+        .persistTable(any(), anyBoolean(), any());
+
+    // Should throw a CommitFailedException so the commit could be retried
+    AssertHelpers.assertThrows(
+        "Should throw CommitFailedException since the table has been modified concurrently",
+        CommitFailedException.class,
+        "has been modified concurrently",
+        () -> spyOps.commit(metadataV2, metadataV1));
+
+    ops.refresh();
+    Assert.assertEquals("Current metadata should not have changed", metadataV2, ops.current());
+    Assert.assertTrue("Current metadata should still exist", metadataFileExists(metadataV2));
+    Assert.assertEquals("New metadata files should not exist", 2, metadataFileCount(ops.current()));
+  }
+
   private void commitAndThrowException(
       HiveTableOperations realOperations, HiveTableOperations spyOperations)
       throws TException, InterruptedException {
@@ -328,11 +369,12 @@ public class TestHiveCommits extends HiveTableBaseTest {
             i -> {
               org.apache.hadoop.hive.metastore.api.Table tbl =
                   i.getArgument(0, org.apache.hadoop.hive.metastore.api.Table.class);
-              realOperations.persistTable(tbl, true);
+              String location = i.getArgument(2, String.class);
+              realOperations.persistTable(tbl, true, location);
               throw new TException("Datacenter on fire");
             })
         .when(spyOperations)
-        .persistTable(any(), anyBoolean());
+        .persistTable(any(), anyBoolean(), any());
   }
 
   private void concurrentCommitAndThrowException(
@@ -346,7 +388,8 @@ public class TestHiveCommits extends HiveTableBaseTest {
             i -> {
               org.apache.hadoop.hive.metastore.api.Table tbl =
                   i.getArgument(0, org.apache.hadoop.hive.metastore.api.Table.class);
-              realOperations.persistTable(tbl, true);
+              String location = i.getArgument(2, String.class);
+              realOperations.persistTable(tbl, true, location);
               // Simulate lock expiration or removal
               lock.get().unlock();
               table.refresh();
@@ -354,14 +397,14 @@ public class TestHiveCommits extends HiveTableBaseTest {
               throw new TException("Datacenter on fire");
             })
         .when(spyOperations)
-        .persistTable(any(), anyBoolean());
+        .persistTable(any(), anyBoolean(), any());
   }
 
   private void failCommitAndThrowException(HiveTableOperations spyOperations)
       throws TException, InterruptedException {
     doThrow(new TException("Datacenter on fire"))
         .when(spyOperations)
-        .persistTable(any(), anyBoolean());
+        .persistTable(any(), anyBoolean(), any());
   }
 
   private void breakFallbackCatalogCommitCheck(HiveTableOperations spyOperations) {
