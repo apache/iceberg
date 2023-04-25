@@ -26,6 +26,7 @@ import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.util.Base64;
 import java.util.List;
+import java.util.Map;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.PartitionSpec;
@@ -191,31 +192,82 @@ public class TestMetadataTableReadableMetrics extends SparkTestBaseWithCatalog {
 
   @Test
   public void testPrimitiveColumns() throws Exception {
-    createPrimitiveTable();
+    Table table = createPrimitiveTable();
+    DataFile dataFile = table.currentSnapshot().addedDataFiles(table.io()).iterator().next();
+    Map<Integer, Long> columnSizeStats = dataFile.columnSizes();
 
     Object[] binaryCol =
         row(
-            59L,
+            columnSizeStats.get(PRIMITIVE_SCHEMA.findField("binaryCol").fieldId()),
             4L,
             2L,
             null,
             Base64.getDecoder().decode("1111"),
             Base64.getDecoder().decode("2222"));
-    Object[] booleanCol = row(44L, 4L, 0L, null, false, true);
-    Object[] decimalCol = row(97L, 4L, 1L, null, new BigDecimal("1.00"), new BigDecimal("2.00"));
-    Object[] doubleCol = row(99L, 4L, 0L, 1L, 1.0D, 2.0D);
+    Object[] booleanCol =
+        row(
+            columnSizeStats.get(PRIMITIVE_SCHEMA.findField("booleanCol").fieldId()),
+            4L,
+            0L,
+            null,
+            false,
+            true);
+    Object[] decimalCol =
+        row(
+            columnSizeStats.get(PRIMITIVE_SCHEMA.findField("decimalCol").fieldId()),
+            4L,
+            1L,
+            null,
+            new BigDecimal("1.00"),
+            new BigDecimal("2.00"));
+    Object[] doubleCol =
+        row(
+            columnSizeStats.get(PRIMITIVE_SCHEMA.findField("doubleCol").fieldId()),
+            4L,
+            0L,
+            1L,
+            1.0D,
+            2.0D);
     Object[] fixedCol =
         row(
-            55L,
+            columnSizeStats.get(PRIMITIVE_SCHEMA.findField("fixedCol").fieldId()),
             4L,
             2L,
             null,
             Base64.getDecoder().decode("1111"),
             Base64.getDecoder().decode("2222"));
-    Object[] floatCol = row(90L, 4L, 0L, 2L, 0f, 0f);
-    Object[] intCol = row(91L, 4L, 0L, null, 1, 2);
-    Object[] longCol = row(91L, 4L, 0L, null, 1L, 2L);
-    Object[] stringCol = row(99L, 4L, 0L, null, "1", "2");
+    Object[] floatCol =
+        row(
+            columnSizeStats.get(PRIMITIVE_SCHEMA.findField("floatCol").fieldId()),
+            4L,
+            0L,
+            2L,
+            0f,
+            0f);
+    Object[] intCol =
+        row(
+            columnSizeStats.get(PRIMITIVE_SCHEMA.findField("intCol").fieldId()),
+            4L,
+            0L,
+            null,
+            1,
+            2);
+    Object[] longCol =
+        row(
+            columnSizeStats.get(PRIMITIVE_SCHEMA.findField("longCol").fieldId()),
+            4L,
+            0L,
+            null,
+            1L,
+            2L);
+    Object[] stringCol =
+        row(
+            columnSizeStats.get(PRIMITIVE_SCHEMA.findField("stringCol").fieldId()),
+            4L,
+            0L,
+            null,
+            "1",
+            "2");
 
     Object[] metrics =
         row(
