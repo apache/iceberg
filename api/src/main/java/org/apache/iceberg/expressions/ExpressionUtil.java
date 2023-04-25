@@ -45,7 +45,7 @@ public class ExpressionUtil {
   private static final long THREE_DAYS_IN_HOURS = TimeUnit.DAYS.toHours(3);
   private static final long NINETY_DAYS_IN_HOURS = TimeUnit.DAYS.toHours(90);
   private static final Pattern DATE = Pattern.compile("\\d{4}-\\d{2}-\\d{2}");
-  private static final Pattern TIME = Pattern.compile("\\d{2}:\\d{2}(:\\d{2}(.\\d{1,6})?)?");
+  private static final Pattern TIME = Pattern.compile("\\d{2}:\\d{2}(:\\d{2}(.\\d{1,9})?)?");
   private static final Pattern TIMESTAMP =
       Pattern.compile("\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}(:\\d{2}(.\\d{1,9})?)?");
   private static final Pattern TIMESTAMPTZ =
