@@ -56,7 +56,7 @@ public class TestSparkReadConf extends SparkTestBaseWithCatalog {
   }
 
   @Test
-  public void testSparkReadConfDistributionModeWithWriteOption() {
+  public void testSparkReadConfSplitSizeWithWriteOption() {
     Table table = validationCatalog.loadTable(tableIdent);
 
     Map<String, String> readOptions = ImmutableMap.of(SparkReadOptions.SPLIT_SIZE, "1024");
@@ -68,7 +68,7 @@ public class TestSparkReadConf extends SparkTestBaseWithCatalog {
   }
 
   @Test
-  public void testSparkReadConfDistributionModeWithSessionConfig() {
+  public void testSparkReadConfSplitSizeWithSessionConfig() {
     withSQLConf(
         ImmutableMap.of(SparkSQLProperties.SPLIT_SIZE, "1024"),
         () -> {
@@ -82,7 +82,7 @@ public class TestSparkReadConf extends SparkTestBaseWithCatalog {
   }
 
   @Test
-  public void testSparkReadConfDistributionModeWithTableProperties() {
+  public void testSparkReadConfSplitSizeWithTableProperties() {
     Table table = validationCatalog.loadTable(tableIdent);
 
     table.updateProperties().set(SPLIT_SIZE, "1024").commit();
@@ -93,7 +93,7 @@ public class TestSparkReadConf extends SparkTestBaseWithCatalog {
   }
 
   @Test
-  public void testSparkReadConfDistributionModeWithTblPropAndSessionConfig() {
+  public void testSparkReadConfSplitSizeWithTblPropAndSessionConfig() {
     withSQLConf(
         ImmutableMap.of(SparkSQLProperties.SPLIT_SIZE, "2048"),
         () -> {
@@ -109,7 +109,7 @@ public class TestSparkReadConf extends SparkTestBaseWithCatalog {
   }
 
   @Test
-  public void testSparkReadConfDistributionModeWithWriteOptionAndSessionConfig() {
+  public void testSparkReadConfSplitSizeWithWriteOptionAndSessionConfig() {
     withSQLConf(
         ImmutableMap.of(SparkSQLProperties.SPLIT_SIZE, "1024"),
         () -> {
@@ -125,7 +125,7 @@ public class TestSparkReadConf extends SparkTestBaseWithCatalog {
   }
 
   @Test
-  public void testSparkReadConfDistributionModeWithEverything() {
+  public void testSparkReadConfSplitSizeWithEverything() {
     withSQLConf(
         ImmutableMap.of(SparkSQLProperties.SPLIT_SIZE, "1024"),
         () -> {
