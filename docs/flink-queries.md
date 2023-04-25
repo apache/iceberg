@@ -80,6 +80,21 @@ Here are the SQL settings for the [FLIP-27](https://cwiki.apache.org/confluence/
 SET table.exec.iceberg.use-flip27-source = true;
 ```
 
+### Reading branches and tags with SQL
+Branch and tags can be read via SQL by specifying options. For more details
+refer to [Flink Configuration](../flink-configuration/#read-options)
+
+```sql
+--- Read from branch b1
+SELECT * FROM table /*+ OPTIONS('branch'='b1') */ ;
+
+--- Read from tag t1
+SELECT * FROM table /*+ OPTIONS('tag'='t1') */;
+
+--- Incremental scan from tag t1 to tag t2
+SELECT * FROM table /*+ OPTIONS('streaming'='true', 'monitor-interval'='1s', 'start-tag'='t1', 'end-tag'='t2') */;
+```
+
 ## Reading with DataStream
 
 Iceberg support streaming or batch read in Java API now.
@@ -196,6 +211,37 @@ env.execute("Test Iceberg Streaming Read");
 
 There are other options that could be set by Java API, please see the
 [IcebergSource#Builder](../../../javadoc/{{% icebergVersion %}}/org/apache/iceberg/flink/source/IcebergSource.html).
+
+### Reading branches and tags with DataStream
+Branches and tags can also be read via the DataStream API
+
+```java
+StreamExecutionEnvironment env = StreamExecutionEnvironment.createLocalEnvironment();
+TableLoader tableLoader = TableLoader.fromHadoopTable("hdfs://nn:8020/warehouse/path");
+// Read from branch
+DataStream<RowData> batch = FlinkSource.forRowData()
+    .env(env)
+    .tableLoader(tableLoader)
+    .branch("test-branch")
+    .streaming(false)
+    .build();
+
+// Read from tag
+DataStream<RowData> batch = FlinkSource.forRowData()
+    .env(env)
+    .tableLoader(tableLoader)
+    .tag("test-tag")
+    .streaming(false)
+    .build();
+
+// Streaming read from start-tag
+DataStream<RowData> batch = FlinkSource.forRowData()
+    .env(env)
+    .tableLoader(tableLoader)
+    .streaming(true)
+    .startTag("test-tag")
+    .build();
+```
 
 ### Read as Avro GenericRecord
 
