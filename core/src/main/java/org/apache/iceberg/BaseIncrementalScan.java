@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg;
 
+import java.util.Objects;
 import org.apache.iceberg.events.IncrementalScanEvent;
 import org.apache.iceberg.events.Listeners;
 import org.apache.iceberg.io.CloseableIterable;
@@ -62,9 +63,11 @@ abstract class BaseIncrementalScan<ThisT, T extends ScanTask, G extends ScanTask
 
   @Override
   public CloseableIterable<T> planFiles() {
-    if (scanCurrentLineage() && table().currentSnapshot() == null) {
+    if ((scanCurrentLineage() && table().currentSnapshot() == null)
+        || Objects.equals(context().toSnapshotId(), context().fromSnapshotId())) {
       // If the table is empty (no current snapshot) and both from and to snapshots aren't set,
-      // simply return an empty iterable. In this case, the listener notification is also skipped.
+      // or they are set to the same value, simply return an empty iterable.
+      // In this case, the listener notification is also skipped.
       return CloseableIterable.empty();
     }
 
@@ -126,7 +129,6 @@ abstract class BaseIncrementalScan<ThisT, T extends ScanTask, G extends ScanTask
         // for inclusive behavior fromSnapshotIdExclusive is set to the parent snapshot ID,
         // which can be null
         return table().snapshot(fromSnapshotId).parentId();
-
       } else {
         // validate there is an ancestor of toSnapshotIdInclusive where parent is fromSnapshotId
         Preconditions.checkArgument(

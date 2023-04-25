@@ -85,6 +85,10 @@ class IncrementalDataTableScan extends DataTableScan {
     Long toSnapshotId = context().toSnapshotId();
 
     List<Snapshot> snapshots = snapshotsWithin(table(), fromSnapshotId, toSnapshotId);
+    if (snapshots.isEmpty()) {
+      return CloseableIterable.empty();
+    }
+
     Set<Long> snapshotIds = Sets.newHashSet(Iterables.transform(snapshots, Snapshot::snapshotId));
     Set<ManifestFile> manifests =
         FluentIterable.from(snapshots)
@@ -165,8 +169,6 @@ class IncrementalDataTableScan extends DataTableScan {
   }
 
   private static void validateSnapshotIds(Table table, long fromSnapshotId, long toSnapshotId) {
-    Preconditions.checkArgument(
-        fromSnapshotId != toSnapshotId, "from and to snapshot ids cannot be the same");
     Preconditions.checkArgument(
         table.snapshot(fromSnapshotId) != null, "from snapshot %s does not exist", fromSnapshotId);
     Preconditions.checkArgument(

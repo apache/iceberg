@@ -56,12 +56,6 @@ public class TestIncrementalDataTableScan extends TableTestBase {
   @Test
   public void testInvalidScans() {
     add(table.newAppend(), files("A"));
-    AssertHelpers.assertThrows(
-        "from and to snapshots cannot be the same, since from snapshot is exclusive and not part of the scan",
-        IllegalArgumentException.class,
-        "from and to snapshot ids cannot be the same",
-        () -> appendsBetweenScan(1, 1));
-
     add(table.newAppend(), files("B"));
     add(table.newAppend(), files("C"));
     add(table.newAppend(), files("D"));
@@ -112,6 +106,8 @@ public class TestIncrementalDataTableScan extends TableTestBase {
     Assert.assertEquals(Expressions.alwaysTrue(), listener1.event().filter());
     Assert.assertEquals("test", listener1.event().tableName());
     Assert.assertEquals(false, listener1.event().isFromSnapshotInclusive());
+
+    Assert.assertTrue(appendsBetweenScan(1, 1).isEmpty());
   }
 
   @Test
