@@ -50,10 +50,6 @@ class SQLViewRepresentationParser {
     generator.writeStringField(SQL, view.sql());
     generator.writeStringField(DIALECT, view.dialect());
 
-    if (view.schemaId() != null) {
-      generator.writeNumberField(SCHEMA_ID, view.schemaId());
-    }
-
     if (view.defaultCatalog() != null) {
       generator.writeStringField(DEFAULT_CATALOG, view.defaultCatalog());
     }
@@ -93,9 +89,6 @@ class SQLViewRepresentationParser {
     }
 
     Integer schemaId = JsonUtil.getIntOrNull(SCHEMA_ID, node);
-    if (schemaId != null) {
-      builder.schemaId(schemaId);
-    }
 
     List<String> namespace = JsonUtil.getStringListOrNull(DEFAULT_NAMESPACE, node);
     if (namespace != null && !namespace.isEmpty()) {
