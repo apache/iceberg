@@ -18,8 +18,9 @@
  */
 package org.apache.iceberg.flink;
 
-import java.nio.file.Path;
+import java.io.File;import java.nio.file.Files;import java.nio.file.Path;
 import java.util.UUID;
+import org.apache.commons.io.FileUtils;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.catalog.Catalog;
@@ -27,24 +28,36 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.assertj.core.api.Assertions;
+import org.junit.jupiter.api.extension.AfterAllCallback;
 import org.junit.jupiter.api.extension.AfterEachCallback;
+import org.junit.jupiter.api.extension.BeforeAllCallback;
 import org.junit.jupiter.api.extension.BeforeEachCallback;
 import org.junit.jupiter.api.extension.ExtensionContext;
 
-public class HadoopCatalogExtension implements BeforeEachCallback, AfterEachCallback {
-  protected final Path temporaryFolder;
+public class HadoopCatalogExtension
+    implements BeforeAllCallback, BeforeEachCallback, AfterAllCallback, AfterEachCallback {
   protected final String database;
   protected final String tableName;
 
+  protected Path temporaryFolder;
   protected Catalog catalog;
   protected CatalogLoader catalogLoader;
   protected String warehouse;
   protected TableLoader tableLoader;
 
-  public HadoopCatalogExtension(Path temporaryFolder, String database, String tableName) {
-    this.temporaryFolder = temporaryFolder;
+  public HadoopCatalogExtension(String database, String tableName) {
     this.database = database;
     this.tableName = tableName;
+  }
+
+  @Override
+  public void beforeAll(ExtensionContext context) throws Exception {
+    this.temporaryFolder = Files.createTempDirectory("junit5_hadoop_catalog-");
+  }
+
+  @Override
+  public void afterAll(ExtensionContext context) throws Exception {
+    FileUtils.deleteDirectory(this.temporaryFolder.toFile());
   }
 
   @Override

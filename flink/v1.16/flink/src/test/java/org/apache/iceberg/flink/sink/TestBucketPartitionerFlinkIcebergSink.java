@@ -75,7 +75,7 @@ public class TestBucketPartitionerFlinkIcebergSink {
   private static final int SLOTS_PER_TASK_MANAGER = 8;
 
   @RegisterExtension
-  public static final MiniClusterExtension MINI_CLUSTER_RESOURCE =
+  static final MiniClusterExtension MINI_CLUSTER_RESOURCE =
       new MiniClusterExtension(
           new MiniClusterResourceConfiguration.Builder()
               .setNumberTaskManagers(NUMBER_TASK_MANAGERS)
@@ -83,16 +83,9 @@ public class TestBucketPartitionerFlinkIcebergSink {
               .setConfiguration(DISABLE_CLASSLOADER_CHECK_CONFIG)
               .build());
 
-  /**
-   * FOR REVIEW: I'm emulating the usage of the TemporaryFolder in the other Junit4 tests. However
-   * this can be completely abstracted inside the HadoopCatalogExtension via
-   * Files.createTempDirectory(...) in its BeforeAll. Should I pursue the latter approach?
-   */
-  @TempDir static Path temporaryFolder;
-
   @RegisterExtension
-  HadoopCatalogExtension catalogExtension =
-      new HadoopCatalogExtension(temporaryFolder, DATABASE, TestFixtures.TABLE);
+  static HadoopCatalogExtension catalogExtension =
+      new HadoopCatalogExtension(DATABASE, TestFixtures.TABLE);
 
   private static final TypeInformation<Row> ROW_TYPE_INFO =
       new RowTypeInfo(SimpleDataUtil.FLINK_SCHEMA.getFieldTypes());
@@ -253,33 +246,29 @@ public class TestBucketPartitionerFlinkIcebergSink {
     }
   }
 
-  //  @Test
-  //  public void testBucketPartitionerFail() {
-  //    Assume.assumeTrue(tableSchemaType == TableSchemaType.TWO_BUCKETS);
-  //
-  //    Exception exception =
-  //        Assert.assertThrows(RuntimeException.class, () -> new BucketPartitioner(table.spec()));
-  //
-  //    Assert.assertTrue(
-  //        exception
-  //            .getMessage()
-  //            .contains(BucketPartitionerUtils.BAD_NUMBER_OF_BUCKETS_ERROR_MESSAGE));
-  //  }
-  //
-  //  @Test
-  //  public void testBucketPartitionKeySelectorFail() {
-  //    Assume.assumeTrue(tableSchemaType == TableSchemaType.TWO_BUCKETS);
-  //
-  //    Exception exception =
-  //        Assert.assertThrows(
-  //            RuntimeException.class,
-  //            () -> new BucketPartitionKeySelector(table.spec(), table.schema(), null));
-  //
-  //    Assert.assertTrue(
-  //        exception
-  //            .getMessage()
-  //            .contains(BucketPartitionerUtils.BAD_NUMBER_OF_BUCKETS_ERROR_MESSAGE));
-  //  }
+  @ParameterizedTest
+  @EnumSource(
+      value = TableSchemaType.class,
+      names = {"TWO_BUCKETS"})
+  public void testBucketPartitionerFail(TableSchemaType tableSchemaType) {
+    setupEnvironment(tableSchemaType);
+
+    Assertions.assertThatExceptionOfType(RuntimeException.class)
+        .isThrownBy(() -> new BucketPartitioner(table.spec()))
+        .withMessageContaining(BucketPartitionerUtils.BAD_NUMBER_OF_BUCKETS_ERROR_MESSAGE);
+  }
+
+  @ParameterizedTest
+  @EnumSource(
+      value = TableSchemaType.class,
+      names = {"TWO_BUCKETS"})
+  public void testBucketPartitionKeySelectorFail(TableSchemaType tableSchemaType) {
+    setupEnvironment(tableSchemaType);
+
+    Assertions.assertThatExceptionOfType(RuntimeException.class)
+        .isThrownBy(() -> new BucketPartitionKeySelector(table.spec(), table.schema(), null))
+        .withMessageContaining(BucketPartitionerUtils.BAD_NUMBER_OF_BUCKETS_ERROR_MESSAGE);
+  }
 
   /**
    * Utility method to generate rows whose values will "hash" to a desired bucketId
