@@ -129,6 +129,7 @@ abstract class BaseIncrementalScan<ThisT, T extends ScanTask, G extends ScanTask
         // for inclusive behavior fromSnapshotIdExclusive is set to the parent snapshot ID,
         // which can be null
         return table().snapshot(fromSnapshotId).parentId();
+
       } else {
         // validate there is an ancestor of toSnapshotIdInclusive where parent is fromSnapshotId
         Preconditions.checkArgument(
