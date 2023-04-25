@@ -50,10 +50,9 @@ public class TestBaseIncrementalAppendScan
         newScan().fromSnapshotInclusive(snapshotAId).toSnapshot(snapshotCId);
     Assert.assertEquals(3, Iterables.size(scanWithToSnapshot.planFiles()));
 
-    Assert.assertTrue(
-        Lists.newArrayList(
-                newScan().fromSnapshotInclusive(snapshotAId).toSnapshot(snapshotAId).planFiles())
-            .isEmpty());
+    IncrementalAppendScan scanWithSameSnapshotId =
+        newScan().fromSnapshotInclusive(snapshotAId).toSnapshot(snapshotAId);
+    Assert.assertEquals(1, Iterables.size(scanWithSameSnapshotId.planFiles()));
   }
 
   @Test

@@ -85,10 +85,6 @@ class IncrementalDataTableScan extends DataTableScan {
     Long toSnapshotId = context().toSnapshotId();
 
     List<Snapshot> snapshots = snapshotsWithin(table(), fromSnapshotId, toSnapshotId);
-    if (snapshots.isEmpty()) {
-      return CloseableIterable.empty();
-    }
-
     Set<Long> snapshotIds = Sets.newHashSet(Iterables.transform(snapshots, Snapshot::snapshotId));
     Set<ManifestFile> manifests =
         FluentIterable.from(snapshots)

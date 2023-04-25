@@ -63,16 +63,18 @@ abstract class BaseIncrementalScan<ThisT, T extends ScanTask, G extends ScanTask
 
   @Override
   public CloseableIterable<T> planFiles() {
-    if ((scanCurrentLineage() && table().currentSnapshot() == null)
-        || Objects.equals(context().toSnapshotId(), context().fromSnapshotId())) {
+    if (scanCurrentLineage() && table().currentSnapshot() == null) {
       // If the table is empty (no current snapshot) and both from and to snapshots aren't set,
-      // or they are set to the same value, simply return an empty iterable.
-      // In this case, the listener notification is also skipped.
+      // simply return an empty iterable. In this case, the listener notification is also skipped.
       return CloseableIterable.empty();
     }
 
     long toSnapshotIdInclusive = toSnapshotIdInclusive();
     Long fromSnapshotIdExclusive = fromSnapshotIdExclusive(toSnapshotIdInclusive);
+
+    if (Objects.equals(fromSnapshotIdExclusive, toSnapshotIdInclusive)) {
+      return CloseableIterable.empty();
+    }
 
     if (fromSnapshotIdExclusive != null) {
       Listeners.notifyAll(
@@ -131,6 +133,10 @@ abstract class BaseIncrementalScan<ThisT, T extends ScanTask, G extends ScanTask
         return table().snapshot(fromSnapshotId).parentId();
 
       } else {
+        if (Objects.equals(fromSnapshotId, toSnapshotIdInclusive)) {
+          return fromSnapshotId;
+        }
+
         // validate there is an ancestor of toSnapshotIdInclusive where parent is fromSnapshotId
         Preconditions.checkArgument(
             SnapshotUtil.isParentAncestorOf(table(), toSnapshotIdInclusive, fromSnapshotId),

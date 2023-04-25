@@ -106,7 +106,6 @@ public class TestIncrementalDataTableScan extends TableTestBase {
     Assert.assertEquals(Expressions.alwaysTrue(), listener1.event().filter());
     Assert.assertEquals("test", listener1.event().tableName());
     Assert.assertEquals(false, listener1.event().isFromSnapshotInclusive());
-
     Assert.assertTrue(appendsBetweenScan(1, 1).isEmpty());
   }
 

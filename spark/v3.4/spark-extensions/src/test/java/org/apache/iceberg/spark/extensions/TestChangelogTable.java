@@ -127,6 +127,7 @@ public class TestChangelogTable extends SparkExtensionsTestBase {
     Table table = validationCatalog.loadTable(tableIdent);
     Snapshot snap1 = table.currentSnapshot();
     long rightAfterSnap1 = waitUntilAfter(snap1.timestampMillis());
+    long rightLongAfterSnap1 = waitUntilAfter(rightAfterSnap1 + 10);
 
     sql("INSERT INTO %s VALUES (2, 'b')", tableName);
     table.refresh();
@@ -136,6 +137,11 @@ public class TestChangelogTable extends SparkExtensionsTestBase {
     sql("INSERT OVERWRITE %s VALUES (-2, 'b')", tableName);
     table.refresh();
     Snapshot snap3 = table.currentSnapshot();
+
+    assertEquals(
+        "Should have empty result",
+        ImmutableList.of(),
+        changelogRecords(rightAfterSnap1, rightLongAfterSnap1));
 
     assertEquals(
         "Should have expected changed rows only from snapshot 3",
