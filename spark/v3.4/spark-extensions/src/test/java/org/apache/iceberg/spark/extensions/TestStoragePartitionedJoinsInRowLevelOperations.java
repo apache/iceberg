@@ -22,6 +22,7 @@ import static org.apache.iceberg.RowLevelOperationMode.COPY_ON_WRITE;
 import static org.apache.iceberg.RowLevelOperationMode.MERGE_ON_READ;
 
 import java.util.Map;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.iceberg.RowLevelOperationMode;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -30,6 +31,7 @@ import org.apache.iceberg.spark.SparkCatalogConfig;
 import org.apache.iceberg.spark.SparkSQLProperties;
 import org.apache.spark.sql.execution.SparkPlan;
 import org.apache.spark.sql.internal.SQLConf;
+import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Test;
@@ -54,6 +56,8 @@ public class TestStoragePartitionedJoinsInRowLevelOperations extends SparkExtens
   private static final Map<String, String> ENABLED_SPJ_SQL_CONF =
       ImmutableMap.of(
           SQLConf.V2_BUCKETING_ENABLED().key(),
+          "true",
+          SQLConf.V2_BUCKETING_PUSH_PART_VALUES_ENABLED().key(),
           "true",
           SQLConf.REQUIRE_ALL_CLUSTER_KEYS_FOR_CO_PARTITION().key(),
           "false",
@@ -134,7 +138,7 @@ public class TestStoragePartitionedJoinsInRowLevelOperations extends SparkExtens
                       + "dep = 'hr'",
                   tableName, tableName(OTHER_TABLE_NAME));
           String planAsString = plan.toString();
-          Assert.assertFalse("Should be no shuffles with SPJ", planAsString.contains("Exchange"));
+          Assertions.assertThat(planAsString).doesNotContain("Exchange");
         });
 
     ImmutableList<Object[]> expectedRows =
@@ -197,7 +201,7 @@ public class TestStoragePartitionedJoinsInRowLevelOperations extends SparkExtens
                       + "dep = 'hr'",
                   tableName, tableName(OTHER_TABLE_NAME));
           String planAsString = plan.toString();
-          Assert.assertFalse("Should be no shuffles with SPJ", planAsString.contains("Exchange"));
+          Assertions.assertThat(planAsString).doesNotContain("Exchange");
         });
 
     ImmutableList<Object[]> expectedRows =
@@ -215,15 +219,25 @@ public class TestStoragePartitionedJoinsInRowLevelOperations extends SparkExtens
 
   @Test
   public void testCopyOnWriteMergeWithoutShuffles() {
-    checkMerge(COPY_ON_WRITE);
+    checkMerge(COPY_ON_WRITE, false /* with ON predicate */);
+  }
+
+  @Test
+  public void testCopyOnWriteMergeWithoutShufflesWithPredicate() {
+    checkMerge(COPY_ON_WRITE, true /* with ON predicate */);
   }
 
   @Test
   public void testMergeOnReadMergeWithoutShuffles() {
-    checkMerge(MERGE_ON_READ);
+    checkMerge(MERGE_ON_READ, false /* with ON predicate */);
   }
 
-  private void checkMerge(RowLevelOperationMode mode) {
+  @Test
+  public void testMergeOnReadMergeWithoutShufflesWithPredicate() {
+    checkMerge(MERGE_ON_READ, true /* with ON predicate */);
+  }
+
+  private void checkMerge(RowLevelOperationMode mode, boolean withPredicate) {
     String createTableStmt =
         "CREATE TABLE %s (id INT, salary INT, dep STRING)"
             + "USING iceberg "
@@ -236,11 +250,14 @@ public class TestStoragePartitionedJoinsInRowLevelOperations extends SparkExtens
     append(tableName, "{ \"id\": 2, \"salary\": 200, \"dep\": \"hr\" }");
     append(tableName, "{ \"id\": 3, \"salary\": 300, \"dep\": \"hr\" }");
     append(tableName, "{ \"id\": 4, \"salary\": 400, \"dep\": \"hardware\" }");
+    append(tableName, "{ \"id\": 6, \"salary\": 600, \"dep\": \"software\" }");
 
     sql(createTableStmt, tableName(OTHER_TABLE_NAME), tablePropsAsString(COMMON_TABLE_PROPERTIES));
 
     append(tableName(OTHER_TABLE_NAME), "{ \"id\": 1, \"salary\": 110, \"dep\": \"hr\" }");
     append(tableName(OTHER_TABLE_NAME), "{ \"id\": 5, \"salary\": 500, \"dep\": \"hr\" }");
+    append(tableName(OTHER_TABLE_NAME), "{ \"id\": 6, \"salary\": 300, \"dep\": \"software\" }");
+    append(tableName(OTHER_TABLE_NAME), "{ \"id\": 10, \"salary\": 1000, \"dep\": \"ops\" }");
 
     Map<String, String> mergeTableProps =
         ImmutableMap.of(
@@ -254,17 +271,24 @@ public class TestStoragePartitionedJoinsInRowLevelOperations extends SparkExtens
     withSQLConf(
         ENABLED_SPJ_SQL_CONF,
         () -> {
+          String predicate = withPredicate ? "AND t.dep IN ('hr', 'ops', 'software')" : "";
           SparkPlan plan =
               executeAndKeepPlan(
                   "MERGE INTO %s AS t USING %s AS s "
-                      + "ON t.id = s.id AND t.dep = s.dep AND t.dep = 'hr'"
+                      + "ON t.id = s.id AND t.dep = s.dep %s "
                       + "WHEN MATCHED THEN "
                       + "  UPDATE SET t.salary = s.salary "
                       + "WHEN NOT MATCHED THEN "
                       + "  INSERT *",
-                  tableName, tableName(OTHER_TABLE_NAME));
+                  tableName, tableName(OTHER_TABLE_NAME), predicate);
           String planAsString = plan.toString();
-          Assert.assertFalse("Should be no shuffles with SPJ", planAsString.contains("Exchange"));
+          if (mode == COPY_ON_WRITE) {
+            int actualNumShuffles = StringUtils.countMatches(planAsString, "Exchange");
+            Assert.assertEquals("Should be 1 shuffle with SPJ", 1, actualNumShuffles);
+            Assertions.assertThat(planAsString).contains("Exchange hashpartitioning(_file");
+          } else {
+            Assertions.assertThat(planAsString).doesNotContain("Exchange");
+          }
         });
 
     ImmutableList<Object[]> expectedRows =
@@ -273,7 +297,9 @@ public class TestStoragePartitionedJoinsInRowLevelOperations extends SparkExtens
             row(2, 200, "hr"), // existing
             row(3, 300, "hr"), // existing
             row(4, 400, "hardware"), // existing
-            row(5, 500, "hr")); // new
+            row(5, 500, "hr"), // new
+            row(6, 300, "software"), // updated
+            row(10, 1000, "ops")); // new
 
     assertEquals(
         "Should have expected rows",
