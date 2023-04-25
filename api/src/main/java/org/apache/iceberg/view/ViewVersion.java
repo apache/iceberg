@@ -69,4 +69,7 @@ public interface ViewVersion {
   default String operation() {
     return summary().get("operation");
   }
+
+  /** The query output schema at version create time, without aliases */
+  int schemaId();
 }

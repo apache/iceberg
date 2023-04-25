@@ -33,6 +33,7 @@ class ViewVersionParser {
   private static final String SUMMARY = "summary";
   private static final String OPERATION = "operation";
   private static final String REPRESENTATIONS = "representations";
+  private static final String SCHEMA_ID = "schema-id";
 
   private ViewVersionParser() {}
 
@@ -42,6 +43,7 @@ class ViewVersionParser {
 
     generator.writeNumberField(VERSION_ID, version.versionId());
     generator.writeNumberField(TIMESTAMP_MS, version.timestampMillis());
+    generator.writeNumberField(SCHEMA_ID, version.schemaId());
 
     generator.writeObjectFieldStart(SUMMARY);
     generator.writeStringField(OPERATION, version.operation());
@@ -77,6 +79,7 @@ class ViewVersionParser {
         node.isObject(), "Cannot parse view version from a non-object: %s", node);
 
     int versionId = JsonUtil.getInt(VERSION_ID, node);
+    int schemaId = JsonUtil.getInt(SCHEMA_ID, node);
     long timestamp = JsonUtil.getLong(TIMESTAMP_MS, node);
     Map<String, String> summary = JsonUtil.getStringMap(SUMMARY, node);
     Preconditions.checkArgument(
@@ -93,6 +96,7 @@ class ViewVersionParser {
     return ImmutableViewVersion.builder()
         .versionId(versionId)
         .timestampMillis(timestamp)
+        .schemaId(schemaId)
         .summary(summary)
         .representations(representations.build())
         .build();

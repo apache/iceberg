@@ -45,6 +45,7 @@ public class TestViewVersionParser {
             .timestampMillis(12345)
             .addRepresentations(firstRepresentation, secondRepresentation)
             .summary(ImmutableMap.of("operation", "create", "user", "some-user"))
+            .schemaId(1)
             .build();
 
     String serializedRepresentations =
@@ -53,7 +54,7 @@ public class TestViewVersionParser {
 
     String serializedViewVersion =
         String.format(
-            "{\"version-id\":1, \"timestamp-ms\":12345, \"summary\":{\"operation\":\"create\", \"user\":\"some-user\"}, \"representations\":%s}",
+            "{\"version-id\":1, \"timestamp-ms\":12345, \"schema-id\":1, \"summary\":{\"operation\":\"create\", \"user\":\"some-user\"}, \"representations\":%s}",
             serializedRepresentations);
 
     Assert.assertEquals(
@@ -81,6 +82,7 @@ public class TestViewVersionParser {
             .timestampMillis(12345)
             .addRepresentations(firstRepresentation, secondRepresentation)
             .summary(ImmutableMap.of("operation", "create", "user", "some-user"))
+            .schemaId(1)
             .build();
 
     String expectedRepresentations =
@@ -89,7 +91,7 @@ public class TestViewVersionParser {
 
     String expectedViewVersion =
         String.format(
-            "{\"version-id\":1,\"timestamp-ms\":12345,\"summary\":{\"operation\":\"create\",\"user\":\"some-user\"},\"representations\":%s}",
+            "{\"version-id\":1,\"timestamp-ms\":12345,\"schema-id\":1,\"summary\":{\"operation\":\"create\",\"user\":\"some-user\"},\"representations\":%s}",
             expectedRepresentations);
 
     Assert.assertEquals(
@@ -106,7 +108,7 @@ public class TestViewVersionParser {
 
     String viewVersionMissingOperation =
         String.format(
-            "{\"version-id\":1,\"timestamp-ms\":12345,\"summary\":{\"some-other-field\":\"some-other-value\"},\"representations\":%s}",
+            "{\"version-id\":1,\"timestamp-ms\":12345,\"summary\":{\"some-other-field\":\"some-other-value\"},\"representations\":%s,\"schema-id\":1}",
             serializedRepresentations);
 
     Assertions.assertThatThrownBy(() -> ViewVersionParser.fromJson(viewVersionMissingOperation))
