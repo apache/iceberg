@@ -219,15 +219,25 @@ public class TestStoragePartitionedJoinsInRowLevelOperations extends SparkExtens
 
   @Test
   public void testCopyOnWriteMergeWithoutShuffles() {
-    checkMerge(COPY_ON_WRITE);
+    checkMerge(COPY_ON_WRITE, false /* with ON predicate */);
+  }
+
+  @Test
+  public void testCopyOnWriteMergeWithoutShufflesWithPredicate() {
+    checkMerge(COPY_ON_WRITE, true /* with ON predicate */);
   }
 
   @Test
   public void testMergeOnReadMergeWithoutShuffles() {
-    checkMerge(MERGE_ON_READ);
+    checkMerge(MERGE_ON_READ, false /* with ON predicate */);
   }
 
-  private void checkMerge(RowLevelOperationMode mode) {
+  @Test
+  public void testMergeOnReadMergeWithoutShufflesWithPredicate() {
+    checkMerge(MERGE_ON_READ, true /* with ON predicate */);
+  }
+
+  private void checkMerge(RowLevelOperationMode mode, boolean withPredicate) {
     String createTableStmt =
         "CREATE TABLE %s (id INT, salary INT, dep STRING)"
             + "USING iceberg "
@@ -240,11 +250,13 @@ public class TestStoragePartitionedJoinsInRowLevelOperations extends SparkExtens
     append(tableName, "{ \"id\": 2, \"salary\": 200, \"dep\": \"hr\" }");
     append(tableName, "{ \"id\": 3, \"salary\": 300, \"dep\": \"hr\" }");
     append(tableName, "{ \"id\": 4, \"salary\": 400, \"dep\": \"hardware\" }");
+    append(tableName, "{ \"id\": 6, \"salary\": 600, \"dep\": \"software\" }");
 
     sql(createTableStmt, tableName(OTHER_TABLE_NAME), tablePropsAsString(COMMON_TABLE_PROPERTIES));
 
     append(tableName(OTHER_TABLE_NAME), "{ \"id\": 1, \"salary\": 110, \"dep\": \"hr\" }");
     append(tableName(OTHER_TABLE_NAME), "{ \"id\": 5, \"salary\": 500, \"dep\": \"hr\" }");
+    append(tableName(OTHER_TABLE_NAME), "{ \"id\": 6, \"salary\": 300, \"dep\": \"software\" }");
     append(tableName(OTHER_TABLE_NAME), "{ \"id\": 10, \"salary\": 1000, \"dep\": \"ops\" }");
 
     Map<String, String> mergeTableProps =
@@ -259,15 +271,16 @@ public class TestStoragePartitionedJoinsInRowLevelOperations extends SparkExtens
     withSQLConf(
         ENABLED_SPJ_SQL_CONF,
         () -> {
+          String predicate = withPredicate ? "AND t.dep IN ('hr', 'ops', 'software')" : "";
           SparkPlan plan =
               executeAndKeepPlan(
                   "MERGE INTO %s AS t USING %s AS s "
-                      + "ON t.id = s.id AND t.dep = s.dep "
+                      + "ON t.id = s.id AND t.dep = s.dep %s "
                       + "WHEN MATCHED THEN "
                       + "  UPDATE SET t.salary = s.salary "
                       + "WHEN NOT MATCHED THEN "
                       + "  INSERT *",
-                  tableName, tableName(OTHER_TABLE_NAME));
+                  tableName, tableName(OTHER_TABLE_NAME), predicate);
           String planAsString = plan.toString();
           if (mode == COPY_ON_WRITE) {
             int actualNumShuffles = StringUtils.countMatches(planAsString, "Exchange");
@@ -285,7 +298,8 @@ public class TestStoragePartitionedJoinsInRowLevelOperations extends SparkExtens
             row(3, 300, "hr"), // existing
             row(4, 400, "hardware"), // existing
             row(5, 500, "hr"), // new
-            row(10, 1000, "ops"));
+            row(6, 300, "software"), // updated
+            row(10, 1000, "ops")); // new
 
     assertEquals(
         "Should have expected rows",
