@@ -43,7 +43,7 @@ import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 
 /** An internal table catalog that is capable of loading tables from a cache. */
-public class SparkCachedTableCatalog implements TableCatalog {
+public class SparkCachedTableCatalog implements TableCatalog, SupportsFunctions {
 
   private static final String CLASS_NAME = SparkCachedTableCatalog.class.getName();
   private static final Splitter COMMA = Splitter.on(",");

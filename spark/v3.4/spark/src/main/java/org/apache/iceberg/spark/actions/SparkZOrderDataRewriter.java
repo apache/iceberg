@@ -23,7 +23,7 @@ import static org.apache.spark.sql.functions.array;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import org.apache.iceberg.FileScanTask;
+import java.util.function.Function;
 import org.apache.iceberg.NullOrder;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortDirection;
@@ -104,9 +104,14 @@ class SparkZOrderDataRewriter extends SparkShufflingDataRewriter {
   }
 
   @Override
-  protected Dataset<Row> sortedDF(Dataset<Row> df, List<FileScanTask> group) {
+  protected SortOrder sortOrder() {
+    return Z_SORT_ORDER;
+  }
+
+  @Override
+  protected Dataset<Row> sortedDF(Dataset<Row> df, Function<Dataset<Row>, Dataset<Row>> sortFunc) {
     Dataset<Row> zValueDF = df.withColumn(Z_COLUMN, zValue(df));
-    Dataset<Row> sortedDF = sort(zValueDF, outputSortOrder(group, Z_SORT_ORDER));
+    Dataset<Row> sortedDF = sortFunc.apply(zValueDF);
     return sortedDF.drop(Z_COLUMN);
   }
 

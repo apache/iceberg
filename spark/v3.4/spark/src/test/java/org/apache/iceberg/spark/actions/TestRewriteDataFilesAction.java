@@ -93,6 +93,7 @@ import org.apache.iceberg.spark.FileRewriteCoordinator;
 import org.apache.iceberg.spark.ScanTaskSetManager;
 import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.spark.SparkTestBase;
+import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.iceberg.spark.actions.RewriteDataFilesSparkAction.RewriteExecutionContext;
 import org.apache.iceberg.spark.source.ThreeColumnRecord;
 import org.apache.iceberg.types.Comparators;
@@ -102,8 +103,10 @@ import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.util.Pair;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
+import org.apache.spark.sql.internal.SQLConf;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -126,6 +129,12 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
   private final FileRewriteCoordinator coordinator = FileRewriteCoordinator.get();
   private final ScanTaskSetManager manager = ScanTaskSetManager.get();
   private String tableLocation = null;
+
+  @BeforeClass
+  public static void setupSpark() {
+    // disable AQE as tests assume that writes generate a particular number of files
+    spark.conf().set(SQLConf.ADAPTIVE_EXECUTION_ENABLED().key(), "false");
+  }
 
   @Before
   public void setupTableLocation() throws Exception {
@@ -1630,6 +1639,7 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
         .write()
         .format("iceberg")
         .mode("append")
+        .option(SparkWriteOptions.USE_TABLE_DISTRIBUTION_AND_ORDERING, "false")
         .save(tableLocation);
   }
 
