@@ -85,8 +85,8 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsAdmissio
   private final boolean skipDelete;
   private final boolean skipOverwrite;
   private final long fromTimestamp;
-  private final Integer maxFilesPerMicroBatch;
-  private final Integer maxRecordsPerMicroBatch;
+  private final int maxFilesPerMicroBatch;
+  private final int maxRecordsPerMicroBatch;
 
   SparkMicroBatchStream(
       JavaSparkContext sparkContext,
