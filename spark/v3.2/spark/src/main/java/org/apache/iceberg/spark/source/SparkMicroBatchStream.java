@@ -208,6 +208,15 @@ public class SparkMicroBatchStream implements MicroBatchStream {
         currentOffset = new StreamingOffset(snapshotAfter.snapshotId(), 0L, false);
       }
 
+      Snapshot snapshot = table.snapshot(currentOffset.snapshotId());
+
+      if (snapshot == null) {
+        throw new IllegalStateException(
+            String.format(
+                "Cannot load current offset at snapshot %d, the snapshot was expired or removed",
+                currentOffset.snapshotId()));
+      }
+
       if (!shouldProcess(table.snapshot(currentOffset.snapshotId()))) {
         LOG.debug("Skipping snapshot: {} of table {}", currentOffset.snapshotId(), table.name());
         continue;
