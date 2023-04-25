@@ -35,6 +35,7 @@ import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.MetadataTableUtils;
 import org.apache.iceberg.Partitioning;
 import org.apache.iceberg.PositionDeletesScanTask;
+import org.apache.iceberg.PositionDeletesTable;
 import org.apache.iceberg.RewriteJobOrder;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
@@ -46,6 +47,7 @@ import org.apache.iceberg.actions.RewritePositionDeletesGroup;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -84,6 +86,7 @@ public class RewritePositionDeleteFilesSparkAction
 
   private final Table table;
   private final SparkBinPackPositionDeletesRewriter rewriter;
+  private Expression filter = Expressions.alwaysTrue();
 
   private int maxConcurrentFileGroupRewrites;
   private int maxCommits;
@@ -103,7 +106,8 @@ public class RewritePositionDeleteFilesSparkAction
 
   @Override
   public RewritePositionDeleteFilesSparkAction filter(Expression expression) {
-    throw new UnsupportedOperationException("Regular filters not supported yet.");
+    filter = Expressions.and(filter, expression);
+    return this;
   }
 
   @Override
@@ -133,16 +137,23 @@ public class RewritePositionDeleteFilesSparkAction
   }
 
   private StructLikeMap<List<List<PositionDeletesScanTask>>> planFileGroups() {
-    CloseableIterable<PositionDeletesScanTask> fileTasks = planFiles();
+    Table deletesTable =
+        MetadataTableUtils.createMetadataTableInstance(table, MetadataTableType.POSITION_DELETES);
+    PositionDeletesTable.PositionDeletesBatchScan deletesScan =
+        (PositionDeletesTable.PositionDeletesBatchScan) deletesTable.newBatchScan();
+    CloseableIterable<PositionDeletesScanTask> scanTasks =
+        CloseableIterable.transform(
+            deletesScan.baseTableFilter(filter).ignoreResiduals().planFiles(),
+            t -> (PositionDeletesScanTask) t);
 
     try {
       StructType partitionType = Partitioning.partitionType(table);
       StructLikeMap<List<PositionDeletesScanTask>> fileTasksByPartition =
-          groupByPartition(partitionType, fileTasks);
+          groupByPartition(partitionType, scanTasks);
       return fileGroupsByPartition(fileTasksByPartition);
     } finally {
       try {
-        fileTasks.close();
+        scanTasks.close();
       } catch (IOException io) {
         LOG.error("Cannot properly close file iterable while planning for rewrite", io);
       }
