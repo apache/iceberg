@@ -24,7 +24,6 @@ import java.io.IOException;
 import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.util.JsonUtil;
 
 class ViewVersionParser {
@@ -40,8 +39,10 @@ class ViewVersionParser {
   static void toJson(ViewVersion version, JsonGenerator generator) throws IOException {
     Preconditions.checkArgument(version != null, "Cannot serialize null view version");
     generator.writeStartObject();
+
     generator.writeNumberField(VERSION_ID, version.versionId());
     generator.writeNumberField(TIMESTAMP_MS, version.timestampMillis());
+
     generator.writeObjectFieldStart(SUMMARY);
     generator.writeStringField(OPERATION, version.operation());
     for (Map.Entry<String, String> summaryEntry : version.summary().entrySet()) {
@@ -49,15 +50,14 @@ class ViewVersionParser {
         generator.writeStringField(summaryEntry.getKey(), summaryEntry.getValue());
       }
     }
-
     generator.writeEndObject();
 
     generator.writeArrayFieldStart(REPRESENTATIONS);
     for (ViewRepresentation representation : version.representations()) {
       ViewRepresentationParser.toJson(representation, generator);
     }
-
     generator.writeEndArray();
+
     generator.writeEndObject();
   }
 
@@ -80,22 +80,7 @@ class ViewVersionParser {
     long timestamp = JsonUtil.getLong(TIMESTAMP_MS, node);
     Map<String, String> summary = JsonUtil.getStringMap(SUMMARY, node);
     Preconditions.checkArgument(
-        summary != null, "Cannot parse view version with missing required field: %s", SUMMARY);
-
-    String operation = null;
-    ImmutableMap.Builder<String, String> versionSummary = ImmutableMap.builder();
-    for (Map.Entry<String, String> summaryEntry : summary.entrySet()) {
-      if (summaryEntry.getKey().equals(OPERATION)) {
-        operation = summaryEntry.getValue();
-      } else {
-        versionSummary.put(summaryEntry.getKey(), summaryEntry.getValue());
-      }
-    }
-
-    Preconditions.checkArgument(
-        operation != null,
-        "Cannot parse view version summary with missing required field: %s",
-        OPERATION);
+        summary.containsKey(OPERATION), "Invalid view version summary, missing %s", OPERATION);
 
     JsonNode serializedRepresentations = node.get(REPRESENTATIONS);
     ImmutableList.Builder<ViewRepresentation> representations = ImmutableList.builder();
@@ -108,8 +93,7 @@ class ViewVersionParser {
     return ImmutableViewVersion.builder()
         .versionId(versionId)
         .timestampMillis(timestamp)
-        .summary(versionSummary.build())
-        .operation(operation)
+        .summary(summary)
         .representations(representations.build())
         .build();
   }

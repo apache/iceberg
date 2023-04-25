@@ -64,13 +64,11 @@ class SQLViewRepresentationParser {
     }
 
     if (!view.fieldAliases().isEmpty()) {
-      JsonUtil.writeStringArray(
-          SQLViewRepresentationParser.FIELD_ALIASES, view.fieldAliases(), generator);
+      JsonUtil.writeStringArray(FIELD_ALIASES, view.fieldAliases(), generator);
     }
 
     if (!view.fieldComments().isEmpty()) {
-      JsonUtil.writeStringArray(
-          SQLViewRepresentationParser.FIELD_COMMENTS, view.fieldComments(), generator);
+      JsonUtil.writeStringArray(FIELD_COMMENTS, view.fieldComments(), generator);
     }
 
     generator.writeEndObject();

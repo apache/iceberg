@@ -44,8 +44,7 @@ public class TestViewVersionParser {
             .versionId(1)
             .timestampMillis(12345)
             .addRepresentations(firstRepresentation, secondRepresentation)
-            .operation("create")
-            .summary(ImmutableMap.of("user", "some-user"))
+            .summary(ImmutableMap.of("operation", "create", "user", "some-user"))
             .build();
 
     String serializedRepresentations =
@@ -81,8 +80,7 @@ public class TestViewVersionParser {
             .versionId(1)
             .timestampMillis(12345)
             .addRepresentations(firstRepresentation, secondRepresentation)
-            .summary(ImmutableMap.of("user", "some-user"))
-            .operation("create")
+            .summary(ImmutableMap.of("operation", "create", "user", "some-user"))
             .build();
 
     String expectedRepresentations =
@@ -113,7 +111,7 @@ public class TestViewVersionParser {
 
     Assertions.assertThatThrownBy(() -> ViewVersionParser.fromJson(viewVersionMissingOperation))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse view version summary with missing required field: operation");
+        .hasMessage("Invalid view version summary, missing operation");
   }
 
   @Test
