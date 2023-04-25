@@ -114,6 +114,17 @@ public class TestViewVersionParser {
     Assertions.assertThatThrownBy(() -> ViewVersionParser.fromJson(viewVersionMissingOperation))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid view version summary, missing operation");
+
+    Assertions.assertThatThrownBy(
+            () ->
+                ImmutableViewVersion.builder()
+                    .versionId(1)
+                    .timestampMillis(12345)
+                    .schemaId(1)
+                    .summary(ImmutableMap.of("user", "some-user"))
+                    .build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid view version summary, missing operation");
   }
 
   @Test
