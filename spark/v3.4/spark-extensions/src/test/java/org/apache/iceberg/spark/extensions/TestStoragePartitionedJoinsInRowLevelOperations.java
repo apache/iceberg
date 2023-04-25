@@ -31,6 +31,7 @@ import org.apache.iceberg.spark.SparkCatalogConfig;
 import org.apache.iceberg.spark.SparkSQLProperties;
 import org.apache.spark.sql.execution.SparkPlan;
 import org.apache.spark.sql.internal.SQLConf;
+import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Test;
@@ -137,7 +138,7 @@ public class TestStoragePartitionedJoinsInRowLevelOperations extends SparkExtens
                       + "dep = 'hr'",
                   tableName, tableName(OTHER_TABLE_NAME));
           String planAsString = plan.toString();
-          Assert.assertFalse("Should be no shuffles with SPJ", planAsString.contains("Exchange"));
+          Assertions.assertThat(planAsString).doesNotContain("Exchange");
         });
 
     ImmutableList<Object[]> expectedRows =
@@ -200,7 +201,7 @@ public class TestStoragePartitionedJoinsInRowLevelOperations extends SparkExtens
                       + "dep = 'hr'",
                   tableName, tableName(OTHER_TABLE_NAME));
           String planAsString = plan.toString();
-          Assert.assertFalse("Should be no shuffles with SPJ", planAsString.contains("Exchange"));
+          Assertions.assertThat(planAsString).doesNotContain("Exchange");
         });
 
     ImmutableList<Object[]> expectedRows =
@@ -271,11 +272,9 @@ public class TestStoragePartitionedJoinsInRowLevelOperations extends SparkExtens
           if (mode == COPY_ON_WRITE) {
             int actualNumShuffles = StringUtils.countMatches(planAsString, "Exchange");
             Assert.assertEquals("Should be 1 shuffle with SPJ", 1, actualNumShuffles);
-            Assert.assertTrue(
-                "Must only shuffle file names",
-                planAsString.contains("Exchange hashpartitioning(_file"));
+            Assertions.assertThat(planAsString).contains("Exchange hashpartitioning(_file");
           } else {
-            Assert.assertFalse("Should be no shuffles with SPJ", planAsString.contains("Exchange"));
+            Assertions.assertThat(planAsString).doesNotContain("Exchange");
           }
         });
 
