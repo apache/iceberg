@@ -113,4 +113,17 @@ public abstract class FlinkTestBase extends TestBaseUtils {
         .as(message)
         .containsExactlyInAnyOrderElementsOf(expected);
   }
+
+  /**
+   * We can not drop currently used catalog after FLINK-29677, so we have make sure that we do not
+   * use the current catalog before dropping it. This method switches to the 'default_catalog' and
+   * drops the one requested.
+   *
+   * @param catalogName The catalog to drop
+   * @param ifExists If we should use the 'IF EXISTS' when dropping the catalog
+   */
+  protected void dropCatalog(String catalogName, boolean ifExists) {
+    sql("USE CATALOG default_catalog");
+    sql("DROP CATALOG %s %s", ifExists ? "IF EXISTS" : "", catalogName);
+  }
 }

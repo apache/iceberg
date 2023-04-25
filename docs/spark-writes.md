@@ -203,6 +203,36 @@ WHERE EXISTS (SELECT oid FROM prod.db.returned_orders WHERE t1.oid = oid)
 
 For more complex row-level updates based on incoming data, see the section on `MERGE INTO`.
 
+## Writing to Branches
+Branch writes can be performed via SQL by providing a branch identifier, `branch_yourBranch` in the operation.
+Branch writes can also be performed as part of a write-audit-publish (WAP) workflow by specifying the `spark.wap.branch` config.
+Note WAP branch and branch identifier cannot both be specified.
+Also, the branch must exist before performing the write. 
+The operation does **not** create the branch if it does not exist. 
+For more information on branches please refer to [branches](../../tables/branching)
+ 
+```sql
+-- INSERT (1,' a') (2, 'b') into the audit branch.
+INSERT INTO prod.db.table.branch_audit VALUES (1, 'a'), (2, 'b');
+
+-- MERGE INTO audit branch
+MERGE INTO prod.db.table.branch_audit t 
+USING (SELECT ...) s        
+ON t.id = s.id          
+WHEN ...
+
+-- UPDATE audit branch
+UPDATE prod.db.table.branch_audit AS t1
+SET val = 'c'
+
+-- DELETE FROM audit branch
+DELETE FROM prod.dbl.table.branch_audit WHERE id = 2;
+
+-- WAP Branch write
+SET spark.wap.branch = audit-branch
+INSERT INTO prod.db.table VALUES (3, 'c');
+```
+
 ## Writing with DataFrames
 
 Spark 3 introduced the new `DataFrameWriterV2` API for writing to tables using data frames. The v2 API is recommended for several reasons:

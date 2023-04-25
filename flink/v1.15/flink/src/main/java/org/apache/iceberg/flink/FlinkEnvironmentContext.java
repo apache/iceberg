@@ -22,7 +22,6 @@ import org.apache.iceberg.EnvironmentContext;
 import org.apache.iceberg.flink.util.FlinkPackage;
 
 class FlinkEnvironmentContext {
-
   private FlinkEnvironmentContext() {}
 
   public static void init() {

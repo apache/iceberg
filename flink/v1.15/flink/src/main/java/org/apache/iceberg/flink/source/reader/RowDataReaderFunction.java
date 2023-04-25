@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.flink.source.reader;
 
-import java.util.Collections;
 import java.util.List;
 import org.apache.flink.configuration.ReadableConfig;
 import org.apache.flink.table.data.RowData;
@@ -48,33 +47,15 @@ public class RowDataReaderFunction extends DataIteratorReaderFunction<RowData> {
       String nameMapping,
       boolean caseSensitive,
       FileIO io,
-      EncryptionManager encryption) {
-    this(
-        config,
-        tableSchema,
-        projectedSchema,
-        nameMapping,
-        caseSensitive,
-        io,
-        encryption,
-        Collections.emptyList());
-  }
-
-  public RowDataReaderFunction(
-      ReadableConfig config,
-      Schema schema,
-      Schema project,
-      String nameMapping,
-      boolean caseSensitive,
-      FileIO io,
       EncryptionManager encryption,
       List<Expression> filters) {
     super(
         new ArrayPoolDataIteratorBatcher<>(
             config,
-            new RowDataRecordFactory(FlinkSchemaUtil.convert(readSchema(schema, project)))));
-    this.tableSchema = schema;
-    this.readSchema = readSchema(schema, project);
+            new RowDataRecordFactory(
+                FlinkSchemaUtil.convert(readSchema(tableSchema, projectedSchema)))));
+    this.tableSchema = tableSchema;
+    this.readSchema = readSchema(tableSchema, projectedSchema);
     this.nameMapping = nameMapping;
     this.caseSensitive = caseSensitive;
     this.io = io;

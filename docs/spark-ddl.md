@@ -466,3 +466,63 @@ ALTER TABLE prod.db.sample DROP IDENTIFIER FIELDS id, data
 ```
 
 Note that although the identifier is removed, the column will still exist in the table schema.
+
+### Branching and Tagging DDL
+
+#### `ALTER TABLE ... CREATE BRANCH`
+
+Branches can be created via the `CREATE BRANCH` statement, which includes 
+the snapshot to create the branch at and an optional retention clause.
+
+```sql
+-- CREATE audit-branch at snapshot 1234 with default retention.
+ALTER TABLE prod.db.sample CREATE BRANCH audit-branch
+AS OF VERSION 1234
+
+-- CREATE audit-branch at snapshot 1234, retain audit-branch for 31 days, and retain the latest 31 days. The latest 3 snapshot snapshots, and 2 days worth of snapshots 
+ALTER TABLE prod.db.sample CREATE BRANCH audit-branch
+AS OF VERSION 1234 RETAIN 30 DAYS 
+WITH RETENTION 3 SNAPSHOTS 2 DAYS
+```
+
+
+#### `ALTER TABLE ... CREATE TAG`
+
+Tags can be created via the `CREATE TAG` statement, which includes 
+the snapshot to create the branch at and an optional retention clause.
+
+```sql
+-- CREATE historical-tag at snapshot 1234 with default retention.
+ALTER TABLE prod.db.sample CREATE TAG historical-tag AS OF VERSION 1234
+
+-- CREATE historical-tag at snapshot 1234 and retain it for 1 year. 
+ALTER TABLE prod.db.sample CREATE TAG historical-tag 
+AS OF VERSION 1234 RETAIN 365 DAYS
+```
+
+### `ALTER TABLE ... REPLACE BRANCH`
+
+The snapshot which a branch references can be updated via
+the `REPLACE BRANCH` sql. Retention can also be updated in this statement. 
+
+```sql
+-- REPLACE audit-branch to reference snapshot 4567 and update the retention to 60 days
+ALTER TABLE prod.db.sample REPLACE BRANCH audit-branch
+AS OF VERSION 4567 RETAIN 60 DAYS
+```
+
+#### `ALTER TABLE ... DROP BRANCH`
+
+Branches can be removed via the `DROP BRANCH` sql
+
+```sql
+ALTER TABLE prod.db.sample DROP BRANCH audit-branch
+```
+
+#### `ALTER TABLE ... DROP TAG`
+
+Tags can be removed via the `DROP TAG` sql
+
+```sql
+ALTER TABLE prod.db.sample DROP TAG historical-tag
+```
