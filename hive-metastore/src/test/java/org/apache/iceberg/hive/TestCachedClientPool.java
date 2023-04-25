@@ -20,11 +20,13 @@ package org.apache.iceberg.hive;
 
 import java.security.PrivilegedAction;
 import java.util.Collections;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hive.CachedClientPool.Key;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
@@ -116,5 +118,54 @@ public class TestCachedClientPool extends HiveMetastoreTest {
             "Duplicate conf key elements should result in an error")
         .isInstanceOf(ValidationException.class)
         .hasMessageContaining("Conf key element k1 already specified");
+  }
+
+  @Test
+  public void testHmsCatalog() {
+    Map<String, String> properties1 =
+        ImmutableMap.of(
+            String.valueOf(EVICTION_INTERVAL),
+            String.valueOf(Integer.MAX_VALUE),
+            HiveCatalog.HMS_CATALOG,
+            "foo");
+    Map<String, String> properties2 =
+        ImmutableMap.of(
+            String.valueOf(EVICTION_INTERVAL),
+            String.valueOf(Integer.MAX_VALUE),
+            HiveCatalog.HMS_CATALOG,
+            "foo");
+    Map<String, String> properties3 =
+        ImmutableMap.of(
+            String.valueOf(EVICTION_INTERVAL),
+            String.valueOf(Integer.MAX_VALUE),
+            HiveCatalog.HMS_CATALOG,
+            "bar");
+    Map<String, String> properties4 =
+        ImmutableMap.of(String.valueOf(EVICTION_INTERVAL), String.valueOf(Integer.MAX_VALUE));
+
+    HiveCatalog catalog1 = new HiveCatalog();
+    catalog1.initialize("foo", properties1);
+    HiveCatalog catalog2 = new HiveCatalog();
+    catalog2.initialize("foo", properties2);
+    HiveCatalog catalog3 = new HiveCatalog();
+    catalog3.initialize("bar", properties3);
+    HiveCatalog catalog4 = new HiveCatalog();
+    catalog4.initialize("none", properties4);
+
+    HiveClientPool pool1 = ((CachedClientPool) catalog1.clientPool()).clientPool();
+    HiveClientPool pool2 = ((CachedClientPool) catalog2.clientPool()).clientPool();
+    HiveClientPool pool3 = ((CachedClientPool) catalog3.clientPool()).clientPool();
+    HiveClientPool pool4 = ((CachedClientPool) catalog4.clientPool()).clientPool();
+
+    Assert.assertSame(pool1, pool2);
+    Assert.assertNotSame(pool3, pool1);
+    Assert.assertNotSame(pool3, pool2);
+    Assert.assertNotSame(pool3, pool4);
+    Assert.assertNotSame(pool4, pool1);
+    Assert.assertNotSame(pool4, pool2);
+
+    Assert.assertEquals("foo", pool1.hiveConf().get(HiveCatalog.HIVE_CONF_CATALOG));
+    Assert.assertEquals("bar", pool3.hiveConf().get(HiveCatalog.HIVE_CONF_CATALOG));
+    Assert.assertNull(pool4.hiveConf().get(HiveCatalog.HIVE_CONF_CATALOG));
   }
 }
