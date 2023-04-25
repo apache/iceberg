@@ -79,4 +79,6 @@ public final class BigLakeTestUtils {
     }
     return Optional.empty();
   }
+
+  private BigLakeTestUtils() {}
 }

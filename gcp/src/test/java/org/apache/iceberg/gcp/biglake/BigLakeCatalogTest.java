@@ -275,9 +275,9 @@ public class BigLakeCatalogTest {
         .thenReturn(db);
 
     bigLakeCatalog.createNamespace(Namespace.of(new String[] {dbId}), metadata);
-    File f = new File(dbDir);
-    assertTrue(f.exists());
-    assertTrue(f.isDirectory());
+    File dir = new File(dbDir);
+    assertTrue(dir.exists());
+    assertTrue(dir.isDirectory());
   }
 
   @Test
