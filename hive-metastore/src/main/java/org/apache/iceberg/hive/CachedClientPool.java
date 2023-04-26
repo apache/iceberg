@@ -100,7 +100,7 @@ public class CachedClientPool implements ClientPool<IMetaStoreClient, TException
   private synchronized void init() {
     if (clientPoolCache == null) {
       // Since Caffeine does not ensure that removalListener will be involved after expiration
-      // We use a scheduler with 2 threads to clean up expired clients.
+      // We use a scheduler with one thread to clean up expired clients.
       clientPoolCache =
           Caffeine.newBuilder()
               .expireAfterAccess(evictionInterval, TimeUnit.MILLISECONDS)
