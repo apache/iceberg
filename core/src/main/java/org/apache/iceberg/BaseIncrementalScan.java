@@ -92,7 +92,7 @@ abstract class BaseIncrementalScan<ThisT, T extends ScanTask, G extends ScanTask
   @Override
   public ThisT useBranch(String branch) {
     SnapshotRef snapshotRef = table().refs().get(branch);
-    Preconditions.checkArgument(snapshotRef != null, "Cannot find the snapshot ref: %s", branch);
+    Preconditions.checkArgument(snapshotRef != null, "Cannot find ref: %s", branch);
     Preconditions.checkArgument(snapshotRef.isBranch(), "Ref %s is not a branch", branch);
     return newRefinedScan(table(), schema(), context().useBranch(branch));
   }

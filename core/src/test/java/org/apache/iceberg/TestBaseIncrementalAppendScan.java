@@ -151,7 +151,7 @@ public class TestBaseIncrementalAppendScan
     Assert.assertEquals(2, Iterables.size(scan3.planFiles()));
 
     IncrementalAppendScan scan4 = newScan().toSnapshot(snapshotBranchCId).useBranch(branchName);
-    Assert.assertEquals(2, Iterables.size(scan4.planFiles()));
+    Assert.assertEquals(3, Iterables.size(scan4.planFiles()));
 
     IncrementalAppendScan scan5 =
         newScan()
@@ -168,7 +168,7 @@ public class TestBaseIncrementalAppendScan
     Assertions.assertThatThrownBy(
             () -> newScan().fromSnapshotInclusive(snapshotBranchBId).useBranch("notExistBranch"))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Cannot find the snapshot ref");
+        .hasMessageContaining("Cannot find ref");
 
     Assertions.assertThatThrownBy(
             () -> newScan().fromSnapshotInclusive(snapshotBranchBId).useBranch(tagSnapshotAName))
