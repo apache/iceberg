@@ -28,7 +28,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.filefilter.TrueFileFilter;
 import org.apache.hadoop.fs.Path;
@@ -438,7 +437,7 @@ public class TestCreateActions extends SparkCatalogTestBase {
         .partitionBy(partitionColumns.toSeq())
         .saveAsTable(source);
 
-    List<File> expectedFiles = expectedFiles(source).collect(Collectors.toList());
+    List<File> expectedFiles = expectedFiles(source);
 
     Assertions.assertThat(expectedFiles).hasSize(2);
 
@@ -1044,10 +1043,10 @@ public class TestCreateActions extends SparkCatalogTestBase {
 
   private long expectedFilesCount(String source)
       throws NoSuchDatabaseException, NoSuchTableException, ParseException {
-    return expectedFiles(source).count();
+    return expectedFiles(source).size();
   }
 
-  private Stream<File> expectedFiles(String source)
+  private List<File> expectedFiles(String source)
       throws NoSuchDatabaseException, NoSuchTableException, ParseException {
     CatalogTable sourceTable = loadSessionTable(source);
     List<URI> uris;
@@ -1071,7 +1070,8 @@ public class TestCreateActions extends SparkCatalogTestBase {
                 FileUtils.listFiles(
                     Paths.get(uri).toFile(), TrueFileFilter.INSTANCE, TrueFileFilter.INSTANCE)
                     .stream())
-        .filter(file -> !file.toString().endsWith("crc") && !file.toString().contains("_SUCCESS"));
+        .filter(file -> !file.toString().endsWith("crc") && !file.toString().contains("_SUCCESS"))
+        .collect(Collectors.toList());
   }
 
   // Insert records into the destination, makes sure those records exist and source table is
