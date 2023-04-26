@@ -107,7 +107,7 @@ class Schema(IcebergBaseModel):
             return False
 
         identifier_field_ids_is_equal = self.identifier_field_ids == other.identifier_field_ids
-        schema_is_equal = all([lhs == rhs for lhs, rhs in zip(self.columns, other.columns)])
+        schema_is_equal = all(lhs == rhs for lhs, rhs in zip(self.columns, other.columns))
 
         return identifier_field_ids_is_equal and schema_is_equal
 
