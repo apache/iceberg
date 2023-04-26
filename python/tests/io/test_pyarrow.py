@@ -27,6 +27,7 @@ import pytest
 from pyarrow.fs import FileType
 
 from pyiceberg.avro.resolver import ResolveError
+from pyiceberg.catalog.null import NoopCatalog
 from pyiceberg.expressions import (
     AlwaysFalse,
     AlwaysTrue,
@@ -774,6 +775,7 @@ def project(
             ),
             metadata_location="file://a/b/c.json",
             io=PyArrowFileIO(),
+            catalog=NoopCatalog("NoopCatalog"),
         ),
         expr or AlwaysTrue(),
         schema,
@@ -1142,6 +1144,7 @@ def test_pyarrow_wrap_fsspec(example_task: FileScanTask, table_schema_simple: Sc
             ),
             metadata_location=metadata_location,
             io=load_file_io(properties={"py-io-impl": "pyiceberg.io.fsspec.FsspecFileIO"}, location=metadata_location),
+            catalog=NoopCatalog("NoopCatalog"),
         ),
         case_sensitive=True,
         projected_schema=table_schema_simple,

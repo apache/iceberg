@@ -40,7 +40,7 @@ from pyiceberg.manifest import ManifestFile
 from pyiceberg.partitioning import UNPARTITIONED_PARTITION_SPEC, PartitionSpec
 from pyiceberg.schema import Schema
 from pyiceberg.serializers import ToOutputFile
-from pyiceberg.table import Table, TableMetadata
+from pyiceberg.table import BaseTableUpdate, Table, TableMetadata
 from pyiceberg.table.sorting import UNSORTED_SORT_ORDER, SortOrder
 from pyiceberg.typedef import (
     EMPTY_DICT,
@@ -324,6 +324,17 @@ class Catalog(ABC):
         """
 
     @abstractmethod
+    def alter_table(self, identifier: Union[str, Identifier], updates: Tuple[BaseTableUpdate, ...]) -> Table:
+        """Updates the table
+
+        Args:
+            identifier (str | Identifier): Namespace identifier
+            updates (Tuple[BaseTableUpdate]): Updates to be applied to the table
+        Raises:
+            NoSuchTableError: If a table with the given identifier does not exist
+        """
+
+    @abstractmethod
     def create_namespace(self, namespace: Union[str, Identifier], properties: Properties = EMPTY_DICT) -> None:
         """Create a namespace in the catalog.
 
@@ -393,7 +404,7 @@ class Catalog(ABC):
 
     @abstractmethod
     def update_namespace_properties(
-        self, namespace: Union[str, Identifier], removals: set[str] | None = None, updates: Properties = EMPTY_DICT
+        self, namespace: Union[str, Identifier], removals: Optional[Set[str]] = None, updates: Properties = EMPTY_DICT
     ) -> PropertiesUpdateSummary:
         """Removes provided property keys and updates properties for a namespace.
 

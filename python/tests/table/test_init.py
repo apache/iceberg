@@ -19,6 +19,7 @@ from typing import Any, Dict
 
 import pytest
 
+from pyiceberg.catalog.null import NoopCatalog
 from pyiceberg.expressions import (
     AlwaysTrue,
     And,
@@ -56,6 +57,7 @@ def table(example_table_metadata_v2: Dict[str, Any]) -> Table:
         metadata=table_metadata,
         metadata_location=f"{table_metadata.location}/uuid.metadata.json",
         io=load_file_io(),
+        catalog=NoopCatalog("NoopCatalog"),
     )
 
 

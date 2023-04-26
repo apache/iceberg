@@ -21,6 +21,7 @@ from typing import (
     List,
     Optional,
     Set,
+    Tuple,
     Union,
 )
 
@@ -42,7 +43,7 @@ from pyiceberg.exceptions import (
 from pyiceberg.io import load_file_io
 from pyiceberg.partitioning import UNPARTITIONED_PARTITION_SPEC, PartitionField, PartitionSpec
 from pyiceberg.schema import Schema
-from pyiceberg.table import Table
+from pyiceberg.table import BaseTableUpdate, Table
 from pyiceberg.table.metadata import TableMetadataV1
 from pyiceberg.table.sorting import UNSORTED_SORT_ORDER, SortOrder
 from pyiceberg.transforms import IdentityTransform
@@ -103,9 +104,13 @@ class InMemoryCatalog(Catalog):
                 ),
                 metadata_location=f's3://warehouse/{"/".join(identifier)}/metadata/metadata.json',
                 io=load_file_io(),
+                catalog=self,
             )
             self.__tables[identifier] = table
             return table
+
+    def alter_table(self, identifier: Union[str, Identifier], updates: Tuple[BaseTableUpdate, ...]) -> Table:
+        raise NotImplementedError
 
     def load_table(self, identifier: Union[str, Identifier]) -> Table:
         identifier = Catalog.identifier_to_tuple(identifier)
@@ -141,6 +146,7 @@ class InMemoryCatalog(Catalog):
             metadata=table.metadata,
             metadata_location=table.metadata_location,
             io=load_file_io(),
+            catalog=self,
         )
         return self.__tables[to_identifier]
 

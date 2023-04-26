@@ -21,8 +21,21 @@ import math
 import pytest
 
 from pyiceberg.catalog import Catalog, load_catalog
+from pyiceberg.exceptions import NoSuchTableError
 from pyiceberg.expressions import IsNaN, NotNaN
+from pyiceberg.partitioning import PartitionField, PartitionSpec
+from pyiceberg.schema import Schema
 from pyiceberg.table import Table
+from pyiceberg.table.sorting import SortField, SortOrder
+from pyiceberg.transforms import DayTransform, IdentityTransform
+from pyiceberg.types import (
+    BooleanType,
+    DoubleType,
+    IntegerType,
+    NestedField,
+    StringType,
+    TimestampType,
+)
 
 
 @pytest.fixture()
@@ -57,6 +70,71 @@ def table_test_limit(catalog: Catalog) -> Table:
 @pytest.fixture()
 def table_test_all_types(catalog: Catalog) -> Table:
     return catalog.load_table("default.test_all_types")
+
+
+TABLE_NAME = ("default", "t1")
+
+
+@pytest.fixture()
+def table(catalog: Catalog) -> Table:
+    try:
+        catalog.drop_table(TABLE_NAME)
+    except NoSuchTableError:
+        pass  # Just to make sure that the table doesn't exist
+
+    schema = Schema(
+        NestedField(field_id=1, name="str", field_type=StringType(), required=False),
+        NestedField(field_id=2, name="int", field_type=IntegerType(), required=True),
+        NestedField(field_id=3, name="bool", field_type=BooleanType(), required=False),
+        NestedField(field_id=4, name="datetime", field_type=TimestampType(), required=False),
+        schema_id=1,
+    )
+
+    return catalog.create_table(identifier=TABLE_NAME, schema=schema)
+
+
+@pytest.mark.integration
+def test_add_field(table: Table) -> None:
+    schema = Schema(
+        NestedField(field_id=1, name="str", field_type=StringType(), required=False),
+        NestedField(field_id=2, name="int", field_type=IntegerType(), required=True),
+        NestedField(field_id=3, name="bool", field_type=BooleanType(), required=False),
+        NestedField(field_id=4, name="datetime", field_type=TimestampType(), required=False),
+        NestedField(field_id=5, name="double", field_type=DoubleType(), required=False),
+        schema_id=1,
+    )
+
+    table = table.alter().set_schema(schema).commit()
+    assert table.schema() == schema
+
+
+@pytest.mark.integration
+def test_add_partition_spec_field(table: Table) -> None:
+    spec = PartitionSpec(PartitionField(source_id=4, field_id=1000, transform=DayTransform(), name="datetime_day"), spec_id=1)
+
+    table = table.alter().set_partition_spec(spec).commit()
+    assert table.spec() == spec
+
+
+@pytest.mark.integration
+def test_add_sort_order(table: Table) -> None:
+    order = SortOrder(SortField(source_id=2, transform=IdentityTransform()), order_id=1)
+
+    table = table.alter().set_sort_order(order).commit()
+    assert table.sort_order() == order
+
+
+@pytest.mark.integration
+def test_table_properties(table: Table) -> None:
+    assert table.properties == {}
+
+    table = table.alter().set_properties(abc="def").commit()
+
+    assert table.properties == {"abc": "def"}
+
+    table = table.alter().unset_properties("abc").commit()
+
+    assert table.properties == {}
 
 
 @pytest.mark.integration

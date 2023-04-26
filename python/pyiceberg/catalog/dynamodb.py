@@ -22,6 +22,7 @@ from typing import (
     List,
     Optional,
     Set,
+    Tuple,
     Union,
 )
 
@@ -52,7 +53,7 @@ from pyiceberg.io import load_file_io
 from pyiceberg.partitioning import UNPARTITIONED_PARTITION_SPEC, PartitionSpec
 from pyiceberg.schema import Schema
 from pyiceberg.serializers import FromInputFile
-from pyiceberg.table import Table
+from pyiceberg.table import BaseTableUpdate, Table
 from pyiceberg.table.metadata import new_table_metadata
 from pyiceberg.table.sorting import UNSORTED_SORT_ORDER, SortOrder
 from pyiceberg.typedef import EMPTY_DICT
@@ -167,6 +168,17 @@ class DynamoDbCatalog(Catalog):
             raise TableAlreadyExistsError(f"Table {database_name}.{table_name} already exists") from e
 
         return self.load_table(identifier=identifier)
+
+    def alter_table(self, identifier: Union[str, Identifier], updates: Tuple[BaseTableUpdate, ...]) -> Table:
+        """Updates the table
+
+        Args:
+            identifier (str | Identifier): Namespace identifier
+            updates (Tuple[BaseTableUpdate]): Updates to be applied to the table
+        Raises:
+            NoSuchTableError: If a table with the given identifier does not exist
+        """
+        raise NotImplementedError
 
     def load_table(self, identifier: Union[str, Identifier]) -> Table:
         """
@@ -580,6 +592,7 @@ class DynamoDbCatalog(Catalog):
             metadata=metadata,
             metadata_location=metadata_location,
             io=self._load_file_io(metadata.properties, metadata_location),
+            catalog=self,
         )
 
 

@@ -22,6 +22,7 @@ from typing import (
     Literal,
     Optional,
     Set,
+    Tuple,
     Type,
     Union,
 )
@@ -55,7 +56,12 @@ from pyiceberg.exceptions import (
 )
 from pyiceberg.partitioning import UNPARTITIONED_PARTITION_SPEC, PartitionSpec
 from pyiceberg.schema import Schema
-from pyiceberg.table import Table, TableMetadata
+from pyiceberg.table import (
+    BaseTableUpdate,
+    CommitTableRequest,
+    Table,
+    TableMetadata,
+)
 from pyiceberg.table.sorting import UNSORTED_SORT_ORDER, SortOrder
 from pyiceberg.typedef import EMPTY_DICT, IcebergBaseModel
 
@@ -68,7 +74,7 @@ class Endpoints:
     create_namespace: str = "namespaces"
     load_namespace_metadata: str = "namespaces/{namespace}"
     drop_namespace: str = "namespaces/{namespace}"
-    update_properties: str = "namespaces/{namespace}/properties"
+    update_namespace_properties: str = "namespaces/{namespace}/properties"
     list_tables: str = "namespaces/{namespace}/tables"
     create_table: str = "namespaces/{namespace}/tables"
     load_table: str = "namespaces/{namespace}/tables/{table}"
@@ -372,6 +378,7 @@ class RestCatalog(Catalog):
             io=self._load_file_io(
                 {**table_response.metadata.properties, **table_response.config}, table_response.metadata_location
             ),
+            catalog=self,
         )
 
     def list_tables(self, namespace: Union[str, Identifier]) -> List[Identifier]:
@@ -404,6 +411,7 @@ class RestCatalog(Catalog):
             io=self._load_file_io(
                 {**table_response.metadata.properties, **table_response.config}, table_response.metadata_location
             ),
+            catalog=self,
         )
 
     def drop_table(self, identifier: Union[str, Identifier], purge_requested: bool = False) -> None:
@@ -430,6 +438,27 @@ class RestCatalog(Catalog):
             self._handle_non_200_response(exc, {404: NoSuchTableError, 409: TableAlreadyExistsError})
 
         return self.load_table(to_identifier)
+
+    def alter_table(self, identifier: Union[str, Identifier], updates: Tuple[BaseTableUpdate, ...]) -> TableResponse:
+        """Updates the table
+
+        Args:
+            identifier (str | Identifier): Namespace identifier
+            updates (Tuple[BaseTableUpdate]): Updates to be applied to the table
+        Raises:
+            NoSuchTableError: If a table with the given identifier does not exist
+        """
+        print(updates)
+        payload = CommitTableRequest(updates=updates).json()
+        response = self.session.post(
+            self.url(Endpoints.update_table, prefixed=True, **self._split_identifier_for_path(identifier)),
+            data=payload,
+        )
+        try:
+            response.raise_for_status()
+        except HTTPError as exc:
+            self._handle_non_200_response(exc, {})
+        return TableResponse(**response.json())
 
     def create_namespace(self, namespace: Union[str, Identifier], properties: Properties = EMPTY_DICT) -> None:
         namespace_tuple = self._check_valid_namespace_identifier(namespace)
@@ -483,7 +512,7 @@ class RestCatalog(Catalog):
         namespace_tuple = self._check_valid_namespace_identifier(namespace)
         namespace = NAMESPACE_SEPARATOR.join(namespace_tuple)
         payload = {"removals": list(removals or []), "updates": updates}
-        response = self.session.post(self.url(Endpoints.update_properties, namespace=namespace), json=payload)
+        response = self.session.post(self.url(Endpoints.update_namespace_properties, namespace=namespace), json=payload)
         try:
             response.raise_for_status()
         except HTTPError as exc:

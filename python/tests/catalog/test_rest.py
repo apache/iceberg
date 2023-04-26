@@ -392,7 +392,8 @@ def test_load_table_200(rest_mock: Mocker) -> None:
         status_code=200,
         request_headers=TEST_HEADERS,
     )
-    actual = RestCatalog("rest", uri=TEST_URI, token=TEST_TOKEN).load_table(("fokko", "table"))
+    catalog = RestCatalog("rest", uri=TEST_URI, token=TEST_TOKEN)
+    actual = catalog.load_table(("fokko", "table"))
     expected = Table(
         identifier=("rest", "fokko", "table"),
         metadata_location="s3://warehouse/database/table/metadata/00001-5f2f8166-244c-4eae-ac36-384ecdec81fc.gz.metadata.json",
@@ -468,6 +469,7 @@ def test_load_table_200(rest_mock: Mocker) -> None:
             partition_spec=[],
         ),
         io=load_file_io(),
+        catalog=catalog,
     )
     assert actual == expected
 
@@ -569,7 +571,8 @@ def test_create_table_200(rest_mock: Mocker, table_schema_simple: Schema) -> Non
         status_code=200,
         request_headers=TEST_HEADERS,
     )
-    table = RestCatalog("rest", uri=TEST_URI, token=TEST_TOKEN).create_table(
+    catalog = RestCatalog("rest", uri=TEST_URI, token=TEST_TOKEN)
+    table = catalog.create_table(
         identifier=("fokko", "fokko2"),
         schema=table_schema_simple,
         location=None,
@@ -623,6 +626,7 @@ def test_create_table_200(rest_mock: Mocker, table_schema_simple: Schema) -> Non
             partition_spec=[],
         ),
         io=load_file_io(),
+        catalog=catalog,
     )
 
 
