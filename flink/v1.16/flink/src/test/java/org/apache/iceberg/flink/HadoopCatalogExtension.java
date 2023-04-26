@@ -18,7 +18,8 @@
  */
 package org.apache.iceberg.flink;
 
-import java.io.File;import java.nio.file.Files;import java.nio.file.Path;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.UUID;
 import org.apache.commons.io.FileUtils;
 import org.apache.hadoop.conf.Configuration;

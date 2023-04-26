@@ -21,6 +21,7 @@ package org.apache.iceberg.flink.sink;
 import org.apache.flink.api.common.functions.Partitioner;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
  * This partitioner will redirect records to writers deterministically based on the Bucket partition
@@ -55,6 +56,12 @@ class BucketPartitioner implements Partitioner<Integer> {
    */
   @Override
   public int partition(Integer bucketId, int numPartitions) {
+    Preconditions.checkArgument(
+        bucketId >= 0, "bucketId out of range: " + bucketId + " (must be >= 0)");
+    Preconditions.checkArgument(
+        bucketId < maxNumBuckets,
+        "bucketId out of range: " + bucketId + " (must be >= 0), maxNumBuckets: " + maxNumBuckets);
+
     if (numPartitions <= maxNumBuckets) {
       return bucketId % numPartitions;
     } else {
