@@ -46,6 +46,10 @@ public class TestCachedClientPool extends HiveMetastoreTest {
     Assert.assertNull(
         CachedClientPool.clientPoolCache()
             .getIfPresent(CachedClientPool.extractKey(null, hiveConf)));
+
+    // The client has been really closed.
+    Assert.assertTrue(clientPool1.isClosed());
+    Assert.assertTrue(clientPool2.isClosed());
   }
 
   @Test

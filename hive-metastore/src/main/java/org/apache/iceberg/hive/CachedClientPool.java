@@ -20,6 +20,7 @@ package org.apache.iceberg.hive;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
+import com.github.benmanes.caffeine.cache.Scheduler;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Comparator;
@@ -41,6 +42,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.PropertyUtil;
+import org.apache.iceberg.util.ThreadPools;
 import org.apache.thrift.TException;
 import org.immutables.value.Value;
 
@@ -97,10 +99,15 @@ public class CachedClientPool implements ClientPool<IMetaStoreClient, TException
 
   private synchronized void init() {
     if (clientPoolCache == null) {
+      // Since Caffeine does not ensure that removalListener will be involved after expiration
+      // We use a scheduler with one thread to clean up expired clients.
       clientPoolCache =
           Caffeine.newBuilder()
               .expireAfterAccess(evictionInterval, TimeUnit.MILLISECONDS)
               .removalListener((ignored, value, cause) -> ((HiveClientPool) value).close())
+              .scheduler(
+                  Scheduler.forScheduledExecutorService(
+                      ThreadPools.newScheduledPool("hive-metastore-cleaner", 1)))
               .build();
     }
   }
