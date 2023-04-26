@@ -178,7 +178,8 @@ public class SparkOrcWriter implements OrcRowWriter<InternalRow> {
       case BINARY:
         if (ORCSchemaUtil.BinaryType.UUID
             .toString()
-            .equals(fieldType.getAttributeValue(ORCSchemaUtil.ICEBERG_BINARY_TYPE_ATTRIBUTE))) {
+            .equalsIgnoreCase(
+                fieldType.getAttributeValue(ORCSchemaUtil.ICEBERG_BINARY_TYPE_ATTRIBUTE))) {
           fieldGetter = SpecializedGetters::getUTF8String;
         } else {
           fieldGetter = SpecializedGetters::getBinary;

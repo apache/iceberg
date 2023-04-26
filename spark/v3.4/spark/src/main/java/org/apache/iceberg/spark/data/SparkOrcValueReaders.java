@@ -20,7 +20,6 @@ package org.apache.iceberg.spark.data;
 
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.orc.OrcValueReader;
@@ -178,14 +177,6 @@ public class SparkOrcValueReaders {
   }
 
   private static class UUIDReader implements OrcValueReader<UTF8String> {
-    private static final ThreadLocal<ByteBuffer> BUFFER =
-        ThreadLocal.withInitial(
-            () -> {
-              ByteBuffer buffer = ByteBuffer.allocate(16);
-              buffer.order(ByteOrder.BIG_ENDIAN);
-              return buffer;
-            });
-
     private static final UUIDReader INSTANCE = new UUIDReader();
 
     private UUIDReader() {}
@@ -193,11 +184,8 @@ public class SparkOrcValueReaders {
     @Override
     public UTF8String nonNullRead(ColumnVector vector, int row) {
       BytesColumnVector bytesVector = (BytesColumnVector) vector;
-      ByteBuffer buffer = BUFFER.get();
-      buffer.rewind();
-      buffer.put(bytesVector.vector[row], bytesVector.start[row], bytesVector.length[row]);
-      buffer.rewind();
-
+      ByteBuffer buffer =
+          ByteBuffer.wrap(bytesVector.vector[row], bytesVector.start[row], bytesVector.length[row]);
       return UTF8String.fromString(UUIDUtil.convert(buffer).toString());
     }
   }

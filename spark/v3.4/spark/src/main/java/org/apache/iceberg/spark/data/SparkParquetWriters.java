@@ -35,6 +35,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.DecimalUtil;
+import org.apache.iceberg.util.UUIDUtil;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.io.api.Binary;
 import org.apache.parquet.schema.GroupType;
@@ -213,6 +214,10 @@ public class SparkParquetWriters {
     return new UTF8StringWriter(desc);
   }
 
+  private static PrimitiveWriter<UTF8String> uuids(ColumnDescriptor desc) {
+    return new UUIDWriter(desc);
+  }
+
   private static PrimitiveWriter<Decimal> decimalAsInteger(
       ColumnDescriptor desc, int precision, int scale) {
     return new IntegerDecimalWriter(desc, precision, scale);
@@ -323,10 +328,6 @@ public class SparkParquetWriters {
     }
   }
 
-  private static PrimitiveWriter<UTF8String> uuids(ColumnDescriptor desc) {
-    return new UUIDWriter(desc);
-  }
-
   private static class UUIDWriter extends PrimitiveWriter<UTF8String> {
     private static final ThreadLocal<ByteBuffer> BUFFER =
         ThreadLocal.withInitial(
@@ -343,11 +344,7 @@ public class SparkParquetWriters {
     @Override
     public void write(int repetitionLevel, UTF8String string) {
       UUID uuid = UUID.fromString(string.toString());
-      ByteBuffer buffer = BUFFER.get();
-      buffer.rewind();
-      buffer.putLong(uuid.getMostSignificantBits());
-      buffer.putLong(uuid.getLeastSignificantBits());
-      buffer.rewind();
+      ByteBuffer buffer = UUIDUtil.convertToByteBuffer(uuid, BUFFER.get());
       column.writeBinary(repetitionLevel, Binary.fromReusedByteBuffer(buffer));
     }
   }
