@@ -613,25 +613,21 @@ def _get_field_doc(field: pa.Field) -> Optional[str]:
 
 
 class _ConvertToIceberg(PyArrowSchemaVisitor[Union[IcebergType, Schema]]):
-    def schema(self, schema: pa.Schema, field_results: List[Optional[IcebergType]]) -> Schema:
+    def _convert_fields(self, arrow_fields: Iterable[pa.Field], field_results: List[Optional[IcebergType]]) -> List[NestedField]:
         fields = []
-        for i, field in enumerate(schema):
+        for i, field in enumerate(arrow_fields):
             field_id = _get_field_id(field)
             field_doc = _get_field_doc(field)
             field_type = field_results[i]
             if field_type is not None and field_id is not None:
                 fields.append(NestedField(field_id, field.name, field_type, required=not field.nullable, doc=field_doc))
-        return Schema(*fields)
+        return fields
+
+    def schema(self, schema: pa.Schema, field_results: List[Optional[IcebergType]]) -> Schema:
+        return Schema(*self._convert_fields(schema, field_results))
 
     def struct(self, struct: pa.StructType, field_results: List[Optional[IcebergType]]) -> IcebergType:
-        fields = []
-        for i, field in enumerate(struct):
-            field_id = _get_field_id(field)
-            field_doc = _get_field_doc(field)
-            field_type = field_results[i]
-            if field_type is not None and field_id is not None:
-                fields.append(NestedField(field_id, field.name, field_type, required=not field.nullable, doc=field_doc))
-        return StructType(*fields)
+        return StructType(*self._convert_fields(struct, field_results))
 
     def list(self, list_type: pa.ListType, element_result: Optional[IcebergType]) -> Optional[IcebergType]:
         element_field = list_type.value_field
@@ -709,7 +705,8 @@ def _file_to_table(
         schema_raw = None
         if metadata := physical_schema.metadata:
             schema_raw = metadata.get(ICEBERG_SCHEMA)
-        # TODO: if field_ids are not present, Name Mapping should be implemented to look them up in the table schema
+        # TODO: if field_ids are not present, Name Mapping should be implemented to look them up in the table schema,
+        #  see https://github.com/apache/iceberg/issues/7451
         file_schema = Schema.parse_raw(schema_raw) if schema_raw is not None else pyarrow_to_schema(physical_schema)
 
         pyarrow_filter = None
