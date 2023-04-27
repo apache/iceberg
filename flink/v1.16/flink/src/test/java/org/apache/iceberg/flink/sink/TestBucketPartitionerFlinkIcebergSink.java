@@ -82,7 +82,7 @@ public class TestBucketPartitionerFlinkIcebergSink {
   private static final TypeInformation<Row> ROW_TYPE_INFO =
       new RowTypeInfo(SimpleDataUtil.FLINK_SCHEMA.getFieldTypes());
 
-  // Parallelism = 8 throughout the test suite
+  // Parallelism = 8 (parallelism > numBuckets) throughout the test suite
   private final int parallelism = NUMBER_TASK_MANAGERS * SLOTS_PER_TASK_MANAGER;
   private final FileFormat format = FileFormat.PARQUET;
   private final int numBuckets = 4;

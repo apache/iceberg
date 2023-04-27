@@ -44,16 +44,16 @@ public class TestBucketPartitionKeySelector {
     TestBucketPartitionerUtils.generateRowsForBucketIdRange(2, numBuckets)
         .forEach(
             row -> {
-              int bucketId =
+              int expectedBucketId =
                   TestBucketPartitionerUtils.computeBucketId(numBuckets, (String) row.getField(1));
               Integer key = keySelector.getKey(CONVERTER.toInternal(row));
-              Assertions.assertThat(key).isEqualTo(bucketId);
+              Assertions.assertThat(key).isEqualTo(expectedBucketId);
             });
   }
 
   @ParameterizedTest
   @EnumSource(value = TestBucketPartitionerUtils.TableSchemaType.class, names = "TWO_BUCKETS")
-  public void testBucketPartitionKeySelectorFail(
+  public void testKeySelectorMultipleBucketsFail(
       TestBucketPartitionerUtils.TableSchemaType tableSchemaType) {
     PartitionSpec partitionSpec = TestBucketPartitionerUtils.getPartitionSpec(tableSchemaType, 1);
 

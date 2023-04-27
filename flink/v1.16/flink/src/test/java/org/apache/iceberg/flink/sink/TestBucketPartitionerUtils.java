@@ -72,13 +72,13 @@ final class TestBucketPartitionerUtils {
 
   /**
    * Utility method to generate rows whose values will "hash" to a range of bucketIds (from 0 to
-   * numBuckets)
+   * numBuckets - 1)
    *
    * @param numRowsPerBucket how many different rows should be generated per bucket
    * @param numBuckets max number of buckets to consider
    * @return the list of rows whose data "hashes" to the desired bucketId
    */
-  public static List<Row> generateRowsForBucketIdRange(int numRowsPerBucket, int numBuckets) {
+  static List<Row> generateRowsForBucketIdRange(int numRowsPerBucket, int numBuckets) {
     List<Row> rows = Lists.newArrayListWithCapacity(numBuckets * numRowsPerBucket);
     // For some of our tests, this order of the generated rows matters
     for (int i = 0; i < numRowsPerBucket; i++) {

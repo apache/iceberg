@@ -29,8 +29,8 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.flink.RowDataWrapper;
 
 /**
- * A {@link KeySelector} that extracts and returns an Integer bucketId as the key. To be used with
- * the {@link BucketPartitioner}.
+ * A {@link KeySelector} that extracts the bucketId from a data row's bucket partition as the key.
+ * To be used with the {@link BucketPartitioner}.
  */
 class BucketPartitionKeySelector implements KeySelector<RowData, Integer> {
 

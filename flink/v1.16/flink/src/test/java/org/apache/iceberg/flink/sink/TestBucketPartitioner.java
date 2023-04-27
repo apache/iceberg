@@ -23,6 +23,7 @@ import org.assertj.core.api.Assertions;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.ValueSource;
+import static org.apache.iceberg.flink.sink.BucketPartitioner.BUCKET_OUT_OF_RANGE_MESSAGE_PREFIX;
 
 public class TestBucketPartitioner {
 
@@ -92,6 +93,6 @@ public class TestBucketPartitioner {
 
     Assertions.assertThatExceptionOfType(IllegalArgumentException.class)
         .isThrownBy(() -> bucketPartitioner.partition(bucketId, 1))
-        .withMessageContaining("out of range");
+        .withMessageContaining(BUCKET_OUT_OF_RANGE_MESSAGE_PREFIX);
   }
 }

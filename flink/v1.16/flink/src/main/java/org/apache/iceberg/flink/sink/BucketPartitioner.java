@@ -31,9 +31,11 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
  */
 class BucketPartitioner implements Partitioner<Integer> {
 
+  static final String BUCKET_OUT_OF_RANGE_MESSAGE_PREFIX = "bucketId out of range: ";
+
   private final int maxNumBuckets;
 
-  // This always has the OFFSET of the next writer to use for any bucket
+  // To hold the OFFSET of the next writer to use for any bucket
   private final int[] currentBucketWriterOffset;
 
   BucketPartitioner(PartitionSpec partitionSpec) {
@@ -45,22 +47,23 @@ class BucketPartitioner implements Partitioner<Integer> {
   }
 
   /**
-   * If the number of writers <= the number of buckets an evenly distributed number of buckets will
-   * be assigned to each writer. Conversely, if the number of writers > the number of buckets the
-   * logic is handled by the {@link #getPartitionWritersGreaterThanBuckets
-   * getPartitionWritersGreaterThanBuckets} method.
+   * Determine the partition id based on the following criteria: If the number of writers <= the
+   * number of buckets, an evenly distributed number of buckets will be assigned to each writer
+   * (one writer -> many buckets).
+   * Conversely, if the number of writers > the number of buckets the logic is handled by the
+   * {@link #getPartitionWritersGreaterThanBuckets getPartitionWritersGreaterThanBuckets} method.
    *
    * @param bucketId the bucketId for each request
    * @param numPartitions the total number of partitions
-   * @return the partition index (writer) to use for each request
+   * @return the partition id (writer) to use for each request
    */
   @Override
   public int partition(Integer bucketId, int numPartitions) {
     Preconditions.checkArgument(
-        bucketId >= 0, "bucketId out of range: " + bucketId + " (must be >= 0)");
+        bucketId >= 0, BUCKET_OUT_OF_RANGE_MESSAGE_PREFIX + bucketId + " (must be >= 0)");
     Preconditions.checkArgument(
         bucketId < maxNumBuckets,
-        "bucketId out of range: " + bucketId + " (must be >= 0), maxNumBuckets: " + maxNumBuckets);
+            BUCKET_OUT_OF_RANGE_MESSAGE_PREFIX + bucketId + " (must be >= 0), maxNumBuckets: " + maxNumBuckets);
 
     if (numPartitions <= maxNumBuckets) {
       return bucketId % numPartitions;
@@ -71,12 +74,12 @@ class BucketPartitioner implements Partitioner<Integer> {
 
   /*-
    * If the number of writers > the number of buckets each partitioner will keep a state of multiple
-   * writers per bucket as evenly as possible, and will round-robin the requests across them, in
-   * this case each writer will target no more than one bucket at all times. Example:
-   * Configuration: numPartitions (writers) = 3, maxBuckets = 2
+   * writers per bucket as evenly as possible, and will round-robin the requests across them, in this
+   * case each writer will target only one bucket at all times (many writers -> one bucket). Example:
+   * Configuration: numPartitions (writers) = 5, maxBuckets = 2
    * Expected behavior:
-   * - Records for Bucket 0 will be "round robin" between Writers 0 and 2
-   * - Records for Bucket 1 will always use Writer 1
+   * - Records for Bucket 0 will be "round robin" between Writers 0, 2 and 4
+   * - Records for Bucket 1 will always use Writer 1 and 3
    * Notes:
    * - maxNumWritersPerBucket determines when to reset the currentBucketWriterOffset to 0 for this bucketId
    * - When numPartitions is not evenly divisible by maxBuckets, some buckets will have one more writer (extraWriter).
