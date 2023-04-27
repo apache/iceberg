@@ -532,11 +532,11 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
 
     while (versionLogIterator.hasNext()) {
       VersionLog versionLog = versionLogIterator.next();
-      List<Action> AddFiles =
+      List<Action> addFiles =
           versionLog.getActions().stream()
               .filter(action -> action instanceof AddFile)
               .collect(Collectors.toList());
-      dataFilesCount += AddFiles.size();
+      dataFilesCount += addFiles.size();
     }
 
     return dataFilesCount;
