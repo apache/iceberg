@@ -34,8 +34,6 @@ import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.sql.Timestamp;
-import java.time.ZoneId;
-import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -420,19 +418,17 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
       String expectedVersionTag = "delta-version-" + deltaVersion;
       icebergSnapshotRefs.get(expectedVersionTag);
       Assertions.assertThat(icebergSnapshotRefs.get(expectedVersionTag)).isNotNull();
+      Assertions.assertThat(icebergSnapshotRefs.get(expectedVersionTag).isTag()).isTrue();
       Assertions.assertThat(icebergSnapshotRefs.get(expectedVersionTag).snapshotId())
           .isEqualTo(currentIcebergSnapshot.snapshotId());
 
       Timestamp deltaVersionTimestamp = deltaLog.getCommitInfoAt(deltaVersion).getTimestamp();
       Assertions.assertThat(deltaVersionTimestamp).isNotNull();
-      String formattedDeltaTimestamp =
-          deltaVersionTimestamp
-              .toInstant()
-              .atZone(ZoneId.of("UTC"))
-              .format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS"));
-      String expectedTimestampTag = "delta-" + formattedDeltaTimestamp;
+      long rawDeltaTimestamp = deltaVersionTimestamp.getTime();
+      String expectedTimestampTag = "delta-ts-" + rawDeltaTimestamp;
 
       Assertions.assertThat(icebergSnapshotRefs.get(expectedTimestampTag)).isNotNull();
+      Assertions.assertThat(icebergSnapshotRefs.get(expectedTimestampTag).isTag()).isTrue();
       Assertions.assertThat(icebergSnapshotRefs.get(expectedTimestampTag).snapshotId())
           .isEqualTo(currentIcebergSnapshot.snapshotId());
     }
