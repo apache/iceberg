@@ -27,11 +27,11 @@ import io.delta.standalone.exceptions.DeltaStandaloneException;
 import java.io.File;
 import java.net.URI;
 import java.sql.Timestamp;
-import java.text.SimpleDateFormat;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.TimeZone;
 import java.util.stream.Collectors;
 import org.apache.commons.codec.DecoderException;
 import org.apache.commons.codec.net.URLCodec;
@@ -83,6 +83,10 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
   private static final String DELTA_SOURCE_VALUE = "delta";
   private static final String ORIGINAL_LOCATION_PROP = "original_location";
   private static final String PARQUET_SUFFIX = ".parquet";
+  private static final String DELTA_VERSION_TAG_PREFIX = "delta-version-";
+  private static final String DELTA_TIMESTAMP_TAG_PREFIX = "delta-";
+  private static final String DELTA_TIME_STAMP_ZONE = "UTC";
+  private static final String DELTA_TIME_STAMP_FORMAT = "yyyy-MM-dd HH:mm:ss.SSS";
   private final ImmutableMap.Builder<String, String> additionalPropertiesBuilder =
       ImmutableMap.builder();
   private DeltaLog deltaLog;
@@ -424,15 +428,19 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
 
   private void tagCurrentSnapshot(long deltaVersion, Transaction transaction) {
     long currentSnapshotId = transaction.table().currentSnapshot().snapshotId();
-    Timestamp deltaVersionTimestamp = deltaLog.getCommitInfoAt(deltaVersion).getTimestamp();
+
     ManageSnapshots manageSnapshots = transaction.manageSnapshots();
-    manageSnapshots.createTag("delta-version-" + deltaVersion, currentSnapshotId);
+    manageSnapshots.createTag(DELTA_VERSION_TAG_PREFIX + deltaVersion, currentSnapshotId);
+
+    Timestamp deltaVersionTimestamp = deltaLog.getCommitInfoAt(deltaVersion).getTimestamp();
     if (deltaVersionTimestamp != null) {
-      SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS");
-      dateFormat.setTimeZone(TimeZone.getTimeZone("UTC"));
-      String formattedDeltaTimestamp = dateFormat.format(deltaVersionTimestamp);
+      String formattedDeltaTimestamp =
+          deltaVersionTimestamp
+              .toInstant()
+              .atZone(ZoneId.of(DELTA_TIME_STAMP_ZONE))
+              .format(DateTimeFormatter.ofPattern(DELTA_TIME_STAMP_FORMAT));
       manageSnapshots.createTag(
-          "delta-version-timestamp-" + formattedDeltaTimestamp, currentSnapshotId);
+          DELTA_TIMESTAMP_TAG_PREFIX + formattedDeltaTimestamp, currentSnapshotId);
     }
     manageSnapshots.commit();
   }

@@ -34,15 +34,14 @@ import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.sql.Timestamp;
-import java.text.SimpleDateFormat;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
-import java.util.TimeZone;
 import java.util.stream.Collectors;
 import org.apache.commons.codec.DecoderException;
 import org.apache.commons.codec.net.URLCodec;
-import org.apache.iceberg.ManageSnapshots;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
@@ -404,17 +403,15 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
   }
 
   private void checkTagContentAndOrder(
-      String deltaTableLocation,
-      String icebergTableIdentifier,
-      long firstConstructableVersion
-  ) {
+      String deltaTableLocation, String icebergTableIdentifier, long firstConstructableVersion) {
     DeltaLog deltaLog = DeltaLog.forTable(spark.sessionState().newHadoopConf(), deltaTableLocation);
     long currentVersion = deltaLog.snapshot().getVersion();
     Table icebergTable = getIcebergTable(icebergTableIdentifier);
     Map<String, SnapshotRef> icebergSnapshotRefs = icebergTable.refs();
     List<Snapshot> icebergSnapshots = Lists.newArrayList(icebergTable.snapshots());
 
-    Assertions.assertThat(icebergSnapshots.size()).isEqualTo(currentVersion - firstConstructableVersion + 1);
+    Assertions.assertThat(icebergSnapshots.size())
+        .isEqualTo(currentVersion - firstConstructableVersion + 1);
 
     for (int i = 0; i < icebergSnapshots.size(); i++) {
       long deltaVersion = firstConstructableVersion + i;
@@ -422,23 +419,22 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
 
       String expectedVersionTag = "delta-version-" + deltaVersion;
       icebergSnapshotRefs.get(expectedVersionTag);
-      Assertions.assertThat(icebergSnapshotRefs.get(expectedVersionTag))
-          .isNotNull();
+      Assertions.assertThat(icebergSnapshotRefs.get(expectedVersionTag)).isNotNull();
       Assertions.assertThat(icebergSnapshotRefs.get(expectedVersionTag).snapshotId())
           .isEqualTo(currentIcebergSnapshot.snapshotId());
 
       Timestamp deltaVersionTimestamp = deltaLog.getCommitInfoAt(deltaVersion).getTimestamp();
       Assertions.assertThat(deltaVersionTimestamp).isNotNull();
-      SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS");
-      dateFormat.setTimeZone(TimeZone.getTimeZone("UTC"));
-      String formattedDeltaTimestamp = dateFormat.format(deltaVersionTimestamp);
-      String expectedTimestampTag = "delta-version-timestamp-" + formattedDeltaTimestamp;
+      String formattedDeltaTimestamp =
+          deltaVersionTimestamp
+              .toInstant()
+              .atZone(ZoneId.of("UTC"))
+              .format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS"));
+      String expectedTimestampTag = "delta-" + formattedDeltaTimestamp;
 
-      Assertions.assertThat(icebergSnapshotRefs.get(expectedTimestampTag))
-          .isNotNull();
+      Assertions.assertThat(icebergSnapshotRefs.get(expectedTimestampTag)).isNotNull();
       Assertions.assertThat(icebergSnapshotRefs.get(expectedTimestampTag).snapshotId())
           .isEqualTo(currentIcebergSnapshot.snapshotId());
-
     }
   }
 
