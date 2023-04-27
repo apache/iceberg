@@ -67,12 +67,14 @@ public abstract class BaseRewriteDataFilesAction<ThisT>
   private long targetSizeInBytes;
   private int splitLookback;
   private long splitOpenFileCost;
+  private boolean useStartingSequenceNumber;
 
   protected BaseRewriteDataFilesAction(Table table) {
     this.table = table;
     this.spec = table.spec();
     this.filter = Expressions.alwaysTrue();
     this.caseSensitive = false;
+    this.useStartingSequenceNumber = false;
 
     long splitSize =
         PropertyUtil.propertyAsLong(
@@ -198,6 +200,21 @@ public abstract class BaseRewriteDataFilesAction<ThisT>
     return this;
   }
 
+  /**
+   * If the compaction should use the sequence number of the snapshot at compaction start time for
+   * new data files, instead of using the sequence number of the newly produced snapshot.
+   *
+   * <p>This avoids commit conflicts with updates that add newer equality deletes at a higher
+   * sequence number.
+   *
+   * @param useStarting use starting sequence number if set to true
+   * @return this for method chaining
+   */
+  public BaseRewriteDataFilesAction<ThisT> useStartingSequenceNumber(boolean useStarting) {
+    this.useStartingSequenceNumber = useStarting;
+    return this;
+  }
+
   @Override
   public RewriteDataFilesActionResult execute() {
     CloseableIterable<FileScanTask> fileScanTasks = null;
@@ -307,11 +324,15 @@ public abstract class BaseRewriteDataFilesAction<ThisT>
       Iterable<DataFile> deletedDataFiles,
       Iterable<DataFile> addedDataFiles,
       long startingSnapshotId) {
-    RewriteFiles rewriteFiles =
-        table
-            .newRewrite()
-            .validateFromSnapshot(startingSnapshotId)
-            .rewriteFiles(Sets.newHashSet(deletedDataFiles), Sets.newHashSet(addedDataFiles));
+    RewriteFiles rewriteFiles = table.newRewrite().validateFromSnapshot(startingSnapshotId);
+    if (useStartingSequenceNumber) {
+      long sequenceNumber = table.snapshot(startingSnapshotId).sequenceNumber();
+      rewriteFiles.rewriteFiles(
+          Sets.newHashSet(deletedDataFiles), Sets.newHashSet(addedDataFiles), sequenceNumber);
+    } else {
+      rewriteFiles.rewriteFiles(Sets.newHashSet(deletedDataFiles), Sets.newHashSet(addedDataFiles));
+    }
+
     commit(rewriteFiles);
   }
 

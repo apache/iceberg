@@ -57,8 +57,8 @@ import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.hadoop.Configurable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.ResolvingFileIO;
-import org.apache.iceberg.metrics.MetricsReport;
 import org.apache.iceberg.metrics.MetricsReporter;
+import org.apache.iceberg.metrics.MetricsReporters;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -68,7 +68,6 @@ import org.apache.iceberg.rest.auth.OAuth2Util.AuthSession;
 import org.apache.iceberg.rest.requests.CreateNamespaceRequest;
 import org.apache.iceberg.rest.requests.CreateTableRequest;
 import org.apache.iceberg.rest.requests.RenameTableRequest;
-import org.apache.iceberg.rest.requests.ReportMetricsRequest;
 import org.apache.iceberg.rest.requests.UpdateNamespacePropertiesRequest;
 import org.apache.iceberg.rest.responses.ConfigResponse;
 import org.apache.iceberg.rest.responses.CreateNamespaceResponse;
@@ -347,12 +346,11 @@ public class RESTSessionCatalog extends BaseSessionCatalog
             tableFileIO(context, response.config()),
             tableMetadata);
 
-    TableIdentifier tableIdentifier = loadedIdent;
     BaseTable table =
         new BaseTable(
             ops,
             fullTableName(loadedIdent),
-            report -> reportMetrics(tableIdentifier, report, session::headers));
+            metricsReporter(paths.metrics(loadedIdent), session::headers));
     if (metadataType != null) {
       return MetadataTableUtils.createMetadataTableInstance(table, metadataType);
     }
@@ -360,22 +358,14 @@ public class RESTSessionCatalog extends BaseSessionCatalog
     return table;
   }
 
-  private void reportMetrics(
-      TableIdentifier tableIdentifier,
-      MetricsReport report,
-      Supplier<Map<String, String>> headers) {
-    try {
-      reporter.report(report);
-      if (reportingViaRestEnabled) {
-        client.post(
-            paths.metrics(tableIdentifier),
-            ReportMetricsRequest.of(report),
-            null,
-            headers,
-            ErrorHandlers.defaultErrorHandler());
-      }
-    } catch (Exception e) {
-      LOG.warn("Failed to report metrics to REST endpoint for table {}", tableIdentifier, e);
+  private MetricsReporter metricsReporter(
+      String metricsEndpoint, Supplier<Map<String, String>> headers) {
+    if (reportingViaRestEnabled) {
+      RESTMetricsReporter restMetricsReporter =
+          new RESTMetricsReporter(client, metricsEndpoint, headers);
+      return MetricsReporters.combine(reporter, restMetricsReporter);
+    } else {
+      return this.reporter;
     }
   }
 
@@ -603,7 +593,7 @@ public class RESTSessionCatalog extends BaseSessionCatalog
               response.tableMetadata());
 
       return new BaseTable(
-          ops, fullTableName(ident), report -> reportMetrics(ident, report, session::headers));
+          ops, fullTableName(ident), metricsReporter(paths.metrics(ident), session::headers));
     }
 
     @Override
@@ -625,7 +615,7 @@ public class RESTSessionCatalog extends BaseSessionCatalog
               meta);
 
       return Transactions.createTableTransaction(
-          fullName, ops, meta, report -> reportMetrics(ident, report, session::headers));
+          fullName, ops, meta, metricsReporter(paths.metrics(ident), session::headers));
     }
 
     @Override
@@ -676,7 +666,7 @@ public class RESTSessionCatalog extends BaseSessionCatalog
               base);
 
       return Transactions.replaceTableTransaction(
-          fullName, ops, replacement, report -> reportMetrics(ident, report, session::headers));
+          fullName, ops, replacement, metricsReporter(paths.metrics(ident), session::headers));
     }
 
     @Override

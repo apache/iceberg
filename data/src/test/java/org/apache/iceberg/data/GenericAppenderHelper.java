@@ -91,6 +91,13 @@ public class GenericAppenderHelper {
     appendToTable(writeFile(partition, records));
   }
 
+  public DataFile writeFile(List<Record> records) throws IOException {
+    Preconditions.checkNotNull(table, "table not set");
+    File file = tmp.newFile();
+    Assert.assertTrue(file.delete());
+    return appendToLocalFile(table, file, fileFormat, null, records, conf);
+  }
+
   public DataFile writeFile(StructLike partition, List<Record> records) throws IOException {
     Preconditions.checkNotNull(table, "table not set");
     File file = tmp.newFile();

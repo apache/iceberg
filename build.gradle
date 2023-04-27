@@ -68,10 +68,36 @@ try {
 
 if (JavaVersion.current() == JavaVersion.VERSION_1_8) {
   project.ext.jdkVersion = '8'
+  project.ext.extraJvmArgs = []
 } else if (JavaVersion.current() == JavaVersion.VERSION_11) {
   project.ext.jdkVersion = '11'
+  project.ext.extraJvmArgs = []
+} else if (JavaVersion.current() == JavaVersion.VERSION_17) {
+  project.ext.jdkVersion = '17'
+  project.ext.extraJvmArgs = ["-XX:+IgnoreUnrecognizedVMOptions",
+                              "--add-opens", "java.base/java.io=ALL-UNNAMED",
+                              "--add-opens", "java.base/java.lang.invoke=ALL-UNNAMED",
+                              "--add-opens", "java.base/java.lang.reflect=ALL-UNNAMED",
+                              "--add-opens", "java.base/java.lang=ALL-UNNAMED",
+                              "--add-opens", "java.base/java.math=ALL-UNNAMED",
+                              "--add-opens", "java.base/java.net=ALL-UNNAMED",
+                              "--add-opens", "java.base/java.nio=ALL-UNNAMED",
+                              "--add-opens", "java.base/java.text=ALL-UNNAMED",
+                              "--add-opens", "java.base/java.time=ALL-UNNAMED",
+                              "--add-opens", "java.base/java.util.concurrent.atomic=ALL-UNNAMED",
+                              "--add-opens", "java.base/java.util.concurrent=ALL-UNNAMED",
+                              "--add-opens", "java.base/java.util.regex=ALL-UNNAMED",
+                              "--add-opens", "java.base/java.util=ALL-UNNAMED",
+                              "--add-opens", "java.base/jdk.internal.ref=ALL-UNNAMED",
+                              "--add-opens", "java.base/jdk.internal.reflect=ALL-UNNAMED",
+                              "--add-opens", "java.sql/java.sql=ALL-UNNAMED",
+                              "--add-opens", "java.base/sun.util.calendar=ALL-UNNAMED",
+                              "--add-opens", "java.base/sun.nio.ch=ALL-UNNAMED",
+                              "--add-opens", "java.base/sun.nio.cs=ALL-UNNAMED",
+                              "--add-opens", "java.base/sun.security.action=ALL-UNNAMED",
+                              "--add-opens", "java.base/sun.util.calendar=ALL-UNNAMED"]
 } else {
-  throw new GradleException("This build must be run with JDK 8 or 11 but was executed with JDK " + JavaVersion.current())
+  throw new GradleException("This build must be run with JDK 8 or 11 or 17 but was executed with JDK " + JavaVersion.current())
 }
 
 apply plugin: 'com.gorylenko.gradle-git-properties'
@@ -216,6 +242,8 @@ subprojects {
     })
 
     maxHeapSize = "1500m"
+
+    jvmArgs += project.property('extraJvmArgs')
 
     testLogging {
       events "failed"
@@ -490,6 +518,7 @@ project(':iceberg-aws') {
   task integrationTest(type: Test) {
     testClassesDirs = sourceSets.integration.output.classesDirs
     classpath = sourceSets.integration.runtimeClasspath
+    jvmArgs += project.property('extraJvmArgs')
   }
 }
 
@@ -558,6 +587,7 @@ project(':iceberg-delta-lake') {
     task integrationTest(type: Test) {
       testClassesDirs = sourceSets.integration.output.classesDirs
       classpath = sourceSets.integration.runtimeClasspath
+      jvmArgs += project.property('extraJvmArgs')
     }
     check.dependsOn integrationTest
   }
