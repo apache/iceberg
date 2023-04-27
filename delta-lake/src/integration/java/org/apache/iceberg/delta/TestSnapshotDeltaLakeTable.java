@@ -424,8 +424,7 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
 
       Timestamp deltaVersionTimestamp = deltaLog.getCommitInfoAt(deltaVersion).getTimestamp();
       Assertions.assertThat(deltaVersionTimestamp).isNotNull();
-      long rawDeltaTimestamp = deltaVersionTimestamp.getTime();
-      String expectedTimestampTag = "delta-ts-" + rawDeltaTimestamp;
+      String expectedTimestampTag = "delta-ts-" + deltaVersionTimestamp.getTime();
 
       Assertions.assertThat(icebergSnapshotRefs.get(expectedTimestampTag)).isNotNull();
       Assertions.assertThat(icebergSnapshotRefs.get(expectedTimestampTag).isTag()).isTrue();

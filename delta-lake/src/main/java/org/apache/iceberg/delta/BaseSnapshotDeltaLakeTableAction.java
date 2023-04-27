@@ -430,8 +430,8 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
 
     Timestamp deltaVersionTimestamp = deltaLog.getCommitInfoAt(deltaVersion).getTimestamp();
     if (deltaVersionTimestamp != null) {
-      long rawDeltaTimestamp = deltaVersionTimestamp.getTime();
-      manageSnapshots.createTag(DELTA_TIMESTAMP_TAG_PREFIX + rawDeltaTimestamp, currentSnapshotId);
+      manageSnapshots.createTag(
+          DELTA_TIMESTAMP_TAG_PREFIX + deltaVersionTimestamp.getTime(), currentSnapshotId);
     }
     manageSnapshots.commit();
   }
