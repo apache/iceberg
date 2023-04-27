@@ -142,7 +142,7 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
   }
 
   @Override
-  public Result execute() {
+  public SnapshotDeltaLakeTable.Result execute() {
     Preconditions.checkArgument(
         icebergCatalog != null && newTableIdentifier != null,
         "Iceberg catalog and identifier cannot be null. Make sure to configure the action with a valid Iceberg catalog and identifier.");
@@ -191,7 +191,9 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
         newTableIdentifier,
         deltaTableLocation,
         totalDataFiles);
-    return new BaseSnapshotDeltaLakeTableActionResult(totalDataFiles);
+    return ImmutableSnapshotDeltaLakeTable.Result.builder()
+        .snapshotDataFilesCount(totalDataFiles)
+        .build();
   }
 
   private Schema convertDeltaLakeSchema(io.delta.standalone.types.StructType deltaSchema) {
