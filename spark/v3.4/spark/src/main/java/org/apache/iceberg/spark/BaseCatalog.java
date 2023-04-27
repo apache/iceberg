@@ -18,18 +18,13 @@
  */
 package org.apache.iceberg.spark;
 
-import org.apache.iceberg.spark.functions.SparkFunctions;
 import org.apache.iceberg.spark.procedures.SparkProcedures;
 import org.apache.iceberg.spark.procedures.SparkProcedures.ProcedureBuilder;
 import org.apache.iceberg.spark.source.HasIcebergCatalog;
-import org.apache.spark.sql.catalyst.analysis.NoSuchFunctionException;
-import org.apache.spark.sql.catalyst.analysis.NoSuchNamespaceException;
 import org.apache.spark.sql.catalyst.analysis.NoSuchProcedureException;
-import org.apache.spark.sql.connector.catalog.FunctionCatalog;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.StagingTableCatalog;
 import org.apache.spark.sql.connector.catalog.SupportsNamespaces;
-import org.apache.spark.sql.connector.catalog.functions.UnboundFunction;
 import org.apache.spark.sql.connector.iceberg.catalog.Procedure;
 import org.apache.spark.sql.connector.iceberg.catalog.ProcedureCatalog;
 
@@ -38,7 +33,7 @@ abstract class BaseCatalog
         ProcedureCatalog,
         SupportsNamespaces,
         HasIcebergCatalog,
-        FunctionCatalog {
+        SupportsFunctions {
 
   @Override
   public Procedure loadProcedure(Identifier ident) throws NoSuchProcedureException {
@@ -58,35 +53,17 @@ abstract class BaseCatalog
   }
 
   @Override
-  public Identifier[] listFunctions(String[] namespace) throws NoSuchNamespaceException {
-    if (namespace.length == 0 || isSystemNamespace(namespace)) {
-      return SparkFunctions.list().stream()
-          .map(name -> Identifier.of(namespace, name))
-          .toArray(Identifier[]::new);
-    } else if (namespaceExists(namespace)) {
-      return new Identifier[0];
-    }
-
-    throw new NoSuchNamespaceException(namespace);
-  }
-
-  @Override
-  public UnboundFunction loadFunction(Identifier ident) throws NoSuchFunctionException {
-    String[] namespace = ident.namespace();
-    String name = ident.name();
-
+  public boolean isFunctionNamespace(String[] namespace) {
     // Allow for empty namespace, as Spark's storage partitioned joins look up
     // the corresponding functions to generate transforms for partitioning
     // with an empty namespace, such as `bucket`.
     // Otherwise, use `system` namespace.
-    if (namespace.length == 0 || isSystemNamespace(namespace)) {
-      UnboundFunction func = SparkFunctions.load(name);
-      if (func != null) {
-        return func;
-      }
-    }
+    return namespace.length == 0 || isSystemNamespace(namespace);
+  }
 
-    throw new NoSuchFunctionException(ident);
+  @Override
+  public boolean isExistingNamespace(String[] namespace) {
+    return namespaceExists(namespace);
   }
 
   private static boolean isSystemNamespace(String[] namespace) {

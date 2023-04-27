@@ -53,7 +53,7 @@ class SortOrderToSpark implements SortOrderVisitor<SortOrder> {
       String sourceName, int id, int width, SortDirection direction, NullOrder nullOrder) {
     return Expressions.sort(
         Expressions.apply(
-            "truncate", Expressions.column(quotedName(id)), Expressions.literal(width)),
+            "truncate", Expressions.literal(width), Expressions.column(quotedName(id))),
         toSpark(direction),
         toSpark(nullOrder));
   }
