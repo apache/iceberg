@@ -48,10 +48,10 @@ class BucketPartitioner implements Partitioner<Integer> {
 
   /**
    * Determine the partition id based on the following criteria: If the number of writers <= the
-   * number of buckets, an evenly distributed number of buckets will be assigned to each writer
-   * (one writer -> many buckets).
-   * Conversely, if the number of writers > the number of buckets the logic is handled by the
-   * {@link #getPartitionWritersGreaterThanBuckets getPartitionWritersGreaterThanBuckets} method.
+   * number of buckets, an evenly distributed number of buckets will be assigned to each writer (one
+   * writer -> many buckets). Conversely, if the number of writers > the number of buckets the logic
+   * is handled by the {@link #getPartitionWritersGreaterThanBuckets
+   * getPartitionWritersGreaterThanBuckets} method.
    *
    * @param bucketId the bucketId for each request
    * @param numPartitions the total number of partitions
@@ -63,7 +63,10 @@ class BucketPartitioner implements Partitioner<Integer> {
         bucketId >= 0, BUCKET_OUT_OF_RANGE_MESSAGE_PREFIX + bucketId + " (must be >= 0)");
     Preconditions.checkArgument(
         bucketId < maxNumBuckets,
-            BUCKET_OUT_OF_RANGE_MESSAGE_PREFIX + bucketId + " (must be >= 0), maxNumBuckets: " + maxNumBuckets);
+        BUCKET_OUT_OF_RANGE_MESSAGE_PREFIX
+            + bucketId
+            + " (must be >= 0), maxNumBuckets: "
+            + maxNumBuckets);
 
     if (numPartitions <= maxNumBuckets) {
       return bucketId % numPartitions;

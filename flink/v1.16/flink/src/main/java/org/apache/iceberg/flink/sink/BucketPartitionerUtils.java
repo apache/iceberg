@@ -34,6 +34,7 @@ final class BucketPartitionerUtils {
 
   /**
    * Determines whether the PartitionSpec has one and only one Bucket definition
+   *
    * @param partitionSpec the partition spec in question
    * @return whether the PartitionSpec has only one Bucket
    */
@@ -44,8 +45,9 @@ final class BucketPartitionerUtils {
 
   /**
    * Extracts the Bucket definition from a PartitionSpec.
+   *
    * @param partitionSpec the partition spec in question
-   * @return the Bucket definition in the form of a tuple <fieldId, maxNumBuckets>
+   * @return the Bucket definition in the form of a tuple (fieldId, maxNumBuckets)
    */
   static Tuple2<Integer, Integer> getBucketFieldInfo(PartitionSpec partitionSpec) {
     List<Tuple2<Integer, Integer>> bucketFields = getBucketFields(partitionSpec);
