@@ -96,6 +96,9 @@ abstract class TableScanContext {
     return LoggingMetricsReporter.instance();
   }
 
+  @Nullable
+  public abstract String branch();
+
   TableScanContext useSnapshotId(Long scanSnapshotId) {
     return ImmutableTableScanContext.builder().from(this).snapshotId(scanSnapshotId).build();
   }
@@ -170,6 +173,10 @@ abstract class TableScanContext {
                 ? reporter
                 : MetricsReporters.combine(metricsReporter(), reporter))
         .build();
+  }
+
+  TableScanContext useBranch(String ref) {
+    return ImmutableTableScanContext.builder().from(this).branch(ref).build();
   }
 
   public static TableScanContext empty() {

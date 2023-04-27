@@ -69,11 +69,11 @@ public class TestBaseIncrementalAppendScan
     long snapshotCId = table.currentSnapshot().snapshotId();
 
     IncrementalAppendScan scan = newScan().fromSnapshotInclusive(tagSnapshotAName);
-    Assert.assertEquals(5, Iterables.size(scan.planFiles()));
+    Assertions.assertThat(scan.planFiles()).hasSize(5);
 
     IncrementalAppendScan scan3 =
         newScan().fromSnapshotInclusive(tagSnapshotAName).toSnapshot(tagSnapshotBName);
-    Assert.assertEquals(3, Iterables.size(scan3.planFiles()));
+    Assertions.assertThat(scan3.planFiles()).hasSize(3);
 
     Assertions.assertThatThrownBy(() -> newScan().fromSnapshotInclusive(branchName))
         .isInstanceOf(IllegalArgumentException.class)
@@ -102,11 +102,11 @@ public class TestBaseIncrementalAppendScan
     long snapshotCId = table.currentSnapshot().snapshotId();
 
     IncrementalAppendScan scan2 = newScan().fromSnapshotExclusive(tagSnapshotAName);
-    Assert.assertEquals(4, Iterables.size(scan2.planFiles()));
+    Assertions.assertThat(scan2.planFiles()).hasSize(4);
 
     IncrementalAppendScan scan3 =
         newScan().fromSnapshotExclusive(tagSnapshotAName).toSnapshot(tagSnapshotBName);
-    Assert.assertEquals(2, Iterables.size(scan3.planFiles()));
+    Assertions.assertThat(scan3.planFiles()).hasSize(2);
 
     Assertions.assertThatThrownBy(() -> newScan().fromSnapshotExclusive(branchName))
         .isInstanceOf(IllegalArgumentException.class)
@@ -141,29 +141,29 @@ public class TestBaseIncrementalAppendScan
     long snapshotBranchCId = table.snapshot(branchName).snapshotId();
 
     IncrementalAppendScan scan = newScan().fromSnapshotInclusive(tagSnapshotAName);
-    Assert.assertEquals(5, Iterables.size(scan.planFiles()));
+    Assertions.assertThat(scan.planFiles()).hasSize(5);
 
     IncrementalAppendScan scan2 =
         newScan().fromSnapshotInclusive(tagSnapshotAName).useBranch(branchName);
-    Assert.assertEquals(3, Iterables.size(scan2.planFiles()));
+    Assertions.assertThat(scan2.planFiles()).hasSize(3);
 
     IncrementalAppendScan scan3 = newScan().toSnapshot(snapshotBranchBId).useBranch(branchName);
-    Assert.assertEquals(2, Iterables.size(scan3.planFiles()));
+    Assertions.assertThat(scan3.planFiles()).hasSize(2);
 
     IncrementalAppendScan scan4 = newScan().toSnapshot(snapshotBranchCId).useBranch(branchName);
-    Assert.assertEquals(3, Iterables.size(scan4.planFiles()));
+    Assertions.assertThat(scan4.planFiles()).hasSize(3);
 
     IncrementalAppendScan scan5 =
         newScan()
             .fromSnapshotExclusive(tagSnapshotAName)
             .toSnapshot(snapshotBranchBId)
             .useBranch(branchName);
-    Assert.assertEquals(1, Iterables.size(scan5.planFiles()));
+    Assertions.assertThat(scan5.planFiles()).hasSize(1);
 
     Assertions.assertThatThrownBy(
             () -> newScan().toSnapshot(snapshotMainBId).useBranch(branchName).planFiles())
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("End snapshot is not a valid snapshot on the current branch");
+        .hasMessageContaining("End snapshot is not a valid snapshot on the current branch");
 
     Assertions.assertThatThrownBy(
             () -> newScan().fromSnapshotInclusive(snapshotBranchBId).useBranch("notExistBranch"))
@@ -245,10 +245,10 @@ public class TestBaseIncrementalAppendScan
     table.manageSnapshots().createTag(tagSnapshotBranchBName, snapshotBranchBId).commit();
 
     IncrementalAppendScan scan = newScan().toSnapshot(tagSnapshotMainBName);
-    Assert.assertEquals(2, Iterables.size(scan.planFiles()));
+    Assertions.assertThat(scan.planFiles()).hasSize(2);
 
     IncrementalAppendScan scan2 = newScan().toSnapshot(tagSnapshotBranchBName);
-    Assert.assertEquals(3, Iterables.size(scan2.planFiles()));
+    Assertions.assertThat(scan2.planFiles()).hasSize(3);
 
     Assertions.assertThatThrownBy(() -> newScan().toSnapshot(branchName))
         .isInstanceOf(IllegalArgumentException.class)

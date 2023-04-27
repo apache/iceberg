@@ -37,12 +37,9 @@ abstract class BaseIncrementalScan<ThisT, T extends ScanTask, G extends ScanTask
   @Override
   public ThisT fromSnapshotInclusive(String ref) {
     SnapshotRef snapshotRef = table().refs().get(ref);
-    Preconditions.checkArgument(snapshotRef != null, "Cannot find ref %s", ref);
+    Preconditions.checkArgument(snapshotRef != null, "Cannot find ref: %s", ref);
     Preconditions.checkArgument(snapshotRef.isTag(), "Ref %s is not a tag", ref);
-
-    TableScanContext newContext = context().fromSnapshotIdInclusive(snapshotRef.snapshotId());
-
-    return newRefinedScan(table(), schema(), newContext);
+    return fromSnapshotInclusive(snapshotRef.snapshotId());
   }
 
   @Override
@@ -58,9 +55,8 @@ abstract class BaseIncrementalScan<ThisT, T extends ScanTask, G extends ScanTask
   @Override
   public ThisT fromSnapshotExclusive(String ref) {
     SnapshotRef snapshotRef = table().refs().get(ref);
-    Preconditions.checkArgument(snapshotRef != null, "Cannot find ref %s", ref);
+    Preconditions.checkArgument(snapshotRef != null, "Cannot find ref: %s", ref);
     Preconditions.checkArgument(snapshotRef.isTag(), "Ref %s is not a tag", ref);
-
     return fromSnapshotExclusive(snapshotRef.snapshotId());
   }
 
@@ -85,7 +81,6 @@ abstract class BaseIncrementalScan<ThisT, T extends ScanTask, G extends ScanTask
     SnapshotRef snapshotRef = table().refs().get(ref);
     Preconditions.checkArgument(snapshotRef != null, "Cannot find ref: %s", ref);
     Preconditions.checkArgument(snapshotRef.isTag(), "Ref %s is not a tag", ref);
-
     return toSnapshot(snapshotRef.snapshotId());
   }
 
@@ -142,7 +137,8 @@ abstract class BaseIncrementalScan<ThisT, T extends ScanTask, G extends ScanTask
         Preconditions.checkArgument(
             SnapshotUtil.isAncestorOf(
                 table(), currentSnapshot.snapshotId(), context().toSnapshotId()),
-            "End snapshot is not a valid snapshot on the current branch");
+            "End snapshot is not a valid snapshot on the current branch: %s",
+            context().branch());
       }
 
       return context().toSnapshotId();
@@ -177,6 +173,7 @@ abstract class BaseIncrementalScan<ThisT, T extends ScanTask, G extends ScanTask
         // for inclusive behavior fromSnapshotIdExclusive is set to the parent snapshot ID,
         // which can be null
         return table().snapshot(fromSnapshotId).parentId();
+
       } else {
         // validate there is an ancestor of toSnapshotIdInclusive where parent is fromSnapshotId
         Preconditions.checkArgument(
