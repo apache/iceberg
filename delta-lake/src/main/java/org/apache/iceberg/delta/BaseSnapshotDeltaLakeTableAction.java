@@ -44,8 +44,6 @@ import org.apache.iceberg.OverwriteFiles;
 import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.Snapshot;
-import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.Transaction;
@@ -61,6 +59,7 @@ import org.apache.iceberg.mapping.NameMappingParser;
 import org.apache.iceberg.parquet.ParquetUtil;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
 import org.slf4j.Logger;
@@ -154,6 +153,7 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
         deltaLog.tableExists(),
         "Delta Lake table does not exist at the given location: %s",
         deltaTableLocation);
+    ImmutableSet.Builder<String> migratedDataFilesBuilder = ImmutableSet.builder();
     io.delta.standalone.Snapshot updatedSnapshot = deltaLog.update();
     Schema schema = convertDeltaLakeSchema(updatedSnapshot.getMetadata().getSchema());
     PartitionSpec partitionSpec = getPartitionSpecFromDeltaSnapshot(schema, updatedSnapshot);
@@ -173,23 +173,19 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
         .commit();
     long constructableStartVersion =
         commitInitialDeltaSnapshotToIcebergTransaction(
-            updatedSnapshot.getVersion(), icebergTransaction);
+            updatedSnapshot.getVersion(), icebergTransaction, migratedDataFilesBuilder);
     Iterator<VersionLog> versionLogIterator =
         deltaLog.getChanges(
             constructableStartVersion + 1, false // not throw exception when data loss detected
             );
     while (versionLogIterator.hasNext()) {
       VersionLog versionLog = versionLogIterator.next();
-      commitDeltaVersionLogToIcebergTransaction(versionLog, icebergTransaction);
+      commitDeltaVersionLogToIcebergTransaction(
+          versionLog, icebergTransaction, migratedDataFilesBuilder);
     }
-
-    Snapshot icebergSnapshot = icebergTransaction.table().currentSnapshot();
-    long totalDataFiles =
-        icebergSnapshot != null
-            ? Long.parseLong(icebergSnapshot.summary().get(SnapshotSummary.TOTAL_DATA_FILES_PROP))
-            : 0;
-
     icebergTransaction.commitTransaction();
+
+    long totalDataFiles = migratedDataFilesBuilder.build().size();
     LOG.info(
         "Successfully created Iceberg table {} from Delta Lake table at {}, total data file count: {}",
         newTableIdentifier,
@@ -237,7 +233,9 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
    * @return the initial version of the delta lake table that is successfully committed to iceberg
    */
   private long commitInitialDeltaSnapshotToIcebergTransaction(
-      long latestVersion, Transaction transaction) {
+      long latestVersion,
+      Transaction transaction,
+      ImmutableSet.Builder<String> migratedDataFilesBuilder) {
     long constructableStartVersion = deltaStartVersion;
     while (constructableStartVersion <= latestVersion) {
       try {
@@ -247,6 +245,7 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
         for (AddFile addFile : initDataFiles) {
           DataFile dataFile = buildDataFileFromAction(addFile, transaction.table());
           filesToAdd.add(dataFile);
+          migratedDataFilesBuilder.add(dataFile.path().toString());
         }
 
         // AppendFiles case
@@ -281,7 +280,9 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
    * @param transaction the iceberg table transaction to commit to
    */
   private void commitDeltaVersionLogToIcebergTransaction(
-      VersionLog versionLog, Transaction transaction) {
+      VersionLog versionLog,
+      Transaction transaction,
+      ImmutableSet.Builder<String> migratedDataFilesBuilder) {
     // Only need actions related to data change: AddFile and RemoveFile
     List<Action> dataFileActions =
         versionLog.getActions().stream()
@@ -300,6 +301,7 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
         throw new ValidationException(
             "The action %s's is unsupported", action.getClass().getSimpleName());
       }
+      migratedDataFilesBuilder.add(dataFile.path().toString());
     }
 
     if (filesToAdd.size() > 0 && filesToRemove.size() > 0) {
