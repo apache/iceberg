@@ -658,16 +658,15 @@ class _ConvertToIceberg(PyArrowSchemaVisitor[Union[IcebergType, Schema]]):
             return FloatType()
         elif pa.types.is_float64(primitive):
             return DoubleType()
-        elif pa.types.is_decimal(primitive) and isinstance(primitive, pa.Decimal128Type):
+        elif isinstance(primitive, pa.Decimal128Type):
             primitive = cast(pa.Decimal128Type, primitive)
             return DecimalType(primitive.precision, primitive.scale)
         elif pa.types.is_string(primitive):
             return StringType()
         elif pa.types.is_date32(primitive):
             return DateType()
-        elif pa.types.is_time(primitive):
-            if isinstance(primitive, pa.Time64Type) and primitive.unit == "us":
-                return TimeType()
+        elif isinstance(primitive, pa.Time64Type) and primitive.unit == "us":
+            return TimeType()
         elif pa.types.is_timestamp(primitive):
             primitive = cast(pa.TimestampType, primitive)
             if primitive.unit == "us":
