@@ -26,9 +26,12 @@ import io.delta.standalone.actions.RemoveFile;
 import io.delta.standalone.exceptions.DeltaStandaloneException;
 import java.io.File;
 import java.net.URI;
+import java.sql.Timestamp;
+import java.text.SimpleDateFormat;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.TimeZone;
 import java.util.stream.Collectors;
 import org.apache.commons.codec.DecoderException;
 import org.apache.commons.codec.net.URLCodec;
@@ -38,6 +41,7 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.DeleteFiles;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.ManageSnapshots;
 import org.apache.iceberg.Metrics;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.OverwriteFiles;
@@ -253,6 +257,7 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
         AppendFiles appendFiles = transaction.newAppend();
         filesToAdd.forEach(appendFiles::appendFile);
         appendFiles.commit();
+        tagCurrentSnapshot(constructableStartVersion, transaction);
 
         return constructableStartVersion;
       } catch (NotFoundException | IllegalArgumentException | DeltaStandaloneException e) {
@@ -318,7 +323,12 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
       DeleteFiles deleteFiles = transaction.newDelete();
       filesToRemove.forEach(deleteFiles::deleteFile);
       deleteFiles.commit();
+    } else {
+      // No data change case, dummy append to tag the snapshot
+      transaction.newAppend().commit();
     }
+
+    tagCurrentSnapshot(versionLog.getVersion(), transaction);
   }
 
   private DataFile buildDataFileFromAction(Action action, Table table) {
@@ -410,6 +420,21 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
             SNAPSHOT_SOURCE_PROP, DELTA_SOURCE_VALUE, ORIGINAL_LOCATION_PROP, originalLocation));
 
     return additionalPropertiesBuilder.build();
+  }
+
+  private void tagCurrentSnapshot(long deltaVersion, Transaction transaction) {
+    long currentSnapshotId = transaction.table().currentSnapshot().snapshotId();
+    Timestamp deltaVersionTimestamp = deltaLog.getCommitInfoAt(deltaVersion).getTimestamp();
+    ManageSnapshots manageSnapshots = transaction.manageSnapshots();
+    manageSnapshots.createTag("delta-version-" + deltaVersion, currentSnapshotId);
+    if (deltaVersionTimestamp != null) {
+      SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS");
+      dateFormat.setTimeZone(TimeZone.getTimeZone("UTC"));
+      String formattedDeltaTimestamp = dateFormat.format(deltaVersionTimestamp);
+      manageSnapshots.createTag(
+          "delta-version-timestamp-" + formattedDeltaTimestamp, currentSnapshotId);
+    }
+    manageSnapshots.commit();
   }
 
   /**
