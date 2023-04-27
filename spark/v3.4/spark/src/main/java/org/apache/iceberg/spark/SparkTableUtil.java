@@ -269,44 +269,7 @@ public class SparkTableUtil {
     }
   }
 
-  /**
-   * Returns the data files in a partition by listing the partition location.
-   *
-   * <p>For Parquet and ORC partitions, this will read metrics from the file footer. For Avro
-   * partitions, metrics are set to null.
-   *
-   * @param partition a partition
-   * @param conf a serializable Hadoop conf
-   * @param metricsConfig a metrics conf
-   * @return a List of DataFile
-   * @deprecated use {@link TableMigrationUtil#listPartition(Map, String, String, PartitionSpec,
-   *     Configuration, MetricsConfig, NameMapping)}
-   */
-  @Deprecated
-  public static List<DataFile> listPartition(
-      SparkPartition partition,
-      PartitionSpec spec,
-      SerializableConfiguration conf,
-      MetricsConfig metricsConfig) {
-    return listPartition(partition, spec, conf, metricsConfig, null);
-  }
-
-  /**
-   * Returns the data files in a partition by listing the partition location.
-   *
-   * <p>For Parquet and ORC partitions, this will read metrics from the file footer. For Avro
-   * partitions, metrics are set to null.
-   *
-   * @param partition a partition
-   * @param conf a serializable Hadoop conf
-   * @param metricsConfig a metrics conf
-   * @param mapping a name mapping
-   * @return a List of DataFile
-   * @deprecated use {@link TableMigrationUtil#listPartition(Map, String, String, PartitionSpec,
-   *     Configuration, MetricsConfig, NameMapping)}
-   */
-  @Deprecated
-  public static List<DataFile> listPartition(
+  private static List<DataFile> listPartition(
       SparkPartition partition,
       PartitionSpec spec,
       SerializableConfiguration conf,
@@ -687,18 +650,6 @@ public class SparkTableUtil {
         .noRetry()
         .suppressFailureWhenFinished()
         .run(item -> io.deleteFile(item.path()));
-  }
-
-  /**
-   * Loads a metadata table.
-   *
-   * @deprecated since 0.14.0, will be removed in 0.15.0; use {@link
-   *     #loadMetadataTable(SparkSession, Table, MetadataTableType)}.
-   */
-  @Deprecated
-  public static Dataset<Row> loadCatalogMetadataTable(
-      SparkSession spark, Table table, MetadataTableType type) {
-    return loadMetadataTable(spark, table, type);
   }
 
   public static Dataset<Row> loadMetadataTable(
