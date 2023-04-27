@@ -43,7 +43,10 @@ public interface IncrementalScan<ThisT, T extends ScanTask, G extends ScanTaskGr
    * @return this for method chaining
    * @throws IllegalArgumentException if the start snapshot is not an ancestor of the end snapshot
    */
-  ThisT fromSnapshotInclusive(String ref);
+  default ThisT fromSnapshotInclusive(String ref) {
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " doesn't implement fromSnapshotInclusive");
+  }
 
   /**
    * Instructs this scan to look for changes starting from a particular snapshot (exclusive).
@@ -67,7 +70,10 @@ public interface IncrementalScan<ThisT, T extends ScanTask, G extends ScanTaskGr
    * @return this for method chaining
    * @throws IllegalArgumentException if the start snapshot is not an ancestor of the end snapshot
    */
-  ThisT fromSnapshotExclusive(String ref);
+  default ThisT fromSnapshotExclusive(String ref) {
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " doesn't implement fromSnapshotExclusive");
+  }
 
   /**
    * Instructs this scan to look for changes up to a particular snapshot (inclusive).
@@ -89,7 +95,10 @@ public interface IncrementalScan<ThisT, T extends ScanTask, G extends ScanTaskGr
    * @param ref the end snapshot Ref (inclusive)
    * @return this for method chaining
    */
-  ThisT toSnapshot(String ref);
+  default ThisT toSnapshot(String ref) {
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " doesn't implement toSnapshot");
+  }
 
   /**
    * Use the specified branch
@@ -97,5 +106,8 @@ public interface IncrementalScan<ThisT, T extends ScanTask, G extends ScanTaskGr
    * @param branch the branch name
    * @return this for method chaining
    */
-  ThisT useBranch(String branch);
+  default ThisT useBranch(String branch) {
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " doesn't implement useBranch");
+  }
 }
