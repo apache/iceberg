@@ -35,8 +35,8 @@ import java.io.IOException;
 import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.util.Iterator;
 import java.sql.Timestamp;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -46,7 +46,6 @@ import org.apache.commons.codec.net.URLCodec;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -306,16 +305,12 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
     SnapshotDeltaLakeTable.Result result =
         DeltaLakeToIcebergMigrationSparkIntegration.snapshotDeltaLakeTable(
                 spark, newTableIdentifier, typeTestTableLocation)
-            .tableProperty(TableProperties.PARQUET_VECTORIZATION_ENABLED, "false")
             .execute();
     checkSnapshotIntegrity(
         typeTestTableLocation, typeTestIdentifier, newTableIdentifier, result, 0);
     checkTagContentAndOrder(typeTestTableLocation, newTableIdentifier, 0);
     checkIcebergTableLocation(newTableIdentifier, typeTestTableLocation);
-    checkIcebergTableProperties(
-        newTableIdentifier,
-        ImmutableMap.of(TableProperties.PARQUET_VECTORIZATION_ENABLED, "false"),
-        typeTestTableLocation);
+    checkIcebergTableProperties(newTableIdentifier, ImmutableMap.of(), typeTestTableLocation);
   }
 
   @Test
@@ -349,8 +344,8 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
             .execute();
     checkSnapshotIntegrity(
         vacuumTestTableLocation, vacuumTestIdentifier, newTableIdentifier, result, 13);
-    checkIcebergTableLocation(newTableIdentifier, vacuumTestTableLocation);
     checkTagContentAndOrder(vacuumTestTableLocation, newTableIdentifier, 13);
+    checkIcebergTableLocation(newTableIdentifier, vacuumTestTableLocation);
   }
 
   @Test
