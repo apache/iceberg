@@ -18,12 +18,16 @@
  */
 package org.apache.iceberg.hive;
 
+import static org.apache.iceberg.CatalogUtil.ICEBERG_CATALOG_TYPE;
+import static org.apache.iceberg.CatalogUtil.ICEBERG_CATALOG_TYPE_HIVE;
+
 import java.security.PrivilegedAction;
 import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.security.UserGroupInformation;
+import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hive.CachedClientPool.Key;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -122,35 +126,27 @@ public class TestCachedClientPool extends HiveMetastoreTest {
 
   @Test
   public void testHmsCatalog() {
-    Map<String, String> properties1 =
+    Map<String, String> properties =
         ImmutableMap.of(
             String.valueOf(EVICTION_INTERVAL),
             String.valueOf(Integer.MAX_VALUE),
-            HiveCatalog.HMS_CATALOG,
-            "foo");
-    Map<String, String> properties2 =
-        ImmutableMap.of(
-            String.valueOf(EVICTION_INTERVAL),
-            String.valueOf(Integer.MAX_VALUE),
-            HiveCatalog.HMS_CATALOG,
-            "foo");
-    Map<String, String> properties3 =
-        ImmutableMap.of(
-            String.valueOf(EVICTION_INTERVAL),
-            String.valueOf(Integer.MAX_VALUE),
-            HiveCatalog.HMS_CATALOG,
-            "bar");
-    Map<String, String> properties4 =
-        ImmutableMap.of(String.valueOf(EVICTION_INTERVAL), String.valueOf(Integer.MAX_VALUE));
+            ICEBERG_CATALOG_TYPE,
+            ICEBERG_CATALOG_TYPE_HIVE);
 
-    HiveCatalog catalog1 = new HiveCatalog();
-    catalog1.initialize("foo", properties1);
-    HiveCatalog catalog2 = new HiveCatalog();
-    catalog2.initialize("foo", properties2);
-    HiveCatalog catalog3 = new HiveCatalog();
-    catalog3.initialize("bar", properties3);
-    HiveCatalog catalog4 = new HiveCatalog();
-    catalog4.initialize("none", properties4);
+    Configuration conf1 = new Configuration();
+    conf1.set(HiveCatalog.HIVE_CONF_CATALOG, "foo");
+
+    Configuration conf2 = new Configuration();
+    conf2.set(HiveCatalog.HIVE_CONF_CATALOG, "foo");
+
+    Configuration conf3 = new Configuration();
+    conf3.set(HiveCatalog.HIVE_CONF_CATALOG, "bar");
+
+    HiveCatalog catalog1 = (HiveCatalog) CatalogUtil.buildIcebergCatalog("1", properties, conf1);
+    HiveCatalog catalog2 = (HiveCatalog) CatalogUtil.buildIcebergCatalog("2", properties, conf2);
+    HiveCatalog catalog3 = (HiveCatalog) CatalogUtil.buildIcebergCatalog("3", properties, conf3);
+    HiveCatalog catalog4 =
+        (HiveCatalog) CatalogUtil.buildIcebergCatalog("4", properties, new Configuration());
 
     HiveClientPool pool1 = ((CachedClientPool) catalog1.clientPool()).clientPool();
     HiveClientPool pool2 = ((CachedClientPool) catalog2.clientPool()).clientPool();
