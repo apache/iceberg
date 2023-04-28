@@ -66,8 +66,7 @@ final class BigLakeClientImpl implements BigLakeClient {
    * @param projectId GCP project ID
    * @param location GCP region supported by BigLake, e.g., "us"
    */
-  public BigLakeClientImpl(String biglakeEndpoint, String projectId, String location)
-      throws IOException {
+  BigLakeClientImpl(String biglakeEndpoint, String projectId, String location) throws IOException {
     this.projectId = projectId;
     this.location = location;
     this.stub =

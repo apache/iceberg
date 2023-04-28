@@ -159,10 +159,10 @@ public final class BigLakeTableOperations extends BaseMetastoreTableOperations {
     }
 
     try {
-      // Updating a BLMS table with etag. The BLMS server checks that (1) the etag of a table on
-      // server is the same as the etag provided by the client and (2) update the table in the same
-      // transaction. The server returns an error containing message "etag mismatch", if the etag
-      // on server has changed.
+      // Updating a BLMS table with etag. The BLMS server transactionally (1) checks that the etag
+      // of a table on server is the same as the etag provided by the client, and (2) updates the
+      // table (and its etag). The server returns an error containing message "etag mismatch", if
+      // the etag on server has changed.
       client.updateTableParameters(
           tableName, buildTableParameters(newMetadataLocation, metadata), etag);
     } catch (AbortedException e) {

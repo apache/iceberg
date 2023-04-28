@@ -450,7 +450,7 @@ public class BigLakeCatalogTest {
   @Test
   public void testProperties_asExpected() throws Exception {
     assertEquals(
-        ImmutableMap.of("gcp_project", GCP_PROJECT, "warehouse", warehouseLocation),
+        ImmutableMap.of("biglake.project-id", GCP_PROJECT, "warehouse", warehouseLocation),
         bigLakeCatalog.properties());
   }
 

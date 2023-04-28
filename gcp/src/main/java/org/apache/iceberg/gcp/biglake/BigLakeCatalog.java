@@ -58,17 +58,18 @@ import org.slf4j.LoggerFactory;
 public final class BigLakeCatalog extends BaseMetastoreCatalog
     implements SupportsNamespaces, Configurable<Object> {
 
+  // TODO: to move the configs to GCPProperties.java.
   // User provided properties.
   // The endpoint of BigLake API. Optional, default to DEFAULT_BIGLAKE_SERVICE_ENDPOINT.
-  public static final String PROPERTIES_KEY_BIGLAKE_ENDPOINT = "blms_endpoint";
+  public static final String PROPERTIES_KEY_BIGLAKE_ENDPOINT = "biglake.endpoint";
   // The GCP project ID. Required.
-  public static final String PROPERTIES_KEY_GCP_PROJECT = "gcp_project";
+  public static final String PROPERTIES_KEY_GCP_PROJECT = "biglake.project-id";
   // The GCP location (https://cloud.google.com/bigquery/docs/locations). Optional, default to
   // DEFAULT_GCP_LOCATION.
-  public static final String PROPERTIES_KEY_GCP_LOCATION = "gcp_location";
+  public static final String PROPERTIES_KEY_GCP_LOCATION = "biglake.location";
   // The BLMS catalog ID. It is the container resource of databases and tables.
   // It links a BLMS catalog with this Iceberg catalog.
-  public static final String PROPERTIES_KEY_BLMS_CATALOG = "blms_catalog";
+  public static final String PROPERTIES_KEY_BLMS_CATALOG = "biglake.catalog";
 
   public static final String DEFAULT_BIGLAKE_SERVICE_ENDPOINT = "biglake.googleapis.com:443";
   public static final String DEFAULT_GCP_LOCATION = "us";
@@ -101,6 +102,9 @@ public final class BigLakeCatalog extends BaseMetastoreCatalog
         properties.getOrDefault(PROPERTIES_KEY_GCP_LOCATION, DEFAULT_GCP_LOCATION);
     BigLakeClient newClient;
     try {
+      // TODO: to add more auth options of the client. Currently it uses default auth
+      // (https://github.com/googleapis/google-cloud-java#application-default-credentials)
+      // that works on GCP services (e.g., GCE, GKE, Dataproc).
       newClient =
           new BigLakeClientImpl(
               properties.getOrDefault(
