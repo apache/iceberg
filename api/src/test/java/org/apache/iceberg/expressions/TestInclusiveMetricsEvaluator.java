@@ -40,7 +40,6 @@ import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
 import java.util.List;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.TestHelpers.Row;
@@ -52,6 +51,7 @@ import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.IntegerType;
 import org.apache.iceberg.types.Types.StringType;
 import org.apache.iceberg.util.UnicodeUtil;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -282,11 +282,10 @@ public class TestInclusiveMetricsEvaluator {
 
   @Test
   public void testMissingColumn() {
-    AssertHelpers.assertThrows(
-        "Should complain about missing column in expression",
-        ValidationException.class,
-        "Cannot find field 'missing'",
-        () -> new InclusiveMetricsEvaluator(SCHEMA, lessThan("missing", 5)).eval(FILE));
+    Assertions.assertThatThrownBy(
+            () -> new InclusiveMetricsEvaluator(SCHEMA, lessThan("missing", 5)).eval(FILE))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("Cannot find field 'missing'");
   }
 
   @Test
@@ -596,11 +595,10 @@ public class TestInclusiveMetricsEvaluator {
 
   @Test
   public void testCaseSensitiveIntegerNotEqRewritten() {
-    AssertHelpers.assertThrows(
-        "Should complain about missing column in expression",
-        ValidationException.class,
-        "Cannot find field 'ID'",
-        () -> new InclusiveMetricsEvaluator(SCHEMA, not(equal("ID", 5)), true).eval(FILE));
+    Assertions.assertThatThrownBy(
+            () -> new InclusiveMetricsEvaluator(SCHEMA, not(equal("ID", 5)), true).eval(FILE))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("Cannot find field 'ID'");
   }
 
   @Test
