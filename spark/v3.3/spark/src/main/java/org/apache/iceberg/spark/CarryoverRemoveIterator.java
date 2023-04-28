@@ -22,6 +22,18 @@ import java.util.Iterator;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.types.StructType;
 
+/**
+ * An iterator that removes the carry-over rows from changelog tables within a single Spark task. It
+ * assumes that rows are partitioned by identifier(or all) columns, and it is sorted by both
+ * identifier(or all) columns and change type.
+ *
+ * <p>Carry-over rows are the result of a removal and insertion of the same row within an operation
+ * because of the copy-on-write mechanism. For example, given a file which contains row1 (id=1,
+ * data='a') and row2 (id=2, data='b'). A copy-on-write delete of row2 would require erasing this
+ * file and preserving row1 in a new file. The change-log table would report this as (id=1,
+ * data='a', op='DELETE') and (id=1, data='a', op='INSERT'), despite it not being an actual change
+ * to the table. The iterator finds the carry-over rows and removes them from the result.
+ */
 class CarryoverRemoveIterator extends ChangelogIterator {
   private final Iterator<Row> rowIterator;
 
@@ -49,10 +61,10 @@ class CarryoverRemoveIterator extends ChangelogIterator {
       return deletedRow;
     }
 
-    Row currentRow = curentRow();
+    Row currentRow = currentRow();
 
-    if (currentRow.getString(getChangeTypeIndex()).equals(DELETE) && rowIterator.hasNext()) {
-      // cache the delete row if not done yet
+    if (currentRow.getString(changeTypeIndex()).equals(DELETE) && rowIterator.hasNext()) {
+      // cache the delete row if there is 0 delete row cached
       if (!hasDeleteRow()) {
         deletedRow = currentRow;
         deletedRowCount++;
@@ -61,7 +73,7 @@ class CarryoverRemoveIterator extends ChangelogIterator {
       Row nextRow = rowIterator.next();
 
       if (isSameRecord(currentRow, nextRow)) {
-        if (nextRow.getString(getChangeTypeIndex()).equals(INSERT)) {
+        if (nextRow.getString(changeTypeIndex()).equals(INSERT)) {
           deletedRowCount--;
           currentRow = null;
         } else {
@@ -86,7 +98,7 @@ class CarryoverRemoveIterator extends ChangelogIterator {
     return deletedRowCount > 0;
   }
 
-  private Row curentRow() {
+  private Row currentRow() {
     if (nextCachedRow != null) {
       Row currentRow = nextCachedRow;
       nextCachedRow = null;

@@ -80,14 +80,12 @@ public class ChangelogIterator implements Iterator<Row> {
     this.identifierFields = identifierFields;
     if (identifierFields != null) {
       this.identifierFieldIdx =
-          Arrays.stream(identifierFields)
-              .map(column -> rowType.fieldIndex(column.toString()))
-              .collect(Collectors.toList());
+          Arrays.stream(identifierFields).map(rowType::fieldIndex).collect(Collectors.toList());
     }
     this.indicesForIdentifySameRow = generateIndicesForIdentifySameRow(rowType.size());
   }
 
-  protected int getChangeTypeIndex() {
+  protected int changeTypeIndex() {
     return changeTypeIndex;
   }
 
