@@ -27,13 +27,13 @@ import org.apache.spark.sql.catalyst.expressions.Attribute
 import org.apache.spark.sql.catalyst.expressions.AttributeReference
 import org.apache.spark.sql.catalyst.expressions.AttributeSet
 import org.apache.spark.sql.catalyst.expressions.Expression
-import org.apache.spark.sql.catalyst.expressions.ExtendedV2ExpressionUtils
 import org.apache.spark.sql.catalyst.expressions.IsNotNull
 import org.apache.spark.sql.catalyst.expressions.Literal
 import org.apache.spark.sql.catalyst.expressions.Literal.FalseLiteral
 import org.apache.spark.sql.catalyst.expressions.Literal.TrueLiteral
 import org.apache.spark.sql.catalyst.expressions.MonotonicallyIncreasingID
 import org.apache.spark.sql.catalyst.expressions.PredicateHelper
+import org.apache.spark.sql.catalyst.expressions.V2ExpressionUtils
 import org.apache.spark.sql.catalyst.plans.FullOuter
 import org.apache.spark.sql.catalyst.plans.Inner
 import org.apache.spark.sql.catalyst.plans.LeftAnti
@@ -390,7 +390,7 @@ object RewriteMergeIntoTable extends RewriteRowLevelIcebergCommand with Predicat
   }
 
   private def resolveAttrRef(ref: NamedReference, plan: LogicalPlan): AttributeReference = {
-    ExtendedV2ExpressionUtils.resolveRef[AttributeReference](ref, plan)
+    V2ExpressionUtils.resolveRef[AttributeReference](ref, plan)
   }
 
   private def buildMergeDeltaProjections(

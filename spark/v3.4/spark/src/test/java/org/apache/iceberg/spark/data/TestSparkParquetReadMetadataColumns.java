@@ -194,11 +194,7 @@ public class TestSparkParquetReadMetadataColumns {
     builder.createBatchedReaderFunc(
         fileSchema ->
             VectorizedSparkParquetReaders.buildReader(
-                PROJECTION_SCHEMA,
-                fileSchema,
-                NullCheckingForGet.NULL_CHECKING_ENABLED,
-                Maps.newHashMap(),
-                deleteFilter));
+                PROJECTION_SCHEMA, fileSchema, Maps.newHashMap(), deleteFilter));
     builder.recordsPerBatch(RECORDS_PER_BATCH);
 
     validate(expectedRowsAfterDelete, builder);

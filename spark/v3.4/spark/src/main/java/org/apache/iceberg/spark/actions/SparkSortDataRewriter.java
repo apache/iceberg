@@ -18,8 +18,7 @@
  */
 package org.apache.iceberg.spark.actions;
 
-import java.util.List;
-import org.apache.iceberg.FileScanTask;
+import java.util.function.Function;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -54,7 +53,12 @@ class SparkSortDataRewriter extends SparkShufflingDataRewriter {
   }
 
   @Override
-  protected Dataset<Row> sortedDF(Dataset<Row> df, List<FileScanTask> group) {
-    return sort(df, outputSortOrder(group, sortOrder));
+  protected SortOrder sortOrder() {
+    return sortOrder;
+  }
+
+  @Override
+  protected Dataset<Row> sortedDF(Dataset<Row> df, Function<Dataset<Row>, Dataset<Row>> sortFunc) {
+    return sortFunc.apply(df);
   }
 }
