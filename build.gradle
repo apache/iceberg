@@ -537,6 +537,8 @@ project(':iceberg-delta-lake') {
     implementation project(':iceberg-core')
     implementation project(':iceberg-parquet')
     implementation "com.fasterxml.jackson.core:jackson-databind"
+    annotationProcessor "org.immutables:value"
+    compileOnly "org.immutables:value"
 
     compileOnly "io.delta:delta-standalone_${scalaVersion}"
 
