@@ -255,6 +255,22 @@ public class SparkReadConf {
     return confParser.longConf().option(SparkReadOptions.END_TIMESTAMP).parseOptional();
   }
 
+  public int maxFilesPerMicroBatch() {
+    return confParser
+        .intConf()
+        .option(SparkReadOptions.STREAMING_MAX_FILES_PER_MICRO_BATCH)
+        .defaultValue(Integer.MAX_VALUE)
+        .parse();
+  }
+
+  public int maxRecordsPerMicroBatch() {
+    return confParser
+        .intConf()
+        .option(SparkReadOptions.STREAMING_MAX_ROWS_PER_MICRO_BATCH)
+        .defaultValue(Integer.MAX_VALUE)
+        .parse();
+  }
+
   public boolean preserveDataGrouping() {
     return confParser
         .booleanConf()
