@@ -128,7 +128,7 @@ public class TestRewritePositionDeleteFilesAction extends SparkCatalogTestBase {
         validationCatalog.createTable(
             TableIdentifier.of("default", TABLE_NAME), SCHEMA, spec, tableProperties());
 
-    RewritePositionDeleteFiles.Result result =
+    RewritePositionDeleteFiles.RewritePositionDeleteResult result =
         SparkActions.get(spark).rewritePositionDeletes(table).execute();
     Assert.assertEquals("No rewritten delete files", 0, result.rewrittenDeleteFilesCount());
     Assert.assertEquals("No added delete files", 0, result.addedDeleteFilesCount());
@@ -148,7 +148,7 @@ public class TestRewritePositionDeleteFilesAction extends SparkCatalogTestBase {
     Assert.assertEquals(2000, expectedRecords.size()); // 4000 data - 2000 delete rows
     Assert.assertEquals(2000, expectedDeletes.size());
 
-    RewritePositionDeleteFiles.Result result =
+    RewritePositionDeleteFiles.RewritePositionDeleteResult result =
         SparkActions.get(spark)
             .rewritePositionDeletes(table)
             .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
@@ -181,7 +181,7 @@ public class TestRewritePositionDeleteFilesAction extends SparkCatalogTestBase {
     Assert.assertEquals(12000, expectedRecords.size()); // 16000 data - 4000 delete rows
     Assert.assertEquals(4000, expectedDeletes.size());
 
-    RewritePositionDeleteFiles.Result result =
+    RewritePositionDeleteFiles.RewritePositionDeleteResult result =
         SparkActions.get(spark)
             .rewritePositionDeletes(table)
             .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
@@ -218,7 +218,7 @@ public class TestRewritePositionDeleteFilesAction extends SparkCatalogTestBase {
 
     long avgSize = size(deleteFiles) / deleteFiles.size();
 
-    RewritePositionDeleteFiles.Result result =
+    RewritePositionDeleteFiles.RewritePositionDeleteResult result =
         SparkActions.get(spark)
             .rewritePositionDeletes(table)
             .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
@@ -257,7 +257,7 @@ public class TestRewritePositionDeleteFilesAction extends SparkCatalogTestBase {
         .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
         .execute();
 
-    RewritePositionDeleteFiles.Result result =
+    RewritePositionDeleteFiles.RewritePositionDeleteResult result =
         SparkActions.get(spark)
             .rewritePositionDeletes(table)
             .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
@@ -298,7 +298,7 @@ public class TestRewritePositionDeleteFilesAction extends SparkCatalogTestBase {
         .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
         .execute();
 
-    RewritePositionDeleteFiles.Result result =
+    RewritePositionDeleteFiles.RewritePositionDeleteResult result =
         SparkActions.get(spark)
             .rewritePositionDeletes(table)
             .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
@@ -357,7 +357,7 @@ public class TestRewritePositionDeleteFilesAction extends SparkCatalogTestBase {
     // 4000 unpartitioned + (2 * 4000) partitioned - 4000 deletes
     Assert.assertEquals(8000, expectedRecords.size());
 
-    RewritePositionDeleteFiles.Result result =
+    RewritePositionDeleteFiles.RewritePositionDeleteResult result =
         SparkActions.get(spark)
             .rewritePositionDeletes(table)
             .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
@@ -404,7 +404,7 @@ public class TestRewritePositionDeleteFilesAction extends SparkCatalogTestBase {
     Assert.assertEquals(4000, expectedDeletes.size()); // 4 files * 1000 per file
     Assert.assertEquals(12000, expectedRecords.size()); // 4 * 4000 - 4000
 
-    RewritePositionDeleteFiles.Result result =
+    RewritePositionDeleteFiles.RewritePositionDeleteResult result =
         SparkActions.get(spark)
             .rewritePositionDeletes(table)
             .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
@@ -630,7 +630,7 @@ public class TestRewritePositionDeleteFilesAction extends SparkCatalogTestBase {
   }
 
   private void checkResult(
-      RewritePositionDeleteFiles.Result result,
+      RewritePositionDeleteFiles.RewritePositionDeleteResult result,
       List<DeleteFile> rewrittenDeletes,
       List<DeleteFile> newDeletes,
       int expectedGroups) {

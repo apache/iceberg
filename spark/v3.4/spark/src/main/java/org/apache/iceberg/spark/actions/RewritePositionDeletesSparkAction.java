@@ -38,7 +38,6 @@ import org.apache.iceberg.PositionDeletesScanTask;
 import org.apache.iceberg.RewriteJobOrder;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.actions.FileRewriter;
 import org.apache.iceberg.actions.ImmutablePositionDeleteGroupInfo;
 import org.apache.iceberg.actions.ImmutableResult;
 import org.apache.iceberg.actions.RewritePositionDeleteFiles;
@@ -79,14 +78,12 @@ public class RewritePositionDeletesSparkAction
   private static final Set<String> VALID_OPTIONS =
       ImmutableSet.of(
           MAX_CONCURRENT_FILE_GROUP_REWRITES,
-          MAX_FILE_GROUP_SIZE_BYTES,
           PARTIAL_PROGRESS_ENABLED,
           PARTIAL_PROGRESS_MAX_COMMITS,
-          TARGET_FILE_SIZE_BYTES,
           REWRITE_JOB_ORDER);
 
   private final Table table;
-  private final FileRewriter<PositionDeletesScanTask, DeleteFile> rewriter;
+  private final SparkPositionDeletesRewriter rewriter;
 
   private int maxConcurrentFileGroupRewrites;
   private int maxCommits;
@@ -113,7 +110,7 @@ public class RewritePositionDeletesSparkAction
   }
 
   @Override
-  public Result execute() {
+  public RewritePositionDeleteFiles.Result execute() {
     if (table.currentSnapshot() == null) {
       LOG.info("Nothing found to rewrite in empty table {}", table.name());
       return ImmutableResult.builder()

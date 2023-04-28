@@ -24,6 +24,7 @@ import org.apache.iceberg.RewriteFiles;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.Tasks;
 import org.slf4j.Logger;
@@ -60,7 +61,8 @@ public class RewritePositionDeletesCommitManager {
     }
 
     RewriteFiles rewrite = table.newRewrite().validateFromSnapshot(startingSnapshotId);
-    rewrite.rewriteDeleteFiles(rewrittenDeleteFiles, addedDeleteFiles);
+    rewrite.rewriteFiles(
+        ImmutableSet.of(), rewrittenDeleteFiles, ImmutableSet.of(), addedDeleteFiles);
 
     rewrite.commit();
   }

@@ -53,24 +53,6 @@ public interface RewritePositionDeleteFiles
   int PARTIAL_PROGRESS_MAX_COMMITS_DEFAULT = 10;
 
   /**
-   * The entire rewrite operation is broken down into pieces based on partitioning and within
-   * partitions based on size into groups. These sub-units of the rewrite are referred to as file
-   * groups. The largest amount of data that should be compacted in a single group is controlled by
-   * {@link #MAX_FILE_GROUP_SIZE_BYTES}. This helps with breaking down the rewriting of very large
-   * partitions which may not be rewritable otherwise due to the resource constraints of the
-   * cluster. For example a sort based rewrite may not scale to terabyte sized partitions, those
-   * partitions need to be worked on in small subsections to avoid exhaustion of resources.
-   *
-   * <p>When grouping files, the underlying rewrite strategy will use this value as to limit the
-   * files which will be included in a single file group. A group will be processed by a single
-   * framework "action". For example, in Spark this means that each group would be rewritten in its
-   * own Spark action. A group will never contain files for multiple output partitions.
-   */
-  String MAX_FILE_GROUP_SIZE_BYTES = "max-file-group-size-bytes";
-
-  long MAX_FILE_GROUP_SIZE_BYTES_DEFAULT = 1024L * 1024L * 1024L * 100L; // 100 Gigabytes
-
-  /**
    * The max number of file groups to be simultaneously rewritten by the rewrite strategy. The
    * structure and contents of the group is determined by the rewrite strategy. Each file group will
    * be rewritten independently and asynchronously.
@@ -78,13 +60,6 @@ public interface RewritePositionDeleteFiles
   String MAX_CONCURRENT_FILE_GROUP_REWRITES = "max-concurrent-file-group-rewrites";
 
   int MAX_CONCURRENT_FILE_GROUP_REWRITES_DEFAULT = 5;
-
-  /**
-   * The output file size that this rewrite strategy will attempt to generate when rewriting files.
-   * By default this will use the "write.target-file-size-bytes value" in the table properties of
-   * the table being updated.
-   */
-  String TARGET_FILE_SIZE_BYTES = "target-file-size-bytes";
 
   /**
    * Forces the rewrite job order based on the value.
@@ -123,17 +98,33 @@ public interface RewritePositionDeleteFiles
   interface Result {
     List<PositionDeleteGroupRewriteResult> rewriteResults();
 
-    /** Returns the count of the position deletes that been rewritten. */
-    int rewrittenDeleteFilesCount();
+    /** Returns the count of the position delete files that been rewritten. */
+    default int rewrittenDeleteFilesCount() {
+      return rewriteResults().stream()
+          .mapToInt(PositionDeleteGroupRewriteResult::rewrittenDeleteFilesCount)
+          .sum();
+    }
 
-    /** Returns the count of the added delete files. */
-    int addedDeleteFilesCount();
+    /** Returns the count of the added position delete files. */
+    default int addedDeleteFilesCount() {
+      return rewriteResults().stream()
+          .mapToInt(PositionDeleteGroupRewriteResult::addedDeleteFilesCount)
+          .sum();
+    }
 
-    /** Returns the number of bytes of position deletes that have been rewritten */
-    long rewrittenBytesCount();
+    /** Returns the number of bytes of position delete files that have been rewritten */
+    default long rewrittenBytesCount() {
+      return rewriteResults().stream()
+          .mapToLong(PositionDeleteGroupRewriteResult::rewrittenBytesCount)
+          .sum();
+    }
 
-    /** Returns the number of bytes of newly added position deletes */
-    long addedBytesCount();
+    /** Returns the number of bytes of newly added position delete files */
+    default long addedBytesCount() {
+      return rewriteResults().stream()
+          .mapToLong(PositionDeleteGroupRewriteResult::addedBytesCount)
+          .sum();
+    }
   }
 
   /**
@@ -143,14 +134,21 @@ public interface RewritePositionDeleteFiles
    */
   @Value.Immutable
   interface PositionDeleteGroupRewriteResult {
+    /** Description of this position delete file group * */
     PositionDeleteGroupInfo info();
 
-    int addedDeleteFilesCount();
-
+    /** Returns the count of the position delete files that been rewritten in this group. */
     int rewrittenDeleteFilesCount();
 
+    /** Returns the count of the added position delete files in this group. */
+    int addedDeleteFilesCount();
+
+    /**
+     * Returns the number of bytes of position delete files that have been rewritten in this group
+     */
     long rewrittenBytesCount();
 
+    /** Returns the number of bytes of newly added position delete files in this group */
     long addedBytesCount();
   }
 

@@ -67,7 +67,6 @@ public class RewritePositionDeleteGroup {
   public RewritePositionDeleteFiles.PositionDeleteGroupRewriteResult asResult() {
     Preconditions.checkState(
         addedDeleteFiles != null, "Cannot get result, Group was never rewritten");
-    long addedBytes = addedDeleteFiles.stream().mapToLong(DeleteFile::fileSizeInBytes).sum();
 
     return ImmutablePositionDeleteGroupRewriteResult.builder()
         .info(info)
