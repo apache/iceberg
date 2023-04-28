@@ -122,7 +122,8 @@ class SortOrder(IcebergBaseModel):
     order_id: int = Field(alias="order-id", default=INITIAL_SORT_ORDER_ID)
     fields: List[SortField] = Field(default_factory=list)
 
-    def __init__(self, *fields: SortField, **data: Any):
+    def __init__(self, order_id: int=INITIAL_SORT_ORDER_ID, *fields: SortField, **data: Any):
+        self.order_id = order_id
         if fields:
             data["fields"] = fields
         super().__init__(**data)
