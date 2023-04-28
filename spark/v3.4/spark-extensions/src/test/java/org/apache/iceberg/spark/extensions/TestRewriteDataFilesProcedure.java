@@ -25,14 +25,20 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.IntStream;
 import org.apache.iceberg.AssertHelpers;
+import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotSummary;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.actions.RewriteDataFiles;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.NamedReference;
 import org.apache.iceberg.expressions.Zorder;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.spark.ExtendedParser;
 import org.apache.iceberg.spark.SparkCatalogConfig;
 import org.apache.iceberg.spark.SparkTableCache;
@@ -42,6 +48,7 @@ import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchProcedureException;
 import org.apache.spark.sql.internal.SQLConf;
+import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Assume;
@@ -154,6 +161,238 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
 
     List<Object[]> actualRecords = currentData();
     assertEquals("Data should not change", expectedRecords, actualRecords);
+  }
+
+  @Test
+  public void testIncrementDataRewriteWithStart() {
+    createTable();
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    insertData(10);
+    table.refresh();
+    Snapshot snapshotA = table.currentSnapshot();
+    long snapshotAId = snapshotA.snapshotId();
+    long snapshotATimestamp = snapshotA.timestampMillis();
+
+    insertData(10);
+    table.refresh();
+    Snapshot snapshotB = table.currentSnapshot();
+    long snapshotBId = snapshotB.snapshotId();
+    long snapshotBTimestamp = snapshotB.timestampMillis();
+
+    long dataSizeBefore =
+        Streams.stream(
+                table.newIncrementalAppendScan().fromSnapshotExclusive(snapshotAId).planFiles())
+            .mapToLong(FileScanTask::length)
+            .sum();
+    List<Object[]> expectedRecords = currentData();
+
+    List<Object[]> output =
+        sql(
+            "CALL %s.system.rewrite_data_files(table => '%s', options => map('start-timestamp','%d'))",
+            catalogName, tableIdent, snapshotATimestamp);
+    assertResult(table, expectedRecords, 10, 10 + 1, dataSizeBefore, output);
+
+    table.manageSnapshots().rollbackTo(snapshotBId).commit();
+    output =
+        sql(
+            "CALL %s.system.rewrite_data_files(table => '%s', options => map('start-snapshot-id','%d'))",
+            catalogName, tableIdent, snapshotAId);
+    assertResult(table, expectedRecords, 10, 10 + 1, dataSizeBefore, output);
+
+    Assertions.assertThatThrownBy(
+            () ->
+                sql(
+                    "CALL %s.system.rewrite_data_files(table => '%s', options => map('start-snapshot-id','1',"
+                        + "'start-timestamp','1'))",
+                    catalogName, tableIdent))
+        .hasMessage(
+            "Cannot set both %s and %s",
+            RewriteDataFiles.START_SNAPSHOT_ID, RewriteDataFiles.START_TIMESTAMP);
+
+    Assertions.assertThatThrownBy(
+            () ->
+                sql(
+                    "CALL %s.system.rewrite_data_files(table => '%s', options => map('start-timestamp','%d'))",
+                    catalogName, tableIdent, Long.MAX_VALUE))
+        .hasMessageContaining("Cannot find a snapshot older than %d", Long.MAX_VALUE);
+  }
+
+  @Test
+  public void testIncrementDataRewriteWithEnd() {
+    createTable();
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    insertData(10);
+    table.refresh();
+    Snapshot snapshotA = table.currentSnapshot();
+    long snapshotAId = snapshotA.snapshotId();
+    long snapshotATimestamp = snapshotA.timestampMillis();
+
+    insertData(10);
+    table.refresh();
+    Snapshot snapshotB = table.currentSnapshot();
+    long snapshotBId = snapshotB.snapshotId();
+    long snapshotBTimestamp = snapshotB.timestampMillis();
+
+    insertData(10);
+    table.refresh();
+    Snapshot snapshotC = table.currentSnapshot();
+    long snapshotCId = snapshotC.snapshotId();
+    long snapshotCTimestamp = snapshotC.timestampMillis();
+
+    long dataSizeBefore =
+        Streams.stream(table.newIncrementalAppendScan().toSnapshot(snapshotBId).planFiles())
+            .mapToLong(FileScanTask::length)
+            .sum();
+    List<Object[]> expectedRecords = currentData();
+
+    List<Object[]> output =
+        sql(
+            "CALL %s.system.rewrite_data_files(table => '%s', options => map('end-timestamp','%d'))",
+            catalogName, tableIdent, snapshotBTimestamp);
+    assertResult(table, expectedRecords, 20, 1 + 10, dataSizeBefore, output);
+
+    table.manageSnapshots().rollbackTo(snapshotCId).commit();
+    output =
+        sql(
+            "CALL %s.system.rewrite_data_files(table => '%s', options => map('end-snapshot-id','%d'))",
+            catalogName, tableIdent, snapshotBId);
+    assertResult(table, expectedRecords, 20, 1 + 10, dataSizeBefore, output);
+
+    table.manageSnapshots().rollbackTo(snapshotCId).commit();
+    dataSizeBefore =
+        Streams.stream(table.newIncrementalAppendScan().planFiles())
+            .mapToLong(FileScanTask::length)
+            .sum();
+    output =
+        sql(
+            "CALL %s.system.rewrite_data_files(table => '%s', options => map('end-timestamp','%d'))",
+            catalogName, tableIdent, snapshotCTimestamp);
+    assertResult(table, expectedRecords, 30, 1, dataSizeBefore, output);
+
+    table.manageSnapshots().rollbackTo(snapshotCId).commit();
+    output =
+        sql(
+            "CALL %s.system.rewrite_data_files(table => '%s', options => map('end-snapshot-id','%d'))",
+            catalogName, tableIdent, snapshotCId);
+    assertResult(table, expectedRecords, 30, 1, dataSizeBefore, output);
+
+    Assertions.assertThatThrownBy(
+            () ->
+                sql(
+                    "CALL %s.system.rewrite_data_files(table => '%s', options => map('end-snapshot-id','1',"
+                        + "'end-timestamp','1'))",
+                    catalogName, tableIdent))
+        .hasMessage(
+            "Cannot set both %s and %s",
+            RewriteDataFiles.END_SNAPSHOT_ID, RewriteDataFiles.END_TIMESTAMP);
+  }
+
+  @Test
+  public void testIncrementDataRewriteWithStartAndEnd() {
+    createTable();
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    insertData(10);
+    table.refresh();
+    Snapshot snapshotA = table.currentSnapshot();
+    long snapshotAId = snapshotA.snapshotId();
+    long snapshotATimestamp = snapshotA.timestampMillis();
+
+    insertData(10);
+    table.refresh();
+    Snapshot snapshotB = table.currentSnapshot();
+    long snapshotBId = snapshotB.snapshotId();
+    long snapshotBTimestamp = snapshotB.timestampMillis();
+
+    insertData(10);
+    table.refresh();
+    Snapshot snapshotC = table.currentSnapshot();
+    long snapshotCId = snapshotC.snapshotId();
+    long snapshotCTimestamp = snapshotC.timestampMillis();
+
+    long dataSizeBefore =
+        Streams.stream(
+                table
+                    .newIncrementalAppendScan()
+                    .fromSnapshotExclusive(snapshotAId)
+                    .toSnapshot(snapshotBId)
+                    .planFiles())
+            .mapToLong(FileScanTask::length)
+            .sum();
+    List<Object[]> expectedRecords = currentData();
+
+    List<Object[]> output =
+        sql(
+            "CALL %s.system.rewrite_data_files(table => '%s', options => map('start-timestamp','%d',"
+                + "'end-timestamp','%d'))",
+            catalogName, tableIdent, snapshotATimestamp, snapshotBTimestamp);
+    assertResult(table, expectedRecords, 10, 10 + 1 + 10, dataSizeBefore, output);
+
+    table.manageSnapshots().rollbackTo(snapshotCId).commit();
+    output =
+        sql(
+            "CALL %s.system.rewrite_data_files(table => '%s', options => map('start-snapshot-id','%d', "
+                + "'end-snapshot-id','%d'))",
+            catalogName, tableIdent, snapshotAId, snapshotBId);
+    assertResult(table, expectedRecords, 10, 10 + 1 + 10, dataSizeBefore, output);
+
+    table.manageSnapshots().rollbackTo(snapshotCId).commit();
+    dataSizeBefore =
+        Streams.stream(
+                table
+                    .newIncrementalAppendScan()
+                    .fromSnapshotExclusive(snapshotAId)
+                    .toSnapshot(snapshotCId)
+                    .planFiles())
+            .mapToLong(FileScanTask::length)
+            .sum();
+    output =
+        sql(
+            "CALL %s.system.rewrite_data_files(table => '%s', options => map('start-snapshot-id','%d', "
+                + "'end-timestamp', '%d'))",
+            catalogName, tableIdent, snapshotAId, snapshotCTimestamp);
+    assertResult(table, expectedRecords, 20, 10 + 1, dataSizeBefore, output);
+
+    table.manageSnapshots().rollbackTo(snapshotCId).commit();
+    output =
+        sql(
+            "CALL %s.system.rewrite_data_files(table => '%s', options => map('start-timestamp','%d', "
+                + "'end-snapshot-id','%d'))",
+            catalogName, tableIdent, snapshotATimestamp, snapshotCId);
+    assertResult(table, expectedRecords, 20, 10 + 1, dataSizeBefore, output);
+
+    Assertions.assertThatThrownBy(
+            () ->
+                sql(
+                    "CALL %s.system.rewrite_data_files(table => '%s', options => map('start-timestamp','2',"
+                        + "'end-timestamp','1'))",
+                    catalogName, tableIdent))
+        .hasMessage(
+            "Cannot set %s to be greater than %s",
+            RewriteDataFiles.START_TIMESTAMP, RewriteDataFiles.END_TIMESTAMP);
+  }
+
+  private void assertResult(
+      Table table,
+      List<Object[]> expectedRecords,
+      int expectedRewrittenFiles,
+      int expectedTableFiles,
+      long dataSizeBefore,
+      List<Object[]> output) {
+    assertEquals(
+        String.format(
+            "Action should rewrite %d data files and add 1 data files", expectedRewrittenFiles),
+        row(expectedRewrittenFiles, 1),
+        Arrays.copyOf(output.get(0), 2));
+    // verify rewritten bytes separately
+    assertThat(output.get(0)).hasSize(3);
+    assertThat(output.get(0)[2]).isInstanceOf(Long.class).isEqualTo(dataSizeBefore);
+
+    List<Object[]> actualRecords = currentData();
+    assertEquals("Data should not change", expectedRecords, actualRecords);
+    shouldHaveFiles(table, expectedTableFiles);
   }
 
   @Test
@@ -718,5 +957,11 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
 
   private List<Object[]> currentData(String table) {
     return rowsToJava(spark.sql("SELECT * FROM " + table + " order by c1, c2, c3").collectAsList());
+  }
+
+  protected void shouldHaveFiles(Table table, int numExpected) {
+    table.refresh();
+    int numFiles = Iterables.size(table.newScan().planFiles());
+    Assert.assertEquals("Did not have the expected number of files", numExpected, numFiles);
   }
 }
