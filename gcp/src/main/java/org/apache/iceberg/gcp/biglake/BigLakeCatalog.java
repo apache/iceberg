@@ -26,15 +26,10 @@ import com.google.cloud.bigquery.biglake.v1.HiveDatabaseOptions;
 import com.google.cloud.bigquery.biglake.v1.Table;
 import com.google.cloud.bigquery.biglake.v1.TableName;
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import org.apache.hadoop.conf.Configurable;
-import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.FileSystem;
-import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.BaseMetastoreCatalog;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
@@ -44,9 +39,9 @@ import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.ServiceFailureException;
-import org.apache.iceberg.exceptions.ValidationException;
-import org.apache.iceberg.hadoop.Util;
+import org.apache.iceberg.hadoop.Configurable;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.ResolvingFileIO;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
@@ -61,7 +56,7 @@ import org.slf4j.LoggerFactory;
 
 /** Iceberg BigLake Metastore (BLMS) Catalog implementation. */
 public final class BigLakeCatalog extends BaseMetastoreCatalog
-    implements SupportsNamespaces, Configurable {
+    implements SupportsNamespaces, Configurable<Object> {
 
   // User provided properties.
   // The endpoint of BigLake API. Optional, default to DEFAULT_BIGLAKE_SERVICE_ENDPOINT.
@@ -75,8 +70,6 @@ public final class BigLakeCatalog extends BaseMetastoreCatalog
   // It links a BLMS catalog with this Iceberg catalog.
   public static final String PROPERTIES_KEY_BLMS_CATALOG = "blms_catalog";
 
-  public static final String HIVE_METASTORE_WAREHOUSE_DIR = "hive.metastore.warehouse.dir";
-
   public static final String DEFAULT_BIGLAKE_SERVICE_ENDPOINT = "biglake.googleapis.com:443";
   public static final String DEFAULT_GCP_LOCATION = "us";
 
@@ -85,9 +78,8 @@ public final class BigLakeCatalog extends BaseMetastoreCatalog
   // The name of this Iceberg catalog plugin: spark.sql.catalog.<catalog_plugin>.
   private String catalogPulginName;
   private Map<String, String> catalogProperties;
-  private FileSystem fs;
   private FileIO fileIO;
-  private Configuration conf;
+  private Object conf;
   private String projectId;
   private String location;
   // BLMS catalog ID and fully qualified name.
@@ -102,9 +94,8 @@ public final class BigLakeCatalog extends BaseMetastoreCatalog
 
   @Override
   public void initialize(String inputName, Map<String, String> properties) {
-    if (!properties.containsKey(PROPERTIES_KEY_GCP_PROJECT)) {
-      throw new ValidationException("GCP project must be specified");
-    }
+    Preconditions.checkArgument(
+        properties.containsKey(PROPERTIES_KEY_GCP_PROJECT), "GCP project must be specified");
     String propProjectId = properties.get(PROPERTIES_KEY_GCP_PROJECT);
     String propLocation =
         properties.getOrDefault(PROPERTIES_KEY_GCP_LOCATION, DEFAULT_GCP_LOCATION);
@@ -136,39 +127,19 @@ public final class BigLakeCatalog extends BaseMetastoreCatalog
     Preconditions.checkNotNull(bigLakeClient, "BigLake client must not be null");
     this.client = bigLakeClient;
 
-    if (this.conf == null) {
-      LOG.warn("No Hadoop Configuration was set, using the default environment Configuration");
-      this.conf = new Configuration();
-    }
-
     // Users can specify the BigLake catalog ID, otherwise catalog plugin will be used.
     this.catalogId = properties.getOrDefault(PROPERTIES_KEY_BLMS_CATALOG, inputName);
     this.catalogName = CatalogName.of(projectId, location, catalogId);
     LOG.info("Use BigLake catalog: {}", catalogName.toString());
 
-    if (properties.containsKey(CatalogProperties.WAREHOUSE_LOCATION)) {
-      this.conf.set(
-          HIVE_METASTORE_WAREHOUSE_DIR,
-          LocationUtil.stripTrailingSlash(properties.get(CatalogProperties.WAREHOUSE_LOCATION)));
-    }
-
-    this.fs =
-        Util.getFs(
-            new Path(
-                LocationUtil.stripTrailingSlash(
-                    properties.get(CatalogProperties.WAREHOUSE_LOCATION))),
-            conf);
-
     String fileIOImpl =
-        properties.getOrDefault(
-            CatalogProperties.FILE_IO_IMPL, "org.apache.iceberg.hadoop.HadoopFileIO");
+        properties.getOrDefault(CatalogProperties.FILE_IO_IMPL, ResolvingFileIO.class.getName());
     this.fileIO = CatalogUtil.loadFileIO(fileIOImpl, properties, conf);
   }
 
   @Override
   protected TableOperations newTableOps(TableIdentifier identifier) {
     return new BigLakeTableOperations(
-        conf,
         client,
         fileIO,
         getTableName(getDatabaseId(identifier.namespace()), /* tableId= */ identifier.name()));
@@ -190,6 +161,7 @@ public final class BigLakeCatalog extends BaseMetastoreCatalog
     // When deleting a BLMS catalog via `DROP NAMESPACE <catalog>`, this method is called for
     // verifying catalog emptiness. `namespace` is empty in this case, we list databases in
     // this catalog instead.
+    // TODO: to return all tables in all databases in a BLMS catalog instead of a "placeholder".
     if (namespace.levels().length == 0) {
       return Iterables.isEmpty(client.listDatabases(catalogName))
           ? ImmutableList.of()
@@ -218,10 +190,8 @@ public final class BigLakeCatalog extends BaseMetastoreCatalog
     String fromDbId = getDatabaseId(from.namespace());
     String toDbId = getDatabaseId(to.namespace());
 
-    if (!fromDbId.equals(toDbId)) {
-      throw new ValidationException("New table name must be in the same database");
-    }
-
+    Preconditions.checkArgument(
+        fromDbId.equals(toDbId), "New table name must be in the same database");
     client.renameTable(getTableName(fromDbId, from.name()), getTableName(toDbId, to.name()));
   }
 
@@ -240,15 +210,7 @@ public final class BigLakeCatalog extends BaseMetastoreCatalog
           .putAllParameters(metadata)
           .setLocationUri(getDatabaseLocation(dbId));
 
-      Database db =
-          client.createDatabase(
-              DatabaseName.of(projectId, location, catalogId, dbId), builder.build());
-      // Creates the data folder for the database.
-      try {
-        fs.mkdirs(new Path(db.getHiveOptions().getLocationUri()));
-      } catch (IOException e) {
-        throw new UncheckedIOException(String.format("Create namespace failed: %s", namespace), e);
-      }
+      client.createDatabase(DatabaseName.of(projectId, location, catalogId, dbId), builder.build());
     } else {
       throw new IllegalArgumentException(invalidNamespaceMessage(namespace));
     }
@@ -344,17 +306,14 @@ public final class BigLakeCatalog extends BaseMetastoreCatalog
   }
 
   @Override
-  public void setConf(Configuration conf) {
-    this.conf = new Configuration(conf);
-  }
-
-  @Override
-  public Configuration getConf() {
-    return this.conf;
+  public void setConf(Object conf) {
+    this.conf = conf;
   }
 
   private String getDatabaseLocation(String dbId) {
-    String warehouseLocation = conf.get(HIVE_METASTORE_WAREHOUSE_DIR);
+    String warehouseLocation =
+        LocationUtil.stripTrailingSlash(
+            catalogProperties.get(CatalogProperties.WAREHOUSE_LOCATION));
     Preconditions.checkNotNull(warehouseLocation, "Data warehouse location is not set");
     return String.format("%s/%s.db", LocationUtil.stripTrailingSlash(warehouseLocation), dbId);
   }

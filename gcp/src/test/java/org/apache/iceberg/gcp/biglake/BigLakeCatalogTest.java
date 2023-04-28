@@ -24,9 +24,10 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.any;
-import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.google.cloud.bigquery.biglake.v1.Catalog;
@@ -36,9 +37,9 @@ import com.google.cloud.bigquery.biglake.v1.DatabaseName;
 import com.google.cloud.bigquery.biglake.v1.HiveDatabaseOptions;
 import com.google.cloud.bigquery.biglake.v1.Table;
 import com.google.cloud.bigquery.biglake.v1.TableName;
-import java.io.File;
 import java.util.List;
 import java.util.Map;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
@@ -46,7 +47,6 @@ import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
-import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
@@ -54,6 +54,7 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
@@ -77,6 +78,7 @@ public class BigLakeCatalogTest {
     this.bigLakeCatalog = new BigLakeCatalog();
     this.warehouseLocation = tempFolder.newFolder("hive-warehouse").toString();
 
+    bigLakeCatalog.setConf(new Configuration());
     bigLakeCatalog.initialize(
         CATALOG_ID,
         /* properties= */ ImmutableMap.of(
@@ -217,36 +219,18 @@ public class BigLakeCatalogTest {
 
   @Test
   public void testRenameTable_sameDatabase_succeed() {
-    when(bigLakeClient.renameTable(
-            TableName.of(GCP_PROJECT, GCP_REGION, CATALOG_ID, "db0", "t1"),
-            TableName.of(GCP_PROJECT, GCP_REGION, CATALOG_ID, "db0", "t2")))
-        .thenReturn(
-            Table.newBuilder()
-                .setName(
-                    String.format(
-                        "projects/%s/locations/us/catalogs/%s/databases/db0/tables/t2",
-                        GCP_PROJECT, CATALOG_ID))
-                .build());
-
     bigLakeCatalog.renameTable(TableIdentifier.of("db0", "t1"), TableIdentifier.of("db0", "t2"));
+    verify(bigLakeClient, times(1))
+        .renameTable(
+            TableName.of(GCP_PROJECT, GCP_REGION, CATALOG_ID, "db0", "t1"),
+            TableName.of(GCP_PROJECT, GCP_REGION, CATALOG_ID, "db0", "t2"));
   }
 
   @Test
   public void testRenameTable_differentDatabase_fail() {
-    when(bigLakeClient.renameTable(
-            TableName.of(GCP_PROJECT, GCP_REGION, CATALOG_ID, "db0", "t1"),
-            TableName.of(GCP_PROJECT, GCP_REGION, CATALOG_ID, "db1", "t2")))
-        .thenReturn(
-            Table.newBuilder()
-                .setName(
-                    String.format(
-                        "projects/%s/locations/us/catalogs/%s/databases/db1/tables/t2",
-                        GCP_PROJECT, CATALOG_ID))
-                .build());
-
     Exception exception =
         assertThrows(
-            ValidationException.class,
+            IllegalArgumentException.class,
             () ->
                 bigLakeCatalog.renameTable(
                     TableIdentifier.of("db0", "t1"), TableIdentifier.of("db1", "t2")));
@@ -255,11 +239,10 @@ public class BigLakeCatalogTest {
 
   @Test
   public void testCreateNamespace_createCatalogWhenEmptyNamespace() throws Exception {
-    when(bigLakeClient.createCatalog(
-            CatalogName.of(GCP_PROJECT, GCP_REGION, CATALOG_ID), Catalog.getDefaultInstance()))
-        .thenReturn(Catalog.getDefaultInstance());
-
     bigLakeCatalog.createNamespace(Namespace.of(new String[] {}), ImmutableMap.of());
+    verify(bigLakeClient, times(1))
+        .createCatalog(
+            CatalogName.of(GCP_PROJECT, GCP_REGION, CATALOG_ID), Catalog.getDefaultInstance());
   }
 
   @Test
@@ -269,15 +252,17 @@ public class BigLakeCatalogTest {
     String dbDir = warehouseLocation + String.format("/%s.db", dbId);
     Database.Builder builder = Database.newBuilder().setType(Database.Type.HIVE);
     builder.getHiveOptionsBuilder().putAllParameters(metadata).setLocationUri(dbDir);
+
+    DatabaseName dbName = DatabaseName.of(GCP_PROJECT, GCP_REGION, CATALOG_ID, dbId);
     Database db = builder.build();
-    when(bigLakeClient.createDatabase(
-            DatabaseName.of(GCP_PROJECT, GCP_REGION, CATALOG_ID, dbId), db))
-        .thenReturn(db);
+    when(bigLakeClient.createDatabase(dbName, db)).thenReturn(db);
 
     bigLakeCatalog.createNamespace(Namespace.of(new String[] {dbId}), metadata);
-    File dir = new File(dbDir);
-    assertTrue(dir.exists());
-    assertTrue(dir.isDirectory());
+    ArgumentCaptor<DatabaseName> nameCaptor = ArgumentCaptor.forClass(DatabaseName.class);
+    ArgumentCaptor<Database> dbCaptor = ArgumentCaptor.forClass(Database.class);
+    verify(bigLakeClient, times(1)).createDatabase(nameCaptor.capture(), dbCaptor.capture());
+    assertEquals(dbName, nameCaptor.getValue());
+    assertEquals(db, dbCaptor.getValue());
   }
 
   @Test
@@ -319,20 +304,16 @@ public class BigLakeCatalogTest {
 
   @Test
   public void testDropNamespace_deleteCatalogWhenEmptyNamespace() {
-    doNothing()
-        .when(bigLakeClient)
-        .deleteCatalog(CatalogName.of(GCP_PROJECT, GCP_REGION, CATALOG_ID));
-
     bigLakeCatalog.dropNamespace(Namespace.of(new String[] {}));
+    verify(bigLakeClient, times(1))
+        .deleteCatalog(CatalogName.of(GCP_PROJECT, GCP_REGION, CATALOG_ID));
   }
 
   @Test
   public void testDropNamespace_deleteDatabase() {
-    doNothing()
-        .when(bigLakeClient)
-        .deleteDatabase(DatabaseName.of(GCP_PROJECT, GCP_REGION, CATALOG_ID, "db"));
-
     bigLakeCatalog.dropNamespace(Namespace.of(new String[] {"db"}));
+    verify(bigLakeClient, times(1))
+        .deleteDatabase(DatabaseName.of(GCP_PROJECT, GCP_REGION, CATALOG_ID, "db"));
   }
 
   @Test
@@ -364,15 +345,15 @@ public class BigLakeCatalogTest {
                         .putParameters("key1", "value1")
                         .putParameters("key2", "value2"))
                 .build());
-    when(bigLakeClient.updateDatabaseParameters(
-            DatabaseName.of(GCP_PROJECT, GCP_REGION, CATALOG_ID, "db"),
-            ImmutableMap.of("key3", "value3")))
-        .thenReturn(Database.getDefaultInstance());
 
     assertTrue(
         bigLakeCatalog.setProperties(
             Namespace.of(new String[] {"db"}),
-            ImmutableMap.of("key1", "value1", "key2", "value2", "key3", "value3")));
+            ImmutableMap.of("key2", "value222", "key3", "value3")));
+    verify(bigLakeClient, times(1))
+        .updateDatabaseParameters(
+            DatabaseName.of(GCP_PROJECT, GCP_REGION, CATALOG_ID, "db"),
+            ImmutableMap.of("key1", "value1", "key2", "value222", "key3", "value3"));
   }
 
   @Test
@@ -393,22 +374,20 @@ public class BigLakeCatalogTest {
                         .putParameters("key1", "value1")
                         .putParameters("key2", "value2"))
                 .build());
-    when(bigLakeClient.updateDatabaseParameters(
-            DatabaseName.of(GCP_PROJECT, GCP_REGION, CATALOG_ID, "db"),
-            ImmutableMap.of("key2", "value2")))
-        .thenReturn(Database.getDefaultInstance());
 
     assertTrue(
         bigLakeCatalog.removeProperties(
             Namespace.of(new String[] {"db"}), ImmutableSet.of("key1", "key3")));
+    verify(bigLakeClient, times(1))
+        .updateDatabaseParameters(
+            DatabaseName.of(GCP_PROJECT, GCP_REGION, CATALOG_ID, "db"),
+            ImmutableMap.of("key2", "value2"));
   }
 
   @Test
   public void testLoadNamespaceMetadata_catalogAsExpected() throws Exception {
-    when(bigLakeClient.getCatalog(CatalogName.of(GCP_PROJECT, GCP_REGION, CATALOG_ID)))
-        .thenReturn(Catalog.getDefaultInstance());
-
     assertTrue(bigLakeCatalog.loadNamespaceMetadata(Namespace.of(new String[] {})).isEmpty());
+    verify(bigLakeClient, times(1)).getCatalog(CatalogName.of(GCP_PROJECT, GCP_REGION, CATALOG_ID));
   }
 
   @Test
@@ -456,12 +435,11 @@ public class BigLakeCatalogTest {
         GCP_REGION,
         bigLakeClient);
 
-    when(bigLakeClient.createCatalog(
+    catalog.createNamespace(Namespace.of(new String[] {}), ImmutableMap.of());
+    verify(bigLakeClient, times(1))
+        .createCatalog(
             CatalogName.of(GCP_PROJECT, GCP_REGION, "customized_catalog"),
-            Catalog.getDefaultInstance()))
-        .thenReturn(Catalog.getDefaultInstance());
-
-    bigLakeCatalog.createNamespace(Namespace.of(new String[] {}), ImmutableMap.of());
+            Catalog.getDefaultInstance());
   }
 
   @Test

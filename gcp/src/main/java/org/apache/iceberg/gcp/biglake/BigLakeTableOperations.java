@@ -25,7 +25,6 @@ import com.google.cloud.bigquery.biglake.v1.HiveTableOptions.StorageDescriptor;
 import com.google.cloud.bigquery.biglake.v1.Table;
 import com.google.cloud.bigquery.biglake.v1.TableName;
 import java.util.Map;
-import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.common.StatsSetupConst;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.SnapshotSummary;
@@ -34,8 +33,8 @@ import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
-import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -45,14 +44,11 @@ public final class BigLakeTableOperations extends BaseMetastoreTableOperations {
 
   private static final Logger LOG = LoggerFactory.getLogger(BigLakeTableOperations.class);
 
-  private final Configuration conf;
   private final BigLakeClient client;
   private final FileIO fileIO;
   private final TableName tableName;
 
-  BigLakeTableOperations(
-      Configuration conf, BigLakeClient client, FileIO fileIO, TableName tableName) {
-    this.conf = conf;
+  BigLakeTableOperations(BigLakeClient client, FileIO fileIO, TableName tableName) {
     this.client = client;
     this.fileIO = fileIO;
     this.tableName = tableName;
@@ -65,10 +61,10 @@ public final class BigLakeTableOperations extends BaseMetastoreTableOperations {
     String metadataLocation = null;
     try {
       HiveTableOptions hiveOptions = client.getTable(tableName).getHiveOptions();
-      if (!hiveOptions.containsParameters(METADATA_LOCATION_PROP)) {
-        throw new ValidationException(
-            "Table %s is not a valid Iceberg table, metadata location not found", tableName());
-      }
+      Preconditions.checkArgument(
+          hiveOptions.containsParameters(METADATA_LOCATION_PROP),
+          "Table %s is not a valid Iceberg table, metadata location not found",
+          tableName());
       metadataLocation = hiveOptions.getParametersOrThrow(METADATA_LOCATION_PROP);
     } catch (NoSuchTableException e) {
       if (currentMetadataLocation() != null) {
@@ -141,12 +137,10 @@ public final class BigLakeTableOperations extends BaseMetastoreTableOperations {
       String oldMetadataLocation, String newMetadataLocation, TableMetadata metadata) {
     Table table = client.getTable(tableName);
     String etag = table.getEtag();
-    if (etag.isEmpty()) {
-      throw new ValidationException(
-          "Etag of legacy table %s is empty, manually update the table by BigLake API or"
-              + " recreate and retry",
-          tableName());
-    }
+    Preconditions.checkArgument(
+        !etag.isEmpty(),
+        "Etag of legacy table %s is empty, manually update the table by BigLake API or recreate and retry",
+        tableName());
     HiveTableOptions options = table.getHiveOptions();
 
     // If `metadataLocationFromMetastore` is different from metadata location of base, it means
@@ -165,6 +159,10 @@ public final class BigLakeTableOperations extends BaseMetastoreTableOperations {
     }
 
     try {
+      // Updating a BLMS table with etag. The BLMS server checks that (1) the etag of a table on
+      // server is the same as the etag provided by the client and (2) update the table in the same
+      // transaction. The server returns an error containing message "etag mismatch", if the etag
+      // on server has changed.
       client.updateTableParameters(
           tableName, buildTableParameters(newMetadataLocation, metadata), etag);
     } catch (AbortedException e) {

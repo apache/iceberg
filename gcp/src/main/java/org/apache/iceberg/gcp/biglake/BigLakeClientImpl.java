@@ -53,7 +53,7 @@ import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.NotAuthorizedException;
 
 /** A client implementation of Google BigLake service. */
-public final class BigLakeClientImpl implements BigLakeClient {
+final class BigLakeClientImpl implements BigLakeClient {
 
   private final String projectId;
   private final String location;

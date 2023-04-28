@@ -36,13 +36,13 @@ import com.google.cloud.bigquery.biglake.v1.HiveDatabaseOptions;
 import com.google.cloud.bigquery.biglake.v1.Table;
 import com.google.cloud.bigquery.biglake.v1.TableName;
 import io.grpc.Status.Code;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
-import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types;
 import org.junit.Before;
@@ -79,6 +79,7 @@ public class BigLakeTableOperationsTest {
     this.bigLakeCatalog = new BigLakeCatalog();
     this.warehouseLocation = tempFolder.newFolder("hive-warehouse").toString();
 
+    bigLakeCatalog.setConf(new Configuration());
     bigLakeCatalog.initialize(
         CATALOG_ID,
         /* properties= */ ImmutableMap.of(
@@ -117,7 +118,7 @@ public class BigLakeTableOperationsTest {
     when(bigLakeClient.getTable(TABLE_NAME))
         .thenReturn(Table.newBuilder().setName(TABLE_NAME.toString()).build());
 
-    Exception exception = assertThrows(ValidationException.class, () -> tableOps.refresh());
+    Exception exception = assertThrows(IllegalArgumentException.class, () -> tableOps.refresh());
     assertTrue(exception.getMessage().contains("metadata location not found"));
   }
 
@@ -201,7 +202,6 @@ public class BigLakeTableOperationsTest {
   public void testCreateTable_doCommitSucceeds() throws Exception {
     when(bigLakeClient.getTable(TABLE_NAME))
         .thenThrow(new NoSuchTableException("error message getTable"));
-    when(bigLakeClient.createTable(eq(TABLE_NAME), any())).thenReturn(Table.getDefaultInstance());
     when(bigLakeClient.getDatabase(DatabaseName.of(GCP_PROJECT, GCP_REGION, CATALOG_ID, "db")))
         .thenReturn(
             Database.newBuilder()
@@ -210,6 +210,7 @@ public class BigLakeTableOperationsTest {
 
     Schema schema = BigLakeTestUtils.getTestSchema();
     bigLakeCatalog.createTable(SPARK_TABLE_ID, schema, PartitionSpec.unpartitioned());
+    verify(bigLakeClient, times(1)).createTable(eq(TABLE_NAME), any());
   }
 
   /** Creates a test table to have Iceberg metadata files in place. */

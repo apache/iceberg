@@ -27,7 +27,7 @@ import com.google.cloud.bigquery.biglake.v1.TableName;
 import java.util.Map;
 
 /** A client interface of Google BigLake service. */
-public interface BigLakeClient {
+interface BigLakeClient {
 
   /**
    * Creates and returns a new catalog.
