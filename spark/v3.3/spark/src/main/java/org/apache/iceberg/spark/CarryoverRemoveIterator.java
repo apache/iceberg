@@ -75,23 +75,26 @@ class CarryoverRemoveIterator extends ChangelogIterator {
       if (isSameRecord(currentRow, nextRow)) {
         if (nextRow.getString(changeTypeIndex()).equals(INSERT)) {
           deletedRowCount--;
-          currentRow = null;
         } else {
           deletedRowCount++;
-          currentRow = null;
         }
       } else {
         // mark the boundary since the next row is not the same record as the current row
         nextCachedRow = nextRow;
-        currentRow = null;
       }
+
+      currentRow = null;
     }
 
     return currentRow;
   }
 
   private boolean popupDeleteRow() {
-    return (!rowIterator.hasNext() || nextCachedRow != null) && hasDeleteRow();
+    return hitBoundary() && hasDeleteRow();
+  }
+
+  private boolean hitBoundary() {
+    return !rowIterator.hasNext() || nextCachedRow != null;
   }
 
   private boolean hasDeleteRow() {
