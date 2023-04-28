@@ -23,8 +23,10 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.actions.Action;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.immutables.value.Value;
 
 /** Snapshot an existing Delta Lake table to Iceberg in place. */
+@Value.Enclosing
 public interface SnapshotDeltaLakeTable
     extends Action<SnapshotDeltaLakeTable, SnapshotDeltaLakeTable.Result> {
 
@@ -81,6 +83,7 @@ public interface SnapshotDeltaLakeTable
   SnapshotDeltaLakeTable deltaLakeConfiguration(Configuration conf);
 
   /** The action result that contains a summary of the execution. */
+  @Value.Immutable
   interface Result {
 
     /** Returns the number of migrated data files. */
