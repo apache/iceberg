@@ -90,9 +90,9 @@ public class ComputeUpdateIterator extends ChangelogIterator {
         Preconditions.checkState(
             nextRowChangeType.equals(INSERT),
             "The next row should be an INSERT row, but it is %s. That means there are multiple"
-                + " rows with the same value of identifier fields(%s). Please make sure the rows are unique.",
+                + " rows with the same value of identifier fields([%s]). Please make sure the rows are unique.",
             nextRowChangeType,
-            identifierFields);
+            String.join(",", identifierFields));
 
         currentRow = modify(currentRow, changeTypeIndex(), UPDATE_BEFORE);
         cachedRow = modify(nextRow, changeTypeIndex(), UPDATE_AFTER);
