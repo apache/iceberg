@@ -153,7 +153,7 @@ public class SingleValueParser {
             defaultLength);
         byte[] fixedBytes =
             BaseEncoding.base16().decode(defaultValue.textValue().toUpperCase(Locale.ROOT));
-        return fixedBytes;
+        return ByteBuffer.wrap(fixedBytes);
       case BINARY:
         Preconditions.checkArgument(
             defaultValue.isTextual(), "Cannot parse default as a %s value: %s", type, defaultValue);
@@ -236,7 +236,7 @@ public class SingleValueParser {
     return JsonUtil.generate(gen -> toJson(type, defaultValue, gen), pretty);
   }
 
-  @SuppressWarnings({"checkstyle:MethodLength", "checkstyle:CyclomaticComplexity"})
+  @SuppressWarnings("checkstyle:MethodLength")
   public static void toJson(Type type, Object defaultValue, JsonGenerator generator)
       throws IOException {
     if (defaultValue == null) {
@@ -303,28 +303,17 @@ public class SingleValueParser {
         generator.writeString(defaultValue.toString());
         break;
       case FIXED:
-        // Normally, FIXED is backed by a byte[], but it can also be backed by a ByteBuffer in the
-        // case of Fixed Literals. Ideally, Fixed Literals would be backed by a byte[], but that
-        // would make the APIs backwards incompatible.
-        // See {@link org.apache.iceberg.expressions.Literals.FixedLiteral}.
         Preconditions.checkArgument(
-            defaultValue instanceof byte[] || defaultValue instanceof ByteBuffer,
-            "Invalid default %s value: %s",
-            type,
-            defaultValue);
-        byte[] byteArrayValue;
-        if (defaultValue instanceof ByteBuffer) {
-          byteArrayValue = ByteBuffers.toByteArray((ByteBuffer) defaultValue);
-        } else {
-          byteArrayValue = (byte[]) defaultValue;
-        }
+            defaultValue instanceof ByteBuffer, "Invalid default %s value: %s", type, defaultValue);
+        ByteBuffer byteBufferValue = (ByteBuffer) defaultValue;
         int expectedLength = ((Types.FixedType) type).length();
         Preconditions.checkArgument(
-            byteArrayValue.length == expectedLength,
+            byteBufferValue.remaining() == expectedLength,
             "Invalid default %s value, incorrect length: %s",
             type,
-            byteArrayValue.length);
-        generator.writeString(BaseEncoding.base16().encode(byteArrayValue));
+            byteBufferValue.remaining());
+        generator.writeString(
+            BaseEncoding.base16().encode(ByteBuffers.toByteArray(byteBufferValue)));
         break;
       case BINARY:
         Preconditions.checkArgument(
