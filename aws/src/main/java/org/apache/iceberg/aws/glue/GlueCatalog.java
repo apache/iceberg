@@ -20,6 +20,7 @@ package org.apache.iceberg.aws.glue;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -34,6 +35,7 @@ import org.apache.iceberg.LockManager;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.TableOperations;
+import org.apache.iceberg.aws.AssumeRoleAwsClientFactory;
 import org.apache.iceberg.aws.AwsClientFactories;
 import org.apache.iceberg.aws.AwsClientFactory;
 import org.apache.iceberg.aws.AwsProperties;
@@ -115,7 +117,8 @@ public class GlueCatalog extends BaseMetastoreCatalog
 
   @Override
   public void initialize(String name, Map<String, String> properties) {
-    this.catalogProperties = ImmutableMap.copyOf(properties);
+    this.catalogProperties = new HashMap<>();
+    catalogProperties.putAll(properties);
     AwsClientFactory awsClientFactory;
     FileIO catalogFileIO;
     if (PropertyUtil.propertyAsBoolean(
@@ -453,6 +456,16 @@ public class GlueCatalog extends BaseMetastoreCatalog
     // keep the original behavior when force-register-table flag is off
     if (!awsProperties.glueCatalogForceRegisterTable()) {
       return super.registerTable(identifier, metadataFileLocation);
+    }
+
+    String factoryImpl =
+        PropertyUtil.propertyAsString(catalogProperties, AwsProperties.CLIENT_FACTORY, null);
+    if (factoryImpl != null && factoryImpl.equals(AssumeRoleAwsClientFactory.class.getName())) {
+      // overwrite client assume_role_region for file IO to make cross region call
+      String catalogFileIORegion = awsProperties.getGlueCatalogFileIORegion();
+      if (catalogFileIORegion != null) {
+        catalogProperties.put(AwsProperties.CLIENT_ASSUME_ROLE_REGION, catalogFileIORegion);
+      }
     }
 
     TableOperations ops = newTableOps(identifier);

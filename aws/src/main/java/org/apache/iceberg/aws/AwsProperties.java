@@ -173,6 +173,9 @@ public class AwsProperties implements Serializable {
 
   public static final boolean GLUE_CATALOG_FORCE_REGISTER_TABLE_DEFAULT = false;
 
+  /** Configure the Glue Catalog S3 FileIO Region to allow cross region s3 access */
+  public static final String GLUE_CATALOG_FILE_IO_REGION = "glue.catalog-file-io-region";
+
   /**
    * Number of threads to use for uploading parts to S3 (shared pool across all output streams),
    * default to {@link Runtime#availableProcessors()}
@@ -694,6 +697,7 @@ public class AwsProperties implements Serializable {
   private boolean glueCatalogSkipNameValidation;
   private boolean glueLakeFormationEnabled;
   private boolean glueCatalogForceRegisterTable;
+  private String glueCatalogFileIORegion;
 
   private String dynamoDbTableName;
   private String dynamoDbEndpoint;
@@ -755,6 +759,7 @@ public class AwsProperties implements Serializable {
     this.glueCatalogSkipNameValidation = GLUE_CATALOG_SKIP_NAME_VALIDATION_DEFAULT;
     this.glueLakeFormationEnabled = GLUE_LAKEFORMATION_ENABLED_DEFAULT;
     this.glueCatalogForceRegisterTable = GLUE_CATALOG_FORCE_REGISTER_TABLE_DEFAULT;
+    this.glueCatalogFileIORegion = null;
 
     this.dynamoDbEndpoint = null;
     this.dynamoDbTableName = DYNAMODB_TABLE_NAME_DEFAULT;
@@ -842,6 +847,8 @@ public class AwsProperties implements Serializable {
             properties,
             GLUE_CATALOG_FORCE_REGISTER_TABLE,
             GLUE_CATALOG_FORCE_REGISTER_TABLE_DEFAULT);
+    this.glueCatalogFileIORegion = properties.get(GLUE_CATALOG_FILE_IO_REGION);
+
     this.s3FileIoMultipartUploadThreads =
         PropertyUtil.propertyAsInt(
             properties,
@@ -1022,6 +1029,14 @@ public class AwsProperties implements Serializable {
 
   public void setGlueCatalogForceRegisterTable(boolean glueCatalogForceRegisterTable) {
     this.glueCatalogForceRegisterTable = glueCatalogForceRegisterTable;
+  }
+
+  public String getGlueCatalogFileIORegion() {
+    return glueCatalogFileIORegion;
+  }
+
+  public void setGlueCatalogFileIORegion(String glueCatalogFileIORegion) {
+    this.glueCatalogFileIORegion = glueCatalogFileIORegion;
   }
 
   public int s3FileIoMultipartUploadThreads() {

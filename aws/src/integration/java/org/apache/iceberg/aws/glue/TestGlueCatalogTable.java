@@ -555,7 +555,28 @@ public class TestGlueCatalogTable extends GlueTestBase {
     Table registeredTable = glueCatalog.registerTable(identifier, metadataLocation);
     Assertions.assertThat(registeredTable).isNotNull();
     String expectedMetadataLocation =
-        ((BaseTable) registeredTable).operations().current().metadataFileLocation();
+        ((BaseTable) table).operations().current().metadataFileLocation();
+    Assertions.assertThat(metadataLocation).isEqualTo(expectedMetadataLocation);
+
+    Assertions.assertThat(glueCatalog.loadTable(identifier)).isNotNull();
+    Assertions.assertThat(glueCatalog.dropTable(identifier, true)).isTrue();
+    Assertions.assertThat(glueCatalog.dropNamespace(Namespace.of(namespace))).isTrue();
+  }
+
+  @Test
+  public void testRegisterTableForceRegister() {
+    String namespace = createNamespace();
+    String tableName = getRandomName();
+    createTable(namespace, tableName);
+    TableIdentifier identifier = TableIdentifier.of(namespace, tableName);
+    Table table = glueCatalogWithForceRegisterTable.loadTable(identifier);
+    String metadataLocation = ((BaseTable) table).operations().current().metadataFileLocation();
+    Assertions.assertThat(glueCatalogWithForceRegisterTable.dropTable(identifier, false)).isTrue();
+    Table registeredTable =
+        glueCatalogWithForceRegisterTable.registerTable(identifier, metadataLocation);
+    Assertions.assertThat(registeredTable).isNotNull();
+    String expectedMetadataLocation =
+        ((BaseTable) table).operations().current().metadataFileLocation();
     Assertions.assertThat(metadataLocation).isEqualTo(expectedMetadataLocation);
 
     GetTableResponse response =
@@ -568,8 +589,8 @@ public class TestGlueCatalogTable extends GlueTestBase {
         expectedMetadataLocation,
         actualMetadataLocationGlue);
 
-    Assertions.assertThat(glueCatalog.loadTable(identifier)).isNotNull();
-    Assertions.assertThat(glueCatalog.dropTable(identifier, true)).isTrue();
+    Assertions.assertThat(glueCatalogWithForceRegisterTable.loadTable(identifier)).isNotNull();
+    Assertions.assertThat(glueCatalogWithForceRegisterTable.dropTable(identifier, true)).isTrue();
     Assertions.assertThat(glueCatalog.dropNamespace(Namespace.of(namespace))).isTrue();
   }
 
@@ -592,6 +613,20 @@ public class TestGlueCatalogTable extends GlueTestBase {
 
   @Test
   public void testRegisterTableAlreadyExists() {
+    String namespace = createNamespace();
+    String tableName = getRandomName();
+    createTable(namespace, tableName);
+    TableIdentifier identifier = TableIdentifier.of(namespace, tableName);
+    Table table = glueCatalog.loadTable(identifier);
+    String metadataLocation = ((BaseTable) table).operations().current().metadataFileLocation();
+    Assertions.assertThatThrownBy(() -> glueCatalog.registerTable(identifier, metadataLocation))
+        .isInstanceOf(AlreadyExistsException.class);
+    Assertions.assertThat(glueCatalog.dropTable(identifier, true)).isTrue();
+    Assertions.assertThat(glueCatalog.dropNamespace(Namespace.of(namespace))).isTrue();
+  }
+
+  @Test
+  public void testRegisterTableAlreadyExistsForceRegister() {
     String namespace = createNamespace();
     String tableName = getRandomName();
     createTable(namespace, tableName);
