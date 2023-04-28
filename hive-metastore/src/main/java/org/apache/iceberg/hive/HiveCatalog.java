@@ -64,8 +64,6 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
   public static final String LIST_ALL_TABLES = "list-all-tables";
   public static final String LIST_ALL_TABLES_DEFAULT = "false";
 
-  public static final String HMS_CATALOG = "hive-catalog";
-
   public static final String HMS_TABLE_OWNER = "hive.metastore.table.owner";
   public static final String HMS_DB_OWNER = "hive.metastore.database.owner";
   public static final String HMS_DB_OWNER_TYPE = "hive.metastore.database.owner-type";
@@ -101,10 +99,6 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
       this.conf.set(
           HiveConf.ConfVars.METASTOREWAREHOUSE.varname,
           LocationUtil.stripTrailingSlash(properties.get(CatalogProperties.WAREHOUSE_LOCATION)));
-    }
-
-    if (properties.containsKey(HiveCatalog.HMS_CATALOG)) {
-      this.conf.set(HIVE_CONF_CATALOG, properties.get(HiveCatalog.HMS_CATALOG));
     }
 
     this.listAllTables =
