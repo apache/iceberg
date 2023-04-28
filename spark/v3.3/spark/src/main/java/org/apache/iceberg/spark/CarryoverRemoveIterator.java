@@ -30,20 +30,34 @@ import org.apache.spark.sql.types.StructType;
  * <p>Carry-over rows are the result of a removal and insertion of the same row within an operation
  * because of the copy-on-write mechanism. For example, given a file which contains row1 (id=1,
  * data='a') and row2 (id=2, data='b'). A copy-on-write delete of row2 would require erasing this
- * file and preserving row1 in a new file. The change-log table would report this as (id=1,
- * data='a', op='DELETE') and (id=1, data='a', op='INSERT'), despite it not being an actual change
- * to the table. The iterator finds the carry-over rows and removes them from the result.
+ * file and preserving row1 in a new file. The change-log table would report this as follows,
+ * despite it not being an actual change to the table.
+ *
+ * <ul>
+ *   <li>(id=1, data='a', op='DELETE')
+ *   <li>(id=1, data='a', op='INSERT')
+ *   <li>(id=2, data='b', op='DELETE')
+ * </ul>
+ *
+ * The iterator finds the carry-over rows and removes them from the result. For example, the above
+ * rows will be converted to:
+ *
+ * <ul>
+ *   <li>(id=2, data='b', op='DELETE')
+ * </ul>
  */
 class CarryoverRemoveIterator extends ChangelogIterator {
   private final Iterator<Row> rowIterator;
+  private final int[] indicesForIdentifySameRow;
 
   private Row deletedRow = null;
   private long deletedRowCount = 0;
   private Row nextCachedRow = null;
 
   CarryoverRemoveIterator(Iterator<Row> rowIterator, StructType rowType) {
-    super(rowIterator, rowType, null);
+    super(rowIterator, rowType);
     this.rowIterator = rowIterator;
+    this.indicesForIdentifySameRow = generateIndicesForIdentifySameRow(rowType.size());
   }
 
   @Override
@@ -89,6 +103,10 @@ class CarryoverRemoveIterator extends ChangelogIterator {
     return currentRow;
   }
 
+  /**
+   * Pop up the delete rows if there are delete rows cached and the next row is not the same record
+   * or there is no next row.
+   */
   private boolean popupDeleteRow() {
     return hitBoundary() && hasDeleteRow();
   }
@@ -111,5 +129,27 @@ class CarryoverRemoveIterator extends ChangelogIterator {
     } else {
       return rowIterator.next();
     }
+  }
+
+  private int[] generateIndicesForIdentifySameRow(int columnSize) {
+    int[] indices = new int[columnSize - 1];
+    for (int i = 0; i < indices.length; i++) {
+      if (i < changeTypeIndex()) {
+        indices[i] = i;
+      } else {
+        indices[i] = i + 1;
+      }
+    }
+    return indices;
+  }
+
+  protected boolean isSameRecord(Row currentRow, Row nextRow) {
+    for (int idx : indicesForIdentifySameRow) {
+      if (!isColumnSame(currentRow, nextRow, idx)) {
+        return false;
+      }
+    }
+
+    return true;
   }
 }
