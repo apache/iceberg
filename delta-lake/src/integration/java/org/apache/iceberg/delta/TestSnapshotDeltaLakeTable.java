@@ -33,16 +33,20 @@ import java.io.IOException;
 import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.sql.Timestamp;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.stream.Collectors;
 import org.apache.commons.codec.DecoderException;
 import org.apache.commons.codec.net.URLCodec;
+import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkCatalog;
 import org.apache.iceberg.util.LocationUtil;
@@ -173,6 +177,7 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
             .execute();
 
     checkSnapshotIntegrity(partitionedLocation, partitionedIdentifier, newTableIdentifier, result);
+    checkTagContentAndOrder(partitionedLocation, newTableIdentifier, 0);
     checkIcebergTableLocation(newTableIdentifier, partitionedLocation);
   }
 
@@ -193,6 +198,7 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
 
     checkSnapshotIntegrity(
         unpartitionedLocation, unpartitionedIdentifier, newTableIdentifier, result);
+    checkTagContentAndOrder(unpartitionedLocation, newTableIdentifier, 0);
     checkIcebergTableLocation(newTableIdentifier, unpartitionedLocation);
   }
 
@@ -214,6 +220,7 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
             .execute();
 
     checkSnapshotIntegrity(partitionedLocation, partitionedIdentifier, newTableIdentifier, result);
+    checkTagContentAndOrder(partitionedLocation, newTableIdentifier, 0);
     checkIcebergTableLocation(newTableIdentifier, newIcebergTableLocation);
   }
 
@@ -245,6 +252,7 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
 
     checkSnapshotIntegrity(
         unpartitionedLocation, unpartitionedIdentifier, newTableIdentifier, result);
+    checkTagContentAndOrder(unpartitionedLocation, newTableIdentifier, 0);
     checkIcebergTableLocation(newTableIdentifier, unpartitionedLocation);
     checkIcebergTableProperties(
         newTableIdentifier,
@@ -278,6 +286,7 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
             .execute();
     checkSnapshotIntegrity(
         externalDataFilesTableLocation, externalDataFilesIdentifier, newTableIdentifier, result);
+    checkTagContentAndOrder(externalDataFilesTableLocation, newTableIdentifier, 0);
     checkIcebergTableLocation(newTableIdentifier, externalDataFilesTableLocation);
     checkDataFilePathsIntegrity(newTableIdentifier, externalDataFilesTableLocation);
   }
@@ -295,6 +304,7 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
             .tableProperty(TableProperties.PARQUET_VECTORIZATION_ENABLED, "false")
             .execute();
     checkSnapshotIntegrity(typeTestTableLocation, typeTestIdentifier, newTableIdentifier, result);
+    checkTagContentAndOrder(typeTestTableLocation, newTableIdentifier, 0);
     checkIcebergTableLocation(newTableIdentifier, typeTestTableLocation);
     checkIcebergTableProperties(
         newTableIdentifier,
@@ -334,6 +344,7 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
     checkSnapshotIntegrity(
         vacuumTestTableLocation, vacuumTestIdentifier, newTableIdentifier, result);
     checkIcebergTableLocation(newTableIdentifier, vacuumTestTableLocation);
+    checkTagContentAndOrder(vacuumTestTableLocation, newTableIdentifier, 13);
   }
 
   @Test
@@ -366,6 +377,7 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
             .execute();
     checkSnapshotIntegrity(
         logCleanTestTableLocation, logCleanTestIdentifier, newTableIdentifier, result);
+    checkTagContentAndOrder(logCleanTestTableLocation, newTableIdentifier, 10);
     checkIcebergTableLocation(newTableIdentifier, logCleanTestTableLocation);
   }
 
@@ -386,6 +398,39 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
         .hasSize((int) snapshotReport.snapshotDataFilesCount());
     Assertions.assertThat(icebergTableContents)
         .containsExactlyInAnyOrderElementsOf(deltaTableContents);
+  }
+
+  private void checkTagContentAndOrder(
+      String deltaTableLocation, String icebergTableIdentifier, long firstConstructableVersion) {
+    DeltaLog deltaLog = DeltaLog.forTable(spark.sessionState().newHadoopConf(), deltaTableLocation);
+    long currentVersion = deltaLog.snapshot().getVersion();
+    Table icebergTable = getIcebergTable(icebergTableIdentifier);
+    Map<String, SnapshotRef> icebergSnapshotRefs = icebergTable.refs();
+    List<Snapshot> icebergSnapshots = Lists.newArrayList(icebergTable.snapshots());
+
+    Assertions.assertThat(icebergSnapshots.size())
+        .isEqualTo(currentVersion - firstConstructableVersion + 1);
+
+    for (int i = 0; i < icebergSnapshots.size(); i++) {
+      long deltaVersion = firstConstructableVersion + i;
+      Snapshot currentIcebergSnapshot = icebergSnapshots.get(i);
+
+      String expectedVersionTag = "delta-version-" + deltaVersion;
+      icebergSnapshotRefs.get(expectedVersionTag);
+      Assertions.assertThat(icebergSnapshotRefs.get(expectedVersionTag)).isNotNull();
+      Assertions.assertThat(icebergSnapshotRefs.get(expectedVersionTag).isTag()).isTrue();
+      Assertions.assertThat(icebergSnapshotRefs.get(expectedVersionTag).snapshotId())
+          .isEqualTo(currentIcebergSnapshot.snapshotId());
+
+      Timestamp deltaVersionTimestamp = deltaLog.getCommitInfoAt(deltaVersion).getTimestamp();
+      Assertions.assertThat(deltaVersionTimestamp).isNotNull();
+      String expectedTimestampTag = "delta-ts-" + deltaVersionTimestamp.getTime();
+
+      Assertions.assertThat(icebergSnapshotRefs.get(expectedTimestampTag)).isNotNull();
+      Assertions.assertThat(icebergSnapshotRefs.get(expectedTimestampTag).isTag()).isTrue();
+      Assertions.assertThat(icebergSnapshotRefs.get(expectedTimestampTag).snapshotId())
+          .isEqualTo(currentIcebergSnapshot.snapshotId());
+    }
   }
 
   private void checkIcebergTableLocation(String icebergTableIdentifier, String expectedLocation) {

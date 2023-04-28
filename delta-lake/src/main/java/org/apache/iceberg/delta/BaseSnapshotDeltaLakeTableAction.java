@@ -26,6 +26,7 @@ import io.delta.standalone.actions.RemoveFile;
 import io.delta.standalone.exceptions.DeltaStandaloneException;
 import java.io.File;
 import java.net.URI;
+import java.sql.Timestamp;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -38,6 +39,7 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.DeleteFiles;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.ManageSnapshots;
 import org.apache.iceberg.Metrics;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.OverwriteFiles;
@@ -79,6 +81,8 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
   private static final String DELTA_SOURCE_VALUE = "delta";
   private static final String ORIGINAL_LOCATION_PROP = "original_location";
   private static final String PARQUET_SUFFIX = ".parquet";
+  private static final String DELTA_VERSION_TAG_PREFIX = "delta-version-";
+  private static final String DELTA_TIMESTAMP_TAG_PREFIX = "delta-ts-";
   private final ImmutableMap.Builder<String, String> additionalPropertiesBuilder =
       ImmutableMap.builder();
   private DeltaLog deltaLog;
@@ -253,6 +257,7 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
         AppendFiles appendFiles = transaction.newAppend();
         filesToAdd.forEach(appendFiles::appendFile);
         appendFiles.commit();
+        tagCurrentSnapshot(constructableStartVersion, transaction);
 
         return constructableStartVersion;
       } catch (NotFoundException | IllegalArgumentException | DeltaStandaloneException e) {
@@ -318,7 +323,12 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
       DeleteFiles deleteFiles = transaction.newDelete();
       filesToRemove.forEach(deleteFiles::deleteFile);
       deleteFiles.commit();
+    } else {
+      // No data change case, dummy append to tag the snapshot
+      transaction.newAppend().commit();
     }
+
+    tagCurrentSnapshot(versionLog.getVersion(), transaction);
   }
 
   private DataFile buildDataFileFromAction(Action action, Table table) {
@@ -410,6 +420,20 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
             SNAPSHOT_SOURCE_PROP, DELTA_SOURCE_VALUE, ORIGINAL_LOCATION_PROP, originalLocation));
 
     return additionalPropertiesBuilder.build();
+  }
+
+  private void tagCurrentSnapshot(long deltaVersion, Transaction transaction) {
+    long currentSnapshotId = transaction.table().currentSnapshot().snapshotId();
+
+    ManageSnapshots manageSnapshots = transaction.manageSnapshots();
+    manageSnapshots.createTag(DELTA_VERSION_TAG_PREFIX + deltaVersion, currentSnapshotId);
+
+    Timestamp deltaVersionTimestamp = deltaLog.getCommitInfoAt(deltaVersion).getTimestamp();
+    if (deltaVersionTimestamp != null) {
+      manageSnapshots.createTag(
+          DELTA_TIMESTAMP_TAG_PREFIX + deltaVersionTimestamp.getTime(), currentSnapshotId);
+    }
+    manageSnapshots.commit();
   }
 
   /**
