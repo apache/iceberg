@@ -120,7 +120,6 @@ class SortOrder(IcebergBaseModel):
     Keyword Args:
       order_id (int): An unique id of the sort-order of a table.
     """
-    
     order_id: int = Field(alias="order-id", default=INITIAL_SORT_ORDER_ID)
     fields: List[SortField] = Field(default_factory=list)
 
