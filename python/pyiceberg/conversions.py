@@ -246,8 +246,8 @@ def from_bytes(primitive_type: PrimitiveType, b: bytes) -> L:
     """A generic function which converts bytes to a built-in python value
 
     Args:
-        primitive_type(PrimitiveType): An implementation of the PrimitiveType base class
-        b(bytes): The bytes to convert
+        primitive_type (PrimitiveType): An implementation of the PrimitiveType base class
+        b (bytes): The bytes to convert
     """
     raise TypeError(f"Cannot deserialize bytes, type {primitive_type} not supported: {str(b)}")
 
