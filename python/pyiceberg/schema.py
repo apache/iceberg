@@ -692,7 +692,7 @@ class Accessor:
         """Returns the value at self.position in `container`
 
         Args:
-            container(StructProtocol): A container to access at position `self.position`
+            container (StructProtocol): A container to access at position `self.position`
 
         Returns:
             Any: The value at position `self.position` in the container
@@ -714,7 +714,7 @@ def visit(obj: Union[Schema, IcebergType], visitor: SchemaVisitor[T]) -> T:
     The function traverses the schema in post-order fashion
 
     Args:
-        obj(Schema | IcebergType): An instance of a Schema or an IcebergType
+        obj (Schema | IcebergType): An instance of a Schema or an IcebergType
         visitor (SchemaVisitor[T]): An instance of an implementation of the generic SchemaVisitor base class
 
     Raises:
@@ -783,7 +783,7 @@ def pre_order_visit(obj: Union[Schema, IcebergType], visitor: PreOrderSchemaVisi
     because we don't use the pre-order traversal much.
 
     Args:
-        obj(Schema | IcebergType): An instance of a Schema or an IcebergType
+        obj (Schema | IcebergType): An instance of a Schema or an IcebergType
         visitor (PreOrderSchemaVisitor[T]): An instance of an implementation of the generic PreOrderSchemaVisitor base class
 
     Raises:
