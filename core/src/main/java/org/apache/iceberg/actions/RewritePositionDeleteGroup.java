@@ -24,31 +24,32 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.PositionDeletesScanTask;
+import org.apache.iceberg.actions.RewritePositionDeleteFiles.PositionDeleteGroupInfo;
+import org.apache.iceberg.actions.RewritePositionDeleteFiles.PositionDeleteGroupRewriteResult;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
- * Container class representing a set of position delete files to be rewritten by a RewriteAction
- * and the new files which have been written by the action.
+ * Container class representing a set of position delete files to be rewritten by a {@link
+ * RewritePositionDeleteFiles} and the new files which have been written by the action.
  */
 public class RewritePositionDeleteGroup {
-  private final RewritePositionDeleteFiles.PositionDeleteGroupInfo info;
+  private final PositionDeleteGroupInfo info;
   private final List<PositionDeletesScanTask> positionDeletesScanTasks;
 
   private Set<DeleteFile> addedDeleteFiles = Collections.emptySet();
 
   public RewritePositionDeleteGroup(
-      RewritePositionDeleteFiles.PositionDeleteGroupInfo info,
-      List<PositionDeletesScanTask> fileScanTasks) {
+      PositionDeleteGroupInfo info, List<PositionDeletesScanTask> fileScanTasks) {
     this.info = info;
     this.positionDeletesScanTasks = fileScanTasks;
   }
 
-  public RewritePositionDeleteFiles.PositionDeleteGroupInfo info() {
+  public PositionDeleteGroupInfo info() {
     return info;
   }
 
-  public List<PositionDeletesScanTask> scans() {
+  public List<PositionDeletesScanTask> tasks() {
     return positionDeletesScanTasks;
   }
 
@@ -57,14 +58,14 @@ public class RewritePositionDeleteGroup {
   }
 
   public Set<DeleteFile> rewrittenDeleteFiles() {
-    return scans().stream().map(PositionDeletesScanTask::file).collect(Collectors.toSet());
+    return tasks().stream().map(PositionDeletesScanTask::file).collect(Collectors.toSet());
   }
 
   public Set<DeleteFile> addedDeleteFiles() {
     return addedDeleteFiles;
   }
 
-  public RewritePositionDeleteFiles.PositionDeleteGroupRewriteResult asResult() {
+  public PositionDeleteGroupRewriteResult asResult() {
     Preconditions.checkState(
         addedDeleteFiles != null, "Cannot get result, Group was never rewritten");
 
@@ -87,6 +88,7 @@ public class RewritePositionDeleteGroup {
             addedDeleteFiles == null
                 ? "Rewrite Incomplete"
                 : Integer.toString(addedDeleteFiles.size()))
+        .add("numAddedBytes", addedBytes())
         .add("numRewrittenBytes", rewrittenBytes())
         .toString();
   }
@@ -99,7 +101,7 @@ public class RewritePositionDeleteGroup {
     return addedDeleteFiles.stream().mapToLong(DeleteFile::fileSizeInBytes).sum();
   }
 
-  public int numDeleteFiles() {
+  public int numRewrittenDeleteFiles() {
     return positionDeletesScanTasks.size();
   }
 }

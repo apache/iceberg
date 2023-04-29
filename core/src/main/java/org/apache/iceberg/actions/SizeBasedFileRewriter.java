@@ -101,7 +101,7 @@ public abstract class SizeBasedFileRewriter<T extends ContentScanTask<F>, F exte
 
   public static final long MAX_FILE_GROUP_SIZE_BYTES_DEFAULT = 100L * 1024 * 1024 * 1024; // 100 GB
 
-  protected static final long SPLIT_OVERHEAD = 5 * 1024;
+  private static final long SPLIT_OVERHEAD = 5 * 1024;
 
   private final Table table;
   private long targetFileSize;

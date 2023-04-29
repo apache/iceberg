@@ -19,6 +19,8 @@
 package org.apache.iceberg.actions;
 
 import java.util.Set;
+import java.util.stream.Collectors;
+import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.RewriteFiles;
 import org.apache.iceberg.Table;
@@ -26,12 +28,11 @@ import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
-import org.apache.iceberg.util.Tasks;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Functionality used by RewritePositionDeleteFile Actions from different platforms to handle
+ * Functionality used by {@link RewritePositionDeleteFiles} from different platforms to handle
  * commits.
  */
 public class RewritePositionDeletesCommitManager {
@@ -50,7 +51,7 @@ public class RewritePositionDeletesCommitManager {
    * Perform a commit operation on the table adding and removing files as required for this set of
    * file groups
    *
-   * @param fileGroups fileSets to commit
+   * @param fileGroups file sets to commit
    */
   public void commitFileGroups(Set<RewritePositionDeleteGroup> fileGroups) {
     Set<DeleteFile> rewrittenDeleteFiles = Sets.newHashSet();
@@ -77,11 +78,11 @@ public class RewritePositionDeletesCommitManager {
     Preconditions.checkState(
         fileGroup.addedDeleteFiles() != null, "Cannot abort a fileGroup that was not rewritten");
 
-    Tasks.foreach(fileGroup.addedDeleteFiles())
-        .noRetry()
-        .suppressFailureWhenFinished()
-        .onFailure((deleteFile, exc) -> LOG.warn("Failed to delete: {}", deleteFile.path(), exc))
-        .run(deleteFile -> table.io().deleteFile(deleteFile.path().toString()));
+    Set<String> filePaths =
+        fileGroup.addedDeleteFiles().stream()
+            .map(f -> f.path().toString())
+            .collect(Collectors.toSet());
+    CatalogUtil.deleteFiles(table.io(), filePaths, "position delete", true);
   }
 
   public void commitOrClean(Set<RewritePositionDeleteGroup> rewriteGroups) {

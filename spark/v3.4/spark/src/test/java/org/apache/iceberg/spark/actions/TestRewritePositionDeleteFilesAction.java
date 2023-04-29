@@ -21,9 +21,11 @@ package org.apache.iceberg.spark.actions;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -43,14 +45,17 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
-import org.apache.iceberg.actions.RewritePositionDeleteFiles;
+import org.apache.iceberg.actions.RewritePositionDeleteFiles.PositionDeleteGroupRewriteResult;
+import org.apache.iceberg.actions.RewritePositionDeleteFiles.Result;
 import org.apache.iceberg.actions.SizeBasedFileRewriter;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.data.FileHelpers;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkCatalogConfig;
@@ -63,7 +68,6 @@ import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.junit.After;
 import org.junit.Assert;
-import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -111,11 +115,6 @@ public class TestRewritePositionDeleteFilesAction extends SparkCatalogTestBase {
     this.format = format;
   }
 
-  @Before
-  public void start() {
-    spark.conf().set("spark.sql.shuffle.partitions", 4);
-  }
-
   @After
   public void cleanup() {
     validationCatalog.dropTable(TableIdentifier.of("default", TABLE_NAME));
@@ -128,8 +127,7 @@ public class TestRewritePositionDeleteFilesAction extends SparkCatalogTestBase {
         validationCatalog.createTable(
             TableIdentifier.of("default", TABLE_NAME), SCHEMA, spec, tableProperties());
 
-    RewritePositionDeleteFiles.RewritePositionDeleteResult result =
-        SparkActions.get(spark).rewritePositionDeletes(table).execute();
+    Result result = SparkActions.get(spark).rewritePositionDeletes(table).execute();
     Assert.assertEquals("No rewritten delete files", 0, result.rewrittenDeleteFilesCount());
     Assert.assertEquals("No added delete files", 0, result.addedDeleteFilesCount());
   }
@@ -142,13 +140,12 @@ public class TestRewritePositionDeleteFilesAction extends SparkCatalogTestBase {
     Assert.assertEquals(2, dataFiles.size());
     Assert.assertEquals(2, deleteFiles.size());
 
-    table.refresh();
     List<Object[]> expectedRecords = records(table);
     List<Object[]> expectedDeletes = deleteRecords(table);
-    Assert.assertEquals(2000, expectedRecords.size()); // 4000 data - 2000 delete rows
+    Assert.assertEquals(2000, expectedRecords.size());
     Assert.assertEquals(2000, expectedDeletes.size());
 
-    RewritePositionDeleteFiles.RewritePositionDeleteResult result =
+    Result result =
         SparkActions.get(spark)
             .rewritePositionDeletes(table)
             .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
@@ -168,20 +165,18 @@ public class TestRewritePositionDeleteFilesAction extends SparkCatalogTestBase {
   @Test
   public void testRewriteAll() throws Exception {
     Table table = createTablePartitioned(4, 2, SCALE);
-    table.refresh();
 
     List<DataFile> dataFiles = dataFiles(table);
     List<DeleteFile> deleteFiles = writePosDeletesForFiles(table, 2, DELETES_SCALE, dataFiles);
     Assert.assertEquals(4, dataFiles.size());
     Assert.assertEquals(8, deleteFiles.size());
 
-    table.refresh();
     List<Object[]> expectedRecords = records(table);
     List<Object[]> expectedDeletes = deleteRecords(table);
-    Assert.assertEquals(12000, expectedRecords.size()); // 16000 data - 4000 delete rows
+    Assert.assertEquals(12000, expectedRecords.size());
     Assert.assertEquals(4000, expectedDeletes.size());
 
-    RewritePositionDeleteFiles.RewritePositionDeleteResult result =
+    Result result =
         SparkActions.get(spark)
             .rewritePositionDeletes(table)
             .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
@@ -203,22 +198,20 @@ public class TestRewritePositionDeleteFilesAction extends SparkCatalogTestBase {
   @Test
   public void testRewriteToSmallerTarget() throws Exception {
     Table table = createTablePartitioned(4, 2, SCALE);
-    table.refresh();
 
     List<DataFile> dataFiles = dataFiles(table);
     List<DeleteFile> deleteFiles = writePosDeletesForFiles(table, 2, DELETES_SCALE, dataFiles);
     Assert.assertEquals(4, dataFiles.size());
     Assert.assertEquals(8, deleteFiles.size());
 
-    table.refresh();
     List<Object[]> expectedRecords = records(table);
     List<Object[]> expectedDeletes = deleteRecords(table);
-    Assert.assertEquals(12000, expectedRecords.size()); // 16000 data - 4000 delete rows
+    Assert.assertEquals(12000, expectedRecords.size());
     Assert.assertEquals(4000, expectedDeletes.size());
 
     long avgSize = size(deleteFiles) / deleteFiles.size();
 
-    RewritePositionDeleteFiles.RewritePositionDeleteResult result =
+    Result result =
         SparkActions.get(spark)
             .rewritePositionDeletes(table)
             .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
@@ -239,17 +232,15 @@ public class TestRewritePositionDeleteFilesAction extends SparkCatalogTestBase {
   @Test
   public void testRemoveDanglingDeletes() throws Exception {
     Table table = createTablePartitioned(4, 2, SCALE);
-    table.refresh();
 
     List<DataFile> dataFiles = dataFiles(table);
     List<DeleteFile> deleteFiles = writePosDeletesForFiles(table, 2, DELETES_SCALE, dataFiles);
     Assert.assertEquals(4, dataFiles.size());
     Assert.assertEquals(8, deleteFiles.size());
 
-    table.refresh();
     List<Object[]> expectedRecords = records(table);
     List<Object[]> expectedDeletes = deleteRecords(table);
-    Assert.assertEquals(12000, expectedRecords.size()); // 16000 data - 4000 delete rows
+    Assert.assertEquals(12000, expectedRecords.size());
     Assert.assertEquals(4000, expectedDeletes.size());
 
     SparkActions.get(spark)
@@ -257,7 +248,7 @@ public class TestRewritePositionDeleteFilesAction extends SparkCatalogTestBase {
         .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
         .execute();
 
-    RewritePositionDeleteFiles.RewritePositionDeleteResult result =
+    Result result =
         SparkActions.get(spark)
             .rewritePositionDeletes(table)
             .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
@@ -277,17 +268,15 @@ public class TestRewritePositionDeleteFilesAction extends SparkCatalogTestBase {
   @Test
   public void testSomePartitionsDanglingDeletes() throws Exception {
     Table table = createTablePartitioned(4, 2, SCALE);
-    table.refresh();
 
     List<DataFile> dataFiles = dataFiles(table);
     List<DeleteFile> deleteFiles = writePosDeletesForFiles(table, 2, DELETES_SCALE, dataFiles);
     Assert.assertEquals(4, dataFiles.size());
     Assert.assertEquals(8, deleteFiles.size());
 
-    table.refresh();
     List<Object[]> expectedRecords = records(table);
     List<Object[]> expectedDeletes = deleteRecords(table);
-    Assert.assertEquals(12000, expectedRecords.size()); // 16000 data - 4000 delete rows
+    Assert.assertEquals(12000, expectedRecords.size());
     Assert.assertEquals(4000, expectedDeletes.size());
 
     // Rewrite half the data files
@@ -298,7 +287,7 @@ public class TestRewritePositionDeleteFilesAction extends SparkCatalogTestBase {
         .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
         .execute();
 
-    RewritePositionDeleteFiles.RewritePositionDeleteResult result =
+    Result result =
         SparkActions.get(spark)
             .rewritePositionDeletes(table)
             .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
@@ -329,48 +318,88 @@ public class TestRewritePositionDeleteFilesAction extends SparkCatalogTestBase {
   @Test
   public void testPartitionEvolutionAdd() throws Exception {
     Table table = createTableUnpartitioned(2, SCALE);
-    List<DataFile> dataFiles = dataFiles(table);
-    List<DeleteFile> deleteFiles = writePosDeletesForFiles(table, 2, DELETES_SCALE, dataFiles);
-    Assert.assertEquals(2, dataFiles.size());
-    Assert.assertEquals(2, deleteFiles.size());
+    List<DataFile> unpartitionedDataFiles = dataFiles(table);
+    List<DeleteFile> unpartitionedDeleteFiles =
+        writePosDeletesForFiles(table, 2, DELETES_SCALE, unpartitionedDataFiles);
+    Assert.assertEquals(2, unpartitionedDataFiles.size());
+    Assert.assertEquals(2, unpartitionedDeleteFiles.size());
 
     List<Object[]> expectedUnpartitionedDeletes = deleteRecords(table);
     List<Object[]> expectedUnpartitionedRecords = records(table);
-    Assert.assertEquals(2000, expectedUnpartitionedRecords.size()); // 2 files * 1000 per file
-    Assert.assertEquals(2000, expectedUnpartitionedDeletes.size()); // 4000 records - 2000 deletes
+    Assert.assertEquals(2000, expectedUnpartitionedRecords.size());
+    Assert.assertEquals(2000, expectedUnpartitionedDeletes.size());
 
     table.updateSpec().addField("c1").commit();
     writeRecords(table, 2, SCALE, 2);
-    List<DataFile> partitionedDataFiles =
-        dataFiles(table).stream()
-            .filter(f -> f.partition().size() > 0)
-            .collect(Collectors.toList());
+    List<DataFile> partitionedDataFiles = except(dataFiles(table), unpartitionedDataFiles);
     List<DeleteFile> partitionedDeleteFiles =
         writePosDeletesForFiles(table, 2, DELETES_SCALE, partitionedDataFiles);
     Assert.assertEquals(2, partitionedDataFiles.size());
     Assert.assertEquals(4, partitionedDeleteFiles.size());
 
-    table.refresh();
     List<Object[]> expectedDeletes = deleteRecords(table);
     List<Object[]> expectedRecords = records(table);
-    Assert.assertEquals(4000, expectedDeletes.size()); // 4 files * 1000 per file
-    // 4000 unpartitioned + (2 * 4000) partitioned - 4000 deletes
+    Assert.assertEquals(4000, expectedDeletes.size());
     Assert.assertEquals(8000, expectedRecords.size());
 
-    RewritePositionDeleteFiles.RewritePositionDeleteResult result =
+    Result result =
         SparkActions.get(spark)
             .rewritePositionDeletes(table)
             .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
             .execute();
 
     List<DeleteFile> rewrittenDeleteFiles =
-        Stream.concat(deleteFiles.stream(), partitionedDeleteFiles.stream())
+        Stream.concat(unpartitionedDeleteFiles.stream(), partitionedDeleteFiles.stream())
             .collect(Collectors.toList());
     List<DeleteFile> newDeleteFiles = deleteFiles(table);
     Assert.assertEquals("Should have 3 new delete files", 3, newDeleteFiles.size());
     assertNotContains(rewrittenDeleteFiles, newDeleteFiles);
     assertLocallySorted(newDeleteFiles);
     checkResult(result, rewrittenDeleteFiles, newDeleteFiles, 3);
+
+    List<Object[]> actualRecords = records(table);
+    List<Object[]> actualDeletes = deleteRecords(table);
+    assertEquals("Rows must match", expectedRecords, actualRecords);
+    assertEquals("Position deletes must match", expectedDeletes, actualDeletes);
+  }
+
+  @Test
+  public void testPartitionEvolutionRemove() throws Exception {
+    Table table = createTablePartitioned(2, 2, SCALE);
+    List<DataFile> dataFilesUnpartitioned = dataFiles(table);
+    List<DeleteFile> deleteFilesUnpartitioned =
+        writePosDeletesForFiles(table, 2, DELETES_SCALE, dataFilesUnpartitioned);
+    Assert.assertEquals(2, dataFilesUnpartitioned.size());
+    Assert.assertEquals(4, deleteFilesUnpartitioned.size());
+
+    table.updateSpec().removeField("c1").commit();
+
+    writeRecords(table, 2, SCALE);
+    List<DataFile> dataFilesPartitioned = except(dataFiles(table), dataFilesUnpartitioned);
+    List<DeleteFile> deleteFilesPartitioned =
+        writePosDeletesForFiles(table, 2, DELETES_SCALE, dataFilesPartitioned);
+    Assert.assertEquals(2, dataFilesPartitioned.size());
+    Assert.assertEquals(2, deleteFilesPartitioned.size());
+
+    List<Object[]> expectedRecords = records(table);
+    List<Object[]> expectedDeletes = deleteRecords(table);
+    Assert.assertEquals(4000, expectedDeletes.size());
+    Assert.assertEquals(8000, expectedRecords.size());
+
+    Result result =
+        SparkActions.get(spark)
+            .rewritePositionDeletes(table)
+            .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
+            .execute();
+
+    List<DeleteFile> expectedRewritten =
+        Stream.concat(deleteFilesUnpartitioned.stream(), deleteFilesPartitioned.stream())
+            .collect(Collectors.toList());
+    List<DeleteFile> newDeleteFiles = deleteFiles(table);
+    Assert.assertEquals("Should have 3 new delete files", 3, newDeleteFiles.size());
+    assertNotContains(expectedRewritten, newDeleteFiles);
+    assertLocallySorted(newDeleteFiles);
+    checkResult(result, expectedRewritten, newDeleteFiles, 3);
 
     List<Object[]> actualRecords = records(table);
     List<Object[]> actualDeletes = deleteRecords(table);
@@ -404,7 +433,7 @@ public class TestRewritePositionDeleteFilesAction extends SparkCatalogTestBase {
     Assert.assertEquals(4000, expectedDeletes.size()); // 4 files * 1000 per file
     Assert.assertEquals(12000, expectedRecords.size()); // 4 * 4000 - 4000
 
-    RewritePositionDeleteFiles.RewritePositionDeleteResult result =
+    Result result =
         SparkActions.get(spark)
             .rewritePositionDeletes(table)
             .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
@@ -459,17 +488,42 @@ public class TestRewritePositionDeleteFilesAction extends SparkCatalogTestBase {
     writeRecords(table, files, numRecords, 1);
   }
 
-  private void writeRecords(Table table, int files, int numRecords, int partitions) {
+  private void writeRecords(Table table, int files, int numRecords, int numPartitions) {
+    writeRecordsWithPartitions(
+        table,
+        files,
+        numRecords,
+        IntStream.range(0, numPartitions).mapToObj(ImmutableList::of).toArray(List<?>[]::new));
+  }
+
+  private void writeRecordsWithPartitions(
+      Table table, int files, int numRecords, List<?>... partitions) {
+    int partitionTypeSize = table.spec().partitionType().fields().size();
+    Assert.assertTrue(
+        "This method currently supports only two columns as partition columns",
+        partitionTypeSize <= 2);
+    BiFunction<Integer, List<?>, ThreeColumnRecord> recordFunction =
+        (i, partValues) -> {
+          switch (partitionTypeSize) {
+            case (0):
+              return new ThreeColumnRecord(i, String.valueOf(i), String.valueOf(i));
+            case (1):
+              return new ThreeColumnRecord(
+                  (int) partValues.get(0), String.valueOf(i), String.valueOf(i));
+            case (2):
+              return new ThreeColumnRecord(
+                  (int) partValues.get(0), (String) partValues.get(1), String.valueOf(i));
+            default:
+              throw new ValidationException(
+                  "This method currently supports only two columns as partition columns");
+          }
+        };
     List<ThreeColumnRecord> records =
-        IntStream.range(0, partitions)
-            .boxed()
+        Arrays.stream(partitions)
             .flatMap(
                 partition ->
                     IntStream.range(0, numRecords)
-                        .mapToObj(
-                            i ->
-                                new ThreeColumnRecord(
-                                    partition, String.valueOf(i), String.valueOf(i))))
+                        .mapToObj(i -> recordFunction.apply(i, partition)))
             .collect(Collectors.toList());
     spark
         .createDataFrame(records, ThreeColumnRecord.class)
@@ -478,6 +532,7 @@ public class TestRewritePositionDeleteFilesAction extends SparkCatalogTestBase {
         .format("iceberg")
         .mode("append")
         .save(name(table));
+    table.refresh();
   }
 
   private void writeNewSchemaRecords(
@@ -589,6 +644,14 @@ public class TestRewritePositionDeleteFilesAction extends SparkCatalogTestBase {
         CloseableIterable.transform(tasks, t -> ((PositionDeletesScanTask) t).file()));
   }
 
+  private <T extends ContentFile<?>> List<T> except(List<T> first, List<T> second) {
+    Set<String> secondPaths =
+        second.stream().map(f -> f.path().toString()).collect(Collectors.toSet());
+    return first.stream()
+        .filter(f -> !secondPaths.contains(f.path().toString()))
+        .collect(Collectors.toList());
+  }
+
   private void assertNotContains(List<DeleteFile> original, List<DeleteFile> rewritten) {
     Set<String> originalPaths =
         original.stream().map(f -> f.path().toString()).collect(Collectors.toSet());
@@ -630,7 +693,7 @@ public class TestRewritePositionDeleteFilesAction extends SparkCatalogTestBase {
   }
 
   private void checkResult(
-      RewritePositionDeleteFiles.RewritePositionDeleteResult result,
+      Result result,
       List<DeleteFile> rewrittenDeletes,
       List<DeleteFile> newDeletes,
       int expectedGroups) {
@@ -659,29 +722,25 @@ public class TestRewritePositionDeleteFilesAction extends SparkCatalogTestBase {
         "Expected rewritten delete file count in all groups to match",
         rewrittenDeletes.size(),
         result.rewriteResults().stream()
-            .mapToInt(
-                RewritePositionDeleteFiles.PositionDeleteGroupRewriteResult
-                    ::rewrittenDeleteFilesCount)
+            .mapToInt(PositionDeleteGroupRewriteResult::rewrittenDeleteFilesCount)
             .sum());
     Assert.assertEquals(
         "Expected added delete file count in all groups to match",
         newDeletes.size(),
         result.rewriteResults().stream()
-            .mapToInt(
-                RewritePositionDeleteFiles.PositionDeleteGroupRewriteResult::addedDeleteFilesCount)
+            .mapToInt(PositionDeleteGroupRewriteResult::addedDeleteFilesCount)
             .sum());
     Assert.assertEquals(
         "Expected rewritten delete bytes in all groups to match",
         size(rewrittenDeletes),
         result.rewriteResults().stream()
-            .mapToLong(
-                RewritePositionDeleteFiles.PositionDeleteGroupRewriteResult::rewrittenBytesCount)
+            .mapToLong(PositionDeleteGroupRewriteResult::rewrittenBytesCount)
             .sum());
     Assert.assertEquals(
         "Expected added delete bytes in all groups to match",
         size(newDeletes),
         result.rewriteResults().stream()
-            .mapToLong(RewritePositionDeleteFiles.PositionDeleteGroupRewriteResult::addedBytesCount)
+            .mapToLong(PositionDeleteGroupRewriteResult::addedBytesCount)
             .sum());
   }
 }

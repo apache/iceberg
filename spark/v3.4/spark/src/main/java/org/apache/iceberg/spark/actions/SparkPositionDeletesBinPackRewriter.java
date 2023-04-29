@@ -45,8 +45,9 @@ import org.apache.spark.sql.Column;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.internal.SQLConf;
 
-class SparkPositionDeletesRewriter extends SizeBasedPositionDeletesRewriter {
+class SparkPositionDeletesBinPackRewriter extends SizeBasedPositionDeletesRewriter {
 
   private final SparkSession spark;
   private final SparkTableCache tableCache = SparkTableCache.get();
@@ -54,7 +55,7 @@ class SparkPositionDeletesRewriter extends SizeBasedPositionDeletesRewriter {
   private final PositionDeletesRewriteCoordinator coordinator =
       PositionDeletesRewriteCoordinator.get();
 
-  SparkPositionDeletesRewriter(SparkSession spark, Table table) {
+  SparkPositionDeletesBinPackRewriter(SparkSession spark, Table table) {
     super(table);
     this.spark = spark;
   }
@@ -84,7 +85,12 @@ class SparkPositionDeletesRewriter extends SizeBasedPositionDeletesRewriter {
   }
 
   protected void doRewrite(String groupId, List<PositionDeletesScanTask> group) {
-    // All position deletes are of the same partition, because they are in same file group
+    // ensure AQE is disabled for full control of splits
+    Preconditions.checkArgument(
+        !((boolean) spark.conf().get(SQLConf.ADAPTIVE_EXECUTION_ENABLED())),
+        "AQE must be disabled");
+
+    // all position deletes are of the same partition, because they are in same file group
     Preconditions.checkArgument(group.size() > 0, "Empty group");
     Types.StructType partitionType = group.get(0).spec().partitionType();
     StructLike partition = group.get(0).partition();
@@ -102,17 +108,17 @@ class SparkPositionDeletesRewriter extends SizeBasedPositionDeletesRewriter {
     // keep only valid position deletes
     Dataset<Row> dataFiles = dataFiles(partitionType, partition);
     Column joinCond = posDeletes.col("file_path").equalTo(dataFiles.col("file_path"));
-    Dataset<Row> joined = posDeletes.join(dataFiles, joinCond, "leftsemi");
+    Dataset<Row> validDeletes = posDeletes.join(dataFiles, joinCond, "leftsemi");
 
     // write the packed deletes into new files where each split becomes a new file
-    joined
+    validDeletes
         .sortWithinPartitions("file_path", "pos")
         .write()
         .format("iceberg")
         .option(SparkWriteOptions.REWRITTEN_FILE_SCAN_TASK_SET_ID, groupId)
-        .option(SparkWriteOptions.TARGET_FILE_SIZE_BYTES, writeMaxFileSize())
+        .option(SparkWriteOptions.TARGET_DELETE_FILE_SIZE_BYTES, writeMaxFileSize())
         .mode("append")
-        .save("default.test_table" + ".position_deletes");
+        .save(groupId);
   }
 
   /** Returns entries of {@link DataFilesTable} of specified partition */

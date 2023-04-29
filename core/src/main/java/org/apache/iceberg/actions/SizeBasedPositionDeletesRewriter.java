@@ -52,7 +52,7 @@ public abstract class SizeBasedPositionDeletesRewriter
   protected long defaultTargetFileSize() {
     return PropertyUtil.propertyAsLong(
         table().properties(),
-        TableProperties.WRITE_TARGET_FILE_SIZE_BYTES,
-        TableProperties.WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT);
+        TableProperties.DELETE_TARGET_FILE_SIZE_BYTES,
+        TableProperties.DELETE_TARGET_FILE_SIZE_BYTES_DEFAULT);
   }
 }
