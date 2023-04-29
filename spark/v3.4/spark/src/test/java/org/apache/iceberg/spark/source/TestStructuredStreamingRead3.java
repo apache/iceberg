@@ -52,6 +52,7 @@ import org.apache.spark.api.java.function.VoidFunction2;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
+import org.apache.spark.sql.internal.SQLConf;
 import org.apache.spark.sql.streaming.DataStreamWriter;
 import org.apache.spark.sql.streaming.OutputMode;
 import org.apache.spark.sql.streaming.StreamingQuery;
@@ -59,6 +60,7 @@ import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -109,6 +111,12 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
                   new SimpleRecord(13, "thirteen"), new SimpleRecord(14, "fourteen")),
               Lists.newArrayList(
                   new SimpleRecord(15, "fifteen"), new SimpleRecord(16, "sixteen"))));
+
+  @BeforeClass
+  public static void setupSpark() {
+    // disable AQE as tests assume that writes generate a particular number of files
+    spark.conf().set(SQLConf.ADAPTIVE_EXECUTION_ENABLED().key(), "false");
+  }
 
   @Before
   public void setupTable() {
