@@ -21,7 +21,6 @@ package org.apache.iceberg.spark.actions;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -493,33 +492,32 @@ public class TestRewritePositionDeleteFilesAction extends SparkCatalogTestBase {
         table,
         files,
         numRecords,
-        IntStream.range(0, numPartitions).mapToObj(ImmutableList::of).toArray(List<?>[]::new));
+        IntStream.range(0, numPartitions).mapToObj(ImmutableList::of).collect(Collectors.toList()));
   }
 
   private void writeRecordsWithPartitions(
-      Table table, int files, int numRecords, List<?>... partitions) {
+      Table table, int files, int numRecords, List<List<Integer>> partitions) {
     int partitionTypeSize = table.spec().partitionType().fields().size();
     Assert.assertTrue(
         "This method currently supports only two columns as partition columns",
         partitionTypeSize <= 2);
-    BiFunction<Integer, List<?>, ThreeColumnRecord> recordFunction =
+    BiFunction<Integer, List<Integer>, ThreeColumnRecord> recordFunction =
         (i, partValues) -> {
           switch (partitionTypeSize) {
             case (0):
               return new ThreeColumnRecord(i, String.valueOf(i), String.valueOf(i));
             case (1):
-              return new ThreeColumnRecord(
-                  (int) partValues.get(0), String.valueOf(i), String.valueOf(i));
+              return new ThreeColumnRecord(partValues.get(0), String.valueOf(i), String.valueOf(i));
             case (2):
               return new ThreeColumnRecord(
-                  (int) partValues.get(0), (String) partValues.get(1), String.valueOf(i));
+                  partValues.get(0), String.valueOf(partValues.get(1)), String.valueOf(i));
             default:
               throw new ValidationException(
                   "This method currently supports only two columns as partition columns");
           }
         };
     List<ThreeColumnRecord> records =
-        Arrays.stream(partitions)
+        partitions.stream()
             .flatMap(
                 partition ->
                     IntStream.range(0, numRecords)
