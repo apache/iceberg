@@ -709,8 +709,11 @@ def _(_type: IcebergType, value: int) -> str:
 class UnknownTransform(Transform[S, T]):
     """A transform that represents when an unknown transform is provided
     Args:
-      source_type (IcebergType): An Iceberg `Type`
       transform (str): A string name of a transform
+
+    Keyword Args:
+      source_type (IcebergType): An Iceberg `Type`
+
     Raises:
       AttributeError: If the apply method is called.
     """
