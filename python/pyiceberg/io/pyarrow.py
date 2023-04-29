@@ -315,7 +315,7 @@ class PyArrowFileIO(FileIO):
         """Delete the file at the given location
 
         Args:
-            location (Union[str, InputFile, OutputFile]): The URI to the file--if an InputFile instance or an OutputFile instance is provided, 
+            location (Union[str, InputFile, OutputFile]): The URI to the file--if an InputFile instance or an OutputFile instance is provided,
                 the location attribute for that instance is used as the location to delete
 
         Raises:
