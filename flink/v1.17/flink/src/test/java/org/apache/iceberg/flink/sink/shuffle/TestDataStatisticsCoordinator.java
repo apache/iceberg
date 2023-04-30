@@ -96,11 +96,14 @@ public class TestDataStatisticsCoordinator {
     dataStatisticsCoordinator.handleEventFromOperator(0, 0, checkpoint1Subtask0DataStatisticEvent);
     dataStatisticsCoordinator.handleEventFromOperator(1, 0, checkpoint1Subtask1DataStatisticEvent);
 
-    waitForCoordinatorToProcessActions(dataStatisticsCoordinator.context());
+    waitForCoordinatorToProcessActions(dataStatisticsCoordinator);
     // Verify global data statistics is the aggregation of all subtasks data statistics
     MapDataStatistics<String> globalDataStatistics =
         (MapDataStatistics<String>)
-            dataStatisticsCoordinator.completeAggregatedDataStatistics().dataStatistics();
+            dataStatisticsCoordinator
+                .globalStatisticsAggregatorTracker()
+                .lastCompletedAggregator()
+                .dataStatistics();
     Assert.assertEquals(
         checkpoint1Subtask0DataStatistic.mapStatistics().get("a")
             + (long) checkpoint1Subtask1DataStatistic.mapStatistics().get("a"),
@@ -115,90 +118,6 @@ public class TestDataStatisticsCoordinator {
         (long) globalDataStatistics.mapStatistics().get("c"));
   }
 
-  @Test
-  public void testCleanupExpiredEntryInAggregateDataStatisticsMap() throws Exception {
-    tasksReady();
-    MapDataStatistics<String> checkpoint1Subtask0DataStatistic = new MapDataStatistics<>();
-    checkpoint1Subtask0DataStatistic.add("a");
-    DataStatisticsEvent<String> checkpoint1Subtask0DataStatisticEvent =
-        new DataStatisticsEvent<>(1, checkpoint1Subtask0DataStatistic);
-    dataStatisticsCoordinator.handleEventFromOperator(0, 0, checkpoint1Subtask0DataStatisticEvent);
-    waitForCoordinatorToProcessActions(dataStatisticsCoordinator.context());
-    Assert.assertEquals(
-        1, dataStatisticsCoordinator.incompleteAggregatedDataStatistics().checkpointId());
-    Assert.assertNull(dataStatisticsCoordinator.completeAggregatedDataStatistics());
-
-    MapDataStatistics<String> checkpoint2Subtask0DataStatistic = new MapDataStatistics<>();
-    checkpoint2Subtask0DataStatistic.add("a");
-    DataStatisticsEvent<String> checkpoint2Subtask0DataStatisticEvent =
-        new DataStatisticsEvent<>(2, checkpoint2Subtask0DataStatistic);
-    dataStatisticsCoordinator.handleEventFromOperator(0, 0, checkpoint2Subtask0DataStatisticEvent);
-    waitForCoordinatorToProcessActions(dataStatisticsCoordinator.context());
-    // Checkpoint 2 is newer than checkpoint1, thus drop pending data statistics for checkpoint1
-    Assert.assertEquals(
-        2, dataStatisticsCoordinator.incompleteAggregatedDataStatistics().checkpointId());
-    Assert.assertNull(dataStatisticsCoordinator.completeAggregatedDataStatistics());
-
-    MapDataStatistics<String> checkpoint3Subtask0DataStatistic = new MapDataStatistics<>();
-    checkpoint3Subtask0DataStatistic.add("a");
-    checkpoint3Subtask0DataStatistic.add("b");
-    checkpoint3Subtask0DataStatistic.add("b");
-    DataStatisticsEvent<String> checkpoint3Subtask0DataStatisticEvent =
-        new DataStatisticsEvent<>(3, checkpoint3Subtask0DataStatistic);
-    dataStatisticsCoordinator.handleEventFromOperator(0, 0, checkpoint3Subtask0DataStatisticEvent);
-    MapDataStatistics<String> checkpoint3Subtask1DataStatistic = new MapDataStatistics<>();
-    checkpoint3Subtask1DataStatistic.add("a");
-    checkpoint3Subtask1DataStatistic.add("a");
-    checkpoint3Subtask1DataStatistic.add("b");
-    DataStatisticsEvent<String> checkpoint3Subtask1DataStatisticEvent =
-        new DataStatisticsEvent<>(3, checkpoint3Subtask1DataStatistic);
-    dataStatisticsCoordinator.handleEventFromOperator(1, 0, checkpoint3Subtask1DataStatisticEvent);
-    waitForCoordinatorToProcessActions(dataStatisticsCoordinator.context());
-    // Receive data statistics from all subtasks at checkpoint 3
-    Assert.assertEquals(
-        3, dataStatisticsCoordinator.completeAggregatedDataStatistics().checkpointId());
-    MapDataStatistics<String> globalDataStatistics =
-        (MapDataStatistics<String>)
-            dataStatisticsCoordinator.completeAggregatedDataStatistics().dataStatistics();
-    Assert.assertEquals(
-        checkpoint3Subtask0DataStatistic.mapStatistics().get("a")
-            + checkpoint3Subtask1DataStatistic.mapStatistics().get("a"),
-        (long) globalDataStatistics.mapStatistics().get("a"));
-    Assert.assertEquals(
-        checkpoint3Subtask0DataStatistic.mapStatistics().get("b")
-            + checkpoint3Subtask1DataStatistic.mapStatistics().get("b"),
-        (long) globalDataStatistics.mapStatistics().get("b"));
-    Assert.assertNull(dataStatisticsCoordinator.incompleteAggregatedDataStatistics());
-
-    MapDataStatistics<String> checkpoint1Subtask1DataStatistic = new MapDataStatistics<>();
-    checkpoint1Subtask1DataStatistic.add("b");
-    DataStatisticsEvent<String> checkpoint1Subtask1DataStatisticEvent =
-        new DataStatisticsEvent<>(1, checkpoint1Subtask1DataStatistic);
-    dataStatisticsCoordinator.handleEventFromOperator(1, 0, checkpoint1Subtask1DataStatisticEvent);
-    waitForCoordinatorToProcessActions(dataStatisticsCoordinator.context());
-    // Receive event from old checkpoint, completedAggregatedDataStatistics and
-    // pendingAggregatedDataStatistics won't be updated
-    Assert.assertEquals(
-        3, dataStatisticsCoordinator.completeAggregatedDataStatistics().checkpointId());
-    Assert.assertNull(dataStatisticsCoordinator.incompleteAggregatedDataStatistics());
-
-    MapDataStatistics<String> checkpoint4Subtask0DataStatistic = new MapDataStatistics<>();
-    checkpoint4Subtask0DataStatistic.add("a");
-    DataStatisticsEvent<String> checkpoint4Subtask0DataStatisticEvent =
-        new DataStatisticsEvent<>(4, checkpoint4Subtask0DataStatistic);
-    dataStatisticsCoordinator.handleEventFromOperator(0, 0, checkpoint4Subtask0DataStatisticEvent);
-    MapDataStatistics<String> checkpoint4Subtask1DataStatistic = new MapDataStatistics<>();
-    checkpoint3Subtask1DataStatistic.add("b");
-    DataStatisticsEvent<String> checkpoint4Subtask1DataStatisticEvent =
-        new DataStatisticsEvent<>(4, checkpoint4Subtask1DataStatistic);
-    dataStatisticsCoordinator.handleEventFromOperator(1, 0, checkpoint4Subtask1DataStatisticEvent);
-    waitForCoordinatorToProcessActions(dataStatisticsCoordinator.context());
-    // Receive data statistics from all subtasks at checkpoint 4
-    Assert.assertEquals(
-        4, dataStatisticsCoordinator.completeAggregatedDataStatistics().checkpointId());
-    Assert.assertNull(dataStatisticsCoordinator.incompleteAggregatedDataStatistics());
-  }
-
   static void setAllTasksReady(
       int subtasks,
       DataStatisticsCoordinator<String> dataStatisticsCoordinator,
@@ -209,9 +128,9 @@ public class TestDataStatisticsCoordinator {
     }
   }
 
-  static void waitForCoordinatorToProcessActions(DataStatisticsCoordinatorContext<String> context) {
+  static void waitForCoordinatorToProcessActions(DataStatisticsCoordinator<String> coordinator) {
     CompletableFuture<Void> future = new CompletableFuture<>();
-    context.callInCoordinatorThread(
+    coordinator.callInCoordinatorThread(
         () -> {
           future.complete(null);
           return null;
