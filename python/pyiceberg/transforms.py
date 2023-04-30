@@ -713,9 +713,6 @@ class UnknownTransform(Transform[S, T]):
 
     Keyword Args:
       source_type (IcebergType): An Iceberg `Type`
-
-    Raises:
-      AttributeError: If the apply method is called.
     """
 
     __root__: LiteralType["unknown"] = Field(default="unknown")  # noqa: F821

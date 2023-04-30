@@ -714,7 +714,7 @@ def visit(obj: Union[Schema, IcebergType], visitor: SchemaVisitor[T]) -> T:
     The function traverses the schema in post-order fashion
 
     Args:
-        obj (Schema | IcebergType): An instance of a Schema or an IcebergType
+        obj (Union[Schema | IcebergType]): An instance of a Schema or an IcebergType
         visitor (SchemaVisitor[T]): An instance of an implementation of the generic SchemaVisitor base class
 
     Raises:
