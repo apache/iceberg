@@ -25,7 +25,6 @@ import java.io.File;
 import java.io.IOException;
 import java.util.Iterator;
 import org.apache.avro.generic.GenericData;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.io.CloseableIterable;
@@ -46,6 +45,7 @@ import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.Type;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Assume;
 import org.junit.Ignore;
@@ -220,17 +220,16 @@ public class TestParquetVectorizedReads extends AvroDataTest {
   @Test
   @Override
   public void testNestedStruct() {
-    AssertHelpers.assertThrows(
-        "Vectorized reads are not supported yet for struct fields",
-        UnsupportedOperationException.class,
-        "Vectorized reads are not supported yet for struct fields",
-        () ->
-            VectorizedSparkParquetReaders.buildReader(
-                TypeUtil.assignIncreasingFreshIds(
-                    new Schema(required(1, "struct", SUPPORTED_PRIMITIVES))),
-                new MessageType(
-                    "struct", new GroupType(Type.Repetition.OPTIONAL, "struct").withId(1)),
-                false));
+    Assertions.assertThatThrownBy(
+            () ->
+                VectorizedSparkParquetReaders.buildReader(
+                    TypeUtil.assignIncreasingFreshIds(
+                        new Schema(required(1, "struct", SUPPORTED_PRIMITIVES))),
+                    new MessageType(
+                        "struct", new GroupType(Type.Repetition.OPTIONAL, "struct").withId(1)),
+                    false))
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage("Vectorized reads are not supported yet for struct fields");
   }
 
   @Test
@@ -350,13 +349,10 @@ public class TestParquetVectorizedReads extends AvroDataTest {
     try (FileAppender<GenericData.Record> writer = getParquetV2Writer(schema, dataFile)) {
       writer.addAll(data);
     }
-    AssertHelpers.assertThrows(
-        "Vectorized reads not supported",
-        UnsupportedOperationException.class,
-        "Cannot support vectorized reads for column",
-        () -> {
-          assertRecordsMatch(schema, 30000, data, dataFile, false, true, BATCH_SIZE);
-          return null;
-        });
+    Assertions.assertThatThrownBy(
+            () -> assertRecordsMatch(schema, 30000, data, dataFile, false, true, BATCH_SIZE))
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessageStartingWith("Cannot support vectorized reads for column")
+        .hasMessageEndingWith("Disable vectorized reads to read this table/file");
   }
 }

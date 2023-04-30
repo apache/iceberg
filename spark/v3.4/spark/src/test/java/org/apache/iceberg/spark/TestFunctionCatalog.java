@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.spark;
 
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.IcebergBuild;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.spark.functions.IcebergVersionFunction;
@@ -68,11 +67,9 @@ public class TestFunctionCatalog extends SparkTestBaseWithCatalog {
         new Identifier[0],
         asFunctionCatalog.listFunctions(DEFAULT_NAMESPACE));
 
-    AssertHelpers.assertThrows(
-        "Listing functions in a namespace that does not exist should throw",
-        NoSuchNamespaceException.class,
-        "The schema `db` cannot be found",
-        () -> asFunctionCatalog.listFunctions(DB_NAMESPACE));
+    Assertions.assertThatThrownBy(() -> asFunctionCatalog.listFunctions(DB_NAMESPACE))
+        .isInstanceOf(NoSuchNamespaceException.class)
+        .hasMessageStartingWith("[SCHEMA_NOT_FOUND] The schema `db` cannot be found.");
   }
 
   @Test
@@ -87,24 +84,23 @@ public class TestFunctionCatalog extends SparkTestBaseWithCatalog {
           .isExactlyInstanceOf(IcebergVersionFunction.class);
     }
 
-    AssertHelpers.assertThrows(
-        "Cannot load a function if it's not used with the system namespace or the empty namespace",
-        NoSuchFunctionException.class,
-        "The function default.iceberg_version cannot be found",
-        () -> asFunctionCatalog.loadFunction(Identifier.of(DEFAULT_NAMESPACE, "iceberg_version")));
+    Assertions.assertThatThrownBy(
+            () ->
+                asFunctionCatalog.loadFunction(Identifier.of(DEFAULT_NAMESPACE, "iceberg_version")))
+        .isInstanceOf(NoSuchFunctionException.class)
+        .hasMessageStartingWith(
+            "[ROUTINE_NOT_FOUND] The function default.iceberg_version cannot be found.");
 
     Identifier undefinedFunction = Identifier.of(SYSTEM_NAMESPACE, "undefined_function");
-    AssertHelpers.assertThrows(
-        "Cannot load a function that does not exist",
-        NoSuchFunctionException.class,
-        "The function system.undefined_function cannot be found",
-        () -> asFunctionCatalog.loadFunction(undefinedFunction));
+    Assertions.assertThatThrownBy(() -> asFunctionCatalog.loadFunction(undefinedFunction))
+        .isInstanceOf(NoSuchFunctionException.class)
+        .hasMessageStartingWith(
+            "[ROUTINE_NOT_FOUND] The function system.undefined_function cannot be found.");
 
-    AssertHelpers.assertThrows(
-        "Using an undefined function from SQL should fail analysis",
-        AnalysisException.class,
-        "Cannot resolve function",
-        () -> sql("SELECT undefined_function(1, 2)"));
+    Assertions.assertThatThrownBy(() -> sql("SELECT undefined_function(1, 2)"))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageStartingWith(
+            "[UNRESOLVED_ROUTINE] Cannot resolve function `undefined_function` on search path");
   }
 
   @Test

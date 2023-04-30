@@ -53,7 +53,7 @@ import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.parser.ParseException;
 import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.StructType;
-import org.junit.After;
+import org.assertj.core.api.Assertions;import org.junit.After;
 import org.junit.Assert;
 import org.junit.Assume;
 import org.junit.Test;
@@ -667,11 +667,9 @@ public class TestMetadataTablesWithPartitionEvolution extends SparkCatalogTestBa
     sql("REFRESH TABLE %s", tableName);
 
     for (MetadataTableType tableType : Arrays.asList(FILES, ALL_DATA_FILES, ENTRIES, ALL_ENTRIES)) {
-      AssertHelpers.assertThrows(
-          "Should complain about the partition type",
-          ValidationException.class,
-          "Cannot build table partition type, unknown transforms",
-          () -> loadMetadataTable(tableType));
+      Assertions.assertThatThrownBy(() -> loadMetadataTable(tableType))
+              .isInstanceOf(ValidationException.class)
+              .hasMessage("Cannot build table partition type, unknown transforms: [zero]");
     }
   }
 
