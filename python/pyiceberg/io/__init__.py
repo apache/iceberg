@@ -117,11 +117,11 @@ class InputFile(ABC):
     """A base class for InputFile implementations
 
     Args:
-        location(str): A URI or a path to a local file
+        location (str): A URI or a path to a local file
 
     Attributes:
-        location(str): The URI or path to a local file for an InputFile instance
-        exists(bool): Whether the file exists or not
+        location (str): The URI or path to a local file for an InputFile instance
+        exists (bool): Whether the file exists or not
     """
 
     def __init__(self, location: str):
@@ -165,11 +165,11 @@ class OutputFile(ABC):
     """A base class for OutputFile implementations
 
     Args:
-        location(str): A URI or a path to a local file
+        location (str): A URI or a path to a local file
 
     Attributes:
-        location(str): The URI or path to a local file for an OutputFile instance
-        exists(bool): Whether the file exists or not
+        location (str): The URI or path to a local file for an OutputFile instance
+        exists (bool): Whether the file exists or not
     """
 
     def __init__(self, location: str):
@@ -202,8 +202,8 @@ class OutputFile(ABC):
         """This method should return an object that matches the OutputStream protocol.
 
         Args:
-            overwrite(bool): If the file already exists at `self.location`
-            and `overwrite` is False a FileExistsError should be raised
+            overwrite (bool): If the file already exists at `self.location`
+                and `overwrite` is False a FileExistsError should be raised
 
         Returns:
             OutputStream: An object that matches the OutputStream protocol
@@ -227,7 +227,7 @@ class FileIO(ABC):
         """Get an InputFile instance to read bytes from the file at the given location
 
         Args:
-            location(str): A URI or a path to a local file
+            location (str): A URI or a path to a local file
         """
 
     @abstractmethod
@@ -235,7 +235,7 @@ class FileIO(ABC):
         """Get an OutputFile instance to write bytes to the file at the given location
 
         Args:
-            location(str): A URI or a path to a local file
+            location (str): A URI or a path to a local file
         """
 
     @abstractmethod
@@ -243,8 +243,8 @@ class FileIO(ABC):
         """Delete the file at the given path
 
         Args:
-            location(str, InputFile, OutputFile): A URI or a path to a local file--if an InputFile instance or
-            an OutputFile instance is provided, the location attribute for that instance is used as the URI to delete
+            location (Union[str, InputFile, OutputFile]): A URI or a path to a local file--if an InputFile instance or
+                an OutputFile instance is provided, the location attribute for that instance is used as the URI to delete
 
         Raises:
             PermissionError: If the file at location cannot be accessed due to a permission error
