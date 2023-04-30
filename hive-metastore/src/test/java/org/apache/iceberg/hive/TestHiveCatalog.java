@@ -43,7 +43,6 @@ import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.api.Database;
 import org.apache.hadoop.hive.metastore.api.PrincipalType;
 import org.apache.hadoop.security.UserGroupInformation;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.CachingCatalog;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
@@ -512,13 +511,10 @@ public class TestHiveCatalog extends HiveMetastoreTest {
     Assert.assertEquals(database.getParameters().get("test"), "test");
     Assert.assertEquals(database.getParameters().get("group"), "iceberg");
 
-    AssertHelpers.assertThrows(
-        "Should fail to namespace not exist" + namespace,
-        NoSuchNamespaceException.class,
-        "Namespace does not exist: ",
-        () -> {
-          catalog.setProperties(Namespace.of("db2", "db2", "ns2"), meta);
-        });
+    assertThatThrownBy(
+            () -> catalog.setProperties(Namespace.of("db2", "db2", "ns2"), ImmutableMap.of()))
+        .isInstanceOf(NoSuchNamespaceException.class)
+        .hasMessage("Namespace does not exist: db2.db2.ns2");
   }
 
   @Test
