@@ -128,7 +128,7 @@ class PyArrowFile(InputFile, OutputFile):
     """A combined InputFile and OutputFile implementation that uses a pyarrow filesystem to generate pyarrow.lib.NativeFile instances
 
     Args:
-        location(str): A URI or a path to a local file
+        location (str): A URI or a path to a local file
 
     Attributes:
         location(str): The URI or path to a local file for a PyArrowFile instance
@@ -222,7 +222,7 @@ class PyArrowFile(InputFile, OutputFile):
         """Creates a writable pyarrow.lib.NativeFile for this PyArrowFile's location
 
         Args:
-            overwrite(bool): Whether to overwrite the file if it already exists
+            overwrite (bool): Whether to overwrite the file if it already exists
 
         Returns:
             pyarrow.lib.NativeFile: A NativeFile instance for the file located at self.location
@@ -289,7 +289,7 @@ class PyArrowFileIO(FileIO):
         """Get a PyArrowFile instance to read bytes from the file at the given location
 
         Args:
-            location(str): A URI or a path to a local file
+            location (str): A URI or a path to a local file
 
         Returns:
             PyArrowFile: A PyArrowFile instance for the given location
@@ -302,7 +302,7 @@ class PyArrowFileIO(FileIO):
         """Get a PyArrowFile instance to write bytes to the file at the given location
 
         Args:
-            location(str): A URI or a path to a local file
+            location (str): A URI or a path to a local file
 
         Returns:
             PyArrowFile: A PyArrowFile instance for the given location
@@ -315,9 +315,8 @@ class PyArrowFileIO(FileIO):
         """Delete the file at the given location
 
         Args:
-            location(str, InputFile, OutputFile): The URI to the file--if an InputFile instance or an
-            OutputFile instance is provided, the location attribute for that instance is used as the location
-            to delete
+            location (Union[str, InputFile, OutputFile]): The URI to the file--if an InputFile instance or an OutputFile instance is provided,
+                the location attribute for that instance is used as the location to delete
 
         Raises:
             FileNotFoundError: When the file at the provided location does not exist
@@ -558,11 +557,11 @@ def project_table(
     """Resolves the right columns based on the identifier
 
     Args:
-        tasks(Iterable[FileScanTask]): A URI or a path to a local file
-        table(Table): The table that's being queried
-        row_filter(BooleanExpression): The expression for filtering rows
-        projected_schema(Schema): The output schema
-        case_sensitive(bool): Case sensitivity when looking up column names
+        tasks (Iterable[FileScanTask]): A URI or a path to a local file
+        table (Table): The table that's being queried
+        row_filter (BooleanExpression): The expression for filtering rows
+        projected_schema (Schema): The output schema
+        case_sensitive (bool): Case sensitivity when looking up column names
 
     Raises:
         ResolveError: When an incompatible query is done
