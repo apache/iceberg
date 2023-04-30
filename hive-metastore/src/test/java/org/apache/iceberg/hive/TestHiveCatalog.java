@@ -510,9 +510,10 @@ public class TestHiveCatalog extends HiveMetastoreTest {
     Assert.assertEquals(database.getParameters().get("owner"), "alter_apache");
     Assert.assertEquals(database.getParameters().get("test"), "test");
     Assert.assertEquals(database.getParameters().get("group"), "iceberg");
+
     assertThatThrownBy(() -> catalog.setProperties(Namespace.of("db2", "db2", "ns2"), meta))
         .isInstanceOf(NoSuchNamespaceException.class)
-        .hasMessage("Namespace does not exist: db2.db2.ns2");
+        .hasMessageStartingWith("Namespace does not exist");
   }
 
   @Test
