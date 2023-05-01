@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.orc;
 
+import static org.apache.iceberg.AssertHelpers.assertThrows;
 import static org.apache.iceberg.orc.ORCSchemaUtil.ICEBERG_ID_ATTRIBUTE;
 import static org.apache.iceberg.orc.ORCSchemaUtil.ICEBERG_REQUIRED_ATTRIBUTE;
 import static org.apache.iceberg.types.Types.NestedField.optional;
@@ -36,7 +37,6 @@ import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.orc.TypeDescription;
-import org.assertj.core.api.Assertions;
 import org.junit.Test;
 
 public class TestORCSchemaUtil {
@@ -232,9 +232,13 @@ public class TestORCSchemaUtil {
     TypeDescription orcSchema = ORCSchemaUtil.convert(originalSchema);
     Schema evolveSchema = new Schema(optional(1, "a", Types.IntegerType.get()));
 
-    Assertions.assertThatThrownBy(() -> ORCSchemaUtil.buildOrcProjection(evolveSchema, orcSchema))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Can not promote");
+    assertThrows(
+        "Should not allow invalid type promotion",
+        IllegalArgumentException.class,
+        "Can not promote",
+        () -> {
+          ORCSchemaUtil.buildOrcProjection(evolveSchema, orcSchema);
+        });
   }
 
   @Test
