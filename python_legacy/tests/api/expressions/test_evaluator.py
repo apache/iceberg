@@ -14,14 +14,16 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
+from datetime import datetime, timezone, date
 
 import iceberg.api.expressions as exp
+from iceberg.api.expressions import Literal
 from iceberg.api.types import (FloatType,
                                IntegerType,
                                NestedField,
                                StringType,
-                               StructType)
+                               StructType, DateType)
+from iceberg.core import PartitionData
 from iceberg.exceptions import ValidationException
 from pytest import raises
 
@@ -159,3 +161,36 @@ def test_nan_errors(row_of):
     evaluator = exp.evaluator.Evaluator(struct, exp.expressions.Expressions.not_nan("f"))
     with raises(NotImplementedError):
         evaluator.eval(row_of((123.4,)))
+
+
+def test_date_type_eval():
+    partition_type = StructType.of([
+        NestedField.optional(3, "date_col", DateType.get()),
+    ])
+
+    p = PartitionData(partition_type=partition_type)
+    p.data = [('date_col', date(2023, 5, 1))]
+
+    # equal
+    evaluator = exp.evaluator.Evaluator(partition_type, exp.expressions.Expressions.equal('date_col', Literal.of("2023-05-01").to(DateType.get())))
+    assert evaluator.eval(p)
+
+    # not equal
+    evaluator = exp.evaluator.Evaluator(partition_type, exp.expressions.Expressions.not_equal('date_col', Literal.of("2023-04-01").to(DateType.get())))
+    assert evaluator.eval(p)
+
+    # less than
+    evaluator = exp.evaluator.Evaluator(partition_type, exp.expressions.Expressions.less_than('date_col', Literal.of("2023-05-02").to(DateType.get())))
+    assert evaluator.eval(p)
+
+    # less or equal than
+    evaluator = exp.evaluator.Evaluator(partition_type, exp.expressions.Expressions.less_than_or_equal('date_col', Literal.of("2023-05-02").to(DateType.get())))
+    assert evaluator.eval(p)
+
+    # greater than
+    evaluator = exp.evaluator.Evaluator(partition_type, exp.expressions.Expressions.greater_than('date_col', Literal.of("2023-04-30").to(DateType.get())))
+    assert evaluator.eval(p)
+
+    # greater or equal than
+    evaluator = exp.evaluator.Evaluator(partition_type, exp.expressions.Expressions.greater_than_or_equal('date_col', Literal.of("2023-04-30").to(DateType.get())))
+    assert evaluator.eval(p)

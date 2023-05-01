@@ -16,6 +16,7 @@
 # under the License.
 
 import threading
+from datetime import date, datetime
 
 from .binder import Binder
 from .expressions import ExpressionVisitors
@@ -68,25 +69,31 @@ class Evaluator(object):
             return not (ref.get(self.struct) is None)
 
         def lt(self, ref, lit):
-            return ref.get(self.struct) < lit.value
+            return self.convert_for_lit(ref.get(self.struct)) < lit.value
 
         def lt_eq(self, ref, lit):
-            return ref.get(self.struct) <= lit.value
+            return self.convert_for_lit(ref.get(self.struct)) <= lit.value
 
         def gt(self, ref, lit):
-            return ref.get(self.struct) > lit.value
+            return self.convert_for_lit(ref.get(self.struct)) > lit.value
 
         def gt_eq(self, ref, lit):
-            return ref.get(self.struct) >= lit.value
+            return self.convert_for_lit(ref.get(self.struct)) >= lit.value
 
         def eq(self, ref, lit):
-            return ref.get(self.struct) == lit.value
+            return self.convert_for_lit(ref.get(self.struct)) == lit.value
 
         def not_eq(self, ref, lit):
-            return ref.get(self.struct) != lit.value
+            return self.convert_for_lit(ref.get(self.struct)) != lit.value
 
         def in_(self, ref, lit):
             raise NotImplementedError()
 
         def not_in(self, ref, lit):
             return not self.in_(ref, lit.value)
+
+        def convert_for_lit(self, ref_val):
+            if type(ref_val) == date:
+                return (datetime.combine(ref_val, datetime.min.time()) - datetime.utcfromtimestamp(0)).days
+            else:
+                return ref_val
