@@ -14,7 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-from datetime import datetime, timezone, date
+
+from datetime import date
 
 import iceberg.api.expressions as exp
 from iceberg.api.expressions import Literal
@@ -22,7 +23,8 @@ from iceberg.api.types import (FloatType,
                                IntegerType,
                                NestedField,
                                StringType,
-                               StructType, DateType)
+                               StructType,
+                               DateType)
 from iceberg.core import PartitionData
 from iceberg.exceptions import ValidationException
 from pytest import raises
