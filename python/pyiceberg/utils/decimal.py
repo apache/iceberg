@@ -87,4 +87,4 @@ def truncate_decimal(value: Decimal, width: int) -> Decimal:
     """
     unscaled_value = decimal_to_unscaled(value)
     applied_value = unscaled_value - (((unscaled_value % width) + width) % width)
-    return unscaled_to_decimal(applied_value, -value.as_tuple().exponent)
+    return unscaled_to_decimal(applied_value, abs(int(value.as_tuple().exponent)))
