@@ -68,6 +68,9 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
   public static final String HMS_DB_OWNER = "hive.metastore.database.owner";
   public static final String HMS_DB_OWNER_TYPE = "hive.metastore.database.owner-type";
 
+  // MetastoreConf is not available with current Hive version
+  static final String HIVE_CONF_CATALOG = "metastore.catalog.default";
+
   private static final Logger LOG = LoggerFactory.getLogger(HiveCatalog.class);
 
   private String name;
