@@ -30,7 +30,6 @@ import org.apache.spark.sql.catalyst.expressions.Literal.FalseLiteral
 import org.apache.spark.sql.catalyst.expressions.Not
 import org.apache.spark.sql.catalyst.expressions.Or
 import org.apache.spark.sql.catalyst.plans.logical.DeleteAction
-import org.apache.spark.sql.catalyst.plans.logical.DeleteFromIcebergTable
 import org.apache.spark.sql.catalyst.plans.logical.InsertAction
 import org.apache.spark.sql.catalyst.plans.logical.InsertStarAction
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
@@ -53,9 +52,6 @@ object ExtendedReplaceNullWithFalseInPredicate extends Rule[LogicalPlan] {
 
   override def apply(plan: LogicalPlan): LogicalPlan = plan.transformWithPruning(
     _.containsAnyPattern(NULL_LITERAL, TRUE_OR_FALSE_LITERAL, INSET)) {
-
-    case d @ DeleteFromIcebergTable(_, Some(cond), _) =>
-      d.copy(condition = Some(replaceNullWithFalse(cond)))
 
     case u @ UpdateIcebergTable(_, _, Some(cond), _) =>
       u.copy(condition = Some(replaceNullWithFalse(cond)))
