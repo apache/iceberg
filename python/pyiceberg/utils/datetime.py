@@ -25,6 +25,7 @@ from datetime import (
     time,
     timedelta,
 )
+from typing import Union
 
 EPOCH_DATE = date.fromisoformat("1970-01-01")
 EPOCH_TIMESTAMP = datetime.fromisoformat("1970-01-01T00:00:00.000000")
@@ -62,9 +63,10 @@ def days_to_date(days: int) -> date:
     return EPOCH_DATE + timedelta(days)
 
 
-def time_to_micros(time_str: str) -> int:
+def time_to_micros(t: Union[str, time]) -> int:
     """Converts an ISO-8601 formatted time to microseconds from midnight"""
-    t = time.fromisoformat(time_str)
+    if isinstance(t, str):
+        t = time.fromisoformat(t)
     return (((t.hour * 60 + t.minute) * 60) + t.second) * 1_000_000 + t.microsecond
 
 
