@@ -27,14 +27,14 @@ import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
  * statistics
  */
 @Internal
-class DataStatisticsEvent<K> implements OperatorEvent {
+class DataStatisticsEvent implements OperatorEvent {
 
   private static final long serialVersionUID = 1L;
 
   private final long checkpointId;
-  private final DataStatistics<K> dataStatistics;
+  private final DataStatistics dataStatistics;
 
-  DataStatisticsEvent(long checkpointId, DataStatistics<K> dataStatistics) {
+  DataStatisticsEvent(long checkpointId, DataStatistics dataStatistics) {
     this.checkpointId = checkpointId;
     this.dataStatistics = dataStatistics;
   }
@@ -43,7 +43,7 @@ class DataStatisticsEvent<K> implements OperatorEvent {
     return checkpointId;
   }
 
-  DataStatistics<K> dataStatistics() {
+  DataStatistics dataStatistics() {
     return dataStatistics;
   }
 

@@ -19,14 +19,15 @@
 package org.apache.iceberg.flink.sink.shuffle;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.api.common.state.OperatorStateStore;
+import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.core.fs.CloseableRegistry;
@@ -47,14 +48,25 @@ import org.apache.flink.streaming.runtime.tasks.StreamMockEnvironment;
 import org.apache.flink.streaming.util.MockOutput;
 import org.apache.flink.streaming.util.MockStreamConfig;
 import org.apache.flink.streaming.util.OneInputStreamOperatorTestHarness;
+import org.apache.flink.table.data.GenericRowData;
+import org.apache.flink.table.data.RowData;
+import org.apache.flink.table.data.StringData;
+import org.apache.flink.table.runtime.typeutils.RowDataSerializer;
+import org.apache.flink.table.types.logical.RowType;
+import org.apache.flink.table.types.logical.VarCharType;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
 public class TestDataStatisticsOperator {
-  private DataStatisticsOperator<String, String> operator;
+  private final RowType rowType = RowType.of(new VarCharType());
+  private final TypeSerializer<RowData> rowSerializer = new RowDataSerializer(rowType);
+
+  private DataStatisticsOperator<MapDataStatistics, Map<RowData, Long>> operator;
 
   private Environment getTestingEnvironment() {
     return new StreamMockEnvironment(
@@ -77,19 +89,21 @@ public class TestDataStatisticsOperator {
         new MockOutput<>(Lists.newArrayList()));
   }
 
-  private DataStatisticsOperator<String, String> createOperator() {
+  private DataStatisticsOperator<MapDataStatistics, Map<RowData, Long>> createOperator() {
     MockOperatorEventGateway mockGateway = new MockOperatorEventGateway();
-    KeySelector<String, String> keySelector =
-        new KeySelector<String, String>() {
+    KeySelector<RowData, RowData> keySelector =
+        new KeySelector<RowData, RowData>() {
           private static final long serialVersionUID = 7662520075515707428L;
 
           @Override
-          public String getKey(String value) {
+          public RowData getKey(RowData value) {
             return value;
           }
         };
-    DataStatisticsFactory<String> dataStatisticsFactory = new MapDataStatisticsFactory<>();
-    return new DataStatisticsOperator<>(keySelector, mockGateway, dataStatisticsFactory);
+
+    TypeSerializer<DataStatistics<MapDataStatistics, Map<RowData, Long>>> statisticsSerializer =
+        MapDataStatisticsSerializer.fromKeySerializer(rowSerializer);
+    return new DataStatisticsOperator<>(keySelector, mockGateway, statisticsSerializer);
   }
 
   @After
@@ -99,99 +113,104 @@ public class TestDataStatisticsOperator {
 
   @Test
   public void testProcessElement() throws Exception {
-    StateInitializationContext stateContext = getStateContext();
-    operator.initializeState(stateContext);
-    operator.processElement(new StreamRecord<>("a"));
-    operator.processElement(new StreamRecord<>("a"));
-    operator.processElement(new StreamRecord<>("b"));
-    assertTrue(operator.localDataStatistics() instanceof MapDataStatistics);
-    MapDataStatistics<String> mapDataStatistics =
-        (MapDataStatistics<String>) operator.localDataStatistics();
-    assertTrue(mapDataStatistics.dataStatistics().containsKey("a"));
-    assertTrue(mapDataStatistics.dataStatistics().containsKey("b"));
-    assertEquals(2L, (long) mapDataStatistics.dataStatistics().get("a"));
-    assertEquals(1L, (long) mapDataStatistics.dataStatistics().get("b"));
+    try (OneInputStreamOperatorTestHarness<
+            RowData, DataStatisticsOrRecord<MapDataStatistics, Map<RowData, Long>>>
+        testHarness = createHarness(this.operator)) {
+      StateInitializationContext stateContext = getStateContext();
+      operator.initializeState(stateContext);
+      operator.processElement(new StreamRecord<>(GenericRowData.of(StringData.fromString("a"))));
+      operator.processElement(new StreamRecord<>(GenericRowData.of(StringData.fromString("a"))));
+      operator.processElement(new StreamRecord<>(GenericRowData.of(StringData.fromString("b"))));
+      assertTrue(operator.localDataStatistics() instanceof MapDataStatistics);
+      MapDataStatistics mapDataStatistics = (MapDataStatistics) operator.localDataStatistics();
+      Map<RowData, Long> statsMap = mapDataStatistics.statistics();
+      assertThat(statsMap).hasSize(2);
+      assertThat(statsMap)
+          .containsExactlyInAnyOrderEntriesOf(
+              ImmutableMap.of(
+                  GenericRowData.of(StringData.fromString("a")),
+                  2L,
+                  GenericRowData.of(StringData.fromString("b")),
+                  1L));
+      testHarness.endInput();
+    }
   }
 
   @Test
   public void testOperatorOutput() throws Exception {
-    try (OneInputStreamOperatorTestHarness<String, DataStatisticsOrRecord<String, String>>
+    try (OneInputStreamOperatorTestHarness<
+            RowData, DataStatisticsOrRecord<MapDataStatistics, Map<RowData, Long>>>
         testHarness = createHarness(this.operator)) {
-      testHarness.processElement(new StreamRecord<>("a"));
-      testHarness.processElement(new StreamRecord<>("b"));
-      testHarness.processElement(new StreamRecord<>("b"));
+      testHarness.processElement(new StreamRecord<>(GenericRowData.of(StringData.fromString("a"))));
+      testHarness.processElement(new StreamRecord<>(GenericRowData.of(StringData.fromString("b"))));
+      testHarness.processElement(new StreamRecord<>(GenericRowData.of(StringData.fromString("b"))));
 
-      List<String> recordsOutput =
+      List<RowData> recordsOutput =
           testHarness.extractOutputValues().stream()
               .filter(DataStatisticsOrRecord::hasRecord)
               .map(DataStatisticsOrRecord::record)
               .collect(Collectors.toList());
       assertThat(recordsOutput)
-          .containsExactlyInAnyOrderElementsOf(ImmutableList.of("a", "b", "b"));
+          .containsExactlyInAnyOrderElementsOf(
+              ImmutableList.of(
+                  GenericRowData.of(StringData.fromString("a")),
+                  GenericRowData.of(StringData.fromString("b")),
+                  GenericRowData.of(StringData.fromString("b"))));
     }
   }
 
   @Test
   public void testRestoreState() throws Exception {
     OperatorSubtaskState snapshot;
-    try (OneInputStreamOperatorTestHarness<String, DataStatisticsOrRecord<String, String>>
+    try (OneInputStreamOperatorTestHarness<
+            RowData, DataStatisticsOrRecord<MapDataStatistics, Map<RowData, Long>>>
         testHarness1 = createHarness(this.operator)) {
-      DataStatistics<String> mapDataStatistics = new MapDataStatistics<>();
-      mapDataStatistics.add("a");
-      mapDataStatistics.add("a");
-      mapDataStatistics.add("b");
-      mapDataStatistics.add("c");
-      operator.handleOperatorEvent(new DataStatisticsEvent<>(0, mapDataStatistics));
-      assertTrue(operator.globalDataStatistics() instanceof MapDataStatistics);
-      assertEquals(
-          2L,
-          (long)
-              ((MapDataStatistics<String>) operator.globalDataStatistics())
-                  .dataStatistics()
-                  .get("a"));
-      assertEquals(
-          1L,
-          (long)
-              ((MapDataStatistics<String>) operator.globalDataStatistics())
-                  .dataStatistics()
-                  .get("b"));
-      assertEquals(
-          1L,
-          (long)
-              ((MapDataStatistics<String>) operator.globalDataStatistics())
-                  .dataStatistics()
-                  .get("c"));
-
+      DataStatistics<MapDataStatistics, Map<RowData, Long>> mapDataStatistics =
+          new MapDataStatistics();
+      mapDataStatistics.add(GenericRowData.of(StringData.fromString("a")));
+      mapDataStatistics.add(GenericRowData.of(StringData.fromString("a")));
+      mapDataStatistics.add(GenericRowData.of(StringData.fromString("b")));
+      mapDataStatistics.add(GenericRowData.of(StringData.fromString("c")));
+      operator.handleOperatorEvent(new DataStatisticsEvent(0, mapDataStatistics));
+      assertThat(operator.globalDataStatistics()).isInstanceOf(MapDataStatistics.class);
+      assertThat(((MapDataStatistics) operator.globalDataStatistics()).statistics())
+          .containsExactlyInAnyOrderEntriesOf(
+              ImmutableMap.of(
+                  GenericRowData.of(StringData.fromString("a")),
+                  2L,
+                  GenericRowData.of(StringData.fromString("b")),
+                  1L,
+                  GenericRowData.of(StringData.fromString("c")),
+                  1L));
       snapshot = testHarness1.snapshot(1L, 0);
     }
 
     // Use the snapshot to initialize state for another new operator and then verify that the global
     // statistics for the new operator is same as before
-    DataStatisticsOperator<String, String> restoredOperator = createOperator();
-    try (OneInputStreamOperatorTestHarness<String, DataStatisticsOrRecord<String, String>>
+    DataStatisticsOperator<MapDataStatistics, Map<RowData, Long>> restoredOperator =
+        createOperator();
+    try (OneInputStreamOperatorTestHarness<
+            RowData, DataStatisticsOrRecord<MapDataStatistics, Map<RowData, Long>>>
         testHarness2 = new OneInputStreamOperatorTestHarness<>(restoredOperator, 2, 2, 1)) {
-
       testHarness2.setup();
       testHarness2.initializeState(snapshot);
-      assertTrue(restoredOperator.globalDataStatistics() instanceof MapDataStatistics);
-      assertEquals(
-          2L,
-          (long)
-              ((MapDataStatistics<String>) restoredOperator.globalDataStatistics())
-                  .dataStatistics()
-                  .get("a"));
-      assertEquals(
-          1L,
-          (long)
-              ((MapDataStatistics<String>) restoredOperator.globalDataStatistics())
-                  .dataStatistics()
-                  .get("b"));
-      assertEquals(
-          1L,
-          (long)
-              ((MapDataStatistics<String>) restoredOperator.globalDataStatistics())
-                  .dataStatistics()
-                  .get("c"));
+      assertThat(restoredOperator.globalDataStatistics()).isInstanceOf(MapDataStatistics.class);
+      // restored RowData is BinaryRowData. convert to GenericRowData for comparison
+      Map<RowData, Long> restoredStatistics = Maps.newHashMap();
+      ((MapDataStatistics) restoredOperator.globalDataStatistics())
+          .statistics()
+          .forEach(
+              (rowData, count) ->
+                  restoredStatistics.put(GenericRowData.of(rowData.getString(0)), count));
+      assertThat(restoredStatistics)
+          .containsExactlyInAnyOrderEntriesOf(
+              ImmutableMap.of(
+                  GenericRowData.of(StringData.fromString("a")),
+                  2L,
+                  GenericRowData.of(StringData.fromString("b")),
+                  1L,
+                  GenericRowData.of(StringData.fromString("c")),
+                  1L));
     }
   }
 
@@ -205,12 +224,19 @@ public class TestDataStatisticsOperator {
     return new StateInitializationContextImpl(null, operatorStateStore, null, null, null);
   }
 
-  private OneInputStreamOperatorTestHarness<String, DataStatisticsOrRecord<String, String>>
-      createHarness(final DataStatisticsOperator<String, String> dataStatisticsOperator)
+  private OneInputStreamOperatorTestHarness<
+          RowData, DataStatisticsOrRecord<MapDataStatistics, Map<RowData, Long>>>
+      createHarness(
+          final DataStatisticsOperator<MapDataStatistics, Map<RowData, Long>>
+              dataStatisticsOperator)
           throws Exception {
-    OneInputStreamOperatorTestHarness<String, DataStatisticsOrRecord<String, String>> harness =
-        new OneInputStreamOperatorTestHarness<>(dataStatisticsOperator, 1, 1, 0);
-    harness.setup();
+
+    OneInputStreamOperatorTestHarness<
+            RowData, DataStatisticsOrRecord<MapDataStatistics, Map<RowData, Long>>>
+        harness = new OneInputStreamOperatorTestHarness<>(dataStatisticsOperator, 1, 1, 0);
+    harness.setup(
+        new DataStatisticsOrRecordSerializer<>(
+            MapDataStatisticsSerializer.fromKeySerializer(rowSerializer), rowSerializer));
     harness.open();
     return harness;
   }
