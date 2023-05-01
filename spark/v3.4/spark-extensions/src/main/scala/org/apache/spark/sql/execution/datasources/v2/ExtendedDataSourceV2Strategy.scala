@@ -27,13 +27,11 @@ import org.apache.spark.sql.Strategy
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.Expression
 import org.apache.spark.sql.catalyst.expressions.GenericInternalRow
-import org.apache.spark.sql.catalyst.expressions.Literal
 import org.apache.spark.sql.catalyst.expressions.PredicateHelper
 import org.apache.spark.sql.catalyst.plans.logical.AddPartitionField
 import org.apache.spark.sql.catalyst.plans.logical.Call
 import org.apache.spark.sql.catalyst.plans.logical.CreateOrReplaceBranch
 import org.apache.spark.sql.catalyst.plans.logical.CreateOrReplaceTag
-import org.apache.spark.sql.catalyst.plans.logical.DeleteFromIcebergTable
 import org.apache.spark.sql.catalyst.plans.logical.DropBranch
 import org.apache.spark.sql.catalyst.plans.logical.DropIdentifierFields
 import org.apache.spark.sql.catalyst.plans.logical.DropPartitionField
@@ -48,14 +46,10 @@ import org.apache.spark.sql.catalyst.plans.logical.SetWriteDistributionAndOrderi
 import org.apache.spark.sql.catalyst.plans.logical.WriteIcebergDelta
 import org.apache.spark.sql.connector.catalog.Identifier
 import org.apache.spark.sql.connector.catalog.TableCatalog
-import org.apache.spark.sql.errors.QueryCompilationErrors
 import org.apache.spark.sql.execution.SparkPlan
-import org.apache.spark.sql.execution.datasources.DataSourceStrategy
 import scala.jdk.CollectionConverters._
 
 case class ExtendedDataSourceV2Strategy(spark: SparkSession) extends Strategy with PredicateHelper {
-
-  import DataSourceV2Implicits._
 
   override def apply(plan: LogicalPlan): Seq[SparkPlan] = plan match {
     case c @ Call(procedure, args) =>
@@ -109,20 +103,6 @@ case class ExtendedDataSourceV2Strategy(spark: SparkSession) extends Strategy wi
       MergeRowsExec(isSourceRowPresent, isTargetRowPresent, matchedConditions, matchedOutputs, notMatchedConditions,
         notMatchedOutputs, targetOutput, rowIdAttrs, performCardinalityCheck, emitNotMatchedTargetRows,
         output, planLater(child)) :: Nil
-
-    case DeleteFromIcebergTable(DataSourceV2ScanRelation(r, _, output, _, _), condition, None) =>
-      // the optimizer has already checked that this delete can be handled using a metadata operation
-      val deleteCond = condition.getOrElse(Literal.TrueLiteral)
-      val predicates = splitConjunctivePredicates(deleteCond)
-      val normalizedPredicates = DataSourceStrategy.normalizeExprs(predicates, output)
-      val filters = normalizedPredicates.flatMap { pred =>
-        val filter = DataSourceV2Strategy.translateFilterV2(pred)
-        if (filter.isEmpty) {
-          throw QueryCompilationErrors.cannotTranslateExpressionToSourceFilterError(pred)
-        }
-        filter
-      }.toArray
-      DeleteFromTableExec(r.table.asDeletable, filters, refreshCache(r)) :: Nil
 
     case NoStatsUnaryNode(child) =>
       planLater(child) :: Nil
