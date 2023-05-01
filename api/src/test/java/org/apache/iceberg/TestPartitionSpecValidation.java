@@ -89,6 +89,37 @@ public class TestPartitionSpecValidation {
   }
 
   @Test
+  public void testMultipleDatePartitions() {
+    Assertions.assertThatThrownBy(
+            () -> PartitionSpec.builderFor(SCHEMA).year("d").year("d").build())
+        .hasMessageContaining("Cannot use partition name more than once")
+        .isInstanceOf(IllegalArgumentException.class);
+
+    Assertions.assertThatThrownBy(
+            () -> PartitionSpec.builderFor(SCHEMA).year("d").month("d").build())
+        .hasMessageContaining("Cannot add redundant partition")
+        .isInstanceOf(IllegalArgumentException.class);
+
+    Assertions.assertThatThrownBy(() -> PartitionSpec.builderFor(SCHEMA).year("d").day("d").build())
+        .hasMessageContaining("Cannot add redundant partition")
+        .isInstanceOf(IllegalArgumentException.class);
+
+    Assertions.assertThatThrownBy(
+            () -> PartitionSpec.builderFor(SCHEMA).month("d").month("d").build())
+        .hasMessageContaining("Cannot use partition name more than once")
+        .isInstanceOf(IllegalArgumentException.class);
+
+    Assertions.assertThatThrownBy(
+            () -> PartitionSpec.builderFor(SCHEMA).month("d").day("d").build())
+        .hasMessageContaining("Cannot add redundant partition")
+        .isInstanceOf(IllegalArgumentException.class);
+
+    Assertions.assertThatThrownBy(() -> PartitionSpec.builderFor(SCHEMA).day("d").day("d").build())
+        .hasMessageContaining("Cannot use partition name more than once")
+        .isInstanceOf(IllegalArgumentException.class);
+  }
+
+  @Test
   public void testMultipleTimestampPartitionsWithDifferentSourceColumns() {
     PartitionSpec.builderFor(SCHEMA).year("ts").year("another_ts").build();
     PartitionSpec.builderFor(SCHEMA).year("ts").month("another_ts").build();
@@ -137,37 +168,6 @@ public class TestPartitionSpecValidation {
                     .build())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Cannot use partition name more than once");
-  }
-
-  @Test
-  public void testMultipleDatePartitions() {
-    Assertions.assertThatThrownBy(
-            () -> PartitionSpec.builderFor(SCHEMA).year("d").year("d").build())
-        .hasMessageContaining("Cannot use partition name more than once")
-        .isInstanceOf(IllegalArgumentException.class);
-
-    Assertions.assertThatThrownBy(
-            () -> PartitionSpec.builderFor(SCHEMA).year("d").month("d").build())
-        .hasMessageContaining("Cannot add redundant partition")
-        .isInstanceOf(IllegalArgumentException.class);
-
-    Assertions.assertThatThrownBy(() -> PartitionSpec.builderFor(SCHEMA).year("d").day("d").build())
-        .hasMessageContaining("Cannot add redundant partition")
-        .isInstanceOf(IllegalArgumentException.class);
-
-    Assertions.assertThatThrownBy(
-            () -> PartitionSpec.builderFor(SCHEMA).month("d").month("d").build())
-        .hasMessageContaining("Cannot use partition name more than once")
-        .isInstanceOf(IllegalArgumentException.class);
-
-    Assertions.assertThatThrownBy(
-            () -> PartitionSpec.builderFor(SCHEMA).month("d").day("d").build())
-        .hasMessageContaining("Cannot add redundant partition")
-        .isInstanceOf(IllegalArgumentException.class);
-
-    Assertions.assertThatThrownBy(() -> PartitionSpec.builderFor(SCHEMA).day("d").day("d").build())
-        .hasMessageContaining("Cannot use partition name more than once")
-        .isInstanceOf(IllegalArgumentException.class);
   }
 
   @Test
