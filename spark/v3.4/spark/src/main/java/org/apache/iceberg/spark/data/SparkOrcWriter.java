@@ -111,6 +111,9 @@ public class SparkOrcWriter implements OrcRowWriter<InternalRow> {
         case DOUBLE:
           return GenericOrcWriters.doubles(ORCSchemaUtil.fieldId(primitive));
         case BINARY:
+          if (Type.TypeID.UUID == iPrimitive.typeId()) {
+            return SparkOrcValueWriters.uuids();
+          }
           return GenericOrcWriters.byteArrays();
         case STRING:
         case CHAR:
@@ -173,7 +176,14 @@ public class SparkOrcWriter implements OrcRowWriter<InternalRow> {
         fieldGetter = SpecializedGetters::getDouble;
         break;
       case BINARY:
-        fieldGetter = SpecializedGetters::getBinary;
+        if (ORCSchemaUtil.BinaryType.UUID
+            .toString()
+            .equalsIgnoreCase(
+                fieldType.getAttributeValue(ORCSchemaUtil.ICEBERG_BINARY_TYPE_ATTRIBUTE))) {
+          fieldGetter = SpecializedGetters::getUTF8String;
+        } else {
+          fieldGetter = SpecializedGetters::getBinary;
+        }
         // getBinary always makes a copy, so we don't need to worry about it
         // being changed behind our back.
         break;
