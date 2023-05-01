@@ -65,9 +65,10 @@ import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.catalyst.parser.ParseException;
-import org.apache.spark.sql.catalyst.plans.logical.DeleteFromIcebergTable;
+import org.apache.spark.sql.catalyst.plans.logical.DeleteFromTableWithFilters;
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan;
-import org.apache.spark.sql.execution.datasources.v2.OptimizeMetadataOnlyDeleteFromIcebergTable;
+import org.apache.spark.sql.catalyst.plans.logical.RowLevelWrite;
+import org.apache.spark.sql.execution.datasources.v2.OptimizeMetadataOnlyDeleteFromTable;
 import org.apache.spark.sql.internal.SQLConf;
 import org.assertj.core.api.Assertions;
 import org.junit.After;
@@ -122,13 +123,11 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
         () -> {
           LogicalPlan parsed = parsePlan("DELETE FROM %s WHERE dep = 'hr'", commitTarget());
 
-          DeleteFromIcebergTable analyzed =
-              (DeleteFromIcebergTable) spark.sessionState().analyzer().execute(parsed);
-          Assert.assertTrue("Should have rewrite plan", analyzed.rewritePlan().isDefined());
+          LogicalPlan analyzed = spark.sessionState().analyzer().execute(parsed);
+          Assertions.assertThat(analyzed).isInstanceOf(RowLevelWrite.class);
 
-          DeleteFromIcebergTable optimized =
-              (DeleteFromIcebergTable) OptimizeMetadataOnlyDeleteFromIcebergTable.apply(analyzed);
-          Assert.assertTrue("Should discard rewrite plan", optimized.rewritePlan().isEmpty());
+          LogicalPlan optimized = OptimizeMetadataOnlyDeleteFromTable.apply(analyzed);
+          Assertions.assertThat(optimized).isInstanceOf(DeleteFromTableWithFilters.class);
         });
 
     sql("DELETE FROM %s WHERE dep = 'hr'", commitTarget());

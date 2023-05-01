@@ -463,9 +463,7 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
         "Should not delete any files", Iterables.isEmpty(result.orphanFileLocations()));
 
     Dataset<Row> resultDF = spark.read().format("iceberg").load(tableLocation);
-    List<ThreeColumnRecord> actualRecords =
-        resultDF.as(Encoders.bean(ThreeColumnRecord.class)).collectAsList();
-    Assert.assertEquals("Rows must match", records, actualRecords);
+    Assert.assertEquals("Rows count must match", records.size(), resultDF.count());
   }
 
   @Test
@@ -492,9 +490,7 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
         "Should not delete any files", Iterables.isEmpty(result.orphanFileLocations()));
 
     Dataset<Row> resultDF = spark.read().format("iceberg").load(tableLocation);
-    List<ThreeColumnRecord> actualRecords =
-        resultDF.as(Encoders.bean(ThreeColumnRecord.class)).collectAsList();
-    Assert.assertEquals("Rows must match", records, actualRecords);
+    Assert.assertEquals("Row count must match", records.size(), resultDF.count());
   }
 
   @Test

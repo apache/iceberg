@@ -835,23 +835,6 @@ public class Spark3Util {
    * @param rootPath a table identifier
    * @param format format of the file
    * @param partitionFilter partitionFilter of the file
-   * @return all table's partitions
-   * @deprecated use {@link Spark3Util#getPartitions(SparkSession, Path, String, Map,
-   *     PartitionSpec)}
-   */
-  @Deprecated
-  public static List<SparkPartition> getPartitions(
-      SparkSession spark, Path rootPath, String format, Map<String, String> partitionFilter) {
-    return getPartitions(spark, rootPath, format, partitionFilter, null);
-  }
-
-  /**
-   * Use Spark to list all partitions in the table.
-   *
-   * @param spark a Spark session
-   * @param rootPath a table identifier
-   * @param format format of the file
-   * @param partitionFilter partitionFilter of the file
    * @param partitionSpec partitionSpec of the table
    * @return all table's partitions
    */

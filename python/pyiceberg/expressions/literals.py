@@ -114,7 +114,7 @@ def literal(value: L) -> Literal[L]:
     A generic Literal factory to construct an Iceberg Literal based on Python primitive data type
 
     Args:
-        value(Python primitive type): the value to be associated with literal
+        value (Python primitive type): the value to be associated with literal
 
     Example:
         from pyiceberg.expressions.literals import literal

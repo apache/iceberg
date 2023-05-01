@@ -21,11 +21,13 @@ package org.apache.iceberg.spark.actions;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.spark.SparkDistributionAndOrderingUtil;
+import org.apache.iceberg.spark.SparkFunctionCatalog;
 import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.iceberg.util.PropertyUtil;
@@ -34,11 +36,13 @@ import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan;
-import org.apache.spark.sql.catalyst.utils.DistributionAndOrderingUtils$;
+import org.apache.spark.sql.connector.distributions.Distribution;
 import org.apache.spark.sql.connector.distributions.Distributions;
 import org.apache.spark.sql.connector.distributions.OrderedDistribution;
 import org.apache.spark.sql.connector.expressions.SortOrder;
-import org.apache.spark.sql.internal.SQLConf;
+import org.apache.spark.sql.connector.write.RequiresDistributionAndOrdering;
+import org.apache.spark.sql.execution.datasources.v2.DistributionAndOrderingUtils$;
+import scala.Option;
 
 abstract class SparkShufflingDataRewriter extends SparkSizeBasedDataRewriter {
 
@@ -61,7 +65,10 @@ abstract class SparkShufflingDataRewriter extends SparkSizeBasedDataRewriter {
     super(spark, table);
   }
 
-  protected abstract Dataset<Row> sortedDF(Dataset<Row> df, List<FileScanTask> group);
+  protected abstract org.apache.iceberg.SortOrder sortOrder();
+
+  protected abstract Dataset<Row> sortedDF(
+      Dataset<Row> df, Function<Dataset<Row>, Dataset<Row>> sortFunc);
 
   @Override
   public Set<String> validOptions() {
@@ -79,9 +86,6 @@ abstract class SparkShufflingDataRewriter extends SparkSizeBasedDataRewriter {
 
   @Override
   public void doRewrite(String groupId, List<FileScanTask> group) {
-    // the number of shuffle partition controls the number of output files
-    spark().conf().set(SQLConf.SHUFFLE_PARTITIONS().key(), numShufflePartitions(group));
-
     Dataset<Row> scanDF =
         spark()
             .read()
@@ -89,7 +93,7 @@ abstract class SparkShufflingDataRewriter extends SparkSizeBasedDataRewriter {
             .option(SparkReadOptions.SCAN_TASK_SET_ID, groupId)
             .load(groupId);
 
-    Dataset<Row> sortedDF = sortedDF(scanDF, group);
+    Dataset<Row> sortedDF = sortedDF(scanDF, sortFunction(group));
 
     sortedDF
         .write()
@@ -101,30 +105,35 @@ abstract class SparkShufflingDataRewriter extends SparkSizeBasedDataRewriter {
         .save(groupId);
   }
 
-  protected Dataset<Row> sort(Dataset<Row> df, org.apache.iceberg.SortOrder sortOrder) {
-    SortOrder[] ordering = SparkDistributionAndOrderingUtil.convert(sortOrder);
-    OrderedDistribution distribution = Distributions.ordered(ordering);
-    SQLConf conf = spark().sessionState().conf();
-    LogicalPlan plan = df.logicalPlan();
-    LogicalPlan sortPlan =
-        DistributionAndOrderingUtils$.MODULE$.prepareQuery(distribution, ordering, plan, conf);
-    return new Dataset<>(spark(), sortPlan, df.encoder());
+  private Function<Dataset<Row>, Dataset<Row>> sortFunction(List<FileScanTask> group) {
+    SortOrder[] ordering = SparkDistributionAndOrderingUtil.convert(outputSortOrder(group));
+    int numShufflePartitions = numShufflePartitions(group);
+    return (df) -> transformPlan(df, plan -> sortPlan(plan, ordering, numShufflePartitions));
   }
 
-  protected org.apache.iceberg.SortOrder outputSortOrder(
-      List<FileScanTask> group, org.apache.iceberg.SortOrder sortOrder) {
+  private LogicalPlan sortPlan(LogicalPlan plan, SortOrder[] ordering, int numShufflePartitions) {
+    SparkFunctionCatalog catalog = SparkFunctionCatalog.get();
+    OrderedWrite write = new OrderedWrite(ordering, numShufflePartitions);
+    return DistributionAndOrderingUtils$.MODULE$.prepareQuery(write, plan, Option.apply(catalog));
+  }
+
+  private Dataset<Row> transformPlan(Dataset<Row> df, Function<LogicalPlan, LogicalPlan> func) {
+    return new Dataset<>(spark(), func.apply(df.logicalPlan()), df.encoder());
+  }
+
+  private org.apache.iceberg.SortOrder outputSortOrder(List<FileScanTask> group) {
     boolean includePartitionColumns = !group.get(0).spec().equals(table().spec());
     if (includePartitionColumns) {
       // build in the requirement for partition sorting into our sort order
       // as the original spec for this group does not match the output spec
-      return SortOrderUtil.buildSortOrder(table(), sortOrder);
+      return SortOrderUtil.buildSortOrder(table(), sortOrder());
     } else {
-      return sortOrder;
+      return sortOrder();
     }
   }
 
-  private long numShufflePartitions(List<FileScanTask> group) {
-    long numOutputFiles = numOutputFiles((long) (inputSize(group) * compressionFactor));
+  private int numShufflePartitions(List<FileScanTask> group) {
+    int numOutputFiles = (int) numOutputFiles((long) (inputSize(group) * compressionFactor));
     return Math.max(1, numOutputFiles);
   }
 
@@ -134,5 +143,37 @@ abstract class SparkShufflingDataRewriter extends SparkSizeBasedDataRewriter {
     Preconditions.checkArgument(
         value > 0, "'%s' is set to %s but must be > 0", COMPRESSION_FACTOR, value);
     return value;
+  }
+
+  private static class OrderedWrite implements RequiresDistributionAndOrdering {
+    private final OrderedDistribution distribution;
+    private final SortOrder[] ordering;
+    private final int numShufflePartitions;
+
+    OrderedWrite(SortOrder[] ordering, int numShufflePartitions) {
+      this.distribution = Distributions.ordered(ordering);
+      this.ordering = ordering;
+      this.numShufflePartitions = numShufflePartitions;
+    }
+
+    @Override
+    public Distribution requiredDistribution() {
+      return distribution;
+    }
+
+    @Override
+    public boolean distributionStrictlyRequired() {
+      return true;
+    }
+
+    @Override
+    public int requiredNumPartitions() {
+      return numShufflePartitions;
+    }
+
+    @Override
+    public SortOrder[] requiredOrdering() {
+      return ordering;
+    }
   }
 }

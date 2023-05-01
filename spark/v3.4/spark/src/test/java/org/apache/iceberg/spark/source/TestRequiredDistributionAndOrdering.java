@@ -215,7 +215,7 @@ public class TestRequiredDistributionAndOrdering extends SparkCatalogTestBase {
   }
 
   @Test
-  public void testNoSortBucketTransformsWithoutExtensions() throws NoSuchTableException {
+  public void testSortBucketTransformsWithoutExtensions() throws NoSuchTableException {
     sql(
         "CREATE TABLE %s (c1 INT, c2 STRING, c3 STRING) "
             + "USING iceberg "
@@ -231,20 +231,7 @@ public class TestRequiredDistributionAndOrdering extends SparkCatalogTestBase {
     Dataset<Row> ds = spark.createDataFrame(data, ThreeColumnRecord.class);
     Dataset<Row> inputDF = ds.coalesce(1).sortWithinPartitions("c1");
 
-    // should fail by default as extensions are disabled
-    AssertHelpers.assertThrowsCause(
-        "Should reject writes without ordering",
-        IllegalStateException.class,
-        "Incoming records violate the writer assumption",
-        () -> {
-          try {
-            inputDF.writeTo(tableName).append();
-          } catch (NoSuchTableException e) {
-            throw new RuntimeException(e);
-          }
-        });
-
-    inputDF.writeTo(tableName).option(SparkWriteOptions.FANOUT_ENABLED, "true").append();
+    inputDF.writeTo(tableName).append();
 
     List<Object[]> expected =
         ImmutableList.of(

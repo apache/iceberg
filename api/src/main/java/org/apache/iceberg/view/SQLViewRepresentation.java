@@ -45,13 +45,6 @@ public interface SQLViewRepresentation extends ViewRepresentation {
   @Nullable
   Namespace defaultNamespace();
 
-  /**
-   * The query output schema ID at version create time, without aliases or null if no schema is
-   * defined
-   */
-  @Nullable
-  Integer schemaId();
-
   /** The view field comments. */
   List<String> fieldComments();
 

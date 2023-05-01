@@ -197,7 +197,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
         vec.getValueCount(),
         numValsToRead);
     return new VectorHolder(
-        columnDescriptor, vec, dictEncoded, dictionary, nullabilityHolder, icebergField.type());
+        columnDescriptor, vec, dictEncoded, dictionary, nullabilityHolder, icebergField);
   }
 
   private void allocateFieldVector(boolean dictionaryEncodedVector) {
@@ -513,7 +513,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
       rowStart += numValsToRead;
       vec.setValueCount(numValsToRead);
 
-      return new VectorHolder.PositionVectorHolder(vec, MetadataColumns.ROW_POSITION.type(), nulls);
+      return new VectorHolder.PositionVectorHolder(vec, MetadataColumns.ROW_POSITION, nulls);
     }
 
     private static BigIntVector newVector(int valueCount) {

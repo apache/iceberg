@@ -389,9 +389,9 @@ class IntegerType(PrimitiveType):
 
     Attributes:
         max (int): The maximum allowed value for Integers, inherited from the canonical Iceberg implementation
-          in Java (returns `2147483647`)
+            in Java (returns `2147483647`)
         min (int): The minimum allowed value for Integers, inherited from the canonical Iceberg implementation
-          in Java (returns `-2147483648`)
+            in Java (returns `-2147483648`)
     """
 
     max: ClassVar[int] = 2147483647
@@ -415,9 +415,9 @@ class LongType(PrimitiveType):
 
     Attributes:
         max (int): The maximum allowed value for Longs, inherited from the canonical Iceberg implementation
-          in Java. (returns `9223372036854775807`)
+            in Java. (returns `9223372036854775807`)
         min (int): The minimum allowed value for Longs, inherited from the canonical Iceberg implementation
-          in Java (returns `-9223372036854775808`)
+            in Java (returns `-9223372036854775808`)
     """
 
     max: ClassVar[int] = 9223372036854775807
@@ -439,9 +439,9 @@ class FloatType(PrimitiveType):
 
     Attributes:
         max (float): The maximum allowed value for Floats, inherited from the canonical Iceberg implementation
-          in Java. (returns `3.4028235e38`)
+            in Java. (returns `3.4028235e38`)
         min (float): The minimum allowed value for Floats, inherited from the canonical Iceberg implementation
-          in Java (returns `-3.4028235e38`)
+            in Java (returns `-3.4028235e38`)
     """
 
     max: ClassVar[float] = 3.4028235e38

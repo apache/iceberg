@@ -411,8 +411,29 @@ acceptedBreaks:
       new: "field org.apache.iceberg.actions.RewriteDataFiles.MAX_CONCURRENT_FILE_GROUP_REWRITES_DEFAULT"
       justification: "Update default to align with recommendation and allow more parallelism"
     - code: "java.method.addedToInterface"
+      new: "method int org.apache.iceberg.view.ViewVersion::schemaId()"
+      justification: "Moving SchemaID to ViewVersion. View Spec implementation has\
+        \ not been voted on yet so this break is acceptable"
+    - code: "java.method.addedToInterface"
       new: "method java.lang.String org.apache.iceberg.view.ViewVersion::operation()"
       justification: "Add operation API to view version"
+    - code: "java.method.removed"
+      old: "method java.lang.Integer org.apache.iceberg.view.ImmutableSQLViewRepresentation::schemaId()"
+      justification: "Moving SchemaID to ViewVersion. View Spec implementation has\
+        \ not been voted on yet so this break is acceptable"
+    - code: "java.method.removed"
+      old: "method java.lang.Integer org.apache.iceberg.view.SQLViewRepresentation::schemaId()"
+      justification: "Moving SchemaID to ViewVersion. View Spec implementation has\
+        \ not been voted on yet so this break is acceptable"
+    - code: "java.method.removed"
+      old: "method org.apache.iceberg.view.ImmutableSQLViewRepresentation org.apache.iceberg.view.ImmutableSQLViewRepresentation::withSchemaId(java.lang.Integer)"
+      justification: "Moving SchemaID to ViewVersion. View Spec implementation has\
+        \ not been voted on yet so this break is acceptable"
+    - code: "java.method.removed"
+      old: "method org.apache.iceberg.view.ImmutableSQLViewRepresentation.Builder\
+        \ org.apache.iceberg.view.ImmutableSQLViewRepresentation.Builder::schemaId(java.lang.Integer)"
+      justification: "Moving SchemaID to ViewVersion. View Spec implementation has\
+        \ not been voted on yet so this break is acceptable"
     org.apache.iceberg:iceberg-core:
     - code: "java.class.removed"
       old: "class org.apache.iceberg.actions.BaseExpireSnapshotsActionResult"
