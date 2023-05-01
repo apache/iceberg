@@ -31,6 +31,7 @@ import org.apache.hadoop.hive.ql.io.sarg.PredicateLeaf;
 import org.apache.hadoop.hive.ql.io.sarg.SearchArgument;
 import org.apache.hadoop.hive.ql.io.sarg.SearchArgumentFactory;
 import org.apache.hadoop.hive.serde2.io.HiveDecimalWritable;
+import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.expressions.And;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.Literal;
@@ -39,7 +40,6 @@ import org.apache.iceberg.expressions.Or;
 import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.DateTimeUtil;
-import org.assertj.core.api.Assertions;
 import org.junit.Test;
 
 public class TestHiveIcebergFilterFactory {
@@ -160,9 +160,11 @@ public class TestHiveIcebergFilterFactory {
                 .end()
                 .build());
 
-    Assertions.assertThatThrownBy(() -> HiveIcebergFilterFactory.generateFilterExpression(arg))
-        .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessageContaining("Missing leaf literals");
+    AssertHelpers.assertThrows(
+        "must throw if leaves are empty in between operator",
+        UnsupportedOperationException.class,
+        "Missing leaf literals",
+        () -> HiveIcebergFilterFactory.generateFilterExpression(arg));
   }
 
   @Test
