@@ -26,13 +26,12 @@ import org.apache.spark.sql.catalyst.expressions.AttributeMap
 import org.apache.spark.sql.catalyst.expressions.AttributeReference
 import org.apache.spark.sql.catalyst.expressions.DynamicPruningSubquery
 import org.apache.spark.sql.catalyst.expressions.Expression
-import org.apache.spark.sql.catalyst.expressions.ExtendedV2ExpressionUtils
 import org.apache.spark.sql.catalyst.expressions.Literal
 import org.apache.spark.sql.catalyst.expressions.PredicateHelper
 import org.apache.spark.sql.catalyst.expressions.SubqueryExpression
+import org.apache.spark.sql.catalyst.expressions.V2ExpressionUtils
 import org.apache.spark.sql.catalyst.planning.RewrittenRowLevelCommand
 import org.apache.spark.sql.catalyst.plans.LeftSemi
-import org.apache.spark.sql.catalyst.plans.logical.DeleteFromIcebergTable
 import org.apache.spark.sql.catalyst.plans.logical.Filter
 import org.apache.spark.sql.catalyst.plans.logical.Join
 import org.apache.spark.sql.catalyst.plans.logical.JoinHint
@@ -80,8 +79,8 @@ case class RowLevelCommandDynamicPruning(spark: SparkSession) extends Rule[Logic
           val matchingRowsPlan = buildMatchingRowsPlan(relation, command)
 
           val filterAttrs = ArraySeq.unsafeWrapArray(scan.filterAttributes)
-          val buildKeys = ExtendedV2ExpressionUtils.resolveRefs[Attribute](filterAttrs, matchingRowsPlan)
-          val pruningKeys = ExtendedV2ExpressionUtils.resolveRefs[Attribute](filterAttrs, r)
+          val buildKeys = V2ExpressionUtils.resolveRefs[Attribute](filterAttrs, matchingRowsPlan)
+          val pruningKeys = V2ExpressionUtils.resolveRefs[Attribute](filterAttrs, r)
           val dynamicPruningCond = buildDynamicPruningCond(matchingRowsPlan, buildKeys, pruningKeys)
 
           Filter(dynamicPruningCond, r)
@@ -104,9 +103,6 @@ case class RowLevelCommandDynamicPruning(spark: SparkSession) extends Rule[Logic
 
     // construct a filtering plan with the original scan relation
     val matchingRowsPlan = command match {
-      case d: DeleteFromIcebergTable =>
-        Filter(d.condition.get, relation)
-
       case u: UpdateIcebergTable =>
         // UPDATEs with subqueries are rewritten using a UNION with two identical scan relations
         // the analyzer clones of them and assigns fresh expr IDs so that attributes don't collide

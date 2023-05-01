@@ -65,6 +65,7 @@ import org.apache.iceberg.util.CharSequenceSet;
 import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Assume;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 
 public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
@@ -2507,6 +2508,17 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
       metadataFileLocations = ReachableFileUtil.metadataFileLocations(table, false);
       Assertions.assertThat(metadataFileLocations).hasSize(maxPreviousVersionsToKeep + 1);
     }
+  }
+
+  @Test
+  public void tableCreationWithoutNamespace() {
+    Assumptions.assumeTrue(requiresNamespaceCreate());
+
+    Assertions.assertThatThrownBy(
+            () ->
+                catalog().buildTable(TableIdentifier.of("non-existing", "table"), SCHEMA).create())
+        .isInstanceOf(NoSuchNamespaceException.class)
+        .hasMessageEndingWith("Namespace does not exist: non-existing");
   }
 
   private static void assertEmpty(String context, Catalog catalog, Namespace ns) {

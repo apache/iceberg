@@ -23,7 +23,6 @@ import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.events.Listeners;
 import org.apache.iceberg.events.ScanEvent;
@@ -382,48 +381,44 @@ public class TestSelect extends SparkCatalogTestBase {
     sql("INSERT INTO %s VALUES (4, 'd', 4.0), (5, 'e', 5.0)", tableName);
 
     // using snapshot in table identifier and VERSION AS OF
-    AssertHelpers.assertThrows(
-        "Cannot do time-travel based on both table identifier and AS OF",
-        IllegalArgumentException.class,
-        "Cannot do time-travel based on both table identifier and AS OF",
-        () -> {
-          sql(
-              "SELECT * FROM %s.%s VERSION AS OF %s",
-              tableName, snapshotPrefix + snapshotId, snapshotId);
-        });
+    Assertions.assertThatThrownBy(
+            () -> {
+              sql(
+                  "SELECT * FROM %s.%s VERSION AS OF %s",
+                  tableName, snapshotPrefix + snapshotId, snapshotId);
+            })
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot do time-travel based on both table identifier and AS OF");
 
     // using snapshot in table identifier and TIMESTAMP AS OF
-    AssertHelpers.assertThrows(
-        "Cannot do time-travel based on both table identifier and AS OF",
-        IllegalArgumentException.class,
-        "Cannot do time-travel based on both table identifier and AS OF",
-        () -> {
-          sql(
-              "SELECT * FROM %s.%s VERSION AS OF %s",
-              tableName, timestampPrefix + timestamp, snapshotId);
-        });
+    Assertions.assertThatThrownBy(
+            () -> {
+              sql(
+                  "SELECT * FROM %s.%s VERSION AS OF %s",
+                  tableName, timestampPrefix + timestamp, snapshotId);
+            })
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot do time-travel based on both table identifier and AS OF");
 
     // using timestamp in table identifier and VERSION AS OF
-    AssertHelpers.assertThrows(
-        "Cannot do time-travel based on both table identifier and AS OF",
-        IllegalArgumentException.class,
-        "Cannot do time-travel based on both table identifier and AS OF",
-        () -> {
-          sql(
-              "SELECT * FROM %s.%s TIMESTAMP AS OF %s",
-              tableName, snapshotPrefix + snapshotId, timestamp);
-        });
+    Assertions.assertThatThrownBy(
+            () -> {
+              sql(
+                  "SELECT * FROM %s.%s TIMESTAMP AS OF %s",
+                  tableName, snapshotPrefix + snapshotId, timestamp);
+            })
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot do time-travel based on both table identifier and AS OF");
 
     // using timestamp in table identifier and TIMESTAMP AS OF
-    AssertHelpers.assertThrows(
-        "Cannot do time-travel based on both table identifier and AS OF",
-        IllegalArgumentException.class,
-        "Cannot do time-travel based on both table identifier and AS OF",
-        () -> {
-          sql(
-              "SELECT * FROM %s.%s TIMESTAMP AS OF %s",
-              tableName, timestampPrefix + timestamp, timestamp);
-        });
+    Assertions.assertThatThrownBy(
+            () -> {
+              sql(
+                  "SELECT * FROM %s.%s TIMESTAMP AS OF %s",
+                  tableName, timestampPrefix + timestamp, timestamp);
+            })
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot do time-travel based on both table identifier and AS OF");
   }
 
   @Test
@@ -437,21 +432,21 @@ public class TestSelect extends SparkCatalogTestBase {
     // create a second snapshot
     sql("INSERT INTO %s VALUES (4, 'd', 4.0), (5, 'e', 5.0)", tableName);
 
-    AssertHelpers.assertThrows(
-        "Should not be able to specify both snapshot id and timestamp",
-        IllegalArgumentException.class,
-        String.format(
-            "Can specify only one of snapshot-id (%s), as-of-timestamp (%s)",
-            snapshotId, timestamp),
-        () -> {
-          spark
-              .read()
-              .format("iceberg")
-              .option(SparkReadOptions.SNAPSHOT_ID, snapshotId)
-              .option(SparkReadOptions.AS_OF_TIMESTAMP, timestamp)
-              .load(tableName)
-              .collectAsList();
-        });
+    Assertions.assertThatThrownBy(
+            () -> {
+              spark
+                  .read()
+                  .format("iceberg")
+                  .option(SparkReadOptions.SNAPSHOT_ID, snapshotId)
+                  .option(SparkReadOptions.AS_OF_TIMESTAMP, timestamp)
+                  .load(tableName)
+                  .collectAsList();
+            })
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith(
+            String.format(
+                "Can specify only one of snapshot-id (%s), as-of-timestamp (%s)",
+                snapshotId, timestamp));
   }
 
   @Test

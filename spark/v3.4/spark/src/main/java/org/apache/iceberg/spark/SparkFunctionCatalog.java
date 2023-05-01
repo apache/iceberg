@@ -16,23 +16,30 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.apache.iceberg.spark;
 
-package org.apache.spark.sql.connector.expressions
+import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 
-import org.apache.spark.sql.types.IntegerType
+/**
+ * A function catalog that can be used to resolve Iceberg functions without a metastore connection.
+ */
+public class SparkFunctionCatalog implements SupportsFunctions {
 
-private[sql] object TruncateTransform {
-  def unapply(expr: Expression): Option[(Int, FieldReference)] = expr match {
-    case transform: Transform =>
-      transform match {
-        case NamedTransform("truncate", Seq(Ref(seq: Seq[String]), Lit(value: Int, IntegerType))) =>
-          Some((value, FieldReference(seq)))
-        case NamedTransform("truncate", Seq(Lit(value: Int, IntegerType), Ref(seq: Seq[String]))) =>
-          Some((value, FieldReference(seq)))
-        case _ =>
-          None
-      }
-    case _ =>
-      None
+  private static final SparkFunctionCatalog INSTANCE = new SparkFunctionCatalog();
+
+  private String name = "iceberg-function-catalog";
+
+  public static SparkFunctionCatalog get() {
+    return INSTANCE;
+  }
+
+  @Override
+  public void initialize(String catalogName, CaseInsensitiveStringMap options) {
+    this.name = catalogName;
+  }
+
+  @Override
+  public String name() {
+    return name;
   }
 }

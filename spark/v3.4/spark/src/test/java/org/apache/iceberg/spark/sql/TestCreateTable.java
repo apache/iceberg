@@ -20,7 +20,6 @@ package org.apache.iceberg.spark.sql;
 
 import java.io.File;
 import java.util.Map;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -33,6 +32,7 @@ import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
+import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Assume;
@@ -121,14 +121,13 @@ public class TestCreateTable extends SparkCatalogTestBase {
         "parquet",
         table.properties().get(TableProperties.DEFAULT_FILE_FORMAT));
 
-    AssertHelpers.assertThrows(
-        "Should reject unsupported format names",
-        IllegalArgumentException.class,
-        "Unsupported format in USING: crocodile",
-        () ->
-            sql(
-                "CREATE TABLE %s.default.fail (id BIGINT NOT NULL, data STRING) USING crocodile",
-                catalogName));
+    Assertions.assertThatThrownBy(
+            () ->
+                sql(
+                    "CREATE TABLE %s.default.fail (id BIGINT NOT NULL, data STRING) USING crocodile",
+                    catalogName))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Unsupported format in USING: crocodile");
   }
 
   @Test
@@ -335,10 +334,10 @@ public class TestCreateTable extends SparkCatalogTestBase {
     TableOperations ops = ((BaseTable) table).operations();
     Assert.assertEquals("should create table using format v2", 2, ops.refresh().formatVersion());
 
-    AssertHelpers.assertThrowsCause(
-        "should fail to downgrade to v1",
-        IllegalArgumentException.class,
-        "Cannot downgrade v2 table to v1",
-        () -> sql("ALTER TABLE %s SET TBLPROPERTIES ('format-version'='1')", tableName));
+    Assertions.assertThatThrownBy(
+            () -> sql("ALTER TABLE %s SET TBLPROPERTIES ('format-version'='1')", tableName))
+        .cause()
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot downgrade v2 table to v1");
   }
 }

@@ -77,16 +77,16 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsAdmissio
   private final boolean caseSensitive;
   private final String expectedSchema;
   private final Broadcast<Table> tableBroadcast;
-  private final Long splitSize;
-  private final Integer splitLookback;
-  private final Long splitOpenFileCost;
+  private final long splitSize;
+  private final int splitLookback;
+  private final long splitOpenFileCost;
   private final boolean localityPreferred;
   private final StreamingOffset initialOffset;
   private final boolean skipDelete;
   private final boolean skipOverwrite;
-  private final Long fromTimestamp;
-  private final Integer maxFilesPerMicroBatch;
-  private final Integer maxRecordsPerMicroBatch;
+  private final long fromTimestamp;
+  private final int maxFilesPerMicroBatch;
+  private final int maxRecordsPerMicroBatch;
 
   SparkMicroBatchStream(
       JavaSparkContext sparkContext,
