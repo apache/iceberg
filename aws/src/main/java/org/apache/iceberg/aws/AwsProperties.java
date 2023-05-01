@@ -28,6 +28,7 @@ import org.apache.iceberg.aws.dynamodb.DynamoDbCatalog;
 import org.apache.iceberg.aws.glue.GlueCatalog;
 import org.apache.iceberg.aws.lakeformation.LakeFormationAwsClientFactory;
 import org.apache.iceberg.aws.s3.S3FileIO;
+import org.apache.iceberg.aws.s3.S3FileIOProperties;
 import org.apache.iceberg.aws.s3.signer.S3V4RestSignerClient;
 import org.apache.iceberg.common.DynClasses;
 import org.apache.iceberg.common.DynMethods;
@@ -702,6 +703,7 @@ public class AwsProperties implements Serializable {
   public static final String REST_SESSION_TOKEN = "rest.session-token";
 
   private static final String HTTP_CLIENT_PREFIX = "http-client.";
+  private final S3FileIOProperties s3FileIOProperties;
   private String httpClientType;
   private final Map<String, String> httpClientProperties;
   private final Set<software.amazon.awssdk.services.sts.model.Tag> stsClientAssumeRoleTags;
@@ -774,6 +776,7 @@ public class AwsProperties implements Serializable {
     this.clientCredentialsProvider = null;
     this.clientCredentialsProviderProperties = null;
 
+    this.s3FileIOProperties = new S3FileIOProperties();
     this.s3FileIoSseType = S3FILEIO_SSE_TYPE_NONE;
     this.s3FileIoSseKey = null;
     this.s3FileIoSseMd5 = null;
@@ -839,6 +842,7 @@ public class AwsProperties implements Serializable {
     this.clientCredentialsProviderProperties =
         PropertyUtil.propertiesWithPrefix(properties, CLIENT_CREDENTIAL_PROVIDER_PREFIX);
 
+    this.s3FileIOProperties = new S3FileIOProperties(properties);
     this.s3FileIoSseType = properties.getOrDefault(S3FILEIO_SSE_TYPE, S3FILEIO_SSE_TYPE_NONE);
     this.s3FileIoSseKey = properties.get(S3FILEIO_SSE_KEY);
     this.s3FileIoSseMd5 = properties.get(S3FILEIO_SSE_MD5);
@@ -985,35 +989,39 @@ public class AwsProperties implements Serializable {
   }
 
   public String s3FileIoSseType() {
-    return s3FileIoSseType;
+    return s3FileIOProperties.s3FileIoSseType();
   }
 
   public void setS3FileIoSseType(String sseType) {
     this.s3FileIoSseType = sseType;
+    s3FileIOProperties.setS3FileIoSseType(sseType);
   }
 
   public String s3FileIoSseKey() {
-    return s3FileIoSseKey;
+    return s3FileIOProperties.s3FileIoSseKey();
   }
 
   public int s3FileIoDeleteBatchSize() {
-    return s3FileIoDeleteBatchSize;
+    return s3FileIOProperties.s3FileIoDeleteBatchSize();
   }
 
   public void setS3FileIoDeleteBatchSize(int deleteBatchSize) {
     this.s3FileIoDeleteBatchSize = deleteBatchSize;
+    s3FileIOProperties.setS3FileIoDeleteBatchSize(deleteBatchSize);
   }
 
   public void setS3FileIoSseKey(String sseKey) {
     this.s3FileIoSseKey = sseKey;
+    s3FileIOProperties.setS3FileIoSseKey(sseKey);
   }
 
   public String s3FileIoSseMd5() {
-    return s3FileIoSseMd5;
+    return s3FileIOProperties.s3FileIoSseMd5();
   }
 
   public void setS3FileIoSseMd5(String sseMd5) {
     this.s3FileIoSseMd5 = sseMd5;
+    s3FileIOProperties.setS3FileIoSseMd5(sseMd5);
   }
 
   public String glueCatalogId() {
@@ -1049,51 +1057,57 @@ public class AwsProperties implements Serializable {
   }
 
   public int s3FileIoMultipartUploadThreads() {
-    return s3FileIoMultipartUploadThreads;
+    return s3FileIOProperties.s3FileIoMultipartUploadThreads();
   }
 
   public void setS3FileIoMultipartUploadThreads(int threads) {
     this.s3FileIoMultipartUploadThreads = threads;
+    s3FileIOProperties.setS3FileIoMultipartUploadThreads(threads);
   }
 
   public int s3FileIoMultiPartSize() {
-    return s3FileIoMultiPartSize;
+    return s3FileIOProperties.s3FileIoMultiPartSize();
   }
 
   public void setS3FileIoMultiPartSize(int size) {
     this.s3FileIoMultiPartSize = size;
+    s3FileIOProperties.setS3FileIoMultiPartSize(size);
   }
 
   public double s3FileIOMultipartThresholdFactor() {
-    return s3FileIoMultipartThresholdFactor;
+    return s3FileIOProperties.s3FileIOMultipartThresholdFactor();
   }
 
   public void setS3FileIoMultipartThresholdFactor(double factor) {
     this.s3FileIoMultipartThresholdFactor = factor;
+    s3FileIOProperties.setS3FileIoMultipartThresholdFactor(factor);
   }
 
   public String s3fileIoStagingDirectory() {
-    return s3fileIoStagingDirectory;
+    return s3FileIOProperties.s3fileIoStagingDirectory();
   }
 
   public void setS3fileIoStagingDirectory(String directory) {
     this.s3fileIoStagingDirectory = directory;
+    s3FileIOProperties.setS3fileIoStagingDirectory(directory);
   }
 
   public ObjectCannedACL s3FileIoAcl() {
-    return this.s3FileIoAcl;
+    return s3FileIOProperties.s3FileIoAcl();
   }
 
   public void setS3FileIoAcl(ObjectCannedACL acl) {
     this.s3FileIoAcl = acl;
+    s3FileIOProperties.setS3FileIoAcl(acl);
   }
 
   public void setS3PreloadClientEnabled(boolean s3PreloadClientEnabled) {
     this.s3PreloadClientEnabled = s3PreloadClientEnabled;
+    s3FileIOProperties.setS3PreloadClientEnabled(s3PreloadClientEnabled);
   }
 
   public boolean s3PreloadClientEnabled() {
-    return s3PreloadClientEnabled;
+    return s3FileIOProperties.s3PreloadClientEnabled();
   }
 
   public String dynamoDbTableName() {
@@ -1105,55 +1119,60 @@ public class AwsProperties implements Serializable {
   }
 
   public boolean isS3ChecksumEnabled() {
-    return this.isS3ChecksumEnabled;
+    return s3FileIOProperties.isS3ChecksumEnabled();
   }
 
   public void setS3ChecksumEnabled(boolean eTagCheckEnabled) {
     this.isS3ChecksumEnabled = eTagCheckEnabled;
+    s3FileIOProperties.setS3ChecksumEnabled(eTagCheckEnabled);
   }
 
   public Set<Tag> s3WriteTags() {
-    return s3WriteTags;
+    return s3FileIOProperties.s3WriteTags();
   }
 
   public boolean s3WriteTableTagEnabled() {
-    return s3WriteTableTagEnabled;
+    return s3FileIOProperties.s3WriteTableTagEnabled();
   }
 
   public void setS3WriteTableTagEnabled(boolean s3WriteTableNameTagEnabled) {
     this.s3WriteTableTagEnabled = s3WriteTableNameTagEnabled;
+    s3FileIOProperties.setS3WriteTableTagEnabled(s3WriteTableTagEnabled);
   }
 
   public boolean s3WriteNamespaceTagEnabled() {
-    return s3WriteNamespaceTagEnabled;
+    return s3FileIOProperties.s3WriteNamespaceTagEnabled();
   }
 
   public void setS3WriteNamespaceTagEnabled(boolean s3WriteNamespaceTagEnabled) {
     this.s3WriteNamespaceTagEnabled = s3WriteNamespaceTagEnabled;
+    s3FileIOProperties.setS3WriteNamespaceTagEnabled(s3WriteNamespaceTagEnabled);
   }
 
   public Set<Tag> s3DeleteTags() {
-    return s3DeleteTags;
+    return s3FileIOProperties.s3DeleteTags();
   }
 
   public int s3FileIoDeleteThreads() {
-    return s3FileIoDeleteThreads;
+    return s3FileIOProperties.s3FileIoDeleteThreads();
   }
 
   public void setS3FileIoDeleteThreads(int threads) {
     this.s3FileIoDeleteThreads = threads;
+    s3FileIOProperties.setS3FileIoDeleteThreads(threads);
   }
 
   public boolean isS3DeleteEnabled() {
-    return isS3DeleteEnabled;
+    return s3FileIOProperties.isS3DeleteEnabled();
   }
 
   public void setS3DeleteEnabled(boolean s3DeleteEnabled) {
     this.isS3DeleteEnabled = s3DeleteEnabled;
+    s3FileIOProperties.setS3DeleteEnabled(s3DeleteEnabled);
   }
 
   public Map<String, String> s3BucketToAccessPointMapping() {
-    return s3BucketToAccessPointMapping;
+    return s3FileIOProperties.s3BucketToAccessPointMapping();
   }
 
   public Map<String, String> httpClientProperties() {
