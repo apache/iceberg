@@ -163,5 +163,9 @@ public class TestCachedClientPool extends HiveMetastoreTest {
     Assert.assertEquals("foo", pool1.hiveConf().get(HiveCatalog.HIVE_CONF_CATALOG));
     Assert.assertEquals("bar", pool3.hiveConf().get(HiveCatalog.HIVE_CONF_CATALOG));
     Assert.assertNull(pool4.hiveConf().get(HiveCatalog.HIVE_CONF_CATALOG));
+
+    pool1.close();
+    pool3.close();
+    pool4.close();
   }
 }
