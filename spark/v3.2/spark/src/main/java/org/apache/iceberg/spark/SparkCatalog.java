@@ -91,8 +91,8 @@ import org.apache.spark.sql.util.CaseInsensitiveStringMap;
  *   <li><code>catalog-impl</code> - a custom {@link Catalog} implementation to use
  *   <li><code>default-namespace</code> - a namespace to use as the default
  *   <li><code>cache-enabled</code> - whether to enable catalog cache
- *   <li><code>cache.case-sensitive</code> - whether the catalog cache should use case-sensitive
- *       keys
+ *   <li><code>cache.case-sensitive</code> - whether the catalog cache should compare table
+ *       identifiers in a case sensitive way
  *   <li><code>cache.expiration-interval-ms</code> - interval in millis before expiring tables from
  *       catalog cache. Refer to {@link CatalogProperties#CACHE_EXPIRATION_INTERVAL_MS} for further
  *       details and significant values.
