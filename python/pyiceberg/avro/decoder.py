@@ -15,21 +15,15 @@
 # specific language governing permissions and limitations
 # under the License.
 import decimal
-import struct
 from datetime import datetime, time
 from io import SEEK_CUR
 from typing import List
 from uuid import UUID
 
+from pyiceberg.avro import STRUCT_DOUBLE, STRUCT_FLOAT
 from pyiceberg.io import InputStream
 from pyiceberg.utils.datetime import micros_to_time, micros_to_timestamp, micros_to_timestamptz
 from pyiceberg.utils.decimal import unscaled_to_decimal
-
-STRUCT_FLOAT = struct.Struct("<f")  # little-endian float
-STRUCT_DOUBLE = struct.Struct("<d")  # little-endian double
-STRUCT_SIGNED_SHORT = struct.Struct(">h")  # big-endian signed short
-STRUCT_SIGNED_INT = struct.Struct(">i")  # big-endian signed int
-STRUCT_SIGNED_LONG = struct.Struct(">q")  # big-endian signed long
 
 
 class BinaryDecoder:
