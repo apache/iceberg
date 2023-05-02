@@ -703,6 +703,10 @@ public class AwsProperties implements Serializable {
   public static final String REST_SESSION_TOKEN = "rest.session-token";
 
   private static final String HTTP_CLIENT_PREFIX = "http-client.";
+
+  /*
+  * Config class to store all s3 related properties for S3FileIO
+  * */
   private final S3FileIOProperties s3FileIOProperties;
   private String httpClientType;
   private final Map<String, String> httpClientProperties;
