@@ -96,10 +96,14 @@ Summary is a string to string map of metadata about a view version. Common metad
 
 View definitions can be represented in multiple ways. Representations are documented ways to express a view definition.
 
-A view version can have more than one representation. All representations for a version must express the same underlying definition. Engines are free to choose the representation to use.
+A view version can have more than one representation. All representations for a version must express the same underlying definition. Engines are free to choose the representation(s) to use.
+
+View versions are immutable. Once a version is created, it cannot be changed. This means that representations for a version cannot be changed. If a view definition changes (or new representations are to be added), a new version must be created.
 
 Each representation is an object with at least one common field, `type`, that is one of the following:
 * `sql`: a SQL SELECT statement that defines the view
+
+In addition to `type`, each representation defines a `dialect`. A `dialect` is a string that identifies the query language dialect used in the representation. For example, `trino` or `spark`. A view version cannot have duplicate representations with the same `type` and `dialect`.
 
 Representations further define metadata for each type.
 
