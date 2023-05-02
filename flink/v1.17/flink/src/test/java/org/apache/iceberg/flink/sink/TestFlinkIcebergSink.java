@@ -331,7 +331,7 @@ public class TestFlinkIcebergSink extends TestFlinkIcebergSinkBase {
   }
 
   @Test
-  public void testOverrideWriteConfigWithUnknownDistributionMode() throws Exception {
+  public void testOverrideWriteConfigWithUnknownDistributionMode() {
     Map<String, String> newProps = Maps.newHashMap();
     newProps.put(FlinkWriteOptions.DISTRIBUTION_MODE.key(), "UNRECOGNIZED");
 
@@ -351,7 +351,7 @@ public class TestFlinkIcebergSink extends TestFlinkIcebergSinkBase {
   }
 
   @Test
-  public void testOverrideWriteConfigWithUnknownFileFormat() throws Exception {
+  public void testOverrideWriteConfigWithUnknownFileFormat() {
     Map<String, String> newProps = Maps.newHashMap();
     newProps.put(FlinkWriteOptions.WRITE_FORMAT.key(), "UNRECOGNIZED");
 
