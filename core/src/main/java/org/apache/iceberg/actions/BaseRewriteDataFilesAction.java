@@ -44,7 +44,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.ListMultimap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Multimaps;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.StructLikeWrapper;
@@ -325,12 +324,18 @@ public abstract class BaseRewriteDataFilesAction<ThisT>
       Iterable<DataFile> addedDataFiles,
       long startingSnapshotId) {
     RewriteFiles rewriteFiles = table.newRewrite().validateFromSnapshot(startingSnapshotId);
+
+    for (DataFile dataFile : deletedDataFiles) {
+      rewriteFiles.deleteFile(dataFile);
+    }
+
+    for (DataFile dataFile : addedDataFiles) {
+      rewriteFiles.addFile(dataFile);
+    }
+
     if (useStartingSequenceNumber) {
       long sequenceNumber = table.snapshot(startingSnapshotId).sequenceNumber();
-      rewriteFiles.rewriteFiles(
-          Sets.newHashSet(deletedDataFiles), Sets.newHashSet(addedDataFiles), sequenceNumber);
-    } else {
-      rewriteFiles.rewriteFiles(Sets.newHashSet(deletedDataFiles), Sets.newHashSet(addedDataFiles));
+      rewriteFiles.dataSequenceNumber(sequenceNumber);
     }
 
     commit(rewriteFiles);
