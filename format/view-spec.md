@@ -116,8 +116,8 @@ The SQL representation stores the view definition as a SQL SELECT, with metadata
 | _optional_  | `schema-id`         | `int`          | ID of the schema produced by the SELECT statement |
 | _optional_  | `default-catalog`   | `string`       | Catalog name to use when a reference in the SELECT does not contain a catalog |
 | _optional_  | `default-namespace` | `list<string>` | Namespace to use when a reference in the SELECT is a single identifier |
-| _optional_  | `field-aliases`     | `list<string>` | Column names optionally specified in the create statement |
-| _optional_  | `field-comments`    | `list<string>` | Column descriptions (COMMENT) optionally specified in the create statement |
+| _optional_  | `field-aliases`     | `list<string>` | Column names optionally specified in the create statement. When present SQL queries should be resolved against these instead of the column names in the schema. |
+| _optional_  | `field-comments`    | `list<string>` | Column descriptions (COMMENT) optionally specified in the create statement. When present systems should prefer displaying these as documentation instead of the documentation in the schema. |
 
 For example:
 
