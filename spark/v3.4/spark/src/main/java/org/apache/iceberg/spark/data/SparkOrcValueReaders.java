@@ -19,6 +19,7 @@
 package org.apache.iceberg.spark.data;
 
 import java.math.BigDecimal;
+import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.orc.OrcValueReader;
@@ -26,6 +27,7 @@ import org.apache.iceberg.orc.OrcValueReaders;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.UUIDUtil;
 import org.apache.orc.storage.ql.exec.vector.BytesColumnVector;
 import org.apache.orc.storage.ql.exec.vector.ColumnVector;
 import org.apache.orc.storage.ql.exec.vector.DecimalColumnVector;
@@ -47,6 +49,10 @@ public class SparkOrcValueReaders {
 
   public static OrcValueReader<UTF8String> utf8String() {
     return StringReader.INSTANCE;
+  }
+
+  public static OrcValueReader<UTF8String> uuids() {
+    return UUIDReader.INSTANCE;
   }
 
   public static OrcValueReader<Long> timestampTzs() {
@@ -167,6 +173,20 @@ public class SparkOrcValueReaders {
       BytesColumnVector bytesVector = (BytesColumnVector) vector;
       return UTF8String.fromBytes(
           bytesVector.vector[row], bytesVector.start[row], bytesVector.length[row]);
+    }
+  }
+
+  private static class UUIDReader implements OrcValueReader<UTF8String> {
+    private static final UUIDReader INSTANCE = new UUIDReader();
+
+    private UUIDReader() {}
+
+    @Override
+    public UTF8String nonNullRead(ColumnVector vector, int row) {
+      BytesColumnVector bytesVector = (BytesColumnVector) vector;
+      ByteBuffer buffer =
+          ByteBuffer.wrap(bytesVector.vector[row], bytesVector.start[row], bytesVector.length[row]);
+      return UTF8String.fromString(UUIDUtil.convert(buffer).toString());
     }
   }
 

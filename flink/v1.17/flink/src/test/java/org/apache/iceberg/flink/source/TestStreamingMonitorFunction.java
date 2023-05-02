@@ -31,7 +31,6 @@ import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.util.AbstractStreamOperatorTestHarness;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.types.Row;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -47,6 +46,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.ThreadPools;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -259,14 +259,9 @@ public class TestStreamingMonitorFunction extends TableTestBase {
             .maxPlanningSnapshotCount(0)
             .build();
 
-    AssertHelpers.assertThrows(
-        "Should throw exception because of invalid config",
-        IllegalArgumentException.class,
-        "must be greater than zero",
-        () -> {
-          createFunction(scanContext1);
-          return null;
-        });
+    Assertions.assertThatThrownBy(() -> createFunction(scanContext1))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("The max-planning-snapshot-count must be greater than zero");
 
     ScanContext scanContext2 =
         ScanContext.builder()
@@ -274,14 +269,9 @@ public class TestStreamingMonitorFunction extends TableTestBase {
             .maxPlanningSnapshotCount(-10)
             .build();
 
-    AssertHelpers.assertThrows(
-        "Should throw exception because of invalid config",
-        IllegalArgumentException.class,
-        "must be greater than zero",
-        () -> {
-          createFunction(scanContext2);
-          return null;
-        });
+    Assertions.assertThatThrownBy(() -> createFunction(scanContext2))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("The max-planning-snapshot-count must be greater than zero");
   }
 
   @Test
