@@ -27,12 +27,12 @@ import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.hadoop.hive.serde.serdeConstants;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfo;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoUtils;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -147,13 +147,10 @@ public class TestHiveSchemaUtil {
   @Test
   public void testNotSupportedTypes() {
     for (FieldSchema notSupportedField : getNotSupportedFieldSchemas()) {
-      AssertHelpers.assertThrows(
-          "should throw exception",
-          IllegalArgumentException.class,
-          "Unsupported Hive type",
-          () -> {
-            HiveSchemaUtil.convert(Lists.newArrayList(Arrays.asList(notSupportedField)));
-          });
+      Assertions.assertThatThrownBy(
+              () -> HiveSchemaUtil.convert(Lists.newArrayList(Arrays.asList(notSupportedField))))
+          .isInstanceOf(IllegalArgumentException.class)
+          .hasMessageStartingWith("Unsupported Hive type");
     }
   }
 
