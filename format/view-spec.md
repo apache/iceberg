@@ -109,11 +109,12 @@ This type of representation stores the original view definition in SQL and its S
 | Required | type | A string indicating the type of representation. It is set to "sql" for this type. |
 | Required | sql | A string representing the original view definition in SQL |
 | Required | dialect | A string specifying the dialect of the ‘sql’ field. It can be used by the engines to detect the SQL dialect. |
+| Optional | dialect-version | Version information for the dialect. Exact versioning depends on the dialect and when present should can be used to distinguish between two different versions of the same dialect. |
 | Optional | schema-id | ID of the view's schema when the version was created |
 | Optional | default-catalog | A string specifying the catalog to use when the table or view references in the view definition do not contain an explicit catalog. |
 | Optional | default-namespace | The namespace to use when the table or view references in the view definition do not contain an explicit namespace. Since the namespace may contain multiple parts, it is serialized as a list of strings. |
-| Optional | field-aliases | A list of strings of field aliases optionally specified in the create view statement. The list should have the same length as the schema's top level fields. See the example below. |
-| Optional | field-docs | A list of strings of field comments optionally specified in the create view statement. The list should have the same length as the schema's top level fields. See the example below. |
+| Optional | field-aliases | A list of strings of field aliases optionally specified in the create view statement. The list should have the same length as the schema's top level fields. See the example below. When present this list should be used to resolve queries against the view instead of the schema. |
+| Optional | field-docs | A list of strings of field comments optionally specified in the create view statement. The list should have the same length as the schema's top level fields. See the example below. When present this should be preferred over displaying docs on the schema. |
 
 For `CREATE VIEW v (alias_name COMMENT 'docs', alias_name2, ...) AS SELECT col1, col2, ...`,
 the field aliases are 'alias_name', 'alias_name2', and etc., and the field docs are 'docs', null, and etc.
@@ -263,3 +264,17 @@ The Iceberg / view library creates a new metadata JSON file every time the view 
   "current-schema-id": 2
 }
 ```
+
+## Appendix B: Well Known (canonical) dialects
+
+The following dialects names are reserved and indicate dialects for specific systems:
+
+| Dialect Name | Description                                                                                           | Versioning  |
+|--------------|-------------------------------------------------------------------------------------------------------|-------------|
+|athena        |  [Amazon Athena Dialect](https://docs.aws.amazon.com/athena/latest/ug/ddl-sql-reference.html)         | TBD         |
+|google_sql    |  [Google's SQL Dialect](https://cloud.google.com/bigquery/docs/reference/standard-sql/query-syntax)   | TBD         |
+|spark         |  [Apache Spark SQL Dialect](https://spark.apache.org/docs/latest/sql-ref-ansi-compliance.html)        | TBD         | 
+|trino         |  [Trino SQL Dialect](https://trino.io/docs/current/language.html)                                     | TBD         |
+
+Dialect names starting with "iceberg." are reserved for future extension. Well known dialects
+may be added in the future with the prefix of "iceberg." (E.g. "iceberg.new_dialect_name").
