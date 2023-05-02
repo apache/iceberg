@@ -76,15 +76,7 @@ public class TestDataFrameWriterV2 extends SparkTestBaseWithCatalog {
 
     // this has a different error message than the case without accept-any-schema because it uses
     // Iceberg checks
-    Assertions.assertThatThrownBy(
-            () -> {
-              try {
-                threeColDF.writeTo(tableName).append();
-              } catch (NoSuchTableException e) {
-                // needed because append has checked exceptions
-                throw new RuntimeException(e);
-              }
-            })
+    Assertions.assertThatThrownBy(() -> threeColDF.writeTo(tableName).append())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Field new_col not found in source schema");
   }
@@ -111,14 +103,7 @@ public class TestDataFrameWriterV2 extends SparkTestBaseWithCatalog {
             "{ \"id\": 4, \"data\": \"d\", \"new_col\": 14.41 }");
 
     Assertions.assertThatThrownBy(
-            () -> {
-              try {
-                threeColDF.writeTo(tableName).option("merge-schema", "true").append();
-              } catch (NoSuchTableException e) {
-                // needed because append has checked exceptions
-                throw new RuntimeException(e);
-              }
-            })
+            () -> threeColDF.writeTo(tableName).option("merge-schema", "true").append())
         .isInstanceOf(AnalysisException.class)
         .hasMessageStartingWith(
             "Cannot write to 'testhadoop.default.table', too many data columns");

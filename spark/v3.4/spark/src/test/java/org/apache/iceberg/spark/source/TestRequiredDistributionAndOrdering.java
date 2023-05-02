@@ -163,16 +163,11 @@ public class TestRequiredDistributionAndOrdering extends SparkCatalogTestBase {
 
     // should fail if ordering is disabled
     Assertions.assertThatThrownBy(
-            () -> {
-              try {
+            () ->
                 inputDF
                     .writeTo(tableName)
                     .option(SparkWriteOptions.USE_TABLE_DISTRIBUTION_AND_ORDERING, "false")
-                    .append();
-              } catch (NoSuchTableException e) {
-                throw new RuntimeException(e);
-              }
-            })
+                    .append())
         .cause()
         .isInstanceOf(IllegalStateException.class)
         .hasMessageStartingWith(
