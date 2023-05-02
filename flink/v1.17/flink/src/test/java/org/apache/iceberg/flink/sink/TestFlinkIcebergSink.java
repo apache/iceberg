@@ -348,9 +348,6 @@ public class TestFlinkIcebergSink extends TestFlinkIcebergSinkBase {
     Assertions.assertThatThrownBy(builder::append)
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid distribution mode: UNRECOGNIZED");
-
-    // Execute the program.
-    env.execute("Test Iceberg DataStream.");
   }
 
   @Test
@@ -371,8 +368,5 @@ public class TestFlinkIcebergSink extends TestFlinkIcebergSinkBase {
     Assertions.assertThatThrownBy(builder::append)
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid file format: UNRECOGNIZED");
-
-    // Execute the program.
-    env.execute("Test Iceberg DataStream.");
   }
 }
