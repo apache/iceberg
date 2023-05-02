@@ -52,6 +52,7 @@ import org.apache.iceberg.Transactions;
 import org.apache.iceberg.catalog.BaseSessionCatalog;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
+import org.apache.iceberg.catalog.TableCommit;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
@@ -63,13 +64,16 @@ import org.apache.iceberg.metrics.MetricsReporters;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.rest.auth.OAuth2Properties;
 import org.apache.iceberg.rest.auth.OAuth2Util;
 import org.apache.iceberg.rest.auth.OAuth2Util.AuthSession;
+import org.apache.iceberg.rest.requests.CommitTransactionRequest;
 import org.apache.iceberg.rest.requests.CreateNamespaceRequest;
 import org.apache.iceberg.rest.requests.CreateTableRequest;
 import org.apache.iceberg.rest.requests.RenameTableRequest;
 import org.apache.iceberg.rest.requests.UpdateNamespacePropertiesRequest;
+import org.apache.iceberg.rest.requests.UpdateTableRequest;
 import org.apache.iceberg.rest.responses.ConfigResponse;
 import org.apache.iceberg.rest.responses.CreateNamespaceResponse;
 import org.apache.iceberg.rest.responses.GetNamespaceResponse;
@@ -915,5 +919,21 @@ public class RESTSessionCatalog extends BaseSessionCatalog
                   }
                 })
         .build();
+  }
+
+  public void commitTransaction(SessionContext context, List<TableCommit> commits) {
+    List<UpdateTableRequest> tableChanges = Lists.newArrayListWithCapacity(commits.size());
+
+    for (TableCommit commit : commits) {
+      tableChanges.add(
+          new UpdateTableRequest(commit.identifier(), commit.requirements(), commit.updates()));
+    }
+
+    client.post(
+        paths.commitTransaction(),
+        new CommitTransactionRequest(tableChanges),
+        null,
+        headers(context),
+        ErrorHandlers.tableCommitHandler());
   }
 }

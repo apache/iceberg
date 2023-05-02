@@ -314,7 +314,7 @@ public class CatalogHandlers {
     return ops.current();
   }
 
-  private static TableMetadata commit(TableOperations ops, UpdateTableRequest request) {
+  static TableMetadata commit(TableOperations ops, UpdateTableRequest request) {
     AtomicBoolean isRetry = new AtomicBoolean(false);
     try {
       Tasks.foreach(ops)
