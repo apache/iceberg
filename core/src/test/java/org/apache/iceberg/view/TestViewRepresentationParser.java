@@ -33,8 +33,8 @@ public class TestViewRepresentationParser {
         ImmutableUnknownViewRepresentation.builder().type("unknown-sql-representation").build());
 
     Assertions.assertThatThrownBy(() -> ViewRepresentationParser.toJson(unknownRepresentation))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot serialize view representation type: unknown-sql-representation");
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage("Cannot serialize unsupported view representation: unknown-sql-representation");
   }
 
   @Test

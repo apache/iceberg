@@ -82,15 +82,15 @@ public interface CatalogLoader extends Serializable, Cloneable {
     }
 
     @Override
-    @SuppressWarnings({"checkstyle:NoClone", "checkstyle:SuperClone"})
-    public CatalogLoader clone() {
-      return new HadoopCatalogLoader(catalogName, new Configuration(hadoopConf.get()), properties);
-    }
-
-    @Override
     public Catalog loadCatalog() {
       return CatalogUtil.loadCatalog(
           HadoopCatalog.class.getName(), catalogName, properties, hadoopConf.get());
+    }
+
+    @Override
+    @SuppressWarnings({"checkstyle:NoClone", "checkstyle:SuperClone"})
+    public CatalogLoader clone() {
+      return new HadoopCatalogLoader(catalogName, new Configuration(hadoopConf.get()), properties);
     }
 
     @Override

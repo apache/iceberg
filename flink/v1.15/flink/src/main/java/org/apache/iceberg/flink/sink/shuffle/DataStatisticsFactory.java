@@ -16,23 +16,18 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.apache.iceberg.flink.sink.shuffle;
 
-package org.apache.spark.sql.connector.expressions
+import org.apache.flink.annotation.Internal;
 
-import org.apache.spark.sql.types.IntegerType
+/**
+ * DataStatisticsFactory defines the interface to create {@link DataStatistics}.
+ *
+ * <p>For low-cardinality key, MapDataStatisticsFactory will be implemented to create
+ * MapDataStatistics.
+ */
+@Internal
+interface DataStatisticsFactory<K> {
 
-private[sql] object TruncateTransform {
-  def unapply(expr: Expression): Option[(Int, FieldReference)] = expr match {
-    case transform: Transform =>
-      transform match {
-        case NamedTransform("truncate", Seq(Ref(seq: Seq[String]), Lit(value: Int, IntegerType))) =>
-          Some((value, FieldReference(seq)))
-        case NamedTransform("truncate", Seq(Lit(value: Int, IntegerType), Ref(seq: Seq[String]))) =>
-          Some((value, FieldReference(seq)))
-        case _ =>
-          None
-      }
-    case _ =>
-      None
-  }
+  DataStatistics<K> createDataStatistics();
 }

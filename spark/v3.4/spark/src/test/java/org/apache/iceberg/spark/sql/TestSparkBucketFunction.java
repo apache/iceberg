@@ -21,7 +21,6 @@ package org.apache.iceberg.spark.sql;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.relocated.com.google.common.io.BaseEncoding;
 import org.apache.iceberg.spark.SparkTestBaseWithCatalog;
@@ -191,101 +190,92 @@ public class TestSparkBucketFunction extends SparkTestBaseWithCatalog {
 
   @Test
   public void testWrongNumberOfArguments() {
-    AssertHelpers.assertThrows(
-        "Function resolution should not work with zero arguments",
-        AnalysisException.class,
-        "Function 'bucket' cannot process input: (): Wrong number of inputs (expected numBuckets and value)",
-        () -> scalarSql("SELECT system.bucket()"));
+    Assertions.assertThatThrownBy(() -> scalarSql("SELECT system.bucket()"))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageStartingWith(
+            "Function 'bucket' cannot process input: (): Wrong number of inputs (expected numBuckets and value)");
 
-    AssertHelpers.assertThrows(
-        "Function resolution should not work with only one argument",
-        AnalysisException.class,
-        "Function 'bucket' cannot process input: (int): Wrong number of inputs (expected numBuckets and value)",
-        () -> scalarSql("SELECT system.bucket(1)"));
+    Assertions.assertThatThrownBy(() -> scalarSql("SELECT system.bucket(1)"))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageStartingWith(
+            "Function 'bucket' cannot process input: (int): Wrong number of inputs (expected numBuckets and value)");
 
-    AssertHelpers.assertThrows(
-        "Function resolution should not work with more than two arguments",
-        AnalysisException.class,
-        "Function 'bucket' cannot process input: (int, bigint, int): Wrong number of inputs (expected numBuckets and value)",
-        () -> scalarSql("SELECT system.bucket(1, 1L, 1)"));
+    Assertions.assertThatThrownBy(() -> scalarSql("SELECT system.bucket(1, 1L, 1)"))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageStartingWith(
+            "Function 'bucket' cannot process input: (int, bigint, int): Wrong number of inputs (expected numBuckets and value)");
   }
 
   @Test
   public void testInvalidTypesCannotBeUsedForNumberOfBuckets() {
-    AssertHelpers.assertThrows(
-        "Decimal type should not be coercible to the number of buckets",
-        AnalysisException.class,
-        "Function 'bucket' cannot process input: (decimal(9,2), int): Expected number of buckets to be tinyint, shortint or int",
-        () -> scalarSql("SELECT system.bucket(CAST('12.34' as DECIMAL(9, 2)), 10)"));
+    Assertions.assertThatThrownBy(
+            () -> scalarSql("SELECT system.bucket(CAST('12.34' as DECIMAL(9, 2)), 10)"))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageStartingWith(
+            "Function 'bucket' cannot process input: (decimal(9,2), int): Expected number of buckets to be tinyint, shortint or int");
 
-    AssertHelpers.assertThrows(
-        "Long type should not be coercible to the number of buckets",
-        AnalysisException.class,
-        "Function 'bucket' cannot process input: (bigint, int): Expected number of buckets to be tinyint, shortint or int",
-        () -> scalarSql("SELECT system.bucket(12L, 10)"));
+    Assertions.assertThatThrownBy(() -> scalarSql("SELECT system.bucket(12L, 10)"))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageStartingWith(
+            "Function 'bucket' cannot process input: (bigint, int): Expected number of buckets to be tinyint, shortint or int");
 
-    AssertHelpers.assertThrows(
-        "String type should not be coercible to the number of buckets",
-        AnalysisException.class,
-        "Function 'bucket' cannot process input: (string, int): Expected number of buckets to be tinyint, shortint or int",
-        () -> scalarSql("SELECT system.bucket('5', 10)"));
+    Assertions.assertThatThrownBy(() -> scalarSql("SELECT system.bucket('5', 10)"))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageStartingWith(
+            "Function 'bucket' cannot process input: (string, int): Expected number of buckets to be tinyint, shortint or int");
 
-    AssertHelpers.assertThrows(
-        "Interval year to month  type should not be coercible to the number of buckets",
-        AnalysisException.class,
-        "Function 'bucket' cannot process input: (interval year to month, int): Expected number of buckets to be tinyint, shortint or int",
-        () -> scalarSql("SELECT system.bucket(INTERVAL '100-00' YEAR TO MONTH, 10)"));
+    Assertions.assertThatThrownBy(
+            () -> scalarSql("SELECT system.bucket(INTERVAL '100-00' YEAR TO MONTH, 10)"))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageStartingWith(
+            "Function 'bucket' cannot process input: (interval year to month, int): Expected number of buckets to be tinyint, shortint or int");
 
-    AssertHelpers.assertThrows(
-        "Interval day-time type should not be coercible to the number of buckets",
-        AnalysisException.class,
-        "Function 'bucket' cannot process input: (interval day to second, int): Expected number of buckets to be tinyint, shortint or int",
-        () -> scalarSql("SELECT system.bucket(CAST('11 23:4:0' AS INTERVAL DAY TO SECOND), 10)"));
+    Assertions.assertThatThrownBy(
+            () ->
+                scalarSql("SELECT system.bucket(CAST('11 23:4:0' AS INTERVAL DAY TO SECOND), 10)"))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageStartingWith(
+            "Function 'bucket' cannot process input: (interval day to second, int): Expected number of buckets to be tinyint, shortint or int");
   }
 
   @Test
   public void testInvalidTypesForBucketColumn() {
-    AssertHelpers.assertThrows(
-        "Double type should not be bucketable",
-        AnalysisException.class,
-        "Function 'bucket' cannot process input: (int, float): Expected column to be date, tinyint, smallint, int, bigint, decimal, timestamp, string, or binary",
-        () -> scalarSql("SELECT system.bucket(10, cast(12.3456 as float))"));
+    Assertions.assertThatThrownBy(
+            () -> scalarSql("SELECT system.bucket(10, cast(12.3456 as float))"))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageStartingWith(
+            "Function 'bucket' cannot process input: (int, float): Expected column to be date, tinyint, smallint, int, bigint, decimal, timestamp, string, or binary");
 
-    AssertHelpers.assertThrows(
-        "Double type should not be bucketable",
-        AnalysisException.class,
-        "Function 'bucket' cannot process input: (int, double): Expected column to be date, tinyint, smallint, int, bigint, decimal, timestamp, string, or binary",
-        () -> scalarSql("SELECT system.bucket(10, cast(12.3456 as double))"));
+    Assertions.assertThatThrownBy(
+            () -> scalarSql("SELECT system.bucket(10, cast(12.3456 as double))"))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageStartingWith(
+            "Function 'bucket' cannot process input: (int, double): Expected column to be date, tinyint, smallint, int, bigint, decimal, timestamp, string, or binary");
 
-    AssertHelpers.assertThrows(
-        "Boolean type should not be bucketable",
-        AnalysisException.class,
-        "Function 'bucket' cannot process input: (int, boolean)",
-        () -> scalarSql("SELECT system.bucket(10, true)"));
+    Assertions.assertThatThrownBy(() -> scalarSql("SELECT system.bucket(10, true)"))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageStartingWith("Function 'bucket' cannot process input: (int, boolean)");
 
-    AssertHelpers.assertThrows(
-        "Map types should not be bucketable",
-        AnalysisException.class,
-        "Function 'bucket' cannot process input: (int, map<int,int>)",
-        () -> scalarSql("SELECT system.bucket(10, map(1, 1))"));
+    Assertions.assertThatThrownBy(() -> scalarSql("SELECT system.bucket(10, map(1, 1))"))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageStartingWith("Function 'bucket' cannot process input: (int, map<int,int>)");
 
-    AssertHelpers.assertThrows(
-        "Array types should not be bucketable",
-        AnalysisException.class,
-        "Function 'bucket' cannot process input: (int, array<bigint>)",
-        () -> scalarSql("SELECT system.bucket(10, array(1L))"));
+    Assertions.assertThatThrownBy(() -> scalarSql("SELECT system.bucket(10, array(1L))"))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageStartingWith("Function 'bucket' cannot process input: (int, array<bigint>)");
 
-    AssertHelpers.assertThrows(
-        "Interval year-to-month type should not be bucketable",
-        AnalysisException.class,
-        "Function 'bucket' cannot process input: (int, interval year to month)",
-        () -> scalarSql("SELECT system.bucket(10, INTERVAL '100-00' YEAR TO MONTH)"));
+    Assertions.assertThatThrownBy(
+            () -> scalarSql("SELECT system.bucket(10, INTERVAL '100-00' YEAR TO MONTH)"))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageStartingWith(
+            "Function 'bucket' cannot process input: (int, interval year to month)");
 
-    AssertHelpers.assertThrows(
-        "Interval day-time type should not be bucketable",
-        AnalysisException.class,
-        "Function 'bucket' cannot process input: (int, interval day to second)",
-        () -> scalarSql("SELECT system.bucket(10, CAST('11 23:4:0' AS INTERVAL DAY TO SECOND))"));
+    Assertions.assertThatThrownBy(
+            () ->
+                scalarSql("SELECT system.bucket(10, CAST('11 23:4:0' AS INTERVAL DAY TO SECOND))"))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageStartingWith(
+            "Function 'bucket' cannot process input: (int, interval day to second)");
   }
 
   @Test

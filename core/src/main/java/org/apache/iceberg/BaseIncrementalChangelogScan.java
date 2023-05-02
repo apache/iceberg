@@ -39,7 +39,7 @@ class BaseIncrementalChangelogScan
     implements IncrementalChangelogScan {
 
   BaseIncrementalChangelogScan(Table table) {
-    this(table, table.schema(), new TableScanContext());
+    this(table, table.schema(), TableScanContext.empty());
   }
 
   private BaseIncrementalChangelogScan(Table table, Schema schema, TableScanContext context) {

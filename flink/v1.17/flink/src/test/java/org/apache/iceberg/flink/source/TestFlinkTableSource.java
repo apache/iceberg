@@ -25,7 +25,6 @@ import org.apache.flink.configuration.CoreOptions;
 import org.apache.flink.table.api.SqlParserException;
 import org.apache.flink.table.api.TableEnvironment;
 import org.apache.flink.types.Row;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.events.Listeners;
 import org.apache.iceberg.events.ScanEvent;
@@ -103,10 +102,9 @@ public class TestFlinkTableSource extends FlinkTestBase {
   @Test
   public void testLimitPushDown() {
 
-    AssertHelpers.assertThrows(
-        "Invalid limit number: -1 ",
-        SqlParserException.class,
-        () -> sql("SELECT * FROM %s LIMIT -1", TABLE_NAME));
+    Assertions.assertThatThrownBy(() -> sql("SELECT * FROM %s LIMIT -1", TABLE_NAME))
+        .isInstanceOf(SqlParserException.class)
+        .hasMessageStartingWith("SQL parse failed.");
 
     Assert.assertEquals(
         "Should have 0 record", 0, sql("SELECT * FROM %s LIMIT 0", TABLE_NAME).size());

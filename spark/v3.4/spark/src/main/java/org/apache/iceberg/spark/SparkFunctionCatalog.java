@@ -16,18 +16,30 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.delta;
+package org.apache.iceberg.spark;
 
-class BaseSnapshotDeltaLakeTableActionResult implements SnapshotDeltaLakeTable.Result {
+import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 
-  private final long snapshotDataFilesCount;
+/**
+ * A function catalog that can be used to resolve Iceberg functions without a metastore connection.
+ */
+public class SparkFunctionCatalog implements SupportsFunctions {
 
-  BaseSnapshotDeltaLakeTableActionResult(long snapshotDataFilesCount) {
-    this.snapshotDataFilesCount = snapshotDataFilesCount;
+  private static final SparkFunctionCatalog INSTANCE = new SparkFunctionCatalog();
+
+  private String name = "iceberg-function-catalog";
+
+  public static SparkFunctionCatalog get() {
+    return INSTANCE;
   }
 
   @Override
-  public long snapshotDataFilesCount() {
-    return snapshotDataFilesCount;
+  public void initialize(String catalogName, CaseInsensitiveStringMap options) {
+    this.name = catalogName;
+  }
+
+  @Override
+  public String name() {
+    return name;
   }
 }

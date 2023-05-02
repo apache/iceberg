@@ -589,7 +589,7 @@ class NotIn(SetPredicate[L], ABC):
         if count == 0:
             return AlwaysTrue()
         elif count == 1:
-            return NotEqualTo(term, next(iter(literals_set)))  # type: ignore
+            return NotEqualTo(term, next(iter(literals_set)))
         else:
             return super().__new__(cls)
 

@@ -33,6 +33,7 @@ import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.metrics.ScanMetricsResult;
 import org.apache.iceberg.metrics.ScanReport;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.assertj.core.api.InstanceOfAssertFactories;
 import org.junit.Test;
 
 public class TestScanPlanningAndReporting extends TableTestBase {
@@ -41,6 +42,34 @@ public class TestScanPlanningAndReporting extends TableTestBase {
 
   public TestScanPlanningAndReporting() {
     super(2);
+  }
+
+  @Test
+  public void noDuplicatesInScanContext() {
+    TableScanContext context = TableScanContext.empty();
+    assertThat(context.metricsReporter()).isInstanceOf(LoggingMetricsReporter.class);
+
+    MetricsReporter first = report -> {};
+    MetricsReporter second = report -> {};
+
+    context = context.reportWith(first).reportWith(first);
+    assertThat(context.metricsReporter()).isSameAs(first);
+
+    context = context.reportWith(second);
+    assertThat(context.metricsReporter())
+        .as("should be a CompositeMetricsReporter")
+        .extracting("reporters")
+        .asInstanceOf(InstanceOfAssertFactories.collection(MetricsReporter.class))
+        .hasSize(2)
+        .containsExactlyInAnyOrder(first, second);
+
+    context = context.reportWith(LoggingMetricsReporter.instance()).reportWith(second);
+    assertThat(context.metricsReporter())
+        .as("should be a CompositeMetricsReporter")
+        .extracting("reporters")
+        .asInstanceOf(InstanceOfAssertFactories.collection(MetricsReporter.class))
+        .hasSize(3)
+        .containsExactlyInAnyOrder(LoggingMetricsReporter.instance(), first, second);
   }
 
   @Test
