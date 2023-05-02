@@ -85,6 +85,9 @@ class SparkOrcValueWriters {
 
     @Override
     public void nonNullWrite(int rowId, UTF8String data, ColumnVector output) {
+      // ((BytesColumnVector) output).setRef(..) just stores a reference to the passed byte[], so
+      // can't use a ThreadLocal ByteBuffer here like in other places because subsequent writes
+      // would then overwrite previous values
       ByteBuffer buffer = UUIDUtil.convertToByteBuffer(UUID.fromString(data.toString()));
       ((BytesColumnVector) output).setRef(rowId, buffer.array(), 0, buffer.array().length);
     }
