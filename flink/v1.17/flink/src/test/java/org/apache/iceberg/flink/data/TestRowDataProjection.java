@@ -20,7 +20,6 @@ package org.apache.iceberg.flink.data;
 
 import java.util.Iterator;
 import org.apache.flink.table.data.RowData;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.data.RandomGenericData;
@@ -28,6 +27,7 @@ import org.apache.iceberg.data.Record;
 import org.apache.iceberg.flink.TestHelpers;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.StructProjection;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -223,11 +223,10 @@ public class TestRowDataProjection {
                     Types.StructType.of(
                         Types.NestedField.required(3, "value", Types.LongType.get()),
                         Types.NestedField.required(4, "valueData", Types.LongType.get())))));
-    AssertHelpers.assertThrows(
-        "Should not allow to project a partial map key with non-primitive type.",
-        IllegalArgumentException.class,
-        "Cannot project a partial map key or value",
-        () -> generateAndValidate(schema, partialMapKey));
+
+    Assertions.assertThatThrownBy(() -> generateAndValidate(schema, partialMapKey))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Cannot project a partial map key or value struct.");
 
     // Project partial map key.
     Schema partialMapValue =
@@ -243,11 +242,10 @@ public class TestRowDataProjection {
                         Types.NestedField.required(2, "keyData", Types.LongType.get())),
                     Types.StructType.of(
                         Types.NestedField.required(3, "value", Types.LongType.get())))));
-    AssertHelpers.assertThrows(
-        "Should not allow to project a partial map value with non-primitive type.",
-        IllegalArgumentException.class,
-        "Cannot project a partial map key or value",
-        () -> generateAndValidate(schema, partialMapValue));
+
+    Assertions.assertThatThrownBy(() -> generateAndValidate(schema, partialMapValue))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Cannot project a partial map key or value struct.");
   }
 
   @Test
@@ -306,11 +304,10 @@ public class TestRowDataProjection {
                     4,
                     Types.StructType.of(
                         Types.NestedField.required(2, "nestedListField2", Types.LongType.get())))));
-    AssertHelpers.assertThrows(
-        "Should not allow to project a partial list element with non-primitive type.",
-        IllegalArgumentException.class,
-        "Cannot project a partial list element",
-        () -> generateAndValidate(schema, partialList));
+
+    Assertions.assertThatThrownBy(() -> generateAndValidate(schema, partialList))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Cannot project a partial list element struct.");
   }
 
   private void generateAndValidate(Schema schema, Schema projectSchema) {
