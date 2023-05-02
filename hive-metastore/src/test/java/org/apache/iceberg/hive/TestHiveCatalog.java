@@ -404,17 +404,12 @@ public class TestHiveCatalog extends HiveMetastoreTest {
         PrincipalType.GROUP);
 
     assertThatThrownBy(
-            () -> {
-              try {
+            () ->
                 createNamespaceAndVerifyOwnership(
                     "create_with_owner_type_alone",
                     ImmutableMap.of(HiveCatalog.HMS_DB_OWNER_TYPE, PrincipalType.USER.name()),
                     "no_post_create_expectation_due_to_exception_thrown",
-                    null);
-              } catch (TException e) {
-                throw new RuntimeException("Unexpected Exception", e);
-              }
-            })
+                    null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
             String.format(
@@ -422,19 +417,14 @@ public class TestHiveCatalog extends HiveMetastoreTest {
                 HiveCatalog.HMS_DB_OWNER_TYPE, HiveCatalog.HMS_DB_OWNER));
 
     assertThatThrownBy(
-            () -> {
-              try {
+            () ->
                 createNamespaceAndVerifyOwnership(
                     "create_with_invalid_owner_type",
                     ImmutableMap.of(
                         HiveCatalog.HMS_DB_OWNER, "iceberg",
                         HiveCatalog.HMS_DB_OWNER_TYPE, "invalidOwnerType"),
                     "no_post_create_expectation_due_to_exception_thrown",
-                    null);
-              } catch (TException e) {
-                throw new RuntimeException("Unexpected Exception", e);
-              }
-            })
+                    null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageStartingWith("No enum constant " + PrincipalType.class.getCanonicalName());
   }
@@ -576,8 +566,7 @@ public class TestHiveCatalog extends HiveMetastoreTest {
         PrincipalType.USER);
 
     assertThatThrownBy(
-            () -> {
-              try {
+            () ->
                 setNamespaceOwnershipAndVerify(
                     "set_owner_without_setting_owner_type",
                     ImmutableMap.of(),
@@ -585,11 +574,7 @@ public class TestHiveCatalog extends HiveMetastoreTest {
                     System.getProperty("user.name"),
                     PrincipalType.USER,
                     "no_post_setting_expectation_due_to_exception_thrown",
-                    null);
-              } catch (TException e) {
-                throw new RuntimeException("Unexpected Exception", e);
-              }
-            })
+                    null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
             String.format(
@@ -597,8 +582,7 @@ public class TestHiveCatalog extends HiveMetastoreTest {
                 HiveCatalog.HMS_DB_OWNER_TYPE, HiveCatalog.HMS_DB_OWNER));
 
     assertThatThrownBy(
-            () -> {
-              try {
+            () ->
                 setNamespaceOwnershipAndVerify(
                     "set_owner_type_without_setting_owner",
                     ImmutableMap.of(HiveCatalog.HMS_DB_OWNER, "some_owner"),
@@ -606,11 +590,7 @@ public class TestHiveCatalog extends HiveMetastoreTest {
                     "some_owner",
                     PrincipalType.USER,
                     "no_post_setting_expectation_due_to_exception_thrown",
-                    null);
-              } catch (TException e) {
-                throw new RuntimeException("Unexpected Exception", e);
-              }
-            })
+                    null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
             String.format(
@@ -618,8 +598,7 @@ public class TestHiveCatalog extends HiveMetastoreTest {
                 HiveCatalog.HMS_DB_OWNER_TYPE, HiveCatalog.HMS_DB_OWNER));
 
     assertThatThrownBy(
-            () -> {
-              try {
+            () ->
                 setNamespaceOwnershipAndVerify(
                     "set_invalid_owner_type",
                     ImmutableMap.of(),
@@ -629,11 +608,7 @@ public class TestHiveCatalog extends HiveMetastoreTest {
                     System.getProperty("user.name"),
                     PrincipalType.USER,
                     "no_post_setting_expectation_due_to_exception_thrown",
-                    null);
-              } catch (TException e) {
-                throw new RuntimeException("Unexpected Exception", e);
-              }
-            })
+                    null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
             "No enum constant org.apache.hadoop.hive.metastore.api.PrincipalType.invalidOwnerType");
@@ -799,8 +774,7 @@ public class TestHiveCatalog extends HiveMetastoreTest {
         PrincipalType.GROUP);
 
     assertThatThrownBy(
-            () -> {
-              try {
+            () ->
                 removeNamespaceOwnershipAndVerify(
                     "remove_owner_without_removing_owner_type",
                     ImmutableMap.of(
@@ -812,11 +786,7 @@ public class TestHiveCatalog extends HiveMetastoreTest {
                     "some_individual_owner",
                     PrincipalType.USER,
                     "no_post_remove_expectation_due_to_exception_thrown",
-                    null);
-              } catch (TException e) {
-                throw new RuntimeException("Unexpected Exception", e);
-              }
-            })
+                    null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
             String.format(
@@ -824,8 +794,7 @@ public class TestHiveCatalog extends HiveMetastoreTest {
                 HiveCatalog.HMS_DB_OWNER_TYPE, HiveCatalog.HMS_DB_OWNER));
 
     assertThatThrownBy(
-            () -> {
-              try {
+            () ->
                 removeNamespaceOwnershipAndVerify(
                     "remove_owner_type_without_removing_owner",
                     ImmutableMap.of(
@@ -837,11 +806,7 @@ public class TestHiveCatalog extends HiveMetastoreTest {
                     "some_group_owner",
                     PrincipalType.GROUP,
                     "no_post_remove_expectation_due_to_exception_thrown",
-                    null);
-              } catch (TException e) {
-                throw new RuntimeException("Unexpected Exception", e);
-              }
-            })
+                    null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
             String.format(
