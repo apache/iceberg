@@ -36,7 +36,6 @@ import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericRecordBuilder;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.ManifestFile;
@@ -1113,17 +1112,16 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
 
     if (!spark.version().startsWith("2")) {
       // Spark 2 isn't able to actually push down nested struct projections so this will not break
-      AssertHelpers.assertThrows(
-          "Can't prune struct inside list",
-          SparkException.class,
-          "Cannot project a partial list element struct",
-          () ->
-              spark
-                  .read()
-                  .format("iceberg")
-                  .load(loadLocation(tableIdentifier, "manifests"))
-                  .select("partition_spec_id", "path", "partition_summaries.contains_null")
-                  .collectAsList());
+      Assertions.assertThatThrownBy(
+              () ->
+                  spark
+                      .read()
+                      .format("iceberg")
+                      .load(loadLocation(tableIdentifier, "manifests"))
+                      .select("partition_spec_id", "path", "partition_summaries.contains_null")
+                      .collectAsList())
+          .isInstanceOf(SparkException.class)
+          .hasMessageContaining("Cannot project a partial list element struct");
     }
 
     Dataset<Row> actualDf =

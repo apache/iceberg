@@ -29,7 +29,6 @@ import static org.apache.spark.sql.functions.lit;
 import java.io.IOException;
 import java.util.List;
 import java.util.stream.Collectors;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.MetadataColumns;
@@ -52,6 +51,7 @@ import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
+import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Assume;
@@ -220,11 +220,9 @@ public class TestSparkMetadataColumns extends SparkTestBase {
     TableMetadata base = ops.current();
     ops.commit(base, base.updatePartitionSpec(UNKNOWN_SPEC));
 
-    AssertHelpers.assertThrows(
-        "Should fail to query the partition metadata column",
-        ValidationException.class,
-        "Cannot build table partition type, unknown transforms",
-        () -> sql("SELECT _partition FROM %s", TABLE_NAME));
+    Assertions.assertThatThrownBy(() -> sql("SELECT _partition FROM %s", TABLE_NAME))
+        .isInstanceOf(ValidationException.class)
+        .hasMessage("Cannot build table partition type, unknown transforms: [zero]");
   }
 
   @Test
@@ -242,11 +240,10 @@ public class TestSparkMetadataColumns extends SparkTestBase {
         ImmutableList.of(row(1L, "a1")),
         sql("SELECT id, category FROM %s", TABLE_NAME));
 
-    AssertHelpers.assertThrows(
-        "Should fail to query conflicting columns",
-        ValidationException.class,
-        "column names conflict",
-        () -> sql("SELECT * FROM %s", TABLE_NAME));
+    Assertions.assertThatThrownBy(() -> sql("SELECT * FROM %s", TABLE_NAME))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageStartingWith(
+            "Table column names conflict with names reserved for Iceberg metadata columns: [_spec_id, _file].");
 
     table.refresh();
 
