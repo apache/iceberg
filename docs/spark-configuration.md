@@ -82,8 +82,8 @@ Both catalogs are configured using properties nested under the catalog name. Com
 | spark.sql.catalog._catalog-name_.warehouse         | hdfs://nn:8020/warehouse/path | Base path for the warehouse directory |
 | spark.sql.catalog._catalog-name_.cache-enabled     | `true` or `false`             | Whether to enable catalog cache, default value is `true` |
 | spark.sql.catalog._catalog-name_.cache.expiration-interval-ms | `30000` (30 seconds) | Duration after which cached catalog entries are expired; Only effective if `cache-enabled` is `true`. `-1` disables cache expiration and `0` disables caching entirely, irrespective of `cache-enabled`. Default is `30000` (30 seconds) |
-| spark.sql.catalog._catalog-name_.table-default._propertyKey_  |                               | Iceberg table property _propertyKey_ default at catalog level. A different table property value can be overridden by the user |
-| spark.sql.catalog._catalog-name_.table-override._propertyKey_ |                               | Iceberg table property _propertyKey_ enforced at catalog level. Cannot be overridden by the user |
+| spark.sql.catalog._catalog-name_.table-default._propertyKey_  |                               | Default Iceberg table property value for property key _propertyKey_, which will be set on tables created by this catalog if not overridden                                                                                               |
+| spark.sql.catalog._catalog-name_.table-override._propertyKey_ |                               | Enforced Iceberg table property value for property key _propertyKey_, which cannot be overridden by user                                                                                                                                 |
 
 Additional properties can be found in common [catalog configuration](../configuration#catalog-properties).
 
