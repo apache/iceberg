@@ -243,15 +243,14 @@ public class TestDataSourceOptions {
 
     // start-snapshot-id and snapshot-id are both configured.
     Assertions.assertThatThrownBy(
-            () -> {
-              spark
-                  .read()
-                  .format("iceberg")
-                  .option("snapshot-id", snapshotIds.get(3).toString())
-                  .option("start-snapshot-id", snapshotIds.get(3).toString())
-                  .load(tableLocation)
-                  .explain();
-            })
+            () ->
+                spark
+                    .read()
+                    .format("iceberg")
+                    .option("snapshot-id", snapshotIds.get(3).toString())
+                    .option("start-snapshot-id", snapshotIds.get(3).toString())
+                    .load(tableLocation)
+                    .explain())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
             "Cannot set start-snapshot-id and end-snapshot-id for incremental scans when either snapshot-id or as-of-timestamp is set");
