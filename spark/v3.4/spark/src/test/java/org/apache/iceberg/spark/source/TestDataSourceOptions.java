@@ -257,31 +257,29 @@ public class TestDataSourceOptions {
 
     // end-snapshot-id and as-of-timestamp are both configured.
     Assertions.assertThatThrownBy(
-            () -> {
-              spark
-                  .read()
-                  .format("iceberg")
-                  .option(
-                      SparkReadOptions.AS_OF_TIMESTAMP,
-                      Long.toString(table.snapshot(snapshotIds.get(3)).timestampMillis()))
-                  .option("end-snapshot-id", snapshotIds.get(2).toString())
-                  .load(tableLocation)
-                  .explain();
-            })
+            () ->
+                spark
+                    .read()
+                    .format("iceberg")
+                    .option(
+                        SparkReadOptions.AS_OF_TIMESTAMP,
+                        Long.toString(table.snapshot(snapshotIds.get(3)).timestampMillis()))
+                    .option("end-snapshot-id", snapshotIds.get(2).toString())
+                    .load(tableLocation)
+                    .explain())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
             "Cannot set start-snapshot-id and end-snapshot-id for incremental scans when either snapshot-id or as-of-timestamp is set");
 
     // only end-snapshot-id is configured.
     Assertions.assertThatThrownBy(
-            () -> {
-              spark
-                  .read()
-                  .format("iceberg")
-                  .option("end-snapshot-id", snapshotIds.get(2).toString())
-                  .load(tableLocation)
-                  .explain();
-            })
+            () ->
+                spark
+                    .read()
+                    .format("iceberg")
+                    .option("end-snapshot-id", snapshotIds.get(2).toString())
+                    .load(tableLocation)
+                    .explain())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
             "Cannot set only end-snapshot-id for incremental scans. Please, set start-snapshot-id too.");
