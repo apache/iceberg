@@ -331,7 +331,7 @@ public class TestFlinkIcebergSink extends TestFlinkIcebergSinkBase {
   }
 
   @Test
-  public void testOverrideWriteConfigWithUnknownDistributionMode() {
+  public void testOverrideWriteConfigWithUnknownDistributionMode() throws Exception {
     Map<String, String> newProps = Maps.newHashMap();
     newProps.put(FlinkWriteOptions.DISTRIBUTION_MODE.key(), "UNRECOGNIZED");
 
@@ -345,19 +345,16 @@ public class TestFlinkIcebergSink extends TestFlinkIcebergSinkBase {
             .writeParallelism(parallelism)
             .setAll(newProps);
 
-    Assertions.assertThatThrownBy(
-            () -> {
-              builder.append();
-
-              // Execute the program.
-              env.execute("Test Iceberg DataStream.");
-            })
+    Assertions.assertThatThrownBy(builder::append)
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid distribution mode: UNRECOGNIZED");
+
+    // Execute the program.
+    env.execute("Test Iceberg DataStream.");
   }
 
   @Test
-  public void testOverrideWriteConfigWithUnknownFileFormat() {
+  public void testOverrideWriteConfigWithUnknownFileFormat() throws Exception {
     Map<String, String> newProps = Maps.newHashMap();
     newProps.put(FlinkWriteOptions.WRITE_FORMAT.key(), "UNRECOGNIZED");
 
@@ -371,14 +368,11 @@ public class TestFlinkIcebergSink extends TestFlinkIcebergSinkBase {
             .writeParallelism(parallelism)
             .setAll(newProps);
 
-    Assertions.assertThatThrownBy(
-            () -> {
-              builder.append();
-
-              // Execute the program.
-              env.execute("Test Iceberg DataStream.");
-            })
+    Assertions.assertThatThrownBy(builder::append)
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid file format: UNRECOGNIZED");
+
+    // Execute the program.
+    env.execute("Test Iceberg DataStream.");
   }
 }
