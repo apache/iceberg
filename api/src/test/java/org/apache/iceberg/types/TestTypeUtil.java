@@ -450,13 +450,16 @@ public class TestTypeUtil {
                                     required(18, "y", Types.IntegerType.get()))))))));
 
     Assertions.assertThatThrownBy(() -> TypeUtil.project(schema, Sets.newHashSet(12)))
-        .isInstanceOf(IllegalArgumentException.class);
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot explicitly project List or Map types");
 
     Assertions.assertThatThrownBy(() -> TypeUtil.project(schema, Sets.newHashSet(13)))
-        .isInstanceOf(IllegalArgumentException.class);
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot explicitly project List or Map types");
 
     Assertions.assertThatThrownBy(() -> TypeUtil.project(schema, Sets.newHashSet(14)))
-        .isInstanceOf(IllegalArgumentException.class);
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot explicitly project List or Map types");
 
     Schema expected =
         new Schema(
@@ -498,13 +501,16 @@ public class TestTypeUtil {
                                     required(19, "y", Types.IntegerType.get()))))))));
 
     Assertions.assertThatThrownBy(() -> TypeUtil.project(schema, Sets.newHashSet(12)))
-        .isInstanceOf(IllegalArgumentException.class);
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot explicitly project List or Map types");
 
     Assertions.assertThatThrownBy(() -> TypeUtil.project(schema, Sets.newHashSet(14)))
-        .isInstanceOf(IllegalArgumentException.class);
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot explicitly project List or Map types");
 
     Assertions.assertThatThrownBy(() -> TypeUtil.project(schema, Sets.newHashSet(16)))
-        .isInstanceOf(IllegalArgumentException.class);
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot explicitly project List or Map types");
 
     Schema expected =
         new Schema(

@@ -48,17 +48,17 @@ public class TestNamespace {
   public void testWithNullInLevel() {
     Assertions.assertThatThrownBy(() -> Namespace.of("a", null, "b"))
         .isInstanceOf(NullPointerException.class)
-        .hasMessageContaining("Cannot create a namespace with a null level");
+        .hasMessage("Cannot create a namespace with a null level");
   }
 
   @Test
   public void testDisallowsNamespaceWithNullByte() {
     Assertions.assertThatThrownBy(() -> Namespace.of("ac", "\u0000c", "b"))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Cannot create a namespace with the null-byte character");
+        .hasMessage("Cannot create a namespace with the null-byte character");
 
     Assertions.assertThatThrownBy(() -> Namespace.of("ac", "c\0", "b"))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Cannot create a namespace with the null-byte character");
+        .hasMessage("Cannot create a namespace with the null-byte character");
   }
 }

@@ -206,40 +206,34 @@ public class TestPartitionSpecValidation {
   public void testSettingPartitionTransformsWithCustomTargetNamesThatAlreadyExist() {
     Assertions.assertThatThrownBy(() -> PartitionSpec.builderFor(SCHEMA).year("ts", "another_ts"))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining(
-            "Cannot create partition from name that exists in schema: another_ts");
+        .hasMessage("Cannot create partition from name that exists in schema: another_ts");
 
     Assertions.assertThatThrownBy(() -> PartitionSpec.builderFor(SCHEMA).month("ts", "another_ts"))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining(
-            "Cannot create partition from name that exists in schema: another_ts");
+        .hasMessage("Cannot create partition from name that exists in schema: another_ts");
 
     Assertions.assertThatThrownBy(() -> PartitionSpec.builderFor(SCHEMA).day("ts", "another_ts"))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining(
-            "Cannot create partition from name that exists in schema: another_ts");
+        .hasMessage("Cannot create partition from name that exists in schema: another_ts");
 
     Assertions.assertThatThrownBy(() -> PartitionSpec.builderFor(SCHEMA).hour("ts", "another_ts"))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining(
-            "Cannot create partition from name that exists in schema: another_ts");
+        .hasMessage("Cannot create partition from name that exists in schema: another_ts");
 
     Assertions.assertThatThrownBy(
             () -> PartitionSpec.builderFor(SCHEMA).truncate("ts", 2, "another_ts"))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining(
-            "Cannot create partition from name that exists in schema: another_ts");
+        .hasMessage("Cannot create partition from name that exists in schema: another_ts");
 
     Assertions.assertThatThrownBy(
             () -> PartitionSpec.builderFor(SCHEMA).bucket("ts", 4, "another_ts"))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining(
-            "Cannot create partition from name that exists in schema: another_ts");
+        .hasMessage("Cannot create partition from name that exists in schema: another_ts");
 
     Assertions.assertThatThrownBy(
             () -> PartitionSpec.builderFor(SCHEMA).identity("ts", "another_ts"))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining(
+        .hasMessage(
             "Cannot create identity partition sourced from different field in schema: another_ts");
   }
 
@@ -247,34 +241,34 @@ public class TestPartitionSpecValidation {
   public void testMissingSourceColumn() {
     Assertions.assertThatThrownBy(() -> PartitionSpec.builderFor(SCHEMA).year("missing").build())
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Cannot find source column");
+        .hasMessage("Cannot find source column: missing");
 
     Assertions.assertThatThrownBy(() -> PartitionSpec.builderFor(SCHEMA).month("missing").build())
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Cannot find source column");
+        .hasMessage("Cannot find source column: missing");
 
     Assertions.assertThatThrownBy(() -> PartitionSpec.builderFor(SCHEMA).day("missing").build())
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Cannot find source column");
+        .hasMessage("Cannot find source column: missing");
 
     Assertions.assertThatThrownBy(() -> PartitionSpec.builderFor(SCHEMA).hour("missing").build())
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Cannot find source column");
+        .hasMessage("Cannot find source column: missing");
 
     Assertions.assertThatThrownBy(
             () -> PartitionSpec.builderFor(SCHEMA).bucket("missing", 4).build())
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Cannot find source column");
+        .hasMessage("Cannot find source column: missing");
 
     Assertions.assertThatThrownBy(
             () -> PartitionSpec.builderFor(SCHEMA).truncate("missing", 5).build())
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Cannot find source column");
+        .hasMessage("Cannot find source column: missing");
 
     Assertions.assertThatThrownBy(
             () -> PartitionSpec.builderFor(SCHEMA).identity("missing").build())
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Cannot find source column");
+        .hasMessage("Cannot find source column: missing");
   }
 
   @Test

@@ -110,6 +110,6 @@ public class TestTruncate {
   public void testVerifiedIllegalWidth() {
     Assertions.assertThatThrownBy(() -> Truncate.get(0))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Invalid truncate width: 0 (must be > 0)");
+        .hasMessage("Invalid truncate width: 0 (must be > 0)");
   }
 }

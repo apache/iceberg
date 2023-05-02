@@ -395,7 +395,7 @@ public class TestPredicateBinding {
     StructType strStruct = StructType.of(optional(21, "s", Types.StringType.get()));
     Assertions.assertThatThrownBy(() -> new UnboundPredicate<>(IS_NAN, ref("s")).bind(strStruct))
         .isInstanceOf(ValidationException.class)
-        .hasMessageContaining("IsNaN cannot be used with a non-floating-point column");
+        .hasMessage("IsNaN cannot be used with a non-floating-point column");
   }
 
   @Test
@@ -424,7 +424,7 @@ public class TestPredicateBinding {
     StructType strStruct = StructType.of(optional(21, "s", Types.StringType.get()));
     Assertions.assertThatThrownBy(() -> new UnboundPredicate<>(NOT_NAN, ref("s")).bind(strStruct))
         .isInstanceOf(ValidationException.class)
-        .hasMessageContaining("NotNaN cannot be used with a non-floating-point column");
+        .hasMessage("NotNaN cannot be used with a non-floating-point column");
   }
 
   @Test

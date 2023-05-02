@@ -176,14 +176,14 @@ public class TestExpressionHelpers {
   public void testNullName() {
     Assertions.assertThatThrownBy(() -> equal((String) null, 5))
         .isInstanceOf(NullPointerException.class)
-        .hasMessageContaining("Name cannot be null");
+        .hasMessage("Name cannot be null");
   }
 
   @Test
   public void testNullValueExpr() {
     Assertions.assertThatThrownBy(() -> equal((UnboundTerm<Integer>) null, 5))
         .isInstanceOf(NullPointerException.class)
-        .hasMessageContaining("Term cannot be null");
+        .hasMessage("Term cannot be null");
   }
 
   @Test
@@ -227,7 +227,7 @@ public class TestExpressionHelpers {
   private void assertInvalidateNaNThrows(Callable<UnboundPredicate<Double>> callable) {
     Assertions.assertThatThrownBy(callable::call)
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Cannot create expression literal from NaN");
+        .hasMessage("Cannot create expression literal from NaN");
   }
 
   private <T> UnboundTerm<T> self(String name) {

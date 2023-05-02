@@ -624,22 +624,28 @@ public class TestEvaluator {
   public void testInExceptions() {
     Assertions.assertThatThrownBy(() -> in("x", (Literal) null))
         .isInstanceOf(NullPointerException.class)
-        .hasMessageContaining("Cannot create expression literal from null");
+        .hasMessage("Cannot create expression literal from null");
+
     Assertions.assertThatThrownBy(() -> in("x", (Collection<?>) null))
         .isInstanceOf(NullPointerException.class)
-        .hasMessageContaining("Values cannot be null for IN predicate");
+        .hasMessage("Values cannot be null for IN predicate.");
+
     Assertions.assertThatThrownBy(() -> in("x", 5, 6).literal())
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("IN predicate cannot return a literal");
+        .hasMessage("IN predicate cannot return a literal");
+
     Assertions.assertThatThrownBy(() -> in("x", 1, 2, null))
         .isInstanceOf(NullPointerException.class)
-        .hasMessageContaining("Cannot create expression literal from null");
+        .hasMessage("Cannot create expression literal from null");
+
     Assertions.assertThatThrownBy(() -> new Evaluator(STRUCT, in("x", 7, 8, 9.1)))
         .isInstanceOf(ValidationException.class)
         .hasMessageContaining("Invalid value for conversion to type int");
+
     Assertions.assertThatThrownBy(() -> predicate(Expression.Operation.IN, "x"))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Cannot create IN predicate without a value");
+        .hasMessage("Cannot create IN predicate without a value");
+
     Assertions.assertThatThrownBy(
             () -> new Evaluator(STRUCT, predicate(Expression.Operation.IN, "x", 5.1)))
         .isInstanceOf(ValidationException.class)
@@ -712,18 +718,19 @@ public class TestEvaluator {
   public void testNotInExceptions() {
     Assertions.assertThatThrownBy(() -> notIn("x", (Literal) null))
         .isInstanceOf(NullPointerException.class)
-        .hasMessageContaining("Cannot create expression literal from null");
+        .hasMessage("Cannot create expression literal from null");
+
     Assertions.assertThatThrownBy(() -> notIn("x", (Collection<?>) null))
         .isInstanceOf(NullPointerException.class)
-        .hasMessageContaining("Values cannot be null for NOT_IN predicate");
+        .hasMessage("Values cannot be null for NOT_IN predicate.");
 
     Assertions.assertThatThrownBy(() -> notIn("x", 5, 6).literal())
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("NOT_IN predicate cannot return a literal");
+        .hasMessage("NOT_IN predicate cannot return a literal");
 
     Assertions.assertThatThrownBy(() -> notIn("x", 1, 2, null))
         .isInstanceOf(NullPointerException.class)
-        .hasMessageContaining("Cannot create expression literal from null");
+        .hasMessage("Cannot create expression literal from null");
 
     Assertions.assertThatThrownBy(() -> new Evaluator(STRUCT, notIn("x", 7, 8, 9.1)))
         .isInstanceOf(ValidationException.class)
@@ -731,7 +738,7 @@ public class TestEvaluator {
 
     Assertions.assertThatThrownBy(() -> predicate(Expression.Operation.NOT_IN, "x"))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Cannot create NOT_IN predicate without a value");
+        .hasMessage("Cannot create NOT_IN predicate without a value");
 
     Assertions.assertThatThrownBy(
             () -> new Evaluator(STRUCT, predicate(Expression.Operation.NOT_IN, "x", 5.1)))

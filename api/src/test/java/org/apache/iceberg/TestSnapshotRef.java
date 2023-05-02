@@ -70,37 +70,37 @@ public class TestSnapshotRef {
   public void testNoTypeFailure() {
     Assertions.assertThatThrownBy(() -> SnapshotRef.builderFor(1L, null).build())
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Snapshot reference type must not be null");
+        .hasMessage("Snapshot reference type must not be null");
   }
 
   @Test
   public void testTagBuildFailures() {
     Assertions.assertThatThrownBy(() -> SnapshotRef.tagBuilder(1L).maxRefAgeMs(-1L).build())
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Max reference age must be greater than 0");
+        .hasMessage("Max reference age must be greater than 0");
 
     Assertions.assertThatThrownBy(() -> SnapshotRef.tagBuilder(1L).minSnapshotsToKeep(2).build())
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Tags do not support setting minSnapshotsToKeep");
+        .hasMessage("Tags do not support setting minSnapshotsToKeep");
 
     Assertions.assertThatThrownBy(() -> SnapshotRef.tagBuilder(1L).maxSnapshotAgeMs(2L).build())
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Tags do not support setting maxSnapshotAgeMs");
+        .hasMessage("Tags do not support setting maxSnapshotAgeMs");
   }
 
   @Test
   public void testBranchBuildFailures() {
     Assertions.assertThatThrownBy(() -> SnapshotRef.branchBuilder(1L).maxSnapshotAgeMs(-1L).build())
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Max snapshot age must be greater than 0");
+        .hasMessage("Max snapshot age must be greater than 0 ms");
 
     Assertions.assertThatThrownBy(
             () -> SnapshotRef.branchBuilder(1L).minSnapshotsToKeep(-1).build())
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Min snapshots to keep must be greater than 0");
+        .hasMessage("Min snapshots to keep must be greater than 0");
 
     Assertions.assertThatThrownBy(() -> SnapshotRef.branchBuilder(1L).maxRefAgeMs(-1L).build())
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Max reference age must be greater than 0");
+        .hasMessage("Max reference age must be greater than 0");
   }
 }

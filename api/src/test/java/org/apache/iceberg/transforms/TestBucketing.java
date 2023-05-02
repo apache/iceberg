@@ -360,7 +360,7 @@ public class TestBucketing {
   public void testVerifiedIllegalNumBuckets() {
     Assertions.assertThatThrownBy(() -> Bucket.get(0))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Invalid number of buckets: 0 (must be > 0)");
+        .hasMessage("Invalid number of buckets: 0 (must be > 0)");
   }
 
   private byte[] randomBytes(int length) {
