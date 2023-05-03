@@ -53,7 +53,7 @@ public class SparkActions implements ActionsProvider {
     CatalogPlugin defaultCatalog = spark.sessionState().catalogManager().currentCatalog();
     CatalogAndIdentifier catalogAndIdent =
         Spark3Util.catalogAndIdentifier(ctx, spark, tableIdent, defaultCatalog);
-    return new SnapshotTableSparkAction(
+      return new SnapshotTableSparkAction(
         spark, catalogAndIdent.catalog(), catalogAndIdent.identifier());
   }
 
@@ -90,5 +90,10 @@ public class SparkActions implements ActionsProvider {
   @Override
   public DeleteReachableFilesSparkAction deleteReachableFiles(String metadataLocation) {
     return new DeleteReachableFilesSparkAction(spark, metadataLocation);
+  }
+
+  @Override
+  public GenerateSymlinkManifestAction generateSymlinkManifest(Table table) {
+    return new GenerateSymlinkManifestAction(spark, table);
   }
 }

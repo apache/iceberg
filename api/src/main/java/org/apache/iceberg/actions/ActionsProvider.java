@@ -64,4 +64,10 @@ public interface ActionsProvider {
     throw new UnsupportedOperationException(
         this.getClass().getName() + " does not implement deleteReachableFiles");
   }
+
+  /** Instantiates an action to generate a symlink manifest of a table */
+  default GenerateSymlinkManifest generateSymlinkManifest(Table table) {
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " does not implement deleteReachableFiles");
+  }
 }
