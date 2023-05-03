@@ -57,7 +57,6 @@ from pyiceberg.io.pyarrow import (
     PyArrowFile,
     PyArrowFileIO,
     _ConvertToArrowSchema,
-    _OrderedChunkedArrayConsumer,
     _read_deletes,
     expression_to_pyarrow,
     project_table,
@@ -1285,29 +1284,3 @@ foo: [["a","b","c"]]
 bar: [[1,2,3]]
 baz: [[true,false,null]]"""
     )
-
-
-def test_ordered_chunked_array_consumer() -> None:
-    con = _OrderedChunkedArrayConsumer(pa.chunked_array([[1, 4, 6]]), pa.chunked_array([[3, 5, 8]]))
-
-    assert list(con) == [1, 3, 4, 5, 6, 8]
-
-
-def test_ordered_chunked_array_consumer_single_array() -> None:
-    con = _OrderedChunkedArrayConsumer(
-        pa.chunked_array([[1, 4, 6]]),
-    )
-
-    assert list(con) == [1, 4, 6]
-
-
-def test_ordered_chunked_array_consumer_empty_array() -> None:
-    con = _OrderedChunkedArrayConsumer()
-
-    assert list(con) == []
-
-
-def test_ordered_chunked_array_consumer_one_empty_array() -> None:
-    con = _OrderedChunkedArrayConsumer(pa.chunked_array([[1, 4, 6]]), pa.chunked_array([[]]))
-
-    assert list(con) == [1, 4, 6]

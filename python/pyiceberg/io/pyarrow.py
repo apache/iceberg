@@ -28,6 +28,7 @@ import multiprocessing
 import os
 from abc import ABC, abstractmethod
 from functools import lru_cache, singledispatch
+from heapq import merge
 from itertools import chain
 from multiprocessing.pool import ThreadPool
 from multiprocessing.sharedctypes import Synchronized
@@ -528,62 +529,17 @@ def _read_deletes(fs: FileSystem, data_file: DataFile) -> Dict[str, pa.ChunkedAr
     }
 
 
-class _OrderedChunkedArrayConsumer:
-    """
-    A wrapper to consume multiple individually ordered chunked-arrays
-    simultaneously as an ordered iterator
-    """
-
-    arrays: Tuple[pa.ChunkedArray, ...]
-    arrays_len: Tuple[int, ...]
-    arrays_pos: List[int]
-
-    def _reset(self) -> None:
-        self.arrays_pos = [0] * len(self.arrays)
-        self.arrays_len = tuple(len(array) for array in self.arrays)
-
-    def __init__(self, *arrays: pa.ChunkedArray) -> None:
-        self.arrays = arrays
-        self._reset()
-
-    def __iter__(self) -> _OrderedChunkedArrayConsumer:
-        self._reset()
-        return self
-
-    def __next__(self) -> int:
-        next_val = None
-        next_pos = None
-        for peek_pos in range(len(self.arrays)):
-            array_pos = self.arrays_pos[peek_pos]
-            if array_pos < self.arrays_len[peek_pos]:
-                peek_val = self.arrays[peek_pos][array_pos].as_py()
-                if next_val is None or peek_val < next_val:  # type: ignore
-                    next_val = peek_val
-                    next_pos = peek_pos
-
-        if next_val is not None:
-            # Increment the consumed array with one
-            self.arrays_pos[next_pos] = self.arrays_pos[next_pos] + 1  # type: ignore
-
-            return next_val
-        else:
-            raise StopIteration
-
-
 def _create_positional_deletes_indices(
     positional_deletes: List[pa.ChunkedArray], fn_rows: Callable[[], int]
 ) -> Optional[pa.Array]:
-    # It can be that there are multiple delete files on top,
-    # since the delete files themselves are sorted, we need to
-    # weave them together using the _OrderedChunkedArrayConsumer
-    sorted_deleted = _OrderedChunkedArrayConsumer(*positional_deletes)
+    sorted_deleted = merge(*positional_deletes)
 
     def generator() -> Generator[int, None, None]:
-        deleted_pos = next(sorted_deleted)
+        deleted_pos = next(sorted_deleted)  # type: ignore
         for pos in range(fn_rows()):
             if deleted_pos == pos:
                 try:
-                    deleted_pos = next(sorted_deleted)
+                    deleted_pos = next(sorted_deleted)  # type: ignore
                 except StopIteration:
                     deleted_pos = -1
             else:
