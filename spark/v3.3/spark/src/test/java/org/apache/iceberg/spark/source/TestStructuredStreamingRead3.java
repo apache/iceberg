@@ -527,7 +527,7 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
     expected.add(new SimpleRecord(1, "overwrite one"));
 
     StreamingQuery query =
-        startStream(SparkReadOptions.STREAMING_OVERWRITE_SNAPSHOTS_READ_MODE, "append_only");
+        startStream(SparkReadOptions.STREAMING_OVERWRITE_SNAPSHOTS_READ_MODE, "ADDED_FILES_ONLY");
     List<SimpleRecord> rows = rowsAvailable(query);
     Assertions.assertThat(rows).containsExactlyInAnyOrderElementsOf(expected);
   }
