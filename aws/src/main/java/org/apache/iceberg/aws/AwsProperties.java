@@ -32,7 +32,6 @@ import org.apache.iceberg.aws.s3.S3FileIOProperties;
 import org.apache.iceberg.aws.s3.signer.S3V4RestSignerClient;
 import org.apache.iceberg.common.DynClasses;
 import org.apache.iceberg.common.DynMethods;
-import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -169,7 +168,8 @@ public class AwsProperties implements Serializable {
    * Number of threads to use for uploading parts to S3 (shared pool across all output streams),
    * default to {@link Runtime#availableProcessors()}
    */
-  public static final String S3FILEIO_MULTIPART_UPLOAD_THREADS = S3FileIOProperties.S3FILEIO_MULTIPART_UPLOAD_THREADS;
+  public static final String S3FILEIO_MULTIPART_UPLOAD_THREADS =
+      S3FileIOProperties.S3FILEIO_MULTIPART_UPLOAD_THREADS;
 
   /**
    * The size of a single part for multipart upload requests in bytes (default: 32MB). based on S3
@@ -180,22 +180,27 @@ public class AwsProperties implements Serializable {
    */
   public static final String S3FILEIO_MULTIPART_SIZE = S3FileIOProperties.S3FILEIO_MULTIPART_SIZE;
 
-  public static final int S3FILEIO_MULTIPART_SIZE_DEFAULT = S3FileIOProperties.S3FILEIO_MULTIPART_SIZE_DEFAULT;
-  public static final int S3FILEIO_MULTIPART_SIZE_MIN = S3FileIOProperties.S3FILEIO_MULTIPART_SIZE_MIN;
+  public static final int S3FILEIO_MULTIPART_SIZE_DEFAULT =
+      S3FileIOProperties.S3FILEIO_MULTIPART_SIZE_DEFAULT;
+  public static final int S3FILEIO_MULTIPART_SIZE_MIN =
+      S3FileIOProperties.S3FILEIO_MULTIPART_SIZE_MIN;
 
   /**
    * The threshold expressed as a factor times the multipart size at which to switch from uploading
    * using a single put object request to uploading using multipart upload (default: 1.5).
    */
-  public static final String S3FILEIO_MULTIPART_THRESHOLD_FACTOR = S3FileIOProperties.S3FILEIO_MULTIPART_THRESHOLD_FACTOR;
+  public static final String S3FILEIO_MULTIPART_THRESHOLD_FACTOR =
+      S3FileIOProperties.S3FILEIO_MULTIPART_THRESHOLD_FACTOR;
 
-  public static final double S3FILEIO_MULTIPART_THRESHOLD_FACTOR_DEFAULT = S3FileIOProperties.S3FILEIO_MULTIPART_THRESHOLD_FACTOR_DEFAULT;
+  public static final double S3FILEIO_MULTIPART_THRESHOLD_FACTOR_DEFAULT =
+      S3FileIOProperties.S3FILEIO_MULTIPART_THRESHOLD_FACTOR_DEFAULT;
 
   /**
    * Location to put staging files for upload to S3, default to temp directory set in
    * java.io.tmpdir.
    */
-  public static final String S3FILEIO_STAGING_DIRECTORY = S3FileIOProperties.S3FILEIO_STAGING_DIRECTORY;
+  public static final String S3FILEIO_STAGING_DIRECTORY =
+      S3FileIOProperties.S3FILEIO_STAGING_DIRECTORY;
 
   /**
    * Used to configure canned access control list (ACL) for S3 client to use during write. If not
@@ -221,9 +226,11 @@ public class AwsProperties implements Serializable {
    *
    * <p>For more details: https://docs.aws.amazon.com/AmazonS3/latest/userguide/VirtualHosting.html
    */
-  public static final String S3FILEIO_PATH_STYLE_ACCESS = S3FileIOProperties.S3FILEIO_PATH_STYLE_ACCESS;
+  public static final String S3FILEIO_PATH_STYLE_ACCESS =
+      S3FileIOProperties.S3FILEIO_PATH_STYLE_ACCESS;
 
-  public static final boolean S3FILEIO_PATH_STYLE_ACCESS_DEFAULT = S3FileIOProperties.S3FILEIO_PATH_STYLE_ACCESS_DEFAULT;
+  public static final boolean S3FILEIO_PATH_STYLE_ACCESS_DEFAULT =
+      S3FileIOProperties.S3FILEIO_PATH_STYLE_ACCESS_DEFAULT;
 
   /**
    * Configure the static access key ID used to access S3FileIO.
@@ -243,7 +250,8 @@ public class AwsProperties implements Serializable {
    * #S3FILEIO_SESSION_TOKEN} is set, session credential is used, otherwise basic credential is
    * used.
    */
-  public static final String S3FILEIO_SECRET_ACCESS_KEY = S3FileIOProperties.S3FILEIO_SECRET_ACCESS_KEY;
+  public static final String S3FILEIO_SECRET_ACCESS_KEY =
+      S3FileIOProperties.S3FILEIO_SECRET_ACCESS_KEY;
 
   /**
    * Configure the static session token used to access S3FileIO.
@@ -263,21 +271,27 @@ public class AwsProperties implements Serializable {
    * <p>For more details see:
    * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/services/s3/S3Configuration.html#useArnRegionEnabled--
    */
-  public static final String S3_USE_ARN_REGION_ENABLED = S3FileIOProperties.S3_USE_ARN_REGION_ENABLED;
+  public static final String S3_USE_ARN_REGION_ENABLED =
+      S3FileIOProperties.S3_USE_ARN_REGION_ENABLED;
 
-  public static final boolean S3_USE_ARN_REGION_ENABLED_DEFAULT = S3FileIOProperties.S3_USE_ARN_REGION_ENABLED_DEFAULT;
+  public static final boolean S3_USE_ARN_REGION_ENABLED_DEFAULT =
+      S3FileIOProperties.S3_USE_ARN_REGION_ENABLED_DEFAULT;
 
   /** Enables eTag checks for S3 PUT and MULTIPART upload requests. */
   public static final String S3_CHECKSUM_ENABLED = S3FileIOProperties.S3_CHECKSUM_ENABLED;
 
-  public static final boolean S3_CHECKSUM_ENABLED_DEFAULT = S3FileIOProperties.S3_CHECKSUM_ENABLED_DEFAULT;
+  public static final boolean S3_CHECKSUM_ENABLED_DEFAULT =
+      S3FileIOProperties.S3_CHECKSUM_ENABLED_DEFAULT;
 
-  public static final String S3_REMOTE_SIGNING_ENABLED = S3FileIOProperties.S3_REMOTE_SIGNING_ENABLED;
+  public static final String S3_REMOTE_SIGNING_ENABLED =
+      S3FileIOProperties.S3_REMOTE_SIGNING_ENABLED;
 
-  public static final boolean S3_REMOTE_SIGNING_ENABLED_DEFAULT = S3FileIOProperties.S3_REMOTE_SIGNING_ENABLED_DEFAULT;
+  public static final boolean S3_REMOTE_SIGNING_ENABLED_DEFAULT =
+      S3FileIOProperties.S3_REMOTE_SIGNING_ENABLED_DEFAULT;
 
   /** Configure the batch size used when deleting multiple files from a given S3 bucket */
-  public static final String S3FILEIO_DELETE_BATCH_SIZE = S3FileIOProperties.S3FILEIO_DELETE_BATCH_SIZE;
+  public static final String S3FILEIO_DELETE_BATCH_SIZE =
+      S3FileIOProperties.S3FILEIO_DELETE_BATCH_SIZE;
 
   /**
    * Default batch size used when deleting files.
@@ -285,13 +299,15 @@ public class AwsProperties implements Serializable {
    * <p>Refer to https://github.com/apache/hadoop/commit/56dee667707926f3796c7757be1a133a362f05c9
    * for more details on why this value was chosen.
    */
-  public static final int S3FILEIO_DELETE_BATCH_SIZE_DEFAULT = S3FileIOProperties.S3FILEIO_DELETE_BATCH_SIZE_DEFAULT;
+  public static final int S3FILEIO_DELETE_BATCH_SIZE_DEFAULT =
+      S3FileIOProperties.S3FILEIO_DELETE_BATCH_SIZE_DEFAULT;
 
   /**
    * Max possible batch size for deletion. Currently, a max of 1000 keys can be deleted in one
    * batch. https://docs.aws.amazon.com/AmazonS3/latest/API/API_DeleteObjects.html
    */
-  public static final int S3FILEIO_DELETE_BATCH_SIZE_MAX = S3FileIOProperties.S3FILEIO_DELETE_BATCH_SIZE_MAX;
+  public static final int S3FILEIO_DELETE_BATCH_SIZE_MAX =
+      S3FileIOProperties.S3FILEIO_DELETE_BATCH_SIZE_MAX;
 
   /** Configure an alternative endpoint of the DynamoDB service to access. */
   public static final String DYNAMODB_ENDPOINT = "dynamodb.endpoint";
@@ -555,9 +571,11 @@ public class AwsProperties implements Serializable {
    *
    * <p>Example: s3.write.table-tag-enabled=true
    */
-  public static final String S3_WRITE_TABLE_TAG_ENABLED = S3FileIOProperties.S3_WRITE_TABLE_TAG_ENABLED;
+  public static final String S3_WRITE_TABLE_TAG_ENABLED =
+      S3FileIOProperties.S3_WRITE_TABLE_TAG_ENABLED;
 
-  public static final boolean S3_WRITE_TABLE_TAG_ENABLED_DEFAULT = S3FileIOProperties.S3_WRITE_TABLE_TAG_ENABLED_DEFAULT;
+  public static final boolean S3_WRITE_TABLE_TAG_ENABLED_DEFAULT =
+      S3FileIOProperties.S3_WRITE_TABLE_TAG_ENABLED_DEFAULT;
 
   /**
    * Used by {@link GlueCatalog} to tag objects when writing. To set, we can pass a catalog
@@ -568,9 +586,11 @@ public class AwsProperties implements Serializable {
    *
    * <p>Example: s3.write.namespace-tag-enabled=true
    */
-  public static final String S3_WRITE_NAMESPACE_TAG_ENABLED = S3FileIOProperties.S3_WRITE_NAMESPACE_TAG_ENABLED;
+  public static final String S3_WRITE_NAMESPACE_TAG_ENABLED =
+      S3FileIOProperties.S3_WRITE_NAMESPACE_TAG_ENABLED;
 
-  public static final boolean S3_WRITE_NAMESPACE_TAG_ENABLED_DEFAULT = S3FileIOProperties.S3_WRITE_NAMESPACE_TAG_ENABLED_DEFAULT;
+  public static final boolean S3_WRITE_NAMESPACE_TAG_ENABLED_DEFAULT =
+      S3FileIOProperties.S3_WRITE_NAMESPACE_TAG_ENABLED_DEFAULT;
 
   /**
    * Tag name that will be used by {@link #S3_WRITE_TAGS_PREFIX} when {@link
@@ -614,7 +634,8 @@ public class AwsProperties implements Serializable {
    */
   public static final String S3_DELETE_ENABLED = S3FileIOProperties.S3_DELETE_ENABLED;
 
-  public static final boolean S3_DELETE_ENABLED_DEFAULT = S3FileIOProperties.S3_DELETE_ENABLED_DEFAULT;
+  public static final boolean S3_DELETE_ENABLED_DEFAULT =
+      S3FileIOProperties.S3_DELETE_ENABLED_DEFAULT;
 
   /**
    * Determines if S3 client will use the Acceleration Mode, default to false.
@@ -624,7 +645,8 @@ public class AwsProperties implements Serializable {
    */
   public static final String S3_ACCELERATION_ENABLED = S3FileIOProperties.S3_ACCELERATION_ENABLED;
 
-  public static final boolean S3_ACCELERATION_ENABLED_DEFAULT = S3FileIOProperties.S3_ACCELERATION_ENABLED_DEFAULT;
+  public static final boolean S3_ACCELERATION_ENABLED_DEFAULT =
+      S3FileIOProperties.S3_ACCELERATION_ENABLED_DEFAULT;
 
   /**
    * Determines if S3 client will use the Dualstack Mode, default to false.
@@ -634,7 +656,8 @@ public class AwsProperties implements Serializable {
    */
   public static final String S3_DUALSTACK_ENABLED = S3FileIOProperties.S3_DUALSTACK_ENABLED;
 
-  public static final boolean S3_DUALSTACK_ENABLED_DEFAULT = S3FileIOProperties.S3_DUALSTACK_ENABLED_DEFAULT;
+  public static final boolean S3_DUALSTACK_ENABLED_DEFAULT =
+      S3FileIOProperties.S3_DUALSTACK_ENABLED_DEFAULT;
 
   /**
    * Used by {@link S3FileIO}, prefix used for bucket access point configuration. To set, we can
@@ -651,9 +674,11 @@ public class AwsProperties implements Serializable {
    * initialization, instead of default lazy initialization upon use. This is needed for cases that
    * the credentials to use might change and needs to be preloaded.
    */
-  public static final String S3_PRELOAD_CLIENT_ENABLED = S3FileIOProperties.S3_PRELOAD_CLIENT_ENABLED;
+  public static final String S3_PRELOAD_CLIENT_ENABLED =
+      S3FileIOProperties.S3_PRELOAD_CLIENT_ENABLED;
 
-  public static final boolean S3_PRELOAD_CLIENT_ENABLED_DEFAULT = S3FileIOProperties.S3_PRELOAD_CLIENT_ENABLED_DEFAULT;
+  public static final boolean S3_PRELOAD_CLIENT_ENABLED_DEFAULT =
+      S3FileIOProperties.S3_PRELOAD_CLIENT_ENABLED_DEFAULT;
 
   /**
    * Used by {@link LakeFormationAwsClientFactory}. The table name used as part of lake formation
@@ -705,8 +730,8 @@ public class AwsProperties implements Serializable {
   private static final String HTTP_CLIENT_PREFIX = "http-client.";
 
   /*
-  * Config class to store all s3 related properties for S3FileIO
-  * */
+   * Config class to store all s3 related properties for S3FileIO
+   * */
   private final S3FileIOProperties s3FileIOProperties;
   private String httpClientType;
   private final Map<String, String> httpClientProperties;
@@ -813,7 +838,6 @@ public class AwsProperties implements Serializable {
     this.restAccessKeyId = properties.get(REST_ACCESS_KEY_ID);
     this.restSecretAccessKey = properties.get(REST_SECRET_ACCESS_KEY);
     this.restSessionToken = properties.get(REST_SESSION_TOKEN);
-
   }
 
   public Set<software.amazon.awssdk.services.sts.model.Tag> stsClientAssumeRoleTags() {
