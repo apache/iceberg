@@ -68,47 +68,63 @@ public class AwsProperties implements Serializable {
    * AwsProperties#S3FILEIO_SSE_TYPE_NONE}.
    *
    * <p>For more details: https://docs.aws.amazon.com/AmazonS3/latest/dev/serv-side-encryption.html
+   *
+   * @deprecated use {@link org.apache.iceberg.aws.s3.S3FileIOProperties} instead
    */
-  public static final String S3FILEIO_SSE_TYPE = S3FileIOProperties.S3FILEIO_SSE_TYPE;
+  @Deprecated public static final String S3FILEIO_SSE_TYPE = "s3.sse.type";
 
-  /** No server side encryption. */
-  public static final String S3FILEIO_SSE_TYPE_NONE = S3FileIOProperties.S3FILEIO_SSE_TYPE_NONE;
+  /**
+   * No server side encryption.
+   *
+   * @deprecated use {@link org.apache.iceberg.aws.s3.S3FileIOProperties} instead
+   */
+  @Deprecated public static final String S3FILEIO_SSE_TYPE_NONE = "none";
 
   /**
    * S3 SSE-KMS encryption.
    *
    * <p>For more details: https://docs.aws.amazon.com/AmazonS3/latest/dev/UsingKMSEncryption.html
+   *
+   * @deprecated use {@link org.apache.iceberg.aws.s3.S3FileIOProperties} instead
    */
-  public static final String S3FILEIO_SSE_TYPE_KMS = S3FileIOProperties.S3FILEIO_SSE_TYPE_KMS;
+  @Deprecated public static final String S3FILEIO_SSE_TYPE_KMS = "kms";
 
   /**
    * S3 SSE-S3 encryption.
    *
    * <p>For more details:
    * https://docs.aws.amazon.com/AmazonS3/latest/dev/UsingServerSideEncryption.html
+   *
+   * @deprecated use {@link org.apache.iceberg.aws.s3.S3FileIOProperties} instead
    */
-  public static final String S3FILEIO_SSE_TYPE_S3 = S3FileIOProperties.S3FILEIO_SSE_TYPE_S3;
+  @Deprecated public static final String S3FILEIO_SSE_TYPE_S3 = "s3";
 
   /**
    * S3 SSE-C encryption.
    *
    * <p>For more details:
    * https://docs.aws.amazon.com/AmazonS3/latest/dev/ServerSideEncryptionCustomerKeys.html
+   *
+   * @deprecated use {@link org.apache.iceberg.aws.s3.S3FileIOProperties} instead
    */
-  public static final String S3FILEIO_SSE_TYPE_CUSTOM = S3FileIOProperties.S3FILEIO_SSE_TYPE_CUSTOM;
+  @Deprecated public static final String S3FILEIO_SSE_TYPE_CUSTOM = "custom";
 
   /**
    * If S3 encryption type is SSE-KMS, input is a KMS Key ID or ARN. In case this property is not
    * set, default key "aws/s3" is used. If encryption type is SSE-C, input is a custom base-64
    * AES256 symmetric key.
+   *
+   * @deprecated use {@link org.apache.iceberg.aws.s3.S3FileIOProperties} instead
    */
-  public static final String S3FILEIO_SSE_KEY = S3FileIOProperties.S3FILEIO_SSE_KEY;
+  @Deprecated public static final String S3FILEIO_SSE_KEY = "s3.sse.key";
 
   /**
    * If S3 encryption type is SSE-C, input is the base-64 MD5 digest of the secret key. This MD5
    * must be explicitly passed in by the caller to ensure key integrity.
+   *
+   * @deprecated use {@link org.apache.iceberg.aws.s3.S3FileIOProperties} instead
    */
-  public static final String S3FILEIO_SSE_MD5 = S3FileIOProperties.S3FILEIO_SSE_MD5;
+  @Deprecated public static final String S3FILEIO_SSE_MD5 = "s3.sse.md5";
 
   /**
    * The ID of the Glue Data Catalog where the tables reside. If none is provided, Glue
@@ -167,9 +183,11 @@ public class AwsProperties implements Serializable {
   /**
    * Number of threads to use for uploading parts to S3 (shared pool across all output streams),
    * default to {@link Runtime#availableProcessors()}
+   *
+   * @deprecated use {@link org.apache.iceberg.aws.s3.S3FileIOProperties} instead
    */
-  public static final String S3FILEIO_MULTIPART_UPLOAD_THREADS =
-      S3FileIOProperties.S3FILEIO_MULTIPART_UPLOAD_THREADS;
+  @Deprecated
+  public static final String S3FILEIO_MULTIPART_UPLOAD_THREADS = "s3.multipart.num-threads";
 
   /**
    * The size of a single part for multipart upload requests in bytes (default: 32MB). based on S3
@@ -177,30 +195,41 @@ public class AwsProperties implements Serializable {
    * writer, the part size must be less than 2GB.
    *
    * <p>For more details, see https://docs.aws.amazon.com/AmazonS3/latest/dev/qfacts.html
+   *
+   * @deprecated use {@link org.apache.iceberg.aws.s3.S3FileIOProperties} instead
    */
-  public static final String S3FILEIO_MULTIPART_SIZE = S3FileIOProperties.S3FILEIO_MULTIPART_SIZE;
+  @Deprecated public static final String S3FILEIO_MULTIPART_SIZE = "s3.multipart.part-size-bytes";
 
-  public static final int S3FILEIO_MULTIPART_SIZE_DEFAULT =
-      S3FileIOProperties.S3FILEIO_MULTIPART_SIZE_DEFAULT;
-  public static final int S3FILEIO_MULTIPART_SIZE_MIN =
-      S3FileIOProperties.S3FILEIO_MULTIPART_SIZE_MIN;
+  /*
+  @deprecated use {@link org.apache.iceberg.aws.s3.S3FileIOProperties} instead
+   */
+  @Deprecated public static final int S3FILEIO_MULTIPART_SIZE_DEFAULT = 32 * 1024 * 1024;
+  /*
+  @deprecated use {@link org.apache.iceberg.aws.s3.S3FileIOProperties} instead
+   */
+  @Deprecated public static final int S3FILEIO_MULTIPART_SIZE_MIN = 5 * 1024 * 1024;
 
   /**
    * The threshold expressed as a factor times the multipart size at which to switch from uploading
    * using a single put object request to uploading using multipart upload (default: 1.5).
+   *
+   * @deprecated use {@link org.apache.iceberg.aws.s3.S3FileIOProperties} instead
    */
-  public static final String S3FILEIO_MULTIPART_THRESHOLD_FACTOR =
-      S3FileIOProperties.S3FILEIO_MULTIPART_THRESHOLD_FACTOR;
+  @Deprecated
+  public static final String S3FILEIO_MULTIPART_THRESHOLD_FACTOR = "s3.multipart.threshold";
 
-  public static final double S3FILEIO_MULTIPART_THRESHOLD_FACTOR_DEFAULT =
-      S3FileIOProperties.S3FILEIO_MULTIPART_THRESHOLD_FACTOR_DEFAULT;
+  /*
+  @deprecated use {@link org.apache.iceberg.aws.s3.S3FileIOProperties} instead
+   */
+  @Deprecated public static final double S3FILEIO_MULTIPART_THRESHOLD_FACTOR_DEFAULT = 1.5;
 
   /**
    * Location to put staging files for upload to S3, default to temp directory set in
    * java.io.tmpdir.
+   *
+   * @deprecated use {@link org.apache.iceberg.aws.s3.S3FileIOProperties} instead
    */
-  public static final String S3FILEIO_STAGING_DIRECTORY =
-      S3FileIOProperties.S3FILEIO_STAGING_DIRECTORY;
+  @Deprecated public static final String S3FILEIO_STAGING_DIRECTORY = "s3.staging-dir";
 
   /**
    * Used to configure canned access control list (ACL) for S3 client to use during write. If not
@@ -209,28 +238,33 @@ public class AwsProperties implements Serializable {
    * <p>The input must be one of {@link software.amazon.awssdk.services.s3.model.ObjectCannedACL},
    * such as 'public-read-write' For more details:
    * https://docs.aws.amazon.com/AmazonS3/latest/dev/acl-overview.html
+   *
+   * @deprecated use {@link org.apache.iceberg.aws.s3.S3FileIOProperties} instead
    */
-  public static final String S3FILEIO_ACL = S3FileIOProperties.S3FILEIO_ACL;
+  @Deprecated public static final String S3FILEIO_ACL = "s3.acl";
 
   /**
    * Configure an alternative endpoint of the S3 service for S3FileIO to access.
    *
    * <p>This could be used to use S3FileIO with any s3-compatible object storage service that has a
    * different endpoint, or access a private S3 endpoint in a virtual private cloud.
+   *
+   * @deprecated use {@link org.apache.iceberg.aws.s3.S3FileIOProperties} instead
    */
-  public static final String S3FILEIO_ENDPOINT = S3FileIOProperties.S3FILEIO_ENDPOINT;
+  @Deprecated public static final String S3FILEIO_ENDPOINT = "s3.endpoint";
 
   /**
    * If set {@code true}, requests to S3FileIO will use Path-Style, otherwise, Virtual Hosted-Style
    * will be used.
    *
    * <p>For more details: https://docs.aws.amazon.com/AmazonS3/latest/userguide/VirtualHosting.html
+   *
+   * @deprecated use {@link org.apache.iceberg.aws.s3.S3FileIOProperties} instead
    */
-  public static final String S3FILEIO_PATH_STYLE_ACCESS =
-      S3FileIOProperties.S3FILEIO_PATH_STYLE_ACCESS;
+  @Deprecated public static final String S3FILEIO_PATH_STYLE_ACCESS = "s3.path-style-access";
 
-  public static final boolean S3FILEIO_PATH_STYLE_ACCESS_DEFAULT =
-      S3FileIOProperties.S3FILEIO_PATH_STYLE_ACCESS_DEFAULT;
+  /** @deprecated use {@link org.apache.iceberg.aws.s3.S3FileIOProperties} instead */
+  @Deprecated public static final boolean S3FILEIO_PATH_STYLE_ACCESS_DEFAULT = false;
 
   /**
    * Configure the static access key ID used to access S3FileIO.
@@ -239,8 +273,10 @@ public class AwsProperties implements Serializable {
    * instead of reading the default credential chain to create S3 access credentials. If {@link
    * #S3FILEIO_SESSION_TOKEN} is set, session credential is used, otherwise basic credential is
    * used.
+   *
+   * @deprecated use {@link org.apache.iceberg.aws.s3.S3FileIOProperties} instead
    */
-  public static final String S3FILEIO_ACCESS_KEY_ID = S3FileIOProperties.S3FILEIO_ACCESS_KEY_ID;
+  @Deprecated public static final String S3FILEIO_ACCESS_KEY_ID = "s3.access-key-id";
 
   /**
    * Configure the static secret access key used to access S3FileIO.
@@ -249,17 +285,20 @@ public class AwsProperties implements Serializable {
    * instead of reading the default credential chain to create S3 access credentials. If {@link
    * #S3FILEIO_SESSION_TOKEN} is set, session credential is used, otherwise basic credential is
    * used.
+   *
+   * @deprecated use {@link org.apache.iceberg.aws.s3.S3FileIOProperties} instead
    */
-  public static final String S3FILEIO_SECRET_ACCESS_KEY =
-      S3FileIOProperties.S3FILEIO_SECRET_ACCESS_KEY;
+  @Deprecated public static final String S3FILEIO_SECRET_ACCESS_KEY = "s3.secret-access-key";
 
   /**
    * Configure the static session token used to access S3FileIO.
    *
    * <p>When set, the default client factory will use the session credentials provided instead of
    * reading the default credential chain to create S3 access credentials.
+   *
+   * @deprecated use {@link org.apache.iceberg.aws.s3.S3FileIOProperties} instead
    */
-  public static final String S3FILEIO_SESSION_TOKEN = S3FileIOProperties.S3FILEIO_SESSION_TOKEN;
+  @Deprecated public static final String S3FILEIO_SESSION_TOKEN = "s3.session-token";
 
   /**
    * Enable to make S3FileIO, to make cross-region call to the region specified in the ARN of an
@@ -270,44 +309,51 @@ public class AwsProperties implements Serializable {
    *
    * <p>For more details see:
    * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/services/s3/S3Configuration.html#useArnRegionEnabled--
+   *
+   * @deprecated use {@link org.apache.iceberg.aws.s3.S3FileIOProperties} instead
    */
-  public static final String S3_USE_ARN_REGION_ENABLED =
-      S3FileIOProperties.S3_USE_ARN_REGION_ENABLED;
+  @Deprecated public static final String S3_USE_ARN_REGION_ENABLED = "s3.use-arn-region-enabled";
 
-  public static final boolean S3_USE_ARN_REGION_ENABLED_DEFAULT =
-      S3FileIOProperties.S3_USE_ARN_REGION_ENABLED_DEFAULT;
+  /** @deprecated use {@link org.apache.iceberg.aws.s3.S3FileIOProperties} instead */
+  @Deprecated public static final boolean S3_USE_ARN_REGION_ENABLED_DEFAULT = false;
 
-  /** Enables eTag checks for S3 PUT and MULTIPART upload requests. */
-  public static final String S3_CHECKSUM_ENABLED = S3FileIOProperties.S3_CHECKSUM_ENABLED;
+  /**
+   * Enables eTag checks for S3 PUT and MULTIPART upload requests.
+   *
+   * @deprecated use {@link org.apache.iceberg.aws.s3.S3FileIOProperties} instead
+   */
+  @Deprecated public static final String S3_CHECKSUM_ENABLED = "s3.checksum-enabled";
+  /** @deprecated use {@link org.apache.iceberg.aws.s3.S3FileIOProperties} instead */
+  @Deprecated public static final boolean S3_CHECKSUM_ENABLED_DEFAULT = false;
+  /** @deprecated use {@link org.apache.iceberg.aws.s3.S3FileIOProperties} instead */
+  @Deprecated public static final String S3_REMOTE_SIGNING_ENABLED = "s3.remote-signing-enabled";
+  /** @deprecated use {@link org.apache.iceberg.aws.s3.S3FileIOProperties} instead */
+  @Deprecated public static final boolean S3_REMOTE_SIGNING_ENABLED_DEFAULT = false;
 
-  public static final boolean S3_CHECKSUM_ENABLED_DEFAULT =
-      S3FileIOProperties.S3_CHECKSUM_ENABLED_DEFAULT;
-
-  public static final String S3_REMOTE_SIGNING_ENABLED =
-      S3FileIOProperties.S3_REMOTE_SIGNING_ENABLED;
-
-  public static final boolean S3_REMOTE_SIGNING_ENABLED_DEFAULT =
-      S3FileIOProperties.S3_REMOTE_SIGNING_ENABLED_DEFAULT;
-
-  /** Configure the batch size used when deleting multiple files from a given S3 bucket */
-  public static final String S3FILEIO_DELETE_BATCH_SIZE =
-      S3FileIOProperties.S3FILEIO_DELETE_BATCH_SIZE;
+  /**
+   * Configure the batch size used when deleting multiple files from a given S3 bucket
+   *
+   * @deprecated use {@link org.apache.iceberg.aws.s3.S3FileIOProperties} instead
+   */
+  @Deprecated public static final String S3FILEIO_DELETE_BATCH_SIZE = "s3.delete.batch-size";
 
   /**
    * Default batch size used when deleting files.
    *
    * <p>Refer to https://github.com/apache/hadoop/commit/56dee667707926f3796c7757be1a133a362f05c9
    * for more details on why this value was chosen.
+   *
+   * @deprecated use {@link org.apache.iceberg.aws.s3.S3FileIOProperties} instead
    */
-  public static final int S3FILEIO_DELETE_BATCH_SIZE_DEFAULT =
-      S3FileIOProperties.S3FILEIO_DELETE_BATCH_SIZE_DEFAULT;
+  @Deprecated public static final int S3FILEIO_DELETE_BATCH_SIZE_DEFAULT = 250;
 
   /**
    * Max possible batch size for deletion. Currently, a max of 1000 keys can be deleted in one
    * batch. https://docs.aws.amazon.com/AmazonS3/latest/API/API_DeleteObjects.html
+   *
+   * @deprecated use {@link org.apache.iceberg.aws.s3.S3FileIOProperties} instead
    */
-  public static final int S3FILEIO_DELETE_BATCH_SIZE_MAX =
-      S3FileIOProperties.S3FILEIO_DELETE_BATCH_SIZE_MAX;
+  @Deprecated public static final int S3FILEIO_DELETE_BATCH_SIZE_MAX = 1000;
 
   /** Configure an alternative endpoint of the DynamoDB service to access. */
   public static final String DYNAMODB_ENDPOINT = "dynamodb.endpoint";
@@ -559,8 +605,10 @@ public class AwsProperties implements Serializable {
    * https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-tagging.html
    *
    * <p>Example: s3.write.tags.my_key=my_val
+   *
+   * @deprecated use {@link org.apache.iceberg.aws.s3.S3FileIOProperties} instead
    */
-  public static final String S3_WRITE_TAGS_PREFIX = S3FileIOProperties.S3_WRITE_TAGS_PREFIX;
+  @Deprecated public static final String S3_WRITE_TAGS_PREFIX = "s3.write.tags.";
 
   /**
    * Used by {@link GlueCatalog} to tag objects when writing. To set, we can pass a catalog
@@ -570,12 +618,13 @@ public class AwsProperties implements Serializable {
    * https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-tagging.html
    *
    * <p>Example: s3.write.table-tag-enabled=true
+   *
+   * @deprecated use {@link org.apache.iceberg.aws.s3.S3FileIOProperties} instead
    */
-  public static final String S3_WRITE_TABLE_TAG_ENABLED =
-      S3FileIOProperties.S3_WRITE_TABLE_TAG_ENABLED;
+  @Deprecated public static final String S3_WRITE_TABLE_TAG_ENABLED = "s3.write.table-tag-enabled";
 
-  public static final boolean S3_WRITE_TABLE_TAG_ENABLED_DEFAULT =
-      S3FileIOProperties.S3_WRITE_TABLE_TAG_ENABLED_DEFAULT;
+  /** @deprecated use {@link org.apache.iceberg.aws.s3.S3FileIOProperties} instead */
+  @Deprecated public static final boolean S3_WRITE_TABLE_TAG_ENABLED_DEFAULT = false;
 
   /**
    * Used by {@link GlueCatalog} to tag objects when writing. To set, we can pass a catalog
@@ -585,28 +634,34 @@ public class AwsProperties implements Serializable {
    * https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-tagging.html
    *
    * <p>Example: s3.write.namespace-tag-enabled=true
+   *
+   * @deprecated use {@link org.apache.iceberg.aws.s3.S3FileIOProperties} instead
    */
-  public static final String S3_WRITE_NAMESPACE_TAG_ENABLED =
-      S3FileIOProperties.S3_WRITE_NAMESPACE_TAG_ENABLED;
+  @Deprecated
+  public static final String S3_WRITE_NAMESPACE_TAG_ENABLED = "s3.write.namespace-tag-enabled";
 
-  public static final boolean S3_WRITE_NAMESPACE_TAG_ENABLED_DEFAULT =
-      S3FileIOProperties.S3_WRITE_NAMESPACE_TAG_ENABLED_DEFAULT;
+  /** @deprecated use {@link org.apache.iceberg.aws.s3.S3FileIOProperties} instead */
+  @Deprecated public static final boolean S3_WRITE_NAMESPACE_TAG_ENABLED_DEFAULT = false;
 
   /**
    * Tag name that will be used by {@link #S3_WRITE_TAGS_PREFIX} when {@link
    * #S3_WRITE_TABLE_TAG_ENABLED} is enabled
    *
    * <p>Example: iceberg.table=tableName
+   *
+   * @deprecated use {@link org.apache.iceberg.aws.s3.S3FileIOProperties} instead
    */
-  public static final String S3_TAG_ICEBERG_TABLE = S3FileIOProperties.S3_TAG_ICEBERG_TABLE;
+  @Deprecated public static final String S3_TAG_ICEBERG_TABLE = "iceberg.table";
 
   /**
    * Tag name that will be used by {@link #S3_WRITE_TAGS_PREFIX} when {@link
    * #S3_WRITE_NAMESPACE_TAG_ENABLED} is enabled
    *
    * <p>Example: iceberg.namespace=namespaceName
+   *
+   * @deprecated use {@link org.apache.iceberg.aws.s3.S3FileIOProperties} instead
    */
-  public static final String S3_TAG_ICEBERG_NAMESPACE = S3FileIOProperties.S3_TAG_ICEBERG_NAMESPACE;
+  @Deprecated public static final String S3_TAG_ICEBERG_NAMESPACE = "iceberg.namespace";
 
   /**
    * Used by {@link S3FileIO} to tag objects when deleting. When this config is set, objects are
@@ -618,46 +673,56 @@ public class AwsProperties implements Serializable {
    * https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-lifecycle-mgmt.html
    *
    * <p>Example: s3.delete.tags.my_key=my_val
+   *
+   * @deprecated use {@link org.apache.iceberg.aws.s3.S3FileIOProperties} instead
    */
-  public static final String S3_DELETE_TAGS_PREFIX = S3FileIOProperties.S3_DELETE_TAGS_PREFIX;
+  @Deprecated public static final String S3_DELETE_TAGS_PREFIX = "s3.delete.tags.";
 
   /**
    * Number of threads to use for adding delete tags to S3 objects, default to {@link
    * Runtime#availableProcessors()}
+   *
+   * @deprecated use {@link org.apache.iceberg.aws.s3.S3FileIOProperties} instead
    */
-  public static final String S3FILEIO_DELETE_THREADS = S3FileIOProperties.S3FILEIO_DELETE_THREADS;
+  @Deprecated public static final String S3FILEIO_DELETE_THREADS = "s3.delete.num-threads";
 
   /**
    * Determines if {@link S3FileIO} deletes the object when io.delete() is called, default to true.
    * Once disabled, users are expected to set tags through {@link #S3_DELETE_TAGS_PREFIX} and manage
    * deleted files through S3 lifecycle policy.
+   *
+   * @deprecated use {@link org.apache.iceberg.aws.s3.S3FileIOProperties} instead
    */
-  public static final String S3_DELETE_ENABLED = S3FileIOProperties.S3_DELETE_ENABLED;
+  @Deprecated public static final String S3_DELETE_ENABLED = "s3.delete-enabled";
 
-  public static final boolean S3_DELETE_ENABLED_DEFAULT =
-      S3FileIOProperties.S3_DELETE_ENABLED_DEFAULT;
+  /** @deprecated use {@link org.apache.iceberg.aws.s3.S3FileIOProperties} instead */
+  @Deprecated public static final boolean S3_DELETE_ENABLED_DEFAULT = true;
 
   /**
    * Determines if S3 client will use the Acceleration Mode, default to false.
    *
    * <p>For more details, see
    * https://docs.aws.amazon.com/AmazonS3/latest/userguide/transfer-acceleration.html
+   *
+   * @deprecated use {@link org.apache.iceberg.aws.s3.S3FileIOProperties} instead
    */
-  public static final String S3_ACCELERATION_ENABLED = S3FileIOProperties.S3_ACCELERATION_ENABLED;
+  @Deprecated public static final String S3_ACCELERATION_ENABLED = "s3.acceleration-enabled";
 
-  public static final boolean S3_ACCELERATION_ENABLED_DEFAULT =
-      S3FileIOProperties.S3_ACCELERATION_ENABLED_DEFAULT;
+  /** @deprecated use {@link org.apache.iceberg.aws.s3.S3FileIOProperties} instead */
+  @Deprecated public static final boolean S3_ACCELERATION_ENABLED_DEFAULT = false;
 
   /**
    * Determines if S3 client will use the Dualstack Mode, default to false.
    *
    * <p>For more details, see
    * https://docs.aws.amazon.com/AmazonS3/latest/userguide/dual-stack-endpoints.html
+   *
+   * @deprecated use {@link org.apache.iceberg.aws.s3.S3FileIOProperties} instead
    */
-  public static final String S3_DUALSTACK_ENABLED = S3FileIOProperties.S3_DUALSTACK_ENABLED;
+  @Deprecated public static final String S3_DUALSTACK_ENABLED = "s3.dualstack-enabled";
 
-  public static final boolean S3_DUALSTACK_ENABLED_DEFAULT =
-      S3FileIOProperties.S3_DUALSTACK_ENABLED_DEFAULT;
+  /** @deprecated use {@link org.apache.iceberg.aws.s3.S3FileIOProperties} instead */
+  @Deprecated public static final boolean S3_DUALSTACK_ENABLED_DEFAULT = false;
 
   /**
    * Used by {@link S3FileIO}, prefix used for bucket access point configuration. To set, we can
@@ -666,19 +731,22 @@ public class AwsProperties implements Serializable {
    * <p>For more details, see https://aws.amazon.com/s3/features/access-points/
    *
    * <p>Example: s3.access-points.my-bucket=access-point
+   *
+   * @deprecated use {@link org.apache.iceberg.aws.s3.S3FileIOProperties} instead
    */
-  public static final String S3_ACCESS_POINTS_PREFIX = S3FileIOProperties.S3_ACCESS_POINTS_PREFIX;
+  @Deprecated public static final String S3_ACCESS_POINTS_PREFIX = "s3.access-points.";
 
   /**
    * This flag controls whether the S3 client will be initialized during the S3FileIO
    * initialization, instead of default lazy initialization upon use. This is needed for cases that
    * the credentials to use might change and needs to be preloaded.
+   *
+   * @deprecated use {@link org.apache.iceberg.aws.s3.S3FileIOProperties} instead
    */
-  public static final String S3_PRELOAD_CLIENT_ENABLED =
-      S3FileIOProperties.S3_PRELOAD_CLIENT_ENABLED;
+  @Deprecated public static final String S3_PRELOAD_CLIENT_ENABLED = "s3.preload-client-enabled";
 
-  public static final boolean S3_PRELOAD_CLIENT_ENABLED_DEFAULT =
-      S3FileIOProperties.S3_PRELOAD_CLIENT_ENABLED_DEFAULT;
+  /** @deprecated use {@link org.apache.iceberg.aws.s3.S3FileIOProperties} instead */
+  @Deprecated public static final boolean S3_PRELOAD_CLIENT_ENABLED_DEFAULT = false;
 
   /**
    * Used by {@link LakeFormationAwsClientFactory}. The table name used as part of lake formation

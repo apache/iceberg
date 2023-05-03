@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.aws.s3;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -27,8 +26,7 @@ import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.assertj.core.api.Assertions;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import software.amazon.awssdk.services.s3.model.ObjectCannedACL;
 import software.amazon.awssdk.services.s3.model.Tag;
 
@@ -44,83 +42,71 @@ public class TestS3FileIOProperties {
   public void testS3FileIOPropertiesDefaultValues() {
     S3FileIOProperties s3FileIOProperties = new S3FileIOProperties();
 
-    Assert.assertEquals(
-        S3FileIOProperties.S3FILEIO_SSE_TYPE_NONE, s3FileIOProperties.s3FileIoSseType());
+    Assertions.assertThat(S3FileIOProperties.S3FILEIO_SSE_TYPE_NONE)
+        .isEqualTo(s3FileIOProperties.s3FileIoSseType());
 
-    Assert.assertNull(s3FileIOProperties.s3FileIoSseKey());
-    Assert.assertNull(s3FileIOProperties.s3FileIoSseMd5());
-    Assert.assertNull(s3FileIOProperties.s3AccessKeyId());
-    Assert.assertNull(s3FileIOProperties.s3SecretAccessKey());
-    Assert.assertNull(s3FileIOProperties.s3SessionToken());
-    Assert.assertNull(s3FileIOProperties.s3FileIoAcl());
-    Assert.assertNull(s3FileIOProperties.s3Endpoint());
+    Assertions.assertThat(s3FileIOProperties.s3FileIoSseKey()).isNull();
+    Assertions.assertThat(s3FileIOProperties.s3FileIoSseMd5()).isNull();
+    Assertions.assertThat(s3FileIOProperties.s3AccessKeyId()).isNull();
+    Assertions.assertThat(s3FileIOProperties.s3SecretAccessKey()).isNull();
+    Assertions.assertThat(s3FileIOProperties.s3SessionToken()).isNull();
+    Assertions.assertThat(s3FileIOProperties.s3FileIoAcl()).isNull();
+    Assertions.assertThat(s3FileIOProperties.s3Endpoint()).isNull();
 
-    Assert.assertEquals(
-        S3FileIOProperties.S3_PRELOAD_CLIENT_ENABLED_DEFAULT,
-        s3FileIOProperties.s3PreloadClientEnabled());
+    Assertions.assertThat(S3FileIOProperties.S3_PRELOAD_CLIENT_ENABLED_DEFAULT)
+        .isEqualTo(s3FileIOProperties.s3PreloadClientEnabled());
 
-    Assert.assertEquals(
-        S3FileIOProperties.S3_DUALSTACK_ENABLED_DEFAULT, s3FileIOProperties.isS3DualStackEnabled());
+    Assertions.assertThat(S3FileIOProperties.S3_DUALSTACK_ENABLED_DEFAULT)
+        .isEqualTo(s3FileIOProperties.isS3DualStackEnabled());
 
-    Assert.assertEquals(
-        S3FileIOProperties.S3FILEIO_PATH_STYLE_ACCESS_DEFAULT,
-        s3FileIOProperties.isS3PathStyleAccess());
+    Assertions.assertThat(S3FileIOProperties.S3FILEIO_PATH_STYLE_ACCESS_DEFAULT)
+        .isEqualTo(s3FileIOProperties.isS3PathStyleAccess());
 
-    Assert.assertEquals(
-        S3FileIOProperties.S3_USE_ARN_REGION_ENABLED_DEFAULT,
-        s3FileIOProperties.isS3UseArnRegionEnabled());
+    Assertions.assertThat(S3FileIOProperties.S3_USE_ARN_REGION_ENABLED_DEFAULT)
+        .isEqualTo(s3FileIOProperties.isS3UseArnRegionEnabled());
 
-    Assert.assertEquals(
-        S3FileIOProperties.S3_ACCELERATION_ENABLED_DEFAULT,
-        s3FileIOProperties.isS3AccelerationEnabled());
+    Assertions.assertThat(S3FileIOProperties.S3_ACCELERATION_ENABLED_DEFAULT)
+        .isEqualTo(s3FileIOProperties.isS3AccelerationEnabled());
 
-    Assert.assertEquals(
-        S3FileIOProperties.S3_REMOTE_SIGNING_ENABLED_DEFAULT,
-        s3FileIOProperties.isS3RemoteSigningEnabled());
+    Assertions.assertThat(S3FileIOProperties.S3_REMOTE_SIGNING_ENABLED_DEFAULT)
+        .isEqualTo(s3FileIOProperties.isS3RemoteSigningEnabled());
 
-    Assert.assertEquals(
-        Runtime.getRuntime().availableProcessors(),
-        s3FileIOProperties.s3FileIoMultipartUploadThreads());
+    Assertions.assertThat(Runtime.getRuntime().availableProcessors())
+        .isEqualTo(s3FileIOProperties.s3FileIoMultipartUploadThreads());
 
-    Assert.assertEquals(
-        S3FileIOProperties.S3FILEIO_MULTIPART_SIZE_DEFAULT,
-        s3FileIOProperties.s3FileIoMultiPartSize());
+    Assertions.assertThat(S3FileIOProperties.S3FILEIO_MULTIPART_SIZE_DEFAULT)
+        .isEqualTo(s3FileIOProperties.s3FileIoMultiPartSize());
 
-    Assert.assertEquals(
-        S3FileIOProperties.S3FILEIO_MULTIPART_THRESHOLD_FACTOR_DEFAULT,
-        s3FileIOProperties.s3FileIOMultipartThresholdFactor(),
-        0.0);
+    Assertions.assertThat(S3FileIOProperties.S3FILEIO_MULTIPART_THRESHOLD_FACTOR_DEFAULT)
+        .isEqualTo(s3FileIOProperties.s3FileIOMultipartThresholdFactor());
 
-    Assert.assertEquals(
-        S3FileIOProperties.S3FILEIO_DELETE_BATCH_SIZE_DEFAULT,
-        s3FileIOProperties.s3FileIoDeleteBatchSize(),
-        0.0);
+    Assertions.assertThat(S3FileIOProperties.S3FILEIO_DELETE_BATCH_SIZE_DEFAULT)
+        .isEqualTo(s3FileIOProperties.s3FileIoDeleteBatchSize());
 
-    Assert.assertEquals(
-        System.getProperty("java.io.tmpdir"), s3FileIOProperties.s3fileIoStagingDirectory());
+    Assertions.assertThat(System.getProperty("java.io.tmpdir"))
+        .isEqualTo(s3FileIOProperties.s3fileIoStagingDirectory());
 
-    Assert.assertEquals(
-        S3FileIOProperties.S3_CHECKSUM_ENABLED_DEFAULT, s3FileIOProperties.isS3ChecksumEnabled());
+    Assertions.assertThat(S3FileIOProperties.S3_CHECKSUM_ENABLED_DEFAULT)
+        .isEqualTo(s3FileIOProperties.isS3ChecksumEnabled());
 
-    Assert.assertEquals(Sets.newHashSet(), s3FileIOProperties.s3WriteTags());
+    Assertions.assertThat(Sets.newHashSet()).isEqualTo(s3FileIOProperties.s3WriteTags());
 
-    Assert.assertEquals(
-        S3FileIOProperties.S3_WRITE_TABLE_TAG_ENABLED_DEFAULT,
-        s3FileIOProperties.s3WriteTableTagEnabled());
+    Assertions.assertThat(S3FileIOProperties.S3_WRITE_TABLE_TAG_ENABLED_DEFAULT)
+        .isEqualTo(s3FileIOProperties.s3WriteTableTagEnabled());
 
-    Assert.assertEquals(
-        S3FileIOProperties.S3_WRITE_NAMESPACE_TAG_ENABLED_DEFAULT,
-        s3FileIOProperties.s3WriteNamespaceTagEnabled());
+    Assertions.assertThat(S3FileIOProperties.S3_WRITE_NAMESPACE_TAG_ENABLED_DEFAULT)
+        .isEqualTo(s3FileIOProperties.s3WriteNamespaceTagEnabled());
 
-    Assert.assertEquals(Sets.newHashSet(), s3FileIOProperties.s3DeleteTags());
+    Assertions.assertThat(Sets.newHashSet()).isEqualTo(s3FileIOProperties.s3DeleteTags());
 
-    Assert.assertEquals(
-        Runtime.getRuntime().availableProcessors(), s3FileIOProperties.s3FileIoDeleteThreads());
+    Assertions.assertThat(Runtime.getRuntime().availableProcessors())
+        .isEqualTo(s3FileIOProperties.s3FileIoDeleteThreads());
 
-    Assert.assertEquals(
-        S3FileIOProperties.S3_DELETE_ENABLED_DEFAULT, s3FileIOProperties.isS3DeleteEnabled());
+    Assertions.assertThat(S3FileIOProperties.S3_DELETE_ENABLED_DEFAULT)
+        .isEqualTo(s3FileIOProperties.isS3DeleteEnabled());
 
-    Assert.assertEquals(Collections.emptyMap(), s3FileIOProperties.s3BucketToAccessPointMapping());
+    Assertions.assertThat(Collections.emptyMap())
+        .isEqualTo(s3FileIOProperties.s3BucketToAccessPointMapping());
   }
 
   @Test
@@ -128,123 +114,147 @@ public class TestS3FileIOProperties {
     Map<String, String> map = getTestProperties();
     S3FileIOProperties s3FileIOProperties = new S3FileIOProperties(map);
 
-    Assert.assertEquals(
-        map.get(S3FileIOProperties.S3FILEIO_SSE_TYPE), s3FileIOProperties.s3FileIoSseType());
+    Assertions.assertThat(map)
+        .containsEntry(S3FileIOProperties.S3FILEIO_SSE_TYPE, s3FileIOProperties.s3FileIoSseType());
 
-    Assert.assertEquals(
-        map.get(S3FileIOProperties.S3FILEIO_SSE_KEY), s3FileIOProperties.s3FileIoSseKey());
+    Assertions.assertThat(map)
+        .containsEntry(S3FileIOProperties.S3FILEIO_SSE_KEY, s3FileIOProperties.s3FileIoSseKey());
 
-    Assert.assertEquals(
-        map.get(S3FileIOProperties.S3FILEIO_SSE_MD5), s3FileIOProperties.s3FileIoSseMd5());
+    Assertions.assertThat(map)
+        .containsEntry(S3FileIOProperties.S3FILEIO_SSE_MD5, s3FileIOProperties.s3FileIoSseMd5());
 
-    Assert.assertEquals(
-        map.get(S3FileIOProperties.S3FILEIO_ACCESS_KEY_ID), s3FileIOProperties.s3AccessKeyId());
+    Assertions.assertThat(map)
+        .containsEntry(
+            S3FileIOProperties.S3FILEIO_ACCESS_KEY_ID, s3FileIOProperties.s3AccessKeyId());
 
-    Assert.assertEquals(
-        map.get(S3FileIOProperties.S3FILEIO_SECRET_ACCESS_KEY),
-        s3FileIOProperties.s3SecretAccessKey());
+    Assertions.assertThat(map)
+        .containsEntry(
+            S3FileIOProperties.S3FILEIO_SECRET_ACCESS_KEY, s3FileIOProperties.s3SecretAccessKey());
 
-    Assert.assertEquals(
-        map.get(S3FileIOProperties.S3FILEIO_SESSION_TOKEN), s3FileIOProperties.s3SessionToken());
+    Assertions.assertThat(map)
+        .containsEntry(
+            S3FileIOProperties.S3FILEIO_SESSION_TOKEN, s3FileIOProperties.s3SessionToken());
 
-    Assert.assertEquals(
-        map.get(S3FileIOProperties.S3FILEIO_ACL), s3FileIOProperties.s3FileIoAcl().toString());
+    Assertions.assertThat(map)
+        .containsEntry(
+            S3FileIOProperties.S3FILEIO_ACL, s3FileIOProperties.s3FileIoAcl().toString());
 
-    Assert.assertEquals(
-        map.get(S3FileIOProperties.S3FILEIO_ENDPOINT), s3FileIOProperties.s3Endpoint());
+    Assertions.assertThat(map)
+        .containsEntry(S3FileIOProperties.S3FILEIO_ENDPOINT, s3FileIOProperties.s3Endpoint());
 
-    Assert.assertEquals(
-        map.get(S3FileIOProperties.S3_PRELOAD_CLIENT_ENABLED),
-        String.valueOf(s3FileIOProperties.s3PreloadClientEnabled()));
+    Assertions.assertThat(map)
+        .containsEntry(
+            S3FileIOProperties.S3_PRELOAD_CLIENT_ENABLED,
+            String.valueOf(s3FileIOProperties.s3PreloadClientEnabled()));
 
-    Assert.assertEquals(
-        map.get(S3FileIOProperties.S3_DUALSTACK_ENABLED),
-        String.valueOf(s3FileIOProperties.isS3DualStackEnabled()));
+    Assertions.assertThat(map)
+        .containsEntry(
+            S3FileIOProperties.S3_DUALSTACK_ENABLED,
+            String.valueOf(s3FileIOProperties.isS3DualStackEnabled()));
 
-    Assert.assertEquals(
-        map.get(S3FileIOProperties.S3FILEIO_PATH_STYLE_ACCESS),
-        String.valueOf(s3FileIOProperties.isS3PathStyleAccess()));
+    Assertions.assertThat(map)
+        .containsEntry(
+            S3FileIOProperties.S3FILEIO_PATH_STYLE_ACCESS,
+            String.valueOf(s3FileIOProperties.isS3PathStyleAccess()));
 
-    Assert.assertEquals(
-        map.get(S3FileIOProperties.S3_USE_ARN_REGION_ENABLED),
-        String.valueOf(s3FileIOProperties.isS3UseArnRegionEnabled()));
+    Assertions.assertThat(map)
+        .containsEntry(
+            S3FileIOProperties.S3_USE_ARN_REGION_ENABLED,
+            String.valueOf(s3FileIOProperties.isS3UseArnRegionEnabled()));
 
-    Assert.assertEquals(
-        map.get(S3FileIOProperties.S3_ACCELERATION_ENABLED),
-        String.valueOf(s3FileIOProperties.isS3AccelerationEnabled()));
+    Assertions.assertThat(map)
+        .containsEntry(
+            S3FileIOProperties.S3_ACCELERATION_ENABLED,
+            String.valueOf(s3FileIOProperties.isS3AccelerationEnabled()));
 
-    Assert.assertEquals(
-        map.get(S3FileIOProperties.S3_REMOTE_SIGNING_ENABLED),
-        String.valueOf(s3FileIOProperties.isS3RemoteSigningEnabled()));
+    Assertions.assertThat(map)
+        .containsEntry(
+            S3FileIOProperties.S3_REMOTE_SIGNING_ENABLED,
+            String.valueOf(s3FileIOProperties.isS3RemoteSigningEnabled()));
 
-    Assert.assertEquals(
-        map.get(S3FileIOProperties.S3FILEIO_MULTIPART_UPLOAD_THREADS),
-        String.valueOf(s3FileIOProperties.s3FileIoMultipartUploadThreads()));
+    Assertions.assertThat(map)
+        .containsEntry(
+            S3FileIOProperties.S3FILEIO_MULTIPART_UPLOAD_THREADS,
+            String.valueOf(s3FileIOProperties.s3FileIoMultipartUploadThreads()));
 
-    Assert.assertEquals(
-        map.get(S3FileIOProperties.S3FILEIO_MULTIPART_SIZE),
-        String.valueOf(s3FileIOProperties.s3FileIoMultiPartSize()));
+    Assertions.assertThat(map)
+        .containsEntry(
+            S3FileIOProperties.S3FILEIO_MULTIPART_SIZE,
+            String.valueOf(s3FileIOProperties.s3FileIoMultiPartSize()));
 
-    Assert.assertEquals(
-        map.get(S3FileIOProperties.S3FILEIO_MULTIPART_THRESHOLD_FACTOR),
-        String.valueOf(s3FileIOProperties.s3FileIOMultipartThresholdFactor()));
+    Assertions.assertThat(map)
+        .containsEntry(
+            S3FileIOProperties.S3FILEIO_MULTIPART_THRESHOLD_FACTOR,
+            String.valueOf(s3FileIOProperties.s3FileIOMultipartThresholdFactor()));
 
-    Assert.assertEquals(
-        map.get(S3FileIOProperties.S3FILEIO_DELETE_BATCH_SIZE),
-        String.valueOf(s3FileIOProperties.s3FileIoDeleteBatchSize()));
+    Assertions.assertThat(map)
+        .containsEntry(
+            S3FileIOProperties.S3FILEIO_DELETE_BATCH_SIZE,
+            String.valueOf(s3FileIOProperties.s3FileIoDeleteBatchSize()));
 
-    Assert.assertEquals(
-        map.get(S3FileIOProperties.S3FILEIO_STAGING_DIRECTORY),
-        s3FileIOProperties.s3fileIoStagingDirectory());
+    Assertions.assertThat(map)
+        .containsEntry(
+            S3FileIOProperties.S3FILEIO_STAGING_DIRECTORY,
+            String.valueOf(s3FileIOProperties.s3fileIoStagingDirectory()));
 
-    Assert.assertEquals(
-        map.get(S3FileIOProperties.S3_CHECKSUM_ENABLED),
-        String.valueOf(s3FileIOProperties.isS3ChecksumEnabled()));
+    Assertions.assertThat(map)
+        .containsEntry(
+            S3FileIOProperties.S3_CHECKSUM_ENABLED,
+            String.valueOf(s3FileIOProperties.isS3ChecksumEnabled()));
 
     List<String> writeTagValues =
         s3FileIOProperties.s3WriteTags().stream().map(Tag::value).collect(Collectors.toList());
     writeTagValues.forEach(
         value ->
-            Assert.assertEquals(
-                map.get(S3FileIOProperties.S3_WRITE_TAGS_PREFIX + S3_WRITE_TAG_KEY), value));
+            Assertions.assertThat(map)
+                .containsEntry(S3FileIOProperties.S3_WRITE_TAGS_PREFIX + S3_WRITE_TAG_KEY, value));
 
-    Assert.assertEquals(
-        map.get(S3FileIOProperties.S3_WRITE_TABLE_TAG_ENABLED),
-        String.valueOf(s3FileIOProperties.s3WriteTableTagEnabled()));
+    Assertions.assertThat(map)
+        .containsEntry(
+            S3FileIOProperties.S3_WRITE_TABLE_TAG_ENABLED,
+            String.valueOf(s3FileIOProperties.s3WriteTableTagEnabled()));
 
-    Assert.assertEquals(
-        map.get(S3FileIOProperties.S3_WRITE_NAMESPACE_TAG_ENABLED),
-        String.valueOf(s3FileIOProperties.s3WriteNamespaceTagEnabled()));
+    Assertions.assertThat(map)
+        .containsEntry(
+            S3FileIOProperties.S3_WRITE_NAMESPACE_TAG_ENABLED,
+            String.valueOf(s3FileIOProperties.s3WriteNamespaceTagEnabled()));
 
     List<String> deleteTagValues =
         s3FileIOProperties.s3DeleteTags().stream().map(Tag::value).collect(Collectors.toList());
     deleteTagValues.forEach(
         value ->
-            Assert.assertEquals(
-                map.get(S3FileIOProperties.S3_DELETE_TAGS_PREFIX + S3_DELETE_TAG_KEY), value));
+            Assertions.assertThat(map)
+                .containsEntry(
+                    S3FileIOProperties.S3_DELETE_TAGS_PREFIX + S3_DELETE_TAG_KEY, value));
 
-    Assert.assertEquals(
-        map.get(S3FileIOProperties.S3FILEIO_DELETE_THREADS),
-        String.valueOf(s3FileIOProperties.s3FileIoDeleteThreads()));
+    Assertions.assertThat(map)
+        .containsEntry(
+            S3FileIOProperties.S3FILEIO_DELETE_THREADS,
+            String.valueOf(s3FileIOProperties.s3FileIoDeleteThreads()));
 
-    Assert.assertEquals(
-        map.get(S3FileIOProperties.S3_DELETE_ENABLED),
-        String.valueOf(s3FileIOProperties.isS3DeleteEnabled()));
+    Assertions.assertThat(map)
+        .containsEntry(
+            S3FileIOProperties.S3_DELETE_ENABLED,
+            String.valueOf(s3FileIOProperties.isS3DeleteEnabled()));
 
-    List<String> bucketValues =
-        new ArrayList<>(s3FileIOProperties.s3BucketToAccessPointMapping().values());
-    bucketValues.forEach(
-        value ->
-            Assert.assertEquals(
-                map.get(S3FileIOProperties.S3_ACCESS_POINTS_PREFIX + S3_TEST_BUCKET_NAME), value));
+    s3FileIOProperties
+        .s3BucketToAccessPointMapping()
+        .values()
+        .forEach(
+            value ->
+                Assertions.assertThat(map)
+                    .containsEntry(
+                        S3FileIOProperties.S3_ACCESS_POINTS_PREFIX + S3_TEST_BUCKET_NAME, value));
 
-    Assert.assertEquals(
-        map.get(S3FileIOProperties.S3_PRELOAD_CLIENT_ENABLED),
-        String.valueOf(s3FileIOProperties.s3PreloadClientEnabled()));
+    Assertions.assertThat(map)
+        .containsEntry(
+            S3FileIOProperties.S3_PRELOAD_CLIENT_ENABLED,
+            String.valueOf(s3FileIOProperties.s3PreloadClientEnabled()));
 
-    Assert.assertEquals(
-        map.get(S3FileIOProperties.S3_REMOTE_SIGNING_ENABLED),
-        String.valueOf(s3FileIOProperties.isS3RemoteSigningEnabled()));
+    Assertions.assertThat(map)
+        .containsEntry(
+            S3FileIOProperties.S3_REMOTE_SIGNING_ENABLED,
+            String.valueOf(s3FileIOProperties.isS3RemoteSigningEnabled()));
   }
 
   @Test
@@ -293,7 +303,7 @@ public class TestS3FileIOProperties {
     Map<String, String> map = Maps.newHashMap();
     map.put(S3FileIOProperties.S3FILEIO_ACL, ObjectCannedACL.AUTHENTICATED_READ.toString());
     S3FileIOProperties properties = new S3FileIOProperties(map);
-    Assert.assertEquals(ObjectCannedACL.AUTHENTICATED_READ, properties.s3FileIoAcl());
+    Assertions.assertThat(ObjectCannedACL.AUTHENTICATED_READ).isEqualTo(properties.s3FileIoAcl());
   }
 
   @Test
@@ -386,7 +396,9 @@ public class TestS3FileIOProperties {
     map.put(S3FileIOProperties.S3_DELETE_TAGS_PREFIX + S3_DELETE_TAG_KEY, S3_DELETE_TAG_VALUE);
     map.put(S3FileIOProperties.S3FILEIO_DELETE_THREADS, "1");
     map.put(S3FileIOProperties.S3_DELETE_ENABLED, "true");
-    map.put(S3FileIOProperties.S3_ACCESS_POINTS_PREFIX + S3_TEST_BUCKET_NAME, S3_TEST_BUCKET_ACCESS_POINT);
+    map.put(
+        S3FileIOProperties.S3_ACCESS_POINTS_PREFIX + S3_TEST_BUCKET_NAME,
+        S3_TEST_BUCKET_ACCESS_POINT);
     map.put(S3FileIOProperties.S3_PRELOAD_CLIENT_ENABLED, "true");
     map.put(S3FileIOProperties.S3_REMOTE_SIGNING_ENABLED, "true");
     return map;
