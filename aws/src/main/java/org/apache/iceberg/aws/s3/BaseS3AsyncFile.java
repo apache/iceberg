@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.aws.s3;
 
+import java.util.concurrent.CompletionException;
 import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.metrics.MetricsContext;
 import software.amazon.awssdk.http.HttpStatusCode;
@@ -26,8 +27,6 @@ import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 
-import java.util.concurrent.CompletionException;
-
 abstract class BaseS3AsyncFile {
   private final S3AsyncClient client;
   private final S3URI uri;
@@ -35,7 +34,8 @@ abstract class BaseS3AsyncFile {
   private HeadObjectResponse metadata;
   private final MetricsContext metrics;
 
-  BaseS3AsyncFile(S3AsyncClient client, S3URI uri, AwsProperties awsProperties, MetricsContext metrics) {
+  BaseS3AsyncFile(
+      S3AsyncClient client, S3URI uri, AwsProperties awsProperties, MetricsContext metrics) {
     this.client = client;
     this.uri = uri;
     this.awsProperties = awsProperties;

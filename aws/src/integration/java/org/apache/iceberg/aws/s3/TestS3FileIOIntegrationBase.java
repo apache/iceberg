@@ -18,6 +18,20 @@
  */
 package org.apache.iceberg.aws.s3;
 
+import static org.junit.Assert.assertEquals;
+
+import java.io.ByteArrayInputStream;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.SecureRandom;
+import java.util.Base64;
+import java.util.List;
+import java.util.Random;
+import java.util.UUID;
+import javax.crypto.KeyGenerator;
+import javax.crypto.SecretKey;
 import org.apache.commons.lang3.SerializationUtils;
 import org.apache.iceberg.aws.AwsClientFactories;
 import org.apache.iceberg.aws.AwsClientFactory;
@@ -53,41 +67,27 @@ import software.amazon.awssdk.services.s3control.S3ControlClient;
 import software.amazon.awssdk.utils.ImmutableMap;
 import software.amazon.awssdk.utils.IoUtils;
 
-import javax.crypto.KeyGenerator;
-import javax.crypto.SecretKey;
-import java.io.ByteArrayInputStream;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.SecureRandom;
-import java.util.Base64;
-import java.util.List;
-import java.util.Random;
-import java.util.UUID;
-
-import static org.junit.Assert.assertEquals;
-
 @Ignore
 public abstract class TestS3FileIOIntegrationBase {
 
-  protected final Random random = new Random(1);
-  protected static AwsClientFactory clientFactory;
+  private static AwsClientFactory clientFactory;
 
-  protected static S3ControlClient s3Control;
-  protected static S3ControlClient crossRegionS3Control;
-  protected static KmsClient kms;
-  protected static String bucketName;
-  protected static String crossRegionBucketName;
-  protected static String accessPointName;
-  protected static String crossRegionAccessPointName;
-  protected static String prefix;
-  protected static byte[] contentBytes;
-  protected static String content;
-  protected static String kmsKeyArn;
-  protected static int deletionBatchSize;
-  protected String objectKey;
-  protected String objectUri;
+  private static S3ControlClient s3Control;
+  private static S3ControlClient crossRegionS3Control;
+  private static KmsClient kms;
+  private static String bucketName;
+  private static String crossRegionBucketName;
+  private static String accessPointName;
+  private static String crossRegionAccessPointName;
+  private static String prefix;
+  private static byte[] contentBytes;
+  private static String content;
+  private static String kmsKeyArn;
+  private static int deletionBatchSize;
+  private String objectKey;
+  private String objectUri;
+
+  private final Random random = new Random(1);
 
   protected static void initialize() {
     clientFactory = AwsClientFactories.defaultFactory();
@@ -118,6 +118,10 @@ public abstract class TestS3FileIOIntegrationBase {
         ScheduleKeyDeletionRequest.builder().keyId(kmsKeyArn).pendingWindowInDays(7).build());
   }
 
+  protected static AwsClientFactory clientFactory() {
+    return clientFactory;
+  }
+
   @Before
   public void before() {
     objectKey = String.format("%s/%s", prefix, UUID.randomUUID().toString());
@@ -129,13 +133,16 @@ public abstract class TestS3FileIOIntegrationBase {
     clientFactory.initialize(Maps.newHashMap());
   }
 
-  protected abstract S3FileIO newS3FileIO(AwsClientFactory clientFactory, AwsProperties properties);
+  protected abstract S3FileIO newS3FileIO(
+      AwsClientFactory awsClientFactory, AwsProperties properties);
 
-  protected abstract void putObject(PutObjectRequest request, byte[] contentBytes, boolean newClient);
+  protected abstract void putObject(PutObjectRequest request, byte[] payload, boolean newClient);
 
-  protected abstract ResponseInputStream<GetObjectResponse> getObject(GetObjectRequest request, boolean newClient);
+  protected abstract ResponseInputStream<GetObjectResponse> getObject(
+      GetObjectRequest request, boolean newClient);
 
-  protected abstract GetObjectAclResponse getObjectAcl(GetObjectAclRequest request, boolean newClient);
+  protected abstract GetObjectAclResponse getObjectAcl(
+      GetObjectAclRequest request, boolean newClient);
 
   protected abstract void createRandomObjects(String objectPrefix, int count);
 
@@ -182,7 +189,8 @@ public abstract class TestS3FileIOIntegrationBase {
   public void testNewOutputStream() throws Exception {
     S3FileIO s3FileIO = newS3FileIO();
     write(s3FileIO);
-    InputStream stream = getObject(GetObjectRequest.builder().bucket(bucketName).key(objectKey).build());
+    InputStream stream =
+        getObject(GetObjectRequest.builder().bucket(bucketName).key(objectKey).build());
     String result = IoUtils.toUtf8String(stream);
     stream.close();
     Assert.assertEquals(content, result);
@@ -196,7 +204,8 @@ public abstract class TestS3FileIOIntegrationBase {
             AwsProperties.S3_ACCESS_POINTS_PREFIX + bucketName,
             testAccessPointARN(AwsIntegTestUtil.testRegion(), accessPointName)));
     write(s3FileIO);
-    InputStream stream = getObject(GetObjectRequest.builder().bucket(bucketName).key(objectKey).build());
+    InputStream stream =
+        getObject(GetObjectRequest.builder().bucket(bucketName).key(objectKey).build());
     String result = IoUtils.toUtf8String(stream);
     stream.close();
     Assert.assertEquals(content, result);
@@ -233,8 +242,7 @@ public abstract class TestS3FileIOIntegrationBase {
     write(s3FileIO);
     validateRead(s3FileIO);
     GetObjectResponse response =
-        getObject(GetObjectRequest.builder().bucket(bucketName).key(objectKey).build())
-            .response();
+        getObject(GetObjectRequest.builder().bucket(bucketName).key(objectKey).build()).response();
     Assert.assertEquals(ServerSideEncryption.AES256, response.serverSideEncryption());
   }
 
@@ -247,8 +255,7 @@ public abstract class TestS3FileIOIntegrationBase {
     write(s3FileIO);
     validateRead(s3FileIO);
     GetObjectResponse response =
-        getObject(GetObjectRequest.builder().bucket(bucketName).key(objectKey).build())
-            .response();
+        getObject(GetObjectRequest.builder().bucket(bucketName).key(objectKey).build()).response();
     Assert.assertEquals(ServerSideEncryption.AWS_KMS, response.serverSideEncryption());
     Assert.assertEquals(response.ssekmsKeyId(), kmsKeyArn);
   }
@@ -261,8 +268,7 @@ public abstract class TestS3FileIOIntegrationBase {
     write(s3FileIO);
     validateRead(s3FileIO);
     GetObjectResponse response =
-        getObject(GetObjectRequest.builder().bucket(bucketName).key(objectKey).build())
-            .response();
+        getObject(GetObjectRequest.builder().bucket(bucketName).key(objectKey).build()).response();
     Assert.assertEquals(ServerSideEncryption.AWS_KMS, response.serverSideEncryption());
     ListAliasesResponse listAliasesResponse =
         kms.listAliases(ListAliasesRequest.builder().keyId(response.ssekmsKeyId()).build());
@@ -408,6 +414,9 @@ public abstract class TestS3FileIOIntegrationBase {
             });
   }
 
+  protected Random random() {
+    return random;
+  }
 
   private S3FileIO newS3FileIO() {
     return newS3FileIO(clientFactory, new AwsProperties());
@@ -417,16 +426,16 @@ public abstract class TestS3FileIOIntegrationBase {
     return newS3FileIO(clientFactory, awsProperties);
   }
 
-  private void putObject(String bucket, String objectKey, byte[] contentBytes) {
-    putObject(PutObjectRequest.builder().bucket(bucket).key(objectKey).build(), contentBytes);
+  private void putObject(String bucket, String key, byte[] payload) {
+    putObject(PutObjectRequest.builder().bucket(bucket).key(key).build(), payload);
   }
 
-  private void putObject(String bucket, String objectKey, byte[] contentBytes, boolean newClient) {
-    putObject(PutObjectRequest.builder().bucket(bucket).key(objectKey).build(), contentBytes, newClient);
+  private void putObject(String bucket, String key, byte[] payload, boolean newClient) {
+    putObject(PutObjectRequest.builder().bucket(bucket).key(key).build(), payload, newClient);
   }
 
-  private void putObject(PutObjectRequest request, byte[] contentBytes) {
-    putObject(request, contentBytes, false);
+  private void putObject(PutObjectRequest request, byte[] payload) {
+    putObject(request, payload, false);
   }
 
   private ResponseInputStream<GetObjectResponse> getObject(GetObjectRequest request) {

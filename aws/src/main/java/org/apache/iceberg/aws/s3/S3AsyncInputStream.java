@@ -18,6 +18,9 @@
  */
 package org.apache.iceberg.aws.s3;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.Arrays;
 import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.io.FileIOMetricsContext;
@@ -36,10 +39,6 @@ import software.amazon.awssdk.core.async.AsyncResponseTransformer;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
-
-import java.io.IOException;
-import java.io.InputStream;
-import java.util.Arrays;
 
 class S3AsyncInputStream extends SeekableInputStream implements RangeReadable {
   private static final Logger LOG = LoggerFactory.getLogger(S3AsyncInputStream.class);
@@ -63,7 +62,8 @@ class S3AsyncInputStream extends SeekableInputStream implements RangeReadable {
     this(s3, location, new AwsProperties(), MetricsContext.nullMetrics());
   }
 
-  S3AsyncInputStream(S3AsyncClient s3, S3URI location, AwsProperties awsProperties, MetricsContext metrics) {
+  S3AsyncInputStream(
+      S3AsyncClient s3, S3URI location, AwsProperties awsProperties, MetricsContext metrics) {
     this.s3 = s3;
     this.location = location;
     this.awsProperties = awsProperties;
@@ -115,7 +115,6 @@ class S3AsyncInputStream extends SeekableInputStream implements RangeReadable {
     return bytesRead;
   }
 
-
   @Override
   public void readFully(long position, byte[] buffer, int offset, int length) throws IOException {
     Preconditions.checkPositionIndexes(offset, offset + length, buffer.length);
@@ -140,7 +139,8 @@ class S3AsyncInputStream extends SeekableInputStream implements RangeReadable {
 
     S3RequestUtil.configureEncryption(awsProperties, requestBuilder);
 
-    return s3.getObject(requestBuilder.build(), AsyncResponseTransformer.toBlockingInputStream()).join();
+    return s3.getObject(requestBuilder.build(), AsyncResponseTransformer.toBlockingInputStream())
+        .join();
   }
 
   private void checkNotClosed() {
@@ -194,7 +194,9 @@ class S3AsyncInputStream extends SeekableInputStream implements RangeReadable {
     closeStream();
 
     try {
-      stream = s3.getObject(requestBuilder.build(), AsyncResponseTransformer.toBlockingInputStream()).join();
+      stream =
+          s3.getObject(requestBuilder.build(), AsyncResponseTransformer.toBlockingInputStream())
+              .join();
     } catch (NoSuchKeyException e) { // FIXME: Needs to be extracted out of completion exceptions.
       throw new NotFoundException(e, "Location does not exist: %s", location);
     }

@@ -18,6 +18,12 @@
  */
 package org.apache.iceberg.aws;
 
+import java.io.Serializable;
+import java.net.URI;
+import java.util.Collections;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 import org.apache.iceberg.aws.dynamodb.DynamoDbCatalog;
 import org.apache.iceberg.aws.glue.GlueCatalog;
 import org.apache.iceberg.aws.lakeformation.LakeFormationAwsClientFactory;
@@ -54,13 +60,6 @@ import software.amazon.awssdk.services.s3.S3ClientBuilder;
 import software.amazon.awssdk.services.s3.S3Configuration;
 import software.amazon.awssdk.services.s3.model.ObjectCannedACL;
 import software.amazon.awssdk.services.s3.model.Tag;
-
-import java.io.Serializable;
-import java.net.URI;
-import java.util.Collections;
-import java.util.Map;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 public class AwsProperties implements Serializable {
 
@@ -847,8 +846,9 @@ public class AwsProperties implements Serializable {
     this.clientCredentialsProviderProperties =
         PropertyUtil.propertiesWithPrefix(properties, CLIENT_CREDENTIAL_PROVIDER_PREFIX);
 
-    this.s3AsyncClientEnabled = PropertyUtil.propertyAsBoolean(properties,
-        S3FILEIO_ASYNC_CLIENT_ENABLED, S3FILEIO_ASYNC_CLIENT_ENABLED_DEFAULT);
+    this.s3AsyncClientEnabled =
+        PropertyUtil.propertyAsBoolean(
+            properties, S3FILEIO_ASYNC_CLIENT_ENABLED, S3FILEIO_ASYNC_CLIENT_ENABLED_DEFAULT);
     this.s3FileIoSseType = properties.getOrDefault(S3FILEIO_SSE_TYPE, S3FILEIO_SSE_TYPE_NONE);
     this.s3FileIoSseKey = properties.get(S3FILEIO_SSE_KEY);
     this.s3FileIoSseMd5 = properties.get(S3FILEIO_SSE_MD5);
@@ -1201,6 +1201,7 @@ public class AwsProperties implements Serializable {
             ? AnonymousCredentialsProvider.create()
             : credentialsProvider(s3AccessKeyId, s3SecretAccessKey, s3SessionToken));
   }
+
   public <T extends S3AsyncClientBuilder> void applyS3CredentialConfigurations(T builder) {
     builder.credentialsProvider(
         credentialsProvider(s3AccessKeyId, s3SecretAccessKey, s3SessionToken));

@@ -18,14 +18,13 @@
  */
 package org.apache.iceberg.aws.s3;
 
+import java.util.Map;
 import org.apache.iceberg.aws.AwsClientFactory;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.glue.GlueClient;
 import software.amazon.awssdk.services.kms.KmsClient;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.S3Client;
-
-import java.util.Map;
 
 class StaticClientFactory implements AwsClientFactory {
   static S3Client client;

@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.aws.s3;
 
+import java.util.concurrent.CompletableFuture;
 import org.apache.iceberg.aws.AwsClientFactory;
 import org.apache.iceberg.aws.AwsProperties;
 import org.junit.AfterClass;
@@ -31,8 +32,6 @@ import software.amazon.awssdk.services.s3.model.GetObjectAclResponse;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
-
-import java.util.concurrent.CompletableFuture;
 
 public class TestS3FileIOAsyncIntegration extends TestS3FileIOIntegrationBase {
 
@@ -51,7 +50,7 @@ public class TestS3FileIOAsyncIntegration extends TestS3FileIOIntegrationBase {
 
   private static S3AsyncClient s3(boolean refreshClient) {
     if (refreshClient) {
-      return clientFactory.s3Async();
+      return clientFactory().s3Async();
     } else {
       return s3;
     }
@@ -64,13 +63,16 @@ public class TestS3FileIOAsyncIntegration extends TestS3FileIOIntegrationBase {
   }
 
   @Override
-  protected void putObject(PutObjectRequest request, byte[] contentBytes, boolean refreshClient) {
-    s3(refreshClient).putObject(request, AsyncRequestBody.fromBytes(contentBytes)).join();
+  protected void putObject(PutObjectRequest request, byte[] payload, boolean refreshClient) {
+    s3(refreshClient).putObject(request, AsyncRequestBody.fromBytes(payload)).join();
   }
 
   @Override
-  protected ResponseInputStream<GetObjectResponse> getObject(GetObjectRequest request, boolean refreshClient) {
-    return s3(refreshClient).getObject(request, AsyncResponseTransformer.toBlockingInputStream()).join();
+  protected ResponseInputStream<GetObjectResponse> getObject(
+      GetObjectRequest request, boolean refreshClient) {
+    return s3(refreshClient)
+        .getObject(request, AsyncResponseTransformer.toBlockingInputStream())
+        .join();
   }
 
   @Override
@@ -82,13 +84,13 @@ public class TestS3FileIOAsyncIntegration extends TestS3FileIOIntegrationBase {
   protected void createRandomObjects(String objectPrefix, int count) {
     S3URI s3URI = new S3URI(objectPrefix);
     final CompletableFuture<?>[] putFutures =
-        random
+        random()
             .ints(count)
-            .mapToObj(i ->
-                s3.putObject(
-                    builder -> builder.bucket(s3URI.bucket()).key(s3URI.key() + i).build(),
-                    AsyncRequestBody.empty())
-            )
+            .mapToObj(
+                i ->
+                    s3.putObject(
+                        builder -> builder.bucket(s3URI.bucket()).key(s3URI.key() + i).build(),
+                        AsyncRequestBody.empty()))
             .toArray(CompletableFuture[]::new);
     CompletableFuture.allOf(putFutures).join();
   }

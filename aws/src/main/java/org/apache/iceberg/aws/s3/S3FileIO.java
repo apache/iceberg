@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.aws.s3;
 
+import java.util.Map;
 import org.apache.iceberg.aws.AwsClientFactories;
 import org.apache.iceberg.aws.AwsClientFactory;
 import org.apache.iceberg.aws.AwsProperties;
@@ -29,8 +30,6 @@ import org.apache.iceberg.util.SerializableSupplier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.services.s3.S3Client;
-
-import java.util.Map;
 
 /**
  * FileIO implementation backed by S3.
@@ -64,8 +63,8 @@ public class S3FileIO extends S3FileIOBase {
   /**
    * Creates a S3FileIO instance backed by the S3 synchronous client.
    *
-   * @deprecated Use S3FileIO(AwsClientFactory)
    * @param s3 S3Client factory
+   * @deprecated Use S3FileIO(AwsClientFactory)
    */
   @Deprecated
   public S3FileIO(SerializableSupplier<S3Client> s3) {
@@ -75,8 +74,8 @@ public class S3FileIO extends S3FileIOBase {
   /**
    * Creates a S3FileIO instance backed by the S3 synchronous client.
    *
-   * @deprecated Use S3FileIO(AwsClientFactory, AwsProperties)
    * @param s3 S3Client factory
+   * @deprecated Use S3FileIO(AwsClientFactory, AwsProperties)
    */
   @Deprecated
   public S3FileIO(SerializableSupplier<S3Client> s3, AwsProperties awsProperties) {
@@ -115,6 +114,7 @@ public class S3FileIO extends S3FileIOBase {
       this.delegate = new S3SyncFileIO(clientFactory::s3, awsProperties);
     }
   }
+
   @Override
   public InputFile newInputFile(String path) {
     return delegate.newInputFile(path);

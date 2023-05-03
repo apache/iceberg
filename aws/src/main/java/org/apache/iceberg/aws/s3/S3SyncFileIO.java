@@ -18,6 +18,15 @@
  */
 package org.apache.iceberg.aws.s3;
 
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
 import org.apache.iceberg.aws.AwsClientFactories;
 import org.apache.iceberg.aws.AwsClientFactory;
 import org.apache.iceberg.aws.AwsProperties;
@@ -54,16 +63,6 @@ import software.amazon.awssdk.services.s3.model.S3Exception;
 import software.amazon.awssdk.services.s3.model.Tag;
 import software.amazon.awssdk.services.s3.model.Tagging;
 
-import java.util.Collection;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Future;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.stream.Collectors;
-
 /**
  * FileIO implementation backed by S3.
  *
@@ -95,7 +94,8 @@ public class S3SyncFileIO extends S3FileIOBase {
   /**
    * Constructor with custom s3 supplier and default AWS properties.
    *
-   * <p>Calling {@link S3SyncFileIO#initialize(Map)} will overwrite information set in this constructor.
+   * <p>Calling {@link S3SyncFileIO#initialize(Map)} will overwrite information set in this
+   * constructor.
    *
    * @param s3 s3 supplier
    */
@@ -106,7 +106,8 @@ public class S3SyncFileIO extends S3FileIOBase {
   /**
    * Constructor with custom s3 supplier and AWS properties.
    *
-   * <p>Calling {@link S3SyncFileIO#initialize(Map)} will overwrite information set in this constructor.
+   * <p>Calling {@link S3SyncFileIO#initialize(Map)} will overwrite information set in this
+   * constructor.
    *
    * @param s3 s3 supplier
    * @param awsProperties aws properties

@@ -48,7 +48,7 @@ public class TestS3FileIOSyncIntegration extends TestS3FileIOIntegrationBase {
 
   private static S3Client s3(boolean newClient) {
     if (newClient) {
-      return clientFactory.s3();
+      return clientFactory().s3();
     } else {
       return s3;
     }
@@ -61,12 +61,13 @@ public class TestS3FileIOSyncIntegration extends TestS3FileIOIntegrationBase {
   }
 
   @Override
-  protected void putObject(PutObjectRequest request, byte[] contentBytes, boolean newClient) {
-    s3(newClient).putObject(request, RequestBody.fromBytes(contentBytes));
+  protected void putObject(PutObjectRequest request, byte[] payload, boolean newClient) {
+    s3(newClient).putObject(request, RequestBody.fromBytes(payload));
   }
 
   @Override
-  protected ResponseInputStream<GetObjectResponse> getObject(GetObjectRequest request, boolean newClient) {
+  protected ResponseInputStream<GetObjectResponse> getObject(
+      GetObjectRequest request, boolean newClient) {
     return s3(newClient).getObject(request);
   }
 
@@ -78,7 +79,7 @@ public class TestS3FileIOSyncIntegration extends TestS3FileIOIntegrationBase {
   @Override
   protected void createRandomObjects(String objectPrefix, int count) {
     S3URI s3URI = new S3URI(objectPrefix);
-    random
+    random()
         .ints(count)
         .parallel()
         .forEach(

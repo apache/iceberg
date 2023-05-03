@@ -18,6 +18,30 @@
  */
 package org.apache.iceberg.aws.s3;
 
+import java.io.BufferedInputStream;
+import java.io.BufferedOutputStream;
+import java.io.ByteArrayInputStream;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.SequenceInputStream;
+import java.io.UncheckedIOException;
+import java.nio.file.Files;
+import java.security.DigestOutputStream;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.stream.Collectors;
 import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.io.FileIOMetricsContext;
 import org.apache.iceberg.io.PositionOutputStream;
@@ -50,32 +74,6 @@ import software.amazon.awssdk.services.s3.model.Tagging;
 import software.amazon.awssdk.services.s3.model.UploadPartRequest;
 import software.amazon.awssdk.utils.BinaryUtils;
 
-import java.io.BufferedInputStream;
-import java.io.BufferedOutputStream;
-import java.io.ByteArrayInputStream;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.SequenceInputStream;
-import java.io.UncheckedIOException;
-import java.nio.file.Files;
-import java.security.DigestOutputStream;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.util.Arrays;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.stream.Collectors;
-
 class S3AsyncOutputStream extends PositionOutputStream {
   private static final Logger LOG = LoggerFactory.getLogger(S3AsyncOutputStream.class);
   private static final String digestAlgorithm = "MD5";
@@ -107,7 +105,8 @@ class S3AsyncOutputStream extends PositionOutputStream {
   private boolean closed = false;
 
   @SuppressWarnings("StaticAssignmentInConstructor")
-  S3AsyncOutputStream(S3AsyncClient s3, S3URI location, AwsProperties awsProperties, MetricsContext metrics)
+  S3AsyncOutputStream(
+      S3AsyncClient s3, S3URI location, AwsProperties awsProperties, MetricsContext metrics)
       throws IOException {
     if (executorService == null) {
       synchronized (S3AsyncOutputStream.class) {
@@ -317,27 +316,28 @@ class S3AsyncOutputStream extends PositionOutputStream {
               UploadPartRequest uploadRequest = requestBuilder.build();
 
               final CompletableFuture<CompletedPart> future =
-                s3.uploadPart(uploadRequest, AsyncRequestBody.fromFile(f))
-                  .thenApply(part ->
-                    CompletedPart.builder()
-                        .eTag(part.eTag())
-                        .partNumber(uploadRequest.partNumber())
-                        .build()
-                  )
-                  .whenComplete((result, thrown) -> {
-                    try {
-                      Files.deleteIfExists(f.toPath());
-                    } catch (IOException e) {
-                      LOG.warn("Failed to delete staging file: {}", f, e);
-                    }
+                  s3.uploadPart(uploadRequest, AsyncRequestBody.fromFile(f))
+                      .thenApply(
+                          part ->
+                              CompletedPart.builder()
+                                  .eTag(part.eTag())
+                                  .partNumber(uploadRequest.partNumber())
+                                  .build())
+                      .whenComplete(
+                          (result, thrown) -> {
+                            try {
+                              Files.deleteIfExists(f.toPath());
+                            } catch (IOException e) {
+                              LOG.warn("Failed to delete staging file: {}", f, e);
+                            }
 
-                    if (thrown != null) {
-                      // Exception observed here will be thrown as part of
-                      // CompletionException
-                      // when we will join completable futures.
-                      LOG.error("Failed to upload part: {}", uploadRequest, thrown);
-                    }
-                  });
+                            if (thrown != null) {
+                              // Exception observed here will be thrown as part of
+                              // CompletionException
+                              // when we will join completable futures.
+                              LOG.error("Failed to upload part: {}", uploadRequest, thrown);
+                            }
+                          });
 
               multiPartMap.put(f, future);
             });
@@ -383,11 +383,11 @@ class S3AsyncOutputStream extends PositionOutputStream {
     if (multipartUploadId != null) {
       try {
         s3.abortMultipartUpload(
-            AbortMultipartUploadRequest.builder()
-                .bucket(location.bucket())
-                .key(location.key())
-                .uploadId(multipartUploadId)
-                .build())
+                AbortMultipartUploadRequest.builder()
+                    .bucket(location.bucket())
+                    .key(location.key())
+                    .uploadId(multipartUploadId)
+                    .build())
             .join();
       } finally {
         cleanUpStagingFiles();
@@ -428,26 +428,26 @@ class S3AsyncOutputStream extends PositionOutputStream {
     S3RequestUtil.configureEncryption(awsProperties, requestBuilder);
     S3RequestUtil.configurePermission(awsProperties, requestBuilder);
 
-    InputStream stream = new BufferedInputStream(
-        stagingFiles.stream()
-            .map(FileAndDigest::file)
-            .map(S3AsyncOutputStream::uncheckedInputStream)
-            .reduce(SequenceInputStream::new)
-            .orElseGet(() -> new ByteArrayInputStream(new byte[0])));
+    InputStream combinedStream =
+        new BufferedInputStream(
+            stagingFiles.stream()
+                .map(FileAndDigest::file)
+                .map(S3AsyncOutputStream::uncheckedInputStream)
+                .reduce(SequenceInputStream::new)
+                .orElseGet(() -> new ByteArrayInputStream(new byte[0])));
 
     final BlockingInputStreamAsyncRequestBody body =
-            AsyncRequestBody.forBlockingInputStream(contentLength);
+        AsyncRequestBody.forBlockingInputStream(contentLength);
 
-    final CompletableFuture<PutObjectResponse> request =
-            s3.putObject(requestBuilder.build(), body);
+    final CompletableFuture<PutObjectResponse> request = s3.putObject(requestBuilder.build(), body);
 
-    body.writeInputStream(stream);
+    body.writeInputStream(combinedStream);
     request.join();
   }
 
   private static InputStream uncheckedInputStream(File file) {
     try {
-      return new FileInputStream(file);
+      return Files.newInputStream(file.toPath());
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }

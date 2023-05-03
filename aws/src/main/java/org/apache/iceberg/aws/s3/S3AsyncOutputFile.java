@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.aws.s3;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.encryption.NativeFileCryptoParameters;
 import org.apache.iceberg.encryption.NativelyEncryptedFile;
@@ -28,10 +30,8 @@ import org.apache.iceberg.io.PositionOutputStream;
 import org.apache.iceberg.metrics.MetricsContext;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
 
-import java.io.IOException;
-import java.io.UncheckedIOException;
-
-public class S3AsyncOutputFile extends BaseS3AsyncFile implements OutputFile, NativelyEncryptedFile {
+public class S3AsyncOutputFile extends BaseS3AsyncFile
+    implements OutputFile, NativelyEncryptedFile {
   private NativeFileCryptoParameters nativeEncryptionParameters;
 
   public static S3AsyncOutputFile fromLocation(
@@ -43,7 +43,8 @@ public class S3AsyncOutputFile extends BaseS3AsyncFile implements OutputFile, Na
         metrics);
   }
 
-  S3AsyncOutputFile(S3AsyncClient client, S3URI uri, AwsProperties awsProperties, MetricsContext metrics) {
+  S3AsyncOutputFile(
+      S3AsyncClient client, S3URI uri, AwsProperties awsProperties, MetricsContext metrics) {
     super(client, uri, awsProperties, metrics);
   }
 

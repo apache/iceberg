@@ -18,14 +18,13 @@
  */
 package org.apache.iceberg.aws;
 
+import java.io.Serializable;
+import java.util.Map;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.glue.GlueClient;
 import software.amazon.awssdk.services.kms.KmsClient;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.S3Client;
-
-import java.io.Serializable;
-import java.util.Map;
 
 /**
  * Interface to customize AWS clients used by Iceberg. A custom factory must have a no-arg

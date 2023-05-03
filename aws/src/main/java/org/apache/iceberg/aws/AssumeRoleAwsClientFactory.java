@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.aws;
 
+import java.util.Map;
+import java.util.UUID;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import software.amazon.awssdk.awscore.client.builder.AwsClientBuilder;
 import software.amazon.awssdk.regions.Region;
@@ -29,9 +31,6 @@ import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.sts.StsClient;
 import software.amazon.awssdk.services.sts.auth.StsAssumeRoleCredentialsProvider;
 import software.amazon.awssdk.services.sts.model.AssumeRoleRequest;
-
-import java.util.Map;
-import java.util.UUID;
 
 public class AssumeRoleAwsClientFactory implements AwsClientFactory {
   private AwsProperties awsProperties;
@@ -95,8 +94,7 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
         "Cannot initialize AssumeRoleClientConfigFactory with null region");
   }
 
-  protected <T extends AwsClientBuilder> T applyAssumeRoleConfigurations(
-      T clientBuilder) {
+  protected <T extends AwsClientBuilder> T applyAssumeRoleConfigurations(T clientBuilder) {
     AssumeRoleRequest assumeRoleRequest =
         AssumeRoleRequest.builder()
             .roleArn(awsProperties.clientAssumeRoleArn())

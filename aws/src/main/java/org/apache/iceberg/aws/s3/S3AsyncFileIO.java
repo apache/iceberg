@@ -18,6 +18,21 @@
  */
 package org.apache.iceberg.aws.s3;
 
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
+import javax.annotation.CheckForNull;
 import org.apache.iceberg.aws.AwsClientFactories;
 import org.apache.iceberg.aws.AwsClientFactory;
 import org.apache.iceberg.aws.AwsProperties;
@@ -57,22 +72,6 @@ import software.amazon.awssdk.services.s3.model.S3Exception;
 import software.amazon.awssdk.services.s3.model.Tag;
 import software.amazon.awssdk.services.s3.model.Tagging;
 
-import javax.annotation.CheckForNull;
-import java.util.Collection;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
-import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.CancellationException;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
-
 /**
  * FileIO implementation backed by S3.
  *
@@ -82,7 +81,8 @@ import java.util.stream.StreamSupport;
  */
 public class S3AsyncFileIO extends S3FileIOBase {
   private static final Logger LOG = LoggerFactory.getLogger(S3AsyncFileIO.class);
-  private static final String DEFAULT_METRICS_IMPL = "org.apache.iceberg.hadoop.HadoopMetricsContext";
+  private static final String DEFAULT_METRICS_IMPL =
+      "org.apache.iceberg.hadoop.HadoopMetricsContext";
 
   private String credential = null;
   private SerializableSupplier<S3AsyncClient> s3;
@@ -102,7 +102,8 @@ public class S3AsyncFileIO extends S3FileIOBase {
   /**
    * Constructor with custom s3 supplier and default AWS properties.
    *
-   * <p>Calling {@link S3AsyncFileIO#initialize(Map)} will overwrite information set in this constructor.
+   * <p>Calling {@link S3AsyncFileIO#initialize(Map)} will overwrite information set in this
+   * constructor.
    *
    * @param s3 s3 supplier
    */
@@ -113,7 +114,8 @@ public class S3AsyncFileIO extends S3FileIOBase {
   /**
    * Constructor with custom s3 supplier and AWS properties.
    *
-   * <p>Calling {@link S3AsyncFileIO#initialize(Map)} will overwrite information set in this constructor.
+   * <p>Calling {@link S3AsyncFileIO#initialize(Map)} will overwrite information set in this
+   * constructor.
    *
    * @param s3 s3 supplier
    * @param awsProperties aws properties
@@ -156,14 +158,14 @@ public class S3AsyncFileIO extends S3FileIOBase {
       DeleteObjectRequest deleteRequest =
           DeleteObjectRequest.builder().bucket(location.bucket()).key(location.key()).build();
       // Delete unconditionally, but after tagging is complete
-      deleteFuture = tagFuture
-          .exceptionally(t -> null)
-          .thenCompose((ignore) -> client().deleteObject(deleteRequest));
+      deleteFuture =
+          tagFuture
+              .exceptionally(t -> null)
+              .thenCompose((ignore) -> client().deleteObject(deleteRequest));
     }
 
     CompletableFuture.allOf(tagFuture, deleteFuture).join();
   }
-
 
   /**
    * Deletes the given paths in a batched manner.
@@ -177,10 +179,12 @@ public class S3AsyncFileIO extends S3FileIOBase {
   public void deleteFiles(Iterable<String> paths) throws BulkDeletionFailureException {
     if (awsProperties.s3DeleteTags() != null && !awsProperties.s3DeleteTags().isEmpty()) {
       final Set<Tag> deleteTags = awsProperties.s3DeleteTags();
-      final CompletableFuture<?>[] tagFutures = StreamSupport.stream(paths.spliterator(), false)
-          .map(path -> tagFile(path, deleteTags))
-          .toArray(CompletableFuture[]::new);
-      // There is a potential here to further improve concurrency by combining this with deletion future.
+      final CompletableFuture<?>[] tagFutures =
+          StreamSupport.stream(paths.spliterator(), false)
+              .map(path -> tagFile(path, deleteTags))
+              .toArray(CompletableFuture[]::new);
+      // There is a potential here to further improve concurrency by combining this with deletion
+      // future.
       CompletableFuture.allOf(tagFutures).join();
     }
 
@@ -211,14 +215,17 @@ public class S3AsyncFileIO extends S3FileIOBase {
       }
 
       final AtomicInteger totalFailedDeletions = new AtomicInteger(0);
-      final CompletableFuture<?>[] tasks = deletionTasks
-          .stream()
-          .map(task ->
-              task.thenAccept(failures -> {
-                failures.forEach(path -> LOG.warn("Failed to delete object at path {}", path));
-                totalFailedDeletions.addAndGet(failures.size());
-              }))
-          .toArray(CompletableFuture[]::new);
+      final CompletableFuture<?>[] tasks =
+          deletionTasks.stream()
+              .map(
+                  task ->
+                      task.thenAccept(
+                          failures -> {
+                            failures.forEach(
+                                path -> LOG.warn("Failed to delete object at path {}", path));
+                            totalFailedDeletions.addAndGet(failures.size());
+                          }))
+              .toArray(CompletableFuture[]::new);
       try {
         CompletableFuture.allOf(tasks).join();
       } catch (CompletionException e) {
@@ -239,9 +246,9 @@ public class S3AsyncFileIO extends S3FileIOBase {
    * @param path S3 Path for the file to delete
    * @param tagsToAdd tags to add for deletion
    * @return a Future that completes when the tags have been applied or null if failed.
-   * @throws S3Exception
    */
-  private CompletableFuture<PutObjectTaggingResponse> tagFile(String path, Set<Tag> tagsToAdd) throws S3Exception {
+  private CompletableFuture<PutObjectTaggingResponse> tagFile(String path, Set<Tag> tagsToAdd)
+      throws S3Exception {
     S3URI location = new S3URI(path, awsProperties.s3BucketToAccessPointMapping());
     String bucket = location.bucket();
     String objectKey = location.key();
@@ -250,25 +257,27 @@ public class S3AsyncFileIO extends S3FileIOBase {
     CompletableFuture<GetObjectTaggingResponse> responseFuture =
         client().getObjectTagging(getObjectTaggingRequest);
     return responseFuture
-        .thenCompose(response -> {
-          // Get existing tags, if any and then add the delete tags
-          Set<Tag> tags = Sets.newHashSet(tagsToAdd);
-          tags.addAll(response.tagSet());
+        .thenCompose(
+            response -> {
+              // Get existing tags, if any and then add the delete tags
+              Set<Tag> tags = Sets.newHashSet(tagsToAdd);
+              tags.addAll(response.tagSet());
 
-          PutObjectTaggingRequest putObjectTaggingRequest =
-              PutObjectTaggingRequest.builder()
-                  .bucket(bucket)
-                  .key(objectKey)
-                  .tagging(Tagging.builder().tagSet(tags).build())
-                  .build();
-          return client().putObjectTagging(putObjectTaggingRequest);
-        })
-        .handle((resp, exc) -> {
-          if (exc != null) {
-            LOG.warn("Failed to add tags: {} to {}", tagsToAdd, path, exc);
-          }
-          return null;
-        });
+              PutObjectTaggingRequest putObjectTaggingRequest =
+                  PutObjectTaggingRequest.builder()
+                      .bucket(bucket)
+                      .key(objectKey)
+                      .tagging(Tagging.builder().tagSet(tags).build())
+                      .build();
+              return client().putObjectTagging(putObjectTaggingRequest);
+            })
+        .handle(
+            (resp, exc) -> {
+              if (exc != null) {
+                LOG.warn("Failed to add tags: {} to {}", tagsToAdd, path, exc);
+              }
+              return null;
+            });
   }
 
   /**
@@ -276,7 +285,8 @@ public class S3AsyncFileIO extends S3FileIOBase {
    *
    * @return A future with failed objects
    */
-  private CompletableFuture<List<String>> deleteBatch(String bucket, Collection<String> keysToDelete) {
+  private CompletableFuture<List<String>> deleteBatch(
+      String bucket, Collection<String> keysToDelete) {
     List<ObjectIdentifier> objectIds =
         keysToDelete.stream()
             .map(key -> ObjectIdentifier.builder().key(key).build())
@@ -286,24 +296,26 @@ public class S3AsyncFileIO extends S3FileIOBase {
             .bucket(bucket)
             .delete(Delete.builder().objects(objectIds).build())
             .build();
-    return client().deleteObjects(request)
-        .handle((response, throwable) -> {
-          List<String> failures = Lists.newArrayList();
-          if (response != null && response.hasErrors()) {
-            failures.addAll(
-                response.errors().stream()
-                    .map(error -> String.format("s3://%s/%s", request.bucket(), error.key()))
-                    .collect(Collectors.toList()));
-          }
-          if (throwable != null) {
-            LOG.warn("Encountered failure when deleting batch", throwable);
-            failures.addAll(
-                request.delete().objects().stream()
-                    .map(obj -> String.format("s3://%s/%s", request.bucket(), obj.key()))
-                    .collect(Collectors.toList()));
-          }
-          return failures;
-        });
+    return client()
+        .deleteObjects(request)
+        .handle(
+            (response, throwable) -> {
+              List<String> failures = Lists.newArrayList();
+              if (response != null && response.hasErrors()) {
+                failures.addAll(
+                    response.errors().stream()
+                        .map(error -> String.format("s3://%s/%s", request.bucket(), error.key()))
+                        .collect(Collectors.toList()));
+              }
+              if (throwable != null) {
+                LOG.warn("Encountered failure when deleting batch", throwable);
+                failures.addAll(
+                    request.delete().objects().stream()
+                        .map(obj -> String.format("s3://%s/%s", request.bucket(), obj.key()))
+                        .collect(Collectors.toList()));
+              }
+              return failures;
+            });
   }
 
   @Override
@@ -312,13 +324,16 @@ public class S3AsyncFileIO extends S3FileIOBase {
     ListObjectsV2Request request =
         ListObjectsV2Request.builder().bucket(s3uri.bucket()).prefix(s3uri.key()).build();
 
-    SdkPublisher<FileInfo> publisher = client().listObjectsV2Paginator(request)
-        .contents()
-        .map(o ->
-            new FileInfo(
-                String.format("%s://%s/%s", s3uri.scheme(), s3uri.bucket(), o.key()),
-                o.size(),
-                o.lastModified().toEpochMilli()));
+    SdkPublisher<FileInfo> publisher =
+        client()
+            .listObjectsV2Paginator(request)
+            .contents()
+            .map(
+                o ->
+                    new FileInfo(
+                        String.format("%s://%s/%s", s3uri.scheme(), s3uri.bucket(), o.key()),
+                        o.size(),
+                        o.lastModified().toEpochMilli()));
     // TODO: 100 is arbitrary between 1 and 1000 (S3 page size)
     SubscriberIterator<FileInfo> subscriber = new SubscriberIterator<>(publisher, 100);
     publisher.subscribe(subscriber);
@@ -331,17 +346,13 @@ public class S3AsyncFileIO extends S3FileIOBase {
     private Throwable thrown;
 
     SubscriberIterator(SdkPublisher<T> source, int bufferSize) {
-      super();
       this.source = source;
       this.items = new ArrayBlockingQueue<>(bufferSize);
     }
 
-    private final AtomicInteger put = new AtomicInteger(0);
-    private final AtomicInteger taken = new AtomicInteger(0);
     private void putInternal(Optional<T> item) {
       try {
         items.put(item);
-        put.getAndIncrement();
       } catch (InterruptedException e) {
         Thread.currentThread().interrupt();
         throw new RuntimeException(e);
@@ -350,14 +361,13 @@ public class S3AsyncFileIO extends S3FileIOBase {
 
     private Optional<T> takeInternal() {
       try {
-        Optional<T> taken = items.take();
-        this.taken.getAndIncrement();
-        return taken;
+        return items.take();
       } catch (InterruptedException e) {
         Thread.currentThread().interrupt();
         throw new RuntimeException(e);
       }
     }
+
     @Override
     public void onSubscribe(Subscription s) {
       s.request(Long.MAX_VALUE);
