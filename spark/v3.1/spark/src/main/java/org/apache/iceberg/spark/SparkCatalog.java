@@ -462,9 +462,7 @@ public class SparkCatalog extends BaseCatalog {
     SparkSession sparkSession = SparkSession.active();
     boolean cacheCaseSensitive =
         PropertyUtil.propertyAsBoolean(
-            options,
-            CatalogProperties.CACHE_CASE_SENSITIVE,
-            Boolean.parseBoolean(sparkSession.conf().get("spark.sql.caseSensitive")));
+            options, CatalogProperties.CACHE_CASE_SENSITIVE, SparkUtil.caseSensitive(sparkSession));
 
     long cacheExpirationIntervalMs =
         PropertyUtil.propertyAsLong(
