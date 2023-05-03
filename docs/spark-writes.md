@@ -316,8 +316,8 @@ data.writeTo("prod.db.table")
 
 Iceberg's default Spark writers require that the data in each spark task is clustered by partition values. This 
 distribution is required to minimize the number of file handles that are held open while writing. By default, starting
-in Iceberg 1.2.0, Iceberg now also requests that Spark pre-sort data to be written to fit this distribution. The
-request to spark is done through the parameter `write.distribution-mode` with the default value being `hash`.
+in Iceberg 1.2.0, Iceberg also requests that Spark pre-sort data to be written to fit this distribution. The
+request to Spark is done through the table property `write.distribution-mode` with the value `hash`.
 
 Let's go through writing the data against below sample table:
 
@@ -332,7 +332,8 @@ PARTITIONED BY (days(ts), category)
 ```
 
 To write data to the sample table, your data needs to be sorted by `days(ts), category` but this is taken care
-of automatically by the default `hash` distribution.
+of automatically by the default `hash` distribution. Previously this would have required manually sorting, but this 
+is no longer the case.
 
 ```sql
 INSERT INTO prod.db.sample
@@ -342,40 +343,44 @@ SELECT id, data, category, ts FROM another_table
 
 There are 3 options for `write.distribution-mode`
 
-* `none` - This is the previous default for Iceberg.<p> This mode does not require any shuffles or sort to be performed
-automatically by Spark. Because no work is done automatically by Spark, the data must be either locally or globally 
-sorted manually by partition value. To reduce the number of files produced during writing, using a global sort is recommended.<p> 
-A local sort can be avoided by using the Spark [write fanout](#write-properties) property but this will cause all file handles to 
-remain open until each write task has completed. 
+* `none` - This is the previous default for Iceberg.
+<p>This mode does not request any shuffles or sort to be performed automatically by Spark. Because no work is done 
+automatically by Spark, the data must be *manually* locally or globally sorted by partition value. To reduce the number 
+of files produced during writing, using a global sort is recommended.
+<p>A local sort can be avoided by using the Spark [write fanout](#write-properties) property but this will cause all 
+file handles to remain open until each write task has completed. 
 * `hash` - This mode is the new default and requests that Spark uses a hash-based exchange to shuffle the incoming
 write data before writing. Practically, this means that each row is hashed based on the row's partition value and then placed
-in a corresponding Spark task based upon that value. Further division and coalescing of tasks may take place based on 
+in a corresponding Spark task based upon that value. Further division and coalescing of tasks may take place because of
 the [Spark's Adaptive Query planning](#controlling-file-sizes).
 * `range` - This mode requests that Spark perform a range based exchanged to shuffle the data before writing. This is
 a two stage procedure which is more expensive than the `hash` mode. The first stage samples the data to be written based
-on the partition and sort columns, this information is then used in the second stage to shuffle data into tasks. Each
-task gets an exclusive range of the input data which clusters the data by partition and also globally sorts it.
+on the partition and sort columns. The second stage uses the range information to shuffle the input data into Spark 
+tasks. Each task gets an exclusive range of the input data which clusters the data by partition and also globally sorts.
 While this is more expensive than the hash distribution, the global ordering can be beneficial for read performance if
-sorted columns are used during queries. Further division and coalescing of tasks may take place based on
-  the [Spark's Adaptive Query planning](#controlling-file-sizes).
+sorted columns are used during queries. This mode is used by default if a table is created with a 
+sort-order. Further division and coalescing of tasks may take place because of
+[Spark's Adaptive Query planning](#controlling-file-sizes).
 
 
 ## Controlling File Sizes
 
 When writing data to Iceberg with Spark, it's important to note that Spark cannot write a file larger than a Spark 
-task. This means although Iceberg will always roll over a file when it grows to 
-[`write.target-file-size-bytes`](../configuration/#write-properties), a file
-will not be able to grow to that size if the task is not large enough. The
-on disk file size will also be much smaller than the Spark task size since the on disk data will be both compressed 
-and in columnar format as opposed to Spark's uncompressed row representation. This means a 100 megabyte task will 
-always corrospond to on an on disk file of much less than 100 megabytes even when writing to a single Iceberg partition.
+task and a file cannot span an Iceberg partition boundary. This means although Iceberg will always roll over a file 
+when it grows to [`write.target-file-size-bytes`](../configuration/#write-properties), but unless the Spark task is 
+large enough that will not happen. The size of the file created on disk will also be much smaller than the Spark task 
+since the on disk data will be both compressed and in columnar format as opposed to Spark's uncompressed row 
+representation. This means a 100 megabyte Spark task will create a file much smaller than 100 megabytes even if that
+task is writing to a single Iceberg partition. If the task writes to multiple partitions, the files will be even
+smaller than that.
 
-To control what data ends up in each task the user must either use a [`write distribution mode`](#writing-distribution-modes) 
+To control what data ends up in each Spark task use a [`write distribution mode`](#writing-distribution-modes) 
 or manually repartition the data. 
 
 To adjust Spark's task size it is important to become familiar with Spark's various Adaptive Query Execution (AQE) 
 parameters. When the `write.distribution-mode` is not `none`, AQE will control the coalescing and splitting of Spark
-tasks during the exchange to try to create tasks of `spark.sql.adaptive.advisoryPartitionSizeInBytes` size.
+tasks during the exchange to try to create tasks of `spark.sql.adaptive.advisoryPartitionSizeInBytes` size. These 
+settings will also effect any user performed re-partitions or sorts. 
 It is important again to note that this is the in-memory Spark row size and not the on disk
 columnar-compressed size, so a larger value that the target file size will need to be specified. The ratio of 
 in-memory size to on disk size is data dependent. Future work in Spark should allow Iceberg to automatically adjust this
