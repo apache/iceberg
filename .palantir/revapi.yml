@@ -417,7 +417,10 @@ acceptedBreaks:
     - code: "java.method.addedToInterface"
       new: "method java.lang.String org.apache.iceberg.view.ViewVersion::operation()"
       justification: "Add operation API to view version"
-
+    - code: "java.method.addedToInterface"
+      new: "method java.util.List<org.apache.iceberg.actions.RewritePositionDeleteFiles.FileGroupRewriteResult>\
+        \ org.apache.iceberg.actions.RewritePositionDeleteFiles.Result::rewriteResults()"
+      justification: "New method added to un-implemented interface"
     - code: "java.method.removed"
       old: "method java.lang.Integer org.apache.iceberg.view.ImmutableSQLViewRepresentation::schemaId()"
       justification: "Moving SchemaID to ViewVersion. View Spec implementation has\
@@ -435,23 +438,6 @@ acceptedBreaks:
         \ org.apache.iceberg.view.ImmutableSQLViewRepresentation.Builder::schemaId(java.lang.Integer)"
       justification: "Moving SchemaID to ViewVersion. View Spec implementation has\
         \ not been voted on yet so this break is acceptable"
-    - code: "java.method.addedToInterface"
-      new: "method java.util.List<org.apache.iceberg.actions.RewritePositionDeleteFiles.PositionDeleteGroupRewriteResult>\
-        \ org.apache.iceberg.actions.RewritePositionDeleteFiles.Result::rewriteResults()"
-      justification: "Adding new methods to internal interfaces"
-    - code: "java.method.addedToInterface"
-      new: "method long org.apache.iceberg.actions.RewritePositionDeleteFiles.Result::addedBytesCount()"
-      justification: "Adding new methods to internal interfaces"
-    - code: "java.method.addedToInterface"
-      new: "method long org.apache.iceberg.actions.RewritePositionDeleteFiles.Result::rewrittenBytesCount()"
-      justification: "Adding new methods to internal interfaces"
-    - code: "java.method.addedToInterface"
-      new: "method org.apache.iceberg.RewriteFiles org.apache.iceberg.RewriteFiles::rewriteDeleteFiles(java.util.Set<org.apache.iceberg.DeleteFile>,\
-        \ java.util.Set<org.apache.iceberg.DeleteFile>)"
-      justification: "Adding new methods to internal interfaces"
-    - code: "java.method.addedToInterface"
-      new: "method org.apache.iceberg.actions.RewritePositionDeleteFiles org.apache.iceberg.actions.RewritePositionDeleteFiles::filterPositionDeletes(org.apache.iceberg.expressions.Expression)"
-      justification: "Adding new methods to internal interfaces"
     org.apache.iceberg:iceberg-core:
     - code: "java.class.removed"
       old: "class org.apache.iceberg.actions.BaseExpireSnapshotsActionResult"

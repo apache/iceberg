@@ -44,7 +44,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
-import org.apache.iceberg.actions.RewritePositionDeleteFiles.PositionDeleteGroupRewriteResult;
+import org.apache.iceberg.actions.RewritePositionDeleteFiles.FileGroupRewriteResult;
 import org.apache.iceberg.actions.RewritePositionDeleteFiles.Result;
 import org.apache.iceberg.actions.SizeBasedFileRewriter;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -720,25 +720,23 @@ public class TestRewritePositionDeleteFilesAction extends SparkCatalogTestBase {
         "Expected rewritten delete file count in all groups to match",
         rewrittenDeletes.size(),
         result.rewriteResults().stream()
-            .mapToInt(PositionDeleteGroupRewriteResult::rewrittenDeleteFilesCount)
+            .mapToInt(FileGroupRewriteResult::rewrittenDeleteFilesCount)
             .sum());
     Assert.assertEquals(
         "Expected added delete file count in all groups to match",
         newDeletes.size(),
         result.rewriteResults().stream()
-            .mapToInt(PositionDeleteGroupRewriteResult::addedDeleteFilesCount)
+            .mapToInt(FileGroupRewriteResult::addedDeleteFilesCount)
             .sum());
     Assert.assertEquals(
         "Expected rewritten delete bytes in all groups to match",
         size(rewrittenDeletes),
         result.rewriteResults().stream()
-            .mapToLong(PositionDeleteGroupRewriteResult::rewrittenBytesCount)
+            .mapToLong(FileGroupRewriteResult::rewrittenBytesCount)
             .sum());
     Assert.assertEquals(
         "Expected added delete bytes in all groups to match",
         size(newDeletes),
-        result.rewriteResults().stream()
-            .mapToLong(PositionDeleteGroupRewriteResult::addedBytesCount)
-            .sum());
+        result.rewriteResults().stream().mapToLong(FileGroupRewriteResult::addedBytesCount).sum());
   }
 }

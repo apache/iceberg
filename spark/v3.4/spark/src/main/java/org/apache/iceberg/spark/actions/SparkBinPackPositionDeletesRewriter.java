@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.spark.actions;
 
+import static org.apache.iceberg.MetadataTableType.POSITION_DELETES;
 import static org.apache.spark.sql.functions.col;
 
 import java.util.List;
@@ -47,7 +48,7 @@ import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.internal.SQLConf;
 
-class SparkPositionDeletesBinPackRewriter extends SizeBasedPositionDeletesRewriter {
+class SparkBinPackPositionDeletesRewriter extends SizeBasedPositionDeletesRewriter {
 
   private final SparkSession spark;
   private final SparkTableCache tableCache = SparkTableCache.get();
@@ -55,21 +56,22 @@ class SparkPositionDeletesBinPackRewriter extends SizeBasedPositionDeletesRewrit
   private final PositionDeletesRewriteCoordinator coordinator =
       PositionDeletesRewriteCoordinator.get();
 
-  SparkPositionDeletesBinPackRewriter(SparkSession spark, Table table) {
+  SparkBinPackPositionDeletesRewriter(SparkSession spark, Table table) {
     super(table);
-    this.spark = spark;
+    // Disable Adaptive Query Execution as this may change the output partitioning of our write
+    this.spark = spark.cloneSession();
+    this.spark.conf().set(SQLConf.ADAPTIVE_EXECUTION_ENABLED().key(), false);
   }
 
   @Override
   public String description() {
-    return "POSITION-DELETES";
+    return "BIN-PACK";
   }
 
   @Override
   public Set<DeleteFile> rewrite(List<PositionDeletesScanTask> group) {
     String groupId = UUID.randomUUID().toString();
-    Table deletesTable =
-        MetadataTableUtils.createMetadataTableInstance(table(), MetadataTableType.POSITION_DELETES);
+    Table deletesTable = MetadataTableUtils.createMetadataTableInstance(table(), POSITION_DELETES);
     try {
       tableCache.add(groupId, deletesTable);
       taskSetManager.stageTasks(deletesTable, groupId, group);

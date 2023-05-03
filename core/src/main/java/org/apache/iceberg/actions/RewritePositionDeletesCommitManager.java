@@ -22,7 +22,6 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.DeleteFile;
-import org.apache.iceberg.RewriteFiles;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -61,16 +60,16 @@ public class RewritePositionDeletesCommitManager {
       addedDeleteFiles.addAll(group.addedDeleteFiles());
     }
 
-    RewriteFiles rewrite = table.newRewrite().validateFromSnapshot(startingSnapshotId);
-    rewrite.rewriteFiles(
-        ImmutableSet.of(), rewrittenDeleteFiles, ImmutableSet.of(), addedDeleteFiles);
-
-    rewrite.commit();
+    table
+        .newRewrite()
+        .validateFromSnapshot(startingSnapshotId)
+        .rewriteFiles(ImmutableSet.of(), rewrittenDeleteFiles, ImmutableSet.of(), addedDeleteFiles)
+        .commit();
   }
 
   /**
    * Clean up a specified file set by removing any files created for that operation, should not
-   * throw any exceptions
+   * throw any exceptions.
    *
    * @param fileGroup group of files which has already been rewritten
    */

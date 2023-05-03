@@ -29,6 +29,7 @@ import org.immutables.value.Value;
  *
  * <p>Generally used for optimizing the size and layout of position delete files within a table.
  */
+@Value.Enclosing
 public interface RewritePositionDeleteFiles
     extends SnapshotUpdate<RewritePositionDeleteFiles, RewritePositionDeleteFiles.Result> {
 
@@ -64,8 +65,6 @@ public interface RewritePositionDeleteFiles
   /**
    * Forces the rewrite job order based on the value.
    *
-   * <p>
-   *
    * <ul>
    *   <li>If rewrite-job-order=bytes-asc, then rewrite the smallest job groups first.
    *   <li>If rewrite-job-order=bytes-desc, then rewrite the largest job groups first.
@@ -96,34 +95,30 @@ public interface RewritePositionDeleteFiles
   /** The action result that contains a summary of the execution. */
   @Value.Immutable
   interface Result {
-    List<PositionDeleteGroupRewriteResult> rewriteResults();
+    List<FileGroupRewriteResult> rewriteResults();
 
     /** Returns the count of the position delete files that been rewritten. */
     default int rewrittenDeleteFilesCount() {
       return rewriteResults().stream()
-          .mapToInt(PositionDeleteGroupRewriteResult::rewrittenDeleteFilesCount)
+          .mapToInt(FileGroupRewriteResult::rewrittenDeleteFilesCount)
           .sum();
     }
 
     /** Returns the count of the added position delete files. */
     default int addedDeleteFilesCount() {
       return rewriteResults().stream()
-          .mapToInt(PositionDeleteGroupRewriteResult::addedDeleteFilesCount)
+          .mapToInt(FileGroupRewriteResult::addedDeleteFilesCount)
           .sum();
     }
 
     /** Returns the number of bytes of position delete files that have been rewritten */
     default long rewrittenBytesCount() {
-      return rewriteResults().stream()
-          .mapToLong(PositionDeleteGroupRewriteResult::rewrittenBytesCount)
-          .sum();
+      return rewriteResults().stream().mapToLong(FileGroupRewriteResult::rewrittenBytesCount).sum();
     }
 
     /** Returns the number of bytes of newly added position delete files */
     default long addedBytesCount() {
-      return rewriteResults().stream()
-          .mapToLong(PositionDeleteGroupRewriteResult::addedBytesCount)
-          .sum();
+      return rewriteResults().stream().mapToLong(FileGroupRewriteResult::addedBytesCount).sum();
     }
   }
 
@@ -133,9 +128,9 @@ public interface RewritePositionDeleteFiles
    * rewritten.
    */
   @Value.Immutable
-  interface PositionDeleteGroupRewriteResult {
-    /** Description of this position delete file group * */
-    PositionDeleteGroupInfo info();
+  interface FileGroupRewriteResult {
+    /** Description of this position delete file group. */
+    FileGroupInfo info();
 
     /** Returns the count of the position delete files that been rewritten in this group. */
     int rewrittenDeleteFilesCount();
@@ -143,12 +138,10 @@ public interface RewritePositionDeleteFiles
     /** Returns the count of the added position delete files in this group. */
     int addedDeleteFilesCount();
 
-    /**
-     * Returns the number of bytes of position delete files that have been rewritten in this group
-     */
+    /** Returns the number of bytes of rewritten position delete files in this group. */
     long rewrittenBytesCount();
 
-    /** Returns the number of bytes of newly added position delete files in this group */
+    /** Returns the number of bytes of newly added position delete files in this group. */
     long addedBytesCount();
   }
 
@@ -157,20 +150,23 @@ public interface RewritePositionDeleteFiles
    * partition. For use tracking rewrite operations and for returning results.
    */
   @Value.Immutable
-  interface PositionDeleteGroupInfo {
+  interface FileGroupInfo {
     /**
-     * returns which position delete file group this is out of the total set of file groups for this
+     * Returns which position delete file group this is out of the total set of file groups for this
      * rewrite
      */
     int globalIndex();
 
     /**
-     * returns which position delete file group this is out of the set of file groups for this
+     * Returns which position delete file group this is out of the set of file groups for this
      * partition
      */
     int partitionIndex();
 
-    /** returns which partition this position delete file group contains files from */
+    /**
+     * Returns which partition this position delete file group contains files from. This will be of
+     * the type of the table's unified partition type considering all specs in a table.
+     */
     StructLike partition();
   }
 }
