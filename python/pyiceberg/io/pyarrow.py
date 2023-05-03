@@ -535,11 +535,11 @@ def _create_positional_deletes_indices(
     sorted_deleted = merge(*positional_deletes)
 
     def generator() -> Generator[int, None, None]:
-        deleted_pos = next(sorted_deleted)  # type: ignore
+        deleted_pos = next(sorted_deleted).as_py()  # type: ignore
         for pos in range(fn_rows()):
             if deleted_pos == pos:
                 try:
-                    deleted_pos = next(sorted_deleted)  # type: ignore
+                    deleted_pos = next(sorted_deleted).as_py()  # type: ignore
                 except StopIteration:
                     deleted_pos = -1
             else:
@@ -775,7 +775,7 @@ def _task_to_table(
             schema=physical_schema,
             # This will push down the query to Arrow.
             # But in case there are positional deletes, we have to apply them first
-            filter=pyarrow_filter if positional_deletes else None,
+            filter=pyarrow_filter if not positional_deletes else None,
             columns=[col.name for col in file_project_schema.columns],
         )
 
@@ -783,7 +783,8 @@ def _task_to_table(
             # In the case of a mask, it is a bit awkward because we first
             # need to go to a table to apply the bitwise mask, and then
             # the table is warped into a dataset to apply the expression
-            arrow_table = fragment_scanner.take(_create_positional_deletes_indices(positional_deletes, fragment.count_rows))
+            indices = _create_positional_deletes_indices(positional_deletes, fragment.count_rows)
+            arrow_table = fragment_scanner.take(indices)
 
             # Apply the user filter
             if pyarrow_filter is not None:
