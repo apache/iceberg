@@ -458,11 +458,10 @@ public class SparkCatalog extends BaseCatalog {
         PropertyUtil.propertyAsBoolean(
             options, CatalogProperties.CACHE_ENABLED, CatalogProperties.CACHE_ENABLED_DEFAULT);
 
+    SparkSession sparkSession = SparkSession.active();
     boolean cacheCaseSensitive =
         PropertyUtil.propertyAsBoolean(
-            options,
-            CatalogProperties.CACHE_CASE_SENSITIVE,
-            CatalogProperties.CACHE_CASE_SENSITIVE_DEFAULT);
+            options, CatalogProperties.CACHE_CASE_SENSITIVE, SparkUtil.caseSensitive(sparkSession));
 
     long cacheExpirationIntervalMs =
         PropertyUtil.propertyAsLong(
@@ -479,7 +478,6 @@ public class SparkCatalog extends BaseCatalog {
     Catalog catalog = buildIcebergCatalog(name, options);
 
     this.catalogName = name;
-    SparkSession sparkSession = SparkSession.active();
     this.useTimestampsWithoutZone =
         SparkUtil.useTimestampWithoutZoneInNewTables(sparkSession.conf());
     this.tables =
