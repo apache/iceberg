@@ -53,6 +53,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -85,15 +87,19 @@ import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.parquet.ParquetValueWriters.PositionDeleteStructWriter;
 import org.apache.iceberg.parquet.ParquetValueWriters.StructWriter;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
+import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ArrayUtil;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.parquet.HadoopReadOptions;
 import org.apache.parquet.ParquetReadOptions;
 import org.apache.parquet.avro.AvroReadSupport;
 import org.apache.parquet.avro.AvroWriteSupport;
+import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.ParquetProperties;
 import org.apache.parquet.column.ParquetProperties.WriterVersion;
 import org.apache.parquet.hadoop.ParquetFileReader;
@@ -104,8 +110,12 @@ import org.apache.parquet.hadoop.api.ReadSupport;
 import org.apache.parquet.hadoop.api.WriteSupport;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 import org.apache.parquet.schema.MessageType;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class Parquet {
+  private static final Logger LOG = LoggerFactory.getLogger(Parquet.class);
+
   private Parquet() {}
 
   private static final Collection<String> READ_PROPERTIES_TO_REMOVE =
@@ -119,6 +129,7 @@ public class Parquet {
   }
 
   public static class WriteBuilder {
+    private static final Joiner DOT_JOINER = Joiner.on(".");
     private final OutputFile file;
     private final Configuration conf;
     private final Map<String, String> metadata = Maps.newLinkedHashMap();
@@ -231,6 +242,47 @@ public class Parquet {
       return this;
     }
 
+    private void setBloomFilterConfig(
+        Context context,
+        MessageType parquetSchema,
+        BiConsumer<String, Boolean> withBloomFilterEnabled) {
+      List<ColumnDescriptor> parquetColumns = parquetSchema.getColumns();
+      context
+          .columnBloomFilterEnabled()
+          .forEach(
+              (columnPath, value) -> {
+                // check the column exists and support bloom filter
+                Types.NestedField field = schema.caseInsensitiveFindField(columnPath);
+                if (field == null) {
+                  LOG.warn("Skipping bloom filter config for missing field: {}", columnPath);
+                  return;
+                }
+                Type fieldType = field.type();
+                // doesn't support boolean, list, map, struct type
+                if (!fieldType.isPrimitiveType()
+                    || fieldType.typeId().equals(Type.TypeID.BOOLEAN)) {
+                  LOG.warn(
+                      "Invalid bloom filter column configuration: field {} is of type '{}' which cannot "
+                          + "benefit from a bloom filter. This column configuration will be ignored.",
+                      columnPath,
+                      fieldType);
+                  return;
+                }
+
+                Optional<String[]> parquetColumnPath =
+                    parquetColumns.stream()
+                        .filter(col -> field.fieldId() == col.getPrimitiveType().getId().intValue())
+                        .map(ColumnDescriptor::getPath)
+                        .findAny();
+
+                Preconditions.checkArgument(
+                    parquetColumnPath.isPresent(),
+                    "The Iceberg column: {} should be existed in Parquet schema which converted from Iceberg schema");
+                withBloomFilterEnabled.accept(
+                    DOT_JOINER.join(parquetColumnPath.get()), Boolean.valueOf(value));
+              });
+    }
+
     public <D> FileAppender<D> build() throws IOException {
       Preconditions.checkNotNull(schema, "Schema is required");
       Preconditions.checkNotNull(name, "Table name is required and cannot be null");
@@ -250,7 +302,6 @@ public class Parquet {
       int rowGroupCheckMinRecordCount = context.rowGroupCheckMinRecordCount();
       int rowGroupCheckMaxRecordCount = context.rowGroupCheckMaxRecordCount();
       int bloomFilterMaxBytes = context.bloomFilterMaxBytes();
-      Map<String, String> columnBloomFilterEnabled = context.columnBloomFilterEnabled();
 
       if (compressionLevel != null) {
         switch (codec) {
@@ -291,11 +342,7 @@ public class Parquet {
                 .withMaxRowCountForPageSizeCheck(rowGroupCheckMaxRecordCount)
                 .withMaxBloomFilterBytes(bloomFilterMaxBytes);
 
-        for (Map.Entry<String, String> entry : columnBloomFilterEnabled.entrySet()) {
-          String colPath = entry.getKey();
-          String bloomEnabled = entry.getValue();
-          propsBuilder.withBloomFilterEnabled(colPath, Boolean.valueOf(bloomEnabled));
-        }
+        setBloomFilterConfig(context, type, propsBuilder::withBloomFilterEnabled);
 
         ParquetProperties parquetProperties = propsBuilder.build();
 
@@ -325,11 +372,7 @@ public class Parquet {
                 .withPageRowCountLimit(pageRowLimit)
                 .withDictionaryPageSize(dictionaryPageSize);
 
-        for (Map.Entry<String, String> entry : columnBloomFilterEnabled.entrySet()) {
-          String colPath = entry.getKey();
-          String bloomEnabled = entry.getValue();
-          parquetWriteBuilder.withBloomFilterEnabled(colPath, Boolean.valueOf(bloomEnabled));
-        }
+        setBloomFilterConfig(context, type, parquetWriteBuilder::withBloomFilterEnabled);
 
         return new ParquetWriteAdapter<>(parquetWriteBuilder.build(), metricsConfig);
       }
