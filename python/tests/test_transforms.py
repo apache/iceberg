@@ -772,9 +772,7 @@ def test_projection_identity_unary(bound_reference_timestamp: BoundReference[int
 def test_projection_identity_literal(bound_reference_timestamp: BoundReference[int]) -> None:
     assert IdentityTransform().project(
         "name", BoundEqualTo(term=bound_reference_timestamp, literal=TimestampLiteral(TIMESTAMP_EXAMPLE))
-    ) == EqualTo(
-        term="name", literal=TimestampLiteral(TIMESTAMP_EXAMPLE)  # type: ignore
-    )
+    ) == EqualTo(term="name", literal=TimestampLiteral(TIMESTAMP_EXAMPLE))
 
 
 def test_projection_identity_set_in(bound_reference_timestamp: BoundReference[int]) -> None:
@@ -786,7 +784,7 @@ def test_projection_identity_set_in(bound_reference_timestamp: BoundReference[in
         ),
     ) == In(
         term="name",
-        literals={TimestampLiteral(TIMESTAMP_EXAMPLE + HOUR_IN_MICROSECONDS), TimestampLiteral(TIMESTAMP_EXAMPLE)},  # type: ignore
+        literals={TimestampLiteral(TIMESTAMP_EXAMPLE + HOUR_IN_MICROSECONDS), TimestampLiteral(TIMESTAMP_EXAMPLE)},
     )
 
 
@@ -799,7 +797,7 @@ def test_projection_identity_set_not_in(bound_reference_timestamp: BoundReferenc
         ),
     ) == NotIn(
         term="name",
-        literals={TimestampLiteral(TIMESTAMP_EXAMPLE + HOUR_IN_MICROSECONDS), TimestampLiteral(TIMESTAMP_EXAMPLE)},  # type: ignore
+        literals={TimestampLiteral(TIMESTAMP_EXAMPLE + HOUR_IN_MICROSECONDS), TimestampLiteral(TIMESTAMP_EXAMPLE)},
     )
 
 

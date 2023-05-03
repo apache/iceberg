@@ -132,7 +132,7 @@ class Record(StructProtocol):
             self._position_to_field_name = {idx: field.name for idx, field in enumerate(struct.fields)}
         elif named_data:
             # Order of named_data is preserved (PEP 468) so this can be used to generate the position dict
-            self._position_to_field_name = {idx: name for idx, name in enumerate(named_data.keys())}
+            self._position_to_field_name = dict(enumerate(named_data.keys()))
         else:
             self._position_to_field_name = {idx: f"field{idx + 1}" for idx in range(len(data))}
 

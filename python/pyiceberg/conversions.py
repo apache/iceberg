@@ -230,9 +230,9 @@ def _(primitive_type: DecimalType, value: Decimal) -> bytes:
         bytes: The byte representation of `value`
     """
     _, digits, exponent = value.as_tuple()
-
-    if -exponent != primitive_type.scale:
-        raise ValueError(f"Cannot serialize value, scale of value does not match type {primitive_type}: {-exponent}")
+    exponent = abs(int(exponent))
+    if exponent != primitive_type.scale:
+        raise ValueError(f"Cannot serialize value, scale of value does not match type {primitive_type}: {exponent}")
     elif len(digits) > primitive_type.precision:
         raise ValueError(
             f"Cannot serialize value, precision of value is greater than precision of type {primitive_type}: {len(digits)}"
