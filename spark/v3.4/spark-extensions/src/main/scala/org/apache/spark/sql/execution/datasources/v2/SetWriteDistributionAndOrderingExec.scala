@@ -24,6 +24,7 @@ import org.apache.iceberg.NullOrder
 import org.apache.iceberg.SortDirection
 import org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE
 import org.apache.iceberg.expressions.Term
+import org.apache.iceberg.spark.SparkUtil
 import org.apache.iceberg.spark.source.SparkTable
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.Attribute
@@ -46,7 +47,7 @@ case class SetWriteDistributionAndOrderingExec(
       case iceberg: SparkTable =>
         val txn = iceberg.table.newTransaction()
 
-        val orderBuilder = txn.replaceSortOrder()
+        val orderBuilder = txn.replaceSortOrder().caseSensitive(SparkUtil.caseSensitive(session))
         sortOrder.foreach {
           case (term, SortDirection.ASC, nullOrder) =>
             orderBuilder.asc(term, nullOrder)

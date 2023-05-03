@@ -69,7 +69,11 @@ public class FlinkInputFormat extends RichInputFormat<RowData, FlinkInputSplit> 
     } else {
       this.rowDataReader =
           new RowDataFileScanTaskReader(
-              tableSchema, context.project(), context.nameMapping(), context.caseSensitive());
+              tableSchema,
+              context.project(),
+              context.nameMapping(),
+              context.caseSensitive(),
+              context.filters());
     }
   }
 

@@ -57,7 +57,7 @@ abstract class SparkSizeBasedDataRewriter extends SizeBasedDataRewriter {
 
       doRewrite(groupId, group);
 
-      return coordinator.fetchNewDataFiles(table(), groupId);
+      return coordinator.fetchNewFiles(table(), groupId);
     } finally {
       tableCache.remove(groupId);
       taskSetManager.removeTasks(table(), groupId);

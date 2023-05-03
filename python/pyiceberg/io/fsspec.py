@@ -31,7 +31,7 @@ import requests
 from botocore import UNSIGNED
 from botocore.awsrequest import AWSRequest
 from fsspec import AbstractFileSystem
-from pyarrow.filesystem import LocalFileSystem
+from fsspec.implementations.local import LocalFileSystem
 from requests import HTTPError
 
 from pyiceberg.catalog import TOKEN
@@ -148,8 +148,8 @@ class FsspecInputFile(InputFile):
     """An input file implementation for the FsspecFileIO
 
     Args:
-        location(str): A URI to a file location
-        fs(AbstractFileSystem): An fsspec filesystem instance
+        location (str): A URI to a file location
+        fs (AbstractFileSystem): An fsspec filesystem instance
     """
 
     def __init__(self, location: str, fs: AbstractFileSystem):
@@ -192,8 +192,8 @@ class FsspecOutputFile(OutputFile):
     """An output file implementation for the FsspecFileIO
 
     Args:
-        location(str): A URI to a file location
-        fs(AbstractFileSystem): An fsspec filesystem instance
+        location (str): A URI to a file location
+        fs (AbstractFileSystem): An fsspec filesystem instance
     """
 
     def __init__(self, location: str, fs: AbstractFileSystem):
@@ -217,7 +217,7 @@ class FsspecOutputFile(OutputFile):
         """Create an output stream for reading the contents of the file
 
         Args:
-            overwrite(bool): Whether to overwrite the file if it already exists
+            overwrite (bool): Whether to overwrite the file if it already exists
 
         Returns:
             OpenFile: An fsspec compliant file-like object
@@ -253,7 +253,7 @@ class FsspecFileIO(FileIO):
         """Get an FsspecInputFile instance to read bytes from the file at the given location
 
         Args:
-            location(str): A URI or a path to a local file
+            location (str): A URI or a path to a local file
 
         Returns:
             FsspecInputFile: An FsspecInputFile instance for the given location
@@ -266,7 +266,7 @@ class FsspecFileIO(FileIO):
         """Get an FsspecOutputFile instance to write bytes to the file at the given location
 
         Args:
-            location(str): A URI or a path to a local file
+            location (str): A URI or a path to a local file
 
         Returns:
             FsspecOutputFile: An FsspecOutputFile instance for the given location
@@ -279,9 +279,9 @@ class FsspecFileIO(FileIO):
         """Delete the file at the given location
 
         Args:
-            location(str, InputFile, OutputFile): The URI to the file--if an InputFile instance or an
-            OutputFile instance is provided, the location attribute for that instance is used as the location
-            to delete
+            location (Union[str, InputFile, OutputFile]): The URI to the file--if an InputFile instance or an
+                OutputFile instance is provided, the location attribute for that instance is used as the location
+                to delete
         """
         if isinstance(location, (InputFile, OutputFile)):
             str_location = location.location  # Use InputFile or OutputFile location

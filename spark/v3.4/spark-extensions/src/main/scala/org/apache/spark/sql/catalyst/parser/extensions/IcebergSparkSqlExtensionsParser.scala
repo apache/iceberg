@@ -40,8 +40,6 @@ import org.apache.spark.sql.catalyst.expressions.Expression
 import org.apache.spark.sql.catalyst.parser.ParserInterface
 import org.apache.spark.sql.catalyst.parser.extensions.IcebergSqlExtensionsParser.NonReservedContext
 import org.apache.spark.sql.catalyst.parser.extensions.IcebergSqlExtensionsParser.QuotedIdentifierContext
-import org.apache.spark.sql.catalyst.plans.logical.DeleteFromIcebergTable
-import org.apache.spark.sql.catalyst.plans.logical.DeleteFromTable
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.catalyst.plans.logical.MergeIntoContext
 import org.apache.spark.sql.catalyst.plans.logical.MergeIntoTable
@@ -141,9 +139,6 @@ class IcebergSparkSqlExtensionsParser(delegate: ParserInterface) extends ParserI
   }
 
   private def replaceRowLevelCommands(plan: LogicalPlan): LogicalPlan = plan resolveOperatorsDown {
-    case DeleteFromTable(UnresolvedIcebergTable(aliasedTable), condition) =>
-      DeleteFromIcebergTable(aliasedTable, Some(condition))
-
     case UpdateTable(UnresolvedIcebergTable(aliasedTable), assignments, condition) =>
       UpdateIcebergTable(aliasedTable, assignments, condition)
 

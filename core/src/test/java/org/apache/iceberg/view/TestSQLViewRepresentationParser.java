@@ -41,7 +41,7 @@ public class TestSQLViewRepresentationParser {
         SQLViewRepresentationParser.fromJson(requiredFields));
 
     String requiredAndOptionalFields =
-        "{\"type\":\"sql\", \"sql\": \"select * from foo\", \"schema-id\": 1, \"dialect\": \"spark-sql\", "
+        "{\"type\":\"sql\", \"sql\": \"select * from foo\", \"dialect\": \"spark-sql\", "
             + "\"default-catalog\":\"cat\", "
             + "\"default-namespace\":[\"part1\",\"part2\"], "
             + "\"field-aliases\":[\"col1\", \"col2\"], "
@@ -50,7 +50,6 @@ public class TestSQLViewRepresentationParser {
     SQLViewRepresentation viewWithOptionalFields =
         ImmutableSQLViewRepresentation.builder()
             .sql("select * from foo")
-            .schemaId(1)
             .dialect("spark-sql")
             .defaultCatalog("cat")
             .fieldAliases(ImmutableList.of("col1", "col2"))
@@ -91,7 +90,7 @@ public class TestSQLViewRepresentationParser {
         ViewRepresentationParser.toJson(viewRepresentation));
 
     String requiredAndOptionalFields =
-        "{\"type\":\"sql\",\"sql\":\"select * from foo\",\"dialect\":\"spark-sql\",\"schema-id\":1,"
+        "{\"type\":\"sql\",\"sql\":\"select * from foo\",\"dialect\":\"spark-sql\","
             + "\"default-catalog\":\"cat\","
             + "\"default-namespace\":[\"part1\",\"part2\"],"
             + "\"field-aliases\":[\"col1\",\"col2\"],"
@@ -100,7 +99,6 @@ public class TestSQLViewRepresentationParser {
     SQLViewRepresentation viewWithOptionalFields =
         ImmutableSQLViewRepresentation.builder()
             .sql("select * from foo")
-            .schemaId(1)
             .dialect("spark-sql")
             .defaultCatalog("cat")
             .fieldAliases(ImmutableList.of("col1", "col2"))

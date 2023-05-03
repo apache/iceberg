@@ -23,8 +23,8 @@ import org.apache.spark.sql.AnalysisException
 import org.apache.spark.sql.catalyst.analysis.EliminateSubqueryAliases
 import org.apache.spark.sql.catalyst.analysis.NamedRelation
 import org.apache.spark.sql.catalyst.expressions.AttributeReference
-import org.apache.spark.sql.catalyst.expressions.ExtendedV2ExpressionUtils
 import org.apache.spark.sql.catalyst.expressions.NamedExpression
+import org.apache.spark.sql.catalyst.expressions.V2ExpressionUtils
 import org.apache.spark.sql.catalyst.util.CharVarcharUtils
 import org.apache.spark.sql.catalyst.util.RowDeltaUtils.OPERATION_COLUMN
 import org.apache.spark.sql.catalyst.util.WriteDeltaProjections
@@ -80,7 +80,7 @@ case class WriteIcebergDelta(
   }
 
   private def rowIdAttrsResolved: Boolean = {
-    val rowIdAttrs = ExtendedV2ExpressionUtils.resolveRefs[AttributeReference](
+    val rowIdAttrs = V2ExpressionUtils.resolveRefs[AttributeReference](
       operation.rowId.toSeq,
       originalTable)
 
@@ -92,7 +92,7 @@ case class WriteIcebergDelta(
   private def metadataAttrsResolved: Boolean = {
     projections.metadataProjection match {
       case Some(projection) =>
-        val metadataAttrs = ExtendedV2ExpressionUtils.resolveRefs[AttributeReference](
+        val metadataAttrs = V2ExpressionUtils.resolveRefs[AttributeReference](
           operation.requiredMetadataAttributes.toSeq,
           originalTable)
 

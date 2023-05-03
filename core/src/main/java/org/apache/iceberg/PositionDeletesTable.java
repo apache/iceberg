@@ -131,7 +131,7 @@ public class PositionDeletesTable extends BaseMetadataTable {
       extends SnapshotScan<BatchScan, ScanTask, ScanTaskGroup<ScanTask>> implements BatchScan {
 
     protected PositionDeletesBatchScan(Table table, Schema schema) {
-      super(table, schema, new TableScanContext());
+      super(table, schema, TableScanContext.empty());
     }
 
     protected PositionDeletesBatchScan(Table table, Schema schema, TableScanContext context) {

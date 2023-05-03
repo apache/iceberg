@@ -27,7 +27,6 @@ import org.apache.iceberg.UpdateSchema;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkDistributionAndOrderingUtil;
 import org.apache.iceberg.spark.SparkFilters;
 import org.apache.iceberg.spark.SparkSchemaUtil;
@@ -146,15 +145,8 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
     SortOrder[] ordering;
 
     if (useTableDistributionAndOrdering) {
-      if (Spark3Util.extensionsEnabled(spark) || allIdentityTransforms(table.spec())) {
-        distribution = buildRequiredDistribution();
-        ordering = buildRequiredOrdering(distribution);
-      } else {
-        LOG.warn(
-            "Skipping distribution/ordering: extensions are disabled and spec contains unsupported transforms");
-        distribution = Distributions.unspecified();
-        ordering = NO_ORDERING;
-      }
+      distribution = buildRequiredDistribution();
+      ordering = buildRequiredOrdering(distribution);
     } else {
       LOG.info("Skipping distribution/ordering: disabled per job configuration");
       distribution = Distributions.unspecified();

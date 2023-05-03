@@ -84,30 +84,6 @@ public class VectorizedSparkParquetReaders {
                 ColumnarBatchReader::new));
   }
 
-  /**
-   * @deprecated will be removed in 1.3.0, use {@link #buildReader(Schema, MessageType, Map,
-   *     DeleteFilter)} instead.
-   */
-  @Deprecated
-  public static ColumnarBatchReader buildReader(
-      Schema expectedSchema,
-      MessageType fileSchema,
-      boolean setArrowValidityVector,
-      Map<Integer, ?> idToConstant,
-      DeleteFilter<InternalRow> deleteFilter) {
-    return (ColumnarBatchReader)
-        TypeWithSchemaVisitor.visit(
-            expectedSchema.asStruct(),
-            fileSchema,
-            new ReaderBuilder(
-                expectedSchema,
-                fileSchema,
-                setArrowValidityVector,
-                idToConstant,
-                ColumnarBatchReader::new,
-                deleteFilter));
-  }
-
   public static ColumnarBatchReader buildReader(
       Schema expectedSchema,
       MessageType fileSchema,

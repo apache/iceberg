@@ -32,7 +32,6 @@ import static org.apache.iceberg.TableProperties.FORMAT_VERSION;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.MetadataTableType;
@@ -53,6 +52,7 @@ import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.parser.ParseException;
 import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.StructType;
+import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Assume;
@@ -667,11 +667,9 @@ public class TestMetadataTablesWithPartitionEvolution extends SparkCatalogTestBa
     sql("REFRESH TABLE %s", tableName);
 
     for (MetadataTableType tableType : Arrays.asList(FILES, ALL_DATA_FILES, ENTRIES, ALL_ENTRIES)) {
-      AssertHelpers.assertThrows(
-          "Should complain about the partition type",
-          ValidationException.class,
-          "Cannot build table partition type, unknown transforms",
-          () -> loadMetadataTable(tableType));
+      Assertions.assertThatThrownBy(() -> loadMetadataTable(tableType))
+          .isInstanceOf(ValidationException.class)
+          .hasMessage("Cannot build table partition type, unknown transforms: [zero]");
     }
   }
 

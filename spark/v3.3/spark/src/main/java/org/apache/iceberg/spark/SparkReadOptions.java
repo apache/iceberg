@@ -56,7 +56,7 @@ public class SparkReadOptions {
   // Overrides the table's read.split.open-file-cost
   public static final String FILE_OPEN_COST = "file-open-cost";
 
-  // Overrides the table's read.split.open-file-cost
+  // Overrides table's vectorization enabled properties
   public static final String VECTORIZATION_ENABLED = "vectorization-enabled";
 
   // Overrides the table's read.parquet.vectorization.batch-size
@@ -83,6 +83,13 @@ public class SparkReadOptions {
 
   // Timestamp in milliseconds; start a stream from the snapshot that occurs after this timestamp
   public static final String STREAM_FROM_TIMESTAMP = "stream-from-timestamp";
+
+  // maximum file per micro_batch
+  public static final String STREAMING_MAX_FILES_PER_MICRO_BATCH =
+      "streaming-max-files-per-micro-batch";
+  // maximum rows per micro_batch
+  public static final String STREAMING_MAX_ROWS_PER_MICRO_BATCH =
+      "streaming-max-rows-per-micro-batch";
 
   // Table path
   public static final String PATH = "path";
