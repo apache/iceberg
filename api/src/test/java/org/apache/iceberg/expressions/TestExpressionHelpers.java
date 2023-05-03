@@ -46,11 +46,11 @@ import static org.apache.iceberg.expressions.Expressions.truncate;
 import static org.apache.iceberg.expressions.Expressions.year;
 
 import java.util.concurrent.Callable;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.types.Types.StructType;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -174,20 +174,16 @@ public class TestExpressionHelpers {
 
   @Test
   public void testNullName() {
-    AssertHelpers.assertThrows(
-        "Should catch null column names when creating expressions",
-        NullPointerException.class,
-        "Name cannot be null",
-        () -> equal((String) null, 5));
+    Assertions.assertThatThrownBy(() -> equal((String) null, 5))
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("Name cannot be null");
   }
 
   @Test
   public void testNullValueExpr() {
-    AssertHelpers.assertThrows(
-        "Should catch null value expressions",
-        NullPointerException.class,
-        "Term cannot be null",
-        () -> equal((UnboundTerm<Integer>) null, 5));
+    Assertions.assertThatThrownBy(() -> equal((UnboundTerm<Integer>) null, 5))
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("Term cannot be null");
   }
 
   @Test
@@ -229,11 +225,9 @@ public class TestExpressionHelpers {
   }
 
   private void assertInvalidateNaNThrows(Callable<UnboundPredicate<Double>> callable) {
-    AssertHelpers.assertThrows(
-        "Should invalidate NaN input",
-        IllegalArgumentException.class,
-        "Cannot create expression literal from NaN",
-        callable);
+    Assertions.assertThatThrownBy(callable::call)
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot create expression literal from NaN");
   }
 
   private <T> UnboundTerm<T> self(String name) {

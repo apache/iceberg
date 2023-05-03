@@ -45,11 +45,11 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import org.apache.avro.util.Utf8;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.StructType;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -543,11 +543,9 @@ public class TestEvaluator {
 
   @Test
   public void testCaseSensitiveNot() {
-    AssertHelpers.assertThrows(
-        "X != x when case sensitivity is on",
-        ValidationException.class,
-        "Cannot find field 'X' in struct",
-        () -> new Evaluator(STRUCT, not(equal("X", 7)), true));
+    Assertions.assertThatThrownBy(() -> new Evaluator(STRUCT, not(equal("X", 7)), true))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("Cannot find field 'X' in struct");
   }
 
   @Test
@@ -624,47 +622,34 @@ public class TestEvaluator {
 
   @Test
   public void testInExceptions() {
-    AssertHelpers.assertThrows(
-        "Throw exception if value is null",
-        NullPointerException.class,
-        "Cannot create expression literal from null",
-        () -> in("x", (Literal) null));
+    Assertions.assertThatThrownBy(() -> in("x", (Literal) null))
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("Cannot create expression literal from null");
 
-    AssertHelpers.assertThrows(
-        "Throw exception if value is null",
-        NullPointerException.class,
-        "Values cannot be null for IN predicate",
-        () -> in("x", (Collection<?>) null));
+    Assertions.assertThatThrownBy(() -> in("x", (Collection<?>) null))
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("Values cannot be null for IN predicate.");
 
-    AssertHelpers.assertThrows(
-        "Throw exception if calling literal() for IN predicate",
-        IllegalArgumentException.class,
-        "IN predicate cannot return a literal",
-        () -> in("x", 5, 6).literal());
+    Assertions.assertThatThrownBy(() -> in("x", 5, 6).literal())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("IN predicate cannot return a literal");
 
-    AssertHelpers.assertThrows(
-        "Throw exception if any value in the input is null",
-        NullPointerException.class,
-        "Cannot create expression literal from null",
-        () -> in("x", 1, 2, null));
+    Assertions.assertThatThrownBy(() -> in("x", 1, 2, null))
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("Cannot create expression literal from null");
 
-    AssertHelpers.assertThrows(
-        "Throw exception if binding fails for any element in the set",
-        ValidationException.class,
-        "Invalid value for conversion to type int",
-        () -> new Evaluator(STRUCT, in("x", 7, 8, 9.1)));
+    Assertions.assertThatThrownBy(() -> new Evaluator(STRUCT, in("x", 7, 8, 9.1)))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("Invalid value for conversion to type int");
 
-    AssertHelpers.assertThrows(
-        "Throw exception if no input value",
-        IllegalArgumentException.class,
-        "Cannot create IN predicate without a value",
-        () -> predicate(Expression.Operation.IN, "x"));
+    Assertions.assertThatThrownBy(() -> predicate(Expression.Operation.IN, "x"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot create IN predicate without a value");
 
-    AssertHelpers.assertThrows(
-        "Implicit conversion IN to EQ and throw exception if binding fails",
-        ValidationException.class,
-        "Invalid value for conversion to type int",
-        () -> new Evaluator(STRUCT, predicate(Expression.Operation.IN, "x", 5.1)));
+    Assertions.assertThatThrownBy(
+            () -> new Evaluator(STRUCT, predicate(Expression.Operation.IN, "x", 5.1)))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("Invalid value for conversion to type int");
   }
 
   @Test
@@ -731,46 +716,33 @@ public class TestEvaluator {
 
   @Test
   public void testNotInExceptions() {
-    AssertHelpers.assertThrows(
-        "Throw exception if value is null",
-        NullPointerException.class,
-        "Cannot create expression literal from null",
-        () -> notIn("x", (Literal) null));
+    Assertions.assertThatThrownBy(() -> notIn("x", (Literal) null))
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("Cannot create expression literal from null");
 
-    AssertHelpers.assertThrows(
-        "Throw exception if value is null",
-        NullPointerException.class,
-        "Values cannot be null for NOT_IN predicate",
-        () -> notIn("x", (Collection<?>) null));
+    Assertions.assertThatThrownBy(() -> notIn("x", (Collection<?>) null))
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("Values cannot be null for NOT_IN predicate.");
 
-    AssertHelpers.assertThrows(
-        "Throw exception if calling literal() for IN predicate",
-        IllegalArgumentException.class,
-        "NOT_IN predicate cannot return a literal",
-        () -> notIn("x", 5, 6).literal());
+    Assertions.assertThatThrownBy(() -> notIn("x", 5, 6).literal())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("NOT_IN predicate cannot return a literal");
 
-    AssertHelpers.assertThrows(
-        "Throw exception if any value in the input is null",
-        NullPointerException.class,
-        "Cannot create expression literal from null",
-        () -> notIn("x", 1, 2, null));
+    Assertions.assertThatThrownBy(() -> notIn("x", 1, 2, null))
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("Cannot create expression literal from null");
 
-    AssertHelpers.assertThrows(
-        "Throw exception if binding fails for any element in the set",
-        ValidationException.class,
-        "Invalid value for conversion to type int",
-        () -> new Evaluator(STRUCT, notIn("x", 7, 8, 9.1)));
+    Assertions.assertThatThrownBy(() -> new Evaluator(STRUCT, notIn("x", 7, 8, 9.1)))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("Invalid value for conversion to type int");
 
-    AssertHelpers.assertThrows(
-        "Throw exception if no input value",
-        IllegalArgumentException.class,
-        "Cannot create NOT_IN predicate without a value",
-        () -> predicate(Expression.Operation.NOT_IN, "x"));
+    Assertions.assertThatThrownBy(() -> predicate(Expression.Operation.NOT_IN, "x"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot create NOT_IN predicate without a value");
 
-    AssertHelpers.assertThrows(
-        "Implicit conversion NOT_IN to NOT_EQ and throw exception if binding fails",
-        ValidationException.class,
-        "Invalid value for conversion to type int",
-        () -> new Evaluator(STRUCT, predicate(Expression.Operation.NOT_IN, "x", 5.1)));
+    Assertions.assertThatThrownBy(
+            () -> new Evaluator(STRUCT, predicate(Expression.Operation.NOT_IN, "x", 5.1)))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("Invalid value for conversion to type int");
   }
 }
