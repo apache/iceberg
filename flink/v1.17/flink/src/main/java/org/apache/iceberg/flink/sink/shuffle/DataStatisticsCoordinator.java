@@ -248,9 +248,6 @@ class DataStatisticsCoordinator<K> implements OperatorCoordinator {
   public void notifyCheckpointComplete(long checkpointId) {}
 
   @Override
-  public void notifyCheckpointAborted(long checkpointId) {}
-
-  @Override
   public void resetToCheckpoint(long checkpointId, @Nullable byte[] checkpointData)
       throws Exception {
     if (started) {

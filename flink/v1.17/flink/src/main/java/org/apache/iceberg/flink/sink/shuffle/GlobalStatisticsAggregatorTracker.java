@@ -45,7 +45,6 @@ class GlobalStatisticsAggregatorTracker<K> implements Serializable {
   }
 
   boolean receiveDataStatisticEventAndCheckCompletion(int subtask, DataStatisticsEvent<K> event) {
-    LOG.info("!!! Receive event {} from subtask {}", event, subtask);
     long checkpointId = event.checkpointId();
 
     if (lastCompletedAggregator != null && lastCompletedAggregator.checkpointId() >= checkpointId) {
@@ -77,10 +76,6 @@ class GlobalStatisticsAggregatorTracker<K> implements Serializable {
         inProgressAggregator = new GlobalStatisticsAggregator<>(checkpointId, statisticsFactory);
         inProgressAggregator.mergeDataStatistic(subtask, event);
         return true;
-        //        sendDataStatisticsToSubtasks(
-        //                inProgressAggregator.checkpointId(),
-        // lastCompletedAggregator.dataStatistics());
-        //        return;
       } else {
         LOG.info(
             "Received data statistics from {} operators out of total {} for checkpoint {}. "
@@ -112,7 +107,6 @@ class GlobalStatisticsAggregatorTracker<K> implements Serializable {
           inProgressAggregator.checkpointId(),
           lastCompletedAggregator.dataStatistics());
       inProgressAggregator = null;
-      // sendDataStatisticsToSubtasks(checkpointId, lastCompletedAggregator.dataStatistics());
       return true;
     }
     return false;
@@ -130,13 +124,4 @@ class GlobalStatisticsAggregatorTracker<K> implements Serializable {
   void setLastCompletedAggregator(GlobalStatisticsAggregator<K> lastCompletedAggregator) {
     this.lastCompletedAggregator = lastCompletedAggregator;
   }
-
-  //  @Override
-  //  public String toString() {
-  //    return MoreObjects.toStringHelper(this)
-  //        .add("checkpointId", checkpointId)
-  //        .add("dataStatistics", dataStatistics)
-  //        .add("subtaskSet", subtaskSet)
-  //        .toString();
-  //  }
 }
