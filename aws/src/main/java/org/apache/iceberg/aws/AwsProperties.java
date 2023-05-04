@@ -69,16 +69,16 @@ public class AwsProperties implements Serializable {
    *
    * <p>For more details: https://docs.aws.amazon.com/AmazonS3/latest/dev/serv-side-encryption.html
    *
-   * @deprecated will be removed in Iceberg 1.4.0, use {@link
-   *     org.apache.iceberg.aws.s3.S3FileIOProperties} instead
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
   @Deprecated public static final String S3FILEIO_SSE_TYPE = "s3.sse.type";
 
   /**
    * No server side encryption.
    *
-   * @deprecated will be removed in Iceberg 1.4.0, use {@link
-   *     org.apache.iceberg.aws.s3.S3FileIOProperties} instead
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
   @Deprecated public static final String S3FILEIO_SSE_TYPE_NONE = "none";
 
@@ -87,8 +87,8 @@ public class AwsProperties implements Serializable {
    *
    * <p>For more details: https://docs.aws.amazon.com/AmazonS3/latest/dev/UsingKMSEncryption.html
    *
-   * @deprecated will be removed in Iceberg 1.4.0, use {@link
-   *     org.apache.iceberg.aws.s3.S3FileIOProperties} instead
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
   @Deprecated public static final String S3FILEIO_SSE_TYPE_KMS = "kms";
 
@@ -98,8 +98,8 @@ public class AwsProperties implements Serializable {
    * <p>For more details:
    * https://docs.aws.amazon.com/AmazonS3/latest/dev/UsingServerSideEncryption.html
    *
-   * @deprecated will be removed in Iceberg 1.4.0, use {@link
-   *     org.apache.iceberg.aws.s3.S3FileIOProperties} instead
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
   @Deprecated public static final String S3FILEIO_SSE_TYPE_S3 = "s3";
 
@@ -109,8 +109,8 @@ public class AwsProperties implements Serializable {
    * <p>For more details:
    * https://docs.aws.amazon.com/AmazonS3/latest/dev/ServerSideEncryptionCustomerKeys.html
    *
-   * @deprecated will be removed in Iceberg 1.4.0, use {@link
-   *     org.apache.iceberg.aws.s3.S3FileIOProperties} instead
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
   @Deprecated public static final String S3FILEIO_SSE_TYPE_CUSTOM = "custom";
 
@@ -119,8 +119,8 @@ public class AwsProperties implements Serializable {
    * set, default key "aws/s3" is used. If encryption type is SSE-C, input is a custom base-64
    * AES256 symmetric key.
    *
-   * @deprecated will be removed in Iceberg 1.4.0, use {@link
-   *     org.apache.iceberg.aws.s3.S3FileIOProperties} instead
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
   @Deprecated public static final String S3FILEIO_SSE_KEY = "s3.sse.key";
 
@@ -128,8 +128,8 @@ public class AwsProperties implements Serializable {
    * If S3 encryption type is SSE-C, input is the base-64 MD5 digest of the secret key. This MD5
    * must be explicitly passed in by the caller to ensure key integrity.
    *
-   * @deprecated will be removed in Iceberg 1.4.0, use {@link
-   *     org.apache.iceberg.aws.s3.S3FileIOProperties} instead
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
   @Deprecated public static final String S3FILEIO_SSE_MD5 = "s3.sse.md5";
 
@@ -191,8 +191,8 @@ public class AwsProperties implements Serializable {
    * Number of threads to use for uploading parts to S3 (shared pool across all output streams),
    * default to {@link Runtime#availableProcessors()}
    *
-   * @deprecated will be removed in Iceberg 1.4.0, use {@link
-   *     org.apache.iceberg.aws.s3.S3FileIOProperties} instead
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
   @Deprecated
   public static final String S3FILEIO_MULTIPART_UPLOAD_THREADS = "s3.multipart.num-threads";
@@ -204,19 +204,19 @@ public class AwsProperties implements Serializable {
    *
    * <p>For more details, see https://docs.aws.amazon.com/AmazonS3/latest/dev/qfacts.html
    *
-   * @deprecated will be removed in Iceberg 1.4.0, use {@link
-   *     org.apache.iceberg.aws.s3.S3FileIOProperties} instead
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
   @Deprecated public static final String S3FILEIO_MULTIPART_SIZE = "s3.multipart.part-size-bytes";
 
   /**
-   * @deprecated will be removed in Iceberg 1.4.0, use {@link
-   *     org.apache.iceberg.aws.s3.S3FileIOProperties} instead
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
   @Deprecated public static final int S3FILEIO_MULTIPART_SIZE_DEFAULT = 32 * 1024 * 1024;
   /**
-   * @deprecated will be removed in Iceberg 1.4.0, use {@link
-   *     org.apache.iceberg.aws.s3.S3FileIOProperties} instead
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
   @Deprecated public static final int S3FILEIO_MULTIPART_SIZE_MIN = 5 * 1024 * 1024;
 
@@ -224,15 +224,15 @@ public class AwsProperties implements Serializable {
    * The threshold expressed as a factor times the multipart size at which to switch from uploading
    * using a single put object request to uploading using multipart upload (default: 1.5).
    *
-   * @deprecated will be removed in Iceberg 1.4.0, use {@link
-   *     org.apache.iceberg.aws.s3.S3FileIOProperties} instead
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
   @Deprecated
   public static final String S3FILEIO_MULTIPART_THRESHOLD_FACTOR = "s3.multipart.threshold";
 
   /**
-   * @deprecated will be removed in Iceberg 1.4.0, use {@link
-   *     org.apache.iceberg.aws.s3.S3FileIOProperties} instead
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
   @Deprecated public static final double S3FILEIO_MULTIPART_THRESHOLD_FACTOR_DEFAULT = 1.5;
 
@@ -240,8 +240,8 @@ public class AwsProperties implements Serializable {
    * Location to put staging files for upload to S3, default to temp directory set in
    * java.io.tmpdir.
    *
-   * @deprecated will be removed in Iceberg 1.4.0, use {@link
-   *     org.apache.iceberg.aws.s3.S3FileIOProperties} instead
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
   @Deprecated public static final String S3FILEIO_STAGING_DIRECTORY = "s3.staging-dir";
 
@@ -253,8 +253,8 @@ public class AwsProperties implements Serializable {
    * such as 'public-read-write' For more details:
    * https://docs.aws.amazon.com/AmazonS3/latest/dev/acl-overview.html
    *
-   * @deprecated will be removed in Iceberg 1.4.0, use {@link
-   *     org.apache.iceberg.aws.s3.S3FileIOProperties} instead
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
   @Deprecated public static final String S3FILEIO_ACL = "s3.acl";
 
@@ -264,8 +264,8 @@ public class AwsProperties implements Serializable {
    * <p>This could be used to use S3FileIO with any s3-compatible object storage service that has a
    * different endpoint, or access a private S3 endpoint in a virtual private cloud.
    *
-   * @deprecated will be removed in Iceberg 1.4.0, use {@link
-   *     org.apache.iceberg.aws.s3.S3FileIOProperties} instead
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
   @Deprecated public static final String S3FILEIO_ENDPOINT = "s3.endpoint";
 
@@ -275,14 +275,14 @@ public class AwsProperties implements Serializable {
    *
    * <p>For more details: https://docs.aws.amazon.com/AmazonS3/latest/userguide/VirtualHosting.html
    *
-   * @deprecated will be removed in Iceberg 1.4.0, use {@link
-   *     org.apache.iceberg.aws.s3.S3FileIOProperties} instead
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
   @Deprecated public static final String S3FILEIO_PATH_STYLE_ACCESS = "s3.path-style-access";
 
   /**
-   * @deprecated will be removed in Iceberg 1.4.0, use {@link
-   *     org.apache.iceberg.aws.s3.S3FileIOProperties} instead
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
   @Deprecated public static final boolean S3FILEIO_PATH_STYLE_ACCESS_DEFAULT = false;
 
@@ -294,8 +294,8 @@ public class AwsProperties implements Serializable {
    * #S3FILEIO_SESSION_TOKEN} is set, session credential is used, otherwise basic credential is
    * used.
    *
-   * @deprecated will be removed in Iceberg 1.4.0, use {@link
-   *     org.apache.iceberg.aws.s3.S3FileIOProperties} instead
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
   @Deprecated public static final String S3FILEIO_ACCESS_KEY_ID = "s3.access-key-id";
 
@@ -307,8 +307,8 @@ public class AwsProperties implements Serializable {
    * #S3FILEIO_SESSION_TOKEN} is set, session credential is used, otherwise basic credential is
    * used.
    *
-   * @deprecated will be removed in Iceberg 1.4.0, use {@link
-   *     org.apache.iceberg.aws.s3.S3FileIOProperties} instead
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
   @Deprecated public static final String S3FILEIO_SECRET_ACCESS_KEY = "s3.secret-access-key";
 
@@ -318,8 +318,8 @@ public class AwsProperties implements Serializable {
    * <p>When set, the default client factory will use the session credentials provided instead of
    * reading the default credential chain to create S3 access credentials.
    *
-   * @deprecated will be removed in Iceberg 1.4.0, use {@link
-   *     org.apache.iceberg.aws.s3.S3FileIOProperties} instead
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
   @Deprecated public static final String S3FILEIO_SESSION_TOKEN = "s3.session-token";
 
@@ -333,45 +333,45 @@ public class AwsProperties implements Serializable {
    * <p>For more details see:
    * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/services/s3/S3Configuration.html#useArnRegionEnabled--
    *
-   * @deprecated will be removed in Iceberg 1.4.0, use {@link
-   *     org.apache.iceberg.aws.s3.S3FileIOProperties} instead
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
   @Deprecated public static final String S3_USE_ARN_REGION_ENABLED = "s3.use-arn-region-enabled";
 
   /**
-   * @deprecated will be removed in Iceberg 1.4.0, use {@link
-   *     org.apache.iceberg.aws.s3.S3FileIOProperties} instead
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
   @Deprecated public static final boolean S3_USE_ARN_REGION_ENABLED_DEFAULT = false;
 
   /**
    * Enables eTag checks for S3 PUT and MULTIPART upload requests.
    *
-   * @deprecated will be removed in Iceberg 1.4.0, use {@link
-   *     org.apache.iceberg.aws.s3.S3FileIOProperties} instead
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
   @Deprecated public static final String S3_CHECKSUM_ENABLED = "s3.checksum-enabled";
   /**
-   * @deprecated will be removed in Iceberg 1.4.0, use {@link
-   *     org.apache.iceberg.aws.s3.S3FileIOProperties} instead
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
   @Deprecated public static final boolean S3_CHECKSUM_ENABLED_DEFAULT = false;
   /**
-   * @deprecated will be removed in Iceberg 1.4.0, use {@link
-   *     org.apache.iceberg.aws.s3.S3FileIOProperties} instead
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
   @Deprecated public static final String S3_REMOTE_SIGNING_ENABLED = "s3.remote-signing-enabled";
   /**
-   * @deprecated will be removed in Iceberg 1.4.0, use {@link
-   *     org.apache.iceberg.aws.s3.S3FileIOProperties} instead
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
   @Deprecated public static final boolean S3_REMOTE_SIGNING_ENABLED_DEFAULT = false;
 
   /**
    * Configure the batch size used when deleting multiple files from a given S3 bucket
    *
-   * @deprecated will be removed in Iceberg 1.4.0, use {@link
-   *     org.apache.iceberg.aws.s3.S3FileIOProperties} instead
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
   @Deprecated public static final String S3FILEIO_DELETE_BATCH_SIZE = "s3.delete.batch-size";
 
@@ -381,8 +381,8 @@ public class AwsProperties implements Serializable {
    * <p>Refer to https://github.com/apache/hadoop/commit/56dee667707926f3796c7757be1a133a362f05c9
    * for more details on why this value was chosen.
    *
-   * @deprecated will be removed in Iceberg 1.4.0, use {@link
-   *     org.apache.iceberg.aws.s3.S3FileIOProperties} instead
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
   @Deprecated public static final int S3FILEIO_DELETE_BATCH_SIZE_DEFAULT = 250;
 
@@ -390,8 +390,8 @@ public class AwsProperties implements Serializable {
    * Max possible batch size for deletion. Currently, a max of 1000 keys can be deleted in one
    * batch. https://docs.aws.amazon.com/AmazonS3/latest/API/API_DeleteObjects.html
    *
-   * @deprecated will be removed in Iceberg 1.4.0, use {@link
-   *     org.apache.iceberg.aws.s3.S3FileIOProperties} instead
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
   @Deprecated public static final int S3FILEIO_DELETE_BATCH_SIZE_MAX = 1000;
 
@@ -646,8 +646,8 @@ public class AwsProperties implements Serializable {
    *
    * <p>Example: s3.write.tags.my_key=my_val
    *
-   * @deprecated will be removed in Iceberg 1.4.0, use {@link
-   *     org.apache.iceberg.aws.s3.S3FileIOProperties} instead
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
   @Deprecated public static final String S3_WRITE_TAGS_PREFIX = "s3.write.tags.";
 
@@ -660,14 +660,14 @@ public class AwsProperties implements Serializable {
    *
    * <p>Example: s3.write.table-tag-enabled=true
    *
-   * @deprecated will be removed in Iceberg 1.4.0, use {@link
-   *     org.apache.iceberg.aws.s3.S3FileIOProperties} instead
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
   @Deprecated public static final String S3_WRITE_TABLE_TAG_ENABLED = "s3.write.table-tag-enabled";
 
   /**
-   * @deprecated will be removed in Iceberg 1.4.0, use {@link
-   *     org.apache.iceberg.aws.s3.S3FileIOProperties} instead
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
   @Deprecated public static final boolean S3_WRITE_TABLE_TAG_ENABLED_DEFAULT = false;
 
@@ -680,15 +680,15 @@ public class AwsProperties implements Serializable {
    *
    * <p>Example: s3.write.namespace-tag-enabled=true
    *
-   * @deprecated will be removed in Iceberg 1.4.0, use {@link
-   *     org.apache.iceberg.aws.s3.S3FileIOProperties} instead
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
   @Deprecated
   public static final String S3_WRITE_NAMESPACE_TAG_ENABLED = "s3.write.namespace-tag-enabled";
 
   /**
-   * @deprecated will be removed in Iceberg 1.4.0, use {@link
-   *     org.apache.iceberg.aws.s3.S3FileIOProperties} instead
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
   @Deprecated public static final boolean S3_WRITE_NAMESPACE_TAG_ENABLED_DEFAULT = false;
 
@@ -698,8 +698,8 @@ public class AwsProperties implements Serializable {
    *
    * <p>Example: iceberg.table=tableName
    *
-   * @deprecated will be removed in Iceberg 1.4.0, use {@link
-   *     org.apache.iceberg.aws.s3.S3FileIOProperties} instead
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
   @Deprecated public static final String S3_TAG_ICEBERG_TABLE = "iceberg.table";
 
@@ -709,8 +709,8 @@ public class AwsProperties implements Serializable {
    *
    * <p>Example: iceberg.namespace=namespaceName
    *
-   * @deprecated will be removed in Iceberg 1.4.0, use {@link
-   *     org.apache.iceberg.aws.s3.S3FileIOProperties} instead
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
   @Deprecated public static final String S3_TAG_ICEBERG_NAMESPACE = "iceberg.namespace";
 
@@ -725,8 +725,8 @@ public class AwsProperties implements Serializable {
    *
    * <p>Example: s3.delete.tags.my_key=my_val
    *
-   * @deprecated will be removed in Iceberg 1.4.0, use {@link
-   *     org.apache.iceberg.aws.s3.S3FileIOProperties} instead
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
   @Deprecated public static final String S3_DELETE_TAGS_PREFIX = "s3.delete.tags.";
 
@@ -734,8 +734,8 @@ public class AwsProperties implements Serializable {
    * Number of threads to use for adding delete tags to S3 objects, default to {@link
    * Runtime#availableProcessors()}
    *
-   * @deprecated will be removed in Iceberg 1.4.0, use {@link
-   *     org.apache.iceberg.aws.s3.S3FileIOProperties} instead
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
   @Deprecated public static final String S3FILEIO_DELETE_THREADS = "s3.delete.num-threads";
 
@@ -744,14 +744,14 @@ public class AwsProperties implements Serializable {
    * Once disabled, users are expected to set tags through {@link #S3_DELETE_TAGS_PREFIX} and manage
    * deleted files through S3 lifecycle policy.
    *
-   * @deprecated will be removed in Iceberg 1.4.0, use {@link
-   *     org.apache.iceberg.aws.s3.S3FileIOProperties} instead
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
   @Deprecated public static final String S3_DELETE_ENABLED = "s3.delete-enabled";
 
   /**
-   * @deprecated will be removed in Iceberg 1.4.0, use {@link
-   *     org.apache.iceberg.aws.s3.S3FileIOProperties} instead
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
   @Deprecated public static final boolean S3_DELETE_ENABLED_DEFAULT = true;
 
@@ -761,14 +761,14 @@ public class AwsProperties implements Serializable {
    * <p>For more details, see
    * https://docs.aws.amazon.com/AmazonS3/latest/userguide/transfer-acceleration.html
    *
-   * @deprecated will be removed in Iceberg 1.4.0, use {@link
-   *     org.apache.iceberg.aws.s3.S3FileIOProperties} instead
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
   @Deprecated public static final String S3_ACCELERATION_ENABLED = "s3.acceleration-enabled";
 
   /**
-   * @deprecated will be removed in Iceberg 1.4.0, use {@link
-   *     org.apache.iceberg.aws.s3.S3FileIOProperties} instead
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
   @Deprecated public static final boolean S3_ACCELERATION_ENABLED_DEFAULT = false;
 
@@ -778,14 +778,14 @@ public class AwsProperties implements Serializable {
    * <p>For more details, see
    * https://docs.aws.amazon.com/AmazonS3/latest/userguide/dual-stack-endpoints.html
    *
-   * @deprecated will be removed in Iceberg 1.4.0, use {@link
-   *     org.apache.iceberg.aws.s3.S3FileIOProperties} instead
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
   @Deprecated public static final String S3_DUALSTACK_ENABLED = "s3.dualstack-enabled";
 
   /**
-   * @deprecated will be removed in Iceberg 1.4.0, use {@link
-   *     org.apache.iceberg.aws.s3.S3FileIOProperties} instead
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
   @Deprecated public static final boolean S3_DUALSTACK_ENABLED_DEFAULT = false;
 
@@ -797,8 +797,8 @@ public class AwsProperties implements Serializable {
    *
    * <p>Example: s3.access-points.my-bucket=access-point
    *
-   * @deprecated will be removed in Iceberg 1.4.0, use {@link
-   *     org.apache.iceberg.aws.s3.S3FileIOProperties} instead
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
   @Deprecated public static final String S3_ACCESS_POINTS_PREFIX = "s3.access-points.";
 
@@ -807,14 +807,14 @@ public class AwsProperties implements Serializable {
    * initialization, instead of default lazy initialization upon use. This is needed for cases that
    * the credentials to use might change and needs to be preloaded.
    *
-   * @deprecated will be removed in Iceberg 1.4.0, use {@link
-   *     org.apache.iceberg.aws.s3.S3FileIOProperties} instead
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
   @Deprecated public static final String S3_PRELOAD_CLIENT_ENABLED = "s3.preload-client-enabled";
 
   /**
-   * @deprecated will be removed in Iceberg 1.4.0, use {@link
-   *     org.apache.iceberg.aws.s3.S3FileIOProperties} instead
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
   @Deprecated public static final boolean S3_PRELOAD_CLIENT_ENABLED_DEFAULT = false;
 
@@ -1149,8 +1149,8 @@ public class AwsProperties implements Serializable {
   }
 
   /**
-   * @deprecated will be removed in Iceberg 1.4.0, use {@link
-   *     org.apache.iceberg.aws.s3.S3FileIOProperties} instead
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
   @Deprecated
   public String s3FileIoSseType() {
@@ -1158,8 +1158,8 @@ public class AwsProperties implements Serializable {
   }
 
   /**
-   * @deprecated will be removed in Iceberg 1.4.0, use {@link
-   *     org.apache.iceberg.aws.s3.S3FileIOProperties} instead
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
   @Deprecated
   public void setS3FileIoSseType(String sseType) {
@@ -1167,8 +1167,8 @@ public class AwsProperties implements Serializable {
   }
 
   /**
-   * @deprecated will be removed in Iceberg 1.4.0, use {@link
-   *     org.apache.iceberg.aws.s3.S3FileIOProperties} instead
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
   @Deprecated
   public String s3FileIoSseKey() {
@@ -1176,8 +1176,8 @@ public class AwsProperties implements Serializable {
   }
 
   /**
-   * @deprecated will be removed in Iceberg 1.4.0, use {@link
-   *     org.apache.iceberg.aws.s3.S3FileIOProperties} instead
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
   @Deprecated
   public int s3FileIoDeleteBatchSize() {
@@ -1185,8 +1185,8 @@ public class AwsProperties implements Serializable {
   }
 
   /**
-   * @deprecated will be removed in Iceberg 1.4.0, use {@link
-   *     org.apache.iceberg.aws.s3.S3FileIOProperties} instead
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
   @Deprecated
   public void setS3FileIoDeleteBatchSize(int deleteBatchSize) {
@@ -1194,8 +1194,8 @@ public class AwsProperties implements Serializable {
   }
 
   /**
-   * @deprecated will be removed in Iceberg 1.4.0, use {@link
-   *     org.apache.iceberg.aws.s3.S3FileIOProperties} instead
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
   @Deprecated
   public void setS3FileIoSseKey(String sseKey) {
@@ -1203,8 +1203,8 @@ public class AwsProperties implements Serializable {
   }
 
   /**
-   * @deprecated will be removed in Iceberg 1.4.0, use {@link
-   *     org.apache.iceberg.aws.s3.S3FileIOProperties} instead
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
   @Deprecated
   public String s3FileIoSseMd5() {
@@ -1212,8 +1212,8 @@ public class AwsProperties implements Serializable {
   }
 
   /**
-   * @deprecated will be removed in Iceberg 1.4.0, use {@link
-   *     org.apache.iceberg.aws.s3.S3FileIOProperties} instead
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
   @Deprecated
   public void setS3FileIoSseMd5(String sseMd5) {
@@ -1253,8 +1253,8 @@ public class AwsProperties implements Serializable {
   }
 
   /**
-   * @deprecated will be removed in Iceberg 1.4.0, use {@link
-   *     org.apache.iceberg.aws.s3.S3FileIOProperties} instead
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
   @Deprecated
   public int s3FileIoMultipartUploadThreads() {
@@ -1262,8 +1262,8 @@ public class AwsProperties implements Serializable {
   }
 
   /**
-   * @deprecated will be removed in Iceberg 1.4.0, use {@link
-   *     org.apache.iceberg.aws.s3.S3FileIOProperties} instead
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
   @Deprecated
   public void setS3FileIoMultipartUploadThreads(int threads) {
@@ -1271,8 +1271,8 @@ public class AwsProperties implements Serializable {
   }
 
   /**
-   * @deprecated will be removed in Iceberg 1.4.0, use {@link
-   *     org.apache.iceberg.aws.s3.S3FileIOProperties} instead
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
   @Deprecated
   public int s3FileIoMultiPartSize() {
@@ -1280,8 +1280,8 @@ public class AwsProperties implements Serializable {
   }
 
   /**
-   * @deprecated will be removed in Iceberg 1.4.0, use {@link
-   *     org.apache.iceberg.aws.s3.S3FileIOProperties} instead
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
   @Deprecated
   public void setS3FileIoMultiPartSize(int size) {
@@ -1289,8 +1289,8 @@ public class AwsProperties implements Serializable {
   }
 
   /**
-   * @deprecated will be removed in Iceberg 1.4.0, use {@link
-   *     org.apache.iceberg.aws.s3.S3FileIOProperties} instead
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
   @Deprecated
   public double s3FileIOMultipartThresholdFactor() {
@@ -1298,8 +1298,8 @@ public class AwsProperties implements Serializable {
   }
 
   /**
-   * @deprecated will be removed in Iceberg 1.4.0, use {@link
-   *     org.apache.iceberg.aws.s3.S3FileIOProperties} instead
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
   @Deprecated
   public void setS3FileIoMultipartThresholdFactor(double factor) {
@@ -1307,8 +1307,8 @@ public class AwsProperties implements Serializable {
   }
 
   /**
-   * @deprecated will be removed in Iceberg 1.4.0, use {@link
-   *     org.apache.iceberg.aws.s3.S3FileIOProperties} instead
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
   @Deprecated
   public String s3fileIoStagingDirectory() {
@@ -1316,8 +1316,8 @@ public class AwsProperties implements Serializable {
   }
 
   /**
-   * @deprecated will be removed in Iceberg 1.4.0, use {@link
-   *     org.apache.iceberg.aws.s3.S3FileIOProperties} instead
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
   @Deprecated
   public void setS3fileIoStagingDirectory(String directory) {
@@ -1325,8 +1325,8 @@ public class AwsProperties implements Serializable {
   }
 
   /**
-   * @deprecated will be removed in Iceberg 1.4.0, use {@link
-   *     org.apache.iceberg.aws.s3.S3FileIOProperties} instead
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
   @Deprecated
   public ObjectCannedACL s3FileIoAcl() {
@@ -1334,8 +1334,8 @@ public class AwsProperties implements Serializable {
   }
 
   /**
-   * @deprecated will be removed in Iceberg 1.4.0, use {@link
-   *     org.apache.iceberg.aws.s3.S3FileIOProperties} instead
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
   @Deprecated
   public void setS3FileIoAcl(ObjectCannedACL acl) {
@@ -1343,8 +1343,8 @@ public class AwsProperties implements Serializable {
   }
 
   /**
-   * @deprecated will be removed in Iceberg 1.4.0, use {@link
-   *     org.apache.iceberg.aws.s3.S3FileIOProperties} instead
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
   @Deprecated
   public void setS3PreloadClientEnabled(boolean s3PreloadClientEnabled) {
@@ -1352,8 +1352,8 @@ public class AwsProperties implements Serializable {
   }
 
   /**
-   * @deprecated will be removed in Iceberg 1.4.0, use {@link
-   *     org.apache.iceberg.aws.s3.S3FileIOProperties} instead
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
   @Deprecated
   public boolean s3PreloadClientEnabled() {
@@ -1369,8 +1369,8 @@ public class AwsProperties implements Serializable {
   }
 
   /**
-   * @deprecated will be removed in Iceberg 1.4.0, use {@link
-   *     org.apache.iceberg.aws.s3.S3FileIOProperties} instead
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
   @Deprecated
   public boolean isS3ChecksumEnabled() {
@@ -1378,8 +1378,8 @@ public class AwsProperties implements Serializable {
   }
 
   /**
-   * @deprecated will be removed in Iceberg 1.4.0, use {@link
-   *     org.apache.iceberg.aws.s3.S3FileIOProperties} instead
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
   @Deprecated
   public void setS3ChecksumEnabled(boolean eTagCheckEnabled) {
@@ -1387,8 +1387,8 @@ public class AwsProperties implements Serializable {
   }
 
   /**
-   * @deprecated will be removed in Iceberg 1.4.0, use {@link
-   *     org.apache.iceberg.aws.s3.S3FileIOProperties} instead
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
   @Deprecated
   public Set<Tag> s3WriteTags() {
@@ -1396,8 +1396,8 @@ public class AwsProperties implements Serializable {
   }
 
   /**
-   * @deprecated will be removed in Iceberg 1.4.0, use {@link
-   *     org.apache.iceberg.aws.s3.S3FileIOProperties} instead
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
   @Deprecated
   public boolean s3WriteTableTagEnabled() {
@@ -1405,8 +1405,8 @@ public class AwsProperties implements Serializable {
   }
 
   /**
-   * @deprecated will be removed in Iceberg 1.4.0, use {@link
-   *     org.apache.iceberg.aws.s3.S3FileIOProperties} instead
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
   @Deprecated
   public void setS3WriteTableTagEnabled(boolean s3WriteTableNameTagEnabled) {
@@ -1414,8 +1414,8 @@ public class AwsProperties implements Serializable {
   }
 
   /**
-   * @deprecated will be removed in Iceberg 1.4.0, use {@link
-   *     org.apache.iceberg.aws.s3.S3FileIOProperties} instead
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
   @Deprecated
   public boolean s3WriteNamespaceTagEnabled() {
@@ -1423,8 +1423,8 @@ public class AwsProperties implements Serializable {
   }
 
   /**
-   * @deprecated will be removed in Iceberg 1.4.0, use {@link
-   *     org.apache.iceberg.aws.s3.S3FileIOProperties} instead
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
   @Deprecated
   public void setS3WriteNamespaceTagEnabled(boolean s3WriteNamespaceTagEnabled) {
@@ -1432,8 +1432,8 @@ public class AwsProperties implements Serializable {
   }
 
   /**
-   * @deprecated will be removed in Iceberg 1.4.0, use {@link
-   *     org.apache.iceberg.aws.s3.S3FileIOProperties} instead
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
   @Deprecated
   public Set<Tag> s3DeleteTags() {
@@ -1441,8 +1441,8 @@ public class AwsProperties implements Serializable {
   }
 
   /**
-   * @deprecated will be removed in Iceberg 1.4.0, use {@link
-   *     org.apache.iceberg.aws.s3.S3FileIOProperties} instead
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
   @Deprecated
   public int s3FileIoDeleteThreads() {
@@ -1450,8 +1450,8 @@ public class AwsProperties implements Serializable {
   }
 
   /**
-   * @deprecated will be removed in Iceberg 1.4.0, use {@link
-   *     org.apache.iceberg.aws.s3.S3FileIOProperties} instead
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
   @Deprecated
   public void setS3FileIoDeleteThreads(int threads) {
@@ -1459,8 +1459,8 @@ public class AwsProperties implements Serializable {
   }
 
   /**
-   * @deprecated will be removed in Iceberg 1.4.0, use {@link
-   *     org.apache.iceberg.aws.s3.S3FileIOProperties} instead
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
   @Deprecated
   public boolean isS3DeleteEnabled() {
@@ -1468,8 +1468,8 @@ public class AwsProperties implements Serializable {
   }
 
   /**
-   * @deprecated will be removed in Iceberg 1.4.0, use {@link
-   *     org.apache.iceberg.aws.s3.S3FileIOProperties} instead
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
   @Deprecated
   public void setS3DeleteEnabled(boolean s3DeleteEnabled) {
@@ -1477,8 +1477,8 @@ public class AwsProperties implements Serializable {
   }
 
   /**
-   * @deprecated will be removed in Iceberg 1.4.0, use {@link
-   *     org.apache.iceberg.aws.s3.S3FileIOProperties} instead
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
   @Deprecated
   public Map<String, String> s3BucketToAccessPointMapping() {
