@@ -137,6 +137,7 @@ allprojects {
   repositories {
     mavenCentral()
     mavenLocal()
+    maven { url 'https://jitpack.io' }
   }
 }
 
@@ -729,6 +730,7 @@ project(':iceberg-parquet') {
     api project(':iceberg-api')
     implementation project(':iceberg-core')
     implementation project(':iceberg-common')
+    implementation 'com.github.rdblue:brotli-codec:0.1.1'
 
     implementation("org.apache.parquet:parquet-avro") {
       exclude group: 'org.apache.avro', module: 'avro'
