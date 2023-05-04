@@ -273,7 +273,7 @@ class RestCatalog(Catalog):
             params[WAREHOUSE_LOCATION] = warehouse_location
 
         with self._create_session() as session:
-            response = session.get(self.url(Endpoints.get_config, prefixed=False), params=params)  # type: ignore
+            response = session.get(self.url(Endpoints.get_config, prefixed=False), params=params)
         try:
             response.raise_for_status()
         except HTTPError as exc:
