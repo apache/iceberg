@@ -18,19 +18,20 @@
  */
 package org.apache.iceberg.aws;
 
-import java.util.Map;
-import java.util.UUID;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import software.amazon.awssdk.awscore.client.builder.AwsClientBuilder;
-import software.amazon.awssdk.awscore.client.builder.AwsSyncClientBuilder;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.glue.GlueClient;
 import software.amazon.awssdk.services.kms.KmsClient;
+import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.sts.StsClient;
 import software.amazon.awssdk.services.sts.auth.StsAssumeRoleCredentialsProvider;
 import software.amazon.awssdk.services.sts.model.AssumeRoleRequest;
+
+import java.util.Map;
+import java.util.UUID;
 
 public class AssumeRoleAwsClientFactory implements AwsClientFactory {
   private AwsProperties awsProperties;
@@ -41,6 +42,16 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
     return S3Client.builder()
         .applyMutation(this::applyAssumeRoleConfigurations)
         .applyMutation(awsProperties::applyHttpClientConfigurations)
+        .applyMutation(awsProperties::applyS3EndpointConfigurations)
+        .applyMutation(awsProperties::applyS3ServiceConfigurations)
+        .applyMutation(awsProperties::applyS3SignerConfiguration)
+        .build();
+  }
+
+  @Override
+  public S3AsyncClient s3Async() {
+    return S3AsyncClient.builder()
+        .applyMutation(this::applyAssumeRoleConfigurations)
         .applyMutation(awsProperties::applyS3EndpointConfigurations)
         .applyMutation(awsProperties::applyS3ServiceConfigurations)
         .applyMutation(awsProperties::applyS3SignerConfiguration)
@@ -84,7 +95,7 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
         "Cannot initialize AssumeRoleClientConfigFactory with null region");
   }
 
-  protected <T extends AwsClientBuilder & AwsSyncClientBuilder> T applyAssumeRoleConfigurations(
+  protected <T extends AwsClientBuilder> T applyAssumeRoleConfigurations(
       T clientBuilder) {
     AssumeRoleRequest assumeRoleRequest =
         AssumeRoleRequest.builder()
