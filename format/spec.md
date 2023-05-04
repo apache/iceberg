@@ -155,7 +155,7 @@ Readers may be more strict for metadata JSON files because the JSON files are no
 
 A table's **schema** is a list of named columns. All data types are either primitives or nested types, which are maps, lists, or structs. A table schema is also a struct type.
 
-For the representations of these types in Avro, ORC, and Parquet file formats, see Appendix A.
+For the representations of these types in Avro, ORC, and Parquet file formats, see Appendix A. The Iceberg file-schema is encoded in the file metadata with the `iceberg.schema` key.
 
 #### Nested Types
 
@@ -844,6 +844,10 @@ Manifests hold the same statistics for delete files and data files. For delete f
 
 ### Avro
 
+**File schema**
+
+The file schema is written in json format in the [file metadata](https://avro.apache.org/docs/1.11.1/specification/#object-container-files) under the `iceberg.schema` key. 
+
 **Data Type Mappings**
 
 Values should be stored in Avro using the Avro types and logical type annotations in the table below.
@@ -894,6 +898,10 @@ Note that the string map case is for maps where the key type is a string. Using 
 
 ### Parquet
 
+**File schema**
+
+The file schema is written in json format in a [KeyValue field](https://parquet.apache.org/docs/file-format/metadata/) under the `iceberg.schema` key.
+
 **Data Type Mappings**
 
 Values should be stored in Parquet using the types and logical type annotations in the table below. Column IDs are required.
@@ -922,6 +930,10 @@ Lists must use the [3-level representation](https://github.com/apache/parquet-fo
 
 
 ### ORC
+
+**File schema**
+
+The file schema is written in json format as [User Metadata](https://orc.apache.org/specification/ORCv1/) under the `iceberg.schema` key.
 
 **Data Type Mappings**
 
