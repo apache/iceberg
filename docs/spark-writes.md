@@ -343,20 +343,21 @@ SELECT id, data, category, ts FROM another_table
 
 There are 3 options for `write.distribution-mode`
 
-* `none` - This is the previous default for Iceberg.
-<p>This mode does not request any shuffles or sort to be performed automatically by Spark. Because no work is done 
+* `none` - This is the previous default for Iceberg.  
+This mode does not request any shuffles or sort to be performed automatically by Spark. Because no work is done 
 automatically by Spark, the data must be *manually* locally or globally sorted by partition value. To reduce the number 
-of files produced during writing, using a global sort is recommended.
-<p>A local sort can be avoided by using the Spark [write fanout](#write-properties) property but this will cause all 
-file handles to remain open until each write task has completed. 
+of files produced during writing, using a global sort is recommended.  
+A local sort can be avoided by using the Spark [write fanout](#write-properties) property but this will cause all 
+file handles to remain open until each write task has completed.
 * `hash` - This mode is the new default and requests that Spark uses a hash-based exchange to shuffle the incoming
-write data before writing. Practically, this means that each row is hashed based on the row's partition value and then placed
+write data before writing.  
+Practically, this means that each row is hashed based on the row's partition value and then placed
 in a corresponding Spark task based upon that value. Further division and coalescing of tasks may take place because of
 the [Spark's Adaptive Query planning](#controlling-file-sizes).
-* `range` - This mode requests that Spark perform a range based exchanged to shuffle the data before writing. This is
-a two stage procedure which is more expensive than the `hash` mode. The first stage samples the data to be written based
-on the partition and sort columns. The second stage uses the range information to shuffle the input data into Spark 
-tasks. Each task gets an exclusive range of the input data which clusters the data by partition and also globally sorts.
+* `range` - This mode requests that Spark perform a range based exchanged to shuffle the data before writing.  
+This is a two stage procedure which is more expensive than the `hash` mode. The first stage samples the data to 
+be written based on the partition and sort columns. The second stage uses the range information to shuffle the input data into Spark 
+tasks. Each task gets an exclusive range of the input data which clusters the data by partition and also globally sorts.  
 While this is more expensive than the hash distribution, the global ordering can be beneficial for read performance if
 sorted columns are used during queries. This mode is used by default if a table is created with a 
 sort-order. Further division and coalescing of tasks may take place because of
