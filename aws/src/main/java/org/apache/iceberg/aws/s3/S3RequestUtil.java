@@ -41,65 +41,65 @@ public class S3RequestUtil {
   static void configureEncryption(
       S3FileIOProperties s3FileIOProperties, PutObjectRequest.Builder requestBuilder) {
     configureEncryption(
+        s3FileIOProperties,
         requestBuilder::serverSideEncryption,
         requestBuilder::ssekmsKeyId,
         requestBuilder::sseCustomerAlgorithm,
         requestBuilder::sseCustomerKey,
-        s3FileIOProperties,
         requestBuilder::sseCustomerKeyMD5);
   }
 
   static void configureEncryption(
       S3FileIOProperties s3FileIOProperties, CreateMultipartUploadRequest.Builder requestBuilder) {
     configureEncryption(
+        s3FileIOProperties,
         requestBuilder::serverSideEncryption,
         requestBuilder::ssekmsKeyId,
         requestBuilder::sseCustomerAlgorithm,
         requestBuilder::sseCustomerKey,
-        s3FileIOProperties,
         requestBuilder::sseCustomerKeyMD5);
   }
 
   static void configureEncryption(
       S3FileIOProperties s3FileIOProperties, UploadPartRequest.Builder requestBuilder) {
     configureEncryption(
+        s3FileIOProperties,
         NULL_SSE_SETTER,
         NULL_STRING_SETTER,
         requestBuilder::sseCustomerAlgorithm,
         requestBuilder::sseCustomerKey,
-        s3FileIOProperties,
         requestBuilder::sseCustomerKeyMD5);
   }
 
   static void configureEncryption(
       S3FileIOProperties s3FileIOProperties, GetObjectRequest.Builder requestBuilder) {
     configureEncryption(
+        s3FileIOProperties,
         NULL_SSE_SETTER,
         NULL_STRING_SETTER,
         requestBuilder::sseCustomerAlgorithm,
         requestBuilder::sseCustomerKey,
-        s3FileIOProperties,
         requestBuilder::sseCustomerKeyMD5);
   }
 
   static void configureEncryption(
       S3FileIOProperties s3FileIOProperties, HeadObjectRequest.Builder requestBuilder) {
     configureEncryption(
+        s3FileIOProperties,
         NULL_SSE_SETTER,
         NULL_STRING_SETTER,
         requestBuilder::sseCustomerAlgorithm,
         requestBuilder::sseCustomerKey,
-        s3FileIOProperties,
         requestBuilder::sseCustomerKeyMD5);
   }
 
   @SuppressWarnings("ReturnValueIgnored")
   static void configureEncryption(
+      S3FileIOProperties s3FileIOProperties,
       Function<ServerSideEncryption, S3Request.Builder> encryptionSetter,
       Function<String, S3Request.Builder> kmsKeySetter,
       Function<String, S3Request.Builder> customAlgorithmSetter,
       Function<String, S3Request.Builder> customKeySetter,
-      S3FileIOProperties s3FileIOProperties,
       Function<String, S3Request.Builder> customMd5Setter) {
 
     switch (s3FileIOProperties.sseType().toLowerCase(Locale.ENGLISH)) {

@@ -38,11 +38,11 @@ public class TestS3RequestUtil {
     s3FileIOProperties.setSseKey("key");
     s3FileIOProperties.setSseMd5("md5");
     S3RequestUtil.configureEncryption(
+        s3FileIOProperties,
         this::setServerSideEncryption,
         this::setKmsKeyId,
         this::setCustomAlgorithm,
         this::setCustomKey,
-        s3FileIOProperties,
         this::setCustomMd5);
     Assert.assertNull(serverSideEncryption);
     Assert.assertNull(kmsKeyId);
@@ -56,11 +56,11 @@ public class TestS3RequestUtil {
     S3FileIOProperties s3FileIOProperties = new S3FileIOProperties();
     s3FileIOProperties.setSseType(S3FileIOProperties.SSE_TYPE_S3);
     S3RequestUtil.configureEncryption(
+        s3FileIOProperties,
         this::setServerSideEncryption,
         this::setKmsKeyId,
         this::setCustomAlgorithm,
         this::setCustomKey,
-        s3FileIOProperties,
         this::setCustomMd5);
     Assert.assertEquals(ServerSideEncryption.AES256, serverSideEncryption);
     Assert.assertNull(kmsKeyId);
@@ -75,11 +75,11 @@ public class TestS3RequestUtil {
     s3FileIOProperties.setSseType(S3FileIOProperties.SSE_TYPE_KMS);
     s3FileIOProperties.setSseKey("key");
     S3RequestUtil.configureEncryption(
+        s3FileIOProperties,
         this::setServerSideEncryption,
         this::setKmsKeyId,
         this::setCustomAlgorithm,
         this::setCustomKey,
-        s3FileIOProperties,
         this::setCustomMd5);
     Assert.assertEquals(ServerSideEncryption.AWS_KMS, serverSideEncryption);
     Assert.assertEquals("key", kmsKeyId);
@@ -94,11 +94,11 @@ public class TestS3RequestUtil {
     s3FileIOProperties.setSseType(S3FileIOProperties.SSE_TYPE_KMS);
     s3FileIOProperties.setSseKey("key");
     S3RequestUtil.configureEncryption(
+        s3FileIOProperties,
         v -> null,
         v -> null,
         this::setCustomAlgorithm,
         this::setCustomKey,
-        s3FileIOProperties,
         this::setCustomMd5);
     Assert.assertNull(serverSideEncryption);
     Assert.assertNull(kmsKeyId);
