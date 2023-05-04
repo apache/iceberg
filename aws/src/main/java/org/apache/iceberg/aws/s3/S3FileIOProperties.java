@@ -87,7 +87,7 @@ public class S3FileIOProperties implements Serializable {
 
   /**
    * The size of a single part for multipart upload requests in bytes (default: 32MB). based on S3
-   * requirement, the part size must be at least 5MB. Too ensure performance of the reader and
+   * requirement, the part size must be at least 5MB. To ensure performance of the reader and
    * writer, the part size must be less than 2GB.
    *
    * <p>For more details, see https://docs.aws.amazon.com/AmazonS3/latest/dev/qfacts.html
@@ -394,10 +394,10 @@ public class S3FileIOProperties implements Serializable {
     this.secretAccessKey = properties.get(SECRET_ACCESS_KEY);
     this.sessionToken = properties.get(SESSION_TOKEN);
     if (SSE_TYPE_CUSTOM.equals(sseType)) {
-      Preconditions.checkNotNull(
-          sseKey, "Cannot initialize SSE-C S3FileIO with null encryption key");
-      Preconditions.checkNotNull(
-          sseMd5, "Cannot initialize SSE-C S3FileIO with null encryption key MD5");
+      Preconditions.checkArgument(
+          null != sseKey, "Cannot initialize SSE-C S3FileIO with null encryption key");
+      Preconditions.checkArgument(
+          null != sseMd5, "Cannot initialize SSE-C S3FileIO with null encryption key MD5");
     }
     this.endpoint = properties.get(ENDPOINT);
 

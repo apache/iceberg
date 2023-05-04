@@ -275,7 +275,7 @@ public class TestS3FileIOProperties {
     map.put(S3FileIOProperties.SSE_TYPE, S3FileIOProperties.SSE_TYPE_CUSTOM);
 
     Assertions.assertThatThrownBy(() -> new S3FileIOProperties(map))
-        .isInstanceOf(NullPointerException.class)
+        .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot initialize SSE-C S3FileIO with null encryption key");
   }
 
@@ -286,7 +286,7 @@ public class TestS3FileIOProperties {
     map.put(S3FileIOProperties.SSE_KEY, "something");
 
     Assertions.assertThatThrownBy(() -> new S3FileIOProperties(map))
-        .isInstanceOf(NullPointerException.class)
+        .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot initialize SSE-C S3FileIO with null encryption key MD5");
   }
 
