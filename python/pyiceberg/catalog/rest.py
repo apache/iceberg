@@ -187,18 +187,18 @@ class RestCatalog(Catalog):
         """
         super().__init__(name, **properties)
         self.uri = properties[URI]
-        self._session = None
+        self._session: Session = Session()
         self._create_session()
         self._fetch_config()
         # re-initialize the session based on updated config
-        self._create_session()
+        self._create_session(close_existing=True)
 
-    def _create_session(self) -> None:
+    def _create_session(self, close_existing: bool = False) -> None:
         """Creates a request session with provided catalog configuration"""
-        if self._session:
+        if close_existing:
             self._session.close()
+            self._session = Session()
 
-        self._session = Session()
         # Sets the client side and server side SSL cert verification, if provided as properties.
         if ssl_config := self.properties.get(SSL):
             if ssl_ca_bundle := ssl_config.get(CA_BUNDLE):  # type: ignore
@@ -223,7 +223,7 @@ class RestCatalog(Catalog):
         self._session.headers["User-Agent"] = f"PyIceberg/{__version__}"
 
         # Configure SigV4 Request Signing
-        if str(self.properties.get(SIGV4, False)).lower() == 'true':
+        if str(self.properties.get(SIGV4, False)).lower() == "true":
             self._init_sigv4()
 
     def _check_valid_namespace_identifier(self, identifier: Union[str, Identifier]) -> Identifier:
@@ -351,36 +351,35 @@ class RestCatalog(Catalog):
 
     def _init_sigv4(self) -> None:
         from urllib import parse
+
         import boto3
-        from requests.adapters import HTTPAdapter
         from botocore.auth import SigV4Auth
         from botocore.awsrequest import AWSRequest
+        from requests import PreparedRequest
+        from requests.adapters import HTTPAdapter
 
         class SigV4Adapter(HTTPAdapter):
-            def __init__(self, **properties):
+            def __init__(self, **properties: str):
                 super().__init__()
                 self._properties = properties
 
-            def add_headers(self, request, **kwargs):
+            def add_headers(self, request: PreparedRequest, **kwargs: Any) -> None:  # pylint: disable=W0613
                 session = boto3.Session()
                 credentials = session.get_credentials()
                 creds = credentials.get_frozen_credentials()
                 region = self._properties.get(SIGV4_REGION, session.region_name)
                 service = self._properties.get(SIGV4_SERVICE, "execute-api")
 
-                url = request.url.split('?')[0]
-                query = parse.urlsplit(request.url).query
+                url = str(request.url).split("?")[0]
+                query: str = str(parse.urlsplit(request.url).query)
                 params = dict(parse.parse_qsl(query))
 
                 # remove the connection header as it will be updated after signing
-                del request.headers['connection']
+                del request.headers["connection"]
 
                 aws_request = AWSRequest(
-                    method=request.method,
-                    url=url,
-                    params=params,
-                    data=request.body,
-                    headers=dict(request.headers))
+                    method=request.method, url=url, params=params, data=request.body, headers=dict(request.headers)
+                )
 
                 SigV4Auth(creds, service, region).add_auth(aws_request)
                 original_header = request.headers

@@ -91,7 +91,8 @@ def test_token_200(rest_mock: Mocker) -> None:
         request_headers=OAUTH_TEST_HEADERS,
     )
     assert (
-        RestCatalog("rest", uri=TEST_URI, credential=TEST_CREDENTIALS).session.headers["Authorization"] == f"Bearer {TEST_TOKEN}"
+        RestCatalog("rest", uri=TEST_URI, credential=TEST_CREDENTIALS)._session.headers["Authorization"]  # pylint: disable=W0212
+        == f"Bearer {TEST_TOKEN}"
     )
 
 
