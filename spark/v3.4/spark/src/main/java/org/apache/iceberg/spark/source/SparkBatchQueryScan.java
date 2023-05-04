@@ -49,7 +49,15 @@ import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkFilters;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.SparkSchemaUtil;
+import org.apache.iceberg.spark.source.metrics.ResultDataFiles;
+import org.apache.iceberg.spark.source.metrics.ScannedDataManifests;
+import org.apache.iceberg.spark.source.metrics.SkippedDataFiles;
+import org.apache.iceberg.spark.source.metrics.SkippedDataManifests;
 import org.apache.iceberg.spark.source.metrics.SparkReadMetricReporter;
+import org.apache.iceberg.spark.source.metrics.TaskResultDataFiles;
+import org.apache.iceberg.spark.source.metrics.TaskScannedDataManifests;
+import org.apache.iceberg.spark.source.metrics.TaskSkippedDataFiles;
+import org.apache.iceberg.spark.source.metrics.TaskSkippedDataManifests;
 import org.apache.iceberg.spark.source.metrics.TaskTotalFileSize;
 import org.apache.iceberg.spark.source.metrics.TaskTotalPlanningDuration;
 import org.apache.iceberg.spark.source.metrics.TotalFileSize;
@@ -276,15 +284,43 @@ class SparkBatchQueryScan extends SparkPartitioningAwareScan<PartitionScanTask>
     ScanReport scanReport = (ScanReport) metricsReport;
 
     Optional.ofNullable(scanReport.scanMetrics().totalFileSizeInBytes())
-        .ifPresent(counterResult -> new TaskTotalFileSize(counterResult.value()));
+        .ifPresent(
+            counterResult -> customTaskMetrics.add(new TaskTotalFileSize(counterResult.value())));
     Optional.ofNullable(scanReport.scanMetrics().totalPlanningDuration())
-        .ifPresent(timerResult -> new TaskTotalPlanningDuration(timerResult.count()));
+        .ifPresent(
+            timerResult ->
+                customTaskMetrics.add(new TaskTotalPlanningDuration(timerResult.count())));
+
+    Optional.ofNullable(scanReport.scanMetrics().skippedDataFiles())
+        .ifPresent(
+            skippedDataFilesResult ->
+                customTaskMetrics.add(new TaskSkippedDataFiles(skippedDataFilesResult.value())));
+    Optional.ofNullable(scanReport.scanMetrics().resultDataFiles())
+        .ifPresent(resultDataFilesResult -> new TaskResultDataFiles(resultDataFilesResult.value()));
+
+    Optional.ofNullable(scanReport.scanMetrics().skippedDataManifests())
+        .ifPresent(
+            skippedDataManifestsResult ->
+                customTaskMetrics.add(
+                    new TaskSkippedDataManifests(skippedDataManifestsResult.value())));
+    Optional.ofNullable(scanReport.scanMetrics().scannedDataManifests())
+        .ifPresent(
+            scannedDataManifestResult ->
+                customTaskMetrics.add(
+                    new TaskScannedDataManifests(scannedDataManifestResult.value())));
 
     return customTaskMetrics.toArray(new CustomTaskMetric[0]);
   }
 
   @Override
   public CustomMetric[] supportedCustomMetrics() {
-    return new CustomMetric[] {new TotalFileSize(), new TotalPlanningDuration()};
+    return new CustomMetric[] {
+      new TotalFileSize(),
+      new TotalPlanningDuration(),
+      new ScannedDataManifests(),
+      new SkippedDataManifests(),
+      new ResultDataFiles(),
+      new SkippedDataFiles()
+    };
   }
 }

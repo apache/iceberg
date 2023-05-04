@@ -21,9 +21,9 @@ package org.apache.iceberg.spark.source.metrics;
 import java.util.Arrays;
 import org.apache.spark.sql.connector.metric.CustomMetric;
 
-public class TotalFileSize implements CustomMetric {
+public class SkippedDataManifests implements CustomMetric {
 
-  static final String name = "totalFileSize";
+  static final String name = "skippedDataManifests";
 
   @Override
   public String name() {
@@ -32,7 +32,7 @@ public class TotalFileSize implements CustomMetric {
 
   @Override
   public String description() {
-    return "Total File Size";
+    return "Num skipped data manifests";
   }
 
   @Override

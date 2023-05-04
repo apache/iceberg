@@ -21,9 +21,8 @@ package org.apache.iceberg.spark.source;
 import static scala.collection.JavaConverters.seqAsJavaListConverter;
 
 import java.util.List;
+import java.util.Map;
 import org.apache.iceberg.spark.SparkTestBaseWithCatalog;
-import org.apache.iceberg.spark.source.metrics.TotalFileSize;
-import org.apache.iceberg.spark.source.metrics.TotalPlanningDuration;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
@@ -32,7 +31,7 @@ import org.apache.spark.sql.execution.metric.SQLMetric;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Test;
-import scala.collection.immutable.Map;
+import scala.collection.JavaConverters;
 
 public class TestSparkReadMetrics extends SparkTestBaseWithCatalog {
 
@@ -52,9 +51,8 @@ public class TestSparkReadMetrics extends SparkTestBaseWithCatalog {
 
     List<SparkPlan> sparkPlans =
         seqAsJavaListConverter(df.queryExecution().executedPlan().collectLeaves()).asJava();
-    Map<String, SQLMetric> metrics = sparkPlans.get(0).metrics();
-
-    Assert.assertTrue(metrics.contains(TotalFileSize.name));
-    Assert.assertTrue(metrics.contains(TotalPlanningDuration.name));
+    Map<String, SQLMetric> metricsMap =
+        JavaConverters.mapAsJavaMapConverter(sparkPlans.get(0).metrics()).asJava();
+    Assert.assertEquals(1, metricsMap.get("scannedDataManifests").value());
   }
 }

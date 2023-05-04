@@ -18,25 +18,22 @@
  */
 package org.apache.iceberg.spark.source.metrics;
 
-import java.util.Arrays;
-import org.apache.spark.sql.connector.metric.CustomMetric;
+import org.apache.spark.sql.connector.metric.CustomTaskMetric;
 
-public class TotalFileSize implements CustomMetric {
+public class TaskSkippedDataManifests implements CustomTaskMetric {
+  private final long value;
 
-  static final String name = "totalFileSize";
+  public TaskSkippedDataManifests(long value) {
+    this.value = value;
+  }
 
   @Override
   public String name() {
-    return name;
+    return SkippedDataManifests.name;
   }
 
   @Override
-  public String description() {
-    return "Total File Size";
-  }
-
-  @Override
-  public String aggregateTaskMetrics(long[] taskMetrics) {
-    return String.valueOf(Arrays.stream(taskMetrics).sum());
+  public long value() {
+    return value;
   }
 }
