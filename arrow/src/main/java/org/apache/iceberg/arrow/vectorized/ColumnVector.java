@@ -56,12 +56,20 @@ public class ColumnVector implements AutoCloseable {
     this.accessor = getVectorAccessor(vectorHolder);
   }
 
-  /** Returns the potentially dict-encoded {@link FieldVector}. */
+  /**
+   * Returns the potentially dict-encoded {@link FieldVector}.
+   *
+   * @return instance of {@link FieldVector}
+   */
   public FieldVector getFieldVector() {
     return vectorHolder.vector();
   }
 
-  /** Decodes a dict-encoded vector and returns the actual arrow vector. */
+  /**
+   * Decodes a dict-encoded vector and returns the actual arrow vector.
+   *
+   * @return instance of {@link FieldVector}
+   */
   public FieldVector getArrowVector() {
     return DictEncodedArrowConverter.toArrowVector(vectorHolder, accessor);
   }

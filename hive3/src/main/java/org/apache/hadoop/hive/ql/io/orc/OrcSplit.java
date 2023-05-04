@@ -208,6 +208,8 @@ public class OrcSplit extends FileSplit implements ColumnarSplit, LlapAwareSplit
    * root due to table having been converted from non-acid to acid table. It could even be something
    * like "warehouse/t/HIVE_UNION_SUBDIR_15/000000_0" if it was written by an "insert into t select
    * ... from A union all select ... from B"
+   *
+   * @return {@code true} if file schema doesn't have Acid metadata columns
    */
   public boolean isOriginal() {
     return isOriginal;
