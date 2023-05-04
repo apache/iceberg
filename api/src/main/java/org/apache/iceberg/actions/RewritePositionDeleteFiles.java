@@ -97,7 +97,7 @@ public interface RewritePositionDeleteFiles
   interface Result {
     List<FileGroupRewriteResult> rewriteResults();
 
-    /** Returns the count of the position delete files that been rewritten. */
+    /** Returns the count of the position delete files that have been rewritten. */
     default int rewrittenDeleteFilesCount() {
       return rewriteResults().stream()
           .mapToInt(FileGroupRewriteResult::rewrittenDeleteFilesCount)

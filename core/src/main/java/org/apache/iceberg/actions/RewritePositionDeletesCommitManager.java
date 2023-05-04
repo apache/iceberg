@@ -19,13 +19,13 @@
 package org.apache.iceberg.actions;
 
 import java.util.Set;
-import java.util.stream.Collectors;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -48,14 +48,14 @@ public class RewritePositionDeletesCommitManager {
 
   /**
    * Perform a commit operation on the table adding and removing files as required for this set of
-   * file groups
+   * file groups.
    *
-   * @param fileGroups file sets to commit
+   * @param fileGroups file groups to commit
    */
-  public void commitFileGroups(Set<RewritePositionDeleteGroup> fileGroups) {
+  public void commit(Set<RewritePositionDeletesGroup> fileGroups) {
     Set<DeleteFile> rewrittenDeleteFiles = Sets.newHashSet();
     Set<DeleteFile> addedDeleteFiles = Sets.newHashSet();
-    for (RewritePositionDeleteGroup group : fileGroups) {
+    for (RewritePositionDeletesGroup group : fileGroups) {
       rewrittenDeleteFiles.addAll(group.rewrittenDeleteFiles());
       addedDeleteFiles.addAll(group.addedDeleteFiles());
     }
@@ -73,20 +73,18 @@ public class RewritePositionDeletesCommitManager {
    *
    * @param fileGroup group of files which has already been rewritten
    */
-  public void abortFileGroup(RewritePositionDeleteGroup fileGroup) {
+  public void abort(RewritePositionDeletesGroup fileGroup) {
     Preconditions.checkState(
         fileGroup.addedDeleteFiles() != null, "Cannot abort a fileGroup that was not rewritten");
 
-    Set<String> filePaths =
-        fileGroup.addedDeleteFiles().stream()
-            .map(f -> f.path().toString())
-            .collect(Collectors.toSet());
+    Iterable<String> filePaths =
+        Iterables.transform(fileGroup.addedDeleteFiles(), f -> f.path().toString());
     CatalogUtil.deleteFiles(table.io(), filePaths, "position delete", true);
   }
 
-  public void commitOrClean(Set<RewritePositionDeleteGroup> rewriteGroups) {
+  public void commitOrClean(Set<RewritePositionDeletesGroup> rewriteGroups) {
     try {
-      commitFileGroups(rewriteGroups);
+      commit(rewriteGroups);
     } catch (CommitStateUnknownException e) {
       LOG.error(
           "Commit state unknown for {}, cannot clean up files because they may have been committed successfully.",
@@ -95,7 +93,7 @@ public class RewritePositionDeletesCommitManager {
       throw e;
     } catch (Exception e) {
       LOG.error("Cannot commit groups {}, attempting to clean up written files", rewriteGroups, e);
-      rewriteGroups.forEach(this::abortFileGroup);
+      rewriteGroups.forEach(this::abort);
       throw e;
     }
   }
@@ -112,20 +110,20 @@ public class RewritePositionDeletesCommitManager {
     return new CommitService(rewritesPerCommit);
   }
 
-  public class CommitService extends BaseCommitService<RewritePositionDeleteGroup> {
+  public class CommitService extends BaseCommitService<RewritePositionDeletesGroup> {
 
     CommitService(int rewritesPerCommit) {
       super(table, rewritesPerCommit);
     }
 
     @Override
-    protected void commitOrClean(Set<RewritePositionDeleteGroup> batch) {
+    protected void commitOrClean(Set<RewritePositionDeletesGroup> batch) {
       RewritePositionDeletesCommitManager.this.commitOrClean(batch);
     }
 
     @Override
-    protected void abortFileGroup(RewritePositionDeleteGroup group) {
-      RewritePositionDeletesCommitManager.this.abortFileGroup(group);
+    protected void abortFileGroup(RewritePositionDeletesGroup group) {
+      RewritePositionDeletesCommitManager.this.abort(group);
     }
   }
 }

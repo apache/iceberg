@@ -35,16 +35,15 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
  * Container class representing a set of position delete files to be rewritten by a {@link
  * RewritePositionDeleteFiles} and the new files which have been written by the action.
  */
-public class RewritePositionDeleteGroup {
+public class RewritePositionDeletesGroup {
   private final FileGroupInfo info;
   private final List<PositionDeletesScanTask> tasks;
 
   private Set<DeleteFile> addedDeleteFiles = Collections.emptySet();
 
-  public RewritePositionDeleteGroup(
-      FileGroupInfo info, List<PositionDeletesScanTask> fileScanTasks) {
+  public RewritePositionDeletesGroup(FileGroupInfo info, List<PositionDeletesScanTask> tasks) {
     this.info = info;
-    this.tasks = fileScanTasks;
+    this.tasks = tasks;
   }
 
   public FileGroupInfo info() {
@@ -107,18 +106,18 @@ public class RewritePositionDeleteGroup {
     return tasks.size();
   }
 
-  public static Comparator<RewritePositionDeleteGroup> comparator(RewriteJobOrder order) {
+  public static Comparator<RewritePositionDeletesGroup> comparator(RewriteJobOrder order) {
     switch (order) {
       case BYTES_ASC:
-        return Comparator.comparing(RewritePositionDeleteGroup::rewrittenBytes);
+        return Comparator.comparing(RewritePositionDeletesGroup::rewrittenBytes);
       case BYTES_DESC:
         return Comparator.comparing(
-            RewritePositionDeleteGroup::rewrittenBytes, Comparator.reverseOrder());
+            RewritePositionDeletesGroup::rewrittenBytes, Comparator.reverseOrder());
       case FILES_ASC:
-        return Comparator.comparing(RewritePositionDeleteGroup::numRewrittenDeleteFiles);
+        return Comparator.comparing(RewritePositionDeletesGroup::numRewrittenDeleteFiles);
       case FILES_DESC:
         return Comparator.comparing(
-            RewritePositionDeleteGroup::numRewrittenDeleteFiles, Comparator.reverseOrder());
+            RewritePositionDeletesGroup::numRewrittenDeleteFiles, Comparator.reverseOrder());
       default:
         return (fileGroupOne, fileGroupTwo) -> 0;
     }

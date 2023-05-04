@@ -30,8 +30,6 @@ import org.apache.spark.sql.SparkSession;
 
 class SparkBinPackDataRewriter extends SparkSizeBasedDataRewriter {
 
-  private static final long SPLIT_OVERHEAD = 5 * 1024;
-
   SparkBinPackDataRewriter(SparkSession spark, Table table) {
     super(spark, table);
   }

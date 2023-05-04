@@ -40,9 +40,9 @@ import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.ImmutableRewritePositionDeleteFiles;
 import org.apache.iceberg.actions.RewritePositionDeleteFiles;
-import org.apache.iceberg.actions.RewritePositionDeleteGroup;
 import org.apache.iceberg.actions.RewritePositionDeletesCommitManager;
 import org.apache.iceberg.actions.RewritePositionDeletesCommitManager.CommitService;
+import org.apache.iceberg.actions.RewritePositionDeletesGroup;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expression;
@@ -68,19 +68,19 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /** Spark implementation of {@link RewritePositionDeleteFiles}. */
-public class RewritePositionDeletesSparkAction
-    extends BaseSnapshotUpdateSparkAction<RewritePositionDeletesSparkAction>
+public class RewritePositionDeleteSparkAction
+    extends BaseSnapshotUpdateSparkAction<RewritePositionDeleteSparkAction>
     implements RewritePositionDeleteFiles {
 
-  private static final Logger LOG =
-      LoggerFactory.getLogger(RewritePositionDeletesSparkAction.class);
+  private static final Logger LOG = LoggerFactory.getLogger(RewritePositionDeleteSparkAction.class);
   private static final Set<String> VALID_OPTIONS =
       ImmutableSet.of(
           MAX_CONCURRENT_FILE_GROUP_REWRITES,
           PARTIAL_PROGRESS_ENABLED,
           PARTIAL_PROGRESS_MAX_COMMITS,
           REWRITE_JOB_ORDER);
-  private static final Result EMPTY = ImmutableRewritePositionDeleteFiles.Result.builder().build();
+  private static final Result EMPTY_RESULT =
+      ImmutableRewritePositionDeleteFiles.Result.builder().build();
 
   private final Table table;
   private final SparkBinPackPositionDeletesRewriter rewriter;
@@ -90,19 +90,19 @@ public class RewritePositionDeletesSparkAction
   private boolean partialProgressEnabled;
   private RewriteJobOrder rewriteJobOrder;
 
-  RewritePositionDeletesSparkAction(SparkSession spark, Table table) {
+  RewritePositionDeleteSparkAction(SparkSession spark, Table table) {
     super(spark);
     this.table = table;
     this.rewriter = new SparkBinPackPositionDeletesRewriter(spark(), table);
   }
 
   @Override
-  protected RewritePositionDeletesSparkAction self() {
+  protected RewritePositionDeleteSparkAction self() {
     return this;
   }
 
   @Override
-  public RewritePositionDeletesSparkAction filter(Expression expression) {
+  public RewritePositionDeleteSparkAction filter(Expression expression) {
     throw new UnsupportedOperationException("Regular filters not supported yet.");
   }
 
@@ -110,7 +110,7 @@ public class RewritePositionDeletesSparkAction
   public RewritePositionDeleteFiles.Result execute() {
     if (table.currentSnapshot() == null) {
       LOG.info("Nothing found to rewrite in empty table {}", table.name());
-      return EMPTY;
+      return EMPTY_RESULT;
     }
 
     validateAndInitOptions();
@@ -120,10 +120,10 @@ public class RewritePositionDeletesSparkAction
 
     if (ctx.totalGroupCount() == 0) {
       LOG.info("Nothing found to rewrite in {}", table.name());
-      return EMPTY;
+      return EMPTY_RESULT;
     }
 
-    Stream<RewritePositionDeleteGroup> groupStream = toGroupStream(ctx, fileGroupsByPartition);
+    Stream<RewritePositionDeletesGroup> groupStream = toGroupStream(ctx, fileGroupsByPartition);
 
     RewritePositionDeletesCommitManager commitManager = commitManager();
     if (partialProgressEnabled) {
@@ -147,9 +147,7 @@ public class RewritePositionDeletesSparkAction
           StructLikeMap.create(partitionType);
 
       for (PositionDeletesScanTask task : scanTasks) {
-        StructLike taskPartition = task.file().partition();
-        StructLike coerced =
-            PartitionUtil.coercePartition(partitionType, task.spec(), taskPartition);
+        StructLike coerced = coercePartition(task, partitionType);
 
         List<PositionDeletesScanTask> partitionTasks = filesByPartition.get(coerced);
         if (partitionTasks == null) {
@@ -168,7 +166,6 @@ public class RewritePositionDeletesSparkAction
                 rewriter.planFileGroups(partitionTasks);
             List<List<PositionDeletesScanTask>> groups = ImmutableList.copyOf(plannedFileGroups);
             if (groups.size() > 0) {
-              // use coerced partition for map key uniqueness, but return original partition
               fileGroupsByPartition.put(partition, groups);
             }
           });
@@ -184,8 +181,8 @@ public class RewritePositionDeletesSparkAction
   }
 
   @VisibleForTesting
-  RewritePositionDeleteGroup rewriteDeleteFiles(
-      RewriteExecutionContext ctx, RewritePositionDeleteGroup fileGroup) {
+  RewritePositionDeletesGroup rewriteDeleteFiles(
+      RewriteExecutionContext ctx, RewritePositionDeletesGroup fileGroup) {
     String desc = jobDesc(fileGroup, ctx);
     Set<DeleteFile> addedFiles =
         withJobGroupInfo(
@@ -214,14 +211,14 @@ public class RewritePositionDeletesSparkAction
 
   private Result doExecute(
       RewriteExecutionContext ctx,
-      Stream<RewritePositionDeleteGroup> groupStream,
+      Stream<RewritePositionDeletesGroup> groupStream,
       RewritePositionDeletesCommitManager commitManager) {
     ExecutorService rewriteService = rewriteService();
 
-    ConcurrentLinkedQueue<RewritePositionDeleteGroup> rewrittenGroups =
+    ConcurrentLinkedQueue<RewritePositionDeletesGroup> rewrittenGroups =
         Queues.newConcurrentLinkedQueue();
 
-    Tasks.Builder<RewritePositionDeleteGroup> rewriteTaskBuilder =
+    Tasks.Builder<RewritePositionDeletesGroup> rewriteTaskBuilder =
         Tasks.foreach(groupStream)
             .executeWith(rewriteService)
             .stopOnFailure()
@@ -248,9 +245,7 @@ public class RewritePositionDeletesSparkAction
           rewrittenGroups.size(),
           e);
 
-      Tasks.foreach(rewrittenGroups)
-          .suppressFailureWhenFinished()
-          .run(commitManager::abortFileGroup);
+      Tasks.foreach(rewrittenGroups).suppressFailureWhenFinished().run(commitManager::abort);
       throw e;
     } finally {
       rewriteService.shutdown();
@@ -273,7 +268,7 @@ public class RewritePositionDeletesSparkAction
 
     List<FileGroupRewriteResult> rewriteResults =
         rewrittenGroups.stream()
-            .map(RewritePositionDeleteGroup::asResult)
+            .map(RewritePositionDeletesGroup::asResult)
             .collect(Collectors.toList());
 
     return ImmutableRewritePositionDeleteFiles.Result.builder()
@@ -283,7 +278,7 @@ public class RewritePositionDeletesSparkAction
 
   private Result doExecuteWithPartialProgress(
       RewriteExecutionContext ctx,
-      Stream<RewritePositionDeleteGroup> groupStream,
+      Stream<RewritePositionDeletesGroup> groupStream,
       RewritePositionDeletesCommitManager commitManager) {
     ExecutorService rewriteService = rewriteService();
 
@@ -305,7 +300,7 @@ public class RewritePositionDeletesSparkAction
 
     // Stop Commit service
     commitService.close();
-    List<RewritePositionDeleteGroup> commitResults = commitService.results();
+    List<RewritePositionDeletesGroup> commitResults = commitService.results();
     if (commitResults.size() == 0) {
       LOG.error(
           "{} is true but no rewrite commits succeeded. Check the logs to determine why the individual "
@@ -317,17 +312,17 @@ public class RewritePositionDeletesSparkAction
 
     List<FileGroupRewriteResult> rewriteResults =
         commitResults.stream()
-            .map(RewritePositionDeleteGroup::asResult)
+            .map(RewritePositionDeletesGroup::asResult)
             .collect(Collectors.toList());
     return ImmutableRewritePositionDeleteFiles.Result.builder()
         .rewriteResults(rewriteResults)
         .build();
   }
 
-  Stream<RewritePositionDeleteGroup> toGroupStream(
+  Stream<RewritePositionDeletesGroup> toGroupStream(
       RewriteExecutionContext ctx,
       Map<StructLike, List<List<PositionDeletesScanTask>>> groupsByPartition) {
-    Stream<RewritePositionDeleteGroup> rewriteFileGroupStream =
+    Stream<RewritePositionDeletesGroup> rewriteFileGroupStream =
         groupsByPartition.entrySet().stream()
             .flatMap(
                 e -> {
@@ -338,18 +333,17 @@ public class RewritePositionDeletesSparkAction
                           tasks -> {
                             int globalIndex = ctx.currentGlobalIndex();
                             int partitionIndex = ctx.currentPartitionIndex(partition);
-                            // as coerced partition used for map, return original partition
                             FileGroupInfo info =
                                 ImmutableRewritePositionDeleteFiles.FileGroupInfo.builder()
                                     .globalIndex(globalIndex)
                                     .partitionIndex(partitionIndex)
                                     .partition(partition)
                                     .build();
-                            return new RewritePositionDeleteGroup(info, tasks);
+                            return new RewritePositionDeletesGroup(info, tasks);
                           });
                 });
 
-    return rewriteFileGroupStream.sorted(RewritePositionDeleteGroup.comparator(rewriteJobOrder));
+    return rewriteFileGroupStream.sorted(RewritePositionDeletesGroup.comparator(rewriteJobOrder));
   }
 
   private void validateAndInitOptions() {
@@ -399,7 +393,7 @@ public class RewritePositionDeletesSparkAction
         PARTIAL_PROGRESS_ENABLED);
   }
 
-  private String jobDesc(RewritePositionDeleteGroup group, RewriteExecutionContext ctx) {
+  private String jobDesc(RewritePositionDeletesGroup group, RewriteExecutionContext ctx) {
     StructLike partition = group.info().partition();
     if (partition.size() > 0) {
       return String.format(
@@ -454,5 +448,9 @@ public class RewritePositionDeletesSparkAction
     public int totalGroupCount() {
       return totalGroupCount;
     }
+  }
+
+  private StructLike coercePartition(PositionDeletesScanTask task, StructType partitionType) {
+    return PartitionUtil.coercePartition(partitionType, task.spec(), task.partition());
   }
 }

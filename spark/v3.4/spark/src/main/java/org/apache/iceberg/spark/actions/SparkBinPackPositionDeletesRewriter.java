@@ -87,11 +87,6 @@ class SparkBinPackPositionDeletesRewriter extends SizeBasedPositionDeletesRewrit
   }
 
   protected void doRewrite(String groupId, List<PositionDeletesScanTask> group) {
-    // ensure AQE is disabled for full control of splits
-    Preconditions.checkArgument(
-        !((boolean) spark.conf().get(SQLConf.ADAPTIVE_EXECUTION_ENABLED())),
-        "AQE must be disabled");
-
     // all position deletes are of the same partition, because they are in same file group
     Preconditions.checkArgument(group.size() > 0, "Empty group");
     Types.StructType partitionType = group.get(0).spec().partitionType();
