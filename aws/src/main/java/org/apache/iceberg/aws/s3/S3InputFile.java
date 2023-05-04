@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.aws.s3;
 
-import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.encryption.NativeFileCryptoParameters;
 import org.apache.iceberg.encryption.NativelyEncryptedFile;
 import org.apache.iceberg.io.InputFile;
@@ -31,12 +30,15 @@ public class S3InputFile extends BaseS3File implements InputFile, NativelyEncryp
   private Long length;
 
   public static S3InputFile fromLocation(
-      String location, S3Client client, AwsProperties awsProperties, MetricsContext metrics) {
+      String location,
+      S3Client client,
+      S3FileIOProperties s3FileIOProperties,
+      MetricsContext metrics) {
     return new S3InputFile(
         client,
-        new S3URI(location, awsProperties.s3BucketToAccessPointMapping()),
+        new S3URI(location, s3FileIOProperties.bucketToAccessPointMapping()),
         null,
-        awsProperties,
+        s3FileIOProperties,
         metrics);
   }
 
@@ -44,13 +46,13 @@ public class S3InputFile extends BaseS3File implements InputFile, NativelyEncryp
       String location,
       long length,
       S3Client client,
-      AwsProperties awsProperties,
+      S3FileIOProperties s3FileIOProperties,
       MetricsContext metrics) {
     return new S3InputFile(
         client,
-        new S3URI(location, awsProperties.s3BucketToAccessPointMapping()),
+        new S3URI(location, s3FileIOProperties.bucketToAccessPointMapping()),
         length > 0 ? length : null,
-        awsProperties,
+        s3FileIOProperties,
         metrics);
   }
 
@@ -58,9 +60,9 @@ public class S3InputFile extends BaseS3File implements InputFile, NativelyEncryp
       S3Client client,
       S3URI uri,
       Long length,
-      AwsProperties awsProperties,
+      S3FileIOProperties s3FileIOProperties,
       MetricsContext metrics) {
-    super(client, uri, awsProperties, metrics);
+    super(client, uri, s3FileIOProperties, metrics);
     this.length = length;
   }
 
@@ -80,7 +82,7 @@ public class S3InputFile extends BaseS3File implements InputFile, NativelyEncryp
 
   @Override
   public SeekableInputStream newStream() {
-    return new S3InputStream(client(), uri(), awsProperties(), metrics());
+    return new S3InputStream(client(), uri(), s3FileIOProperties(), metrics());
   }
 
   @Override
