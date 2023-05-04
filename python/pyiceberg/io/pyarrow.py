@@ -498,8 +498,8 @@ def expression_to_pyarrow(expr: BooleanExpression) -> pc.Expression:
     return boolean_expression_visit(expr, _ConvertToArrowExpression())
 
 
-def pyarrow_to_schema(schema: pa.Schema, expected_schema: Optional[Schema] = None) -> Schema:
-    visitor = _ConvertToIceberg(expected_schema)
+def pyarrow_to_schema(schema: pa.Schema) -> Schema:
+    visitor = _ConvertToIceberg()
     return visit_pyarrow(schema, visitor)
 
 
@@ -612,24 +612,6 @@ def _get_field_doc(field: pa.Field) -> Optional[str]:
 
 
 class _ConvertToIceberg(PyArrowSchemaVisitor[Union[IcebergType, Schema]]):
-    def __init__(self, expected_schema: Optional[Schema] = None):
-        self.expected_schema = expected_schema
-
-    def cast_if_needed(self, field_id: int, field_type: IcebergType) -> IcebergType:
-        if self.expected_schema is not None:
-            try:
-                expected_field = self.expected_schema.find_field(field_id)
-                if (
-                    isinstance(field_type, FixedType)
-                    and len(field_type) == 16
-                    and isinstance(expected_field.field_type, UUIDType)
-                ):
-                    return UUIDType()
-            except ValueError:
-                return field_type
-
-        return field_type
-
     def _convert_fields(self, arrow_fields: Iterable[pa.Field], field_results: List[Optional[IcebergType]]) -> List[NestedField]:
         fields = []
         for i, field in enumerate(arrow_fields):
@@ -637,15 +619,7 @@ class _ConvertToIceberg(PyArrowSchemaVisitor[Union[IcebergType, Schema]]):
             field_doc = _get_field_doc(field)
             field_type = field_results[i]
             if field_type is not None and field_id is not None:
-                fields.append(
-                    NestedField(
-                        field_id,
-                        field.name,
-                        self.cast_if_needed(field_id, field_type),
-                        required=not field.nullable,
-                        doc=field_doc,
-                    )
-                )
+                fields.append(NestedField(field_id, field.name, field_type, required=not field.nullable, doc=field_doc))
         return fields
 
     def schema(self, schema: pa.Schema, field_results: List[Optional[IcebergType]]) -> Schema:
@@ -658,9 +632,7 @@ class _ConvertToIceberg(PyArrowSchemaVisitor[Union[IcebergType, Schema]]):
         element_field = list_type.value_field
         element_id = _get_field_id(element_field)
         if element_result is not None and element_id is not None:
-            return ListType(
-                element_id, self.cast_if_needed(element_id, element_result), element_required=not element_field.nullable
-            )
+            return ListType(element_id, element_result, element_required=not element_field.nullable)
         return None
 
     def map(
@@ -671,13 +643,7 @@ class _ConvertToIceberg(PyArrowSchemaVisitor[Union[IcebergType, Schema]]):
         value_field = map_type.item_field
         value_id = _get_field_id(value_field)
         if key_result is not None and value_result is not None and key_id is not None and value_id is not None:
-            return MapType(
-                key_id,
-                self.cast_if_needed(key_id, key_result),
-                value_id,
-                self.cast_if_needed(value_id, value_result),
-                value_required=not value_field.nullable,
-            )
+            return MapType(key_id, key_result, value_id, value_result, value_required=not value_field.nullable)
         return None
 
     def primitive(self, primitive: pa.DataType) -> IcebergType:
@@ -739,9 +705,7 @@ def _file_to_table(
             schema_raw = metadata.get(ICEBERG_SCHEMA)
         # TODO: if field_ids are not present, Name Mapping should be implemented to look them up in the table schema,
         #  see https://github.com/apache/iceberg/issues/7451
-        file_schema = (
-            Schema.parse_raw(schema_raw) if schema_raw is not None else pyarrow_to_schema(physical_schema, projected_schema)
-        )
+        file_schema = Schema.parse_raw(schema_raw) if schema_raw is not None else pyarrow_to_schema(physical_schema)
 
         pyarrow_filter = None
         if bound_row_filter is not AlwaysTrue():

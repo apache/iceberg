@@ -46,7 +46,6 @@ from pyiceberg.types import (
     TimestampType,
     TimestamptzType,
     TimeType,
-    UUIDType,
 )
 
 
@@ -205,17 +204,6 @@ def test_pyarrow_variable_binary_to_iceberg() -> None:
     converted_iceberg_type = visit_pyarrow(pyarrow_type, _ConvertToIceberg())
     assert converted_iceberg_type == BinaryType()
     assert visit(converted_iceberg_type, _ConvertToArrowSchema()) == pyarrow_type
-
-
-def test_pyarrow_16_sized_binary_to_iceberg_uuid() -> None:
-    pyarrow_schema = pa.schema(
-        [
-            pa.field("foo", pa.binary(16), nullable=False, metadata={"field_id": "1", "doc": "foo doc"}),
-        ]
-    )
-    converted_iceberg_type = visit_pyarrow(pyarrow_schema, _ConvertToIceberg(Schema(NestedField(1, "foo", UUIDType(), True))))
-    assert converted_iceberg_type.find_type(1) == UUIDType()
-    assert visit(converted_iceberg_type, _ConvertToArrowSchema()) == pyarrow_schema
 
 
 def test_pyarrow_struct_to_iceberg() -> None:
