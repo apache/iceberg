@@ -135,6 +135,7 @@ public class SparkPositionDeletesRewrite implements Write {
     @Override
     public void commit(WriterCommitMessage[] messages) {
       PositionDeletesRewriteCoordinator coordinator = PositionDeletesRewriteCoordinator.get();
+      System.out.println("executing SparkPositionDeletesRewrite.commit");
       coordinator.stageRewrite(table, fileSetId, ImmutableSet.copyOf(files(messages)));
     }
 

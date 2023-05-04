@@ -157,6 +157,8 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
 
     @Override
     public void commit(WriterCommitMessage[] messages) {
+
+      System.out.println("executing SparkPositionDeltaWrite.commit");
       RowDelta rowDelta = table.newRowDelta();
 
       CharSequenceSet referencedDataFiles = CharSequenceSet.empty();
