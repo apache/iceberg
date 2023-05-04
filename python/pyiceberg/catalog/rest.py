@@ -190,6 +190,7 @@ class RestCatalog(Catalog):
         self._session = None
         self._create_session()
         self._fetch_config()
+        # re-initialize the session based on updated config
         self._create_session()
 
     def _create_session(self) -> None:
