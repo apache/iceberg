@@ -251,7 +251,7 @@ class RestCatalog(Catalog):
 
         return url + endpoint.format(**kwargs)
 
-    def _fetch_access_token(self, session, credential: str) -> str:
+    def _fetch_access_token(self, session: Session, credential: str) -> str:
         if SEMICOLON in credential:
             client_id, client_secret = credential.split(SEMICOLON)
         else:
@@ -273,7 +273,7 @@ class RestCatalog(Catalog):
             params[WAREHOUSE_LOCATION] = warehouse_location
 
         with self._create_session() as session:
-            response = session.get(self.url(Endpoints.get_config, prefixed=False), params=params)
+            response = session.get(self.url(Endpoints.get_config, prefixed=False), params=params)  # type: ignore
         try:
             response.raise_for_status()
         except HTTPError as exc:
