@@ -42,7 +42,6 @@ public interface ViewCatalog {
    * @param namespace a namespace
    * @return a list of identifiers for views
    * @throws NoSuchNamespaceException if the namespace is not found
-   * @throws IllegalArgumentException if the namespace is invalid for the catalog
    */
   List<TableIdentifier> listViews(Namespace namespace);
 

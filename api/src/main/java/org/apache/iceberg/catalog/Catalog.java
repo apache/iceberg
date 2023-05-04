@@ -47,7 +47,6 @@ public interface Catalog {
    * @param namespace a namespace
    * @return a list of identifiers for tables
    * @throws NoSuchNamespaceException if the namespace is not found
-   * @throws IllegalArgumentException if the namespace is invalid for the catalog
    */
   List<TableIdentifier> listTables(Namespace namespace);
 
