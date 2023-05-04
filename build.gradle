@@ -453,6 +453,9 @@ project(':iceberg-aliyun') {
 }
 
 project(':iceberg-aws') {
+  test {
+    useJUnitPlatform()
+  }
   dependencies {
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     api project(':iceberg-api')
