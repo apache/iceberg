@@ -139,6 +139,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
         ImmutableMap.of(
             SQLConf.SHUFFLE_PARTITIONS().key(), "2",
             SQLConf.ADAPTIVE_EXECUTION_ENABLED().key(), "true",
+            SQLConf.ADAPTIVE_OPTIMIZE_SKEWS_IN_REBALANCE_PARTITIONS_ENABLED().key(), "true",
             SQLConf.ADVISORY_PARTITION_SIZE_IN_BYTES().key(), "100"),
         () -> {
           SparkPlan plan =
@@ -147,8 +148,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
         });
 
     Table table = validationCatalog.loadTable(tableIdent);
-    Snapshot currentSnapshot = SnapshotUtil.latestSnapshot(table, branch);
-    Map<String, String> summary = currentSnapshot.summary();
+    Snapshot snapshot = SnapshotUtil.latestSnapshot(table, branch);
 
     if (mode(table) == COPY_ON_WRITE) {
       // CoW DELETE requests the remaining records to be clustered by `_file`
@@ -156,16 +156,14 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
       // that means 4 shuffle blocks are distributed among 2 reducers
       // AQE detects that all shuffle blocks are big and processes them in 4 independent tasks
       // otherwise, there would be 2 tasks processing 2 shuffle blocks each
-      int addedFiles = Integer.parseInt(summary.get(SnapshotSummary.ADDED_FILES_PROP));
-      Assert.assertEquals("Must produce 4 files", 4, addedFiles);
+      validateProperty(snapshot, SnapshotSummary.ADDED_FILES_PROP, "4");
     } else {
       // MoR DELETE requests the deleted records to be clustered by `_spec_id` and `_partition`
       // all tasks belong to the same partition and therefore write only 1 shuffle block per task
       // that means there are 4 shuffle blocks, all assigned to the same reducer
       // AQE detects that all 4 shuffle blocks are big and processes them in 4 separate tasks
       // otherwise, there would be 1 task processing 4 shuffle blocks
-      int addedFiles = Integer.parseInt(summary.get(SnapshotSummary.ADDED_DELETE_FILES_PROP));
-      Assert.assertEquals("Must produce 4 files", 4, addedFiles);
+      validateProperty(snapshot, SnapshotSummary.ADDED_DELETE_FILES_PROP, "4");
     }
 
     Assert.assertEquals(

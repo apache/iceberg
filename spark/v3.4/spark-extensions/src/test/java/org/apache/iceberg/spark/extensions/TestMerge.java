@@ -133,6 +133,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
             SQLConf.SHUFFLE_PARTITIONS().key(), "4",
             SQLConf.COALESCE_PARTITIONS_MIN_PARTITION_SIZE().key(), "100",
             SQLConf.ADAPTIVE_EXECUTION_ENABLED().key(), "true",
+            SQLConf.ADAPTIVE_OPTIMIZE_SKEWS_IN_REBALANCE_PARTITIONS_ENABLED().key(), "true",
             SQLConf.ADVISORY_PARTITION_SIZE_IN_BYTES().key(), "100"),
         () -> {
           SparkPlan plan =
@@ -147,7 +148,6 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
 
     Table table = validationCatalog.loadTable(tableIdent);
     Snapshot currentSnapshot = SnapshotUtil.latestSnapshot(table, branch);
-    Map<String, String> summary = currentSnapshot.summary();
 
     if (mode(table) == COPY_ON_WRITE) {
       // CoW MERGE would perform a join on `id` and then cluster records by `dep`
@@ -157,16 +157,14 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
       // that means there are 4 shuffle blocks, all assigned to the same reducer
       // AQE detects that all shuffle blocks are big and processes them in 4 independent tasks
       // otherwise, there would be 1 task processing all 4 shuffle blocks
-      int addedFiles = Integer.parseInt(summary.get(SnapshotSummary.ADDED_FILES_PROP));
-      Assert.assertEquals("Must produce 4 files", 4, addedFiles);
+      validateProperty(currentSnapshot, SnapshotSummary.ADDED_FILES_PROP, "4");
     } else {
       // MoR MERGE would perform a join on `id` and then cluster data based on the partition
       // all tasks belong to the same partition and therefore write only 1 shuffle block per task
       // that means there are 4 shuffle blocks, all assigned to the same reducer
       // AQE detects that all 4 shuffle blocks are big and processes them in 4 separate tasks
       // otherwise, there would be 1 task processing 4 shuffle blocks
-      int addedFiles = Integer.parseInt(summary.get(SnapshotSummary.ADDED_DELETE_FILES_PROP));
-      Assert.assertEquals("Must produce 4 files", 4, addedFiles);
+      validateProperty(currentSnapshot, SnapshotSummary.ADDED_DELETE_FILES_PROP, "4");
     }
 
     Assert.assertEquals(
