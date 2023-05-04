@@ -186,7 +186,7 @@ public class TestJsonUtil {
     Assertions.assertThatThrownBy(
             () -> JsonUtil.getByteBufferOrNull("x", JsonUtil.mapper().readTree("{\"x\": 23}")))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse from non-text value: x: 23");
+        .hasMessage("Cannot parse byte buffer from non-text value: x: 23");
   }
 
   @Test
@@ -248,7 +248,7 @@ public class TestJsonUtil {
     Assertions.assertThatThrownBy(
             () -> JsonUtil.getIntegerList("items", JsonUtil.mapper().readTree("{\"items\": null}")))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse from non-array value: items: null");
+        .hasMessage("Cannot parse JSON array from non-array value: items: null");
 
     Assertions.assertThatThrownBy(
             () ->
@@ -284,7 +284,7 @@ public class TestJsonUtil {
     Assertions.assertThatThrownBy(
             () -> JsonUtil.getIntegerSet("items", JsonUtil.mapper().readTree("{\"items\": null}")))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse from non-array value: items: null");
+        .hasMessage("Cannot parse JSON array from non-array value: items: null");
 
     Assertions.assertThatThrownBy(
             () ->
@@ -330,7 +330,7 @@ public class TestJsonUtil {
     Assertions.assertThatThrownBy(
             () -> JsonUtil.getLongList("items", JsonUtil.mapper().readTree("{\"items\": null}")))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse from non-array value: items: null");
+        .hasMessage("Cannot parse JSON array from non-array value: items: null");
 
     Assertions.assertThatThrownBy(
             () ->
@@ -388,7 +388,7 @@ public class TestJsonUtil {
     Assertions.assertThatThrownBy(
             () -> JsonUtil.getLongSet("items", JsonUtil.mapper().readTree("{\"items\": null}")))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse from non-array value: items: null");
+        .hasMessage("Cannot parse JSON array from non-array value: items: null");
 
     Assertions.assertThatThrownBy(
             () ->
@@ -433,7 +433,7 @@ public class TestJsonUtil {
     Assertions.assertThatThrownBy(
             () -> JsonUtil.getStringList("items", JsonUtil.mapper().readTree("{\"items\": null}")))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse from non-array value: items: null");
+        .hasMessage("Cannot parse JSON array from non-array value: items: null");
 
     Assertions.assertThatThrownBy(
             () ->
@@ -492,7 +492,7 @@ public class TestJsonUtil {
     Assertions.assertThatThrownBy(
             () -> JsonUtil.getStringSet("items", JsonUtil.mapper().readTree("{\"items\": null}")))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse from non-array value: items: null");
+        .hasMessage("Cannot parse JSON array from non-array value: items: null");
 
     Assertions.assertThatThrownBy(
             () ->
@@ -517,7 +517,7 @@ public class TestJsonUtil {
     Assertions.assertThatThrownBy(
             () -> JsonUtil.getStringMap("items", JsonUtil.mapper().readTree("{\"items\": null}")))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse from non-object value: items: null");
+        .hasMessage("Cannot parse string map from non-object value: items: null");
 
     Assertions.assertThatThrownBy(
             () ->

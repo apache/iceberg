@@ -183,7 +183,7 @@ public class JsonUtil {
 
     JsonNode pNode = node.get(property);
     Preconditions.checkArgument(
-        pNode.isTextual(), "Cannot parse from non-text value: %s: %s", property, pNode);
+        pNode.isTextual(), "Cannot parse byte buffer from non-text value: %s: %s", property, pNode);
     return ByteBuffer.wrap(
         BaseEncoding.base16().decode(pNode.textValue().toUpperCase(Locale.ROOT)));
   }
@@ -193,7 +193,7 @@ public class JsonUtil {
     JsonNode pNode = node.get(property);
     Preconditions.checkArgument(
         pNode != null && !pNode.isNull() && pNode.isObject(),
-        "Cannot parse from non-object value: %s: %s",
+        "Cannot parse string map from non-object value: %s: %s",
         property,
         pNode);
 
@@ -322,7 +322,7 @@ public class JsonUtil {
       JsonNode pNode = node.get(property);
       Preconditions.checkArgument(
           pNode != null && !pNode.isNull() && pNode.isArray(),
-          "Cannot parse from non-array value: %s: %s",
+          "Cannot parse JSON array from non-array value: %s: %s",
           property,
           pNode);
       this.elements = pNode.elements();
