@@ -63,8 +63,10 @@ public class TestContentFileParser {
 
   @ParameterizedTest
   @MethodSource("provideSpecAndDataFile")
-  public void testDataFile(PartitionSpec spec, DataFile dataFile) throws Exception {
+  public void testDataFile(PartitionSpec spec, DataFile dataFile, String expectedJson)
+      throws Exception {
     String jsonStr = ContentFileParser.toJson(dataFile, spec);
+    Assertions.assertThat(jsonStr).isEqualTo(expectedJson);
     JsonNode jsonNode = JsonUtil.mapper().readTree(jsonStr);
     ContentFile<?> deserializedContentFile = ContentFileParser.fromJson(jsonNode, spec);
     Assertions.assertThat(deserializedContentFile).isInstanceOf(DataFile.class);
@@ -73,8 +75,10 @@ public class TestContentFileParser {
 
   @ParameterizedTest
   @MethodSource("provideSpecAndDeleteFile")
-  public void testDeleteFile(PartitionSpec spec, DeleteFile deleteFile) throws Exception {
+  public void testDeleteFile(PartitionSpec spec, DeleteFile deleteFile, String expectedJson)
+      throws Exception {
     String jsonStr = ContentFileParser.toJson(deleteFile, spec);
+    Assertions.assertThat(jsonStr).isEqualTo(expectedJson);
     JsonNode jsonNode = JsonUtil.mapper().readTree(jsonStr);
     ContentFile<?> deserializedContentFile = ContentFileParser.fromJson(jsonNode, spec);
     Assertions.assertThat(deserializedContentFile).isInstanceOf(DeleteFile.class);
@@ -84,11 +88,21 @@ public class TestContentFileParser {
   private static Stream<Arguments> provideSpecAndDataFile() {
     return Stream.of(
         Arguments.of(
-            PartitionSpec.unpartitioned(), dataFileWithRequiredOnly(PartitionSpec.unpartitioned())),
+            PartitionSpec.unpartitioned(),
+            dataFileWithRequiredOnly(PartitionSpec.unpartitioned()),
+            dataFileJsonWithRequiredOnly(PartitionSpec.unpartitioned())),
         Arguments.of(
-            PartitionSpec.unpartitioned(), dataFileWithAllOptional(PartitionSpec.unpartitioned())),
-        Arguments.of(TableTestBase.SPEC, dataFileWithRequiredOnly(TableTestBase.SPEC)),
-        Arguments.of(TableTestBase.SPEC, dataFileWithAllOptional(TableTestBase.SPEC)));
+            PartitionSpec.unpartitioned(),
+            dataFileWithAllOptional(PartitionSpec.unpartitioned()),
+            dataFileJsonWithAllOptional(PartitionSpec.unpartitioned())),
+        Arguments.of(
+            TableTestBase.SPEC,
+            dataFileWithRequiredOnly(TableTestBase.SPEC),
+            dataFileJsonWithRequiredOnly(TableTestBase.SPEC)),
+        Arguments.of(
+            TableTestBase.SPEC,
+            dataFileWithAllOptional(TableTestBase.SPEC),
+            dataFileJsonWithAllOptional(TableTestBase.SPEC)));
   }
 
   private static DataFile dataFileWithRequiredOnly(PartitionSpec spec) {
@@ -104,6 +118,42 @@ public class TestContentFileParser {
     }
 
     return builder.build();
+  }
+
+  private static String dataFileJsonWithRequiredOnly(PartitionSpec spec) {
+    if (spec.isUnpartitioned()) {
+      return "{\"spec-id\":0,\"content\":\"DATA\",\"file-path\":\"/path/to/data-a.parquet\",\"file-format\":\"PARQUET\","
+          + "\"partition\":{},\"file-size-in-bytes\":10,\"record-count\":1,\"sort-order-id\":0}";
+    } else {
+      return "{\"spec-id\":0,\"content\":\"DATA\",\"file-path\":\"/path/to/data-a.parquet\",\"file-format\":\"PARQUET\","
+          + "\"partition\":{\"1000\":1},\"file-size-in-bytes\":10,\"record-count\":1,\"sort-order-id\":0}";
+    }
+  }
+
+  private static String dataFileJsonWithAllOptional(PartitionSpec spec) {
+    if (spec.isUnpartitioned()) {
+      return "{\"spec-id\":0,\"content\":\"DATA\",\"file-path\":\"/path/to/data-with-stats.parquet\","
+          + "\"file-format\":\"PARQUET\",\"partition\":{},\"file-size-in-bytes\":350,\"record-count\":10,"
+          + "\"column-sizes\":{\"keys\":[3,4],\"values\":[100,200]},"
+          + "\"value-counts\":{\"keys\":[3,4],\"values\":[90,180]},"
+          + "\"null-value-counts\":{\"keys\":[3,4],\"values\":[10,20]},"
+          + "\"nan-value-counts\":{\"keys\":[3,4],\"values\":[0,0]},"
+          + "\"lower-bounds\":{\"keys\":[3,4],\"values\":[\"01000000\",\"02000000\"]},"
+          + "\"upper-bounds\":{\"keys\":[3,4],\"values\":[\"05000000\",\"0A000000\"]},"
+          + "\"key-metadata\":\"00000000000000000000000000000000\","
+          + "\"split-offsets\":[128,256],\"equality-ids\":[1],\"sort-order-id\":1}";
+    } else {
+      return "{\"spec-id\":0,\"content\":\"DATA\",\"file-path\":\"/path/to/data-with-stats.parquet\","
+          + "\"file-format\":\"PARQUET\",\"partition\":{\"1000\":1},\"file-size-in-bytes\":350,\"record-count\":10,"
+          + "\"column-sizes\":{\"keys\":[3,4],\"values\":[100,200]},"
+          + "\"value-counts\":{\"keys\":[3,4],\"values\":[90,180]},"
+          + "\"null-value-counts\":{\"keys\":[3,4],\"values\":[10,20]},"
+          + "\"nan-value-counts\":{\"keys\":[3,4],\"values\":[0,0]},"
+          + "\"lower-bounds\":{\"keys\":[3,4],\"values\":[\"01000000\",\"02000000\"]},"
+          + "\"upper-bounds\":{\"keys\":[3,4],\"values\":[\"05000000\",\"0A000000\"]},"
+          + "\"key-metadata\":\"00000000000000000000000000000000\","
+          + "\"split-offsets\":[128,256],\"equality-ids\":[1],\"sort-order-id\":1}";
+    }
   }
 
   private static DataFile dataFileWithAllOptional(PartitionSpec spec) {
@@ -150,12 +200,20 @@ public class TestContentFileParser {
     return Stream.of(
         Arguments.of(
             PartitionSpec.unpartitioned(),
-            deleteFileWithRequiredOnly(PartitionSpec.unpartitioned())),
+            deleteFileWithRequiredOnly(PartitionSpec.unpartitioned()),
+            deleteFileJsonWithRequiredOnly(PartitionSpec.unpartitioned())),
         Arguments.of(
             PartitionSpec.unpartitioned(),
-            deleteFileWithAllOptional(PartitionSpec.unpartitioned())),
-        Arguments.of(TableTestBase.SPEC, deleteFileWithRequiredOnly(TableTestBase.SPEC)),
-        Arguments.of(TableTestBase.SPEC, deleteFileWithAllOptional(TableTestBase.SPEC)));
+            deleteFileWithAllOptional(PartitionSpec.unpartitioned()),
+            deleteFileJsonWithAllOptional(PartitionSpec.unpartitioned())),
+        Arguments.of(
+            TableTestBase.SPEC,
+            deleteFileWithRequiredOnly(TableTestBase.SPEC),
+            deleteFileJsonWithRequiredOnly(TableTestBase.SPEC)),
+        Arguments.of(
+            TableTestBase.SPEC,
+            deleteFileWithAllOptional(TableTestBase.SPEC),
+            deleteFileJsonWithAllOptional(TableTestBase.SPEC)));
   }
 
   private static DeleteFile deleteFileWithRequiredOnly(PartitionSpec spec) {
@@ -216,6 +274,42 @@ public class TestContentFileParser {
         1,
         Arrays.asList(128L),
         ByteBuffer.wrap(new byte[16]));
+  }
+
+  private static String deleteFileJsonWithRequiredOnly(PartitionSpec spec) {
+    if (spec.isUnpartitioned()) {
+      return "{\"spec-id\":0,\"content\":\"POSITION_DELETES\",\"file-path\":\"/path/to/delete-a.parquet\","
+          + "\"file-format\":\"PARQUET\",\"partition\":{},\"file-size-in-bytes\":1234,\"record-count\":9}";
+    } else {
+      return "{\"spec-id\":0,\"content\":\"POSITION_DELETES\",\"file-path\":\"/path/to/delete-a.parquet\","
+          + "\"file-format\":\"PARQUET\",\"partition\":{\"1000\":9},\"file-size-in-bytes\":1234,\"record-count\":9}";
+    }
+  }
+
+  private static String deleteFileJsonWithAllOptional(PartitionSpec spec) {
+    if (spec.isUnpartitioned()) {
+      return "{\"spec-id\":0,\"content\":\"EQUALITY_DELETES\",\"file-path\":\"/path/to/delete-with-stats.parquet\","
+          + "\"file-format\":\"PARQUET\",\"partition\":{},\"file-size-in-bytes\":1234,\"record-count\":10,"
+          + "\"column-sizes\":{\"keys\":[3,4],\"values\":[100,200]},"
+          + "\"value-counts\":{\"keys\":[3,4],\"values\":[90,180]},"
+          + "\"null-value-counts\":{\"keys\":[3,4],\"values\":[10,20]},"
+          + "\"nan-value-counts\":{\"keys\":[3,4],\"values\":[0,0]},"
+          + "\"lower-bounds\":{\"keys\":[3,4],\"values\":[\"01000000\",\"02000000\"]},"
+          + "\"upper-bounds\":{\"keys\":[3,4],\"values\":[\"05000000\",\"0A000000\"]},"
+          + "\"key-metadata\":\"00000000000000000000000000000000\","
+          + "\"split-offsets\":[128],\"equality-ids\":[3],\"sort-order-id\":1}";
+    } else {
+      return "{\"spec-id\":0,\"content\":\"EQUALITY_DELETES\",\"file-path\":\"/path/to/delete-with-stats.parquet\","
+          + "\"file-format\":\"PARQUET\",\"partition\":{\"1000\":9},\"file-size-in-bytes\":1234,\"record-count\":10,"
+          + "\"column-sizes\":{\"keys\":[3,4],\"values\":[100,200]},"
+          + "\"value-counts\":{\"keys\":[3,4],\"values\":[90,180]},"
+          + "\"null-value-counts\":{\"keys\":[3,4],\"values\":[10,20]},"
+          + "\"nan-value-counts\":{\"keys\":[3,4],\"values\":[0,0]},"
+          + "\"lower-bounds\":{\"keys\":[3,4],\"values\":[\"01000000\",\"02000000\"]},"
+          + "\"upper-bounds\":{\"keys\":[3,4],\"values\":[\"05000000\",\"0A000000\"]},"
+          + "\"key-metadata\":\"00000000000000000000000000000000\","
+          + "\"split-offsets\":[128],\"equality-ids\":[3],\"sort-order-id\":1}";
+    }
   }
 
   static void assertContentFileEquals(

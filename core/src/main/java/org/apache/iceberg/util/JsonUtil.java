@@ -29,14 +29,14 @@ import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import org.apache.iceberg.SingleValueParser;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
-import org.apache.iceberg.types.Types;
+import org.apache.iceberg.relocated.com.google.common.io.BaseEncoding;
 
 public class JsonUtil {
 
@@ -181,7 +181,11 @@ public class JsonUtil {
       return null;
     }
 
-    return (ByteBuffer) SingleValueParser.fromJson(Types.BinaryType.get(), node.get(property));
+    JsonNode pNode = node.get(property);
+    Preconditions.checkArgument(
+        pNode.isTextual(), "Cannot parse from non-text value: %s: %s", property, pNode);
+    return ByteBuffer.wrap(
+        BaseEncoding.base16().decode(pNode.textValue().toUpperCase(Locale.ROOT)));
   }
 
   public static Map<String, String> getStringMap(String property, JsonNode node) {

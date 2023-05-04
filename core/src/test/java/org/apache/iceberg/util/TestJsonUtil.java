@@ -186,7 +186,7 @@ public class TestJsonUtil {
     Assertions.assertThatThrownBy(
             () -> JsonUtil.getByteBufferOrNull("x", JsonUtil.mapper().readTree("{\"x\": 23}")))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse default as a binary value: 23");
+        .hasMessage("Cannot parse from non-text value: x: 23");
   }
 
   @Test

@@ -44,6 +44,7 @@ public class TestFileScanTaskParser {
     PartitionSpec spec = TableTestBase.SPEC;
     FileScanTask fileScanTask = createScanTask(spec, caseSensitive);
     String jsonStr = FileScanTaskParser.toJson(fileScanTask);
+    Assertions.assertThat(jsonStr).isEqualTo(expectedFileScanTaskJson());
     FileScanTask deserializedTask = FileScanTaskParser.fromJson(jsonStr, caseSensitive);
     assertFileScanTaskEquals(fileScanTask, deserializedTask, spec, caseSensitive);
   }
@@ -62,6 +63,24 @@ public class TestFileScanTaskParser {
         SchemaParser.toJson(TableTestBase.SCHEMA),
         PartitionSpecParser.toJson(spec),
         residualEvaluator);
+  }
+
+  private String expectedFileScanTaskJson() {
+    return "{\"schema\":{\"type\":\"struct\",\"schema-id\":0,\"fields\":["
+        + "{\"id\":3,\"name\":\"id\",\"required\":true,\"type\":\"int\"},"
+        + "{\"id\":4,\"name\":\"data\",\"required\":true,\"type\":\"string\"}]},"
+        + "\"spec\":{\"spec-id\":0,\"fields\":[{\"name\":\"data_bucket\","
+        + "\"transform\":\"bucket[16]\",\"source-id\":4,\"field-id\":1000}]},"
+        + "\"data-file\":{\"spec-id\":0,\"content\":\"DATA\",\"file-path\":\"/path/to/data-a.parquet\","
+        + "\"file-format\":\"PARQUET\",\"partition\":{\"1000\":0},"
+        + "\"file-size-in-bytes\":10,\"record-count\":1,\"sort-order-id\":0},"
+        + "\"delete-files\":[{\"spec-id\":0,\"content\":\"POSITION_DELETES\","
+        + "\"file-path\":\"/path/to/data-a-deletes.parquet\",\"file-format\":\"PARQUET\","
+        + "\"partition\":{\"1000\":0},\"file-size-in-bytes\":10,\"record-count\":1},"
+        + "{\"spec-id\":0,\"content\":\"EQUALITY_DELETES\",\"file-path\":\"/path/to/data-a2-deletes.parquet\","
+        + "\"file-format\":\"PARQUET\",\"partition\":{\"1000\":0},\"file-size-in-bytes\":10,"
+        + "\"record-count\":1,\"equality-ids\":[1],\"sort-order-id\":0}],"
+        + "\"residual-filter\":{\"type\":\"eq\",\"term\":\"id\",\"value\":1}}";
   }
 
   private static void assertFileScanTaskEquals(
