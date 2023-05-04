@@ -162,6 +162,21 @@ def test_list_tables_200(rest_mock: Mocker) -> None:
     assert RestCatalog("rest", uri=TEST_URI, token=TEST_TOKEN).list_tables(namespace) == [("examples", "fooshare")]
 
 
+def test_list_tables_200_sigv4(rest_mock: Mocker) -> None:
+    namespace = "examples"
+    rest_mock.get(
+        f"{TEST_URI}v1/namespaces/{namespace}/tables",
+        json={"identifiers": [{"namespace": ["examples"], "name": "fooshare"}]},
+        status_code=200,
+        request_headers=TEST_HEADERS,
+    )
+
+    assert RestCatalog("rest", **{"uri": TEST_URI, "token": TEST_TOKEN, "rest.sigv4-enabled": "true"}).list_tables(namespace) == [
+        ("examples", "fooshare")
+    ]
+    assert rest_mock.called
+
+
 def test_list_tables_404(rest_mock: Mocker) -> None:
     namespace = "examples"
     rest_mock.get(

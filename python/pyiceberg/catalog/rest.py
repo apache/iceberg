@@ -175,6 +175,7 @@ class OAuthErrorResponse(IcebergBaseModel):
 
 class RestCatalog(Catalog):
     uri: str
+    _session: Session
 
     def __init__(self, name: str, **properties: str):
         """Rest Catalog
@@ -187,44 +188,41 @@ class RestCatalog(Catalog):
         """
         super().__init__(name, **properties)
         self.uri = properties[URI]
-        self._session: Session = Session()
-        self._create_session()
         self._fetch_config()
-        # re-initialize the session based on updated config
-        self._create_session(close_existing=True)
+        self._session = self._create_session()
 
-    def _create_session(self, close_existing: bool = False) -> None:
+    def _create_session(self) -> Session:
         """Creates a request session with provided catalog configuration"""
-        if close_existing:
-            self._session.close()
-            self._session = Session()
+        session = Session()
 
         # Sets the client side and server side SSL cert verification, if provided as properties.
         if ssl_config := self.properties.get(SSL):
             if ssl_ca_bundle := ssl_config.get(CA_BUNDLE):  # type: ignore
-                self._session.verify = ssl_ca_bundle
+                session.verify = ssl_ca_bundle
             if ssl_client := ssl_config.get(CLIENT):  # type: ignore
                 if all(k in ssl_client for k in (CERT, KEY)):
-                    self._session.cert = (ssl_client[CERT], ssl_client[KEY])
+                    session.cert = (ssl_client[CERT], ssl_client[KEY])
                 elif ssl_client_cert := ssl_client.get(CERT):
-                    self._session.cert = ssl_client_cert
+                    session.cert = ssl_client_cert
 
         # If we have credentials, but not a token, we want to fetch a token
         if TOKEN not in self.properties and CREDENTIAL in self.properties:
-            self.properties[TOKEN] = self._fetch_access_token(self.properties[CREDENTIAL])
+            self.properties[TOKEN] = self._fetch_access_token(session, self.properties[CREDENTIAL])
 
         # Set Auth token for subsequent calls in the session
         if token := self.properties.get(TOKEN):
-            self._session.headers[AUTHORIZATION_HEADER] = f"{BEARER_PREFIX} {token}"
+            session.headers[AUTHORIZATION_HEADER] = f"{BEARER_PREFIX} {token}"
 
         # Set HTTP headers
-        self._session.headers["Content-type"] = "application/json"
-        self._session.headers["X-Client-Version"] = ICEBERG_REST_SPEC_VERSION
-        self._session.headers["User-Agent"] = f"PyIceberg/{__version__}"
+        session.headers["Content-type"] = "application/json"
+        session.headers["X-Client-Version"] = ICEBERG_REST_SPEC_VERSION
+        session.headers["User-Agent"] = f"PyIceberg/{__version__}"
 
         # Configure SigV4 Request Signing
         if str(self.properties.get(SIGV4, False)).lower() == "true":
-            self._init_sigv4()
+            self._init_sigv4(session)
+
+        return session
 
     def _check_valid_namespace_identifier(self, identifier: Union[str, Identifier]) -> Identifier:
         """The identifier should have at least one element"""
@@ -253,7 +251,7 @@ class RestCatalog(Catalog):
 
         return url + endpoint.format(**kwargs)
 
-    def _fetch_access_token(self, credential: str) -> str:
+    def _fetch_access_token(self, session, credential: str) -> str:
         if SEMICOLON in credential:
             client_id, client_secret = credential.split(SEMICOLON)
         else:
@@ -261,7 +259,7 @@ class RestCatalog(Catalog):
         data = {GRANT_TYPE: CLIENT_CREDENTIALS, CLIENT_ID: client_id, CLIENT_SECRET: client_secret, SCOPE: CATALOG_SCOPE}
         url = self.url(Endpoints.get_token, prefixed=False)
         # Uses application/x-www-form-urlencoded by default
-        response = self._session.post(url=url, data=data)
+        response = session.post(url=url, data=data)
         try:
             response.raise_for_status()
         except HTTPError as exc:
@@ -274,7 +272,8 @@ class RestCatalog(Catalog):
         if warehouse_location := self.properties.get(WAREHOUSE_LOCATION):
             params[WAREHOUSE_LOCATION] = warehouse_location
 
-        response = self._session.get(self.url(Endpoints.get_config, prefixed=False), params=params)
+        with self._create_session() as session:
+            response = session.get(self.url(Endpoints.get_config, prefixed=False), params=params)
         try:
             response.raise_for_status()
         except HTTPError as exc:
@@ -349,7 +348,7 @@ class RestCatalog(Catalog):
 
         raise exception(response) from exc
 
-    def _init_sigv4(self) -> None:
+    def _init_sigv4(self, session: Session) -> None:
         from urllib import parse
 
         import boto3
@@ -364,14 +363,13 @@ class RestCatalog(Catalog):
                 self._properties = properties
 
             def add_headers(self, request: PreparedRequest, **kwargs: Any) -> None:  # pylint: disable=W0613
-                session = boto3.Session()
-                credentials = session.get_credentials()
-                creds = credentials.get_frozen_credentials()
-                region = self._properties.get(SIGV4_REGION, session.region_name)
+                boto_session = boto3.Session()
+                credentials = boto_session.get_credentials().get_frozen_credentials()
+                region = self._properties.get(SIGV4_REGION, boto_session.region_name)
                 service = self._properties.get(SIGV4_SERVICE, "execute-api")
 
                 url = str(request.url).split("?")[0]
-                query: str = str(parse.urlsplit(request.url).query)
+                query = str(parse.urlsplit(request.url).query)
                 params = dict(parse.parse_qsl(query))
 
                 # remove the connection header as it will be updated after signing
@@ -381,7 +379,7 @@ class RestCatalog(Catalog):
                     method=request.method, url=url, params=params, data=request.body, headers=dict(request.headers)
                 )
 
-                SigV4Auth(creds, service, region).add_auth(aws_request)
+                SigV4Auth(credentials, service, region).add_auth(aws_request)
                 original_header = request.headers
                 signed_headers = aws_request.headers
                 relocated_headers = {}
@@ -394,7 +392,7 @@ class RestCatalog(Catalog):
                 request.headers.update(relocated_headers)
                 request.headers.update(signed_headers)
 
-        self._session.mount(self.uri, SigV4Adapter())
+        session.mount(self.uri, SigV4Adapter(**self.properties))
 
     def create_table(
         self,
