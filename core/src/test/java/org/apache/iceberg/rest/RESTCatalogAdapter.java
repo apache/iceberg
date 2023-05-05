@@ -366,11 +366,7 @@ public class RESTCatalogAdapter implements RESTClient {
   private void dropNamespace(Map<String, String> vars) {
     Namespace namespace = namespaceFromPathVars(vars);
     boolean cascade = PropertyUtil.propertyAsBoolean(vars, "cascade", false);
-    if (cascade) {
-      CatalogHandlers.dropNamespace(asNamespaceCatalog, namespace, true);
-    } else {
-      CatalogHandlers.dropNamespace(asNamespaceCatalog, namespace);
-    }
+    CatalogHandlers.dropNamespace(asNamespaceCatalog, namespace, cascade);
   }
 
   public <T extends RESTResponse> T execute(
