@@ -116,7 +116,7 @@ public class S3FileIO
    * <p>Calling {@link S3FileIO#initialize(Map)} will overwrite information set in this constructor.
    *
    * @param s3 s3 supplier
-   * @param s3FileIOProperties S3FileIOProperties
+   * @param s3FileIOProperties S3 FileIO properties
    */
   public S3FileIO(SerializableSupplier<S3Client> s3, S3FileIOProperties s3FileIOProperties) {
     this.s3 = s3;
