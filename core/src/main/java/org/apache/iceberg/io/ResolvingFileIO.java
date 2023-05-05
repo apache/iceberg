@@ -18,14 +18,17 @@
  */
 package org.apache.iceberg.io;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.HadoopConfigurable;
 import org.apache.iceberg.hadoop.SerializableConfiguration;
+import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -46,6 +49,8 @@ public class ResolvingFileIO implements FileIO, HadoopConfigurable {
           "s3n", S3_FILE_IO_IMPL);
 
   private final Map<String, FileIO> ioInstances = Maps.newHashMap();
+  private final AtomicBoolean isClosed = new AtomicBoolean(false);
+  private final transient StackTraceElement[] createStack;
   private SerializableMap<String, String> properties;
   private SerializableSupplier<Configuration> hadoopConf;
 
@@ -54,7 +59,9 @@ public class ResolvingFileIO implements FileIO, HadoopConfigurable {
    *
    * <p>All fields are initialized by calling {@link ResolvingFileIO#initialize(Map)} later.
    */
-  public ResolvingFileIO() {}
+  public ResolvingFileIO() {
+    createStack = Thread.currentThread().getStackTrace();
+  }
 
   @Override
   public InputFile newInputFile(String location) {
@@ -85,19 +92,22 @@ public class ResolvingFileIO implements FileIO, HadoopConfigurable {
   public void initialize(Map<String, String> newProperties) {
     close(); // close and discard any existing FileIO instances
     this.properties = SerializableMap.copyOf(newProperties);
+    isClosed.set(false);
   }
 
   @Override
   public void close() {
-    List<FileIO> instances = Lists.newArrayList();
+    if (isClosed.compareAndSet(false, true)) {
+      List<FileIO> instances = Lists.newArrayList();
 
-    synchronized (ioInstances) {
-      instances.addAll(ioInstances.values());
-      ioInstances.clear();
-    }
+      synchronized (ioInstances) {
+        instances.addAll(ioInstances.values());
+        ioInstances.clear();
+      }
 
-    for (FileIO io : instances) {
-      io.close();
+      for (FileIO io : instances) {
+        io.close();
+      }
     }
   }
 
@@ -185,5 +195,20 @@ public class ResolvingFileIO implements FileIO, HadoopConfigurable {
     }
 
     return null;
+  }
+
+  @SuppressWarnings("checkstyle:NoFinalizer")
+  @Override
+  protected void finalize() throws Throwable {
+    super.finalize();
+    if (!isClosed.get()) {
+      close();
+
+      if (null != createStack) {
+        String trace =
+            Joiner.on("\n\t").join(Arrays.copyOfRange(createStack, 1, createStack.length));
+        LOG.warn("Unclosed ResolvingFileIO instance created by:\n\t{}", trace);
+      }
+    }
   }
 }
