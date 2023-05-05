@@ -23,6 +23,7 @@ import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.DeleteOrphanFiles;
 import org.apache.iceberg.actions.DeleteOrphanFiles.PrefixMismatchMode;
+import org.apache.iceberg.io.SupportsBulkOperations;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -39,6 +40,8 @@ import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.unsafe.types.UTF8String;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import scala.runtime.BoxedUnit;
 
 /**
@@ -47,6 +50,7 @@ import scala.runtime.BoxedUnit;
  * @see SparkActions#deleteOrphanFiles(Table)
  */
 public class RemoveOrphanFilesProcedure extends BaseProcedure {
+  private static final Logger LOG = LoggerFactory.getLogger(RemoveOrphanFilesProcedure.class);
 
   private static final ProcedureParameter[] PARAMETERS =
       new ProcedureParameter[] {
@@ -154,7 +158,17 @@ public class RemoveOrphanFilesProcedure extends BaseProcedure {
           }
 
           if (maxConcurrentDeletes != null) {
-            action.executeDeleteWith(executorService(maxConcurrentDeletes, "remove-orphans"));
+            if (table.io() instanceof SupportsBulkOperations) {
+              LOG.warn(
+                  "max_concurrent_deletes only works with FileIOs that do not support bulk deletes. This"
+                      + "table is currently using {} which supports bulk deletes so the parameter will be ignored. "
+                      + "See that IO's documentation to learn how to adjust parallelism for that particular "
+                      + "IO's bulk delete.",
+                  table.io().getClass().getName());
+            } else {
+
+              action.executeDeleteWith(executorService(maxConcurrentDeletes, "remove-orphans"));
+            }
           }
 
           if (fileListView != null) {

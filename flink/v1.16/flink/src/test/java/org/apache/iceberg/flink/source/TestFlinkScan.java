@@ -28,6 +28,7 @@ import java.util.Map;
 import org.apache.flink.test.util.MiniClusterWithClientResource;
 import org.apache.flink.types.Row;
 import org.apache.iceberg.AppendFiles;
+import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
@@ -87,7 +88,12 @@ public abstract class TestFlinkScan {
 
   protected abstract List<Row> runWithProjection(String... projected) throws Exception;
 
-  protected abstract List<Row> runWithFilter(Expression filter, String sqlFilter) throws Exception;
+  protected abstract List<Row> runWithFilter(
+      Expression filter, String sqlFilter, boolean caseSensitive) throws Exception;
+
+  protected List<Row> runWithFilter(Expression filter, String sqlFilter) throws Exception {
+    return runWithFilter(filter, sqlFilter, true);
+  }
 
   protected abstract List<Row> runWithOptions(Map<String, String> options) throws Exception;
 
@@ -230,6 +236,149 @@ public abstract class TestFlinkScan {
   }
 
   @Test
+  public void testTagReads() throws Exception {
+    Table table =
+        catalogResource.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, TestFixtures.SCHEMA);
+
+    GenericAppenderHelper helper = new GenericAppenderHelper(table, fileFormat, TEMPORARY_FOLDER);
+
+    List<Record> expectedRecords1 = RandomGenericData.generate(TestFixtures.SCHEMA, 1, 0L);
+    helper.appendToTable(expectedRecords1);
+    long snapshotId = table.currentSnapshot().snapshotId();
+
+    table.manageSnapshots().createTag("t1", snapshotId).commit();
+
+    TestHelpers.assertRecords(
+        runWithOptions(ImmutableMap.of("tag", "t1")), expectedRecords1, TestFixtures.SCHEMA);
+
+    List<Record> expectedRecords2 = RandomGenericData.generate(TestFixtures.SCHEMA, 1, 0L);
+    helper.appendToTable(expectedRecords2);
+    snapshotId = table.currentSnapshot().snapshotId();
+
+    table.manageSnapshots().replaceTag("t1", snapshotId).commit();
+
+    List<Record> expectedRecords = Lists.newArrayList();
+    expectedRecords.addAll(expectedRecords1);
+    expectedRecords.addAll(expectedRecords2);
+    TestHelpers.assertRecords(
+        runWithOptions(ImmutableMap.of("tag", "t1")), expectedRecords, TestFixtures.SCHEMA);
+  }
+
+  @Test
+  public void testBranchReads() throws Exception {
+    Table table =
+        catalogResource.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, TestFixtures.SCHEMA);
+
+    GenericAppenderHelper helper = new GenericAppenderHelper(table, fileFormat, TEMPORARY_FOLDER);
+
+    List<Record> expectedRecordsBase = RandomGenericData.generate(TestFixtures.SCHEMA, 1, 0L);
+    helper.appendToTable(expectedRecordsBase);
+    long snapshotId = table.currentSnapshot().snapshotId();
+
+    String branchName = "b1";
+    table.manageSnapshots().createBranch(branchName, snapshotId).commit();
+
+    List<Record> expectedRecordsForBranch = RandomGenericData.generate(TestFixtures.SCHEMA, 1, 0L);
+    helper.appendToTable(branchName, expectedRecordsForBranch);
+
+    List<Record> expectedRecordsForMain = RandomGenericData.generate(TestFixtures.SCHEMA, 1, 0L);
+    helper.appendToTable(expectedRecordsForMain);
+
+    List<Record> branchExpectedRecords = Lists.newArrayList();
+    branchExpectedRecords.addAll(expectedRecordsBase);
+    branchExpectedRecords.addAll(expectedRecordsForBranch);
+
+    TestHelpers.assertRecords(
+        runWithOptions(ImmutableMap.of("branch", branchName)),
+        branchExpectedRecords,
+        TestFixtures.SCHEMA);
+
+    List<Record> mainExpectedRecords = Lists.newArrayList();
+    mainExpectedRecords.addAll(expectedRecordsBase);
+    mainExpectedRecords.addAll(expectedRecordsForMain);
+
+    TestHelpers.assertRecords(run(), mainExpectedRecords, TestFixtures.SCHEMA);
+  }
+
+  @Test
+  public void testIncrementalReadViaTag() throws Exception {
+    Table table =
+        catalogResource.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, TestFixtures.SCHEMA);
+
+    GenericAppenderHelper helper = new GenericAppenderHelper(table, fileFormat, TEMPORARY_FOLDER);
+
+    List<Record> records1 = RandomGenericData.generate(TestFixtures.SCHEMA, 1, 0L);
+    helper.appendToTable(records1);
+    long snapshotId1 = table.currentSnapshot().snapshotId();
+    String startTag = "t1";
+    table.manageSnapshots().createTag(startTag, snapshotId1).commit();
+
+    List<Record> records2 = RandomGenericData.generate(TestFixtures.SCHEMA, 1, 1L);
+    helper.appendToTable(records2);
+
+    List<Record> records3 = RandomGenericData.generate(TestFixtures.SCHEMA, 1, 2L);
+    helper.appendToTable(records3);
+    long snapshotId3 = table.currentSnapshot().snapshotId();
+    String endTag = "t2";
+    table.manageSnapshots().createTag(endTag, snapshotId3).commit();
+
+    helper.appendToTable(RandomGenericData.generate(TestFixtures.SCHEMA, 1, 3L));
+
+    List<Record> expected = Lists.newArrayList();
+    expected.addAll(records2);
+    expected.addAll(records3);
+
+    TestHelpers.assertRecords(
+        runWithOptions(
+            ImmutableMap.<String, String>builder()
+                .put("start-tag", startTag)
+                .put("end-tag", endTag)
+                .buildOrThrow()),
+        expected,
+        TestFixtures.SCHEMA);
+
+    TestHelpers.assertRecords(
+        runWithOptions(
+            ImmutableMap.<String, String>builder()
+                .put("start-snapshot-id", Long.toString(snapshotId1))
+                .put("end-tag", endTag)
+                .buildOrThrow()),
+        expected,
+        TestFixtures.SCHEMA);
+
+    TestHelpers.assertRecords(
+        runWithOptions(
+            ImmutableMap.<String, String>builder()
+                .put("start-tag", startTag)
+                .put("end-snapshot-id", Long.toString(snapshotId3))
+                .buildOrThrow()),
+        expected,
+        TestFixtures.SCHEMA);
+
+    AssertHelpers.assertThrows(
+        "START_SNAPSHOT_ID and START_TAG cannot both be set.",
+        Exception.class,
+        () ->
+            runWithOptions(
+                ImmutableMap.<String, String>builder()
+                    .put("start-tag", startTag)
+                    .put("end-tag", endTag)
+                    .put("start-snapshot-id", Long.toString(snapshotId1))
+                    .buildOrThrow()));
+
+    AssertHelpers.assertThrows(
+        "END_SNAPSHOT_ID and END_TAG cannot both be set.",
+        Exception.class,
+        () ->
+            runWithOptions(
+                ImmutableMap.<String, String>builder()
+                    .put("start-tag", startTag)
+                    .put("end-tag", endTag)
+                    .put("end-snapshot-id", Long.toString(snapshotId3))
+                    .buildOrThrow()));
+  }
+
+  @Test
   public void testIncrementalRead() throws Exception {
     Table table =
         catalogResource.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, TestFixtures.SCHEMA);
@@ -265,7 +414,7 @@ public abstract class TestFlinkScan {
   }
 
   @Test
-  public void testFilterExp() throws Exception {
+  public void testFilterExpPartition() throws Exception {
     Table table =
         catalogResource
             .catalog()
@@ -284,9 +433,41 @@ public abstract class TestFlinkScan {
             RandomGenericData.generate(TestFixtures.SCHEMA, 2, 0L));
     helper.appendToTable(dataFile1, dataFile2);
     TestHelpers.assertRecords(
-        runWithFilter(Expressions.equal("dt", "2020-03-20"), "where dt='2020-03-20'"),
+        runWithFilter(Expressions.equal("dt", "2020-03-20"), "where dt='2020-03-20'", true),
         expectedRecords,
         TestFixtures.SCHEMA);
+  }
+
+  private void testFilterExp(Expression filter, String sqlFilter, boolean caseSensitive)
+      throws Exception {
+    Table table =
+        catalogResource.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, TestFixtures.SCHEMA);
+
+    List<Record> expectedRecords = RandomGenericData.generate(TestFixtures.SCHEMA, 3, 0L);
+    expectedRecords.get(0).set(0, "a");
+    expectedRecords.get(1).set(0, "b");
+    expectedRecords.get(2).set(0, "c");
+
+    GenericAppenderHelper helper = new GenericAppenderHelper(table, fileFormat, TEMPORARY_FOLDER);
+    DataFile dataFile = helper.writeFile(expectedRecords);
+    helper.appendToTable(dataFile);
+
+    List<Row> actual =
+        runWithFilter(Expressions.greaterThanOrEqual("data", "b"), "where data>='b'", true);
+
+    TestHelpers.assertRecords(actual, expectedRecords.subList(1, 3), TestFixtures.SCHEMA);
+  }
+
+  @Test
+  public void testFilterExp() throws Exception {
+    testFilterExp(Expressions.greaterThanOrEqual("data", "b"), "where data>='b'", true);
+  }
+
+  @Test
+  public void testFilterExpCaseInsensitive() throws Exception {
+    // sqlFilter does not support case-insensitive filtering:
+    // https://issues.apache.org/jira/browse/FLINK-16175
+    testFilterExp(Expressions.greaterThanOrEqual("DATA", "b"), "where data>='b'", false);
   }
 
   @Test

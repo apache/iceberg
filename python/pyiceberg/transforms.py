@@ -42,14 +42,18 @@ from pyiceberg.expressions import (
     BoundLessThanOrEqual,
     BoundLiteralPredicate,
     BoundNotIn,
+    BoundNotStartsWith,
     BoundPredicate,
     BoundSetPredicate,
+    BoundStartsWith,
     BoundTerm,
     BoundUnaryPredicate,
     EqualTo,
     GreaterThanOrEqual,
     LessThanOrEqual,
+    NotStartsWith,
     Reference,
+    StartsWith,
     UnboundPredicate,
 )
 from pyiceberg.expressions.literals import (
@@ -600,9 +604,6 @@ class TruncateTransform(Transform[S, S]):
         if isinstance(pred.term, BoundTransform):
             return _project_transform_predicate(self, name, pred)
 
-        # Implement startswith and notstartswith for string (and probably binary)
-        # https://github.com/apache/iceberg/issues/6112
-
         if isinstance(pred, BoundUnaryPredicate):
             return pred.as_unbound(Reference(name))
         elif isinstance(pred, BoundIn):
@@ -708,10 +709,10 @@ def _(_type: IcebergType, value: int) -> str:
 class UnknownTransform(Transform[S, T]):
     """A transform that represents when an unknown transform is provided
     Args:
-      source_type (IcebergType): An Iceberg `Type`
       transform (str): A string name of a transform
-    Raises:
-      AttributeError: If the apply method is called.
+
+    Keyword Args:
+      source_type (IcebergType): An Iceberg `Type`
     """
 
     __root__: LiteralType["unknown"] = Field(default="unknown")  # noqa: F821
@@ -794,6 +795,10 @@ def _truncate_array(
         return GreaterThanOrEqual(Reference(name), _transform_literal(transform, boundary))
     if isinstance(pred, BoundEqualTo):
         return EqualTo(Reference(name), _transform_literal(transform, boundary))
+    elif isinstance(pred, BoundStartsWith):
+        return StartsWith(Reference(name), _transform_literal(transform, boundary))
+    elif isinstance(pred, BoundNotStartsWith):
+        return NotStartsWith(Reference(name), _transform_literal(transform, boundary))
     else:
         return None
 

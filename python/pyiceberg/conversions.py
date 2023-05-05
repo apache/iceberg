@@ -38,6 +38,7 @@ from typing import (
     Union,
 )
 
+from pyiceberg.typedef import L
 from pyiceberg.types import (
     BinaryType,
     BooleanType,
@@ -87,8 +88,8 @@ def partition_to_py(primitive_type: PrimitiveType, value_str: str) -> Union[int,
     """A generic function which converts a partition string to a python built-in
 
     Args:
-        primitive_type(PrimitiveType): An implementation of the PrimitiveType base class
-        value_str(str): A string representation of a partition value
+        primitive_type (PrimitiveType): An implementation of the PrimitiveType base class
+        value_str (str): A string representation of a partition value
     """
     raise TypeError(f"Cannot convert '{value_str}' to unsupported type: {primitive_type}")
 
@@ -157,7 +158,7 @@ def to_bytes(primitive_type: PrimitiveType, _: Union[bool, bytes, Decimal, float
     can be found at https://iceberg.apache.org/spec/#appendix-d-single-value-serialization
 
     Args:
-        primitive_type(PrimitiveType): An implementation of the PrimitiveType base class
+        primitive_type (PrimitiveType): An implementation of the PrimitiveType base class
         _: The value to convert to bytes (The type of this value depends on which dispatched function is
             used--check dispatchable functions for type hints)
     """
@@ -229,9 +230,9 @@ def _(primitive_type: DecimalType, value: Decimal) -> bytes:
         bytes: The byte representation of `value`
     """
     _, digits, exponent = value.as_tuple()
-
-    if -exponent != primitive_type.scale:
-        raise ValueError(f"Cannot serialize value, scale of value does not match type {primitive_type}: {-exponent}")
+    exponent = abs(int(exponent))
+    if exponent != primitive_type.scale:
+        raise ValueError(f"Cannot serialize value, scale of value does not match type {primitive_type}: {exponent}")
     elif len(digits) > primitive_type.precision:
         raise ValueError(
             f"Cannot serialize value, precision of value is greater than precision of type {primitive_type}: {len(digits)}"
@@ -241,12 +242,12 @@ def _(primitive_type: DecimalType, value: Decimal) -> bytes:
 
 
 @singledispatch
-def from_bytes(primitive_type: PrimitiveType, b: bytes) -> Union[bool, bytes, Decimal, float, int, str, uuid.UUID]:
+def from_bytes(primitive_type: PrimitiveType, b: bytes) -> L:
     """A generic function which converts bytes to a built-in python value
 
     Args:
-        primitive_type(PrimitiveType): An implementation of the PrimitiveType base class
-        b(bytes): The bytes to convert
+        primitive_type (PrimitiveType): An implementation of the PrimitiveType base class
+        b (bytes): The bytes to convert
     """
     raise TypeError(f"Cannot deserialize bytes, type {primitive_type} not supported: {str(b)}")
 

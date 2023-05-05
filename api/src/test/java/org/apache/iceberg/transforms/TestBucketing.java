@@ -27,12 +27,12 @@ import java.nio.charset.StandardCharsets;
 import java.util.Random;
 import java.util.UUID;
 import org.apache.avro.util.Utf8;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.relocated.com.google.common.hash.HashFunction;
 import org.apache.iceberg.relocated.com.google.common.hash.Hashing;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.BucketUtil;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -358,11 +358,9 @@ public class TestBucketing {
 
   @Test
   public void testVerifiedIllegalNumBuckets() {
-    AssertHelpers.assertThrows(
-        "Should fail if numBucket is less than or equal to zero",
-        IllegalArgumentException.class,
-        "Invalid number of buckets: 0 (must be > 0)",
-        () -> Bucket.get(0));
+    Assertions.assertThatThrownBy(() -> Bucket.get(0))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid number of buckets: 0 (must be > 0)");
   }
 
   private byte[] randomBytes(int length) {

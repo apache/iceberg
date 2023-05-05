@@ -65,6 +65,7 @@ import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.spark.SparkTestBase;
+import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.iceberg.spark.actions.SparkActions;
 import org.apache.iceberg.spark.data.TestHelpers;
 import org.apache.iceberg.types.Types;
@@ -1009,6 +1010,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
         .write()
         .format("iceberg")
         .mode("append")
+        .option(SparkWriteOptions.DISTRIBUTION_MODE, TableProperties.WRITE_DISTRIBUTION_MODE_NONE)
         .save(loadLocation(tableIdentifier));
 
     table.updateProperties().set(TableProperties.FORMAT_VERSION, "2").commit();
@@ -1249,8 +1251,8 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
 
     Types.StructType expectedSchema =
         Types.StructType.of(
-            required(2, "record_count", Types.LongType.get()),
-            required(3, "file_count", Types.IntegerType.get()));
+            required(2, "record_count", Types.LongType.get(), "Count of records in data files"),
+            required(3, "file_count", Types.IntegerType.get(), "Count of data files"));
 
     Table partitionsTable = loadTable(tableIdentifier, "partitions");
 

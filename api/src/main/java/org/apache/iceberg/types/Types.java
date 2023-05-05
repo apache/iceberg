@@ -53,8 +53,9 @@ public class Types {
           .put(BinaryType.get().toString(), BinaryType.get())
           .buildOrThrow();
 
-  private static final Pattern FIXED = Pattern.compile("fixed\\[(\\d+)\\]");
-  private static final Pattern DECIMAL = Pattern.compile("decimal\\((\\d+),\\s+(\\d+)\\)");
+  private static final Pattern FIXED = Pattern.compile("fixed\\[\\s*(\\d+)\\s*\\]");
+  private static final Pattern DECIMAL =
+      Pattern.compile("decimal\\(\\s*(\\d+)\\s*,\\s*(\\d+)\\s*\\)");
 
   public static PrimitiveType fromPrimitiveString(String typeString) {
     String lowerTypeString = typeString.toLowerCase(Locale.ROOT);

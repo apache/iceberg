@@ -40,7 +40,6 @@ import java.util.UUID;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.SerializationUtils;
 import org.apache.hadoop.conf.Configurable;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.Schema;
@@ -61,18 +60,20 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.SerializableSupplier;
+import org.assertj.core.api.Assertions;
+import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Ignore;
 import org.junit.Test;
-import org.junit.jupiter.api.Assertions;
 import org.junit.runner.RunWith;
 import org.mockito.junit.MockitoJUnitRunner;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.BucketAlreadyExistsException;
 import software.amazon.awssdk.services.s3.model.CreateBucketRequest;
 import software.amazon.awssdk.services.s3.model.DeleteObjectsRequest;
 import software.amazon.awssdk.services.s3.model.DeleteObjectsResponse;
@@ -88,6 +89,7 @@ public class TestS3FileIO {
   private final String batchDeletionBucketPrefix = "batch-delete-";
   private final int batchDeletionSize = 5;
   private S3FileIO s3FileIO;
+
   private final Map<String, String> properties =
       ImmutableMap.of(
           "s3.write.tags.tagKey1",
@@ -99,13 +101,18 @@ public class TestS3FileIO {
   public void before() {
     s3FileIO = new S3FileIO(() -> s3mock);
     s3FileIO.initialize(properties);
-    s3.get().createBucket(CreateBucketRequest.builder().bucket("bucket").build());
+    createBucket("bucket");
     for (int i = 1; i <= numBucketsForBatchDeletion; i++) {
-      s3.get()
-          .createBucket(
-              CreateBucketRequest.builder().bucket(batchDeletionBucketPrefix + i).build());
+      createBucket(batchDeletionBucketPrefix + i);
     }
     StaticClientFactory.client = s3mock;
+  }
+
+  @After
+  public void after() {
+    if (null != s3FileIO) {
+      s3FileIO.close();
+    }
   }
 
   @Test
@@ -177,11 +184,9 @@ public class TestS3FileIO {
             .build();
     doReturn(deleteObjectsResponse).when(s3mock).deleteObjects((DeleteObjectsRequest) any());
 
-    AssertHelpers.assertThrows(
-        "A failure during S3 DeleteObjects call should result in FileIODeleteException",
-        BulkDeletionFailureException.class,
-        "Failed to delete 1 file",
-        () -> s3FileIO.deleteFiles(Lists.newArrayList(location)));
+    Assertions.assertThatThrownBy(() -> s3FileIO.deleteFiles(Lists.newArrayList(location)))
+        .isInstanceOf(BulkDeletionFailureException.class)
+        .hasMessage("Failed to delete 1 files");
   }
 
   private void testBatchDelete(int numObjects) {
@@ -238,7 +243,7 @@ public class TestS3FileIO {
             });
 
     long totalFiles = scaleSizes.stream().mapToLong(Integer::longValue).sum();
-    Assertions.assertEquals(totalFiles, Streams.stream(s3FileIO.listPrefix(prefix)).count());
+    assertEquals(totalFiles, Streams.stream(s3FileIO.listPrefix(prefix)).count());
   }
 
   /**
@@ -265,11 +270,10 @@ public class TestS3FileIO {
   public void testReadMissingLocation() {
     String location = "s3://bucket/path/to/data.parquet";
     InputFile in = s3FileIO.newInputFile(location);
-    AssertHelpers.assertThrows(
-        "Should fail with NotFoundException",
-        NotFoundException.class,
-        "Location does not exist",
-        () -> in.newStream().read());
+
+    Assertions.assertThatThrownBy(() -> in.newStream().read())
+        .isInstanceOf(NotFoundException.class)
+        .hasMessage("Location does not exist: " + location);
   }
 
   @Test
@@ -297,13 +301,11 @@ public class TestS3FileIO {
       long start = System.currentTimeMillis();
       // to test NotFoundException, load the table again. refreshing the existing table doesn't
       // require reading metadata
-      AssertHelpers.assertThrows(
-          "Should fail to refresh",
-          NotFoundException.class,
-          "Location does not exist",
-          () -> catalog.loadTable(ident));
-      long duration = System.currentTimeMillis() - start;
+      Assertions.assertThatThrownBy(() -> catalog.loadTable(ident))
+          .isInstanceOf(NotFoundException.class)
+          .hasMessageStartingWith("Location does not exist");
 
+      long duration = System.currentTimeMillis() - start;
       Assert.assertTrue("Should take less than 10 seconds", duration < 10_000);
     }
   }
@@ -368,5 +370,13 @@ public class TestS3FileIO {
                 s3mock.putObject(
                     builder -> builder.bucket(s3URI.bucket()).key(s3URI.key() + i).build(),
                     RequestBody.empty()));
+  }
+
+  private void createBucket(String bucketName) {
+    try {
+      s3.get().createBucket(CreateBucketRequest.builder().bucket(bucketName).build());
+    } catch (BucketAlreadyExistsException e) {
+      // do nothing
+    }
   }
 }

@@ -18,8 +18,8 @@
  */
 package org.apache.iceberg.metrics;
 
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Map;
+import javax.annotation.Nullable;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.metrics.MetricsContext.Unit;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;

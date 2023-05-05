@@ -20,24 +20,13 @@ package org.apache.iceberg.spark.source;
 
 import static org.apache.iceberg.IsolationLevel.SERIALIZABLE;
 import static org.apache.iceberg.IsolationLevel.SNAPSHOT;
-import static org.apache.iceberg.TableProperties.COMMIT_MAX_RETRY_WAIT_MS;
-import static org.apache.iceberg.TableProperties.COMMIT_MAX_RETRY_WAIT_MS_DEFAULT;
-import static org.apache.iceberg.TableProperties.COMMIT_MIN_RETRY_WAIT_MS;
-import static org.apache.iceberg.TableProperties.COMMIT_MIN_RETRY_WAIT_MS_DEFAULT;
-import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES;
-import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES_DEFAULT;
-import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS;
-import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.iceberg.AppendFiles;
-import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
@@ -63,14 +52,11 @@ import org.apache.iceberg.io.OutputFileFactory;
 import org.apache.iceberg.io.PartitioningWriter;
 import org.apache.iceberg.io.RollingDataWriter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.CommitMetadata;
 import org.apache.iceberg.spark.FileRewriteCoordinator;
 import org.apache.iceberg.spark.SparkWriteConf;
-import org.apache.iceberg.util.PropertyUtil;
-import org.apache.iceberg.util.Tasks;
-import org.apache.iceberg.util.ThreadPools;
 import org.apache.spark.TaskContext;
 import org.apache.spark.TaskContext$;
 import org.apache.spark.api.java.JavaSparkContext;
@@ -105,6 +91,8 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
   private final String applicationId;
   private final boolean wapEnabled;
   private final String wapId;
+  private final int outputSpecId;
+  private final String branch;
   private final long targetFileSize;
   private final Schema writeSchema;
   private final StructType dsSchema;
@@ -133,6 +121,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
     this.applicationId = applicationId;
     this.wapEnabled = writeConf.wapEnabled();
     this.wapId = writeConf.wapId();
+    this.branch = writeConf.branch();
     this.targetFileSize = writeConf.targetDataFileSize();
     this.writeSchema = writeSchema;
     this.dsSchema = dsSchema;
@@ -140,6 +129,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
     this.partitionedFanoutEnabled = writeConf.fanoutWriterEnabled();
     this.requiredDistribution = requiredDistribution;
     this.requiredOrdering = requiredOrdering;
+    this.outputSpecId = writeConf.outputSpecId();
   }
 
   @Override
@@ -189,6 +179,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
         tableBroadcast,
         queryId,
         format,
+        outputSpecId,
         targetFileSize,
         writeSchema,
         dsSchema,
@@ -216,6 +207,10 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
       operation.stageOnly();
     }
 
+    if (branch != null) {
+      operation.toBranch(branch);
+    }
+
     try {
       long start = System.currentTimeMillis();
       operation.commit(); // abort is automatically called if this fails
@@ -229,40 +224,23 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
 
   private void abort(WriterCommitMessage[] messages) {
     if (cleanupOnAbort) {
-      Map<String, String> props = table.properties();
-      Tasks.foreach(files(messages))
-          .executeWith(ThreadPools.getWorkerPool())
-          .retry(PropertyUtil.propertyAsInt(props, COMMIT_NUM_RETRIES, COMMIT_NUM_RETRIES_DEFAULT))
-          .exponentialBackoff(
-              PropertyUtil.propertyAsInt(
-                  props, COMMIT_MIN_RETRY_WAIT_MS, COMMIT_MIN_RETRY_WAIT_MS_DEFAULT),
-              PropertyUtil.propertyAsInt(
-                  props, COMMIT_MAX_RETRY_WAIT_MS, COMMIT_MAX_RETRY_WAIT_MS_DEFAULT),
-              PropertyUtil.propertyAsInt(
-                  props, COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT),
-              2.0 /* exponential */)
-          .throwFailureWhenFinished()
-          .run(
-              file -> {
-                table.io().deleteFile(file.path().toString());
-              });
+      SparkCleanupUtil.deleteFiles("job abort", table.io(), files(messages));
     } else {
-      LOG.warn(
-          "Skipping cleaning up of data files because Iceberg was unable to determine the final commit state");
+      LOG.warn("Skipping cleanup of written files");
     }
   }
 
-  private Iterable<DataFile> files(WriterCommitMessage[] messages) {
-    if (messages.length > 0) {
-      return Iterables.concat(
-          Iterables.transform(
-              Arrays.asList(messages),
-              message ->
-                  message != null
-                      ? ImmutableList.copyOf(((TaskCommit) message).files())
-                      : ImmutableList.of()));
+  private List<DataFile> files(WriterCommitMessage[] messages) {
+    List<DataFile> files = Lists.newArrayList();
+
+    for (WriterCommitMessage message : messages) {
+      if (message != null) {
+        TaskCommit taskCommit = (TaskCommit) message;
+        files.addAll(Arrays.asList(taskCommit.files()));
+      }
     }
-    return ImmutableList.of();
+
+    return files;
   }
 
   @Override
@@ -305,9 +283,9 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
   private class DynamicOverwrite extends BaseBatchWrite {
     @Override
     public void commit(WriterCommitMessage[] messages) {
-      Iterable<DataFile> files = files(messages);
+      List<DataFile> files = files(messages);
 
-      if (!files.iterator().hasNext()) {
+      if (files.isEmpty()) {
         LOG.info("Dynamic overwrite is empty, skipping commit");
         return;
       }
@@ -491,13 +469,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
     @Override
     public void commit(WriterCommitMessage[] messages) {
       FileRewriteCoordinator coordinator = FileRewriteCoordinator.get();
-
-      Set<DataFile> newDataFiles = Sets.newHashSetWithExpectedSize(messages.length);
-      for (DataFile file : files(messages)) {
-        newDataFiles.add(file);
-      }
-
-      coordinator.stageRewrite(table, fileSetID, Collections.unmodifiableSet(newDataFiles));
+      coordinator.stageRewrite(table, fileSetID, ImmutableSet.copyOf(files(messages)));
     }
   }
 
@@ -635,6 +607,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
   private static class WriterFactory implements DataWriterFactory, StreamingDataWriterFactory {
     private final Broadcast<Table> tableBroadcast;
     private final FileFormat format;
+    private final int outputSpecId;
     private final long targetFileSize;
     private final Schema writeSchema;
     private final StructType dsSchema;
@@ -645,12 +618,14 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
         Broadcast<Table> tableBroadcast,
         String queryId,
         FileFormat format,
+        int outputSpecId,
         long targetFileSize,
         Schema writeSchema,
         StructType dsSchema,
         boolean partitionedFanoutEnabled) {
       this.tableBroadcast = tableBroadcast;
       this.format = format;
+      this.outputSpecId = outputSpecId;
       this.targetFileSize = targetFileSize;
       this.writeSchema = writeSchema;
       this.dsSchema = dsSchema;
@@ -666,7 +641,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
     @Override
     public DataWriter<InternalRow> createWriter(int partitionId, long taskId, long epochId) {
       Table table = tableBroadcast.value();
-      PartitionSpec spec = table.spec();
+      PartitionSpec spec = table.specs().get(outputSpecId);
       FileIO io = table.io();
 
       OutputFileFactory fileFactory =
@@ -696,14 +671,6 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
             partitionedFanoutEnabled);
       }
     }
-  }
-
-  private static <T extends ContentFile<T>> void deleteFiles(FileIO io, List<T> files) {
-    Tasks.foreach(files)
-        .executeWith(ThreadPools.getWorkerPool())
-        .throwFailureWhenFinished()
-        .noRetry()
-        .run(file -> io.deleteFile(file.path().toString()));
   }
 
   private static class UnpartitionedDataWriter implements DataWriter<InternalRow> {
@@ -741,7 +708,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
       close();
 
       DataWriteResult result = delegate.result();
-      deleteFiles(io, result.dataFiles());
+      SparkCleanupUtil.deleteTaskFiles(io, result.dataFiles());
     }
 
     @Override
@@ -798,7 +765,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
       close();
 
       DataWriteResult result = delegate.result();
-      deleteFiles(io, result.dataFiles());
+      SparkCleanupUtil.deleteTaskFiles(io, result.dataFiles());
     }
 
     @Override

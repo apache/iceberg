@@ -206,6 +206,7 @@ the `expire_snapshots` procedure will never remove files which are still require
 | `retain_last` |    | int       | Number of ancestor snapshots to preserve regardless of `older_than` (defaults to 1) |
 | `max_concurrent_deletes` |    | int       | Size of the thread pool used for delete file actions (by default, no thread pool is used) |
 | `stream_results` |    | boolean       | When true, deletion files will be sent to Spark driver by RDD partition (by default, all the files will be sent to Spark driver). This option is recommended to set to `true` to prevent Spark driver OOM from large file size |
+| `snapshot_ids` |   | array of long       | Array of snapshot IDs to expire. |
 
 If `older_than` and `retain_last` are omitted, the table's [expiration properties](../configuration/#table-behavior-properties) will be used.
 
@@ -225,6 +226,12 @@ Remove snapshots older than specific day and time, but retain the last 100 snaps
 
 ```sql
 CALL hive_prod.system.expire_snapshots('db.sample', TIMESTAMP '2021-06-30 00:00:00.000', 100)
+```
+
+Remove snapshots with snapshot ID `123` (note that this snapshot ID should not be the current snapshot):
+
+```sql
+CALL hive_prod.system.expire_snapshots(table => 'db.sample', snapshot_ids => ARRAY(123))
 ```
 
 ### `remove_orphan_files`
@@ -462,16 +469,27 @@ will then treat these files as if they are part of the set of files  owned by Ic
 
 #### Usage
 
-| Argument Name | Required? | Type | Description |
-|---------------|-----------|------|-------------|
-| `table`       | ✔️  | string | Table which will have files added to|
-| `source_table`| ✔️  | string | Table where files should come from, paths are also possible in the form of \`file_format\`.\`path\` |
-| `partition_filter`  | ️   | map<string, string> | A map of partitions in the source table to import from |
+| Argument Name           | Required? | Type                | Description                                                                                         |
+|-------------------------|-----------|---------------------|-----------------------------------------------------------------------------------------------------|
+| `table`                 | ✔️        | string              | Table which will have files added to                                                                |
+| `source_table`          | ✔️        | string              | Table where files should come from, paths are also possible in the form of \`file_format\`.\`path\` |
+| `partition_filter`      | ️         | map<string, string> | A map of partitions in the source table to import from                                              |
+| `check_duplicate_files` | ️         | boolean             | Whether to prevent files existing in the table from being added (defaults to true)                  |
 
 Warning : Schema is not validated, adding files with different schema to the Iceberg table will cause issues.
 
 Warning : Files added by this method can be physically deleted by Iceberg operations
 
+#### Output
+
+| Output Name               | Type | Description                                       |
+|---------------------------|------|---------------------------------------------------|
+| `added_files_count`       | long | The number of files added by this command         |
+| `changed_partition_count` | long | The number of partitioned changed by this command |
+
+{{< hint warning >}}
+changed_partition_count will be 0 when table property `compatibility.snapshot-id-inheritance.enabled` is set to true
+{{< /hint >}}
 #### Examples
 
 Add the files from table `db.src_table`, a Hive or Spark table registered in the session Catalog, to Iceberg table
@@ -569,3 +587,119 @@ Get all the snapshot ancestors by a particular snapshot
 CALL spark_catalog.system.ancestors_of('db.tbl', 1)
 CALL spark_catalog.system.ancestors_of(snapshot_id => 1, table => 'db.tbl')
 ```
+
+## Change Data Capture 
+
+### `create_changelog_view`
+
+Creates a view that contains the changes from a given table. 
+
+#### Usage
+
+| Argument Name | Required? | Type | Description                                                                                                                                                                                                           |
+|---------------|----------|------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `table`       | ✔️ | string | Name of the source table for the changelog                                                                                                                                                                            |
+| `changelog_view`        |   | string | Name of the view to create                                                                                                                                                                                            |
+| `options`     |   | map<string, string> | A map of Spark read options to use                                                                                                                                                                                    |
+|`compute_updates`| | boolean | Whether to compute pre/post update images (see below for more information). Defaults to false.                                                                                                                        | 
+|`identifier_columns`| | array<string> | The list of identifier columns to compute updates. If the argument `compute_updates` is set to true and `identifier_columns` are not provided, the table’s current identifier fields will be used to compute updates. |
+|`remove_carryovers`| | boolean | Whether to remove carry-over rows (see below for more information). Defaults to true.                                                                                                                                 |
+
+Here is a list of commonly used Spark read options:
+* `start-snapshot-id`: the exclusive start snapshot ID. If not provided, it reads from the table’s first snapshot inclusively. 
+* `end-snapshot-id`: the inclusive end snapshot id, default to table's current snapshot.                                                                                                                                            
+* `start-timestamp`: the exclusive start timestamp. If not provided, it reads from the table’s first snapshot inclusively.
+* `end-timestamp`: the inclusive end timestamp, default to table's current snapshot.                                                                                  
+
+#### Output
+| Output Name | Type | Description                            |
+| ------------|------|----------------------------------------|
+| `changelog_view` | string | The name of the created changelog view |
+
+#### Examples
+
+Create a changelog view `tbl_changes` based on the changes that happened between snapshot `1` (exclusive) and `2` (inclusive).
+```sql
+CALL spark_catalog.system.create_changelog_view(
+  table => 'db.tbl',
+  options => map('start-snapshot-id','1','end-snapshot-id', '2')
+)
+```
+
+Create a changelog view `my_changelog_view` based on the changes that happened between timestamp `1678335750489` (exclusive) and `1678992105265` (inclusive).
+```sql
+CALL spark_catalog.system.create_changelog_view(
+  table => 'db.tbl',
+  options => map('start-timestamp','1678335750489','end-timestamp', '1678992105265'),
+  changelog_view => 'my_changelog_view'
+)
+```
+
+Create a changelog view that computes updates based on the identifier columns `id` and `name`.
+```sql
+CALL spark_catalog.system.create_changelog_view(
+  table => 'db.tbl',
+  options => map('start-snapshot-id','1','end-snapshot-id', '2'),
+  identifier_columns => array('id', 'name')
+)
+```
+
+Once the changelog view is created, you can query the view to see the changes that happened between the snapshots.
+```sql
+SELECT * FROM tbl_changes
+```
+```sql
+SELECT * FROM tbl_changes where _change_type = 'INSERT' AND id = 3 ORDER BY _change_ordinal
+``` 
+Please note that the changelog view includes Change Data Capture(CDC) metadata columns
+that provide additional information about the changes being tracked. These columns are:
+- `_change_type`: the type of change. It has one of the following values: `INSERT`, `DELETE`, `UPDATE_BEFORE`, or `UPDATE_AFTER`.
+- `_change_ordinal`: the order of changes
+- `_commit_snapshot_id`: the snapshot ID where the change occurred
+
+Here is an example of corresponding results. It shows that the first snapshot inserted 2 records, and the
+second snapshot deleted 1 record. 
+
+|  id	| name	  |_change_type |	_change_ordinal	| _change_snapshot_id |
+|---|--------|---|---|---|
+|1	| Alice	 |INSERT	|0	|5390529835796506035|
+|2	| Bob	   |INSERT	|0	|5390529835796506035|
+|1	| Alice  |DELETE	|1	|8764748981452218370|
+
+#### Carry-over Rows
+
+The procedure removes the carry-over rows by default. Carry-over rows are the result of row-level operations(`MERGE`, `UPDATE` and `DELETE`)
+when using copy-on-write. For example, given a file which contains row1 `(id=1, name='Alice')` and row2 `(id=2, name='Bob')`.
+A copy-on-write delete of row2 would require erasing this file and preserving row1 in a new file. The changelog table
+reports this as the following pair of rows, despite it not being an actual change to the table.
+
+| id  | name  | _change_type |
+|-----|-------|--------------|
+| 1   | Alice | DELETE       |
+| 1   | Alice | INSERT       |
+
+By default, this view finds the carry-over rows and removes them from the result. User can disable this
+behavior by setting the `remove_carryovers` option to `false`.
+
+#### Pre/Post Update Images
+
+The procedure computes the pre/post update images if configured. Pre/post update images are converted from a
+pair of a delete row and an insert row. Identifier columns are used for determining whether an insert and a delete record
+refer to the same row. If the two records share the same values for the identity columns they are considered to be before
+and after states of the same row. You can either set identifier fields in the table schema or input them as the procedure parameters.
+
+The following example shows pre/post update images computation with an identifier column(`id`), where a row deletion
+and an insertion with the same `id` are treated as a single update operation. Specifically, suppose we have the following pair of rows:
+
+| id  | name   | _change_type |
+|-----|--------|--------------|
+| 3   | Robert | DELETE       |
+| 3   | Dan    | INSERT       |
+
+In this case, the procedure marks the row before the update as an `UPDATE_BEFORE` image and the row after the update
+as an `UPDATE_AFTER` image, resulting in the following pre/post update images:
+
+| id  | name   | _change_type |
+|-----|--------|--------------|
+| 3   | Robert | UPDATE_BEFORE|
+| 3   | Dan    | UPDATE_AFTER |

@@ -25,7 +25,6 @@ import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.io.TestableCloseableIterable.TestableCloseableIterator;
 import org.apache.iceberg.metrics.Counter;
 import org.apache.iceberg.metrics.DefaultMetricsContext;
@@ -91,10 +90,9 @@ public class TestCloseableIterable {
     // This will throw a NoSuchElementException
     CloseableIterable<Integer> concat5 =
         CloseableIterable.concat(Lists.newArrayList(empty, empty, empty));
-    AssertHelpers.assertThrows(
-        "should throw NoSuchElementException",
-        NoSuchElementException.class,
-        () -> Iterables.getLast(concat5));
+
+    Assertions.assertThatThrownBy(() -> Iterables.getLast(concat5))
+        .isInstanceOf(NoSuchElementException.class);
   }
 
   @Test
@@ -195,10 +193,11 @@ public class TestCloseableIterable {
                   }
                 });
 
+    AtomicInteger consumedCounter = new AtomicInteger(0);
     try (CloseableIterable<Integer> concat = CloseableIterable.concat(transform)) {
-      concat.forEach(c -> c++);
+      concat.forEach(count -> consumedCounter.getAndIncrement());
     }
-    Assertions.assertThat(counter.get()).isEqualTo(items.size());
+    Assertions.assertThat(counter.get()).isEqualTo(items.size()).isEqualTo(consumedCounter.get());
   }
 
   @Test

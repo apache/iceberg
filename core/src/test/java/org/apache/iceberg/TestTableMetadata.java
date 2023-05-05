@@ -38,6 +38,7 @@ import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -162,6 +163,7 @@ public class TestTableMetadata {
             ImmutableMap.of("property", "value"),
             currentSnapshotId,
             Arrays.asList(previousSnapshot, currentSnapshot),
+            null,
             snapshotLog,
             ImmutableList.of(),
             refs,
@@ -283,6 +285,7 @@ public class TestTableMetadata {
             ImmutableMap.of("property", "value"),
             currentSnapshotId,
             Arrays.asList(previousSnapshot, currentSnapshot),
+            null,
             ImmutableList.of(),
             ImmutableList.of(),
             ImmutableMap.of(),
@@ -426,6 +429,7 @@ public class TestTableMetadata {
                 ImmutableMap.of("property", "value"),
                 currentSnapshotId,
                 Arrays.asList(previousSnapshot, currentSnapshot),
+                null,
                 snapshotLog,
                 ImmutableList.of(),
                 refs,
@@ -470,6 +474,7 @@ public class TestTableMetadata {
                 ImmutableMap.of("property", "value"),
                 -1,
                 ImmutableList.of(snapshot),
+                null,
                 ImmutableList.of(),
                 ImmutableList.of(),
                 refs,
@@ -509,6 +514,7 @@ public class TestTableMetadata {
                 ImmutableMap.of("property", "value"),
                 -1,
                 ImmutableList.of(),
+                null,
                 ImmutableList.of(),
                 ImmutableList.of(),
                 refs,
@@ -609,6 +615,7 @@ public class TestTableMetadata {
             ImmutableMap.of("property", "value"),
             currentSnapshotId,
             Arrays.asList(previousSnapshot, currentSnapshot),
+            null,
             reversedSnapshotLog,
             ImmutableList.copyOf(previousMetadataLog),
             ImmutableMap.of(),
@@ -687,6 +694,7 @@ public class TestTableMetadata {
             ImmutableMap.of("property", "value"),
             currentSnapshotId,
             Arrays.asList(previousSnapshot, currentSnapshot),
+            null,
             reversedSnapshotLog,
             ImmutableList.copyOf(previousMetadataLog),
             ImmutableMap.of(),
@@ -783,6 +791,7 @@ public class TestTableMetadata {
             ImmutableMap.of("property", "value"),
             currentSnapshotId,
             Arrays.asList(previousSnapshot, currentSnapshot),
+            null,
             reversedSnapshotLog,
             ImmutableList.copyOf(previousMetadataLog),
             ImmutableMap.of(),
@@ -885,6 +894,7 @@ public class TestTableMetadata {
             ImmutableMap.of("property", "value"),
             currentSnapshotId,
             Arrays.asList(previousSnapshot, currentSnapshot),
+            null,
             reversedSnapshotLog,
             ImmutableList.copyOf(previousMetadataLog),
             ImmutableMap.of(),
@@ -935,6 +945,7 @@ public class TestTableMetadata {
                 ImmutableMap.of(),
                 -1L,
                 ImmutableList.of(),
+                null,
                 ImmutableList.of(),
                 ImmutableList.of(),
                 ImmutableMap.of(),
@@ -968,6 +979,7 @@ public class TestTableMetadata {
                 ImmutableMap.of(),
                 -1L,
                 ImmutableList.of(),
+                null,
                 ImmutableList.of(),
                 ImmutableList.of(),
                 ImmutableMap.of(),
@@ -1560,6 +1572,19 @@ public class TestTableMetadata {
                 "/tmp",
                 ImmutableMap.of(TableProperties.UUID, "uuid"),
                 1));
+  }
+
+  @Test
+  public void testNoTrailingLocationSlash() {
+    String locationWithSlash = "/with_trailing_slash/";
+    String locationWithoutSlash = "/with_trailing_slash";
+    TableMetadata meta =
+        TableMetadata.newTableMetadata(
+            TEST_SCHEMA, SPEC_5, SORT_ORDER_3, locationWithSlash, Collections.emptyMap());
+    Assert.assertEquals(
+        "Metadata should never return a location ending in a slash",
+        locationWithoutSlash,
+        meta.location());
   }
 
   private String createManifestListWithManifestFile(

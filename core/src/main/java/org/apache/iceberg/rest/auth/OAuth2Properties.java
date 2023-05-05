@@ -35,6 +35,14 @@ public class OAuth2Properties {
 
   public static final long TOKEN_EXPIRES_IN_MS_DEFAULT = 3_600_000; // 1 hour
 
+  /**
+   * Controls whether a token should be refreshed if information about its expiration time is
+   * available
+   */
+  public static final String TOKEN_REFRESH_ENABLED = "token-refresh-enabled";
+
+  public static final boolean TOKEN_REFRESH_ENABLED_DEFAULT = true;
+
   /** Additional scope for OAuth2. */
   public static final String SCOPE = "scope";
 

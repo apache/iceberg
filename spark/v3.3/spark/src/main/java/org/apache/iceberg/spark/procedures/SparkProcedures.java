@@ -53,6 +53,7 @@ public class SparkProcedures {
     mapBuilder.put("ancestors_of", AncestorsOfProcedure::builder);
     mapBuilder.put("register_table", RegisterTableProcedure::builder);
     mapBuilder.put("publish_changes", PublishChangesProcedure::builder);
+    mapBuilder.put("create_changelog_view", CreateChangelogViewProcedure::builder);
     return mapBuilder.build();
   }
 

@@ -21,6 +21,8 @@ package org.apache.iceberg.actions;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.SupportsBulkOperations;
+import org.immutables.value.Value;
 
 /**
  * An action that deletes all files referenced by a table metadata file.
@@ -31,6 +33,7 @@ import org.apache.iceberg.io.FileIO;
  *
  * <p>Implementations may use a query engine to distribute parts of work.
  */
+@Value.Enclosing
 public interface DeleteReachableFiles
     extends Action<DeleteReachableFiles, DeleteReachableFiles.Result> {
 
@@ -44,9 +47,11 @@ public interface DeleteReachableFiles
   DeleteReachableFiles deleteWith(Consumer<String> deleteFunc);
 
   /**
-   * Passes an alternative executor service that will be used for files removal.
-   *
-   * <p>If this method is not called, files will be deleted in the current thread.
+   * Passes an alternative executor service that will be used for files removal. This service will
+   * only be used if a custom delete function is provided by {@link #deleteWith(Consumer)} or if the
+   * FileIO does not {@link SupportsBulkOperations support bulk deletes}. Otherwise, parallelism
+   * should be controlled by the IO specific {@link SupportsBulkOperations#deleteFiles(Iterable)
+   * deleteFiles} method.
    *
    * @param executorService the service to use
    * @return this for method chaining
@@ -62,6 +67,7 @@ public interface DeleteReachableFiles
   DeleteReachableFiles io(FileIO io);
 
   /** The action result that contains a summary of the execution. */
+  @Value.Immutable
   interface Result {
 
     /** Returns the number of deleted data files. */

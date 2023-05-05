@@ -18,10 +18,13 @@
  */
 package org.apache.iceberg.spark.data;
 
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.UUID;
 import org.apache.iceberg.parquet.ParquetValueReaders.ReusableEntry;
 import org.apache.iceberg.parquet.ParquetValueWriter;
 import org.apache.iceberg.parquet.ParquetValueWriters;
@@ -32,10 +35,12 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.DecimalUtil;
+import org.apache.iceberg.util.UUIDUtil;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.io.api.Binary;
-import org.apache.parquet.schema.DecimalMetadata;
 import org.apache.parquet.schema.GroupType;
+import org.apache.parquet.schema.LogicalTypeAnnotation;
+import org.apache.parquet.schema.LogicalTypeAnnotation.DecimalLogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
@@ -151,7 +156,8 @@ public class SparkParquetWriters {
           case TIMESTAMP_MICROS:
             return ParquetValueWriters.longs(desc);
           case DECIMAL:
-            DecimalMetadata decimal = primitive.getDecimalMetadata();
+            DecimalLogicalTypeAnnotation decimal =
+                (DecimalLogicalTypeAnnotation) primitive.getLogicalTypeAnnotation();
             switch (primitive.getPrimitiveTypeName()) {
               case INT32:
                 return decimalAsInteger(desc, decimal.getPrecision(), decimal.getScale());
@@ -175,6 +181,9 @@ public class SparkParquetWriters {
       switch (primitive.getPrimitiveTypeName()) {
         case FIXED_LEN_BYTE_ARRAY:
         case BINARY:
+          if (LogicalTypeAnnotation.uuidType().equals(primitive.getLogicalTypeAnnotation())) {
+            return uuids(desc);
+          }
           return byteArrays(desc);
         case BOOLEAN:
           return ParquetValueWriters.booleans(desc);
@@ -203,6 +212,10 @@ public class SparkParquetWriters {
 
   private static PrimitiveWriter<UTF8String> utf8Strings(ColumnDescriptor desc) {
     return new UTF8StringWriter(desc);
+  }
+
+  private static PrimitiveWriter<UTF8String> uuids(ColumnDescriptor desc) {
+    return new UUIDWriter(desc);
   }
 
   private static PrimitiveWriter<Decimal> decimalAsInteger(
@@ -312,6 +325,27 @@ public class SparkParquetWriters {
           DecimalUtil.toReusedFixLengthBytes(
               precision, scale, decimal.toJavaBigDecimal(), bytes.get());
       column.writeBinary(repetitionLevel, Binary.fromReusedByteArray(binary));
+    }
+  }
+
+  private static class UUIDWriter extends PrimitiveWriter<UTF8String> {
+    private static final ThreadLocal<ByteBuffer> BUFFER =
+        ThreadLocal.withInitial(
+            () -> {
+              ByteBuffer buffer = ByteBuffer.allocate(16);
+              buffer.order(ByteOrder.BIG_ENDIAN);
+              return buffer;
+            });
+
+    private UUIDWriter(ColumnDescriptor desc) {
+      super(desc);
+    }
+
+    @Override
+    public void write(int repetitionLevel, UTF8String string) {
+      UUID uuid = UUID.fromString(string.toString());
+      ByteBuffer buffer = UUIDUtil.convertToByteBuffer(uuid, BUFFER.get());
+      column.writeBinary(repetitionLevel, Binary.fromReusedByteBuffer(buffer));
     }
   }
 

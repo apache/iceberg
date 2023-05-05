@@ -34,6 +34,7 @@ import org.junit.ClassRule;
 import org.junit.Test;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.BucketAlreadyExistsException;
 import software.amazon.awssdk.services.s3.model.CreateBucketRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
@@ -45,7 +46,7 @@ public class TestS3InputStream {
 
   @Before
   public void before() {
-    s3.createBucket(CreateBucketRequest.builder().bucket("bucket").build());
+    createBucket("bucket");
   }
 
   @Test
@@ -184,5 +185,13 @@ public class TestS3InputStream {
             .contentLength((long) data.length)
             .build(),
         RequestBody.fromBytes(data));
+  }
+
+  private void createBucket(String bucketName) {
+    try {
+      s3.createBucket(CreateBucketRequest.builder().bucket(bucketName).build());
+    } catch (BucketAlreadyExistsException e) {
+      // don't do anything
+    }
   }
 }

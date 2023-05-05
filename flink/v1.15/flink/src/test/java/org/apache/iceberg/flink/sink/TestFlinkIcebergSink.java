@@ -22,14 +22,10 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
-import org.apache.flink.api.common.typeinfo.TypeInformation;
-import org.apache.flink.api.java.typeutils.RowTypeInfo;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.data.RowData;
-import org.apache.flink.table.data.util.DataFormatConverters;
 import org.apache.flink.test.util.MiniClusterWithClientResource;
 import org.apache.flink.types.Row;
 import org.apache.iceberg.AssertHelpers;
@@ -45,7 +41,6 @@ import org.apache.iceberg.flink.MiniClusterResource;
 import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.TestFixtures;
-import org.apache.iceberg.flink.source.BoundedTestSource;
 import org.apache.iceberg.flink.util.FlinkCompatibilityUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -60,7 +55,7 @@ import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
 @RunWith(Parameterized.class)
-public class TestFlinkIcebergSink {
+public class TestFlinkIcebergSink extends TestFlinkIcebergSinkBase {
 
   @ClassRule
   public static final MiniClusterWithClientResource MINI_CLUSTER_RESOURCE =
@@ -72,13 +67,6 @@ public class TestFlinkIcebergSink {
   public final HadoopCatalogResource catalogResource =
       new HadoopCatalogResource(TEMPORARY_FOLDER, TestFixtures.DATABASE, TestFixtures.TABLE);
 
-  private static final TypeInformation<Row> ROW_TYPE_INFO =
-      new RowTypeInfo(SimpleDataUtil.FLINK_SCHEMA.getFieldTypes());
-  private static final DataFormatConverters.RowConverter CONVERTER =
-      new DataFormatConverters.RowConverter(SimpleDataUtil.FLINK_SCHEMA.getFieldDataTypes());
-
-  private Table table;
-  private StreamExecutionEnvironment env;
   private TableLoader tableLoader;
 
   private final FileFormat format;
@@ -132,14 +120,6 @@ public class TestFlinkIcebergSink {
     tableLoader = catalogResource.tableLoader();
   }
 
-  private List<RowData> convertToRowData(List<Row> rows) {
-    return rows.stream().map(CONVERTER::toInternal).collect(Collectors.toList());
-  }
-
-  private BoundedTestSource<Row> createBoundedSource(List<Row> rows) {
-    return new BoundedTestSource<>(rows.toArray(new Row[0]));
-  }
-
   @Test
   public void testWriteRowData() throws Exception {
     List<Row> rows = Lists.newArrayList(Row.of(1, "hello"), Row.of(2, "world"), Row.of(3, "foo"));
@@ -158,19 +138,6 @@ public class TestFlinkIcebergSink {
 
     // Assert the iceberg table's records.
     SimpleDataUtil.assertTableRows(table, convertToRowData(rows));
-  }
-
-  private List<Row> createRows(String prefix) {
-    return Lists.newArrayList(
-        Row.of(1, prefix + "aaa"),
-        Row.of(1, prefix + "bbb"),
-        Row.of(1, prefix + "ccc"),
-        Row.of(2, prefix + "aaa"),
-        Row.of(2, prefix + "bbb"),
-        Row.of(2, prefix + "ccc"),
-        Row.of(3, prefix + "aaa"),
-        Row.of(3, prefix + "bbb"),
-        Row.of(3, prefix + "ccc"));
   }
 
   private void testWriteRow(TableSchema tableSchema, DistributionMode distributionMode)

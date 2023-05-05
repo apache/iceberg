@@ -18,10 +18,14 @@
  */
 package org.apache.iceberg.spark.extensions;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.IntStream;
 import org.apache.iceberg.AssertHelpers;
+import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -49,7 +53,7 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
   public void testRewriteDataFilesInEmptyTable() {
     createTable();
     List<Object[]> output = sql("CALL %s.system.rewrite_data_files('%s')", catalogName, tableIdent);
-    assertEquals("Procedure output must match", ImmutableList.of(row(0, 0)), output);
+    assertEquals("Procedure output must match", ImmutableList.of(row(0, 0, 0L)), output);
   }
 
   @Test
@@ -64,8 +68,13 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
 
     assertEquals(
         "Action should rewrite 10 data files and add 2 data files (one per partition) ",
-        ImmutableList.of(row(10, 2)),
-        output);
+        row(10, 2),
+        Arrays.copyOf(output.get(0), 2));
+    // verify rewritten bytes separately
+    assertThat(output.get(0)).hasSize(3);
+    assertThat(output.get(0)[2])
+        .isInstanceOf(Long.class)
+        .isEqualTo(Long.valueOf(snapshotSummary().get(SnapshotSummary.REMOVED_FILE_SIZE_PROP)));
 
     List<Object[]> actualRecords = currentData();
     assertEquals("Data after compaction should not change", expectedRecords, actualRecords);
@@ -83,8 +92,13 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
 
     assertEquals(
         "Action should rewrite 10 data files and add 1 data files",
-        ImmutableList.of(row(10, 1)),
-        output);
+        row(10, 1),
+        Arrays.copyOf(output.get(0), 2));
+    // verify rewritten bytes separately
+    assertThat(output.get(0)).hasSize(3);
+    assertThat(output.get(0)[2])
+        .isInstanceOf(Long.class)
+        .isEqualTo(Long.valueOf(snapshotSummary().get(SnapshotSummary.REMOVED_FILE_SIZE_PROP)));
 
     List<Object[]> actualRecords = currentData();
     assertEquals("Data after compaction should not change", expectedRecords, actualRecords);
@@ -105,7 +119,7 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
 
     assertEquals(
         "Action should rewrite 0 data files and add 0 data files",
-        ImmutableList.of(row(0, 0)),
+        ImmutableList.of(row(0, 0, 0L)),
         output);
 
     List<Object[]> actualRecords = currentData();
@@ -128,8 +142,13 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
 
     assertEquals(
         "Action should rewrite 10 data files and add 1 data files",
-        ImmutableList.of(row(10, 1)),
-        output);
+        row(10, 1),
+        Arrays.copyOf(output.get(0), 2));
+    // verify rewritten bytes separately
+    assertThat(output.get(0)).hasSize(3);
+    assertThat(output.get(0)[2])
+        .isInstanceOf(Long.class)
+        .isEqualTo(Long.valueOf(snapshotSummary().get(SnapshotSummary.REMOVED_FILE_SIZE_PROP)));
 
     List<Object[]> actualRecords = currentData();
     assertEquals("Data after compaction should not change", expectedRecords, actualRecords);
@@ -151,8 +170,13 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
 
     assertEquals(
         "Action should rewrite 5 data files (containing c1 = 1) and add 1 data files",
-        ImmutableList.of(row(5, 1)),
-        output);
+        row(5, 1),
+        Arrays.copyOf(output.get(0), 2));
+    // verify rewritten bytes separately
+    assertThat(output.get(0)).hasSize(3);
+    assertThat(output.get(0)[2])
+        .isInstanceOf(Long.class)
+        .isEqualTo(Long.valueOf(snapshotSummary().get(SnapshotSummary.REMOVED_FILE_SIZE_PROP)));
 
     List<Object[]> actualRecords = currentData();
     assertEquals("Data after compaction should not change", expectedRecords, actualRecords);
@@ -174,8 +198,13 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
     assertEquals(
         "Action should rewrite 5 data files from single matching partition"
             + "(containing c2 = bar) and add 1 data files",
-        ImmutableList.of(row(5, 1)),
-        output);
+        row(5, 1),
+        Arrays.copyOf(output.get(0), 2));
+    // verify rewritten bytes separately
+    assertThat(output.get(0)).hasSize(3);
+    assertThat(output.get(0)[2])
+        .isInstanceOf(Long.class)
+        .isEqualTo(Long.valueOf(snapshotSummary().get(SnapshotSummary.REMOVED_FILE_SIZE_PROP)));
 
     List<Object[]> actualRecords = currentData();
     assertEquals("Data after compaction should not change", expectedRecords, actualRecords);
@@ -197,8 +226,13 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
     assertEquals(
         "Action should rewrite 5 data files from single matching partition"
             + "(containing c2 = bar) and add 1 data files",
-        ImmutableList.of(row(5, 1)),
-        output);
+        row(5, 1),
+        Arrays.copyOf(output.get(0), 2));
+    // verify rewritten bytes separately
+    assertThat(output.get(0)).hasSize(3);
+    assertThat(output.get(0)[2])
+        .isInstanceOf(Long.class)
+        .isEqualTo(Long.valueOf(snapshotSummary().get(SnapshotSummary.REMOVED_FILE_SIZE_PROP)));
 
     List<Object[]> actualRecords = currentData();
     assertEquals("Data after compaction should not change", expectedRecords, actualRecords);
@@ -407,6 +441,10 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
     } catch (org.apache.spark.sql.catalyst.analysis.NoSuchTableException e) {
       throw new RuntimeException(e);
     }
+  }
+
+  private Map<String, String> snapshotSummary() {
+    return validationCatalog.loadTable(tableIdent).currentSnapshot().summary();
   }
 
   private List<Object[]> currentData() {

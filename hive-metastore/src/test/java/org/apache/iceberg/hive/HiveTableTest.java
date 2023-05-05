@@ -47,7 +47,6 @@ import org.apache.hadoop.hive.metastore.api.SerDeInfo;
 import org.apache.hadoop.hive.metastore.api.StorageDescriptor;
 import org.apache.hadoop.hive.metastore.api.hive_metastoreConstants;
 import org.apache.hadoop.hive.serde.serdeConstants;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
@@ -469,16 +468,12 @@ public class HiveTableTest extends HiveTableBaseTest {
             .collect(Collectors.toList());
     Assert.assertEquals(2, metadataFiles.size());
 
-    AssertHelpers.assertThrows(
-        "Hive metastore should not have this table",
-        NoSuchObjectException.class,
-        "table not found",
-        () -> metastoreClient.getTable(DB_NAME, "table1"));
-    AssertHelpers.assertThrows(
-        "Hive catalog should fail to load the table",
-        NoSuchTableException.class,
-        "Table does not exist:",
-        () -> catalog.loadTable(identifier));
+    Assertions.assertThatThrownBy(() -> metastoreClient.getTable(DB_NAME, "table1"))
+        .isInstanceOf(NoSuchObjectException.class)
+        .hasMessage("hivedb.table1 table not found");
+    Assertions.assertThatThrownBy(() -> catalog.loadTable(identifier))
+        .isInstanceOf(NoSuchTableException.class)
+        .hasMessage("Table does not exist: hivedb.table1");
 
     // register the table to hive catalog using the latest metadata file
     String latestMetadataFile = ((BaseTable) table).operations().current().metadataFileLocation();
@@ -542,11 +537,10 @@ public class HiveTableTest extends HiveTableBaseTest {
     Assert.assertEquals(1, metadataVersionFiles.size());
 
     // Try to register an existing table
-    AssertHelpers.assertThrows(
-        "Should complain that the table already exists",
-        AlreadyExistsException.class,
-        "Table already exists",
-        () -> catalog.registerTable(TABLE_IDENTIFIER, "file:" + metadataVersionFiles.get(0)));
+    Assertions.assertThatThrownBy(
+            () -> catalog.registerTable(TABLE_IDENTIFIER, "file:" + metadataVersionFiles.get(0)))
+        .isInstanceOf(AlreadyExistsException.class)
+        .hasMessage("Table already exists: hivedb.tbl");
   }
 
   @Test
@@ -625,10 +619,9 @@ public class HiveTableTest extends HiveTableBaseTest {
     File fakeLocation = new File(metadataLocation(TABLE_NAME) + "_dummy");
 
     Assert.assertTrue(realLocation.renameTo(fakeLocation));
-    AssertHelpers.assertThrows(
-        "HiveTableOperations shouldn't hang indefinitely when a missing metadata file is encountered",
-        NotFoundException.class,
-        () -> catalog.loadTable(TABLE_IDENTIFIER));
+    Assertions.assertThatThrownBy(() -> catalog.loadTable(TABLE_IDENTIFIER))
+        .isInstanceOf(NotFoundException.class)
+        .hasMessageStartingWith("Failed to open input stream for file");
     Assert.assertTrue(fakeLocation.renameTo(realLocation));
   }
 

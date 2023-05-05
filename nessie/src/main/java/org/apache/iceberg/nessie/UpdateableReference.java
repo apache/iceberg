@@ -52,19 +52,8 @@ class UpdateableReference {
     this.reference = Preconditions.checkNotNull(ref, "ref is null");
   }
 
-  public boolean isBranch() {
-    return reference instanceof Branch;
-  }
-
   public String getHash() {
     return reference.getHash();
-  }
-
-  public Branch getAsBranch() {
-    if (!isBranch()) {
-      throw new IllegalArgumentException("Reference is not a branch");
-    }
-    return (Branch) reference;
   }
 
   public Reference getReference() {
@@ -78,5 +67,9 @@ class UpdateableReference {
 
   public String getName() {
     return reference.getName();
+  }
+
+  public boolean isMutable() {
+    return mutable;
   }
 }

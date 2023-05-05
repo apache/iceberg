@@ -50,6 +50,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.spark.SparkTestBase;
+import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.iceberg.spark.source.ThreeColumnRecord;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Dataset;
@@ -559,7 +560,12 @@ public class TestRewriteManifestsAction extends SparkTestBase {
   }
 
   private void writeDF(Dataset<Row> df) {
-    df.select("c1", "c2", "c3").write().format("iceberg").mode("append").save(tableLocation);
+    df.select("c1", "c2", "c3")
+        .write()
+        .format("iceberg")
+        .option(SparkWriteOptions.DISTRIBUTION_MODE, TableProperties.WRITE_DISTRIBUTION_MODE_NONE)
+        .mode("append")
+        .save(tableLocation);
   }
 
   private long computeManifestEntrySizeBytes(List<ManifestFile> manifests) {

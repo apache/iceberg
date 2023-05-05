@@ -24,8 +24,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
-import org.apache.hadoop.conf.Configurable;
-import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.BaseMetastoreCatalog;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
@@ -36,7 +34,7 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
-import org.apache.iceberg.hadoop.HadoopFileIO;
+import org.apache.iceberg.hadoop.Configurable;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
@@ -61,14 +59,14 @@ import org.slf4j.LoggerFactory;
  * exploration.
  */
 public class NessieCatalog extends BaseMetastoreCatalog
-    implements AutoCloseable, SupportsNamespaces, Configurable {
+    implements AutoCloseable, SupportsNamespaces, Configurable<Object> {
 
   private static final Logger LOG = LoggerFactory.getLogger(NessieCatalog.class);
   private static final Joiner SLASH = Joiner.on("/");
   private static final String NAMESPACE_LOCATION_PROPS = "location";
   private NessieIcebergClient client;
   private String warehouseLocation;
-  private Configuration config;
+  private Object config;
   private String name;
   private FileIO fileIO;
   private Map<String, String> catalogOptions;
@@ -80,7 +78,9 @@ public class NessieCatalog extends BaseMetastoreCatalog
   @Override
   public void initialize(String name, Map<String, String> options) {
     Map<String, String> catalogOptions = ImmutableMap.copyOf(options);
-    String fileIOImpl = options.get(CatalogProperties.FILE_IO_IMPL);
+    String fileIOImpl =
+        options.getOrDefault(
+            CatalogProperties.FILE_IO_IMPL, "org.apache.iceberg.hadoop.HadoopFileIO");
     // remove nessie prefix
     final Function<String, String> removePrefix =
         x -> x.replace(NessieUtil.NESSIE_CONFIG_PREFIX, "");
@@ -97,9 +97,7 @@ public class NessieCatalog extends BaseMetastoreCatalog
     initialize(
         name,
         new NessieIcebergClient(api, requestedRef, requestedHash, catalogOptions),
-        fileIOImpl == null
-            ? new HadoopFileIO(config)
-            : CatalogUtil.loadFileIO(fileIOImpl, options, config),
+        CatalogUtil.loadFileIO(fileIOImpl, options, config),
         catalogOptions);
   }
 
@@ -299,13 +297,8 @@ public class NessieCatalog extends BaseMetastoreCatalog
   }
 
   @Override
-  public void setConf(Configuration conf) {
+  public void setConf(Object conf) {
     this.config = conf;
-  }
-
-  @Override
-  public Configuration getConf() {
-    return config;
   }
 
   @VisibleForTesting

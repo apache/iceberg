@@ -44,7 +44,7 @@ import org.apache.parquet.hadoop.BloomFilterReader;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
 import org.apache.parquet.io.api.Binary;
-import org.apache.parquet.schema.DecimalMetadata;
+import org.apache.parquet.schema.LogicalTypeAnnotation.DecimalLogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 
@@ -314,7 +314,8 @@ public class ParquetBloomRowGroupFilter {
               hashValue = bloom.hash(Binary.fromConstantByteBuffer((ByteBuffer) value));
               return bloom.findHash(hashValue);
             case DECIMAL:
-              DecimalMetadata metadata = primitiveType.getDecimalMetadata();
+              DecimalLogicalTypeAnnotation metadata =
+                  (DecimalLogicalTypeAnnotation) primitiveType.getLogicalTypeAnnotation();
               int scale = metadata.getScale();
               int precision = metadata.getPrecision();
               byte[] requiredBytes = new byte[TypeUtil.decimalRequiredBytes(precision)];

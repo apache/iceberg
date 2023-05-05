@@ -25,10 +25,10 @@ import java.nio.ByteOrder;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.parquet.ParquetSchemaUtil;
+import org.apache.iceberg.parquet.ParquetUtil;
 import org.apache.iceberg.parquet.ParquetValueReader;
 import org.apache.iceberg.parquet.ParquetValueReaders;
 import org.apache.iceberg.parquet.ParquetValueReaders.FloatAsDoubleReader;
@@ -46,10 +46,11 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Type.TypeID;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.UUIDUtil;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.io.api.Binary;
-import org.apache.parquet.schema.DecimalMetadata;
 import org.apache.parquet.schema.GroupType;
+import org.apache.parquet.schema.LogicalTypeAnnotation.DecimalLogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
@@ -233,6 +234,7 @@ public class SparkParquetReaders {
     }
 
     @Override
+    @SuppressWarnings("checkstyle:CyclomaticComplexity")
     public ParquetValueReader<?> primitive(
         org.apache.iceberg.types.Type.PrimitiveType expected, PrimitiveType primitive) {
       ColumnDescriptor desc = type.getColumnDescription(currentPath());
@@ -258,7 +260,8 @@ public class SparkParquetReaders {
           case TIMESTAMP_MILLIS:
             return new TimestampMillisReader(desc);
           case DECIMAL:
-            DecimalMetadata decimal = primitive.getDecimalMetadata();
+            DecimalLogicalTypeAnnotation decimal =
+                (DecimalLogicalTypeAnnotation) primitive.getLogicalTypeAnnotation();
             switch (primitive.getPrimitiveTypeName()) {
               case BINARY:
               case FIXED_LEN_BYTE_ARRAY:
@@ -282,6 +285,9 @@ public class SparkParquetReaders {
       switch (primitive.getPrimitiveTypeName()) {
         case FIXED_LEN_BYTE_ARRAY:
         case BINARY:
+          if (expected != null && expected.typeId() == TypeID.UUID) {
+            return new UUIDReader(desc);
+          }
           return new ParquetValueReaders.ByteArrayReader(desc);
         case INT32:
           if (expected != null && expected.typeId() == TypeID.LONG) {
@@ -377,7 +383,6 @@ public class SparkParquetReaders {
   }
 
   private static class TimestampInt96Reader extends UnboxedReader<Long> {
-    private static final long UNIX_EPOCH_JULIAN = 2_440_588L;
 
     TimestampInt96Reader(ColumnDescriptor desc) {
       super(desc);
@@ -392,11 +397,7 @@ public class SparkParquetReaders {
     public long readLong() {
       final ByteBuffer byteBuffer =
           column.nextBinary().toByteBuffer().order(ByteOrder.LITTLE_ENDIAN);
-      final long timeOfDayNanos = byteBuffer.getLong();
-      final int julianDay = byteBuffer.getInt();
-
-      return TimeUnit.DAYS.toMicros(julianDay - UNIX_EPOCH_JULIAN)
-          + TimeUnit.NANOSECONDS.toMicros(timeOfDayNanos);
+      return ParquetUtil.extractTimestampInt96(byteBuffer);
     }
   }
 
@@ -415,6 +416,18 @@ public class SparkParquetReaders {
       } else {
         return UTF8String.fromBytes(binary.getBytes());
       }
+    }
+  }
+
+  private static class UUIDReader extends PrimitiveReader<UTF8String> {
+    UUIDReader(ColumnDescriptor desc) {
+      super(desc);
+    }
+
+    @Override
+    @SuppressWarnings("ByteBufferBackingArray")
+    public UTF8String read(UTF8String ignored) {
+      return UTF8String.fromString(UUIDUtil.convert(column.nextBinary().toByteBuffer()).toString());
     }
   }
 

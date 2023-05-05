@@ -33,14 +33,18 @@ from pyiceberg.expressions import (
     BoundLessThanOrEqual,
     BoundNotIn,
     BoundNotNull,
+    BoundNotStartsWith,
     BoundReference,
+    BoundStartsWith,
     EqualTo,
     GreaterThanOrEqual,
     In,
     LessThanOrEqual,
     NotIn,
     NotNull,
+    NotStartsWith,
     Reference,
+    StartsWith,
 )
 from pyiceberg.expressions.literals import (
     DateLiteral,
@@ -768,9 +772,7 @@ def test_projection_identity_unary(bound_reference_timestamp: BoundReference[int
 def test_projection_identity_literal(bound_reference_timestamp: BoundReference[int]) -> None:
     assert IdentityTransform().project(
         "name", BoundEqualTo(term=bound_reference_timestamp, literal=TimestampLiteral(TIMESTAMP_EXAMPLE))
-    ) == EqualTo(
-        term="name", literal=TimestampLiteral(TIMESTAMP_EXAMPLE)  # type: ignore
-    )
+    ) == EqualTo(term="name", literal=TimestampLiteral(TIMESTAMP_EXAMPLE))
 
 
 def test_projection_identity_set_in(bound_reference_timestamp: BoundReference[int]) -> None:
@@ -782,7 +784,7 @@ def test_projection_identity_set_in(bound_reference_timestamp: BoundReference[in
         ),
     ) == In(
         term="name",
-        literals={TimestampLiteral(TIMESTAMP_EXAMPLE + HOUR_IN_MICROSECONDS), TimestampLiteral(TIMESTAMP_EXAMPLE)},  # type: ignore
+        literals={TimestampLiteral(TIMESTAMP_EXAMPLE + HOUR_IN_MICROSECONDS), TimestampLiteral(TIMESTAMP_EXAMPLE)},
     )
 
 
@@ -795,7 +797,7 @@ def test_projection_identity_set_not_in(bound_reference_timestamp: BoundReferenc
         ),
     ) == NotIn(
         term="name",
-        literals={TimestampLiteral(TIMESTAMP_EXAMPLE + HOUR_IN_MICROSECONDS), TimestampLiteral(TIMESTAMP_EXAMPLE)},  # type: ignore
+        literals={TimestampLiteral(TIMESTAMP_EXAMPLE + HOUR_IN_MICROSECONDS), TimestampLiteral(TIMESTAMP_EXAMPLE)},
     )
 
 
@@ -898,3 +900,15 @@ def test_projection_truncate_long_in(bound_reference_decimal: BoundReference[Dec
             Decimal("18.14999999999999857891452847979962825775146484374"),
         },
     )
+
+
+def test_projection_truncate_string_starts_with(bound_reference_str: BoundReference[str]) -> None:
+    assert TruncateTransform(2).project(
+        "name", BoundStartsWith(term=bound_reference_str, literal=literal("hello"))
+    ) == StartsWith(term="name", literal=literal("he"))
+
+
+def test_projection_truncate_string_not_starts_with(bound_reference_str: BoundReference[str]) -> None:
+    assert TruncateTransform(2).project(
+        "name", BoundNotStartsWith(term=bound_reference_str, literal=literal("hello"))
+    ) == NotStartsWith(term="name", literal=literal("he"))

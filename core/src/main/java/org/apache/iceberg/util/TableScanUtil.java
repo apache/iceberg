@@ -71,7 +71,7 @@ public class TableScanUtil {
 
   public static CloseableIterable<FileScanTask> splitFiles(
       CloseableIterable<FileScanTask> tasks, long splitSize) {
-    Preconditions.checkArgument(splitSize > 0, "Invalid split size (negative or 0): %s", splitSize);
+    Preconditions.checkArgument(splitSize > 0, "Split size must be > 0: %s", splitSize);
 
     Iterable<FileScanTask> splitTasks =
         FluentIterable.from(tasks).transformAndConcat(input -> input.split(splitSize));
@@ -81,11 +81,8 @@ public class TableScanUtil {
 
   public static CloseableIterable<CombinedScanTask> planTasks(
       CloseableIterable<FileScanTask> splitFiles, long splitSize, int lookback, long openFileCost) {
-    Preconditions.checkArgument(splitSize > 0, "Invalid split size (negative or 0): %s", splitSize);
-    Preconditions.checkArgument(
-        lookback > 0, "Invalid split planning lookback (negative or 0): %s", lookback);
-    Preconditions.checkArgument(
-        openFileCost >= 0, "Invalid file open cost (negative): %s", openFileCost);
+
+    validatePlanningArguments(splitSize, lookback, openFileCost);
 
     // Check the size of delete file as well to avoid unbalanced bin-packing
     Function<FileScanTask, Long> weightFunc =
@@ -102,15 +99,17 @@ public class TableScanUtil {
         BaseCombinedScanTask::new);
   }
 
+  public static <T extends ScanTask> List<ScanTaskGroup<T>> planTaskGroups(
+      List<T> tasks, long splitSize, int lookback, long openFileCost) {
+    return Lists.newArrayList(
+        planTaskGroups(CloseableIterable.withNoopClose(tasks), splitSize, lookback, openFileCost));
+  }
+
   @SuppressWarnings("unchecked")
   public static <T extends ScanTask> CloseableIterable<ScanTaskGroup<T>> planTaskGroups(
       CloseableIterable<T> tasks, long splitSize, int lookback, long openFileCost) {
 
-    Preconditions.checkArgument(splitSize > 0, "Invalid split size (negative or 0): %s", splitSize);
-    Preconditions.checkArgument(
-        lookback > 0, "Invalid split planning lookback (negative or 0): %s", lookback);
-    Preconditions.checkArgument(
-        openFileCost >= 0, "Invalid file open cost (negative): %s", openFileCost);
+    validatePlanningArguments(splitSize, lookback, openFileCost);
 
     // capture manifests which can be closed after scan planning
     CloseableIterable<T> splitTasks =
@@ -144,11 +143,7 @@ public class TableScanUtil {
       long openFileCost,
       Types.StructType groupingKeyType) {
 
-    Preconditions.checkArgument(splitSize > 0, "Invalid split size (negative or 0): %s", splitSize);
-    Preconditions.checkArgument(
-        lookback > 0, "Invalid split planning lookback (negative or 0): %s", lookback);
-    Preconditions.checkArgument(
-        openFileCost >= 0, "Invalid file open cost (negative): %s", openFileCost);
+    validatePlanningArguments(splitSize, lookback, openFileCost);
 
     Function<T, Long> weightFunc =
         task -> Math.max(task.sizeBytes(), task.filesCount() * openFileCost);
@@ -249,5 +244,11 @@ public class TableScanUtil {
     }
 
     return mergedTasks;
+  }
+
+  private static void validatePlanningArguments(long splitSize, int lookback, long openFileCost) {
+    Preconditions.checkArgument(splitSize > 0, "Split size must be > 0: %s", splitSize);
+    Preconditions.checkArgument(lookback > 0, "Split planning lookback must be > 0: %s", lookback);
+    Preconditions.checkArgument(openFileCost >= 0, "File open cost must be >= 0: %s", openFileCost);
   }
 }

@@ -44,6 +44,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.types.Types.StructType;
+import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.StructLikeSet;
 import org.apache.iceberg.util.TableScanUtil;
 import org.apache.spark.sql.SparkSession;
@@ -99,13 +100,17 @@ abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends S
   @Override
   public Partitioning outputPartitioning() {
     if (groupingKeyType().fields().isEmpty()) {
-      LOG.info("Reporting UnknownPartitioning with {} partition(s)", taskGroups().size());
+      LOG.info(
+          "Reporting UnknownPartitioning with {} partition(s) for table {}",
+          taskGroups().size(),
+          table().name());
       return new UnknownPartitioning(taskGroups().size());
     } else {
       LOG.info(
-          "Reporting KeyGroupedPartitioning by {} with {} partition(s)",
+          "Reporting KeyGroupedPartitioning by {} with {} partition(s) for table {}",
           groupingKeyTransforms(),
-          taskGroups().size());
+          taskGroups().size(),
+          table().name());
       return new KeyGroupedPartitioning(groupingKeyTransforms(), taskGroups().size());
     }
   }
@@ -136,7 +141,8 @@ abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends S
               .map(field -> fieldsById.get(field.fieldId()))
               .collect(Collectors.toList());
 
-      this.groupingKeyTransforms = Spark3Util.toTransforms(table().schema(), groupingKeyFields);
+      Schema schema = SnapshotUtil.schemaFor(table(), branch());
+      this.groupingKeyTransforms = Spark3Util.toTransforms(schema, groupingKeyFields);
     }
 
     return groupingKeyTransforms;
@@ -200,7 +206,10 @@ abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends S
                 scan.splitOpenFileCost());
         this.taskGroups = Lists.newArrayList(plannedTaskGroups);
 
-        LOG.debug("Planned {} task group(s) without data grouping", taskGroups.size());
+        LOG.debug(
+            "Planned {} task group(s) without data grouping for table {}",
+            taskGroups.size(),
+            table().name());
 
       } else {
         List<ScanTaskGroup<T>> plannedTaskGroups =
@@ -213,10 +222,11 @@ abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends S
         StructLikeSet plannedGroupingKeys = collectGroupingKeys(plannedTaskGroups);
 
         LOG.debug(
-            "Planned {} task group(s) with {} grouping key type and {} unique grouping key(s)",
+            "Planned {} task group(s) with {} grouping key type and {} unique grouping key(s) for table {}",
             plannedTaskGroups.size(),
             groupingKeyType(),
-            plannedGroupingKeys.size());
+            plannedGroupingKeys.size(),
+            table().name());
 
         // task groups may be planned multiple times because of runtime filtering
         // the number of task groups may change but the set of grouping keys must stay same
@@ -236,7 +246,10 @@ abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends S
             }
           }
 
-          LOG.debug("{} grouping key(s) were filtered out at runtime", missingGroupingKeys.size());
+          LOG.debug(
+              "{} grouping key(s) were filtered out at runtime for table {}",
+              missingGroupingKeys.size(),
+              table().name());
 
           for (StructLike groupingKey : missingGroupingKeys) {
             plannedTaskGroups.add(new BaseScanTaskGroup<>(groupingKey, Collections.emptyList()));

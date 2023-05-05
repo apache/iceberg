@@ -21,6 +21,7 @@ package org.apache.iceberg;
 import java.io.Serializable;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
@@ -42,12 +43,6 @@ public abstract class BaseMetadataTable extends BaseReadOnlyTable
   private final SortOrder sortOrder = SortOrder.unsorted();
   private final BaseTable table;
   private final String name;
-
-  /** @deprecated will be removed in 1.3.0; use BaseMetadataTable(Table, String) instead. */
-  @Deprecated
-  protected BaseMetadataTable(TableOperations ignored, Table table, String name) {
-    this(table, name);
-  }
 
   protected BaseMetadataTable(Table table, String name) {
     super("metadata");
@@ -83,13 +78,31 @@ public abstract class BaseMetadataTable extends BaseReadOnlyTable
     return builder.build();
   }
 
+  /**
+   * This method transforms the given partition specs to specs that are used to rewrite the
+   * user-provided filter expression against the given metadata table.
+   *
+   * <p>See: {@link #transformSpec(Schema, PartitionSpec)}
+   *
+   * @param metadataTableSchema schema of the metadata table
+   * @param specs specs on which the metadata table schema is based
+   * @return specs used to rewrite the metadata table filters to partition filters using an
+   *     inclusive projection
+   */
+  static Map<Integer, PartitionSpec> transformSpecs(
+      Schema metadataTableSchema, Map<Integer, PartitionSpec> specs) {
+    return specs.values().stream()
+        .map(spec -> transformSpec(metadataTableSchema, spec))
+        .collect(Collectors.toMap(PartitionSpec::specId, spec -> spec));
+  }
+
   abstract MetadataTableType metadataTableType();
 
   protected BaseTable table() {
     return table;
   }
 
-  /** @deprecated will be removed in 2.0.0; do not use metadata table TableOperations */
+  /** @deprecated will be removed in 1.4.0; do not use metadata table TableOperations */
   @Override
   @Deprecated
   public TableOperations operations() {

@@ -39,6 +39,22 @@ public class FlinkReadConf {
     return confParser.longConf().option(FlinkReadOptions.SNAPSHOT_ID.key()).parseOptional();
   }
 
+  public String tag() {
+    return confParser.stringConf().option(FlinkReadOptions.TAG.key()).parseOptional();
+  }
+
+  public String startTag() {
+    return confParser.stringConf().option(FlinkReadOptions.START_TAG.key()).parseOptional();
+  }
+
+  public String endTag() {
+    return confParser.stringConf().option(FlinkReadOptions.END_TAG.key()).parseOptional();
+  }
+
+  public String branch() {
+    return confParser.stringConf().option(FlinkReadOptions.BRANCH.key()).parseOptional();
+  }
+
   public boolean caseSensitive() {
     return confParser
         .booleanConf()

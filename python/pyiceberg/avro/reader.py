@@ -276,7 +276,7 @@ class StructReader(Reader):
         if not isinstance(struct, StructProtocol):
             raise ValueError(f"Incompatible with StructProtocol: {self.create_struct}")
 
-        for (pos, field) in self.field_readers:
+        for pos, field in self.field_readers:
             if pos is not None:
                 struct[pos] = field.read(decoder)  # later: pass reuse in here
             else:

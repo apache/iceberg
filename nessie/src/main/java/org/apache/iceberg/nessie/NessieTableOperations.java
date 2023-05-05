@@ -18,24 +18,32 @@
  */
 package org.apache.iceberg.nessie;
 
+import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
+import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
+import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.projectnessie.client.http.HttpClientException;
 import org.projectnessie.error.NessieConflictException;
 import org.projectnessie.error.NessieNotFoundException;
+import org.projectnessie.error.NessieReferenceConflictException;
+import org.projectnessie.model.Conflict;
+import org.projectnessie.model.Conflict.ConflictType;
 import org.projectnessie.model.Content;
 import org.projectnessie.model.ContentKey;
 import org.projectnessie.model.IcebergTable;
 import org.projectnessie.model.Reference;
+import org.projectnessie.model.ReferenceConflicts;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -152,6 +160,10 @@ public class NessieTableOperations extends BaseMetastoreTableOperations {
       client.commitTable(base, metadata, newMetadataLocation, table, key);
       delete = false;
     } catch (NessieConflictException ex) {
+      if (ex instanceof NessieReferenceConflictException) {
+        // Throws a specialized exception, if possible
+        maybeThrowSpecializedException((NessieReferenceConflictException) ex);
+      }
       throw new CommitFailedException(
           ex,
           "Cannot commit: Reference hash is out of date. "
@@ -170,6 +182,38 @@ public class NessieTableOperations extends BaseMetastoreTableOperations {
     } finally {
       if (delete) {
         io().deleteFile(newMetadataLocation);
+      }
+    }
+  }
+
+  private static void maybeThrowSpecializedException(NessieReferenceConflictException ex) {
+    // Check if the server returned 'ReferenceConflicts' information
+    ReferenceConflicts referenceConflicts = ex.getErrorDetails();
+    if (referenceConflicts == null) {
+      return;
+    }
+
+    // Can only narrow down to a single exception, if there is only one conflict.
+    List<Conflict> conflicts = referenceConflicts.conflicts();
+    if (conflicts.size() != 1) {
+      return;
+    }
+
+    Conflict conflict = conflicts.get(0);
+    ConflictType conflictType = conflict.conflictType();
+    if (conflictType != null) {
+      switch (conflictType) {
+        case NAMESPACE_ABSENT:
+          throw new NoSuchNamespaceException(ex, "Namespace does not exist: %s", conflict.key());
+        case NAMESPACE_NOT_EMPTY:
+          throw new NamespaceNotEmptyException(ex, "Namespace not empty: %s", conflict.key());
+        case KEY_DOES_NOT_EXIST:
+          throw new NoSuchTableException(ex, "Table or view does not exist: %s", conflict.key());
+        case KEY_EXISTS:
+          throw new AlreadyExistsException(ex, "Table or view already exists: %s", conflict.key());
+        default:
+          // Explicit fall-through
+          break;
       }
     }
   }

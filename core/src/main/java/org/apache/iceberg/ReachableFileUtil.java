@@ -20,6 +20,8 @@ package org.apache.iceberg;
 
 import java.util.List;
 import java.util.Set;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.TableMetadata.MetadataLogEntry;
 import org.apache.iceberg.hadoop.Util;
@@ -45,8 +47,8 @@ public class ReachableFileUtil {
    */
   public static String versionHintLocation(Table table) {
     // only Hadoop tables have a hint file and such tables have a fixed metadata layout
-    Path metadataPath = new Path(table.location(), METADATA_FOLDER_NAME);
-    Path versionHintPath = new Path(metadataPath, Util.VERSION_HINT_FILENAME);
+    Path metadataPath = new Path(table.location() + "/" + METADATA_FOLDER_NAME);
+    Path versionHintPath = new Path(metadataPath + "/" + Util.VERSION_HINT_FILENAME);
     return versionHintPath.toString();
   }
 
@@ -137,11 +139,21 @@ public class ReachableFileUtil {
    * @return the location of statistics files
    */
   public static List<String> statisticsFilesLocations(Table table) {
-    List<String> statisticsFilesLocations = Lists.newArrayList();
-    for (StatisticsFile statisticsFile : table.statisticsFiles()) {
-      statisticsFilesLocations.add(statisticsFile.path());
-    }
+    return statisticsFilesLocations(table, statisticsFile -> true);
+  }
 
-    return statisticsFilesLocations;
+  /**
+   * Returns locations of statistics files for a table matching the given predicate .
+   *
+   * @param table table for which statistics files needs to be listed
+   * @param predicate predicate for filtering the statistics files
+   * @return the location of statistics files
+   */
+  public static List<String> statisticsFilesLocations(
+      Table table, Predicate<StatisticsFile> predicate) {
+    return table.statisticsFiles().stream()
+        .filter(predicate)
+        .map(StatisticsFile::path)
+        .collect(Collectors.toList());
   }
 }

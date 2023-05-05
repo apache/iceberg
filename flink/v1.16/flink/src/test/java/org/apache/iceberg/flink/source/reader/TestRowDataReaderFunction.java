@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.flink.source.reader;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 import org.apache.flink.configuration.Configuration;
@@ -55,7 +56,8 @@ public class TestRowDataReaderFunction extends ReaderFunctionTestBase<RowData> {
         null,
         true,
         new HadoopFileIO(new org.apache.hadoop.conf.Configuration()),
-        new PlaintextEncryptionManager());
+        new PlaintextEncryptionManager(),
+        Collections.emptyList());
   }
 
   @Override

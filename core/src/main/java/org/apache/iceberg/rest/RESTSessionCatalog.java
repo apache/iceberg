@@ -26,14 +26,15 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.time.Duration;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
-import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
@@ -55,10 +56,8 @@ import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.hadoop.Configurable;
 import org.apache.iceberg.io.FileIO;
-import org.apache.iceberg.io.ResolvingFileIO;
-import org.apache.iceberg.metrics.LoggingMetricsReporter;
-import org.apache.iceberg.metrics.MetricsReport;
 import org.apache.iceberg.metrics.MetricsReporter;
+import org.apache.iceberg.metrics.MetricsReporters;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -68,7 +67,6 @@ import org.apache.iceberg.rest.auth.OAuth2Util.AuthSession;
 import org.apache.iceberg.rest.requests.CreateNamespaceRequest;
 import org.apache.iceberg.rest.requests.CreateTableRequest;
 import org.apache.iceberg.rest.requests.RenameTableRequest;
-import org.apache.iceberg.rest.requests.ReportMetricsRequest;
 import org.apache.iceberg.rest.requests.UpdateNamespacePropertiesRequest;
 import org.apache.iceberg.rest.responses.ConfigResponse;
 import org.apache.iceberg.rest.responses.CreateNamespaceResponse;
@@ -85,9 +83,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class RESTSessionCatalog extends BaseSessionCatalog
-    implements Configurable<Configuration>, Closeable {
+    implements Configurable<Object>, Closeable {
   private static final Logger LOG = LoggerFactory.getLogger(RESTSessionCatalog.class);
+  private static final String DEFAULT_FILE_IO_IMPL = "org.apache.iceberg.io.ResolvingFileIO";
   private static final String REST_METRICS_REPORTING_ENABLED = "rest-metrics-reporting-enabled";
+  private static final String REST_SNAPSHOT_LOADING_MODE = "snapshot-loading-mode";
   private static final List<String> TOKEN_PREFERENCE_ORDER =
       ImmutableList.of(
           OAuth2Properties.ID_TOKEN_TYPE,
@@ -97,11 +97,13 @@ public class RESTSessionCatalog extends BaseSessionCatalog
           OAuth2Properties.SAML1_TOKEN_TYPE);
 
   private final Function<Map<String, String>, RESTClient> clientBuilder;
+  private final BiFunction<SessionContext, Map<String, String>, FileIO> ioBuilder;
   private Cache<String, AuthSession> sessions = null;
   private AuthSession catalogAuth = null;
-  private boolean refreshAuthByDefault = false;
+  private boolean keepTokenRefreshed = true;
   private RESTClient client = null;
   private ResourcePaths paths = null;
+  private SnapshotMode snapshotMode = null;
   private Object conf = null;
   private FileIO io = null;
   private MetricsReporter reporter = null;
@@ -110,12 +112,25 @@ public class RESTSessionCatalog extends BaseSessionCatalog
   // a lazy thread pool for token refresh
   private volatile ScheduledExecutorService refreshExecutor = null;
 
-  public RESTSessionCatalog() {
-    this(config -> HTTPClient.builder().uri(config.get(CatalogProperties.URI)).build());
+  enum SnapshotMode {
+    ALL,
+    REFS;
+
+    Map<String, String> params() {
+      return ImmutableMap.of("snapshots", this.name().toLowerCase(Locale.US));
+    }
   }
 
-  RESTSessionCatalog(Function<Map<String, String>, RESTClient> clientBuilder) {
+  public RESTSessionCatalog() {
+    this(config -> HTTPClient.builder(config).uri(config.get(CatalogProperties.URI)).build(), null);
+  }
+
+  public RESTSessionCatalog(
+      Function<Map<String, String>, RESTClient> clientBuilder,
+      BiFunction<SessionContext, Map<String, String>, FileIO> ioBuilder) {
+    Preconditions.checkNotNull(clientBuilder, "Invalid client builder: null");
     this.clientBuilder = clientBuilder;
+    this.ioBuilder = ioBuilder;
   }
 
   @Override
@@ -156,34 +171,35 @@ public class RESTSessionCatalog extends BaseSessionCatalog
     Map<String, String> baseHeaders = configHeaders(mergedProps);
 
     this.sessions = newSessionCache(mergedProps);
-    this.refreshAuthByDefault =
+    this.keepTokenRefreshed =
         PropertyUtil.propertyAsBoolean(
             mergedProps,
-            CatalogProperties.AUTH_DEFAULT_REFRESH_ENABLED,
-            CatalogProperties.AUTH_DEFAULT_REFRESH_ENABLED_DEFAULT);
+            OAuth2Properties.TOKEN_REFRESH_ENABLED,
+            OAuth2Properties.TOKEN_REFRESH_ENABLED_DEFAULT);
     this.client = clientBuilder.apply(mergedProps);
     this.paths = ResourcePaths.forCatalogProperties(mergedProps);
 
+    String token = mergedProps.get(OAuth2Properties.TOKEN);
     this.catalogAuth = new AuthSession(baseHeaders, null, null, credential, scope);
     if (authResponse != null) {
       this.catalogAuth =
           AuthSession.fromTokenResponse(
               client, tokenRefreshExecutor(), authResponse, startTimeMillis, catalogAuth);
-    } else if (initToken != null) {
+    } else if (token != null) {
       this.catalogAuth =
           AuthSession.fromAccessToken(
-              client, tokenRefreshExecutor(), initToken, expiresAtMillis(mergedProps), catalogAuth);
+              client, tokenRefreshExecutor(), token, expiresAtMillis(mergedProps), catalogAuth);
     }
 
-    String ioImpl = mergedProps.get(CatalogProperties.FILE_IO_IMPL);
-    this.io =
-        CatalogUtil.loadFileIO(
-            ioImpl != null ? ioImpl : ResolvingFileIO.class.getName(), mergedProps, conf);
-    String metricsReporterImpl = mergedProps.get(CatalogProperties.METRICS_REPORTER_IMPL);
-    this.reporter =
-        null != metricsReporterImpl
-            ? CatalogUtil.loadMetricsReporter(metricsReporterImpl)
-            : LoggingMetricsReporter.instance();
+    this.io = newFileIO(SessionContext.createEmpty(), mergedProps);
+
+    this.snapshotMode =
+        SnapshotMode.valueOf(
+            PropertyUtil.propertyAsString(
+                    mergedProps, REST_SNAPSHOT_LOADING_MODE, SnapshotMode.ALL.name())
+                .toUpperCase(Locale.US));
+
+    this.reporter = CatalogUtil.loadMetricsReporter(mergedProps);
 
     this.reportingViaRestEnabled =
         PropertyUtil.propertyAsBoolean(mergedProps, REST_METRICS_REPORTING_ENABLED, true);
@@ -191,9 +207,12 @@ public class RESTSessionCatalog extends BaseSessionCatalog
   }
 
   private AuthSession session(SessionContext context) {
-    return sessions.get(
-        context.sessionId(),
-        id -> newSession(context.credentials(), context.properties(), catalogAuth));
+    AuthSession session =
+        sessions.get(
+            context.sessionId(),
+            id -> newSession(context.credentials(), context.properties(), catalogAuth));
+
+    return session != null ? session : catalogAuth;
   }
 
   private Supplier<Map<String, String>> headers(SessionContext context) {
@@ -201,7 +220,7 @@ public class RESTSessionCatalog extends BaseSessionCatalog
   }
 
   @Override
-  public void setConf(Configuration newConf) {
+  public void setConf(Object newConf) {
     this.conf = newConf;
   }
 
@@ -260,9 +279,11 @@ public class RESTSessionCatalog extends BaseSessionCatalog
     client.post(paths.rename(), request, null, headers(context), ErrorHandlers.tableErrorHandler());
   }
 
-  private LoadTableResponse loadInternal(SessionContext context, TableIdentifier identifier) {
+  private LoadTableResponse loadInternal(
+      SessionContext context, TableIdentifier identifier, SnapshotMode mode) {
     return client.get(
         paths.table(identifier),
+        mode.params(),
         LoadTableResponse.class,
         headers(context),
         ErrorHandlers.tableErrorHandler());
@@ -276,7 +297,7 @@ public class RESTSessionCatalog extends BaseSessionCatalog
     LoadTableResponse response;
     TableIdentifier loadedIdent;
     try {
-      response = loadInternal(context, identifier);
+      response = loadInternal(context, identifier, snapshotMode);
       loadedIdent = identifier;
       metadataType = null;
 
@@ -286,7 +307,7 @@ public class RESTSessionCatalog extends BaseSessionCatalog
         // attempt to load a metadata table using the identifier's namespace as the base table
         TableIdentifier baseIdent = TableIdentifier.of(identifier.namespace().levels());
         try {
-          response = loadInternal(context, baseIdent);
+          response = loadInternal(context, baseIdent, snapshotMode);
           loadedIdent = baseIdent;
         } catch (NoSuchTableException ignored) {
           // the base table does not exist
@@ -299,20 +320,37 @@ public class RESTSessionCatalog extends BaseSessionCatalog
     }
 
     AuthSession session = tableSession(response.config(), session(context));
+    TableMetadata tableMetadata;
+
+    if (snapshotMode == SnapshotMode.REFS) {
+      tableMetadata =
+          TableMetadata.buildFrom(response.tableMetadata())
+              .withMetadataLocation(response.metadataLocation())
+              .setPreviousFileLocation(null)
+              .setSnapshotsSupplier(
+                  () ->
+                      loadInternal(context, identifier, SnapshotMode.ALL)
+                          .tableMetadata()
+                          .snapshots())
+              .discardChanges()
+              .build();
+    } else {
+      tableMetadata = response.tableMetadata();
+    }
+
     RESTTableOperations ops =
         new RESTTableOperations(
             client,
             paths.table(loadedIdent),
             session::headers,
-            tableFileIO(response.config()),
-            response.tableMetadata());
+            tableFileIO(context, response.config()),
+            tableMetadata);
 
-    TableIdentifier tableIdentifier = loadedIdent;
     BaseTable table =
         new BaseTable(
             ops,
             fullTableName(loadedIdent),
-            report -> reportMetrics(tableIdentifier, report, session::headers));
+            metricsReporter(paths.metrics(loadedIdent), session::headers));
     if (metadataType != null) {
       return MetadataTableUtils.createMetadataTableInstance(table, metadataType);
     }
@@ -320,22 +358,14 @@ public class RESTSessionCatalog extends BaseSessionCatalog
     return table;
   }
 
-  private void reportMetrics(
-      TableIdentifier tableIdentifier,
-      MetricsReport report,
-      Supplier<Map<String, String>> headers) {
-    try {
-      reporter.report(report);
-      if (reportingViaRestEnabled) {
-        client.post(
-            paths.metrics(tableIdentifier),
-            ReportMetricsRequest.of(report),
-            null,
-            headers,
-            ErrorHandlers.defaultErrorHandler());
-      }
-    } catch (Exception e) {
-      LOG.warn("Failed to report metrics to REST endpoint for table {}", tableIdentifier, e);
+  private MetricsReporter metricsReporter(
+      String metricsEndpoint, Supplier<Map<String, String>> headers) {
+    if (reportingViaRestEnabled) {
+      RESTMetricsReporter restMetricsReporter =
+          new RESTMetricsReporter(client, metricsEndpoint, headers);
+      return MetricsReporters.combine(reporter, restMetricsReporter);
+    } else {
+      return this.reporter;
     }
   }
 
@@ -436,6 +466,10 @@ public class RESTSessionCatalog extends BaseSessionCatalog
   }
 
   private ScheduledExecutorService tokenRefreshExecutor() {
+    if (!keepTokenRefreshed) {
+      return null;
+    }
+
     if (refreshExecutor == null) {
       synchronized (this) {
         if (refreshExecutor == null) {
@@ -555,10 +589,11 @@ public class RESTSessionCatalog extends BaseSessionCatalog
               client,
               paths.table(ident),
               session::headers,
-              tableFileIO(response.config()),
+              tableFileIO(context, response.config()),
               response.tableMetadata());
 
-      return new BaseTable(ops, fullTableName(ident));
+      return new BaseTable(
+          ops, fullTableName(ident), metricsReporter(paths.metrics(ident), session::headers));
     }
 
     @Override
@@ -574,18 +609,18 @@ public class RESTSessionCatalog extends BaseSessionCatalog
               client,
               paths.table(ident),
               session::headers,
-              tableFileIO(response.config()),
+              tableFileIO(context, response.config()),
               RESTTableOperations.UpdateType.CREATE,
               createChanges(meta),
               meta);
 
       return Transactions.createTableTransaction(
-          fullName, ops, meta, report -> reportMetrics(ident, report, session::headers));
+          fullName, ops, meta, metricsReporter(paths.metrics(ident), session::headers));
     }
 
     @Override
     public Transaction replaceTransaction() {
-      LoadTableResponse response = loadInternal(context, ident);
+      LoadTableResponse response = loadInternal(context, ident, snapshotMode);
       String fullName = fullTableName(ident);
 
       AuthSession session = tableSession(response.config(), session(context));
@@ -625,13 +660,13 @@ public class RESTSessionCatalog extends BaseSessionCatalog
               client,
               paths.table(ident),
               session::headers,
-              tableFileIO(response.config()),
+              tableFileIO(context, response.config()),
               RESTTableOperations.UpdateType.REPLACE,
               changes.build(),
               base);
 
       return Transactions.replaceTableTransaction(
-          fullName, ops, replacement, report -> reportMetrics(ident, report, session::headers));
+          fullName, ops, replacement, metricsReporter(paths.metrics(ident), session::headers));
     }
 
     @Override
@@ -715,20 +750,29 @@ public class RESTSessionCatalog extends BaseSessionCatalog
     return String.format("%s.%s", name(), ident);
   }
 
-  private FileIO tableFileIO(Map<String, String> config) {
-    if (config.isEmpty()) {
+  private FileIO newFileIO(SessionContext context, Map<String, String> properties) {
+    if (null != ioBuilder) {
+      return ioBuilder.apply(context, properties);
+    } else {
+      String ioImpl = properties.getOrDefault(CatalogProperties.FILE_IO_IMPL, DEFAULT_FILE_IO_IMPL);
+      return CatalogUtil.loadFileIO(ioImpl, properties, conf);
+    }
+  }
+
+  private FileIO tableFileIO(SessionContext context, Map<String, String> config) {
+    if (config.isEmpty() && ioBuilder == null) {
       return io; // reuse client and io since config is the same
     }
 
     Map<String, String> fullConf = RESTUtil.merge(properties(), config);
-    String ioImpl = fullConf.get(CatalogProperties.FILE_IO_IMPL);
 
-    return CatalogUtil.loadFileIO(
-        ioImpl != null ? ioImpl : ResolvingFileIO.class.getName(), fullConf, this.conf);
+    return newFileIO(context, fullConf);
   }
 
   private AuthSession tableSession(Map<String, String> tableConf, AuthSession parent) {
-    return newSession(tableConf, tableConf, parent);
+    AuthSession session = newSession(tableConf, tableConf, parent);
+
+    return session != null ? session : parent;
   }
 
   private static ConfigResponse fetchConfig(
@@ -784,11 +828,11 @@ public class RESTSessionCatalog extends BaseSessionCatalog
       }
     }
 
-    return parent;
+    return null;
   }
 
   private Long expiresAtMillis(Map<String, String> properties) {
-    if (refreshAuthByDefault || properties.containsKey(OAuth2Properties.TOKEN_EXPIRES_IN_MS)) {
+    if (properties.containsKey(OAuth2Properties.TOKEN_EXPIRES_IN_MS)) {
       long expiresInMillis =
           PropertyUtil.propertyAsLong(
               properties,

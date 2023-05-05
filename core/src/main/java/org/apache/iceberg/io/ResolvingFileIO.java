@@ -23,6 +23,7 @@ import java.util.Map;
 import java.util.function.Function;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.CatalogUtil;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.HadoopConfigurable;
 import org.apache.iceberg.hadoop.SerializableConfiguration;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -166,6 +167,15 @@ public class ResolvingFileIO implements FileIO, HadoopConfigurable {
 
   private static String implFromLocation(String location) {
     return SCHEME_TO_FILE_IO.getOrDefault(scheme(location), FALLBACK_IMPL);
+  }
+
+  public Class<?> ioClass(String location) {
+    String fileIOClassName = implFromLocation(location);
+    try {
+      return Class.forName(fileIOClassName);
+    } catch (ClassNotFoundException e) {
+      throw new ValidationException("Class %s not found : %s", fileIOClassName, e.getMessage());
+    }
   }
 
   private static String scheme(String location) {

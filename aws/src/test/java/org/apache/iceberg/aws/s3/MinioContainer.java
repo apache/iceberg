@@ -50,6 +50,11 @@ public class MinioContainer extends GenericContainer<MinioContainer> {
       this.withEnv(MINIO_ACCESS_KEY, credentials.accessKeyId())
           .withEnv(MINIO_SECRET_KEY, credentials.secretAccessKey());
     }
+
+    // this enables virtual-host-style requests. see
+    // https://github.com/minio/minio/tree/master/docs/config#domain
+    this.withEnv("MINIO_DOMAIN", "localhost");
+
     setWaitStrategy(
         new HttpWaitStrategy()
             .forPort(DEFAULT_PORT)

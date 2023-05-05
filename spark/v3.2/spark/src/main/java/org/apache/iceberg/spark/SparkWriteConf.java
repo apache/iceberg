@@ -30,6 +30,7 @@ import org.apache.iceberg.IsolationLevel;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.spark.sql.RuntimeConfig;
 import org.apache.spark.sql.SparkSession;
@@ -123,6 +124,20 @@ public class SparkWriteConf {
     return sessionConf.get("spark.wap.id", null);
   }
 
+  public int outputSpecId() {
+    int outputSpecId =
+        confParser
+            .intConf()
+            .option(SparkWriteOptions.OUTPUT_SPEC_ID)
+            .defaultValue(table.spec().specId())
+            .parse();
+    Preconditions.checkArgument(
+        table.specs().containsKey(outputSpecId),
+        "Output spec id %s is not a valid spec id for table",
+        outputSpecId);
+    return outputSpecId;
+  }
+
   public boolean mergeSchema() {
     return confParser
         .booleanConf()
@@ -206,6 +221,7 @@ public class SparkWriteConf {
         confParser
             .stringConf()
             .option(SparkWriteOptions.DISTRIBUTION_MODE)
+            .sessionConf(SparkSQLProperties.DISTRIBUTION_MODE)
             .tableProperty(TableProperties.WRITE_DISTRIBUTION_MODE)
             .parseOptional();
 
@@ -213,7 +229,7 @@ public class SparkWriteConf {
       DistributionMode mode = DistributionMode.fromName(modeName);
       return adjustWriteDistributionMode(mode);
     } else {
-      return table.sortOrder().isSorted() ? RANGE : NONE;
+      return defaultWriteDistributionMode();
     }
   }
 
@@ -227,11 +243,22 @@ public class SparkWriteConf {
     }
   }
 
+  private DistributionMode defaultWriteDistributionMode() {
+    if (table.sortOrder().isSorted()) {
+      return RANGE;
+    } else if (table.spec().isPartitioned()) {
+      return HASH;
+    } else {
+      return NONE;
+    }
+  }
+
   public DistributionMode deleteDistributionMode() {
     String deleteModeName =
         confParser
             .stringConf()
             .option(SparkWriteOptions.DISTRIBUTION_MODE)
+            .sessionConf(SparkSQLProperties.DISTRIBUTION_MODE)
             .tableProperty(TableProperties.DELETE_DISTRIBUTION_MODE)
             .defaultValue(TableProperties.WRITE_DISTRIBUTION_MODE_HASH)
             .parse();
@@ -243,6 +270,7 @@ public class SparkWriteConf {
         confParser
             .stringConf()
             .option(SparkWriteOptions.DISTRIBUTION_MODE)
+            .sessionConf(SparkSQLProperties.DISTRIBUTION_MODE)
             .tableProperty(TableProperties.UPDATE_DISTRIBUTION_MODE)
             .defaultValue(TableProperties.WRITE_DISTRIBUTION_MODE_HASH)
             .parse();
@@ -254,12 +282,17 @@ public class SparkWriteConf {
         confParser
             .stringConf()
             .option(SparkWriteOptions.DISTRIBUTION_MODE)
+            .sessionConf(SparkSQLProperties.DISTRIBUTION_MODE)
             .tableProperty(TableProperties.MERGE_DISTRIBUTION_MODE)
             .parseOptional();
 
     if (mergeModeName != null) {
       DistributionMode mergeMode = DistributionMode.fromName(mergeModeName);
       return adjustWriteDistributionMode(mergeMode);
+
+    } else if (table.spec().isPartitioned()) {
+      return HASH;
+
     } else {
       return distributionMode();
     }
@@ -270,9 +303,11 @@ public class SparkWriteConf {
         confParser
             .stringConf()
             .option(SparkWriteOptions.DISTRIBUTION_MODE)
+            .sessionConf(SparkSQLProperties.DISTRIBUTION_MODE)
             .tableProperty(TableProperties.MERGE_DISTRIBUTION_MODE)
-            .parseOptional();
-    return mergeModeName != null ? DistributionMode.fromName(mergeModeName) : distributionMode();
+            .defaultValue(TableProperties.WRITE_DISTRIBUTION_MODE_HASH)
+            .parse();
+    return DistributionMode.fromName(mergeModeName);
   }
 
   public boolean useTableDistributionAndOrdering() {
