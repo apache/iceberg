@@ -20,6 +20,9 @@ package org.apache.iceberg;
 
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.util.List;
 import org.apache.iceberg.expressions.ManifestEvaluator;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
@@ -47,7 +50,27 @@ public class PartitionsTable extends BaseMetadataTable {
             Types.NestedField.required(
                 2, "record_count", Types.LongType.get(), "Count of records in data files"),
             Types.NestedField.required(
-                3, "file_count", Types.IntegerType.get(), "Count of data files"));
+                3, "file_count", Types.IntegerType.get(), "Count of data files"),
+            Types.NestedField.required(
+                5,
+                "position_delete_record_count",
+                Types.LongType.get(),
+                "Count of records in position delete files"),
+            Types.NestedField.required(
+                6,
+                "position_delete_file_count",
+                Types.IntegerType.get(),
+                "Count of position delete files"),
+            Types.NestedField.required(
+                7,
+                "equality_delete_record_count",
+                Types.LongType.get(),
+                "Count of records in equality delete files"),
+            Types.NestedField.required(
+                8,
+                "equality_delete_file_count",
+                Types.IntegerType.get(),
+                "Count of equality delete files"));
   }
 
   @Override
@@ -58,7 +81,13 @@ public class PartitionsTable extends BaseMetadataTable {
   @Override
   public Schema schema() {
     if (table().spec().fields().size() < 1) {
-      return schema.select("record_count", "file_count");
+      return schema.select(
+          "record_count",
+          "file_count",
+          "position_delete_record_count",
+          "position_delete_file_count",
+          "equality_delete_record_count",
+          "equality_delete_file_count");
     }
     return schema;
   }
@@ -77,7 +106,14 @@ public class PartitionsTable extends BaseMetadataTable {
           schema(),
           scan.schema(),
           partitions,
-          root -> StaticDataTask.Row.of(root.dataRecordCount, root.dataFileCount));
+          root ->
+              StaticDataTask.Row.of(
+                  root.dataRecordCount,
+                  root.dataFileCount,
+                  root.posDeleteRecordCount,
+                  root.posDeleteFileCount,
+                  root.eqDeleteRecordCount,
+                  root.eqDeleteFileCount));
     } else {
       return StaticDataTask.of(
           io().newInputFile(table().operations().current().metadataFileLocation()),
@@ -93,31 +129,66 @@ public class PartitionsTable extends BaseMetadataTable {
         partition.partitionData,
         partition.specId,
         partition.dataRecordCount,
-        partition.dataFileCount);
+        partition.dataFileCount,
+        partition.posDeleteRecordCount,
+        partition.posDeleteFileCount,
+        partition.eqDeleteRecordCount,
+        partition.eqDeleteFileCount);
   }
 
   private static Iterable<Partition> partitions(Table table, StaticTableScan scan) {
     Types.StructType partitionType = Partitioning.partitionType(table);
     PartitionMap partitions = new PartitionMap(partitionType);
 
-    CloseableIterable<DataFile> datafiles = planDataFiles(scan);
-    for (DataFile dataFile : datafiles) {
-      StructLike partition =
-          PartitionUtil.coercePartition(
-              partitionType, table.specs().get(dataFile.specId()), dataFile.partition());
-      partitions.get(partition).update(dataFile);
+    try (CloseableIterable<ContentFile<?>> files = planFiles(scan)) {
+      for (ContentFile<?> file : files) {
+        StructLike partition =
+            PartitionUtil.coercePartition(
+                partitionType, table.specs().get(file.specId()), file.partition());
+        partitions.get(partition).update(file);
+      }
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
     }
 
     return partitions.all();
   }
 
   @VisibleForTesting
-  static CloseableIterable<DataFile> planDataFiles(StaticTableScan scan) {
+  static CloseableIterable<ContentFile<?>> planFiles(StaticTableScan scan) {
     Table table = scan.table();
-    Snapshot snapshot = scan.snapshot();
 
-    CloseableIterable<ManifestFile> dataManifests =
-        CloseableIterable.withNoopClose(snapshot.dataManifests(table.io()));
+    CloseableIterable<ManifestFile> filteredManifests =
+        filteredManifests(scan, table, scan.snapshot().allManifests(table.io()));
+
+    Iterable<CloseableIterable<ContentFile<?>>> tasks =
+        CloseableIterable.transform(
+            filteredManifests,
+            manifest ->
+                CloseableIterable.transform(
+                    ManifestFiles.open(manifest, table.io(), table.specs())
+                        .caseSensitive(scan.isCaseSensitive())
+                        .select(scanColumns(manifest.content())), // don't select stats columns
+                    t -> (ContentFile<?>) t));
+
+    return new ParallelIterable<>(tasks, scan.planExecutor());
+  }
+
+  private static List<String> scanColumns(ManifestContent content) {
+    switch (content) {
+      case DATA:
+        return BaseScan.SCAN_COLUMNS;
+      case DELETES:
+        return BaseScan.DELETE_SCAN_COLUMNS;
+      default:
+        throw new UnsupportedOperationException("Cannot read unknown manifest type: " + content);
+    }
+  }
+
+  private static CloseableIterable<ManifestFile> filteredManifests(
+      StaticTableScan scan, Table table, List<ManifestFile> manifestFilesList) {
+    CloseableIterable<ManifestFile> manifestFiles =
+        CloseableIterable.withNoopClose(manifestFilesList);
 
     LoadingCache<Integer, ManifestEvaluator> evalCache =
         Caffeine.newBuilder()
@@ -129,19 +200,8 @@ public class PartitionsTable extends BaseMetadataTable {
                       scan.filter(), transformedSpec, scan.isCaseSensitive());
                 });
 
-    CloseableIterable<ManifestFile> filteredManifests =
-        CloseableIterable.filter(
-            dataManifests, manifest -> evalCache.get(manifest.partitionSpecId()).eval(manifest));
-
-    Iterable<CloseableIterable<DataFile>> tasks =
-        CloseableIterable.transform(
-            filteredManifests,
-            manifest ->
-                ManifestFiles.read(manifest, table.io(), table.specs())
-                    .caseSensitive(scan.isCaseSensitive())
-                    .select(BaseScan.SCAN_COLUMNS)); // don't select stats columns
-
-    return new ParallelIterable<>(tasks, scan.planExecutor());
+    return CloseableIterable.filter(
+        manifestFiles, manifest -> evalCache.get(manifest.partitionSpecId()).eval(manifest));
   }
 
   private class PartitionsScan extends StaticTableScan {
@@ -182,18 +242,43 @@ public class PartitionsTable extends BaseMetadataTable {
     private int specId;
     private long dataRecordCount;
     private int dataFileCount;
+    private long posDeleteRecordCount;
+    private int posDeleteFileCount;
+    private long eqDeleteRecordCount;
+    private int eqDeleteFileCount;
 
     Partition(StructLike key, Types.StructType keyType) {
       this.partitionData = toPartitionData(key, keyType);
       this.specId = 0;
       this.dataRecordCount = 0;
       this.dataFileCount = 0;
+      this.posDeleteRecordCount = 0;
+      this.posDeleteFileCount = 0;
+      this.eqDeleteRecordCount = 0;
+      this.eqDeleteFileCount = 0;
     }
 
-    void update(DataFile file) {
-      this.dataRecordCount += file.recordCount();
-      this.dataFileCount += 1;
-      this.specId = file.specId();
+    void update(ContentFile<?> file) {
+      switch (file.content()) {
+        case DATA:
+          this.dataRecordCount += file.recordCount();
+          this.dataFileCount += 1;
+          this.specId = file.specId();
+          break;
+        case POSITION_DELETES:
+          this.posDeleteRecordCount = file.recordCount();
+          this.posDeleteFileCount += 1;
+          this.specId = file.specId();
+          break;
+        case EQUALITY_DELETES:
+          this.eqDeleteRecordCount = file.recordCount();
+          this.eqDeleteFileCount += 1;
+          this.specId = file.specId();
+          break;
+        default:
+          throw new UnsupportedOperationException(
+              "Unsupported file content type: " + file.content());
+      }
     }
 
     /** Needed because StructProjection is not serializable */
