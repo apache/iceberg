@@ -38,7 +38,6 @@ import org.apache.avro.LogicalTypes;
 import org.apache.avro.SchemaBuilder;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.util.Utf8;
-import org.apache.commons.lang3.NotImplementedException;
 import org.apache.flink.table.data.DecimalData;
 import org.apache.flink.table.data.GenericArrayData;
 import org.apache.flink.table.data.GenericMapData;
@@ -1152,7 +1151,7 @@ public class DataGenerators {
 
     @Override
     public GenericRecord generateIcebergGenericRecord() {
-      throw new NotImplementedException("Not implemented yet");
+      throw new UnsupportedOperationException("Not implemented yet");
     }
 
     @Override
