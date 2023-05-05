@@ -32,6 +32,11 @@ public class ThreadPools {
 
   private ThreadPools() {}
 
+  /**
+   * @deprecated Use {@link SystemConfigs#WORKER_THREAD_POOL_SIZE WORKER_THREAD_POOL_SIZE} instead;
+   *     will be removed in 2.0.0
+   */
+  @Deprecated
   public static final String WORKER_THREAD_POOL_SIZE_PROP =
       SystemConfigs.WORKER_THREAD_POOL_SIZE.propertyKey();
 

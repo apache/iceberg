@@ -63,6 +63,7 @@ public class SystemConfigs {
     private final String envKey;
     private final T defaultValue;
     private final Function<String, T> parseFunc;
+    private T lazyValue = null;
 
     private ConfigEntry(
         String propertyKey, String envKey, T defaultValue, Function<String, T> parseFunc) {
@@ -85,13 +86,25 @@ public class SystemConfigs {
     }
 
     public final T value() {
+      if (lazyValue == null) {
+        lazyValue = getValue();
+      }
+
+      return lazyValue;
+    }
+
+    private T getValue() {
       String value = System.getProperty(propertyKey);
       if (value == null) {
         value = System.getenv(envKey);
       }
 
       if (value != null) {
-        return parseFunc.apply(value);
+        try {
+          return parseFunc.apply(value);
+        } catch (NumberFormatException e) {
+          // will return the default
+        }
       }
 
       return defaultValue;
