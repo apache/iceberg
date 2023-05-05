@@ -406,6 +406,14 @@ acceptedBreaks:
       justification: "Removing deprecations for 1.2.0"
   "1.2.0":
     org.apache.iceberg:iceberg-api:
+    - code: "java.method.addedToInterface"
+      new: "method boolean org.apache.iceberg.catalog.SessionCatalog::dropNamespace(org.apache.iceberg.catalog.SessionCatalog.SessionContext,\
+        \ org.apache.iceberg.catalog.Namespace, boolean)"
+      justification: "extending api to add new method, not removing any public api"
+    - code: "java.method.addedToInterface"
+      new: "method boolean org.apache.iceberg.catalog.SupportsNamespaces::dropNamespace(org.apache.iceberg.catalog.Namespace,\
+      \ boolean) throws org.apache.iceberg.exceptions.NamespaceNotEmptyException"
+      justification: "extending api to add new method, not removing any public api"
     - code: "java.field.constantValueChanged"
       old: "field org.apache.iceberg.actions.RewriteDataFiles.MAX_CONCURRENT_FILE_GROUP_REWRITES_DEFAULT"
       new: "field org.apache.iceberg.actions.RewriteDataFiles.MAX_CONCURRENT_FILE_GROUP_REWRITES_DEFAULT"
