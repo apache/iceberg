@@ -100,7 +100,7 @@ public class S3FileIO
   }
 
   /**
-   * Constructor with custom s3 supplier and S3 fileIO properties.
+   * Constructor with custom s3 supplier and S3FileIO properties.
    *
    * <p>Calling {@link S3FileIO#initialize(Map)} will overwrite information set in this constructor.
    *
@@ -111,7 +111,7 @@ public class S3FileIO
   }
 
   /**
-   * Constructor with custom s3 supplier and S3 fileIO properties.
+   * Constructor with custom s3 supplier and S3FileIO properties.
    *
    * <p>Calling {@link S3FileIO#initialize(Map)} will overwrite information set in this constructor.
    *
