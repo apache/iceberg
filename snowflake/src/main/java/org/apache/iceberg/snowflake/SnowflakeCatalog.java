@@ -28,6 +28,7 @@ import java.util.stream.Collectors;
 import org.apache.iceberg.BaseMetastoreCatalog;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
+import org.apache.iceberg.IcebergBuild;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
@@ -123,11 +124,13 @@ public class SnowflakeCatalog extends BaseMetastoreCatalog
 
     String uniqueId = UUID.randomUUID().toString().replace("-", "").substring(0, UNIQUE_ID_LENGTH);
     String uniqueAppIdentifier = APP_IDENTIFIER + "_" + uniqueId;
+    String icebergVersion =
+        "iceberg/" + IcebergBuild.fullVersion() + IcebergBuild.gitCommitShortId();
+    String userAgentSuffix = icebergVersion + " " + uniqueAppIdentifier;
     // Populate application identifier in jdbc client
     properties.put(JdbcCatalog.PROPERTY_PREFIX + JDBC_APPLICATION_PROPERTY, uniqueAppIdentifier);
     // Adds application identifier to the user agent header of the JDBC requests.
-    properties.put(
-        JdbcCatalog.PROPERTY_PREFIX + JDBC_USER_AGENT_SUFFIX_PROPERTY, uniqueAppIdentifier);
+    properties.put(JdbcCatalog.PROPERTY_PREFIX + JDBC_USER_AGENT_SUFFIX_PROPERTY, userAgentSuffix);
     JdbcClientPool connectionPool = new JdbcClientPool(uri, properties);
 
     initialize(name, new JdbcSnowflakeClient(connectionPool), new FileIOFactory(), properties);
