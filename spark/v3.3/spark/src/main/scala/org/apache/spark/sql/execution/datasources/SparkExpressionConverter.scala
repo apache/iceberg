@@ -27,6 +27,7 @@ import org.apache.spark.sql.catalyst.expressions.Attribute
 import org.apache.spark.sql.catalyst.expressions.Expression
 import org.apache.spark.sql.catalyst.plans.logical.Filter
 import org.apache.spark.sql.catalyst.plans.logical.LeafNode
+import org.apache.spark.sql.catalyst.plans.logical.LocalRelation
 
 object SparkExpressionConverter {
 
@@ -38,35 +39,18 @@ object SparkExpressionConverter {
   }
 
   @throws[AnalysisException]
-  def collectSparkExpressionOption(session: SparkSession,
-                                        tableName: String, where: String): Option[Expression] = {
-    // used to obtain an optimized logical plan of a spark expression
+  def collectResolvedIcebergExpression(session: SparkSession,
+                                       tableName: String,
+                                       where: String): org.apache.iceberg.expressions.Expression = {
     val tableAttrs = session.table(tableName).queryExecution.analyzed.output
     val unresolvedExpression = session.sessionState.sqlParser.parseExpression(where)
     val filter = Filter(unresolvedExpression, DummyRelation(tableAttrs))
     val optimizedLogicalPlan = session.sessionState.executePlan(filter).optimizedPlan
     optimizedLogicalPlan.collectFirst {
-      case filter: Filter => Some(filter.condition)
-    }.flatten
-  }
-
-  @throws[AnalysisException]
-  def collectResolvedIcebergExpression(session: SparkSession,
-                                       tableName: String,
-                                       where: String): org.apache.iceberg.expressions.Expression = {
-    val option = collectSparkExpressionOption(session, tableName, where)
-    option match {
-      case None  =>
-        val tableAttrs = session.table(tableName).queryExecution.analyzed.output
-        val firstColumnName = tableAttrs.head.name
-        val testWhere = s"$firstColumnName is null and $where"
-        val testOption = collectSparkExpressionOption(session, tableName, testWhere)
-        testOption match {
-          case None => Expressions.alwaysFalse()
-          case _ => Expressions.alwaysTrue()
-        }
-      case _ => convertToIcebergExpression(option.get)
-    }
+      case filter: Filter => convertToIcebergExpression(filter.condition)
+      case dummyRelation: DummyRelation => Expressions.alwaysTrue()
+      case localRelation: LocalRelation => Expressions.alwaysFalse()
+    }.getOrElse(throw new AnalysisException("Failed to find filter expression"))
   }
 
   case class DummyRelation(output: Seq[Attribute]) extends LeafNode
