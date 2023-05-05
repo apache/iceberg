@@ -172,12 +172,12 @@ catalog.
 | Catalog   | Table Purge  | Nested Namespaces      |
 |-----------|--------------|------------------------|
 | Hive      | - [ x ]      | - [ ]                  |
-| Nessie    | - [  ]       | - [  ]                 |
-| DynamoDb  | - [  ]       | - [  ]                 |
-| Glue      | - [  ]       | - [  ]                 |
 | Hadoop    | - [  ]       | - [ x ]                |
 | JDBC      | - [  ]       | - [ x ]                |
 | ECS       | - [  ]       | - [ x ]                |
+| Nessie    | NotSupported       | NotSupported                 |
+| DynamoDb  | NotSupported       | NotSupported                 |
+| Glue      | NotSupported       | NotSupported                 |
 | Snowflake | NotSupported | NotSupported           |
 
 
