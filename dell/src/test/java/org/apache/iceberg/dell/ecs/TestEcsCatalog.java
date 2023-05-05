@@ -22,6 +22,7 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 
 import java.io.IOException;
 import java.util.Map;
+import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.Schema;
@@ -127,13 +128,15 @@ public class TestEcsCatalog {
     ecsCatalog.createNamespace(Namespace.of("a", "b1"));
     ecsCatalog.createTable(TableIdentifier.of("a", "t1"), SCHEMA);
 
-    Assertions.assertThatThrownBy(() -> ecsCatalog.dropNamespace(Namespace.of("unknown")))
-        .isInstanceOf(NoSuchNamespaceException.class)
-        .hasMessage("Namespace unknown does not exist");
+    AssertHelpers.assertThrows(
+        "Drop an unknown namespace should throw exception",
+        NoSuchNamespaceException.class,
+        () -> ecsCatalog.dropNamespace(Namespace.of("unknown")));
 
-    Assertions.assertThatThrownBy(() -> ecsCatalog.dropNamespace(Namespace.of("a")))
-        .isInstanceOf(NamespaceNotEmptyException.class)
-        .hasMessage("Namespace a is not empty");
+    AssertHelpers.assertThrows(
+        "Drop not empty namespace should throw exception",
+        NamespaceNotEmptyException.class,
+        () -> ecsCatalog.dropNamespace(Namespace.of("a")));
 
     Assert.assertTrue("Drop namespace [a, b1]", ecsCatalog.dropNamespace(Namespace.of("a", "b1")));
 
@@ -142,28 +145,6 @@ public class TestEcsCatalog {
     Assert.assertTrue(
         "The [a, b1] is not in list result of [a]",
         ecsCatalog.listNamespaces(Namespace.of("a")).isEmpty());
-  }
-
-  @Test
-  public void testDropNamespaceCascade() {
-    ecsCatalog.createNamespace(Namespace.of("a"));
-    ecsCatalog.createNamespace(Namespace.of("a", "b1"));
-    ecsCatalog.createTable(TableIdentifier.of("a", "t1"), SCHEMA);
-
-    Assert.assertTrue("Drop namespace [a]", ecsCatalog.dropNamespace(Namespace.of("a"), true));
-
-    Assert.assertFalse("The [a] is absent", ecsCatalog.namespaceExists(Namespace.of("a")));
-  }
-
-  @Test
-  public void testDropNamespaceCascadeFalse() {
-    ecsCatalog.createNamespace(Namespace.of("a"));
-    ecsCatalog.createNamespace(Namespace.of("a", "b1"));
-    ecsCatalog.createTable(TableIdentifier.of("a", "t1"), SCHEMA);
-
-    Assertions.assertThatThrownBy(() -> ecsCatalog.dropNamespace(Namespace.of("a"), false))
-        .isInstanceOf(NamespaceNotEmptyException.class)
-        .hasMessage("Namespace a is not empty");
   }
 
   @Test
@@ -182,19 +163,17 @@ public class TestEcsCatalog {
     ecsCatalog.createTable(TableIdentifier.of("a", "t1"), SCHEMA);
     ecsCatalog.createNamespace(Namespace.of("b"));
 
-    Assertions.assertThatThrownBy(
-            () ->
-                ecsCatalog.renameTable(
-                    TableIdentifier.of("unknown"), TableIdentifier.of("b", "t2")))
-        .isInstanceOf(NoSuchTableException.class)
-        .hasMessage("Cannot rename table because table unknown does not exist");
+    AssertHelpers.assertThrows(
+        "Rename an unknown table should throw exception",
+        NoSuchTableException.class,
+        () -> ecsCatalog.renameTable(TableIdentifier.of("unknown"), TableIdentifier.of("b", "t2")));
 
-    Assertions.assertThatThrownBy(
-            () ->
-                ecsCatalog.renameTable(
-                    TableIdentifier.of("a", "t1"), TableIdentifier.of("unknown", "t2")))
-        .isInstanceOf(NoSuchNamespaceException.class)
-        .hasMessage("Cannot rename a.t1 to unknown.t2 because namespace unknown does not exist");
+    AssertHelpers.assertThrows(
+        "Rename to an unknown namespace should throw exception",
+        NoSuchNamespaceException.class,
+        () ->
+            ecsCatalog.renameTable(
+                TableIdentifier.of("a", "t1"), TableIdentifier.of("unknown", "t2")));
 
     ecsCatalog.renameTable(TableIdentifier.of("a", "t1"), TableIdentifier.of("b", "t2"));
 

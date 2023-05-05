@@ -564,7 +564,8 @@ public class GlueCatalog extends BaseMetastoreCatalog
   public boolean dropNamespace(Namespace namespace, boolean cascade)
       throws NamespaceNotEmptyException {
     if (cascade) {
-      listTables(namespace).forEach(this::dropTable);
+      throw new UnsupportedOperationException(
+          "GlueCatalog does not currently support dropNamespace with cascade");
     }
     return dropNamespace(namespace);
   }
