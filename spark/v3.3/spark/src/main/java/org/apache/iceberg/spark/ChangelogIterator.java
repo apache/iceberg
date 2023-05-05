@@ -27,7 +27,7 @@ import org.apache.spark.sql.Row;
 import org.apache.spark.sql.types.StructType;
 
 /** An iterator that transforms rows from changelog tables within a single Spark task. */
-public class ChangelogIterator implements Iterator<Row> {
+public abstract class ChangelogIterator implements Iterator<Row> {
   protected static final String DELETE = ChangelogOperation.DELETE.name();
   protected static final String INSERT = ChangelogOperation.INSERT.name();
   protected static final String UPDATE_BEFORE = ChangelogOperation.UPDATE_BEFORE.name();
@@ -50,7 +50,7 @@ public class ChangelogIterator implements Iterator<Row> {
   }
 
   /**
-   * Creates an iterator combine with {@link CarryoverRemoveIterator} and {@link
+   * Creates an iterator combine with {@link RemoveCarryoverIterator} and {@link
    * ComputeUpdateIterator} to remove carry-over rows and compute update rows
    *
    * @param rowIterator the iterator of rows from a changelog table
@@ -59,9 +59,9 @@ public class ChangelogIterator implements Iterator<Row> {
    *     same
    * @return a new iterator instance
    */
-  public static Iterator<Row> create(
+  public static Iterator<Row> computeUpdates(
       Iterator<Row> rowIterator, StructType rowType, String[] identifierFields) {
-    Iterator<Row> carryoverRemoveIterator = createCarryoverRemoveIterator(rowIterator, rowType);
+    Iterator<Row> carryoverRemoveIterator = removeCarryovers(rowIterator, rowType);
     ChangelogIterator changelogIterator =
         new ComputeUpdateIterator(carryoverRemoveIterator, rowType, identifierFields);
     return Iterators.filter(changelogIterator, Objects::nonNull);
@@ -74,14 +74,13 @@ public class ChangelogIterator implements Iterator<Row> {
    * @param rowType the schema of the rows
    * @return a new iterator instance
    */
-  public static Iterator<Row> createCarryoverRemoveIterator(
-      Iterator<Row> rowIterator, StructType rowType) {
-    CarryoverRemoveIterator changelogIterator = new CarryoverRemoveIterator(rowIterator, rowType);
+  public static Iterator<Row> removeCarryovers(Iterator<Row> rowIterator, StructType rowType) {
+    RemoveCarryoverIterator changelogIterator = new RemoveCarryoverIterator(rowIterator, rowType);
     return Iterators.filter(changelogIterator, Objects::nonNull);
   }
 
-  protected boolean isColumnSame(Row currentRow, Row nextRow, int idx) {
-    return Objects.equals(nextRow.get(idx), currentRow.get(idx));
+  protected boolean isDifferentValue(Row currentRow, Row nextRow, int idx) {
+    return !Objects.equals(nextRow.get(idx), currentRow.get(idx));
   }
 
   @Override

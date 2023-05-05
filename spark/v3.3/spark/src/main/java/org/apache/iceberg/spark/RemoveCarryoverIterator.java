@@ -46,45 +46,43 @@ import org.apache.spark.sql.types.StructType;
  *   <li>(id=2, data='b', op='DELETE')
  * </ul>
  */
-class CarryoverRemoveIterator extends ChangelogIterator {
-  private final Iterator<Row> rowIterator;
-  private final int[] indicesForIdentifySameRow;
+class RemoveCarryoverIterator extends ChangelogIterator {
+  private final int[] indicesToIdentifySameRow;
 
   private Row deletedRow = null;
   private long deletedRowCount = 0;
-  private Row nextCachedRow = null;
+  private Row cachedNextRecord = null;
 
-  CarryoverRemoveIterator(Iterator<Row> rowIterator, StructType rowType) {
+  RemoveCarryoverIterator(Iterator<Row> rowIterator, StructType rowType) {
     super(rowIterator, rowType);
-    this.rowIterator = rowIterator;
-    this.indicesForIdentifySameRow = generateIndicesForIdentifySameRow(rowType.size());
+    this.indicesToIdentifySameRow = generateIndicesToIdentifySameRow(rowType.size());
   }
 
   @Override
   public boolean hasNext() {
-    if (hasDeleteRow() || nextCachedRow != null) {
+    if (hasCachedDeleteRow() || cachedNextRecord != null) {
       return true;
     }
-    return rowIterator.hasNext();
+    return rowIterator().hasNext();
   }
 
   @Override
   public Row next() {
-    if (popupDeleteRow()) {
+    if (returnCachedDeleteRow()) {
       deletedRowCount--;
       return deletedRow;
     }
 
     Row currentRow = currentRow();
 
-    if (currentRow.getString(changeTypeIndex()).equals(DELETE) && rowIterator.hasNext()) {
+    if (currentRow.getString(changeTypeIndex()).equals(DELETE) && rowIterator().hasNext()) {
       // cache the delete row if there is 0 delete row cached
-      if (!hasDeleteRow()) {
+      if (!hasCachedDeleteRow()) {
         deletedRow = currentRow;
         deletedRowCount++;
       }
 
-      Row nextRow = rowIterator.next();
+      Row nextRow = rowIterator().next();
 
       if (isSameRecord(currentRow, nextRow)) {
         if (nextRow.getString(changeTypeIndex()).equals(INSERT)) {
@@ -94,7 +92,7 @@ class CarryoverRemoveIterator extends ChangelogIterator {
         }
       } else {
         // mark the boundary since the next row is not the same record as the current row
-        nextCachedRow = nextRow;
+        cachedNextRecord = nextRow;
       }
 
       currentRow = null;
@@ -104,34 +102,34 @@ class CarryoverRemoveIterator extends ChangelogIterator {
   }
 
   /**
-   * Pop up the delete rows if there are delete rows cached and the next row is not the same record
-   * or there is no next row.
+   * The iterator returns a cached delete row if there are delete rows cached and the next row is
+   * not the same record or there is no next row.
    */
-  private boolean popupDeleteRow() {
-    return hitBoundary() && hasDeleteRow();
+  private boolean returnCachedDeleteRow() {
+    return hitBoundary() && hasCachedDeleteRow();
   }
 
   private boolean hitBoundary() {
-    return !rowIterator.hasNext() || nextCachedRow != null;
+    return !rowIterator().hasNext() || cachedNextRecord != null;
   }
 
-  private boolean hasDeleteRow() {
+  private boolean hasCachedDeleteRow() {
     return deletedRowCount > 0;
   }
 
   private Row currentRow() {
-    if (nextCachedRow != null) {
-      Row currentRow = nextCachedRow;
-      nextCachedRow = null;
+    if (cachedNextRecord != null) {
+      Row currentRow = cachedNextRecord;
+      cachedNextRecord = null;
       return currentRow;
-    } else if (hasDeleteRow()) {
+    } else if (hasCachedDeleteRow()) {
       return deletedRow;
     } else {
-      return rowIterator.next();
+      return rowIterator().next();
     }
   }
 
-  private int[] generateIndicesForIdentifySameRow(int columnSize) {
+  private int[] generateIndicesToIdentifySameRow(int columnSize) {
     int[] indices = new int[columnSize - 1];
     for (int i = 0; i < indices.length; i++) {
       if (i < changeTypeIndex()) {
@@ -143,9 +141,9 @@ class CarryoverRemoveIterator extends ChangelogIterator {
     return indices;
   }
 
-  protected boolean isSameRecord(Row currentRow, Row nextRow) {
-    for (int idx : indicesForIdentifySameRow) {
-      if (!isColumnSame(currentRow, nextRow, idx)) {
+  private boolean isSameRecord(Row currentRow, Row nextRow) {
+    for (int idx : indicesToIdentifySameRow) {
+      if (isDifferentValue(currentRow, nextRow, idx)) {
         return false;
       }
     }

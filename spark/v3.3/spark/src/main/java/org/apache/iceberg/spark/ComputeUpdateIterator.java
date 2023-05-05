@@ -72,7 +72,7 @@ public class ComputeUpdateIterator extends ChangelogIterator {
   @Override
   public Row next() {
     // if there is an updated cached row, return it directly
-    if (cachedUpdateRecord(cachedRow)) {
+    if (cachedUpdateRecord()) {
       Row row = cachedRow;
       cachedRow = null;
       return row;
@@ -117,10 +117,10 @@ public class ComputeUpdateIterator extends ChangelogIterator {
     }
   }
 
-  private boolean cachedUpdateRecord(Row cachedRecord) {
-    return cachedRecord != null
-        && !cachedRecord.getString(changeTypeIndex()).equals(DELETE)
-        && !cachedRecord.getString(changeTypeIndex()).equals(INSERT);
+  private boolean cachedUpdateRecord() {
+    return cachedRow != null
+        && !cachedRow.getString(changeTypeIndex()).equals(DELETE)
+        && !cachedRow.getString(changeTypeIndex()).equals(INSERT);
   }
 
   private Row currentRow() {
@@ -135,7 +135,7 @@ public class ComputeUpdateIterator extends ChangelogIterator {
 
   private boolean sameLogicalRow(Row currentRow, Row nextRow) {
     for (int idx : identifierFieldIdx) {
-      if (!isColumnSame(currentRow, nextRow, idx)) {
+      if (isDifferentValue(currentRow, nextRow, idx)) {
         return false;
       }
     }

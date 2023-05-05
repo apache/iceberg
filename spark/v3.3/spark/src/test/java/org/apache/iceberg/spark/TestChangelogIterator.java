@@ -83,7 +83,8 @@ public class TestChangelogIterator extends SparkTestHelperBase {
       expectedRows.addAll(toExpectedRows((RowType) permutation[i], i));
     }
 
-    Iterator<Row> iterator = ChangelogIterator.create(rows.iterator(), SCHEMA, IDENTIFIER_FIELDS);
+    Iterator<Row> iterator =
+        ChangelogIterator.computeUpdates(rows.iterator(), SCHEMA, IDENTIFIER_FIELDS);
     List<Row> result = Lists.newArrayList(iterator);
     assertEquals("Rows should match", expectedRows, rowsToJava(result));
   }
@@ -157,7 +158,7 @@ public class TestChangelogIterator extends SparkTestHelperBase {
             new GenericRowWithSchema(new Object[] {6, "name", null, INSERT}, null));
 
     Iterator<Row> iterator =
-        ChangelogIterator.create(rowsWithNull.iterator(), SCHEMA, IDENTIFIER_FIELDS);
+        ChangelogIterator.computeUpdates(rowsWithNull.iterator(), SCHEMA, IDENTIFIER_FIELDS);
     List<Row> result = Lists.newArrayList(iterator);
 
     assertEquals(
@@ -183,7 +184,7 @@ public class TestChangelogIterator extends SparkTestHelperBase {
             new GenericRowWithSchema(new Object[] {1, "a", "new_data", INSERT}, null));
 
     Iterator<Row> iterator =
-        ChangelogIterator.create(rowsWithDuplication.iterator(), SCHEMA, IDENTIFIER_FIELDS);
+        ChangelogIterator.computeUpdates(rowsWithDuplication.iterator(), SCHEMA, IDENTIFIER_FIELDS);
 
     assertThrows(
         "The next row should be an INSERT row, but it is DELETE. That means there are multiple rows with the same value of identifier fields([id, name]). Please make sure the rows are unique.",
@@ -198,7 +199,7 @@ public class TestChangelogIterator extends SparkTestHelperBase {
             new GenericRowWithSchema(new Object[] {1, "a", "new_data2", INSERT}, null));
 
     Iterator<Row> iterator1 =
-        ChangelogIterator.create(rowsWithDuplication.iterator(), SCHEMA, IDENTIFIER_FIELDS);
+        ChangelogIterator.computeUpdates(rowsWithDuplication.iterator(), SCHEMA, IDENTIFIER_FIELDS);
 
     assertEquals(
         "Rows should match.",
@@ -228,7 +229,7 @@ public class TestChangelogIterator extends SparkTestHelperBase {
             new GenericRowWithSchema(new Object[] {3, "a", "new_data", INSERT}, null));
 
     Iterator<Row> iterator =
-        ChangelogIterator.createCarryoverRemoveIterator(rowsWithDuplication.iterator(), SCHEMA);
+        ChangelogIterator.removeCarryovers(rowsWithDuplication.iterator(), SCHEMA);
     List<Row> result = Lists.newArrayList(iterator);
 
     assertEquals(
@@ -254,7 +255,7 @@ public class TestChangelogIterator extends SparkTestHelperBase {
             new GenericRowWithSchema(new Object[] {2, "d", "data", INSERT}, null));
 
     Iterator<Row> iterator =
-        ChangelogIterator.createCarryoverRemoveIterator(rowsWithDuplication.iterator(), SCHEMA);
+        ChangelogIterator.removeCarryovers(rowsWithDuplication.iterator(), SCHEMA);
     List<Row> result = Lists.newArrayList(iterator);
 
     assertEquals(
@@ -277,7 +278,7 @@ public class TestChangelogIterator extends SparkTestHelperBase {
             new GenericRowWithSchema(new Object[] {1, "d", "data", INSERT}, null));
 
     Iterator<Row> iterator =
-        ChangelogIterator.createCarryoverRemoveIterator(rowsWithDuplication.iterator(), SCHEMA);
+        ChangelogIterator.removeCarryovers(rowsWithDuplication.iterator(), SCHEMA);
     List<Row> result = Lists.newArrayList(iterator);
 
     assertEquals(
@@ -297,7 +298,7 @@ public class TestChangelogIterator extends SparkTestHelperBase {
             new GenericRowWithSchema(new Object[] {1, "d", "data", DELETE}, null));
 
     Iterator<Row> iterator =
-        ChangelogIterator.createCarryoverRemoveIterator(rowsWithDuplication.iterator(), SCHEMA);
+        ChangelogIterator.removeCarryovers(rowsWithDuplication.iterator(), SCHEMA);
     List<Row> result = Lists.newArrayList(iterator);
 
     assertEquals(

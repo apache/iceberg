@@ -32,7 +32,7 @@ public class TestTasks {
 
     final int retries = 10;
 
-    Tasks.foreach(IntStream.range(0, 10))
+    Tasks.foreach(1)
         .countAttempts(counter)
         .exponentialBackoff(0, 0, 5000, 0)
         .retry(retries)

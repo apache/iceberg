@@ -223,7 +223,8 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
         .sortWithinPartitions(sortSpec)
         .mapPartitions(
             (MapPartitionsFunction<Row, Row>)
-                rowIterator -> ChangelogIterator.create(rowIterator, schema, identifierFields),
+                rowIterator ->
+                    ChangelogIterator.computeUpdates(rowIterator, schema, identifierFields),
             RowEncoder.apply(schema));
   }
 
@@ -235,7 +236,7 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
         .sortWithinPartitions(sortSpec)
         .mapPartitions(
             (MapPartitionsFunction<Row, Row>)
-                rowIterator -> ChangelogIterator.createCarryoverRemoveIterator(rowIterator, schema),
+                rowIterator -> ChangelogIterator.removeCarryovers(rowIterator, schema),
             RowEncoder.apply(schema));
   }
 
