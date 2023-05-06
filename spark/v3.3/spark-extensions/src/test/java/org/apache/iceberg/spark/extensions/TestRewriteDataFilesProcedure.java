@@ -291,8 +291,8 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
     System.out.println(removeFileSize);
     System.out.println("----removeFileSize--");
     assertThat(output.get(0)[2])
-            .isInstanceOf(Long.class)
-            .isEqualTo(Long.valueOf(removeFileSize == null ? "0" : removeFileSize));
+        .isInstanceOf(Long.class)
+        .isEqualTo(Long.valueOf(removeFileSize == null ? "0" : removeFileSize));
     List<Object[]> actualRecords = currentData();
     assertEquals("Data after compaction should not change", expectedRecords, actualRecords);
   }
