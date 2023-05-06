@@ -181,6 +181,8 @@ public interface RewriteDataFiles
   interface Result {
     List<FileGroupRewriteResult> rewriteResults();
 
+    List<FileGroupFailureResult> rewriteFailures();
+
     @Value.Default
     default int addedDataFilesCount() {
       return rewriteResults().stream().mapToInt(FileGroupRewriteResult::addedDataFilesCount).sum();
@@ -196,6 +198,10 @@ public interface RewriteDataFiles
     @Value.Default
     default long rewrittenBytesCount() {
       return rewriteResults().stream().mapToLong(FileGroupRewriteResult::rewrittenBytesCount).sum();
+    }
+
+    default int failedDataFilesCount() {
+      return rewriteFailures().stream().mapToInt(FileGroupFailureResult::dataFilesCount).sum();
     }
   }
 
@@ -215,6 +221,14 @@ public interface RewriteDataFiles
     default long rewrittenBytesCount() {
       return 0L;
     }
+  }
+
+  /** For a file group that failed to rewrite. */
+  @Value.Immutable
+  interface FileGroupFailureResult {
+    FileGroupInfo info();
+
+    int dataFilesCount();
   }
 
   /**

@@ -30,12 +30,22 @@ import org.apache.iceberg.actions.RewriteDataFiles.Result;
 public class BaseRewriteDataFilesResult implements Result {
   private final List<FileGroupRewriteResult> rewriteResults;
 
-  public BaseRewriteDataFilesResult(List<FileGroupRewriteResult> rewriteResults) {
+  private final List<RewriteDataFiles.FileGroupFailureResult> rewriteFailures;
+
+  public BaseRewriteDataFilesResult(
+      List<FileGroupRewriteResult> rewriteResults,
+      List<RewriteDataFiles.FileGroupFailureResult> rewriteFailures) {
     this.rewriteResults = rewriteResults;
+    this.rewriteFailures = rewriteFailures;
   }
 
   @Override
   public List<FileGroupRewriteResult> rewriteResults() {
     return rewriteResults;
+  }
+
+  @Override
+  public List<RewriteDataFiles.FileGroupFailureResult> rewriteFailures() {
+    return rewriteFailures;
   }
 }
