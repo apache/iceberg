@@ -18,7 +18,7 @@
 mkdocs==1.4.2
 griffe==0.26.0
 jinja2==3.1.2
-mkdocstrings==0.20.0
+mkdocstrings==0.21.2
 mkdocstrings-python==0.9.0
 mkdocs-literate-nav==0.6.0
 mkdocs-autorefs==0.4.1
