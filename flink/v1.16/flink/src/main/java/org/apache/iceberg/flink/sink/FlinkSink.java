@@ -451,7 +451,11 @@ public class FlinkSink {
             !equalityFieldIds.isEmpty(),
             "Equality field columns shouldn't be empty when configuring to use UPSERT data stream.");
         if (!table.spec().isUnpartitioned()) {
-          for (PartitionField partitionField : table.spec().fields()) {
+          List<PartitionField> identicalPartitionFields =
+              table.spec().fields().stream()
+                  .filter(field -> field.transform().isIdentity())
+                  .collect(Collectors.toList());
+          for (PartitionField partitionField : identicalPartitionFields) {
             Preconditions.checkState(
                 equalityFieldIds.contains(partitionField.sourceId()),
                 "In UPSERT mode, partition field '%s' should be included in equality fields: '%s'",
@@ -518,7 +522,11 @@ public class FlinkSink {
               return input.keyBy(
                   new EqualityFieldKeySelector(iSchema, flinkRowType, equalityFieldIds));
             } else {
-              for (PartitionField partitionField : partitionSpec.fields()) {
+              List<PartitionField> identicalPartitionFields =
+                  partitionSpec.fields().stream()
+                      .filter(field -> field.transform().isIdentity())
+                      .collect(Collectors.toList());
+              for (PartitionField partitionField : identicalPartitionFields) {
                 Preconditions.checkState(
                     equalityFieldIds.contains(partitionField.sourceId()),
                     "In 'hash' distribution mode with equality fields set, partition field '%s' "
