@@ -29,8 +29,8 @@ import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.execution.SparkPlan;
 import org.apache.spark.sql.execution.metric.SQLMetric;
 import org.junit.After;
-import org.junit.Assert;
 import org.junit.Test;
+import org.junit.jupiter.api.Assertions;
 import scala.collection.JavaConverters;
 
 public class TestSparkReadMetrics extends SparkTestBaseWithCatalog {
@@ -53,6 +53,6 @@ public class TestSparkReadMetrics extends SparkTestBaseWithCatalog {
         seqAsJavaListConverter(df.queryExecution().executedPlan().collectLeaves()).asJava();
     Map<String, SQLMetric> metricsMap =
         JavaConverters.mapAsJavaMapConverter(sparkPlans.get(0).metrics()).asJava();
-    Assert.assertEquals(1, metricsMap.get("scannedDataManifests").value());
+    Assertions.assertEquals(1, metricsMap.get("scannedDataManifests").value());
   }
 }
