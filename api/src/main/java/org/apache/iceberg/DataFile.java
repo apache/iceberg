@@ -98,11 +98,13 @@ public interface DataFile extends ContentFile<DataFile> {
   Types.NestedField SORT_ORDER_ID =
       optional(140, "sort_order_id", IntegerType.get(), "Sort order ID");
   Types.NestedField SPEC_ID = optional(141, "spec_id", IntegerType.get(), "Partition spec ID");
+  Types.NestedField MODIFICATION_TIME =
+      optional(142, "modification_time", LongType.get(), "File modification time");
 
   int PARTITION_ID = 102;
   String PARTITION_NAME = "partition";
   String PARTITION_DOC = "Partition data tuple, schema based on the partition spec";
-  // NEXT ID TO ASSIGN: 142
+  // NEXT ID TO ASSIGN: 143
 
   static StructType getType(StructType partitionType) {
     // IDs start at 100 to leave room for changes to ManifestEntry
@@ -123,7 +125,8 @@ public interface DataFile extends ContentFile<DataFile> {
         KEY_METADATA,
         SPLIT_OFFSETS,
         EQUALITY_IDS,
-        SORT_ORDER_ID);
+        SORT_ORDER_ID,
+        MODIFICATION_TIME);
   }
 
   /** @return the content stored in the file; one of DATA, POSITION_DELETES, or EQUALITY_DELETES */

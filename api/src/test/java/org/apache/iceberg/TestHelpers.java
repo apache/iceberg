@@ -510,6 +510,11 @@ public class TestHelpers {
     }
 
     @Override
+    public long modificationTime() {
+      return -1L;
+    }
+
+    @Override
     public Map<Integer, Long> columnSizes() {
       return null;
     }

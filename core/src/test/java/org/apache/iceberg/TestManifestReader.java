@@ -138,6 +138,19 @@ public class TestManifestReader extends TableTestBase {
   }
 
   @Test
+  public void testDataFileWithModificationTime() throws IOException {
+    long timestamp = System.currentTimeMillis();
+    ManifestFile manifest =
+        writeManifest(
+            1000L, DataFiles.builder(SPEC).copy(FILE_A).withModificationTime(timestamp).build());
+    try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, FILE_IO)) {
+      for (DataFile file : reader) {
+        Assert.assertEquals("Timestamps should match", timestamp, file.modificationTime());
+      }
+    }
+  }
+
+  @Test
   public void testDeleteFilePositions() throws IOException {
     Assume.assumeTrue("Delete files only work for format version 2", formatVersion == 2);
     ManifestFile manifest =

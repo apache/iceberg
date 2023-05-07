@@ -223,7 +223,8 @@ class V1Metadata {
         DataFile.UPPER_BOUNDS,
         DataFile.KEY_METADATA,
         DataFile.SPLIT_OFFSETS,
-        DataFile.SORT_ORDER_ID);
+        DataFile.SORT_ORDER_ID,
+        DataFile.MODIFICATION_TIME);
   }
 
   /** Wrapper used to write a ManifestEntry to v1 metadata. */
@@ -371,6 +372,8 @@ class V1Metadata {
           return wrapped.splitOffsets();
         case 14:
           return wrapped.sortOrderId();
+        case 15:
+          return wrapped.modificationTime();
       }
       throw new IllegalArgumentException("Unknown field ordinal: " + pos);
     }
@@ -423,6 +426,11 @@ class V1Metadata {
     @Override
     public long fileSizeInBytes() {
       return wrapped.fileSizeInBytes();
+    }
+
+    @Override
+    public long modificationTime() {
+      return wrapped.modificationTime();
     }
 
     @Override

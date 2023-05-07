@@ -50,6 +50,7 @@ class GenericDeleteFile extends BaseFile<DeleteFile> implements DeleteFile {
         format,
         partition,
         fileSizeInBytes,
+        -1L,
         metrics.recordCount(),
         metrics.columnSizes(),
         metrics.valueCounts(),

@@ -63,6 +63,7 @@ abstract class BaseFile<F>
   private PartitionData partitionData = null;
   private Long recordCount = null;
   private long fileSizeInBytes = -1L;
+  private long modificationTime = -1;
 
   // optional fields
   private Map<Integer, Long> columnSizes = null;
@@ -123,6 +124,7 @@ abstract class BaseFile<F>
       FileFormat format,
       PartitionData partition,
       long fileSizeInBytes,
+      long modificationTime,
       long recordCount,
       Map<Integer, Long> columnSizes,
       Map<Integer, Long> valueCounts,
@@ -151,6 +153,7 @@ abstract class BaseFile<F>
     // this will throw NPE if metrics.recordCount is null
     this.recordCount = recordCount;
     this.fileSizeInBytes = fileSizeInBytes;
+    this.modificationTime = modificationTime;
     this.columnSizes = columnSizes;
     this.valueCounts = valueCounts;
     this.nullValueCounts = nullValueCounts;
@@ -179,6 +182,7 @@ abstract class BaseFile<F>
     this.partitionType = toCopy.partitionType;
     this.recordCount = toCopy.recordCount;
     this.fileSizeInBytes = toCopy.fileSizeInBytes;
+    this.modificationTime = toCopy.modificationTime;
     if (fullCopy) {
       this.columnSizes = SerializableMap.copyOf(toCopy.columnSizes);
       this.valueCounts = SerializableMap.copyOf(toCopy.valueCounts);
@@ -294,6 +298,9 @@ abstract class BaseFile<F>
         this.sortOrderId = (Integer) value;
         return;
       case 17:
+        this.modificationTime = (value != null) ? (Long) value : -1;
+        return;
+      case 18:
         this.fileOrdinal = (long) value;
         return;
       default:
@@ -349,6 +356,8 @@ abstract class BaseFile<F>
       case 16:
         return sortOrderId;
       case 17:
+        return modificationTime;
+      case 18:
         return fileOrdinal;
       default:
         throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
@@ -398,6 +407,11 @@ abstract class BaseFile<F>
   @Override
   public long fileSizeInBytes() {
     return fileSizeInBytes;
+  }
+
+  @Override
+  public long modificationTime() {
+    return modificationTime;
   }
 
   @Override
@@ -478,6 +492,7 @@ abstract class BaseFile<F>
         .add("split_offsets", splitOffsets == null ? "null" : splitOffsets())
         .add("equality_ids", equalityIds == null ? "null" : equalityFieldIds())
         .add("sort_order_id", sortOrderId)
+        .add("modification_time", modificationTime)
         .toString();
   }
 }
