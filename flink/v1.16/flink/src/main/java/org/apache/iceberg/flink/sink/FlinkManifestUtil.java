@@ -107,14 +107,10 @@ class FlinkManifestUtil {
 
     // Write the completed delete files into a newly created delete manifest file.
     if (result.deleteFiles() != null && result.deleteFiles().length > 0) {
-      int specId = result.deleteFiles()[0].specId();
       if (spec == null) {
-        spec = specsById.get(specId);
-      } else {
-        Preconditions.checkState(
-            specId == spec.specId(),
-            "The PartitionSpec of data files and delete files should match");
+        spec = specsById.get(result.deleteFiles()[0].specId());
       }
+      int specId = spec.specId();
       Preconditions.checkState(
           Arrays.stream(result.deleteFiles()).allMatch(file -> file.specId() == specId),
           "All delete files should have same partition spec");
