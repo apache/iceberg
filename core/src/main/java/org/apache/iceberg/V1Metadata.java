@@ -471,6 +471,16 @@ class V1Metadata {
     }
 
     @Override
+    public Long dataSequenceNumber() {
+      return wrapped.dataSequenceNumber();
+    }
+
+    @Override
+    public Long fileSequenceNumber() {
+      return wrapped.fileSequenceNumber();
+    }
+
+    @Override
     public DataFile copy() {
       return wrapped.copy();
     }
