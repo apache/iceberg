@@ -49,7 +49,7 @@ import org.apache.spark.sql.types.StructType;
 class RemoveCarryoverIterator extends ChangelogIterator {
   private final int[] indicesToIdentifySameRow;
 
-  private Row deletedRow = null;
+  private Row cachedDeletedRow = null;
   private long deletedRowCount = 0;
   private Row cachedNextRecord = null;
 
@@ -68,40 +68,59 @@ class RemoveCarryoverIterator extends ChangelogIterator {
 
   @Override
   public Row next() {
-    // Non-carryover delete rows found. One or more identical delete rows were seen followed by a
-    // non-identical row. This means none of the delete rows were carry over rows. Emit one
-    // delete row and decrease the amount of delete rows seen.
+    Row currentRow;
+
     if (returnCachedDeleteRow()) {
+      // Non-carryover delete rows found. One or more identical delete rows were seen followed by a
+      // non-identical row. This means none of the delete rows were carry over rows. Emit one
+      // delete row and decrease the amount of delete rows seen.
       deletedRowCount--;
-      return deletedRow;
+      currentRow = cachedDeletedRow;
+      if (deletedRowCount == 0) {
+        cachedDeletedRow = null;
+      }
+      return currentRow;
+    } else if (cachedNextRecord != null) {
+      currentRow = cachedNextRecord;
+      cachedNextRecord = null;
+    } else {
+      currentRow = rowIterator().next();
     }
 
-    Row currentRow = currentRow();
-
+    // If the current row is a delete row, drain all identical delete rows
     if (currentRow.getString(changeTypeIndex()).equals(DELETE) && rowIterator().hasNext()) {
-      // cache the delete row if there is 0 delete row cached
-      if (!hasCachedDeleteRow()) {
-        deletedRow = currentRow;
-        deletedRowCount = 1;
-      }
+      cachedDeletedRow = currentRow;
+      deletedRowCount = 1;
 
       Row nextRow = rowIterator().next();
 
-      if (isSameRecord(currentRow, nextRow)) {
+      // drain all identical delete rows when there is at least one cached delete row and the next
+      // row is the same record
+      while (nextRow != null
+          && cachedDeletedRow != null
+          && isSameRecord(cachedDeletedRow, nextRow)) {
         if (nextRow.getString(changeTypeIndex()).equals(INSERT)) {
           deletedRowCount--;
+          if (deletedRowCount == 0) {
+            cachedDeletedRow = null;
+          }
         } else {
           deletedRowCount++;
         }
-      } else {
-        // mark the boundary since the next row is not the same record as the current row
-        cachedNextRecord = nextRow;
+
+        if (rowIterator().hasNext()) {
+          nextRow = rowIterator().next();
+        } else {
+          nextRow = null;
+        }
       }
 
-      currentRow = null;
+      cachedNextRecord = nextRow;
+      return null;
+    } else {
+      // either there is no cached delete row or the current row is not a delete row
+      return currentRow;
     }
-
-    return currentRow;
   }
 
   /**
@@ -117,19 +136,7 @@ class RemoveCarryoverIterator extends ChangelogIterator {
   }
 
   private boolean hasCachedDeleteRow() {
-    return deletedRowCount > 0;
-  }
-
-  private Row currentRow() {
-    if (cachedNextRecord != null) {
-      Row currentRow = cachedNextRecord;
-      cachedNextRecord = null;
-      return currentRow;
-    } else if (hasCachedDeleteRow()) {
-      return deletedRow;
-    } else {
-      return rowIterator().next();
-    }
+    return cachedDeletedRow != null;
   }
 
   private int[] generateIndicesToIdentifySameRow(int columnSize) {

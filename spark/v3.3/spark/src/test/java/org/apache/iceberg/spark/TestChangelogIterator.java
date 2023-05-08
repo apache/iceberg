@@ -272,7 +272,9 @@ public class TestChangelogIterator extends SparkTestHelperBase {
             new GenericRowWithSchema(new Object[] {0, "d", "data", DELETE}, null),
             new GenericRowWithSchema(new Object[] {1, "d", "data", DELETE}, null),
             new GenericRowWithSchema(new Object[] {1, "d", "data", DELETE}, null),
+            new GenericRowWithSchema(new Object[] {1, "d", "data", DELETE}, null),
             // more insert rows than delete rows, should keep extra insert rows
+            new GenericRowWithSchema(new Object[] {1, "d", "data", INSERT}, null),
             new GenericRowWithSchema(new Object[] {1, "d", "data", INSERT}, null),
             new GenericRowWithSchema(new Object[] {1, "d", "data", INSERT}, null),
             new GenericRowWithSchema(new Object[] {1, "d", "data", INSERT}, null));
