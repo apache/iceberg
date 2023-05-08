@@ -50,8 +50,8 @@ public abstract class ChangelogIterator implements Iterator<Row> {
   }
 
   /**
-   * Creates an iterator combine with {@link RemoveCarryoverIterator} and {@link
-   * ComputeUpdateIterator} to remove carry-over rows and compute update rows
+   * Creates an iterator composing {@link RemoveCarryoverIterator} and {@link ComputeUpdateIterator}
+   * to remove carry-over rows and compute update rows
    *
    * @param rowIterator the iterator of rows from a changelog table
    * @param rowType the schema of the rows
@@ -81,15 +81,5 @@ public abstract class ChangelogIterator implements Iterator<Row> {
 
   protected boolean isDifferentValue(Row currentRow, Row nextRow, int idx) {
     return !Objects.equals(nextRow.get(idx), currentRow.get(idx));
-  }
-
-  @Override
-  public boolean hasNext() {
-    throw new UnsupportedOperationException("Should not be called");
-  }
-
-  @Override
-  public Row next() {
-    throw new UnsupportedOperationException("Should not be called");
   }
 }

@@ -187,7 +187,7 @@ public class TestChangelogIterator extends SparkTestHelperBase {
         ChangelogIterator.computeUpdates(rowsWithDuplication.iterator(), SCHEMA, IDENTIFIER_FIELDS);
 
     assertThrows(
-        "The next row should be an INSERT row, but it is DELETE. That means there are multiple rows with the same value of identifier fields([id, name]). Please make sure the rows are unique.",
+        "Cannot compute updates because there are multiple rows with the same identifier fields([id, name]). Please make sure the rows are unique.",
         IllegalStateException.class,
         () -> Lists.newArrayList(iterator));
 

@@ -68,6 +68,9 @@ class RemoveCarryoverIterator extends ChangelogIterator {
 
   @Override
   public Row next() {
+    // Non-carryover delete rows found. One or more identical delete rows were seen followed by a
+    // non-identical row. This means none of the delete rows were carry over rows. Emit one
+    // delete row and decrease the amount of delete rows seen.
     if (returnCachedDeleteRow()) {
       deletedRowCount--;
       return deletedRow;
@@ -79,7 +82,7 @@ class RemoveCarryoverIterator extends ChangelogIterator {
       // cache the delete row if there is 0 delete row cached
       if (!hasCachedDeleteRow()) {
         deletedRow = currentRow;
-        deletedRowCount++;
+        deletedRowCount = 1;
       }
 
       Row nextRow = rowIterator().next();
