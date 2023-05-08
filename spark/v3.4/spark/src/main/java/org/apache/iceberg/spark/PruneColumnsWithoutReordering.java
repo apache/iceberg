@@ -195,10 +195,7 @@ public class PruneColumnsWithoutReordering extends TypeUtil.CustomOrderSchemaVis
   public Type primitive(Type.PrimitiveType primitive) {
     Class<? extends DataType> expectedType = TYPES.get(primitive.typeId());
     Preconditions.checkArgument(
-        expectedType != null && expectedType.isInstance(current),
-        "Cannot project %s to incompatible type: %s",
-        primitive,
-        current);
+        expectedType != null, "Cannot project %s to incompatible type: %s", primitive, current);
 
     // additional checks based on type
     switch (primitive.typeId()) {

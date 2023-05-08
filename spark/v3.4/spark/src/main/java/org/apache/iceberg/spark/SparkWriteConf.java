@@ -94,28 +94,6 @@ public class SparkWriteConf {
         .parse();
   }
 
-  /**
-   * Enables writing a timestamp with time zone as a timestamp without time zone.
-   *
-   * <p>Generally, this is not safe as a timestamp without time zone is supposed to represent the
-   * wall-clock time, i.e. no matter the reader/writer timezone 3PM should always be read as 3PM,
-   * but a timestamp with time zone represents instant semantics, i.e. the timestamp is adjusted so
-   * that the corresponding time in the reader timezone is displayed.
-   *
-   * <p>When set to false (default), an exception must be thrown if the table contains a timestamp
-   * without time zone.
-   *
-   * @return boolean indicating if writing timestamps without timezone is allowed
-   */
-  public boolean handleTimestampWithoutZone() {
-    return confParser
-        .booleanConf()
-        .option(SparkWriteOptions.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE)
-        .sessionConf(SparkSQLProperties.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE)
-        .defaultValue(SparkSQLProperties.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE_DEFAULT)
-        .parse();
-  }
-
   public String overwriteMode() {
     String overwriteMode = writeOptions.get(SparkWriteOptions.OVERWRITE_MODE);
     return overwriteMode != null ? overwriteMode.toLowerCase(Locale.ROOT) : null;

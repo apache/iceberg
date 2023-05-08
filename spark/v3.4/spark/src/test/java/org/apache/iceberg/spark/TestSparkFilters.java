@@ -22,6 +22,8 @@ import java.sql.Date;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.Map;
 import org.apache.iceberg.expressions.Expression;
@@ -122,6 +124,21 @@ public class TestSparkFilters {
         "Generated Timestamp expression should be correct",
         rawExpression.toString(),
         timestampExpression.toString());
+    Assert.assertEquals(
+        "Generated Instant expression should be correct",
+        rawExpression.toString(),
+        instantExpression.toString());
+  }
+
+  @Test
+  public void testLocalDateTimeFilterConversion() {
+    LocalDateTime ldt = LocalDateTime.parse("2018-10-18T00:00:57");
+    long epochMicros =
+        ChronoUnit.MICROS.between(LocalDateTime.ofInstant(Instant.EPOCH, ZoneId.of("UTC")), ldt);
+
+    Expression instantExpression = SparkFilters.convert(GreaterThan.apply("x", ldt));
+    Expression rawExpression = Expressions.greaterThan("x", epochMicros);
+
     Assert.assertEquals(
         "Generated Instant expression should be correct",
         rawExpression.toString(),

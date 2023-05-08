@@ -51,7 +51,6 @@ class SparkPositionDeltaWriteBuilder implements DeltaWriteBuilder {
   private final IsolationLevel isolationLevel;
   private final SparkWriteConf writeConf;
   private final LogicalWriteInfo info;
-  private final boolean handleTimestampWithoutZone;
   private final boolean checkNullability;
   private final boolean checkOrdering;
 
@@ -70,17 +69,12 @@ class SparkPositionDeltaWriteBuilder implements DeltaWriteBuilder {
     this.isolationLevel = isolationLevel;
     this.writeConf = new SparkWriteConf(spark, table, branch, info.options());
     this.info = info;
-    this.handleTimestampWithoutZone = writeConf.handleTimestampWithoutZone();
     this.checkNullability = writeConf.checkNullability();
     this.checkOrdering = writeConf.checkOrdering();
   }
 
   @Override
   public DeltaWrite build() {
-    Preconditions.checkArgument(
-        handleTimestampWithoutZone || !SparkUtil.hasTimestampWithoutZone(table.schema()),
-        SparkUtil.TIMESTAMP_WITHOUT_TIMEZONE_ERROR);
-
     Schema dataSchema = dataSchema();
 
     validateRowIdSchema();

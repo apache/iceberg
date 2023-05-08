@@ -62,7 +62,6 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
   private final StructType dsSchema;
   private final String overwriteMode;
   private final String rewrittenFileSetId;
-  private final boolean handleTimestampWithoutZone;
   private final boolean useTableDistributionAndOrdering;
   private boolean overwriteDynamic = false;
   private boolean overwriteByFilter = false;
@@ -80,7 +79,6 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
     this.dsSchema = info.schema();
     this.overwriteMode = writeConf.overwriteMode();
     this.rewrittenFileSetId = writeConf.rewrittenFileSetId();
-    this.handleTimestampWithoutZone = writeConf.handleTimestampWithoutZone();
     this.useTableDistributionAndOrdering = writeConf.useTableDistributionAndOrdering();
   }
 
@@ -131,10 +129,6 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
   @Override
   public Write build() {
     // Validate
-    Preconditions.checkArgument(
-        handleTimestampWithoutZone || !SparkUtil.hasTimestampWithoutZone(table.schema()),
-        SparkUtil.TIMESTAMP_WITHOUT_TIMEZONE_ERROR);
-
     Schema writeSchema = validateOrMergeWriteSchema(table, dsSchema, writeConf);
     SparkUtil.validatePartitionTransforms(table.spec());
 
