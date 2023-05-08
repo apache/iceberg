@@ -492,18 +492,16 @@ public class TestS3FileIOProperties {
     properties.put(S3FileIOProperties.ACCELERATION_ENABLED, "false");
     S3FileIOProperties s3FileIOProperties = new S3FileIOProperties(properties);
     S3ClientBuilder mockA = Mockito.mock(S3ClientBuilder.class);
-    S3ClientBuilder mockB = Mockito.mock(S3ClientBuilder.class);
-    S3ClientBuilder mockC = Mockito.mock(S3ClientBuilder.class);
 
     ArgumentCaptor<S3Configuration> s3ConfigurationCaptor =
         ArgumentCaptor.forClass(S3Configuration.class);
 
-    Mockito.doReturn(mockB).when(mockA).dualstackEnabled(Mockito.anyBoolean());
-    Mockito.doReturn(mockC).when(mockB).serviceConfiguration(Mockito.any(S3Configuration.class));
+    Mockito.doReturn(mockA).when(mockA).dualstackEnabled(Mockito.anyBoolean());
+    Mockito.doReturn(mockA).when(mockA).serviceConfiguration(Mockito.any(S3Configuration.class));
 
     s3FileIOProperties.applyServiceConfigurations(mockA);
 
-    Mockito.verify(mockB).serviceConfiguration(s3ConfigurationCaptor.capture());
+    Mockito.verify(mockA).serviceConfiguration(s3ConfigurationCaptor.capture());
 
     S3Configuration s3Configuration = s3ConfigurationCaptor.getValue();
     Assertions.assertThat(s3Configuration.pathStyleAccessEnabled())

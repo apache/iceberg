@@ -30,7 +30,7 @@ public class HttpClientProperties {
   /**
    * The type of {@link software.amazon.awssdk.http.SdkHttpClient} implementation used by {@link
    * AwsClientFactory} If set, all AWS clients will use this specified HTTP client. If not set,
-   * {@link #CLIENT_TYPE_DEFAULT} will be used. For specific types supported, see HTTP_CLIENT_TYPE_*
+   * {@link #CLIENT_TYPE_DEFAULT} will be used. For specific types supported, see CLIENT_TYPE_*
    * defined below.
    */
   public static final String CLIENT_TYPE = "http-client.type";

@@ -777,7 +777,7 @@ public class S3FileIOProperties implements Serializable {
    * <p>Sample usage:
    *
    * <pre>
-   *     S3Client.builder().applyMutation(awsProperties::applyS3ServiceConfigurations)
+   *     S3Client.builder().applyMutation(s3FileIOProperties::applyS3ServiceConfigurations)
    * </pre>
    */
   public <T extends S3ClientBuilder> void applyServiceConfigurations(T builder) {
@@ -797,7 +797,7 @@ public class S3FileIOProperties implements Serializable {
    * <p>Sample usage:
    *
    * <pre>
-   *     S3Client.builder().applyMutation(awsProperties::applyS3SignerConfiguration)
+   *     S3Client.builder().applyMutation(s3FileIOProperties::applyS3SignerConfiguration)
    * </pre>
    */
   public <T extends S3ClientBuilder> void applySignerConfiguration(T builder) {
