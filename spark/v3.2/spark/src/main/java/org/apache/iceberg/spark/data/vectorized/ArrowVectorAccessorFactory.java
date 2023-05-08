@@ -21,10 +21,12 @@ package org.apache.iceberg.spark.data.vectorized;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import org.apache.arrow.memory.ArrowBuf;
+import org.apache.arrow.vector.FixedSizeBinaryVector;
 import org.apache.arrow.vector.ValueVector;
 import org.apache.arrow.vector.VarCharVector;
 import org.apache.arrow.vector.complex.ListVector;
 import org.apache.iceberg.arrow.vectorized.GenericArrowVectorAccessorFactory;
+import org.apache.iceberg.util.UUIDUtil;
 import org.apache.spark.sql.types.Decimal;
 import org.apache.spark.sql.vectorized.ArrowColumnVector;
 import org.apache.spark.sql.vectorized.ColumnarArray;
@@ -72,6 +74,11 @@ final class ArrowVectorAccessorFactory
 
       return UTF8String.fromAddress(
           null, vector.getDataBuffer().memoryAddress() + start, end - start);
+    }
+
+    @Override
+    public UTF8String ofRow(FixedSizeBinaryVector vector, int rowId) {
+      return UTF8String.fromString(UUIDUtil.convert(vector.get(rowId)).toString());
     }
 
     @Override

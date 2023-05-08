@@ -126,7 +126,7 @@ public class SparkAvroWriter implements MetricsAwareDatumWriter<InternalRow> {
             return SparkValueWriters.decimal(decimal.getPrecision(), decimal.getScale());
 
           case "uuid":
-            return ValueWriters.uuids();
+            return SparkValueWriters.uuids();
 
           default:
             throw new IllegalArgumentException("Unsupported logical type: " + logicalType);

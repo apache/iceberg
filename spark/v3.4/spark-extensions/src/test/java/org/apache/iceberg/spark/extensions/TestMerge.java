@@ -19,10 +19,12 @@
 package org.apache.iceberg.spark.extensions;
 
 import static org.apache.iceberg.RowLevelOperationMode.COPY_ON_WRITE;
+import static org.apache.iceberg.TableProperties.MERGE_DISTRIBUTION_MODE;
 import static org.apache.iceberg.TableProperties.MERGE_ISOLATION_LEVEL;
 import static org.apache.iceberg.TableProperties.MERGE_MODE;
 import static org.apache.iceberg.TableProperties.MERGE_MODE_DEFAULT;
 import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES;
+import static org.apache.iceberg.TableProperties.SPLIT_OPEN_FILE_COST;
 import static org.apache.iceberg.TableProperties.SPLIT_SIZE;
 import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE;
 import static org.apache.spark.sql.functions.lit;
@@ -93,6 +95,151 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
   public void removeTables() {
     sql("DROP TABLE IF EXISTS %s", tableName);
     sql("DROP TABLE IF EXISTS source");
+  }
+
+  @Test
+  public void testCoalesceMerge() {
+    createAndInitTable("id INT, salary INT, dep STRING");
+
+    String[] records = new String[100];
+    for (int index = 0; index < 100; index++) {
+      records[index] = String.format("{ \"id\": %d, \"salary\": 100, \"dep\": \"hr\" }", index);
+    }
+    append(tableName, records);
+    append(tableName, records);
+    append(tableName, records);
+    append(tableName, records);
+
+    // set the open file cost large enough to produce a separate scan task per file
+    // disable any write distribution
+    Map<String, String> tableProps =
+        ImmutableMap.of(
+            SPLIT_OPEN_FILE_COST,
+            String.valueOf(Integer.MAX_VALUE),
+            MERGE_DISTRIBUTION_MODE,
+            DistributionMode.NONE.modeName());
+    sql("ALTER TABLE %s SET TBLPROPERTIES (%s)", tableName, tablePropsAsString(tableProps));
+
+    createBranchIfNeeded();
+
+    spark.range(0, 100).createOrReplaceTempView("source");
+
+    // enable AQE and set the advisory partition big enough to trigger combining
+    // set the number of shuffle partitions to 200 to distribute the work across reducers
+    // disable broadcast joins to make sure the join triggers a shuffle
+    withSQLConf(
+        ImmutableMap.of(
+            SQLConf.SHUFFLE_PARTITIONS().key(), "200",
+            SQLConf.AUTO_BROADCASTJOIN_THRESHOLD().key(), "-1",
+            SQLConf.ADAPTIVE_EXECUTION_ENABLED().key(), "true",
+            SQLConf.COALESCE_PARTITIONS_ENABLED().key(), "true",
+            SQLConf.ADVISORY_PARTITION_SIZE_IN_BYTES().key(), "256MB"),
+        () -> {
+          sql(
+              "MERGE INTO %s t USING source "
+                  + "ON t.id = source.id "
+                  + "WHEN MATCHED THEN "
+                  + "  UPDATE SET salary = -1 ",
+              commitTarget());
+        });
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    Snapshot currentSnapshot = SnapshotUtil.latestSnapshot(table, branch);
+
+    if (mode(table) == COPY_ON_WRITE) {
+      // CoW MERGE would perform a join on `id`
+      // every task has data for each of 200 reducers
+      // AQE detects that all shuffle blocks are small and processes them in 1 task
+      // otherwise, there would be 200 tasks writing to the table
+      validateProperty(currentSnapshot, SnapshotSummary.ADDED_FILES_PROP, "1");
+    } else {
+      // MoR MERGE would perform a join on `id`
+      // every task has data for each of 200 reducers
+      // AQE detects that all shuffle blocks are small and processes them in 1 task
+      // otherwise, there would be 200 tasks writing to the table
+      validateProperty(currentSnapshot, SnapshotSummary.ADDED_DELETE_FILES_PROP, "1");
+    }
+
+    Assert.assertEquals(
+        "Row count must match",
+        400L,
+        scalarSql("SELECT COUNT(*) FROM %s WHERE salary = -1", commitTarget()));
+  }
+
+  @Test
+  public void testSkewMerge() {
+    createAndInitTable("id INT, salary INT, dep STRING");
+    sql("ALTER TABLE %s ADD PARTITION FIELD dep", tableName);
+
+    String[] records = new String[100];
+    for (int index = 0; index < 100; index++) {
+      records[index] = String.format("{ \"id\": %d, \"salary\": 100, \"dep\": \"hr\" }", index);
+    }
+    append(tableName, records);
+    append(tableName, records);
+    append(tableName, records);
+    append(tableName, records);
+
+    // set the open file cost large enough to produce a separate scan task per file
+    // use hash distribution to trigger a shuffle
+    Map<String, String> tableProps =
+        ImmutableMap.of(
+            SPLIT_OPEN_FILE_COST,
+            String.valueOf(Integer.MAX_VALUE),
+            MERGE_DISTRIBUTION_MODE,
+            DistributionMode.HASH.modeName());
+    sql("ALTER TABLE %s SET TBLPROPERTIES (%s)", tableName, tablePropsAsString(tableProps));
+
+    createBranchIfNeeded();
+
+    spark.range(0, 100).createOrReplaceTempView("source");
+
+    // enable AQE and set the advisory partition size small enough to trigger a split
+    // set the number of shuffle partitions to 2 to only have 2 reducers
+    // set the min coalesce partition size small enough to avoid coalescing
+    withSQLConf(
+        ImmutableMap.of(
+            SQLConf.SHUFFLE_PARTITIONS().key(), "4",
+            SQLConf.COALESCE_PARTITIONS_MIN_PARTITION_SIZE().key(), "100",
+            SQLConf.ADAPTIVE_EXECUTION_ENABLED().key(), "true",
+            SQLConf.ADAPTIVE_OPTIMIZE_SKEWS_IN_REBALANCE_PARTITIONS_ENABLED().key(), "true",
+            SQLConf.ADVISORY_PARTITION_SIZE_IN_BYTES().key(), "100"),
+        () -> {
+          SparkPlan plan =
+              executeAndKeepPlan(
+                  "MERGE INTO %s t USING source "
+                      + "ON t.id = source.id "
+                      + "WHEN MATCHED THEN "
+                      + "  UPDATE SET salary = -1 ",
+                  commitTarget());
+          Assertions.assertThat(plan.toString()).contains("REBALANCE_PARTITIONS_BY_COL");
+        });
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    Snapshot currentSnapshot = SnapshotUtil.latestSnapshot(table, branch);
+
+    if (mode(table) == COPY_ON_WRITE) {
+      // CoW MERGE would perform a join on `id` and then cluster records by `dep`
+      // the first shuffle distributes records into 4 shuffle partitions so that rows can be merged
+      // after existing and new rows are merged, the data is clustered by `dep`
+      // each task with merged data contains records for the same table partition
+      // that means there are 4 shuffle blocks, all assigned to the same reducer
+      // AQE detects that all shuffle blocks are big and processes them in 4 independent tasks
+      // otherwise, there would be 1 task processing all 4 shuffle blocks
+      validateProperty(currentSnapshot, SnapshotSummary.ADDED_FILES_PROP, "4");
+    } else {
+      // MoR MERGE would perform a join on `id` and then cluster data based on the partition
+      // all tasks belong to the same partition and therefore write only 1 shuffle block per task
+      // that means there are 4 shuffle blocks, all assigned to the same reducer
+      // AQE detects that all 4 shuffle blocks are big and processes them in 4 separate tasks
+      // otherwise, there would be 1 task processing 4 shuffle blocks
+      validateProperty(currentSnapshot, SnapshotSummary.ADDED_DELETE_FILES_PROP, "4");
+    }
+
+    Assert.assertEquals(
+        "Row count must match",
+        400L,
+        scalarSql("SELECT COUNT(*) FROM %s WHERE salary = -1", commitTarget()));
   }
 
   @Test

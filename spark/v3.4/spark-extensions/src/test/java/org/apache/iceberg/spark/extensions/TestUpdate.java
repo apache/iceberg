@@ -24,7 +24,9 @@ import static org.apache.iceberg.SnapshotSummary.ADDED_FILES_PROP;
 import static org.apache.iceberg.SnapshotSummary.CHANGED_PARTITION_COUNT_PROP;
 import static org.apache.iceberg.SnapshotSummary.DELETED_FILES_PROP;
 import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES;
+import static org.apache.iceberg.TableProperties.SPLIT_OPEN_FILE_COST;
 import static org.apache.iceberg.TableProperties.SPLIT_SIZE;
+import static org.apache.iceberg.TableProperties.UPDATE_DISTRIBUTION_MODE;
 import static org.apache.iceberg.TableProperties.UPDATE_ISOLATION_LEVEL;
 import static org.apache.iceberg.TableProperties.UPDATE_MODE;
 import static org.apache.iceberg.TableProperties.UPDATE_MODE_DEFAULT;
@@ -44,6 +46,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.RowLevelOperationMode;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotSummary;
@@ -64,6 +67,7 @@ import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
+import org.apache.spark.sql.execution.SparkPlan;
 import org.apache.spark.sql.internal.SQLConf;
 import org.assertj.core.api.Assertions;
 import org.junit.After;
@@ -96,6 +100,134 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
     sql("DROP TABLE IF EXISTS updated_id");
     sql("DROP TABLE IF EXISTS updated_dep");
     sql("DROP TABLE IF EXISTS deleted_employee");
+  }
+
+  @Test
+  public void testCoalesceUpdate() {
+    createAndInitTable("id INT, dep STRING");
+
+    String[] records = new String[100];
+    for (int index = 0; index < 100; index++) {
+      records[index] = String.format("{ \"id\": %d, \"dep\": \"hr\" }", index);
+    }
+    append(tableName, records);
+    append(tableName, records);
+    append(tableName, records);
+    append(tableName, records);
+
+    // set the open file cost large enough to produce a separate scan task per file
+    // use range distribution to trigger a shuffle
+    Map<String, String> tableProps =
+        ImmutableMap.of(
+            SPLIT_OPEN_FILE_COST,
+            String.valueOf(Integer.MAX_VALUE),
+            UPDATE_DISTRIBUTION_MODE,
+            DistributionMode.RANGE.modeName());
+    sql("ALTER TABLE %s SET TBLPROPERTIES (%s)", tableName, tablePropsAsString(tableProps));
+
+    createBranchIfNeeded();
+
+    // enable AQE and set the advisory partition size big enough to trigger combining
+    // set the number of shuffle partitions to 200 to distribute the work across reducers
+    withSQLConf(
+        ImmutableMap.of(
+            SQLConf.SHUFFLE_PARTITIONS().key(), "200",
+            SQLConf.ADAPTIVE_EXECUTION_ENABLED().key(), "true",
+            SQLConf.COALESCE_PARTITIONS_ENABLED().key(), "true",
+            SQLConf.ADVISORY_PARTITION_SIZE_IN_BYTES().key(), "256MB"),
+        () -> {
+          SparkPlan plan =
+              executeAndKeepPlan("UPDATE %s SET id = -1 WHERE mod(id, 2) = 0", commitTarget());
+          Assertions.assertThat(plan.toString()).contains("REBALANCE_PARTITIONS_BY_COL");
+        });
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    Snapshot snapshot = SnapshotUtil.latestSnapshot(table, branch);
+
+    if (mode(table) == COPY_ON_WRITE) {
+      // CoW UPDATE requests the updated records to be range distributed by `_file`, `_pos`
+      // every task has data for each of 200 reducers
+      // AQE detects that all shuffle blocks are small and processes them in 1 task
+      // otherwise, there would be 200 tasks writing to the table
+      validateProperty(snapshot, SnapshotSummary.ADDED_FILES_PROP, "1");
+    } else {
+      // MoR UPDATE requests the deleted records to be range distributed by partition and `_file`
+      // each task contains only 1 file and therefore writes only 1 shuffle block
+      // that means 4 shuffle blocks are distributed among 200 reducers
+      // AQE detects that all 4 shuffle blocks are small and processes them in 1 task
+      // otherwise, there would be 4 tasks processing 1 shuffle block each
+      validateProperty(snapshot, SnapshotSummary.ADDED_DELETE_FILES_PROP, "1");
+    }
+
+    Assert.assertEquals(
+        "Row count must match",
+        200L,
+        scalarSql("SELECT COUNT(*) FROM %s WHERE id = -1", commitTarget()));
+  }
+
+  @Test
+  public void testSkewUpdate() {
+    createAndInitTable("id INT, dep STRING");
+    sql("ALTER TABLE %s ADD PARTITION FIELD dep", tableName);
+
+    String[] records = new String[100];
+    for (int index = 0; index < 100; index++) {
+      records[index] = String.format("{ \"id\": %d, \"dep\": \"hr\" }", index);
+    }
+    append(tableName, records);
+    append(tableName, records);
+    append(tableName, records);
+    append(tableName, records);
+
+    // set the open file cost large enough to produce a separate scan task per file
+    // use hash distribution to trigger a shuffle
+    Map<String, String> tableProps =
+        ImmutableMap.of(
+            SPLIT_OPEN_FILE_COST,
+            String.valueOf(Integer.MAX_VALUE),
+            UPDATE_DISTRIBUTION_MODE,
+            DistributionMode.HASH.modeName());
+    sql("ALTER TABLE %s SET TBLPROPERTIES (%s)", tableName, tablePropsAsString(tableProps));
+
+    createBranchIfNeeded();
+
+    // enable AQE and set the advisory partition size small enough to trigger a split
+    // set the number of shuffle partitions to 2 to only have 2 reducers
+    withSQLConf(
+        ImmutableMap.of(
+            SQLConf.SHUFFLE_PARTITIONS().key(), "2",
+            SQLConf.ADAPTIVE_EXECUTION_ENABLED().key(), "true",
+            SQLConf.ADAPTIVE_OPTIMIZE_SKEWS_IN_REBALANCE_PARTITIONS_ENABLED().key(), "true",
+            SQLConf.ADVISORY_PARTITION_SIZE_IN_BYTES().key(), "100"),
+        () -> {
+          SparkPlan plan =
+              executeAndKeepPlan("UPDATE %s SET id = -1 WHERE mod(id, 2) = 0", commitTarget());
+          Assertions.assertThat(plan.toString()).contains("REBALANCE_PARTITIONS_BY_COL");
+        });
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    Snapshot snapshot = SnapshotUtil.latestSnapshot(table, branch);
+
+    if (mode(table) == COPY_ON_WRITE) {
+      // CoW UPDATE requests the updated records to be clustered by `_file`
+      // each task contains only 1 file and therefore writes only 1 shuffle block
+      // that means 4 shuffle blocks are distributed among 2 reducers
+      // AQE detects that all shuffle blocks are big and processes them in 4 independent tasks
+      // otherwise, there would be 2 tasks processing 2 shuffle blocks each
+      validateProperty(snapshot, SnapshotSummary.ADDED_FILES_PROP, "4");
+    } else {
+      // MoR UPDATE requests the deleted records to be clustered by `_spec_id` and `_partition`
+      // all tasks belong to the same partition and therefore write only 1 shuffle block per task
+      // that means there are 4 shuffle blocks, all assigned to the same reducer
+      // AQE detects that all 4 shuffle blocks are big and processes them in 4 separate tasks
+      // otherwise, there would be 1 task processing 4 shuffle blocks
+      validateProperty(snapshot, SnapshotSummary.ADDED_DELETE_FILES_PROP, "4");
+    }
+
+    Assert.assertEquals(
+        "Row count must match",
+        200L,
+        scalarSql("SELECT COUNT(*) FROM %s WHERE id = -1", commitTarget()));
   }
 
   @Test

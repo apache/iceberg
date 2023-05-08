@@ -30,8 +30,6 @@ import org.apache.spark.sql.SparkSession;
 
 class SparkBinPackDataRewriter extends SparkSizeBasedDataRewriter {
 
-  private static final long SPLIT_OVERHEAD = 5 * 1024;
-
   SparkBinPackDataRewriter(SparkSession spark, Table table) {
     super(spark, table);
   }
@@ -68,15 +66,5 @@ class SparkBinPackDataRewriter extends SparkSizeBasedDataRewriter {
   private DistributionMode distributionMode(List<FileScanTask> group) {
     boolean requiresRepartition = !group.get(0).spec().equals(table().spec());
     return requiresRepartition ? DistributionMode.RANGE : DistributionMode.NONE;
-  }
-
-  /**
-   * Returns the smallest of our max write file threshold and our estimated split size based on the
-   * number of output files we want to generate. Add an overhead onto the estimated split size to
-   * try to avoid small errors in size creating brand-new files.
-   */
-  private long splitSize(long inputSize) {
-    long estimatedSplitSize = (inputSize / numOutputFiles(inputSize)) + SPLIT_OVERHEAD;
-    return Math.min(estimatedSplitSize, writeMaxFileSize());
   }
 }

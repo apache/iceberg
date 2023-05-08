@@ -81,18 +81,18 @@ public abstract class MetadataTableScanTestBase extends TableTestBase {
   }
 
   protected void validateSingleFieldPartition(
-      CloseableIterable<DataFile> dataFiles, int partitionValue) {
-    validatePartition(dataFiles, 0, partitionValue);
+      CloseableIterable<ContentFile<?>> files, int partitionValue) {
+    validatePartition(files, 0, partitionValue);
   }
 
   protected void validatePartition(
-      CloseableIterable<DataFile> dataFiles, int position, int partitionValue) {
+      CloseableIterable<ContentFile<?>> files, int position, int partitionValue) {
     Assert.assertTrue(
         "File scan tasks do not include correct file",
-        StreamSupport.stream(dataFiles.spliterator(), false)
+        StreamSupport.stream(files.spliterator(), false)
             .anyMatch(
-                dataFile -> {
-                  StructLike partition = dataFile.partition();
+                file -> {
+                  StructLike partition = file.partition();
                   if (position >= partition.size()) {
                     return false;
                   }

@@ -56,7 +56,7 @@ import org.apache.spark.sql.types.StructType;
 
 /**
  * {@link Write} class for rewriting position delete files from Spark. Responsible for creating
- * {@link PositionDeleteBatchWrite}.
+ * {@link SparkPositionDeletesRewrite.PositionDeleteBatchWrite}
  *
  * <p>This class is meant to be used for an action to rewrite position delete files. Hence, it
  * assumes all position deletes to rewrite have come from {@link ScanTaskSetManager} and that all
