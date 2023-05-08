@@ -342,5 +342,6 @@ The following dialects names are reserved and indicate dialects for specific sys
 |spark         |  [Apache Spark SQL Dialect](https://spark.apache.org/docs/latest/sql-ref-ansi-compliance.html)        | TBD         | 
 |trino         |  [Trino SQL Dialect](https://trino.io/docs/current/language.html)                                     | TBD         |
 
-Dialect names starting with "iceberg." are reserved for future extension. Well known dialects
-may be added in the future with the prefix of "iceberg." (E.g. "iceberg.new_dialect_name").
+The dialect names list may expand in the future. Changes to the list will not increment version numbers of the specification. Users
+making use of new dialect names are encouraged to open PR to add their dialect name to the list to avoid potentially being accidentally
+broken in the future if a name conflict arises.
