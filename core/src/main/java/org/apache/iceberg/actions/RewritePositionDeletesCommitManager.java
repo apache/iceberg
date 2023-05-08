@@ -21,12 +21,11 @@ package org.apache.iceberg.actions;
 import java.util.Set;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.RewriteFiles;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -53,18 +52,19 @@ public class RewritePositionDeletesCommitManager {
    * @param fileGroups file groups to commit
    */
   public void commit(Set<RewritePositionDeletesGroup> fileGroups) {
-    Set<DeleteFile> rewrittenDeleteFiles = Sets.newHashSet();
-    Set<DeleteFile> addedDeleteFiles = Sets.newHashSet();
+    RewriteFiles rewriteFiles = table.newRewrite().validateFromSnapshot(startingSnapshotId);
+
     for (RewritePositionDeletesGroup group : fileGroups) {
-      rewrittenDeleteFiles.addAll(group.rewrittenDeleteFiles());
-      addedDeleteFiles.addAll(group.addedDeleteFiles());
+      for (DeleteFile file : group.rewrittenDeleteFiles()) {
+        rewriteFiles.deleteFile(file);
+      }
+
+      for (DeleteFile file : group.addedDeleteFiles()) {
+        rewriteFiles.addFile(file);
+      }
     }
 
-    table
-        .newRewrite()
-        .validateFromSnapshot(startingSnapshotId)
-        .rewriteFiles(ImmutableSet.of(), rewrittenDeleteFiles, ImmutableSet.of(), addedDeleteFiles)
-        .commit();
+    rewriteFiles.commit();
   }
 
   /**
