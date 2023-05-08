@@ -295,7 +295,7 @@ Read [this AWS documentation](https://docs.aws.amazon.com/AmazonRDS/latest/UserG
 
 ### Which catalog to choose?
 
-With all the available options, we offer the following guidlines when choosing the right catalog to use for your application:
+With all the available options, we offer the following guidelines when choosing the right catalog to use for your application:
 
 1. if your organization has an existing Glue metastore or plans to use the AWS analytics ecosystem including Glue, [Athena](https://aws.amazon.com/athena), [EMR](https://aws.amazon.com/emr), [Redshift](https://aws.amazon.com/redshift) and [LakeFormation](https://aws.amazon.com/lake-formation), Glue catalog provides the easiest integration.
 2. if your application requires frequent updates to table or high read and write throughput (e.g. streaming write), Glue and DynamoDB catalog provides the best performance through optimistic locking.
