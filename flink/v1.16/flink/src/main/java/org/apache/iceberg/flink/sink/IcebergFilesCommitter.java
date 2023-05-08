@@ -41,7 +41,6 @@ import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.table.runtime.typeutils.SortedMapTypeInfo;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.ManifestFile;
-import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.ReplacePartitions;
 import org.apache.iceberg.RowDelta;
 import org.apache.iceberg.Snapshot;
@@ -49,6 +48,7 @@ import org.apache.iceberg.SnapshotUpdate;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.io.WriteResult;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
@@ -123,22 +123,17 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
   private final Integer workerPoolSize;
   private transient ExecutorService workerPool;
 
-  private final int specId;
-  private transient PartitionSpec spec;
-
   IcebergFilesCommitter(
       TableLoader tableLoader,
       boolean replacePartitions,
       Map<String, String> snapshotProperties,
       Integer workerPoolSize,
-      String branch,
-      int specId) {
+      String branch) {
     this.tableLoader = tableLoader;
     this.replacePartitions = replacePartitions;
     this.snapshotProperties = snapshotProperties;
     this.workerPoolSize = workerPoolSize;
     this.branch = branch;
-    this.specId = specId;
   }
 
   @Override
@@ -151,7 +146,6 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     this.tableLoader.open();
     this.table = tableLoader.loadTable();
     this.committerMetrics = new IcebergFilesCommitterMetrics(super.metrics, table.name());
-    this.spec = table.specs().get(specId);
 
     maxContinuousEmptyCommits =
         PropertyUtil.propertyAsInt(table.properties(), MAX_CONTINUOUS_EMPTY_COMMITS, 10);
@@ -448,10 +442,12 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
       return EMPTY_MANIFEST_DATA;
     }
 
+    // Refresh table to get the latest specs map
+    table.refresh();
     WriteResult result = WriteResult.builder().addAll(writeResultsOfCurrentCkpt).build();
     DeltaManifests deltaManifests =
         FlinkManifestUtil.writeCompletedFiles(
-            result, () -> manifestOutputFileFactory.create(checkpointId), spec);
+            result, () -> manifestOutputFileFactory.create(checkpointId), table.specs());
 
     return SimpleVersionedSerialization.writeVersionAndSerialize(
         DeltaManifestsSerializer.INSTANCE, deltaManifests);
@@ -477,7 +473,8 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     }
   }
 
-  private static ListStateDescriptor<SortedMap<Long, byte[]>> buildStateDescriptor() {
+  @VisibleForTesting
+  static ListStateDescriptor<SortedMap<Long, byte[]>> buildStateDescriptor() {
     Comparator<Long> longComparator = Comparators.forType(Types.LongType.get());
     // Construct a SortedMapTypeInfo.
     SortedMapTypeInfo<Long, byte[]> sortedMapTypeInfo =

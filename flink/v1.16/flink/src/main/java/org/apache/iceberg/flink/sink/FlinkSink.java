@@ -428,8 +428,7 @@ public class FlinkSink {
               flinkWriteConf.overwriteMode(),
               snapshotProperties,
               flinkWriteConf.workerPoolSize(),
-              flinkWriteConf.branch(),
-              table.spec().specId());
+              flinkWriteConf.branch());
       SingleOutputStreamOperator<Void> committerStream =
           writerStream
               .transform(operatorName(ICEBERG_FILES_COMMITTER_NAME), Types.VOID, filesCommitter)

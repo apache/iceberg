@@ -28,9 +28,14 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collections;
 import java.util.List;
+import java.util.NavigableMap;
+import java.util.SortedMap;
 import java.util.stream.Collectors;
 import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.api.common.JobID;
+import org.apache.flink.api.common.state.ListState;
+import org.apache.flink.api.common.state.OperatorStateStore;
+import org.apache.flink.core.io.SimpleVersionedSerialization;
 import org.apache.flink.runtime.checkpoint.OperatorSubtaskState;
 import org.apache.flink.runtime.jobgraph.OperatorID;
 import org.apache.flink.runtime.operators.testutils.MockEnvironment;
@@ -50,7 +55,9 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.GenericManifestFile;
 import org.apache.iceberg.ManifestContent;
 import org.apache.iceberg.ManifestFile;
+import org.apache.iceberg.PartitionData;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.StructLike;
 import org.apache.iceberg.TableTestBase;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.SimpleDataUtil;
@@ -60,6 +67,7 @@ import org.apache.iceberg.io.FileAppenderFactory;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.ThreadPools;
 import org.junit.Assert;
@@ -744,7 +752,8 @@ public class TestIcebergFilesCommitter extends TableTestBase {
 
       // 2. Read the data files from manifests and assert.
       List<DataFile> dataFiles =
-          FlinkManifestUtil.readDataFiles(createTestingManifestFile(manifestPath), table.io());
+          FlinkManifestUtil.readDataFiles(
+              createTestingManifestFile(manifestPath), table.io(), table.specs());
       Assert.assertEquals(1, dataFiles.size());
       TestHelpers.assertEquals(dataFile1, dataFiles.get(0));
 
@@ -790,7 +799,8 @@ public class TestIcebergFilesCommitter extends TableTestBase {
 
       // 2. Read the data files from manifests and assert.
       List<DataFile> dataFiles =
-          FlinkManifestUtil.readDataFiles(createTestingManifestFile(manifestPath), table.io());
+          FlinkManifestUtil.readDataFiles(
+              createTestingManifestFile(manifestPath), table.io(), table.specs());
       Assert.assertEquals(1, dataFiles.size());
       TestHelpers.assertEquals(dataFile1, dataFiles.get(0));
 
@@ -880,59 +890,125 @@ public class TestIcebergFilesCommitter extends TableTestBase {
   @Test
   public void testSpecEvolution() throws Exception {
     long timestamp = 0;
+    int checkpointId = 0;
+    List<RowData> rows = Lists.newArrayList();
+    JobID jobId = new JobID();
 
-    JobID jobID = new JobID();
     OperatorID operatorId;
-    try (OneInputStreamOperatorTestHarness<WriteResult, Void> harness = createStreamSink(jobID)) {
+    OperatorSubtaskState snapshot;
+    DataFile dataFile;
+    int specId;
+
+    try (OneInputStreamOperatorTestHarness<WriteResult, Void> harness = createStreamSink(jobId)) {
       harness.setup();
       harness.open();
       operatorId = harness.getOperator().getOperatorID();
 
       assertSnapshotSize(0);
 
-      List<RowData> rows = Lists.newArrayListWithExpectedSize(3);
-
-      int checkpointId = 1;
+      checkpointId++;
       RowData rowData = SimpleDataUtil.createRowData(checkpointId, "hello" + checkpointId);
-      DataFile dataFile = writeDataFile("data-" + checkpointId, ImmutableList.of(rowData));
+      // table unpartitioned
+      dataFile = writeDataFile("data-" + checkpointId, ImmutableList.of(rowData));
       harness.processElement(of(dataFile), ++timestamp);
       rows.add(rowData);
       harness.snapshot(checkpointId, ++timestamp);
+
+      specId =
+          getStagingManifestSpecId(harness.getOperator().getOperatorStateBackend(), checkpointId);
+      Assert.assertEquals(
+          String.format(
+              "Expected the partition spec ID of staging manifest is %s, but the ID is: %s",
+              table.spec().specId(), specId),
+          table.spec().specId(),
+          specId);
+
       harness.notifyOfCompletedCheckpoint(checkpointId);
 
       // Change partition spec
       table.refresh();
+      PartitionSpec oldSpec = table.spec();
       table.updateSpec().addField("id").commit();
 
-      checkpointId = 2;
+      checkpointId++;
       rowData = SimpleDataUtil.createRowData(checkpointId, "hello" + checkpointId);
-      dataFile = writeDataFile("data-" + checkpointId, ImmutableList.of(rowData));
+      // write data with old partition spec
+      dataFile = writeDataFile("data-" + checkpointId, ImmutableList.of(rowData), oldSpec, null);
       harness.processElement(of(dataFile), ++timestamp);
       rows.add(rowData);
-      harness.snapshot(checkpointId, ++timestamp);
-      harness.notifyOfCompletedCheckpoint(checkpointId);
+      snapshot = harness.snapshot(checkpointId, ++timestamp);
 
-      // Change partition spec again
-      table.refresh();
-      table.updateSpec().addField("data").commit();
+      specId =
+          getStagingManifestSpecId(harness.getOperator().getOperatorStateBackend(), checkpointId);
+      Assert.assertEquals(
+          String.format(
+              "Expected the partition spec ID of staging manifest is %s, but the ID is: %s",
+              oldSpec.specId(), specId),
+          oldSpec.specId(),
+          specId);
 
-      checkpointId = 3;
-      rowData = SimpleDataUtil.createRowData(checkpointId, "hello" + checkpointId);
-      dataFile = writeDataFile("data-" + checkpointId, ImmutableList.of(rowData));
-      harness.processElement(of(dataFile), ++timestamp);
-      rows.add(rowData);
-      harness.snapshot(checkpointId, ++timestamp);
       harness.notifyOfCompletedCheckpoint(checkpointId);
 
       assertFlinkManifests(0);
 
       SimpleDataUtil.assertTableRows(table, ImmutableList.copyOf(rows), branch);
       assertSnapshotSize(checkpointId);
-      assertMaxCommittedCheckpointId(jobID, operatorId, checkpointId);
+      assertMaxCommittedCheckpointId(jobId, operatorId, checkpointId);
       Assert.assertEquals(
           TestIcebergFilesCommitter.class.getName(),
           SimpleDataUtil.latestSnapshot(table, branch).summary().get("flink.test"));
     }
+
+    // Restore from the given snapshot
+    try (OneInputStreamOperatorTestHarness<WriteResult, Void> harness = createStreamSink(jobId)) {
+      harness.getStreamConfig().setOperatorID(operatorId);
+      harness.setup();
+      harness.initializeState(snapshot);
+      harness.open();
+
+      SimpleDataUtil.assertTableRows(table, rows, branch);
+      assertSnapshotSize(checkpointId);
+      assertMaxCommittedCheckpointId(jobId, operatorId, checkpointId);
+
+      checkpointId++;
+      RowData row = SimpleDataUtil.createRowData(checkpointId, "world" + checkpointId);
+      StructLike partition = new PartitionData(table.spec().partitionType());
+      partition.set(0, checkpointId);
+      dataFile =
+          writeDataFile("data-" + checkpointId, ImmutableList.of(row), table.spec(), partition);
+      harness.processElement(of(dataFile), ++timestamp);
+      rows.add(row);
+      harness.snapshot(checkpointId, ++timestamp);
+      assertFlinkManifests(1);
+
+      specId =
+          getStagingManifestSpecId(harness.getOperator().getOperatorStateBackend(), checkpointId);
+      Assert.assertEquals(
+          String.format(
+              "Expected the partition spec ID of staging manifest is %s, but the ID is: %s",
+              table.spec().specId(), specId),
+          table.spec().specId(),
+          specId);
+
+      harness.notifyOfCompletedCheckpoint(checkpointId);
+      assertFlinkManifests(0);
+
+      SimpleDataUtil.assertTableRows(table, rows, branch);
+      assertSnapshotSize(checkpointId);
+      assertMaxCommittedCheckpointId(jobId, operatorId, checkpointId);
+    }
+  }
+
+  private int getStagingManifestSpecId(OperatorStateStore operatorStateStore, long checkPointId)
+      throws Exception {
+    ListState<SortedMap<Long, byte[]>> checkpointsState =
+        operatorStateStore.getListState(IcebergFilesCommitter.buildStateDescriptor());
+    NavigableMap<Long, byte[]> statedDataFiles =
+        Maps.newTreeMap(checkpointsState.get().iterator().next());
+    DeltaManifests deltaManifests =
+        SimpleVersionedSerialization.readVersionAndDeSerialize(
+            DeltaManifestsSerializer.INSTANCE, statedDataFiles.get(checkPointId));
+    return deltaManifests.dataManifest().partitionSpecId();
   }
 
   private DeleteFile writeEqDeleteFile(
@@ -1007,6 +1083,20 @@ public class TestIcebergFilesCommitter extends TableTestBase {
         rows);
   }
 
+  private DataFile writeDataFile(
+      String filename, List<RowData> rows, PartitionSpec spec, StructLike partition)
+      throws IOException {
+    return SimpleDataUtil.writeFile(
+        table,
+        table.schema(),
+        spec,
+        CONF,
+        table.location(),
+        format.addExtension(filename),
+        rows,
+        partition);
+  }
+
   private void assertMaxCommittedCheckpointId(JobID jobID, OperatorID operatorID, long expectedId) {
     table.refresh();
     long actualId =
@@ -1022,8 +1112,7 @@ public class TestIcebergFilesCommitter extends TableTestBase {
 
   private OneInputStreamOperatorTestHarness<WriteResult, Void> createStreamSink(JobID jobID)
       throws Exception {
-    TestOperatorFactory factory =
-        TestOperatorFactory.of(table.location(), branch, table.spec().specId());
+    TestOperatorFactory factory = TestOperatorFactory.of(table.location(), branch);
     return new OneInputStreamOperatorTestHarness<>(factory, createEnvironment(jobID));
   }
 
@@ -1044,16 +1133,14 @@ public class TestIcebergFilesCommitter extends TableTestBase {
       implements OneInputStreamOperatorFactory<WriteResult, Void> {
     private final String tablePath;
     private final String branch;
-    private final int specId;
 
-    private TestOperatorFactory(String tablePath, String branch, int specId) {
+    private TestOperatorFactory(String tablePath, String branch) {
       this.tablePath = tablePath;
       this.branch = branch;
-      this.specId = specId;
     }
 
-    private static TestOperatorFactory of(String tablePath, String branch, int specId) {
-      return new TestOperatorFactory(tablePath, branch, specId);
+    private static TestOperatorFactory of(String tablePath, String branch) {
+      return new TestOperatorFactory(tablePath, branch);
     }
 
     @Override
@@ -1066,8 +1153,7 @@ public class TestIcebergFilesCommitter extends TableTestBase {
               false,
               Collections.singletonMap("flink.test", TestIcebergFilesCommitter.class.getName()),
               ThreadPools.WORKER_THREAD_POOL_SIZE,
-              branch,
-              specId);
+              branch);
       committer.setup(param.getContainingTask(), param.getStreamConfig(), param.getOutput());
       return (T) committer;
     }

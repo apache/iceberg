@@ -19,6 +19,7 @@
 package org.apache.iceberg.flink.sink;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
@@ -35,6 +36,7 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.WriteResult;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 class FlinkManifestUtil {
@@ -55,8 +57,10 @@ class FlinkManifestUtil {
     return writer.toManifestFile();
   }
 
-  static List<DataFile> readDataFiles(ManifestFile manifestFile, FileIO io) throws IOException {
-    try (CloseableIterable<DataFile> dataFiles = ManifestFiles.read(manifestFile, io)) {
+  static List<DataFile> readDataFiles(
+      ManifestFile manifestFile, FileIO io, Map<Integer, PartitionSpec> specsById)
+      throws IOException {
+    try (CloseableIterable<DataFile> dataFiles = ManifestFiles.read(manifestFile, io, specsById)) {
       return Lists.newArrayList(dataFiles);
     }
   }
@@ -74,21 +78,47 @@ class FlinkManifestUtil {
         attemptNumber);
   }
 
+  /**
+   * Write the {@link WriteResult} to temporary manifest files.
+   *
+   * @param result all those DataFiles/DeleteFiles in this WriteResult should be written with same
+   *     partition spec
+   */
   static DeltaManifests writeCompletedFiles(
-      WriteResult result, Supplier<OutputFile> outputFileSupplier, PartitionSpec spec)
+      WriteResult result,
+      Supplier<OutputFile> outputFileSupplier,
+      Map<Integer, PartitionSpec> specsById)
       throws IOException {
 
     ManifestFile dataManifest = null;
     ManifestFile deleteManifest = null;
+    PartitionSpec spec = null;
 
     // Write the completed data files into a newly created data manifest file.
     if (result.dataFiles() != null && result.dataFiles().length > 0) {
+      int specId = result.dataFiles()[0].specId();
+      spec = specsById.get(specId);
+      Preconditions.checkState(
+          Arrays.stream(result.dataFiles()).allMatch(file -> file.specId() == specId),
+          "All data files should have same partition spec");
       dataManifest =
           writeDataFiles(outputFileSupplier.get(), spec, Lists.newArrayList(result.dataFiles()));
     }
 
     // Write the completed delete files into a newly created delete manifest file.
     if (result.deleteFiles() != null && result.deleteFiles().length > 0) {
+      int specId = result.deleteFiles()[0].specId();
+      if (spec == null) {
+        spec = specsById.get(specId);
+      } else {
+        Preconditions.checkState(
+            specId == spec.specId(),
+            "The PartitionSpec of data files and delete files should match");
+      }
+      Preconditions.checkState(
+          Arrays.stream(result.deleteFiles()).allMatch(file -> file.specId() == specId),
+          "All delete files should have same partition spec");
+
       OutputFile deleteManifestFile = outputFileSupplier.get();
 
       ManifestWriter<DeleteFile> deleteManifestWriter =
@@ -112,7 +142,7 @@ class FlinkManifestUtil {
 
     // Read the completed data files from persisted data manifest file.
     if (deltaManifests.dataManifest() != null) {
-      builder.addDataFiles(readDataFiles(deltaManifests.dataManifest(), io));
+      builder.addDataFiles(readDataFiles(deltaManifests.dataManifest(), io, specsById));
     }
 
     // Read the completed delete files from persisted delete manifests file.

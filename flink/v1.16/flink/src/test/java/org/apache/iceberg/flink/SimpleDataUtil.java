@@ -44,6 +44,7 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotRef;
+import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableScan;
 import org.apache.iceberg.data.GenericRecord;
@@ -134,6 +135,19 @@ public class SimpleDataUtil {
       String filename,
       List<RowData> rows)
       throws IOException {
+    return writeFile(table, schema, spec, conf, location, filename, rows, null);
+  }
+
+  public static DataFile writeFile(
+      Table table,
+      Schema schema,
+      PartitionSpec spec,
+      Configuration conf,
+      String location,
+      String filename,
+      List<RowData> rows,
+      StructLike partition)
+      throws IOException {
     Path path = new Path(location, filename);
     FileFormat fileFormat = FileFormat.fromFileName(filename);
     Preconditions.checkNotNull(fileFormat, "Cannot determine format for file: %s", filename);
@@ -148,10 +162,16 @@ public class SimpleDataUtil {
       closeableAppender.addAll(rows);
     }
 
-    return DataFiles.builder(spec)
-        .withInputFile(HadoopInputFile.fromPath(path, conf))
-        .withMetrics(appender.metrics())
-        .build();
+    DataFiles.Builder builder =
+        DataFiles.builder(spec)
+            .withInputFile(HadoopInputFile.fromPath(path, conf))
+            .withMetrics(appender.metrics());
+
+    if (partition != null) {
+      builder = builder.withPartition(partition);
+    }
+
+    return builder.build();
   }
 
   public static DeleteFile writeEqDeleteFile(
