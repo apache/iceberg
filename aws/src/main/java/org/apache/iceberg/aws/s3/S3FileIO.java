@@ -120,6 +120,7 @@ public class S3FileIO
    */
   public S3FileIO(SerializableSupplier<S3Client> s3, S3FileIOProperties s3FileIOProperties) {
     this.s3 = s3;
+    this.s3FileIOProperties = s3FileIOProperties;
     this.createStack = Thread.currentThread().getStackTrace();
   }
 
