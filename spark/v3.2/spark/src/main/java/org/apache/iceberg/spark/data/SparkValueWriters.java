@@ -29,6 +29,7 @@ import org.apache.avro.util.Utf8;
 import org.apache.iceberg.avro.ValueWriter;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.DecimalUtil;
+import org.apache.iceberg.util.UUIDUtil;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.util.ArrayData;
 import org.apache.spark.sql.catalyst.util.MapData;
@@ -102,11 +103,8 @@ public class SparkValueWriters {
     public void write(UTF8String s, Encoder encoder) throws IOException {
       // TODO: direct conversion from string to byte buffer
       UUID uuid = UUID.fromString(s.toString());
-      ByteBuffer buffer = BUFFER.get();
-      buffer.rewind();
-      buffer.putLong(uuid.getMostSignificantBits());
-      buffer.putLong(uuid.getLeastSignificantBits());
-      encoder.writeFixed(buffer.array());
+      // calling array() is safe because the buffer is always allocated by the thread-local
+      encoder.writeFixed(UUIDUtil.convertToByteBuffer(uuid, BUFFER.get()).array());
     }
   }
 
