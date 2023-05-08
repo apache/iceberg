@@ -370,7 +370,7 @@ Iceberg by default uses the Hive storage layout but can be switched to use the `
 With `ObjectStoreLocationProvider`, a deterministic hash is generated for each stored file, with the hash appended 
 directly after the `write.data.path`. This ensures files written to s3 are equally distributed across multiple [prefixes](https://aws.amazon.com/premiumsupport/knowledge-center/s3-object-key-naming-pattern/) in the S3 bucket. Resulting in minimized throttling and maximized throughput for S3-related IO operations. When using `ObjectStoreLocationProvider` having a shared and short `write.data.path` across your Iceberg tables will improve performance.
 
-For more information on how S3 scales API QPS, check out the 2018 re: Invent session on [Best Practices for Amazon S3 and Amazon S3 Glacier]( https://youtu.be/rHeTn9pHNKo?t=3219). At [53:39](https://youtu.be/rHeTn9pHNKo?t=3219) it covers how S3 scales/partitions & at [54:50](https://youtu.be/rHeTn9pHNKo?t=3290) it discusses the 30-60 minute wait time before new partitions are created.
+For more information on how S3 scales API QPS, check out the 2018 re:Invent session on [Best Practices for Amazon S3 and Amazon S3 Glacier]( https://youtu.be/rHeTn9pHNKo?t=3219). At [53:39](https://youtu.be/rHeTn9pHNKo?t=3219) it covers how S3 scales/partitions & at [54:50](https://youtu.be/rHeTn9pHNKo?t=3290) it discusses the 30-60 minute wait time before new partitions are created.
 
 To use the `ObjectStorageLocationProvider` add `'write.object-storage.enabled'=true` in the table's properties. 
 Below is an example Spark SQL command to create a table using the `ObjectStorageLocationProvider`:
