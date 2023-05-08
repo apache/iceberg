@@ -78,6 +78,7 @@ public class ComputeUpdateIterator extends ChangelogIterator {
       return row;
     }
 
+    // either a cached record which is not an UPDATE or the next record in the iterator.
     Row currentRow = currentRow();
 
     if (currentRow.getString(changeTypeIndex()).equals(DELETE) && rowIterator().hasNext()) {
@@ -117,9 +118,7 @@ public class ComputeUpdateIterator extends ChangelogIterator {
   }
 
   private boolean cachedUpdateRecord() {
-    return cachedRow != null
-        && !cachedRow.getString(changeTypeIndex()).equals(DELETE)
-        && !cachedRow.getString(changeTypeIndex()).equals(INSERT);
+    return cachedRow != null && cachedRow.getString(changeTypeIndex()).equals(UPDATE_AFTER);
   }
 
   private Row currentRow() {
