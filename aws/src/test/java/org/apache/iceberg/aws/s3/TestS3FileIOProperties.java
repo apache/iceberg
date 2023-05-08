@@ -18,15 +18,25 @@
  */
 package org.apache.iceberg.aws.s3;
 
+import java.net.URI;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mockito;
+import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
+import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
+import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
+import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
+import software.amazon.awssdk.services.s3.S3ClientBuilder;
+import software.amazon.awssdk.services.s3.S3Configuration;
 import software.amazon.awssdk.services.s3.model.ObjectCannedACL;
 import software.amazon.awssdk.services.s3.model.Tag;
 
@@ -393,5 +403,139 @@ public class TestS3FileIOProperties {
     map.put(S3FileIOProperties.PRELOAD_CLIENT_ENABLED, "true");
     map.put(S3FileIOProperties.REMOTE_SIGNING_ENABLED, "true");
     return map;
+  }
+
+  @Test
+  public void testS3FileIoDefaultCredentialsConfiguration() {
+    // set nothing
+    Map<String, String> properties = Maps.newHashMap();
+    S3FileIOProperties s3FileIOProperties = new S3FileIOProperties(properties);
+    S3ClientBuilder mockS3ClientBuilder = Mockito.mock(S3ClientBuilder.class);
+    ArgumentCaptor<AwsCredentialsProvider> awsCredentialsProviderCaptor =
+        ArgumentCaptor.forClass(AwsCredentialsProvider.class);
+
+    s3FileIOProperties.applyS3CredentialConfigurations(mockS3ClientBuilder);
+    Mockito.verify(mockS3ClientBuilder).credentialsProvider(awsCredentialsProviderCaptor.capture());
+    AwsCredentialsProvider capturedAwsCredentialsProvider = awsCredentialsProviderCaptor.getValue();
+
+    Assertions.assertThat(capturedAwsCredentialsProvider instanceof DefaultCredentialsProvider)
+        .withFailMessage("Should use default credentials if nothing is set")
+        .isTrue();
+  }
+
+  @Test
+  public void testS3FileIoBasicCredentialsConfiguration() {
+    // set access key id and secret access key
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(S3FileIOProperties.ACCESS_KEY_ID, "key");
+    properties.put(S3FileIOProperties.SECRET_ACCESS_KEY, "secret");
+    S3FileIOProperties s3FileIOProperties = new S3FileIOProperties(properties);
+    S3ClientBuilder mockS3ClientBuilder = Mockito.mock(S3ClientBuilder.class);
+    ArgumentCaptor<AwsCredentialsProvider> awsCredentialsProviderCaptor =
+        ArgumentCaptor.forClass(AwsCredentialsProvider.class);
+
+    s3FileIOProperties.applyS3CredentialConfigurations(mockS3ClientBuilder);
+    Mockito.verify(mockS3ClientBuilder).credentialsProvider(awsCredentialsProviderCaptor.capture());
+    AwsCredentialsProvider capturedAwsCredentialsProvider = awsCredentialsProviderCaptor.getValue();
+
+    Assertions.assertThat(
+            capturedAwsCredentialsProvider.resolveCredentials() instanceof AwsBasicCredentials)
+        .withFailMessage(
+            "Should use basic credentials if access key ID and secret access key are set")
+        .isTrue();
+    Assertions.assertThat(capturedAwsCredentialsProvider.resolveCredentials().accessKeyId())
+        .withFailMessage("The access key id should be the same as the one set by tag ACCESS_KEY_ID")
+        .isEqualTo("key");
+
+    Assertions.assertThat(capturedAwsCredentialsProvider.resolveCredentials().secretAccessKey())
+        .withFailMessage(
+            "The secret access key should be the same as the one set by tag SECRET_ACCESS_KEY")
+        .isEqualTo("secret");
+  }
+
+  @Test
+  public void testS3FileIoSessionCredentialsConfiguration() {
+    // set access key id, secret access key, and session token
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(S3FileIOProperties.ACCESS_KEY_ID, "key");
+    properties.put(S3FileIOProperties.SECRET_ACCESS_KEY, "secret");
+    properties.put(S3FileIOProperties.SESSION_TOKEN, "token");
+    S3FileIOProperties s3FileIOProperties = new S3FileIOProperties(properties);
+    S3ClientBuilder mockS3ClientBuilder = Mockito.mock(S3ClientBuilder.class);
+    ArgumentCaptor<AwsCredentialsProvider> awsCredentialsProviderCaptor =
+        ArgumentCaptor.forClass(AwsCredentialsProvider.class);
+
+    s3FileIOProperties.applyS3CredentialConfigurations(mockS3ClientBuilder);
+    Mockito.verify(mockS3ClientBuilder).credentialsProvider(awsCredentialsProviderCaptor.capture());
+    AwsCredentialsProvider capturedAwsCredentialsProvider = awsCredentialsProviderCaptor.getValue();
+
+    Assertions.assertThat(
+            capturedAwsCredentialsProvider.resolveCredentials() instanceof AwsSessionCredentials)
+        .withFailMessage("Should use session credentials if session token is set")
+        .isTrue();
+    Assertions.assertThat(capturedAwsCredentialsProvider.resolveCredentials().accessKeyId())
+        .withFailMessage("The access key id should be the same as the one set by tag ACCESS_KEY_ID")
+        .isEqualTo("key");
+    Assertions.assertThat(capturedAwsCredentialsProvider.resolveCredentials().secretAccessKey())
+        .withFailMessage(
+            "The secret access key should be the same as the one set by tag SECRET_ACCESS_KEY")
+        .isEqualTo("secret");
+  }
+
+  @Test
+  public void testApplyS3ServiceConfigurations() {
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(S3FileIOProperties.DUALSTACK_ENABLED, "true");
+    properties.put(S3FileIOProperties.PATH_STYLE_ACCESS, "true");
+    properties.put(S3FileIOProperties.USE_ARN_REGION_ENABLED, "true");
+    // acceleration enabled has to be set to false if path style is true
+    properties.put(S3FileIOProperties.ACCELERATION_ENABLED, "false");
+    S3FileIOProperties s3FileIOProperties = new S3FileIOProperties(properties);
+    S3ClientBuilder mockA = Mockito.mock(S3ClientBuilder.class);
+    S3ClientBuilder mockB = Mockito.mock(S3ClientBuilder.class);
+    S3ClientBuilder mockC = Mockito.mock(S3ClientBuilder.class);
+
+    ArgumentCaptor<S3Configuration> s3ConfigurationCaptor =
+        ArgumentCaptor.forClass(S3Configuration.class);
+
+    Mockito.doReturn(mockB).when(mockA).dualstackEnabled(Mockito.anyBoolean());
+    Mockito.doReturn(mockC).when(mockB).serviceConfiguration(Mockito.any(S3Configuration.class));
+
+    s3FileIOProperties.applyServiceConfigurations(mockA);
+
+    Mockito.verify(mockB).serviceConfiguration(s3ConfigurationCaptor.capture());
+
+    S3Configuration s3Configuration = s3ConfigurationCaptor.getValue();
+    Assertions.assertThat(s3Configuration.pathStyleAccessEnabled())
+        .withFailMessage("s3 path style access enabled parameter should be set to true")
+        .isTrue();
+    Assertions.assertThat(s3Configuration.useArnRegionEnabled())
+        .withFailMessage("s3 use arn region enabled parameter should be set to true")
+        .isTrue();
+    Assertions.assertThat(s3Configuration.accelerateModeEnabled())
+        .withFailMessage("s3 acceleration mode enabled parameter should be set to true")
+        .isFalse();
+  }
+
+  @Test
+  public void testApplySignerConfiguration() {
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(S3FileIOProperties.REMOTE_SIGNING_ENABLED, "true");
+    S3FileIOProperties s3FileIOProperties = new S3FileIOProperties(properties);
+    S3ClientBuilder mockS3ClientBuilder = Mockito.mock(S3ClientBuilder.class);
+    s3FileIOProperties.applySignerConfiguration(mockS3ClientBuilder);
+
+    Mockito.verify(mockS3ClientBuilder).overrideConfiguration(Mockito.any(Consumer.class));
+  }
+
+  @Test
+  public void testApplyEndpointConfiguration() {
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(S3FileIOProperties.ENDPOINT, "endpoint");
+    S3FileIOProperties s3FileIOProperties = new S3FileIOProperties(properties);
+    S3ClientBuilder mockS3ClientBuilder = Mockito.mock(S3ClientBuilder.class);
+
+    s3FileIOProperties.applyEndpointConfigurations(mockS3ClientBuilder);
+    Mockito.verify(mockS3ClientBuilder).endpointOverride(Mockito.any(URI.class));
   }
 }
