@@ -281,33 +281,37 @@ class SparkBatchQueryScan extends SparkPartitioningAwareScan<PartitionScanTask>
     List<CustomTaskMetric> customTaskMetrics = Lists.newArrayList();
     Optional<ScanReport> scanReportOptional = sparkReadMetricReporter.getScanReport();
 
-    scanReportOptional.ifPresent(scanReport -> {
-      Optional.ofNullable(scanReport.scanMetrics().totalFileSizeInBytes())
-          .ifPresent(
-              counterResult -> customTaskMetrics.add(new TaskTotalFileSize(counterResult.value())));
-      Optional.ofNullable(scanReport.scanMetrics().totalPlanningDuration())
-          .ifPresent(
-              timerResult ->
-                  customTaskMetrics.add(new TaskTotalPlanningDuration(timerResult.count())));
+    scanReportOptional.ifPresent(
+        scanReport -> {
+          Optional.ofNullable(scanReport.scanMetrics().totalFileSizeInBytes())
+              .ifPresent(
+                  counterResult ->
+                      customTaskMetrics.add(new TaskTotalFileSize(counterResult.value())));
+          Optional.ofNullable(scanReport.scanMetrics().totalPlanningDuration())
+              .ifPresent(
+                  timerResult ->
+                      customTaskMetrics.add(new TaskTotalPlanningDuration(timerResult.count())));
 
-      Optional.ofNullable(scanReport.scanMetrics().skippedDataFiles())
-          .ifPresent(
-              skippedDataFilesResult ->
-                  customTaskMetrics.add(new TaskSkippedDataFiles(skippedDataFilesResult.value())));
-      Optional.ofNullable(scanReport.scanMetrics().resultDataFiles())
-          .ifPresent(resultDataFilesResult -> new TaskResultDataFiles(resultDataFilesResult.value()));
+          Optional.ofNullable(scanReport.scanMetrics().skippedDataFiles())
+              .ifPresent(
+                  skippedDataFilesResult ->
+                      customTaskMetrics.add(
+                          new TaskSkippedDataFiles(skippedDataFilesResult.value())));
+          Optional.ofNullable(scanReport.scanMetrics().resultDataFiles())
+              .ifPresent(
+                  resultDataFilesResult -> new TaskResultDataFiles(resultDataFilesResult.value()));
 
-      Optional.ofNullable(scanReport.scanMetrics().skippedDataManifests())
-          .ifPresent(
-              skippedDataManifestsResult ->
-                  customTaskMetrics.add(
-                      new TaskSkippedDataManifests(skippedDataManifestsResult.value())));
-      Optional.ofNullable(scanReport.scanMetrics().scannedDataManifests())
-          .ifPresent(
-              scannedDataManifestResult ->
-                  customTaskMetrics.add(
-                      new TaskScannedDataManifests(scannedDataManifestResult.value())));
-    });
+          Optional.ofNullable(scanReport.scanMetrics().skippedDataManifests())
+              .ifPresent(
+                  skippedDataManifestsResult ->
+                      customTaskMetrics.add(
+                          new TaskSkippedDataManifests(skippedDataManifestsResult.value())));
+          Optional.ofNullable(scanReport.scanMetrics().scannedDataManifests())
+              .ifPresent(
+                  scannedDataManifestResult ->
+                      customTaskMetrics.add(
+                          new TaskScannedDataManifests(scannedDataManifestResult.value())));
+        });
 
     return customTaskMetrics.toArray(new CustomTaskMetric[0]);
   }
