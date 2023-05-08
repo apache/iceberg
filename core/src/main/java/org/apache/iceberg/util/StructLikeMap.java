@@ -44,6 +44,10 @@ public class StructLikeMap<T> extends AbstractMap<StructLike, T> implements Map<
     this.wrappers = ThreadLocal.withInitial(() -> StructLikeWrapper.forType(type));
   }
 
+  public Types.StructType type() {
+    return type;
+  }
+
   @Override
   public int size() {
     return wrapperMap.size();

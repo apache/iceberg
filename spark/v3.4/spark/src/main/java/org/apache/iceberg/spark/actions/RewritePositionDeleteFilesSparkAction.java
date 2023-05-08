@@ -47,7 +47,6 @@ import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.CloseableIterable;
-import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
@@ -68,11 +67,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /** Spark implementation of {@link RewritePositionDeleteFiles}. */
-public class RewritePositionDeleteSparkAction
-    extends BaseSnapshotUpdateSparkAction<RewritePositionDeleteSparkAction>
+public class RewritePositionDeleteFilesSparkAction
+    extends BaseSnapshotUpdateSparkAction<RewritePositionDeleteFilesSparkAction>
     implements RewritePositionDeleteFiles {
 
-  private static final Logger LOG = LoggerFactory.getLogger(RewritePositionDeleteSparkAction.class);
+  private static final Logger LOG =
+      LoggerFactory.getLogger(RewritePositionDeleteFilesSparkAction.class);
   private static final Set<String> VALID_OPTIONS =
       ImmutableSet.of(
           MAX_CONCURRENT_FILE_GROUP_REWRITES,
@@ -90,19 +90,19 @@ public class RewritePositionDeleteSparkAction
   private boolean partialProgressEnabled;
   private RewriteJobOrder rewriteJobOrder;
 
-  RewritePositionDeleteSparkAction(SparkSession spark, Table table) {
+  RewritePositionDeleteFilesSparkAction(SparkSession spark, Table table) {
     super(spark);
     this.table = table;
     this.rewriter = new SparkBinPackPositionDeletesRewriter(spark(), table);
   }
 
   @Override
-  protected RewritePositionDeleteSparkAction self() {
+  protected RewritePositionDeleteFilesSparkAction self() {
     return this;
   }
 
   @Override
-  public RewritePositionDeleteSparkAction filter(Expression expression) {
+  public RewritePositionDeleteFilesSparkAction filter(Expression expression) {
     throw new UnsupportedOperationException("Regular filters not supported yet.");
   }
 
@@ -115,7 +115,7 @@ public class RewritePositionDeleteSparkAction
 
     validateAndInitOptions();
 
-    Map<StructLike, List<List<PositionDeletesScanTask>>> fileGroupsByPartition = planFileGroups();
+    StructLikeMap<List<List<PositionDeletesScanTask>>> fileGroupsByPartition = planFileGroups();
     RewriteExecutionContext ctx = new RewriteExecutionContext(fileGroupsByPartition);
 
     if (ctx.totalGroupCount() == 0) {
@@ -133,55 +133,69 @@ public class RewritePositionDeleteSparkAction
     }
   }
 
-  private Map<StructLike, List<List<PositionDeletesScanTask>>> planFileGroups() {
+  private StructLikeMap<List<List<PositionDeletesScanTask>>> planFileGroups() {
     Table deletesTable =
         MetadataTableUtils.createMetadataTableInstance(table, MetadataTableType.POSITION_DELETES);
-    CloseableIterable<PositionDeletesScanTask> scanTasks =
+
+    CloseableIterable<PositionDeletesScanTask> tasks =
         CloseableIterable.transform(
             deletesTable.newBatchScan().ignoreResiduals().planFiles(),
             t -> (PositionDeletesScanTask) t);
 
     try {
       StructType partitionType = Partitioning.partitionType(table);
-      StructLikeMap<List<PositionDeletesScanTask>> filesByPartition =
-          StructLikeMap.create(partitionType);
 
-      for (PositionDeletesScanTask task : scanTasks) {
-        StructLike coerced = coercePartition(task, partitionType);
+      StructLikeMap<List<PositionDeletesScanTask>> filesPerPartition =
+          filesByPartition(partitionType, tasks);
 
-        List<PositionDeletesScanTask> partitionTasks = filesByPartition.get(coerced);
-        if (partitionTasks == null) {
-          partitionTasks = Lists.newArrayList();
-        }
-        partitionTasks.add(task);
-        filesByPartition.put(coerced, partitionTasks);
-      }
-
-      StructLikeMap<List<List<PositionDeletesScanTask>>> fileGroupsByPartition =
-          StructLikeMap.create(partitionType);
-
-      filesByPartition.forEach(
-          (partition, partitionTasks) -> {
-            Iterable<List<PositionDeletesScanTask>> plannedFileGroups =
-                rewriter.planFileGroups(partitionTasks);
-            List<List<PositionDeletesScanTask>> groups = ImmutableList.copyOf(plannedFileGroups);
-            if (groups.size() > 0) {
-              fileGroupsByPartition.put(partition, groups);
-            }
-          });
-
-      return fileGroupsByPartition;
+      return fileGroupsByPartition(partitionType, filesPerPartition);
     } finally {
       try {
-        scanTasks.close();
+        tasks.close();
       } catch (IOException io) {
         LOG.error("Cannot properly close file iterable while planning for rewrite", io);
       }
     }
   }
 
-  @VisibleForTesting
-  RewritePositionDeletesGroup rewriteDeleteFiles(
+  private StructLikeMap<List<PositionDeletesScanTask>> filesByPartition(
+      StructType partitionType, Iterable<PositionDeletesScanTask> tasks) {
+    StructLikeMap<List<PositionDeletesScanTask>> filesByPartition =
+        StructLikeMap.create(partitionType);
+
+    for (PositionDeletesScanTask task : tasks) {
+      StructLike coerced = coercePartition(task, partitionType);
+
+      List<PositionDeletesScanTask> partitionTasks = filesByPartition.get(coerced);
+      if (partitionTasks == null) {
+        partitionTasks = Lists.newArrayList();
+      }
+      partitionTasks.add(task);
+      filesByPartition.put(coerced, partitionTasks);
+    }
+
+    return filesByPartition;
+  }
+
+  private StructLikeMap<List<List<PositionDeletesScanTask>>> fileGroupsByPartition(
+      StructType partitionType, StructLikeMap<List<PositionDeletesScanTask>> filesByPartition) {
+    StructLikeMap<List<List<PositionDeletesScanTask>>> fileGroupsByPartition =
+        StructLikeMap.create(partitionType);
+
+    filesByPartition.forEach(
+        (partition, partitionTasks) -> {
+          Iterable<List<PositionDeletesScanTask>> plannedFileGroups =
+              rewriter.planFileGroups(partitionTasks);
+          List<List<PositionDeletesScanTask>> groups = ImmutableList.copyOf(plannedFileGroups);
+          if (groups.size() > 0) {
+            fileGroupsByPartition.put(partition, groups);
+          }
+        });
+
+    return fileGroupsByPartition;
+  }
+
+  private RewritePositionDeletesGroup rewriteDeleteFiles(
       RewriteExecutionContext ctx, RewritePositionDeletesGroup fileGroup) {
     String desc = jobDesc(fileGroup, ctx);
     Set<DeleteFile> addedFiles =
@@ -204,8 +218,7 @@ public class RewritePositionDeleteSparkAction
                     .build()));
   }
 
-  @VisibleForTesting
-  RewritePositionDeletesCommitManager commitManager() {
+  private RewritePositionDeletesCommitManager commitManager() {
     return new RewritePositionDeletesCommitManager(table);
   }
 
@@ -282,12 +295,12 @@ public class RewritePositionDeleteSparkAction
       RewritePositionDeletesCommitManager commitManager) {
     ExecutorService rewriteService = rewriteService();
 
-    // Start Commit Service
+    // start commit service
     int groupsPerCommit = IntMath.divide(ctx.totalGroupCount(), maxCommits, RoundingMode.CEILING);
     CommitService commitService = commitManager.service(groupsPerCommit);
     commitService.start();
 
-    // Start rewrite tasks
+    // start rewrite tasks
     Tasks.foreach(groupStream)
         .suppressFailureWhenFinished()
         .executeWith(rewriteService)
@@ -298,7 +311,7 @@ public class RewritePositionDeleteSparkAction
         .run(fileGroup -> commitService.offer(rewriteDeleteFiles(ctx, fileGroup)));
     rewriteService.shutdown();
 
-    // Stop Commit service
+    // stop commit service
     commitService.close();
     List<RewritePositionDeletesGroup> commitResults = commitService.results();
     if (commitResults.size() == 0) {
@@ -418,16 +431,16 @@ public class RewritePositionDeleteSparkAction
   }
 
   static class RewriteExecutionContext {
-    private final Map<StructLike, Integer> numGroupsByPartition;
+    private final StructLikeMap<Integer> numGroupsByPartition;
     private final int totalGroupCount;
     private final Map<StructLike, Integer> partitionIndexMap;
     private final AtomicInteger groupIndex;
 
-    RewriteExecutionContext(
-        Map<StructLike, List<List<PositionDeletesScanTask>>> groupsByPartition) {
-      this.numGroupsByPartition =
-          groupsByPartition.entrySet().stream()
-              .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().size()));
+    RewriteExecutionContext(StructLikeMap<List<List<PositionDeletesScanTask>>> groupsByPartition) {
+      this.numGroupsByPartition = StructLikeMap.create(groupsByPartition.type());
+      groupsByPartition.forEach(
+          (partition, partitionGroup) ->
+              numGroupsByPartition.put(partition, partitionGroup.size()));
       this.totalGroupCount = numGroupsByPartition.values().stream().reduce(Integer::sum).orElse(0);
       this.partitionIndexMap = Maps.newConcurrentMap();
       this.groupIndex = new AtomicInteger(1);

@@ -93,7 +93,7 @@ public class SparkActions implements ActionsProvider {
   }
 
   @Override
-  public RewritePositionDeleteSparkAction rewritePositionDeletes(Table table) {
-    return new RewritePositionDeleteSparkAction(spark, table);
+  public RewritePositionDeleteFilesSparkAction rewritePositionDeletes(Table table) {
+    return new RewritePositionDeleteFilesSparkAction(spark, table);
   }
 }
