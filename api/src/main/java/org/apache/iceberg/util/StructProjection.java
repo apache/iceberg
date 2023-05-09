@@ -174,6 +174,7 @@ public class StructProjection implements StructLike {
   }
 
   public StructProjection wrap(StructLike newStruct) {
+    Preconditions.checkState(newStruct != null, "Invalid root struct for wrapping: null");
     this.struct = newStruct;
     return this;
   }
@@ -189,13 +190,6 @@ public class StructProjection implements StructLike {
 
   @Override
   public <T> T get(int pos, Class<T> javaClass) {
-    // Handle the case where the wrapped root struct is null.
-    // Because nested null struct is returned as null projection object,
-    // there won't be nested projection wrapping null struct.
-    if (struct == null) {
-      return null;
-    }
-
     int structPos = positionMap[pos];
     if (nestedProjections[pos] != null) {
       StructLike nestedStruct = struct.get(structPos, StructLike.class);
