@@ -889,26 +889,18 @@ public class TestHiveCatalog extends HiveMetastoreTest {
     Assert.assertTrue(nameMata.get("owner").equals("apache"));
     Assert.assertTrue(nameMata.get("group").equals("iceberg"));
 
-    AssertHelpers.assertThrows(
-        "Should fail to drop namespace is not empty" + namespace,
-        NamespaceNotEmptyException.class,
-        "Namespace dbname_drop is not empty. One or more tables exist.",
-        () -> {
-          catalog.dropNamespace(namespace);
-        });
+    org.assertj.core.api.Assertions.assertThatThrownBy(() -> catalog.dropNamespace(namespace))
+            .isInstanceOf(NamespaceNotEmptyException.class)
+            .hasMessageContaining("Namespace dbname_drop is not empty. One or more tables exist.");
     Assert.assertTrue(catalog.dropTable(identifier, true));
     Assert.assertTrue(
         "Should fail to drop namespace if it is not empty", catalog.dropNamespace(namespace));
     Assert.assertFalse(
         "Should fail to drop when namespace doesn't exist",
         catalog.dropNamespace(Namespace.of("db.ns1")));
-    AssertHelpers.assertThrows(
-        "Should fail to drop namespace exist" + namespace,
-        NoSuchNamespaceException.class,
-        "Namespace does not exist: ",
-        () -> {
-          catalog.loadNamespaceMetadata(namespace);
-        });
+    org.assertj.core.api.Assertions.assertThatThrownBy(() -> catalog.loadNamespaceMetadata(namespace))
+            .isInstanceOf(NoSuchNamespaceException.class)
+            .hasMessageContaining("Namespace does not exist");
   }
 
   @Test
@@ -929,13 +921,9 @@ public class TestHiveCatalog extends HiveMetastoreTest {
     Assert.assertFalse(
         "Should fail to drop when namespace doesn't exist",
         catalog.dropNamespace(Namespace.of("db.ns1")));
-    AssertHelpers.assertThrows(
-        "Should fail to load namespace" + namespace,
-        NoSuchNamespaceException.class,
-        "Namespace does not exist: ",
-        () -> {
-          catalog.loadNamespaceMetadata(namespace);
-        });
+    org.assertj.core.api.Assertions.assertThatThrownBy(() -> catalog.loadNamespaceMetadata(namespace))
+            .isInstanceOf(NoSuchNamespaceException.class)
+            .hasMessageContaining("Namespace does not exist");
   }
 
   @Test
