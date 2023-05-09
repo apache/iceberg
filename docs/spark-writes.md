@@ -331,7 +331,7 @@ USING iceberg
 PARTITIONED BY (days(ts), category)
 ```
 
-To write data to the sample table, your data needs to be sorted by `days(ts), category` but this is taken care
+To write data to the sample table, data needs to be sorted by `days(ts), category` but this is taken care
 of automatically by the default `hash` distribution. Previously this would have required manually sorting, but this 
 is no longer the case.
 
@@ -345,9 +345,9 @@ There are 3 options for `write.distribution-mode`
 
 * `none` - This is the previous default for Iceberg.  
 This mode does not request any shuffles or sort to be performed automatically by Spark. Because no work is done 
-automatically by Spark, the data must be *manually* locally or globally sorted by partition value. To reduce the number 
-of files produced during writing, using a global sort is recommended.  
-A local sort can be avoided by using the Spark [write fanout](#write-properties) property but this will cause all 
+automatically by Spark, the data must be *manually* sorted by partition value. The data must be sorted either within 
+each spark task, or globally within the entire dataset. A global sort will minimize the number of output files.  
+A sort can be avoided by using the Spark [write fanout](#write-properties) property but this will cause all 
 file handles to remain open until each write task has completed.
 * `hash` - This mode is the new default and requests that Spark uses a hash-based exchange to shuffle the incoming
 write data before writing.  
