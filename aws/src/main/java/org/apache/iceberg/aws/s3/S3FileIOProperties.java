@@ -34,7 +34,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SerializableMap;
 import software.amazon.awssdk.auth.credentials.AnonymousCredentialsProvider;
-import software.amazon.awssdk.core.client.builder.SdkClientBuilder;
 import software.amazon.awssdk.core.client.config.SdkAdvancedClientOption;
 import software.amazon.awssdk.services.s3.S3ClientBuilder;
 import software.amazon.awssdk.services.s3.S3Configuration;
@@ -721,11 +720,6 @@ public class S3FileIOProperties implements Serializable {
    * </pre>
    */
   public <T extends S3ClientBuilder> void applyEndpointConfigurations(T builder) {
-    configureEndpoint(builder, endpoint);
-  }
-
-  @SuppressWarnings("checkstyle:HiddenField")
-  private <T extends SdkClientBuilder> void configureEndpoint(T builder, String endpoint) {
     if (endpoint != null) {
       builder.endpointOverride(URI.create(endpoint));
     }

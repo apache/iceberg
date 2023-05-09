@@ -105,11 +105,22 @@ public class AwsClientProperties {
     }
   }
 
+  /**
+   * Returns a credentials provider instance. If params were set, we return a new credentials
+   * instance. If none of the params are set, we try to dynamically load the provided credentials
+   * provider class. If credential provider class wasn't set, we fallback to default credentials
+   * provider.
+   *
+   * @param accessKeyId the AWS access key ID
+   * @param secretAccessKey the AWS secret access key
+   * @param sessionToken the AWS session token
+   * @return a credentials provider instance
+   */
   @SuppressWarnings("checkstyle:HiddenField")
   public AwsCredentialsProvider credentialsProvider(
       String accessKeyId, String secretAccessKey, String sessionToken) {
-    if (accessKeyId != null) {
-      if (sessionToken == null) {
+    if (!Strings.isNullOrEmpty(accessKeyId) || !Strings.isNullOrEmpty(secretAccessKey)) {
+      if (Strings.isNullOrEmpty(sessionToken)) {
         return StaticCredentialsProvider.create(
             AwsBasicCredentials.create(accessKeyId, secretAccessKey));
       } else {
@@ -125,6 +136,14 @@ public class AwsClientProperties {
     return DefaultCredentialsProvider.create();
   }
 
+  /**
+   * Tries to first dynamically load the credentials provider class. If successful, try to invoke
+   * {@code create(Map<String, String>)} static method. If that fails, fallback to {@code create()}
+   * method
+   *
+   * @param credentialsProviderClass the name of the credentials provider class to load
+   * @return credentials provider instance
+   */
   private AwsCredentialsProvider credentialsProvider(String credentialsProviderClass) {
     Class<?> providerClass;
     try {
@@ -142,7 +161,6 @@ public class AwsClientProperties {
             "Cannot initialize %s, it does not implement %s.",
             credentialsProviderClass, AwsCredentialsProvider.class.getName()));
 
-    // try to invoke 'create(Map<String, String>)' static method, otherwise fallback to 'create()'
     try {
       return createCredentialsProvider(providerClass);
     } catch (NoSuchMethodException e) {
