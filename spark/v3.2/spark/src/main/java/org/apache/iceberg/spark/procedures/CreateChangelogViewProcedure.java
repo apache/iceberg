@@ -81,33 +81,33 @@ import org.apache.spark.unsafe.types.UTF8String;
 public class CreateChangelogViewProcedure extends BaseProcedure {
 
   private static final ProcedureParameter TABLE_PARAM =
-      ProcedureParameter.required("table", DataTypes.StringType);
+          ProcedureParameter.required("table", DataTypes.StringType);
   private static final ProcedureParameter CHANGELOG_VIEW_PARAM =
-      ProcedureParameter.optional("changelog_view", DataTypes.StringType);
+          ProcedureParameter.optional("changelog_view", DataTypes.StringType);
   private static final ProcedureParameter OPTIONS_PARAM =
-      ProcedureParameter.optional("options", STRING_MAP);
+          ProcedureParameter.optional("options", STRING_MAP);
   private static final ProcedureParameter COMPUTE_UPDATES_PARAM =
-      ProcedureParameter.optional("compute_updates", DataTypes.BooleanType);
+          ProcedureParameter.optional("compute_updates", DataTypes.BooleanType);
   private static final ProcedureParameter REMOVE_CARRYOVERS_PARAM =
-      ProcedureParameter.optional("remove_carryovers", DataTypes.BooleanType);
+          ProcedureParameter.optional("remove_carryovers", DataTypes.BooleanType);
   private static final ProcedureParameter IDENTIFIER_COLUMNS_PARAM =
-      ProcedureParameter.optional("identifier_columns", STRING_ARRAY);
+          ProcedureParameter.optional("identifier_columns", STRING_ARRAY);
 
   private static final ProcedureParameter[] PARAMETERS =
-      new ProcedureParameter[] {
-        TABLE_PARAM,
-        CHANGELOG_VIEW_PARAM,
-        OPTIONS_PARAM,
-        COMPUTE_UPDATES_PARAM,
-        REMOVE_CARRYOVERS_PARAM,
-        IDENTIFIER_COLUMNS_PARAM,
-      };
+          new ProcedureParameter[] {
+                  TABLE_PARAM,
+                  CHANGELOG_VIEW_PARAM,
+                  OPTIONS_PARAM,
+                  COMPUTE_UPDATES_PARAM,
+                  REMOVE_CARRYOVERS_PARAM,
+                  IDENTIFIER_COLUMNS_PARAM,
+          };
 
   private static final StructType OUTPUT_TYPE =
-      new StructType(
-          new StructField[] {
-            new StructField("changelog_view", DataTypes.StringType, false, Metadata.empty())
-          });
+          new StructType(
+                  new StructField[] {
+                          new StructField("changelog_view", DataTypes.StringType, false, Metadata.empty())
+                  });
 
   public static SparkProcedures.ProcedureBuilder builder() {
     return new BaseProcedure.Builder<CreateChangelogViewProcedure>() {
@@ -157,8 +157,8 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
 
   private Dataset<Row> computeUpdateImages(String[] identifierColumns, Dataset<Row> df) {
     Preconditions.checkArgument(
-        identifierColumns.length > 0,
-        "Cannot compute the update images because identifier columns are not set");
+            identifierColumns.length > 0,
+            "Cannot compute the update images because identifier columns are not set");
 
     Column[] repartitionSpec = new Column[identifierColumns.length + 1];
     for (int i = 0; i < identifierColumns.length; i++) {
@@ -181,11 +181,11 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
 
   private Dataset<Row> removeCarryoverRows(Dataset<Row> df) {
     Column[] repartitionSpec =
-        Arrays.stream(df.columns())
-            .filter(c -> !c.equals(MetadataColumns.CHANGE_TYPE.name()))
-            .map(df::col)
-            .toArray(Column[]::new);
-    return applyChangelogIterator(df, repartitionSpec);
+            Arrays.stream(df.columns())
+                    .filter(c -> !c.equals(MetadataColumns.CHANGE_TYPE.name()))
+                    .map(df::col)
+                    .toArray(Column[]::new);
+    return applyCarryoverRemoveIterator(df, repartitionSpec);
   }
 
   private String[] identifierColumns(ProcedureInput input, Identifier tableIdent) {
@@ -217,14 +217,27 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
     Column[] sortSpec = sortSpec(df, repartitionSpec);
     StructType schema = df.schema();
     String[] identifierFields =
-        Arrays.stream(repartitionSpec).map(Column::toString).toArray(String[]::new);
+            Arrays.stream(repartitionSpec).map(Column::toString).toArray(String[]::new);
 
     return df.repartition(repartitionSpec)
-        .sortWithinPartitions(sortSpec)
-        .mapPartitions(
-            (MapPartitionsFunction<Row, Row>)
-                rowIterator -> ChangelogIterator.create(rowIterator, schema, identifierFields),
-            RowEncoder.apply(schema));
+            .sortWithinPartitions(sortSpec)
+            .mapPartitions(
+                    (MapPartitionsFunction<Row, Row>)
+                            rowIterator ->
+                                    ChangelogIterator.computeUpdates(rowIterator, schema, identifierFields),
+                    RowEncoder.apply(schema));
+  }
+
+  private Dataset<Row> applyCarryoverRemoveIterator(Dataset<Row> df, Column[] repartitionSpec) {
+    Column[] sortSpec = sortSpec(df, repartitionSpec);
+    StructType schema = df.schema();
+
+    return df.repartition(repartitionSpec)
+            .sortWithinPartitions(sortSpec)
+            .mapPartitions(
+                    (MapPartitionsFunction<Row, Row>)
+                            rowIterator -> ChangelogIterator.removeCarryovers(rowIterator, schema),
+                    RowEncoder.apply(schema));
   }
 
   private static Column[] sortSpec(Dataset<Row> df, Column[] repartitionSpec) {
