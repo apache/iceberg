@@ -45,6 +45,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.flink.FlinkConfigOptions;
+import org.apache.iceberg.flink.FlinkReadConf;
 import org.apache.iceberg.flink.FlinkReadOptions;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.TableLoader;
@@ -76,6 +77,7 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
   private final ScanContext scanContext;
   private final ReaderFunction<T> readerFunction;
   private final SplitAssignerFactory assignerFactory;
+  private final int retryNum;
 
   // Can't use SerializableTable as enumerator needs a regular table
   // that can discover table changes
@@ -86,11 +88,13 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
       ScanContext scanContext,
       ReaderFunction<T> readerFunction,
       SplitAssignerFactory assignerFactory,
+      int retryNum,
       Table table) {
     this.tableLoader = tableLoader;
     this.scanContext = scanContext;
     this.readerFunction = readerFunction;
     this.assignerFactory = assignerFactory;
+    this.retryNum = retryNum;
     this.table = table;
   }
 
@@ -189,7 +193,7 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
       ContinuousSplitPlanner splitPlanner =
           new ContinuousSplitPlannerImpl(tableLoader.clone(), scanContext, planningThreadName());
       return new ContinuousIcebergEnumerator(
-          enumContext, assigner, scanContext, splitPlanner, enumState);
+          enumContext, assigner, scanContext, splitPlanner, retryNum, enumState);
     } else {
       List<IcebergSourceSplit> splits = planSplitsForBatch(planningThreadName());
       assigner.onDiscoveredSplits(splits);
@@ -391,6 +395,11 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
       return this;
     }
 
+    public Builder<T> planRetryNum(int planRetryNum) {
+      readOptions.put(FlinkReadOptions.PLAN_RETRY_NUM_OPTION.key(), Integer.toString(planRetryNum));
+      return this;
+    }
+
     /**
      * Set the read properties for Flink source. View the supported properties in {@link
      * FlinkReadOptions}
@@ -426,7 +435,8 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
         }
       }
 
-      contextBuilder.resolveConfig(table, readOptions, flinkConfig);
+      FlinkReadConf flinkReadConf = new FlinkReadConf(table, readOptions, flinkConfig);
+      contextBuilder.resolveConfig(flinkReadConf);
 
       Schema icebergSchema = table.schema();
       if (projectedFlinkSchema != null) {
@@ -458,7 +468,12 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
       checkRequired();
       // Since builder already load the table, pass it to the source to avoid double loading
       return new IcebergSource<T>(
-          tableLoader, context, readerFunction, splitAssignerFactory, table);
+          tableLoader,
+          context,
+          readerFunction,
+          splitAssignerFactory,
+          flinkReadConf.planRetryNum(),
+          table);
     }
 
     private void checkRequired() {

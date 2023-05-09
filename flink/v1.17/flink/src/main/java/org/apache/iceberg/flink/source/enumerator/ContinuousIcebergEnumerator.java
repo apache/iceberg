@@ -28,6 +28,7 @@ import org.apache.flink.api.connector.source.SplitEnumeratorContext;
 import org.apache.iceberg.flink.source.ScanContext;
 import org.apache.iceberg.flink.source.assigner.SplitAssigner;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
+import org.apache.iceberg.util.Tasks;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -45,6 +46,7 @@ public class ContinuousIcebergEnumerator extends AbstractIcebergEnumerator {
   private final SplitAssigner assigner;
   private final ScanContext scanContext;
   private final ContinuousSplitPlanner splitPlanner;
+  private final int retryNum;
 
   /**
    * snapshotId for the last enumerated snapshot. next incremental enumeration should be based off
@@ -60,6 +62,7 @@ public class ContinuousIcebergEnumerator extends AbstractIcebergEnumerator {
       SplitAssigner assigner,
       ScanContext scanContext,
       ContinuousSplitPlanner splitPlanner,
+      int retryNum,
       @Nullable IcebergEnumeratorState enumState) {
     super(enumeratorContext, assigner);
 
@@ -67,6 +70,7 @@ public class ContinuousIcebergEnumerator extends AbstractIcebergEnumerator {
     this.assigner = assigner;
     this.scanContext = scanContext;
     this.splitPlanner = splitPlanner;
+    this.retryNum = retryNum;
     this.enumeratorPosition = new AtomicReference<>();
     this.enumerationHistory = new EnumerationHistory(ENUMERATION_SPLIT_COUNT_HISTORY_SIZE);
 
@@ -115,7 +119,12 @@ public class ContinuousIcebergEnumerator extends AbstractIcebergEnumerator {
       return new ContinuousEnumerationResult(
           Collections.emptyList(), enumeratorPosition.get(), enumeratorPosition.get());
     } else {
-      return splitPlanner.planSplits(enumeratorPosition.get());
+      AtomicReference<ContinuousEnumerationResult> result = new AtomicReference<>();
+      Tasks.foreach(enumeratorPosition.get())
+          .retry(retryNum)
+          .throwFailureWhenFinished()
+          .run(position -> result.set(splitPlanner.planSplits(position)));
+      return result.get();
     }
   }
 
@@ -161,7 +170,12 @@ public class ContinuousIcebergEnumerator extends AbstractIcebergEnumerator {
         LOG.info("Update enumerator position to {}", result.toPosition());
       }
     } else {
-      LOG.error("Failed to discover new splits", error);
+      if (retryNum == -1) {
+        // To have an option for the original behavior - unlimited retries without job failure
+        LOG.error("Failed to discover new splits", error);
+      } else {
+        throw new RuntimeException("Failed to discover new splits", error);
+      }
     }
   }
 }

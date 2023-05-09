@@ -181,4 +181,13 @@ public class FlinkReadConf {
         .defaultValue(FlinkConfigOptions.TABLE_EXEC_ICEBERG_WORKER_POOL_SIZE.defaultValue())
         .parse();
   }
+
+  public int planRetryNum() {
+    return confParser
+        .intConf()
+        .option(FlinkReadOptions.PLAN_RETRY_NUM)
+        .flinkConfig(FlinkReadOptions.PLAN_RETRY_NUM_OPTION)
+        .defaultValue(FlinkReadOptions.PLAN_RETRY_NUM_OPTION.defaultValue())
+        .parse();
+  }
 }

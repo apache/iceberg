@@ -51,9 +51,9 @@ public class TestContinuousIcebergEnumerator {
             .streaming(true)
             .startingStrategy(StreamingStartingStrategy.TABLE_SCAN_THEN_INCREMENTAL)
             .build();
-    ManualContinuousSplitPlanner splitPlanner = new ManualContinuousSplitPlanner(scanContext);
+    ManualContinuousSplitPlanner splitPlanner = new ManualContinuousSplitPlanner(scanContext, 0);
     ContinuousIcebergEnumerator enumerator =
-        createEnumerator(enumeratorContext, scanContext, splitPlanner);
+        createEnumerator(enumeratorContext, scanContext, splitPlanner, 3);
 
     Collection<IcebergSourceSplitState> pendingSplitsEmpty =
         enumerator.snapshotState(1).pendingSplits();
@@ -81,9 +81,9 @@ public class TestContinuousIcebergEnumerator {
             .streaming(true)
             .startingStrategy(StreamingStartingStrategy.TABLE_SCAN_THEN_INCREMENTAL)
             .build();
-    ManualContinuousSplitPlanner splitPlanner = new ManualContinuousSplitPlanner(scanContext);
+    ManualContinuousSplitPlanner splitPlanner = new ManualContinuousSplitPlanner(scanContext, 0);
     ContinuousIcebergEnumerator enumerator =
-        createEnumerator(enumeratorContext, scanContext, splitPlanner);
+        createEnumerator(enumeratorContext, scanContext, splitPlanner, 3);
 
     // register one reader, and let it request a split
     enumeratorContext.registerReader(2, "localhost");
@@ -110,9 +110,9 @@ public class TestContinuousIcebergEnumerator {
             .streaming(true)
             .startingStrategy(StreamingStartingStrategy.TABLE_SCAN_THEN_INCREMENTAL)
             .build();
-    ManualContinuousSplitPlanner splitPlanner = new ManualContinuousSplitPlanner(scanContext);
+    ManualContinuousSplitPlanner splitPlanner = new ManualContinuousSplitPlanner(scanContext, 0);
     ContinuousIcebergEnumerator enumerator =
-        createEnumerator(enumeratorContext, scanContext, splitPlanner);
+        createEnumerator(enumeratorContext, scanContext, splitPlanner, 3);
 
     // register one reader, and let it request a split
     enumeratorContext.registerReader(2, "localhost");
@@ -163,9 +163,9 @@ public class TestContinuousIcebergEnumerator {
             // discover one snapshot at a time
             .maxPlanningSnapshotCount(1)
             .build();
-    ManualContinuousSplitPlanner splitPlanner = new ManualContinuousSplitPlanner(scanContext);
+    ManualContinuousSplitPlanner splitPlanner = new ManualContinuousSplitPlanner(scanContext, 0);
     ContinuousIcebergEnumerator enumerator =
-        createEnumerator(enumeratorContext, scanContext, splitPlanner);
+        createEnumerator(enumeratorContext, scanContext, splitPlanner, 3);
 
     // register reader-2, and let it request a split
     enumeratorContext.registerReader(2, "localhost");
@@ -227,10 +227,104 @@ public class TestContinuousIcebergEnumerator {
         splits.subList(0, 3), enumeratorContext.getSplitAssignments().get(2).getAssignedSplits());
   }
 
+  @Test
+  public void testRetryAndFinish() throws Exception {
+    TestingSplitEnumeratorContext<IcebergSourceSplit> enumeratorContext =
+        new TestingSplitEnumeratorContext<>(4);
+    ScanContext scanContext =
+        ScanContext.builder()
+            .streaming(true)
+            .startingStrategy(StreamingStartingStrategy.INCREMENTAL_FROM_EARLIEST_SNAPSHOT)
+            .maxPlanningSnapshotCount(1)
+            .build();
+    ManualContinuousSplitPlanner splitPlanner = new ManualContinuousSplitPlanner(scanContext, 2);
+    ContinuousIcebergEnumerator enumerator =
+        createEnumerator(enumeratorContext, scanContext, splitPlanner, 2);
+
+    // make one split available and trigger the periodic discovery
+    List<IcebergSourceSplit> splits =
+        SplitHelpers.createSplitsFromTransientHadoopTable(TEMPORARY_FOLDER, 1, 1);
+    splitPlanner.addSplits(splits);
+    enumeratorContext.triggerAllActions();
+
+    // Check that we got the expected splits
+    Collection<IcebergSourceSplitState> pendingSplits = enumerator.snapshotState(2).pendingSplits();
+    Assert.assertEquals(1, pendingSplits.size());
+    IcebergSourceSplitState pendingSplit = pendingSplits.iterator().next();
+    Assert.assertEquals(splits.get(0).splitId(), pendingSplit.split().splitId());
+    Assert.assertEquals(IcebergSourceSplitStatus.UNASSIGNED, pendingSplit.status());
+  }
+
+  @Test
+  public void testRetryLimitReached() throws Exception {
+    TestingSplitEnumeratorContext<IcebergSourceSplit> enumeratorContext =
+        new TestingSplitEnumeratorContext<>(4);
+    ScanContext scanContext =
+        ScanContext.builder()
+            .streaming(true)
+            .startingStrategy(StreamingStartingStrategy.INCREMENTAL_FROM_EARLIEST_SNAPSHOT)
+            .maxPlanningSnapshotCount(1)
+            .build();
+    ManualContinuousSplitPlanner splitPlanner = new ManualContinuousSplitPlanner(scanContext, 3);
+    ContinuousIcebergEnumerator enumerator =
+        createEnumerator(enumeratorContext, scanContext, splitPlanner, 2);
+
+    // make one split available and trigger the periodic discovery
+    List<IcebergSourceSplit> splits =
+        SplitHelpers.createSplitsFromTransientHadoopTable(TEMPORARY_FOLDER, 1, 1);
+    splitPlanner.addSplits(splits);
+    enumeratorContext.triggerAllActions();
+
+    // Check that the task has failed with the expected exception
+    Assertions.assertThatThrownBy(
+            () -> enumeratorContext.getExecutorService().getAllScheduledTasks().get(0).get())
+        .hasCauseInstanceOf(RuntimeException.class)
+        .hasMessageContaining("Failed to discover new split");
+  }
+
+  @Test
+  public void testOriginalRetry() throws Exception {
+    int expectedFailures = 3;
+    TestingSplitEnumeratorContext<IcebergSourceSplit> enumeratorContext =
+        new TestingSplitEnumeratorContext<>(4);
+    ScanContext scanContext =
+        ScanContext.builder()
+            .streaming(true)
+            .startingStrategy(StreamingStartingStrategy.INCREMENTAL_FROM_EARLIEST_SNAPSHOT)
+            .maxPlanningSnapshotCount(1)
+            .build();
+    ManualContinuousSplitPlanner splitPlanner =
+        new ManualContinuousSplitPlanner(scanContext, expectedFailures);
+    ContinuousIcebergEnumerator enumerator =
+        createEnumerator(enumeratorContext, scanContext, splitPlanner, -1);
+
+    // make one split available and trigger the periodic discovery
+    List<IcebergSourceSplit> splits =
+        SplitHelpers.createSplitsFromTransientHadoopTable(TEMPORARY_FOLDER, 1, 1);
+    splitPlanner.addSplits(splits);
+
+    Collection<IcebergSourceSplitState> pendingSplits;
+    // Until we have errors, we do not have result
+    for (int i = 0; i < expectedFailures; ++i) {
+      enumeratorContext.triggerAllActions();
+      pendingSplits = enumerator.snapshotState(2).pendingSplits();
+      Assert.assertEquals(0, pendingSplits.size());
+    }
+
+    // After the errors are fixed we can continue
+    enumeratorContext.triggerAllActions();
+    pendingSplits = enumerator.snapshotState(2).pendingSplits();
+    Assert.assertEquals(1, pendingSplits.size());
+    IcebergSourceSplitState pendingSplit = pendingSplits.iterator().next();
+    Assert.assertEquals(splits.get(0).splitId(), pendingSplit.split().splitId());
+    Assert.assertEquals(IcebergSourceSplitStatus.UNASSIGNED, pendingSplit.status());
+  }
+
   private static ContinuousIcebergEnumerator createEnumerator(
       SplitEnumeratorContext<IcebergSourceSplit> context,
       ScanContext scanContext,
-      ContinuousSplitPlanner splitPlanner) {
+      ContinuousSplitPlanner splitPlanner,
+      int retryNum) {
 
     ContinuousIcebergEnumerator enumerator =
         new ContinuousIcebergEnumerator(
@@ -238,6 +332,7 @@ public class TestContinuousIcebergEnumerator {
             new SimpleSplitAssigner(Collections.emptyList()),
             scanContext,
             splitPlanner,
+            retryNum,
             null);
     enumerator.start();
     return enumerator;

@@ -37,6 +37,7 @@ import org.apache.iceberg.TableScan;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.flink.FlinkConfigOptions;
+import org.apache.iceberg.flink.FlinkReadConf;
 import org.apache.iceberg.flink.FlinkReadOptions;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.TableLoader;
@@ -261,7 +262,7 @@ public class FlinkSource {
       contextBuilder.planParallelism(
           readableConfig.get(FlinkConfigOptions.TABLE_EXEC_ICEBERG_WORKER_POOL_SIZE));
 
-      contextBuilder.resolveConfig(table, readOptions, readableConfig);
+      contextBuilder.resolveConfig(new FlinkReadConf(table, readOptions, readableConfig));
 
       return new FlinkInputFormat(
           tableLoader, icebergSchema, io, encryption, contextBuilder.build());

@@ -105,4 +105,8 @@ public class FlinkReadOptions {
   public static final String LIMIT = "limit";
   public static final ConfigOption<Long> LIMIT_OPTION =
       ConfigOptions.key(PREFIX + LIMIT).longType().defaultValue(-1L);
+
+  public static final String PLAN_RETRY_NUM = "plan-retry-num";
+  public static final ConfigOption<Integer> PLAN_RETRY_NUM_OPTION =
+      ConfigOptions.key(PREFIX + PLAN_RETRY_NUM).intType().defaultValue(3);
 }
