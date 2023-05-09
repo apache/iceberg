@@ -197,9 +197,8 @@ By default, Iceberg uses Glue's optimistic locking for concurrent updates to a t
 With optimistic locking, each table has a version id. 
 If users retrieve the table metadata, Iceberg records the version id of that table. 
 Users can update the table as long as the version ID on the server side remains unchanged. 
-If there is a version mismatch, it means that someone else has modified the table before you did. 
-The update attempt fails because you have a stale version of the table. 
-If this happens, Iceberg refreshes the metadata and checks if there might be a potential conflict. 
+Version mismatch occurs if someone else modified the table before you did, causing an update failure. 
+Iceberg then refreshes metadata and checks if there is a conflict.
 If there is no commit conflict, the operation will be retried.
 Optimistic locking guarantees atomic transaction of Iceberg tables in Glue.
 It also prevents others from accidentally overwriting your changes.
