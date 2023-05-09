@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
+import org.apache.iceberg.aws.AwsClientProperties;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -31,10 +32,6 @@ import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
-import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
-import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
-import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
-import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 import software.amazon.awssdk.services.s3.S3ClientBuilder;
 import software.amazon.awssdk.services.s3.S3Configuration;
 import software.amazon.awssdk.services.s3.model.ObjectCannedACL;
@@ -406,80 +403,20 @@ public class TestS3FileIOProperties {
   }
 
   @Test
-  public void testS3FileIoDefaultCredentialsConfiguration() {
-    // set nothing
+  public void testApplyCredentialConfigurations() {
     Map<String, String> properties = Maps.newHashMap();
-    S3FileIOProperties s3FileIOProperties = new S3FileIOProperties(properties);
-    S3ClientBuilder mockS3ClientBuilder = Mockito.mock(S3ClientBuilder.class);
-    ArgumentCaptor<AwsCredentialsProvider> awsCredentialsProviderCaptor =
-        ArgumentCaptor.forClass(AwsCredentialsProvider.class);
-
-    s3FileIOProperties.applyS3CredentialConfigurations(mockS3ClientBuilder);
-    Mockito.verify(mockS3ClientBuilder).credentialsProvider(awsCredentialsProviderCaptor.capture());
-    AwsCredentialsProvider capturedAwsCredentialsProvider = awsCredentialsProviderCaptor.getValue();
-
-    Assertions.assertThat(capturedAwsCredentialsProvider instanceof DefaultCredentialsProvider)
-        .withFailMessage("Should use default credentials if nothing is set")
-        .isTrue();
-  }
-
-  @Test
-  public void testS3FileIoBasicCredentialsConfiguration() {
-    // set access key id and secret access key
-    Map<String, String> properties = Maps.newHashMap();
-    properties.put(S3FileIOProperties.ACCESS_KEY_ID, "key");
+    properties.put(S3FileIOProperties.ACCESS_KEY_ID, "access");
     properties.put(S3FileIOProperties.SECRET_ACCESS_KEY, "secret");
+    properties.put(S3FileIOProperties.SESSION_TOKEN, "session-token");
+
     S3FileIOProperties s3FileIOProperties = new S3FileIOProperties(properties);
     S3ClientBuilder mockS3ClientBuilder = Mockito.mock(S3ClientBuilder.class);
-    ArgumentCaptor<AwsCredentialsProvider> awsCredentialsProviderCaptor =
-        ArgumentCaptor.forClass(AwsCredentialsProvider.class);
+    AwsClientProperties mockClientProps = Mockito.mock(AwsClientProperties.class);
 
-    s3FileIOProperties.applyS3CredentialConfigurations(mockS3ClientBuilder);
-    Mockito.verify(mockS3ClientBuilder).credentialsProvider(awsCredentialsProviderCaptor.capture());
-    AwsCredentialsProvider capturedAwsCredentialsProvider = awsCredentialsProviderCaptor.getValue();
-
-    Assertions.assertThat(
-            capturedAwsCredentialsProvider.resolveCredentials() instanceof AwsBasicCredentials)
-        .withFailMessage(
-            "Should use basic credentials if access key ID and secret access key are set")
-        .isTrue();
-    Assertions.assertThat(capturedAwsCredentialsProvider.resolveCredentials().accessKeyId())
-        .withFailMessage("The access key id should be the same as the one set by tag ACCESS_KEY_ID")
-        .isEqualTo("key");
-
-    Assertions.assertThat(capturedAwsCredentialsProvider.resolveCredentials().secretAccessKey())
-        .withFailMessage(
-            "The secret access key should be the same as the one set by tag SECRET_ACCESS_KEY")
-        .isEqualTo("secret");
-  }
-
-  @Test
-  public void testS3FileIoSessionCredentialsConfiguration() {
-    // set access key id, secret access key, and session token
-    Map<String, String> properties = Maps.newHashMap();
-    properties.put(S3FileIOProperties.ACCESS_KEY_ID, "key");
-    properties.put(S3FileIOProperties.SECRET_ACCESS_KEY, "secret");
-    properties.put(S3FileIOProperties.SESSION_TOKEN, "token");
-    S3FileIOProperties s3FileIOProperties = new S3FileIOProperties(properties);
-    S3ClientBuilder mockS3ClientBuilder = Mockito.mock(S3ClientBuilder.class);
-    ArgumentCaptor<AwsCredentialsProvider> awsCredentialsProviderCaptor =
-        ArgumentCaptor.forClass(AwsCredentialsProvider.class);
-
-    s3FileIOProperties.applyS3CredentialConfigurations(mockS3ClientBuilder);
-    Mockito.verify(mockS3ClientBuilder).credentialsProvider(awsCredentialsProviderCaptor.capture());
-    AwsCredentialsProvider capturedAwsCredentialsProvider = awsCredentialsProviderCaptor.getValue();
-
-    Assertions.assertThat(
-            capturedAwsCredentialsProvider.resolveCredentials() instanceof AwsSessionCredentials)
-        .withFailMessage("Should use session credentials if session token is set")
-        .isTrue();
-    Assertions.assertThat(capturedAwsCredentialsProvider.resolveCredentials().accessKeyId())
-        .withFailMessage("The access key id should be the same as the one set by tag ACCESS_KEY_ID")
-        .isEqualTo("key");
-    Assertions.assertThat(capturedAwsCredentialsProvider.resolveCredentials().secretAccessKey())
-        .withFailMessage(
-            "The secret access key should be the same as the one set by tag SECRET_ACCESS_KEY")
-        .isEqualTo("secret");
+    s3FileIOProperties.applyCredentialConfigurations(mockClientProps, mockS3ClientBuilder);
+    Mockito.verify(mockS3ClientBuilder).credentialsProvider(Mockito.any());
+    Mockito.verify(mockClientProps)
+        .credentialsProvider(Mockito.anyString(), Mockito.anyString(), Mockito.anyString());
   }
 
   @Test

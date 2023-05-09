@@ -24,23 +24,16 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import org.apache.iceberg.aws.AwsClientProperties;
 import org.apache.iceberg.aws.glue.GlueCatalog;
 import org.apache.iceberg.aws.s3.signer.S3V4RestSignerClient;
-import org.apache.iceberg.common.DynClasses;
-import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SerializableMap;
 import software.amazon.awssdk.auth.credentials.AnonymousCredentialsProvider;
-import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
-import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
-import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
-import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
-import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.core.client.builder.SdkClientBuilder;
 import software.amazon.awssdk.core.client.config.SdkAdvancedClientOption;
 import software.amazon.awssdk.services.s3.S3ClientBuilder;
@@ -341,30 +334,6 @@ public class S3FileIOProperties implements Serializable {
 
   public static final boolean PRELOAD_CLIENT_ENABLED_DEFAULT = false;
 
-  /**
-   * Configure the AWS credentials provider used to create AWS clients. A fully qualified concrete
-   * class with package that implements the {@link AwsCredentialsProvider} interface is required.
-   *
-   * <p>Additionally, the implementation class must also have a create() or create(Map) method
-   * implemented, which returns an instance of the class that provides aws credentials provider.
-   *
-   * <p>Example:
-   * client.credentials-provider=software.amazon.awssdk.auth.credentials.SystemPropertyCredentialsProvider
-   *
-   * <p>When set, the default client factory {@link
-   * org.apache.iceberg.aws.AwsClientFactories#defaultFactory()} and S3 client factory class will
-   * use this provider to get AWS credentials provided instead of reading the default credential
-   * chain to get AWS access credentials.
-   */
-  public static final String CLIENT_CREDENTIALS_PROVIDER = "client.credentials-provider";
-
-  /**
-   * Used by the client.credentials-provider configured value that will be used by {@link
-   * org.apache.iceberg.aws.AwsClientFactories#defaultFactory()} and S3 client factory class to pass
-   * provider-specific properties. Each property consists of a key name and an associated value.
-   */
-  private static final String CLIENT_CREDENTIAL_PROVIDER_PREFIX = "client.credentials-provider.";
-
   private String sseType;
   private String sseKey;
   private String sseMd5;
@@ -392,9 +361,6 @@ public class S3FileIOProperties implements Serializable {
   private boolean isAccelerationEnabled;
   private String endpoint;
   private final boolean isRemoteSigningEnabled;
-  private String clientCredentialsProvider;
-  private final Map<String, String> clientCredentialsProviderProperties;
-
   private final Map<String, String> allProperties;
 
   public S3FileIOProperties() {
@@ -425,8 +391,6 @@ public class S3FileIOProperties implements Serializable {
     this.isUseArnRegionEnabled = USE_ARN_REGION_ENABLED_DEFAULT;
     this.isAccelerationEnabled = ACCELERATION_ENABLED_DEFAULT;
     this.isRemoteSigningEnabled = REMOTE_SIGNING_ENABLED_DEFAULT;
-    this.clientCredentialsProvider = null;
-    this.clientCredentialsProviderProperties = null;
     this.allProperties = Maps.newHashMap();
 
     ValidationException.check(
@@ -515,9 +479,6 @@ public class S3FileIOProperties implements Serializable {
     this.isRemoteSigningEnabled =
         PropertyUtil.propertyAsBoolean(
             properties, REMOTE_SIGNING_ENABLED, REMOTE_SIGNING_ENABLED_DEFAULT);
-    this.clientCredentialsProvider = properties.get(CLIENT_CREDENTIALS_PROVIDER);
-    this.clientCredentialsProviderProperties =
-        PropertyUtil.propertiesWithPrefix(properties, CLIENT_CREDENTIAL_PROVIDER_PREFIX);
     this.allProperties = SerializableMap.copyOf(properties);
 
     ValidationException.check(
@@ -703,71 +664,12 @@ public class S3FileIOProperties implements Serializable {
     return (accessKeyId == null) == (secretAccessKey == null);
   }
 
-  public <T extends S3ClientBuilder> void applyS3CredentialConfigurations(T builder) {
+  public <T extends S3ClientBuilder> void applyCredentialConfigurations(
+      AwsClientProperties awsClientProperties, T builder) {
     builder.credentialsProvider(
         isRemoteSigningEnabled
             ? AnonymousCredentialsProvider.create()
-            : credentialsProvider(accessKeyId, secretAccessKey, sessionToken));
-  }
-
-  @SuppressWarnings("checkstyle:HiddenField")
-  private AwsCredentialsProvider credentialsProvider(
-      String accessKeyId, String secretAccessKey, String sessionToken) {
-    if (accessKeyId != null) {
-      if (sessionToken == null) {
-        return StaticCredentialsProvider.create(
-            AwsBasicCredentials.create(accessKeyId, secretAccessKey));
-      } else {
-        return StaticCredentialsProvider.create(
-            AwsSessionCredentials.create(accessKeyId, secretAccessKey, sessionToken));
-      }
-    }
-
-    if (!Strings.isNullOrEmpty(this.clientCredentialsProvider)) {
-      return credentialsProvider(this.clientCredentialsProvider);
-    }
-
-    return DefaultCredentialsProvider.create();
-  }
-
-  private AwsCredentialsProvider credentialsProvider(String credentialsProviderClass) {
-    Class<?> providerClass;
-    try {
-      providerClass = DynClasses.builder().impl(credentialsProviderClass).buildChecked();
-    } catch (ClassNotFoundException e) {
-      throw new IllegalArgumentException(
-          String.format(
-              "Cannot load class %s, it does not exist in the classpath", credentialsProviderClass),
-          e);
-    }
-
-    Preconditions.checkArgument(
-        AwsCredentialsProvider.class.isAssignableFrom(providerClass),
-        String.format(
-            "Cannot initialize %s, it does not implement %s.",
-            credentialsProviderClass, AwsCredentialsProvider.class.getName()));
-
-    AwsCredentialsProvider provider;
-    try {
-      try {
-        provider =
-            DynMethods.builder("create")
-                .hiddenImpl(providerClass, Map.class)
-                .buildStaticChecked()
-                .invoke(clientCredentialsProviderProperties);
-      } catch (NoSuchMethodException e) {
-        provider =
-            DynMethods.builder("create").hiddenImpl(providerClass).buildStaticChecked().invoke();
-      }
-
-      return provider;
-    } catch (NoSuchMethodException e) {
-      throw new IllegalArgumentException(
-          String.format(
-              "Cannot create an instance of %s, it does not contain a static 'create' or 'create(Map<String, String>)' method",
-              credentialsProviderClass),
-          e);
-    }
+            : awsClientProperties.credentialsProvider(accessKeyId, secretAccessKey, sessionToken));
   }
 
   /**
