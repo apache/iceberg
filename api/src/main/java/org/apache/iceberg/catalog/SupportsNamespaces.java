@@ -111,10 +111,11 @@ public interface SupportsNamespaces {
    * @return true if the namespace was dropped, false otherwise.
    * @throws NamespaceNotEmptyException If the namespace is not empty
    */
-  default boolean dropNamespace(Namespace namespace, boolean cascade) throws NamespaceNotEmptyException{
+  default boolean dropNamespace(Namespace namespace, boolean cascade)
+      throws NamespaceNotEmptyException {
     if (cascade) {
       throw new UnsupportedOperationException(
-              "dropNamespace with cascade not supported with this catalog");
+          "dropNamespace with cascade not supported with this catalog");
     }
     return dropNamespace(namespace);
   }
