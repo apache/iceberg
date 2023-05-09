@@ -116,8 +116,8 @@ The SQL representation stores the view definition as a SQL SELECT, with metadata
 | _optional_  | `dialect_version`   | `string`       | A version to provide additional information for consumers of the view. It is permissible to have multiple versions of the same dialect in a view definition.  |
 | _optional_  | `default-catalog`   | `string`       | Catalog name to use when a reference in the SELECT does not contain a catalog |
 | _optional_  | `default-namespace` | `list<string>` | Namespace to use when a reference in the SELECT is a single identifier |
-| _optional_  | `field-aliases`     | `list<string>` | Column names optionally specified in the create statement. When present SQL queries should be resolved against these instead of the column names in the schema. |
-| _optional_  | `field-comments`    | `list<string>` | Column descriptions (COMMENT) optionally specified in the create statement. When present systems should prefer displaying these as documentation instead of the documentation in the schema. |
+| _optional_  | `field-aliases`     | `list<string>` | Column names optionally specified in the create statement. The schema in the view should mirror these field names. |
+| _optional_  | `field-comments`    | `list<string>` | Column descriptions (COMMENT) optionally specified in the create statement. The schema in the view should mirror these field comments. |
 
 For example:
 
@@ -224,12 +224,12 @@ s3://bucket/warehouse/default.db/event_agg/metadata/00001-(uuid).metadata.json
     "type" : "struct",
     "fields" : [ {
       "id" : 1,
-      "name" : "col1",
+      "name" : "event_count",
       "required" : false,
       "type" : "int"
     }, {
       "id" : 2,
-      "name" : "col2",
+      "name" : "event_date",
       "required" : false,
       "type" : "date"
     } ]
