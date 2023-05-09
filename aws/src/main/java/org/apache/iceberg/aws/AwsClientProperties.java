@@ -119,7 +119,7 @@ public class AwsClientProperties {
   @SuppressWarnings("checkstyle:HiddenField")
   public AwsCredentialsProvider credentialsProvider(
       String accessKeyId, String secretAccessKey, String sessionToken) {
-    if (!Strings.isNullOrEmpty(accessKeyId) || !Strings.isNullOrEmpty(secretAccessKey)) {
+    if (!Strings.isNullOrEmpty(accessKeyId) && !Strings.isNullOrEmpty(secretAccessKey)) {
       if (Strings.isNullOrEmpty(sessionToken)) {
         return StaticCredentialsProvider.create(
             AwsBasicCredentials.create(accessKeyId, secretAccessKey));
