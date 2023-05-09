@@ -363,35 +363,9 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     catalog.createNamespace(NS);
     Assert.assertTrue("Namespace should exist", catalog.namespaceExists(NS));
 
-    catalog.dropNamespace(NS, true);
-    boolean condition = catalog.namespaceExists(NS);
-    Assert.assertFalse(condition);
-  }
-
-  @Test
-  public void testDropNamespaceCascade() {
-    C catalog = catalog();
-
-    catalog.createNamespace(NS);
-    TableIdentifier ident = TableIdentifier.of(NS, "table");
-    Table table = catalog.buildTable(ident, SCHEMA).create();
-
     Assert.assertTrue(
-        "Dropping an existing namespace should return true", catalog.dropNamespace(NS, true));
+        "Dropping an existing namespace should return true", catalog.dropNamespace(NS));
     Assert.assertFalse("Namespace should not exist", catalog.namespaceExists(NS));
-  }
-
-  @Test
-  public void testDropNamespaceCascadeFalse() {
-    C catalog = catalog();
-
-    catalog.createNamespace(NS);
-    TableIdentifier ident = TableIdentifier.of(NS, "table");
-    Table table = catalog.buildTable(ident, SCHEMA).create();
-
-    Assertions.assertThatThrownBy(() -> catalog.dropNamespace(NS, false))
-        .hasMessageContaining("not empty");
-    Assert.assertTrue("Namespace should exist", catalog.namespaceExists(NS));
   }
 
   @Test
