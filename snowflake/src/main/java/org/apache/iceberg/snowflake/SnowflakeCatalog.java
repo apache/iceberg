@@ -124,8 +124,7 @@ public class SnowflakeCatalog extends BaseMetastoreCatalog
 
     String uniqueId = UUID.randomUUID().toString().replace("-", "").substring(0, UNIQUE_ID_LENGTH);
     String uniqueAppIdentifier = APP_IDENTIFIER + "_" + uniqueId;
-    String icebergVersion =
-        "iceberg/" + IcebergBuild.fullVersion() + IcebergBuild.gitCommitShortId();
+    String icebergVersion = IcebergBuild.fullVersion() + IcebergBuild.gitCommitShortId();
     String userAgentSuffix = icebergVersion + " " + uniqueAppIdentifier;
     // Populate application identifier in jdbc client
     properties.put(JdbcCatalog.PROPERTY_PREFIX + JDBC_APPLICATION_PROPERTY, uniqueAppIdentifier);
