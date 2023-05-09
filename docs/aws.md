@@ -55,7 +55,7 @@ For example, to use AWS features with Spark 3.3 (with scala 2.12) and AWS client
 ICEBERG_VERSION={{% icebergVersion %}}
 DEPENDENCIES="org.apache.iceberg:iceberg-spark-runtime-3.3_2.12:$ICEBERG_VERSION"
 
-# add AWS dependnecy
+# add AWS dependency
 AWS_SDK_VERSION=2.20.18
 AWS_MAVEN_GROUP=software.amazon.awssdk
 AWS_PACKAGES=(
@@ -87,7 +87,7 @@ MAVEN_URL=https://repo1.maven.org/maven2
 ICEBERG_MAVEN_URL=$MAVEN_URL/org/apache/iceberg
 wget $ICEBERG_MAVEN_URL/iceberg-flink-runtime/$ICEBERG_VERSION/iceberg-flink-runtime-$ICEBERG_VERSION.jar
 
-# download AWS dependnecy
+# download AWS dependency
 AWS_SDK_VERSION=2.20.18
 AWS_MAVEN_URL=$MAVEN_URL/software/amazon/awssdk
 AWS_PACKAGES=(
@@ -172,12 +172,12 @@ There is a unique Glue metastore in each AWS account and each AWS region.
 By default, `GlueCatalog` chooses the Glue metastore to use based on the user's default AWS client credential and region setup.
 You can specify the Glue catalog ID through `glue.id` catalog property to point to a Glue catalog in a different AWS account.
 The Glue catalog ID is your numeric AWS account ID.
-If the Glue catalog is in a different region, you should configure you AWS client to point to the correct region, 
+If the Glue catalog is in a different region, you should configure your AWS client to point to the correct region, 
 see more details in [AWS client customization](#aws-client-customization).
 
 #### Skip Archive
 
-AWS Glue has the ability to archive older table versions and a user can rollback the table to any historical version if needed.
+AWS Glue has the ability to archive older table versions and a user can roll back the table to any historical version if needed.
 By default, the Iceberg Glue Catalog will skip the archival of older table versions.
 If a user wishes to archive older table versions, they can set `glue.skip-archive` to false.
 Do note for streaming ingestion into Iceberg tables, setting `glue.skip-archive` to false will quickly create a lot of Glue table versions.
@@ -197,9 +197,8 @@ By default, Iceberg uses Glue's optimistic locking for concurrent updates to a t
 With optimistic locking, each table has a version id. 
 If users retrieve the table metadata, Iceberg records the version id of that table. 
 Users can update the table as long as the version ID on the server side remains unchanged. 
-If there is a version mismatch, it means that someone else has modified the table before you did. 
-The update attempt fails, because you have a stale version of the table. 
-If this happens, Iceberg refreshes the metadata and checks if there might be potential conflict. 
+Version mismatch occurs if someone else modified the table before you did, causing an update failure. 
+Iceberg then refreshes metadata and checks if there is a conflict.
 If there is no commit conflict, the operation will be retried.
 Optimistic locking guarantees atomic transaction of Iceberg tables in Glue.
 It also prevents others from accidentally overwriting your changes.
@@ -239,7 +238,7 @@ OPTIONS ('location'='s3://my-special-table-bucket')
 PARTITIONED BY (category);
 ```
 
-For engines like Spark that supports the `LOCATION` keyword, the above SQL statement is equivalent to:
+For engines like Spark that support the `LOCATION` keyword, the above SQL statement is equivalent to:
 
 ```sql
 CREATE TABLE my_catalog.my_ns.my_table (
@@ -279,7 +278,7 @@ The DynamoDB table is designed with the following columns:
 
 This design has the following benefits:
 
-1. it avoids potential [hot partition issue](https://aws.amazon.com/premiumsupport/knowledge-center/dynamodb-table-throttled/) if there are heavy write traffic to the tables within the same namespace, because the partition key is at the table level
+1. it avoids potential [hot partition issue](https://aws.amazon.com/premiumsupport/knowledge-center/dynamodb-table-throttled/) if there are heavy write traffic to the tables within the same namespace because the partition key is at the table level
 2. namespace operations are clustered in a single partition to avoid affecting table commit operations
 3. a sort key to partition key reverse GSI is used for list table operation, and all other operations are single row ops or single partition query. No full table scan is needed for any operation in the catalog.
 4. a string UUID version field `v` is used instead of `updated_at` to avoid 2 processes committing at the same millisecond
@@ -288,25 +287,25 @@ This design has the following benefits:
 
 ### RDS JDBC Catalog
 
-Iceberg also supports JDBC catalog which uses a table in a relational database to manage Iceberg tables.
-You can configure to use JDBC catalog with relational database services like [AWS RDS](https://aws.amazon.com/rds).
+Iceberg also supports the JDBC catalog which uses a table in a relational database to manage Iceberg tables.
+You can configure to use the JDBC catalog with relational database services like [AWS RDS](https://aws.amazon.com/rds).
 Read [the JDBC integration page](../jdbc/#jdbc-catalog) for guides and examples about using the JDBC catalog.
-Read [this AWS documentation](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/UsingWithRDS.IAMDBAuth.Connecting.Java.html) for more details about configuring JDBC catalog with IAM authentication. 
+Read [this AWS documentation](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/UsingWithRDS.IAMDBAuth.Connecting.Java.html) for more details about configuring the JDBC catalog with IAM authentication. 
 
 ### Which catalog to choose?
 
-With all the available options, we offer the following guidance when choosing the right catalog to use for your application:
+With all the available options, we offer the following guidelines when choosing the right catalog to use for your application:
 
 1. if your organization has an existing Glue metastore or plans to use the AWS analytics ecosystem including Glue, [Athena](https://aws.amazon.com/athena), [EMR](https://aws.amazon.com/emr), [Redshift](https://aws.amazon.com/redshift) and [LakeFormation](https://aws.amazon.com/lake-formation), Glue catalog provides the easiest integration.
 2. if your application requires frequent updates to table or high read and write throughput (e.g. streaming write), Glue and DynamoDB catalog provides the best performance through optimistic locking.
 3. if you would like to enforce access control for tables in a catalog, Glue tables can be managed as an [IAM resource](https://docs.aws.amazon.com/service-authorization/latest/reference/list_awsglue.html), whereas DynamoDB catalog tables can only be managed through [item-level permission](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/specifying-conditions.html) which is much more complicated.
 4. if you would like to query tables based on table property information without the need to scan the entire catalog, DynamoDB catalog allows you to build secondary indexes for any arbitrary property field and provide efficient query performance.
 5. if you would like to have the benefit of DynamoDB catalog while also connect to Glue, you can enable [DynamoDB stream with Lambda trigger](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Streams.Lambda.Tutorial.html) to asynchronously update your Glue metastore with table information in the DynamoDB catalog. 
-6. if your organization already maintains an existing relational database in RDS or uses [serverless Aurora](https://aws.amazon.com/rds/aurora/serverless/) to manage tables, JDBC catalog provides the easiest integration.
+6. if your organization already maintains an existing relational database in RDS or uses [serverless Aurora](https://aws.amazon.com/rds/aurora/serverless/) to manage tables, the JDBC catalog provides the easiest integration.
 
 ## DynamoDb Lock Manager
 
-[Amazon DynamoDB](https://aws.amazon.com/dynamodb) can be used by `HadoopCatalog` or `HadoopTables`, so that for every commit,
+[Amazon DynamoDB](https://aws.amazon.com/dynamodb) can be used by `HadoopCatalog` or `HadoopTables` so that for every commit,
 the catalog first obtains a lock using a helper DynamoDB table and then try to safely modify the Iceberg table.
 This is necessary for a file system-based catalog to ensure atomic transaction in storages like S3 that do not provide file write mutual exclusion.
 
@@ -345,7 +344,7 @@ Here are the configurations that users can tune related to this feature:
 
 * [SSE-S3](https://docs.aws.amazon.com/AmazonS3/latest/dev/UsingServerSideEncryption.html): When you use Server-Side Encryption with Amazon S3-Managed Keys (SSE-S3), each object is encrypted with a unique key. As an additional safeguard, it encrypts the key itself with a master key that it regularly rotates. Amazon S3 server-side encryption uses one of the strongest block ciphers available, 256-bit Advanced Encryption Standard (AES-256), to encrypt your data.
 * [SSE-KMS](https://docs.aws.amazon.com/AmazonS3/latest/dev/UsingKMSEncryption.html): Server-Side Encryption with Customer Master Keys (CMKs) Stored in AWS Key Management Service (SSE-KMS) is similar to SSE-S3, but with some additional benefits and charges for using this service. There are separate permissions for the use of a CMK that provides added protection against unauthorized access of your objects in Amazon S3. SSE-KMS also provides you with an audit trail that shows when your CMK was used and by whom. Additionally, you can create and manage customer managed CMKs or use AWS managed CMKs that are unique to you, your service, and your Region.
-* [SSE-C](https://docs.aws.amazon.com/AmazonS3/latest/dev/ServerSideEncryptionCustomerKeys.html): With Server-Side Encryption with Customer-Provided Keys (SSE-C), you manage the encryption keys and Amazon S3 manages the encryption, as it writes to disks, and decryption, when you access your objects.
+* [SSE-C](https://docs.aws.amazon.com/AmazonS3/latest/dev/ServerSideEncryptionCustomerKeys.html): With Server-Side Encryption with Customer-Provided Keys (SSE-C), you manage the encryption keys and Amazon S3 manages the encryption, as it writes to disks, and decryption when you access your objects.
 
 To enable server side encryption, use the following configuration properties:
 
@@ -364,13 +363,13 @@ For more details, please read [S3 ACL Documentation](https://docs.aws.amazon.com
 ### Object Store File Layout
 
 S3 and many other cloud storage services [throttle requests based on object prefix](https://aws.amazon.com/premiumsupport/knowledge-center/s3-request-limit-avoid-throttling/).
-Data stored in S3 with a traditional Hive storage layout can face S3 request throttling as objects are stored under the same filepath prefix.
+Data stored in S3 with a traditional Hive storage layout can face S3 request throttling as objects are stored under the same file path prefix.
 
-Iceberg by default uses the Hive storage layout, but can be switched to use the `ObjectStoreLocationProvider`. 
-With `ObjectStoreLocationProvider`, a determenistic hash is generated for each stored file, with the hash appended 
+Iceberg by default uses the Hive storage layout but can be switched to use the `ObjectStoreLocationProvider`. 
+With `ObjectStoreLocationProvider`, a deterministic hash is generated for each stored file, with the hash appended 
 directly after the `write.data.path`. This ensures files written to s3 are equally distributed across multiple [prefixes](https://aws.amazon.com/premiumsupport/knowledge-center/s3-object-key-naming-pattern/) in the S3 bucket. Resulting in minimized throttling and maximized throughput for S3-related IO operations. When using `ObjectStoreLocationProvider` having a shared and short `write.data.path` across your Iceberg tables will improve performance.
 
-For more information on how S3 scales API QPS, checkout the 2018 re:Invent session on [Best Practices for Amazon S3 and Amazon S3 Glacier]( https://youtu.be/rHeTn9pHNKo?t=3219). At [53:39](https://youtu.be/rHeTn9pHNKo?t=3219) it covers how S3 scales/partitions & at [54:50](https://youtu.be/rHeTn9pHNKo?t=3290) it discusses the 30-60 minute wait time before new partitions are created.
+For more information on how S3 scales API QPS, check out the 2018 re:Invent session on [Best Practices for Amazon S3 and Amazon S3 Glacier]( https://youtu.be/rHeTn9pHNKo?t=3219). At [53:39](https://youtu.be/rHeTn9pHNKo?t=3219) it covers how S3 scales/partitions & at [54:50](https://youtu.be/rHeTn9pHNKo?t=3290) it discusses the 30-60 minute wait time before new partitions are created.
 
 To use the `ObjectStorageLocationProvider` add `'write.object-storage.enabled'=true` in the table's properties. 
 Below is an example Spark SQL command to create a table using the `ObjectStorageLocationProvider`:
@@ -411,8 +410,8 @@ There is no redundant consistency wait and check which might negatively impact p
 ### Hadoop S3A FileSystem
 
 Before `S3FileIO` was introduced, many Iceberg users choose to use `HadoopFileIO` to write data to S3 through the [S3A FileSystem](https://github.com/apache/hadoop/blob/trunk/hadoop-tools/hadoop-aws/src/main/java/org/apache/hadoop/fs/s3a/S3AFileSystem.java).
-As introduced in the previous sections, `S3FileIO` adopts latest AWS clients and S3 features for optimized security and performance,
- and is thus recommend for S3 use cases rather than the S3A FileSystem.
+As introduced in the previous sections, `S3FileIO` adopts the latest AWS clients and S3 features for optimized security and performance
+ and is thus recommended for S3 use cases rather than the S3A FileSystem.
 
 `S3FileIO` writes data with `s3://` URI scheme, but it is also compatible with schemes written by the S3A FileSystem.
 This means for any table manifests containing `s3a://` or `s3n://` file paths, `S3FileIO` is still able to read them.
@@ -521,7 +520,7 @@ For more details on using S3 Acceleration, please refer to [Configuring fast, se
 ### S3 Dual-stack
 
 [S3 Dual-stack](https://docs.aws.amazon.com/AmazonS3/latest/userguide/dual-stack-endpoints.html) allows a client to access an S3 bucket through a dual-stack endpoint. 
-When clients make a request to a dual-stack endpoint, the bucket URL resolves to an IPv6 address if possible, otherwise fallback to IPv4.
+When clients request a dual-stack endpoint, the bucket URL resolves to an IPv6 address if possible, otherwise fallback to IPv4.
 
 To use S3 Dual-stack, we need to set `s3.dualstack-enabled` catalog property to `true` to enable `S3FileIO` to make dual-stack S3 calls.
 
@@ -555,7 +554,7 @@ This client factory has the following configurable catalog properties:
 | client.assume-role.arn            | null, requires user input                | ARN of the role to assume, e.g. arn:aws:iam::123456789:role/myRoleToAssume  |
 | client.assume-role.region         | null, requires user input                | All AWS clients except the STS client will use the given region instead of the default region chain  |
 | client.assume-role.external-id    | null                                     | An optional [external ID](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_create_for-user_externalid.html)  |
-| client.assume-role.timeout-sec    | 1 hour                                   | Timeout of each assume role session. At the end of the timeout, a new set of role session credentials will be fetched through a STS client.  |
+| client.assume-role.timeout-sec    | 1 hour                                   | Timeout of each assume role session. At the end of the timeout, a new set of role session credentials will be fetched through an STS client.  |
 
 By using this client factory, an STS client is initialized with the default credential and region to assume the specified role.
 The Glue, S3 and DynamoDB clients are then initialized with the assume-role credential and region to access resources.
@@ -575,8 +574,8 @@ spark-sql --packages org.apache.iceberg:iceberg-spark-runtime:{{% icebergVersion
 AWS clients support two types of HTTP Client, [URL Connection HTTP Client](https://mvnrepository.com/artifact/software.amazon.awssdk/url-connection-client) 
 and [Apache HTTP Client](https://mvnrepository.com/artifact/software.amazon.awssdk/apache-client).
 By default, AWS clients use **URL Connection** HTTP Client to communicate with the service. 
-This HTTP client optimizes for minimum dependencies and startup latency but support less functionality than other implementations. 
-In contrast, Apache HTTP Client supports more functionalities and more customized settings, such as expect-continue handshake and TCP KeepAlive, at cost of extra dependency and additional startup latency. 
+This HTTP client optimizes for minimum dependencies and startup latency but supports less functionality than other implementations. 
+In contrast, Apache HTTP Client supports more functionalities and more customized settings, such as expect-continue handshake and TCP KeepAlive, at the cost of extra dependency and additional startup latency. 
 
 For more details of configuration, see sections [URL Connection HTTP Client Configurations](#url-connection-http-client-configurations) and [Apache HTTP Client Configurations](#apache-http-client-configurations).
 
@@ -606,15 +605,15 @@ Apache HTTP Client has the following configurable properties:
 
 | Property                                              | Default                   | Description                                                                                                                                                                                                                                 |
 |-------------------------------------------------------|---------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| http-client.apache.socket-timeout-ms                  | null                      | An optional [socket timeout](https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html#socketTimeout(java.time.Duration)) in milliseconds                                                  |
-| http-client.apache.connection-timeout-ms              | null                      | An optional [connection timeout](https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html#connectionTimeout(java.time.Duration)) in milliseconds                                          |
-| http-client.apache.connection-acquisition-timeout-ms  | null                      | An optional [connection acquisition timeout](https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html#connectionAcquisitionTimeout(java.time.Duration)) in milliseconds                   |
-| http-client.apache.connection-max-idle-time-ms        | null                      | An optional [connection max idle timeout](https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html#connectionMaxIdleTime(java.time.Duration)) in milliseconds                             |
-| http-client.apache.connection-time-to-live-ms         | null                      | An optional [connection time to live](https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html#connectionTimeToLive(java.time.Duration)) in milliseconds                                  |
-| http-client.apache.expect-continue-enabled            | null, disabled by default | An optional `true/false` setting that decide whether to enable [expect continue](https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html#expectContinueEnabled(java.lang.Boolean))       |
-| http-client.apache.max-connections                    | null                      | An optional [max connections](https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html#maxConnections(java.lang.Integer))  in integer                                                     |
-| http-client.apache.tcp-keep-alive-enabled             | null, disabled by default | An optional `true/false` setting that decide whether to enable [tcp keep alive](https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html#tcpKeepAlive(java.lang.Boolean))                 |
-| http-client.apache.use-idle-connection-reaper-enabled | null, enabled by default  | An optional `true/false` setting that decide whether to [use idle connection reaper](https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html#useIdleConnectionReaper(java.lang.Boolean)) |
+| http-client.apache.socket-timeout-ms                  | null                      | An optional [socket timeout](https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html#socketTimeout(java.time.Duration)) in milliseconds |
+| http-client.apache.connection-timeout-ms              | null                      | An optional [connection timeout](https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html#connectionTimeout(java.time.Duration)) in milliseconds |
+| http-client.apache.connection-acquisition-timeout-ms  | null                      | An optional [connection acquisition timeout](https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html#connectionAcquisitionTimeout(java.time.Duration)) in milliseconds |
+| http-client.apache.connection-max-idle-time-ms        | null                      | An optional [connection max idle timeout](https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html#connectionMaxIdleTime(java.time.Duration)) in milliseconds |
+| http-client.apache.connection-time-to-live-ms         | null                      | An optional [connection time to live](https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html#connectionTimeToLive(java.time.Duration)) in milliseconds |
+| http-client.apache.expect-continue-enabled            | null, disabled by default | An optional `true/false` setting that controls whether [expect continue](https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html#expectContinueEnabled(java.lang.Boolean)) is enabled |
+| http-client.apache.max-connections                    | null                      | An optional [max connections](https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html#maxConnections(java.lang.Integer))  in integer       |
+| http-client.apache.tcp-keep-alive-enabled             | null, disabled by default | An optional `true/false` setting that controls whether [tcp keep alive](https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html#tcpKeepAlive(java.lang.Boolean)) is enabled |
+| http-client.apache.use-idle-connection-reaper-enabled | null, enabled by default  | An optional `true/false` setting that controls whether [use idle connection reaper](https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html#useIdleConnectionReaper(java.lang.Boolean)) is used |
 
 Users can use catalog properties to override the defaults. For example, to configure the max connections for Apache HTTP Client when starting a spark shell, one can add:
 ```shell
@@ -677,7 +676,7 @@ install_dependencies $LIB_PATH $AWS_MAVEN_URL $AWS_SDK_VERSION "${AWS_PACKAGES[@
 ### AWS Glue
 
 [AWS Glue](https://aws.amazon.com/glue/) provides a serverless data integration service
-that could be used to perform read, write, update tasks against Iceberg tables.
+that could be used to perform read, write and update tasks against Iceberg tables.
 More details could be found [here](https://docs.aws.amazon.com/glue/latest/dg/aws-glue-programming-etl-format-iceberg.html).
 
 
