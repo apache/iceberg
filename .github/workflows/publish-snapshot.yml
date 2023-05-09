@@ -29,6 +29,8 @@ jobs:
   publish-snapshot:
     if: github.repository_owner == 'apache'
     runs-on: ubuntu-22.04
+    env:
+      GRADLE_ENTERPRISE_ACCESS_KEY: ${{ secrets.GE_ACCESS_TOKEN }}
     steps:
       - uses: actions/checkout@v3
         with:

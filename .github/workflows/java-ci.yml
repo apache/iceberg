@@ -57,6 +57,7 @@ jobs:
         jvm: [8, 11, 17]
     env:
       SPARK_LOCAL_IP: localhost
+      GRADLE_ENTERPRISE_ACCESS_KEY: ${{ secrets.GE_ACCESS_TOKEN }}
     steps:
     - uses: actions/checkout@v3
     - uses: actions/setup-java@v3
@@ -81,6 +82,8 @@ jobs:
 
   build-checks:
     runs-on: ubuntu-22.04
+    env:
+      GRADLE_ENTERPRISE_ACCESS_KEY: ${{ secrets.GE_ACCESS_TOKEN }}
     steps:
     - uses: actions/checkout@v3
     - uses: actions/setup-java@v3
@@ -91,6 +94,8 @@ jobs:
 
   build-javadoc:
     runs-on: ubuntu-22.04
+    env:
+      GRADLE_ENTERPRISE_ACCESS_KEY: ${{ secrets.GE_ACCESS_TOKEN }}
     steps:
     - uses: actions/checkout@v3
     - uses: actions/setup-java@v3
