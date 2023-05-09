@@ -46,7 +46,7 @@ public class TestScanPlanningAndReporting extends TableTestBase {
 
   @Test
   public void noDuplicatesInScanContext() {
-    TableScanContext context = new TableScanContext();
+    TableScanContext context = TableScanContext.empty();
     assertThat(context.metricsReporter()).isInstanceOf(LoggingMetricsReporter.class);
 
     MetricsReporter first = report -> {};

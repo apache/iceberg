@@ -20,6 +20,7 @@ package org.apache.iceberg.hive;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
+import com.github.benmanes.caffeine.cache.Scheduler;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Comparator;
@@ -41,6 +42,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.PropertyUtil;
+import org.apache.iceberg.util.ThreadPools;
 import org.apache.thrift.TException;
 import org.immutables.value.Value;
 
@@ -57,10 +59,9 @@ import org.immutables.value.Value;
  *       UserGroupInformation#getUserName.
  *   <li>conf - name of an arbitrary configuration. The value of the configuration will be extracted
  *       from catalog properties and added to the cache key. A conf element should start with a
- *       "conf:" prefix which is followed by the configuration name. E.g. specifying
- *       "conf:metastore.catalog.default" will add "metastore.catalog.default" to the key, and so
- *       that configurations with different default catalog wouldn't share the same client pool.
- *       Multiple conf elements can be specified.
+ *       "conf:" prefix which is followed by the configuration name. E.g. specifying "conf:a.b.c"
+ *       will add "a.b.c" to the key, and so that configurations with different default catalog
+ *       wouldn't share the same client pool. Multiple conf elements can be specified.
  * </ul>
  */
 public class CachedClientPool implements ClientPool<IMetaStoreClient, TException> {
@@ -97,10 +98,15 @@ public class CachedClientPool implements ClientPool<IMetaStoreClient, TException
 
   private synchronized void init() {
     if (clientPoolCache == null) {
+      // Since Caffeine does not ensure that removalListener will be involved after expiration
+      // We use a scheduler with one thread to clean up expired clients.
       clientPoolCache =
           Caffeine.newBuilder()
               .expireAfterAccess(evictionInterval, TimeUnit.MILLISECONDS)
               .removalListener((ignored, value, cause) -> ((HiveClientPool) value).close())
+              .scheduler(
+                  Scheduler.forScheduledExecutorService(
+                      ThreadPools.newScheduledPool("hive-metastore-cleaner", 1)))
               .build();
     }
   }
@@ -127,6 +133,7 @@ public class CachedClientPool implements ClientPool<IMetaStoreClient, TException
     // generate key elements in a certain order, so that the Key instances are comparable
     List<Object> elements = Lists.newArrayList();
     elements.add(conf.get(HiveConf.ConfVars.METASTOREURIS.varname, ""));
+    elements.add(conf.get(HiveCatalog.HIVE_CONF_CATALOG, "hive"));
     if (cacheKeys == null || cacheKeys.isEmpty()) {
       return Key.of(elements);
     }

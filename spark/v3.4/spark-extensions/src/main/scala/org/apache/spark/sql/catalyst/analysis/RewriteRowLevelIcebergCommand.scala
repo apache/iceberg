@@ -23,7 +23,7 @@ import org.apache.spark.sql.AnalysisException
 import org.apache.spark.sql.catalyst.ProjectingInternalRow
 import org.apache.spark.sql.catalyst.expressions.Attribute
 import org.apache.spark.sql.catalyst.expressions.AttributeReference
-import org.apache.spark.sql.catalyst.expressions.ExtendedV2ExpressionUtils
+import org.apache.spark.sql.catalyst.expressions.V2ExpressionUtils
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.catalyst.util.WriteDeltaProjections
 import org.apache.spark.sql.connector.write.RowLevelOperation
@@ -73,7 +73,7 @@ trait RewriteRowLevelIcebergCommand extends RewriteRowLevelCommand {
 
     operation match {
       case supportsDelta: SupportsDelta =>
-        val rowIdAttrs = ExtendedV2ExpressionUtils.resolveRefs[AttributeReference](
+        val rowIdAttrs = V2ExpressionUtils.resolveRefs[AttributeReference](
           supportsDelta.rowId.toSeq,
           relation)
 

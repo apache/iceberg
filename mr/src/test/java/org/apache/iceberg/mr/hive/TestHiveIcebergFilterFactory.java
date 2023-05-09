@@ -24,6 +24,9 @@ import java.math.BigDecimal;
 import java.sql.Date;
 import java.sql.Timestamp;
 import java.time.LocalDate;
+import java.util.Collections;
+import java.util.List;
+import org.apache.hadoop.hive.ql.io.sarg.ExpressionTree;
 import org.apache.hadoop.hive.ql.io.sarg.PredicateLeaf;
 import org.apache.hadoop.hive.ql.io.sarg.SearchArgument;
 import org.apache.hadoop.hive.ql.io.sarg.SearchArgumentFactory;
@@ -36,6 +39,7 @@ import org.apache.iceberg.expressions.Or;
 import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.DateTimeUtil;
+import org.assertj.core.api.Assertions;
 import org.junit.Test;
 
 public class TestHiveIcebergFilterFactory {
@@ -143,6 +147,21 @@ public class TestHiveIcebergFilterFactory {
     assertEquals(actual.op(), expected.op());
     assertEquals(actual.left().op(), expected.left().op());
     assertEquals(actual.right().op(), expected.right().op());
+  }
+
+  @Test
+  public void testUnsupportedBetweenOperandEmptyLeaves() {
+    SearchArgument.Builder builder = SearchArgumentFactory.newBuilder();
+    final SearchArgument arg =
+        new MockSearchArgument(
+            builder
+                .startAnd()
+                .between("salary", PredicateLeaf.Type.LONG, 9000L, 15000L)
+                .end()
+                .build());
+    Assertions.assertThatThrownBy(() -> HiveIcebergFilterFactory.generateFilterExpression(arg))
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage("Missing leaf literals: Leaf[empty]");
   }
 
   @Test
@@ -292,5 +311,60 @@ public class TestHiveIcebergFilterFactory {
     assertEquals(expected.op(), actual.op());
     assertEquals(expected.literal(), actual.literal());
     assertEquals(expected.ref().name(), actual.ref().name());
+  }
+
+  private static class MockSearchArgument implements SearchArgument {
+
+    private final SearchArgument delegate;
+
+    MockSearchArgument(SearchArgument original) {
+      delegate = original;
+    }
+
+    @Override
+    public ExpressionTree getExpression() {
+      return delegate.getExpression();
+    }
+
+    @Override
+    public TruthValue evaluate(TruthValue[] leaves) {
+      return delegate.evaluate(leaves);
+    }
+
+    @Override
+    public List<PredicateLeaf> getLeaves() {
+      return Collections.singletonList(
+          new PredicateLeaf() {
+            @Override
+            public Operator getOperator() {
+              return Operator.BETWEEN;
+            }
+
+            @Override
+            public Type getType() {
+              return Type.LONG;
+            }
+
+            @Override
+            public String getColumnName() {
+              return "salary";
+            }
+
+            @Override
+            public Object getLiteral() {
+              return null;
+            }
+
+            @Override
+            public List<Object> getLiteralList() {
+              return Collections.emptyList();
+            }
+
+            @Override
+            public String toString() {
+              return "Leaf[empty]";
+            }
+          });
+    }
   }
 }

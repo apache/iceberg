@@ -20,6 +20,7 @@ package org.apache.iceberg.view;
 
 import java.util.List;
 import java.util.Map;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.immutables.value.Value;
 
 /**
@@ -65,5 +66,17 @@ public interface ViewVersion {
    *
    * @return the string operation which produced the view version
    */
-  String operation();
+  @Value.Lazy
+  default String operation() {
+    return summary().get("operation");
+  }
+
+  /** The query output schema at version create time, without aliases */
+  int schemaId();
+
+  @Value.Check
+  default void check() {
+    Preconditions.checkArgument(
+        summary().containsKey("operation"), "Invalid view version summary, missing operation");
+  }
 }

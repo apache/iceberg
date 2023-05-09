@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.util.Map;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.aws.lakeformation.LakeFormationAwsClientFactory;
+import org.apache.iceberg.aws.s3.S3FileIOProperties;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -66,14 +67,14 @@ public class TestAwsClientFactories {
   @Test
   public void testS3FileIoCredentialsVerification() {
     Map<String, String> properties = Maps.newHashMap();
-    properties.put(AwsProperties.S3FILEIO_ACCESS_KEY_ID, "key");
+    properties.put(S3FileIOProperties.ACCESS_KEY_ID, "key");
 
     Assertions.assertThatThrownBy(() -> AwsClientFactories.from(properties))
         .isInstanceOf(ValidationException.class)
         .hasMessage("S3 client access key ID and secret access key must be set at the same time");
 
-    properties.remove(AwsProperties.S3FILEIO_ACCESS_KEY_ID);
-    properties.put(AwsProperties.S3FILEIO_SECRET_ACCESS_KEY, "secret");
+    properties.remove(S3FileIOProperties.ACCESS_KEY_ID);
+    properties.put(S3FileIOProperties.SECRET_ACCESS_KEY, "secret");
 
     Assertions.assertThatThrownBy(() -> AwsClientFactories.from(properties))
         .isInstanceOf(ValidationException.class)

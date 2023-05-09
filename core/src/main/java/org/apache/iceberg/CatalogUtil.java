@@ -164,7 +164,7 @@ public class CatalogUtil {
    * @param type type of files being deleted
    * @param concurrent controls concurrent deletion. Only applicable for non-bulk FileIO
    */
-  private static void deleteFiles(
+  public static void deleteFiles(
       FileIO io, Iterable<String> files, String type, boolean concurrent) {
     if (io instanceof SupportsBulkOperations) {
       try {

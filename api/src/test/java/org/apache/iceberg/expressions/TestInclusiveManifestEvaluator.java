@@ -40,7 +40,6 @@ import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
 import java.nio.ByteBuffer;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -48,6 +47,7 @@ import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.types.Types;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -230,11 +230,10 @@ public class TestInclusiveManifestEvaluator {
 
   @Test
   public void testMissingColumn() {
-    AssertHelpers.assertThrows(
-        "Should complain about missing column in expression",
-        ValidationException.class,
-        "Cannot find field 'missing'",
-        () -> ManifestEvaluator.forRowFilter(lessThan("missing", 5), SPEC, true).eval(FILE));
+    Assertions.assertThatThrownBy(
+            () -> ManifestEvaluator.forRowFilter(lessThan("missing", 5), SPEC, true).eval(FILE))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("Cannot find field 'missing'");
   }
 
   @Test
@@ -528,11 +527,10 @@ public class TestInclusiveManifestEvaluator {
 
   @Test
   public void testCaseSensitiveIntegerNotEqRewritten() {
-    AssertHelpers.assertThrows(
-        "Should complain about missing column in expression",
-        ValidationException.class,
-        "Cannot find field 'ID'",
-        () -> ManifestEvaluator.forRowFilter(not(equal("ID", 5)), SPEC, true).eval(FILE));
+    Assertions.assertThatThrownBy(
+            () -> ManifestEvaluator.forRowFilter(not(equal("ID", 5)), SPEC, true).eval(FILE))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("Cannot find field 'ID'");
   }
 
   @Test

@@ -77,16 +77,16 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsAdmissio
   private final boolean caseSensitive;
   private final String expectedSchema;
   private final Broadcast<Table> tableBroadcast;
-  private final Long splitSize;
-  private final Integer splitLookback;
-  private final Long splitOpenFileCost;
+  private final long splitSize;
+  private final int splitLookback;
+  private final long splitOpenFileCost;
   private final boolean localityPreferred;
   private final StreamingOffset initialOffset;
   private final boolean skipDelete;
   private final boolean skipOverwrite;
-  private final Long fromTimestamp;
-  private final Integer maxFilesPerMicroBatch;
-  private final Integer maxRecordsPerMicroBatch;
+  private final long fromTimestamp;
+  private final int maxFilesPerMicroBatch;
+  private final int maxRecordsPerMicroBatch;
 
   SparkMicroBatchStream(
       JavaSparkContext sparkContext,
@@ -223,12 +223,7 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsAdmissio
 
       Snapshot snapshot = table.snapshot(currentOffset.snapshotId());
 
-      if (snapshot == null) {
-        throw new IllegalStateException(
-            String.format(
-                "Cannot load current offset at snapshot %d, the snapshot was expired or removed",
-                currentOffset.snapshotId()));
-      }
+      validateCurrentSnapshotExists(snapshot, currentOffset);
 
       if (!shouldProcess(snapshot)) {
         LOG.debug("Skipping snapshot: {} of table {}", currentOffset.snapshotId(), table.name());
@@ -340,6 +335,8 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsAdmissio
     }
 
     Snapshot curSnapshot = table.snapshot(startingOffset.snapshotId());
+    validateCurrentSnapshotExists(curSnapshot, startingOffset);
+
     int startPosOfSnapOffset = (int) startingOffset.position();
 
     boolean scanAllFiles = startingOffset.shouldScanAllFiles();
@@ -417,6 +414,15 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsAdmissio
     return addedFilesCount == -1
         ? Iterables.size(snapshot.addedDataFiles(table.io()))
         : addedFilesCount;
+  }
+
+  private void validateCurrentSnapshotExists(Snapshot snapshot, StreamingOffset currentOffset) {
+    if (snapshot == null) {
+      throw new IllegalStateException(
+          String.format(
+              "Cannot load current offset at snapshot %d, the snapshot was expired or removed",
+              currentOffset.snapshotId()));
+    }
   }
 
   @Override

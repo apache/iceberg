@@ -18,9 +18,9 @@
  */
 package org.apache.iceberg.spark.sql;
 
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.spark.SparkTestBaseWithCatalog;
 import org.apache.spark.sql.AnalysisException;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -51,31 +51,28 @@ public class TestSparkHoursFunction extends SparkTestBaseWithCatalog {
 
   @Test
   public void testWrongNumberOfArguments() {
-    AssertHelpers.assertThrows(
-        "Function resolution should not work with zero arguments",
-        AnalysisException.class,
-        "Function 'hours' cannot process input: (): Wrong number of inputs",
-        () -> scalarSql("SELECT system.hours()"));
+    Assertions.assertThatThrownBy(() -> scalarSql("SELECT system.hours()"))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageStartingWith(
+            "Function 'hours' cannot process input: (): Wrong number of inputs");
 
-    AssertHelpers.assertThrows(
-        "Function resolution should not work with more than one argument",
-        AnalysisException.class,
-        "Function 'hours' cannot process input: (date, date): Wrong number of inputs",
-        () -> scalarSql("SELECT system.hours(date('1969-12-31'), date('1969-12-31'))"));
+    Assertions.assertThatThrownBy(
+            () -> scalarSql("SELECT system.hours(date('1969-12-31'), date('1969-12-31'))"))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageStartingWith(
+            "Function 'hours' cannot process input: (date, date): Wrong number of inputs");
   }
 
   @Test
   public void testInvalidInputTypes() {
-    AssertHelpers.assertThrows(
-        "Int type should not be coercible to timestamp",
-        AnalysisException.class,
-        "Function 'hours' cannot process input: (int): Expected value to be timestamp",
-        () -> scalarSql("SELECT system.hours(1)"));
+    Assertions.assertThatThrownBy(() -> scalarSql("SELECT system.hours(1)"))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageStartingWith(
+            "Function 'hours' cannot process input: (int): Expected value to be timestamp");
 
-    AssertHelpers.assertThrows(
-        "Long type should not be coercible to timestamp",
-        AnalysisException.class,
-        "Function 'hours' cannot process input: (bigint): Expected value to be timestamp",
-        () -> scalarSql("SELECT system.hours(1L)"));
+    Assertions.assertThatThrownBy(() -> scalarSql("SELECT system.hours(1L)"))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageStartingWith(
+            "Function 'hours' cannot process input: (bigint): Expected value to be timestamp");
   }
 }

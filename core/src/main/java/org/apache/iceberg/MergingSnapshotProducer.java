@@ -84,7 +84,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
 
   // update data
   private final List<DataFile> newFiles = Lists.newArrayList();
-  private Long newFilesSequenceNumber;
+  private Long newDataFilesDataSequenceNumber;
   private final Map<Integer, List<DeleteFile>> newDeleteFilesBySpec = Maps.newHashMap();
   private final List<ManifestFile> appendManifests = Lists.newArrayList();
   private final List<ManifestFile> rewrittenAppendManifests = Lists.newArrayList();
@@ -207,6 +207,22 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     // this is an old call that never worked for delete files and can only be used to remove data
     // files.
     filterManager.delete(path);
+  }
+
+  protected boolean deletesDataFiles() {
+    return filterManager.containsDeletes();
+  }
+
+  protected boolean deletesDeleteFiles() {
+    return deleteFilterManager.containsDeletes();
+  }
+
+  protected boolean addsDataFiles() {
+    return newFiles.size() > 0;
+  }
+
+  protected boolean addsDeleteFiles() {
+    return newDeleteFilesBySpec.size() > 0;
   }
 
   /** Add a data file to the new snapshot. */
@@ -392,7 +408,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   protected void validateNoNewDeletesForDataFiles(
       TableMetadata base, Long startingSnapshotId, Iterable<DataFile> dataFiles, Snapshot parent) {
     validateNoNewDeletesForDataFiles(
-        base, startingSnapshotId, null, dataFiles, newFilesSequenceNumber != null, parent);
+        base, startingSnapshotId, null, dataFiles, newDataFilesDataSequenceNumber != null, parent);
   }
 
   /**
@@ -651,8 +667,20 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     return manifestGroup.entries();
   }
 
+  /**
+   * Sets a data sequence number for new data files.
+   *
+   * @param sequenceNumber a data sequence number
+   * @deprecated since 1.3.0, will be removed in 1.4.0; use {@link
+   *     #setNewDataFilesDataSequenceNumber(long)};
+   */
+  @Deprecated
   protected void setNewFilesSequenceNumber(long sequenceNumber) {
-    this.newFilesSequenceNumber = sequenceNumber;
+    setNewDataFilesDataSequenceNumber(sequenceNumber);
+  }
+
+  protected void setNewDataFilesDataSequenceNumber(long sequenceNumber) {
+    this.newDataFilesDataSequenceNumber = sequenceNumber;
   }
 
   private long startingSequenceNumber(TableMetadata metadata, Long staringSnapshotId) {
@@ -926,10 +954,10 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
       try {
         ManifestWriter<DataFile> writer = newManifestWriter(dataSpec());
         try {
-          if (newFilesSequenceNumber == null) {
+          if (newDataFilesDataSequenceNumber == null) {
             writer.addAll(newFiles);
           } else {
-            newFiles.forEach(f -> writer.add(f, newFilesSequenceNumber));
+            newFiles.forEach(f -> writer.add(f, newDataFilesDataSequenceNumber));
           }
         } finally {
           writer.close();

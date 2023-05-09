@@ -508,10 +508,6 @@ public class TableTestBase {
             "Data sequence number should match expected",
             expectedSequenceNumber,
             entry.dataSequenceNumber());
-        V2Assert.assertEquals(
-            "Sequence number should match expected",
-            expectedSequenceNumber,
-            entry.dataSequenceNumber());
       }
       if (fileSeqs != null) {
         V1Assert.assertEquals(
@@ -548,10 +544,6 @@ public class TableTestBase {
         Long expectedSequenceNumber = dataSeqs.next();
         V2Assert.assertEquals(
             "Data sequence number should match expected",
-            expectedSequenceNumber,
-            entry.dataSequenceNumber());
-        V2Assert.assertEquals(
-            "Sequence number should match expected",
             expectedSequenceNumber,
             entry.dataSequenceNumber());
       }

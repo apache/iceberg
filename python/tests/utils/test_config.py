@@ -18,7 +18,7 @@ import os
 from unittest import mock
 
 import pytest
-import yaml
+from strictyaml import as_document
 
 from pyiceberg.utils.config import Config, _lowercase_dictionary_keys
 
@@ -43,7 +43,8 @@ def test_from_environment_variables_uppercase() -> None:
 def test_from_configuration_files(tmp_path_factory: pytest.TempPathFactory) -> None:
     config_path = str(tmp_path_factory.mktemp("config"))
     with open(f"{config_path}/.pyiceberg.yaml", "w", encoding="utf-8") as file:
-        yaml.dump({"catalog": {"production": {"uri": "https://service.io/api"}}}, file)
+        yaml_str = as_document({"catalog": {"production": {"uri": "https://service.io/api"}}}).as_yaml()
+        file.write(yaml_str)
 
     os.environ["PYICEBERG_HOME"] = config_path
     assert Config().get_catalog_config("production") == {"uri": "https://service.io/api"}

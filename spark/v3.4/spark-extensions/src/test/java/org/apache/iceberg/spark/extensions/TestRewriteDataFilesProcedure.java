@@ -41,9 +41,11 @@ import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchProcedureException;
+import org.apache.spark.sql.internal.SQLConf;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Assume;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
@@ -53,6 +55,12 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
   public TestRewriteDataFilesProcedure(
       String catalogName, String implementation, Map<String, String> config) {
     super(catalogName, implementation, config);
+  }
+
+  @BeforeClass
+  public static void setupSpark() {
+    // disable AQE as tests assume that writes generate a particular number of files
+    spark.conf().set(SQLConf.ADAPTIVE_EXECUTION_ENABLED().key(), "false");
   }
 
   @After

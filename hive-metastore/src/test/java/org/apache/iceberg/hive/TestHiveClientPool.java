@@ -31,9 +31,9 @@ import org.apache.hadoop.hive.metastore.api.FunctionType;
 import org.apache.hadoop.hive.metastore.api.GetAllFunctionsResponse;
 import org.apache.hadoop.hive.metastore.api.MetaException;
 import org.apache.hadoop.hive.metastore.api.PrincipalType;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.thrift.transport.TTransportException;
+import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -100,11 +100,9 @@ public class TestHiveClientPool {
   @Test
   public void testNewClientFailure() {
     Mockito.doThrow(new RuntimeException("Connection exception")).when(clients).newClient();
-    AssertHelpers.assertThrows(
-        "Should throw exception",
-        RuntimeException.class,
-        "Connection exception",
-        () -> clients.run(Object::toString));
+    Assertions.assertThatThrownBy(() -> clients.run(Object::toString))
+        .isInstanceOf(RuntimeException.class)
+        .hasMessage("Connection exception");
   }
 
   @Test
@@ -114,11 +112,9 @@ public class TestHiveClientPool {
     Mockito.doThrow(new MetaException("Another meta exception"))
         .when(hmsClient)
         .getTables(Mockito.anyString(), Mockito.anyString());
-    AssertHelpers.assertThrows(
-        "Should throw exception",
-        MetaException.class,
-        "Another meta exception",
-        () -> clients.run(client -> client.getTables("default", "t")));
+    Assertions.assertThatThrownBy(() -> clients.run(client -> client.getTables("default", "t")))
+        .isInstanceOf(MetaException.class)
+        .hasMessage("Another meta exception");
   }
 
   @Test

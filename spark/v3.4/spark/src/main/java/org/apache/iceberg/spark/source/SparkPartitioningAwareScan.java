@@ -26,7 +26,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-import org.apache.iceberg.BaseScanTaskGroup;
 import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionScanTask;
 import org.apache.iceberg.PartitionSpec;
@@ -34,7 +33,6 @@ import org.apache.iceberg.Scan;
 import org.apache.iceberg.ScanTask;
 import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expression;
@@ -69,7 +67,6 @@ abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends S
   private List<ScanTaskGroup<T>> taskGroups = null; // lazy cache of task groups
   private StructType groupingKeyType = null; // lazy cache of the grouping key type
   private Transform[] groupingKeyTransforms = null; // lazy cache of grouping key transforms
-  private StructLikeSet groupingKeys = null; // lazy cache of grouping keys
 
   SparkPartitioningAwareScan(
       SparkSession spark,
@@ -228,35 +225,7 @@ abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends S
             plannedGroupingKeys.size(),
             table().name());
 
-        // task groups may be planned multiple times because of runtime filtering
-        // the number of task groups may change but the set of grouping keys must stay same
-        // if grouping keys are not null, this planning happens after runtime filtering
-        // so an empty task group must be added for each filtered out grouping key
-
-        if (groupingKeys == null) {
-          this.taskGroups = plannedTaskGroups;
-          this.groupingKeys = plannedGroupingKeys;
-
-        } else {
-          StructLikeSet missingGroupingKeys = StructLikeSet.create(groupingKeyType());
-
-          for (StructLike groupingKey : groupingKeys) {
-            if (!plannedGroupingKeys.contains(groupingKey)) {
-              missingGroupingKeys.add(groupingKey);
-            }
-          }
-
-          LOG.debug(
-              "{} grouping key(s) were filtered out at runtime for table {}",
-              missingGroupingKeys.size(),
-              table().name());
-
-          for (StructLike groupingKey : missingGroupingKeys) {
-            plannedTaskGroups.add(new BaseScanTaskGroup<>(groupingKey, Collections.emptyList()));
-          }
-
-          this.taskGroups = plannedTaskGroups;
-        }
+        this.taskGroups = plannedTaskGroups;
       }
     }
 
@@ -264,7 +233,7 @@ abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends S
   }
 
   // only task groups can be reset while resetting tasks
-  // the set of scanned specs, grouping key type, grouping keys must never change
+  // the set of scanned specs and grouping key type must never change
   protected void resetTasks(List<T> filteredTasks) {
     this.taskGroups = null;
     this.tasks = filteredTasks;
