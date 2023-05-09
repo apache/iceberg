@@ -889,63 +889,18 @@ public class TestHiveCatalog extends HiveMetastoreTest {
     Assert.assertTrue(nameMata.get("owner").equals("apache"));
     Assert.assertTrue(nameMata.get("group").equals("iceberg"));
 
-    org.assertj.core.api.Assertions.assertThatThrownBy(() -> catalog.dropNamespace(namespace))
-            .isInstanceOf(NamespaceNotEmptyException.class)
-            .hasMessageContaining("Namespace dbname_drop is not empty. One or more tables exist.");
+    assertThatThrownBy(() -> catalog.dropNamespace(namespace))
+        .isInstanceOf(NamespaceNotEmptyException.class)
+        .hasMessage("Namespace dbname_drop is not empty. One or more tables exist.");
     Assert.assertTrue(catalog.dropTable(identifier, true));
     Assert.assertTrue(
         "Should fail to drop namespace if it is not empty", catalog.dropNamespace(namespace));
     Assert.assertFalse(
         "Should fail to drop when namespace doesn't exist",
         catalog.dropNamespace(Namespace.of("db.ns1")));
-    org.assertj.core.api.Assertions.assertThatThrownBy(() -> catalog.loadNamespaceMetadata(namespace))
-            .isInstanceOf(NoSuchNamespaceException.class)
-            .hasMessageContaining("Namespace does not exist");
-  }
-
-  @Test
-  public void testDropNamespaceCascade() throws TException {
-    Namespace namespace = Namespace.of("dbname_drop_cascade_test");
-    TableIdentifier identifier = TableIdentifier.of(namespace, "table");
-    Schema schema =
-        new Schema(Types.StructType.of(required(1, "id", Types.LongType.get())).fields());
-
-    catalog.createNamespace(namespace, meta);
-    catalog.createTable(identifier, schema);
-    Map<String, String> nameMata = catalog.loadNamespaceMetadata(namespace);
-    Assert.assertTrue(nameMata.get("owner").equals("apache"));
-    Assert.assertTrue(nameMata.get("group").equals("iceberg"));
-
-    Assert.assertTrue(catalog.dropNamespace(namespace, true));
-    Assert.assertFalse(catalog.tableExists(identifier));
-    Assert.assertFalse(
-        "Should fail to drop when namespace doesn't exist",
-        catalog.dropNamespace(Namespace.of("db.ns1")));
-    org.assertj.core.api.Assertions.assertThatThrownBy(() -> catalog.loadNamespaceMetadata(namespace))
-            .isInstanceOf(NoSuchNamespaceException.class)
-            .hasMessageContaining("Namespace does not exist");
-  }
-
-  @Test
-  public void testDropNamespaceCascadeFalse() throws TException {
-    Namespace namespace = Namespace.of("dbname_drop_cascade_test_false");
-    TableIdentifier identifier = TableIdentifier.of(namespace, "table");
-    Schema schema = getTestSchema();
-
-    catalog.createNamespace(namespace, meta);
-    catalog.createTable(identifier, schema);
-    Map<String, String> nameMata = catalog.loadNamespaceMetadata(namespace);
-    Assert.assertTrue(nameMata.get("owner").equals("apache"));
-    Assert.assertTrue(nameMata.get("group").equals("iceberg"));
-
-    AssertHelpers.assertThrows(
-        "Should fail to drop namespace is not empty" + namespace,
-        NamespaceNotEmptyException.class,
-        "is not empty. One or more tables exist.",
-        () -> {
-          catalog.dropNamespace(namespace, false);
-        });
-    Assert.assertNotNull(catalog.loadNamespaceMetadata(namespace));
+    assertThatThrownBy(() -> catalog.loadNamespaceMetadata(namespace))
+        .isInstanceOf(NoSuchNamespaceException.class)
+        .hasMessage("Namespace does not exist: dbname_drop");
   }
 
   @Test
@@ -1273,5 +1228,46 @@ public class TestHiveCatalog extends HiveMetastoreTest {
         .isInstanceOf(AlreadyExistsException.class)
         .hasMessage("Table already exists: hivedb.t1");
     assertThat(catalog.dropTable(identifier, true)).isTrue();
+  }
+
+  @Test
+  public void testDropNamespaceCascade() throws TException {
+    Namespace namespace = Namespace.of("dbname_drop_cascade_test");
+    TableIdentifier identifier = TableIdentifier.of(namespace, "table");
+    Schema schema =
+        new Schema(Types.StructType.of(required(1, "id", Types.LongType.get())).fields());
+
+    catalog.createNamespace(namespace, meta);
+    catalog.createTable(identifier, schema);
+    Map<String, String> nameMata = catalog.loadNamespaceMetadata(namespace);
+    Assert.assertTrue(nameMata.get("owner").equals("apache"));
+    Assert.assertTrue(nameMata.get("group").equals("iceberg"));
+
+    Assert.assertTrue(catalog.dropNamespace(namespace, true));
+    Assert.assertFalse(catalog.tableExists(identifier));
+    Assert.assertFalse(
+        "Should fail to drop when namespace doesn't exist",
+        catalog.dropNamespace(Namespace.of("db.ns1")));
+    assertThatThrownBy(() -> catalog.loadNamespaceMetadata(namespace))
+        .isInstanceOf(NoSuchNamespaceException.class)
+        .hasMessageContaining("Namespace does not exist");
+  }
+
+  @Test
+  public void testDropNamespaceCascadeFalse() throws TException {
+    Namespace namespace = Namespace.of("dbname_drop_cascade_test_false");
+    TableIdentifier identifier = TableIdentifier.of(namespace, "table");
+    Schema schema = getTestSchema();
+
+    catalog.createNamespace(namespace, meta);
+    catalog.createTable(identifier, schema);
+    Map<String, String> nameMata = catalog.loadNamespaceMetadata(namespace);
+    Assert.assertTrue(nameMata.get("owner").equals("apache"));
+    Assert.assertTrue(nameMata.get("group").equals("iceberg"));
+
+    assertThatThrownBy(() -> catalog.dropNamespace(namespace, false))
+        .isInstanceOf(NamespaceNotEmptyException.class)
+        .hasMessageContaining("is not empty. One or more tables exist.");
+    Assert.assertNotNull(catalog.loadNamespaceMetadata(namespace));
   }
 }
