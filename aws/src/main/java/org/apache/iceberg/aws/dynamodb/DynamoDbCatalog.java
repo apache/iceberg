@@ -285,16 +285,6 @@ public class DynamoDbCatalog extends BaseMetastoreCatalog
   }
 
   @Override
-  public boolean dropNamespace(Namespace namespace, boolean cascade)
-      throws NamespaceNotEmptyException {
-    if (cascade) {
-      throw new UnsupportedOperationException(
-          "DynamoDbCatalog does not currently support dropNamespace with cascade");
-    }
-    return dropNamespace(namespace);
-  }
-
-  @Override
   public boolean setProperties(Namespace namespace, Map<String, String> properties)
       throws NoSuchNamespaceException {
     List<String> updateParts = Lists.newArrayList();

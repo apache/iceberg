@@ -287,16 +287,6 @@ public class NessieCatalog extends BaseMetastoreCatalog
   }
 
   @Override
-  public boolean dropNamespace(Namespace namespace, boolean cascade)
-      throws NamespaceNotEmptyException {
-    if (cascade) {
-      throw new UnsupportedOperationException(
-          "NessieCatalog does not currently support dropNamespace with cascade");
-    }
-    return dropNamespace(namespace);
-  }
-
-  @Override
   public boolean setProperties(Namespace namespace, Map<String, String> properties) {
     return client.setProperties(namespace, properties);
   }

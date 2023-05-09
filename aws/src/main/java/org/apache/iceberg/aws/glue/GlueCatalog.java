@@ -561,16 +561,6 @@ public class GlueCatalog extends BaseMetastoreCatalog
   }
 
   @Override
-  public boolean dropNamespace(Namespace namespace, boolean cascade)
-      throws NamespaceNotEmptyException {
-    if (cascade) {
-      throw new UnsupportedOperationException(
-          "GlueCatalog does not currently support dropNamespace with cascade");
-    }
-    return dropNamespace(namespace);
-  }
-
-  @Override
   public boolean setProperties(Namespace namespace, Map<String, String> properties)
       throws NoSuchNamespaceException {
     Map<String, String> newProperties = Maps.newHashMap();
