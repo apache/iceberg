@@ -47,6 +47,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Multimaps;
 import org.apache.iceberg.relocated.com.google.common.collect.SetMultimap;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
+import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SerializableMap;
 import org.apache.iceberg.util.SerializableSupplier;
 import org.apache.iceberg.util.Tasks;
@@ -88,16 +89,14 @@ public class S3FileIO
   private transient volatile S3Client client;
   private MetricsContext metrics = MetricsContext.nullMetrics();
   private final AtomicBoolean isResourceClosed = new AtomicBoolean(false);
-  private final transient StackTraceElement[] createStack;
+  private transient StackTraceElement[] createStack;
 
   /**
    * No-arg constructor to load the FileIO dynamically.
    *
    * <p>All fields are initialized by calling {@link S3FileIO#initialize(Map)} later.
    */
-  public S3FileIO() {
-    this.createStack = Thread.currentThread().getStackTrace();
-  }
+  public S3FileIO() {}
 
   /**
    * Constructor with custom s3 supplier and S3FileIO properties.
@@ -358,6 +357,10 @@ public class S3FileIO
   public void initialize(Map<String, String> props) {
     this.properties = SerializableMap.copyOf(props);
     this.s3FileIOProperties = new S3FileIOProperties(properties);
+    this.createStack =
+        PropertyUtil.propertyAsBoolean(props, "init-creation-stacktrace", true)
+            ? Thread.currentThread().getStackTrace()
+            : null;
 
     // Do not override s3 client if it was provided
     if (s3 == null) {

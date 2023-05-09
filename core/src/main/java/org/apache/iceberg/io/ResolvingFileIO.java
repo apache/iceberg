@@ -144,7 +144,11 @@ public class ResolvingFileIO implements FileIO, HadoopConfigurable {
       Configuration conf = hadoopConf.get();
 
       try {
-        io = CatalogUtil.loadFileIO(impl, properties, conf);
+        Map<String, String> props = Maps.newHashMap(properties);
+        // ResolvingFileIO is keeping track of the creation stacktrace, so no need to do the same in
+        // S3FileIO.
+        props.put("init-creation-stacktrace", "false");
+        io = CatalogUtil.loadFileIO(impl, props, conf);
       } catch (IllegalArgumentException e) {
         if (impl.equals(FALLBACK_IMPL)) {
           // no implementation to fall back to, throw the exception
