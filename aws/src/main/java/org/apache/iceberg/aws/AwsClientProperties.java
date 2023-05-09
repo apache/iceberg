@@ -108,8 +108,9 @@ public class AwsClientProperties {
   /**
    * Returns a credentials provider instance. If params were set, we return a new credentials
    * instance. If none of the params are set, we try to dynamically load the provided credentials
-   * provider class. If credential provider class wasn't set, we fallback to default credentials
-   * provider.
+   * provider class. Upon loading the class, we try to invoke {@code create(Map<String, String>)}
+   * static method. If that fails, we fall back to {@code create()}. If credential provider class
+   * wasn't set, we fall back to default credentials provider.
    *
    * @param accessKeyId the AWS access key ID
    * @param secretAccessKey the AWS secret access key
@@ -136,14 +137,6 @@ public class AwsClientProperties {
     return DefaultCredentialsProvider.create();
   }
 
-  /**
-   * Tries to first dynamically load the credentials provider class. If successful, try to invoke
-   * {@code create(Map<String, String>)} static method. If that fails, fallback to {@code create()}
-   * method
-   *
-   * @param credentialsProviderClass the name of the credentials provider class to load
-   * @return credentials provider instance
-   */
   private AwsCredentialsProvider credentialsProvider(String credentialsProviderClass) {
     Class<?> providerClass;
     try {
