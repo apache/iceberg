@@ -470,7 +470,11 @@ public class AwsProperties implements Serializable {
    * org.apache.iceberg.aws.AwsClientFactories.DefaultAwsClientFactory} and also other client
    * factory classes will use this provider to get AWS credentials provided instead of reading the
    * default credential chain to get AWS access credentials.
+   *
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.AwsClientProperties}
+   *     instead
    */
+  @Deprecated
   public static final String CLIENT_CREDENTIALS_PROVIDER = "client.credentials-provider";
 
   /**
@@ -478,15 +482,22 @@ public class AwsProperties implements Serializable {
    * org.apache.iceberg.aws.AwsClientFactories.DefaultAwsClientFactory} and also other client
    * factory classes to pass provider-specific properties. Each property consists of a key name and
    * an associated value.
+   *
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.AwsClientProperties}
+   *     instead
    */
+  @Deprecated
   private static final String CLIENT_CREDENTIAL_PROVIDER_PREFIX = "client.credentials-provider.";
 
   /**
    * Used by {@link org.apache.iceberg.aws.AwsClientFactories.DefaultAwsClientFactory} and also
    * other client factory classes. If set, all AWS clients except STS client will use the given
    * region instead of the default region chain.
+   *
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.AwsClientProperties}
+   *     instead
    */
-  public static final String CLIENT_REGION = "client.region";
+  @Deprecated public static final String CLIENT_REGION = "client.region";
 
   /**
    * The type of {@link software.amazon.awssdk.http.SdkHttpClient} implementation used by {@link
@@ -1582,7 +1593,11 @@ public class AwsProperties implements Serializable {
    * <pre>
    *     S3Client.builder().applyMutation(awsProperties::applyClientRegionConfiguration)
    * </pre>
+   *
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.AwsClientProperties}
+   *     instead
    */
+  @Deprecated
   public <T extends AwsClientBuilder> void applyClientRegionConfiguration(T builder) {
     if (clientRegion != null) {
       builder.region(Region.of(clientRegion));

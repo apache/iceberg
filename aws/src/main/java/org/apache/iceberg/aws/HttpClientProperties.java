@@ -195,6 +195,7 @@ public class HttpClientProperties {
     if (Strings.isNullOrEmpty(httpClientType)) {
       httpClientType = CLIENT_TYPE_DEFAULT;
     }
+
     switch (httpClientType) {
       case CLIENT_TYPE_URLCONNECTION:
         UrlConnectionHttpClientConfigurations urlConnectionHttpClientConfigurations =

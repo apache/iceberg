@@ -18,14 +18,37 @@
  */
 package org.apache.iceberg.aws;
 
+import java.util.Map;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mockito;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
+import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.s3.S3ClientBuilder;
 
 public class AwsClientPropertiesTest {
+
+  @Test
+  public void testApplyClientRegion() {
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(AwsClientProperties.CLIENT_REGION, "us-east-1");
+    AwsClientProperties awsClientProperties = new AwsClientProperties(properties);
+
+    S3ClientBuilder mockS3ClientBuilder = Mockito.mock(S3ClientBuilder.class);
+    ArgumentCaptor<Region> regionArgumentCaptor = ArgumentCaptor.forClass(Region.class);
+
+    awsClientProperties.applyClientRegionConfiguration(mockS3ClientBuilder);
+    Mockito.verify(mockS3ClientBuilder).region(regionArgumentCaptor.capture());
+    Region region = regionArgumentCaptor.getValue();
+    Assertions.assertThat(region.id())
+        .withFailMessage("region parameter should match what is set in CLIENT_REGION")
+        .isEqualTo("us-east-1");
+  }
 
   @Test
   public void testDefaultCredentialsConfiguration() {

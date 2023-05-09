@@ -29,6 +29,8 @@ import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+import software.amazon.awssdk.awscore.client.builder.AwsClientBuilder;
+import software.amazon.awssdk.regions.Region;
 
 public class AwsClientProperties {
   /**
@@ -56,18 +58,51 @@ public class AwsClientProperties {
    */
   private static final String CLIENT_CREDENTIAL_PROVIDER_PREFIX = "client.credentials-provider.";
 
+  /**
+   * Used by {@link org.apache.iceberg.aws.AwsClientFactories.DefaultAwsClientFactory} and also
+   * other client factory classes. If set, all AWS clients except STS client will use the given
+   * region instead of the default region chain.
+   */
+  public static final String CLIENT_REGION = "client.region";
+
+  private String clientRegion;
   private String clientCredentialsProvider;
   private final Map<String, String> clientCredentialsProviderProperties;
 
   public AwsClientProperties() {
+    this.clientRegion = null;
     this.clientCredentialsProvider = null;
     this.clientCredentialsProviderProperties = null;
   }
 
   public AwsClientProperties(Map<String, String> properties) {
+    this.clientRegion = properties.get(CLIENT_REGION);
     this.clientCredentialsProvider = properties.get(CLIENT_CREDENTIALS_PROVIDER);
     this.clientCredentialsProviderProperties =
         PropertyUtil.propertiesWithPrefix(properties, CLIENT_CREDENTIAL_PROVIDER_PREFIX);
+  }
+
+  public String clientRegion() {
+    return clientRegion;
+  }
+
+  public void setClientRegion(String clientRegion) {
+    this.clientRegion = clientRegion;
+  }
+
+  /**
+   * Configure a client AWS region.
+   *
+   * <p>Sample usage:
+   *
+   * <pre>
+   *     S3Client.builder().applyMutation(awsProperties::applyClientRegionConfiguration)
+   * </pre>
+   */
+  public <T extends AwsClientBuilder> void applyClientRegionConfiguration(T builder) {
+    if (clientRegion != null) {
+      builder.region(Region.of(clientRegion));
+    }
   }
 
   @SuppressWarnings("checkstyle:HiddenField")
@@ -107,20 +142,9 @@ public class AwsClientProperties {
             "Cannot initialize %s, it does not implement %s.",
             credentialsProviderClass, AwsCredentialsProvider.class.getName()));
 
-    AwsCredentialsProvider provider;
+    // try to invoke 'create(Map<String, String>)' static method, otherwise fallback to 'create()'
     try {
-      try {
-        provider =
-            DynMethods.builder("create")
-                .hiddenImpl(providerClass, Map.class)
-                .buildStaticChecked()
-                .invoke(clientCredentialsProviderProperties);
-      } catch (NoSuchMethodException e) {
-        provider =
-            DynMethods.builder("create").hiddenImpl(providerClass).buildStaticChecked().invoke();
-      }
-
-      return provider;
+      return createCredentialsProvider(providerClass);
     } catch (NoSuchMethodException e) {
       throw new IllegalArgumentException(
           String.format(
@@ -128,5 +152,21 @@ public class AwsClientProperties {
               credentialsProviderClass),
           e);
     }
+  }
+
+  private AwsCredentialsProvider createCredentialsProvider(Class<?> providerClass)
+      throws NoSuchMethodException {
+    AwsCredentialsProvider provider;
+    try {
+      provider =
+          DynMethods.builder("create")
+              .hiddenImpl(providerClass, Map.class)
+              .buildStaticChecked()
+              .invoke(clientCredentialsProviderProperties);
+    } catch (NoSuchMethodException e) {
+      provider =
+          DynMethods.builder("create").hiddenImpl(providerClass).buildStaticChecked().invoke();
+    }
+    return provider;
   }
 }
