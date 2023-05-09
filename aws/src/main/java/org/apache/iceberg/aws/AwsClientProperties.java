@@ -42,16 +42,17 @@ public class AwsClientProperties {
    * client.credentials-provider=software.amazon.awssdk.auth.credentials.SystemPropertyCredentialsProvider
    *
    * <p>When set, the default client factory {@link
-   * org.apache.iceberg.aws.AwsClientFactories#defaultFactory()} and other AWS client factory classes will
-   * use this provider to get AWS credentials provided instead of reading the default credential
-   * chain to get AWS access credentials.
+   * org.apache.iceberg.aws.AwsClientFactories#defaultFactory()} and other AWS client factory
+   * classes will use this provider to get AWS credentials provided instead of reading the default
+   * credential chain to get AWS access credentials.
    */
   public static final String CLIENT_CREDENTIALS_PROVIDER = "client.credentials-provider";
 
   /**
    * Used by the client.credentials-provider configured value that will be used by {@link
-   * org.apache.iceberg.aws.AwsClientFactories#defaultFactory()} and  other AWS client factory classes to pass
-   * provider-specific properties. Each property consists of a key name and an associated value.
+   * org.apache.iceberg.aws.AwsClientFactories#defaultFactory()} and other AWS client factory
+   * classes to pass provider-specific properties. Each property consists of a key name and an
+   * associated value.
    */
   private static final String CLIENT_CREDENTIAL_PROVIDER_PREFIX = "client.credentials-provider.";
 
