@@ -19,6 +19,7 @@
 package org.apache.iceberg.actions;
 
 import java.util.List;
+import org.apache.iceberg.actions.RewriteDataFiles.FileGroupFailureResult;
 import org.apache.iceberg.actions.RewriteDataFiles.FileGroupRewriteResult;
 import org.apache.iceberg.actions.RewriteDataFiles.Result;
 
@@ -30,11 +31,10 @@ import org.apache.iceberg.actions.RewriteDataFiles.Result;
 public class BaseRewriteDataFilesResult implements Result {
   private final List<FileGroupRewriteResult> rewriteResults;
 
-  private final List<RewriteDataFiles.FileGroupFailureResult> rewriteFailures;
+  private final List<FileGroupFailureResult> rewriteFailures;
 
   public BaseRewriteDataFilesResult(
-      List<FileGroupRewriteResult> rewriteResults,
-      List<RewriteDataFiles.FileGroupFailureResult> rewriteFailures) {
+      List<FileGroupRewriteResult> rewriteResults, List<FileGroupFailureResult> rewriteFailures) {
     this.rewriteResults = rewriteResults;
     this.rewriteFailures = rewriteFailures;
   }
