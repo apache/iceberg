@@ -529,9 +529,7 @@ def _read_deletes(fs: FileSystem, data_file: DataFile) -> Dict[str, pa.ChunkedAr
     }
 
 
-def _create_positional_deletes_indices(
-    positional_deletes: List[pa.ChunkedArray], fn_rows: Callable[[], int]
-) -> Optional[pa.Array]:
+def _create_positional_deletes_indices(positional_deletes: List[pa.ChunkedArray], fn_rows: Callable[[], int]) -> pa.Array:
     sorted_deleted = merge(*positional_deletes)
 
     def generator() -> Generator[int, None, None]:
@@ -784,14 +782,23 @@ def _task_to_table(
             # need to go to a table to apply the bitwise mask, and then
             # the table is warped into a dataset to apply the expression
             indices = _create_positional_deletes_indices(positional_deletes, fragment.count_rows)
-            arrow_table = fragment_scanner.take(indices)
-
-            # Apply the user filter
-            if pyarrow_filter is not None:
-                arrow_table = arrow_table.filter(pyarrow_filter)
 
             if limit:
-                arrow_table = arrow_table.slice(0, limit)
+                if pyarrow_filter is not None:
+                    # In case of the filter, we don't exactly know how many rows
+                    # we need to fetch upfront, can be optimized in the future:
+                    # https://github.com/apache/arrow/issues/35301
+                    arrow_table = fragment_scanner.take(indices)
+                    arrow_table = arrow_table.filter(pyarrow_filter)
+                    arrow_table = arrow_table.slice(0, limit)
+                else:
+                    arrow_table = fragment_scanner.take(indices[0:limit])
+            else:
+                arrow_table = fragment_scanner.take(indices)
+                # Apply the user filter
+                if pyarrow_filter is not None:
+                    arrow_table = arrow_table.filter(pyarrow_filter)
+
         else:
             # If there are no deletes, we can just take the head
             # and the user-filter is already applied
