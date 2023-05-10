@@ -756,8 +756,8 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
     RewriteDataFiles.Result result = spyRewrite.execute();
 
     Assert.assertEquals("Should have 7 fileGroups", result.rewriteResults().size(), 7);
-    assertThat(result.rewriteFailures()).hasSize(6);
-    assertThat(result.failedDataFilesCount()).isEqualTo(3);
+    assertThat(result.rewriteFailures()).hasSize(3);
+    assertThat(result.failedDataFilesCount()).isEqualTo(6);
     assertThat(result.rewrittenBytesCount()).isGreaterThan(0L).isLessThan(dataSizeBefore);
 
     table.refresh();
@@ -799,8 +799,8 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
     RewriteDataFiles.Result result = spyRewrite.execute();
 
     Assert.assertEquals("Should have 7 fileGroups", result.rewriteResults().size(), 7);
-    assertThat(result.rewriteFailures()).hasSize(6);
-    assertThat(result.failedDataFilesCount()).isEqualTo(3);
+    assertThat(result.rewriteFailures()).hasSize(3);
+    assertThat(result.failedDataFilesCount()).isEqualTo(6);
     assertThat(result.rewrittenBytesCount()).isGreaterThan(0L).isLessThan(dataSizeBefore);
 
     table.refresh();
