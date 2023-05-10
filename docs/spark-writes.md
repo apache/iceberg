@@ -353,7 +353,7 @@ file handles to remain open until each write task has completed.
 write data before writing.  
 Practically, this means that each row is hashed based on the row's partition value and then placed
 in a corresponding Spark task based upon that value. Further division and coalescing of tasks may take place because of
-the [Spark's Adaptive Query planning](#controlling-file-sizes).
+[Spark's Adaptive Query planning](#controlling-file-sizes).
 * `range` - This mode requests that Spark perform a range based exchanged to shuffle the data before writing.  
 This is a two stage procedure which is more expensive than the `hash` mode. The first stage samples the data to 
 be written based on the partition and sort columns. The second stage uses the range information to shuffle the input data into Spark 
@@ -381,9 +381,9 @@ or manually repartition the data.
 To adjust Spark's task size it is important to become familiar with Spark's various Adaptive Query Execution (AQE) 
 parameters. When the `write.distribution-mode` is not `none`, AQE will control the coalescing and splitting of Spark
 tasks during the exchange to try to create tasks of `spark.sql.adaptive.advisoryPartitionSizeInBytes` size. These 
-settings will also effect any user performed re-partitions or sorts. 
+settings will also affect any user performed re-partitions or sorts. 
 It is important again to note that this is the in-memory Spark row size and not the on disk
-columnar-compressed size, so a larger value that the target file size will need to be specified. The ratio of 
+columnar-compressed size, so a larger value than the target file size will need to be specified. The ratio of 
 in-memory size to on disk size is data dependent. Future work in Spark should allow Iceberg to automatically adjust this
 parameter at write time to match the `write.target-file-size-bytes`.
 
