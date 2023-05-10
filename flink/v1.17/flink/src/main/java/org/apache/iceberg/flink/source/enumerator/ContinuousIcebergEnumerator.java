@@ -46,7 +46,6 @@ public class ContinuousIcebergEnumerator extends AbstractIcebergEnumerator {
   private final SplitAssigner assigner;
   private final ScanContext scanContext;
   private final ContinuousSplitPlanner splitPlanner;
-  private final int retryNum;
 
   /**
    * snapshotId for the last enumerated snapshot. next incremental enumeration should be based off
@@ -62,7 +61,6 @@ public class ContinuousIcebergEnumerator extends AbstractIcebergEnumerator {
       SplitAssigner assigner,
       ScanContext scanContext,
       ContinuousSplitPlanner splitPlanner,
-      int retryNum,
       @Nullable IcebergEnumeratorState enumState) {
     super(enumeratorContext, assigner);
 
@@ -70,7 +68,6 @@ public class ContinuousIcebergEnumerator extends AbstractIcebergEnumerator {
     this.assigner = assigner;
     this.scanContext = scanContext;
     this.splitPlanner = splitPlanner;
-    this.retryNum = retryNum;
     this.enumeratorPosition = new AtomicReference<>();
     this.enumerationHistory = new EnumerationHistory(ENUMERATION_SPLIT_COUNT_HISTORY_SIZE);
 
@@ -121,7 +118,7 @@ public class ContinuousIcebergEnumerator extends AbstractIcebergEnumerator {
     } else {
       AtomicReference<ContinuousEnumerationResult> result = new AtomicReference<>();
       Tasks.foreach(enumeratorPosition.get())
-          .retry(retryNum)
+          .retry(scanContext.planRetryNum())
           .throwFailureWhenFinished()
           .run(position -> result.set(splitPlanner.planSplits(position)));
       return result.get();
@@ -170,7 +167,7 @@ public class ContinuousIcebergEnumerator extends AbstractIcebergEnumerator {
         LOG.info("Update enumerator position to {}", result.toPosition());
       }
     } else {
-      if (retryNum == -1) {
+      if (scanContext.planRetryNum() == -1) {
         // To have an option for the original behavior - unlimited retries without job failure
         LOG.error("Failed to discover new splits", error);
       } else {

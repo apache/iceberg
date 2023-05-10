@@ -61,6 +61,7 @@ public class ScanContext implements Serializable {
   private final boolean includeColumnStats;
   private final Integer planParallelism;
   private final int maxPlanningSnapshotCount;
+  private final int planRetryNum;
 
   private ScanContext(
       boolean caseSensitive,
@@ -83,6 +84,7 @@ public class ScanContext implements Serializable {
       boolean exposeLocality,
       Integer planParallelism,
       int maxPlanningSnapshotCount,
+      int planRetryNum,
       String branch,
       String tag,
       String startTag,
@@ -112,6 +114,7 @@ public class ScanContext implements Serializable {
     this.exposeLocality = exposeLocality;
     this.planParallelism = planParallelism;
     this.maxPlanningSnapshotCount = maxPlanningSnapshotCount;
+    this.planRetryNum = planRetryNum;
 
     validate();
   }
@@ -152,6 +155,9 @@ public class ScanContext implements Serializable {
     Preconditions.checkArgument(
         !(endTag != null && endSnapshotId() != null),
         "END_SNAPSHOT_ID and END_TAG cannot both be set.");
+
+    Preconditions.checkArgument(
+        planRetryNum >= -1, "Cannot set planRetryNum to a negative number other than -1.");
   }
 
   public boolean caseSensitive() {
@@ -250,6 +256,10 @@ public class ScanContext implements Serializable {
     return maxPlanningSnapshotCount;
   }
 
+  public int planRetryNum() {
+    return planRetryNum;
+  }
+
   public ScanContext copyWithAppendsBetween(Long newStartSnapshotId, long newEndSnapshotId) {
     return ScanContext.builder()
         .caseSensitive(caseSensitive)
@@ -274,6 +284,7 @@ public class ScanContext implements Serializable {
         .exposeLocality(exposeLocality)
         .planParallelism(planParallelism)
         .maxPlanningSnapshotCount(maxPlanningSnapshotCount)
+        .planRetryNum(planRetryNum)
         .build();
   }
 
@@ -301,6 +312,7 @@ public class ScanContext implements Serializable {
         .exposeLocality(exposeLocality)
         .planParallelism(planParallelism)
         .maxPlanningSnapshotCount(maxPlanningSnapshotCount)
+        .planRetryNum(planRetryNum)
         .build();
   }
 
@@ -338,6 +350,7 @@ public class ScanContext implements Serializable {
         FlinkConfigOptions.TABLE_EXEC_ICEBERG_WORKER_POOL_SIZE.defaultValue();
     private int maxPlanningSnapshotCount =
         FlinkReadOptions.MAX_PLANNING_SNAPSHOT_COUNT_OPTION.defaultValue();
+    private int planRetryNum = FlinkReadOptions.PLAN_RETRY_NUM_OPTION.defaultValue();
 
     private Builder() {}
 
@@ -461,6 +474,11 @@ public class ScanContext implements Serializable {
       return this;
     }
 
+    public Builder planRetryNum(int newPlanRetryNum) {
+      this.planRetryNum = newPlanRetryNum;
+      return this;
+    }
+
     public Builder resolveConfig(FlinkReadConf flinkReadConf) {
       return this.useSnapshotId(flinkReadConf.snapshotId())
           .useTag(flinkReadConf.tag())
@@ -482,7 +500,8 @@ public class ScanContext implements Serializable {
           .limit(flinkReadConf.limit())
           .planParallelism(flinkReadConf.workerPoolSize())
           .includeColumnStats(flinkReadConf.includeColumnStats())
-          .maxPlanningSnapshotCount(flinkReadConf.maxPlanningSnapshotCount());
+          .maxPlanningSnapshotCount(flinkReadConf.maxPlanningSnapshotCount())
+          .planRetryNum(planRetryNum);
     }
 
     public ScanContext build() {
@@ -507,6 +526,7 @@ public class ScanContext implements Serializable {
           exposeLocality,
           planParallelism,
           maxPlanningSnapshotCount,
+          planRetryNum,
           branch,
           tag,
           startTag,

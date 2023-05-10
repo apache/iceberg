@@ -53,7 +53,7 @@ public class TestContinuousIcebergEnumerator {
             .build();
     ManualContinuousSplitPlanner splitPlanner = new ManualContinuousSplitPlanner(scanContext, 0);
     ContinuousIcebergEnumerator enumerator =
-        createEnumerator(enumeratorContext, scanContext, splitPlanner, 3);
+        createEnumerator(enumeratorContext, scanContext, splitPlanner);
 
     Collection<IcebergSourceSplitState> pendingSplitsEmpty =
         enumerator.snapshotState(1).pendingSplits();
@@ -83,7 +83,7 @@ public class TestContinuousIcebergEnumerator {
             .build();
     ManualContinuousSplitPlanner splitPlanner = new ManualContinuousSplitPlanner(scanContext, 0);
     ContinuousIcebergEnumerator enumerator =
-        createEnumerator(enumeratorContext, scanContext, splitPlanner, 3);
+        createEnumerator(enumeratorContext, scanContext, splitPlanner);
 
     // register one reader, and let it request a split
     enumeratorContext.registerReader(2, "localhost");
@@ -112,7 +112,7 @@ public class TestContinuousIcebergEnumerator {
             .build();
     ManualContinuousSplitPlanner splitPlanner = new ManualContinuousSplitPlanner(scanContext, 0);
     ContinuousIcebergEnumerator enumerator =
-        createEnumerator(enumeratorContext, scanContext, splitPlanner, 3);
+        createEnumerator(enumeratorContext, scanContext, splitPlanner);
 
     // register one reader, and let it request a split
     enumeratorContext.registerReader(2, "localhost");
@@ -165,7 +165,7 @@ public class TestContinuousIcebergEnumerator {
             .build();
     ManualContinuousSplitPlanner splitPlanner = new ManualContinuousSplitPlanner(scanContext, 0);
     ContinuousIcebergEnumerator enumerator =
-        createEnumerator(enumeratorContext, scanContext, splitPlanner, 3);
+        createEnumerator(enumeratorContext, scanContext, splitPlanner);
 
     // register reader-2, and let it request a split
     enumeratorContext.registerReader(2, "localhost");
@@ -236,10 +236,11 @@ public class TestContinuousIcebergEnumerator {
             .streaming(true)
             .startingStrategy(StreamingStartingStrategy.INCREMENTAL_FROM_EARLIEST_SNAPSHOT)
             .maxPlanningSnapshotCount(1)
+            .planRetryNum(2)
             .build();
     ManualContinuousSplitPlanner splitPlanner = new ManualContinuousSplitPlanner(scanContext, 2);
     ContinuousIcebergEnumerator enumerator =
-        createEnumerator(enumeratorContext, scanContext, splitPlanner, 2);
+        createEnumerator(enumeratorContext, scanContext, splitPlanner);
 
     // make one split available and trigger the periodic discovery
     List<IcebergSourceSplit> splits =
@@ -264,10 +265,11 @@ public class TestContinuousIcebergEnumerator {
             .streaming(true)
             .startingStrategy(StreamingStartingStrategy.INCREMENTAL_FROM_EARLIEST_SNAPSHOT)
             .maxPlanningSnapshotCount(1)
+            .planRetryNum(2)
             .build();
     ManualContinuousSplitPlanner splitPlanner = new ManualContinuousSplitPlanner(scanContext, 3);
     ContinuousIcebergEnumerator enumerator =
-        createEnumerator(enumeratorContext, scanContext, splitPlanner, 2);
+        createEnumerator(enumeratorContext, scanContext, splitPlanner);
 
     // make one split available and trigger the periodic discovery
     List<IcebergSourceSplit> splits =
@@ -292,11 +294,12 @@ public class TestContinuousIcebergEnumerator {
             .streaming(true)
             .startingStrategy(StreamingStartingStrategy.INCREMENTAL_FROM_EARLIEST_SNAPSHOT)
             .maxPlanningSnapshotCount(1)
+            .planRetryNum(-1)
             .build();
     ManualContinuousSplitPlanner splitPlanner =
         new ManualContinuousSplitPlanner(scanContext, expectedFailures);
     ContinuousIcebergEnumerator enumerator =
-        createEnumerator(enumeratorContext, scanContext, splitPlanner, -1);
+        createEnumerator(enumeratorContext, scanContext, splitPlanner);
 
     // make one split available and trigger the periodic discovery
     List<IcebergSourceSplit> splits =
@@ -323,8 +326,7 @@ public class TestContinuousIcebergEnumerator {
   private static ContinuousIcebergEnumerator createEnumerator(
       SplitEnumeratorContext<IcebergSourceSplit> context,
       ScanContext scanContext,
-      ContinuousSplitPlanner splitPlanner,
-      int retryNum) {
+      ContinuousSplitPlanner splitPlanner) {
 
     ContinuousIcebergEnumerator enumerator =
         new ContinuousIcebergEnumerator(
@@ -332,7 +334,6 @@ public class TestContinuousIcebergEnumerator {
             new SimpleSplitAssigner(Collections.emptyList()),
             scanContext,
             splitPlanner,
-            retryNum,
             null);
     enumerator.start();
     return enumerator;

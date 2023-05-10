@@ -77,7 +77,6 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
   private final ScanContext scanContext;
   private final ReaderFunction<T> readerFunction;
   private final SplitAssignerFactory assignerFactory;
-  private final int retryNum;
 
   // Can't use SerializableTable as enumerator needs a regular table
   // that can discover table changes
@@ -88,13 +87,11 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
       ScanContext scanContext,
       ReaderFunction<T> readerFunction,
       SplitAssignerFactory assignerFactory,
-      int retryNum,
       Table table) {
     this.tableLoader = tableLoader;
     this.scanContext = scanContext;
     this.readerFunction = readerFunction;
     this.assignerFactory = assignerFactory;
-    this.retryNum = retryNum;
     this.table = table;
   }
 
@@ -193,7 +190,7 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
       ContinuousSplitPlanner splitPlanner =
           new ContinuousSplitPlannerImpl(tableLoader.clone(), scanContext, planningThreadName());
       return new ContinuousIcebergEnumerator(
-          enumContext, assigner, scanContext, splitPlanner, retryNum, enumState);
+          enumContext, assigner, scanContext, splitPlanner, enumState);
     } else {
       List<IcebergSourceSplit> splits = planSplitsForBatch(planningThreadName());
       assigner.onDiscoveredSplits(splits);
@@ -468,12 +465,7 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
       checkRequired();
       // Since builder already load the table, pass it to the source to avoid double loading
       return new IcebergSource<T>(
-          tableLoader,
-          context,
-          readerFunction,
-          splitAssignerFactory,
-          flinkReadConf.planRetryNum(),
-          table);
+          tableLoader, context, readerFunction, splitAssignerFactory, table);
     }
 
     private void checkRequired() {
