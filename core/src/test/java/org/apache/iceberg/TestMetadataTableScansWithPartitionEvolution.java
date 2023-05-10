@@ -140,7 +140,7 @@ public class TestMetadataTableScansWithPartitionEvolution extends MetadataTableS
   }
 
   @Test
-  public void testPartitionsTableScanWithAddPartitionOnNestedField() throws IOException {
+  public void testPartitionsTableScanWithAddPartitionOnNestedField() {
     Table partitionsTable = new PartitionsTable(table);
     Types.StructType idPartition =
         new Schema(
@@ -154,15 +154,15 @@ public class TestMetadataTableScansWithPartitionEvolution extends MetadataTableS
 
     TableScan scanNoFilter = partitionsTable.newScan().select("partition");
     Assert.assertEquals(idPartition, scanNoFilter.schema().asStruct());
-    CloseableIterable<ContentFile<?>> files =
-        PartitionsTable.planFiles((StaticTableScan) scanNoFilter);
-    Assert.assertEquals(4, Iterators.size(files.iterator()));
-    validatePartition(files, 0, 0);
-    validatePartition(files, 0, 1);
-    validatePartition(files, 0, 2);
-    validatePartition(files, 0, 3);
-    validatePartition(files, 1, 2);
-    validatePartition(files, 1, 3);
+    CloseableIterable<ManifestEntry<? extends ContentFile<?>>> entries =
+        PartitionsTable.planEntries((StaticTableScan) scanNoFilter);
+    Assert.assertEquals(4, Iterators.size(entries.iterator()));
+    validatePartition(entries, 0, 0);
+    validatePartition(entries, 0, 1);
+    validatePartition(entries, 0, 2);
+    validatePartition(entries, 0, 3);
+    validatePartition(entries, 1, 2);
+    validatePartition(entries, 1, 3);
   }
 
   @Test

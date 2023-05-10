@@ -50,6 +50,16 @@ public class PartitionsTable extends BaseMetadataTable {
             Types.NestedField.required(1, "partition", Partitioning.partitionType(table)),
             Types.NestedField.required(4, "spec_id", Types.IntegerType.get()),
             Types.NestedField.required(
+                9,
+                "last_updated_at",
+                Types.TimestampType.withZone(),
+                "Partition last updated timestamp"),
+            Types.NestedField.required(
+                10,
+                "last_updated_snapshot_id",
+                Types.LongType.get(),
+                "Partition last updated snapshot id"),
+            Types.NestedField.required(
                 2, "record_count", Types.LongType.get(), "Count of records in data files"),
             Types.NestedField.required(
                 3, "file_count", Types.IntegerType.get(), "Count of data files"),
@@ -85,6 +95,8 @@ public class PartitionsTable extends BaseMetadataTable {
   public Schema schema() {
     if (unpartitionedTable) {
       return schema.select(
+          "last_updated_at",
+          "last_updated_snapshot_id",
           "record_count",
           "file_count",
           "position_delete_record_count",
@@ -111,6 +123,8 @@ public class PartitionsTable extends BaseMetadataTable {
           partitions,
           root ->
               StaticDataTask.Row.of(
+                  root.lastUpdatedAt,
+                  root.lastUpdatedSnapshotId,
                   root.dataRecordCount,
                   root.dataFileCount,
                   root.posDeleteRecordCount,
@@ -131,6 +145,8 @@ public class PartitionsTable extends BaseMetadataTable {
     return StaticDataTask.Row.of(
         partition.partitionData,
         partition.specId,
+        partition.lastUpdatedAt,
+        partition.lastUpdatedSnapshotId,
         partition.dataRecordCount,
         partition.dataFileCount,
         partition.posDeleteRecordCount,
@@ -142,13 +158,14 @@ public class PartitionsTable extends BaseMetadataTable {
   private static Iterable<Partition> partitions(Table table, StaticTableScan scan) {
     Types.StructType partitionType = Partitioning.partitionType(table);
     PartitionMap partitions = new PartitionMap(partitionType);
-
-    try (CloseableIterable<ContentFile<?>> files = planFiles(scan)) {
-      for (ContentFile<?> file : files) {
+    try (CloseableIterable<ManifestEntry<? extends ContentFile<?>>> entries = planEntries(scan)) {
+      for (ManifestEntry<? extends ContentFile<?>> entry : entries) {
+        Snapshot snapshot = table.snapshot(entry.snapshotId());
+        ContentFile<?> file = entry.file();
         StructLike partition =
             PartitionUtil.coercePartition(
                 partitionType, table.specs().get(file.specId()), file.partition());
-        partitions.get(partition).update(file);
+        partitions.get(partition).update(file, snapshot);
       }
     } catch (IOException e) {
       throw new UncheckedIOException(e);
@@ -158,21 +175,26 @@ public class PartitionsTable extends BaseMetadataTable {
   }
 
   @VisibleForTesting
-  static CloseableIterable<ContentFile<?>> planFiles(StaticTableScan scan) {
+  static CloseableIterable<ManifestEntry<? extends ContentFile<?>>> planEntries(
+      StaticTableScan scan) {
     Table table = scan.table();
 
     CloseableIterable<ManifestFile> filteredManifests =
         filteredManifests(scan, table, scan.snapshot().allManifests(table.io()));
 
-    Iterable<CloseableIterable<ContentFile<?>>> tasks =
+    Iterable<CloseableIterable<ManifestEntry<? extends ContentFile<?>>>> tasks =
         CloseableIterable.transform(
             filteredManifests,
             manifest ->
                 CloseableIterable.transform(
                     ManifestFiles.open(manifest, table.io(), table.specs())
                         .caseSensitive(scan.isCaseSensitive())
-                        .select(scanColumns(manifest.content())), // don't select stats columns
-                    t -> (ContentFile<?>) t));
+                        .select(scanColumns(manifest.content())) // don't select stats columns
+                        .entries(),
+                    t ->
+                        (ManifestEntry<? extends ContentFile<?>>)
+                            // defensive copy of manifest entry without stats columns
+                            t.copyWithoutStats()));
 
     return new ParallelIterable<>(tasks, scan.planExecutor());
   }
@@ -249,19 +271,27 @@ public class PartitionsTable extends BaseMetadataTable {
     private int posDeleteFileCount;
     private long eqDeleteRecordCount;
     private int eqDeleteFileCount;
+    private long lastUpdatedAt;
+    private long lastUpdatedSnapshotId;
 
     Partition(StructLike key, Types.StructType keyType) {
       this.partitionData = toPartitionData(key, keyType);
       this.specId = 0;
-      this.dataRecordCount = 0;
+      this.dataRecordCount = 0L;
       this.dataFileCount = 0;
-      this.posDeleteRecordCount = 0;
+      this.posDeleteRecordCount = 0L;
       this.posDeleteFileCount = 0;
-      this.eqDeleteRecordCount = 0;
+      this.eqDeleteRecordCount = 0L;
       this.eqDeleteFileCount = 0;
+      this.lastUpdatedAt = 0L;
+      this.lastUpdatedSnapshotId = 0L;
     }
 
-    void update(ContentFile<?> file) {
+    void update(ContentFile<?> file, Snapshot snapshot) {
+      if (snapshot.timestampMillis() * 1000 > this.lastUpdatedAt) {
+        this.lastUpdatedAt = snapshot.timestampMillis() * 1000;
+        this.lastUpdatedSnapshotId = snapshot.snapshotId();
+      }
       switch (file.content()) {
         case DATA:
           this.dataRecordCount += file.recordCount();
