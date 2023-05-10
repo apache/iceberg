@@ -22,6 +22,8 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -41,6 +43,7 @@ import org.apache.iceberg.ReplaceSortOrder;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.Transaction;
@@ -51,6 +54,7 @@ import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.inmemory.InMemoryCatalog;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -67,6 +71,8 @@ import org.junit.Assert;
 import org.junit.Assume;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   private static final Namespace NS = Namespace.of("newdb");
@@ -2457,8 +2463,9 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     assertFiles(afterSecondReplace, FILE_C);
   }
 
-  @Test
-  public void testMetadataFileLocationsRemovalAfterCommit() {
+  @ParameterizedTest
+  @ValueSource(booleans = {true, false})
+  public void testMetadataFileLocationsRemovalAfterCommit(boolean gcEnabled) {
     C catalog = catalog();
 
     if (requiresNamespaceCreate()) {
@@ -2477,6 +2484,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     table
         .updateProperties()
         .set(TableProperties.METADATA_DELETE_AFTER_COMMIT_ENABLED, "true")
+        .set(TableProperties.GC_ENABLED, String.valueOf(gcEnabled))
         .set(
             TableProperties.METADATA_PREVIOUS_VERSIONS_MAX,
             Integer.toString(maxPreviousVersionsToKeep))
@@ -2485,12 +2493,38 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     metadataFileLocations = ReachableFileUtil.metadataFileLocations(table, false);
     Assertions.assertThat(metadataFileLocations).hasSize(maxPreviousVersionsToKeep + 1);
 
+    Set<String> tableMetadataFilesBefore = previousFiles((BaseTable) table);
+
     // for each new commit, the amount of metadata files should stay the same and old files should
     // be deleted
     for (int i = 1; i <= 5; i++) {
       table.updateSchema().addColumn("d" + i, Types.LongType.get()).commit();
       metadataFileLocations = ReachableFileUtil.metadataFileLocations(table, false);
       Assertions.assertThat(metadataFileLocations).hasSize(maxPreviousVersionsToKeep + 1);
+    }
+
+    Set<String> tableMetadataFilesAfter = previousFiles((BaseTable) table);
+    tableMetadataFilesBefore.removeAll(tableMetadataFilesAfter);
+
+    if (!(catalog instanceof InMemoryCatalog)) {
+      // check for actual table metadata file on the disk
+      tableMetadataFilesBefore.forEach(
+          file -> {
+            Path path = Paths.get(file.replaceFirst("file:", ""));
+            // some catalogs like Nessie always disable the GC. Hence, not depending on `gcEnabled`
+            // variable.
+            boolean cleanUpMetadata =
+                ((BaseTable) table)
+                    .operations()
+                    .current()
+                    .propertyAsBoolean(TableProperties.GC_ENABLED, gcEnabled);
+            if (cleanUpMetadata) {
+              // table metadata files should be deleted when GC is enabled.
+              Assertions.assertThat(path).doesNotExist();
+            } else {
+              Assertions.assertThat(path).exists();
+            }
+          });
     }
 
     maxPreviousVersionsToKeep = 4;
@@ -2508,6 +2542,12 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
       metadataFileLocations = ReachableFileUtil.metadataFileLocations(table, false);
       Assertions.assertThat(metadataFileLocations).hasSize(maxPreviousVersionsToKeep + 1);
     }
+  }
+
+  private Set<String> previousFiles(BaseTable table) {
+    return table.operations().current().previousFiles().stream()
+        .map(TableMetadata.MetadataLogEntry::file)
+        .collect(Collectors.toSet());
   }
 
   @Test

@@ -420,6 +420,16 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
             TableProperties.METADATA_DELETE_AFTER_COMMIT_ENABLED_DEFAULT);
 
     if (deleteAfterCommit) {
+      boolean gcEnabled =
+          metadata.propertyAsBoolean(
+              TableProperties.GC_ENABLED, TableProperties.GC_ENABLED_DEFAULT);
+      if (!gcEnabled) {
+        LOG.warn(
+            "Ignoring the {} property as GC is disabled",
+            TableProperties.METADATA_DELETE_AFTER_COMMIT_ENABLED);
+        return;
+      }
+
       Set<TableMetadata.MetadataLogEntry> removedPreviousMetadataFiles =
           Sets.newHashSet(base.previousFiles());
       // TableMetadata#addPreviousFile builds up the metadata log and uses
