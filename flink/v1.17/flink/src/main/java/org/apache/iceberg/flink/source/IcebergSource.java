@@ -45,7 +45,6 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.flink.FlinkConfigOptions;
-import org.apache.iceberg.flink.FlinkReadConf;
 import org.apache.iceberg.flink.FlinkReadOptions;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.TableLoader;
@@ -432,8 +431,7 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
         }
       }
 
-      FlinkReadConf flinkReadConf = new FlinkReadConf(table, readOptions, flinkConfig);
-      contextBuilder.resolveConfig(flinkReadConf);
+      contextBuilder.resolveConfig(table, readOptions, flinkConfig);
 
       Schema icebergSchema = table.schema();
       if (projectedFlinkSchema != null) {

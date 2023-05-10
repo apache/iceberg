@@ -21,10 +21,13 @@ package org.apache.iceberg.flink.source;
 import java.io.Serializable;
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 import org.apache.flink.annotation.Internal;
+import org.apache.flink.configuration.ReadableConfig;
 import org.apache.flink.util.Preconditions;
 import org.apache.flink.util.TimeUtils;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.flink.FlinkConfigOptions;
 import org.apache.iceberg.flink.FlinkReadConf;
@@ -479,7 +482,10 @@ public class ScanContext implements Serializable {
       return this;
     }
 
-    public Builder resolveConfig(FlinkReadConf flinkReadConf) {
+    public Builder resolveConfig(
+        Table table, Map<String, String> readOptions, ReadableConfig readableConfig) {
+      FlinkReadConf flinkReadConf = new FlinkReadConf(table, readOptions, readableConfig);
+
       return this.useSnapshotId(flinkReadConf.snapshotId())
           .useTag(flinkReadConf.tag())
           .useBranch(flinkReadConf.branch())
