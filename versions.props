@@ -28,7 +28,7 @@ org.scala-lang.modules:scala-collection-compat_2.12 = 2.6.0
 org.scala-lang.modules:scala-collection-compat_2.13 = 2.6.0
 com.emc.ecs:object-client-bundle = 3.3.2
 org.immutables:value = 2.9.2
-net.snowflake:snowflake-jdbc = 3.13.22
+net.snowflake:snowflake-jdbc = 3.13.30
 io.delta:delta-standalone_* = 0.6.0
 
 # test deps
