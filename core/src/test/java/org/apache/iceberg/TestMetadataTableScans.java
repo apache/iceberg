@@ -814,16 +814,16 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     // Remove partition field
     table.updateSpec().removeField(Expressions.bucket("data", 16)).commit();
 
-    DataFile data10 =
+    DataFile dataFile =
         DataFiles.builder(table.spec())
             .withPath("/path/to/data-10.parquet")
             .withRecordCount(10)
             .withFileSizeInBytes(10)
             .build();
-    table.newFastAppend().appendFile(data10).commit();
+    table.newFastAppend().appendFile(dataFile).commit();
 
     PartitionsTable partitionsTable = new PartitionsTable(table);
-    // must contain the partition column even the current spec is non-partitioned.
+    // must contain the partition column even when the current spec is non-partitioned.
     Assertions.assertThat(partitionsTable.schema().findField("partition")).isNotNull();
 
     TableScan scanNoFilter = partitionsTable.newScan().select("partition");
@@ -832,22 +832,19 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
       if (formatVersion == 2) {
         // four partitioned data files, four partitioned delete files and one non-partitioned data
         // file.
-        Assert.assertEquals(9, Iterators.size(files.iterator()));
+        Assertions.assertThat(files).hasSize(9);
       } else {
         // four partitioned data files and one non-partitioned data file.
-        Assert.assertEquals(5, Iterators.size(files.iterator()));
+        Assertions.assertThat(files).hasSize(5);
       }
 
       // check for null partition value.
-      Assert.assertTrue(
-          "File scan tasks do not include correct file",
-          StreamSupport.stream(files.spliterator(), false)
-              .anyMatch(
-                  file -> {
-                    StructLike partition = file.partition();
-
-                    return Objects.equals(null, partition.get(0, Object.class));
-                  }));
+      Assertions.assertThat(StreamSupport.stream(files.spliterator(), false))
+          .anyMatch(
+              file -> {
+                StructLike partition = file.partition();
+                return Objects.equals(null, partition.get(0, Object.class));
+              });
     }
   }
 

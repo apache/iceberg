@@ -73,7 +73,7 @@ public class PartitionsTable extends BaseMetadataTable {
                 "equality_delete_file_count",
                 Types.IntegerType.get(),
                 "Count of equality delete files"));
-    this.isUnpartitionedTable = Partitioning.partitionType(table).fields().size() < 1;
+    this.isUnpartitionedTable = Partitioning.partitionType(table).fields().isEmpty();
   }
 
   @Override
