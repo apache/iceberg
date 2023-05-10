@@ -4,6 +4,7 @@ url: table-migration
 menu:
   main:
     parent: "Migration"
+    identifier: table_migration
     weight: 100
 ---
 <!--
