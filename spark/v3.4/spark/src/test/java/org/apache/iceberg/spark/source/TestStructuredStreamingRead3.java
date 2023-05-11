@@ -29,7 +29,6 @@ import java.util.Map;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.DataOperations;
 import org.apache.iceberg.DeleteFile;
@@ -492,11 +491,10 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
 
     StreamingQuery query = startStream();
 
-    AssertHelpers.assertThrowsCause(
-        "Streaming should fail with IllegalStateException, as the snapshot is not of type APPEND",
-        IllegalStateException.class,
-        "Cannot process overwrite snapshot",
-        () -> query.processAllAvailable());
+    Assertions.assertThatThrownBy(query::processAllAvailable)
+        .cause()
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageStartingWith("Cannot process overwrite snapshot");
   }
 
   @Test
@@ -533,11 +531,10 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
 
     StreamingQuery query = startStream();
 
-    AssertHelpers.assertThrowsCause(
-        "Streaming should fail with IllegalStateException, as the snapshot is not of type APPEND",
-        IllegalStateException.class,
-        "Cannot process delete snapshot",
-        () -> query.processAllAvailable());
+    Assertions.assertThatThrownBy(query::processAllAvailable)
+        .cause()
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageStartingWith("Cannot process delete snapshot");
   }
 
   @Test

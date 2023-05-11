@@ -21,7 +21,6 @@ package org.apache.iceberg.aws.s3;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Arrays;
-import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.io.FileIOMetricsContext;
 import org.apache.iceberg.io.IOUtil;
@@ -47,7 +46,7 @@ class S3InputStream extends SeekableInputStream implements RangeReadable {
   private final StackTraceElement[] createStack;
   private final S3Client s3;
   private final S3URI location;
-  private final AwsProperties awsProperties;
+  private final S3FileIOProperties s3FileIOProperties;
 
   private InputStream stream;
   private long pos = 0;
@@ -60,13 +59,14 @@ class S3InputStream extends SeekableInputStream implements RangeReadable {
   private int skipSize = 1024 * 1024;
 
   S3InputStream(S3Client s3, S3URI location) {
-    this(s3, location, new AwsProperties(), MetricsContext.nullMetrics());
+    this(s3, location, new S3FileIOProperties(), MetricsContext.nullMetrics());
   }
 
-  S3InputStream(S3Client s3, S3URI location, AwsProperties awsProperties, MetricsContext metrics) {
+  S3InputStream(
+      S3Client s3, S3URI location, S3FileIOProperties s3FileIOProperties, MetricsContext metrics) {
     this.s3 = s3;
     this.location = location;
-    this.awsProperties = awsProperties;
+    this.s3FileIOProperties = s3FileIOProperties;
 
     this.readBytes = metrics.counter(FileIOMetricsContext.READ_BYTES, Unit.BYTES);
     this.readOperations = metrics.counter(FileIOMetricsContext.READ_OPERATIONS);
@@ -137,7 +137,7 @@ class S3InputStream extends SeekableInputStream implements RangeReadable {
     GetObjectRequest.Builder requestBuilder =
         GetObjectRequest.builder().bucket(location.bucket()).key(location.key()).range(range);
 
-    S3RequestUtil.configureEncryption(awsProperties, requestBuilder);
+    S3RequestUtil.configureEncryption(s3FileIOProperties, requestBuilder);
 
     return s3.getObject(requestBuilder.build(), ResponseTransformer.toInputStream());
   }
@@ -184,7 +184,7 @@ class S3InputStream extends SeekableInputStream implements RangeReadable {
             .key(location.key())
             .range(String.format("bytes=%s-", pos));
 
-    S3RequestUtil.configureEncryption(awsProperties, requestBuilder);
+    S3RequestUtil.configureEncryption(s3FileIOProperties, requestBuilder);
 
     closeStream();
 

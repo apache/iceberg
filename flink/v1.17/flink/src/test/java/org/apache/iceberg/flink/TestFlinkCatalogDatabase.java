@@ -24,12 +24,12 @@ import java.util.Map;
 import java.util.Objects;
 import org.apache.flink.table.catalog.exceptions.DatabaseNotEmptyException;
 import org.apache.flink.types.Row;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
+import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Assume;
@@ -37,8 +37,8 @@ import org.junit.Test;
 
 public class TestFlinkCatalogDatabase extends FlinkCatalogTestBase {
 
-  public TestFlinkCatalogDatabase(String catalogName, Namespace baseNamepace) {
-    super(catalogName, baseNamepace);
+  public TestFlinkCatalogDatabase(String catalogName, Namespace baseNamespace) {
+    super(catalogName, baseNamespace);
   }
 
   @After
@@ -126,11 +126,11 @@ public class TestFlinkCatalogDatabase extends FlinkCatalogTestBase {
         "Table should exist",
         validationCatalog.tableExists(TableIdentifier.of(icebergNamespace, "tl")));
 
-    AssertHelpers.assertThrowsCause(
-        "Should fail if trying to delete a non-empty database",
-        DatabaseNotEmptyException.class,
-        String.format("Database %s in catalog %s is not empty.", DATABASE, catalogName),
-        () -> sql("DROP DATABASE %s", flinkDatabase));
+    Assertions.assertThatThrownBy(() -> sql("DROP DATABASE %s", flinkDatabase))
+        .cause()
+        .isInstanceOf(DatabaseNotEmptyException.class)
+        .hasMessage(
+            String.format("Database %s in catalog %s is not empty.", DATABASE, catalogName));
 
     sql("DROP TABLE %s.tl", flinkDatabase);
   }
@@ -301,10 +301,12 @@ public class TestFlinkCatalogDatabase extends FlinkCatalogTestBase {
         "Namespace should not already exist",
         validationNamespaceCatalog.namespaceExists(icebergNamespace));
 
-    AssertHelpers.assertThrowsCause(
-        "Should fail if trying to create database with location in hadoop catalog.",
-        UnsupportedOperationException.class,
-        String.format("Cannot create namespace %s: metadata is not supported", icebergNamespace),
-        () -> sql("CREATE DATABASE %s WITH ('prop'='value')", flinkDatabase));
+    Assertions.assertThatThrownBy(
+            () -> sql("CREATE DATABASE %s WITH ('prop'='value')", flinkDatabase))
+        .cause()
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage(
+            String.format(
+                "Cannot create namespace %s: metadata is not supported", icebergNamespace));
   }
 }

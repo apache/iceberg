@@ -20,7 +20,6 @@ package org.apache.iceberg.spark.source;
 
 import java.util.List;
 import java.util.Map;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -29,6 +28,7 @@ import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
+import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Test;
 
@@ -162,20 +162,17 @@ public class TestRequiredDistributionAndOrdering extends SparkCatalogTestBase {
     Dataset<Row> inputDF = ds.coalesce(1).sortWithinPartitions("c1");
 
     // should fail if ordering is disabled
-    AssertHelpers.assertThrowsCause(
-        "Should reject writes without ordering",
-        IllegalStateException.class,
-        "Incoming records violate the writer assumption",
-        () -> {
-          try {
-            inputDF
-                .writeTo(tableName)
-                .option(SparkWriteOptions.USE_TABLE_DISTRIBUTION_AND_ORDERING, "false")
-                .append();
-          } catch (NoSuchTableException e) {
-            throw new RuntimeException(e);
-          }
-        });
+    Assertions.assertThatThrownBy(
+            () ->
+                inputDF
+                    .writeTo(tableName)
+                    .option(SparkWriteOptions.USE_TABLE_DISTRIBUTION_AND_ORDERING, "false")
+                    .append())
+        .cause()
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageStartingWith(
+            "Incoming records violate the writer assumption that records are clustered by spec "
+                + "and by partition within each spec. Either cluster the incoming records or switch to fanout writers.");
   }
 
   @Test

@@ -47,7 +47,7 @@ mmhash3 = ">=3.0.0,<4.0.0"
 requests = ">=2.20.0,<3.0.0"
 click = ">=7.1.1,<9.0.0"
 rich = ">=10.11.0,<14.0.0"
-pyyaml = ">=5.4.0,<7.0.0" # CVE-2020-14343 was fixed in 5.4.
+strictyaml = ">=1.7.0,<2.0.0" # CVE-2020-14343 was fixed in 5.4.
 pydantic = ">=1.9.0,<2.0.0"
 fsspec = ">=2021.09.0,<2024.1.0" # `lexists()` was implemented in 2021.09.0. Upper bound set arbitrarily, to be reassessed in early 2024.
 pyparsing = ">=3.0.7,<4.0.0" # The `min` keyword argument for `delimited_list()` was added in 3.0.7.
@@ -232,6 +232,10 @@ ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 module = "pyspark.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "strictyaml.*"
 ignore_missing_imports = true
 
 [tool.coverage.run]

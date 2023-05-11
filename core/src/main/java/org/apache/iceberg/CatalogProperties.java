@@ -41,6 +41,11 @@ public class CatalogProperties {
 
   public static final boolean CACHE_ENABLED_DEFAULT = true;
 
+  /** Controls whether the caching catalog will cache table entries using case sensitive keys. */
+  public static final String CACHE_CASE_SENSITIVE = "cache.case-sensitive";
+
+  public static final boolean CACHE_CASE_SENSITIVE_DEFAULT = true;
+
   /**
    * Controls the duration for which entries in the catalog are cached.
    *
