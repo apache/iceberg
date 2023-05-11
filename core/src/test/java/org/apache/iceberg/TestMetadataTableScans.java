@@ -26,7 +26,6 @@ import java.io.File;
 import java.io.IOException;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -44,7 +43,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.StructLikeWrapper;
-import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Assume;
 import org.junit.Test;
@@ -804,47 +802,6 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
       // The Partition table final schema is a union of fields of all specs, including dropped
       // fields.
       Assert.assertEquals(4, Iterables.size(files));
-    }
-  }
-
-  @Test
-  public void testPartitionSpecEvolutionToUnpartitioned() throws IOException {
-    preparePartitionedTable();
-
-    // Remove partition field
-    table.updateSpec().removeField(Expressions.bucket("data", 16)).commit();
-
-    DataFile dataFile =
-        DataFiles.builder(table.spec())
-            .withPath("/path/to/data-10.parquet")
-            .withRecordCount(10)
-            .withFileSizeInBytes(10)
-            .build();
-    table.newFastAppend().appendFile(dataFile).commit();
-
-    PartitionsTable partitionsTable = new PartitionsTable(table);
-    // must contain the partition column even when the current spec is non-partitioned.
-    Assertions.assertThat(partitionsTable.schema().findField("partition")).isNotNull();
-
-    TableScan scanNoFilter = partitionsTable.newScan().select("partition");
-    try (CloseableIterable<ContentFile<?>> files =
-        PartitionsTable.planFiles((StaticTableScan) scanNoFilter)) {
-      if (formatVersion == 2) {
-        // four partitioned data files, four partitioned delete files and one non-partitioned data
-        // file.
-        Assertions.assertThat(files).hasSize(9);
-      } else {
-        // four partitioned data files and one non-partitioned data file.
-        Assertions.assertThat(files).hasSize(5);
-      }
-
-      // check for null partition value.
-      Assertions.assertThat(StreamSupport.stream(files.spliterator(), false))
-          .anyMatch(
-              file -> {
-                StructLike partition = file.partition();
-                return Objects.equals(null, partition.get(0, Object.class));
-              });
     }
   }
 

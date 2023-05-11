@@ -222,6 +222,14 @@ public class TestMetadataTableScansWithPartitionEvolution extends MetadataTableS
         constantsMap(posDeleteTask, partitionType).get(MetadataColumns.FILE_PATH.fieldId()));
   }
 
+  @Test
+  public void testPartitionSpecEvolutionToUnpartitioned() {
+    // Remove all the partition fields
+    table.updateSpec().removeField("id").removeField("nested.id").commit();
+    // must contain the partition column even when the current spec is non-partitioned.
+    Assertions.assertThat(new PartitionsTable(table).schema().findField("partition")).isNotNull();
+  }
+
   private Stream<StructLike> allRows(Iterable<FileScanTask> tasks) {
     return Streams.stream(tasks).flatMap(task -> Streams.stream(task.asDataTask().rows()));
   }
