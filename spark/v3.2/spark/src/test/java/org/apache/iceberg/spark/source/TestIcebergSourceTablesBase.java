@@ -1222,7 +1222,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
   @Test
   public void testUnpartitionedPartitionsTable() {
     TableIdentifier tableIdentifier = TableIdentifier.of("db", "unpartitioned_partitions_test");
-    createTable(tableIdentifier, SCHEMA, PartitionSpec.unpartitioned());
+    Table table = createTable(tableIdentifier, SCHEMA, PartitionSpec.unpartitioned());
 
     Dataset<Row> df =
         spark.createDataFrame(Lists.newArrayList(new SimpleRecord(1, "a")), SimpleRecord.class);
@@ -1235,6 +1235,16 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
 
     Types.StructType expectedSchema =
         Types.StructType.of(
+            required(
+                9,
+                "last_updated_at",
+                Types.TimestampType.withZone(),
+                "Partition last updated timestamp"),
+            required(
+                10,
+                "last_updated_snapshot_id",
+                Types.LongType.get(),
+                "Partition last updated snapshot id"),
             required(2, "record_count", Types.LongType.get(), "Count of records in data files"),
             required(3, "file_count", Types.IntegerType.get(), "Count of data files"),
             required(
@@ -1269,6 +1279,8 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
         new GenericRecordBuilder(AvroSchemaUtil.convert(partitionsTable.schema(), "partitions"));
     GenericData.Record expectedRow =
         builder
+            .set("last_updated_at", table.currentSnapshot().timestampMillis() * 1000)
+            .set("last_updated_snapshot_id", table.currentSnapshot().snapshotId())
             .set("record_count", 1L)
             .set("file_count", 1)
             .set("position_delete_record_count", 0L)
@@ -1314,6 +1326,9 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
         .mode("append")
         .save(loadLocation(tableIdentifier));
 
+    table.refresh();
+    long secondCommitId = table.currentSnapshot().snapshotId();
+
     List<Row> actual =
         spark
             .read()
@@ -1339,6 +1354,8 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
             .set("equality_delete_record_count", 0L)
             .set("equality_delete_file_count", 0)
             .set("spec_id", 0)
+            .set("last_updated_at", table.snapshot(firstCommitId).timestampMillis() * 1000)
+            .set("last_updated_snapshot_id", firstCommitId)
             .build());
     expected.add(
         builder
@@ -1350,6 +1367,8 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
             .set("equality_delete_record_count", 0L)
             .set("equality_delete_file_count", 0)
             .set("spec_id", 0)
+            .set("last_updated_at", table.snapshot(secondCommitId).timestampMillis() * 1000)
+            .set("last_updated_snapshot_id", secondCommitId)
             .build());
 
     Assert.assertEquals("Partitions table should have two rows", 2, expected.size());
@@ -1416,6 +1435,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
         .save(loadLocation(tableIdentifier));
 
     table.refresh();
+    long firstCommitId = table.currentSnapshot().snapshotId();
 
     // add a second file
     df2.select("id", "data")
@@ -1428,6 +1448,8 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
     table.updateProperties().set(TableProperties.FORMAT_VERSION, "2").commit();
     DeleteFile deleteFile = writePosDeleteFile(table);
     table.newRowDelta().addDeletes(deleteFile).commit();
+    table.refresh();
+    long posDeleteCommitId = table.currentSnapshot().snapshotId();
 
     List<Row> actual =
         spark
@@ -1455,6 +1477,8 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
             .set("equality_delete_record_count", 0L)
             .set("equality_delete_file_count", 0)
             .set("spec_id", 0)
+            .set("last_updated_at", table.snapshot(firstCommitId).timestampMillis() * 1000)
+            .set("last_updated_snapshot_id", firstCommitId)
             .build());
     expected.add(
         builder
@@ -1466,7 +1490,10 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
             .set("equality_delete_record_count", 0L)
             .set("equality_delete_file_count", 0)
             .set("spec_id", 0)
+            .set("last_updated_at", table.snapshot(posDeleteCommitId).timestampMillis() * 1000)
+            .set("last_updated_snapshot_id", posDeleteCommitId)
             .build());
+
     for (int i = 0; i < 2; i += 1) {
       TestHelpers.assertEqualsSafe(
           partitionsTable.schema().asStruct(), expected.get(i), actual.get(i));
@@ -1475,6 +1502,8 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
     // test equality delete
     DeleteFile eqDeleteFile = writeEqDeleteFile(table);
     table.newRowDelta().addDeletes(eqDeleteFile).commit();
+    table.refresh();
+    long eqDeleteCommitId = table.currentSnapshot().snapshotId();
     actual =
         spark
             .read()
@@ -1495,6 +1524,8 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
             .set("equality_delete_record_count", 1L) // should be incremented now
             .set("equality_delete_file_count", 1) // should be incremented now
             .set("spec_id", 0)
+            .set("last_updated_at", table.snapshot(eqDeleteCommitId).timestampMillis() * 1000)
+            .set("last_updated_snapshot_id", eqDeleteCommitId)
             .build());
     for (int i = 0; i < 2; i += 1) {
       TestHelpers.assertEqualsSafe(
