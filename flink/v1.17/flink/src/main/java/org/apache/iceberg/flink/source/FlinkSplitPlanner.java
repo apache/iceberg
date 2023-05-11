@@ -137,6 +137,7 @@ public class FlinkSplitPlanner {
     if (context.endSnapshotTimestamp() != null) {
       return SnapshotUtil.snapshotIdAsOfTime(table, context.endSnapshotTimestamp());
     }
+
     return null;
   }
 

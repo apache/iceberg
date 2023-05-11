@@ -20,9 +20,11 @@ package org.apache.iceberg.flink.source;
 
 import java.io.Serializable;
 import java.time.Duration;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.configuration.ReadableConfig;
@@ -166,11 +168,11 @@ public class ScanContext implements Serializable {
     }
 
     Preconditions.checkArgument(
-        atMostOneNonNull(startSnapshotId(), startTag, startSnapshotTimestamp()),
+        atMostOneNonNull(startSnapshotId, startTag, startSnapshotTimestamp),
         "Cannot specify more than one of start-snapshot-id, start-tag, or start-snapshot-timestamp.");
 
     Preconditions.checkArgument(
-        atMostOneNonNull(endSnapshotId(), endTag, endSnapshotTimestamp()),
+        atMostOneNonNull(endSnapshotId, endTag, endSnapshotTimestamp),
         "Cannot specify more than one of end-snapshot-id, end-tag, or end-snapshot-timestamp.");
 
     Preconditions.checkArgument(
@@ -179,17 +181,7 @@ public class ScanContext implements Serializable {
   }
 
   private static boolean atMostOneNonNull(Object... objects) {
-    int count = 0;
-    for (Object obj : objects) {
-      if (obj != null) {
-        count++;
-      }
-
-      if (count > 1) {
-        return false;
-      }
-    }
-    return true;
+    return Arrays.stream(objects).filter(Objects::nonNull).count() < 2;
   }
 
   public boolean caseSensitive() {
