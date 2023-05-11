@@ -103,6 +103,8 @@ public abstract class SizeBasedFileRewriter<T extends ContentScanTask<F>, F exte
 
   private static final long SPLIT_OVERHEAD = 5 * 1024;
 
+  private static final String OUTPUT_SPEC_ID = "output-spec-id";
+
   private final Table table;
   private long targetFileSize;
   private long minFileSize;
@@ -110,6 +112,7 @@ public abstract class SizeBasedFileRewriter<T extends ContentScanTask<F>, F exte
   private int minInputFiles;
   private boolean rewriteAll;
   private long maxGroupSize;
+  private int outputSpecId;
 
   protected SizeBasedFileRewriter(Table table) {
     this.table = table;
@@ -133,7 +136,8 @@ public abstract class SizeBasedFileRewriter<T extends ContentScanTask<F>, F exte
         MAX_FILE_SIZE_BYTES,
         MIN_INPUT_FILES,
         REWRITE_ALL,
-        MAX_FILE_GROUP_SIZE_BYTES);
+        MAX_FILE_GROUP_SIZE_BYTES,
+        OUTPUT_SPEC_ID);
   }
 
   @Override
@@ -146,6 +150,7 @@ public abstract class SizeBasedFileRewriter<T extends ContentScanTask<F>, F exte
     this.minInputFiles = minInputFiles(options);
     this.rewriteAll = rewriteAll(options);
     this.maxGroupSize = maxGroupSize(options);
+    this.outputSpecId = outputSpecId(options);
 
     if (rewriteAll) {
       LOG.info("Configured to rewrite all provided files in table {}", table.name());
@@ -250,6 +255,11 @@ public abstract class SizeBasedFileRewriter<T extends ContentScanTask<F>, F exte
     return (long) (targetFileSize + ((maxFileSize - targetFileSize) * 0.5));
   }
 
+  /** Output spec id rewriter to use. Default to current spec id */
+  protected int outputSpecId() {
+    return outputSpecId;
+  }
+
   private Map<String, Long> sizeThresholds(Map<String, String> options) {
     long target =
         PropertyUtil.propertyAsLong(options, TARGET_FILE_SIZE_BYTES, defaultTargetFileSize());
@@ -309,5 +319,14 @@ public abstract class SizeBasedFileRewriter<T extends ContentScanTask<F>, F exte
 
   private boolean rewriteAll(Map<String, String> options) {
     return PropertyUtil.propertyAsBoolean(options, REWRITE_ALL, REWRITE_ALL_DEFAULT);
+  }
+
+  private int outputSpecId(Map<String, String> options) {
+    int specId = PropertyUtil.propertyAsInt(options, OUTPUT_SPEC_ID, table.spec().specId());
+    Preconditions.checkArgument(
+        table.specs().containsKey(specId),
+        "Output spec id %s is not a valid spec id for table",
+        specId);
+    return specId;
   }
 }

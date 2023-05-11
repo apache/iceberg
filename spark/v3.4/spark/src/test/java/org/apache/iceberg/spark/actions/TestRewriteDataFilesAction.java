@@ -1384,6 +1384,67 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
     Assert.assertNotEquals("Number of files order should not be ascending", actual, expected);
   }
 
+  @Test
+  public void testRewriteWithDifferentOutputSpecIds() {
+    Table table = createTable(10);
+    shouldHaveFiles(table, 10);
+
+    table.updateProperties().set("write.spark.fanout.enabled", "true").commit();
+    table.replaceSortOrder().asc("c1").asc("c2").commit();
+
+    Stream.of(Expressions.bucket("c1", 2), Expressions.bucket("c2", 4))
+        .forEach(expr -> table.updateSpec().addField(expr).commit());
+
+    performRewriteAndAssertForAllTableSpecs(table, "bin-pack");
+    performRewriteAndAssertForAllTableSpecs(table, "sort");
+  }
+
+  private void performRewriteAndAssertForAllTableSpecs(Table table, String strategy) {
+    assertThat(strategy).isIn("bin-pack", "sort");
+    assertThat(table.specs()).hasSize(3);
+
+    table
+        .specs()
+        .entrySet()
+        .forEach(
+            specEntry -> {
+              long dataSize = testDataSize(table);
+              long count = currentData().size();
+
+              RewriteDataFiles.Result result =
+                  executeRewriteStrategy(table, specEntry.getKey(), strategy);
+              assertThat(dataSize).isEqualTo(result.rewrittenBytesCount());
+
+              long afterRewriteCount = currentData().size();
+              assertThat(afterRewriteCount).isEqualTo(count);
+
+              assertSpecIdFromDataFiles(specEntry, currentDataFiles(table));
+            });
+  }
+
+  private RewriteDataFiles.Result executeRewriteStrategy(
+      Table table, Integer outputSpecId, String strategy) {
+    RewriteDataFiles rewriteDataFiles =
+        basicRewrite(table)
+            .option(SparkWriteOptions.OUTPUT_SPEC_ID, String.valueOf(outputSpecId))
+            .option(BinPackStrategy.REWRITE_ALL, "true");
+    RewriteDataFiles.Result result = null;
+    if (strategy.equals("bin-pack")) {
+      result = rewriteDataFiles.binPack().execute();
+    } else if (strategy.equals("sort")) {
+      result = rewriteDataFiles.sort().execute();
+    }
+    return result;
+  }
+
+  private void assertSpecIdFromDataFiles(
+      Map.Entry<Integer, PartitionSpec> specEntry, List<DataFile> filesAfterRewriteAll) {
+    List<Integer> specIds =
+        filesAfterRewriteAll.stream().map(DataFile::specId).distinct().collect(Collectors.toList());
+
+    assertThat(specIds).containsOnlyOnce(specEntry.getKey());
+  }
+
   private Stream<RewriteFileGroup> toGroupStream(Table table, RewriteDataFilesSparkAction rewrite) {
     rewrite.validateAndInitOptions();
     Map<StructLike, List<List<FileScanTask>>> fileGroupsByPartition =
@@ -1396,6 +1457,12 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
   protected List<Object[]> currentData() {
     return rowsToJava(
         spark.read().format("iceberg").load(tableLocation).sort("c1", "c2", "c3").collectAsList());
+  }
+
+  protected List<DataFile> currentDataFiles(Table table) {
+    return Streams.stream(table.newScan().planFiles())
+        .map(FileScanTask::file)
+        .collect(Collectors.toList());
   }
 
   protected long testDataSize(Table table) {

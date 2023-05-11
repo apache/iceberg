@@ -58,6 +58,7 @@ class SparkBinPackDataRewriter extends SparkSizeBasedDataRewriter {
         .option(SparkWriteOptions.REWRITTEN_FILE_SCAN_TASK_SET_ID, groupId)
         .option(SparkWriteOptions.TARGET_FILE_SIZE_BYTES, writeMaxFileSize())
         .option(SparkWriteOptions.DISTRIBUTION_MODE, distributionMode(group).modeName())
+        .option(SparkWriteOptions.OUTPUT_SPEC_ID, outputSpecId())
         .mode("append")
         .save(groupId);
   }
