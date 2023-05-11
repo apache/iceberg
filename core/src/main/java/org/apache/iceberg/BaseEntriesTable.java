@@ -138,7 +138,7 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
                 entries(fileSchema),
                 entry -> (GenericManifestEntry<? extends ContentFile<?>>) entry);
 
-        StructProjection structProjection = projectNonReadable(fileSchema, projection);
+        StructProjection structProjection = projectNonReadable(projection);
         return CloseableIterable.transform(entryAsStruct, structProjection::wrap);
       } else {
         Set<Integer> readableMetricsIds = TypeUtil.getProjectedIds(readableMetricsField.type());
@@ -166,9 +166,9 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
       return ManifestFiles.open(manifest, io, specsById).project(fileProjection).entries();
     }
 
-    private StructProjection projectNonReadable(Schema fileSchema, Schema projection) {
+    private StructProjection projectNonReadable(Schema projectedSchema) {
       Schema manifestEntrySchema = ManifestEntry.wrapFileSchema(fileSchema.asStruct());
-      return StructProjection.create(manifestEntrySchema, projection);
+      return StructProjection.create(manifestEntrySchema, projectedSchema);
     }
 
     private StructLike withReadableMetrics(
@@ -180,8 +180,7 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
           projection.findField(MetricsUtil.READABLE_METRICS).type().asStructType();
       MetricsUtil.ReadableMetricsStruct readableMetrics =
           MetricsUtil.readableMetricsStruct(dataTableSchema, entry.file(), projectedMetricType);
-      StructProjection entryStruct =
-          projectNonReadable(fileSchema, projectedSchema).wrap((StructLike) entry);
+      StructProjection entryStruct = projectNonReadable(projectedSchema).wrap((StructLike) entry);
 
       return new ManifestEntryStructWithMetrics(
           projectionColumnCount, metricsPosition, entryStruct, readableMetrics);
