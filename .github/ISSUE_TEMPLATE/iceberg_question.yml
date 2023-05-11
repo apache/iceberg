@@ -5,7 +5,7 @@ labels: ["kind:question"]
 body:
   - type: markdown
     attributes:
-      value: "Feel free to ask your question on [Slack](https://join.slack.com/t/apache-iceberg/shared_invite/zt-1oj35f7yc-wuTEhvkiqjGLje83B7rG8A) as well."
+      value: "Feel free to ask your question on [Slack](https://join.slack.com/t/apache-iceberg/shared_invite/zt-1uva9gyp1-TrLQl7o~nZ5PsTVgl6uoEQ) as well."
   - type: textarea
     attributes:
       label: Query engine
