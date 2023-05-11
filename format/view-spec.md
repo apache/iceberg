@@ -100,7 +100,7 @@ A view version can have more than one representation. All representations for a 
 
 View versions are immutable. Once a version is created, it cannot be changed. This means that representations for a version cannot be changed. If a view definition changes (or new representations are to be added), a new version must be created.
 
-A representation is identified by its `type` and `dialect`. A view version can have multiple representations (i.e., different `type` and `dialect` combinations), but at most have one representation for a given `type` and `dialect` pair.
+A representation is identified by its `type` and `dialect`. A view version can have multiple representations (i.e., different `type` and `dialect` combinations), but have at most one representation for a given `type` and `dialect` pair.
 
 The `type` field can be one of the following:
 * `sql`: a SQL SELECT statement that defines the view
