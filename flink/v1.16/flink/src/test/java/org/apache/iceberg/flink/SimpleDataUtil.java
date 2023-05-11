@@ -138,6 +138,7 @@ public class SimpleDataUtil {
     return writeFile(table, schema, spec, conf, location, filename, rows, null);
   }
 
+  /** Write the list of {@link RowData} to the given path and with the given partition data */
   public static DataFile writeFile(
       Table table,
       Schema schema,

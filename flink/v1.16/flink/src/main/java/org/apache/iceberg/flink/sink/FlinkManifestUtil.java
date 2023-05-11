@@ -23,6 +23,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
+import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.HasTableOperations;
@@ -96,11 +97,10 @@ class FlinkManifestUtil {
 
     // Write the completed data files into a newly created data manifest file.
     if (result.dataFiles() != null && result.dataFiles().length > 0) {
-      int specId = result.dataFiles()[0].specId();
-      spec = specsById.get(specId);
       Preconditions.checkState(
-          Arrays.stream(result.dataFiles()).allMatch(file -> file.specId() == specId),
+          Arrays.stream(result.dataFiles()).map(ContentFile::specId).distinct().count() == 1,
           "All data files should have same partition spec");
+      spec = specsById.get(result.dataFiles()[0].specId());
       dataManifest =
           writeDataFiles(outputFileSupplier.get(), spec, Lists.newArrayList(result.dataFiles()));
     }
@@ -110,6 +110,7 @@ class FlinkManifestUtil {
       if (spec == null) {
         spec = specsById.get(result.deleteFiles()[0].specId());
       }
+
       int specId = spec.specId();
       Preconditions.checkState(
           Arrays.stream(result.deleteFiles()).allMatch(file -> file.specId() == specId),
