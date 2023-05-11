@@ -59,10 +59,9 @@ import org.immutables.value.Value;
  *       UserGroupInformation#getUserName.
  *   <li>conf - name of an arbitrary configuration. The value of the configuration will be extracted
  *       from catalog properties and added to the cache key. A conf element should start with a
- *       "conf:" prefix which is followed by the configuration name. E.g. specifying
- *       "conf:metastore.catalog.default" will add "metastore.catalog.default" to the key, and so
- *       that configurations with different default catalog wouldn't share the same client pool.
- *       Multiple conf elements can be specified.
+ *       "conf:" prefix which is followed by the configuration name. E.g. specifying "conf:a.b.c"
+ *       will add "a.b.c" to the key, and so that configurations with different default catalog
+ *       wouldn't share the same client pool. Multiple conf elements can be specified.
  * </ul>
  */
 public class CachedClientPool implements ClientPool<IMetaStoreClient, TException> {
@@ -134,6 +133,7 @@ public class CachedClientPool implements ClientPool<IMetaStoreClient, TException
     // generate key elements in a certain order, so that the Key instances are comparable
     List<Object> elements = Lists.newArrayList();
     elements.add(conf.get(HiveConf.ConfVars.METASTOREURIS.varname, ""));
+    elements.add(conf.get(HiveCatalog.HIVE_CONF_CATALOG, "hive"));
     if (cacheKeys == null || cacheKeys.isEmpty()) {
       return Key.of(elements);
     }

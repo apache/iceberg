@@ -32,7 +32,6 @@ import org.apache.spark.sql.catalyst.expressions.SubqueryExpression
 import org.apache.spark.sql.catalyst.expressions.V2ExpressionUtils
 import org.apache.spark.sql.catalyst.planning.RewrittenRowLevelCommand
 import org.apache.spark.sql.catalyst.plans.LeftSemi
-import org.apache.spark.sql.catalyst.plans.logical.DeleteFromIcebergTable
 import org.apache.spark.sql.catalyst.plans.logical.Filter
 import org.apache.spark.sql.catalyst.plans.logical.Join
 import org.apache.spark.sql.catalyst.plans.logical.JoinHint
@@ -104,9 +103,6 @@ case class RowLevelCommandDynamicPruning(spark: SparkSession) extends Rule[Logic
 
     // construct a filtering plan with the original scan relation
     val matchingRowsPlan = command match {
-      case d: DeleteFromIcebergTable =>
-        Filter(d.condition.get, relation)
-
       case u: UpdateIcebergTable =>
         // UPDATEs with subqueries are rewritten using a UNION with two identical scan relations
         // the analyzer clones of them and assigns fresh expr IDs so that attributes don't collide

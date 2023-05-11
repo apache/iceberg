@@ -22,8 +22,8 @@ import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.function.Function;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.types.Types;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -108,10 +108,8 @@ public class TestTruncate {
 
   @Test
   public void testVerifiedIllegalWidth() {
-    AssertHelpers.assertThrows(
-        "Should fail if width is less than or equal to zero",
-        IllegalArgumentException.class,
-        "Invalid truncate width: 0 (must be > 0)",
-        () -> Truncate.get(0));
+    Assertions.assertThatThrownBy(() -> Truncate.get(0))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid truncate width: 0 (must be > 0)");
   }
 }

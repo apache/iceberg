@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.aws.s3;
 
-import org.apache.iceberg.aws.AwsProperties;
 import org.junit.Assert;
 import org.junit.Test;
 import software.amazon.awssdk.services.s3.model.S3Request;
@@ -34,12 +33,12 @@ public class TestS3RequestUtil {
 
   @Test
   public void testConfigureServerSideCustomEncryption() {
-    AwsProperties awsProperties = new AwsProperties();
-    awsProperties.setS3FileIoSseType(AwsProperties.S3FILEIO_SSE_TYPE_CUSTOM);
-    awsProperties.setS3FileIoSseKey("key");
-    awsProperties.setS3FileIoSseMd5("md5");
+    S3FileIOProperties s3FileIOProperties = new S3FileIOProperties();
+    s3FileIOProperties.setSseType(S3FileIOProperties.SSE_TYPE_CUSTOM);
+    s3FileIOProperties.setSseKey("key");
+    s3FileIOProperties.setSseMd5("md5");
     S3RequestUtil.configureEncryption(
-        awsProperties,
+        s3FileIOProperties,
         this::setServerSideEncryption,
         this::setKmsKeyId,
         this::setCustomAlgorithm,
@@ -54,10 +53,10 @@ public class TestS3RequestUtil {
 
   @Test
   public void testConfigureServerSideS3Encryption() {
-    AwsProperties awsProperties = new AwsProperties();
-    awsProperties.setS3FileIoSseType(AwsProperties.S3FILEIO_SSE_TYPE_S3);
+    S3FileIOProperties s3FileIOProperties = new S3FileIOProperties();
+    s3FileIOProperties.setSseType(S3FileIOProperties.SSE_TYPE_S3);
     S3RequestUtil.configureEncryption(
-        awsProperties,
+        s3FileIOProperties,
         this::setServerSideEncryption,
         this::setKmsKeyId,
         this::setCustomAlgorithm,
@@ -72,11 +71,11 @@ public class TestS3RequestUtil {
 
   @Test
   public void testConfigureServerSideKmsEncryption() {
-    AwsProperties awsProperties = new AwsProperties();
-    awsProperties.setS3FileIoSseType(AwsProperties.S3FILEIO_SSE_TYPE_KMS);
-    awsProperties.setS3FileIoSseKey("key");
+    S3FileIOProperties s3FileIOProperties = new S3FileIOProperties();
+    s3FileIOProperties.setSseType(S3FileIOProperties.SSE_TYPE_KMS);
+    s3FileIOProperties.setSseKey("key");
     S3RequestUtil.configureEncryption(
-        awsProperties,
+        s3FileIOProperties,
         this::setServerSideEncryption,
         this::setKmsKeyId,
         this::setCustomAlgorithm,
@@ -91,11 +90,11 @@ public class TestS3RequestUtil {
 
   @Test
   public void testConfigureEncryptionSkipNullSetters() {
-    AwsProperties awsProperties = new AwsProperties();
-    awsProperties.setS3FileIoSseType(AwsProperties.S3FILEIO_SSE_TYPE_KMS);
-    awsProperties.setS3FileIoSseKey("key");
+    S3FileIOProperties s3FileIOProperties = new S3FileIOProperties();
+    s3FileIOProperties.setSseType(S3FileIOProperties.SSE_TYPE_KMS);
+    s3FileIOProperties.setSseKey("key");
     S3RequestUtil.configureEncryption(
-        awsProperties,
+        s3FileIOProperties,
         v -> null,
         v -> null,
         this::setCustomAlgorithm,

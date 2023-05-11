@@ -17,11 +17,16 @@
 # pylint:disable=redefined-outer-name
 
 import math
+from urllib.parse import urlparse
 
+import pyarrow.parquet as pq
 import pytest
+from pyarrow.fs import S3FileSystem
 
 from pyiceberg.catalog import Catalog, load_catalog
 from pyiceberg.expressions import IsNaN, NotNaN
+from pyiceberg.io.pyarrow import pyarrow_to_schema
+from pyiceberg.schema import Schema
 from pyiceberg.table import Table
 
 
@@ -135,3 +140,22 @@ def test_ray_all_types(table_test_all_types: Table) -> None:
     pandas_dataframe = table_test_all_types.scan().to_pandas()
     assert ray_dataset.count() == pandas_dataframe.shape[0]
     assert pandas_dataframe.equals(ray_dataset.to_pandas())
+
+
+@pytest.mark.integration
+def test_pyarrow_to_iceberg_all_types(table_test_all_types: Table) -> None:
+    fs = S3FileSystem(
+        **{
+            "endpoint_override": "http://localhost:9000",
+            "access_key": "admin",
+            "secret_key": "password",
+        }
+    )
+    data_file_paths = [task.file.file_path for task in table_test_all_types.scan().plan_files()]
+    for data_file_path in data_file_paths:
+        uri = urlparse(data_file_path)
+        with fs.open_input_file(f"{uri.netloc}{uri.path}") as fout:
+            parquet_schema = pq.read_schema(fout)
+            stored_iceberg_schema = Schema.parse_raw(parquet_schema.metadata.get(b"iceberg.schema"))
+            converted_iceberg_schema = pyarrow_to_schema(parquet_schema)
+            assert converted_iceberg_schema == stored_iceberg_schema

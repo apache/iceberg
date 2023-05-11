@@ -1233,7 +1233,27 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
     Types.StructType expectedSchema =
         Types.StructType.of(
             required(2, "record_count", Types.LongType.get(), "Count of records in data files"),
-            required(3, "file_count", Types.IntegerType.get(), "Count of data files"));
+            required(3, "file_count", Types.IntegerType.get(), "Count of data files"),
+            required(
+                5,
+                "position_delete_record_count",
+                Types.LongType.get(),
+                "Count of records in position delete files"),
+            required(
+                6,
+                "position_delete_file_count",
+                Types.IntegerType.get(),
+                "Count of position delete files"),
+            required(
+                7,
+                "equality_delete_record_count",
+                Types.LongType.get(),
+                "Count of records in equality delete files"),
+            required(
+                8,
+                "equality_delete_file_count",
+                Types.IntegerType.get(),
+                "Count of equality delete files"));
 
     Table partitionsTable = loadTable(tableIdentifier, "partitions");
 
@@ -1244,7 +1264,15 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
 
     GenericRecordBuilder builder =
         new GenericRecordBuilder(AvroSchemaUtil.convert(partitionsTable.schema(), "partitions"));
-    GenericData.Record expectedRow = builder.set("record_count", 1L).set("file_count", 1).build();
+    GenericData.Record expectedRow =
+        builder
+            .set("record_count", 1L)
+            .set("file_count", 1)
+            .set("position_delete_record_count", 0L)
+            .set("position_delete_file_count", 0)
+            .set("equality_delete_record_count", 0L)
+            .set("equality_delete_file_count", 0)
+            .build();
 
     List<Row> actual =
         spark
@@ -1303,6 +1331,10 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
             .set("partition", partitionBuilder.set("id", 1).build())
             .set("record_count", 1L)
             .set("file_count", 1)
+            .set("position_delete_record_count", 0L)
+            .set("position_delete_file_count", 0)
+            .set("equality_delete_record_count", 0L)
+            .set("equality_delete_file_count", 0)
             .set("spec_id", 0)
             .build());
     expected.add(
@@ -1310,6 +1342,10 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
             .set("partition", partitionBuilder.set("id", 2).build())
             .set("record_count", 1L)
             .set("file_count", 1)
+            .set("position_delete_record_count", 0L)
+            .set("position_delete_file_count", 0)
+            .set("equality_delete_record_count", 0L)
+            .set("equality_delete_file_count", 0)
             .set("spec_id", 0)
             .build());
 

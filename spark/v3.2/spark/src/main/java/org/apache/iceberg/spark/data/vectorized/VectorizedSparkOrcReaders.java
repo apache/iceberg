@@ -149,7 +149,10 @@ public class VectorizedSparkOrcReaders {
           primitiveValueReader = SparkOrcValueReaders.utf8String();
           break;
         case BINARY:
-          primitiveValueReader = OrcValueReaders.bytes();
+          primitiveValueReader =
+              Type.TypeID.UUID == iPrimitive.typeId()
+                  ? SparkOrcValueReaders.uuids()
+                  : OrcValueReaders.bytes();
           break;
         default:
           throw new IllegalArgumentException("Unhandled type " + primitive);

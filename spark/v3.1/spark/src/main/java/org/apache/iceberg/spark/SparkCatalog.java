@@ -90,6 +90,8 @@ import org.apache.spark.sql.util.CaseInsensitiveStringMap;
  *   <li><code>catalog-impl</code> - a custom {@link Catalog} implementation to use
  *   <li><code>default-namespace</code> - a namespace to use as the default
  *   <li><code>cache-enabled</code> - whether to enable catalog cache
+ *   <li><code>cache.case-sensitive</code> - whether the catalog cache should compare table
+ *       identifiers in a case sensitive way
  *   <li><code>cache.expiration-interval-ms</code> - interval in millis before expiring tables from
  *       catalog cache. Refer to {@link CatalogProperties#CACHE_EXPIRATION_INTERVAL_MS} for further
  *       details and significant values.
@@ -457,6 +459,12 @@ public class SparkCatalog extends BaseCatalog {
         PropertyUtil.propertyAsBoolean(
             options, CatalogProperties.CACHE_ENABLED, CatalogProperties.CACHE_ENABLED_DEFAULT);
 
+    boolean cacheCaseSensitive =
+        PropertyUtil.propertyAsBoolean(
+            options,
+            CatalogProperties.CACHE_CASE_SENSITIVE,
+            CatalogProperties.CACHE_CASE_SENSITIVE_DEFAULT);
+
     long cacheExpirationIntervalMs =
         PropertyUtil.propertyAsLong(
             options,
@@ -478,7 +486,9 @@ public class SparkCatalog extends BaseCatalog {
     this.tables =
         new HadoopTables(SparkUtil.hadoopConfCatalogOverrides(SparkSession.active(), name));
     this.icebergCatalog =
-        cacheEnabled ? CachingCatalog.wrap(catalog, cacheExpirationIntervalMs) : catalog;
+        cacheEnabled
+            ? CachingCatalog.wrap(catalog, cacheCaseSensitive, cacheExpirationIntervalMs)
+            : catalog;
     if (catalog instanceof SupportsNamespaces) {
       this.asNamespaceCatalog = (SupportsNamespaces) catalog;
       if (options.containsKey("default-namespace")) {

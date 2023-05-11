@@ -22,7 +22,6 @@ import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
 import java.util.Set;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -450,20 +449,17 @@ public class TestTypeUtil {
                                     required(17, "x", Types.IntegerType.get()),
                                     required(18, "y", Types.IntegerType.get()))))))));
 
-    AssertHelpers.assertThrows(
-        "Cannot explicitly project List",
-        IllegalArgumentException.class,
-        () -> TypeUtil.project(schema, Sets.newHashSet(12)));
+    Assertions.assertThatThrownBy(() -> TypeUtil.project(schema, Sets.newHashSet(12)))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot explicitly project List or Map types");
 
-    AssertHelpers.assertThrows(
-        "Cannot explicitly project List",
-        IllegalArgumentException.class,
-        () -> TypeUtil.project(schema, Sets.newHashSet(13)));
+    Assertions.assertThatThrownBy(() -> TypeUtil.project(schema, Sets.newHashSet(13)))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot explicitly project List or Map types");
 
-    AssertHelpers.assertThrows(
-        "Cannot explicitly project Map",
-        IllegalArgumentException.class,
-        () -> TypeUtil.project(schema, Sets.newHashSet(14)));
+    Assertions.assertThatThrownBy(() -> TypeUtil.project(schema, Sets.newHashSet(14)))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot explicitly project List or Map types");
 
     Schema expected =
         new Schema(
@@ -504,20 +500,17 @@ public class TestTypeUtil {
                                     required(18, "x", Types.IntegerType.get()),
                                     required(19, "y", Types.IntegerType.get()))))))));
 
-    AssertHelpers.assertThrows(
-        "Cannot explicitly project Map",
-        IllegalArgumentException.class,
-        () -> TypeUtil.project(schema, Sets.newHashSet(12)));
+    Assertions.assertThatThrownBy(() -> TypeUtil.project(schema, Sets.newHashSet(12)))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot explicitly project List or Map types");
 
-    AssertHelpers.assertThrows(
-        "Cannot explicitly project Map",
-        IllegalArgumentException.class,
-        () -> TypeUtil.project(schema, Sets.newHashSet(14)));
+    Assertions.assertThatThrownBy(() -> TypeUtil.project(schema, Sets.newHashSet(14)))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot explicitly project List or Map types");
 
-    AssertHelpers.assertThrows(
-        "Cannot explicitly project List",
-        IllegalArgumentException.class,
-        () -> TypeUtil.project(schema, Sets.newHashSet(16)));
+    Assertions.assertThatThrownBy(() -> TypeUtil.project(schema, Sets.newHashSet(16)))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot explicitly project List or Map types");
 
     Schema expected =
         new Schema(
