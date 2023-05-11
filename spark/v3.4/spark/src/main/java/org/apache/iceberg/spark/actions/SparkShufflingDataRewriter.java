@@ -23,6 +23,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
@@ -66,6 +68,10 @@ abstract class SparkShufflingDataRewriter extends SparkSizeBasedDataRewriter {
   }
 
   protected abstract org.apache.iceberg.SortOrder sortOrder();
+
+  protected Schema schema() {
+    return table().schema();
+  }
 
   protected abstract Dataset<Row> sortedDF(
       Dataset<Row> df, Function<Dataset<Row>, Dataset<Row>> sortFunc);
@@ -123,11 +129,12 @@ abstract class SparkShufflingDataRewriter extends SparkSizeBasedDataRewriter {
   }
 
   private org.apache.iceberg.SortOrder outputSortOrder(List<FileScanTask> group) {
-    boolean includePartitionColumns = !group.get(0).spec().equals(table().spec());
+    PartitionSpec spec = table().specs().get(outputSpecId());
+    boolean includePartitionColumns = !group.get(0).spec().equals(spec);
     if (includePartitionColumns) {
       // build in the requirement for partition sorting into our sort order
       // as the original spec for this group does not match the output spec
-      return SortOrderUtil.buildSortOrder(table(), sortOrder());
+      return SortOrderUtil.buildSortOrder(schema(), spec, sortOrder());
     } else {
       return sortOrder();
     }

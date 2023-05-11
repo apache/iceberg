@@ -103,7 +103,7 @@ public abstract class SizeBasedFileRewriter<T extends ContentScanTask<F>, F exte
 
   private static final long SPLIT_OVERHEAD = 5 * 1024;
 
-  private static final String OUTPUT_SPEC_ID = "output-spec-id";
+  public static final String OUTPUT_SPEC_ID = "output-spec-id";
 
   private final Table table;
   private long targetFileSize;

@@ -1385,6 +1385,35 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
   }
 
   @Test
+  public void testZOrderSortPartitionEvolution() {
+    int originalFiles = 20;
+    Table table = createTable(originalFiles);
+    shouldHaveLastCommitUnsorted(table, "c2");
+    shouldHaveFiles(table, originalFiles);
+
+    Stream.of(Expressions.bucket("c1", 2), Expressions.bucket("c2", 4))
+        .forEach(expr -> table.updateSpec().addField(expr).commit());
+
+    long dataSizeBefore = testDataSize(table);
+
+    RewriteDataFiles.Result result =
+        basicRewrite(table)
+            .zOrder("c2", "c3")
+            .option(
+                SortStrategy.MAX_FILE_SIZE_BYTES,
+                Integer.toString((averageFileSize(table) / 2) + 2))
+            // Divide files in 2
+            .option(
+                RewriteDataFiles.TARGET_FILE_SIZE_BYTES,
+                Integer.toString(averageFileSize(table) / 2))
+            .option(SortStrategy.MIN_INPUT_FILES, "1")
+            .execute();
+
+    Assert.assertEquals("Should have 1 fileGroups", 1, result.rewriteResults().size());
+    assertThat(result.rewrittenBytesCount()).isEqualTo(dataSizeBefore);
+  }
+
+  @Test
   public void testRewriteWithDifferentOutputSpecIds() {
     Table table = createTable(10);
     shouldHaveFiles(table, 10);
@@ -1397,10 +1426,11 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
 
     performRewriteAndAssertForAllTableSpecs(table, "bin-pack");
     performRewriteAndAssertForAllTableSpecs(table, "sort");
+    performRewriteAndAssertForAllTableSpecs(table, "zOrder");
   }
 
   private void performRewriteAndAssertForAllTableSpecs(Table table, String strategy) {
-    assertThat(strategy).isIn("bin-pack", "sort");
+    assertThat(strategy).isIn("bin-pack", "sort", "zOrder");
     assertThat(table.specs()).hasSize(3);
 
     table
@@ -1433,6 +1463,8 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
       result = rewriteDataFiles.binPack().execute();
     } else if (strategy.equals("sort")) {
       result = rewriteDataFiles.sort().execute();
+    } else if (strategy.equals("zOrder")) {
+      result = rewriteDataFiles.zOrder("c2", "c3").execute();
     }
     return result;
   }
