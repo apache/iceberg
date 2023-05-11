@@ -26,8 +26,8 @@ from pyarrow.fs import S3FileSystem
 from pyiceberg.catalog import Catalog, load_catalog
 from pyiceberg.exceptions import NoSuchTableError
 from pyiceberg.expressions import IsNaN, NotNaN
-from pyiceberg.partitioning import PartitionField, PartitionSpec
 from pyiceberg.io.pyarrow import pyarrow_to_schema
+from pyiceberg.partitioning import PartitionField, PartitionSpec
 from pyiceberg.schema import Schema
 from pyiceberg.table import Table
 from pyiceberg.table.sorting import SortField, SortOrder

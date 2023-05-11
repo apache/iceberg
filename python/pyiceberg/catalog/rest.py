@@ -509,7 +509,7 @@ class RestCatalog(Catalog):
         """
         print(updates)
         payload = CommitTableRequest(updates=updates).json()
-        response = self.session.post(
+        response = self._session.post(
             self.url(Endpoints.update_table, prefixed=True, **self._split_identifier_for_path(identifier)),
             data=payload,
         )
