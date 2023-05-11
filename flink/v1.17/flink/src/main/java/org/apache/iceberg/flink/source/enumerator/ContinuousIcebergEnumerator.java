@@ -118,7 +118,7 @@ public class ContinuousIcebergEnumerator extends AbstractIcebergEnumerator {
     } else {
       AtomicReference<ContinuousEnumerationResult> result = new AtomicReference<>();
       Tasks.foreach(enumeratorPosition.get())
-          .retry(scanContext.planRetryNum())
+          .retry(scanContext.maxAllowedPlanningFailures())
           .throwFailureWhenFinished()
           .run(position -> result.set(splitPlanner.planSplits(position)));
       return result.get();
@@ -167,7 +167,7 @@ public class ContinuousIcebergEnumerator extends AbstractIcebergEnumerator {
         LOG.info("Update enumerator position to {}", result.toPosition());
       }
     } else {
-      if (scanContext.planRetryNum() == -1) {
+      if (scanContext.maxAllowedPlanningFailures() == -1) {
         // To have an option for the original behavior - unlimited retries without job failure
         LOG.error("Failed to discover new splits", error);
       } else {

@@ -106,7 +106,7 @@ public class FlinkReadOptions {
   public static final ConfigOption<Long> LIMIT_OPTION =
       ConfigOptions.key(PREFIX + LIMIT).longType().defaultValue(-1L);
 
-  public static final String PLAN_RETRY_NUM = "plan-retry-num";
-  public static final ConfigOption<Integer> PLAN_RETRY_NUM_OPTION =
-      ConfigOptions.key(PREFIX + PLAN_RETRY_NUM).intType().defaultValue(3);
+  public static final String MAX_ALLOWED_PLANNING_FAILURES = "max-allowed-planning-failures";
+  public static final ConfigOption<Integer> MAX_ALLOWED_PLANNING_FAILURES_OPTION =
+      ConfigOptions.key(PREFIX + MAX_ALLOWED_PLANNING_FAILURES).intType().defaultValue(3);
 }

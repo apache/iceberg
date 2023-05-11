@@ -182,12 +182,12 @@ public class FlinkReadConf {
         .parse();
   }
 
-  public int planRetryNum() {
+  public int maxAllowedPlanningFailures() {
     return confParser
         .intConf()
-        .option(FlinkReadOptions.PLAN_RETRY_NUM)
-        .flinkConfig(FlinkReadOptions.PLAN_RETRY_NUM_OPTION)
-        .defaultValue(FlinkReadOptions.PLAN_RETRY_NUM_OPTION.defaultValue())
+        .option(FlinkReadOptions.MAX_ALLOWED_PLANNING_FAILURES)
+        .flinkConfig(FlinkReadOptions.MAX_ALLOWED_PLANNING_FAILURES_OPTION)
+        .defaultValue(FlinkReadOptions.MAX_ALLOWED_PLANNING_FAILURES_OPTION.defaultValue())
         .parse();
   }
 }

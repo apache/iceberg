@@ -236,7 +236,7 @@ public class TestContinuousIcebergEnumerator {
             .streaming(true)
             .startingStrategy(StreamingStartingStrategy.INCREMENTAL_FROM_EARLIEST_SNAPSHOT)
             .maxPlanningSnapshotCount(1)
-            .planRetryNum(2)
+            .maxAllowedPlanningFailures(2)
             .build();
     ManualContinuousSplitPlanner splitPlanner = new ManualContinuousSplitPlanner(scanContext, 2);
     ContinuousIcebergEnumerator enumerator =
@@ -265,7 +265,7 @@ public class TestContinuousIcebergEnumerator {
             .streaming(true)
             .startingStrategy(StreamingStartingStrategy.INCREMENTAL_FROM_EARLIEST_SNAPSHOT)
             .maxPlanningSnapshotCount(1)
-            .planRetryNum(2)
+            .maxAllowedPlanningFailures(2)
             .build();
     ManualContinuousSplitPlanner splitPlanner = new ManualContinuousSplitPlanner(scanContext, 3);
     ContinuousIcebergEnumerator enumerator =
@@ -294,7 +294,7 @@ public class TestContinuousIcebergEnumerator {
             .streaming(true)
             .startingStrategy(StreamingStartingStrategy.INCREMENTAL_FROM_EARLIEST_SNAPSHOT)
             .maxPlanningSnapshotCount(1)
-            .planRetryNum(-1)
+            .maxAllowedPlanningFailures(-1)
             .build();
     ManualContinuousSplitPlanner splitPlanner =
         new ManualContinuousSplitPlanner(scanContext, expectedFailures);

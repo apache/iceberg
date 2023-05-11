@@ -391,8 +391,10 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
       return this;
     }
 
-    public Builder<T> planRetryNum(int planRetryNum) {
-      readOptions.put(FlinkReadOptions.PLAN_RETRY_NUM_OPTION.key(), Integer.toString(planRetryNum));
+    public Builder<T> maxAllowedPlanningFailures(int maxAllowedPlanningFailures) {
+      readOptions.put(
+          FlinkReadOptions.MAX_ALLOWED_PLANNING_FAILURES_OPTION.key(),
+          Integer.toString(maxAllowedPlanningFailures));
       return this;
     }
 
