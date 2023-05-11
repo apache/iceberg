@@ -337,7 +337,7 @@ public class RewriteDataFilesSparkAction
         commitManager.service(groupsPerCommit);
     commitService.start();
 
-    List<FileGroupFailureResult> rewriteFailures = Lists.newArrayList();
+    List<FileGroupFailureResult> rewriteFailures = Lists.newCopyOnWriteArrayList();
     // Start rewrite tasks
     Tasks.foreach(groupStream)
         .suppressFailureWhenFinished()
