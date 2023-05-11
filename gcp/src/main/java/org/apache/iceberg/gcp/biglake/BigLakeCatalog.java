@@ -33,11 +33,14 @@ import java.util.Set;
 import org.apache.iceberg.BaseMetastoreCatalog;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
+import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.exceptions.NoSuchNamespaceException;
+import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.ServiceFailureException;
 import org.apache.iceberg.hadoop.Configurable;
 import org.apache.iceberg.io.FileIO;
@@ -143,6 +146,14 @@ public final class BigLakeCatalog extends BaseMetastoreCatalog
 
   @Override
   protected TableOperations newTableOps(TableIdentifier identifier) {
+    // The identifier of metadata tables is like "ns.table.files".
+    // We return a non-existing table in this case (empty table ID is disallowed in BigLake
+    // Metastore), loadTable will try loadMetadataTable.
+    if (identifier.namespace().levels().length > 1
+        && MetadataTableType.from(identifier.name()) != null) {
+      return new BigLakeTableOperations(
+          client, fileIO, getTableName(identifier.namespace().level(0), /* tableId= */ ""));
+    }
     return new BigLakeTableOperations(
         client,
         fileIO,
@@ -181,8 +192,13 @@ public final class BigLakeCatalog extends BaseMetastoreCatalog
     TableOperations ops = newTableOps(identifier);
     // TODO: to catch NotFoundException as in https://github.com/apache/iceberg/pull/5510.
     TableMetadata lastMetadata = ops.current();
-    client.deleteTable(
-        getTableName(getDatabaseId(identifier.namespace()), /* tableId= */ identifier.name()));
+    try {
+      client.deleteTable(
+          getTableName(getDatabaseId(identifier.namespace()), /* tableId= */ identifier.name()));
+    } catch (NoSuchTableException e) {
+      LOG.warn("Dropping table failed", e);
+      return false;
+    }
     if (purge && lastMetadata != null) {
       CatalogUtil.dropTableData(ops.io(), lastMetadata);
     }
@@ -235,16 +251,21 @@ public final class BigLakeCatalog extends BaseMetastoreCatalog
 
   @Override
   public boolean dropNamespace(Namespace namespace) {
-    if (namespace.levels().length == 0) {
-      // Used by `DROP NAMESPACE <catalog>`. Deletes the BLMS catalog linked by Iceberg catalog.
-      client.deleteCatalog(catalogName);
-      LOG.info("Deleted BigLake catalog: {}", catalogName.toString());
-    } else if (namespace.levels().length == 1) {
-      client.deleteDatabase(getDatabaseName(namespace));
-      // We don't delete the data file folder for safety. It aligns with HMS's default behavior.
-      // We can support database or catalog level config controlling file deletion in future.
-    } else {
-      throw new IllegalArgumentException(invalidNamespaceMessage(namespace));
+    try {
+      if (namespace.levels().length == 0) {
+        // Used by `DROP NAMESPACE <catalog>`. Deletes the BLMS catalog linked by Iceberg catalog.
+        client.deleteCatalog(catalogName);
+        LOG.info("Deleted BigLake catalog: {}", catalogName.toString());
+      } else if (namespace.levels().length == 1) {
+        client.deleteDatabase(getDatabaseName(namespace));
+        // We don't delete the data file folder for safety. It aligns with HMS's default behavior.
+        // We can support database or catalog level config controlling file deletion in future.
+      } else {
+        throw new IllegalArgumentException(invalidNamespaceMessage(namespace));
+      }
+    } catch (NoSuchNamespaceException e) {
+      LOG.warn("Dropping namespace failed", e);
+      return false;
     }
     return true;
   }

@@ -30,8 +30,10 @@ import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
+import org.apache.iceberg.exceptions.NoSuchIcebergTableException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -61,10 +63,10 @@ public final class BigLakeTableOperations extends BaseMetastoreTableOperations {
     String metadataLocation = null;
     try {
       HiveTableOptions hiveOptions = client.getTable(tableName).getHiveOptions();
-      Preconditions.checkArgument(
-          hiveOptions.containsParameters(METADATA_LOCATION_PROP),
-          "Table %s is not a valid Iceberg table, metadata location not found",
-          tableName());
+      if (!hiveOptions.containsParameters(METADATA_LOCATION_PROP)) {
+        throw new NoSuchIcebergTableException(
+            "Table %s is not a valid Iceberg table, metadata location not found", tableName());
+      }
       metadataLocation = hiveOptions.getParametersOrThrow(METADATA_LOCATION_PROP);
     } catch (NoSuchTableException e) {
       if (currentMetadataLocation() != null) {
@@ -90,7 +92,7 @@ public final class BigLakeTableOperations extends BaseMetastoreTableOperations {
         updateTable(base.metadataFileLocation(), newMetadataLocation, metadata);
       }
       commitStatus = CommitStatus.SUCCESS;
-    } catch (CommitFailedException | CommitStateUnknownException e) {
+    } catch (AlreadyExistsException | CommitFailedException | CommitStateUnknownException e) {
       throw e;
     } catch (Throwable e) {
       commitStatus = checkCommitStatus(newMetadataLocation, metadata);
@@ -143,15 +145,19 @@ public final class BigLakeTableOperations extends BaseMetastoreTableOperations {
         tableName());
     HiveTableOptions options = table.getHiveOptions();
 
-    // If `metadataLocationFromMetastore` is different from metadata location of base, it means
-    // someone has updated metadata location in metastore, which is a conflict update.
     String metadataLocationFromMetastore =
         options.getParametersOrDefault(METADATA_LOCATION_PROP, "");
-    if (!metadataLocationFromMetastore.isEmpty()
-        && !metadataLocationFromMetastore.equals(oldMetadataLocation)) {
+    if (metadataLocationFromMetastore.isEmpty()) {
+      throw new NoSuchIcebergTableException(
+          "Table %s is not a valid Iceberg table, metadata location is empty", tableName());
+    }
+    // If `metadataLocationFromMetastore` is different from metadata location of base, it means
+    // someone has updated metadata location in metastore, which is a conflict update.
+    if (!metadataLocationFromMetastore.equals(oldMetadataLocation)) {
       throw new CommitFailedException(
-          "Base metadata location '%s' is not same as the current table metadata location '%s' for"
+          "Cannot commit %s. Base metadata location '%s' is not same as the current table metadata location '%s' for"
               + " %s.%s",
+          tableName(),
           oldMetadataLocation,
           metadataLocationFromMetastore,
           tableName.getDatabase(),
@@ -170,6 +176,7 @@ public final class BigLakeTableOperations extends BaseMetastoreTableOperations {
         throw new CommitFailedException(
             "Updating table failed due to conflict updates (etag mismatch)");
       }
+      throw e;
     }
   }
 

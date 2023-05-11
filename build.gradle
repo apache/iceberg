@@ -637,6 +637,7 @@ project(':iceberg-gcp') {
     testImplementation 'com.google.cloud:google-cloud-nio'
 
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
+    testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
 
     testImplementation("org.apache.hadoop:hadoop-common") {
       exclude group: 'org.apache.avro', module: 'avro'

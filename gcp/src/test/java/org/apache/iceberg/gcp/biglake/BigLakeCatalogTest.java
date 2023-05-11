@@ -20,12 +20,10 @@ package org.apache.iceberg.gcp.biglake;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.any;
-import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -35,65 +33,86 @@ import com.google.cloud.bigquery.biglake.v1.CatalogName;
 import com.google.cloud.bigquery.biglake.v1.Database;
 import com.google.cloud.bigquery.biglake.v1.DatabaseName;
 import com.google.cloud.bigquery.biglake.v1.HiveDatabaseOptions;
-import com.google.cloud.bigquery.biglake.v1.Table;
-import com.google.cloud.bigquery.biglake.v1.TableName;
+import java.io.File;
+import java.nio.file.Path;
 import java.util.List;
-import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.CatalogProperties;
-import org.apache.iceberg.Schema;
-import org.apache.iceberg.SchemaParser;
+import org.apache.iceberg.catalog.CatalogTests;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
-import org.apache.iceberg.exceptions.AlreadyExistsException;
-import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
-import org.junit.Before;
 import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-import org.mockito.ArgumentCaptor;
-import org.mockito.Mock;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
 
-public class BigLakeCatalogTest {
+public class BigLakeCatalogTest extends CatalogTests<BigLakeCatalog> {
 
   @Rule public final MockitoRule mockito = MockitoJUnit.rule();
-  @Rule public TemporaryFolder tempFolder = new TemporaryFolder();
+  @TempDir public Path temp;
 
   private static final String GCP_PROJECT = "my-project";
   private static final String GCP_REGION = "us";
   private static final String CATALOG_ID = "biglake";
 
-  @Mock private BigLakeClient bigLakeClient;
-
-  private BigLakeCatalog bigLakeCatalog;
   private String warehouseLocation;
 
-  @Before
-  public void before() throws Exception {
-    this.bigLakeCatalog = new BigLakeCatalog();
-    this.warehouseLocation = tempFolder.newFolder("hive-warehouse").toString();
+  private BigLakeCatalog fakeBigLakeCatalog;
 
-    bigLakeCatalog.setConf(new Configuration());
-    bigLakeCatalog.initialize(
-        CATALOG_ID,
-        /* properties= */ ImmutableMap.of(
+  private BigLakeClient mockBigLakeClient;
+  private BigLakeCatalog mockBigLakeCatalog;
+
+  @BeforeEach
+  public void createCatalog() throws Exception {
+    File warehouse = temp.toFile();
+    warehouseLocation = warehouse.getAbsolutePath();
+
+    ImmutableMap<String, String> properties =
+        ImmutableMap.of(
             BigLakeCatalog.PROPERTIES_KEY_GCP_PROJECT,
             GCP_PROJECT,
             CatalogProperties.WAREHOUSE_LOCATION,
-            warehouseLocation),
-        GCP_PROJECT,
-        GCP_REGION,
-        bigLakeClient);
+            warehouseLocation);
+
+    BigLakeClient fakeBigLakeClient = new FakeBigLakeClient();
+    fakeBigLakeCatalog = new BigLakeCatalog();
+    fakeBigLakeCatalog.setConf(new Configuration());
+    fakeBigLakeCatalog.initialize(
+        CATALOG_ID, properties, GCP_PROJECT, GCP_REGION, fakeBigLakeClient);
+
+    mockBigLakeClient = mock(BigLakeClient.class);
+    mockBigLakeCatalog = new BigLakeCatalog();
+    mockBigLakeCatalog.setConf(new Configuration());
+    mockBigLakeCatalog.initialize(
+        CATALOG_ID, properties, GCP_PROJECT, GCP_REGION, mockBigLakeClient);
   }
+
+  @Override
+  protected boolean requiresNamespaceCreate() {
+    return true;
+  }
+
+  @Override
+  protected BigLakeCatalog catalog() {
+    return fakeBigLakeCatalog;
+  }
+
+  // By pass this test from CatalogTests, because BigLake API does not support "/" in resource IDs.
+  @Test
+  public void testNamespaceWithSlash() {}
+
+  // By pass this test from CatalogTests, because BigLake API does not support "/" in resource IDs.
+  @Test
+  public void testTableNameWithSlash() {}
 
   @Test
   public void testDefaultWarehouseWithDatabaseLocation_asExpected() {
-    when(bigLakeClient.getDatabase(DatabaseName.of(GCP_PROJECT, GCP_REGION, CATALOG_ID, "db")))
+    when(mockBigLakeClient.getDatabase(DatabaseName.of(GCP_PROJECT, GCP_REGION, CATALOG_ID, "db")))
         .thenReturn(
             Database.newBuilder()
                 .setHiveOptions(HiveDatabaseOptions.newBuilder().setLocationUri("db_folder"))
@@ -101,129 +120,18 @@ public class BigLakeCatalogTest {
 
     assertEquals(
         "db_folder/table",
-        bigLakeCatalog.defaultWarehouseLocation(TableIdentifier.of("db", "table")));
+        mockBigLakeCatalog.defaultWarehouseLocation(TableIdentifier.of("db", "table")));
   }
 
   @Test
-  public void testDefaultWarehouseeWithoutDatabaseLocation_asExpected() {
-    when(bigLakeClient.getDatabase(DatabaseName.of(GCP_PROJECT, "us", CATALOG_ID, "db")))
+  public void testDefaultWarehouseWithoutDatabaseLocation_asExpected() {
+    when(mockBigLakeClient.getDatabase(DatabaseName.of(GCP_PROJECT, "us", CATALOG_ID, "db")))
         .thenReturn(
             Database.newBuilder().setHiveOptions(HiveDatabaseOptions.getDefaultInstance()).build());
 
     assertEquals(
         warehouseLocation + "/db.db/table",
-        bigLakeCatalog.defaultWarehouseLocation(TableIdentifier.of("db", "table")));
-  }
-
-  @Test
-  public void testCreateTable_succeedWhenNotExist() throws Exception {
-    // The table to create does not exist.
-    TableName tableName = TableName.of(GCP_PROJECT, GCP_REGION, CATALOG_ID, "db", "tbl");
-    TableIdentifier tableIdent = TableIdentifier.of("db", "tbl");
-    Schema schema = BigLakeTestUtils.getTestSchema();
-
-    when(bigLakeClient.getTable(tableName))
-        .thenThrow(new NoSuchTableException("error message getTable"));
-    Table createdTable = BigLakeTestUtils.createTestTable(tempFolder, bigLakeCatalog, tableName);
-    reset(bigLakeClient);
-    when(bigLakeClient.getTable(tableName)).thenReturn(createdTable, createdTable);
-
-    org.apache.iceberg.Table loadedTable = bigLakeCatalog.loadTable(tableIdent);
-    assertEquals(SchemaParser.toJson(schema), SchemaParser.toJson(loadedTable.schema()));
-
-    // Creates a table that already exists.
-    Exception exception =
-        assertThrows(
-            AlreadyExistsException.class,
-            () ->
-                bigLakeCatalog
-                    .buildTable(tableIdent, schema)
-                    .withLocation(tempFolder.newFolder("new_tbl").toString())
-                    .createTransaction()
-                    .commitTransaction());
-    assertTrue(exception.getMessage().contains("already exist"));
-  }
-
-  @Test
-  public void testListTables_asExpected() {
-    when(bigLakeClient.listTables(DatabaseName.of(GCP_PROJECT, GCP_REGION, CATALOG_ID, "db0")))
-        .thenReturn(
-            ImmutableList.of(
-                Table.newBuilder()
-                    .setName("projects/proj0/locations/us/catalogs/cat0/databases/db0/tables/tbl0")
-                    .build(),
-                Table.newBuilder()
-                    .setName("projects/proj0/locations/us/catalogs/cat0/databases/db0/tables/tbl1")
-                    .build()));
-
-    List<TableIdentifier> result = bigLakeCatalog.listTables(Namespace.of("db0"));
-    assertEquals(2, result.size());
-    assertEquals(TableIdentifier.of("db0", "tbl0"), result.get(0));
-    assertEquals(TableIdentifier.of("db0", "tbl1"), result.get(1));
-  }
-
-  @Test
-  public void testListTables_emptyNamespace_checkCatalogEmptiness() {
-    when(bigLakeClient.listDatabases(CatalogName.of(GCP_PROJECT, GCP_REGION, CATALOG_ID)))
-        .thenReturn(ImmutableList.of(Database.getDefaultInstance()));
-
-    List<TableIdentifier> result = bigLakeCatalog.listTables(Namespace.of());
-    assertEquals(1, result.size());
-    assertEquals(TableIdentifier.of("placeholder"), result.get(0));
-  }
-
-  @Test
-  public void testListTables_emptyNamespace_noDatabase() {
-    when(bigLakeClient.listDatabases(any(CatalogName.class))).thenReturn(ImmutableList.of());
-
-    assertTrue(bigLakeCatalog.listTables(Namespace.of()).isEmpty());
-  }
-
-  @Test
-  public void testDropTable_throwWhenTableNotFound() {
-    TableName tableName = TableName.of(GCP_PROJECT, GCP_REGION, CATALOG_ID, "db", "tbl");
-    when(bigLakeClient.getTable(tableName))
-        .thenThrow(new NoSuchTableException("error message getTable"));
-    doThrow(new NoSuchTableException("error message deleteTable"))
-        .when(bigLakeClient)
-        .deleteTable(tableName);
-
-    Exception exception =
-        assertThrows(
-            NoSuchTableException.class,
-            () -> bigLakeCatalog.dropTable(TableIdentifier.of("db", "tbl"), /* purge = */ false));
-    assertEquals("error message deleteTable", exception.getMessage());
-  }
-
-  @Test
-  public void testDropTable_succeedsWhenTableExists_deleteFiles() throws Exception {
-    TableName tableName = TableName.of(GCP_PROJECT, GCP_REGION, CATALOG_ID, "db", "tbl");
-    TableIdentifier tableIdent = TableIdentifier.of("db", "tbl");
-
-    when(bigLakeClient.getTable(tableName))
-        .thenThrow(new NoSuchTableException("error message getTable"));
-    Table createdTable = BigLakeTestUtils.createTestTable(tempFolder, bigLakeCatalog, tableName);
-    String tableDir = createdTable.getHiveOptions().getStorageDescriptor().getLocationUri();
-    assertTrue(BigLakeTestUtils.getIcebergMetadataFilePath(tableDir).isPresent());
-
-    reset(bigLakeClient);
-    when(bigLakeClient.getTable(tableName)).thenReturn(createdTable, createdTable);
-    when(bigLakeClient.deleteTable(tableName)).thenReturn(createdTable, createdTable);
-
-    bigLakeCatalog.dropTable(tableIdent, /* purge = */ false);
-    assertTrue(BigLakeTestUtils.getIcebergMetadataFilePath(tableDir).isPresent());
-
-    bigLakeCatalog.dropTable(tableIdent, /* purge = */ true);
-    assertFalse(BigLakeTestUtils.getIcebergMetadataFilePath(tableDir).isPresent());
-  }
-
-  @Test
-  public void testRenameTable_sameDatabase_succeed() {
-    bigLakeCatalog.renameTable(TableIdentifier.of("db0", "t1"), TableIdentifier.of("db0", "t2"));
-    verify(bigLakeClient, times(1))
-        .renameTable(
-            TableName.of(GCP_PROJECT, GCP_REGION, CATALOG_ID, "db0", "t1"),
-            TableName.of(GCP_PROJECT, GCP_REGION, CATALOG_ID, "db0", "t2"));
+        mockBigLakeCatalog.defaultWarehouseLocation(TableIdentifier.of("db", "table")));
   }
 
   @Test
@@ -232,37 +140,17 @@ public class BigLakeCatalogTest {
         assertThrows(
             IllegalArgumentException.class,
             () ->
-                bigLakeCatalog.renameTable(
+                mockBigLakeCatalog.renameTable(
                     TableIdentifier.of("db0", "t1"), TableIdentifier.of("db1", "t2")));
     assertEquals("New table name must be in the same database", exception.getMessage());
   }
 
   @Test
   public void testCreateNamespace_createCatalogWhenEmptyNamespace() throws Exception {
-    bigLakeCatalog.createNamespace(Namespace.of(new String[] {}), ImmutableMap.of());
-    verify(bigLakeClient, times(1))
+    mockBigLakeCatalog.createNamespace(Namespace.of(new String[] {}), ImmutableMap.of());
+    verify(mockBigLakeClient, times(1))
         .createCatalog(
             CatalogName.of(GCP_PROJECT, GCP_REGION, CATALOG_ID), Catalog.getDefaultInstance());
-  }
-
-  @Test
-  public void testCreateNamespace_createDatabase() throws Exception {
-    String dbId = "db";
-    Map<String, String> metadata = ImmutableMap.of();
-    String dbDir = warehouseLocation + String.format("/%s.db", dbId);
-    Database.Builder builder = Database.newBuilder().setType(Database.Type.HIVE);
-    builder.getHiveOptionsBuilder().putAllParameters(metadata).setLocationUri(dbDir);
-
-    DatabaseName dbName = DatabaseName.of(GCP_PROJECT, GCP_REGION, CATALOG_ID, dbId);
-    Database db = builder.build();
-    when(bigLakeClient.createDatabase(dbName, db)).thenReturn(db);
-
-    bigLakeCatalog.createNamespace(Namespace.of(new String[] {dbId}), metadata);
-    ArgumentCaptor<DatabaseName> nameCaptor = ArgumentCaptor.forClass(DatabaseName.class);
-    ArgumentCaptor<Database> dbCaptor = ArgumentCaptor.forClass(Database.class);
-    verify(bigLakeClient, times(1)).createDatabase(nameCaptor.capture(), dbCaptor.capture());
-    assertEquals(dbName, nameCaptor.getValue());
-    assertEquals(db, dbCaptor.getValue());
   }
 
   @Test
@@ -271,7 +159,7 @@ public class BigLakeCatalogTest {
         assertThrows(
             IllegalArgumentException.class,
             () ->
-                bigLakeCatalog.createNamespace(
+                mockBigLakeCatalog.createNamespace(
                     Namespace.of(new String[] {"n0", "n1"}), ImmutableMap.of()));
     assertEquals(
         "BigLake catalog namespace can have zero (catalog) or one level (database), invalid"
@@ -280,40 +168,37 @@ public class BigLakeCatalogTest {
   }
 
   @Test
-  public void testListNamespaces_asExpected() {
-    when(bigLakeClient.listDatabases(CatalogName.of(GCP_PROJECT, GCP_REGION, CATALOG_ID)))
-        .thenReturn(
-            ImmutableList.of(
-                Database.newBuilder()
-                    .setName("projects/proj0/locations/us/catalogs/cat0/databases/db0")
-                    .build(),
-                Database.newBuilder()
-                    .setName("projects/proj0/locations/us/catalogs/cat0/databases/db1")
-                    .build()));
-
-    List<Namespace> result = bigLakeCatalog.listNamespaces(Namespace.of());
-    assertEquals(2, result.size());
-    assertEquals(Namespace.of("db0"), result.get(0));
-    assertEquals(Namespace.of("db1"), result.get(1));
-  }
-
-  @Test
   public void testListNamespaces_emptyWhenInvalid() {
-    assertTrue(bigLakeCatalog.listNamespaces(Namespace.of("db")).isEmpty());
+    assertTrue(mockBigLakeCatalog.listNamespaces(Namespace.of("db")).isEmpty());
   }
 
   @Test
   public void testDropNamespace_deleteCatalogWhenEmptyNamespace() {
-    bigLakeCatalog.dropNamespace(Namespace.of(new String[] {}));
-    verify(bigLakeClient, times(1))
+    mockBigLakeCatalog.dropNamespace(Namespace.of(new String[] {}));
+    verify(mockBigLakeClient, times(1))
         .deleteCatalog(CatalogName.of(GCP_PROJECT, GCP_REGION, CATALOG_ID));
   }
 
+  // BigLake catalog plugin supports dropping a BigLake catalog resource. Spark calls listTables
+  // with an empty namespace in this case, the purpose is verifying the namespace is empty. We
+  // check whether there are databases in the BigLake catalog instead.
   @Test
-  public void testDropNamespace_deleteDatabase() {
-    bigLakeCatalog.dropNamespace(Namespace.of(new String[] {"db"}));
-    verify(bigLakeClient, times(1))
-        .deleteDatabase(DatabaseName.of(GCP_PROJECT, GCP_REGION, CATALOG_ID, "db"));
+  public void testListTables_emptyNamespace_noDatabase() {
+    when(mockBigLakeClient.listDatabases(any(CatalogName.class))).thenReturn(ImmutableList.of());
+
+    assertTrue(mockBigLakeCatalog.listTables(Namespace.of()).isEmpty());
+    verify(mockBigLakeClient, times(1))
+        .listDatabases(CatalogName.of(GCP_PROJECT, GCP_REGION, CATALOG_ID));
+  }
+
+  @Test
+  public void testListTables_emptyNamespace_checkCatalogEmptiness() {
+    when(mockBigLakeClient.listDatabases(CatalogName.of(GCP_PROJECT, GCP_REGION, CATALOG_ID)))
+        .thenReturn(ImmutableList.of(Database.getDefaultInstance()));
+
+    List<TableIdentifier> result = mockBigLakeCatalog.listTables(Namespace.of());
+    assertEquals(1, result.size());
+    assertEquals(TableIdentifier.of("placeholder"), result.get(0));
   }
 
   @Test
@@ -321,7 +206,7 @@ public class BigLakeCatalogTest {
     Exception exception =
         assertThrows(
             IllegalArgumentException.class,
-            () -> bigLakeCatalog.dropNamespace(Namespace.of(new String[] {"n0", "n1"})));
+            () -> mockBigLakeCatalog.dropNamespace(Namespace.of(new String[] {"n0", "n1"})));
     assertEquals(
         "BigLake catalog namespace can have zero (catalog) or one level (database), invalid"
             + " namespace: n0.n1",
@@ -330,14 +215,15 @@ public class BigLakeCatalogTest {
 
   @Test
   public void testSetProperties_failWhenNamespacesAreInvalid() throws Exception {
-    assertFalse(bigLakeCatalog.setProperties(Namespace.of(new String[] {}), ImmutableMap.of()));
+    assertFalse(mockBigLakeCatalog.setProperties(Namespace.of(new String[] {}), ImmutableMap.of()));
     assertFalse(
-        bigLakeCatalog.setProperties(Namespace.of(new String[] {"db", "tbl"}), ImmutableMap.of()));
+        mockBigLakeCatalog.setProperties(
+            Namespace.of(new String[] {"db", "tbl"}), ImmutableMap.of()));
   }
 
   @Test
   public void testSetProperties_succeedForDatabase() throws Exception {
-    when(bigLakeClient.getDatabase(DatabaseName.of(GCP_PROJECT, GCP_REGION, CATALOG_ID, "db")))
+    when(mockBigLakeClient.getDatabase(DatabaseName.of(GCP_PROJECT, GCP_REGION, CATALOG_ID, "db")))
         .thenReturn(
             Database.newBuilder()
                 .setHiveOptions(
@@ -347,10 +233,10 @@ public class BigLakeCatalogTest {
                 .build());
 
     assertTrue(
-        bigLakeCatalog.setProperties(
+        mockBigLakeCatalog.setProperties(
             Namespace.of(new String[] {"db"}),
             ImmutableMap.of("key2", "value222", "key3", "value3")));
-    verify(bigLakeClient, times(1))
+    verify(mockBigLakeClient, times(1))
         .updateDatabaseParameters(
             DatabaseName.of(GCP_PROJECT, GCP_REGION, CATALOG_ID, "db"),
             ImmutableMap.of("key1", "value1", "key2", "value222", "key3", "value3"));
@@ -358,15 +244,16 @@ public class BigLakeCatalogTest {
 
   @Test
   public void testRemoveProperties_failWhenNamespacesAreInvalid() throws Exception {
-    assertFalse(bigLakeCatalog.removeProperties(Namespace.of(new String[] {}), ImmutableSet.of()));
     assertFalse(
-        bigLakeCatalog.removeProperties(
+        mockBigLakeCatalog.removeProperties(Namespace.of(new String[] {}), ImmutableSet.of()));
+    assertFalse(
+        mockBigLakeCatalog.removeProperties(
             Namespace.of(new String[] {"db", "tbl"}), ImmutableSet.of()));
   }
 
   @Test
   public void testRemoveProperties_succeedForDatabase() throws Exception {
-    when(bigLakeClient.getDatabase(DatabaseName.of(GCP_PROJECT, GCP_REGION, CATALOG_ID, "db")))
+    when(mockBigLakeClient.getDatabase(DatabaseName.of(GCP_PROJECT, GCP_REGION, CATALOG_ID, "db")))
         .thenReturn(
             Database.newBuilder()
                 .setHiveOptions(
@@ -376,9 +263,9 @@ public class BigLakeCatalogTest {
                 .build());
 
     assertTrue(
-        bigLakeCatalog.removeProperties(
+        mockBigLakeCatalog.removeProperties(
             Namespace.of(new String[] {"db"}), ImmutableSet.of("key1", "key3")));
-    verify(bigLakeClient, times(1))
+    verify(mockBigLakeClient, times(1))
         .updateDatabaseParameters(
             DatabaseName.of(GCP_PROJECT, GCP_REGION, CATALOG_ID, "db"),
             ImmutableMap.of("key2", "value2"));
@@ -386,13 +273,14 @@ public class BigLakeCatalogTest {
 
   @Test
   public void testLoadNamespaceMetadata_catalogAsExpected() throws Exception {
-    assertTrue(bigLakeCatalog.loadNamespaceMetadata(Namespace.of(new String[] {})).isEmpty());
-    verify(bigLakeClient, times(1)).getCatalog(CatalogName.of(GCP_PROJECT, GCP_REGION, CATALOG_ID));
+    assertTrue(mockBigLakeCatalog.loadNamespaceMetadata(Namespace.of(new String[] {})).isEmpty());
+    verify(mockBigLakeClient, times(1))
+        .getCatalog(CatalogName.of(GCP_PROJECT, GCP_REGION, CATALOG_ID));
   }
 
   @Test
   public void testLoadNamespaceMetadata_databaseAsExpected() throws Exception {
-    when(bigLakeClient.getDatabase(DatabaseName.of(GCP_PROJECT, GCP_REGION, CATALOG_ID, "db")))
+    when(mockBigLakeClient.getDatabase(DatabaseName.of(GCP_PROJECT, GCP_REGION, CATALOG_ID, "db")))
         .thenReturn(
             Database.newBuilder()
                 .setHiveOptions(
@@ -404,7 +292,7 @@ public class BigLakeCatalogTest {
 
     assertEquals(
         ImmutableMap.of("location", "my location uri", "key1", "value1", "key2", "value2"),
-        bigLakeCatalog.loadNamespaceMetadata(Namespace.of(new String[] {"db"})));
+        mockBigLakeCatalog.loadNamespaceMetadata(Namespace.of(new String[] {"db"})));
   }
 
   @Test
@@ -412,7 +300,8 @@ public class BigLakeCatalogTest {
     Exception exception =
         assertThrows(
             IllegalArgumentException.class,
-            () -> bigLakeCatalog.loadNamespaceMetadata(Namespace.of(new String[] {"n0", "n1"})));
+            () ->
+                mockBigLakeCatalog.loadNamespaceMetadata(Namespace.of(new String[] {"n0", "n1"})));
     assertEquals(
         "BigLake catalog namespace can have zero (catalog) or one level (database), invalid"
             + " namespace: n0.n1",
@@ -433,30 +322,13 @@ public class BigLakeCatalogTest {
             "customized_catalog"),
         GCP_PROJECT,
         GCP_REGION,
-        bigLakeClient);
+        mockBigLakeClient);
 
     catalog.createNamespace(Namespace.of(new String[] {}), ImmutableMap.of());
-    verify(bigLakeClient, times(1))
+    verify(mockBigLakeClient, times(1))
         .createCatalog(
             CatalogName.of(GCP_PROJECT, GCP_REGION, "customized_catalog"),
             Catalog.getDefaultInstance());
-  }
-
-  @Test
-  public void testName_asExpected() throws Exception {
-    assertEquals("biglake", bigLakeCatalog.name());
-  }
-
-  @Test
-  public void testProperties_asExpected() throws Exception {
-    assertEquals(
-        ImmutableMap.of("biglake.project-id", GCP_PROJECT, "warehouse", warehouseLocation),
-        bigLakeCatalog.properties());
-  }
-
-  @Test
-  public void testNewTableOps_asExpected() throws Exception {
-    assertNotNull(bigLakeCatalog.newTableOps(TableIdentifier.of("db", "tbl")));
   }
 
   @Test
@@ -464,7 +336,9 @@ public class BigLakeCatalogTest {
     Exception exception =
         assertThrows(
             IllegalArgumentException.class,
-            () -> bigLakeCatalog.newTableOps(TableIdentifier.of(Namespace.of("n0", "n1"), "tbl")));
+            () ->
+                mockBigLakeCatalog.newTableOps(
+                    TableIdentifier.of(Namespace.of("n0", "n1"), "tbl")));
     assertEquals(
         "BigLake database namespace must use format <catalog>.<database>, invalid namespace: n0.n1",
         exception.getMessage());

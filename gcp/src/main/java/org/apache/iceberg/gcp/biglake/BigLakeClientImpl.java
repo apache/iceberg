@@ -197,6 +197,9 @@ final class BigLakeClientImpl implements BigLakeClient {
 
   @Override
   public Table getTable(TableName name) {
+    if (name.getTable().isEmpty()) {
+      throw new NoSuchTableException("BigLake API does not allow tables with empty ID");
+    }
     return convertException(
         () -> {
           try {
@@ -271,7 +274,7 @@ final class BigLakeClientImpl implements BigLakeClient {
     try {
       return result.get();
     } catch (PermissionDeniedException e) {
-      throw new NotAuthorizedException(e, "Not authorized to call BigLake API");
+      throw new NotAuthorizedException(e, "BigLake API permission denied");
     } catch (com.google.api.gax.rpc.AlreadyExistsException e) {
       throw new AlreadyExistsException(e, "BigLake resource already exists");
     }

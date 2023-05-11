@@ -18,11 +18,11 @@
  */
 package org.apache.iceberg.gcp.biglake;
 
+import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.any;
-import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -30,15 +30,18 @@ import static org.mockito.Mockito.when;
 
 import com.google.api.gax.grpc.GrpcStatusCode;
 import com.google.api.gax.rpc.AbortedException;
-import com.google.cloud.bigquery.biglake.v1.Database;
-import com.google.cloud.bigquery.biglake.v1.DatabaseName;
-import com.google.cloud.bigquery.biglake.v1.HiveDatabaseOptions;
+import com.google.cloud.bigquery.biglake.v1.HiveTableOptions;
+import com.google.cloud.bigquery.biglake.v1.HiveTableOptions.StorageDescriptor;
 import com.google.cloud.bigquery.biglake.v1.Table;
 import com.google.cloud.bigquery.biglake.v1.TableName;
 import io.grpc.Status.Code;
+import java.io.File;
+import java.io.IOException;
+import java.util.Optional;
+import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.filefilter.TrueFileFilter;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.CatalogProperties;
-import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.CommitFailedException;
@@ -68,6 +71,11 @@ public class BigLakeTableOperationsTest {
       TableName.of(GCP_PROJECT, GCP_REGION, CATALOG_ID, DB_ID, TABLE_ID);
   private static final TableIdentifier SPARK_TABLE_ID = TableIdentifier.of(DB_ID, TABLE_ID);
 
+  private static final Schema SCHEMA =
+      new Schema(
+          required(1, "id", Types.IntegerType.get(), "unique ID"),
+          required(2, "data", Types.StringType.get()));
+
   @Mock private BigLakeClient bigLakeClient;
 
   private BigLakeCatalog bigLakeCatalog;
@@ -76,69 +84,26 @@ public class BigLakeTableOperationsTest {
 
   @Before
   public void before() throws Exception {
-    this.bigLakeCatalog = new BigLakeCatalog();
-    this.warehouseLocation = tempFolder.newFolder("hive-warehouse").toString();
-
-    bigLakeCatalog.setConf(new Configuration());
-    bigLakeCatalog.initialize(
-        CATALOG_ID,
-        /* properties= */ ImmutableMap.of(
+    warehouseLocation = tempFolder.newFolder("hive-warehouse").toString();
+    ImmutableMap<String, String> properties =
+        ImmutableMap.of(
             BigLakeCatalog.PROPERTIES_KEY_GCP_PROJECT,
             GCP_PROJECT,
             CatalogProperties.WAREHOUSE_LOCATION,
-            warehouseLocation),
-        GCP_PROJECT,
-        GCP_REGION,
-        bigLakeClient);
+            warehouseLocation);
+
+    bigLakeCatalog = new BigLakeCatalog();
+    bigLakeCatalog.setConf(new Configuration());
+    bigLakeCatalog.initialize(CATALOG_ID, properties, GCP_PROJECT, GCP_REGION, bigLakeClient);
     this.tableOps = (BigLakeTableOperations) bigLakeCatalog.newTableOps(SPARK_TABLE_ID);
   }
 
   @Test
-  public void testDoFresh_fetchLatestMetadataFromBigLake() throws Exception {
-    Table createdTable = createTestTable();
-    reset(bigLakeClient);
-    when(bigLakeClient.getTable(TABLE_NAME)).thenReturn(createdTable);
-
-    tableOps.refresh();
-    assertEquals(
-        createdTable
-            .getHiveOptions()
-            .getParametersOrDefault(BigLakeTestUtils.METADATA_LOCATION_PROP, ""),
-        tableOps.currentMetadataLocation());
-
-    reset(bigLakeClient);
-    when(bigLakeClient.getTable(TABLE_NAME))
-        .thenThrow(new NoSuchTableException("error message getTable"));
-    // Refresh fails when table is not found but metadata already presents.
-    assertThrows(NoSuchTableException.class, () -> tableOps.refresh());
-  }
-
-  @Test
-  public void testDoFresh_failForNonIcebergTable() throws Exception {
-    when(bigLakeClient.getTable(TABLE_NAME))
-        .thenReturn(Table.newBuilder().setName(TABLE_NAME.toString()).build());
-
-    Exception exception = assertThrows(IllegalArgumentException.class, () -> tableOps.refresh());
-    assertTrue(exception.getMessage().contains("metadata location not found"));
-  }
-
-  @Test
-  public void testDoFresh_noOpWhenMetadataAndTableNotFound() throws Exception {
-    when(bigLakeClient.getTable(TABLE_NAME))
-        .thenThrow(new NoSuchTableException("error message getTable"));
-    // Table not found won't cause errors when the metadata is null.
-    assertEquals(null, tableOps.currentMetadataLocation());
-    tableOps.refresh();
-  }
-
-  @Test
-  public void testTableName_asExpected() throws Exception {
-    assertEquals("biglake.db.tbl", tableOps.tableName());
-  }
-
-  @Test
   public void testDoCommit_useEtagForUpdateTable() throws Exception {
+    when(bigLakeClient.getTable(TABLE_NAME))
+        .thenThrow(new NoSuchTableException("error message getTable"));
     Table createdTable = createTestTable();
+
     Table tableWithEtag = createdTable.toBuilder().setEtag("etag").build();
     reset(bigLakeClient);
     when(bigLakeClient.getTable(TABLE_NAME)).thenReturn(tableWithEtag, tableWithEtag);
@@ -158,7 +123,10 @@ public class BigLakeTableOperationsTest {
 
   @Test
   public void testDoCommit_failWhenEtagMismatch() throws Exception {
+    when(bigLakeClient.getTable(TABLE_NAME))
+        .thenThrow(new NoSuchTableException("error message getTable"));
     Table createdTable = createTestTable();
+
     Table tableWithEtag = createdTable.toBuilder().setEtag("etag").build();
     reset(bigLakeClient);
     when(bigLakeClient.getTable(TABLE_NAME)).thenReturn(tableWithEtag, tableWithEtag);
@@ -177,46 +145,43 @@ public class BigLakeTableOperationsTest {
   }
 
   @Test
-  public void testDoCommit_failWhenMetadataLocationDiff() throws Exception {
-    Table createdTable = createTestTable();
-    Table tableWithEtag = createdTable.toBuilder().setEtag("etag").build();
-    Table.Builder tableWithNewMetadata = tableWithEtag.toBuilder();
-    tableWithNewMetadata
-        .getHiveOptionsBuilder()
-        .putParameters(BigLakeTestUtils.METADATA_LOCATION_PROP, "a new location");
-
-    reset(bigLakeClient);
-    // Two invocations, for loadTable and commit.
+  public void testDoFresh_refreshReturnNullForNonIcebergTable() throws Exception {
     when(bigLakeClient.getTable(TABLE_NAME))
-        .thenReturn(tableWithEtag, tableWithNewMetadata.build());
+        .thenReturn(Table.newBuilder().setName(TABLE_NAME.toString()).build());
 
-    org.apache.iceberg.Table loadedTable = bigLakeCatalog.loadTable(SPARK_TABLE_ID);
-
-    when(bigLakeClient.updateTableParameters(any(), any(), any())).thenReturn(tableWithEtag);
-    assertThrows(
-        CommitFailedException.class,
-        () -> loadedTable.updateSchema().addColumn("n", Types.IntegerType.get()).commit());
+    assertEquals(null, tableOps.refresh());
   }
 
-  @Test
-  public void testCreateTable_doCommitSucceeds() throws Exception {
-    when(bigLakeClient.getTable(TABLE_NAME))
-        .thenThrow(new NoSuchTableException("error message getTable"));
-    when(bigLakeClient.getDatabase(DatabaseName.of(GCP_PROJECT, GCP_REGION, CATALOG_ID, "db")))
-        .thenReturn(
-            Database.newBuilder()
-                .setHiveOptions(HiveDatabaseOptions.newBuilder().setLocationUri("db_folder"))
-                .build());
+  private Table createTestTable() throws IOException {
+    TableIdentifier tableIdent =
+        TableIdentifier.of(TABLE_NAME.getDatabase(), TABLE_NAME.getTable());
+    String tableDir = tempFolder.newFolder(TABLE_NAME.getTable()).toString();
 
-    Schema schema = BigLakeTestUtils.getTestSchema();
-    bigLakeCatalog.createTable(SPARK_TABLE_ID, schema, PartitionSpec.unpartitioned());
-    verify(bigLakeClient, times(1)).createTable(eq(TABLE_NAME), any());
+    bigLakeCatalog
+        .buildTable(tableIdent, SCHEMA)
+        .withLocation(tableDir)
+        .createTransaction()
+        .commitTransaction();
+
+    Optional<String> metadataLocation = getAnyIcebergMetadataFilePath(tableDir);
+    assertTrue(metadataLocation.isPresent());
+    return Table.newBuilder()
+        .setName(TABLE_NAME.toString())
+        .setHiveOptions(
+            HiveTableOptions.newBuilder()
+                .putParameters("metadata_location", metadataLocation.get())
+                .setStorageDescriptor(StorageDescriptor.newBuilder().setLocationUri(tableDir)))
+        .build();
   }
 
-  /** Creates a test table to have Iceberg metadata files in place. */
-  private Table createTestTable() throws Exception {
-    when(bigLakeClient.getTable(TABLE_NAME))
-        .thenThrow(new NoSuchTableException("error message getTable"));
-    return BigLakeTestUtils.createTestTable(tempFolder, bigLakeCatalog, TABLE_NAME);
+  private static Optional<String> getAnyIcebergMetadataFilePath(String tableDir)
+      throws IOException {
+    for (File file :
+        FileUtils.listFiles(new File(tableDir), TrueFileFilter.INSTANCE, TrueFileFilter.INSTANCE)) {
+      if (file.getCanonicalPath().endsWith(".json")) {
+        return Optional.of(file.getCanonicalPath());
+      }
+    }
+    return Optional.empty();
   }
 }
