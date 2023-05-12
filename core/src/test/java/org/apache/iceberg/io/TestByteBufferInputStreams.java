@@ -23,7 +23,6 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.List;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.assertj.core.api.Assertions;
 import org.junit.Assert;
@@ -210,10 +209,9 @@ public abstract class TestByteBufferInputStreams {
 
     Assert.assertEquals("Should consume all buffers", length, stream.getPos());
 
-    AssertHelpers.assertThrows(
-        "Should throw EOFException when empty",
-        EOFException.class,
-        () -> stream.sliceBuffers(length));
+    Assertions.assertThatThrownBy(() -> stream.sliceBuffers(length))
+        .isInstanceOf(EOFException.class)
+        .hasMessage(null);
 
     ByteBufferInputStream copy = ByteBufferInputStream.wrap(buffers);
     for (int i = 0; i < length; i += 1) {
