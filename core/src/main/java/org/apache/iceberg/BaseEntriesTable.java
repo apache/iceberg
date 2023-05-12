@@ -138,12 +138,12 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
                 entries(fileProjection),
                 entry -> (GenericManifestEntry<? extends ContentFile<?>>) entry);
 
-        StructProjection structProjection = projectNonReadable(projection);
+        StructProjection structProjection = structProjection(projection);
         return CloseableIterable.transform(entryAsStruct, structProjection::wrap);
       } else {
         Schema requiredFileProjection = requiredFileProjection();
         Schema actualProjection = removeReadableMetrics(readableMetricsField);
-        StructProjection structProjection = projectNonReadable(actualProjection);
+        StructProjection structProjection = structProjection(actualProjection);
 
         return CloseableIterable.transform(
             entries(requiredFileProjection),
@@ -152,8 +152,8 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
     }
 
     /**
-     * Remove virtual columns from the file projection and ensure that the underlying metrics used
-     * to create those columns are part of the file projection
+     * Ensure that the underlying metrics used to create those columns are part of the file
+     * projection
      *
      * @return file projection with required columns to read readable metrics
      */
@@ -171,7 +171,7 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
       return TypeUtil.selectNot(projection, readableMetricsIds);
     }
 
-    private StructProjection projectNonReadable(Schema projectedSchema) {
+    private StructProjection structProjection(Schema projectedSchema) {
       Schema manifestEntrySchema = ManifestEntry.wrapFileSchema(fileProjection.asStruct());
       return StructProjection.create(manifestEntrySchema, projectedSchema);
     }
