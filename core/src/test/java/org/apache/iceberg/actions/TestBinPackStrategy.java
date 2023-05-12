@@ -23,7 +23,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MockFileScanTask;
@@ -33,6 +32,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -307,46 +307,51 @@ public class TestBinPackStrategy extends TableTestBase {
 
   @Test
   public void testInvalidOptions() {
-    AssertHelpers.assertThrows(
-        "Should not allow max size smaller than target",
-        IllegalArgumentException.class,
-        () -> {
-          defaultBinPack()
-              .options(ImmutableMap.of(BinPackStrategy.MAX_FILE_SIZE_BYTES, Long.toString(1 * MB)));
-        });
+    Assertions.assertThatThrownBy(
+            () ->
+                defaultBinPack()
+                    .options(
+                        ImmutableMap.of(
+                            BinPackStrategy.MAX_FILE_SIZE_BYTES, Long.toString(1 * MB))))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith(
+            "Cannot set min-file-size-bytes greater than or equal to max-file-size-bytes");
 
-    AssertHelpers.assertThrows(
-        "Should not allow min size larger than target",
-        IllegalArgumentException.class,
-        () -> {
-          defaultBinPack()
-              .options(
-                  ImmutableMap.of(BinPackStrategy.MIN_FILE_SIZE_BYTES, Long.toString(1000 * MB)));
-        });
+    Assertions.assertThatThrownBy(
+            () ->
+                defaultBinPack()
+                    .options(
+                        ImmutableMap.of(
+                            BinPackStrategy.MIN_FILE_SIZE_BYTES, Long.toString(1000 * MB))))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith(
+            "Cannot set min-file-size-bytes greater than or equal to max-file-size-bytes");
 
-    AssertHelpers.assertThrows(
-        "Should not allow min input size smaller than 1",
-        IllegalArgumentException.class,
-        () -> {
-          defaultBinPack()
-              .options(ImmutableMap.of(BinPackStrategy.MIN_INPUT_FILES, Long.toString(-5)));
-        });
+    Assertions.assertThatThrownBy(
+            () ->
+                defaultBinPack()
+                    .options(ImmutableMap.of(BinPackStrategy.MIN_INPUT_FILES, Long.toString(-5))))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith(
+            "Cannot set min-input-files is less than 1. All values less than 1 have the same effect as 1");
 
-    AssertHelpers.assertThrows(
-        "Should not allow min deletes per file smaller than 1",
-        IllegalArgumentException.class,
-        () -> {
-          defaultBinPack()
-              .options(ImmutableMap.of(BinPackStrategy.DELETE_FILE_THRESHOLD, Long.toString(-5)));
-        });
+    Assertions.assertThatThrownBy(
+            () ->
+                defaultBinPack()
+                    .options(
+                        ImmutableMap.of(BinPackStrategy.DELETE_FILE_THRESHOLD, Long.toString(-5))))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith(
+            "Cannot set delete-file-threshold is less than 1. All values less than 1 have the same effect as 1");
 
-    AssertHelpers.assertThrows(
-        "Should not allow negative target size",
-        IllegalArgumentException.class,
-        () -> {
-          defaultBinPack()
-              .options(ImmutableMap.of(RewriteDataFiles.TARGET_FILE_SIZE_BYTES, Long.toString(-5)));
-        });
+    Assertions.assertThatThrownBy(
+            () ->
+                defaultBinPack()
+                    .options(
+                        ImmutableMap.of(
+                            RewriteDataFiles.TARGET_FILE_SIZE_BYTES, Long.toString(-5))))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Cannot set min-file-size-bytes to a negative number");
   }
 
   @Test

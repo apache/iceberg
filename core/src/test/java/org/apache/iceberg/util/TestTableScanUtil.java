@@ -22,7 +22,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.BaseCombinedScanTask;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.DataFile;
@@ -42,6 +41,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
 import org.mockito.Mockito;
@@ -237,11 +237,10 @@ public class TestTableScanUtil {
         ImmutableList.of(
             taskWithPartition(SPEC1, PARTITION1, 128), taskWithPartition(SPEC2, PARTITION2, 128));
 
-    AssertHelpers.assertThrows(
-        "Should throw exception",
-        IllegalArgumentException.class,
-        "Cannot find field",
-        () -> TableScanUtil.planTaskGroups(tasks2, 128, 10, 4, SPEC2.partitionType()));
+    Assertions.assertThatThrownBy(
+            () -> TableScanUtil.planTaskGroups(tasks2, 128, 10, 4, SPEC2.partitionType()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Cannot find field");
   }
 
   private PartitionScanTask taskWithPartition(
