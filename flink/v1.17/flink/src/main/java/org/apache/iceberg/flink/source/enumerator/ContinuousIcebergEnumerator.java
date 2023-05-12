@@ -28,7 +28,6 @@ import org.apache.flink.api.connector.source.SplitEnumeratorContext;
 import org.apache.iceberg.flink.source.ScanContext;
 import org.apache.iceberg.flink.source.assigner.SplitAssigner;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
-import org.apache.iceberg.util.Tasks;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -55,6 +54,9 @@ public class ContinuousIcebergEnumerator extends AbstractIcebergEnumerator {
 
   /** Track enumeration result history for split discovery throttling. */
   private final EnumerationHistory enumerationHistory;
+
+  /** Count the consecutive failures and throw exception if the max allowed failres are reached */
+  private transient int consecutiveFailures = 0;
 
   public ContinuousIcebergEnumerator(
       SplitEnumeratorContext<IcebergSourceSplit> enumeratorContext,
@@ -116,18 +118,14 @@ public class ContinuousIcebergEnumerator extends AbstractIcebergEnumerator {
       return new ContinuousEnumerationResult(
           Collections.emptyList(), enumeratorPosition.get(), enumeratorPosition.get());
     } else {
-      AtomicReference<ContinuousEnumerationResult> result = new AtomicReference<>();
-      Tasks.foreach(enumeratorPosition.get())
-          .retry(scanContext.maxAllowedPlanningFailures())
-          .throwFailureWhenFinished()
-          .run(position -> result.set(splitPlanner.planSplits(position)));
-      return result.get();
+      return splitPlanner.planSplits(enumeratorPosition.get());
     }
   }
 
   /** This method is executed in a single coordinator thread. */
   private void processDiscoveredSplits(ContinuousEnumerationResult result, Throwable error) {
     if (error == null) {
+      consecutiveFailures = 0;
       if (!Objects.equals(result.fromPosition(), enumeratorPosition.get())) {
         // Multiple discoverSplits() may be triggered with the same starting snapshot to the I/O
         // thread pool. E.g., the splitDiscoveryInterval is very short (like 10 ms in some unit
@@ -167,7 +165,9 @@ public class ContinuousIcebergEnumerator extends AbstractIcebergEnumerator {
         LOG.info("Update enumerator position to {}", result.toPosition());
       }
     } else {
-      if (scanContext.maxAllowedPlanningFailures() == -1) {
+      consecutiveFailures++;
+      if (scanContext.maxAllowedPlanningFailures() == -1
+          || consecutiveFailures < scanContext.maxAllowedPlanningFailures()) {
         // To have an option for the original behavior - unlimited retries without job failure
         LOG.error("Failed to discover new splits", error);
       } else {

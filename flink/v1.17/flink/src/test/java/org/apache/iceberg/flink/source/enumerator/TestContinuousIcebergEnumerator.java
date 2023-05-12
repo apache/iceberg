@@ -238,7 +238,7 @@ public class TestContinuousIcebergEnumerator {
             .maxPlanningSnapshotCount(1)
             .maxAllowedPlanningFailures(2)
             .build();
-    ManualContinuousSplitPlanner splitPlanner = new ManualContinuousSplitPlanner(scanContext, 2);
+    ManualContinuousSplitPlanner splitPlanner = new ManualContinuousSplitPlanner(scanContext, 1);
     ContinuousIcebergEnumerator enumerator =
         createEnumerator(enumeratorContext, scanContext, splitPlanner);
 
@@ -246,6 +246,7 @@ public class TestContinuousIcebergEnumerator {
     List<IcebergSourceSplit> splits =
         SplitHelpers.createSplitsFromTransientHadoopTable(TEMPORARY_FOLDER, 1, 1);
     splitPlanner.addSplits(splits);
+    enumeratorContext.triggerAllActions();
     enumeratorContext.triggerAllActions();
 
     // Check that we got the expected splits
@@ -275,6 +276,7 @@ public class TestContinuousIcebergEnumerator {
     List<IcebergSourceSplit> splits =
         SplitHelpers.createSplitsFromTransientHadoopTable(TEMPORARY_FOLDER, 1, 1);
     splitPlanner.addSplits(splits);
+    enumeratorContext.triggerAllActions();
     enumeratorContext.triggerAllActions();
 
     // Check that the task has failed with the expected exception
