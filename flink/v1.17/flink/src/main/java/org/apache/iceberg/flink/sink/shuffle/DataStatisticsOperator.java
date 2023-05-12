@@ -99,7 +99,8 @@ class DataStatisticsOperator<D extends DataStatistics<D, S>, S>
     Preconditions.checkArgument(
         event instanceof DataStatisticsEvent,
         "Received unexpected operator event " + event.getClass());
-    globalStatistics = ((DataStatisticsEvent) event).dataStatistics();
+    DataStatisticsEvent<D, S> statisticsEvent = (DataStatisticsEvent<D, S>) event;
+    globalStatistics = statisticsEvent.dataStatistics();
     output.collect(new StreamRecord<>(DataStatisticsOrRecord.fromDataStatistics(globalStatistics)));
   }
 
@@ -130,19 +131,19 @@ class DataStatisticsOperator<D extends DataStatistics<D, S>, S>
 
     // For now, we make it simple to send globalStatisticsState at checkpoint
     operatorEventGateway.sendEventToCoordinator(
-        new DataStatisticsEvent(checkpointId, localStatistics));
+        new DataStatisticsEvent<>(checkpointId, localStatistics));
 
     // Recreate the local statistics
     localStatistics = statisticsSerializer.createInstance();
   }
 
   @VisibleForTesting
-  DataStatistics localDataStatistics() {
+  DataStatistics<D, S> localDataStatistics() {
     return localStatistics;
   }
 
   @VisibleForTesting
-  DataStatistics globalDataStatistics() {
+  DataStatistics<D, S> globalDataStatistics() {
     return globalStatistics;
   }
 }
