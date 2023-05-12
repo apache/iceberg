@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.actions;
 import java.io.IOException;
 import java.math.RoundingMode;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -337,7 +338,7 @@ public class RewriteDataFilesSparkAction
         commitManager.service(groupsPerCommit);
     commitService.start();
 
-    List<FileGroupFailureResult> rewriteFailures = Lists.newCopyOnWriteArrayList();
+    Collection<FileGroupFailureResult> rewriteFailures = new ConcurrentLinkedQueue<>();
     // Start rewrite tasks
     Tasks.foreach(groupStream)
         .suppressFailureWhenFinished()
