@@ -152,8 +152,8 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
     }
 
     /**
-     * Ensure that the underlying metrics used to create those columns are part of the file
-     * projection
+     * Ensure that the underlying metrics used to populate readable metrics column are part of the
+     * file projection
      *
      * @return file projection with required columns to read readable metrics
      */
