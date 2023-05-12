@@ -28,7 +28,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
-import org.apache.iceberg.aws.AwsClientFactories;
 import org.apache.iceberg.aws.AwsClientFactory;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.io.BulkDeletionFailureException;
@@ -364,11 +363,16 @@ public class S3FileIO
 
     // Do not override s3 client if it was provided
     if (s3 == null) {
-      AwsClientFactory clientFactory = AwsClientFactories.from(props);
+      Object clientFactory = S3FileIOAwsClientFactory.getS3ClientFactoryImpl(props);
       if (clientFactory instanceof CredentialSupplier) {
         this.credential = ((CredentialSupplier) clientFactory).getCredential();
       }
-      this.s3 = clientFactory::s3;
+      if (clientFactory instanceof S3FileIOAwsClientFactory) {
+        this.s3 = ((S3FileIOAwsClientFactory) clientFactory)::s3;
+      }
+      if (clientFactory instanceof AwsClientFactory) {
+        this.s3 = ((AwsClientFactory) clientFactory)::s3;
+      }
       if (s3FileIOProperties.isPreloadClientEnabled()) {
         client();
       }

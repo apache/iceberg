@@ -31,12 +31,6 @@ public class S3FileIOAwsClientFactory {
   private final HttpClientProperties httpClientProperties;
   private final AwsClientProperties awsClientProperties;
 
-  S3FileIOAwsClientFactory() {
-    this.s3FileIOProperties = new S3FileIOProperties();
-    this.httpClientProperties = new HttpClientProperties();
-    this.awsClientProperties = new AwsClientProperties();
-  }
-
   S3FileIOAwsClientFactory(
       S3FileIOProperties s3FileIOProperties,
       HttpClientProperties httpClientProperties,
@@ -59,7 +53,7 @@ public class S3FileIOAwsClientFactory {
     return (T) AwsClientFactories.from(properties);
   }
 
-  S3Client s3Client() {
+  S3Client s3() {
     return S3Client.builder()
         .applyMutation(awsClientProperties::applyClientRegionConfiguration)
         .applyMutation(httpClientProperties::applyHttpClientConfigurations)
