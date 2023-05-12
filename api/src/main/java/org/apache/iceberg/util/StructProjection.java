@@ -189,16 +189,20 @@ public class StructProjection implements StructLike {
 
   @Override
   public <T> T get(int pos, Class<T> javaClass) {
+    // struct can be null if wrap is not called first before the get call
+    // or if a null struct is wrapped.
     if (struct == null) {
-      // Return a null struct when projecting a nested required field from an optional struct.
-      // See more details in issue #2738.
       return null;
     }
 
     int structPos = positionMap[pos];
-
     if (nestedProjections[pos] != null) {
-      return javaClass.cast(nestedProjections[pos].wrap(struct.get(structPos, StructLike.class)));
+      StructLike nestedStruct = struct.get(structPos, StructLike.class);
+      if (nestedStruct == null) {
+        return null;
+      }
+
+      return javaClass.cast(nestedProjections[pos].wrap(nestedStruct));
     }
 
     if (structPos != -1) {
