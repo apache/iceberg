@@ -26,7 +26,14 @@ import org.apache.iceberg.util.PropertyUtil;
 import software.amazon.awssdk.services.s3.S3Client;
 
 public class S3FileIOAwsClientFactory {
+  /**
+   * This property allows customizing AWS client factory implementation class. If this property is
+   * set, only {@link S3FileIOAwsClientFactory} class will be instantiated. If this property wasn't
+   * set, will load one of {@link org.apache.iceberg.aws.AwsClientFactory} factory classes to
+   * provide backward compatibility.
+   */
   public static final String CLIENT_FACTORY = "s3.client-factory-impl";
+
   private final S3FileIOProperties s3FileIOProperties;
   private final HttpClientProperties httpClientProperties;
   private final AwsClientProperties awsClientProperties;
@@ -40,6 +47,16 @@ public class S3FileIOAwsClientFactory {
     this.awsClientProperties = awsClientProperties;
   }
 
+  /**
+   * Returns an instance of a client factory class based on properties. If the {@value
+   * #CLIENT_FACTORY} is set, will return an instance of type {@link S3FileIOAwsClientFactory}.
+   * Otherwise, will return an instance of type {@link org.apache.iceberg.aws.AwsClientFactory} for
+   * backward compatibility. To provide
+   *
+   * @param properties catalog properties
+   * @param <T> a java return type
+   * @return factory class object
+   */
   @SuppressWarnings("unchecked")
   public static <T> T getS3ClientFactoryImpl(Map<String, String> properties) {
     boolean useS3FileIO = PropertyUtil.propertyAsBoolean(properties, CLIENT_FACTORY, false);
