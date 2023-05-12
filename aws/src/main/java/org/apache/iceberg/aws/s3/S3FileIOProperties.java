@@ -41,6 +41,14 @@ import software.amazon.awssdk.services.s3.model.ObjectCannedACL;
 import software.amazon.awssdk.services.s3.model.Tag;
 
 public class S3FileIOProperties implements Serializable {
+  /**
+   * This property is used to pass in the aws client factory implementation class for S3 FileIO. The
+   * class should implement {@link S3FileIOAwsClientFactory}. For example, {@link
+   * DefaultS3FileIOAwsClientFactory} implements {@link S3FileIOAwsClientFactory}. If this property
+   * wasn't set, will load one of {@link org.apache.iceberg.aws.AwsClientFactory} factory classes to
+   * provide backward compatibility.
+   */
+  public static final String CLIENT_FACTORY = "s3.client-factory-impl";
 
   /**
    * Type of S3 Server side encryption used, default to {@link S3FileIOProperties#SSE_TYPE_NONE}.

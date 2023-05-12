@@ -16,43 +16,38 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.aws.s3;
+package org.apache.iceberg.aws;
 
 import java.util.Map;
-import org.apache.iceberg.aws.AwsClientFactory;
+import org.apache.iceberg.aws.s3.DefaultS3FileIOAwsClientFactory;
+import org.apache.iceberg.aws.s3.S3FileIOProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
-public class TestS3FileIOAwsClientFactory {
+public class TestS3FileIOAwsClientFactories {
 
   @Test
-  public void testS3FileIOImplSetToTrue() {
+  public void testS3FileIOImplCatalogPropertyDefined() {
     Map<String, String> properties = Maps.newHashMap();
-    properties.put(S3FileIOAwsClientFactory.CLIENT_FACTORY, "true");
-    Object factoryImpl = S3FileIOAwsClientFactory.getS3ClientFactoryImpl(properties);
-    Assertions.assertThat(factoryImpl instanceof S3FileIOAwsClientFactory)
+    properties.put(
+        S3FileIOProperties.CLIENT_FACTORY,
+        "org.apache.iceberg.aws.s3.DefaultS3FileIOAwsClientFactory");
+    Object factoryImpl = S3FileIOAwsClientFactories.initFactory(properties);
+    Assertions.assertThat(factoryImpl)
         .withFailMessage(
             "should instantiate an object of type S3FileIOAwsClientFactory when s3.client-factory-impl is set")
-        .isTrue();
-    assert factoryImpl instanceof S3FileIOAwsClientFactory;
-    Assertions.assertThat(((S3FileIOAwsClientFactory) factoryImpl).s3())
-        .withFailMessage("should be able to create s3 client using S3FileIOAwsClientFactory")
-        .isNotNull();
+        .isInstanceOf(DefaultS3FileIOAwsClientFactory.class);
   }
 
   @Test
-  public void testS3FileIOImplSetToFalse() {
+  public void testS3FileIOImplCatalogPropertyNotDefined() {
+    // don't set anything
     Map<String, String> properties = Maps.newHashMap();
-    properties.put(S3FileIOAwsClientFactory.CLIENT_FACTORY, "false");
-    Object factoryImpl = S3FileIOAwsClientFactory.getS3ClientFactoryImpl(properties);
-    Assertions.assertThat(factoryImpl instanceof AwsClientFactory)
+    Object factoryImpl = S3FileIOAwsClientFactories.initFactory(properties);
+    Assertions.assertThat(factoryImpl)
         .withFailMessage(
             "should instantiate an object of type AwsClientFactory when s3.client-factory-impl is set to false")
-        .isTrue();
-    assert factoryImpl instanceof AwsClientFactory;
-    Assertions.assertThat(((AwsClientFactory) factoryImpl).s3())
-        .withFailMessage("should be able to create s3 client using AwsClientFactory")
-        .isNotNull();
+        .isInstanceOf(AwsClientFactory.class);
   }
 }

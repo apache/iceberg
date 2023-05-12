@@ -149,7 +149,9 @@ public class TestS3FileIOIntegration {
         RequestBody.fromBytes(contentBytes));
     S3FileIO s3FileIO = new S3FileIO();
     Map<String, String> properties = Maps.newHashMap();
-    properties.put(S3FileIOAwsClientFactory.CLIENT_FACTORY, "true");
+    properties.put(
+        S3FileIOProperties.CLIENT_FACTORY,
+        "org.apache.iceberg.aws.s3.DefaultS3FileIOAwsClientFactory");
     s3FileIO.initialize(properties);
     validateRead(s3FileIO);
   }
@@ -161,7 +163,9 @@ public class TestS3FileIOIntegration {
         RequestBody.fromBytes(contentBytes));
     S3FileIO s3FileIO = new S3FileIO();
     Map<String, String> properties = Maps.newHashMap();
-    properties.put(S3FileIOAwsClientFactory.CLIENT_FACTORY, "false");
+    properties.put(
+        S3FileIOProperties.CLIENT_FACTORY,
+        "org.apache.iceberg.aws.s3.DefaultS3FileIOAwsClientFactory");
     s3FileIO.initialize(properties);
     validateRead(s3FileIO);
   }
