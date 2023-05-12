@@ -6,6 +6,7 @@ aliases:
 menu:
     main:
         parent: Tables
+        identifier: tables_configuration
         weight: 0
 ---
 <!--

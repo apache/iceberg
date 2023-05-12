@@ -6,6 +6,7 @@ aliases:
 menu:
     main:
         parent: Flink
+        identifier: flink_configuration
         weight: 600
 ---
 <!--
