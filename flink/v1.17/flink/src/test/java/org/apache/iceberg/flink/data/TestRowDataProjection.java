@@ -36,9 +36,22 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.StructProjection;
 import org.assertj.core.api.Assertions;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestRowDataProjection {
+  @Test
+  public void testNullRootRowData() {
+    Schema schema =
+        new Schema(
+            Types.NestedField.required(0, "id", Types.LongType.get()),
+            Types.NestedField.optional(1, "data", Types.StringType.get()));
+
+    RowDataProjection projection = RowDataProjection.create(schema, schema.select("id"));
+
+    Assertions.assertThatThrownBy(() -> projection.wrap(null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid row data: null");
+  }
 
   @Test
   public void testFullProjection() {

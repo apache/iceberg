@@ -158,11 +158,17 @@ public class RowDataProjection implements RowData {
   }
 
   public RowData wrap(RowData row) {
+    // StructProjection allow wrapping null root struct object.
+    // See more discussions in https://github.com/apache/iceberg/pull/7517.
+    // RowDataProjection never allowed null root object to be wrapped.
+    // Hence, it is fine to enforce strict Preconditions check here.
+    Preconditions.checkArgument(row != null, "Invalid row data: null");
     this.rowData = row;
     return this;
   }
 
   private Object getValue(int pos) {
+    Preconditions.checkState(rowData != null, "Row data not wrapped");
     return getters[pos].getFieldOrNull(rowData);
   }
 
@@ -173,8 +179,8 @@ public class RowDataProjection implements RowData {
 
   @Override
   public RowKind getRowKind() {
-    // rowData can be null for nested struct
-    return rowData != null ? rowData.getRowKind() : RowKind.INSERT;
+    Preconditions.checkState(rowData != null, "Row data not wrapped");
+    return rowData.getRowKind();
   }
 
   @Override
@@ -184,7 +190,7 @@ public class RowDataProjection implements RowData {
 
   @Override
   public boolean isNullAt(int pos) {
-    return rowData == null || getValue(pos) == null;
+    return getValue(pos) == null;
   }
 
   @Override
@@ -292,10 +298,6 @@ public class RowDataProjection implements RowData {
 
   @Override
   public String toString() {
-    if (rowData == null) {
-      return "null";
-    }
-
     StringBuilder sb = new StringBuilder();
     sb.append(getRowKind().shortString()).append("(");
     for (int pos = 0; pos < getArity(); pos++) {
