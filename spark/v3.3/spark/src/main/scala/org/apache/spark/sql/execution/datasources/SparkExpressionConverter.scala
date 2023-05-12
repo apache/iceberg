@@ -25,6 +25,7 @@ import org.apache.spark.sql.AnalysisException
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.expressions.Attribute
 import org.apache.spark.sql.catalyst.expressions.Expression
+import org.apache.spark.sql.catalyst.expressions.Literal
 import org.apache.spark.sql.catalyst.plans.logical.Filter
 import org.apache.spark.sql.catalyst.plans.logical.LeafNode
 import org.apache.spark.sql.catalyst.plans.logical.LocalRelation
@@ -39,17 +40,15 @@ object SparkExpressionConverter {
   }
 
   @throws[AnalysisException]
-  def collectResolvedIcebergExpression(session: SparkSession,
-                                       tableName: String,
-                                       where: String): org.apache.iceberg.expressions.Expression = {
+  def collectResolvedSparkExpression(session: SparkSession, tableName: String, where: String): Expression = {
     val tableAttrs = session.table(tableName).queryExecution.analyzed.output
     val unresolvedExpression = session.sessionState.sqlParser.parseExpression(where)
     val filter = Filter(unresolvedExpression, DummyRelation(tableAttrs))
     val optimizedLogicalPlan = session.sessionState.executePlan(filter).optimizedPlan
     optimizedLogicalPlan.collectFirst {
-      case filter: Filter => convertToIcebergExpression(filter.condition)
-      case dummyRelation: DummyRelation => Expressions.alwaysTrue()
-      case localRelation: LocalRelation => Expressions.alwaysFalse()
+      case filter: Filter => filter.condition
+      case dummyRelation: DummyRelation => Literal.TrueLiteral
+      case localRelation: LocalRelation => Literal.FalseLiteral
     }.getOrElse(throw new AnalysisException("Failed to find filter expression"))
   }
 

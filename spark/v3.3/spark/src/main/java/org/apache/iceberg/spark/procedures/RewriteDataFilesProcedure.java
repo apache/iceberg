@@ -24,7 +24,6 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.RewriteDataFiles;
-import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.NamedReference;
 import org.apache.iceberg.expressions.Zorder;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -34,6 +33,7 @@ import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.procedures.SparkProcedures.ProcedureBuilder;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.catalyst.InternalRow;
+import org.apache.spark.sql.catalyst.expressions.Expression;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.apache.spark.sql.connector.iceberg.catalog.ProcedureParameter;
@@ -131,8 +131,8 @@ class RewriteDataFilesProcedure extends BaseProcedure {
     if (where != null) {
       try {
         Expression expression =
-            SparkExpressionConverter.collectResolvedIcebergExpression(spark(), tableName, where);
-        return action.filter(expression);
+            SparkExpressionConverter.collectResolvedSparkExpression(spark(), tableName, where);
+        return action.filter(SparkExpressionConverter.convertToIcebergExpression(expression));
       } catch (AnalysisException e) {
         throw new IllegalArgumentException("Cannot parse predicates in where option: " + where);
       }
