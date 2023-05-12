@@ -19,7 +19,7 @@
 package org.apache.iceberg.aws;
 
 import java.util.Map;
-import org.apache.iceberg.aws.s3.DefaultS3FileIOAwsClientFactory;
+import org.apache.iceberg.aws.s3.S3FileIOAwsClientFactory;
 import org.apache.iceberg.aws.s3.S3FileIOProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.assertj.core.api.Assertions;
@@ -37,7 +37,7 @@ public class TestS3FileIOAwsClientFactories {
     Assertions.assertThat(factoryImpl)
         .withFailMessage(
             "should instantiate an object of type S3FileIOAwsClientFactory when s3.client-factory-impl is set")
-        .isInstanceOf(DefaultS3FileIOAwsClientFactory.class);
+        .isInstanceOf(S3FileIOAwsClientFactory.class);
   }
 
   @Test
