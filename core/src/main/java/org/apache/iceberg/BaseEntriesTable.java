@@ -96,7 +96,7 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
 
   static class ManifestReadTask extends BaseFileScanTask implements DataTask {
     private final Schema projection;
-    private final Schema fileSchema;
+    private final Schema fileProjection;
     private final Schema dataTableSchema;
     private final FileIO io;
     private final ManifestFile manifest;
@@ -116,10 +116,10 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
       this.specsById = Maps.newHashMap(table.specs());
       this.dataTableSchema = table.schema();
 
-      Type fileProjection = projection.findType("data_file");
-      this.fileSchema =
-          fileProjection != null
-              ? new Schema(fileProjection.asStructType().fields())
+      Type fileProjectionType = projection.findType("data_file");
+      this.fileProjection =
+          fileProjectionType != null
+              ? new Schema(fileProjectionType.asStructType().fields())
               : new Schema();
     }
 
@@ -135,52 +135,65 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
       if (readableMetricsField == null) {
         CloseableIterable<StructLike> entryAsStruct =
             CloseableIterable.transform(
-                entries(fileSchema),
+                entries(fileProjection),
                 entry -> (GenericManifestEntry<? extends ContentFile<?>>) entry);
 
         StructProjection structProjection = projectNonReadable(projection);
         return CloseableIterable.transform(entryAsStruct, structProjection::wrap);
       } else {
-        Set<Integer> readableMetricsIds = TypeUtil.getProjectedIds(readableMetricsField.type());
-        int metricsPosition = projection.columns().indexOf(readableMetricsField);
-        Schema projectedSchemaMinusReadableMetrics =
-            TypeUtil.selectNot(projection, readableMetricsIds);
-        // Remove virtual columns from the file projection and ensure that the underlying metrics
-        // used to create those columns are part of the file projection
-        Schema projectionForReadableMetrics =
-            new Schema(
-                MetricsUtil.READABLE_METRIC_COLS.stream()
-                    .map(MetricsUtil.ReadableMetricColDefinition::originalCol)
-                    .collect(Collectors.toList()));
+        Schema requiredFileProjection = requiredFileProjection();
+        Schema actualProjection = removeReadableMetrics(readableMetricsField);
+        StructProjection structProjection = projectNonReadable(actualProjection);
 
-        Schema projectionForMetrics = TypeUtil.join(fileSchema, projectionForReadableMetrics);
         return CloseableIterable.transform(
-            entries(projectionForMetrics),
-            entry ->
-                withReadableMetrics(projectedSchemaMinusReadableMetrics, entry, metricsPosition));
+            entries(requiredFileProjection),
+            entry -> withReadableMetrics(structProjection, entry, readableMetricsField));
       }
     }
 
-    private CloseableIterable<? extends ManifestEntry<? extends ContentFile<?>>> entries(
-        Schema fileProjection) {
-      return ManifestFiles.open(manifest, io, specsById).project(fileProjection).entries();
+    /**
+     * Remove virtual columns from the file projection and ensure that the underlying metrics used
+     * to create those columns are part of the file projection
+     *
+     * @return file projection with required columns to read readable metrics
+     */
+    private Schema requiredFileProjection() {
+      Schema projectionForReadableMetrics =
+          new Schema(
+              MetricsUtil.READABLE_METRIC_COLS.stream()
+                  .map(MetricsUtil.ReadableMetricColDefinition::originalCol)
+                  .collect(Collectors.toList()));
+      return TypeUtil.join(fileProjection, projectionForReadableMetrics);
+    }
+
+    private Schema removeReadableMetrics(Types.NestedField readableMetricsField) {
+      Set<Integer> readableMetricsIds = TypeUtil.getProjectedIds(readableMetricsField.type());
+      return TypeUtil.selectNot(projection, readableMetricsIds);
     }
 
     private StructProjection projectNonReadable(Schema projectedSchema) {
-      Schema manifestEntrySchema = ManifestEntry.wrapFileSchema(fileSchema.asStruct());
+      Schema manifestEntrySchema = ManifestEntry.wrapFileSchema(fileProjection.asStruct());
       return StructProjection.create(manifestEntrySchema, projectedSchema);
     }
 
+    private CloseableIterable<? extends ManifestEntry<? extends ContentFile<?>>> entries(
+        Schema newFileProjection) {
+      return ManifestFiles.open(manifest, io, specsById).project(newFileProjection).entries();
+    }
+
     private StructLike withReadableMetrics(
-        Schema projectedSchema,
+        StructProjection structProjection,
         ManifestEntry<? extends ContentFile<?>> entry,
-        int metricsPosition) {
+        Types.NestedField readableMetricsField) {
       int projectionColumnCount = projection.columns().size();
+      int metricsPosition = projection.columns().indexOf(readableMetricsField);
+
+      StructProjection entryStruct = structProjection.wrap((StructLike) entry);
+
       StructType projectedMetricType =
           projection.findField(MetricsUtil.READABLE_METRICS).type().asStructType();
       MetricsUtil.ReadableMetricsStruct readableMetrics =
           MetricsUtil.readableMetricsStruct(dataTableSchema, entry.file(), projectedMetricType);
-      StructProjection entryStruct = projectNonReadable(projectedSchema).wrap((StructLike) entry);
 
       return new ManifestEntryStructWithMetrics(
           projectionColumnCount, metricsPosition, entryStruct, readableMetrics);
