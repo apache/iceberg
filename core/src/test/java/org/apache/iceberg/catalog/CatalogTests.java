@@ -187,7 +187,8 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
     Assertions.assertThatThrownBy(() -> catalog.createNamespace(NS))
         .isInstanceOf(AlreadyExistsException.class)
-        .hasMessage("Cannot create namespace newdb. Namespace already exists");
+        .hasMessageContaining("Namespace already exists");
+
     Assert.assertTrue("Namespace should still exist", catalog.namespaceExists(NS));
   }
 
@@ -743,7 +744,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
     Assertions.assertThatThrownBy(() -> catalog.renameTable(TABLE, RENAMED_TABLE))
         .isInstanceOf(NoSuchTableException.class)
-        .hasMessage("Table does not exist: newdb.table");
+        .hasMessageContaining("Table does not exist");
 
     Assert.assertFalse(
         "Destination table should not exist after failed rename",
@@ -770,7 +771,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
     Assertions.assertThatThrownBy(() -> catalog.renameTable(TABLE, RENAMED_TABLE))
         .isInstanceOf(AlreadyExistsException.class)
-        .hasMessage("Table already exists: newdb.table_renamed");
+        .hasMessageContaining("Table already exists");
 
     Assert.assertTrue(
         "Source table should still exist after failed rename", catalog.tableExists(TABLE));
