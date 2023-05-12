@@ -27,7 +27,6 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
-import org.apache.arrow.vector.NullCheckingForGet;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.Files;
@@ -194,11 +193,7 @@ public class TestSparkParquetReadMetadataColumns {
     builder.createBatchedReaderFunc(
         fileSchema ->
             VectorizedSparkParquetReaders.buildReader(
-                PROJECTION_SCHEMA,
-                fileSchema,
-                NullCheckingForGet.NULL_CHECKING_ENABLED,
-                Maps.newHashMap(),
-                deleteFilter));
+                PROJECTION_SCHEMA, fileSchema, Maps.newHashMap(), deleteFilter));
     builder.recordsPerBatch(RECORDS_PER_BATCH);
 
     validate(expectedRowsAfterDelete, builder);
@@ -274,7 +269,7 @@ public class TestSparkParquetReadMetadataColumns {
       builder.createBatchedReaderFunc(
           fileSchema ->
               VectorizedSparkParquetReaders.buildReader(
-                  PROJECTION_SCHEMA, fileSchema, NullCheckingForGet.NULL_CHECKING_ENABLED));
+                  PROJECTION_SCHEMA, fileSchema, Maps.newHashMap(), null));
       builder.recordsPerBatch(RECORDS_PER_BATCH);
     } else {
       builder =
