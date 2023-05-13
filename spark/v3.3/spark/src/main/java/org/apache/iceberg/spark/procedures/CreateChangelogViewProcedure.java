@@ -185,7 +185,7 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
             .filter(c -> !c.equals(MetadataColumns.CHANGE_TYPE.name()))
             .map(df::col)
             .toArray(Column[]::new);
-    return applyChangelogIterator(df, repartitionSpec);
+    return applyCarryoverRemoveIterator(df, repartitionSpec);
   }
 
   private String[] identifierColumns(ProcedureInput input, Identifier tableIdent) {
@@ -223,7 +223,20 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
         .sortWithinPartitions(sortSpec)
         .mapPartitions(
             (MapPartitionsFunction<Row, Row>)
-                rowIterator -> ChangelogIterator.create(rowIterator, schema, identifierFields),
+                rowIterator ->
+                    ChangelogIterator.computeUpdates(rowIterator, schema, identifierFields),
+            RowEncoder.apply(schema));
+  }
+
+  private Dataset<Row> applyCarryoverRemoveIterator(Dataset<Row> df, Column[] repartitionSpec) {
+    Column[] sortSpec = sortSpec(df, repartitionSpec);
+    StructType schema = df.schema();
+
+    return df.repartition(repartitionSpec)
+        .sortWithinPartitions(sortSpec)
+        .mapPartitions(
+            (MapPartitionsFunction<Row, Row>)
+                rowIterator -> ChangelogIterator.removeCarryovers(rowIterator, schema),
             RowEncoder.apply(schema));
   }
 

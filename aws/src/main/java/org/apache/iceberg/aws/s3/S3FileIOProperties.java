@@ -19,15 +19,24 @@
 package org.apache.iceberg.aws.s3;
 
 import java.io.Serializable;
+import java.net.URI;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import org.apache.iceberg.aws.AwsClientProperties;
 import org.apache.iceberg.aws.glue.GlueCatalog;
+import org.apache.iceberg.aws.s3.signer.S3V4RestSignerClient;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.PropertyUtil;
+import org.apache.iceberg.util.SerializableMap;
+import software.amazon.awssdk.auth.credentials.AnonymousCredentialsProvider;
+import software.amazon.awssdk.core.client.config.SdkAdvancedClientOption;
+import software.amazon.awssdk.services.s3.S3ClientBuilder;
+import software.amazon.awssdk.services.s3.S3Configuration;
 import software.amazon.awssdk.services.s3.model.ObjectCannedACL;
 import software.amazon.awssdk.services.s3.model.Tag;
 
@@ -351,6 +360,7 @@ public class S3FileIOProperties implements Serializable {
   private boolean isAccelerationEnabled;
   private String endpoint;
   private final boolean isRemoteSigningEnabled;
+  private final Map<String, String> allProperties;
 
   public S3FileIOProperties() {
     this.sseType = SSE_TYPE_NONE;
@@ -380,6 +390,7 @@ public class S3FileIOProperties implements Serializable {
     this.isUseArnRegionEnabled = USE_ARN_REGION_ENABLED_DEFAULT;
     this.isAccelerationEnabled = ACCELERATION_ENABLED_DEFAULT;
     this.isRemoteSigningEnabled = REMOTE_SIGNING_ENABLED_DEFAULT;
+    this.allProperties = Maps.newHashMap();
 
     ValidationException.check(
         keyIdAccessKeyBothConfigured(),
@@ -467,6 +478,7 @@ public class S3FileIOProperties implements Serializable {
     this.isRemoteSigningEnabled =
         PropertyUtil.propertyAsBoolean(
             properties, REMOTE_SIGNING_ENABLED, REMOTE_SIGNING_ENABLED_DEFAULT);
+    this.allProperties = SerializableMap.copyOf(properties);
 
     ValidationException.check(
         keyIdAccessKeyBothConfigured(),
@@ -649,5 +661,67 @@ public class S3FileIOProperties implements Serializable {
 
   private boolean keyIdAccessKeyBothConfigured() {
     return (accessKeyId == null) == (secretAccessKey == null);
+  }
+
+  public <T extends S3ClientBuilder> void applyCredentialConfigurations(
+      AwsClientProperties awsClientProperties, T builder) {
+    builder.credentialsProvider(
+        isRemoteSigningEnabled
+            ? AnonymousCredentialsProvider.create()
+            : awsClientProperties.credentialsProvider(accessKeyId, secretAccessKey, sessionToken));
+  }
+
+  /**
+   * Configure services settings for an S3 client. The settings include: s3DualStack,
+   * s3UseArnRegion, s3PathStyleAccess, and s3Acceleration
+   *
+   * <p>Sample usage:
+   *
+   * <pre>
+   *     S3Client.builder().applyMutation(s3FileIOProperties::applyS3ServiceConfigurations)
+   * </pre>
+   */
+  public <T extends S3ClientBuilder> void applyServiceConfigurations(T builder) {
+    builder
+        .dualstackEnabled(isDualStackEnabled)
+        .serviceConfiguration(
+            S3Configuration.builder()
+                .pathStyleAccessEnabled(isPathStyleAccess)
+                .useArnRegionEnabled(isUseArnRegionEnabled)
+                .accelerateModeEnabled(isAccelerationEnabled)
+                .build());
+  }
+
+  /**
+   * Configure a signer for an S3 client.
+   *
+   * <p>Sample usage:
+   *
+   * <pre>
+   *     S3Client.builder().applyMutation(s3FileIOProperties::applyS3SignerConfiguration)
+   * </pre>
+   */
+  public <T extends S3ClientBuilder> void applySignerConfiguration(T builder) {
+    if (isRemoteSigningEnabled) {
+      builder.overrideConfiguration(
+          c ->
+              c.putAdvancedOption(
+                  SdkAdvancedClientOption.SIGNER, S3V4RestSignerClient.create(allProperties)));
+    }
+  }
+
+  /**
+   * Override the endpoint for an S3 client.
+   *
+   * <p>Sample usage:
+   *
+   * <pre>
+   *     S3Client.builder().applyMutation(awsProperties::applyS3EndpointConfigurations)
+   * </pre>
+   */
+  public <T extends S3ClientBuilder> void applyEndpointConfigurations(T builder) {
+    if (endpoint != null) {
+      builder.endpointOverride(URI.create(endpoint));
+    }
   }
 }

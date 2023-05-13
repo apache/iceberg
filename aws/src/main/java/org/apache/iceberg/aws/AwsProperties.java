@@ -470,7 +470,11 @@ public class AwsProperties implements Serializable {
    * org.apache.iceberg.aws.AwsClientFactories.DefaultAwsClientFactory} and also other client
    * factory classes will use this provider to get AWS credentials provided instead of reading the
    * default credential chain to get AWS access credentials.
+   *
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.AwsClientProperties}
+   *     instead
    */
+  @Deprecated
   public static final String CLIENT_CREDENTIALS_PROVIDER = "client.credentials-provider";
 
   /**
@@ -478,39 +482,59 @@ public class AwsProperties implements Serializable {
    * org.apache.iceberg.aws.AwsClientFactories.DefaultAwsClientFactory} and also other client
    * factory classes to pass provider-specific properties. Each property consists of a key name and
    * an associated value.
+   *
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.AwsClientProperties}
+   *     instead
    */
+  @Deprecated
   private static final String CLIENT_CREDENTIAL_PROVIDER_PREFIX = "client.credentials-provider.";
 
   /**
    * Used by {@link org.apache.iceberg.aws.AwsClientFactories.DefaultAwsClientFactory} and also
    * other client factory classes. If set, all AWS clients except STS client will use the given
    * region instead of the default region chain.
+   *
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.AwsClientProperties}
+   *     instead
    */
-  public static final String CLIENT_REGION = "client.region";
+  @Deprecated public static final String CLIENT_REGION = "client.region";
 
   /**
    * The type of {@link software.amazon.awssdk.http.SdkHttpClient} implementation used by {@link
    * AwsClientFactory} If set, all AWS clients will use this specified HTTP client. If not set,
    * {@link #HTTP_CLIENT_TYPE_DEFAULT} will be used. For specific types supported, see
    * HTTP_CLIENT_TYPE_* defined below.
+   *
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.HttpClientProperties}
+   *     instead
    */
-  public static final String HTTP_CLIENT_TYPE = "http-client.type";
+  @Deprecated public static final String HTTP_CLIENT_TYPE = "http-client.type";
 
   /**
    * If this is set under {@link #HTTP_CLIENT_TYPE}, {@link
    * software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient} will be used as the HTTP
    * Client in {@link AwsClientFactory}
+   *
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.HttpClientProperties}
+   *     instead
    */
-  public static final String HTTP_CLIENT_TYPE_URLCONNECTION = "urlconnection";
+  @Deprecated public static final String HTTP_CLIENT_TYPE_URLCONNECTION = "urlconnection";
 
   /**
    * If this is set under {@link #HTTP_CLIENT_TYPE}, {@link
    * software.amazon.awssdk.http.apache.ApacheHttpClient} will be used as the HTTP Client in {@link
    * AwsClientFactory}
+   *
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.HttpClientProperties}
+   *     instead
    */
-  public static final String HTTP_CLIENT_TYPE_APACHE = "apache";
+  @Deprecated public static final String HTTP_CLIENT_TYPE_APACHE = "apache";
 
-  public static final String HTTP_CLIENT_TYPE_DEFAULT = HTTP_CLIENT_TYPE_APACHE;
+  /**
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.HttpClientProperties}
+   *     instead
+   */
+  @Deprecated public static final String HTTP_CLIENT_TYPE_DEFAULT = HTTP_CLIENT_TYPE_APACHE;
 
   /**
    * Used to configure the connection timeout in milliseconds for {@link
@@ -519,7 +543,11 @@ public class AwsProperties implements Serializable {
    *
    * <p>For more details, see
    * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/urlconnection/UrlConnectionHttpClient.Builder.html
+   *
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.HttpClientProperties}
+   *     instead
    */
+  @Deprecated
   public static final String HTTP_CLIENT_URLCONNECTION_CONNECTION_TIMEOUT_MS =
       "http-client.urlconnection.connection-timeout-ms";
 
@@ -530,7 +558,11 @@ public class AwsProperties implements Serializable {
    *
    * <p>For more details, see
    * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/urlconnection/UrlConnectionHttpClient.Builder.html
+   *
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.HttpClientProperties}
+   *     instead
    */
+  @Deprecated
   public static final String HTTP_CLIENT_URLCONNECTION_SOCKET_TIMEOUT_MS =
       "http-client.urlconnection.socket-timeout-ms";
 
@@ -541,7 +573,11 @@ public class AwsProperties implements Serializable {
    *
    * <p>For more details, see
    * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html
+   *
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.HttpClientProperties}
+   *     instead
    */
+  @Deprecated
   public static final String HTTP_CLIENT_APACHE_CONNECTION_TIMEOUT_MS =
       "http-client.apache.connection-timeout-ms";
 
@@ -552,7 +588,11 @@ public class AwsProperties implements Serializable {
    *
    * <p>For more details, see
    * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html
+   *
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.HttpClientProperties}
+   *     instead
    */
+  @Deprecated
   public static final String HTTP_CLIENT_APACHE_SOCKET_TIMEOUT_MS =
       "http-client.apache.socket-timeout-ms";
 
@@ -563,7 +603,11 @@ public class AwsProperties implements Serializable {
    *
    * <p>For more details, see
    * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html
+   *
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.HttpClientProperties}
+   *     instead
    */
+  @Deprecated
   public static final String HTTP_CLIENT_APACHE_CONNECTION_ACQUISITION_TIMEOUT_MS =
       "http-client.apache.connection-acquisition-timeout-ms";
 
@@ -574,7 +618,11 @@ public class AwsProperties implements Serializable {
    *
    * <p>For more details, see
    * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html
+   *
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.HttpClientProperties}
+   *     instead
    */
+  @Deprecated
   public static final String HTTP_CLIENT_APACHE_CONNECTION_MAX_IDLE_TIME_MS =
       "http-client.apache.connection-max-idle-time-ms";
 
@@ -585,7 +633,11 @@ public class AwsProperties implements Serializable {
    *
    * <p>For more details, see
    * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html
+   *
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.HttpClientProperties}
+   *     instead
    */
+  @Deprecated
   public static final String HTTP_CLIENT_APACHE_CONNECTION_TIME_TO_LIVE_MS =
       "http-client.apache.connection-time-to-live-ms";
 
@@ -598,7 +650,11 @@ public class AwsProperties implements Serializable {
    *
    * <p>For more details, see
    * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html
+   *
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.HttpClientProperties}
+   *     instead
    */
+  @Deprecated
   public static final String HTTP_CLIENT_APACHE_EXPECT_CONTINUE_ENABLED =
       "http-client.apache.expect-continue-enabled";
 
@@ -609,7 +665,11 @@ public class AwsProperties implements Serializable {
    *
    * <p>For more details, see
    * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html
+   *
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.HttpClientProperties}
+   *     instead
    */
+  @Deprecated
   public static final String HTTP_CLIENT_APACHE_MAX_CONNECTIONS =
       "http-client.apache.max-connections";
 
@@ -622,7 +682,11 @@ public class AwsProperties implements Serializable {
    *
    * <p>For more details, see
    * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html
+   *
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.HttpClientProperties}
+   *     instead
    */
+  @Deprecated
   public static final String HTTP_CLIENT_APACHE_TCP_KEEP_ALIVE_ENABLED =
       "http-client.apache.tcp-keep-alive-enabled";
 
@@ -635,7 +699,11 @@ public class AwsProperties implements Serializable {
    *
    * <p>For more details, see
    * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html
+   *
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.HttpClientProperties}
+   *     instead
    */
+  @Deprecated
   public static final String HTTP_CLIENT_APACHE_USE_IDLE_CONNECTION_REAPER_ENABLED =
       "http-client.apache.use-idle-connection-reaper-enabled";
   /**
@@ -1505,7 +1573,11 @@ public class AwsProperties implements Serializable {
    * <pre>
    *     S3Client.builder().applyMutation(awsProperties::applyS3CredentialConfigurations)
    * </pre>
+   *
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
+  @Deprecated
   public <T extends S3ClientBuilder> void applyS3CredentialConfigurations(T builder) {
     builder.credentialsProvider(
         s3RemoteSigningEnabled
@@ -1521,7 +1593,11 @@ public class AwsProperties implements Serializable {
    * <pre>
    *     S3Client.builder().applyMutation(awsProperties::applyClientRegionConfiguration)
    * </pre>
+   *
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.AwsClientProperties}
+   *     instead
    */
+  @Deprecated
   public <T extends AwsClientBuilder> void applyClientRegionConfiguration(T builder) {
     if (clientRegion != null) {
       builder.region(Region.of(clientRegion));
@@ -1552,7 +1628,11 @@ public class AwsProperties implements Serializable {
    * <pre>
    *     S3Client.builder().applyMutation(awsProperties::applyS3ServiceConfigurations)
    * </pre>
+   *
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
+  @Deprecated
   public <T extends S3ClientBuilder> void applyS3ServiceConfigurations(T builder) {
     builder
         .dualstackEnabled(s3DualStackEnabled)
@@ -1572,7 +1652,11 @@ public class AwsProperties implements Serializable {
    * <pre>
    *     S3Client.builder().applyMutation(awsProperties::applyS3SignerConfiguration)
    * </pre>
+   *
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
+  @Deprecated
   public <T extends S3ClientBuilder> void applyS3SignerConfiguration(T builder) {
     if (s3RemoteSigningEnabled) {
       builder.overrideConfiguration(
@@ -1591,7 +1675,11 @@ public class AwsProperties implements Serializable {
    * <pre>
    *     S3Client.builder().applyMutation(awsProperties::applyHttpClientConfigurations)
    * </pre>
+   *
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.HttpClientProperties}
+   *     instead
    */
+  @Deprecated
   public <T extends AwsSyncClientBuilder> void applyHttpClientConfigurations(T builder) {
     if (Strings.isNullOrEmpty(httpClientType)) {
       httpClientType = HTTP_CLIENT_TYPE_DEFAULT;
@@ -1620,7 +1708,11 @@ public class AwsProperties implements Serializable {
    * <pre>
    *     S3Client.builder().applyMutation(awsProperties::applyS3EndpointConfigurations)
    * </pre>
+   *
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
+  @Deprecated
   public <T extends S3ClientBuilder> void applyS3EndpointConfigurations(T builder) {
     configureEndpoint(builder, s3Endpoint);
   }
@@ -1760,7 +1852,11 @@ public class AwsProperties implements Serializable {
    * software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient} and {@link
    * software.amazon.awssdk.http.apache.ApacheHttpClient}, since including both will cause error
    * described in <a href="https://github.com/apache/iceberg/issues/6715">issue#6715</a>
+   *
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.HttpClientProperties}
+   *     instead
    */
+  @Deprecated
   private <T> T loadHttpClientConfigurations(String impl) {
     Object httpClientConfigurations;
     try {

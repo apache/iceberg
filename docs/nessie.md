@@ -4,6 +4,7 @@ url: nessie
 menu:
     main:
         parent: Integrations
+        identifier: nessie_integration
         weight: 0
 ---
 <!--

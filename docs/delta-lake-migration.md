@@ -4,6 +4,7 @@ url: delta-lake-migration
 menu:
   main:
     parent: "Migration"
+    identifier: delta_lake_migration
     weight: 300
 ---
 <!--
