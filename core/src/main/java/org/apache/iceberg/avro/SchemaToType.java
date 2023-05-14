@@ -117,7 +117,8 @@ class SchemaToType extends AvroSchemaVisitor<Type> {
       fields.add(Types.NestedField.required(allocateId(), "tag", Types.IntegerType.get()));
       for (Type option : options) {
         if (option != null) {
-          fields.add(Types.NestedField.optional(allocateId(), "field" + tagIndex++, option));
+          fields.add(Types.NestedField.optional(allocateId(), "field" + tagIndex, option));
+          tagIndex++;
         }
       }
       return Types.StructType.of(fields);

@@ -23,6 +23,8 @@ import java.util.List;
 import org.apache.avro.Schema;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Pair;
 
 /**
@@ -93,17 +95,38 @@ public abstract class AvroWithPartnerByStructureVisitor<P, T> {
   private static <P, T> T visitUnion(
       P type, Schema union, AvroWithPartnerByStructureVisitor<P, T> visitor) {
     List<Schema> types = union.getTypes();
-    Preconditions.checkArgument(
-        AvroSchemaUtil.isOptionSchema(union), "Cannot visit non-option union: %s", union);
     List<T> options = Lists.newArrayListWithExpectedSize(types.size());
-    for (Schema branch : types) {
-      if (branch.getType() == Schema.Type.NULL) {
-        options.add(visit(visitor.nullType(), branch, visitor));
-      } else {
-        options.add(visit(type, branch, visitor));
+    if (AvroSchemaUtil.isOptionSchema(union)) {
+      for (Schema branch : types) {
+        if (branch.getType() == Schema.Type.NULL) {
+          options.add(visit(visitor.nullType(), branch, visitor));
+        } else {
+          options.add(visit(type, branch, visitor));
+        }
+      }
+    } else {
+      Types.StructType struct = (Types.StructType) type;
+      int index = 0;
+      for (Schema branch : types) {
+        if (branch.getType() != Schema.Type.NULL) {
+          options.add(visit(fieldTypeByName(type,"field" + index, visitor), branch, visitor));
+          index++;
+        }
       }
     }
     return visitor.union(type, union, options);
+  }
+
+  private static <P, T> P fieldTypeByName(P struct, String name, AvroWithPartnerByStructureVisitor<P, T> visitor) {
+    // Iterate on fieldNameAndType to find the field with the given name, then return the type
+    // of that field.
+    for (int i = 0; i < visitor.structSize(struct); i += 1) {
+      Pair<String, P> nameAndType = visitor.fieldNameAndType(struct, i);
+      if (nameAndType.first().equals(name)) {
+        return nameAndType.second();
+      }
+    }
+    return null;
   }
 
   private static <P, T> T visitArray(
@@ -143,6 +166,8 @@ public abstract class AvroWithPartnerByStructureVisitor<P, T> {
   protected abstract P mapValueType(P mapType);
 
   protected abstract Pair<String, P> fieldNameAndType(P structType, int pos);
+
+  protected abstract int structSize(P structType);
 
   protected abstract P nullType();
 
