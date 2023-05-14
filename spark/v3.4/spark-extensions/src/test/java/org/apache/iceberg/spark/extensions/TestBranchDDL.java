@@ -213,6 +213,17 @@ public class TestBranchDDL extends SparkExtensionsTestBase {
   }
 
   @Test
+  public void testCreateBranchOnEmptyTable() throws NoSuchTableException {
+    createEmptyTable();
+    String branchName = "b1";
+    AssertHelpers.assertThrows(
+            "Illegal argument",
+            IllegalArgumentException.class,
+            "has no latest main snapshot",
+            () -> sql("ALTER TABLE %s CREATE BRANCH %s", tableName, branchName));
+  }
+
+  @Test
   public void testDropBranch() throws NoSuchTableException {
     insertRows();
 
@@ -287,6 +298,10 @@ public class TestBranchDDL extends SparkExtensionsTestBase {
         ImmutableList.of(new SimpleRecord(1, "a"), new SimpleRecord(2, "b"));
     Dataset<Row> df = spark.createDataFrame(records, SimpleRecord.class);
     df.writeTo(tableName).append();
+    return validationCatalog.loadTable(tableIdent);
+  }
+
+  private Table createEmptyTable() {
     return validationCatalog.loadTable(tableIdent);
   }
 }

@@ -41,10 +41,12 @@ case class CreateOrReplaceBranchExec(
   override protected def run(): Seq[InternalRow] = {
     catalog.loadTable(ident) match {
       case iceberg: SparkTable =>
-        if (iceberg.table.currentSnapshot() == null) {
-          throw new UnsupportedOperationException(s"The Iceberg table: $iceberg" + " has no snapshots")
+        var snapshotId = branchOptions.snapshotId.getOrElse(-1L)
+        if (snapshotId == -1) {
+          val currentSnapshot = Option(iceberg.table().currentSnapshot()).getOrElse(throw new IllegalArgumentException(
+            s"Please specify an explicit snapshot as table: $iceberg"  + " has no latest main snapshot"))
+          snapshotId = currentSnapshot.snapshotId()
         }
-        val snapshotId = branchOptions.snapshotId.getOrElse(iceberg.table.currentSnapshot().snapshotId())
         val manageSnapshots = iceberg.table().manageSnapshots()
         if (!replace) {
           val ref = iceberg.table().refs().get(branch);

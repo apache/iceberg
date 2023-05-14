@@ -41,9 +41,6 @@ case class CreateOrReplaceBranchExec(
   override protected def run(): Seq[InternalRow] = {
     catalog.loadTable(ident) match {
       case iceberg: SparkTable =>
-        if (iceberg.table.currentSnapshot() == null) {
-          throw new UnsupportedOperationException(s"The Iceberg table: $iceberg" + " has no snapshots")
-        }
         val snapshotId = branchOptions.snapshotId.getOrElse(iceberg.table.currentSnapshot().snapshotId())
         val manageSnapshots = iceberg.table().manageSnapshots()
         if (!replace) {
