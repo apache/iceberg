@@ -25,8 +25,9 @@ import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.util.PropertyUtil;
 
-@SuppressWarnings("checkstyle:HideUtilityClassConstructor")
 public class S3FileIOAwsClientFactories {
+
+  private S3FileIOAwsClientFactories() {}
 
   /**
    * Attempts to load an AWS client factory class for S3 file IO defined in the catalog property

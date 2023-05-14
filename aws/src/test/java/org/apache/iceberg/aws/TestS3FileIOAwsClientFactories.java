@@ -47,7 +47,7 @@ public class TestS3FileIOAwsClientFactories {
     Object factoryImpl = S3FileIOAwsClientFactories.initFactory(properties);
     Assertions.assertThat(factoryImpl)
         .withFailMessage(
-            "should instantiate an object of type AwsClientFactory when s3.client-factory-impl is set to false")
+            "should instantiate an object of type AwsClientFactory when s3.client-factory-impl is not set")
         .isInstanceOf(AwsClientFactory.class);
   }
 }
