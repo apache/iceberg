@@ -20,6 +20,7 @@ package org.apache.iceberg.avro;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.List;
 import org.apache.avro.SchemaBuilder;
 import org.apache.avro.file.DataFileWriter;
@@ -31,13 +32,13 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.Assert;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 public class TestAvroEnums {
 
-  @Rule public TemporaryFolder temp = new TemporaryFolder();
+  @TempDir
+  public Path temp;
 
   @Test
   public void writeAndValidateEnums() throws IOException {
@@ -53,14 +54,14 @@ public class TestAvroEnums {
             .endRecord();
 
     org.apache.avro.Schema enumSchema = avroSchema.getField("enumCol").schema().getTypes().get(0);
-    Record enumRecord1 = new GenericData.Record(avroSchema);
+    Record enumRecord1 = new Record(avroSchema);
     enumRecord1.put("enumCol", new GenericData.EnumSymbol(enumSchema, "SYMB1"));
-    Record enumRecord2 = new GenericData.Record(avroSchema);
+    Record enumRecord2 = new Record(avroSchema);
     enumRecord2.put("enumCol", new GenericData.EnumSymbol(enumSchema, "SYMB2"));
-    Record enumRecord3 = new GenericData.Record(avroSchema); // null enum
+    Record enumRecord3 = new Record(avroSchema); // null enum
     List<Record> expected = ImmutableList.of(enumRecord1, enumRecord2, enumRecord3);
 
-    File testFile = temp.newFile();
+    File testFile = temp.toFile();
     Assert.assertTrue("Delete should succeed", testFile.delete());
 
     try (DataFileWriter<Record> writer = new DataFileWriter<>(new GenericDatumWriter<>())) {
@@ -71,8 +72,8 @@ public class TestAvroEnums {
     }
 
     Schema schema = new Schema(AvroSchemaUtil.convert(avroSchema).asStructType().fields());
-    List<GenericData.Record> rows;
-    try (AvroIterable<GenericData.Record> reader =
+    List<Record> rows;
+    try (AvroIterable<Record> reader =
         Avro.read(Files.localInput(testFile)).project(schema).build()) {
       rows = Lists.newArrayList(reader);
     }

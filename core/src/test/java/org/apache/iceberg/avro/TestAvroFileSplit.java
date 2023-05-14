@@ -19,6 +19,7 @@
 package org.apache.iceberg.avro;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.UUID;
 import org.apache.iceberg.Files;
@@ -37,10 +38,10 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.NestedField;
 import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+
 
 public class TestAvroFileSplit {
   private static final Schema SCHEMA =
@@ -50,16 +51,17 @@ public class TestAvroFileSplit {
 
   private static final int NUM_RECORDS = 100_000;
 
-  @Rule public TemporaryFolder temp = new TemporaryFolder();
+  @TempDir
+  public Path temp;
 
   public List<Record> expected = null;
   public InputFile file = null;
 
-  @Before
+  @BeforeEach
   public void writeDataFile() throws IOException {
     this.expected = Lists.newArrayList();
 
-    OutputFile out = Files.localOutput(temp.newFile());
+    OutputFile out = Files.localOutput(temp.toFile());
 
     try (FileAppender<Object> writer =
         Avro.write(out)
