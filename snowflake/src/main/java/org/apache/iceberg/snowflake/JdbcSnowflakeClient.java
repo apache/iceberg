@@ -23,7 +23,6 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.List;
-import java.util.Optional;
 import java.util.Set;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
@@ -41,6 +40,15 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
  */
 class JdbcSnowflakeClient implements SnowflakeClient {
   static final String EXPECTED_JDBC_IMPL = "net.snowflake.client.jdbc.SnowflakeDriver";
+
+  @VisibleForTesting
+  static final Set<Integer> DATABASE_NOT_FOUND_ERROR_CODES = ImmutableSet.of(2001, 2003, 2043);
+
+  @VisibleForTesting
+  static final Set<Integer> SCHEMA_NOT_FOUND_ERROR_CODES = ImmutableSet.of(2001, 2003, 2043);
+
+  @VisibleForTesting
+  static final Set<Integer> TABLE_NOT_FOUND_ERROR_CODES = ImmutableSet.of(2001, 2003, 2043);
 
   @FunctionalInterface
   interface ResultSetParser<T> {
@@ -130,15 +138,6 @@ class JdbcSnowflakeClient implements SnowflakeClient {
   private final JdbcClientPool connectionPool;
   private QueryHarness queryHarness;
 
-  @VisibleForTesting
-  static final Set<Integer> DATABASE_NOT_FOUND_ERROR_CODES = ImmutableSet.of(2001, 2003, 2043);
-
-  @VisibleForTesting
-  static final Set<Integer> SCHEMA_NOT_FOUND_ERROR_CODES = ImmutableSet.of(2001, 2003, 2043);
-
-  @VisibleForTesting
-  static final Set<Integer> TABLE_NOT_FOUND_ERROR_CODES = ImmutableSet.of(2001, 2003, 2043);
-
   JdbcSnowflakeClient(JdbcClientPool conn) {
     Preconditions.checkArgument(null != conn, "JdbcClientPool must be non-null");
     connectionPool = conn;
@@ -222,8 +221,8 @@ class JdbcSnowflakeClient implements SnowflakeClient {
                   queryHarness.query(
                       conn, "SHOW DATABASES IN ACCOUNT", DATABASE_RESULT_SET_HANDLER));
     } catch (SQLException e) {
-      throw snowflakeExceptionToIcebergException(SnowflakeIdentifier.ofRoot(), e)
-          .orElseGet(() -> new UncheckedSQLException(e, "Failed to list databases"));
+      throw snowflakeExceptionToIcebergException(
+          SnowflakeIdentifier.ofRoot(), e, "Failed to list databases");
     } catch (InterruptedException e) {
       throw new UncheckedInterruptedException(e, "Interrupted while listing databases");
     }
@@ -265,9 +264,8 @@ class JdbcSnowflakeClient implements SnowflakeClient {
                   queryHarness.query(
                       conn, finalQuery, SCHEMA_RESULT_SET_HANDLER, finalQueryParams));
     } catch (SQLException e) {
-      throw snowflakeExceptionToIcebergException(scope, e)
-          .orElseGet(
-              () -> new UncheckedSQLException(e, "Failed to list schemas for scope '%s'", scope));
+      throw snowflakeExceptionToIcebergException(
+          scope, e, String.format("Failed to list schemas for scope '%s'", scope));
     } catch (InterruptedException e) {
       throw new UncheckedInterruptedException(
           e, "Interrupted while listing schemas for scope '%s'", scope);
@@ -315,9 +313,8 @@ class JdbcSnowflakeClient implements SnowflakeClient {
               conn ->
                   queryHarness.query(conn, finalQuery, TABLE_RESULT_SET_HANDLER, finalQueryParams));
     } catch (SQLException e) {
-      throw snowflakeExceptionToIcebergException(scope, e)
-          .orElseGet(
-              () -> new UncheckedSQLException(e, "Failed to list tables for scope '%s'", scope));
+      throw snowflakeExceptionToIcebergException(
+          scope, e, String.format("Failed to list tables for scope '%s'", scope));
     } catch (InterruptedException e) {
       throw new UncheckedInterruptedException(
           e, "Interrupted while listing tables for scope '%s'", scope);
@@ -350,11 +347,10 @@ class JdbcSnowflakeClient implements SnowflakeClient {
                       TABLE_METADATA_RESULT_SET_HANDLER,
                       tableIdentifier.toIdentifierString()));
     } catch (SQLException e) {
-      throw snowflakeExceptionToIcebergException(tableIdentifier, e)
-          .orElseGet(
-              () ->
-                  new UncheckedSQLException(
-                      e, "Failed to get table metadata for '%s'", tableIdentifier));
+      throw snowflakeExceptionToIcebergException(
+          tableIdentifier,
+          e,
+          String.format("Failed to get table metadata for '%s'", tableIdentifier));
     } catch (InterruptedException e) {
       throw new UncheckedInterruptedException(
           e, "Interrupted while getting table metadata for '%s'", tableIdentifier);
@@ -367,31 +363,29 @@ class JdbcSnowflakeClient implements SnowflakeClient {
     connectionPool.close();
   }
 
-  private Optional<RuntimeException> snowflakeExceptionToIcebergException(
-      SnowflakeIdentifier identifier, SQLException ex) {
+  private RuntimeException snowflakeExceptionToIcebergException(
+      SnowflakeIdentifier identifier, SQLException ex, String defaultExceptionMessage) {
     // NoSuchNamespace exception for Database and Schema cases
     if ((identifier.type() == SnowflakeIdentifier.Type.DATABASE
             && DATABASE_NOT_FOUND_ERROR_CODES.contains(ex.getErrorCode()))
         || (identifier.type() == SnowflakeIdentifier.Type.SCHEMA
             && SCHEMA_NOT_FOUND_ERROR_CODES.contains(ex.getErrorCode()))) {
-      return Optional.of(
-          new NoSuchNamespaceException(
-              ex,
-              "Identifier not found: '%s'. Underlying exception: '%s'",
-              identifier,
-              ex.getMessage()));
+      return new NoSuchNamespaceException(
+          ex,
+          "Identifier not found: '%s'. Underlying exception: '%s'",
+          identifier,
+          ex.getMessage());
     }
     // NoSuchTable exception for Table cases
     else if (identifier.type() == SnowflakeIdentifier.Type.TABLE
         && TABLE_NOT_FOUND_ERROR_CODES.contains(ex.getErrorCode())) {
-      return Optional.of(
-          new NoSuchTableException(
-              ex,
-              "Identifier not found: '%s'. Underlying exception: '%s'",
-              identifier,
-              ex.getMessage()));
+      return new NoSuchTableException(
+          ex,
+          "Identifier not found: '%s'. Underlying exception: '%s'",
+          identifier,
+          ex.getMessage());
     }
-
-    return Optional.empty();
+    // Unchecked SQL Exception in all other cases as fall back
+    return new UncheckedSQLException(ex, "Exception Message: %s", defaultExceptionMessage);
   }
 }
