@@ -174,12 +174,9 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
 
     table.refresh();
 
-    List<Row> actual =
-        spark
-            .read()
-            .format("iceberg")
-            .load(loadLocation(tableIdentifier, "entries"))
-            .collectAsList();
+    Dataset<Row> entriesTableDs =
+        spark.read().format("iceberg").load(loadLocation(tableIdentifier, "entries"));
+    List<Row> actual = TestHelpers.selectNonDerived(entriesTableDs).collectAsList();
 
     Snapshot snapshot = table.currentSnapshot();
 
@@ -203,7 +200,8 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
 
     Assert.assertEquals("Entries table should have one row", 1, expected.size());
     Assert.assertEquals("Actual results should have one row", 1, actual.size());
-    TestHelpers.assertEqualsSafe(entriesTable.schema().asStruct(), expected.get(0), actual.get(0));
+    TestHelpers.assertEqualsSafe(
+        TestHelpers.nonDerivedSchema(entriesTableDs), expected.get(0), actual.get(0));
   }
 
   @Test
@@ -370,13 +368,13 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
     // ensure table data isn't stale
     table.refresh();
 
-    List<Row> actual =
+    Dataset<Row> entriesTableDs =
         spark
             .read()
             .format("iceberg")
             .load(loadLocation(tableIdentifier, "all_entries"))
-            .orderBy("snapshot_id")
-            .collectAsList();
+            .orderBy("snapshot_id");
+    List<Row> actual = TestHelpers.selectNonDerived(entriesTableDs).collectAsList();
 
     List<GenericData.Record> expected = Lists.newArrayList();
     for (ManifestFile manifest :
@@ -402,7 +400,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
     Assert.assertEquals("Actual results should have 3 rows", 3, actual.size());
     for (int i = 0; i < expected.size(); i += 1) {
       TestHelpers.assertEqualsSafe(
-          entriesTable.schema().asStruct(), expected.get(i), actual.get(i));
+          TestHelpers.nonDerivedSchema(entriesTableDs), expected.get(i), actual.get(i));
     }
   }
 
