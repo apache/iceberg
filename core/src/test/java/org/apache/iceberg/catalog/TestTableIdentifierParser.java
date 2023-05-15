@@ -18,7 +18,7 @@
  */
 package org.apache.iceberg.catalog;
 
-import org.apache.iceberg.AssertHelpers;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -67,58 +67,44 @@ public class TestTableIdentifierParser {
   @Test
   public void testFailParsingWhenNullOrEmptyJson() {
     String nullJson = null;
-    AssertHelpers.assertThrows(
-        "TableIdentifierParser should fail to deserialize null JSON string",
-        IllegalArgumentException.class,
-        "Cannot parse table identifier from invalid JSON: null",
-        () -> TableIdentifierParser.fromJson(nullJson));
+    Assertions.assertThatThrownBy(() -> TableIdentifierParser.fromJson(nullJson))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot parse table identifier from invalid JSON: null");
 
     String emptyString = "";
-    AssertHelpers.assertThrows(
-        "TableIdentifierParser should fail to deserialize an empty string",
-        IllegalArgumentException.class,
-        "Cannot parse table identifier from invalid JSON: ''",
-        () -> TableIdentifierParser.fromJson(emptyString));
+    Assertions.assertThatThrownBy(() -> TableIdentifierParser.fromJson(emptyString))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot parse table identifier from invalid JSON: ''");
 
     String emptyJson = "{}";
-    AssertHelpers.assertThrows(
-        "TableIdentifierParser should fail to deserialize an empty JSON string",
-        IllegalArgumentException.class,
-        "Cannot parse missing string: name",
-        () -> TableIdentifierParser.fromJson(emptyJson));
+    Assertions.assertThatThrownBy(() -> TableIdentifierParser.fromJson(emptyJson))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot parse missing string: name");
 
     String emptyJsonArray = "[]";
-    AssertHelpers.assertThrows(
-        "TableIdentifierParser should fail to deserialize an empty JSON array",
-        IllegalArgumentException.class,
-        "Cannot parse missing or non-object table identifier: []",
-        () -> TableIdentifierParser.fromJson(emptyJsonArray));
+    Assertions.assertThatThrownBy(() -> TableIdentifierParser.fromJson(emptyJsonArray))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot parse missing or non-object table identifier: []");
   }
 
   @Test
   public void testFailParsingWhenMissingRequiredFields() {
     String identifierMissingName = "{\"namespace\":[\"accounting\",\"tax\"]}";
-    AssertHelpers.assertThrows(
-        "TableIdentifierParser should fail to deserialize table with missing name",
-        IllegalArgumentException.class,
-        "Cannot parse missing string: name",
-        () -> TableIdentifierParser.fromJson(identifierMissingName));
+    Assertions.assertThatThrownBy(() -> TableIdentifierParser.fromJson(identifierMissingName))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot parse missing string: name");
   }
 
   @Test
   public void testFailWhenFieldsHaveInvalidValues() {
     String invalidNamespace = "{\"namespace\":\"accounting.tax\",\"name\":\"paid\"}";
-    AssertHelpers.assertThrows(
-        "TableIdentifierParser should fail to deserialize table with invalid namespace",
-        IllegalArgumentException.class,
-        "Cannot parse from non-array value: namespace: \"accounting.tax\"",
-        () -> TableIdentifierParser.fromJson(invalidNamespace));
+    Assertions.assertThatThrownBy(() -> TableIdentifierParser.fromJson(invalidNamespace))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot parse from non-array value: namespace: \"accounting.tax\"");
 
     String invalidName = "{\"namespace\":[\"accounting\",\"tax\"],\"name\":1234}";
-    AssertHelpers.assertThrows(
-        "TableIdentifierParser should fail to deserialize table with invalid name",
-        IllegalArgumentException.class,
-        "Cannot parse to a string value: name: 1234",
-        () -> TableIdentifierParser.fromJson(invalidName));
+    Assertions.assertThatThrownBy(() -> TableIdentifierParser.fromJson(invalidName))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot parse to a string value: name: 1234");
   }
 }

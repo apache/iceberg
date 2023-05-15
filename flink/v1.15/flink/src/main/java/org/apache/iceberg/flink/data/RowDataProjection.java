@@ -105,8 +105,12 @@ public class RowDataProjection implements RowData {
       case STRUCT:
         RowType nestedRowType = (RowType) rowType.getTypeAt(position);
         return row -> {
-          RowData nestedRow =
-              row.isNullAt(position) ? null : row.getRow(position, nestedRowType.getFieldCount());
+          // null nested struct value
+          if (row.isNullAt(position)) {
+            return null;
+          }
+
+          RowData nestedRow = row.getRow(position, nestedRowType.getFieldCount());
           return RowDataProjection.create(
                   nestedRowType, rowField.type().asStructType(), projectField.type().asStructType())
               .wrap(nestedRow);

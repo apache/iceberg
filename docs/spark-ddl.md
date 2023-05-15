@@ -6,6 +6,7 @@ aliases:
 menu:
     main:
         parent: Spark
+        identifier: spark_ddl
         weight: 0
 ---
 <!--

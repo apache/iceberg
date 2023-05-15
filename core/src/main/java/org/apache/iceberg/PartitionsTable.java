@@ -36,6 +36,8 @@ public class PartitionsTable extends BaseMetadataTable {
 
   private final Schema schema;
 
+  private final boolean unpartitionedTable;
+
   PartitionsTable(Table table) {
     this(table, table.name() + ".partitions");
   }
@@ -71,6 +73,7 @@ public class PartitionsTable extends BaseMetadataTable {
                 "equality_delete_file_count",
                 Types.IntegerType.get(),
                 "Count of equality delete files"));
+    this.unpartitionedTable = Partitioning.partitionType(table).fields().isEmpty();
   }
 
   @Override
@@ -80,7 +83,7 @@ public class PartitionsTable extends BaseMetadataTable {
 
   @Override
   public Schema schema() {
-    if (table().spec().fields().size() < 1) {
+    if (unpartitionedTable) {
       return schema.select(
           "record_count",
           "file_count",
@@ -99,7 +102,7 @@ public class PartitionsTable extends BaseMetadataTable {
 
   private DataTask task(StaticTableScan scan) {
     Iterable<Partition> partitions = partitions(table(), scan);
-    if (table().spec().fields().size() < 1) {
+    if (unpartitionedTable) {
       // the table is unpartitioned, partitions contains only the root partition
       return StaticDataTask.of(
           io().newInputFile(table().operations().current().metadataFileLocation()),

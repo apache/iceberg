@@ -20,14 +20,22 @@ package org.apache.iceberg.flink.sink.shuffle;
 
 import java.util.Map;
 import org.apache.flink.annotation.Internal;
+import org.apache.flink.table.data.RowData;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 /** MapDataStatistics uses map to count key frequency */
 @Internal
-class MapDataStatistics<K> implements DataStatistics<K> {
-  private final Map<K, Long> statistics = Maps.newHashMap();
+class MapDataStatistics implements DataStatistics<MapDataStatistics, Map<RowData, Long>> {
+  private final Map<RowData, Long> statistics;
+
+  MapDataStatistics() {
+    this.statistics = Maps.newHashMap();
+  }
+
+  MapDataStatistics(Map<RowData, Long> statistics) {
+    this.statistics = statistics;
+  }
 
   @Override
   public boolean isEmpty() {
@@ -35,21 +43,18 @@ class MapDataStatistics<K> implements DataStatistics<K> {
   }
 
   @Override
-  public void add(K key) {
+  public void add(RowData key) {
     // increase count of occurrence by one in the dataStatistics map
     statistics.merge(key, 1L, Long::sum);
   }
 
   @Override
-  public void merge(DataStatistics<K> otherStatistics) {
-    Preconditions.checkArgument(
-        otherStatistics instanceof MapDataStatistics,
-        "Map statistics can not merge with " + otherStatistics.getClass());
-    MapDataStatistics<K> mapDataStatistic = (MapDataStatistics<K>) otherStatistics;
-    mapDataStatistic.statistics.forEach((key, count) -> statistics.merge(key, count, Long::sum));
+  public void merge(MapDataStatistics otherStatistics) {
+    otherStatistics.statistics().forEach((key, count) -> statistics.merge(key, count, Long::sum));
   }
 
-  public Map<K, Long> dataStatistics() {
+  @Override
+  public Map<RowData, Long> statistics() {
     return statistics;
   }
 

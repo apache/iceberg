@@ -38,7 +38,6 @@ import java.util.stream.Stream;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
@@ -277,11 +276,10 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
     FileSystem fs = Util.getFs(new Path(metaLocation), conf);
     Assert.assertTrue(fs.isDirectory(new Path(metaLocation)));
 
-    AssertHelpers.assertThrows(
-        "should throw exception",
-        AlreadyExistsException.class,
-        "already exists",
-        () -> catalog.createTable(testTable, SCHEMA, PartitionSpec.unpartitioned()));
+    Assertions.assertThatThrownBy(
+            () -> catalog.createTable(testTable, SCHEMA, PartitionSpec.unpartitioned()))
+        .isInstanceOf(AlreadyExistsException.class)
+        .hasMessage("Table already exists: db.ns1.ns2.tbl");
 
     catalog.dropTable(testTable);
   }
@@ -337,11 +335,10 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
             .withRecordCount(1)
             .build();
 
-    AssertHelpers.assertThrows(
-        "Should fail",
-        NoSuchTableException.class,
-        "Failed to load table",
-        () -> table.newAppend().appendFile(dataFile2).commit());
+    Assertions.assertThatThrownBy(() -> table.newAppend().appendFile(dataFile2).commit())
+        .isInstanceOf(NoSuchTableException.class)
+        .hasMessage(
+            "Failed to load table db.table from catalog test_jdbc_catalog: dropped by another process");
   }
 
   @Test
@@ -393,11 +390,10 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
     catalog.dropTable(testTable);
     Assert.assertFalse(catalog.listTables(testTable.namespace()).contains(testTable));
     catalog.dropTable(testTable2);
-    AssertHelpers.assertThrows(
-        "should throw exception",
-        NoSuchNamespaceException.class,
-        "not exist",
-        () -> catalog.listTables(testTable2.namespace()));
+
+    Assertions.assertThatThrownBy(() -> catalog.listTables(testTable2.namespace()))
+        .isInstanceOf(NoSuchNamespaceException.class)
+        .hasMessage("Namespace does not exist: db.ns1.ns2");
 
     Assert.assertFalse(catalog.dropTable(TableIdentifier.of("db", "tbl-not-exists")));
   }
@@ -425,20 +421,17 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
     Assert.assertFalse(catalog.listTables(to.namespace()).contains(from));
     Assert.assertTrue(catalog.loadTable(to).name().endsWith(to.name()));
 
-    AssertHelpers.assertThrows(
-        "should throw exception",
-        NoSuchTableException.class,
-        "Table does not exist",
-        () -> catalog.renameTable(TableIdentifier.of("db", "tbl-not-exists"), to));
+    Assertions.assertThatThrownBy(
+            () -> catalog.renameTable(TableIdentifier.of("db", "tbl-not-exists"), to))
+        .isInstanceOf(NoSuchTableException.class)
+        .hasMessage("Table does not exist: db.tbl-not-exists");
 
     // rename table to existing table name!
     TableIdentifier from2 = TableIdentifier.of("db", "tbl2");
     catalog.createTable(from2, SCHEMA, PartitionSpec.unpartitioned());
-    AssertHelpers.assertThrows(
-        "should throw exception",
-        AlreadyExistsException.class,
-        "Table already exists",
-        () -> catalog.renameTable(from2, to));
+    Assertions.assertThatThrownBy(() -> catalog.renameTable(from2, to))
+        .isInstanceOf(AlreadyExistsException.class)
+        .hasMessage("Table already exists: db.tbl2-newtable");
   }
 
   @Test
@@ -462,11 +455,9 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
     Assert.assertEquals(tbls2.size(), 1);
     Assert.assertEquals("tbl3", tbls2.get(0).name());
 
-    AssertHelpers.assertThrows(
-        "should throw exception",
-        NoSuchNamespaceException.class,
-        "does not exist",
-        () -> catalog.listTables(Namespace.of("db", "ns1", "ns2")));
+    Assertions.assertThatThrownBy(() -> catalog.listTables(Namespace.of("db", "ns1", "ns2")))
+        .isInstanceOf(NoSuchNamespaceException.class)
+        .hasMessage("Namespace does not exist: db.ns1.ns2");
   }
 
   @Test
@@ -550,11 +541,9 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
     Assert.assertTrue(tblSet3.contains("db2"));
     Assert.assertTrue(tblSet3.contains(""));
 
-    AssertHelpers.assertThrows(
-        "Should fail to list namespace doesn't exist",
-        NoSuchNamespaceException.class,
-        "Namespace does not exist",
-        () -> catalog.listNamespaces(Namespace.of("db", "db2", "ns2")));
+    Assertions.assertThatThrownBy(() -> catalog.listNamespaces(Namespace.of("db", "db2", "ns2")))
+        .isInstanceOf(NoSuchNamespaceException.class)
+        .hasMessage("Namespace does not exist: db.db2.ns2");
   }
 
   @Test
@@ -569,11 +558,10 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
 
     Assert.assertTrue(catalog.loadNamespaceMetadata(Namespace.of("db")).containsKey("location"));
 
-    AssertHelpers.assertThrows(
-        "Should fail to load namespace doesn't exist",
-        NoSuchNamespaceException.class,
-        "Namespace does not exist",
-        () -> catalog.loadNamespaceMetadata(Namespace.of("db", "db2", "ns2")));
+    Assertions.assertThatThrownBy(
+            () -> catalog.loadNamespaceMetadata(Namespace.of("db", "db2", "ns2")))
+        .isInstanceOf(NoSuchNamespaceException.class)
+        .hasMessage("Namespace does not exist: db.db2.ns2");
   }
 
   @Test
@@ -608,21 +596,17 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
     Lists.newArrayList(tbl0, tbl1, tbl2, tbl3, tbl4)
         .forEach(t -> catalog.createTable(t, SCHEMA, PartitionSpec.unpartitioned()));
 
-    AssertHelpers.assertThrows(
-        "Should fail to drop namespace has tables",
-        NamespaceNotEmptyException.class,
-        "is not empty. 2 tables exist.",
-        () -> catalog.dropNamespace(tbl1.namespace()));
-    AssertHelpers.assertThrows(
-        "Should fail to drop namespace has tables",
-        NamespaceNotEmptyException.class,
-        "is not empty. 1 tables exist.",
-        () -> catalog.dropNamespace(tbl2.namespace()));
-    AssertHelpers.assertThrows(
-        "Should fail to drop namespace has tables",
-        NamespaceNotEmptyException.class,
-        "is not empty. 1 tables exist.",
-        () -> catalog.dropNamespace(tbl4.namespace()));
+    Assertions.assertThatThrownBy(() -> catalog.dropNamespace(tbl1.namespace()))
+        .isInstanceOf(NamespaceNotEmptyException.class)
+        .hasMessage("Namespace db.ns1.ns2 is not empty. 2 tables exist.");
+
+    Assertions.assertThatThrownBy(() -> catalog.dropNamespace(tbl2.namespace()))
+        .isInstanceOf(NamespaceNotEmptyException.class)
+        .hasMessage("Namespace db.ns1 is not empty. 1 tables exist.");
+
+    Assertions.assertThatThrownBy(() -> catalog.dropNamespace(tbl4.namespace()))
+        .isInstanceOf(NamespaceNotEmptyException.class)
+        .hasMessage("Namespace db is not empty. 1 tables exist.");
   }
 
   @Test
