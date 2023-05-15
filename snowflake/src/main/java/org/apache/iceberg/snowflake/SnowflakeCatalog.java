@@ -23,10 +23,12 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import org.apache.iceberg.BaseMetastoreCatalog;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
+import org.apache.iceberg.IcebergBuild;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
@@ -35,6 +37,7 @@ import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.hadoop.Configurable;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.jdbc.JdbcCatalog;
 import org.apache.iceberg.jdbc.JdbcClientPool;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -48,8 +51,11 @@ public class SnowflakeCatalog extends BaseMetastoreCatalog
   // Specifies the name of a Snowflake's partner application to connect through JDBC.
   // https://docs.snowflake.com/en/user-guide/jdbc-parameters.html#application
   private static final String JDBC_APPLICATION_PROPERTY = "application";
+  // Add a suffix to user agent header for the web requests made by the jdbc driver.
+  private static final String JDBC_USER_AGENT_SUFFIX_PROPERTY = "user_agent_suffix";
   private static final String APP_IDENTIFIER = "iceberg-snowflake-catalog";
-
+  // Specifies the max length of unique id for each catalog initialized session.
+  private static final int UNIQUE_ID_LENGTH = 20;
   // Injectable factory for testing purposes.
   static class FileIOFactory {
     public FileIO newFileIO(String impl, Map<String, String> properties, Object hadoopConf) {
@@ -114,8 +120,14 @@ public class SnowflakeCatalog extends BaseMetastoreCatalog
           cnfe);
     }
 
+    // The uniqueAppIdentifier should be less than 50 characters, so trimming the guid.
+    String uniqueId = UUID.randomUUID().toString().replace("-", "").substring(0, UNIQUE_ID_LENGTH);
+    String uniqueAppIdentifier = APP_IDENTIFIER + "_" + uniqueId;
+    String userAgentSuffix = IcebergBuild.fullVersion() + " " + uniqueAppIdentifier;
     // Populate application identifier in jdbc client
-    properties.put(JDBC_APPLICATION_PROPERTY, APP_IDENTIFIER);
+    properties.put(JdbcCatalog.PROPERTY_PREFIX + JDBC_APPLICATION_PROPERTY, uniqueAppIdentifier);
+    // Adds application identifier to the user agent header of the JDBC requests.
+    properties.put(JdbcCatalog.PROPERTY_PREFIX + JDBC_USER_AGENT_SUFFIX_PROPERTY, userAgentSuffix);
 
     JdbcClientPool connectionPool = new JdbcClientPool(uri, properties);
 
