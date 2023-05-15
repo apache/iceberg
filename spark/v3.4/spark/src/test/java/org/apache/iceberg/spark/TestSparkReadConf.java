@@ -70,7 +70,8 @@ public class TestSparkReadConf extends SparkTestBaseWithCatalog {
   @Test
   public void testSparkReadConfSplitSizeWithSessionConfig() {
     withSQLConf(
-        ImmutableMap.of(String.format(SparkSQLProperties.TEMPLATED_SPLIT_SIZE, tableIdent.toString()), "1024"),
+        ImmutableMap.of(
+            String.format(SparkSQLProperties.TEMPLATED_SPLIT_SIZE, tableIdent.toString()), "1024"),
         () -> {
           Table table = validationCatalog.loadTable(tableIdent);
 
@@ -95,7 +96,8 @@ public class TestSparkReadConf extends SparkTestBaseWithCatalog {
   @Test
   public void testSparkReadConfSplitSizeWithTblPropAndSessionConfig() {
     withSQLConf(
-        ImmutableMap.of(String.format(SparkSQLProperties.TEMPLATED_SPLIT_SIZE, tableIdent.toString()), "2048"),
+        ImmutableMap.of(
+            String.format(SparkSQLProperties.TEMPLATED_SPLIT_SIZE, tableIdent.toString()), "2048"),
         () -> {
           Table table = validationCatalog.loadTable(tableIdent);
 
@@ -111,7 +113,8 @@ public class TestSparkReadConf extends SparkTestBaseWithCatalog {
   @Test
   public void testSparkReadConfSplitSizeWithWriteOptionAndSessionConfig() {
     withSQLConf(
-        ImmutableMap.of(String.format(SparkSQLProperties.TEMPLATED_SPLIT_SIZE, tableIdent.toString()), "1024"),
+        ImmutableMap.of(
+            String.format(SparkSQLProperties.TEMPLATED_SPLIT_SIZE, tableIdent.toString()), "1024"),
         () -> {
           Table table = validationCatalog.loadTable(tableIdent);
 
@@ -127,7 +130,8 @@ public class TestSparkReadConf extends SparkTestBaseWithCatalog {
   @Test
   public void testSparkReadConfSplitSizeWithEverything() {
     withSQLConf(
-        ImmutableMap.of(String.format(SparkSQLProperties.TEMPLATED_SPLIT_SIZE, tableIdent.toString()), "1024"),
+        ImmutableMap.of(
+            String.format(SparkSQLProperties.TEMPLATED_SPLIT_SIZE, tableIdent.toString()), "1024"),
         () -> {
           Table table = validationCatalog.loadTable(tableIdent);
 
