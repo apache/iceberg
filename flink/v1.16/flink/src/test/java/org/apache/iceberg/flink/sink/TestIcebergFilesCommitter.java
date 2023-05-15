@@ -1112,7 +1112,7 @@ public class TestIcebergFilesCommitter extends TableTestBase {
 
   private OneInputStreamOperatorTestHarness<WriteResult, Void> createStreamSink(JobID jobID)
       throws Exception {
-    TestOperatorFactory factory = TestOperatorFactory.of(table.location(), branch);
+    TestOperatorFactory factory = TestOperatorFactory.of(table.location(), branch, table.spec());
     return new OneInputStreamOperatorTestHarness<>(factory, createEnvironment(jobID));
   }
 
@@ -1133,14 +1133,16 @@ public class TestIcebergFilesCommitter extends TableTestBase {
       implements OneInputStreamOperatorFactory<WriteResult, Void> {
     private final String tablePath;
     private final String branch;
+    private final PartitionSpec spec;
 
-    private TestOperatorFactory(String tablePath, String branch) {
+    private TestOperatorFactory(String tablePath, String branch, PartitionSpec spec) {
       this.tablePath = tablePath;
       this.branch = branch;
+      this.spec = spec;
     }
 
-    private static TestOperatorFactory of(String tablePath, String branch) {
-      return new TestOperatorFactory(tablePath, branch);
+    private static TestOperatorFactory of(String tablePath, String branch, PartitionSpec spec) {
+      return new TestOperatorFactory(tablePath, branch, spec);
     }
 
     @Override
@@ -1153,7 +1155,8 @@ public class TestIcebergFilesCommitter extends TableTestBase {
               false,
               Collections.singletonMap("flink.test", TestIcebergFilesCommitter.class.getName()),
               ThreadPools.WORKER_THREAD_POOL_SIZE,
-              branch);
+              branch,
+              spec);
       committer.setup(param.getContainingTask(), param.getStreamConfig(), param.getOutput());
       return (T) committer;
     }

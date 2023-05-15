@@ -108,7 +108,7 @@ public class TestFlinkManifest {
                   .addDeleteFiles(posDeleteFiles)
                   .build(),
               () -> factory.create(curCkpId),
-              table.specs());
+              table.spec());
 
       WriteResult result =
           FlinkManifestUtil.readCompletedFiles(deltaManifests, table.io(), table.specs());
@@ -149,7 +149,7 @@ public class TestFlinkManifest {
         FlinkManifestUtil.writeCompletedFiles(
             WriteResult.builder().addDataFiles(dataFiles).build(),
             () -> factory.create(checkpointId),
-            table.specs());
+            table.spec());
 
     Assert.assertNotNull("Data manifest shouldn't be null", deltaManifests.dataManifest());
     Assert.assertNull("Delete manifest should be null", deltaManifests.deleteManifest());
@@ -190,7 +190,7 @@ public class TestFlinkManifest {
                 .addDeleteFiles(posDeleteFiles)
                 .build(),
             () -> factory.create(checkpointId),
-            table.specs());
+            table.spec());
 
     byte[] versionedSerializeData =
         SimpleVersionedSerialization.writeVersionAndSerialize(

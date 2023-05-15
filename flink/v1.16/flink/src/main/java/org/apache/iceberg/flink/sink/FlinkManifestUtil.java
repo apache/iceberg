@@ -19,11 +19,9 @@
 package org.apache.iceberg.flink.sink;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
-import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.HasTableOperations;
@@ -37,7 +35,6 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.WriteResult;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 class FlinkManifestUtil {
@@ -86,36 +83,20 @@ class FlinkManifestUtil {
    *     partition spec
    */
   static DeltaManifests writeCompletedFiles(
-      WriteResult result,
-      Supplier<OutputFile> outputFileSupplier,
-      Map<Integer, PartitionSpec> specsById)
+      WriteResult result, Supplier<OutputFile> outputFileSupplier, PartitionSpec spec)
       throws IOException {
 
     ManifestFile dataManifest = null;
     ManifestFile deleteManifest = null;
-    PartitionSpec spec = null;
 
     // Write the completed data files into a newly created data manifest file.
     if (result.dataFiles() != null && result.dataFiles().length > 0) {
-      Preconditions.checkState(
-          Arrays.stream(result.dataFiles()).map(ContentFile::specId).distinct().count() == 1,
-          "All data files should have same partition spec");
-      spec = specsById.get(result.dataFiles()[0].specId());
       dataManifest =
           writeDataFiles(outputFileSupplier.get(), spec, Lists.newArrayList(result.dataFiles()));
     }
 
     // Write the completed delete files into a newly created delete manifest file.
     if (result.deleteFiles() != null && result.deleteFiles().length > 0) {
-      if (spec == null) {
-        spec = specsById.get(result.deleteFiles()[0].specId());
-      }
-
-      int specId = spec.specId();
-      Preconditions.checkState(
-          Arrays.stream(result.deleteFiles()).allMatch(file -> file.specId() == specId),
-          "All delete files should have same partition spec");
-
       OutputFile deleteManifestFile = outputFileSupplier.get();
 
       ManifestWriter<DeleteFile> deleteManifestWriter =

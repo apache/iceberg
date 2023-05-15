@@ -41,6 +41,7 @@ import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.table.runtime.typeutils.SortedMapTypeInfo;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.ManifestFile;
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.ReplacePartitions;
 import org.apache.iceberg.RowDelta;
 import org.apache.iceberg.Snapshot;
@@ -121,6 +122,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
   private transient ListState<SortedMap<Long, byte[]>> checkpointsState;
 
   private final Integer workerPoolSize;
+  private final PartitionSpec spec;
   private transient ExecutorService workerPool;
 
   IcebergFilesCommitter(
@@ -128,12 +130,14 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
       boolean replacePartitions,
       Map<String, String> snapshotProperties,
       Integer workerPoolSize,
-      String branch) {
+      String branch,
+      PartitionSpec spec) {
     this.tableLoader = tableLoader;
     this.replacePartitions = replacePartitions;
     this.snapshotProperties = snapshotProperties;
     this.workerPoolSize = workerPoolSize;
     this.branch = branch;
+    this.spec = spec;
   }
 
   @Override
@@ -442,12 +446,10 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
       return EMPTY_MANIFEST_DATA;
     }
 
-    // Refresh table to get the latest specs map
-    table.refresh();
     WriteResult result = WriteResult.builder().addAll(writeResultsOfCurrentCkpt).build();
     DeltaManifests deltaManifests =
         FlinkManifestUtil.writeCompletedFiles(
-            result, () -> manifestOutputFileFactory.create(checkpointId), table.specs());
+            result, () -> manifestOutputFileFactory.create(checkpointId), spec);
 
     return SimpleVersionedSerialization.writeVersionAndSerialize(
         DeltaManifestsSerializer.INSTANCE, deltaManifests);
