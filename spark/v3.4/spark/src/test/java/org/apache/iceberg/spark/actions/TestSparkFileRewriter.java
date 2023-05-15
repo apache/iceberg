@@ -249,8 +249,7 @@ public class TestSparkFileRewriter extends SparkTestBase {
             SparkBinPackDataRewriter.MIN_INPUT_FILES,
             SparkBinPackDataRewriter.REWRITE_ALL,
             SparkBinPackDataRewriter.MAX_FILE_GROUP_SIZE_BYTES,
-            SparkBinPackDataRewriter.DELETE_FILE_THRESHOLD,
-            SparkBinPackDataRewriter.OUTPUT_SPEC_ID),
+            SparkBinPackDataRewriter.DELETE_FILE_THRESHOLD),
         rewriter.validOptions());
   }
 
@@ -269,8 +268,7 @@ public class TestSparkFileRewriter extends SparkTestBase {
             SparkSortDataRewriter.REWRITE_ALL,
             SparkSortDataRewriter.MAX_FILE_GROUP_SIZE_BYTES,
             SparkSortDataRewriter.DELETE_FILE_THRESHOLD,
-            SparkSortDataRewriter.COMPRESSION_FACTOR,
-            SparkSortDataRewriter.OUTPUT_SPEC_ID),
+            SparkSortDataRewriter.COMPRESSION_FACTOR),
         rewriter.validOptions());
   }
 
@@ -292,8 +290,7 @@ public class TestSparkFileRewriter extends SparkTestBase {
             SparkZOrderDataRewriter.DELETE_FILE_THRESHOLD,
             SparkZOrderDataRewriter.COMPRESSION_FACTOR,
             SparkZOrderDataRewriter.MAX_OUTPUT_SIZE,
-            SparkZOrderDataRewriter.VAR_LENGTH_CONTRIBUTION,
-            SparkZOrderDataRewriter.OUTPUT_SPEC_ID),
+            SparkZOrderDataRewriter.VAR_LENGTH_CONTRIBUTION),
         rewriter.validOptions());
   }
 

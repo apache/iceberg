@@ -69,7 +69,14 @@ abstract class SparkShufflingDataRewriter extends SparkSizeBasedDataRewriter {
 
   protected abstract org.apache.iceberg.SortOrder sortOrder();
 
-  protected Schema schema() {
+  /**
+   * Retrieves and returns the schema for the rewrite using the current table schema.
+   *
+   * <p>This method retrieves the schema associated with the current table instance. This is the
+   * default implementation that is meant to be potentially overridden by subclasses to provide
+   * different behaviors depending on their specific needs.
+   */
+  protected Schema sortSchema() {
     return table().schema();
   }
 
@@ -134,7 +141,7 @@ abstract class SparkShufflingDataRewriter extends SparkSizeBasedDataRewriter {
     if (includePartitionColumns) {
       // build in the requirement for partition sorting into our sort order
       // as the original spec for this group does not match the output spec
-      return SortOrderUtil.buildSortOrder(schema(), spec, sortOrder());
+      return SortOrderUtil.buildSortOrder(sortSchema(), spec, sortOrder());
     } else {
       return sortOrder();
     }

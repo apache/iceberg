@@ -1391,8 +1391,11 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
     shouldHaveLastCommitUnsorted(table, "c2");
     shouldHaveFiles(table, originalFiles);
 
-    Stream.of(Expressions.bucket("c1", 2), Expressions.bucket("c2", 4))
-        .forEach(expr -> table.updateSpec().addField(expr).commit());
+    table
+        .updateSpec()
+        .addField(Expressions.bucket("c1", 2))
+        .addField(Expressions.bucket("c2", 2))
+        .commit();
 
     long dataSizeBefore = testDataSize(table);
 
@@ -1418,11 +1421,9 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
     Table table = createTable(10);
     shouldHaveFiles(table, 10);
 
-    table.updateProperties().set("write.spark.fanout.enabled", "true").commit();
-    table.replaceSortOrder().asc("c1").asc("c2").commit();
-
-    Stream.of(Expressions.bucket("c1", 2), Expressions.bucket("c2", 4))
-        .forEach(expr -> table.updateSpec().addField(expr).commit());
+    // simulate multiple partition specs with different commit
+    table.updateSpec().addField(Expressions.truncate("c2", 2)).commit();
+    table.updateSpec().addField(Expressions.bucket("c3", 2)).commit();
 
     performRewriteAndAssertForAllTableSpecs(table, "bin-pack");
     performRewriteAndAssertForAllTableSpecs(table, "sort");
@@ -1430,7 +1431,6 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
   }
 
   private void performRewriteAndAssertForAllTableSpecs(Table table, String strategy) {
-    assertThat(strategy).isIn("bin-pack", "sort", "zOrder");
     assertThat(table.specs()).hasSize(3);
 
     table
@@ -1445,8 +1445,8 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
                   executeRewriteStrategy(table, specEntry.getKey(), strategy);
               assertThat(dataSize).isEqualTo(result.rewrittenBytesCount());
 
-              long afterRewriteCount = currentData().size();
-              assertThat(afterRewriteCount).isEqualTo(count);
+              long postRewriteCount = currentData().size();
+              assertThat(postRewriteCount).isEqualTo(count);
 
               assertSpecIdFromDataFiles(specEntry, currentDataFiles(table));
             });
@@ -1454,15 +1454,20 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
 
   private RewriteDataFiles.Result executeRewriteStrategy(
       Table table, Integer outputSpecId, String strategy) {
+
     RewriteDataFiles rewriteDataFiles =
         basicRewrite(table)
             .option(SparkWriteOptions.OUTPUT_SPEC_ID, String.valueOf(outputSpecId))
             .option(BinPackStrategy.REWRITE_ALL, "true");
+
     RewriteDataFiles.Result result = null;
     if (strategy.equals("bin-pack")) {
       result = rewriteDataFiles.binPack().execute();
     } else if (strategy.equals("sort")) {
-      result = rewriteDataFiles.sort().execute();
+      result =
+          rewriteDataFiles
+              .sort(SortOrder.builderFor(table.schema()).asc("c2").asc("c3").build())
+              .execute();
     } else if (strategy.equals("zOrder")) {
       result = rewriteDataFiles.zOrder("c2", "c3").execute();
     }
@@ -1470,9 +1475,9 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
   }
 
   private void assertSpecIdFromDataFiles(
-      Map.Entry<Integer, PartitionSpec> specEntry, List<DataFile> filesAfterRewriteAll) {
+      Map.Entry<Integer, PartitionSpec> specEntry, List<DataFile> filesPostRewriteAll) {
     List<Integer> specIds =
-        filesAfterRewriteAll.stream().map(DataFile::specId).distinct().collect(Collectors.toList());
+        filesPostRewriteAll.stream().map(DataFile::specId).distinct().collect(Collectors.toList());
 
     assertThat(specIds).containsOnlyOnce(specEntry.getKey());
   }

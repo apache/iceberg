@@ -103,8 +103,6 @@ public abstract class SizeBasedFileRewriter<T extends ContentScanTask<F>, F exte
 
   private static final long SPLIT_OVERHEAD = 5 * 1024;
 
-  public static final String OUTPUT_SPEC_ID = "output-spec-id";
-
   private final Table table;
   private long targetFileSize;
   private long minFileSize;
@@ -136,8 +134,7 @@ public abstract class SizeBasedFileRewriter<T extends ContentScanTask<F>, F exte
         MAX_FILE_SIZE_BYTES,
         MIN_INPUT_FILES,
         REWRITE_ALL,
-        MAX_FILE_GROUP_SIZE_BYTES,
-        OUTPUT_SPEC_ID);
+        MAX_FILE_GROUP_SIZE_BYTES);
   }
 
   @Override
@@ -322,7 +319,8 @@ public abstract class SizeBasedFileRewriter<T extends ContentScanTask<F>, F exte
   }
 
   private int outputSpecId(Map<String, String> options) {
-    int specId = PropertyUtil.propertyAsInt(options, OUTPUT_SPEC_ID, table.spec().specId());
+    int specId =
+        PropertyUtil.propertyAsInt(options, RewriteDataFiles.OUTPUT_SPEC_ID, table.spec().specId());
     Preconditions.checkArgument(
         table.specs().containsKey(specId),
         "Output spec id %s is not a valid spec id for table",

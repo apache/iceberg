@@ -121,6 +121,14 @@ public interface RewriteDataFiles
   String REWRITE_JOB_ORDER_DEFAULT = RewriteJobOrder.NONE.orderName();
 
   /**
+   * Constant representing the target output partition specification ID.
+   *
+   * <p>This ID is used by the file rewriter during the rewrite operation to identify the specific
+   * output partition.
+   */
+  String OUTPUT_SPEC_ID = "output-spec-id";
+
+  /**
    * Choose BINPACK as a strategy for this rewrite operation
    *
    * @return this for method chaining

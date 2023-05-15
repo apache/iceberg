@@ -109,8 +109,14 @@ class SparkZOrderDataRewriter extends SparkShufflingDataRewriter {
     return Z_SORT_ORDER;
   }
 
+  /**
+   * Overrides the sortSchema method to include columns from Z_SCHEMA.
+   *
+   * <p>This method generates a new Schema object which consists of columns from the original table
+   * schema and Z_SCHEMA.
+   */
   @Override
-  protected Schema schema() {
+  protected Schema sortSchema() {
     return new Schema(
         new ImmutableList.Builder<Types.NestedField>()
             .addAll(table().schema().columns())
