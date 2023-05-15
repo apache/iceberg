@@ -48,7 +48,7 @@ Here are some examples.
 
 ### Spark
 
-For example, to use AWS features with Spark 3.3 (with scala 2.12) and AWS clients version 2.17.257, you can start the Spark SQL shell with:
+For example, to use AWS features with Spark 3.3 (with scala 2.12) and AWS clients version 2.20.18, you can start the Spark SQL shell with:
 
 ```sh
 # add Iceberg dependency
@@ -56,11 +56,10 @@ ICEBERG_VERSION={{% icebergVersion %}}
 DEPENDENCIES="org.apache.iceberg:iceberg-spark-runtime-3.3_2.12:$ICEBERG_VERSION"
 
 # add AWS dependnecy
-AWS_SDK_VERSION=2.17.257
+AWS_SDK_VERSION=2.20.18
 AWS_MAVEN_GROUP=software.amazon.awssdk
 AWS_PACKAGES=(
     "bundle"
-    "url-connection-client"
 )
 for pkg in "${AWS_PACKAGES[@]}"; do
     DEPENDENCIES+=",$AWS_MAVEN_GROUP:$pkg:$AWS_SDK_VERSION"
@@ -75,7 +74,7 @@ spark-sql --packages $DEPENDENCIES \
     --conf spark.sql.catalog.my_catalog.io-impl=org.apache.iceberg.aws.s3.S3FileIO
 ```
 
-As you can see, In the shell command, we use `--packages` to specify the additional AWS bundle and HTTP client dependencies with their version as `2.17.257`.
+As you can see, In the shell command, we use `--packages` to specify the additional AWS bundle and HTTP client dependencies with their version as `2.20.18`.
 
 ### Flink
 
@@ -89,11 +88,10 @@ ICEBERG_MAVEN_URL=$MAVEN_URL/org/apache/iceberg
 wget $ICEBERG_MAVEN_URL/iceberg-flink-runtime/$ICEBERG_VERSION/iceberg-flink-runtime-$ICEBERG_VERSION.jar
 
 # download AWS dependnecy
-AWS_SDK_VERSION=2.17.257
+AWS_SDK_VERSION=2.20.18
 AWS_MAVEN_URL=$MAVEN_URL/software/amazon/awssdk
 AWS_PACKAGES=(
     "bundle"
-    "url-connection-client"
 )
 for pkg in "${AWS_PACKAGES[@]}"; do
     wget $AWS_MAVEN_URL/$pkg/$AWS_SDK_VERSION/$pkg-$AWS_SDK_VERSION.jar
@@ -103,7 +101,6 @@ done
 /path/to/bin/sql-client.sh embedded \
     -j iceberg-flink-runtime-$ICEBERG_VERSION.jar \
     -j bundle-$AWS_SDK_VERSION.jar \
-    -j url-connection-client-$AWS_SDK_VERSION.jar \
     shell
 ```
 
@@ -137,7 +134,6 @@ and then add them to the Hive classpath or add the jars at runtime in CLI:
 ```
 add jar /my/path/to/iceberg-hive-runtime.jar;
 add jar /my/path/to/aws/bundle.jar;
-add jar /my/path/to/aws/url-connection-client.jar;
 ```
 
 With those dependencies, you can register a Glue catalog and create external tables in Hive at runtime in CLI by:
@@ -181,9 +177,10 @@ see more details in [AWS client customization](#aws-client-customization).
 
 #### Skip Archive
 
-By default, Glue stores all the table versions created and user can rollback a table to any historical version if needed.
-However, if you are streaming data to Iceberg, this will easily create a lot of Glue table versions.
-Therefore, it is recommended to turn off the archive feature in Glue by setting `glue.skip-archive` to `true`.
+AWS Glue has the ability to archive older table versions and a user can rollback the table to any historical version if needed.
+By default, the Iceberg Glue Catalog will skip the archival of older table versions.
+If a user wishes to archive older table versions, they can set `glue.skip-archive` to false.
+Do note for streaming ingestion into Iceberg tables, setting `glue.skip-archive` to false will quickly create a lot of Glue table versions.
 For more details, please read [Glue Quotas](https://docs.aws.amazon.com/general/latest/gr/glue.html) and the [UpdateTable API](https://docs.aws.amazon.com/glue/latest/webapi/API_UpdateTable.html).
 
 #### Skip Name Validation
@@ -199,7 +196,7 @@ and table name validation are skipped, there is no guarantee that downstream sys
 By default, Iceberg uses Glue's optimistic locking for concurrent updates to a table.
 With optimistic locking, each table has a version id. 
 If users retrieve the table metadata, Iceberg records the version id of that table. 
-Users can update the table, but only if the version id on the server side has not changed. 
+Users can update the table as long as the version ID on the server side remains unchanged. 
 If there is a version mismatch, it means that someone else has modified the table before you did. 
 The update attempt fails, because you have a stale version of the table. 
 If this happens, Iceberg refreshes the metadata and checks if there might be potential conflict. 
@@ -565,7 +562,7 @@ The Glue, S3 and DynamoDB clients are then initialized with the assume-role cred
 Here is an example to start Spark shell with this client factory:
 
 ```shell
-spark-sql --packages org.apache.iceberg:iceberg-spark-runtime:{{% icebergVersion %}},software.amazon.awssdk:bundle:2.17.257 \
+spark-sql --packages org.apache.iceberg:iceberg-spark-runtime:{{% icebergVersion %}},software.amazon.awssdk:bundle:2.20.18 \
     --conf spark.sql.catalog.my_catalog=org.apache.iceberg.spark.SparkCatalog \
     --conf spark.sql.catalog.my_catalog.warehouse=s3://my-bucket/my/key/prefix \    
     --conf spark.sql.catalog.my_catalog.catalog-impl=org.apache.iceberg.aws.glue.GlueCatalog \
@@ -585,9 +582,9 @@ For more details of configuration, see sections [URL Connection HTTP Client Conf
 
 Configure the following property to set the type of HTTP client:
 
-| Property         | Default       | Description                                                                                                |
-|------------------|---------------|------------------------------------------------------------------------------------------------------------|
-| http-client.type | urlconnection | Types of HTTP Client. <br/> `urlconnection`: URL Connection HTTP Client <br/> `apache`: Apache HTTP Client |
+| Property         | Default | Description                                                                                                |
+|------------------|---------|------------------------------------------------------------------------------------------------------------|
+| http-client.type | apache  | Types of HTTP Client. <br/> `urlconnection`: URL Connection HTTP Client <br/> `apache`: Apache HTTP Client |
 
 #### URL Connection HTTP Client Configurations
 
@@ -644,7 +641,7 @@ For versions before 6.5.0, you can use a [bootstrap action](https://docs.aws.ama
 ```sh
 #!/bin/bash
 
-AWS_SDK_VERSION=2.17.257
+AWS_SDK_VERSION=2.20.18
 ICEBERG_VERSION={{% icebergVersion %}}
 MAVEN_URL=https://repo1.maven.org/maven2
 ICEBERG_MAVEN_URL=$MAVEN_URL/org/apache/iceberg
@@ -655,7 +652,6 @@ LIB_PATH=/usr/share/aws/aws-java-sdk/
 
 AWS_PACKAGES=(
   "bundle"
-  "url-connection-client"
 )
 
 ICEBERG_PACKAGES=(

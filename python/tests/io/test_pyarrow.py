@@ -44,13 +44,15 @@ from pyiceberg.expressions import (
     BoundNotIn,
     BoundNotNaN,
     BoundNotNull,
+    BoundNotStartsWith,
     BoundReference,
+    BoundStartsWith,
     GreaterThan,
     Not,
     Or,
     literal,
 )
-from pyiceberg.io import InputStream, OutputStream
+from pyiceberg.io import InputStream, OutputStream, load_file_io
 from pyiceberg.io.pyarrow import (
     PyArrowFile,
     PyArrowFileIO,
@@ -301,24 +303,58 @@ def test_deleting_s3_file_not_found() -> None:
 def test_schema_to_pyarrow_schema(table_schema_nested: Schema) -> None:
     actual = schema_to_pyarrow(table_schema_nested)
     expected = """foo: string
+  -- field metadata --
+  field_id: '1'
 bar: int32 not null
+  -- field metadata --
+  field_id: '2'
 baz: bool
-qux: list<item: string> not null
-  child 0, item: string
+  -- field metadata --
+  field_id: '3'
+qux: list<element: string not null> not null
+  child 0, element: string not null
+    -- field metadata --
+    field_id: '5'
+  -- field metadata --
+  field_id: '4'
 quux: map<string, map<string, int32>> not null
-  child 0, entries: struct<key: string not null, value: map<string, int32>> not null
+  child 0, entries: struct<key: string not null, value: map<string, int32> not null> not null
       child 0, key: string not null
-      child 1, value: map<string, int32>
-          child 0, entries: struct<key: string not null, value: int32> not null
+      -- field metadata --
+      field_id: '7'
+      child 1, value: map<string, int32> not null
+          child 0, entries: struct<key: string not null, value: int32 not null> not null
               child 0, key: string not null
-              child 1, value: int32
-location: list<item: struct<latitude: float, longitude: float>> not null
-  child 0, item: struct<latitude: float, longitude: float>
+          -- field metadata --
+          field_id: '9'
+              child 1, value: int32 not null
+          -- field metadata --
+          field_id: '10'
+      -- field metadata --
+      field_id: '8'
+  -- field metadata --
+  field_id: '6'
+location: list<element: struct<latitude: float, longitude: float> not null> not null
+  child 0, element: struct<latitude: float, longitude: float> not null
       child 0, latitude: float
+      -- field metadata --
+      field_id: '13'
       child 1, longitude: float
+      -- field metadata --
+      field_id: '14'
+    -- field metadata --
+    field_id: '12'
+  -- field metadata --
+  field_id: '11'
 person: struct<name: string, age: int32 not null>
   child 0, name: string
-  child 1, age: int32 not null"""
+    -- field metadata --
+    field_id: '16'
+  child 1, age: int32 not null
+    -- field metadata --
+    field_id: '17'
+  -- field metadata --
+  field_id: '15'"""
     assert repr(actual) == expected
 
 
@@ -377,7 +413,7 @@ def test_timestamp_type_to_pyarrow() -> None:
 
 def test_timestamptz_type_to_pyarrow() -> None:
     iceberg_type = TimestamptzType()
-    assert visit(iceberg_type, _ConvertToArrowSchema()) == pa.timestamp(unit="us", tz="+00:00")
+    assert visit(iceberg_type, _ConvertToArrowSchema()) == pa.timestamp(unit="us", tz="UTC")
 
 
 def test_string_type_to_pyarrow() -> None:
@@ -393,9 +429,9 @@ def test_binary_type_to_pyarrow() -> None:
 def test_struct_type_to_pyarrow(table_schema_simple: Schema) -> None:
     expected = pa.struct(
         [
-            pa.field("foo", pa.string(), nullable=True, metadata={"id": "1"}),
-            pa.field("bar", pa.int32(), nullable=False, metadata={"id": "2"}),
-            pa.field("baz", pa.bool_(), nullable=True, metadata={"id": "3"}),
+            pa.field("foo", pa.string(), nullable=True, metadata={"field_id": "1"}),
+            pa.field("bar", pa.int32(), nullable=False, metadata={"field_id": "2"}),
+            pa.field("baz", pa.bool_(), nullable=True, metadata={"field_id": "3"}),
         ]
     )
     assert visit(table_schema_simple.as_struct(), _ConvertToArrowSchema()) == expected
@@ -409,7 +445,10 @@ def test_map_type_to_pyarrow() -> None:
         value_type=StringType(),
         value_required=True,
     )
-    assert visit(iceberg_map, _ConvertToArrowSchema()) == pa.map_(pa.int32(), pa.string())
+    assert visit(iceberg_map, _ConvertToArrowSchema()) == pa.map_(
+        pa.field("key", pa.int32(), nullable=False, metadata={"field_id": "1"}),
+        pa.field("value", pa.string(), nullable=False, metadata={"field_id": "2"}),
+    )
 
 
 def test_list_type_to_pyarrow() -> None:
@@ -418,7 +457,9 @@ def test_list_type_to_pyarrow() -> None:
         element_type=IntegerType(),
         element_required=True,
     )
-    assert visit(iceberg_map, _ConvertToArrowSchema()) == pa.list_(pa.int32())
+    assert visit(iceberg_map, _ConvertToArrowSchema()) == pa.list_(
+        pa.field("element", pa.int32(), nullable=False, metadata={"field_id": "1"})
+    )
 
 
 @pytest.fixture
@@ -448,17 +489,11 @@ def test_expr_not_null_to_pyarrow(bound_reference: BoundReference[str]) -> None:
 
 
 def test_expr_is_nan_to_pyarrow(bound_double_reference: BoundReference[str]) -> None:
-    assert (
-        repr(expression_to_pyarrow(BoundIsNaN(bound_double_reference)))
-        == "<pyarrow.compute.Expression (is_null(foo, {nan_is_null=true}) and is_valid(foo))>"
-    )
+    assert repr(expression_to_pyarrow(BoundIsNaN(bound_double_reference))) == "<pyarrow.compute.Expression is_nan(foo)>"
 
 
 def test_expr_not_nan_to_pyarrow(bound_double_reference: BoundReference[str]) -> None:
-    assert (
-        repr(expression_to_pyarrow(BoundNotNaN(bound_double_reference)))
-        == "<pyarrow.compute.Expression invert((is_null(foo, {nan_is_null=true}) and is_valid(foo)))>"
-    )
+    assert repr(expression_to_pyarrow(BoundNotNaN(bound_double_reference))) == "<pyarrow.compute.Expression invert(is_nan(foo))>"
 
 
 def test_expr_equal_to_pyarrow(bound_reference: BoundReference[str]) -> None:
@@ -526,6 +561,20 @@ def test_expr_not_in_to_pyarrow(bound_reference: BoundReference[str]) -> None:
   "hello",
   "world"
 ], skip_nulls=false}))>""",
+    )
+
+
+def test_expr_starts_with_to_pyarrow(bound_reference: BoundReference[str]) -> None:
+    assert (
+        repr(expression_to_pyarrow(BoundStartsWith(bound_reference, literal("he"))))
+        == '<pyarrow.compute.Expression starts_with(foo, {pattern="he", ignore_case=false})>'
+    )
+
+
+def test_expr_not_starts_with_to_pyarrow(bound_reference: BoundReference[str]) -> None:
+    assert (
+        repr(expression_to_pyarrow(BoundNotStartsWith(bound_reference, literal("he"))))
+        == '<pyarrow.compute.Expression invert(starts_with(foo, {pattern="he", ignore_case=false}))>'
     )
 
 
@@ -807,19 +856,28 @@ def test_projection_add_column(file_int: str) -> None:
 
     for actual, expected in zip(result_table.columns[3], [None, None, None]):
         assert actual.as_py() == expected
-
     assert (
         repr(result_table.schema)
         == """id: int32
-list: list<item: int32>
-  child 0, item: int32
+list: list<element: int32>
+  child 0, element: int32
+    -- field metadata --
+    field_id: '21'
 map: map<int32, string>
   child 0, entries: struct<key: int32 not null, value: string> not null
       child 0, key: int32 not null
+      -- field metadata --
+      field_id: '31'
       child 1, value: string
+      -- field metadata --
+      field_id: '32'
 location: struct<lat: double, lon: double>
   child 0, lat: double
-  child 1, lon: double"""
+    -- field metadata --
+    field_id: '41'
+  child 1, lon: double
+    -- field metadata --
+    field_id: '42'"""
     )
 
 
@@ -863,13 +921,16 @@ def test_projection_add_column_struct(schema_int: Schema, file_int: str) -> None
     # Everything should be None
     for r in result_table.columns[0]:
         assert r.as_py() is None
-
     assert (
         repr(result_table.schema)
         == """id: map<int32, string>
   child 0, entries: struct<key: int32 not null, value: string> not null
       child 0, key: int32 not null
-      child 1, value: string"""
+      -- field metadata --
+      field_id: '3'
+      child 1, value: string
+      -- field metadata --
+      field_id: '4'"""
     )
 
 
@@ -913,7 +974,12 @@ def test_projection_concat_files(schema_int: Schema, file_int: str) -> None:
 def test_projection_filter(schema_int: Schema, file_int: str) -> None:
     result_table = project(schema_int, [file_int], GreaterThan("id", 4))
     assert len(result_table.columns[0]) == 0
-    assert repr(result_table.schema) == "id: int32"
+    assert (
+        repr(result_table.schema)
+        == """id: int32
+  -- field metadata --
+  field_id: '1'"""
+    )
 
 
 def test_projection_filter_renamed_column(file_int: str) -> None:
@@ -1089,7 +1155,11 @@ def test_projection_nested_struct_different_parent_id(file_struct: str) -> None:
         repr(result_table.schema)
         == """location: struct<lat: double, long: double>
   child 0, lat: double
-  child 1, long: double"""
+    -- field metadata --
+    field_id: '41'
+  child 1, long: double
+    -- field metadata --
+    field_id: '42'"""
     )
 
 
@@ -1114,3 +1184,38 @@ def test_projection_filter_on_unknown_field(schema_int_str: Schema, file_int_str
         _ = project(schema, [file_int_str], GreaterThan("unknown_field", "1"), schema_int_str)
 
     assert "Could not find field with name unknown_field, case_sensitive=True" in str(exc_info.value)
+
+
+def test_pyarrow_wrap_fsspec(example_task: FileScanTask, table_schema_simple: Schema) -> None:
+    metadata_location = "file://a/b/c.json"
+    projection = project_table(
+        [example_task],
+        Table(
+            ("namespace", "table"),
+            metadata=TableMetadataV2(
+                location=metadata_location,
+                last_column_id=1,
+                format_version=2,
+                current_schema_id=1,
+                schemas=[table_schema_simple],
+                partition_specs=[PartitionSpec()],
+            ),
+            metadata_location=metadata_location,
+            io=load_file_io(properties={"py-io-impl": "pyiceberg.io.fsspec.FsspecFileIO"}, location=metadata_location),
+        ),
+        case_sensitive=True,
+        projected_schema=table_schema_simple,
+        row_filter=AlwaysTrue(),
+    )
+
+    assert (
+        str(projection)
+        == """pyarrow.Table
+foo: string
+bar: int64 not null
+baz: bool
+----
+foo: [["a","b","c"]]
+bar: [[1,2,3]]
+baz: [[true,false,null]]"""
+    )

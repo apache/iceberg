@@ -37,6 +37,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.spark.SparkDistributionAndOrderingUtil;
 import org.apache.iceberg.spark.SparkReadOptions;
+import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.NestedField;
@@ -154,7 +155,7 @@ public class SparkZOrderStrategy extends SparkSortStrategy {
   }
 
   private void validateColumnsExistence(Table table, SparkSession spark, List<String> colNames) {
-    boolean caseSensitive = Boolean.parseBoolean(spark.conf().get("spark.sql.caseSensitive"));
+    boolean caseSensitive = SparkUtil.caseSensitive(spark);
     Schema schema = table.schema();
     colNames.forEach(
         col -> {

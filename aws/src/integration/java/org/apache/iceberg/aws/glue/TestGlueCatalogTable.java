@@ -376,6 +376,16 @@ public class TestGlueCatalogTable extends GlueTestBase {
     Schema schema = new Schema(Types.NestedField.required(1, "c1", Types.StringType.get(), "c1"));
     PartitionSpec partitionSpec = PartitionSpec.builderFor(schema).build();
     String tableName = getRandomName();
+    AwsProperties properties = new AwsProperties();
+    properties.setGlueCatalogSkipArchive(false);
+    glueCatalog.initialize(
+        catalogName,
+        testBucketPath,
+        properties,
+        glue,
+        LockManagers.defaultLockManager(),
+        fileIO,
+        ImmutableMap.of());
     glueCatalog.createTable(TableIdentifier.of(namespace, tableName), schema, partitionSpec);
     Table table = glueCatalog.loadTable(TableIdentifier.of(namespace, tableName));
     DataFile dataFile =
@@ -396,9 +406,9 @@ public class TestGlueCatalogTable extends GlueTestBase {
             .size());
     // create table and commit with skip
     tableName = getRandomName();
-    glueCatalogWithSkip.createTable(
-        TableIdentifier.of(namespace, tableName), schema, partitionSpec);
-    table = glueCatalogWithSkip.loadTable(TableIdentifier.of(namespace, tableName));
+    glueCatalog.initialize(catalogName, ImmutableMap.of());
+    glueCatalog.createTable(TableIdentifier.of(namespace, tableName), schema, partitionSpec);
+    table = glueCatalog.loadTable(TableIdentifier.of(namespace, tableName));
     table.newAppend().appendFile(dataFile).commit();
     Assert.assertEquals(
         "skipArchive should not create new version",

@@ -140,7 +140,7 @@ public class TestSparkReaderWithBloomFilter {
                   "id_string",
                   BINARY_PREFIX + (INT_MIN_VALUE + i),
                   "id_boolean",
-                  (i % 2 == 0) ? true : false,
+                  i % 2 == 0,
                   "id_date",
                   LocalDate.parse("2021-09-05"),
                   "id_int_decimal",

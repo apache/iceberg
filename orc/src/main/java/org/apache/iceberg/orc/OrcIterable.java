@@ -171,8 +171,10 @@ class OrcIterable<T> extends CloseableGroup implements CloseableIterable<T> {
         nextRow = 0;
         this.reader.setBatchContext(nextBatch.second());
       }
-
-      return this.reader.read(current, nextRow++);
+      // If selected is in use then the row ids should be determined from the selected vector
+      int rowId = current.isSelectedInUse() ? current.selected[nextRow] : nextRow;
+      nextRow++;
+      return this.reader.read(current, rowId);
     }
 
     @Override

@@ -555,19 +555,22 @@ public class TestFastAppend extends TableTestBase {
 
   @Test
   public void testAppendToNullBranchFails() {
-    AssertHelpers.assertThrows(
-        "Invalid branch",
-        IllegalArgumentException.class,
-        () -> table.newFastAppend().appendFile(FILE_A).toBranch(null));
+    Assertions.assertThatThrownBy(() -> table.newFastAppend().appendFile(FILE_A).toBranch(null))
+        .as("Invalid branch")
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid branch name: null");
   }
 
   @Test
   public void testAppendToTagFails() {
     table.newFastAppend().appendFile(FILE_A).commit();
     table.manageSnapshots().createTag("some-tag", table.currentSnapshot().snapshotId()).commit();
-    AssertHelpers.assertThrows(
-        "Invalid branch",
-        IllegalArgumentException.class,
-        () -> table.newFastAppend().appendFile(FILE_A).toBranch("some-tag").commit());
+
+    Assertions.assertThatThrownBy(
+            () -> table.newFastAppend().appendFile(FILE_A).toBranch("some-tag").commit())
+        .as("Invalid branch")
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "some-tag is a tag, not a branch. Tags cannot be targets for producing snapshots");
   }
 }

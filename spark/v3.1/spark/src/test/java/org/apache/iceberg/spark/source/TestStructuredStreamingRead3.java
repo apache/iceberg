@@ -19,8 +19,10 @@
 package org.apache.iceberg.spark.source;
 
 import static org.apache.iceberg.expressions.Expressions.ref;
+import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -321,6 +323,46 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
           spark.read().load(output.getPath()).as(Encoders.bean(SimpleRecord.class)).collectAsList();
       Assertions.assertThat(actual).containsExactlyInAnyOrderElementsOf(Iterables.concat(expected));
     }
+  }
+
+  @Test
+  public void testFailReadingCheckpointInvalidSnapshot() throws IOException, TimeoutException {
+    File writerCheckpointFolder = temp.newFolder("writer-checkpoint-folder");
+    File writerCheckpoint = new File(writerCheckpointFolder, "writer-checkpoint");
+    File output = temp.newFolder();
+
+    DataStreamWriter querySource =
+        spark
+            .readStream()
+            .format("iceberg")
+            .load(tableName)
+            .writeStream()
+            .option("checkpointLocation", writerCheckpoint.toString())
+            .format("parquet")
+            .queryName("checkpoint_test")
+            .option("path", output.getPath());
+
+    List<SimpleRecord> firstSnapshotRecordList = Lists.newArrayList(new SimpleRecord(1, "one"));
+    List<SimpleRecord> secondSnapshotRecordList = Lists.newArrayList(new SimpleRecord(2, "two"));
+    StreamingQuery startQuery = querySource.start();
+
+    appendData(firstSnapshotRecordList);
+    table.refresh();
+    long firstSnapshotid = table.currentSnapshot().snapshotId();
+    startQuery.processAllAvailable();
+    startQuery.stop();
+
+    appendData(secondSnapshotRecordList);
+
+    table.expireSnapshots().expireSnapshotId(firstSnapshotid).commit();
+
+    StreamingQuery restartedQuery = querySource.start();
+    assertThatThrownBy(restartedQuery::processAllAvailable)
+        .hasCauseInstanceOf(IllegalStateException.class)
+        .hasMessageContaining(
+            String.format(
+                "Cannot load current offset at snapshot %d, the snapshot was expired or removed",
+                firstSnapshotid));
   }
 
   @Test

@@ -75,6 +75,14 @@ public class SparkUtil {
 
   private SparkUtil() {}
 
+  /**
+   * Using this to broadcast FileIO can lead to unexpected behavior, as broadcast variables that
+   * implement {@link AutoCloseable} will be closed by Spark during broadcast removal. As an
+   * alternative, use {@link org.apache.iceberg.SerializableTable}.
+   *
+   * @deprecated will be removed in 1.4.0
+   */
+  @Deprecated
   public static FileIO serializableFileIO(Table table) {
     if (table.io() instanceof HadoopConfigurable) {
       // we need to use Spark's SerializableConfiguration to avoid issues with Kryo serialization
@@ -286,5 +294,9 @@ public class SparkUtil {
     }
 
     return filterExpressions;
+  }
+
+  public static boolean caseSensitive(SparkSession spark) {
+    return Boolean.parseBoolean(spark.conf().get("spark.sql.caseSensitive"));
   }
 }

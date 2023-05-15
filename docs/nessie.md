@@ -43,11 +43,12 @@ org.apache.iceberg:iceberg-spark-runtime-3.3_2.12:{{% icebergVersion %}}`.
 
 ## Spark SQL Extensions
 
-From Spark 3.3 (with scala 2.12), Nessie SQL extensions can be used to manage the Nessie repo as shown below. 
+From Spark 3.1 and above, Nessie SQL extensions can be used to manage the Nessie repo as shown below.
+Example for Spark 3.3 with scala 2.12:
 
 ```
 bin/spark-sql 
-  --packages "org.apache.iceberg:iceberg-spark-runtime-3.3_2.12:{{% icebergVersion %}},org.projectnessie:nessie-spark-extensions:{{% nessieVersion %}}"
+  --packages "org.apache.iceberg:iceberg-spark-runtime-3.3_2.12:{{% icebergVersion %}},org.projectnessie.nessie-integrations:nessie-spark-extensions-3.3_2.12:{{% nessieVersion %}}"
   --conf spark.sql.extensions="org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions,org.projectnessie.spark.extensions.NessieSparkSessionExtensions"
   --conf <other settings>
 ```

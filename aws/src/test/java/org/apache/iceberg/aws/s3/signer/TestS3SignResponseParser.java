@@ -74,7 +74,7 @@ public class TestS3SignResponseParser {
                     "Content-Type",
                     Arrays.asList("application/json"),
                     "User-Agent",
-                    Arrays.asList("aws-sdk-java/2.17.257", "Linux/5.4.0-126")))
+                    Arrays.asList("aws-sdk-java/2.20.18", "Linux/5.4.0-126")))
             .build();
 
     String json = S3SignResponseParser.toJson(s3SignResponse, true);
@@ -87,7 +87,7 @@ public class TestS3SignResponseParser {
                 + "    \"amz-sdk-request\" : [ \"attempt=1\", \"max=4\" ],\n"
                 + "    \"Content-Length\" : [ \"191\" ],\n"
                 + "    \"Content-Type\" : [ \"application/json\" ],\n"
-                + "    \"User-Agent\" : [ \"aws-sdk-java/2.17.257\", \"Linux/5.4.0-126\" ]\n"
+                + "    \"User-Agent\" : [ \"aws-sdk-java/2.20.18\", \"Linux/5.4.0-126\" ]\n"
                 + "  }\n"
                 + "}");
   }

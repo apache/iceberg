@@ -25,7 +25,6 @@ import java.util.Collections;
 import java.util.Optional;
 import java.util.Properties;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.PartitionSpec;
@@ -65,11 +64,10 @@ public class TestCatalogs {
   @Test
   public void testLoadTableFromLocation() throws IOException {
     conf.set(CatalogUtil.ICEBERG_CATALOG_TYPE, Catalogs.LOCATION);
-    AssertHelpers.assertThrows(
-        "Should complain about table location not set",
-        IllegalArgumentException.class,
-        "location not set",
-        () -> Catalogs.loadTable(conf));
+
+    Assertions.assertThatThrownBy(() -> Catalogs.loadTable(conf))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Table location not set");
 
     HadoopTables tables = new HadoopTables();
     Table hadoopTable = tables.create(SCHEMA, temp.newFolder("hadoop_tables").toString());
@@ -85,11 +83,9 @@ public class TestCatalogs {
     String warehouseLocation = temp.newFolder("hadoop", "warehouse").toString();
     setCustomCatalogProperties(defaultCatalogName, warehouseLocation);
 
-    AssertHelpers.assertThrows(
-        "Should complain about table identifier not set",
-        IllegalArgumentException.class,
-        "identifier not set",
-        () -> Catalogs.loadTable(conf));
+    Assertions.assertThatThrownBy(() -> Catalogs.loadTable(conf))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Table identifier not set");
 
     HadoopCatalog catalog = new CustomHadoopCatalog(conf, warehouseLocation);
     Table hadoopCatalogTable = catalog.createTable(TableIdentifier.of("table"), SCHEMA);
@@ -103,20 +99,18 @@ public class TestCatalogs {
   public void testCreateDropTableToLocation() throws IOException {
     Properties missingSchema = new Properties();
     missingSchema.put("location", temp.newFolder("hadoop_tables").toString());
-    AssertHelpers.assertThrows(
-        "Should complain about table schema not set",
-        NullPointerException.class,
-        "schema not set",
-        () -> Catalogs.createTable(conf, missingSchema));
+
+    Assertions.assertThatThrownBy(() -> Catalogs.createTable(conf, missingSchema))
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("Table schema not set");
 
     conf.set(CatalogUtil.ICEBERG_CATALOG_TYPE, Catalogs.LOCATION);
     Properties missingLocation = new Properties();
     missingLocation.put(InputFormatConfig.TABLE_SCHEMA, SchemaParser.toJson(SCHEMA));
-    AssertHelpers.assertThrows(
-        "Should complain about table location not set",
-        NullPointerException.class,
-        "location not set",
-        () -> Catalogs.createTable(conf, missingLocation));
+
+    Assertions.assertThatThrownBy(() -> Catalogs.createTable(conf, missingLocation))
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("Table location not set");
 
     Properties properties = new Properties();
     properties.put("location", temp.getRoot() + "/hadoop_tables");
@@ -134,21 +128,17 @@ public class TestCatalogs {
     Assert.assertEquals(PartitionSpecParser.toJson(SPEC), PartitionSpecParser.toJson(table.spec()));
     Assert.assertEquals(Collections.singletonMap("dummy", "test"), table.properties());
 
-    AssertHelpers.assertThrows(
-        "Should complain about table location not set",
-        NullPointerException.class,
-        "location not set",
-        () -> Catalogs.dropTable(conf, new Properties()));
+    Assertions.assertThatThrownBy(() -> Catalogs.dropTable(conf, new Properties()))
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("Table location not set");
 
     Properties dropProperties = new Properties();
     dropProperties.put("location", temp.getRoot() + "/hadoop_tables");
     Catalogs.dropTable(conf, dropProperties);
 
-    AssertHelpers.assertThrows(
-        "Should complain about table not found",
-        NoSuchTableException.class,
-        "Table does not exist",
-        () -> Catalogs.loadTable(conf, dropProperties));
+    Assertions.assertThatThrownBy(() -> Catalogs.loadTable(conf, dropProperties))
+        .isInstanceOf(NoSuchTableException.class)
+        .hasMessage("Table does not exist at location: " + properties.getProperty("location"));
   }
 
   @Test
@@ -162,20 +152,17 @@ public class TestCatalogs {
     Properties missingSchema = new Properties();
     missingSchema.put("name", identifier.toString());
     missingSchema.put(InputFormatConfig.CATALOG_NAME, defaultCatalogName);
-    AssertHelpers.assertThrows(
-        "Should complain about table schema not set",
-        NullPointerException.class,
-        "schema not set",
-        () -> Catalogs.createTable(conf, missingSchema));
+
+    Assertions.assertThatThrownBy(() -> Catalogs.createTable(conf, missingSchema))
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("Table schema not set");
 
     Properties missingIdentifier = new Properties();
     missingIdentifier.put(InputFormatConfig.TABLE_SCHEMA, SchemaParser.toJson(SCHEMA));
     missingIdentifier.put(InputFormatConfig.CATALOG_NAME, defaultCatalogName);
-    AssertHelpers.assertThrows(
-        "Should complain about table identifier not set",
-        NullPointerException.class,
-        "identifier not set",
-        () -> Catalogs.createTable(conf, missingIdentifier));
+    Assertions.assertThatThrownBy(() -> Catalogs.createTable(conf, missingIdentifier))
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("Table identifier not set");
 
     Properties properties = new Properties();
     properties.put("name", identifier.toString());
@@ -193,22 +180,18 @@ public class TestCatalogs {
     Assert.assertEquals(PartitionSpecParser.toJson(SPEC), PartitionSpecParser.toJson(table.spec()));
     Assert.assertEquals(Collections.singletonMap("dummy", "test"), table.properties());
 
-    AssertHelpers.assertThrows(
-        "Should complain about table identifier not set",
-        NullPointerException.class,
-        "identifier not set",
-        () -> Catalogs.dropTable(conf, new Properties()));
+    Assertions.assertThatThrownBy(() -> Catalogs.dropTable(conf, new Properties()))
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("Table identifier not set");
 
     Properties dropProperties = new Properties();
     dropProperties.put("name", identifier.toString());
     dropProperties.put(InputFormatConfig.CATALOG_NAME, defaultCatalogName);
     Catalogs.dropTable(conf, dropProperties);
 
-    AssertHelpers.assertThrows(
-        "Should complain about table not found",
-        NoSuchTableException.class,
-        "Table does not exist",
-        () -> Catalogs.loadTable(conf, dropProperties));
+    Assertions.assertThatThrownBy(() -> Catalogs.loadTable(conf, dropProperties))
+        .isInstanceOf(NoSuchTableException.class)
+        .hasMessage("Table does not exist: test.table");
   }
 
   @Test
@@ -285,11 +268,10 @@ public class TestCatalogs {
     conf.set(
         InputFormatConfig.catalogPropertyConfigKey(catalogName, CatalogUtil.ICEBERG_CATALOG_TYPE),
         "fooType");
-    AssertHelpers.assertThrows(
-        "should complain about catalog not supported",
-        UnsupportedOperationException.class,
-        "Unknown catalog type:",
-        () -> Catalogs.loadCatalog(conf, catalogName));
+
+    Assertions.assertThatThrownBy(() -> Catalogs.loadCatalog(conf, catalogName))
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage("Unknown catalog type: fooType");
   }
 
   public static class CustomHadoopCatalog extends HadoopCatalog {

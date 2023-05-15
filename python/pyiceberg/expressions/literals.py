@@ -114,7 +114,7 @@ def literal(value: L) -> Literal[L]:
     A generic Literal factory to construct an Iceberg Literal based on Python primitive data type
 
     Args:
-        value(Python primitive type): the value to be associated with literal
+        value (Python primitive type): the value to be associated with literal
 
     Example:
         from pyiceberg.expressions.literals import literal
@@ -122,7 +122,7 @@ def literal(value: L) -> Literal[L]:
         LongLiteral(123)
     """
     if isinstance(value, float):
-        return DoubleLiteral(value)
+        return DoubleLiteral(value)  # type: ignore
     elif isinstance(value, bool):
         return BooleanLiteral(value)
     elif isinstance(value, int):
@@ -328,6 +328,9 @@ class FloatLiteral(Literal[float]):
     def __ge__(self, other: Any) -> bool:
         return self._value32 >= other
 
+    def __hash__(self) -> int:
+        return hash(self._value32)
+
     @singledispatchmethod
     def to(self, type_var: IcebergType) -> Literal:  # type: ignore
         raise TypeError(f"Cannot convert FloatLiteral into {type_var}")
@@ -434,12 +437,12 @@ class DecimalLiteral(Literal[Decimal]):
         super().__init__(value, Decimal)
 
     def increment(self) -> Literal[Decimal]:
-        original_scale = abs(self.value.as_tuple().exponent)
+        original_scale = abs(int(self.value.as_tuple().exponent))
         unscaled = decimal_to_unscaled(self.value)
         return DecimalLiteral(unscaled_to_decimal(unscaled + 1, original_scale))
 
     def decrement(self) -> Literal[Decimal]:
-        original_scale = abs(self.value.as_tuple().exponent)
+        original_scale = abs(int(self.value.as_tuple().exponent))
         unscaled = decimal_to_unscaled(self.value)
         return DecimalLiteral(unscaled_to_decimal(unscaled - 1, original_scale))
 
@@ -449,7 +452,7 @@ class DecimalLiteral(Literal[Decimal]):
 
     @to.register(DecimalType)
     def _(self, type_var: DecimalType) -> Literal[Decimal]:
-        if type_var.scale == abs(self.value.as_tuple().exponent):
+        if type_var.scale == abs(int(self.value.as_tuple().exponent)):
             return self
         raise ValueError(f"Could not convert {self.value} into a {type_var}")
 
@@ -555,12 +558,19 @@ class StringLiteral(Literal[str]):
     @to.register(DecimalType)
     def _(self, type_var: DecimalType) -> Literal[Decimal]:
         dec = Decimal(self.value)
-        if type_var.scale == abs(dec.as_tuple().exponent):
+        scale = abs(int(dec.as_tuple().exponent))
+        if type_var.scale == scale:
             return DecimalLiteral(dec)
         else:
-            raise ValueError(
-                f"Could not convert {self.value} into a {type_var}, scales differ {type_var.scale} <> {abs(dec.as_tuple().exponent)}"
-            )
+            raise ValueError(f"Could not convert {self.value} into a {type_var}, scales differ {type_var.scale} <> {scale}")
+
+    @to.register(BooleanType)
+    def _(self, type_var: BooleanType) -> Literal[bool]:
+        value_upper = self.value.upper()
+        if value_upper in ["TRUE", "FALSE"]:
+            return BooleanLiteral(value_upper == "TRUE")
+        else:
+            raise ValueError(f"Could not convert {self.value} into a {type_var}")
 
     def __repr__(self) -> str:
         return f"literal({repr(self.value)})"

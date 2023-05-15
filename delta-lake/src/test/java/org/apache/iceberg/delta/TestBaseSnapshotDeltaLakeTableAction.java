@@ -98,7 +98,7 @@ public class TestBaseSnapshotDeltaLakeTableAction {
     Assertions.assertThatThrownBy(testAction::execute)
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
-            "Delta lake table does not exist at the given location: %s", sourceTableLocation);
+            "Delta Lake table does not exist at the given location: %s", sourceTableLocation);
   }
 
   private static class TestCatalog extends BaseMetastoreCatalog {

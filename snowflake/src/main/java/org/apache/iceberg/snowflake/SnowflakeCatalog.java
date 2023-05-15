@@ -45,6 +45,10 @@ public class SnowflakeCatalog extends BaseMetastoreCatalog
     implements Closeable, SupportsNamespaces, Configurable<Object> {
   private static final String DEFAULT_CATALOG_NAME = "snowflake_catalog";
   private static final String DEFAULT_FILE_IO_IMPL = "org.apache.iceberg.io.ResolvingFileIO";
+  // Specifies the name of a Snowflake's partner application to connect through JDBC.
+  // https://docs.snowflake.com/en/user-guide/jdbc-parameters.html#application
+  private static final String JDBC_APPLICATION_PROPERTY = "application";
+  private static final String APP_IDENTIFIER = "iceberg-snowflake-catalog";
 
   // Injectable factory for testing purposes.
   static class FileIOFactory {
@@ -109,6 +113,10 @@ public class SnowflakeCatalog extends BaseMetastoreCatalog
               + " JDBC driver to your jars/packages",
           cnfe);
     }
+
+    // Populate application identifier in jdbc client
+    properties.put(JDBC_APPLICATION_PROPERTY, APP_IDENTIFIER);
+
     JdbcClientPool connectionPool = new JdbcClientPool(uri, properties);
 
     initialize(name, new JdbcSnowflakeClient(connectionPool), new FileIOFactory(), properties);

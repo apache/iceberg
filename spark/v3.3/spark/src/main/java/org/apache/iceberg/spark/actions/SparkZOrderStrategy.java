@@ -37,6 +37,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.spark.SparkDistributionAndOrderingUtil;
 import org.apache.iceberg.spark.SparkReadOptions;
+import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.NestedField;
@@ -57,6 +58,12 @@ import org.apache.spark.sql.types.StructField;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+/**
+ * A Spark strategy to zOrder data.
+ *
+ * @deprecated since 1.3.0, will be removed in 1.4.0; use {@link SparkZOrderDataRewriter} instead.
+ */
+@Deprecated
 public class SparkZOrderStrategy extends SparkSortStrategy {
   private static final Logger LOG = LoggerFactory.getLogger(SparkZOrderStrategy.class);
 
@@ -154,7 +161,7 @@ public class SparkZOrderStrategy extends SparkSortStrategy {
   }
 
   private void validateColumnsExistence(Table table, SparkSession spark, List<String> colNames) {
-    boolean caseSensitive = Boolean.parseBoolean(spark.conf().get("spark.sql.caseSensitive"));
+    boolean caseSensitive = SparkUtil.caseSensitive(spark);
     Schema schema = table.schema();
     colNames.forEach(
         col -> {
@@ -213,7 +220,7 @@ public class SparkZOrderStrategy extends SparkSortStrategy {
           spark
               .read()
               .format("iceberg")
-              .option(SparkReadOptions.FILE_SCAN_TASK_SET_ID, groupID)
+              .option(SparkReadOptions.SCAN_TASK_SET_ID, groupID)
               .load(groupID);
 
       Column[] originalColumns =

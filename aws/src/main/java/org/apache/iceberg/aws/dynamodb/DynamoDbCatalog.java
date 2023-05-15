@@ -178,7 +178,7 @@ public class DynamoDbCatalog extends BaseMetastoreCatalog
     String defaultLocationCol = toPropertyCol(PROPERTY_DEFAULT_LOCATION);
     if (response.item().containsKey(defaultLocationCol)) {
       return String.format(
-          "%s/%s", response.item().get(defaultLocationCol), tableIdentifier.name());
+          "%s/%s", response.item().get(defaultLocationCol).s(), tableIdentifier.name());
     } else {
       return String.format(
           "%s/%s.db/%s", warehousePath, tableIdentifier.namespace(), tableIdentifier.name());
@@ -329,7 +329,7 @@ public class DynamoDbCatalog extends BaseMetastoreCatalog
   @Override
   public List<TableIdentifier> listTables(Namespace namespace) {
     List<TableIdentifier> identifiers = Lists.newArrayList();
-    Map<String, AttributeValue> lastEvaluatedKey;
+    Map<String, AttributeValue> lastEvaluatedKey = null;
     String condition = COL_NAMESPACE + " = :ns";
     Map<String, AttributeValue> conditionValues =
         ImmutableMap.of(":ns", AttributeValue.builder().s(namespace.toString()).build());
@@ -341,6 +341,7 @@ public class DynamoDbCatalog extends BaseMetastoreCatalog
                   .indexName(GSI_NAMESPACE_IDENTIFIER)
                   .keyConditionExpression(condition)
                   .expressionAttributeValues(conditionValues)
+                  .exclusiveStartKey(lastEvaluatedKey)
                   .build());
 
       if (response.hasItems()) {

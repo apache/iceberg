@@ -162,6 +162,42 @@ public class TestStreamingMonitorFunction extends TableTestBase {
   }
 
   @Test
+  public void testConsumeFromStartTag() throws Exception {
+    // Commit the first five transactions.
+    generateRecordsAndCommitTxn(5);
+    long startSnapshotId = table.currentSnapshot().snapshotId();
+    String tagName = "t1";
+    table.manageSnapshots().createTag(tagName, startSnapshotId).commit();
+
+    // Commit the next five transactions.
+    List<List<Record>> recordsList = generateRecordsAndCommitTxn(5);
+
+    ScanContext scanContext =
+        ScanContext.builder().monitorInterval(Duration.ofMillis(100)).startTag(tagName).build();
+
+    StreamingMonitorFunction function = createFunction(scanContext);
+    try (AbstractStreamOperatorTestHarness<FlinkInputSplit> harness = createHarness(function)) {
+      harness.setup();
+      harness.open();
+
+      CountDownLatch latch = new CountDownLatch(1);
+      TestSourceContext sourceContext = new TestSourceContext(latch);
+      runSourceFunctionInTask(sourceContext, function);
+
+      Assert.assertTrue(
+          "Should have expected elements.", latch.await(WAIT_TIME_MILLIS, TimeUnit.MILLISECONDS));
+      Thread.sleep(1000L);
+
+      // Stop the stream task.
+      function.close();
+
+      Assert.assertEquals("Should produce the expected splits", 1, sourceContext.splits.size());
+      TestHelpers.assertRecords(
+          sourceContext.toRows(), Lists.newArrayList(Iterables.concat(recordsList)), SCHEMA);
+    }
+  }
+
+  @Test
   public void testCheckpointRestore() throws Exception {
     List<List<Record>> recordsList = generateRecordsAndCommitTxn(10);
     ScanContext scanContext = ScanContext.builder().monitorInterval(Duration.ofMillis(100)).build();

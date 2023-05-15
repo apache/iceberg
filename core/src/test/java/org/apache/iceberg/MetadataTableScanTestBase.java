@@ -20,6 +20,7 @@ package org.apache.iceberg;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
@@ -79,24 +80,24 @@ public abstract class MetadataTableScanTestBase extends TableTestBase {
     }
   }
 
-  protected void validateIncludesPartitionScan(
-      CloseableIterable<FileScanTask> tasks, int partValue) {
-    validateIncludesPartitionScan(tasks, 0, partValue);
+  protected void validateSingleFieldPartition(
+      CloseableIterable<ContentFile<?>> files, int partitionValue) {
+    validatePartition(files, 0, partitionValue);
   }
 
-  protected void validateIncludesPartitionScan(
-      CloseableIterable<FileScanTask> tasks, int position, int partValue) {
+  protected void validatePartition(
+      CloseableIterable<ContentFile<?>> files, int position, int partitionValue) {
     Assert.assertTrue(
         "File scan tasks do not include correct file",
-        StreamSupport.stream(tasks.spliterator(), false)
+        StreamSupport.stream(files.spliterator(), false)
             .anyMatch(
-                task -> {
-                  StructLike partition = task.file().partition();
+                file -> {
+                  StructLike partition = file.partition();
                   if (position >= partition.size()) {
                     return false;
                   }
 
-                  return partition.get(position, Object.class).equals(partValue);
+                  return Objects.equals(partitionValue, partition.get(position, Object.class));
                 }));
   }
 

@@ -18,21 +18,13 @@
  */
 package org.apache.iceberg.view;
 
-import java.util.Locale;
-
 public interface ViewRepresentation {
 
-  enum Type {
-    SQL;
+  class Type {
+    private Type() {}
 
-    public static Type fromString(String typeName) {
-      return valueOf(typeName.toUpperCase(Locale.ENGLISH));
-    }
-
-    public String typeName() {
-      return name().toLowerCase(Locale.ENGLISH);
-    }
+    public static final String SQL = "sql";
   }
 
-  Type type();
+  String type();
 }

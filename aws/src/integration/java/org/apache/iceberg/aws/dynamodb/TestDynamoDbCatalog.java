@@ -380,6 +380,21 @@ public class TestDynamoDbCatalog {
   }
 
   @Test
+  public void testDefaultWarehousePathWithLocation() {
+    String namespaceName = genRandomName();
+    String defaultLocation = "s3://" + testBucket + "/namespace/" + namespaceName;
+
+    Namespace namespace = Namespace.of(namespaceName);
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(DynamoDbCatalog.defaultLocationProperty(), defaultLocation);
+    catalog.createNamespace(namespace, properties);
+    String tableName = genRandomName();
+    Assertions.assertThat(
+            catalog.defaultWarehouseLocation(TableIdentifier.of(namespaceName, tableName)))
+        .isEqualTo(defaultLocation + "/" + tableName);
+  }
+
+  @Test
   public void testRegisterExistingTable() {
     Namespace namespace = Namespace.of(genRandomName());
     catalog.createNamespace(namespace);

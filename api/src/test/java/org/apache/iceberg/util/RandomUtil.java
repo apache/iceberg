@@ -182,6 +182,10 @@ public class RandomUtil {
         BigInteger unscaled = new BigInteger(String.valueOf(value + 1));
         BigDecimal bd = new BigDecimal(unscaled, type.scale());
         return negate(value) ? bd.negate() : bd;
+      case UUID:
+        byte[] uuidBytes = new byte[16];
+        random.nextBytes(uuidBytes);
+        return uuidBytes;
       default:
         throw new IllegalArgumentException(
             "Cannot generate random value for unknown type: " + primitive);

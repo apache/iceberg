@@ -20,7 +20,6 @@ package org.apache.iceberg.aws;
 
 import java.io.Serializable;
 import java.net.URI;
-import java.time.Duration;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
@@ -29,10 +28,10 @@ import org.apache.iceberg.aws.dynamodb.DynamoDbCatalog;
 import org.apache.iceberg.aws.glue.GlueCatalog;
 import org.apache.iceberg.aws.lakeformation.LakeFormationAwsClientFactory;
 import org.apache.iceberg.aws.s3.S3FileIO;
-import org.apache.iceberg.common.DynConstructors;
+import org.apache.iceberg.aws.s3.signer.S3V4RestSignerClient;
+import org.apache.iceberg.common.DynClasses;
 import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.exceptions.ValidationException;
-import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -41,17 +40,18 @@ import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SerializableMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import software.amazon.awssdk.auth.credentials.AnonymousCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+import software.amazon.awssdk.awscore.client.builder.AwsClientBuilder;
 import software.amazon.awssdk.awscore.client.builder.AwsSyncClientBuilder;
 import software.amazon.awssdk.core.client.builder.SdkClientBuilder;
 import software.amazon.awssdk.core.client.config.SdkAdvancedClientOption;
-import software.amazon.awssdk.core.signer.Signer;
-import software.amazon.awssdk.http.apache.ApacheHttpClient;
-import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
+import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.regions.providers.DefaultAwsRegionProviderChain;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClientBuilder;
 import software.amazon.awssdk.services.glue.GlueClientBuilder;
 import software.amazon.awssdk.services.s3.S3ClientBuilder;
@@ -68,47 +68,70 @@ public class AwsProperties implements Serializable {
    * AwsProperties#S3FILEIO_SSE_TYPE_NONE}.
    *
    * <p>For more details: https://docs.aws.amazon.com/AmazonS3/latest/dev/serv-side-encryption.html
+   *
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
-  public static final String S3FILEIO_SSE_TYPE = "s3.sse.type";
+  @Deprecated public static final String S3FILEIO_SSE_TYPE = "s3.sse.type";
 
-  /** No server side encryption. */
-  public static final String S3FILEIO_SSE_TYPE_NONE = "none";
+  /**
+   * No server side encryption.
+   *
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
+   */
+  @Deprecated public static final String S3FILEIO_SSE_TYPE_NONE = "none";
 
   /**
    * S3 SSE-KMS encryption.
    *
    * <p>For more details: https://docs.aws.amazon.com/AmazonS3/latest/dev/UsingKMSEncryption.html
+   *
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
-  public static final String S3FILEIO_SSE_TYPE_KMS = "kms";
+  @Deprecated public static final String S3FILEIO_SSE_TYPE_KMS = "kms";
 
   /**
    * S3 SSE-S3 encryption.
    *
    * <p>For more details:
    * https://docs.aws.amazon.com/AmazonS3/latest/dev/UsingServerSideEncryption.html
+   *
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
-  public static final String S3FILEIO_SSE_TYPE_S3 = "s3";
+  @Deprecated public static final String S3FILEIO_SSE_TYPE_S3 = "s3";
 
   /**
    * S3 SSE-C encryption.
    *
    * <p>For more details:
    * https://docs.aws.amazon.com/AmazonS3/latest/dev/ServerSideEncryptionCustomerKeys.html
+   *
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
-  public static final String S3FILEIO_SSE_TYPE_CUSTOM = "custom";
+  @Deprecated public static final String S3FILEIO_SSE_TYPE_CUSTOM = "custom";
 
   /**
    * If S3 encryption type is SSE-KMS, input is a KMS Key ID or ARN. In case this property is not
    * set, default key "aws/s3" is used. If encryption type is SSE-C, input is a custom base-64
    * AES256 symmetric key.
+   *
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
-  public static final String S3FILEIO_SSE_KEY = "s3.sse.key";
+  @Deprecated public static final String S3FILEIO_SSE_KEY = "s3.sse.key";
 
   /**
    * If S3 encryption type is SSE-C, input is the base-64 MD5 digest of the secret key. This MD5
    * must be explicitly passed in by the caller to ensure key integrity.
+   *
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
-  public static final String S3FILEIO_SSE_MD5 = "s3.sse.md5";
+  @Deprecated public static final String S3FILEIO_SSE_MD5 = "s3.sse.md5";
 
   /**
    * The ID of the Glue Data Catalog where the tables reside. If none is provided, Glue
@@ -133,7 +156,7 @@ public class AwsProperties implements Serializable {
    */
   public static final String GLUE_CATALOG_SKIP_ARCHIVE = "glue.skip-archive";
 
-  public static final boolean GLUE_CATALOG_SKIP_ARCHIVE_DEFAULT = false;
+  public static final boolean GLUE_CATALOG_SKIP_ARCHIVE_DEFAULT = true;
 
   /**
    * If Glue should skip name validations It is recommended to stick to Glue best practice in
@@ -167,7 +190,11 @@ public class AwsProperties implements Serializable {
   /**
    * Number of threads to use for uploading parts to S3 (shared pool across all output streams),
    * default to {@link Runtime#availableProcessors()}
+   *
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
+  @Deprecated
   public static final String S3FILEIO_MULTIPART_UPLOAD_THREADS = "s3.multipart.num-threads";
 
   /**
@@ -176,25 +203,47 @@ public class AwsProperties implements Serializable {
    * writer, the part size must be less than 2GB.
    *
    * <p>For more details, see https://docs.aws.amazon.com/AmazonS3/latest/dev/qfacts.html
+   *
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
-  public static final String S3FILEIO_MULTIPART_SIZE = "s3.multipart.part-size-bytes";
+  @Deprecated public static final String S3FILEIO_MULTIPART_SIZE = "s3.multipart.part-size-bytes";
 
-  public static final int S3FILEIO_MULTIPART_SIZE_DEFAULT = 32 * 1024 * 1024;
-  public static final int S3FILEIO_MULTIPART_SIZE_MIN = 5 * 1024 * 1024;
+  /**
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
+   */
+  @Deprecated public static final int S3FILEIO_MULTIPART_SIZE_DEFAULT = 32 * 1024 * 1024;
+  /**
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
+   */
+  @Deprecated public static final int S3FILEIO_MULTIPART_SIZE_MIN = 5 * 1024 * 1024;
 
   /**
    * The threshold expressed as a factor times the multipart size at which to switch from uploading
    * using a single put object request to uploading using multipart upload (default: 1.5).
+   *
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
+  @Deprecated
   public static final String S3FILEIO_MULTIPART_THRESHOLD_FACTOR = "s3.multipart.threshold";
 
-  public static final double S3FILEIO_MULTIPART_THRESHOLD_FACTOR_DEFAULT = 1.5;
+  /**
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
+   */
+  @Deprecated public static final double S3FILEIO_MULTIPART_THRESHOLD_FACTOR_DEFAULT = 1.5;
 
   /**
    * Location to put staging files for upload to S3, default to temp directory set in
    * java.io.tmpdir.
+   *
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
-  public static final String S3FILEIO_STAGING_DIRECTORY = "s3.staging-dir";
+  @Deprecated public static final String S3FILEIO_STAGING_DIRECTORY = "s3.staging-dir";
 
   /**
    * Used to configure canned access control list (ACL) for S3 client to use during write. If not
@@ -203,26 +252,39 @@ public class AwsProperties implements Serializable {
    * <p>The input must be one of {@link software.amazon.awssdk.services.s3.model.ObjectCannedACL},
    * such as 'public-read-write' For more details:
    * https://docs.aws.amazon.com/AmazonS3/latest/dev/acl-overview.html
+   *
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
-  public static final String S3FILEIO_ACL = "s3.acl";
+  @Deprecated public static final String S3FILEIO_ACL = "s3.acl";
 
   /**
    * Configure an alternative endpoint of the S3 service for S3FileIO to access.
    *
    * <p>This could be used to use S3FileIO with any s3-compatible object storage service that has a
    * different endpoint, or access a private S3 endpoint in a virtual private cloud.
+   *
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
-  public static final String S3FILEIO_ENDPOINT = "s3.endpoint";
+  @Deprecated public static final String S3FILEIO_ENDPOINT = "s3.endpoint";
 
   /**
    * If set {@code true}, requests to S3FileIO will use Path-Style, otherwise, Virtual Hosted-Style
    * will be used.
    *
    * <p>For more details: https://docs.aws.amazon.com/AmazonS3/latest/userguide/VirtualHosting.html
+   *
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
-  public static final String S3FILEIO_PATH_STYLE_ACCESS = "s3.path-style-access";
+  @Deprecated public static final String S3FILEIO_PATH_STYLE_ACCESS = "s3.path-style-access";
 
-  public static final boolean S3FILEIO_PATH_STYLE_ACCESS_DEFAULT = false;
+  /**
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
+   */
+  @Deprecated public static final boolean S3FILEIO_PATH_STYLE_ACCESS_DEFAULT = false;
 
   /**
    * Configure the static access key ID used to access S3FileIO.
@@ -231,8 +293,11 @@ public class AwsProperties implements Serializable {
    * instead of reading the default credential chain to create S3 access credentials. If {@link
    * #S3FILEIO_SESSION_TOKEN} is set, session credential is used, otherwise basic credential is
    * used.
+   *
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
-  public static final String S3FILEIO_ACCESS_KEY_ID = "s3.access-key-id";
+  @Deprecated public static final String S3FILEIO_ACCESS_KEY_ID = "s3.access-key-id";
 
   /**
    * Configure the static secret access key used to access S3FileIO.
@@ -241,16 +306,22 @@ public class AwsProperties implements Serializable {
    * instead of reading the default credential chain to create S3 access credentials. If {@link
    * #S3FILEIO_SESSION_TOKEN} is set, session credential is used, otherwise basic credential is
    * used.
+   *
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
-  public static final String S3FILEIO_SECRET_ACCESS_KEY = "s3.secret-access-key";
+  @Deprecated public static final String S3FILEIO_SECRET_ACCESS_KEY = "s3.secret-access-key";
 
   /**
    * Configure the static session token used to access S3FileIO.
    *
    * <p>When set, the default client factory will use the session credentials provided instead of
    * reading the default credential chain to create S3 access credentials.
+   *
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
-  public static final String S3FILEIO_SESSION_TOKEN = "s3.session-token";
+  @Deprecated public static final String S3FILEIO_SESSION_TOKEN = "s3.session-token";
 
   /**
    * Enable to make S3FileIO, to make cross-region call to the region specified in the ARN of an
@@ -261,34 +332,68 @@ public class AwsProperties implements Serializable {
    *
    * <p>For more details see:
    * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/services/s3/S3Configuration.html#useArnRegionEnabled--
+   *
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
-  public static final String S3_USE_ARN_REGION_ENABLED = "s3.use-arn-region-enabled";
+  @Deprecated public static final String S3_USE_ARN_REGION_ENABLED = "s3.use-arn-region-enabled";
 
-  public static final boolean S3_USE_ARN_REGION_ENABLED_DEFAULT = false;
+  /**
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
+   */
+  @Deprecated public static final boolean S3_USE_ARN_REGION_ENABLED_DEFAULT = false;
 
-  /** Enables eTag checks for S3 PUT and MULTIPART upload requests. */
-  public static final String S3_CHECKSUM_ENABLED = "s3.checksum-enabled";
+  /**
+   * Enables eTag checks for S3 PUT and MULTIPART upload requests.
+   *
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
+   */
+  @Deprecated public static final String S3_CHECKSUM_ENABLED = "s3.checksum-enabled";
+  /**
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
+   */
+  @Deprecated public static final boolean S3_CHECKSUM_ENABLED_DEFAULT = false;
+  /**
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
+   */
+  @Deprecated public static final String S3_REMOTE_SIGNING_ENABLED = "s3.remote-signing-enabled";
+  /**
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
+   */
+  @Deprecated public static final boolean S3_REMOTE_SIGNING_ENABLED_DEFAULT = false;
 
-  public static final boolean S3_CHECKSUM_ENABLED_DEFAULT = false;
-
-  public static final String S3_SIGNER_IMPL = "s3.signer-impl";
-
-  /** Configure the batch size used when deleting multiple files from a given S3 bucket */
-  public static final String S3FILEIO_DELETE_BATCH_SIZE = "s3.delete.batch-size";
+  /**
+   * Configure the batch size used when deleting multiple files from a given S3 bucket
+   *
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
+   */
+  @Deprecated public static final String S3FILEIO_DELETE_BATCH_SIZE = "s3.delete.batch-size";
 
   /**
    * Default batch size used when deleting files.
    *
    * <p>Refer to https://github.com/apache/hadoop/commit/56dee667707926f3796c7757be1a133a362f05c9
    * for more details on why this value was chosen.
+   *
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
-  public static final int S3FILEIO_DELETE_BATCH_SIZE_DEFAULT = 250;
+  @Deprecated public static final int S3FILEIO_DELETE_BATCH_SIZE_DEFAULT = 250;
 
   /**
    * Max possible batch size for deletion. Currently, a max of 1000 keys can be deleted in one
    * batch. https://docs.aws.amazon.com/AmazonS3/latest/API/API_DeleteObjects.html
+   *
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
-  public static final int S3FILEIO_DELETE_BATCH_SIZE_MAX = 1000;
+  @Deprecated public static final int S3FILEIO_DELETE_BATCH_SIZE_MAX = 1000;
 
   /** Configure an alternative endpoint of the DynamoDB service to access. */
   public static final String DYNAMODB_ENDPOINT = "dynamodb.endpoint";
@@ -352,6 +457,38 @@ public class AwsProperties implements Serializable {
   public static final String CLIENT_ASSUME_ROLE_SESSION_NAME = "client.assume-role.session-name";
 
   /**
+   * Configure the AWS credentials provider used to create AWS clients. A fully qualified concrete
+   * class with package that implements the {@link AwsCredentialsProvider} interface is required.
+   *
+   * <p>Additionally, the implementation class must also have a create() or create(Map) method
+   * implemented, which returns an instance of the class that provides aws credentials provider.
+   *
+   * <p>Example:
+   * client.credentials-provider=software.amazon.awssdk.auth.credentials.SystemPropertyCredentialsProvider
+   *
+   * <p>When set, the default client factory {@link
+   * org.apache.iceberg.aws.AwsClientFactories.DefaultAwsClientFactory} and also other client
+   * factory classes will use this provider to get AWS credentials provided instead of reading the
+   * default credential chain to get AWS access credentials.
+   */
+  public static final String CLIENT_CREDENTIALS_PROVIDER = "client.credentials-provider";
+
+  /**
+   * Used by the client.credentials-provider configured value that will be used by {@link
+   * org.apache.iceberg.aws.AwsClientFactories.DefaultAwsClientFactory} and also other client
+   * factory classes to pass provider-specific properties. Each property consists of a key name and
+   * an associated value.
+   */
+  private static final String CLIENT_CREDENTIAL_PROVIDER_PREFIX = "client.credentials-provider.";
+
+  /**
+   * Used by {@link org.apache.iceberg.aws.AwsClientFactories.DefaultAwsClientFactory} and also
+   * other client factory classes. If set, all AWS clients except STS client will use the given
+   * region instead of the default region chain.
+   */
+  public static final String CLIENT_REGION = "client.region";
+
+  /**
    * The type of {@link software.amazon.awssdk.http.SdkHttpClient} implementation used by {@link
    * AwsClientFactory} If set, all AWS clients will use this specified HTTP client. If not set,
    * {@link #HTTP_CLIENT_TYPE_DEFAULT} will be used. For specific types supported, see
@@ -373,12 +510,12 @@ public class AwsProperties implements Serializable {
    */
   public static final String HTTP_CLIENT_TYPE_APACHE = "apache";
 
-  public static final String HTTP_CLIENT_TYPE_DEFAULT = HTTP_CLIENT_TYPE_URLCONNECTION;
+  public static final String HTTP_CLIENT_TYPE_DEFAULT = HTTP_CLIENT_TYPE_APACHE;
 
   /**
    * Used to configure the connection timeout in milliseconds for {@link
-   * UrlConnectionHttpClient.Builder}. This flag only works when {@link #HTTP_CLIENT_TYPE} is set to
-   * {@link #HTTP_CLIENT_TYPE_URLCONNECTION}
+   * software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient.Builder}. This flag only
+   * works when {@link #HTTP_CLIENT_TYPE} is set to {@link #HTTP_CLIENT_TYPE_URLCONNECTION}
    *
    * <p>For more details, see
    * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/urlconnection/UrlConnectionHttpClient.Builder.html
@@ -388,8 +525,8 @@ public class AwsProperties implements Serializable {
 
   /**
    * Used to configure the socket timeout in milliseconds for {@link
-   * UrlConnectionHttpClient.Builder}. This flag only works when {@link #HTTP_CLIENT_TYPE} is set to
-   * {@link #HTTP_CLIENT_TYPE_URLCONNECTION}
+   * software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient.Builder}. This flag only
+   * works when {@link #HTTP_CLIENT_TYPE} is set to {@link #HTTP_CLIENT_TYPE_URLCONNECTION}
    *
    * <p>For more details, see
    * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/urlconnection/UrlConnectionHttpClient.Builder.html
@@ -508,8 +645,11 @@ public class AwsProperties implements Serializable {
    * https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-tagging.html
    *
    * <p>Example: s3.write.tags.my_key=my_val
+   *
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
-  public static final String S3_WRITE_TAGS_PREFIX = "s3.write.tags.";
+  @Deprecated public static final String S3_WRITE_TAGS_PREFIX = "s3.write.tags.";
 
   /**
    * Used by {@link GlueCatalog} to tag objects when writing. To set, we can pass a catalog
@@ -519,10 +659,17 @@ public class AwsProperties implements Serializable {
    * https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-tagging.html
    *
    * <p>Example: s3.write.table-tag-enabled=true
+   *
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
-  public static final String S3_WRITE_TABLE_TAG_ENABLED = "s3.write.table-tag-enabled";
+  @Deprecated public static final String S3_WRITE_TABLE_TAG_ENABLED = "s3.write.table-tag-enabled";
 
-  public static final boolean S3_WRITE_TABLE_TAG_ENABLED_DEFAULT = false;
+  /**
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
+   */
+  @Deprecated public static final boolean S3_WRITE_TABLE_TAG_ENABLED_DEFAULT = false;
 
   /**
    * Used by {@link GlueCatalog} to tag objects when writing. To set, we can pass a catalog
@@ -532,26 +679,40 @@ public class AwsProperties implements Serializable {
    * https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-tagging.html
    *
    * <p>Example: s3.write.namespace-tag-enabled=true
+   *
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
+  @Deprecated
   public static final String S3_WRITE_NAMESPACE_TAG_ENABLED = "s3.write.namespace-tag-enabled";
 
-  public static final boolean S3_WRITE_NAMESPACE_TAG_ENABLED_DEFAULT = false;
+  /**
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
+   */
+  @Deprecated public static final boolean S3_WRITE_NAMESPACE_TAG_ENABLED_DEFAULT = false;
 
   /**
    * Tag name that will be used by {@link #S3_WRITE_TAGS_PREFIX} when {@link
    * #S3_WRITE_TABLE_TAG_ENABLED} is enabled
    *
    * <p>Example: iceberg.table=tableName
+   *
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
-  public static final String S3_TAG_ICEBERG_TABLE = "iceberg.table";
+  @Deprecated public static final String S3_TAG_ICEBERG_TABLE = "iceberg.table";
 
   /**
    * Tag name that will be used by {@link #S3_WRITE_TAGS_PREFIX} when {@link
    * #S3_WRITE_NAMESPACE_TAG_ENABLED} is enabled
    *
    * <p>Example: iceberg.namespace=namespaceName
+   *
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
-  public static final String S3_TAG_ICEBERG_NAMESPACE = "iceberg.namespace";
+  @Deprecated public static final String S3_TAG_ICEBERG_NAMESPACE = "iceberg.namespace";
 
   /**
    * Used by {@link S3FileIO} to tag objects when deleting. When this config is set, objects are
@@ -563,43 +724,70 @@ public class AwsProperties implements Serializable {
    * https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-lifecycle-mgmt.html
    *
    * <p>Example: s3.delete.tags.my_key=my_val
+   *
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
-  public static final String S3_DELETE_TAGS_PREFIX = "s3.delete.tags.";
+  @Deprecated public static final String S3_DELETE_TAGS_PREFIX = "s3.delete.tags.";
 
   /**
    * Number of threads to use for adding delete tags to S3 objects, default to {@link
    * Runtime#availableProcessors()}
+   *
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
-  public static final String S3FILEIO_DELETE_THREADS = "s3.delete.num-threads";
+  @Deprecated public static final String S3FILEIO_DELETE_THREADS = "s3.delete.num-threads";
 
   /**
    * Determines if {@link S3FileIO} deletes the object when io.delete() is called, default to true.
    * Once disabled, users are expected to set tags through {@link #S3_DELETE_TAGS_PREFIX} and manage
    * deleted files through S3 lifecycle policy.
+   *
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
-  public static final String S3_DELETE_ENABLED = "s3.delete-enabled";
+  @Deprecated public static final String S3_DELETE_ENABLED = "s3.delete-enabled";
 
-  public static final boolean S3_DELETE_ENABLED_DEFAULT = true;
+  /**
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
+   */
+  @Deprecated public static final boolean S3_DELETE_ENABLED_DEFAULT = true;
 
   /**
    * Determines if S3 client will use the Acceleration Mode, default to false.
    *
    * <p>For more details, see
    * https://docs.aws.amazon.com/AmazonS3/latest/userguide/transfer-acceleration.html
+   *
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
-  public static final String S3_ACCELERATION_ENABLED = "s3.acceleration-enabled";
+  @Deprecated public static final String S3_ACCELERATION_ENABLED = "s3.acceleration-enabled";
 
-  public static final boolean S3_ACCELERATION_ENABLED_DEFAULT = false;
+  /**
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
+   */
+  @Deprecated public static final boolean S3_ACCELERATION_ENABLED_DEFAULT = false;
 
   /**
    * Determines if S3 client will use the Dualstack Mode, default to false.
    *
    * <p>For more details, see
    * https://docs.aws.amazon.com/AmazonS3/latest/userguide/dual-stack-endpoints.html
+   *
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
-  public static final String S3_DUALSTACK_ENABLED = "s3.dualstack-enabled";
+  @Deprecated public static final String S3_DUALSTACK_ENABLED = "s3.dualstack-enabled";
 
-  public static final boolean S3_DUALSTACK_ENABLED_DEFAULT = false;
+  /**
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
+   */
+  @Deprecated public static final boolean S3_DUALSTACK_ENABLED_DEFAULT = false;
 
   /**
    * Used by {@link S3FileIO}, prefix used for bucket access point configuration. To set, we can
@@ -608,17 +796,27 @@ public class AwsProperties implements Serializable {
    * <p>For more details, see https://aws.amazon.com/s3/features/access-points/
    *
    * <p>Example: s3.access-points.my-bucket=access-point
+   *
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
-  public static final String S3_ACCESS_POINTS_PREFIX = "s3.access-points.";
+  @Deprecated public static final String S3_ACCESS_POINTS_PREFIX = "s3.access-points.";
 
   /**
    * This flag controls whether the S3 client will be initialized during the S3FileIO
    * initialization, instead of default lazy initialization upon use. This is needed for cases that
    * the credentials to use might change and needs to be preloaded.
+   *
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
    */
-  public static final String S3_PRELOAD_CLIENT_ENABLED = "s3.preload-client-enabled";
+  @Deprecated public static final String S3_PRELOAD_CLIENT_ENABLED = "s3.preload-client-enabled";
 
-  public static final boolean S3_PRELOAD_CLIENT_ENABLED_DEFAULT = false;
+  /**
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
+   */
+  @Deprecated public static final boolean S3_PRELOAD_CLIENT_ENABLED_DEFAULT = false;
 
   /**
    * Used by {@link LakeFormationAwsClientFactory}. The table name used as part of lake formation
@@ -632,18 +830,44 @@ public class AwsProperties implements Serializable {
    */
   public static final String LAKE_FORMATION_DB_NAME = "lakeformation.db-name";
 
+  /** Region to be used by the SigV4 protocol for signing requests. */
+  public static final String REST_SIGNER_REGION = "rest.signing-region";
+
+  /** The service name to be used by the SigV4 protocol for signing requests. */
+  public static final String REST_SIGNING_NAME = "rest.signing-name";
+
+  /** The default service name (API Gateway and lambda) used during SigV4 signing. */
+  public static final String REST_SIGNING_NAME_DEFAULT = "execute-api";
+
+  /**
+   * Configure the static access key ID used for SigV4 signing.
+   *
+   * <p>When set, the default client factory will use the basic or session credentials provided
+   * instead of reading the default credential chain to create S3 access credentials. If {@link
+   * #REST_SESSION_TOKEN} is set, session credential is used, otherwise basic credential is used.
+   */
+  public static final String REST_ACCESS_KEY_ID = "rest.access-key-id";
+
+  /**
+   * Configure the static secret access key used for SigV4 signing.
+   *
+   * <p>When set, the default client factory will use the basic or session credentials provided
+   * instead of reading the default credential chain to create S3 access credentials. If {@link
+   * #REST_SESSION_TOKEN} is set, session credential is used, otherwise basic credential is used.
+   */
+  public static final String REST_SECRET_ACCESS_KEY = "rest.secret-access-key";
+
+  /**
+   * Configure the static session token used for SigV4.
+   *
+   * <p>When set, the default client factory will use the session credentials provided instead of
+   * reading the default credential chain to create access credentials.
+   */
+  public static final String REST_SESSION_TOKEN = "rest.session-token";
+
+  private static final String HTTP_CLIENT_PREFIX = "http-client.";
   private String httpClientType;
-  private Long httpClientUrlConnectionConnectionTimeoutMs;
-  private Long httpClientUrlConnectionSocketTimeoutMs;
-  private Long httpClientApacheConnectionAcquisitionTimeoutMs;
-  private Long httpClientApacheConnectionMaxIdleTimeMs;
-  private Long httpClientApacheConnectionTimeToLiveMs;
-  private Long httpClientApacheConnectionTimeoutMs;
-  private Boolean httpClientApacheExpectContinueEnabled;
-  private Integer httpClientApacheMaxConnections;
-  private Long httpClientApacheSocketTimeoutMs;
-  private Boolean httpClientApacheTcpKeepAliveEnabled;
-  private Boolean httpClientApacheUseIdleConnectionReaperEnabled;
+  private final Map<String, String> httpClientProperties;
   private final Set<software.amazon.awssdk.services.sts.model.Tag> stsClientAssumeRoleTags;
 
   private String clientAssumeRoleArn;
@@ -651,6 +875,9 @@ public class AwsProperties implements Serializable {
   private int clientAssumeRoleTimeoutSec;
   private String clientAssumeRoleRegion;
   private String clientAssumeRoleSessionName;
+  private String clientRegion;
+  private String clientCredentialsProvider;
+  private final Map<String, String> clientCredentialsProviderProperties;
 
   private String s3FileIoSseType;
   private String s3FileIoSseKey;
@@ -688,22 +915,18 @@ public class AwsProperties implements Serializable {
   private String dynamoDbTableName;
   private String dynamoDbEndpoint;
 
-  private final String s3SignerImpl;
+  private final boolean s3RemoteSigningEnabled;
   private final Map<String, String> allProperties;
+
+  private String restSigningRegion;
+  private String restSigningName;
+  private String restAccessKeyId;
+  private String restSecretAccessKey;
+  private String restSessionToken;
 
   public AwsProperties() {
     this.httpClientType = HTTP_CLIENT_TYPE_DEFAULT;
-    this.httpClientUrlConnectionConnectionTimeoutMs = null;
-    this.httpClientUrlConnectionSocketTimeoutMs = null;
-    this.httpClientApacheConnectionAcquisitionTimeoutMs = null;
-    this.httpClientApacheConnectionMaxIdleTimeMs = null;
-    this.httpClientApacheConnectionTimeToLiveMs = null;
-    this.httpClientApacheConnectionTimeoutMs = null;
-    this.httpClientApacheExpectContinueEnabled = null;
-    this.httpClientApacheMaxConnections = null;
-    this.httpClientApacheSocketTimeoutMs = null;
-    this.httpClientApacheTcpKeepAliveEnabled = null;
-    this.httpClientApacheUseIdleConnectionReaperEnabled = null;
+    this.httpClientProperties = Collections.emptyMap();
     this.stsClientAssumeRoleTags = Sets.newHashSet();
 
     this.clientAssumeRoleArn = null;
@@ -711,6 +934,9 @@ public class AwsProperties implements Serializable {
     this.clientAssumeRoleExternalId = null;
     this.clientAssumeRoleRegion = null;
     this.clientAssumeRoleSessionName = null;
+    this.clientRegion = null;
+    this.clientCredentialsProvider = null;
+    this.clientCredentialsProviderProperties = null;
 
     this.s3FileIoSseType = S3FILEIO_SSE_TYPE_NONE;
     this.s3FileIoSseKey = null;
@@ -748,8 +974,10 @@ public class AwsProperties implements Serializable {
     this.dynamoDbEndpoint = null;
     this.dynamoDbTableName = DYNAMODB_TABLE_NAME_DEFAULT;
 
-    this.s3SignerImpl = null;
+    this.s3RemoteSigningEnabled = S3_REMOTE_SIGNING_ENABLED_DEFAULT;
     this.allProperties = Maps.newHashMap();
+
+    this.restSigningName = REST_SIGNING_NAME_DEFAULT;
 
     ValidationException.check(
         s3KeyIdAccessKeyBothConfigured(),
@@ -760,36 +988,8 @@ public class AwsProperties implements Serializable {
   public AwsProperties(Map<String, String> properties) {
     this.httpClientType =
         PropertyUtil.propertyAsString(properties, HTTP_CLIENT_TYPE, HTTP_CLIENT_TYPE_DEFAULT);
-    this.httpClientUrlConnectionConnectionTimeoutMs =
-        PropertyUtil.propertyAsNullableLong(
-            properties, HTTP_CLIENT_URLCONNECTION_CONNECTION_TIMEOUT_MS);
-    this.httpClientUrlConnectionSocketTimeoutMs =
-        PropertyUtil.propertyAsNullableLong(
-            properties, HTTP_CLIENT_URLCONNECTION_SOCKET_TIMEOUT_MS);
-    this.httpClientApacheConnectionAcquisitionTimeoutMs =
-        PropertyUtil.propertyAsNullableLong(
-            properties, HTTP_CLIENT_APACHE_CONNECTION_ACQUISITION_TIMEOUT_MS);
-    this.httpClientApacheConnectionMaxIdleTimeMs =
-        PropertyUtil.propertyAsNullableLong(
-            properties, HTTP_CLIENT_APACHE_CONNECTION_MAX_IDLE_TIME_MS);
-    this.httpClientApacheConnectionTimeToLiveMs =
-        PropertyUtil.propertyAsNullableLong(
-            properties, HTTP_CLIENT_APACHE_CONNECTION_TIME_TO_LIVE_MS);
-    this.httpClientApacheConnectionTimeoutMs =
-        PropertyUtil.propertyAsNullableLong(properties, HTTP_CLIENT_APACHE_CONNECTION_TIMEOUT_MS);
-    this.httpClientApacheExpectContinueEnabled =
-        PropertyUtil.propertyAsNullableBoolean(
-            properties, HTTP_CLIENT_APACHE_EXPECT_CONTINUE_ENABLED);
-    this.httpClientApacheMaxConnections =
-        PropertyUtil.propertyAsNullableInt(properties, HTTP_CLIENT_APACHE_MAX_CONNECTIONS);
-    this.httpClientApacheSocketTimeoutMs =
-        PropertyUtil.propertyAsNullableLong(properties, HTTP_CLIENT_APACHE_SOCKET_TIMEOUT_MS);
-    this.httpClientApacheTcpKeepAliveEnabled =
-        PropertyUtil.propertyAsNullableBoolean(
-            properties, HTTP_CLIENT_APACHE_TCP_KEEP_ALIVE_ENABLED);
-    this.httpClientApacheUseIdleConnectionReaperEnabled =
-        PropertyUtil.propertyAsNullableBoolean(
-            properties, HTTP_CLIENT_APACHE_USE_IDLE_CONNECTION_REAPER_ENABLED);
+    this.httpClientProperties =
+        PropertyUtil.filterProperties(properties, key -> key.startsWith(HTTP_CLIENT_PREFIX));
     this.stsClientAssumeRoleTags = toStsTags(properties, CLIENT_ASSUME_ROLE_TAGS_PREFIX);
     this.clientAssumeRoleArn = properties.get(CLIENT_ASSUME_ROLE_ARN);
     this.clientAssumeRoleTimeoutSec =
@@ -798,6 +998,10 @@ public class AwsProperties implements Serializable {
     this.clientAssumeRoleExternalId = properties.get(CLIENT_ASSUME_ROLE_EXTERNAL_ID);
     this.clientAssumeRoleRegion = properties.get(CLIENT_ASSUME_ROLE_REGION);
     this.clientAssumeRoleSessionName = properties.get(CLIENT_ASSUME_ROLE_SESSION_NAME);
+    this.clientRegion = properties.get(CLIENT_REGION);
+    this.clientCredentialsProvider = properties.get(CLIENT_CREDENTIALS_PROVIDER);
+    this.clientCredentialsProviderProperties =
+        PropertyUtil.propertiesWithPrefix(properties, CLIENT_CREDENTIAL_PROVIDER_PREFIX);
 
     this.s3FileIoSseType = properties.getOrDefault(S3FILEIO_SSE_TYPE, S3FILEIO_SSE_TYPE_NONE);
     this.s3FileIoSseKey = properties.get(S3FILEIO_SSE_KEY);
@@ -904,8 +1108,16 @@ public class AwsProperties implements Serializable {
     this.dynamoDbTableName =
         PropertyUtil.propertyAsString(properties, DYNAMODB_TABLE_NAME, DYNAMODB_TABLE_NAME_DEFAULT);
 
-    this.s3SignerImpl = properties.get(S3_SIGNER_IMPL);
+    this.s3RemoteSigningEnabled =
+        PropertyUtil.propertyAsBoolean(
+            properties, S3_REMOTE_SIGNING_ENABLED, S3_REMOTE_SIGNING_ENABLED_DEFAULT);
     this.allProperties = SerializableMap.copyOf(properties);
+
+    this.restSigningRegion = properties.get(REST_SIGNER_REGION);
+    this.restSigningName = properties.getOrDefault(REST_SIGNING_NAME, REST_SIGNING_NAME_DEFAULT);
+    this.restAccessKeyId = properties.get(REST_ACCESS_KEY_ID);
+    this.restSecretAccessKey = properties.get(REST_SECRET_ACCESS_KEY);
+    this.restSessionToken = properties.get(REST_SESSION_TOKEN);
 
     ValidationException.check(
         s3KeyIdAccessKeyBothConfigured(),
@@ -936,34 +1148,74 @@ public class AwsProperties implements Serializable {
     return clientAssumeRoleSessionName;
   }
 
+  /**
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
+   */
+  @Deprecated
   public String s3FileIoSseType() {
     return s3FileIoSseType;
   }
 
+  /**
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
+   */
+  @Deprecated
   public void setS3FileIoSseType(String sseType) {
     this.s3FileIoSseType = sseType;
   }
 
+  /**
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
+   */
+  @Deprecated
   public String s3FileIoSseKey() {
     return s3FileIoSseKey;
   }
 
+  /**
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
+   */
+  @Deprecated
   public int s3FileIoDeleteBatchSize() {
     return s3FileIoDeleteBatchSize;
   }
 
+  /**
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
+   */
+  @Deprecated
   public void setS3FileIoDeleteBatchSize(int deleteBatchSize) {
     this.s3FileIoDeleteBatchSize = deleteBatchSize;
   }
 
+  /**
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
+   */
+  @Deprecated
   public void setS3FileIoSseKey(String sseKey) {
     this.s3FileIoSseKey = sseKey;
   }
 
+  /**
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
+   */
+  @Deprecated
   public String s3FileIoSseMd5() {
     return s3FileIoSseMd5;
   }
 
+  /**
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
+   */
+  @Deprecated
   public void setS3FileIoSseMd5(String sseMd5) {
     this.s3FileIoSseMd5 = sseMd5;
   }
@@ -1000,50 +1252,110 @@ public class AwsProperties implements Serializable {
     this.glueLakeFormationEnabled = glueLakeFormationEnabled;
   }
 
+  /**
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
+   */
+  @Deprecated
   public int s3FileIoMultipartUploadThreads() {
     return s3FileIoMultipartUploadThreads;
   }
 
+  /**
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
+   */
+  @Deprecated
   public void setS3FileIoMultipartUploadThreads(int threads) {
     this.s3FileIoMultipartUploadThreads = threads;
   }
 
+  /**
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
+   */
+  @Deprecated
   public int s3FileIoMultiPartSize() {
     return s3FileIoMultiPartSize;
   }
 
+  /**
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
+   */
+  @Deprecated
   public void setS3FileIoMultiPartSize(int size) {
     this.s3FileIoMultiPartSize = size;
   }
 
+  /**
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
+   */
+  @Deprecated
   public double s3FileIOMultipartThresholdFactor() {
     return s3FileIoMultipartThresholdFactor;
   }
 
+  /**
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
+   */
+  @Deprecated
   public void setS3FileIoMultipartThresholdFactor(double factor) {
     this.s3FileIoMultipartThresholdFactor = factor;
   }
 
+  /**
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
+   */
+  @Deprecated
   public String s3fileIoStagingDirectory() {
     return s3fileIoStagingDirectory;
   }
 
+  /**
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
+   */
+  @Deprecated
   public void setS3fileIoStagingDirectory(String directory) {
     this.s3fileIoStagingDirectory = directory;
   }
 
+  /**
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
+   */
+  @Deprecated
   public ObjectCannedACL s3FileIoAcl() {
     return this.s3FileIoAcl;
   }
 
+  /**
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
+   */
+  @Deprecated
   public void setS3FileIoAcl(ObjectCannedACL acl) {
     this.s3FileIoAcl = acl;
   }
 
+  /**
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
+   */
+  @Deprecated
   public void setS3PreloadClientEnabled(boolean s3PreloadClientEnabled) {
     this.s3PreloadClientEnabled = s3PreloadClientEnabled;
   }
 
+  /**
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
+   */
+  @Deprecated
   public boolean s3PreloadClientEnabled() {
     return s3PreloadClientEnabled;
   }
@@ -1056,56 +1368,133 @@ public class AwsProperties implements Serializable {
     this.dynamoDbTableName = name;
   }
 
+  /**
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
+   */
+  @Deprecated
   public boolean isS3ChecksumEnabled() {
     return this.isS3ChecksumEnabled;
   }
 
+  /**
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
+   */
+  @Deprecated
   public void setS3ChecksumEnabled(boolean eTagCheckEnabled) {
     this.isS3ChecksumEnabled = eTagCheckEnabled;
   }
 
+  /**
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
+   */
+  @Deprecated
   public Set<Tag> s3WriteTags() {
     return s3WriteTags;
   }
 
+  /**
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
+   */
+  @Deprecated
   public boolean s3WriteTableTagEnabled() {
     return s3WriteTableTagEnabled;
   }
 
+  /**
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
+   */
+  @Deprecated
   public void setS3WriteTableTagEnabled(boolean s3WriteTableNameTagEnabled) {
     this.s3WriteTableTagEnabled = s3WriteTableNameTagEnabled;
   }
 
+  /**
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
+   */
+  @Deprecated
   public boolean s3WriteNamespaceTagEnabled() {
     return s3WriteNamespaceTagEnabled;
   }
 
+  /**
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
+   */
+  @Deprecated
   public void setS3WriteNamespaceTagEnabled(boolean s3WriteNamespaceTagEnabled) {
     this.s3WriteNamespaceTagEnabled = s3WriteNamespaceTagEnabled;
   }
 
+  /**
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
+   */
+  @Deprecated
   public Set<Tag> s3DeleteTags() {
     return s3DeleteTags;
   }
 
+  /**
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
+   */
+  @Deprecated
   public int s3FileIoDeleteThreads() {
     return s3FileIoDeleteThreads;
   }
 
+  /**
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
+   */
+  @Deprecated
   public void setS3FileIoDeleteThreads(int threads) {
     this.s3FileIoDeleteThreads = threads;
   }
 
+  /**
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
+   */
+  @Deprecated
   public boolean isS3DeleteEnabled() {
     return isS3DeleteEnabled;
   }
 
+  /**
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
+   */
+  @Deprecated
   public void setS3DeleteEnabled(boolean s3DeleteEnabled) {
     this.isS3DeleteEnabled = s3DeleteEnabled;
   }
 
+  /**
+   * @deprecated will be removed in 1.4.0, use {@link org.apache.iceberg.aws.s3.S3FileIOProperties}
+   *     instead
+   */
+  @Deprecated
   public Map<String, String> s3BucketToAccessPointMapping() {
     return s3BucketToAccessPointMapping;
+  }
+
+  public Map<String, String> httpClientProperties() {
+    return httpClientProperties;
+  }
+
+  public String clientRegion() {
+    return clientRegion;
+  }
+
+  public void setClientRegion(String clientRegion) {
+    this.clientRegion = clientRegion;
   }
 
   /**
@@ -1119,7 +1508,39 @@ public class AwsProperties implements Serializable {
    */
   public <T extends S3ClientBuilder> void applyS3CredentialConfigurations(T builder) {
     builder.credentialsProvider(
-        credentialsProvider(s3AccessKeyId, s3SecretAccessKey, s3SessionToken));
+        s3RemoteSigningEnabled
+            ? AnonymousCredentialsProvider.create()
+            : credentialsProvider(s3AccessKeyId, s3SecretAccessKey, s3SessionToken));
+  }
+
+  /**
+   * Configure a client AWS region.
+   *
+   * <p>Sample usage:
+   *
+   * <pre>
+   *     S3Client.builder().applyMutation(awsProperties::applyClientRegionConfiguration)
+   * </pre>
+   */
+  public <T extends AwsClientBuilder> void applyClientRegionConfiguration(T builder) {
+    if (clientRegion != null) {
+      builder.region(Region.of(clientRegion));
+    }
+  }
+
+  /**
+   * Configure the credential provider for AWS clients.
+   *
+   * <p>Sample usage:
+   *
+   * <pre>
+   *     DynamoDbClient.builder().applyMutation(awsProperties::applyClientCredentialConfigurations)
+   * </pre>
+   */
+  public <T extends AwsClientBuilder> void applyClientCredentialConfigurations(T builder) {
+    if (!Strings.isNullOrEmpty(this.clientCredentialsProvider)) {
+      builder.credentialsProvider(credentialsProvider(this.clientCredentialsProvider));
+    }
   }
 
   /**
@@ -1153,54 +1574,12 @@ public class AwsProperties implements Serializable {
    * </pre>
    */
   public <T extends S3ClientBuilder> void applyS3SignerConfiguration(T builder) {
-    if (null != s3SignerImpl) {
+    if (s3RemoteSigningEnabled) {
       builder.overrideConfiguration(
-          c -> c.putAdvancedOption(SdkAdvancedClientOption.SIGNER, loadS3SignerDynamically()));
+          c ->
+              c.putAdvancedOption(
+                  SdkAdvancedClientOption.SIGNER, S3V4RestSignerClient.create(allProperties)));
     }
-  }
-
-  private Signer loadS3SignerDynamically() {
-    // load the signer implementation dynamically
-    Object signer = null;
-    try {
-      signer =
-          DynMethods.builder("create")
-              .impl(s3SignerImpl, Map.class)
-              .buildStaticChecked()
-              .invoke(allProperties);
-    } catch (NoSuchMethodException e) {
-      LOG.warn(
-          "Cannot find static method create(Map<String, String> properties) for signer {}",
-          s3SignerImpl,
-          e);
-    }
-
-    if (null == signer) {
-      try {
-        signer = DynMethods.builder("create").impl(s3SignerImpl).buildChecked().invoke(null);
-      } catch (NoSuchMethodException e) {
-        LOG.warn("Cannot find static method create() for signer {}", s3SignerImpl, e);
-      }
-    }
-
-    if (null == signer) {
-      // try via default no-arg constructor
-      try {
-        signer = DynConstructors.builder().impl(s3SignerImpl).buildChecked().newInstance();
-      } catch (NoSuchMethodException e) {
-        LOG.warn("Cannot find no-arg constructor for signer {}", s3SignerImpl, e);
-      }
-    }
-
-    Preconditions.checkArgument(
-        null != signer, "Cannot instantiate custom signer: %s", s3SignerImpl);
-
-    Preconditions.checkArgument(
-        signer instanceof Signer,
-        "Custom signer %s must be an instance of %s",
-        s3SignerImpl,
-        Signer.class.getName());
-    return (Signer) signer;
   }
 
   /**
@@ -1219,13 +1598,14 @@ public class AwsProperties implements Serializable {
     }
     switch (httpClientType) {
       case HTTP_CLIENT_TYPE_URLCONNECTION:
-        builder.httpClientBuilder(
-            UrlConnectionHttpClient.builder()
-                .applyMutation(this::configureUrlConnectionHttpClientBuilder));
+        UrlConnectionHttpClientConfigurations urlConnectionHttpClientConfigurations =
+            loadHttpClientConfigurations(UrlConnectionHttpClientConfigurations.class.getName());
+        urlConnectionHttpClientConfigurations.configureHttpClientBuilder(builder);
         break;
       case HTTP_CLIENT_TYPE_APACHE:
-        builder.httpClientBuilder(
-            ApacheHttpClient.builder().applyMutation(this::configureApacheHttpClientBuilder));
+        ApacheHttpClientConfigurations apacheHttpClientConfigurations =
+            loadHttpClientConfigurations(ApacheHttpClientConfigurations.class.getName());
+        apacheHttpClientConfigurations.configureHttpClientBuilder(builder);
         break;
       default:
         throw new IllegalArgumentException("Unrecognized HTTP client type " + httpClientType);
@@ -1271,6 +1651,23 @@ public class AwsProperties implements Serializable {
     configureEndpoint(builder, dynamoDbEndpoint);
   }
 
+  public Region restSigningRegion() {
+    if (restSigningRegion == null) {
+      this.restSigningRegion = DefaultAwsRegionProviderChain.builder().build().getRegion().id();
+    }
+
+    return Region.of(restSigningRegion);
+  }
+
+  public String restSigningName() {
+    return restSigningName;
+  }
+
+  public AwsCredentialsProvider restCredentialsProvider() {
+    return credentialsProvider(
+        this.restAccessKeyId, this.restSecretAccessKey, this.restSessionToken);
+  }
+
   private Set<Tag> toS3Tags(Map<String, String> properties, String prefix) {
     return PropertyUtil.propertiesWithPrefix(properties, prefix).entrySet().stream()
         .map(e -> Tag.builder().key(e.getKey()).value(e.getValue()).build())
@@ -1303,8 +1700,52 @@ public class AwsProperties implements Serializable {
         return StaticCredentialsProvider.create(
             AwsSessionCredentials.create(accessKeyId, secretAccessKey, sessionToken));
       }
-    } else {
-      return DefaultCredentialsProvider.create();
+    }
+
+    if (!Strings.isNullOrEmpty(this.clientCredentialsProvider)) {
+      return credentialsProvider(this.clientCredentialsProvider);
+    }
+
+    return DefaultCredentialsProvider.create();
+  }
+
+  private AwsCredentialsProvider credentialsProvider(String credentialsProviderClass) {
+    Class<?> providerClass;
+    try {
+      providerClass = DynClasses.builder().impl(credentialsProviderClass).buildChecked();
+    } catch (ClassNotFoundException e) {
+      throw new IllegalArgumentException(
+          String.format(
+              "Cannot load class %s, it does not exist in the classpath", credentialsProviderClass),
+          e);
+    }
+
+    Preconditions.checkArgument(
+        AwsCredentialsProvider.class.isAssignableFrom(providerClass),
+        String.format(
+            "Cannot initialize %s, it does not implement %s.",
+            credentialsProviderClass, AwsCredentialsProvider.class.getName()));
+
+    AwsCredentialsProvider provider;
+    try {
+      try {
+        provider =
+            DynMethods.builder("create")
+                .hiddenImpl(providerClass, Map.class)
+                .buildStaticChecked()
+                .invoke(clientCredentialsProviderProperties);
+      } catch (NoSuchMethodException e) {
+        provider =
+            DynMethods.builder("create").hiddenImpl(providerClass).buildStaticChecked().invoke();
+      }
+
+      return provider;
+    } catch (NoSuchMethodException e) {
+      throw new IllegalArgumentException(
+          String.format(
+              "Cannot create an instance of %s, it does not contain a static 'create' or 'create(Map<String, String>)' method",
+              credentialsProviderClass),
+          e);
     }
   }
 
@@ -1314,55 +1755,25 @@ public class AwsProperties implements Serializable {
     }
   }
 
-  @VisibleForTesting
-  <T extends UrlConnectionHttpClient.Builder> void configureUrlConnectionHttpClientBuilder(
-      T builder) {
-    if (httpClientUrlConnectionConnectionTimeoutMs != null) {
-      builder.connectionTimeout(Duration.ofMillis(httpClientUrlConnectionConnectionTimeoutMs));
-    }
-
-    if (httpClientUrlConnectionSocketTimeoutMs != null) {
-      builder.socketTimeout(Duration.ofMillis(httpClientUrlConnectionSocketTimeoutMs));
-    }
-  }
-
-  @VisibleForTesting
-  <T extends ApacheHttpClient.Builder> void configureApacheHttpClientBuilder(T builder) {
-    if (httpClientApacheConnectionTimeoutMs != null) {
-      builder.connectionTimeout(Duration.ofMillis(httpClientApacheConnectionTimeoutMs));
-    }
-
-    if (httpClientApacheSocketTimeoutMs != null) {
-      builder.socketTimeout(Duration.ofMillis(httpClientApacheSocketTimeoutMs));
-    }
-
-    if (httpClientApacheConnectionAcquisitionTimeoutMs != null) {
-      builder.connectionAcquisitionTimeout(
-          Duration.ofMillis(httpClientApacheConnectionAcquisitionTimeoutMs));
-    }
-
-    if (httpClientApacheConnectionMaxIdleTimeMs != null) {
-      builder.connectionMaxIdleTime(Duration.ofMillis(httpClientApacheConnectionMaxIdleTimeMs));
-    }
-
-    if (httpClientApacheConnectionTimeToLiveMs != null) {
-      builder.connectionTimeToLive(Duration.ofMillis(httpClientApacheConnectionTimeToLiveMs));
-    }
-
-    if (httpClientApacheExpectContinueEnabled != null) {
-      builder.expectContinueEnabled(httpClientApacheExpectContinueEnabled);
-    }
-
-    if (httpClientApacheMaxConnections != null) {
-      builder.maxConnections(httpClientApacheMaxConnections);
-    }
-
-    if (httpClientApacheTcpKeepAliveEnabled != null) {
-      builder.tcpKeepAlive(httpClientApacheTcpKeepAliveEnabled);
-    }
-
-    if (httpClientApacheUseIdleConnectionReaperEnabled != null) {
-      builder.useIdleConnectionReaper(httpClientApacheUseIdleConnectionReaperEnabled);
+  /**
+   * Dynamically load the http client builder to avoid runtime deps requirements of both {@link
+   * software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient} and {@link
+   * software.amazon.awssdk.http.apache.ApacheHttpClient}, since including both will cause error
+   * described in <a href="https://github.com/apache/iceberg/issues/6715">issue#6715</a>
+   */
+  private <T> T loadHttpClientConfigurations(String impl) {
+    Object httpClientConfigurations;
+    try {
+      httpClientConfigurations =
+          DynMethods.builder("create")
+              .hiddenImpl(impl, Map.class)
+              .buildStaticChecked()
+              .invoke(httpClientProperties);
+      return (T) httpClientConfigurations;
+    } catch (NoSuchMethodException e) {
+      throw new IllegalArgumentException(
+          String.format("Cannot create %s to generate and configure the http client builder", impl),
+          e);
     }
   }
 }

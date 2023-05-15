@@ -26,6 +26,7 @@ import static org.apache.iceberg.SnapshotSummary.CHANGED_PARTITION_PREFIX;
 import static org.apache.iceberg.SnapshotSummary.TOTAL_DATA_FILES_PROP;
 import static org.apache.iceberg.SnapshotSummary.TOTAL_DELETE_FILES_PROP;
 import static org.apache.iceberg.SnapshotSummary.TOTAL_POS_DELETES_PROP;
+import static org.apache.iceberg.util.SnapshotUtil.latestSnapshot;
 
 import java.util.List;
 import java.util.Map;

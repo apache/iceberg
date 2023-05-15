@@ -33,6 +33,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.Collections;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -42,20 +43,22 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.HiveMetaStoreClient;
 import org.apache.hadoop.hive.metastore.IMetaStoreClient;
+import org.apache.hadoop.hive.metastore.api.EnvironmentContext;
 import org.apache.hadoop.hive.metastore.api.LockRequest;
 import org.apache.hadoop.hive.metastore.api.LockResponse;
 import org.apache.hadoop.hive.metastore.api.LockState;
 import org.apache.hadoop.hive.metastore.api.ShowLocksResponse;
 import org.apache.hadoop.hive.metastore.api.ShowLocksResponseElement;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.hadoop.ConfigProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.thrift.TException;
+import org.assertj.core.api.Assertions;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.Before;
@@ -277,11 +280,11 @@ public class TestHiveCommitLocks extends HiveTableBaseTest {
     doNothing().when(spyClient).unlock(eq(dummyLockId));
     doNothing().when(spyClient).heartbeat(eq(0L), eq(dummyLockId));
 
-    AssertHelpers.assertThrows(
-        "Expected an exception",
-        RuntimeException.class,
-        "Interrupted while creating lock",
-        () -> spyOps.doCommit(metadataV2, metadataV1));
+    Assertions.assertThatThrownBy(() -> spyOps.doCommit(metadataV2, metadataV1))
+        .isInstanceOf(RuntimeException.class)
+        .hasMessage(
+            "org.apache.iceberg.hive.LockException: "
+                + "Interrupted while creating lock on table hivedb.tbl");
 
     verify(spyClient, times(1)).unlock(eq(dummyLockId));
     // Make sure that we exit the lock loop on InterruptedException
@@ -301,11 +304,11 @@ public class TestHiveCommitLocks extends HiveTableBaseTest {
     doNothing().when(spyClient).unlock(eq(dummyLockId));
     doNothing().when(spyClient).heartbeat(eq(0L), eq(dummyLockId));
 
-    AssertHelpers.assertThrows(
-        "Expected an exception",
-        RuntimeException.class,
-        "Could not acquire the lock on",
-        () -> spyOps.doCommit(metadataV2, metadataV1));
+    Assertions.assertThatThrownBy(() -> spyOps.doCommit(metadataV2, metadataV1))
+        .isInstanceOf(RuntimeException.class)
+        .hasMessage(
+            "org.apache.iceberg.hive.LockException: "
+                + "Could not acquire the lock on hivedb.tbl, lock request ended in state WAITING");
 
     verify(spyClient, times(1)).unlock(eq(dummyLockId));
     // Make sure that we exit the checkLock loop on InterruptedException
@@ -325,11 +328,9 @@ public class TestHiveCommitLocks extends HiveTableBaseTest {
     doNothing().when(spyClient).unlock(eq(dummyLockId));
     doNothing().when(spyClient).heartbeat(eq(0L), eq(dummyLockId));
 
-    AssertHelpers.assertThrows(
-        "Expected an exception",
-        RuntimeException.class,
-        "Interrupted during commit",
-        () -> spyOps.doCommit(metadataV2, metadataV1));
+    Assertions.assertThatThrownBy(() -> spyOps.doCommit(metadataV2, metadataV1))
+        .isInstanceOf(RuntimeException.class)
+        .hasMessage("Interrupted during commit");
 
     verify(spyClient, times(1)).unlock(eq(dummyLockId));
   }
@@ -362,11 +363,11 @@ public class TestHiveCommitLocks extends HiveTableBaseTest {
   public void testLockFailureAtFirstTime() throws TException {
     doReturn(notAcquiredLockResponse).when(spyClient).lock(any());
 
-    AssertHelpers.assertThrows(
-        "Expected an exception",
-        CommitFailedException.class,
-        "Could not acquire the lock on",
-        () -> spyOps.doCommit(metadataV2, metadataV1));
+    Assertions.assertThatThrownBy(() -> spyOps.doCommit(metadataV2, metadataV1))
+        .isInstanceOf(CommitFailedException.class)
+        .hasMessage(
+            "org.apache.iceberg.hive.LockException: "
+                + "Could not acquire the lock on hivedb.tbl, lock request ended in state NOT_ACQUIRED");
   }
 
   @Test
@@ -380,11 +381,11 @@ public class TestHiveCommitLocks extends HiveTableBaseTest {
         .when(spyClient)
         .checkLock(eq(dummyLockId));
 
-    AssertHelpers.assertThrows(
-        "Expected an exception",
-        CommitFailedException.class,
-        "Could not acquire the lock on",
-        () -> spyOps.doCommit(metadataV2, metadataV1));
+    Assertions.assertThatThrownBy(() -> spyOps.doCommit(metadataV2, metadataV1))
+        .isInstanceOf(CommitFailedException.class)
+        .hasMessage(
+            "org.apache.iceberg.hive.LockException: "
+                + "Could not acquire the lock on hivedb.tbl, lock request ended in state NOT_ACQUIRED");
   }
 
   @Test
@@ -392,11 +393,11 @@ public class TestHiveCommitLocks extends HiveTableBaseTest {
     doReturn(waitLockResponse).when(spyClient).lock(any());
     doReturn(waitLockResponse).when(spyClient).checkLock(eq(dummyLockId));
 
-    AssertHelpers.assertThrows(
-        "Expected an exception",
-        CommitFailedException.class,
-        "Timed out after",
-        () -> spyOps.doCommit(metadataV2, metadataV1));
+    Assertions.assertThatThrownBy(() -> spyOps.doCommit(metadataV2, metadataV1))
+        .isInstanceOf(CommitFailedException.class)
+        .hasMessageStartingWith("org.apache.iceberg.hive.LockException")
+        .hasMessageContaining("Timed out after")
+        .hasMessageEndingWith("waiting for lock on hivedb.tbl");
   }
 
   @Test
@@ -407,11 +408,10 @@ public class TestHiveCommitLocks extends HiveTableBaseTest {
         .when(spyClient)
         .checkLock(eq(dummyLockId));
 
-    AssertHelpers.assertThrows(
-        "Expected an exception",
-        RuntimeException.class,
-        "Metastore operation failed for",
-        () -> spyOps.doCommit(metadataV2, metadataV1));
+    Assertions.assertThatThrownBy(() -> spyOps.doCommit(metadataV2, metadataV1))
+        .isInstanceOf(RuntimeException.class)
+        .hasMessage(
+            "org.apache.iceberg.hive.LockException: Metastore operation failed for hivedb.tbl");
   }
 
   @Test
@@ -427,11 +427,11 @@ public class TestHiveCommitLocks extends HiveTableBaseTest {
         .when(spyClient)
         .checkLock(eq(dummyLockId));
 
-    AssertHelpers.assertThrows(
-        "Expected an exception",
-        CommitFailedException.class,
-        "Could not acquire the lock on",
-        () -> spyOps.doCommit(metadataV2, metadataV1));
+    Assertions.assertThatThrownBy(() -> spyOps.doCommit(metadataV2, metadataV1))
+        .isInstanceOf(CommitFailedException.class)
+        .hasMessage(
+            "org.apache.iceberg.hive.LockException: "
+                + "Could not acquire the lock on hivedb.tbl, lock request ended in state WAITING");
   }
 
   @Test
@@ -488,10 +488,48 @@ public class TestHiveCommitLocks extends HiveTableBaseTest {
         .when(spyClient)
         .heartbeat(eq(0L), eq(dummyLockId));
 
-    AssertHelpers.assertThrows(
-        "Expected commit failure due to failure in heartbeat.",
-        CommitFailedException.class,
-        "Failed to heartbeat for hive lock. Failed to heart beat.",
-        () -> spyOps.doCommit(metadataV2, metadataV1));
+    Assertions.assertThatThrownBy(() -> spyOps.doCommit(metadataV2, metadataV1))
+        .isInstanceOf(CommitFailedException.class)
+        .hasMessage(
+            "org.apache.iceberg.hive.LockException: "
+                + "Failed to heartbeat for hive lock. Failed to heart beat.");
+  }
+
+  @Test
+  public void testNoLockCallsWithNoLock() throws TException {
+    Configuration confWithLock = new Configuration(overriddenHiveConf);
+    confWithLock.setBoolean(ConfigProperties.LOCK_HIVE_ENABLED, false);
+
+    HiveTableOperations noLockSpyOps =
+        spy(
+            new HiveTableOperations(
+                confWithLock,
+                spyCachedClientPool,
+                ops.io(),
+                catalog.name(),
+                TABLE_IDENTIFIER.namespace().level(0),
+                TABLE_IDENTIFIER.name()));
+
+    ArgumentCaptor<EnvironmentContext> contextCaptor =
+        ArgumentCaptor.forClass(EnvironmentContext.class);
+
+    doNothing()
+        .when(spyClient)
+        .alter_table_with_environmentContext(any(), any(), any(), contextCaptor.capture());
+
+    noLockSpyOps.doCommit(metadataV2, metadataV1);
+
+    // Make sure that the locking is not used
+    verify(spyClient, never()).lock(any(LockRequest.class));
+    verify(spyClient, never()).checkLock(any(Long.class));
+    verify(spyClient, never()).heartbeat(any(Long.class), any(Long.class));
+    verify(spyClient, never()).unlock(any(Long.class));
+
+    // Make sure that the expected parameter context values are set
+    Map<String, String> context = contextCaptor.getValue().getProperties();
+    Assert.assertEquals(3, context.size());
+    Assert.assertEquals(
+        context.get("expected_parameter_key"), HiveTableOperations.METADATA_LOCATION_PROP);
+    Assert.assertEquals(context.get("expected_parameter_value"), metadataV2.metadataFileLocation());
   }
 }

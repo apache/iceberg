@@ -65,7 +65,12 @@ public class RewriteFileGroup {
 
   public RewriteDataFiles.FileGroupRewriteResult asResult() {
     Preconditions.checkState(addedFiles != null, "Cannot get result, Group was never rewritten");
-    return new BaseFileGroupRewriteResult(info, addedFiles.size(), fileScanTasks.size());
+    return ImmutableRewriteDataFiles.FileGroupRewriteResult.builder()
+        .info(info)
+        .addedDataFilesCount(addedFiles.size())
+        .rewrittenDataFilesCount(fileScanTasks.size())
+        .rewrittenBytesCount(sizeInBytes())
+        .build();
   }
 
   @Override
@@ -76,6 +81,7 @@ public class RewriteFileGroup {
         .add(
             "numAddedFiles",
             addedFiles == null ? "Rewrite Incomplete" : Integer.toString(addedFiles.size()))
+        .add("numRewrittenBytes", sizeInBytes())
         .toString();
   }
 

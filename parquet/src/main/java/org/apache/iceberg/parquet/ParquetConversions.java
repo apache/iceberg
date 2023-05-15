@@ -27,6 +27,7 @@ import java.util.function.Function;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.types.Type;
 import org.apache.parquet.io.api.Binary;
+import org.apache.parquet.schema.LogicalTypeAnnotation.DecimalLogicalTypeAnnotation;
 import org.apache.parquet.schema.PrimitiveType;
 
 class ParquetConversions {
@@ -89,7 +90,9 @@ class ParquetConversions {
           // decode to CharSequence to avoid copying into a new String
           return binary -> StandardCharsets.UTF_8.decode(((Binary) binary).toByteBuffer());
         case DECIMAL:
-          int scale = type.getDecimalMetadata().getScale();
+          DecimalLogicalTypeAnnotation decimal =
+              (DecimalLogicalTypeAnnotation) type.getLogicalTypeAnnotation();
+          int scale = decimal.getScale();
           switch (type.getPrimitiveTypeName()) {
             case INT32:
             case INT64:

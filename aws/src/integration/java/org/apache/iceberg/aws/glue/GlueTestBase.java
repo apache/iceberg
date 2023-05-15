@@ -34,7 +34,6 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
-import org.apache.iceberg.util.LockManagers;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.slf4j.Logger;
@@ -61,7 +60,6 @@ public class GlueTestBase {
 
   // iceberg
   static GlueCatalog glueCatalog;
-  static GlueCatalog glueCatalogWithSkip;
   static GlueCatalog glueCatalogWithSkipNameValidation;
 
   static Schema schema =
@@ -75,31 +73,17 @@ public class GlueTestBase {
           TableProperties.WRITE_FOLDER_STORAGE_LOCATION,
               "s3://" + testBucketName + "/writeFolderStorageLoc");
 
+  static final String testBucketPath = "s3://" + testBucketName + "/" + testPathPrefix;
+  static final S3FileIO fileIO = new S3FileIO(clientFactory::s3);
+
   @BeforeClass
   public static void beforeClass() {
-    String testBucketPath = "s3://" + testBucketName + "/" + testPathPrefix;
-    S3FileIO fileIO = new S3FileIO(clientFactory::s3);
     glueCatalog = new GlueCatalog();
-    glueCatalog.initialize(
-        catalogName,
-        testBucketPath,
-        new AwsProperties(),
-        glue,
-        LockManagers.defaultLockManager(),
-        fileIO,
-        ImmutableMap.of());
     AwsProperties properties = new AwsProperties();
-    properties.setGlueCatalogSkipArchive(true);
     properties.setS3FileIoDeleteBatchSize(10);
-    glueCatalogWithSkip = new GlueCatalog();
-    glueCatalogWithSkip.initialize(
-        catalogName,
-        testBucketPath,
-        properties,
-        glue,
-        LockManagers.defaultLockManager(),
-        fileIO,
-        ImmutableMap.of());
+    glueCatalog.initialize(
+        catalogName, testBucketPath, properties, glue, null, fileIO, ImmutableMap.of());
+
     glueCatalogWithSkipNameValidation = new GlueCatalog();
     AwsProperties propertiesSkipNameValidation = new AwsProperties();
     propertiesSkipNameValidation.setGlueCatalogSkipNameValidation(true);
@@ -108,7 +92,7 @@ public class GlueTestBase {
         testBucketPath,
         propertiesSkipNameValidation,
         glue,
-        LockManagers.defaultLockManager(),
+        null,
         fileIO,
         ImmutableMap.of());
   }

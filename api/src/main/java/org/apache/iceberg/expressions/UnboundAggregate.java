@@ -46,12 +46,22 @@ public class UnboundAggregate<T> extends Aggregate<UnboundTerm<T>>
    */
   @Override
   public Expression bind(Types.StructType struct, boolean caseSensitive) {
-    if (op() == Operation.COUNT_STAR) {
-      return new BoundAggregate<>(op(), null);
-    } else {
-      Preconditions.checkArgument(term() != null, "Invalid aggregate term: null");
-      BoundTerm<T> bound = term().bind(struct, caseSensitive);
-      return new BoundAggregate<>(op(), bound);
+    switch (op()) {
+      case COUNT_STAR:
+        return new CountStar<>(null);
+      case COUNT:
+        return new CountNonNull<>(boundTerm(struct, caseSensitive));
+      case MAX:
+        return new MaxAggregate<>(boundTerm(struct, caseSensitive));
+      case MIN:
+        return new MinAggregate<>(boundTerm(struct, caseSensitive));
+      default:
+        throw new UnsupportedOperationException("Unsupported aggregate type: " + op());
     }
+  }
+
+  private BoundTerm<T> boundTerm(Types.StructType struct, boolean caseSensitive) {
+    Preconditions.checkArgument(term() != null, "Invalid aggregate term: null");
+    return term().bind(struct, caseSensitive);
   }
 }

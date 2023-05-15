@@ -107,7 +107,7 @@ class Schema(IcebergBaseModel):
             return False
 
         identifier_field_ids_is_equal = self.identifier_field_ids == other.identifier_field_ids
-        schema_is_equal = all([lhs == rhs for lhs, rhs in zip(self.columns, other.columns)])
+        schema_is_equal = all(lhs == rhs for lhs, rhs in zip(self.columns, other.columns))
 
         return identifier_field_ids_is_equal and schema_is_equal
 
@@ -156,7 +156,7 @@ class Schema(IcebergBaseModel):
         """Find a field using a field name or field ID
 
         Args:
-            name_or_id (str | int): Either a field name or a field ID
+            name_or_id (Union[str, int]): Either a field name or a field ID
             case_sensitive (bool, optional): Whether to perform a case-sensitive lookup using a field name. Defaults to True.
 
         Raises:
@@ -184,7 +184,7 @@ class Schema(IcebergBaseModel):
         """Find a field type using a field name or field ID
 
         Args:
-            name_or_id (str | int): Either a field name or a field ID
+            name_or_id (Union[str, int]): Either a field name or a field ID
             case_sensitive (bool, optional): Whether to perform a case-sensitive lookup using a field name. Defaults to True.
 
         Returns:
@@ -692,7 +692,7 @@ class Accessor:
         """Returns the value at self.position in `container`
 
         Args:
-            container(StructProtocol): A container to access at position `self.position`
+            container (StructProtocol): A container to access at position `self.position`
 
         Returns:
             Any: The value at position `self.position` in the container
@@ -714,7 +714,7 @@ def visit(obj: Union[Schema, IcebergType], visitor: SchemaVisitor[T]) -> T:
     The function traverses the schema in post-order fashion
 
     Args:
-        obj(Schema | IcebergType): An instance of a Schema or an IcebergType
+        obj (Union[Schema, IcebergType]): An instance of a Schema or an IcebergType
         visitor (SchemaVisitor[T]): An instance of an implementation of the generic SchemaVisitor base class
 
     Raises:
@@ -783,7 +783,7 @@ def pre_order_visit(obj: Union[Schema, IcebergType], visitor: PreOrderSchemaVisi
     because we don't use the pre-order traversal much.
 
     Args:
-        obj(Schema | IcebergType): An instance of a Schema or an IcebergType
+        obj (Union[Schema, IcebergType]): An instance of a Schema or an IcebergType
         visitor (PreOrderSchemaVisitor[T]): An instance of an implementation of the generic PreOrderSchemaVisitor base class
 
     Raises:
@@ -869,7 +869,7 @@ def index_by_id(schema_or_type: Union[Schema, IcebergType]) -> Dict[int, NestedF
     """Generate an index of field IDs to NestedField instances
 
     Args:
-        schema_or_type (Schema | IcebergType): A schema or type to index
+        schema_or_type (Union[Schema, IcebergType]): A schema or type to index
 
     Returns:
         Dict[int, NestedField]: An index of field IDs to NestedField instances
@@ -975,7 +975,7 @@ def index_by_name(schema_or_type: Union[Schema, IcebergType]) -> Dict[str, int]:
     """Generate an index of field names to field IDs
 
     Args:
-        schema_or_type (Schema | IcebergType): A schema or type to index
+        schema_or_type (Union[Schema, IcebergType]): A schema or type to index
 
     Returns:
         Dict[str, int]: An index of field names to field IDs
@@ -992,7 +992,7 @@ def index_name_by_id(schema_or_type: Union[Schema, IcebergType]) -> Dict[int, st
     """Generate an index of field IDs full field names
 
     Args:
-        schema_or_type (Schema | IcebergType): A schema or type to index
+        schema_or_type (Union[Schema, IcebergType]): A schema or type to index
 
     Returns:
         Dict[str, int]: An index of field IDs to full names
@@ -1071,7 +1071,7 @@ def build_position_accessors(schema_or_type: Union[Schema, IcebergType]) -> Dict
     """Generate an index of field IDs to schema position accessors
 
     Args:
-        schema_or_type (Schema | IcebergType): A schema or type to index
+        schema_or_type (Union[Schema, IcebergType]): A schema or type to index
 
     Returns:
         Dict[int, Accessor]: An index of field IDs to accessors
@@ -1364,3 +1364,12 @@ def _(file_type: DecimalType, read_type: IcebergType) -> IcebergType:
             raise ResolveError(f"Cannot reduce precision from {file_type} to {read_type}")
     else:
         raise ResolveError(f"Cannot promote an decimal to {read_type}")
+
+
+@promote.register(FixedType)
+def _(file_type: FixedType, read_type: IcebergType) -> IcebergType:
+    if isinstance(read_type, UUIDType) and len(file_type) == 16:
+        # Since pyarrow reads parquet UUID as fixed 16-byte binary, the promotion is needed to ensure read compatibility
+        return read_type
+    else:
+        raise ResolveError(f"Cannot promote {file_type} to {read_type}")

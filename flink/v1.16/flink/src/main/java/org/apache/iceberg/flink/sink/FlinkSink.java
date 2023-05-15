@@ -132,7 +132,6 @@ public class FlinkSink {
     private TableLoader tableLoader;
     private Table table;
     private TableSchema tableSchema;
-    private Integer writeParallelism = null;
     private List<String> equalityFieldColumns = null;
     private String uidPrefix = null;
     private final Map<String, String> snapshotProperties = Maps.newHashMap();
@@ -248,7 +247,8 @@ public class FlinkSink {
      * @return {@link Builder} to connect the iceberg table.
      */
     public Builder writeParallelism(int newWriteParallelism) {
-      this.writeParallelism = newWriteParallelism;
+      writeOptions.put(
+          FlinkWriteOptions.WRITE_PARALLELISM.key(), Integer.toString(newWriteParallelism));
       return this;
     }
 
@@ -313,6 +313,11 @@ public class FlinkSink {
 
     public Builder setSnapshotProperty(String property, String value) {
       snapshotProperties.put(property, value);
+      return this;
+    }
+
+    public Builder toBranch(String branch) {
+      writeOptions.put(FlinkWriteOptions.BRANCH.key(), branch);
       return this;
     }
 
@@ -422,7 +427,8 @@ public class FlinkSink {
               tableLoader,
               flinkWriteConf.overwriteMode(),
               snapshotProperties,
-              flinkWriteConf.workerPoolSize());
+              flinkWriteConf.workerPoolSize(),
+              flinkWriteConf.branch());
       SingleOutputStreamOperator<Void> committerStream =
           writerStream
               .transform(operatorName(ICEBERG_FILES_COMMITTER_NAME), Types.VOID, filesCommitter)
@@ -458,7 +464,10 @@ public class FlinkSink {
       IcebergStreamWriter<RowData> streamWriter =
           createStreamWriter(table, flinkWriteConf, flinkRowType, equalityFieldIds);
 
-      int parallelism = writeParallelism == null ? input.getParallelism() : writeParallelism;
+      int parallelism =
+          flinkWriteConf.writeParallelism() == null
+              ? input.getParallelism()
+              : flinkWriteConf.writeParallelism();
       SingleOutputStreamOperator<WriteResult> writerStream =
           input
               .transform(

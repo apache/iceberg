@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.aws.s3;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -40,6 +41,7 @@ import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.SupportsBulkOperations;
 import org.apache.iceberg.io.SupportsPrefixOperations;
 import org.apache.iceberg.metrics.MetricsContext;
+import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Multimaps;
@@ -87,13 +89,16 @@ public class S3FileIO
   private transient volatile S3Client client;
   private MetricsContext metrics = MetricsContext.nullMetrics();
   private final AtomicBoolean isResourceClosed = new AtomicBoolean(false);
+  private final transient StackTraceElement[] createStack;
 
   /**
    * No-arg constructor to load the FileIO dynamically.
    *
    * <p>All fields are initialized by calling {@link S3FileIO#initialize(Map)} later.
    */
-  public S3FileIO() {}
+  public S3FileIO() {
+    this.createStack = Thread.currentThread().getStackTrace();
+  }
 
   /**
    * Constructor with custom s3 supplier and default AWS properties.
@@ -117,6 +122,7 @@ public class S3FileIO
   public S3FileIO(SerializableSupplier<S3Client> s3, AwsProperties awsProperties) {
     this.s3 = s3;
     this.awsProperties = awsProperties;
+    this.createStack = Thread.currentThread().getStackTrace();
   }
 
   @Override
@@ -390,6 +396,21 @@ public class S3FileIO
     if (isResourceClosed.compareAndSet(false, true)) {
       if (client != null) {
         client.close();
+      }
+    }
+  }
+
+  @SuppressWarnings("checkstyle:NoFinalizer")
+  @Override
+  protected void finalize() throws Throwable {
+    super.finalize();
+    if (!isResourceClosed.get()) {
+      close();
+
+      if (null != createStack) {
+        String trace =
+            Joiner.on("\n\t").join(Arrays.copyOfRange(createStack, 1, createStack.length));
+        LOG.warn("Unclosed S3FileIO instance created by:\n\t{}", trace);
       }
     }
   }

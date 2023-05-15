@@ -42,7 +42,6 @@ import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.StructType;
@@ -394,11 +393,9 @@ public class TestPredicateBinding {
 
     // string (non-compatible)
     StructType strStruct = StructType.of(optional(21, "s", Types.StringType.get()));
-    AssertHelpers.assertThrows(
-        "Should complain about incompatible type binding",
-        ValidationException.class,
-        "IsNaN cannot be used with a non-floating-point column",
-        () -> new UnboundPredicate<>(IS_NAN, ref("s")).bind(strStruct));
+    Assertions.assertThatThrownBy(() -> new UnboundPredicate<>(IS_NAN, ref("s")).bind(strStruct))
+        .isInstanceOf(ValidationException.class)
+        .hasMessage("IsNaN cannot be used with a non-floating-point column");
   }
 
   @Test
@@ -425,11 +422,9 @@ public class TestPredicateBinding {
 
     // string (non-compatible)
     StructType strStruct = StructType.of(optional(21, "s", Types.StringType.get()));
-    AssertHelpers.assertThrows(
-        "Should complain about incompatible type binding",
-        ValidationException.class,
-        "NotNaN cannot be used with a non-floating-point column",
-        () -> new UnboundPredicate<>(NOT_NAN, ref("s")).bind(strStruct));
+    Assertions.assertThatThrownBy(() -> new UnboundPredicate<>(NOT_NAN, ref("s")).bind(strStruct))
+        .isInstanceOf(ValidationException.class)
+        .hasMessage("NotNaN cannot be used with a non-floating-point column");
   }
 
   @Test

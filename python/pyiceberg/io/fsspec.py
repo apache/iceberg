@@ -31,11 +31,17 @@ import requests
 from botocore import UNSIGNED
 from botocore.awsrequest import AWSRequest
 from fsspec import AbstractFileSystem
+from fsspec.implementations.local import LocalFileSystem
 from requests import HTTPError
 
 from pyiceberg.catalog import TOKEN
 from pyiceberg.exceptions import SignError
 from pyiceberg.io import (
+    S3_ACCESS_KEY_ID,
+    S3_ENDPOINT,
+    S3_REGION,
+    S3_SECRET_ACCESS_KEY,
+    S3_SESSION_TOKEN,
     FileIO,
     InputFile,
     InputStream,
@@ -78,14 +84,19 @@ def s3v4_rest_signer(properties: Properties, request: AWSRequest, **_: Any) -> A
 SIGNERS: Dict[str, Callable[[Properties, AWSRequest], AWSRequest]] = {"S3V4RestSigner": s3v4_rest_signer}
 
 
+def _file(_: Properties) -> LocalFileSystem:
+    return LocalFileSystem()
+
+
 def _s3(properties: Properties) -> AbstractFileSystem:
     from s3fs import S3FileSystem
 
     client_kwargs = {
-        "endpoint_url": properties.get("s3.endpoint"),
-        "aws_access_key_id": properties.get("s3.access-key-id"),
-        "aws_secret_access_key": properties.get("s3.secret-access-key"),
-        "aws_session_token": properties.get("s3.session-token"),
+        "endpoint_url": properties.get(S3_ENDPOINT),
+        "aws_access_key_id": properties.get(S3_ACCESS_KEY_ID),
+        "aws_secret_access_key": properties.get(S3_SECRET_ACCESS_KEY),
+        "aws_session_token": properties.get(S3_SESSION_TOKEN),
+        "region_name": properties.get(S3_REGION),
     }
     config_kwargs = {}
     register_events: Dict[str, Callable[[Properties], None]] = {}
@@ -112,11 +123,19 @@ def _s3(properties: Properties) -> AbstractFileSystem:
 def _adlfs(properties: Properties) -> AbstractFileSystem:
     from adlfs import AzureBlobFileSystem
 
-    fs = AzureBlobFileSystem(**properties)
-    return fs
+    return AzureBlobFileSystem(
+        connection_string=properties.get("adlfs.connection-string"),
+        account_name=properties.get("adlfs.account-name"),
+        account_key=properties.get("adlfs.account-key"),
+        sas_token=properties.get("adlfs.sas-token"),
+        tenant_id=properties.get("adlfs.tenant-id"),
+        client_id=properties.get("adlfs.client-id"),
+        client_secret=properties.get("adlfs.client-secret"),
+    )
 
 
 SCHEME_TO_FS = {
+    "file": _file,
     "s3": _s3,
     "s3a": _s3,
     "s3n": _s3,
@@ -129,8 +148,8 @@ class FsspecInputFile(InputFile):
     """An input file implementation for the FsspecFileIO
 
     Args:
-        location(str): A URI to a file location
-        fs(AbstractFileSystem): An fsspec filesystem instance
+        location (str): A URI to a file location
+        fs (AbstractFileSystem): An fsspec filesystem instance
     """
 
     def __init__(self, location: str, fs: AbstractFileSystem):
@@ -173,8 +192,8 @@ class FsspecOutputFile(OutputFile):
     """An output file implementation for the FsspecFileIO
 
     Args:
-        location(str): A URI to a file location
-        fs(AbstractFileSystem): An fsspec filesystem instance
+        location (str): A URI to a file location
+        fs (AbstractFileSystem): An fsspec filesystem instance
     """
 
     def __init__(self, location: str, fs: AbstractFileSystem):
@@ -198,7 +217,7 @@ class FsspecOutputFile(OutputFile):
         """Create an output stream for reading the contents of the file
 
         Args:
-            overwrite(bool): Whether to overwrite the file if it already exists
+            overwrite (bool): Whether to overwrite the file if it already exists
 
         Returns:
             OpenFile: An fsspec compliant file-like object
@@ -234,7 +253,7 @@ class FsspecFileIO(FileIO):
         """Get an FsspecInputFile instance to read bytes from the file at the given location
 
         Args:
-            location(str): A URI or a path to a local file
+            location (str): A URI or a path to a local file
 
         Returns:
             FsspecInputFile: An FsspecInputFile instance for the given location
@@ -247,7 +266,7 @@ class FsspecFileIO(FileIO):
         """Get an FsspecOutputFile instance to write bytes to the file at the given location
 
         Args:
-            location(str): A URI or a path to a local file
+            location (str): A URI or a path to a local file
 
         Returns:
             FsspecOutputFile: An FsspecOutputFile instance for the given location
@@ -260,9 +279,9 @@ class FsspecFileIO(FileIO):
         """Delete the file at the given location
 
         Args:
-            location(str, InputFile, OutputFile): The URI to the file--if an InputFile instance or an
-            OutputFile instance is provided, the location attribute for that instance is used as the location
-            to delete
+            location (Union[str, InputFile, OutputFile]): The URI to the file--if an InputFile instance or an
+                OutputFile instance is provided, the location attribute for that instance is used as the location
+                to delete
         """
         if isinstance(location, (InputFile, OutputFile)):
             str_location = location.location  # Use InputFile or OutputFile location

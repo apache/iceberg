@@ -1,3 +1,8 @@
+---
+hide:
+  - navigation
+---
+
 <!--
  - Licensed to the Apache Software Foundation (ASF) under one or more
  - contributor license agreements.  See the NOTICE file distributed with
@@ -43,15 +48,18 @@ pip3 install -e ".[s3fs,hive]"
 
 You can mix and match optional dependencies depending on your needs:
 
-| Key     | Description:                                                         |
-|---------|----------------------------------------------------------------------|
-| hive    | Support for the Hive metastore                                       |
-| glue    | Support for AWS Glue                                                 |
-| pyarrow | PyArrow as a FileIO implementation to interact with the object store |
-| duckdb  | Installs both PyArrow and DuckDB                                     |
-| s3fs    | S3FS as a FileIO implementation to interact with the object store    |
-| adlfs   | ADLFS as a FileIO implementation to interact with the object store   |
-| snappy  | Support for snappy Avro compression                                  |
+| Key      | Description:                                                         |
+| -------- | -------------------------------------------------------------------- |
+| hive     | Support for the Hive metastore                                       |
+| glue     | Support for AWS Glue                                                 |
+| dynamodb | Support for AWS DynamoDB                                             |
+| pyarrow  | PyArrow as a FileIO implementation to interact with the object store |
+| pandas   | Installs both PyArrow and Pandas                                     |
+| duckdb   | Installs both PyArrow and DuckDB                                     |
+| ray      | Installs PyArrow, Pandas, and Ray                                    |
+| s3fs     | S3FS as a FileIO implementation to interact with the object store    |
+| adlfs    | ADLFS as a FileIO implementation to interact with the object store   |
+| snappy   | Support for snappy Avro compression                                  |
 
 You either need to install `s3fs`, `adlfs` or `pyarrow` for fetching files.
 

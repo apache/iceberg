@@ -139,6 +139,28 @@ public class FileHelpers {
         .build();
   }
 
+  public static DeleteFile writePosDeleteFile(
+      Table table, OutputFile out, StructLike partition, List<PositionDelete<?>> deletes)
+      throws IOException {
+    FileFormat format = defaultFormat(table.properties());
+    FileAppenderFactory<Record> factory =
+        new GenericAppenderFactory(
+            table.schema(),
+            table.spec(),
+            null, // Equality Fields
+            null, // Equality Delete row schema
+            table.schema()); // Position Delete row schema (will be wrapped)
+
+    PositionDeleteWriter<?> writer = factory.newPosDeleteWriter(encrypt(out), format, partition);
+    try (Closeable toClose = writer) {
+      for (PositionDelete delete : deletes) {
+        writer.write(delete);
+      }
+    }
+
+    return writer.toDeleteFile();
+  }
+
   private static EncryptedOutputFile encrypt(OutputFile out) {
     return EncryptedFiles.encryptedOutput(out, EncryptionKeyMetadata.EMPTY);
   }

@@ -20,7 +20,9 @@ package org.apache.iceberg.aws.s3.signer;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
+import com.github.benmanes.caffeine.cache.RemovalListener;
 import java.net.URI;
+import java.time.Duration;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -30,6 +32,7 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 import javax.annotation.Nullable;
 import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -69,10 +72,16 @@ public abstract class S3V4RestSignerClient
   private static final Cache<Key, SignedComponent> SIGNED_COMPONENT_CACHE =
       Caffeine.newBuilder().expireAfterWrite(30, TimeUnit.SECONDS).maximumSize(100).build();
 
-  private static final ScheduledExecutorService TOKEN_REFRESH_EXECUTOR =
-      ThreadPools.newScheduledPool("s3-signer-token-refresh", 1);
   private static final String SCOPE = "sign";
-  private static RESTClient httpClient;
+
+  @SuppressWarnings("immutables:incompat")
+  private static volatile ScheduledExecutorService tokenRefreshExecutor;
+
+  @SuppressWarnings("immutables:incompat")
+  private static volatile RESTClient httpClient;
+
+  @SuppressWarnings("immutables:incompat")
+  private static volatile Cache<String, AuthSession> authSessionCache;
 
   public abstract Map<String, String> properties();
 
@@ -98,44 +107,110 @@ public abstract class S3V4RestSignerClient
     return properties().get(OAuth2Properties.CREDENTIAL);
   }
 
-  /** A Bearer token which will be used for interaction with the server. */
-  @Nullable
+  /** A Bearer token supplier which will be used for interaction with the server. */
+  @Value.Default
+  public Supplier<String> token() {
+    return () -> properties().get(OAuth2Properties.TOKEN);
+  }
+
   @Value.Lazy
-  public String token() {
-    return properties().get(OAuth2Properties.TOKEN);
+  boolean keepTokenRefreshed() {
+    return PropertyUtil.propertyAsBoolean(
+        properties(),
+        OAuth2Properties.TOKEN_REFRESH_ENABLED,
+        OAuth2Properties.TOKEN_REFRESH_ENABLED_DEFAULT);
+  }
+
+  @VisibleForTesting
+  ScheduledExecutorService tokenRefreshExecutor() {
+    if (!keepTokenRefreshed()) {
+      return null;
+    }
+
+    if (null == tokenRefreshExecutor) {
+      synchronized (S3V4RestSignerClient.class) {
+        if (null == tokenRefreshExecutor) {
+          tokenRefreshExecutor = ThreadPools.newScheduledPool("s3-signer-token-refresh", 1);
+        }
+      }
+    }
+
+    return tokenRefreshExecutor;
+  }
+
+  private Cache<String, AuthSession> authSessionCache() {
+    if (null == authSessionCache) {
+      synchronized (S3V4RestSignerClient.class) {
+        if (null == authSessionCache) {
+          long expirationIntervalMs =
+              PropertyUtil.propertyAsLong(
+                  properties(),
+                  CatalogProperties.AUTH_SESSION_TIMEOUT_MS,
+                  CatalogProperties.AUTH_SESSION_TIMEOUT_MS_DEFAULT);
+
+          authSessionCache =
+              Caffeine.newBuilder()
+                  .expireAfterAccess(Duration.ofMillis(expirationIntervalMs))
+                  .removalListener(
+                      (RemovalListener<String, AuthSession>)
+                          (id, auth, cause) -> {
+                            if (null != auth) {
+                              LOG.trace("Stopping refresh for AuthSession");
+                              auth.stopRefreshing();
+                            }
+                          })
+                  .build();
+        }
+      }
+    }
+
+    return authSessionCache;
   }
 
   private RESTClient httpClient() {
     if (null == httpClient) {
-      // TODO: should be closed
-      httpClient =
-          HTTPClient.builder()
-              .uri(baseSignerUri())
-              .withObjectMapper(S3ObjectMapper.mapper())
-              .build();
+      synchronized (S3V4RestSignerClient.class) {
+        if (null == httpClient) {
+          httpClient =
+              HTTPClient.builder(properties())
+                  .uri(baseSignerUri())
+                  .withObjectMapper(S3ObjectMapper.mapper())
+                  .build();
+        }
+      }
     }
 
     return httpClient;
   }
 
-  @Value.Lazy
-  AuthSession authSession() {
-    if (null != token()) {
-      return AuthSession.fromAccessToken(
-          httpClient(),
-          TOKEN_REFRESH_EXECUTOR,
-          token(),
-          expiresAtMillis(properties()),
-          new AuthSession(ImmutableMap.of(), token(), null, credential(), SCOPE));
+  private AuthSession authSession() {
+    String token = token().get();
+    if (null != token) {
+      return authSessionCache()
+          .get(
+              token,
+              id ->
+                  AuthSession.fromAccessToken(
+                      httpClient(),
+                      tokenRefreshExecutor(),
+                      token,
+                      expiresAtMillis(properties()),
+                      new AuthSession(ImmutableMap.of(), token, null, credential(), SCOPE)));
     }
 
     if (credentialProvided()) {
-      AuthSession session = new AuthSession(ImmutableMap.of(), token(), null, credential(), SCOPE);
-      long startTimeMillis = System.currentTimeMillis();
-      OAuthTokenResponse authResponse =
-          OAuth2Util.fetchToken(httpClient(), session.headers(), credential(), SCOPE);
-      return AuthSession.fromTokenResponse(
-          httpClient(), TOKEN_REFRESH_EXECUTOR, authResponse, startTimeMillis, session);
+      return authSessionCache()
+          .get(
+              credential(),
+              id -> {
+                AuthSession session =
+                    new AuthSession(ImmutableMap.of(), null, null, credential(), SCOPE);
+                long startTimeMillis = System.currentTimeMillis();
+                OAuthTokenResponse authResponse =
+                    OAuth2Util.fetchToken(httpClient(), session.headers(), credential(), SCOPE);
+                return AuthSession.fromTokenResponse(
+                    httpClient(), tokenRefreshExecutor(), authResponse, startTimeMillis, session);
+              });
     }
 
     return AuthSession.empty();

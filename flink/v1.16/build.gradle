@@ -17,7 +17,7 @@
  * under the License.
  */
 
-String flinkVersion = '1.16.0'
+String flinkVersion = '1.16.1'
 String flinkMajorVersion = '1.16'
 String scalaVersion = System.getProperty("scalaVersion") != null ? System.getProperty("scalaVersion") : System.getProperty("defaultScalaVersion")
 
@@ -232,7 +232,7 @@ project(":iceberg-flink:iceberg-flink-runtime-${flinkMajorVersion}") {
     relocate 'org.threeten.extra', 'org.apache.iceberg.shaded.org.threeten.extra'
     relocate 'org.apache.httpcomponents.client5', 'org.apache.iceberg.shaded.org.apache.httpcomponents.client5'
 
-    classifier null
+    archiveClassifier.set(null)
   }
 
   task integrationTest(type: Test) {

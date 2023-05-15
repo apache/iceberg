@@ -22,7 +22,9 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
+import org.apache.iceberg.io.SupportsBulkOperations;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.immutables.value.Value;
 
 /**
  * An action that deletes orphan metadata, data and delete files in a table.
@@ -30,6 +32,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
  * <p>A file is considered orphan if it is not reachable by any valid snapshot. The set of actual
  * files is built by listing the underlying storage which makes this operation expensive.
  */
+@Value.Enclosing
 public interface DeleteOrphanFiles extends Action<DeleteOrphanFiles, DeleteOrphanFiles.Result> {
   /**
    * Passes a location which should be scanned for orphan files.
@@ -59,7 +62,7 @@ public interface DeleteOrphanFiles extends Action<DeleteOrphanFiles, DeleteOrpha
   /**
    * Passes an alternative delete implementation that will be used for orphan files.
    *
-   * <p>This method allows users to customize the delete func. For example, one may set a custom
+   * <p>This method allows users to customize the delete function. For example, one may set a custom
    * delete func and collect all orphan files into a set instead of physically removing them.
    *
    * <p>If not set, defaults to using the table's {@link org.apache.iceberg.io.FileIO io}
@@ -71,12 +74,14 @@ public interface DeleteOrphanFiles extends Action<DeleteOrphanFiles, DeleteOrpha
   DeleteOrphanFiles deleteWith(Consumer<String> deleteFunc);
 
   /**
-   * Passes an alternative executor service that will be used for removing orphaned files.
+   * Passes an alternative executor service that will be used for removing orphaned files. This
+   * service will only be used if a custom delete function is provided by {@link
+   * #deleteWith(Consumer)} or if the FileIO does not {@link SupportsBulkOperations support bulk
+   * deletes}. Otherwise, parallelism should be controlled by the IO specific {@link
+   * SupportsBulkOperations#deleteFiles(Iterable) deleteFiles} method.
    *
-   * <p>If this method is not called, orphaned manifests and data files will still be deleted in the
-   * current thread.
-   *
-   * <p>
+   * <p>If this method is not called and bulk deletes are not supported, orphaned manifests and data
+   * files will still be deleted in the current thread.
    *
    * @param executorService the service to use
    * @return this for method chaining
@@ -136,6 +141,7 @@ public interface DeleteOrphanFiles extends Action<DeleteOrphanFiles, DeleteOrpha
   }
 
   /** The action result that contains a summary of the execution. */
+  @Value.Immutable
   interface Result {
     /** Returns locations of orphan files. */
     Iterable<String> orphanFileLocations();

@@ -14,7 +14,6 @@
 #  KIND, either express or implied.  See the License for the
 #  specific language governing permissions and limitations
 #  under the License.
-import re
 from typing import List
 
 import pytest
@@ -31,20 +30,7 @@ from pyiceberg.exceptions import (
     TableAlreadyExistsError,
 )
 from pyiceberg.schema import Schema
-
-BUCKET_NAME = "test_bucket"
-LIST_TEST_NUMBER = 100
-table_metadata_location_regex = re.compile(
-    r"""s3://test_bucket/my_iceberg_database-[a-z]{20}.db/
-    my_iceberg_table-[a-z]{20}/metadata/
-    00000-[a-f0-9]{8}-?[a-f0-9]{4}-?4[a-f0-9]{3}-?[89ab][a-f0-9]{3}-?[a-f0-9]{12}.metadata.json""",
-    re.X,
-)
-
-
-@pytest.fixture(name="_bucket_initialize")
-def fixture_s3_bucket(_s3) -> None:  # type: ignore
-    _s3.create_bucket(Bucket=BUCKET_NAME)
+from tests.conftest import BUCKET_NAME, TABLE_METADATA_LOCATION_REGEX
 
 
 @mock_glue
@@ -52,11 +38,11 @@ def test_create_table_with_database_location(
     _bucket_initialize: None, _patch_aiobotocore: None, table_schema_nested: Schema, database_name: str, table_name: str
 ) -> None:
     identifier = (database_name, table_name)
-    test_catalog = GlueCatalog("glue")
+    test_catalog = GlueCatalog("glue", **{"py-io-impl": "pyiceberg.io.fsspec.FsspecFileIO"})
     test_catalog.create_namespace(namespace=database_name, properties={"location": f"s3://{BUCKET_NAME}/{database_name}.db"})
     table = test_catalog.create_table(identifier, table_schema_nested)
     assert table.identifier == identifier
-    assert table_metadata_location_regex.match(table.metadata_location)
+    assert TABLE_METADATA_LOCATION_REGEX.match(table.metadata_location)
 
 
 @mock_glue
@@ -64,11 +50,11 @@ def test_create_table_with_default_warehouse(
     _bucket_initialize: None, _patch_aiobotocore: None, table_schema_nested: Schema, database_name: str, table_name: str
 ) -> None:
     identifier = (database_name, table_name)
-    test_catalog = GlueCatalog("glue", warehouse=f"s3://{BUCKET_NAME}")
+    test_catalog = GlueCatalog("glue", **{"py-io-impl": "pyiceberg.io.fsspec.FsspecFileIO", "warehouse": f"s3://{BUCKET_NAME}"})
     test_catalog.create_namespace(namespace=database_name)
     table = test_catalog.create_table(identifier, table_schema_nested)
     assert table.identifier == identifier
-    assert table_metadata_location_regex.match(table.metadata_location)
+    assert TABLE_METADATA_LOCATION_REGEX.match(table.metadata_location)
 
 
 @mock_glue
@@ -76,13 +62,13 @@ def test_create_table_with_given_location(
     _bucket_initialize: None, _patch_aiobotocore: None, table_schema_nested: Schema, database_name: str, table_name: str
 ) -> None:
     identifier = (database_name, table_name)
-    test_catalog = GlueCatalog("glue")
+    test_catalog = GlueCatalog("glue", **{"py-io-impl": "pyiceberg.io.fsspec.FsspecFileIO"})
     test_catalog.create_namespace(namespace=database_name)
     table = test_catalog.create_table(
         identifier=identifier, schema=table_schema_nested, location=f"s3://{BUCKET_NAME}/{database_name}.db/{table_name}"
     )
     assert table.identifier == identifier
-    assert table_metadata_location_regex.match(table.metadata_location)
+    assert TABLE_METADATA_LOCATION_REGEX.match(table.metadata_location)
 
 
 @mock_glue
@@ -90,7 +76,7 @@ def test_create_table_with_no_location(
     _bucket_initialize: None, _patch_aiobotocore: None, table_schema_nested: Schema, database_name: str, table_name: str
 ) -> None:
     identifier = (database_name, table_name)
-    test_catalog = GlueCatalog("glue")
+    test_catalog = GlueCatalog("glue", **{"py-io-impl": "pyiceberg.io.fsspec.FsspecFileIO"})
     test_catalog.create_namespace(namespace=database_name)
     with pytest.raises(ValueError):
         test_catalog.create_table(identifier=identifier, schema=table_schema_nested)
@@ -101,11 +87,11 @@ def test_create_table_with_strips(
     _bucket_initialize: None, _patch_aiobotocore: None, table_schema_nested: Schema, database_name: str, table_name: str
 ) -> None:
     identifier = (database_name, table_name)
-    test_catalog = GlueCatalog("glue")
+    test_catalog = GlueCatalog("glue", **{"py-io-impl": "pyiceberg.io.fsspec.FsspecFileIO"})
     test_catalog.create_namespace(namespace=database_name, properties={"location": f"s3://{BUCKET_NAME}/{database_name}.db/"})
     table = test_catalog.create_table(identifier, table_schema_nested)
     assert table.identifier == identifier
-    assert table_metadata_location_regex.match(table.metadata_location)
+    assert TABLE_METADATA_LOCATION_REGEX.match(table.metadata_location)
 
 
 @mock_glue
@@ -113,11 +99,11 @@ def test_create_table_with_strips_bucket_root(
     _bucket_initialize: None, _patch_aiobotocore: None, table_schema_nested: Schema, database_name: str, table_name: str
 ) -> None:
     identifier = (database_name, table_name)
-    test_catalog = GlueCatalog("glue", warehouse=f"s3://{BUCKET_NAME}/")
+    test_catalog = GlueCatalog("glue", **{"py-io-impl": "pyiceberg.io.fsspec.FsspecFileIO", "warehouse": f"s3://{BUCKET_NAME}/"})
     test_catalog.create_namespace(namespace=database_name)
     table_strip = test_catalog.create_table(identifier, table_schema_nested)
     assert table_strip.identifier == identifier
-    assert table_metadata_location_regex.match(table_strip.metadata_location)
+    assert TABLE_METADATA_LOCATION_REGEX.match(table_strip.metadata_location)
 
 
 @mock_glue
@@ -125,7 +111,7 @@ def test_create_table_with_no_database(
     _bucket_initialize: None, _patch_aiobotocore: None, table_schema_nested: Schema, database_name: str, table_name: str
 ) -> None:
     identifier = (database_name, table_name)
-    test_catalog = GlueCatalog("glue")
+    test_catalog = GlueCatalog("glue", **{"py-io-impl": "pyiceberg.io.fsspec.FsspecFileIO"})
     with pytest.raises(NoSuchNamespaceError):
         test_catalog.create_table(identifier=identifier, schema=table_schema_nested)
 
@@ -135,7 +121,7 @@ def test_create_duplicated_table(
     _bucket_initialize: None, _patch_aiobotocore: None, table_schema_nested: Schema, database_name: str, table_name: str
 ) -> None:
     identifier = (database_name, table_name)
-    test_catalog = GlueCatalog("glue", warehouse=f"s3://{BUCKET_NAME}")
+    test_catalog = GlueCatalog("glue", **{"py-io-impl": "pyiceberg.io.fsspec.FsspecFileIO", "warehouse": f"s3://{BUCKET_NAME}/"})
     test_catalog.create_namespace(namespace=database_name)
     test_catalog.create_table(identifier, table_schema_nested)
     with pytest.raises(TableAlreadyExistsError):
@@ -147,18 +133,18 @@ def test_load_table(
     _bucket_initialize: None, _patch_aiobotocore: None, table_schema_nested: Schema, database_name: str, table_name: str
 ) -> None:
     identifier = (database_name, table_name)
-    test_catalog = GlueCatalog("glue", warehouse=f"s3://{BUCKET_NAME}")
+    test_catalog = GlueCatalog("glue", **{"py-io-impl": "pyiceberg.io.fsspec.FsspecFileIO", "warehouse": f"s3://{BUCKET_NAME}/"})
     test_catalog.create_namespace(namespace=database_name)
     test_catalog.create_table(identifier, table_schema_nested)
     table = test_catalog.load_table(identifier)
     assert table.identifier == identifier
-    assert table_metadata_location_regex.match(table.metadata_location)
+    assert TABLE_METADATA_LOCATION_REGEX.match(table.metadata_location)
 
 
 @mock_glue
 def test_load_non_exist_table(_bucket_initialize: None, _patch_aiobotocore: None, database_name: str, table_name: str) -> None:
     identifier = (database_name, table_name)
-    test_catalog = GlueCatalog("glue", warehouse=f"s3://{BUCKET_NAME}")
+    test_catalog = GlueCatalog("glue", **{"py-io-impl": "pyiceberg.io.fsspec.FsspecFileIO", "warehouse": f"s3://{BUCKET_NAME}/"})
     test_catalog.create_namespace(namespace=database_name)
     with pytest.raises(NoSuchTableError):
         test_catalog.load_table(identifier)
@@ -169,12 +155,12 @@ def test_drop_table(
     _bucket_initialize: None, _patch_aiobotocore: None, table_schema_nested: Schema, database_name: str, table_name: str
 ) -> None:
     identifier = (database_name, table_name)
-    test_catalog = GlueCatalog("glue", warehouse=f"s3://{BUCKET_NAME}")
+    test_catalog = GlueCatalog("glue", **{"py-io-impl": "pyiceberg.io.fsspec.FsspecFileIO", "warehouse": f"s3://{BUCKET_NAME}/"})
     test_catalog.create_namespace(namespace=database_name)
     test_catalog.create_table(identifier, table_schema_nested)
     table = test_catalog.load_table(identifier)
     assert table.identifier == identifier
-    assert table_metadata_location_regex.match(table.metadata_location)
+    assert TABLE_METADATA_LOCATION_REGEX.match(table.metadata_location)
     test_catalog.drop_table(identifier)
     with pytest.raises(NoSuchTableError):
         test_catalog.load_table(identifier)
@@ -183,7 +169,7 @@ def test_drop_table(
 @mock_glue
 def test_drop_non_exist_table(_bucket_initialize: None, _patch_aiobotocore: None, database_name: str, table_name: str) -> None:
     identifier = (database_name, table_name)
-    test_catalog = GlueCatalog("glue", warehouse=f"s3://{BUCKET_NAME}")
+    test_catalog = GlueCatalog("glue", **{"py-io-impl": "pyiceberg.io.fsspec.FsspecFileIO", "warehouse": f"s3://{BUCKET_NAME}/"})
     with pytest.raises(NoSuchTableError):
         test_catalog.drop_table(identifier)
 
@@ -195,11 +181,11 @@ def test_rename_table(
     new_table_name = f"{table_name}_new"
     identifier = (database_name, table_name)
     new_identifier = (database_name, new_table_name)
-    test_catalog = GlueCatalog("glue", warehouse=f"s3://{BUCKET_NAME}")
+    test_catalog = GlueCatalog("glue", **{"py-io-impl": "pyiceberg.io.fsspec.FsspecFileIO", "warehouse": f"s3://{BUCKET_NAME}/"})
     test_catalog.create_namespace(namespace=database_name)
     table = test_catalog.create_table(identifier, table_schema_nested)
     assert table.identifier == identifier
-    assert table_metadata_location_regex.match(table.metadata_location)
+    assert TABLE_METADATA_LOCATION_REGEX.match(table.metadata_location)
     test_catalog.rename_table(identifier, new_identifier)
     new_table = test_catalog.load_table(new_identifier)
     assert new_table.identifier == new_identifier
@@ -216,7 +202,7 @@ def test_rename_table_no_params(_glue, _bucket_initialize: None, _patch_aiobotoc
     new_table_name = f"{table_name}_new"
     identifier = (database_name, table_name)
     new_identifier = (new_database_name, new_table_name)
-    test_catalog = GlueCatalog("glue", warehouse=f"s3://{BUCKET_NAME}")
+    test_catalog = GlueCatalog("glue", **{"py-io-impl": "pyiceberg.io.fsspec.FsspecFileIO", "warehouse": f"s3://{BUCKET_NAME}/"})
     test_catalog.create_namespace(namespace=database_name)
     test_catalog.create_namespace(namespace=new_database_name)
     _glue.create_table(
@@ -233,7 +219,7 @@ def test_rename_non_iceberg_table(_glue, _bucket_initialize: None, _patch_aiobot
     new_table_name = f"{table_name}_new"
     identifier = (database_name, table_name)
     new_identifier = (new_database_name, new_table_name)
-    test_catalog = GlueCatalog("glue", warehouse=f"s3://{BUCKET_NAME}")
+    test_catalog = GlueCatalog("glue", **{"py-io-impl": "pyiceberg.io.fsspec.FsspecFileIO", "warehouse": f"s3://{BUCKET_NAME}/"})
     test_catalog.create_namespace(namespace=database_name)
     test_catalog.create_namespace(namespace=new_database_name)
     _glue.create_table(
@@ -257,7 +243,7 @@ def test_list_tables(
     table_name: str,
     table_list: List[str],
 ) -> None:
-    test_catalog = GlueCatalog("glue", warehouse=f"s3://{BUCKET_NAME}")
+    test_catalog = GlueCatalog("glue", **{"py-io-impl": "pyiceberg.io.fsspec.FsspecFileIO", "warehouse": f"s3://{BUCKET_NAME}/"})
     test_catalog.create_namespace(namespace=database_name)
     for table_name in table_list:
         test_catalog.create_table((database_name, table_name), table_schema_nested)
@@ -268,7 +254,7 @@ def test_list_tables(
 
 @mock_glue
 def test_list_namespaces(_bucket_initialize: None, _patch_aiobotocore: None, database_list: List[str]) -> None:
-    test_catalog = GlueCatalog("glue")
+    test_catalog = GlueCatalog("glue", **{"py-io-impl": "pyiceberg.io.fsspec.FsspecFileIO"})
     for database_name in database_list:
         test_catalog.create_namespace(namespace=database_name)
     loaded_database_list = test_catalog.list_namespaces()
@@ -278,7 +264,7 @@ def test_list_namespaces(_bucket_initialize: None, _patch_aiobotocore: None, dat
 
 @mock_glue
 def test_create_namespace_no_properties(_bucket_initialize: None, _patch_aiobotocore: None, database_name: str) -> None:
-    test_catalog = GlueCatalog("glue")
+    test_catalog = GlueCatalog("glue", **{"py-io-impl": "pyiceberg.io.fsspec.FsspecFileIO"})
     test_catalog.create_namespace(namespace=database_name)
     loaded_database_list = test_catalog.list_namespaces()
     assert len(loaded_database_list) == 1
@@ -296,7 +282,7 @@ def test_create_namespace_with_comment_and_location(
         "comment": "this is a test description",
         "location": test_location,
     }
-    test_catalog = GlueCatalog("glue")
+    test_catalog = GlueCatalog("glue", **{"py-io-impl": "pyiceberg.io.fsspec.FsspecFileIO"})
     test_catalog.create_namespace(namespace=database_name, properties=test_properties)
     loaded_database_list = test_catalog.list_namespaces()
     assert len(loaded_database_list) == 1
@@ -308,7 +294,7 @@ def test_create_namespace_with_comment_and_location(
 
 @mock_glue
 def test_create_duplicated_namespace(_bucket_initialize: None, _patch_aiobotocore: None, database_name: str) -> None:
-    test_catalog = GlueCatalog("glue")
+    test_catalog = GlueCatalog("glue", **{"py-io-impl": "pyiceberg.io.fsspec.FsspecFileIO"})
     test_catalog.create_namespace(namespace=database_name)
     loaded_database_list = test_catalog.list_namespaces()
     assert len(loaded_database_list) == 1
@@ -319,7 +305,7 @@ def test_create_duplicated_namespace(_bucket_initialize: None, _patch_aiobotocor
 
 @mock_glue
 def test_drop_namespace(_bucket_initialize: None, _patch_aiobotocore: None, database_name: str) -> None:
-    test_catalog = GlueCatalog("glue")
+    test_catalog = GlueCatalog("glue", **{"py-io-impl": "pyiceberg.io.fsspec.FsspecFileIO"})
     test_catalog.create_namespace(namespace=database_name)
     loaded_database_list = test_catalog.list_namespaces()
     assert len(loaded_database_list) == 1
@@ -334,7 +320,7 @@ def test_drop_non_empty_namespace(
     _bucket_initialize: None, _patch_aiobotocore: None, table_schema_nested: Schema, database_name: str, table_name: str
 ) -> None:
     identifier = (database_name, table_name)
-    test_catalog = GlueCatalog("glue", warehouse=f"s3://{BUCKET_NAME}")
+    test_catalog = GlueCatalog("glue", **{"py-io-impl": "pyiceberg.io.fsspec.FsspecFileIO", "warehouse": f"s3://{BUCKET_NAME}/"})
     test_catalog.create_namespace(namespace=database_name)
     test_catalog.create_table(identifier, table_schema_nested)
     assert len(test_catalog.list_tables(database_name)) == 1
@@ -344,7 +330,7 @@ def test_drop_non_empty_namespace(
 
 @mock_glue
 def test_drop_non_exist_namespace(_bucket_initialize: None, _patch_aiobotocore: None, database_name: str) -> None:
-    test_catalog = GlueCatalog("glue")
+    test_catalog = GlueCatalog("glue", **{"py-io-impl": "pyiceberg.io.fsspec.FsspecFileIO"})
     with pytest.raises(NoSuchNamespaceError):
         test_catalog.drop_namespace(database_name)
 
@@ -359,7 +345,7 @@ def test_load_namespace_properties(_bucket_initialize: None, _patch_aiobotocore:
         "test_property2": "2",
         "test_property3": "3",
     }
-    test_catalog = GlueCatalog("glue")
+    test_catalog = GlueCatalog("glue", **{"py-io-impl": "pyiceberg.io.fsspec.FsspecFileIO"})
     test_catalog.create_namespace(database_name, test_properties)
     listed_properties = test_catalog.load_namespace_properties(database_name)
     for k, v in listed_properties.items():
@@ -369,7 +355,7 @@ def test_load_namespace_properties(_bucket_initialize: None, _patch_aiobotocore:
 
 @mock_glue
 def test_load_non_exist_namespace_properties(_bucket_initialize: None, _patch_aiobotocore: None, database_name: str) -> None:
-    test_catalog = GlueCatalog("glue")
+    test_catalog = GlueCatalog("glue", **{"py-io-impl": "pyiceberg.io.fsspec.FsspecFileIO"})
     with pytest.raises(NoSuchNamespaceError):
         test_catalog.load_namespace_properties(database_name)
 
@@ -385,7 +371,7 @@ def test_update_namespace_properties(_bucket_initialize: None, _patch_aiobotocor
     }
     removals = {"test_property1", "test_property2", "test_property3", "should_not_removed"}
     updates = {"test_property4": "4", "test_property5": "5", "comment": "updated test description"}
-    test_catalog = GlueCatalog("glue")
+    test_catalog = GlueCatalog("glue", **{"py-io-impl": "pyiceberg.io.fsspec.FsspecFileIO"})
     test_catalog.create_namespace(database_name, test_properties)
     update_report = test_catalog.update_namespace_properties(database_name, removals, updates)
     for k in updates.keys():
@@ -401,7 +387,7 @@ def test_update_namespace_properties(_bucket_initialize: None, _patch_aiobotocor
 
 @mock_glue
 def test_load_empty_namespace_properties(_bucket_initialize: None, _patch_aiobotocore: None, database_name: str) -> None:
-    test_catalog = GlueCatalog("glue")
+    test_catalog = GlueCatalog("glue", **{"py-io-impl": "pyiceberg.io.fsspec.FsspecFileIO"})
     test_catalog.create_namespace(database_name)
     listed_properties = test_catalog.load_namespace_properties(database_name)
     assert listed_properties == {}
@@ -411,7 +397,7 @@ def test_load_empty_namespace_properties(_bucket_initialize: None, _patch_aiobot
 def test_load_default_namespace_properties(_glue, _bucket_initialize, _patch_aiobotocore, database_name: str) -> None:  # type: ignore
     # simulate creating database with default settings through AWS Glue Web Console
     _glue.create_database(DatabaseInput={"Name": database_name})
-    test_catalog = GlueCatalog("glue")
+    test_catalog = GlueCatalog("glue", **{"py-io-impl": "pyiceberg.io.fsspec.FsspecFileIO"})
     listed_properties = test_catalog.load_namespace_properties(database_name)
     assert listed_properties == {}
 
@@ -429,7 +415,7 @@ def test_update_namespace_properties_overlap_update_removal(
     }
     removals = {"test_property1", "test_property2", "test_property3", "should_not_removed"}
     updates = {"test_property1": "4", "test_property5": "5", "comment": "updated test description"}
-    test_catalog = GlueCatalog("glue")
+    test_catalog = GlueCatalog("glue", **{"py-io-impl": "pyiceberg.io.fsspec.FsspecFileIO"})
     test_catalog.create_namespace(database_name, test_properties)
     with pytest.raises(ValueError):
         test_catalog.update_namespace_properties(database_name, removals, updates)

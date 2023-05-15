@@ -34,7 +34,9 @@ from pyiceberg.expressions import (
     NotIn,
     NotNaN,
     NotNull,
+    NotStartsWith,
     Or,
+    StartsWith,
     parser,
 )
 
@@ -149,3 +151,11 @@ def test_and_or_with_parens() -> None:
     assert Or(IsNull("x"), And(GreaterThanOrEqual("x", 5), Not(LessThan("x", 10)))) == parser.parse(
         "(x is null) or (5 <= x) and not(x < 10)"
     )
+
+
+def test_starts_with() -> None:
+    assert StartsWith("x", "data") == parser.parse("x LIKE 'data'")
+
+
+def test_not_starts_with() -> None:
+    assert NotStartsWith("x", "data") == parser.parse("x NOT LIKE 'data'")
