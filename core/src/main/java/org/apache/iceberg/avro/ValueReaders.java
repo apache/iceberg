@@ -25,14 +25,10 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.util.Collection;
-import java.util.Deque;
-import java.util.Iterator;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
+
 import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.IndexedRecord;
@@ -41,6 +37,7 @@ import org.apache.avro.io.ResolvingDecoder;
 import org.apache.avro.util.Utf8;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.common.DynConstructors;
+import org.apache.iceberg.data.IdentityPartitionConverters;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
@@ -623,7 +620,7 @@ public class ValueReaders {
           // In the {@link #read()} method, this will be leveraged only if there is no corresponding
           // reader.
           defaultValuesPositionList.add(pos);
-          defaultValuesList.add(field.initialDefault());
+          defaultValuesList.add(IdentityPartitionConverters.convertConstant(field.type(), field.initialDefault()));
         }
       }
 
@@ -669,17 +666,19 @@ public class ValueReaders {
     public S read(Decoder decoder, Object reuse) throws IOException {
       S struct = reuseOrCreate(reuse);
 
-      // Set the default values first. Setting default values first allows them to be overridden
-      // once the data is read from the file if the corresponding field is present in the file.
-      for (int i = 0; i < defaultValuesPositions.length; i += 1) {
-        set(struct, defaultValuesPositions[i], defaultValues[i]);
-      }
-
       if (decoder instanceof ResolvingDecoder) {
-        // this may not set all of the fields. nulls are set by default.
-        for (Schema.Field field : ((ResolvingDecoder) decoder).readFieldOrder()) {
-          Object reusedValue = get(struct, field.pos());
-          set(struct, field.pos(), readers[field.pos()].read(decoder, reusedValue));
+        Set<Integer> existingFieldPositionsSet = Arrays.stream(((ResolvingDecoder) decoder).readFieldOrder()).map(Schema.Field::pos).collect(Collectors.toSet());
+        // This may not set all of the fields. nulls are set by default.
+        for (int i = 0; i < existingFieldPositionsSet.size(); i++) {
+          Object reusedValue = get(struct, i);
+          set(struct, i, readers[i].read(decoder, reusedValue));
+        }
+        // Set default values
+        for (int i = 0; i < defaultValuesPositions.length; i += 1) {
+          // Set default values only if the field does not exist in the data.
+          if (!existingFieldPositionsSet.contains(defaultValuesPositions[i])) {
+            set(struct, defaultValuesPositions[i], defaultValues[i]);
+          }
         }
       } else {
         for (int i = 0; i < readers.length; i += 1) {

@@ -29,10 +29,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.SingleValueParser;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.avro.AvroIterable;
-import org.apache.iceberg.data.DataTestHelpers;
-import org.apache.iceberg.data.GenericRecord;
-import org.apache.iceberg.data.RandomGenericData;
-import org.apache.iceberg.data.Record;
+import org.apache.iceberg.data.*;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
@@ -114,7 +111,7 @@ public class TestReadDefaultValues {
       };
 
   @Test
-  public void writeAndValidate() throws IOException {
+  public void testDefaultValueApplied() throws IOException {
     for (Object[] typeWithDefault : typesWithDefaults) {
       Type type = (Type) typeWithDefault[0];
       String defaultValueJson = (String) typeWithDefault[1];
@@ -125,17 +122,12 @@ public class TestReadDefaultValues {
       Schema readerSchema =
           new Schema(
               required(999, "col1", Types.IntegerType.get()),
-              NestedFieldWithInitialDefault.optionalWithDefault(
+              Types.NestedField.optional(
                   1000, "col2", type, null, defaultValue, defaultValue));
 
-      List<Record> generatedRecords = RandomGenericData.generate(writerSchema, 100, 0L);
-      List<Record> expected = Lists.newArrayList();
-      for (Record record : generatedRecords) {
-        Record expectedRecord = GenericRecord.create(readerSchema);
-        expectedRecord.set(0, record.get(0));
-        expectedRecord.set(1, defaultValue);
-        expected.add(expectedRecord);
-      }
+      Record expectedRecord = GenericRecord.create(readerSchema);
+      expectedRecord.set(0, 1);
+      expectedRecord.set(1, IdentityPartitionConverters.convertConstant(type, defaultValue));
 
       File testFile = temp.newFile();
       Assert.assertTrue("Delete should succeed", testFile.delete());
@@ -146,9 +138,9 @@ public class TestReadDefaultValues {
               .createWriterFunc(DataWriter::create)
               .named("test")
               .build()) {
-        for (Record rec : generatedRecords) {
-          writer.add(rec);
-        }
+        Record record = GenericRecord.create(writerSchema);
+        record.set(0, 1);
+        writer.add(record);
       }
 
       List<Record> rows;
@@ -160,39 +152,51 @@ public class TestReadDefaultValues {
         rows = Lists.newArrayList(reader);
       }
 
-      for (int i = 0; i < expected.size(); i += 1) {
-        DataTestHelpers.assertEquals(readerSchema.asStruct(), expected.get(i), rows.get(i));
-      }
+      DataTestHelpers.assertEquals(readerSchema.asStruct(), expectedRecord, rows.get(0));
     }
   }
 
-  // TODO: This class should be removed once NestedField.optional() that takes initialDefault and
-  // writeDefault becomes public. It is intentionally package private to avoid exposing it in the
-  // public API as of now.
-  static class NestedFieldWithInitialDefault extends Types.NestedField {
-    private final Object initialDefault;
+  @Test
+  public void testDefaultValueNotApplied() throws IOException {
+    for (Object[] typeWithDefault : typesWithDefaults) {
+      Type type = (Type) typeWithDefault[0];
+      String defaultValueJson = (String) typeWithDefault[1];
+      Object defaultValue = SingleValueParser.fromJson(type, defaultValueJson);
 
-    NestedFieldWithInitialDefault(
-        boolean isOptional,
-        int fieldId,
-        String name,
-        Type type,
-        String doc,
-        Object initialDefault,
-        Object writeDefault) {
-      super(isOptional, fieldId, name, type, doc, initialDefault, writeDefault);
-      this.initialDefault = initialDefault;
-    }
+      Schema readerSchema =
+        new Schema(
+          required(999, "col1", Types.IntegerType.get()),
+          Types.NestedField.optional(
+            1000, "col2", type, null, defaultValue, defaultValue));
 
-    static Types.NestedField optionalWithDefault(
-        int id, String name, Type type, String doc, Object initialDefault, Object writeDefault) {
-      return new NestedFieldWithInitialDefault(
-          true, id, name, type, doc, initialDefault, writeDefault);
-    }
+      // Create a record with null value for the column with default value
+      Record record = GenericRecord.create(readerSchema);
+      record.set(0, 1);
+      record.set(1, null);
 
-    @Override
-    public Object initialDefault() {
-      return initialDefault;
+      File testFile = temp.newFile();
+      Assert.assertTrue("Delete should succeed", testFile.delete());
+
+      try (FileAppender<Record> writer =
+             Avro.write(Files.localOutput(testFile))
+               .schema(readerSchema)
+               .createWriterFunc(DataWriter::create)
+               .named("test")
+               .build()) {
+        writer.add(record);
+      }
+
+      List<Record> rows;
+      try (AvroIterable<Record> reader =
+             Avro.read(Files.localInput(testFile))
+               .project(readerSchema)
+               .createReaderFunc(DataReader::create)
+               .build()) {
+        rows = Lists.newArrayList(reader);
+      }
+
+      // Existence of default value should not affect the read result
+      DataTestHelpers.assertEquals(readerSchema.asStruct(), record, rows.get(0));
     }
   }
 }

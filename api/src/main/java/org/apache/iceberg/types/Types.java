@@ -420,7 +420,7 @@ public class Types {
       return new NestedField(true, id, name, type, doc, null, null);
     }
 
-    protected static NestedField optional(
+    public static NestedField optional(
         int id, String name, Type type, String doc, Object initialDefault, Object writeDefault) {
       return new NestedField(true, id, name, type, doc, initialDefault, writeDefault);
     }
@@ -465,7 +465,7 @@ public class Types {
     private final Object initialDefault;
     private final Object writeDefault;
 
-    protected NestedField(
+    public NestedField(
         boolean isOptional,
         int id,
         String name,
