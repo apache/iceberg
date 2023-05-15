@@ -82,7 +82,7 @@ class AvroTestHelpers {
   static void assertEquals(Types.ListType list, List<?> expected, List<?> actual) {
     Type elementType = list.elementType();
 
-    org.junit.jupiter.api.Assertions.assertEquals( expected.size(), actual.size(),"List size should match");
+    org.junit.jupiter.api.Assertions.assertEquals(expected.size(), actual.size(),"List size should match");
 
     for (int i = 0; i < expected.size(); i += 1) {
       Object expectedValue = expected.get(i);
