@@ -94,7 +94,7 @@ final class BigLakeClientImpl implements BigLakeClient {
             return stub.getCatalog(GetCatalogRequest.newBuilder().setName(name.toString()).build());
           } catch (PermissionDeniedException e) {
             throw new NoSuchNamespaceException(
-                e, "Catalog %s not found or permission denied", name.toString());
+                e, "Catalog %s does not exist or permission denied", name.toString());
           }
         });
   }
@@ -108,7 +108,7 @@ final class BigLakeClientImpl implements BigLakeClient {
             return Empty.getDefaultInstance();
           } catch (PermissionDeniedException e) {
             throw new NoSuchNamespaceException(
-                e, "Catalog %s not found or permission denied", name.toString());
+                e, "Catalog %s does not exist or permission denied", name.toString());
           }
         });
   }
@@ -136,7 +136,7 @@ final class BigLakeClientImpl implements BigLakeClient {
                 GetDatabaseRequest.newBuilder().setName(name.toString()).build());
           } catch (PermissionDeniedException e) {
             throw new NoSuchNamespaceException(
-                e, "Database %s not found or permission denied", name.toString());
+                e, "Database %s does not exist or permission denied", name.toString());
           }
         });
   }
@@ -155,7 +155,7 @@ final class BigLakeClientImpl implements BigLakeClient {
                     .build());
           } catch (PermissionDeniedException e) {
             throw new NoSuchNamespaceException(
-                e, "Database %s not found or permission denied", name.toString());
+                e, "Database %s does not exist or permission denied", name.toString());
           }
         });
   }
@@ -178,7 +178,7 @@ final class BigLakeClientImpl implements BigLakeClient {
             return Empty.getDefaultInstance();
           } catch (PermissionDeniedException e) {
             throw new NoSuchNamespaceException(
-                e, "Database %s not found or permission denied", name.toString());
+                e, "Database %s does not exist or permission denied", name.toString());
           }
         });
   }
@@ -206,7 +206,7 @@ final class BigLakeClientImpl implements BigLakeClient {
             return stub.getTable(GetTableRequest.newBuilder().setName(name.toString()).build());
           } catch (PermissionDeniedException e) {
             throw new NoSuchTableException(
-                e, "Table %s not found or permission denied", name.toString());
+                e, "Table %s does not exist or permission denied", name.toString());
           }
         });
   }
@@ -225,7 +225,7 @@ final class BigLakeClientImpl implements BigLakeClient {
                     .build());
           } catch (PermissionDeniedException e) {
             throw new NoSuchTableException(
-                e, "Table %s not found or permission denied", name.toString());
+                e, "Table %s does not exist or permission denied", name.toString());
           }
         });
   }
@@ -242,7 +242,7 @@ final class BigLakeClientImpl implements BigLakeClient {
                     .build());
           } catch (PermissionDeniedException e) {
             throw new NoSuchTableException(
-                e, "Table %s not found or permission denied", name.toString());
+                e, "Table %s does not exist or permission denied", name.toString());
           }
         });
   }
@@ -256,7 +256,7 @@ final class BigLakeClientImpl implements BigLakeClient {
                 DeleteTableRequest.newBuilder().setName(name.toString()).build());
           } catch (PermissionDeniedException e) {
             throw new NoSuchTableException(
-                e, "Table %s not found or permission denied", name.toString());
+                e, "Table %s does not exist or permission denied", name.toString());
           }
         });
   }
