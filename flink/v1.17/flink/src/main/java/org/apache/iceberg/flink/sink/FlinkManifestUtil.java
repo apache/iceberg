@@ -30,6 +30,7 @@ import org.apache.iceberg.ManifestWriter;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableOperations;
+import org.apache.iceberg.flink.data.PartitionedWriteResult;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFile;
@@ -77,29 +78,11 @@ class FlinkManifestUtil {
       WriteResult result, Supplier<OutputFile> outputFileSupplier, PartitionSpec spec)
       throws IOException {
 
-    ManifestFile dataManifest = null;
-    ManifestFile deleteManifest = null;
-
     // Write the completed data files into a newly created data manifest file.
-    if (result.dataFiles() != null && result.dataFiles().length > 0) {
-      dataManifest =
-          writeDataFiles(outputFileSupplier.get(), spec, Lists.newArrayList(result.dataFiles()));
-    }
+    ManifestFile dataManifest = createManifestFile(result, outputFileSupplier, spec);
 
     // Write the completed delete files into a newly created delete manifest file.
-    if (result.deleteFiles() != null && result.deleteFiles().length > 0) {
-      OutputFile deleteManifestFile = outputFileSupplier.get();
-
-      ManifestWriter<DeleteFile> deleteManifestWriter =
-          ManifestFiles.writeDeleteManifest(FORMAT_V2, spec, deleteManifestFile, DUMMY_SNAPSHOT_ID);
-      try (ManifestWriter<DeleteFile> writer = deleteManifestWriter) {
-        for (DeleteFile deleteFile : result.deleteFiles()) {
-          writer.add(deleteFile);
-        }
-      }
-
-      deleteManifest = deleteManifestWriter.toManifestFile();
-    }
+    ManifestFile deleteManifest = createDeleteManifestFile(result, outputFileSupplier, spec);
 
     return new DeltaManifests(dataManifest, deleteManifest, result.referencedDataFiles());
   }
@@ -122,5 +105,79 @@ class FlinkManifestUtil {
     }
 
     return builder.addReferencedDataFiles(deltaManifests.referencedDataFiles()).build();
+  }
+
+  static DeltaManifests writePartitionedCompletedFiles(
+      PartitionedWriteResult result, Supplier<OutputFile> outputFileSupplier, PartitionSpec spec)
+      throws IOException {
+
+    // Write the completed data files into a newly created data manifest file.
+    ManifestFile dataManifest = createManifestFile(result, outputFileSupplier, spec);
+
+    // Write the completed delete files into a newly created delete manifest file.
+    ManifestFile deleteManifest = createDeleteManifestFile(result, outputFileSupplier, spec);
+
+    return new DeltaManifests(
+        dataManifest, deleteManifest, result.referencedDataFiles(), result.partitionKey().copy());
+  }
+
+  static PartitionedWriteResult readPartitionedCompletedFiles(
+      DeltaManifests deltaManifests, FileIO io) throws IOException {
+
+    PartitionedWriteResult.PartitionWriteResultBuilder builder =
+        PartitionedWriteResult.partitionWriteResultBuilder();
+
+    // Read the completed data files from persisted data manifest file.
+    if (deltaManifests.dataManifest() != null) {
+      builder.addDataFiles(readDataFiles(deltaManifests.dataManifest(), io));
+    }
+
+    // Read the completed delete files from persisted delete manifests file.
+    if (deltaManifests.deleteManifest() != null) {
+      try (CloseableIterable<DeleteFile> deleteFiles =
+          ManifestFiles.readDeleteManifest(deltaManifests.deleteManifest(), io, null)) {
+        builder.addDeleteFiles(deleteFiles);
+      }
+    }
+
+    return builder
+        .addReferencedDataFiles(deltaManifests.referencedDataFiles())
+        .partitionKey(deltaManifests.partitionKey())
+        .build();
+  }
+
+  private static ManifestFile createDeleteManifestFile(
+      WriteResult result, Supplier<OutputFile> outputFileSupplier, PartitionSpec spec)
+      throws IOException {
+    ManifestFile deleteManifest = null;
+    // Write the completed delete files into a newly created delete manifest file.
+    if (result.deleteFiles() != null && result.deleteFiles().length > 0) {
+      OutputFile deleteManifestFile = outputFileSupplier.get();
+
+      ManifestWriter<DeleteFile> deleteManifestWriter =
+          ManifestFiles.writeDeleteManifest(FORMAT_V2, spec, deleteManifestFile, DUMMY_SNAPSHOT_ID);
+      try (ManifestWriter<DeleteFile> writer = deleteManifestWriter) {
+        for (DeleteFile deleteFile : result.deleteFiles()) {
+          writer.add(deleteFile);
+        }
+      }
+
+      deleteManifest = deleteManifestWriter.toManifestFile();
+    }
+
+    return deleteManifest;
+  }
+
+  private static ManifestFile createManifestFile(
+      WriteResult result, Supplier<OutputFile> outputFileSupplier, PartitionSpec spec)
+      throws IOException {
+    ManifestFile dataManifest = null;
+    // Write the completed data files into a newly created data manifest file.
+    if (result.dataFiles() != null && result.dataFiles().length > 0) {
+      dataManifest =
+          writeDataFiles(outputFileSupplier.get(), spec, Lists.newArrayList(result.dataFiles()));
+    }
+
+    return dataManifest;
   }
 }

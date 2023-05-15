@@ -18,8 +18,10 @@
  */
 package org.apache.iceberg.flink;
 
+import java.time.Duration;
 import java.util.Map;
 import org.apache.flink.configuration.ReadableConfig;
+import org.apache.flink.util.TimeUtils;
 import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Table;
@@ -183,5 +185,74 @@ public class FlinkWriteConf {
 
   public Integer writeParallelism() {
     return confParser.intConf().option(FlinkWriteOptions.WRITE_PARALLELISM.key()).parseOptional();
+  }
+
+  public boolean partitionCommitEnabled() {
+    return confParser
+        .booleanConf()
+        .tableProperty(FlinkWriteOptions.SINK_PARTITION_COMMIT_ENABLED.key())
+        .defaultValue(FlinkWriteOptions.SINK_PARTITION_COMMIT_ENABLED.defaultValue())
+        .parse();
+  }
+
+  public Duration partitionCommitDelay() {
+    String duration =
+        confParser
+            .stringConf()
+            .tableProperty(FlinkWriteOptions.SINK_PARTITION_COMMIT_DELAY.key())
+            .defaultValue(
+                TimeUtils.getStringInMillis(
+                    FlinkWriteOptions.SINK_PARTITION_COMMIT_DELAY.defaultValue()))
+            .parse();
+
+    return TimeUtils.parseDuration(duration);
+  }
+
+  public String partitionCommitWatermarkTimeZone() {
+    return confParser
+        .stringConf()
+        .tableProperty(FlinkWriteOptions.SINK_PARTITION_COMMIT_WATERMARK_TIME_ZONE.key())
+        .defaultValue(FlinkWriteOptions.SINK_PARTITION_COMMIT_WATERMARK_TIME_ZONE.defaultValue())
+        .parse();
+  }
+
+  public String partitionCommitPolicyKind() {
+    return confParser
+        .stringConf()
+        .tableProperty(FlinkWriteOptions.SINK_PARTITION_COMMIT_POLICY_KIND.key())
+        .defaultValue(FlinkWriteOptions.SINK_PARTITION_COMMIT_POLICY_KIND.defaultValue())
+        .parseOptional();
+  }
+
+  public String partitionCommitPolicyClass() {
+    return confParser
+        .stringConf()
+        .tableProperty(FlinkWriteOptions.SINK_PARTITION_COMMIT_POLICY_CLASS.key())
+        .defaultValue(FlinkWriteOptions.SINK_PARTITION_COMMIT_POLICY_CLASS.defaultValue())
+        .parseOptional();
+  }
+
+  public String partitionCommitSuccessFileName() {
+    return confParser
+        .stringConf()
+        .tableProperty(FlinkWriteOptions.SINK_PARTITION_COMMIT_SUCCESS_FILE_NAME.key())
+        .defaultValue(FlinkWriteOptions.SINK_PARTITION_COMMIT_SUCCESS_FILE_NAME.defaultValue())
+        .parse();
+  }
+
+  public String partitionTimeExtractorTimestampFormatter() {
+    return confParser
+        .stringConf()
+        .tableProperty(FlinkWriteOptions.PARTITION_TIME_EXTRACTOR_TIMESTAMP_FORMATTER.key())
+        .defaultValue(FlinkWriteOptions.PARTITION_TIME_EXTRACTOR_TIMESTAMP_FORMATTER.defaultValue())
+        .parseOptional();
+  }
+
+  public String partitionTimeExtractorTimestampPattern() {
+    return confParser
+        .stringConf()
+        .tableProperty(FlinkWriteOptions.PARTITION_TIME_EXTRACTOR_TIMESTAMP_PATTERN.key())
+        .defaultValue(FlinkWriteOptions.PARTITION_TIME_EXTRACTOR_TIMESTAMP_PATTERN.defaultValue())
+        .parseOptional();
   }
 }

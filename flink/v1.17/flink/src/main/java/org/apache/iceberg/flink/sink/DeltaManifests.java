@@ -20,6 +20,7 @@ package org.apache.iceberg.flink.sink;
 
 import java.util.List;
 import org.apache.iceberg.ManifestFile;
+import org.apache.iceberg.PartitionKey;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
@@ -30,6 +31,7 @@ class DeltaManifests {
   private final ManifestFile dataManifest;
   private final ManifestFile deleteManifest;
   private final CharSequence[] referencedDataFiles;
+  private final PartitionKey partitionKey;
 
   DeltaManifests(ManifestFile dataManifest, ManifestFile deleteManifest) {
     this(dataManifest, deleteManifest, EMPTY_REF_DATA_FILES);
@@ -37,11 +39,20 @@ class DeltaManifests {
 
   DeltaManifests(
       ManifestFile dataManifest, ManifestFile deleteManifest, CharSequence[] referencedDataFiles) {
+    this(dataManifest, deleteManifest, referencedDataFiles, null);
+  }
+
+  DeltaManifests(
+      ManifestFile dataManifest,
+      ManifestFile deleteManifest,
+      CharSequence[] referencedDataFiles,
+      PartitionKey partitionKey) {
     Preconditions.checkNotNull(referencedDataFiles, "Referenced data files shouldn't be null.");
 
     this.dataManifest = dataManifest;
     this.deleteManifest = deleteManifest;
     this.referencedDataFiles = referencedDataFiles;
+    this.partitionKey = partitionKey;
   }
 
   ManifestFile dataManifest() {
@@ -54,6 +65,10 @@ class DeltaManifests {
 
   CharSequence[] referencedDataFiles() {
     return referencedDataFiles;
+  }
+
+  PartitionKey partitionKey() {
+    return partitionKey;
   }
 
   List<ManifestFile> manifests() {

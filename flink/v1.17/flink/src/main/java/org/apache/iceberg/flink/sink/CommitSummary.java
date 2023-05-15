@@ -33,7 +33,7 @@ class CommitSummary {
   private final AtomicLong deleteFilesRecordCount = new AtomicLong();
   private final AtomicLong deleteFilesByteCount = new AtomicLong();
 
-  CommitSummary(NavigableMap<Long, WriteResult> pendingResults) {
+  CommitSummary(NavigableMap<Long, ? extends WriteResult> pendingResults) {
     pendingResults
         .values()
         .forEach(

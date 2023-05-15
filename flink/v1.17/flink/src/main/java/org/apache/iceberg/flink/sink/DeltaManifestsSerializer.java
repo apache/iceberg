@@ -23,21 +23,25 @@ import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 import org.apache.flink.core.io.SimpleVersionedSerializer;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.ManifestFiles;
+import org.apache.iceberg.PartitionKey;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 class DeltaManifestsSerializer implements SimpleVersionedSerializer<DeltaManifests> {
   private static final int VERSION_1 = 1;
   private static final int VERSION_2 = 2;
+  private static final int VERSION_3 = 3;
   private static final byte[] EMPTY_BINARY = new byte[0];
 
   static final DeltaManifestsSerializer INSTANCE = new DeltaManifestsSerializer();
 
   @Override
   public int getVersion() {
-    return VERSION_2;
+    return VERSION_3;
   }
 
   @Override
@@ -70,6 +74,17 @@ class DeltaManifestsSerializer implements SimpleVersionedSerializer<DeltaManifes
       out.writeUTF(referencedDataFile.toString());
     }
 
+    byte[] partitionKeys;
+    try (ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream()) {
+      try (ObjectOutputStream objectOutputStream = new ObjectOutputStream(byteArrayOutputStream)) {
+        objectOutputStream.writeObject(deltaManifests.partitionKey());
+      }
+      partitionKeys = byteArrayOutputStream.toByteArray();
+    }
+
+    out.writeInt(partitionKeys.length);
+    out.write(partitionKeys);
+
     return binaryOut.toByteArray();
   }
 
@@ -79,6 +94,8 @@ class DeltaManifestsSerializer implements SimpleVersionedSerializer<DeltaManifes
       return deserializeV1(serialized);
     } else if (version == VERSION_2) {
       return deserializeV2(serialized);
+    } else if (version == VERSION_3) {
+      return deserializeV3(serialized);
     } else {
       throw new RuntimeException("Unknown serialize version: " + version);
     }
@@ -89,34 +106,76 @@ class DeltaManifestsSerializer implements SimpleVersionedSerializer<DeltaManifes
   }
 
   private DeltaManifests deserializeV2(byte[] serialized) throws IOException {
-    ManifestFile dataManifest = null;
-    ManifestFile deleteManifest = null;
-
     ByteArrayInputStream binaryIn = new ByteArrayInputStream(serialized);
     DataInputStream in = new DataInputStream(binaryIn);
 
-    int dataManifestSize = in.readInt();
-    if (dataManifestSize > 0) {
-      byte[] dataManifestBinary = new byte[dataManifestSize];
-      Preconditions.checkState(in.read(dataManifestBinary) == dataManifestSize);
+    ManifestFile dataManifest = deserializeManifestFile(in);
+    ManifestFile deleteManifest = deserializeDeleteManifestFile(in);
+    CharSequence[] referencedDataFiles = deserializeReferencedDataFiles(in);
 
-      dataManifest = ManifestFiles.decode(dataManifestBinary);
-    }
+    return new DeltaManifests(dataManifest, deleteManifest, referencedDataFiles);
+  }
 
-    int deleteManifestSize = in.readInt();
-    if (deleteManifestSize > 0) {
-      byte[] deleteManifestBinary = new byte[deleteManifestSize];
-      Preconditions.checkState(in.read(deleteManifestBinary) == deleteManifestSize);
+  private DeltaManifests deserializeV3(byte[] serialized) throws IOException {
+    ByteArrayInputStream binaryIn = new ByteArrayInputStream(serialized);
+    DataInputStream in = new DataInputStream(binaryIn);
 
-      deleteManifest = ManifestFiles.decode(deleteManifestBinary);
-    }
+    ManifestFile dataManifest = deserializeManifestFile(in);
+    ManifestFile deleteManifest = deserializeDeleteManifestFile(in);
+    CharSequence[] referencedDataFiles = deserializeReferencedDataFiles(in);
+    PartitionKey partitionKey = deserializePartitionKey(in);
 
+    return new DeltaManifests(dataManifest, deleteManifest, referencedDataFiles, partitionKey);
+  }
+
+  private static CharSequence[] deserializeReferencedDataFiles(DataInputStream in)
+      throws IOException {
     int referenceDataFileNum = in.readInt();
     CharSequence[] referencedDataFiles = new CharSequence[referenceDataFileNum];
     for (int i = 0; i < referenceDataFileNum; i++) {
       referencedDataFiles[i] = in.readUTF();
     }
 
-    return new DeltaManifests(dataManifest, deleteManifest, referencedDataFiles);
+    return referencedDataFiles;
+  }
+
+  private static ManifestFile deserializeDeleteManifestFile(DataInputStream in) throws IOException {
+    int deleteManifestSize = in.readInt();
+    if (deleteManifestSize > 0) {
+      byte[] deleteManifestBinary = new byte[deleteManifestSize];
+      Preconditions.checkState(in.read(deleteManifestBinary) == deleteManifestSize);
+
+      return ManifestFiles.decode(deleteManifestBinary);
+    }
+
+    return null;
+  }
+
+  private static ManifestFile deserializeManifestFile(DataInputStream in) throws IOException {
+    int dataManifestSize = in.readInt();
+    if (dataManifestSize > 0) {
+      byte[] dataManifestBinary = new byte[dataManifestSize];
+      Preconditions.checkState(in.read(dataManifestBinary) == dataManifestSize);
+
+      return ManifestFiles.decode(dataManifestBinary);
+    }
+
+    return null;
+  }
+
+  private static PartitionKey deserializePartitionKey(DataInputStream in) throws IOException {
+    int partitionKeyLength = in.readInt();
+    byte[] bytes = new byte[partitionKeyLength];
+    in.readFully(bytes);
+    PartitionKey partitionKey;
+    try (ByteArrayInputStream byteArrayInputStream = new ByteArrayInputStream(bytes)) {
+      try (ObjectInputStream objectInputStream = new ObjectInputStream(byteArrayInputStream)) {
+        partitionKey = (PartitionKey) objectInputStream.readObject();
+      } catch (ClassNotFoundException e) {
+        throw new RuntimeException("Failed to deserialize partition key", e);
+      }
+    }
+
+    return partitionKey;
   }
 }

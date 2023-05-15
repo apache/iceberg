@@ -48,6 +48,22 @@ class IcebergStreamWriter<T> extends AbstractStreamOperator<WriteResult>
     setChainingStrategy(ChainingStrategy.ALWAYS);
   }
 
+  public TaskWriter<T> writer() {
+    return writer;
+  }
+
+  public void writer(TaskWriter<T> newWriter) {
+    this.writer = newWriter;
+  }
+
+  public TaskWriterFactory<T> taskWriterFactory() {
+    return taskWriterFactory;
+  }
+
+  public IcebergStreamWriterMetrics writerMetrics() {
+    return writerMetrics;
+  }
+
   @Override
   public void open() {
     this.subTaskId = getRuntimeContext().getIndexOfThisSubtask();
@@ -102,7 +118,7 @@ class IcebergStreamWriter<T> extends AbstractStreamOperator<WriteResult>
   }
 
   /** close all open files and emit files to downstream committer operator */
-  private void flush() throws IOException {
+  protected void flush() throws IOException {
     if (writer == null) {
       return;
     }

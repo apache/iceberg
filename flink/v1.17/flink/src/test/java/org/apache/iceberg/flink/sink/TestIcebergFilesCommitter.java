@@ -19,7 +19,7 @@
 package org.apache.iceberg.flink.sink;
 
 import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT;
-import static org.apache.iceberg.flink.sink.IcebergFilesCommitter.MAX_CONTINUOUS_EMPTY_COMMITS;
+import static org.apache.iceberg.flink.sink.IcebergCheckpointCommitter.MAX_CONTINUOUS_EMPTY_COMMITS;
 import static org.apache.iceberg.flink.sink.ManifestOutputFileFactory.FLINK_MANIFEST_LOCATION;
 
 import java.io.File;
@@ -999,8 +999,8 @@ public class TestIcebergFilesCommitter extends TableTestBase {
     @SuppressWarnings("unchecked")
     public <T extends StreamOperator<Void>> T createStreamOperator(
         StreamOperatorParameters<Void> param) {
-      IcebergFilesCommitter committer =
-          new IcebergFilesCommitter(
+      IcebergCheckpointCommitter committer =
+          new IcebergCheckpointCommitter(
               new TestTableLoader(tablePath),
               false,
               Collections.singletonMap("flink.test", TestIcebergFilesCommitter.class.getName()),
@@ -1012,7 +1012,7 @@ public class TestIcebergFilesCommitter extends TableTestBase {
 
     @Override
     public Class<? extends StreamOperator> getStreamOperatorClass(ClassLoader classLoader) {
-      return IcebergFilesCommitter.class;
+      return IcebergCheckpointCommitter.class;
     }
   }
 }

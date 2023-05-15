@@ -32,7 +32,7 @@ public class WriteResult implements Serializable {
   private DeleteFile[] deleteFiles;
   private CharSequence[] referencedDataFiles;
 
-  private WriteResult(
+  protected WriteResult(
       List<DataFile> dataFiles, List<DeleteFile> deleteFiles, CharSequenceSet referencedDataFiles) {
     this.dataFiles = dataFiles.toArray(new DataFile[0]);
     this.deleteFiles = deleteFiles.toArray(new DeleteFile[0]);

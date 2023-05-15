@@ -1,4 +1,10 @@
 acceptedBreaks:
+  "1.3.0":
+    org.apache.iceberg:iceberg-core:
+    - code: "java.class.defaultSerializationChanged"
+      old: "class org.apache.iceberg.io.WriteResult"
+      new: "class org.apache.iceberg.io.WriteResult"
+      justification: "Serialization changed"
   "1.0.0":
     org.apache.iceberg:iceberg-core:
     - code: "java.class.defaultSerializationChanged"

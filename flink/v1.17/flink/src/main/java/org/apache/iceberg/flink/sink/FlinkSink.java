@@ -73,11 +73,6 @@ import org.slf4j.LoggerFactory;
 public class FlinkSink {
   private static final Logger LOG = LoggerFactory.getLogger(FlinkSink.class);
 
-  private static final String ICEBERG_STREAM_WRITER_NAME =
-      IcebergStreamWriter.class.getSimpleName();
-  private static final String ICEBERG_FILES_COMMITTER_NAME =
-      IcebergFilesCommitter.class.getSimpleName();
-
   private FlinkSink() {}
 
   /**
@@ -422,16 +417,38 @@ public class FlinkSink {
 
     private SingleOutputStreamOperator<Void> appendCommitter(
         SingleOutputStreamOperator<WriteResult> writerStream) {
-      IcebergFilesCommitter filesCommitter =
-          new IcebergFilesCommitter(
-              tableLoader,
-              flinkWriteConf.overwriteMode(),
-              snapshotProperties,
-              flinkWriteConf.workerPoolSize(),
-              flinkWriteConf.branch());
+      IcebergFilesCommitter filesCommitter;
+      if (flinkWriteConf.partitionCommitEnabled()) {
+        filesCommitter =
+            new IcebergPartitionTimeCommitter(
+                tableLoader,
+                flinkWriteConf.overwriteMode(),
+                snapshotProperties,
+                flinkWriteConf.workerPoolSize(),
+                flinkWriteConf.branch(),
+                flinkWriteConf.partitionCommitDelay(),
+                flinkWriteConf.partitionCommitWatermarkTimeZone(),
+                flinkWriteConf.partitionTimeExtractorTimestampPattern(),
+                flinkWriteConf.partitionTimeExtractorTimestampFormatter(),
+                flinkWriteConf.partitionCommitPolicyKind(),
+                flinkWriteConf.partitionCommitPolicyClass(),
+                flinkWriteConf.partitionCommitSuccessFileName());
+      } else {
+        filesCommitter =
+            new IcebergCheckpointCommitter(
+                tableLoader,
+                flinkWriteConf.overwriteMode(),
+                snapshotProperties,
+                flinkWriteConf.workerPoolSize(),
+                flinkWriteConf.branch());
+      }
+
       SingleOutputStreamOperator<Void> committerStream =
           writerStream
-              .transform(operatorName(ICEBERG_FILES_COMMITTER_NAME), Types.VOID, filesCommitter)
+              .transform(
+                  operatorName(filesCommitter.getClass().getSimpleName()),
+                  Types.VOID,
+                  filesCommitter)
               .setParallelism(1)
               .setMaxParallelism(1);
       if (uidPrefix != null) {
@@ -471,7 +488,7 @@ public class FlinkSink {
       SingleOutputStreamOperator<WriteResult> writerStream =
           input
               .transform(
-                  operatorName(ICEBERG_STREAM_WRITER_NAME),
+                  operatorName(streamWriter.getClass().getSimpleName()),
                   TypeInformation.of(WriteResult.class),
                   streamWriter)
               .setParallelism(parallelism);
@@ -589,7 +606,16 @@ public class FlinkSink {
             format,
             writeProperties(table, format, flinkWriteConf),
             equalityFieldIds,
-            flinkWriteConf.upsertMode());
+            flinkWriteConf.upsertMode(),
+            flinkWriteConf.partitionCommitEnabled(),
+            flinkWriteConf.partitionCommitDelay(),
+            flinkWriteConf.partitionCommitWatermarkTimeZone(),
+            flinkWriteConf.partitionTimeExtractorTimestampPattern(),
+            flinkWriteConf.partitionTimeExtractorTimestampFormatter());
+    if (flinkWriteConf.partitionCommitEnabled()) {
+      return new IcebergPartitionTimeStreamWriter<>(table.name(), taskWriterFactory);
+    }
+
     return new IcebergStreamWriter<>(table.name(), taskWriterFactory);
   }
 
