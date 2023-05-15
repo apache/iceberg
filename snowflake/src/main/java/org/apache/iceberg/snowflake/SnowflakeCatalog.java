@@ -54,9 +54,7 @@ public class SnowflakeCatalog extends BaseMetastoreCatalog
   // Add a suffix to user agent header for the web requests made by the jdbc driver.
   private static final String JDBC_USER_AGENT_SUFFIX_PROPERTY = "user_agent_suffix";
   private static final String APP_IDENTIFIER = "iceberg-snowflake-catalog";
-  // Specifies the length of unique id for each catalog initialized session. Should be less than 32
-  // (guid length)
-  private static final int UNIQUE_ID_LENGTH = 20;
+
   // Injectable factory for testing purposes.
   static class FileIOFactory {
     public FileIO newFileIO(String impl, Map<String, String> properties, Object hadoopConf) {
@@ -121,10 +119,9 @@ public class SnowflakeCatalog extends BaseMetastoreCatalog
           cnfe);
     }
 
-    String uniqueId = UUID.randomUUID().toString().replace("-", "").substring(0, UNIQUE_ID_LENGTH);
+    String uniqueId = UUID.randomUUID().toString().replace("-", "");
     String uniqueAppIdentifier = APP_IDENTIFIER + "_" + uniqueId;
-    String icebergVersion = IcebergBuild.fullVersion() + IcebergBuild.gitCommitShortId();
-    String userAgentSuffix = icebergVersion + " " + uniqueAppIdentifier;
+    String userAgentSuffix = IcebergBuild.fullVersion() + " " + uniqueAppIdentifier;
     // Populate application identifier in jdbc client
     properties.put(JdbcCatalog.PROPERTY_PREFIX + JDBC_APPLICATION_PROPERTY, uniqueAppIdentifier);
     // Adds application identifier to the user agent header of the JDBC requests.
