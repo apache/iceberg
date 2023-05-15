@@ -19,6 +19,7 @@
 package org.apache.iceberg.spark;
 
 import java.util.Map;
+import org.apache.arrow.util.VisibleForTesting;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -182,7 +183,7 @@ public class SparkReadConf {
     return confParser
         .longConf()
         .option(SparkReadOptions.SPLIT_SIZE)
-        .sessionConf(SparkSQLProperties.SPLIT_SIZE)
+        .sessionConf(String.format(SparkSQLProperties.TEMPLATED_SPLIT_SIZE, tableNameWithoutCatalog(table.name())))
         .parseOptional();
   }
 
@@ -190,7 +191,7 @@ public class SparkReadConf {
     return confParser
         .longConf()
         .option(SparkReadOptions.SPLIT_SIZE)
-        .sessionConf(SparkSQLProperties.SPLIT_SIZE)
+        .sessionConf(String.format(SparkSQLProperties.TEMPLATED_SPLIT_SIZE, tableNameWithoutCatalog(table.name())))
         .tableProperty(TableProperties.SPLIT_SIZE)
         .defaultValue(TableProperties.SPLIT_SIZE_DEFAULT)
         .parse();
@@ -275,5 +276,9 @@ public class SparkReadConf {
         .sessionConf(SparkSQLProperties.AGGREGATE_PUSH_DOWN_ENABLED)
         .defaultValue(SparkSQLProperties.AGGREGATE_PUSH_DOWN_ENABLED_DEFAULT)
         .parse();
+  }
+
+  private static String tableNameWithoutCatalog(String tableName) {
+    return tableName.split("\\.", 2)[1];
   }
 }

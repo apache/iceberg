@@ -64,6 +64,6 @@ public class SparkSQLProperties {
   // When set, new snapshots will be committed to this branch.
   public static final String WAP_BRANCH = "spark.wap.branch";
 
-  // Controls read split size
-  public static final String SPLIT_SIZE = "spark.sql.iceberg.read-split-size";
+  // Controls read split size for the individual table
+  public static final String TEMPLATED_SPLIT_SIZE = "spark.sql.iceberg.%s.read-split-size";
 }
