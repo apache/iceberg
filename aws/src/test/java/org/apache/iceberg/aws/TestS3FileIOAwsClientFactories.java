@@ -33,7 +33,7 @@ public class TestS3FileIOAwsClientFactories {
     properties.put(
         S3FileIOProperties.CLIENT_FACTORY,
         "org.apache.iceberg.aws.s3.DefaultS3FileIOAwsClientFactory");
-    Object factoryImpl = S3FileIOAwsClientFactories.initFactory(properties);
+    Object factoryImpl = S3FileIOAwsClientFactories.initialize(properties);
     Assertions.assertThat(factoryImpl)
         .withFailMessage(
             "should instantiate an object of type S3FileIOAwsClientFactory when s3.client-factory-impl is set")
@@ -44,7 +44,7 @@ public class TestS3FileIOAwsClientFactories {
   public void testS3FileIOImplCatalogPropertyNotDefined() {
     // don't set anything
     Map<String, String> properties = Maps.newHashMap();
-    Object factoryImpl = S3FileIOAwsClientFactories.initFactory(properties);
+    Object factoryImpl = S3FileIOAwsClientFactories.initialize(properties);
     Assertions.assertThat(factoryImpl)
         .withFailMessage(
             "should instantiate an object of type AwsClientFactory when s3.client-factory-impl is not set")

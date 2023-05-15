@@ -23,7 +23,7 @@ import org.apache.iceberg.aws.AwsClientProperties;
 import org.apache.iceberg.aws.HttpClientProperties;
 import software.amazon.awssdk.services.s3.S3Client;
 
-public class DefaultS3FileIOAwsClientFactory implements S3FileIOAwsClientFactory {
+class DefaultS3FileIOAwsClientFactory implements S3FileIOAwsClientFactory {
   private S3FileIOProperties s3FileIOProperties;
   private HttpClientProperties httpClientProperties;
   private AwsClientProperties awsClientProperties;

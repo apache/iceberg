@@ -38,7 +38,7 @@ public class S3FileIOAwsClientFactories {
    * @return an instance of a factory class
    */
   @SuppressWarnings("unchecked")
-  public static <T> T initFactory(Map<String, String> properties) {
+  public static <T> T initialize(Map<String, String> properties) {
     String factoryImpl =
         PropertyUtil.propertyAsString(properties, S3FileIOProperties.CLIENT_FACTORY, null);
     if (Strings.isNullOrEmpty(factoryImpl)) {
