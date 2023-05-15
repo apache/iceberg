@@ -28,7 +28,7 @@ class DefaultS3FileIOAwsClientFactory implements S3FileIOAwsClientFactory {
   private HttpClientProperties httpClientProperties;
   private AwsClientProperties awsClientProperties;
 
-  public DefaultS3FileIOAwsClientFactory() {
+  DefaultS3FileIOAwsClientFactory() {
     this.s3FileIOProperties = new S3FileIOProperties();
     this.httpClientProperties = new HttpClientProperties();
     this.awsClientProperties = new AwsClientProperties();
