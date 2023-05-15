@@ -19,6 +19,7 @@
 package org.apache.iceberg.spark.procedures;
 
 import java.util.Map;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.RewritePositionDeleteFiles;
 import org.apache.iceberg.actions.RewritePositionDeleteFiles.Result;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -31,6 +32,11 @@ import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 
+/**
+ * A procedure that rewrites position delete files in a table.
+ *
+ * @see org.apache.iceberg.spark.actions.SparkActions#rewritePositionDeletes(Table)
+ */
 public class RewritePositionDeleteFilesProcedure extends BaseProcedure {
 
   private static final ProcedureParameter TABLE_PARAM =
@@ -41,7 +47,6 @@ public class RewritePositionDeleteFilesProcedure extends BaseProcedure {
   private static final ProcedureParameter[] PARAMETERS =
       new ProcedureParameter[] {TABLE_PARAM, OPTIONS_PARAM};
 
-  // counts are not nullable since the action result is never null
   private static final StructType OUTPUT_TYPE =
       new StructType(
           new StructField[] {
@@ -79,9 +84,7 @@ public class RewritePositionDeleteFilesProcedure extends BaseProcedure {
   @Override
   public InternalRow[] call(InternalRow args) {
     ProcedureInput input = new ProcedureInput(spark(), tableCatalog(), PARAMETERS, args);
-
     Identifier tableIdent = input.ident(TABLE_PARAM);
-
     Map<String, String> options = input.asStringMap(OPTIONS_PARAM, ImmutableMap.of());
 
     return modifyIcebergTable(
