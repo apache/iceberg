@@ -154,6 +154,8 @@ public class SparkParquetReadersNestedDataBenchmark {
             .set("spark.sql.parquet.int96AsTimestamp", "false")
             .set("spark.sql.caseSensitive", "false")
             .set("spark.sql.parquet.fieldId.write.enabled", "false")
+            .set("spark.sql.parquet.inferTimestampNTZ.enabled", "false")
+            .set("spark.sql.legacy.parquet.nanosAsLong", "false")
             .callInit()
             .build()) {
 
@@ -212,6 +214,8 @@ public class SparkParquetReadersNestedDataBenchmark {
             .set("spark.sql.parquet.binaryAsString", "false")
             .set("spark.sql.parquet.int96AsTimestamp", "false")
             .set("spark.sql.caseSensitive", "false")
+            .set("spark.sql.parquet.inferTimestampNTZ.enabled", "false")
+            .set("spark.sql.legacy.parquet.nanosAsLong", "false")
             .callInit()
             .build()) {
 
