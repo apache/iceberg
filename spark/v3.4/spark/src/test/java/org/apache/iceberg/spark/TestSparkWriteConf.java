@@ -25,6 +25,9 @@ import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE;
 import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE_HASH;
 import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE_NONE;
 import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE_RANGE;
+import static org.apache.spark.sql.connector.write.RowLevelOperation.Command.DELETE;
+import static org.apache.spark.sql.connector.write.RowLevelOperation.Command.MERGE;
+import static org.apache.spark.sql.connector.write.RowLevelOperation.Command.UPDATE;
 
 import java.util.Map;
 import org.apache.iceberg.DistributionMode;
@@ -57,11 +60,7 @@ public class TestSparkWriteConf extends SparkTestBaseWithCatalog {
 
     SparkWriteConf writeConf = new SparkWriteConf(spark, table, ImmutableMap.of());
 
-    Assert.assertEquals(DistributionMode.HASH, writeConf.distributionMode());
-    Assert.assertEquals(DistributionMode.HASH, writeConf.deleteDistributionMode());
-    Assert.assertEquals(DistributionMode.HASH, writeConf.updateDistributionMode());
-    Assert.assertEquals(DistributionMode.HASH, writeConf.copyOnWriteMergeDistributionMode());
-    Assert.assertEquals(DistributionMode.HASH, writeConf.positionDeltaMergeDistributionMode());
+    checkMode(DistributionMode.HASH, writeConf);
   }
 
   @Test
@@ -72,11 +71,7 @@ public class TestSparkWriteConf extends SparkTestBaseWithCatalog {
         ImmutableMap.of(SparkWriteOptions.DISTRIBUTION_MODE, DistributionMode.NONE.modeName());
 
     SparkWriteConf writeConf = new SparkWriteConf(spark, table, writeOptions);
-    Assert.assertEquals(DistributionMode.NONE, writeConf.distributionMode());
-    Assert.assertEquals(DistributionMode.NONE, writeConf.deleteDistributionMode());
-    Assert.assertEquals(DistributionMode.NONE, writeConf.updateDistributionMode());
-    Assert.assertEquals(DistributionMode.NONE, writeConf.copyOnWriteMergeDistributionMode());
-    Assert.assertEquals(DistributionMode.NONE, writeConf.positionDeltaMergeDistributionMode());
+    checkMode(DistributionMode.NONE, writeConf);
   }
 
   @Test
@@ -85,15 +80,8 @@ public class TestSparkWriteConf extends SparkTestBaseWithCatalog {
         ImmutableMap.of(SparkSQLProperties.DISTRIBUTION_MODE, DistributionMode.NONE.modeName()),
         () -> {
           Table table = validationCatalog.loadTable(tableIdent);
-
           SparkWriteConf writeConf = new SparkWriteConf(spark, table, ImmutableMap.of());
-
-          Assert.assertEquals(DistributionMode.NONE, writeConf.distributionMode());
-          Assert.assertEquals(DistributionMode.NONE, writeConf.deleteDistributionMode());
-          Assert.assertEquals(DistributionMode.NONE, writeConf.updateDistributionMode());
-          Assert.assertEquals(DistributionMode.NONE, writeConf.copyOnWriteMergeDistributionMode());
-          Assert.assertEquals(
-              DistributionMode.NONE, writeConf.positionDeltaMergeDistributionMode());
+          checkMode(DistributionMode.NONE, writeConf);
         });
   }
 
@@ -110,11 +98,7 @@ public class TestSparkWriteConf extends SparkTestBaseWithCatalog {
         .commit();
 
     SparkWriteConf writeConf = new SparkWriteConf(spark, table, ImmutableMap.of());
-    Assert.assertEquals(DistributionMode.NONE, writeConf.distributionMode());
-    Assert.assertEquals(DistributionMode.NONE, writeConf.deleteDistributionMode());
-    Assert.assertEquals(DistributionMode.NONE, writeConf.updateDistributionMode());
-    Assert.assertEquals(DistributionMode.NONE, writeConf.copyOnWriteMergeDistributionMode());
-    Assert.assertEquals(DistributionMode.NONE, writeConf.positionDeltaMergeDistributionMode());
+    checkMode(DistributionMode.NONE, writeConf);
   }
 
   @Test
@@ -134,12 +118,7 @@ public class TestSparkWriteConf extends SparkTestBaseWithCatalog {
 
           SparkWriteConf writeConf = new SparkWriteConf(spark, table, ImmutableMap.of());
           // session config overwrite the table properties
-          Assert.assertEquals(DistributionMode.NONE, writeConf.distributionMode());
-          Assert.assertEquals(DistributionMode.NONE, writeConf.deleteDistributionMode());
-          Assert.assertEquals(DistributionMode.NONE, writeConf.updateDistributionMode());
-          Assert.assertEquals(DistributionMode.NONE, writeConf.copyOnWriteMergeDistributionMode());
-          Assert.assertEquals(
-              DistributionMode.NONE, writeConf.positionDeltaMergeDistributionMode());
+          checkMode(DistributionMode.NONE, writeConf);
         });
   }
 
@@ -156,12 +135,7 @@ public class TestSparkWriteConf extends SparkTestBaseWithCatalog {
 
           SparkWriteConf writeConf = new SparkWriteConf(spark, table, writeOptions);
           // write options overwrite the session config
-          Assert.assertEquals(DistributionMode.NONE, writeConf.distributionMode());
-          Assert.assertEquals(DistributionMode.NONE, writeConf.deleteDistributionMode());
-          Assert.assertEquals(DistributionMode.NONE, writeConf.updateDistributionMode());
-          Assert.assertEquals(DistributionMode.NONE, writeConf.copyOnWriteMergeDistributionMode());
-          Assert.assertEquals(
-              DistributionMode.NONE, writeConf.positionDeltaMergeDistributionMode());
+          checkMode(DistributionMode.NONE, writeConf);
         });
   }
 
@@ -186,12 +160,17 @@ public class TestSparkWriteConf extends SparkTestBaseWithCatalog {
 
           SparkWriteConf writeConf = new SparkWriteConf(spark, table, writeOptions);
           // write options take the highest priority
-          Assert.assertEquals(DistributionMode.NONE, writeConf.distributionMode());
-          Assert.assertEquals(DistributionMode.NONE, writeConf.deleteDistributionMode());
-          Assert.assertEquals(DistributionMode.NONE, writeConf.updateDistributionMode());
-          Assert.assertEquals(DistributionMode.NONE, writeConf.copyOnWriteMergeDistributionMode());
-          Assert.assertEquals(
-              DistributionMode.NONE, writeConf.positionDeltaMergeDistributionMode());
+          checkMode(DistributionMode.NONE, writeConf);
         });
+  }
+
+  private void checkMode(DistributionMode expectedMode, SparkWriteConf writeConf) {
+    Assert.assertEquals(expectedMode, writeConf.distributionMode());
+    Assert.assertEquals(expectedMode, writeConf.copyOnWriteDistributionMode(DELETE));
+    Assert.assertEquals(expectedMode, writeConf.positionDeltaDistributionMode(DELETE));
+    Assert.assertEquals(expectedMode, writeConf.copyOnWriteDistributionMode(UPDATE));
+    Assert.assertEquals(expectedMode, writeConf.positionDeltaDistributionMode(UPDATE));
+    Assert.assertEquals(expectedMode, writeConf.copyOnWriteDistributionMode(MERGE));
+    Assert.assertEquals(expectedMode, writeConf.positionDeltaDistributionMode(MERGE));
   }
 }
