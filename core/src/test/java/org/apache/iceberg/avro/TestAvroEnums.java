@@ -31,14 +31,14 @@ import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.junit.Assert;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 public class TestAvroEnums {
 
   @TempDir
-  public Path temp;
+  Path temp;
 
   @Test
   public void writeAndValidateEnums() throws IOException {
@@ -62,7 +62,7 @@ public class TestAvroEnums {
     List<Record> expected = ImmutableList.of(enumRecord1, enumRecord2, enumRecord3);
 
     File testFile = temp.toFile();
-    Assert.assertTrue("Delete should succeed", testFile.delete());
+    Assertions.assertTrue(testFile.delete(),"Delete should succeed");
 
     try (DataFileWriter<Record> writer = new DataFileWriter<>(new GenericDatumWriter<>())) {
       writer.create(avroSchema, testFile);
@@ -83,7 +83,7 @@ public class TestAvroEnums {
     for (int i = 0; i < expected.size(); i += 1) {
       String expectedEnumString =
           expected.get(i).get("enumCol") == null ? null : expected.get(i).get("enumCol").toString();
-      Assert.assertEquals(expectedEnumString, rows.get(i).get("enumCol"));
+      Assertions.assertEquals(expectedEnumString, rows.get(i).get("enumCol"));
     }
   }
 }

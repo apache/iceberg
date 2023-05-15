@@ -37,7 +37,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
-import org.junit.Assert;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -52,7 +52,7 @@ public class TestAvroDataWriter {
   private List<Record> records;
 
   @TempDir
-  public Path temp;
+  Path temp;
 
   @BeforeEach
   public void createRecords() {
@@ -93,13 +93,13 @@ public class TestAvroDataWriter {
 
     DataFile dataFile = dataWriter.toDataFile();
 
-    Assert.assertEquals("Format should be Avro", FileFormat.AVRO, dataFile.format());
-    Assert.assertEquals("Should be data file", FileContent.DATA, dataFile.content());
-    Assert.assertEquals("Record count should match", records.size(), dataFile.recordCount());
-    Assert.assertEquals("Partition should be empty", 0, dataFile.partition().size());
-    Assert.assertEquals(
-        "Sort order should match", sortOrder.orderId(), (int) dataFile.sortOrderId());
-    Assert.assertNull("Key metadata should be null", dataFile.keyMetadata());
+    Assertions.assertEquals(FileFormat.AVRO, dataFile.format(), "Format should be Avro");
+    Assertions.assertEquals(FileContent.DATA, dataFile.content(),"Should be data file");
+    Assertions.assertEquals(records.size(), dataFile.recordCount(),"Record count should match");
+    Assertions.assertEquals(0, dataFile.partition().size(),"Partition should be empty");
+    Assertions.assertEquals(
+        sortOrder.orderId(), (int) dataFile.sortOrderId(),"Sort order should match");
+    Assertions.assertNull(dataFile.keyMetadata(),"Key metadata should be null");
 
     List<Record> writtenRecords;
     try (AvroIterable<Record> reader =
@@ -110,6 +110,6 @@ public class TestAvroDataWriter {
       writtenRecords = Lists.newArrayList(reader);
     }
 
-    Assert.assertEquals("Written records should match", records, writtenRecords);
+    Assertions.assertEquals(records, writtenRecords, "Written records should match");
   }
 }

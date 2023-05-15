@@ -29,7 +29,7 @@ import org.apache.avro.generic.GenericData.Record;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.assertj.core.api.Assertions;
-import org.junit.Assert;
+
 
 class AvroTestHelpers {
 
@@ -82,7 +82,7 @@ class AvroTestHelpers {
   static void assertEquals(Types.ListType list, List<?> expected, List<?> actual) {
     Type elementType = list.elementType();
 
-    Assert.assertEquals("List size should match", expected.size(), actual.size());
+    org.junit.jupiter.api.Assertions.assertEquals( expected.size(), actual.size(),"List size should match");
 
     for (int i = 0; i < expected.size(); i += 1) {
       Object expectedValue = expected.get(i);
@@ -95,7 +95,7 @@ class AvroTestHelpers {
   static void assertEquals(Types.MapType map, Map<?, ?> expected, Map<?, ?> actual) {
     Type valueType = map.valueType();
 
-    Assert.assertEquals("Map size should match", expected.size(), actual.size());
+    org.junit.jupiter.api.Assertions.assertEquals(expected.size(), actual.size(),"Map size should match");
 
     for (Object expectedKey : expected.keySet()) {
       Object expectedValue = expected.get(expectedKey);
@@ -124,7 +124,7 @@ class AvroTestHelpers {
       case FIXED:
       case BINARY:
       case DECIMAL:
-        Assert.assertEquals("Primitive value should be equal to expected", expected, actual);
+        org.junit.jupiter.api.Assertions.assertEquals(expected, actual,"Primitive value should be equal to expected");
         break;
       case STRUCT:
         Assertions.assertThat(expected)
