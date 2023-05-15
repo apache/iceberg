@@ -23,9 +23,8 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.Callable;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -159,10 +158,7 @@ public abstract class TestByteBufferInputStreams {
       Assert.assertEquals(i, stream.read());
     }
 
-    AssertHelpers.assertThrows(
-        "Should throw EOFException at end of stream",
-        EOFException.class,
-        (Callable<Integer>) stream::read);
+    Assertions.assertThatThrownBy(stream::read).isInstanceOf(EOFException.class).hasMessage(null);
 
     checkOriginalData();
   }
@@ -213,10 +209,9 @@ public abstract class TestByteBufferInputStreams {
 
     Assert.assertEquals("Should consume all buffers", length, stream.getPos());
 
-    AssertHelpers.assertThrows(
-        "Should throw EOFException when empty",
-        EOFException.class,
-        () -> stream.sliceBuffers(length));
+    Assertions.assertThatThrownBy(() -> stream.sliceBuffers(length))
+        .isInstanceOf(EOFException.class)
+        .hasMessage(null);
 
     ByteBufferInputStream copy = ByteBufferInputStream.wrap(buffers);
     for (int i = 0; i < length; i += 1) {
@@ -339,13 +334,10 @@ public abstract class TestByteBufferInputStreams {
     Assert.assertEquals(0, stream2.getPos());
 
     int length = stream2.available();
-    AssertHelpers.assertThrows(
-        "Should throw when out of bytes",
-        EOFException.class,
-        () -> {
-          stream2.skipFully(length + 10);
-          return null;
-        });
+
+    Assertions.assertThatThrownBy(() -> stream2.skipFully(length + 10))
+        .isInstanceOf(EOFException.class)
+        .hasMessageStartingWith("Not enough bytes to skip");
   }
 
   @Test
@@ -464,13 +456,9 @@ public abstract class TestByteBufferInputStreams {
   public void testMarkUnset() {
     ByteBufferInputStream stream = newStream();
 
-    AssertHelpers.assertThrows(
-        "Should throw an error for reset() without mark()",
-        IOException.class,
-        () -> {
-          stream.reset();
-          return null;
-        });
+    Assertions.assertThatThrownBy(stream::reset)
+        .isInstanceOf(IOException.class)
+        .hasMessageStartingWith("No mark defined");
   }
 
   @Test
@@ -508,13 +496,9 @@ public abstract class TestByteBufferInputStreams {
 
     Assert.assertEquals("Should read 6 bytes", 6, stream.read(new byte[6]));
 
-    AssertHelpers.assertThrows(
-        "Should throw an error for reset() after limit",
-        IOException.class,
-        () -> {
-          stream.reset();
-          return null;
-        });
+    Assertions.assertThatThrownBy(stream::reset)
+        .isInstanceOf(IOException.class)
+        .hasMessageStartingWith("No mark defined");
   }
 
   @Test
@@ -526,12 +510,8 @@ public abstract class TestByteBufferInputStreams {
 
     stream.reset();
 
-    AssertHelpers.assertThrows(
-        "Should throw an error for double reset()",
-        IOException.class,
-        () -> {
-          stream.reset();
-          return null;
-        });
+    Assertions.assertThatThrownBy(stream::reset)
+        .isInstanceOf(IOException.class)
+        .hasMessageStartingWith("No mark defined");
   }
 }
