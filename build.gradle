@@ -137,6 +137,11 @@ allprojects {
   repositories {
     mavenCentral()
     mavenLocal()
+    maven {
+      url "https://repository.apache.org/content/groups/staging/"
+      mavenContent {
+      }
+    }
   }
 }
 
