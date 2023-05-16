@@ -31,128 +31,111 @@ public class TestNameMappingWithAvroSchema {
 
     // Create an example Avro schema with a nested record but not using the SchemaBuilder
     Schema schema =
-      Schema.createRecord(
-        "test",
-        null,
-        null,
-        false,
-        Lists.newArrayList(
-          new Schema.Field(
-            "id",
-            Schema.create(Schema.Type.INT)),
-          new Schema.Field(
-            "data",
-            Schema.create(Schema.Type.STRING)),
-          new Schema.Field(
-            "location",
-            Schema.createRecord(
-              "location",
-              null,
-              null,
-              false,
-              Lists.newArrayList(
+        Schema.createRecord(
+            "test",
+            null,
+            null,
+            false,
+            Lists.newArrayList(
+                new Schema.Field("id", Schema.create(Schema.Type.INT)),
+                new Schema.Field("data", Schema.create(Schema.Type.STRING)),
                 new Schema.Field(
-                  "lat",
-                  Schema.create(Schema.Type.DOUBLE)),
-                new Schema.Field(
-                  "long",
-                  Schema.create(Schema.Type.DOUBLE))))),
-          new Schema.Field(
-            "friends",
-            Schema.createArray(Schema.create(Schema.Type.STRING))),
-          new Schema.Field(
-            "simpleUnion",
-            Schema.createUnion(
-              Lists.newArrayList(
-                Schema.create(Schema.Type.NULL),
-                Schema.create(Schema.Type.STRING)))),
-          new Schema.Field(
-            "complexUnion",
-            Schema.createUnion(
-              new Schema[] {
-                Schema.create(Schema.Type.NULL),
-                Schema.create(Schema.Type.STRING),
-                Schema.createRecord(
-                  "innerRecord1",
-                  null,
-                  null,
-                  false,
-                  Lists.newArrayList(
-                    new Schema.Field(
-                      "lat",
-                      Schema.create(Schema.Type.DOUBLE)),
-                    new Schema.Field(
-                      "long",
-                      Schema.create(Schema.Type.DOUBLE)))),
-                Schema.createRecord(
-                  "innerRecord2",
-                  null,
-                  null,
-                  false,
-                  Lists.newArrayList(
-                    new Schema.Field(
-                      "lat",
-                      Schema.create(Schema.Type.DOUBLE)),
-                    new Schema.Field(
-                      "long",
-                      Schema.create(Schema.Type.DOUBLE)))),
-                Schema.createRecord(
-                  "innerRecord3",
-                  null,
-                  null,
-                  false,
-                  Lists.newArrayList(
-                    new Schema.Field(
-                      "innerUnion",
-                      Schema.createUnion(
+                    "location",
+                    Schema.createRecord(
+                        "location",
+                        null,
+                        null,
+                        false,
                         Lists.newArrayList(
+                            new Schema.Field("lat", Schema.create(Schema.Type.DOUBLE)),
+                            new Schema.Field("long", Schema.create(Schema.Type.DOUBLE))))),
+                new Schema.Field("friends", Schema.createArray(Schema.create(Schema.Type.STRING))),
+                new Schema.Field(
+                    "simpleUnion",
+                    Schema.createUnion(
+                        Lists.newArrayList(
+                            Schema.create(Schema.Type.NULL), Schema.create(Schema.Type.STRING)))),
+                new Schema.Field(
+                    "complexUnion",
+                    Schema.createUnion(
+                        new Schema[] {
+                          Schema.create(Schema.Type.NULL),
                           Schema.create(Schema.Type.STRING),
-                          Schema.create(Schema.Type.INT)))))),
-                Schema.createEnum("timezone", null, null, Lists.newArrayList("UTC", "PST", "EST")),
-                Schema.createFixed("bitmap", null, null, 1)}))));
+                          Schema.createRecord(
+                              "innerRecord1",
+                              null,
+                              null,
+                              false,
+                              Lists.newArrayList(
+                                  new Schema.Field("lat", Schema.create(Schema.Type.DOUBLE)),
+                                  new Schema.Field("long", Schema.create(Schema.Type.DOUBLE)))),
+                          Schema.createRecord(
+                              "innerRecord2",
+                              null,
+                              null,
+                              false,
+                              Lists.newArrayList(
+                                  new Schema.Field("lat", Schema.create(Schema.Type.DOUBLE)),
+                                  new Schema.Field("long", Schema.create(Schema.Type.DOUBLE)))),
+                          Schema.createRecord(
+                              "innerRecord3",
+                              null,
+                              null,
+                              false,
+                              Lists.newArrayList(
+                                  new Schema.Field(
+                                      "innerUnion",
+                                      Schema.createUnion(
+                                          Lists.newArrayList(
+                                              Schema.create(Schema.Type.STRING),
+                                              Schema.create(Schema.Type.INT)))))),
+                          Schema.createEnum(
+                              "timezone", null, null, Lists.newArrayList("UTC", "PST", "EST")),
+                          Schema.createFixed("bitmap", null, null, 1)
+                        }))));
 
     NameMappingWithAvroSchema nameMappingWithAvroSchema = new NameMappingWithAvroSchema();
 
     // Convert Avro schema to Iceberg schema
     org.apache.iceberg.Schema icebergSchema = AvroSchemaUtil.toIceberg(schema);
     MappedFields expected =
-      MappedFields.of(
-        MappedField.of(0, "id"),
-        MappedField.of(1, "data"),
-        MappedField.of(
-          2,
-          "location",
-          MappedFields.of(MappedField.of(6, "lat"), MappedField.of(7, "long"))),
-        MappedField.of(3, "friends", MappedFields.of(MappedField.of(8, "element"))),
-        MappedField.of(4, "simpleUnion"),
-        MappedField.of(
-          5,
-          "complexUnion",
-          MappedFields.of(
-            MappedField.of(17, "\"string\""),
+        MappedFields.of(
+            MappedField.of(0, "id"),
+            MappedField.of(1, "data"),
             MappedField.of(
-              18,
-              "innerRecord1",
-              MappedFields.of(MappedField.of(9, "lat"), MappedField.of(10, "long"))),
+                2,
+                "location",
+                MappedFields.of(MappedField.of(6, "lat"), MappedField.of(7, "long"))),
+            MappedField.of(3, "friends", MappedFields.of(MappedField.of(8, "element"))),
+            MappedField.of(4, "simpleUnion"),
             MappedField.of(
-              19,
-              "innerRecord2",
-              MappedFields.of(MappedField.of(11, "lat"), MappedField.of(12, "long"))),
-            MappedField.of(
-              20,
-              "innerRecord3",
-              MappedFields.of(
-                MappedField.of(
-                  16,
-                  "innerUnion",
-                  MappedFields.of(
-                    MappedField.of(13, "\"string\""),
-                    MappedField.of(14, "\"int\""))))),
-            MappedField.of(21, "timezone"),
-            MappedField.of(22, "bitmap")
-          )));
+                5,
+                "complexUnion",
+                MappedFields.of(
+                    MappedField.of(17, "\"string\""),
+                    MappedField.of(
+                        18,
+                        "innerRecord1",
+                        MappedFields.of(MappedField.of(9, "lat"), MappedField.of(10, "long"))),
+                    MappedField.of(
+                        19,
+                        "innerRecord2",
+                        MappedFields.of(MappedField.of(11, "lat"), MappedField.of(12, "long"))),
+                    MappedField.of(
+                        20,
+                        "innerRecord3",
+                        MappedFields.of(
+                            MappedField.of(
+                                16,
+                                "innerUnion",
+                                MappedFields.of(
+                                    MappedField.of(13, "\"string\""),
+                                    MappedField.of(14, "\"int\""))))),
+                    MappedField.of(21, "timezone"),
+                    MappedField.of(22, "bitmap"))));
     Assert.assertEquals(
-      expected,
-      AvroWithPartnerByStructureVisitor.visit(icebergSchema.asStruct(), schema, nameMappingWithAvroSchema));
+        expected,
+        AvroWithPartnerByStructureVisitor.visit(
+            icebergSchema.asStruct(), schema, nameMappingWithAvroSchema));
   }
 }

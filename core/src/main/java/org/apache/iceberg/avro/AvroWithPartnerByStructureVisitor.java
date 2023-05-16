@@ -23,7 +23,6 @@ import java.util.List;
 import org.apache.avro.Schema;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Pair;
 
@@ -109,7 +108,7 @@ public abstract class AvroWithPartnerByStructureVisitor<P, T> {
       int index = 0;
       for (Schema branch : types) {
         if (branch.getType() != Schema.Type.NULL) {
-          options.add(visit(fieldTypeByName(type,"field" + index, visitor), branch, visitor));
+          options.add(visit(fieldTypeByName(type, "field" + index, visitor), branch, visitor));
           index++;
         }
       }
@@ -117,7 +116,8 @@ public abstract class AvroWithPartnerByStructureVisitor<P, T> {
     return visitor.union(type, union, options);
   }
 
-  private static <P, T> P fieldTypeByName(P struct, String name, AvroWithPartnerByStructureVisitor<P, T> visitor) {
+  private static <P, T> P fieldTypeByName(
+      P struct, String name, AvroWithPartnerByStructureVisitor<P, T> visitor) {
     // Iterate on fieldNameAndType to find the field with the given name, then return the type
     // of that field.
     for (int i = 0; i < visitor.structSize(struct); i += 1) {
