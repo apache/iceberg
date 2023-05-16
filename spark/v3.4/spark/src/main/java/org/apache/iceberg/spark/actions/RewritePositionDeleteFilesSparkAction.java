@@ -125,11 +125,10 @@ public class RewritePositionDeleteFilesSparkAction
 
     Stream<RewritePositionDeletesGroup> groupStream = toGroupStream(ctx, fileGroupsByPartition);
 
-    RewritePositionDeletesCommitManager commitManager = commitManager();
     if (partialProgressEnabled) {
-      return doExecuteWithPartialProgress(ctx, groupStream, commitManager);
+      return doExecuteWithPartialProgress(ctx, groupStream, commitManager());
     } else {
-      return doExecute(ctx, groupStream, commitManager);
+      return doExecute(ctx, groupStream, commitManager());
     }
   }
 
@@ -139,8 +138,7 @@ public class RewritePositionDeleteFilesSparkAction
     try {
       StructType partitionType = Partitioning.partitionType(table);
       StructLikeMap<List<PositionDeletesScanTask>> fileTasksByPartition =
-          filesByPartition(partitionType, fileTasks);
-
+          groupByPartition(partitionType, fileTasks);
       return fileGroupsByPartition(fileTasksByPartition);
     } finally {
       try {
@@ -157,10 +155,10 @@ public class RewritePositionDeleteFilesSparkAction
 
     return CloseableIterable.transform(
         deletesTable.newBatchScan().ignoreResiduals().planFiles(),
-        t -> (PositionDeletesScanTask) t);
+        task -> (PositionDeletesScanTask) task);
   }
 
-  private StructLikeMap<List<PositionDeletesScanTask>> filesByPartition(
+  private StructLikeMap<List<PositionDeletesScanTask>> groupByPartition(
       StructType partitionType, Iterable<PositionDeletesScanTask> tasks) {
     StructLikeMap<List<PositionDeletesScanTask>> filesByPartition =
         StructLikeMap.create(partitionType);
@@ -181,8 +179,11 @@ public class RewritePositionDeleteFilesSparkAction
 
   private StructLikeMap<List<List<PositionDeletesScanTask>>> fileGroupsByPartition(
       StructLikeMap<List<PositionDeletesScanTask>> filesByPartition) {
-    return filesByPartition.transformValues(
-        files -> ImmutableList.copyOf(rewriter.planFileGroups(files)));
+    return filesByPartition.transformValues(this::planFileGroups);
+  }
+
+  private List<List<PositionDeletesScanTask>> planFileGroups(List<PositionDeletesScanTask> tasks) {
+    return ImmutableList.copyOf(rewriter.planFileGroups(tasks));
   }
 
   private RewritePositionDeletesGroup rewriteDeleteFiles(
@@ -325,17 +326,15 @@ public class RewritePositionDeleteFilesSparkAction
   private Stream<RewritePositionDeletesGroup> toGroupStream(
       RewriteExecutionContext ctx,
       Map<StructLike, List<List<PositionDeletesScanTask>>> groupsByPartition) {
-    Stream<RewritePositionDeletesGroup> rewriteFileGroupStream =
-        groupsByPartition.entrySet().stream()
-            .filter(e -> e.getValue().size() != 0)
-            .flatMap(
-                e -> {
-                  StructLike partition = e.getKey();
-                  List<List<PositionDeletesScanTask>> scanGroups = e.getValue();
-                  return scanGroups.stream().map(tasks -> newRewriteGroup(ctx, partition, tasks));
-                });
-
-    return rewriteFileGroupStream.sorted(RewritePositionDeletesGroup.comparator(rewriteJobOrder));
+    return groupsByPartition.entrySet().stream()
+        .filter(e -> e.getValue().size() != 0)
+        .flatMap(
+            e -> {
+              StructLike partition = e.getKey();
+              List<List<PositionDeletesScanTask>> scanGroups = e.getValue();
+              return scanGroups.stream().map(tasks -> newRewriteGroup(ctx, partition, tasks));
+            })
+        .sorted(RewritePositionDeletesGroup.comparator(rewriteJobOrder));
   }
 
   private RewritePositionDeletesGroup newRewriteGroup(
