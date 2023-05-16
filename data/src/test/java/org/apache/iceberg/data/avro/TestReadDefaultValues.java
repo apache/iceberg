@@ -29,7 +29,10 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.SingleValueParser;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.avro.AvroIterable;
-import org.apache.iceberg.data.*;
+import org.apache.iceberg.data.DataTestHelpers;
+import org.apache.iceberg.data.GenericRecord;
+import org.apache.iceberg.data.IdentityPartitionConverters;
+import org.apache.iceberg.data.Record;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
@@ -122,8 +125,7 @@ public class TestReadDefaultValues {
       Schema readerSchema =
           new Schema(
               required(999, "col1", Types.IntegerType.get()),
-              Types.NestedField.optional(
-                  1000, "col2", type, null, defaultValue, defaultValue));
+              Types.NestedField.optional(1000, "col2", type, null, defaultValue, defaultValue));
 
       Record expectedRecord = GenericRecord.create(readerSchema);
       expectedRecord.set(0, 1);
@@ -164,10 +166,9 @@ public class TestReadDefaultValues {
       Object defaultValue = SingleValueParser.fromJson(type, defaultValueJson);
 
       Schema readerSchema =
-        new Schema(
-          required(999, "col1", Types.IntegerType.get()),
-          Types.NestedField.optional(
-            1000, "col2", type, null, defaultValue, defaultValue));
+          new Schema(
+              required(999, "col1", Types.IntegerType.get()),
+              Types.NestedField.optional(1000, "col2", type, null, defaultValue, defaultValue));
 
       // Create a record with null value for the column with default value
       Record record = GenericRecord.create(readerSchema);
@@ -178,20 +179,20 @@ public class TestReadDefaultValues {
       Assert.assertTrue("Delete should succeed", testFile.delete());
 
       try (FileAppender<Record> writer =
-             Avro.write(Files.localOutput(testFile))
-               .schema(readerSchema)
-               .createWriterFunc(DataWriter::create)
-               .named("test")
-               .build()) {
+          Avro.write(Files.localOutput(testFile))
+              .schema(readerSchema)
+              .createWriterFunc(DataWriter::create)
+              .named("test")
+              .build()) {
         writer.add(record);
       }
 
       List<Record> rows;
       try (AvroIterable<Record> reader =
-             Avro.read(Files.localInput(testFile))
-               .project(readerSchema)
-               .createReaderFunc(DataReader::create)
-               .build()) {
+          Avro.read(Files.localInput(testFile))
+              .project(readerSchema)
+              .createReaderFunc(DataReader::create)
+              .build()) {
         rows = Lists.newArrayList(reader);
       }
 

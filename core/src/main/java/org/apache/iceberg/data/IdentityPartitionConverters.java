@@ -18,13 +18,12 @@
  */
 package org.apache.iceberg.data;
 
+import java.nio.ByteBuffer;
 import org.apache.avro.generic.GenericData;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ByteBuffers;
 import org.apache.iceberg.util.DateTimeUtil;
-
-import java.nio.ByteBuffer;
 
 public class IdentityPartitionConverters {
   private IdentityPartitionConverters() {}

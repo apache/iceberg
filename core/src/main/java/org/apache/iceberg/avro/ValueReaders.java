@@ -27,8 +27,6 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.*;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
-
 import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.IndexedRecord;
@@ -563,9 +561,9 @@ public class ValueReaders {
 
   public abstract static class StructReader<S> implements ValueReader<S>, SupportsRowPosition {
     private final ValueReader<?>[] readers;
-    private final int[] constantValuesPositions;
+    private final int[] constantPositions;
     private final Object[] constantValues;
-    private final int[] defaultValuesPositions;
+    private final int[] defaultPositions;
     private final Object[] defaultValues;
     private int posField = -1;
 
@@ -585,13 +583,13 @@ public class ValueReaders {
       }
 
       if (isDeletedColumnPos == null) {
-        this.constantValuesPositions = new int[0];
+        this.constantPositions = new int[0];
         this.constantValues = new Object[0];
       } else {
-        this.constantValuesPositions = new int[] {isDeletedColumnPos};
+        this.constantPositions = new int[] {isDeletedColumnPos};
         this.constantValues = new Object[] {false};
       }
-      this.defaultValuesPositions = new int[0];
+      this.defaultPositions = new int[0];
       this.defaultValues = new Object[0];
     }
 
@@ -600,34 +598,34 @@ public class ValueReaders {
       this.readers = readers.toArray(new ValueReader[0]);
 
       List<Types.NestedField> fields = struct.fields();
-      List<Integer> constantValuesPositionList = Lists.newArrayListWithCapacity(fields.size());
+      List<Integer> constantPositionsList = Lists.newArrayListWithCapacity(fields.size());
       List<Object> constantValuesList = Lists.newArrayListWithCapacity(fields.size());
       List<Integer> defaultValuesPositionList = Lists.newArrayListWithCapacity(fields.size());
       List<Object> defaultValuesList = Lists.newArrayListWithCapacity(fields.size());
       for (int pos = 0; pos < fields.size(); pos += 1) {
         Types.NestedField field = fields.get(pos);
         if (idToConstant.containsKey(field.fieldId())) {
-          constantValuesPositionList.add(pos);
+          constantPositionsList.add(pos);
           constantValuesList.add(idToConstant.get(field.fieldId()));
         } else if (field.fieldId() == MetadataColumns.ROW_POSITION.fieldId()) {
           // track where the _pos field is located for setRowPositionSupplier
           this.posField = pos;
         } else if (field.fieldId() == MetadataColumns.IS_DELETED.fieldId()) {
-          constantValuesPositionList.add(pos);
+          constantPositionsList.add(pos);
           constantValuesList.add(false);
         } else if (field.initialDefault() != null) {
           // Add a constant value for fields that have a default value.
           // In the {@link #read()} method, this will be leveraged only if there is no corresponding
           // reader.
           defaultValuesPositionList.add(pos);
-          defaultValuesList.add(IdentityPartitionConverters.convertConstant(field.type(), field.initialDefault()));
+          defaultValuesList.add(
+              IdentityPartitionConverters.convertConstant(field.type(), field.initialDefault()));
         }
       }
 
-      this.constantValuesPositions =
-          constantValuesPositionList.stream().mapToInt(Integer::intValue).toArray();
+      this.constantPositions = constantPositionsList.stream().mapToInt(Integer::intValue).toArray();
       this.constantValues = constantValuesList.toArray();
-      this.defaultValuesPositions =
+      this.defaultPositions =
           defaultValuesPositionList.stream().mapToInt(Integer::intValue).toArray();
       this.defaultValues = defaultValuesList.toArray();
     }
@@ -667,17 +665,18 @@ public class ValueReaders {
       S struct = reuseOrCreate(reuse);
 
       if (decoder instanceof ResolvingDecoder) {
-        Set<Integer> existingFieldPositionsSet = Arrays.stream(((ResolvingDecoder) decoder).readFieldOrder()).map(Schema.Field::pos).collect(Collectors.toSet());
+        Set<Integer> existingFieldPositionsSet = new HashSet<>();
         // This may not set all of the fields. nulls are set by default.
-        for (int i = 0; i < existingFieldPositionsSet.size(); i++) {
-          Object reusedValue = get(struct, i);
-          set(struct, i, readers[i].read(decoder, reusedValue));
+        for (Schema.Field field : ((ResolvingDecoder) decoder).readFieldOrder()) {
+          Object reusedValue = get(struct, field.pos());
+          set(struct, field.pos(), readers[field.pos()].read(decoder, reusedValue));
+          existingFieldPositionsSet.add(field.pos());
         }
         // Set default values
-        for (int i = 0; i < defaultValuesPositions.length; i += 1) {
+        for (int i = 0; i < defaultPositions.length; i += 1) {
           // Set default values only if the field does not exist in the data.
-          if (!existingFieldPositionsSet.contains(defaultValuesPositions[i])) {
-            set(struct, defaultValuesPositions[i], defaultValues[i]);
+          if (!existingFieldPositionsSet.contains(defaultPositions[i])) {
+            set(struct, defaultPositions[i], defaultValues[i]);
           }
         }
       } else {
@@ -687,8 +686,8 @@ public class ValueReaders {
         }
       }
 
-      for (int i = 0; i < constantValuesPositions.length; i += 1) {
-        set(struct, constantValuesPositions[i], constantValues[i]);
+      for (int i = 0; i < constantPositions.length; i += 1) {
+        set(struct, constantPositions[i], constantValues[i]);
       }
 
       return struct;
