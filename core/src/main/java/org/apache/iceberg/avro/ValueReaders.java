@@ -25,7 +25,14 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.util.*;
+import java.util.Collection;
+import java.util.Deque;
+import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
 import java.util.function.Supplier;
 import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericData;
@@ -38,6 +45,7 @@ import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.data.IdentityPartitionConverters;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.UUIDUtil;
 
@@ -665,7 +673,7 @@ public class ValueReaders {
       S struct = reuseOrCreate(reuse);
 
       if (decoder instanceof ResolvingDecoder) {
-        Set<Integer> existingFieldPositionsSet = new HashSet<>();
+        Set<Integer> existingFieldPositionsSet = Sets.newHashSet();
         // This may not set all of the fields. nulls are set by default.
         for (Schema.Field field : ((ResolvingDecoder) decoder).readFieldOrder()) {
           Object reusedValue = get(struct, field.pos());
