@@ -738,11 +738,16 @@ public class TableMetadata implements Serializable {
     for (PartitionField field : partitionSpec.fields()) {
       // look up the name of the source field in the old schema to get the new schema's id
       String sourceName = partitionSpec.schema().findColumnName(field.sourceId());
-      specBuilder.addField(
-          field.transform().toString(),
-          schema.findField(sourceName).fieldId(),
-          field.fieldId(),
-          field.name());
+
+      final int fieldId;
+      if (sourceName != null) {
+        fieldId = schema.findField(sourceName).fieldId();
+      } else {
+        // In the case of a null sourceName, the column has been deleted.
+        // This only happens in V1 tables where the reference is still around as a void transform
+        fieldId = field.sourceId();
+      }
+      specBuilder.addField(field.transform().toString(), fieldId, field.fieldId(), field.name());
     }
 
     return specBuilder.build().bind(schema);
