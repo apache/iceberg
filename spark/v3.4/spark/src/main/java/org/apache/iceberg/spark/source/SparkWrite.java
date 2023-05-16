@@ -188,7 +188,8 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
         targetFileSize,
         writeSchema,
         dsSchema,
-        partitionedFanoutEnabled);
+        partitionedFanoutEnabled,
+        requiredOrdering.length != 0);
   }
 
   private void commitOperation(SnapshotUpdate<?> operation, String description) {
@@ -618,6 +619,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
     private final StructType dsSchema;
     private final boolean partitionedFanoutEnabled;
     private final String queryId;
+    private final boolean isOrderedWrite;
 
     protected WriterFactory(
         Broadcast<Table> tableBroadcast,
@@ -627,7 +629,8 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
         long targetFileSize,
         Schema writeSchema,
         StructType dsSchema,
-        boolean partitionedFanoutEnabled) {
+        boolean partitionedFanoutEnabled,
+        boolean isOrderedWrite) {
       this.tableBroadcast = tableBroadcast;
       this.format = format;
       this.outputSpecId = outputSpecId;
@@ -636,6 +639,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
       this.dsSchema = dsSchema;
       this.partitionedFanoutEnabled = partitionedFanoutEnabled;
       this.queryId = queryId;
+      this.isOrderedWrite = isOrderedWrite;
     }
 
     @Override
@@ -649,6 +653,9 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
       PartitionSpec spec = table.specs().get(outputSpecId);
       FileIO io = table.io();
 
+      org.apache.iceberg.SortOrder sortOrder =
+          isOrderedWrite ? table.sortOrder() : org.apache.iceberg.SortOrder.unsorted();
+
       OutputFileFactory fileFactory =
           OutputFileFactory.builderFor(table, partitionId, taskId)
               .format(format)
@@ -659,6 +666,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
               .dataFileFormat(format)
               .dataSchema(writeSchema)
               .dataSparkType(dsSchema)
+              .dataSortOrder(sortOrder)
               .build();
 
       if (spec.isUnpartitioned()) {

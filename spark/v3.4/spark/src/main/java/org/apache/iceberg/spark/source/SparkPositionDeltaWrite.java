@@ -120,7 +120,7 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
     this.command = command;
     this.scan = scan;
     this.isolationLevel = isolationLevel;
-    this.context = new Context(dataSchema, writeConf, info);
+    this.context = new Context(dataSchema, writeConf, info, requiredOrdering.length != 0);
     this.applicationId = spark.sparkContext().applicationId();
     this.wapEnabled = writeConf.wapEnabled();
     this.wapId = writeConf.wapId();
@@ -353,6 +353,9 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
               .suffix("deletes")
               .build();
 
+      org.apache.iceberg.SortOrder sortOrder =
+          context.isOrderedWrite ? table.sortOrder() : org.apache.iceberg.SortOrder.unsorted();
+
       SparkFileWriterFactory writerFactory =
           SparkFileWriterFactory.builderFor(table)
               .dataFileFormat(context.dataFileFormat())
@@ -360,6 +363,7 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
               .dataSparkType(context.dataSparkType())
               .deleteFileFormat(context.deleteFileFormat())
               .positionDeleteSparkType(context.deleteSparkType())
+              .dataSortOrder(sortOrder)
               .build();
 
       if (command == DELETE) {
@@ -679,8 +683,13 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
     private final long targetDeleteFileSize;
     private final boolean fanoutWriterEnabled;
     private final String queryId;
+    private final boolean isOrderedWrite;
 
-    Context(Schema dataSchema, SparkWriteConf writeConf, LogicalWriteInfo info) {
+    Context(
+        Schema dataSchema,
+        SparkWriteConf writeConf,
+        LogicalWriteInfo info,
+        boolean isOrderedWrite) {
       this.dataSchema = dataSchema;
       this.dataSparkType = info.schema();
       this.dataFileFormat = writeConf.dataFileFormat();
@@ -691,6 +700,7 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
       this.metadataSparkType = info.metadataSchema().get();
       this.fanoutWriterEnabled = writeConf.fanoutWriterEnabled();
       this.queryId = info.queryId();
+      this.isOrderedWrite = isOrderedWrite;
     }
 
     Schema dataSchema() {
@@ -731,6 +741,10 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
 
     String queryId() {
       return queryId;
+    }
+
+    boolean isOrderedWrite() {
+      return isOrderedWrite;
     }
   }
 }

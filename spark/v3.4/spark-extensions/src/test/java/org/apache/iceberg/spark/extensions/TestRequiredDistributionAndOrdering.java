@@ -22,6 +22,7 @@ import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.AssertHelpers;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.iceberg.spark.source.ThreeColumnRecord;
@@ -29,6 +30,8 @@ import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.junit.After;
+import org.junit.Assert;
+import org.junit.Assume;
 import org.junit.Test;
 
 public class TestRequiredDistributionAndOrdering extends SparkExtensionsTestBase {
@@ -296,5 +299,98 @@ public class TestRequiredDistributionAndOrdering extends SparkExtensionsTestBase
         "Row count must match",
         ImmutableList.of(row(7L)),
         sql("SELECT count(*) FROM %s", tableName));
+  }
+
+  @Test
+  public void testSortOrderIdInV1Manifests() {
+    testSortOrder("1", false);
+  }
+
+  @Test
+  public void testSortOrderIdInV2Manifests() {
+    testSortOrder("2", false);
+  }
+
+  @Test
+  public void testSortOrderIdInV2ManifestsWithMergeOnRead() {
+    // use merge-on-read update/delete/merge
+    testSortOrder("2", true);
+  }
+
+  @Test
+  public void testSortOrderIdInV2ManifestsWithMergeOnReadWithDistribution() {
+    // use merge-on-read update/delete/merge
+    testSortOrder("2", true);
+  }
+
+  private void testSortOrder(String formatVersion, boolean isMergeOnRead) {
+    Assume.assumeTrue(catalogName.equals("spark_catalog"));
+
+    if (isMergeOnRead) {
+      sql(
+          "CREATE TABLE %s (c1 INT, c2 STRING, c3 STRING) USING iceberg TBLPROPERTIES("
+              + "'format-version' = '%s', 'write.delete.mode'='merge-on-read', 'write.merge.mode'='merge-on-read', "
+              + "'write.update.mode'='merge-on-read')",
+          tableName, formatVersion);
+    } else {
+      sql(
+          "CREATE TABLE %s (c1 INT, c2 STRING, c3 STRING) USING iceberg TBLPROPERTIES('format-version' = '%s')",
+          tableName, formatVersion);
+    }
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    Assert.assertEquals("Table should be unsorted", 0, table.sortOrder().orderId());
+
+    sql("ALTER TABLE %s WRITE ORDERED BY c2", tableName);
+    table.refresh();
+    Assert.assertEquals("Table sort order id should be 1", 1, table.sortOrder().orderId());
+
+    // insert
+    sql("INSERT INTO %s VALUES (42, 'aa', 'bb')", tableName);
+    sql("INSERT INTO %s VALUES (43, 'cc', 'dd')", tableName);
+    assertEquals(
+        "Sort order in manifest entry should match the table sort order",
+        ImmutableList.of(row(1), row(1)),
+        sql("SELECT sort_order_id FROM %s.files ", tableName));
+
+    // update
+    sql("UPDATE %s SET c2 = 'xx' WHERE c1 = 43", tableName);
+    ImmutableList<Object[]> expected;
+    if (isMergeOnRead) {
+      expected = ImmutableList.of(row(1), row(1), row(1));
+    } else {
+      expected = ImmutableList.of(row(1), row(1));
+    }
+    assertEquals(
+        "Sort order in manifest entry should match the table sort order",
+        expected,
+        sql("SELECT sort_order_id FROM %s.files WHERE content = 0", tableName));
+
+    // delete
+    sql("DELETE FROM %s WHERE c2 = 'xx'", tableName);
+    spark.sql("SELECT * FROM " + tableName + ".files").show(false);
+    if (isMergeOnRead) {
+      expected = ImmutableList.of(row(1), row(1));
+    } else {
+      expected = ImmutableList.of(row(1));
+    }
+    assertEquals(
+        "Sort order in manifest entry should match the table sort order",
+        expected,
+        sql("SELECT sort_order_id FROM %s.files WHERE content = 0", tableName));
+
+    // merge
+    sql(
+        "MERGE INTO %s t USING (SELECT 44 as c1, 'ee' as c2, 'ff' as c3) s ON t.c1 = s.c1 WHEN NOT MATCHED THEN INSERT *",
+        tableName);
+    if (isMergeOnRead) {
+      expected = ImmutableList.of(row(1), row(1), row(1));
+    } else {
+      expected = ImmutableList.of(row(1), row(1));
+    }
+    assertEquals(
+        "Sort order in manifest entry should match the table sort order",
+        expected,
+        sql("SELECT sort_order_id FROM %s.files WHERE content = 0", tableName));
   }
 }
