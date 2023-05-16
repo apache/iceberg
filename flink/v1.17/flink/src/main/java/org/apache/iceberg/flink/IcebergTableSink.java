@@ -18,8 +18,13 @@
  */
 package org.apache.iceberg.flink;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.apache.flink.configuration.ReadableConfig;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.DataStreamSink;
@@ -34,6 +39,9 @@ import org.apache.flink.table.connector.sink.abilities.SupportsPartitioning;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.types.RowKind;
 import org.apache.flink.util.Preconditions;
+import org.apache.iceberg.PartitionField;
+import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.flink.sink.FlinkSink;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 
@@ -70,8 +78,29 @@ public class IcebergTableSink implements DynamicTableSink, SupportsPartitioning,
         !overwrite || context.isBounded(),
         "Unbounded data stream doesn't support overwrite operation.");
 
-    List<String> equalityColumns =
+    List<String> primaryKeys =
         tableSchema.getPrimaryKey().map(UniqueConstraint::getColumns).orElseGet(ImmutableList::of);
+
+    List<String> partitionFields = ImmutableList.of();
+    if (Boolean.parseBoolean(writeProps.get(TableProperties.UPSERT_ENABLED))) {
+      tableLoader.open();
+      try (TableLoader loader = tableLoader) {
+        Table table = loader.loadTable();
+        if (table.spec().isPartitioned()) {
+          partitionFields =
+              table.spec().fields().stream().map(PartitionField::name).collect(Collectors.toList());
+        }
+      } catch (IOException e) {
+        throw new UncheckedIOException(
+            "Failed to load iceberg table from table loader: " + tableLoader, e);
+      }
+    }
+
+    List<String> equalityColumns =
+        Stream.of(primaryKeys, partitionFields)
+            .flatMap(Collection::stream)
+            .distinct()
+            .collect(Collectors.toList());
 
     return new DataStreamSinkProvider() {
       @Override
