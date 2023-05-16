@@ -167,7 +167,7 @@ public class ContinuousIcebergEnumerator extends AbstractIcebergEnumerator {
     } else {
       consecutiveFailures++;
       if (scanContext.maxAllowedPlanningFailures() < 0
-          || consecutiveFailures < scanContext.maxAllowedPlanningFailures()) {
+          || consecutiveFailures <= scanContext.maxAllowedPlanningFailures()) {
         LOG.error("Failed to discover new splits", error);
       } else {
         throw new RuntimeException("Failed to discover new splits", error);

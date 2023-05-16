@@ -228,7 +228,7 @@ public class TestContinuousIcebergEnumerator {
   }
 
   @Test
-  public void testTransientPlanningFailure() throws Exception {
+  public void testTransientPlanningErrorsWithSuccessfulRetry() throws Exception {
     TestingSplitEnumeratorContext<IcebergSourceSplit> enumeratorContext =
         new TestingSplitEnumeratorContext<>(4);
     ScanContext scanContext =
@@ -247,13 +247,13 @@ public class TestContinuousIcebergEnumerator {
         SplitHelpers.createSplitsFromTransientHadoopTable(TEMPORARY_FOLDER, 1, 1);
     splitPlanner.addSplits(splits);
 
-    // Trigger a planning and check that we did not get splits due to the planning error
+    // Trigger a planning and check that no splits returned due to the planning error
     enumeratorContext.triggerAllActions();
     Assert.assertEquals(0, enumerator.snapshotState(2).pendingSplits().size());
 
-    // Trigger the planning again to recover from the failure, and we get the expected splits
+    // Second scan planning should succeed and discover the expected splits
     enumeratorContext.triggerAllActions();
-    Collection<IcebergSourceSplitState> pendingSplits = enumerator.snapshotState(2).pendingSplits();
+    Collection<IcebergSourceSplitState> pendingSplits = enumerator.snapshotState(3).pendingSplits();
     Assert.assertEquals(1, pendingSplits.size());
     IcebergSourceSplitState pendingSplit = pendingSplits.iterator().next();
     Assert.assertEquals(splits.get(0).splitId(), pendingSplit.split().splitId());
@@ -261,7 +261,7 @@ public class TestContinuousIcebergEnumerator {
   }
 
   @Test
-  public void testOverMaxAllowedPlanningFailures() throws Exception {
+  public void testOverMaxAllowedPlanningErrors() throws Exception {
     TestingSplitEnumeratorContext<IcebergSourceSplit> enumeratorContext =
         new TestingSplitEnumeratorContext<>(4);
     ScanContext scanContext =
@@ -269,9 +269,9 @@ public class TestContinuousIcebergEnumerator {
             .streaming(true)
             .startingStrategy(StreamingStartingStrategy.INCREMENTAL_FROM_EARLIEST_SNAPSHOT)
             .maxPlanningSnapshotCount(1)
-            .maxAllowedPlanningFailures(2)
+            .maxAllowedPlanningFailures(1)
             .build();
-    ManualContinuousSplitPlanner splitPlanner = new ManualContinuousSplitPlanner(scanContext, 3);
+    ManualContinuousSplitPlanner splitPlanner = new ManualContinuousSplitPlanner(scanContext, 2);
     createEnumerator(enumeratorContext, scanContext, splitPlanner);
 
     // Make one split available and trigger the periodic discovery
@@ -296,7 +296,7 @@ public class TestContinuousIcebergEnumerator {
   }
 
   @Test
-  public void testOriginalRetry() throws Exception {
+  public void testPlanningIgnoringErrors() throws Exception {
     int expectedFailures = 3;
     TestingSplitEnumeratorContext<IcebergSourceSplit> enumeratorContext =
         new TestingSplitEnumeratorContext<>(4);
@@ -321,13 +321,13 @@ public class TestContinuousIcebergEnumerator {
     // Can not discover the new split with planning failures
     for (int i = 0; i < expectedFailures; ++i) {
       enumeratorContext.triggerAllActions();
-      pendingSplits = enumerator.snapshotState(2).pendingSplits();
+      pendingSplits = enumerator.snapshotState(i).pendingSplits();
       Assert.assertEquals(0, pendingSplits.size());
     }
 
     // Discovered the new split after a successful scan planning
     enumeratorContext.triggerAllActions();
-    pendingSplits = enumerator.snapshotState(2).pendingSplits();
+    pendingSplits = enumerator.snapshotState(expectedFailures + 1).pendingSplits();
     Assert.assertEquals(1, pendingSplits.size());
     IcebergSourceSplitState pendingSplit = pendingSplits.iterator().next();
     Assert.assertEquals(splits.get(0).splitId(), pendingSplit.split().splitId());
