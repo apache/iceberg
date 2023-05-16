@@ -19,11 +19,14 @@
 package org.apache.iceberg;
 
 import java.util.function.Function;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Configuration properties that are controlled by Java system properties or environmental variable.
  */
 public class SystemConfigs {
+  private static final Logger LOG = LoggerFactory.getLogger(SystemConfigs.class);
 
   private SystemConfigs() {}
 
@@ -102,8 +105,15 @@ public class SystemConfigs {
       if (value != null) {
         try {
           return parseFunc.apply(value);
-        } catch (NumberFormatException e) {
-          // will return the default
+        } catch (Exception e) {
+          // will return the default value
+          LOG.error(
+              "Failed to parse the config value set by system property: {} or env variable: {}. "
+                  + "Use the default value: {}",
+              propertyKey,
+              envKey,
+              defaultValue,
+              e);
         }
       }
 
