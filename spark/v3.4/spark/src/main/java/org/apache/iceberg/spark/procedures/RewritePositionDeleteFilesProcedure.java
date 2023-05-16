@@ -20,7 +20,6 @@ package org.apache.iceberg.spark.procedures;
 
 import java.util.Map;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.actions.RewritePositionDeleteFiles;
 import org.apache.iceberg.actions.RewritePositionDeleteFiles.Result;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.spark.sql.catalyst.InternalRow;
@@ -90,24 +89,17 @@ public class RewritePositionDeleteFilesProcedure extends BaseProcedure {
     return modifyIcebergTable(
         tableIdent,
         table -> {
-          RewritePositionDeleteFiles action =
-              actions().rewritePositionDeletes(table).options(options);
-          Result result = action.execute();
-
-          return toOutputRows(result);
+          Result result = actions().rewritePositionDeletes(table).options(options).execute();
+          return new InternalRow[] {toOutputRow(result)};
         });
   }
 
-  private InternalRow[] toOutputRows(Result result) {
-    int rewrittenDeleteFilesCount = result.rewrittenDeleteFilesCount();
-    long rewrittenBytesCount = result.rewrittenBytesCount();
-    int addedDeleteFilesCount = result.addedDeleteFilesCount();
-    long addedBytesCount = result.addedBytesCount();
-
-    InternalRow row =
-        newInternalRow(
-            rewrittenDeleteFilesCount, addedDeleteFilesCount, rewrittenBytesCount, addedBytesCount);
-    return new InternalRow[] {row};
+  private InternalRow toOutputRow(Result result) {
+    return newInternalRow(
+        result.rewrittenDeleteFilesCount(),
+        result.addedDeleteFilesCount(),
+        result.rewrittenBytesCount(),
+        result.addedBytesCount());
   }
 
   @Override
