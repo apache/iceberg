@@ -97,11 +97,11 @@ case class ExtendedDataSourceV2Strategy(spark: SparkSession) extends Strategy wi
       WriteDeltaExec(planLater(query), refreshCache(r), projs, write) :: Nil
 
     case MergeRows(isSourceRowPresent, isTargetRowPresent, matchedConditions, matchedOutputs, notMatchedConditions,
-        notMatchedOutputs, targetOutput, rowIdAttrs, performCardinalityCheck, emitNotMatchedTargetRows,
+        notMatchedOutputs, targetOutput, performCardinalityCheck, emitNotMatchedTargetRows,
         output, child) =>
 
       MergeRowsExec(isSourceRowPresent, isTargetRowPresent, matchedConditions, matchedOutputs, notMatchedConditions,
-        notMatchedOutputs, targetOutput, rowIdAttrs, performCardinalityCheck, emitNotMatchedTargetRows,
+        notMatchedOutputs, targetOutput, performCardinalityCheck, emitNotMatchedTargetRows,
         output, planLater(child)) :: Nil
 
     case NoStatsUnaryNode(child) =>
