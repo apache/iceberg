@@ -138,19 +138,14 @@ case class MergeRowsExec(
       }
     }
 
-    val rowIdAttrOrdinal = if (performCardinalityCheck) {
-      child.output.indexWhere(attr => conf.resolver(attr.name, ROW_ID))
-    } else {
-      -1
-    }
     val matchedRowIds = new Roaring64Bitmap()
 
-    def processRowWithCardinalityCheck(inputRow: InternalRow): InternalRow = {
+    def processRowWithCardinalityCheck(rowIdOrdinal: Int)(inputRow: InternalRow): InternalRow = {
       val isSourceRowPresent = isSourceRowPresentPred.eval(inputRow)
       val isTargetRowPresent = isTargetRowPresentPred.eval(inputRow)
 
       if (isSourceRowPresent && isTargetRowPresent) {
-        val currentRowId = inputRow.getLong(rowIdAttrOrdinal)
+        val currentRowId = inputRow.getLong(rowIdOrdinal)
         if (matchedRowIds.contains(currentRowId)) {
           throw new SparkException(
             "The ON search condition of the MERGE statement matched a single row from " +
@@ -171,7 +166,9 @@ case class MergeRowsExec(
     }
 
     val processFunc: InternalRow => InternalRow = if (performCardinalityCheck) {
-      processRowWithCardinalityCheck
+      val rowIdOrdinal = child.output.indexWhere(attr => conf.resolver(attr.name, ROW_ID))
+      assert(rowIdOrdinal != -1, "Cannot find row ID attr")
+      processRowWithCardinalityCheck(rowIdOrdinal)
     } else {
       processRow
     }
