@@ -297,17 +297,17 @@ public class TestDataSourceOptions {
     Assert.assertEquals("Records should match", expectedRecords.subList(1, 4), result);
 
     // test (2nd snapshot, 3rd snapshot] incremental scan.
-    List<SimpleRecord> result1 =
+    Dataset<Row> resultDf =
         spark
             .read()
             .format("iceberg")
             .option("start-snapshot-id", snapshotIds.get(2).toString())
             .option("end-snapshot-id", snapshotIds.get(1).toString())
-            .load(tableLocation)
-            .orderBy("id")
-            .as(Encoders.bean(SimpleRecord.class))
-            .collectAsList();
+            .load(tableLocation);
+    List<SimpleRecord> result1 =
+        resultDf.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
     Assert.assertEquals("Records should match", expectedRecords.subList(2, 3), result1);
+    Assert.assertEquals("Unprocessed count should match record count", 1, resultDf.count());
   }
 
   @Test
