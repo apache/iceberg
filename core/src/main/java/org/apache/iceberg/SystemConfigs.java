@@ -108,8 +108,8 @@ public class SystemConfigs {
         } catch (Exception e) {
           // will return the default value
           LOG.error(
-              "Failed to parse the config value set by system property: {} or env variable: {}. "
-                  + "Use the default value: {}",
+              "Failed to parse the config value set by system property: {} or env variable: {}, "
+                  + "using the default value: {}",
               propertyKey,
               envKey,
               defaultValue,
