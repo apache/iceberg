@@ -28,6 +28,7 @@ import org.apache.iceberg.metrics.LoggingMetricsReporter;
 import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.metrics.MetricsReporters;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.util.ThreadPools;
 import org.immutables.value.Value;
@@ -57,6 +58,11 @@ abstract class TableScanContext {
   @Value.Default
   public boolean returnColumnStats() {
     return false;
+  }
+
+  @Value.Default
+  public Collection<Integer> returnColumnStatsToInclude() {
+    return ImmutableList.of();
   }
 
   @Nullable
@@ -122,6 +128,16 @@ abstract class TableScanContext {
     return ImmutableTableScanContext.builder()
         .from(this)
         .returnColumnStats(returnColumnStats)
+        .build();
+  }
+
+  TableScanContext shouldReturnSpecificColumnStats(Collection<Integer> columStatsToInclude) {
+    Preconditions.checkState(
+        returnColumnStats(),
+        "Cannot select column stats to include when column stats are not returned");
+    return ImmutableTableScanContext.builder()
+        .from(this)
+        .returnColumnStatsToInclude(columStatsToInclude)
         .build();
   }
 

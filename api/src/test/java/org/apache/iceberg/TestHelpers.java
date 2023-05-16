@@ -36,6 +36,7 @@ import java.io.Serializable;
 import java.lang.invoke.SerializedLambda;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.IntStream;
@@ -659,6 +660,11 @@ public class TestHelpers {
 
     @Override
     public DataFile copyWithoutStats() {
+      return this;
+    }
+
+    @Override
+    public DataFile copyWithSpecificStats(Collection<Integer> statsToKeep) {
       return this;
     }
 

@@ -21,6 +21,7 @@ package org.apache.iceberg;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
 import java.nio.ByteBuffer;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import org.apache.avro.generic.IndexedRecord;
@@ -558,6 +559,11 @@ class V2Metadata {
     @Override
     public F copy() {
       throw new UnsupportedOperationException("Cannot copy IndexedDataFile wrapper");
+    }
+
+    @Override
+    public F copyWithSpecificStats(Collection<Integer> statsToKeep) {
+      return wrapped.copyWithSpecificStats(statsToKeep);
     }
 
     @Override

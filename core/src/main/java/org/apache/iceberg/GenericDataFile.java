@@ -19,10 +19,12 @@
 package org.apache.iceberg;
 
 import java.nio.ByteBuffer;
+import java.util.Collection;
 import java.util.List;
 import org.apache.avro.Schema;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.types.Types;
 
 class GenericDataFile extends BaseFile<DataFile> implements DataFile {
@@ -67,9 +69,11 @@ class GenericDataFile extends BaseFile<DataFile> implements DataFile {
    *
    * @param toCopy a generic data file to copy.
    * @param fullCopy whether to copy all fields or to drop column-level stats
+   * @param statsToKeep column ids columns where we need to keep the stats
    */
-  private GenericDataFile(GenericDataFile toCopy, boolean fullCopy) {
-    super(toCopy, fullCopy);
+  private GenericDataFile(
+      GenericDataFile toCopy, boolean fullCopy, Collection<Integer> statsToKeep) {
+    super(toCopy, fullCopy, statsToKeep);
   }
 
   /** Constructor for Java serialization. */
@@ -77,12 +81,17 @@ class GenericDataFile extends BaseFile<DataFile> implements DataFile {
 
   @Override
   public DataFile copyWithoutStats() {
-    return new GenericDataFile(this, false /* drop stats */);
+    return new GenericDataFile(this, false /* drop stats */, ImmutableSet.of());
+  }
+
+  @Override
+  public DataFile copyWithSpecificStats(Collection<Integer> statsToKeep) {
+    return new GenericDataFile(this, true, statsToKeep);
   }
 
   @Override
   public DataFile copy() {
-    return new GenericDataFile(this, true /* full copy */);
+    return new GenericDataFile(this, true /* full copy */, ImmutableSet.of());
   }
 
   @Override

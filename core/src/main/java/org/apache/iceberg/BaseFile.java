@@ -21,6 +21,7 @@ package org.apache.iceberg;
 import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
@@ -31,6 +32,7 @@ import org.apache.avro.specific.SpecificData;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ArrayUtil;
@@ -174,8 +176,9 @@ abstract class BaseFile<F>
    *
    * @param toCopy a generic data file to copy.
    * @param fullCopy whether to copy all fields or to drop column-level stats
+   * @param statsToKeep the collection of the column ids for the columns which stats are kept
    */
-  BaseFile(BaseFile<F> toCopy, boolean fullCopy) {
+  BaseFile(BaseFile<F> toCopy, boolean fullCopy, Collection<Integer> statsToKeep) {
     this.fileOrdinal = toCopy.fileOrdinal;
     this.partitionSpecId = toCopy.partitionSpecId;
     this.content = toCopy.content;
@@ -186,12 +189,23 @@ abstract class BaseFile<F>
     this.recordCount = toCopy.recordCount;
     this.fileSizeInBytes = toCopy.fileSizeInBytes;
     if (fullCopy) {
-      this.columnSizes = SerializableMap.copyOf(toCopy.columnSizes);
-      this.valueCounts = SerializableMap.copyOf(toCopy.valueCounts);
-      this.nullValueCounts = SerializableMap.copyOf(toCopy.nullValueCounts);
-      this.nanValueCounts = SerializableMap.copyOf(toCopy.nanValueCounts);
-      this.lowerBounds = SerializableByteBufferMap.wrap(SerializableMap.copyOf(toCopy.lowerBounds));
-      this.upperBounds = SerializableByteBufferMap.wrap(SerializableMap.copyOf(toCopy.upperBounds));
+      if (statsToKeep == null || statsToKeep.isEmpty()) {
+        this.columnSizes = SerializableMap.copyOf(toCopy.columnSizes);
+        this.valueCounts = SerializableMap.copyOf(toCopy.valueCounts);
+        this.nullValueCounts = SerializableMap.copyOf(toCopy.nullValueCounts);
+        this.nanValueCounts = SerializableMap.copyOf(toCopy.nanValueCounts);
+        this.lowerBounds =
+            SerializableByteBufferMap.wrap(SerializableMap.copyOf(toCopy.lowerBounds));
+        this.upperBounds =
+            SerializableByteBufferMap.wrap(SerializableMap.copyOf(toCopy.upperBounds));
+      } else {
+        this.columnSizes = filteredLongMap(toCopy.columnSizes, statsToKeep);
+        this.valueCounts = filteredLongMap(toCopy.valueCounts, statsToKeep);
+        this.nullValueCounts = filteredLongMap(toCopy.nullValueCounts, statsToKeep);
+        this.nanValueCounts = filteredLongMap(toCopy.nanValueCounts, statsToKeep);
+        this.lowerBounds = filteredByteBufferMap(toCopy.lowerBounds, statsToKeep);
+        this.upperBounds = filteredByteBufferMap(toCopy.upperBounds, statsToKeep);
+      }
     } else {
       this.columnSizes = null;
       this.valueCounts = null;
@@ -502,6 +516,40 @@ abstract class BaseFile<F>
     } else {
       return Collections.unmodifiableMap(map);
     }
+  }
+
+  private static Map<Integer, Long> filteredLongMap(
+      Map<Integer, Long> map, Collection<Integer> columnIds) {
+    if (map == null) {
+      return null;
+    }
+
+    Map<Integer, Long> filtered = Maps.newHashMapWithExpectedSize(columnIds.size());
+    for (Integer columnId : columnIds) {
+      Long value = map.get(columnId);
+      if (value != null) {
+        filtered.put(columnId, value);
+      }
+    }
+
+    return SerializableMap.copyOf(filtered);
+  }
+
+  private static Map<Integer, ByteBuffer> filteredByteBufferMap(
+      Map<Integer, ByteBuffer> map, Collection<Integer> columnIds) {
+    if (map == null) {
+      return null;
+    }
+
+    Map<Integer, ByteBuffer> filtered = Maps.newHashMapWithExpectedSize(columnIds.size());
+    for (Integer columnId : columnIds) {
+      ByteBuffer value = map.get(columnId);
+      if (value != null) {
+        filtered.put(columnId, value);
+      }
+    }
+
+    return SerializableMap.copyOf(filtered);
   }
 
   @Override

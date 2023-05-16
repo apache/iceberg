@@ -121,6 +121,10 @@ abstract class BaseScan<ThisT, T extends ScanTask, G extends ScanTaskGroup<T>>
     return context().returnColumnStats();
   }
 
+  protected Collection<Integer> columnStatsToInclude() {
+    return context().returnColumnStatsToInclude();
+  }
+
   protected boolean shouldIgnoreResiduals() {
     return context().ignoreResiduals();
   }
@@ -163,6 +167,14 @@ abstract class BaseScan<ThisT, T extends ScanTask, G extends ScanTaskGroup<T>>
   @Override
   public ThisT includeColumnStats() {
     return newRefinedScan(table, schema, context.shouldReturnColumnStats(true));
+  }
+
+  @Override
+  public ThisT includeColumnStats(Collection<Integer> statsNeeded) {
+    return newRefinedScan(
+        table,
+        schema,
+        context.shouldReturnColumnStats(true).shouldReturnSpecificColumnStats(statsNeeded));
   }
 
   @Override

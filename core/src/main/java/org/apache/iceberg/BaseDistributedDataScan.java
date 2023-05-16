@@ -368,7 +368,9 @@ abstract class BaseDistributedDataScan
           ScanMetricsUtil.fileTask(scanMetrics(), dataFile, deleteFiles);
 
           return new BaseFileScanTask(
-              copyDataFiles ? dataFile.copy(shouldReturnColumnStats()) : dataFile,
+              copyDataFiles
+                  ? dataFile.copy(shouldReturnColumnStats(), columnStatsToInclude())
+                  : dataFile,
               deleteFiles,
               schemaString,
               specString,

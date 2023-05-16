@@ -19,7 +19,10 @@
 package org.apache.iceberg.flink;
 
 import java.time.Duration;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Map;
+import java.util.stream.Collectors;
 import org.apache.flink.configuration.ReadableConfig;
 import org.apache.flink.util.TimeUtils;
 import org.apache.iceberg.Table;
@@ -152,6 +155,16 @@ public class FlinkReadConf {
         .parse();
   }
 
+  public Collection<Integer> columnStatsToKeep() {
+    return split(
+        confParser
+            .stringConf()
+            .option(FlinkReadOptions.COLUMN_STATS_TO_KEEP)
+            .flinkConfig(FlinkReadOptions.COLUMN_STATS_TO_KEEP_OPTION)
+            .defaultValue(FlinkReadOptions.COLUMN_STATS_TO_KEEP_OPTION.defaultValue())
+            .parse());
+  }
+
   public int maxPlanningSnapshotCount() {
     return confParser
         .intConf()
@@ -189,5 +202,12 @@ public class FlinkReadConf {
         .flinkConfig(FlinkReadOptions.MAX_ALLOWED_PLANNING_FAILURES_OPTION)
         .defaultValue(FlinkReadOptions.MAX_ALLOWED_PLANNING_FAILURES_OPTION.defaultValue())
         .parse();
+  }
+
+  public static Collection<Integer> split(String text) {
+    return Arrays.stream(text.split("\\s*,\\s*"))
+        .filter(s -> !s.isEmpty())
+        .map(Integer::parseInt)
+        .collect(Collectors.toSet());
   }
 }

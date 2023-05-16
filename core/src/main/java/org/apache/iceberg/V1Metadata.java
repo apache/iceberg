@@ -21,6 +21,7 @@ package org.apache.iceberg;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
 import java.nio.ByteBuffer;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import org.apache.avro.generic.IndexedRecord;
@@ -483,6 +484,11 @@ class V1Metadata {
     @Override
     public DataFile copy() {
       return wrapped.copy();
+    }
+
+    @Override
+    public DataFile copyWithSpecificStats(Collection<Integer> statsToKeep) {
+      return wrapped.copyWithSpecificStats(statsToKeep);
     }
 
     @Override
