@@ -62,7 +62,17 @@ public class UUIDUtil {
   }
 
   public static ByteBuffer convertToByteBuffer(UUID value) {
-    ByteBuffer buffer = ByteBuffer.allocate(16);
+    return convertToByteBuffer(value, null);
+  }
+
+  public static ByteBuffer convertToByteBuffer(UUID value, ByteBuffer reuse) {
+    ByteBuffer buffer;
+    if (reuse != null) {
+      buffer = reuse;
+    } else {
+      buffer = ByteBuffer.allocate(16);
+    }
+
     buffer.order(ByteOrder.BIG_ENDIAN);
     buffer.putLong(0, value.getMostSignificantBits());
     buffer.putLong(8, value.getLeastSignificantBits());

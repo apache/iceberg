@@ -25,10 +25,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.types.Types;
@@ -151,16 +154,15 @@ public class TestMetadataTableScansWithPartitionEvolution extends MetadataTableS
 
     TableScan scanNoFilter = partitionsTable.newScan().select("partition");
     Assert.assertEquals(idPartition, scanNoFilter.schema().asStruct());
-    try (CloseableIterable<FileScanTask> tasksNoFilter =
-        PartitionsTable.planFiles((StaticTableScan) scanNoFilter)) {
-      Assertions.assertThat(tasksNoFilter).hasSize(4);
-      validateIncludesPartitionScan(tasksNoFilter, 0);
-      validateIncludesPartitionScan(tasksNoFilter, 1);
-      validateIncludesPartitionScan(tasksNoFilter, 2);
-      validateIncludesPartitionScan(tasksNoFilter, 3);
-      validateIncludesPartitionScan(tasksNoFilter, 1, 2);
-      validateIncludesPartitionScan(tasksNoFilter, 1, 3);
-    }
+    CloseableIterable<ContentFile<?>> files =
+        PartitionsTable.planFiles((StaticTableScan) scanNoFilter);
+    Assert.assertEquals(4, Iterators.size(files.iterator()));
+    validatePartition(files, 0, 0);
+    validatePartition(files, 0, 1);
+    validatePartition(files, 0, 2);
+    validatePartition(files, 0, 3);
+    validatePartition(files, 1, 2);
+    validatePartition(files, 1, 3);
   }
 
   @Test
@@ -220,6 +222,38 @@ public class TestMetadataTableScansWithPartitionEvolution extends MetadataTableS
         "Expected correct delete file on constant column",
         deleteFile.path(),
         constantsMap(posDeleteTask, partitionType).get(MetadataColumns.FILE_PATH.fieldId()));
+  }
+
+  @Test
+  public void testPartitionSpecEvolutionToUnpartitioned() throws IOException {
+    // Remove all the partition fields
+    table.updateSpec().removeField("id").removeField("nested.id").commit();
+
+    DataFile dataFile =
+        DataFiles.builder(table.spec())
+            .withPath("/path/to/data-10.parquet")
+            .withRecordCount(10)
+            .withFileSizeInBytes(10)
+            .build();
+    table.newFastAppend().appendFile(dataFile).commit();
+
+    PartitionsTable partitionsTable = new PartitionsTable(table);
+    // must contain the partition column even when the current spec is non-partitioned.
+    Assertions.assertThat(partitionsTable.schema().findField("partition")).isNotNull();
+
+    try (CloseableIterable<ContentFile<?>> files =
+        PartitionsTable.planFiles((StaticTableScan) partitionsTable.newScan())) {
+      // four partitioned data files and one non-partitioned data file.
+      Assertions.assertThat(files).hasSize(5);
+
+      // check for null partition value.
+      Assertions.assertThat(StreamSupport.stream(files.spliterator(), false))
+          .anyMatch(
+              file -> {
+                StructLike partition = file.partition();
+                return Objects.equals(null, partition.get(0, Object.class));
+              });
+    }
   }
 
   private Stream<StructLike> allRows(Iterable<FileScanTask> tasks) {

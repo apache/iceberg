@@ -137,7 +137,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   }
 
   /**
-   * * A setter for the target branch on which snapshot producer operation should be performed
+   * A setter for the target branch on which snapshot producer operation should be performed
    *
    * @param branch to set as target branch
    */
@@ -146,7 +146,8 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
     boolean refExists = base.ref(branch) != null;
     Preconditions.checkArgument(
         !refExists || base.ref(branch).isBranch(),
-        "%s is a tag, not a branch. Tags cannot be targets for producing snapshots");
+        "%s is a tag, not a branch. Tags cannot be targets for producing snapshots",
+        branch);
     this.targetBranch = branch;
   }
 

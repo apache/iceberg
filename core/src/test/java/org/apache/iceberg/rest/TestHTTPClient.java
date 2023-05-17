@@ -39,11 +39,11 @@ import org.apache.hc.core5.http.EntityDetails;
 import org.apache.hc.core5.http.HttpException;
 import org.apache.hc.core5.http.HttpRequestInterceptor;
 import org.apache.hc.core5.http.protocol.HttpContext;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.IcebergBuild;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.apache.iceberg.rest.responses.ErrorResponseParser;
+import org.assertj.core.api.Assertions;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -171,12 +171,11 @@ public class TestHTTPClient {
 
     String path = addRequestTestCaseAndGetPath(method, body, statusCode);
 
-    AssertHelpers.assertThrows(
-        "A response indicating a failed request should throw",
-        RuntimeException.class,
-        String.format(
-            "Called error handler for method %s due to status code: %d", method, statusCode),
-        () -> doExecuteRequest(method, path, body, onError, h -> {}));
+    Assertions.assertThatThrownBy(() -> doExecuteRequest(method, path, body, onError, h -> {}))
+        .isInstanceOf(RuntimeException.class)
+        .hasMessage(
+            String.format(
+                "Called error handler for method %s due to status code: %d", method, statusCode));
 
     verify(onError).accept(any());
   }

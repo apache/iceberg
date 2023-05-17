@@ -35,6 +35,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Function;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.data.AvroDataTest;
 import org.apache.iceberg.spark.data.RandomData;
 import org.apache.iceberg.spark.data.TestHelpers;
@@ -59,26 +60,14 @@ public class TestParquetVectorizedReads extends AvroDataTest {
 
   @Override
   protected void writeAndValidate(Schema schema) throws IOException {
-    writeAndValidate(schema, getNumRows(), 0L, RandomData.DEFAULT_NULL_PERCENTAGE, false, true);
+    writeAndValidate(schema, getNumRows(), 0L, RandomData.DEFAULT_NULL_PERCENTAGE, true);
   }
 
   private void writeAndValidate(
-      Schema schema,
-      int numRecords,
-      long seed,
-      float nullPercentage,
-      boolean setAndCheckArrowValidityVector,
-      boolean reuseContainers)
+      Schema schema, int numRecords, long seed, float nullPercentage, boolean reuseContainers)
       throws IOException {
     writeAndValidate(
-        schema,
-        numRecords,
-        seed,
-        nullPercentage,
-        setAndCheckArrowValidityVector,
-        reuseContainers,
-        BATCH_SIZE,
-        IDENTITY);
+        schema, numRecords, seed, nullPercentage, reuseContainers, BATCH_SIZE, IDENTITY);
   }
 
   private void writeAndValidate(
@@ -86,7 +75,6 @@ public class TestParquetVectorizedReads extends AvroDataTest {
       int numRecords,
       long seed,
       float nullPercentage,
-      boolean setAndCheckArrowValidityVector,
       boolean reuseContainers,
       int batchSize,
       Function<GenericData.Record, GenericData.Record> transform)
@@ -109,14 +97,7 @@ public class TestParquetVectorizedReads extends AvroDataTest {
     try (FileAppender<GenericData.Record> writer = getParquetWriter(schema, testFile)) {
       writer.addAll(expected);
     }
-    assertRecordsMatch(
-        schema,
-        numRecords,
-        expected,
-        testFile,
-        setAndCheckArrowValidityVector,
-        reuseContainers,
-        batchSize);
+    assertRecordsMatch(schema, numRecords, expected, testFile, reuseContainers, batchSize);
   }
 
   protected int getNumRows() {
@@ -153,7 +134,6 @@ public class TestParquetVectorizedReads extends AvroDataTest {
       int expectedSize,
       Iterable<GenericData.Record> expected,
       File testFile,
-      boolean setAndCheckArrowValidityBuffer,
       boolean reuseContainers,
       int batchSize)
       throws IOException {
@@ -164,7 +144,7 @@ public class TestParquetVectorizedReads extends AvroDataTest {
             .createBatchedReaderFunc(
                 type ->
                     VectorizedSparkParquetReaders.buildReader(
-                        schema, type, setAndCheckArrowValidityBuffer));
+                        schema, type, Maps.newHashMap(), null));
     if (reuseContainers) {
       readBuilder.reuseContainers();
     }
@@ -175,8 +155,7 @@ public class TestParquetVectorizedReads extends AvroDataTest {
       while (batches.hasNext()) {
         ColumnarBatch batch = batches.next();
         numRowsRead += batch.numRows();
-        TestHelpers.assertEqualsBatch(
-            schema.asStruct(), expectedIter, batch, setAndCheckArrowValidityBuffer);
+        TestHelpers.assertEqualsBatch(schema.asStruct(), expectedIter, batch);
       }
       Assert.assertEquals(expectedSize, numRowsRead);
     }
@@ -230,7 +209,8 @@ public class TestParquetVectorizedReads extends AvroDataTest {
                     new Schema(required(1, "struct", SUPPORTED_PRIMITIVES))),
                 new MessageType(
                     "struct", new GroupType(Type.Repetition.OPTIONAL, "struct").withId(1)),
-                false));
+                Maps.newHashMap(),
+                null));
   }
 
   @Test
@@ -240,7 +220,6 @@ public class TestParquetVectorizedReads extends AvroDataTest {
         getNumRows(),
         0L,
         0.99f,
-        false,
         true);
   }
 
@@ -251,7 +230,6 @@ public class TestParquetVectorizedReads extends AvroDataTest {
         getNumRows(),
         0L,
         RandomData.DEFAULT_NULL_PERCENTAGE,
-        true,
         true);
   }
 
@@ -262,7 +240,6 @@ public class TestParquetVectorizedReads extends AvroDataTest {
         getNumRows(),
         0L,
         RandomData.DEFAULT_NULL_PERCENTAGE,
-        true,
         false);
   }
 
@@ -277,7 +254,6 @@ public class TestParquetVectorizedReads extends AvroDataTest {
         10,
         0L,
         RandomData.DEFAULT_NULL_PERCENTAGE,
-        true,
         true,
         2,
         record -> {
@@ -314,7 +290,7 @@ public class TestParquetVectorizedReads extends AvroDataTest {
             optional(102, "float_data", Types.DoubleType.get()),
             optional(103, "decimal_data", Types.DecimalType.of(25, 5)));
 
-    assertRecordsMatch(readSchema, 30000, data, dataFile, false, true, BATCH_SIZE);
+    assertRecordsMatch(readSchema, 30000, data, dataFile, true, BATCH_SIZE);
   }
 
   @Test
@@ -335,7 +311,7 @@ public class TestParquetVectorizedReads extends AvroDataTest {
     try (FileAppender<GenericData.Record> writer = getParquetV2Writer(schema, dataFile)) {
       writer.addAll(data);
     }
-    assertRecordsMatch(schema, 30000, data, dataFile, false, true, BATCH_SIZE);
+    assertRecordsMatch(schema, 30000, data, dataFile, true, BATCH_SIZE);
   }
 
   @Test
@@ -355,7 +331,7 @@ public class TestParquetVectorizedReads extends AvroDataTest {
         UnsupportedOperationException.class,
         "Cannot support vectorized reads for column",
         () -> {
-          assertRecordsMatch(schema, 30000, data, dataFile, false, true, BATCH_SIZE);
+          assertRecordsMatch(schema, 30000, data, dataFile, true, BATCH_SIZE);
           return null;
         });
   }

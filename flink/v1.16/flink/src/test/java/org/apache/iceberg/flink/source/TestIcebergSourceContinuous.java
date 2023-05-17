@@ -47,6 +47,7 @@ import org.apache.iceberg.flink.TestHelpers;
 import org.apache.iceberg.flink.data.RowDataToRowMapper;
 import org.apache.iceberg.flink.source.assigner.SimpleSplitAssignerFactory;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.junit.Assert;
 import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
@@ -98,6 +99,56 @@ public class TestIcebergSourceContinuous {
 
       List<Row> result2 = waitForResult(iter, 2);
       TestHelpers.assertRecords(result2, batch2, tableResource.table().schema());
+
+      // snapshot3
+      List<Record> batch3 =
+          RandomGenericData.generate(
+              tableResource.table().schema(), 2, randomSeed.incrementAndGet());
+      dataAppender.appendToTable(batch3);
+      tableResource.table().currentSnapshot().snapshotId();
+
+      List<Row> result3 = waitForResult(iter, 2);
+      TestHelpers.assertRecords(result3, batch3, tableResource.table().schema());
+    }
+  }
+
+  @Test
+  public void testTableScanThenIncrementalAfterExpiration() throws Exception {
+    GenericAppenderHelper dataAppender =
+        new GenericAppenderHelper(tableResource.table(), FileFormat.PARQUET, TEMPORARY_FOLDER);
+
+    // snapshot1
+    List<Record> batch1 =
+        RandomGenericData.generate(tableResource.table().schema(), 2, randomSeed.incrementAndGet());
+    dataAppender.appendToTable(batch1);
+    long snapshotId = tableResource.table().currentSnapshot().snapshotId();
+
+    // snapshot2
+    List<Record> batch2 =
+        RandomGenericData.generate(tableResource.table().schema(), 2, randomSeed.incrementAndGet());
+    dataAppender.appendToTable(batch2);
+
+    tableResource.table().expireSnapshots().expireSnapshotId(snapshotId).commit();
+
+    Assert.assertEquals(1, tableResource.table().history().size());
+
+    ScanContext scanContext =
+        ScanContext.builder()
+            .streaming(true)
+            .monitorInterval(Duration.ofMillis(10L))
+            .startingStrategy(StreamingStartingStrategy.TABLE_SCAN_THEN_INCREMENTAL)
+            .build();
+
+    Assert.assertEquals(
+        FlinkSplitPlanner.ScanMode.BATCH, FlinkSplitPlanner.checkScanMode(scanContext));
+
+    try (CloseableIterator<Row> iter =
+        createStream(scanContext).executeAndCollect(getClass().getSimpleName())) {
+      List<Row> result1 = waitForResult(iter, 4);
+      List<Record> initialRecords = Lists.newArrayList();
+      initialRecords.addAll(batch1);
+      initialRecords.addAll(batch2);
+      TestHelpers.assertRecords(result1, initialRecords, tableResource.table().schema());
 
       // snapshot3
       List<Record> batch3 =

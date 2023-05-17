@@ -23,6 +23,7 @@ import static org.junit.Assert.assertEquals;
 import java.util.List;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.types.TypeUtil;
 import org.junit.Assert;
 import org.junit.Assume;
 import org.junit.Test;
@@ -46,7 +47,9 @@ public class TestEntriesMetadataTable extends TableTestBase {
 
     Table entriesTable = new ManifestEntriesTable(table);
 
-    Schema expectedSchema = ManifestEntry.getSchema(table.spec().partitionType());
+    Schema readSchema = ManifestEntry.getSchema(table.spec().partitionType());
+    Schema expectedSchema =
+        TypeUtil.join(readSchema, MetricsUtil.readableMetricsSchema(table.schema(), readSchema));
 
     assertEquals(
         "A tableScan.select() should prune the schema",
@@ -61,7 +64,9 @@ public class TestEntriesMetadataTable extends TableTestBase {
     Table entriesTable = new ManifestEntriesTable(table);
     TableScan scan = entriesTable.newScan();
 
-    Schema expectedSchema = ManifestEntry.getSchema(table.spec().partitionType());
+    Schema readSchema = ManifestEntry.getSchema(table.spec().partitionType());
+    Schema expectedSchema =
+        TypeUtil.join(readSchema, MetricsUtil.readableMetricsSchema(table.schema(), readSchema));
 
     assertEquals(
         "A tableScan.select() should prune the schema",
@@ -128,7 +133,7 @@ public class TestEntriesMetadataTable extends TableTestBase {
   }
 
   @Test
-  public void testEntriesTableWithDeleteManifests() throws Exception {
+  public void testEntriesTableWithDeleteManifests() {
     Assume.assumeTrue("Only V2 Tables Support Deletes", formatVersion >= 2);
     table.newAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
@@ -137,7 +142,9 @@ public class TestEntriesMetadataTable extends TableTestBase {
     Table entriesTable = new ManifestEntriesTable(table);
     TableScan scan = entriesTable.newScan();
 
-    Schema expectedSchema = ManifestEntry.getSchema(table.spec().partitionType());
+    Schema readSchema = ManifestEntry.getSchema(table.spec().partitionType());
+    Schema expectedSchema =
+        TypeUtil.join(readSchema, MetricsUtil.readableMetricsSchema(table.schema(), readSchema));
 
     assertEquals(
         "A tableScan.select() should prune the schema",

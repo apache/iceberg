@@ -127,7 +127,7 @@ public class InMemoryCatalog extends BaseMetastoreCatalog implements SupportsNam
   public List<TableIdentifier> listTables(Namespace namespace) {
     if (!namespaceExists(namespace) && !namespace.isEmpty()) {
       throw new NoSuchNamespaceException(
-          "Cannot list tables for namespace: Namespace %s does not exist", namespace);
+          "Cannot list tables for namespace. Namespace does not exist: %s", namespace);
     }
 
     return tables.keySet().stream()
@@ -144,24 +144,24 @@ public class InMemoryCatalog extends BaseMetastoreCatalog implements SupportsNam
 
     if (!namespaceExists(toTableIdentifier.namespace())) {
       throw new NoSuchNamespaceException(
-          "Cannot rename %s to %s: Namespace %s does not exist",
+          "Cannot rename %s to %s. Namespace does not exist: %s",
           fromTableIdentifier, toTableIdentifier, toTableIdentifier.namespace());
     }
 
     if (!tables.containsKey(fromTableIdentifier)) {
       throw new NoSuchTableException(
-          "Cannot rename %s to %s: Table does not exist", fromTableIdentifier, toTableIdentifier);
+          "Cannot rename %s to %s. Table does not exist", fromTableIdentifier, toTableIdentifier);
     }
 
     if (tables.containsKey(toTableIdentifier)) {
       throw new AlreadyExistsException(
-          "Cannot rename %s to %s: Table already exists", fromTableIdentifier, toTableIdentifier);
+          "Cannot rename %s to %s. Table already exists", fromTableIdentifier, toTableIdentifier);
     }
 
     String fromLocation = tables.remove(fromTableIdentifier);
     Preconditions.checkState(
         null != fromLocation,
-        "Cannot rename from %s to %s: Source table does not exist",
+        "Cannot rename from %s to %s. Source table does not exist",
         fromTableIdentifier,
         toTableIdentifier);
 
@@ -177,7 +177,7 @@ public class InMemoryCatalog extends BaseMetastoreCatalog implements SupportsNam
   public void createNamespace(Namespace namespace, Map<String, String> metadata) {
     if (namespaceExists(namespace)) {
       throw new AlreadyExistsException(
-          "Cannot create namespace %s: Namespace already exists", namespace);
+          "Cannot create namespace %s. Namespace already exists", namespace);
     }
 
     namespaces.put(namespace, ImmutableMap.copyOf(metadata));
@@ -312,6 +312,12 @@ public class InMemoryCatalog extends BaseMetastoreCatalog implements SupportsNam
     public void doCommit(TableMetadata base, TableMetadata metadata) {
       String newLocation = writeNewMetadata(metadata, currentVersion() + 1);
       String oldLocation = base == null ? null : base.metadataFileLocation();
+
+      if (null == base && !namespaceExists(tableIdentifier.namespace())) {
+        throw new NoSuchNamespaceException(
+            "Cannot create table %s. Namespace does not exist: %s",
+            tableIdentifier, tableIdentifier.namespace());
+      }
 
       tables.compute(
           tableIdentifier,

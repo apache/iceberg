@@ -18,7 +18,7 @@ import logging
 import os
 from typing import List, Optional
 
-import yaml
+import strictyaml
 
 from pyiceberg.typedef import FrozenDict, RecursiveDict
 
@@ -77,9 +77,10 @@ class Config:
                 path = os.path.join(directory, PYICEBERG_YML)
                 if os.path.isfile(path):
                     with open(path, encoding="utf-8") as f:
-                        file_config = yaml.safe_load(f)
-                        file_config_lowercase = _lowercase_dictionary_keys(file_config)
-                        return file_config_lowercase
+                        yml_str = f.read()
+                    file_config = strictyaml.load(yml_str).data
+                    file_config_lowercase = _lowercase_dictionary_keys(file_config)
+                    return file_config_lowercase
             return None
 
         # Give priority to the PYICEBERG_HOME directory

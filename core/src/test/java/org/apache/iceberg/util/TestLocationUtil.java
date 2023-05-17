@@ -18,7 +18,7 @@
  */
 package org.apache.iceberg.util;
 
-import org.apache.iceberg.AssertHelpers;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -54,11 +54,9 @@ public class TestLocationUtil {
     String[] invalidPaths = new String[] {null, ""};
 
     for (String invalidPath : invalidPaths) {
-      AssertHelpers.assertThrows(
-          "path must be valid",
-          IllegalArgumentException.class,
-          "path must not be null or empty",
-          () -> LocationUtil.stripTrailingSlash(invalidPath));
+      Assertions.assertThatThrownBy(() -> LocationUtil.stripTrailingSlash(invalidPath))
+          .isInstanceOf(IllegalArgumentException.class)
+          .hasMessage("path must not be null or empty");
     }
   }
 }

@@ -6,6 +6,7 @@ aliases:
 menu:
     main:
         parent: Flink
+        identifier: flink_getting_started
         weight: 100
 ---
 <!--
@@ -269,6 +270,16 @@ FlinkSink.forRowData(input)
     .append();
 
 env.execute("Test Iceberg DataStream");
+```
+
+### Branch Writes
+Writing to branches in Iceberg tables is also supported via the `toBranch` API in `FlinkSink`
+For more information on branches please refer to [branches](../../tables/branching).
+```java
+FlinkSink.forRowData(input)
+    .tableLoader(tableLoader)
+    .toBranch("audit-branch")
+    .append();
 ```
 
 ## Reading

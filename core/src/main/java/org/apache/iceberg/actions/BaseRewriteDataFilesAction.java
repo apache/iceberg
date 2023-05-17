@@ -44,7 +44,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.ListMultimap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Multimaps;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.StructLikeWrapper;
@@ -67,12 +66,14 @@ public abstract class BaseRewriteDataFilesAction<ThisT>
   private long targetSizeInBytes;
   private int splitLookback;
   private long splitOpenFileCost;
+  private boolean useStartingSequenceNumber;
 
   protected BaseRewriteDataFilesAction(Table table) {
     this.table = table;
     this.spec = table.spec();
     this.filter = Expressions.alwaysTrue();
     this.caseSensitive = false;
+    this.useStartingSequenceNumber = false;
 
     long splitSize =
         PropertyUtil.propertyAsLong(
@@ -198,6 +199,21 @@ public abstract class BaseRewriteDataFilesAction<ThisT>
     return this;
   }
 
+  /**
+   * If the compaction should use the sequence number of the snapshot at compaction start time for
+   * new data files, instead of using the sequence number of the newly produced snapshot.
+   *
+   * <p>This avoids commit conflicts with updates that add newer equality deletes at a higher
+   * sequence number.
+   *
+   * @param useStarting use starting sequence number if set to true
+   * @return this for method chaining
+   */
+  public BaseRewriteDataFilesAction<ThisT> useStartingSequenceNumber(boolean useStarting) {
+    this.useStartingSequenceNumber = useStarting;
+    return this;
+  }
+
   @Override
   public RewriteDataFilesActionResult execute() {
     CloseableIterable<FileScanTask> fileScanTasks = null;
@@ -307,11 +323,21 @@ public abstract class BaseRewriteDataFilesAction<ThisT>
       Iterable<DataFile> deletedDataFiles,
       Iterable<DataFile> addedDataFiles,
       long startingSnapshotId) {
-    RewriteFiles rewriteFiles =
-        table
-            .newRewrite()
-            .validateFromSnapshot(startingSnapshotId)
-            .rewriteFiles(Sets.newHashSet(deletedDataFiles), Sets.newHashSet(addedDataFiles));
+    RewriteFiles rewriteFiles = table.newRewrite().validateFromSnapshot(startingSnapshotId);
+
+    for (DataFile dataFile : deletedDataFiles) {
+      rewriteFiles.deleteFile(dataFile);
+    }
+
+    for (DataFile dataFile : addedDataFiles) {
+      rewriteFiles.addFile(dataFile);
+    }
+
+    if (useStartingSequenceNumber) {
+      long sequenceNumber = table.snapshot(startingSnapshotId).sequenceNumber();
+      rewriteFiles.dataSequenceNumber(sequenceNumber);
+    }
+
     commit(rewriteFiles);
   }
 

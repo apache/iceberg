@@ -27,6 +27,7 @@ import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Random;
 import java.util.UUID;
+import java.util.Vector;
 import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
@@ -48,7 +49,7 @@ public class HadoopFileIOTest {
   private FileSystem fs;
   private HadoopFileIO hadoopFileIO;
 
-  @TempDir static File tempDir;
+  @TempDir private File tempDir;
 
   @BeforeEach
   public void before() throws Exception {
@@ -165,7 +166,7 @@ public class HadoopFileIOTest {
   }
 
   private List<Path> createRandomFiles(Path parent, int count) {
-    List<Path> paths = Lists.newArrayList();
+    Vector<Path> paths = new Vector<>();
     random
         .ints(count)
         .parallel()

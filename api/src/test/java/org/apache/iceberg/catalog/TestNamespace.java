@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.catalog;
 
-import org.apache.iceberg.AssertHelpers;
 import org.assertj.core.api.Assertions;
 import org.junit.Test;
 
@@ -47,25 +46,19 @@ public class TestNamespace {
 
   @Test
   public void testWithNullInLevel() {
-    AssertHelpers.assertThrows(
-        "An individual level of a namespace cannot be null",
-        NullPointerException.class,
-        "Cannot create a namespace with a null level",
-        () -> Namespace.of("a", null, "b"));
+    Assertions.assertThatThrownBy(() -> Namespace.of("a", null, "b"))
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("Cannot create a namespace with a null level");
   }
 
   @Test
   public void testDisallowsNamespaceWithNullByte() {
-    AssertHelpers.assertThrows(
-        "An individual level of a namespace cannot contain the standard null-byte character",
-        IllegalArgumentException.class,
-        "Cannot create a namespace with the null-byte character",
-        () -> Namespace.of("ac", "\u0000c", "b"));
+    Assertions.assertThatThrownBy(() -> Namespace.of("ac", "\u0000c", "b"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot create a namespace with the null-byte character");
 
-    AssertHelpers.assertThrows(
-        "An individual level of a namespace cannot contain the original ASCII null-byte character",
-        IllegalArgumentException.class,
-        "Cannot create a namespace with the null-byte character",
-        () -> Namespace.of("ac", "c\0", "b"));
+    Assertions.assertThatThrownBy(() -> Namespace.of("ac", "c\0", "b"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot create a namespace with the null-byte character");
   }
 }

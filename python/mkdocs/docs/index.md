@@ -1,3 +1,8 @@
+---
+hide:
+  - navigation
+---
+
 <!--
  - Licensed to the Apache Software Foundation (ASF) under one or more
  - contributor license agreements.  See the NOTICE file distributed with
@@ -44,7 +49,7 @@ pip3 install -e ".[s3fs,hive]"
 You can mix and match optional dependencies depending on your needs:
 
 | Key      | Description:                                                         |
-|----------|----------------------------------------------------------------------|
+| -------- | -------------------------------------------------------------------- |
 | hive     | Support for the Hive metastore                                       |
 | glue     | Support for AWS Glue                                                 |
 | dynamodb | Support for AWS DynamoDB                                             |

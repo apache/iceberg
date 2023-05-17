@@ -61,6 +61,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.SerializableSupplier;
 import org.assertj.core.api.Assertions;
+import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.ClassRule;
@@ -105,6 +106,13 @@ public class TestS3FileIO {
       createBucket(batchDeletionBucketPrefix + i);
     }
     StaticClientFactory.client = s3mock;
+  }
+
+  @After
+  public void after() {
+    if (null != s3FileIO) {
+      s3FileIO.close();
+    }
   }
 
   @Test

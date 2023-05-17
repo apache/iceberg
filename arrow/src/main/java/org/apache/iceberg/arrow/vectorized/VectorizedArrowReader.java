@@ -113,6 +113,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
     FLOAT,
     DOUBLE,
     TIMESTAMP_MILLIS,
+    TIMESTAMP_INT96,
     TIME_MICROS,
     UUID,
     DICTIONARY
@@ -175,6 +176,11 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
                 .timestampMillisBatchReader()
                 .nextBatch(vec, typeWidth, nullabilityHolder);
             break;
+          case TIMESTAMP_INT96:
+            vectorizedColumnIterator
+                .timestampInt96BatchReader()
+                .nextBatch(vec, typeWidth, nullabilityHolder);
+            break;
           case UUID:
           case FIXED_WIDTH_BINARY:
           case FIXED_LENGTH_DECIMAL:
@@ -191,7 +197,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
         vec.getValueCount(),
         numValsToRead);
     return new VectorHolder(
-        columnDescriptor, vec, dictEncoded, dictionary, nullabilityHolder, icebergField.type());
+        columnDescriptor, vec, dictEncoded, dictionary, nullabilityHolder, icebergField);
   }
 
   private void allocateFieldVector(boolean dictionaryEncodedVector) {
@@ -366,6 +372,17 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
         this.readType = ReadType.INT;
         this.typeWidth = (int) IntVector.TYPE_WIDTH;
         break;
+      case INT96:
+        // Impala & Spark used to write timestamps as INT96 by default. For backwards
+        // compatibility we try to read INT96 as timestamps. But INT96 is not recommended
+        // and deprecated (see https://issues.apache.org/jira/browse/PARQUET-323)
+        int length = BigIntVector.TYPE_WIDTH;
+        this.readType = ReadType.TIMESTAMP_INT96;
+        this.vec = arrowField.createVector(rootAlloc);
+        vec.setInitialCapacity(batchSize * length);
+        vec.allocateNew();
+        this.typeWidth = length;
+        break;
       case FLOAT:
         Field floatField =
             new Field(
@@ -496,7 +513,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
       rowStart += numValsToRead;
       vec.setValueCount(numValsToRead);
 
-      return new VectorHolder.PositionVectorHolder(vec, MetadataColumns.ROW_POSITION.type(), nulls);
+      return new VectorHolder.PositionVectorHolder(vec, MetadataColumns.ROW_POSITION, nulls);
     }
 
     private static BigIntVector newVector(int valueCount) {

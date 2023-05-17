@@ -6,6 +6,7 @@ aliases:
 menu:
     main:
         parent: Spark
+        identifier: spark_configuration
         weight: 0
 ---
 <!--
@@ -40,6 +41,14 @@ spark.sql.catalog.hive_prod.uri = thrift://metastore-host:port
 # omit uri to use the same URI as Spark: hive.metastore.uris in hive-site.xml
 ```
 
+Below is an example for a REST catalog named `rest_prod` that loads tables from REST URL `http://localhost:8080`:
+
+```plain
+spark.sql.catalog.rest_prod = org.apache.iceberg.spark.SparkCatalog
+spark.sql.catalog.rest_prod.type = rest
+spark.sql.catalog.rest_prod.uri = http://localhost:8080
+```
+
 Iceberg also supports a directory-based catalog in HDFS that can be configured using `type=hadoop`:
 
 ```plain
@@ -66,12 +75,16 @@ Both catalogs are configured using properties nested under the catalog name. Com
 | Property                                           | Values                        | Description                                                          |
 | -------------------------------------------------- | ----------------------------- | -------------------------------------------------------------------- |
 | spark.sql.catalog._catalog-name_.type              | `hive`, `hadoop` or `rest`    | The underlying Iceberg catalog implementation, `HiveCatalog`, `HadoopCatalog`, `RESTCatalog` or left unset if using a custom catalog |
-| spark.sql.catalog._catalog-name_.catalog-impl      |                               | The underlying Iceberg catalog implementation.|
+| spark.sql.catalog._catalog-name_.catalog-impl      |                               | The custom Iceberg catalog implementation. If `type` is null, `catalog-impl` must not be null. |
+| spark.sql.catalog._catalog-name_.io-impl                      |                               | The custom FileIO implementation. |
+| spark.sql.catalog._catalog-name_.metrics-reporter-impl        |                               | The custom MetricsReporter implementation.  |
 | spark.sql.catalog._catalog-name_.default-namespace | default                       | The default current namespace for the catalog |
-| spark.sql.catalog._catalog-name_.uri               | thrift://host:port            | Metastore connect URI; default from `hive-site.xml` |
+| spark.sql.catalog._catalog-name_.uri               | thrift://host:port            | Hive metastore URL for hive typed catalog, REST URL for REST typed catalog |
 | spark.sql.catalog._catalog-name_.warehouse         | hdfs://nn:8020/warehouse/path | Base path for the warehouse directory |
 | spark.sql.catalog._catalog-name_.cache-enabled     | `true` or `false`             | Whether to enable catalog cache, default value is `true` |
-| spark.sql.catalog._catalog-name_.cache.expiration-interval-ms | `30000` (30 seconds) | Duration after which cached catalog entries are expired; Only effective if `cache-enabled` is `true`. `-1` disables cache expiration and `0` disables caching entirely, irrespective of `cache-enabled`. Default is `30000` (30 seconds) |                                                   |
+| spark.sql.catalog._catalog-name_.cache.expiration-interval-ms | `30000` (30 seconds) | Duration after which cached catalog entries are expired; Only effective if `cache-enabled` is `true`. `-1` disables cache expiration and `0` disables caching entirely, irrespective of `cache-enabled`. Default is `30000` (30 seconds) |
+| spark.sql.catalog._catalog-name_.table-default._propertyKey_  |                               | Default Iceberg table property value for property key _propertyKey_, which will be set on tables created by this catalog if not overridden                                                                                               |
+| spark.sql.catalog._catalog-name_.table-override._propertyKey_ |                               | Enforced Iceberg table property value for property key _propertyKey_, which cannot be overridden by user                                                                                                                                 |
 
 Additional properties can be found in common [catalog configuration](../configuration#catalog-properties).
 
@@ -124,13 +137,6 @@ spark.sql.catalog.custom_prod.catalog-impl = com.my.custom.CatalogImpl
 spark.sql.catalog.custom_prod.my-additional-catalog-config = my-value
 ```
 
-### Catalogs in Spark 2.4
-
-When using Iceberg 0.11.0 and later, Spark 2.4 can load tables from multiple Iceberg catalogs or from table locations.
-
-Catalogs in 2.4 are configured just like catalogs in 3.x, but only Iceberg catalogs are supported.
-
-
 ## SQL Extensions
 
 Iceberg 0.11.0 and later add an extension module to Spark to add new SQL commands, like `CALL` for stored procedures or `ALTER TABLE ... WRITE ORDERED BY`.
@@ -141,9 +147,6 @@ Using those SQL commands requires adding Iceberg extensions to your Spark enviro
 | Spark extensions property | Iceberg extensions implementation                                   |
 |---------------------------|---------------------------------------------------------------------|
 | `spark.sql.extensions`    | `org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions` |
-
-SQL extensions are not available for Spark 2.4.
-
 
 ## Runtime configuration
 

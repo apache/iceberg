@@ -115,8 +115,10 @@ class SortOrder(IcebergBaseModel):
     The order of the sort fields within the list defines the order in which the sort is applied to the data.
 
     Args:
+      fields (List[SortField]): The fields how the table is sorted.
+
+    Keyword Args:
       order_id (int): An unique id of the sort-order of a table.
-      fields (List[SortField]): The fields how the table is sorted
     """
 
     order_id: int = Field(alias="order-id", default=INITIAL_SORT_ORDER_ID)
