@@ -19,7 +19,6 @@
 
 package org.apache.spark.sql.execution.datasources
 
-import org.apache.iceberg.expressions.Expressions
 import org.apache.iceberg.spark.SparkFilters
 import org.apache.spark.sql.AnalysisException
 import org.apache.spark.sql.SparkSession
