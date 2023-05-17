@@ -188,6 +188,7 @@ public class SparkScanBuilder
   }
 
   @Override
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
   public boolean pushAggregation(Aggregation aggregation) {
     if (!canPushDownAggregation(aggregation)) {
       return false;
