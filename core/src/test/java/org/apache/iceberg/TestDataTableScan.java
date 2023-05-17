@@ -191,4 +191,61 @@ public class TestDataTableScan extends ScanTestBase<TableScan, FileScanTask, Com
       Assert.assertTrue(actualFiles.containsAll(expectedFileScanPaths));
     }
   }
+
+  @Test
+  public void testSequenceNumbersThroughPlanFiles() {
+    Assume.assumeTrue(formatVersion == 2);
+
+    DataFile dataFile1 = newDataFile("data_bucket=0");
+    table.newFastAppend().appendFile(dataFile1).commit();
+
+    DataFile dataFile2 = newDataFile("data_bucket=1");
+    table.newFastAppend().appendFile(dataFile2).commit();
+
+    DeleteFile deleteFile1 = newDeleteFile("data_bucket=0");
+    table.newRowDelta().addDeletes(deleteFile1).commit();
+
+    DeleteFile deleteFile2 = newDeleteFile("data_bucket=1");
+    table.newRowDelta().addDeletes(deleteFile2).commit();
+
+    TableScan scan = table.newScan();
+
+    List<FileScanTask> fileScanTasks = Lists.newArrayList(scan.planFiles());
+    Assert.assertEquals("Must have 2 FileScanTasks", 2, fileScanTasks.size());
+    for (FileScanTask task : fileScanTasks) {
+      DataFile file = task.file();
+      long expectedDataSequenceNumber = 0L;
+      long expectedDeleteSequenceNumber = 0L;
+      if (file.path().equals(dataFile1.path())) {
+        expectedDataSequenceNumber = 1L;
+        expectedDeleteSequenceNumber = 3L;
+      }
+
+      if (file.path().equals(dataFile2.path())) {
+        expectedDataSequenceNumber = 2L;
+        expectedDeleteSequenceNumber = 4L;
+      }
+
+      Assert.assertEquals(
+          "Data sequence number mismatch",
+          expectedDataSequenceNumber,
+          file.dataSequenceNumber().longValue());
+      Assert.assertEquals(
+          "File sequence number mismatch",
+          expectedDataSequenceNumber,
+          file.fileSequenceNumber().longValue());
+
+      List<DeleteFile> deleteFiles = task.deletes();
+      Assert.assertEquals("Must have 1 delete file", 1, Iterables.size(deleteFiles));
+      DeleteFile deleteFile = Iterables.getOnlyElement(deleteFiles);
+      Assert.assertEquals(
+          "Data sequence number mismatch",
+          expectedDeleteSequenceNumber,
+          deleteFile.dataSequenceNumber().longValue());
+      Assert.assertEquals(
+          "File sequence number mismatch",
+          expectedDeleteSequenceNumber,
+          deleteFile.fileSequenceNumber().longValue());
+    }
+  }
 }

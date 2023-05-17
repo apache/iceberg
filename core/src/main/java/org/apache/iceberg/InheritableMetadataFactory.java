@@ -55,11 +55,6 @@ class InheritableMetadataFactory {
 
     @Override
     public <F extends ContentFile<F>> ManifestEntry<F> apply(ManifestEntry<F> manifestEntry) {
-      if (manifestEntry.file() instanceof BaseFile) {
-        BaseFile<?> file = (BaseFile<?>) manifestEntry.file();
-        file.setSpecId(specId);
-      }
-
       if (manifestEntry.snapshotId() == null) {
         manifestEntry.setSnapshotId(snapshotId);
       }
@@ -76,6 +71,13 @@ class InheritableMetadataFactory {
       if (manifestEntry.fileSequenceNumber() == null
           && (sequenceNumber == 0 || manifestEntry.status() == ManifestEntry.Status.ADDED)) {
         manifestEntry.setFileSequenceNumber(sequenceNumber);
+      }
+
+      if (manifestEntry.file() instanceof BaseFile) {
+        BaseFile<?> file = (BaseFile<?>) manifestEntry.file();
+        file.setSpecId(specId);
+        file.setDataSequenceNumber(manifestEntry.dataSequenceNumber());
+        file.setFileSequenceNumber(manifestEntry.fileSequenceNumber());
       }
 
       return manifestEntry;

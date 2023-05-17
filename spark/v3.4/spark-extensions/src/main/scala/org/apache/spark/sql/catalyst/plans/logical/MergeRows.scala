@@ -32,7 +32,6 @@ case class MergeRows(
     notMatchedConditions: Seq[Expression],
     notMatchedOutputs: Seq[Seq[Expression]],
     targetOutput: Seq[Expression],
-    rowIdAttrs: Seq[Attribute],
     performCardinalityCheck: Boolean,
     emitNotMatchedTargetRows: Boolean,
     output: Seq[Attribute],

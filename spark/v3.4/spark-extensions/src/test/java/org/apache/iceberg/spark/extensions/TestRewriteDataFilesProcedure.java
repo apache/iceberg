@@ -83,7 +83,7 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
   public void testRewriteDataFilesInEmptyTable() {
     createTable();
     List<Object[]> output = sql("CALL %s.system.rewrite_data_files('%s')", catalogName, tableIdent);
-    assertEquals("Procedure output must match", ImmutableList.of(row(0, 0, 0L)), output);
+    assertEquals("Procedure output must match", ImmutableList.of(row(0, 0, 0L, 0)), output);
   }
 
   @Test
@@ -101,7 +101,7 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
         row(10, 2),
         Arrays.copyOf(output.get(0), 2));
     // verify rewritten bytes separately
-    assertThat(output.get(0)).hasSize(3);
+    assertThat(output.get(0)).hasSize(4);
     assertThat(output.get(0)[2])
         .isInstanceOf(Long.class)
         .isEqualTo(Long.valueOf(snapshotSummary().get(SnapshotSummary.REMOVED_FILE_SIZE_PROP)));
@@ -125,7 +125,7 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
         row(10, 1),
         Arrays.copyOf(output.get(0), 2));
     // verify rewritten bytes separately
-    assertThat(output.get(0)).hasSize(3);
+    assertThat(output.get(0)).hasSize(4);
     assertThat(output.get(0)[2])
         .isInstanceOf(Long.class)
         .isEqualTo(Long.valueOf(snapshotSummary().get(SnapshotSummary.REMOVED_FILE_SIZE_PROP)));
@@ -149,7 +149,7 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
 
     assertEquals(
         "Action should rewrite 0 data files and add 0 data files",
-        ImmutableList.of(row(0, 0, 0L)),
+        ImmutableList.of(row(0, 0, 0L, 0)),
         output);
 
     List<Object[]> actualRecords = currentData();
@@ -175,7 +175,7 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
         row(10, 1),
         Arrays.copyOf(output.get(0), 2));
     // verify rewritten bytes separately
-    assertThat(output.get(0)).hasSize(3);
+    assertThat(output.get(0)).hasSize(4);
     assertThat(output.get(0)[2])
         .isInstanceOf(Long.class)
         .isEqualTo(Long.valueOf(snapshotSummary().get(SnapshotSummary.REMOVED_FILE_SIZE_PROP)));
@@ -202,7 +202,7 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
         row(10, 1),
         Arrays.copyOf(output.get(0), 2));
     // verify rewritten bytes separately
-    assertThat(output.get(0)).hasSize(3);
+    assertThat(output.get(0)).hasSize(4);
     assertThat(output.get(0)[2])
         .isInstanceOf(Long.class)
         .isEqualTo(Long.valueOf(snapshotSummary().get(SnapshotSummary.REMOVED_FILE_SIZE_PROP)));
@@ -244,7 +244,7 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
         row(5, 1),
         Arrays.copyOf(output.get(0), 2));
     // verify rewritten bytes separately
-    assertThat(output.get(0)).hasSize(3);
+    assertThat(output.get(0)).hasSize(4);
     assertThat(output.get(0)[2])
         .isInstanceOf(Long.class)
         .isEqualTo(Long.valueOf(snapshotSummary().get(SnapshotSummary.REMOVED_FILE_SIZE_PROP)));
@@ -272,7 +272,7 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
         row(5, 1),
         Arrays.copyOf(output.get(0), 2));
     // verify rewritten bytes separately
-    assertThat(output.get(0)).hasSize(3);
+    assertThat(output.get(0)).hasSize(4);
     assertThat(output.get(0)[2])
         .isInstanceOf(Long.class)
         .isEqualTo(Long.valueOf(snapshotSummary().get(SnapshotSummary.REMOVED_FILE_SIZE_PROP)));
@@ -300,7 +300,7 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
         row(5, 1),
         Arrays.copyOf(output.get(0), 2));
     // verify rewritten bytes separately
-    assertThat(output.get(0)).hasSize(3);
+    assertThat(output.get(0)).hasSize(4);
     assertThat(output.get(0)[2])
         .isInstanceOf(Long.class)
         .isEqualTo(Long.valueOf(snapshotSummary().get(SnapshotSummary.REMOVED_FILE_SIZE_PROP)));
@@ -540,7 +540,7 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
         row(10, 1),
         Arrays.copyOf(output.get(0), 2));
     // verify rewritten bytes separately
-    assertThat(output.get(0)).hasSize(3);
+    assertThat(output.get(0)).hasSize(4);
     assertThat(output.get(0)[2])
         .isEqualTo(
             Long.valueOf(snapshotSummary(identifier).get(SnapshotSummary.REMOVED_FILE_SIZE_PROP)));
@@ -579,7 +579,7 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
         row(10, 1),
         Arrays.copyOf(output.get(0), 2));
     // verify rewritten bytes separately
-    assertThat(output.get(0)).hasSize(3);
+    assertThat(output.get(0)).hasSize(4);
     assertThat(output.get(0)[2])
         .isInstanceOf(Long.class)
         .isEqualTo(
@@ -619,7 +619,7 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
         row(10, 1),
         Arrays.copyOf(output.get(0), 2));
     // verify rewritten bytes separately
-    assertThat(output.get(0)).hasSize(3);
+    assertThat(output.get(0)).hasSize(4);
     assertThat(output.get(0)[2])
         .isInstanceOf(Long.class)
         .isEqualTo(
@@ -655,7 +655,7 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
         row(2, 1),
         Arrays.copyOf(output.get(0), 2));
     // verify rewritten bytes separately
-    assertThat(output.get(0)).hasSize(3);
+    assertThat(output.get(0)).hasSize(4);
     assertThat(output.get(0)[2])
         .isInstanceOf(Long.class)
         .isEqualTo(Long.valueOf(snapshotSummary().get(SnapshotSummary.REMOVED_FILE_SIZE_PROP)));

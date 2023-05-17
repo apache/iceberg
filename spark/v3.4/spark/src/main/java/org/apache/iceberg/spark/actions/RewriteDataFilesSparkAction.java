@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.actions;
 import java.io.IOException;
 import java.math.RoundingMode;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -337,14 +338,21 @@ public class RewriteDataFilesSparkAction
         commitManager.service(groupsPerCommit);
     commitService.start();
 
+    Collection<FileGroupFailureResult> rewriteFailures = new ConcurrentLinkedQueue<>();
     // Start rewrite tasks
     Tasks.foreach(groupStream)
         .suppressFailureWhenFinished()
         .executeWith(rewriteService)
         .noRetry()
         .onFailure(
-            (fileGroup, exception) ->
-                LOG.error("Failure during rewrite group {}", fileGroup.info(), exception))
+            (fileGroup, exception) -> {
+              LOG.error("Failure during rewrite group {}", fileGroup.info(), exception);
+              rewriteFailures.add(
+                  ImmutableRewriteDataFiles.FileGroupFailureResult.builder()
+                      .info(fileGroup.info())
+                      .dataFilesCount(fileGroup.numFiles())
+                      .build());
+            })
         .run(fileGroup -> commitService.offer(rewriteFiles(ctx, fileGroup)));
     rewriteService.shutdown();
 
@@ -362,7 +370,10 @@ public class RewriteDataFilesSparkAction
 
     List<FileGroupRewriteResult> rewriteResults =
         commitResults.stream().map(RewriteFileGroup::asResult).collect(Collectors.toList());
-    return ImmutableRewriteDataFiles.Result.builder().rewriteResults(rewriteResults).build();
+    return ImmutableRewriteDataFiles.Result.builder()
+        .rewriteResults(rewriteResults)
+        .rewriteFailures(rewriteFailures)
+        .build();
   }
 
   Stream<RewriteFileGroup> toGroupStream(

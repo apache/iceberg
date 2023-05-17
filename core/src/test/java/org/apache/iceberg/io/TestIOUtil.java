@@ -23,7 +23,6 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.inmemory.InMemoryOutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.assertj.core.api.Assertions;
@@ -70,13 +69,9 @@ public class TestIOUtil {
         "Byte array contents should match", MockInputStream.TEST_ARRAY, buffer);
     Assert.assertEquals("Stream position should reflect bytes read", 10, stream.getPos());
 
-    AssertHelpers.assertThrows(
-        "Should throw EOFException if no more bytes left",
-        EOFException.class,
-        () -> {
-          IOUtil.readFully(stream, buffer, 0, 1);
-          return null;
-        });
+    Assertions.assertThatThrownBy(() -> IOUtil.readFully(stream, buffer, 0, 1))
+        .isInstanceOf(EOFException.class)
+        .hasMessage("Reached the end of stream with 1 bytes left to read");
   }
 
   @Test
@@ -85,13 +80,9 @@ public class TestIOUtil {
 
     final MockInputStream stream = new MockInputStream(2, 3, 3);
 
-    AssertHelpers.assertThrows(
-        "Should throw EOFException if no more bytes left",
-        EOFException.class,
-        () -> {
-          IOUtil.readFully(stream, buffer, 0, buffer.length);
-          return null;
-        });
+    Assertions.assertThatThrownBy(() -> IOUtil.readFully(stream, buffer, 0, buffer.length))
+        .isInstanceOf(EOFException.class)
+        .hasMessage("Reached the end of stream with 1 bytes left to read");
 
     Assert.assertArrayEquals(
         "Should have consumed bytes",

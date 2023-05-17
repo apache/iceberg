@@ -24,10 +24,10 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -58,11 +58,11 @@ public class TestInMemoryLockManager {
   @Test
   public void testAcquireOnceSingleProcess() {
     lockManager.acquireOnce(lockEntityId, ownerId);
-    AssertHelpers.assertThrows(
-        "should fail when acquire again",
-        IllegalStateException.class,
-        "currently held",
-        () -> lockManager.acquireOnce(lockEntityId, ownerId));
+    Assertions.assertThatThrownBy(() -> lockManager.acquireOnce(lockEntityId, ownerId))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageStartingWith("Lock for")
+        .hasMessageContaining("currently held by")
+        .hasMessageContaining("expiration");
   }
 
   @Test
