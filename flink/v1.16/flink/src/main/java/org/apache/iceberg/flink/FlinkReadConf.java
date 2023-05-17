@@ -181,4 +181,13 @@ public class FlinkReadConf {
         .defaultValue(FlinkConfigOptions.TABLE_EXEC_ICEBERG_WORKER_POOL_SIZE.defaultValue())
         .parse();
   }
+
+  public int maxAllowedPlanningFailures() {
+    return confParser
+        .intConf()
+        .option(FlinkReadOptions.MAX_ALLOWED_PLANNING_FAILURES)
+        .flinkConfig(FlinkReadOptions.MAX_ALLOWED_PLANNING_FAILURES_OPTION)
+        .defaultValue(FlinkReadOptions.MAX_ALLOWED_PLANNING_FAILURES_OPTION.defaultValue())
+        .parse();
+  }
 }
