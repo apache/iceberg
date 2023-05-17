@@ -222,12 +222,19 @@ public class SparkScanBuilder
     }
 
     TableScan scan = table.newScan().includeColumnStats();
-    Snapshot snapshot = readSnapshot();
-    if (snapshot == null) {
-      LOG.info("Skipping aggregate pushdown: table snapshot is null");
+    if (readConf.startSnapshotId() == null) {
+      Snapshot snapshot = readSnapshot();
+      if (snapshot == null) {
+        LOG.info("Skipping aggregate pushdown: table snapshot is null");
+        return false;
+      }
+
+      scan = scan.useSnapshot(snapshot.snapshotId());
+    } else {
+      LOG.info("Skipping aggregate pushdown: incremental scan is not supported");
       return false;
     }
-    scan = scan.useSnapshot(snapshot.snapshotId());
+
     scan = configureSplitPlanning(scan);
     scan = scan.filter(filterExpression());
 
