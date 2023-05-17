@@ -24,8 +24,10 @@ import org.apache.spark.sql.AnalysisException
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.expressions.Attribute
 import org.apache.spark.sql.catalyst.expressions.Expression
+import org.apache.spark.sql.catalyst.expressions.Literal
 import org.apache.spark.sql.catalyst.plans.logical.Filter
 import org.apache.spark.sql.catalyst.plans.logical.LeafNode
+import org.apache.spark.sql.catalyst.plans.logical.LocalRelation
 
 object SparkExpressionConverter {
 
@@ -44,6 +46,8 @@ object SparkExpressionConverter {
     val optimizedLogicalPlan = session.sessionState.executePlan(filter).optimizedPlan
     optimizedLogicalPlan.collectFirst {
       case filter: Filter => filter.condition
+      case dummyRelation: DummyRelation => Literal.TrueLiteral
+      case localRelation: LocalRelation => Literal.FalseLiteral
     }.getOrElse(throw new AnalysisException("Failed to find filter expression"))
   }
 
