@@ -142,7 +142,8 @@ class DataStatisticsCoordinator<D extends DataStatistics<D, S>, S> implements Op
   public void runInCoordinatorThread(Runnable runnable) {
     this.coordinatorExecutor.execute(
         new ThrowableCatchingRunnable(
-            throwable -> this.coordinatorThreadFactory.uncaughtException(Thread.currentThread(), throwable),
+            throwable ->
+                this.coordinatorThreadFactory.uncaughtException(Thread.currentThread(), throwable),
             runnable));
   }
 
