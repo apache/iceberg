@@ -222,19 +222,12 @@ public class SparkScanBuilder
     }
 
     TableScan scan = table.newScan().includeColumnStats();
-    if (readConf.startSnapshotId() == null) {
-      Snapshot snapshot = readSnapshot();
-      if (snapshot == null) {
-        LOG.info("Skipping aggregate pushdown: table snapshot is null");
-        return false;
-      }
-
-      scan = scan.useSnapshot(snapshot.snapshotId());
-    } else {
-      LOG.info("Skipping aggregate pushdown: incremental scan is not supported");
+    Snapshot snapshot = readSnapshot();
+    if (snapshot == null) {
+      LOG.info("Skipping aggregate pushdown: table snapshot is null");
       return false;
     }
-
+    scan = scan.useSnapshot(snapshot.snapshotId());
     scan = configureSplitPlanning(scan);
     scan = scan.filter(filterExpression());
 
@@ -275,6 +268,11 @@ public class SparkScanBuilder
     }
 
     if (!readConf.aggregatePushDownEnabled()) {
+      return false;
+    }
+
+    if (readConf.startSnapshotId() != null) {
+      LOG.info("Skipping aggregate pushdown: incremental scan is not supported");
       return false;
     }
 
