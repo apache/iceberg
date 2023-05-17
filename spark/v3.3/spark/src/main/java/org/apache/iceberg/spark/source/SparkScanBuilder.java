@@ -221,15 +221,26 @@ public class SparkScanBuilder
       return false;
     }
 
-    TableScan scan = table.newScan().includeColumnStats();
-    Snapshot snapshot = readSnapshot();
-    if (snapshot == null) {
-      LOG.info("Skipping aggregate pushdown: table snapshot is null");
-      return false;
+    org.apache.iceberg.Scan scan;
+    if (readConf.startSnapshotId() == null) {
+      scan = table.newScan().includeColumnStats();
+      Snapshot snapshot = readSnapshot();
+      if (snapshot == null) {
+        LOG.info("Skipping aggregate pushdown: table snapshot is null");
+        return false;
+      }
+      scan = ((TableScan) scan).useSnapshot(snapshot.snapshotId());
+      scan = ((TableScan) scan).filter(filterExpression());
+    } else {
+      scan = table.newIncrementalAppendScan().includeColumnStats();
+      scan = ((IncrementalAppendScan) scan).fromSnapshotExclusive(readConf.startSnapshotId());
+      Long endSnapshotId = readConf.endSnapshotId();
+      if (endSnapshotId != null) {
+        scan = ((IncrementalAppendScan) scan).toSnapshot(endSnapshotId);
+      }
+      scan = ((IncrementalAppendScan) scan).filter(filterExpression());
     }
-    scan = scan.useSnapshot(snapshot.snapshotId());
     scan = configureSplitPlanning(scan);
-    scan = scan.filter(filterExpression());
 
     try (CloseableIterable<FileScanTask> fileScanTasks = scan.planFiles()) {
       List<FileScanTask> tasks = ImmutableList.copyOf(fileScanTasks);
@@ -268,11 +279,6 @@ public class SparkScanBuilder
     }
 
     if (!readConf.aggregatePushDownEnabled()) {
-      return false;
-    }
-
-    if (readConf.startSnapshotId() != null) {
-      LOG.info("Skipping aggregate pushdown: incremental scan is not supported");
       return false;
     }
 
