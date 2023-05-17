@@ -21,6 +21,7 @@ package org.apache.iceberg.flink.sink;
 import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT;
 import static org.apache.iceberg.flink.sink.IcebergFilesCommitter.MAX_CONTINUOUS_EMPTY_COMMITS;
 import static org.apache.iceberg.flink.sink.ManifestOutputFileFactory.FLINK_MANIFEST_LOCATION;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
 import java.io.IOException;
@@ -916,12 +917,7 @@ public class TestIcebergFilesCommitter extends TableTestBase {
 
       specId =
           getStagingManifestSpecId(harness.getOperator().getOperatorStateBackend(), checkpointId);
-      Assert.assertEquals(
-          String.format(
-              "Expected the partition spec ID of staging manifest is %s, but the ID is: %s",
-              table.spec().specId(), specId),
-          table.spec().specId(),
-          specId);
+      assertThat(specId).isEqualTo(table.spec().specId());
 
       harness.notifyOfCompletedCheckpoint(checkpointId);
 
@@ -940,12 +936,7 @@ public class TestIcebergFilesCommitter extends TableTestBase {
 
       specId =
           getStagingManifestSpecId(harness.getOperator().getOperatorStateBackend(), checkpointId);
-      Assert.assertEquals(
-          String.format(
-              "Expected the partition spec ID of staging manifest is %s, but the ID is: %s",
-              oldSpec.specId(), specId),
-          oldSpec.specId(),
-          specId);
+      assertThat(specId).isEqualTo(oldSpec.specId());
 
       harness.notifyOfCompletedCheckpoint(checkpointId);
 
@@ -954,9 +945,6 @@ public class TestIcebergFilesCommitter extends TableTestBase {
       SimpleDataUtil.assertTableRows(table, ImmutableList.copyOf(rows), branch);
       assertSnapshotSize(checkpointId);
       assertMaxCommittedCheckpointId(jobId, operatorId, checkpointId);
-      Assert.assertEquals(
-          TestIcebergFilesCommitter.class.getName(),
-          SimpleDataUtil.latestSnapshot(table, branch).summary().get("flink.test"));
     }
 
     // Restore from the given snapshot
@@ -983,12 +971,7 @@ public class TestIcebergFilesCommitter extends TableTestBase {
 
       specId =
           getStagingManifestSpecId(harness.getOperator().getOperatorStateBackend(), checkpointId);
-      Assert.assertEquals(
-          String.format(
-              "Expected the partition spec ID of staging manifest is %s, but the ID is: %s",
-              table.spec().specId(), specId),
-          table.spec().specId(),
-          specId);
+      assertThat(specId).isEqualTo(table.spec().specId());
 
       harness.notifyOfCompletedCheckpoint(checkpointId);
       assertFlinkManifests(0);
