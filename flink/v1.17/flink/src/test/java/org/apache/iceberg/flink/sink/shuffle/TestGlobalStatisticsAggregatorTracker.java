@@ -18,26 +18,40 @@
  */
 package org.apache.iceberg.flink.sink.shuffle;
 
+import java.util.Map;
+import org.apache.flink.api.common.typeutils.TypeSerializer;
+import org.apache.flink.table.data.GenericRowData;
+import org.apache.flink.table.data.RowData;
+import org.apache.flink.table.data.StringData;
+import org.apache.flink.table.runtime.typeutils.RowDataSerializer;
+import org.apache.flink.table.types.logical.RowType;
+import org.apache.flink.table.types.logical.VarCharType;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
 public class TestGlobalStatisticsAggregatorTracker {
   private static final int NUM_SUBTASKS = 2;
-  private GlobalStatisticsAggregatorTracker<String> globalStatisticsAggregatorTracker;
+  private GlobalStatisticsAggregatorTracker<MapDataStatistics, Map<RowData, Long>>
+      globalStatisticsAggregatorTracker;
 
   @Before
   public void before() throws Exception {
+    TypeSerializer<DataStatistics<MapDataStatistics, Map<RowData, Long>>> statisticsSerializer =
+        MapDataStatisticsSerializer.fromKeySerializer(
+            new RowDataSerializer(RowType.of(new VarCharType())));
+
     globalStatisticsAggregatorTracker =
-        new GlobalStatisticsAggregatorTracker<>(new MapDataStatisticsFactory<>(), NUM_SUBTASKS);
+        new GlobalStatisticsAggregatorTracker<>(statisticsSerializer, NUM_SUBTASKS);
   }
 
   @Test
   public void receiveDataStatisticEventAndCheckCompletionTest() {
-    MapDataStatistics<String> checkpoint1Subtask0DataStatistic = new MapDataStatistics<>();
-    checkpoint1Subtask0DataStatistic.add("a");
-    DataStatisticsEvent<String> checkpoint1Subtask0DataStatisticEvent =
-        new DataStatisticsEvent<>(1, checkpoint1Subtask0DataStatistic);
+    MapDataStatistics checkpoint1Subtask0DataStatistic = new MapDataStatistics();
+    checkpoint1Subtask0DataStatistic.add(GenericRowData.of(StringData.fromString("a")));
+    DataStatisticsEvent<MapDataStatistics, Map<RowData, Long>>
+        checkpoint1Subtask0DataStatisticEvent =
+            new DataStatisticsEvent<>(1, checkpoint1Subtask0DataStatistic);
     Assert.assertFalse(
         globalStatisticsAggregatorTracker.receiveDataStatisticEventAndCheckCompletion(
             0, checkpoint1Subtask0DataStatisticEvent));
@@ -45,10 +59,11 @@ public class TestGlobalStatisticsAggregatorTracker {
     Assert.assertEquals(1, globalStatisticsAggregatorTracker.inProgressAggregator().checkpointId());
     Assert.assertNull(globalStatisticsAggregatorTracker.lastCompletedAggregator());
 
-    MapDataStatistics<String> checkpoint2Subtask0DataStatistic = new MapDataStatistics<>();
-    checkpoint2Subtask0DataStatistic.add("a");
-    DataStatisticsEvent<String> checkpoint2Subtask0DataStatisticEvent =
-        new DataStatisticsEvent<>(2, checkpoint2Subtask0DataStatistic);
+    MapDataStatistics checkpoint2Subtask0DataStatistic = new MapDataStatistics();
+    checkpoint2Subtask0DataStatistic.add(GenericRowData.of(StringData.fromString("a")));
+    DataStatisticsEvent<MapDataStatistics, Map<RowData, Long>>
+        checkpoint2Subtask0DataStatisticEvent =
+            new DataStatisticsEvent<>(2, checkpoint2Subtask0DataStatistic);
     Assert.assertFalse(
         globalStatisticsAggregatorTracker.receiveDataStatisticEventAndCheckCompletion(
             0, checkpoint2Subtask0DataStatisticEvent));
@@ -57,45 +72,58 @@ public class TestGlobalStatisticsAggregatorTracker {
     Assert.assertEquals(2, globalStatisticsAggregatorTracker.inProgressAggregator().checkpointId());
     Assert.assertNull(globalStatisticsAggregatorTracker.lastCompletedAggregator());
 
-    MapDataStatistics<String> checkpoint3Subtask0DataStatistic = new MapDataStatistics<>();
-    checkpoint3Subtask0DataStatistic.add("a");
-    checkpoint3Subtask0DataStatistic.add("b");
-    checkpoint3Subtask0DataStatistic.add("b");
-    DataStatisticsEvent<String> checkpoint3Subtask0DataStatisticEvent =
-        new DataStatisticsEvent<>(3, checkpoint3Subtask0DataStatistic);
+    MapDataStatistics checkpoint3Subtask0DataStatistic = new MapDataStatistics();
+    checkpoint3Subtask0DataStatistic.add(GenericRowData.of(StringData.fromString("a")));
+    checkpoint3Subtask0DataStatistic.add(GenericRowData.of(StringData.fromString("b")));
+    checkpoint3Subtask0DataStatistic.add(GenericRowData.of(StringData.fromString("b")));
+    DataStatisticsEvent<MapDataStatistics, Map<RowData, Long>>
+        checkpoint3Subtask0DataStatisticEvent =
+            new DataStatisticsEvent<>(3, checkpoint3Subtask0DataStatistic);
     Assert.assertFalse(
         globalStatisticsAggregatorTracker.receiveDataStatisticEventAndCheckCompletion(
             0, checkpoint3Subtask0DataStatisticEvent));
 
-    MapDataStatistics<String> checkpoint3Subtask1DataStatistic = new MapDataStatistics<>();
-    checkpoint3Subtask1DataStatistic.add("a");
-    checkpoint3Subtask1DataStatistic.add("a");
-    checkpoint3Subtask1DataStatistic.add("b");
-    DataStatisticsEvent<String> checkpoint3Subtask1DataStatisticEvent =
-        new DataStatisticsEvent<>(3, checkpoint3Subtask1DataStatistic);
+    MapDataStatistics checkpoint3Subtask1DataStatistic = new MapDataStatistics();
+    checkpoint3Subtask1DataStatistic.add(GenericRowData.of(StringData.fromString("a")));
+    checkpoint3Subtask1DataStatistic.add(GenericRowData.of(StringData.fromString("a")));
+    checkpoint3Subtask1DataStatistic.add(GenericRowData.of(StringData.fromString("b")));
+    DataStatisticsEvent<MapDataStatistics, Map<RowData, Long>>
+        checkpoint3Subtask1DataStatisticEvent =
+            new DataStatisticsEvent<>(3, checkpoint3Subtask1DataStatistic);
     // Receive data statistics from all subtasks at checkpoint 3
     Assert.assertTrue(
         globalStatisticsAggregatorTracker.receiveDataStatisticEventAndCheckCompletion(
             1, checkpoint3Subtask1DataStatisticEvent));
     Assert.assertEquals(
         3, globalStatisticsAggregatorTracker.lastCompletedAggregator().checkpointId());
-    MapDataStatistics<String> globalDataStatistics =
-        (MapDataStatistics<String>)
+    MapDataStatistics globalDataStatistics =
+        (MapDataStatistics)
             globalStatisticsAggregatorTracker.lastCompletedAggregator().dataStatistics();
     Assert.assertEquals(
-        checkpoint3Subtask0DataStatistic.mapStatistics().get("a")
-            + checkpoint3Subtask1DataStatistic.mapStatistics().get("a"),
-        (long) globalDataStatistics.mapStatistics().get("a"));
+        checkpoint3Subtask0DataStatistic
+                .statistics()
+                .get(GenericRowData.of(StringData.fromString("a")))
+            + checkpoint3Subtask1DataStatistic
+                .statistics()
+                .get(GenericRowData.of(StringData.fromString("a"))),
+        (long)
+            globalDataStatistics.statistics().get(GenericRowData.of(StringData.fromString("a"))));
     Assert.assertEquals(
-        checkpoint3Subtask0DataStatistic.mapStatistics().get("b")
-            + checkpoint3Subtask1DataStatistic.mapStatistics().get("b"),
-        (long) globalDataStatistics.mapStatistics().get("b"));
+        checkpoint3Subtask0DataStatistic
+                .statistics()
+                .get(GenericRowData.of(StringData.fromString("b")))
+            + checkpoint3Subtask1DataStatistic
+                .statistics()
+                .get(GenericRowData.of(StringData.fromString("b"))),
+        (long)
+            globalDataStatistics.statistics().get(GenericRowData.of(StringData.fromString("b"))));
     Assert.assertNull(globalStatisticsAggregatorTracker.inProgressAggregator());
 
-    MapDataStatistics<String> checkpoint1Subtask1DataStatistic = new MapDataStatistics<>();
-    checkpoint1Subtask1DataStatistic.add("b");
-    DataStatisticsEvent<String> checkpoint1Subtask1DataStatisticEvent =
-        new DataStatisticsEvent<>(1, checkpoint1Subtask1DataStatistic);
+    MapDataStatistics checkpoint1Subtask1DataStatistic = new MapDataStatistics();
+    checkpoint1Subtask1DataStatistic.add(GenericRowData.of(StringData.fromString("b")));
+    DataStatisticsEvent<MapDataStatistics, Map<RowData, Long>>
+        checkpoint1Subtask1DataStatisticEvent =
+            new DataStatisticsEvent<>(1, checkpoint1Subtask1DataStatistic);
     Assert.assertFalse(
         globalStatisticsAggregatorTracker.receiveDataStatisticEventAndCheckCompletion(
             1, checkpoint1Subtask1DataStatisticEvent));
@@ -106,18 +134,20 @@ public class TestGlobalStatisticsAggregatorTracker {
         3, globalStatisticsAggregatorTracker.lastCompletedAggregator().checkpointId());
     Assert.assertNull(globalStatisticsAggregatorTracker.inProgressAggregator());
 
-    MapDataStatistics<String> checkpoint4Subtask0DataStatistic = new MapDataStatistics<>();
-    checkpoint4Subtask0DataStatistic.add("a");
-    DataStatisticsEvent<String> checkpoint4Subtask0DataStatisticEvent =
-        new DataStatisticsEvent<>(4, checkpoint4Subtask0DataStatistic);
+    MapDataStatistics checkpoint4Subtask0DataStatistic = new MapDataStatistics();
+    checkpoint4Subtask0DataStatistic.add(GenericRowData.of(StringData.fromString("a")));
+    DataStatisticsEvent<MapDataStatistics, Map<RowData, Long>>
+        checkpoint4Subtask0DataStatisticEvent =
+            new DataStatisticsEvent<>(4, checkpoint4Subtask0DataStatistic);
     Assert.assertFalse(
         globalStatisticsAggregatorTracker.receiveDataStatisticEventAndCheckCompletion(
             0, checkpoint4Subtask0DataStatisticEvent));
 
-    MapDataStatistics<String> checkpoint4Subtask1DataStatistic = new MapDataStatistics<>();
-    checkpoint3Subtask1DataStatistic.add("b");
-    DataStatisticsEvent<String> checkpoint4Subtask1DataStatisticEvent =
-        new DataStatisticsEvent<>(4, checkpoint4Subtask1DataStatistic);
+    MapDataStatistics checkpoint4Subtask1DataStatistic = new MapDataStatistics();
+    checkpoint3Subtask1DataStatistic.add(GenericRowData.of(StringData.fromString("b")));
+    DataStatisticsEvent<MapDataStatistics, Map<RowData, Long>>
+        checkpoint4Subtask1DataStatisticEvent =
+            new DataStatisticsEvent<>(4, checkpoint4Subtask1DataStatistic);
     // Receive data statistics from all subtasks at checkpoint 4
     Assert.assertTrue(
         globalStatisticsAggregatorTracker.receiveDataStatisticEventAndCheckCompletion(

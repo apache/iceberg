@@ -20,6 +20,7 @@ package org.apache.iceberg.flink.sink.shuffle;
 
 import java.io.Serializable;
 import org.apache.flink.annotation.Internal;
+import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -30,21 +31,23 @@ import org.slf4j.LoggerFactory;
  * the merged {@link DataStatistics} result and uses set to keep a record of all reported subtasks.
  */
 @Internal
-class GlobalStatisticsAggregatorTracker<K> implements Serializable {
+class GlobalStatisticsAggregatorTracker<D extends DataStatistics<D, S>, S> implements Serializable {
   private static final Logger LOG =
       LoggerFactory.getLogger(GlobalStatisticsAggregatorTracker.class);
   private static final double EXPECTED_DATA_STATISTICS_RECEIVED_PERCENTAGE = 90;
-  private final transient DataStatisticsFactory<K> statisticsFactory;
+  private final transient TypeSerializer<DataStatistics<D, S>> statisticsSerializer;
   private final transient int parallelism;
-  private transient volatile GlobalStatisticsAggregator<K> inProgressAggregator;
-  private volatile GlobalStatisticsAggregator<K> lastCompletedAggregator;
+  private transient volatile GlobalStatisticsAggregator<D, S> inProgressAggregator;
+  private volatile GlobalStatisticsAggregator<D, S> lastCompletedAggregator;
 
-  GlobalStatisticsAggregatorTracker(DataStatisticsFactory<K> statisticsFactory, int parallelism) {
-    this.statisticsFactory = statisticsFactory;
+  GlobalStatisticsAggregatorTracker(
+      TypeSerializer<DataStatistics<D, S>> statisticsSerializer, int parallelism) {
+    this.statisticsSerializer = statisticsSerializer;
     this.parallelism = parallelism;
   }
 
-  boolean receiveDataStatisticEventAndCheckCompletion(int subtask, DataStatisticsEvent<K> event) {
+  boolean receiveDataStatisticEventAndCheckCompletion(
+      int subtask, DataStatisticsEvent<D, S> event) {
     long checkpointId = event.checkpointId();
 
     if (lastCompletedAggregator != null && lastCompletedAggregator.checkpointId() >= checkpointId) {
@@ -57,7 +60,7 @@ class GlobalStatisticsAggregatorTracker<K> implements Serializable {
     }
 
     if (inProgressAggregator == null) {
-      inProgressAggregator = new GlobalStatisticsAggregator<>(checkpointId, statisticsFactory);
+      inProgressAggregator = new GlobalStatisticsAggregator<>(checkpointId, statisticsSerializer);
     }
 
     if (inProgressAggregator.checkpointId() < checkpointId) {
@@ -73,7 +76,7 @@ class GlobalStatisticsAggregatorTracker<K> implements Serializable {
             inProgressAggregator.checkpointId(),
             EXPECTED_DATA_STATISTICS_RECEIVED_PERCENTAGE,
             lastCompletedAggregator);
-        inProgressAggregator = new GlobalStatisticsAggregator<>(checkpointId, statisticsFactory);
+        inProgressAggregator = new GlobalStatisticsAggregator<>(checkpointId, statisticsSerializer);
         inProgressAggregator.mergeDataStatistic(subtask, event);
         return true;
       } else {
@@ -87,7 +90,7 @@ class GlobalStatisticsAggregatorTracker<K> implements Serializable {
             EXPECTED_DATA_STATISTICS_RECEIVED_PERCENTAGE,
             inProgressAggregator,
             checkpointId);
-        inProgressAggregator = new GlobalStatisticsAggregator<>(checkpointId, statisticsFactory);
+        inProgressAggregator = new GlobalStatisticsAggregator<>(checkpointId, statisticsSerializer);
       }
     } else if (inProgressAggregator.checkpointId() > checkpointId) {
       LOG.debug(
@@ -113,15 +116,15 @@ class GlobalStatisticsAggregatorTracker<K> implements Serializable {
   }
 
   @VisibleForTesting
-  GlobalStatisticsAggregator<K> inProgressAggregator() {
+  GlobalStatisticsAggregator<D, S> inProgressAggregator() {
     return inProgressAggregator;
   }
 
-  GlobalStatisticsAggregator<K> lastCompletedAggregator() {
+  GlobalStatisticsAggregator<D, S> lastCompletedAggregator() {
     return lastCompletedAggregator;
   }
 
-  void setLastCompletedAggregator(GlobalStatisticsAggregator<K> lastCompletedAggregator) {
+  void setLastCompletedAggregator(GlobalStatisticsAggregator<D, S> lastCompletedAggregator) {
     this.lastCompletedAggregator = lastCompletedAggregator;
   }
 }

@@ -20,6 +20,7 @@ package org.apache.iceberg.flink.sink.shuffle;
 
 import java.io.Serializable;
 import java.util.Set;
+import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -31,27 +32,29 @@ import org.slf4j.LoggerFactory;
  * DataStatistics} from {@link DataStatisticsOperator} subtasks for specific checkpoint. It stores
  * the merged {@link DataStatistics} result and uses set to keep a record of all reported subtasks.
  */
-class GlobalStatisticsAggregator<K> implements Serializable {
+class GlobalStatisticsAggregator<D extends DataStatistics<D, S>, S> implements Serializable {
   private static final Logger LOG = LoggerFactory.getLogger(GlobalStatisticsAggregator.class);
 
   private final long checkpointId;
-  private final DataStatistics<K> dataStatistics;
+  private final DataStatistics<D, S> dataStatistics;
   private final Set<Integer> subtaskSet = Sets.newHashSet();
 
-  GlobalStatisticsAggregator(long checkpoint, final DataStatisticsFactory<K> statisticsFactory) {
+  GlobalStatisticsAggregator(
+      long checkpoint, final TypeSerializer<DataStatistics<D, S>> statisticsSerializer) {
     this.checkpointId = checkpoint;
-    this.dataStatistics = statisticsFactory.createDataStatistics();
+    this.dataStatistics = statisticsSerializer.createInstance();
   }
 
   long checkpointId() {
     return checkpointId;
   }
 
-  DataStatistics<K> dataStatistics() {
+  DataStatistics<D, S> dataStatistics() {
     return dataStatistics;
   }
 
-  void mergeDataStatistic(int subtask, DataStatisticsEvent<K> event) {
+  @SuppressWarnings("unchecked")
+  void mergeDataStatistic(int subtask, DataStatisticsEvent<D, S> event) {
     Preconditions.checkArgument(
         checkpointId == event.checkpointId(),
         "Received unexpected event from checkpoint %s. Expected checkpoint %s",
@@ -65,7 +68,7 @@ class GlobalStatisticsAggregator<K> implements Serializable {
       return;
     }
 
-    dataStatistics.merge(event.dataStatistics());
+    dataStatistics.merge((D) event.dataStatistics());
   }
 
   int aggregatedSubtasksCount() {

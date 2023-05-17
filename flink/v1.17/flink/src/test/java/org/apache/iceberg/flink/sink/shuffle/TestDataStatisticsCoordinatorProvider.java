@@ -18,10 +18,18 @@
  */
 package org.apache.iceberg.flink.sink.shuffle;
 
+import java.util.Map;
+import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.runtime.jobgraph.OperatorID;
 import org.apache.flink.runtime.operators.coordination.EventReceivingTasks;
 import org.apache.flink.runtime.operators.coordination.MockOperatorCoordinatorContext;
 import org.apache.flink.runtime.operators.coordination.RecreateOnResetOperatorCoordinator;
+import org.apache.flink.table.data.GenericRowData;
+import org.apache.flink.table.data.RowData;
+import org.apache.flink.table.data.StringData;
+import org.apache.flink.table.runtime.typeutils.RowDataSerializer;
+import org.apache.flink.table.types.logical.RowType;
+import org.apache.flink.table.types.logical.VarCharType;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -29,15 +37,17 @@ import org.junit.Test;
 public class TestDataStatisticsCoordinatorProvider {
   private static final OperatorID OPERATOR_ID = new OperatorID();
   private static final int NUM_SUBTASKS = 1;
-
-  private DataStatisticsCoordinatorProvider<String> provider;
+  private DataStatisticsCoordinatorProvider<MapDataStatistics, Map<RowData, Long>> provider;
   private EventReceivingTasks receivingTasks;
 
   @Before
   public void before() {
+    TypeSerializer<DataStatistics<MapDataStatistics, Map<RowData, Long>>> statisticsSerializer =
+        MapDataStatisticsSerializer.fromKeySerializer(
+            new RowDataSerializer(RowType.of(new VarCharType())));
     provider =
         new DataStatisticsCoordinatorProvider<>(
-            "DataStatisticsCoordinatorProviderTest", OPERATOR_ID, new MapDataStatisticsFactory<>());
+            "DataStatisticsCoordinatorProviderTest", OPERATOR_ID, statisticsSerializer);
     receivingTasks = EventReceivingTasks.createForRunningTasks();
   }
 
@@ -47,88 +57,125 @@ public class TestDataStatisticsCoordinatorProvider {
     RecreateOnResetOperatorCoordinator coordinator =
         (RecreateOnResetOperatorCoordinator)
             provider.create(new MockOperatorCoordinatorContext(OPERATOR_ID, NUM_SUBTASKS));
-    DataStatisticsCoordinator<String> dataStatisticsCoordinator =
-        (DataStatisticsCoordinator<String>) coordinator.getInternalCoordinator();
+    DataStatisticsCoordinator<MapDataStatistics, Map<RowData, Long>> dataStatisticsCoordinator =
+        (DataStatisticsCoordinator<MapDataStatistics, Map<RowData, Long>>)
+            coordinator.getInternalCoordinator();
 
     // Start the coordinator
     coordinator.start();
     TestDataStatisticsCoordinator.setAllTasksReady(
         NUM_SUBTASKS, dataStatisticsCoordinator, receivingTasks);
-    MapDataStatistics<String> checkpoint1Subtask0DataStatistic = new MapDataStatistics<>();
-    checkpoint1Subtask0DataStatistic.add("a");
-    checkpoint1Subtask0DataStatistic.add("b");
-    checkpoint1Subtask0DataStatistic.add("b");
-    DataStatisticsEvent<String> checkpoint1Subtask0DataStatisticEvent =
-        new DataStatisticsEvent<>(1, checkpoint1Subtask0DataStatistic);
+    MapDataStatistics checkpoint1Subtask0DataStatistic = new MapDataStatistics();
+    checkpoint1Subtask0DataStatistic.add(GenericRowData.of(StringData.fromString("a")));
+    checkpoint1Subtask0DataStatistic.add(GenericRowData.of(StringData.fromString("b")));
+    checkpoint1Subtask0DataStatistic.add(GenericRowData.of(StringData.fromString("c")));
+    DataStatisticsEvent<MapDataStatistics, Map<RowData, Long>>
+        checkpoint1Subtask0DataStatisticEvent =
+            new DataStatisticsEvent<>(1, checkpoint1Subtask0DataStatistic);
 
     // Handle events from operators for checkpoint 1
     coordinator.handleEventFromOperator(0, 0, checkpoint1Subtask0DataStatisticEvent);
     TestDataStatisticsCoordinator.waitForCoordinatorToProcessActions(dataStatisticsCoordinator);
     // Verify checkpoint 1 global data statistics
-    MapDataStatistics<String> checkpoint1GlobalDataStatistics =
-        (MapDataStatistics<String>)
+    MapDataStatistics checkpoint1GlobalDataStatistics =
+        (MapDataStatistics)
             dataStatisticsCoordinator
                 .globalStatisticsAggregatorTracker()
                 .lastCompletedAggregator()
                 .dataStatistics();
     Assert.assertEquals(
-        checkpoint1Subtask0DataStatistic.mapStatistics().get("a"),
-        checkpoint1GlobalDataStatistics.mapStatistics().get("a"));
+        checkpoint1Subtask0DataStatistic
+            .statistics()
+            .get(GenericRowData.of(StringData.fromString("a"))),
+        checkpoint1GlobalDataStatistics
+            .statistics()
+            .get(GenericRowData.of(StringData.fromString("a"))));
     Assert.assertEquals(
-        checkpoint1Subtask0DataStatistic.mapStatistics().get("b"),
-        checkpoint1GlobalDataStatistics.mapStatistics().get("b"));
+        checkpoint1Subtask0DataStatistic
+            .statistics()
+            .get(GenericRowData.of(StringData.fromString("b"))),
+        checkpoint1GlobalDataStatistics
+            .statistics()
+            .get(GenericRowData.of(StringData.fromString("b"))));
     Assert.assertEquals(
-        checkpoint1Subtask0DataStatistic.mapStatistics().get("c"),
-        checkpoint1GlobalDataStatistics.mapStatistics().get("c"));
+        checkpoint1Subtask0DataStatistic
+            .statistics()
+            .get(GenericRowData.of(StringData.fromString("c"))),
+        checkpoint1GlobalDataStatistics
+            .statistics()
+            .get(GenericRowData.of(StringData.fromString("c"))));
     byte[] bytes = TestDataStatisticsCoordinator.waitForCheckpoint(1L, dataStatisticsCoordinator);
 
-    MapDataStatistics<String> checkpoint2Subtask0DataStatistic = new MapDataStatistics<>();
-    checkpoint1Subtask0DataStatistic.add("d");
-    checkpoint1Subtask0DataStatistic.add("e");
-    checkpoint1Subtask0DataStatistic.add("e");
-    DataStatisticsEvent<String> checkpoint2Subtask0DataStatisticEvent =
-        new DataStatisticsEvent<>(2, checkpoint2Subtask0DataStatistic);
+    MapDataStatistics checkpoint2Subtask0DataStatistic = new MapDataStatistics();
+    checkpoint1Subtask0DataStatistic.add(GenericRowData.of(StringData.fromString("d")));
+    checkpoint1Subtask0DataStatistic.add(GenericRowData.of(StringData.fromString("e")));
+    checkpoint1Subtask0DataStatistic.add(GenericRowData.of(StringData.fromString("e")));
+    DataStatisticsEvent<MapDataStatistics, Map<RowData, Long>>
+        checkpoint2Subtask0DataStatisticEvent =
+            new DataStatisticsEvent<>(2, checkpoint2Subtask0DataStatistic);
     // Handle events from operators for checkpoint 2
     coordinator.handleEventFromOperator(0, 0, checkpoint2Subtask0DataStatisticEvent);
     TestDataStatisticsCoordinator.waitForCoordinatorToProcessActions(dataStatisticsCoordinator);
     // Verify checkpoint 1 global data statistics
-    MapDataStatistics<String> checkpoint2GlobalDataStatistics =
-        (MapDataStatistics<String>)
+    MapDataStatistics checkpoint2GlobalDataStatistics =
+        (MapDataStatistics)
             dataStatisticsCoordinator
                 .globalStatisticsAggregatorTracker()
                 .lastCompletedAggregator()
                 .dataStatistics();
     Assert.assertEquals(
-        checkpoint2Subtask0DataStatistic.mapStatistics().get("d"),
-        checkpoint2GlobalDataStatistics.mapStatistics().get("d"));
+        checkpoint2Subtask0DataStatistic
+            .statistics()
+            .get(GenericRowData.of(StringData.fromString("d"))),
+        checkpoint2GlobalDataStatistics
+            .statistics()
+            .get(GenericRowData.of(StringData.fromString("d"))));
     Assert.assertEquals(
-        checkpoint2Subtask0DataStatistic.mapStatistics().get("e"),
-        checkpoint2GlobalDataStatistics.mapStatistics().get("e"));
+        checkpoint2Subtask0DataStatistic
+            .statistics()
+            .get(GenericRowData.of(StringData.fromString("e"))),
+        checkpoint2GlobalDataStatistics
+            .statistics()
+            .get(GenericRowData.of(StringData.fromString("e"))));
     TestDataStatisticsCoordinator.waitForCheckpoint(2L, dataStatisticsCoordinator);
 
     // Reset coordinator to checkpoint 1
     coordinator.resetToCheckpoint(1L, bytes);
-    DataStatisticsCoordinator<String> restoredDataStatisticsCoordinator =
-        (DataStatisticsCoordinator<String>) coordinator.getInternalCoordinator();
+    DataStatisticsCoordinator<MapDataStatistics, Map<RowData, Long>>
+        restoredDataStatisticsCoordinator =
+            (DataStatisticsCoordinator<MapDataStatistics, Map<RowData, Long>>)
+                coordinator.getInternalCoordinator();
     Assert.assertNotEquals(
         "The restored shuffle coordinator should be a different instance",
         restoredDataStatisticsCoordinator,
         dataStatisticsCoordinator);
     // Verify restored data statistics
-    MapDataStatistics<String> restoredAggregateDataStatistics =
-        (MapDataStatistics<String>)
+    MapDataStatistics restoredAggregateDataStatistics =
+        (MapDataStatistics)
             restoredDataStatisticsCoordinator
                 .globalStatisticsAggregatorTracker()
                 .lastCompletedAggregator()
                 .dataStatistics();
     Assert.assertEquals(
-        checkpoint1GlobalDataStatistics.mapStatistics().get("a"),
-        restoredAggregateDataStatistics.mapStatistics().get("a"));
+        checkpoint1GlobalDataStatistics
+            .statistics()
+            .get(GenericRowData.of(StringData.fromString("a"))),
+        restoredAggregateDataStatistics
+            .statistics()
+            .get(GenericRowData.of(StringData.fromString("a"))));
     Assert.assertEquals(
-        checkpoint1GlobalDataStatistics.mapStatistics().get("b"),
-        restoredAggregateDataStatistics.mapStatistics().get("b"));
+        checkpoint1GlobalDataStatistics
+            .statistics()
+            .get(GenericRowData.of(StringData.fromString("b"))),
+        restoredAggregateDataStatistics
+            .statistics()
+            .get(GenericRowData.of(StringData.fromString("b"))));
     Assert.assertEquals(
-        checkpoint1GlobalDataStatistics.mapStatistics().get("c"),
-        restoredAggregateDataStatistics.mapStatistics().get("c"));
+        checkpoint1GlobalDataStatistics
+            .statistics()
+            .get(GenericRowData.of(StringData.fromString("c"))),
+        restoredAggregateDataStatistics
+            .statistics()
+            .get(GenericRowData.of(StringData.fromString("c"))));
   }
 }

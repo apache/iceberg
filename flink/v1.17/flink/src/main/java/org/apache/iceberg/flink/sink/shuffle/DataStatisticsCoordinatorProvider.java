@@ -18,10 +18,10 @@
  */
 package org.apache.iceberg.flink.sink.shuffle;
 
-import java.io.Serializable;
 import java.util.concurrent.ThreadFactory;
 import javax.annotation.Nullable;
 import org.apache.flink.annotation.VisibleForTesting;
+import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.runtime.jobgraph.OperatorID;
 import org.apache.flink.runtime.operators.coordination.OperatorCoordinator;
 import org.apache.flink.runtime.operators.coordination.RecreateOnResetOperatorCoordinator;
@@ -33,22 +33,24 @@ import org.jetbrains.annotations.NotNull;
  * DataStatisticsCoordinator} and defines {@link CoordinatorExecutorThreadFactory} to create new
  * thread for {@link DataStatisticsCoordinator} to execute task
  */
-public class DataStatisticsCoordinatorProvider<K extends Serializable>
+public class DataStatisticsCoordinatorProvider<D extends DataStatistics<D, S>, S>
     extends RecreateOnResetOperatorCoordinator.Provider {
 
   private final String operatorName;
-  private final DataStatisticsFactory<K> dataStatisticsFactory;
+  private final TypeSerializer<DataStatistics<D, S>> statisticsSerializer;
 
   public DataStatisticsCoordinatorProvider(
-      String operatorName, OperatorID operatorID, DataStatisticsFactory<K> dataStatisticsFactory) {
+      String operatorName,
+      OperatorID operatorID,
+      TypeSerializer<DataStatistics<D, S>> statisticsSerializer) {
     super(operatorID);
     this.operatorName = operatorName;
-    this.dataStatisticsFactory = dataStatisticsFactory;
+    this.statisticsSerializer = statisticsSerializer;
   }
 
   @Override
   public OperatorCoordinator getCoordinator(OperatorCoordinator.Context context) {
-    return new DataStatisticsCoordinator<>(operatorName, context, dataStatisticsFactory);
+    return new DataStatisticsCoordinator<>(operatorName, context, statisticsSerializer);
   }
 
   static class CoordinatorExecutorThreadFactory

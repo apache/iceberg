@@ -18,12 +18,23 @@
  */
 package org.apache.iceberg.flink.sink.shuffle;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.runtime.jobgraph.OperatorID;
 import org.apache.flink.runtime.operators.coordination.EventReceivingTasks;
 import org.apache.flink.runtime.operators.coordination.MockOperatorCoordinatorContext;
+import org.apache.flink.table.data.GenericRowData;
+import org.apache.flink.table.data.RowData;
+import org.apache.flink.table.data.StringData;
+import org.apache.flink.table.runtime.typeutils.RowDataSerializer;
+import org.apache.flink.table.types.logical.RowType;
+import org.apache.flink.table.types.logical.VarCharType;
 import org.apache.flink.util.ExceptionUtils;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -34,16 +45,21 @@ public class TestDataStatisticsCoordinator {
   private static final int NUM_SUBTASKS = 2;
 
   private EventReceivingTasks receivingTasks;
-  private DataStatisticsCoordinator<String> dataStatisticsCoordinator;
+  private DataStatisticsCoordinator<MapDataStatistics, Map<RowData, Long>>
+      dataStatisticsCoordinator;
 
   @Before
   public void before() throws Exception {
     receivingTasks = EventReceivingTasks.createForRunningTasks();
+    TypeSerializer<DataStatistics<MapDataStatistics, Map<RowData, Long>>> statisticsSerializer =
+        MapDataStatisticsSerializer.fromKeySerializer(
+            new RowDataSerializer(RowType.of(new VarCharType())));
+
     dataStatisticsCoordinator =
         new DataStatisticsCoordinator<>(
             OPERATOR_NAME,
             new MockOperatorCoordinatorContext(TEST_OPERATOR_ID, NUM_SUBTASKS),
-            new MapDataStatisticsFactory<>());
+            statisticsSerializer);
   }
 
   private void tasksReady() throws Exception {
@@ -61,7 +77,7 @@ public class TestDataStatisticsCoordinator {
         IllegalStateException.class,
         () ->
             dataStatisticsCoordinator.handleEventFromOperator(
-                0, 0, new DataStatisticsEvent<>(0, new MapDataStatistics<>())));
+                0, 0, new DataStatisticsEvent<>(0, new MapDataStatistics())));
     Assert.assertThrows(
         failureMessage,
         IllegalStateException.class,
@@ -76,51 +92,68 @@ public class TestDataStatisticsCoordinator {
   public void testDataStatisticsEventHandling() throws Exception {
     tasksReady();
 
-    MapDataStatistics<String> checkpoint1Subtask0DataStatistic = new MapDataStatistics<>();
-    checkpoint1Subtask0DataStatistic.add("a");
-    checkpoint1Subtask0DataStatistic.add("b");
-    checkpoint1Subtask0DataStatistic.add("b");
-    checkpoint1Subtask0DataStatistic.add("c");
-    checkpoint1Subtask0DataStatistic.add("c");
-    checkpoint1Subtask0DataStatistic.add("c");
-    DataStatisticsEvent<String> checkpoint1Subtask0DataStatisticEvent =
-        new DataStatisticsEvent<>(1, checkpoint1Subtask0DataStatistic);
-    MapDataStatistics<String> checkpoint1Subtask1DataStatistic = new MapDataStatistics<>();
-    checkpoint1Subtask1DataStatistic.add("a");
-    checkpoint1Subtask1DataStatistic.add("b");
-    checkpoint1Subtask1DataStatistic.add("c");
-    checkpoint1Subtask1DataStatistic.add("c");
-    DataStatisticsEvent<String> checkpoint1Subtask1DataStatisticEvent =
-        new DataStatisticsEvent<>(1, checkpoint1Subtask1DataStatistic);
+    MapDataStatistics checkpoint1Subtask0DataStatistic = new MapDataStatistics();
+    checkpoint1Subtask0DataStatistic.add(GenericRowData.of(StringData.fromString("a")));
+    checkpoint1Subtask0DataStatistic.add(GenericRowData.of(StringData.fromString("b")));
+    checkpoint1Subtask0DataStatistic.add(GenericRowData.of(StringData.fromString("b")));
+    checkpoint1Subtask0DataStatistic.add(GenericRowData.of(StringData.fromString("c")));
+    checkpoint1Subtask0DataStatistic.add(GenericRowData.of(StringData.fromString("c")));
+    checkpoint1Subtask0DataStatistic.add(GenericRowData.of(StringData.fromString("c")));
+    DataStatisticsEvent<MapDataStatistics, Map<RowData, Long>>
+        checkpoint1Subtask0DataStatisticEvent =
+            new DataStatisticsEvent<>(1, checkpoint1Subtask0DataStatistic);
+    MapDataStatistics checkpoint1Subtask1DataStatistic = new MapDataStatistics();
+    checkpoint1Subtask1DataStatistic.add(GenericRowData.of(StringData.fromString("a")));
+    checkpoint1Subtask1DataStatistic.add(GenericRowData.of(StringData.fromString("b")));
+    checkpoint1Subtask1DataStatistic.add(GenericRowData.of(StringData.fromString("c")));
+    checkpoint1Subtask1DataStatistic.add(GenericRowData.of(StringData.fromString("c")));
+    DataStatisticsEvent<MapDataStatistics, Map<RowData, Long>>
+        checkpoint1Subtask1DataStatisticEvent =
+            new DataStatisticsEvent<>(1, checkpoint1Subtask1DataStatistic);
     // Handle events from operators for checkpoint 1
     dataStatisticsCoordinator.handleEventFromOperator(0, 0, checkpoint1Subtask0DataStatisticEvent);
     dataStatisticsCoordinator.handleEventFromOperator(1, 0, checkpoint1Subtask1DataStatisticEvent);
 
     waitForCoordinatorToProcessActions(dataStatisticsCoordinator);
     // Verify global data statistics is the aggregation of all subtasks data statistics
-    MapDataStatistics<String> globalDataStatistics =
-        (MapDataStatistics<String>)
+    MapDataStatistics globalDataStatistics =
+        (MapDataStatistics)
             dataStatisticsCoordinator
                 .globalStatisticsAggregatorTracker()
                 .lastCompletedAggregator()
                 .dataStatistics();
-    Assert.assertEquals(
-        checkpoint1Subtask0DataStatistic.mapStatistics().get("a")
-            + (long) checkpoint1Subtask1DataStatistic.mapStatistics().get("a"),
-        (long) globalDataStatistics.mapStatistics().get("a"));
-    Assert.assertEquals(
-        checkpoint1Subtask0DataStatistic.mapStatistics().get("b")
-            + (long) checkpoint1Subtask1DataStatistic.mapStatistics().get("b"),
-        (long) globalDataStatistics.mapStatistics().get("b"));
-    Assert.assertEquals(
-        checkpoint1Subtask0DataStatistic.mapStatistics().get("c")
-            + (long) checkpoint1Subtask1DataStatistic.mapStatistics().get("c"),
-        (long) globalDataStatistics.mapStatistics().get("c"));
+    assertThat(globalDataStatistics.statistics())
+        .containsExactlyInAnyOrderEntriesOf(
+            ImmutableMap.of(
+                GenericRowData.of(StringData.fromString("a")),
+                checkpoint1Subtask0DataStatistic
+                        .statistics()
+                        .get(GenericRowData.of(StringData.fromString("a")))
+                    + (long)
+                        checkpoint1Subtask1DataStatistic
+                            .statistics()
+                            .get(GenericRowData.of(StringData.fromString("a"))),
+                GenericRowData.of(StringData.fromString("b")),
+                checkpoint1Subtask0DataStatistic
+                        .statistics()
+                        .get(GenericRowData.of(StringData.fromString("b")))
+                    + (long)
+                        checkpoint1Subtask1DataStatistic
+                            .statistics()
+                            .get(GenericRowData.of(StringData.fromString("b"))),
+                GenericRowData.of(StringData.fromString("c")),
+                checkpoint1Subtask0DataStatistic
+                        .statistics()
+                        .get(GenericRowData.of(StringData.fromString("c")))
+                    + (long)
+                        checkpoint1Subtask1DataStatistic
+                            .statistics()
+                            .get(GenericRowData.of(StringData.fromString("c")))));
   }
 
   static void setAllTasksReady(
       int subtasks,
-      DataStatisticsCoordinator<String> dataStatisticsCoordinator,
+      DataStatisticsCoordinator<MapDataStatistics, Map<RowData, Long>> dataStatisticsCoordinator,
       EventReceivingTasks receivingTasks) {
     for (int i = 0; i < subtasks; i++) {
       dataStatisticsCoordinator.executionAttemptReady(
@@ -128,7 +161,8 @@ public class TestDataStatisticsCoordinator {
     }
   }
 
-  static void waitForCoordinatorToProcessActions(DataStatisticsCoordinator<String> coordinator) {
+  static void waitForCoordinatorToProcessActions(
+      DataStatisticsCoordinator<MapDataStatistics, Map<RowData, Long>> coordinator) {
     CompletableFuture<Void> future = new CompletableFuture<>();
     coordinator.callInCoordinatorThread(
         () -> {
@@ -146,7 +180,9 @@ public class TestDataStatisticsCoordinator {
     }
   }
 
-  static byte[] waitForCheckpoint(long checkpointId, DataStatisticsCoordinator<String> coordinator)
+  static byte[] waitForCheckpoint(
+      long checkpointId,
+      DataStatisticsCoordinator<MapDataStatistics, Map<RowData, Long>> coordinator)
       throws InterruptedException, ExecutionException {
     CompletableFuture<byte[]> future = new CompletableFuture<>();
     coordinator.checkpointCoordinator(checkpointId, future);

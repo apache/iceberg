@@ -27,6 +27,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import org.apache.flink.annotation.Internal;
+import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.runtime.operators.coordination.OperatorCoordinator;
 import org.apache.flink.runtime.operators.coordination.OperatorEvent;
 import org.apache.flink.util.ExceptionUtils;
@@ -51,7 +52,7 @@ import org.slf4j.LoggerFactory;
  * clustering.
  */
 @Internal
-class DataStatisticsCoordinator<K> implements OperatorCoordinator {
+class DataStatisticsCoordinator<D extends DataStatistics<D, S>, S> implements OperatorCoordinator {
   private static final Logger LOG = LoggerFactory.getLogger(DataStatisticsCoordinator.class);
 
   private final String operatorName;
@@ -60,14 +61,14 @@ class DataStatisticsCoordinator<K> implements OperatorCoordinator {
   private final SubtaskGateways subtaskGateways;
   private final DataStatisticsCoordinatorProvider.CoordinatorExecutorThreadFactory
       coordinatorThreadFactory;
-  private final GlobalStatisticsAggregatorTracker<K> globalStatisticsAggregatorTracker;
+  private final GlobalStatisticsAggregatorTracker<D, S> globalStatisticsAggregatorTracker;
 
   private volatile boolean started;
 
   DataStatisticsCoordinator(
       String operatorName,
       OperatorCoordinator.Context context,
-      DataStatisticsFactory<K> statisticsFactory) {
+      TypeSerializer<DataStatistics<D, S>> statisticsSerializer) {
     this.operatorName = operatorName;
     this.coordinatorThreadFactory =
         new DataStatisticsCoordinatorProvider.CoordinatorExecutorThreadFactory(
@@ -76,7 +77,7 @@ class DataStatisticsCoordinator<K> implements OperatorCoordinator {
     this.operatorCoordinatorContext = context;
     this.subtaskGateways = new SubtaskGateways(parallelism());
     this.globalStatisticsAggregatorTracker =
-        new GlobalStatisticsAggregatorTracker<>(statisticsFactory, parallelism());
+        new GlobalStatisticsAggregatorTracker<>(statisticsSerializer, parallelism());
   }
 
   @Override
@@ -141,9 +142,7 @@ class DataStatisticsCoordinator<K> implements OperatorCoordinator {
   public void runInCoordinatorThread(Runnable runnable) {
     this.coordinatorExecutor.execute(
         new ThrowableCatchingRunnable(
-            (throwable) -> {
-              this.coordinatorThreadFactory.uncaughtException(Thread.currentThread(), throwable);
-            },
+            throwable -> this.coordinatorThreadFactory.uncaughtException(Thread.currentThread(), throwable),
             runnable));
   }
 
@@ -175,10 +174,10 @@ class DataStatisticsCoordinator<K> implements OperatorCoordinator {
     return operatorCoordinatorContext.currentParallelism();
   }
 
-  private void handleDataStatisticRequest(int subtask, DataStatisticsEvent<K> event) {
+  private void handleDataStatisticRequest(int subtask, DataStatisticsEvent<D, S> event) {
     if (globalStatisticsAggregatorTracker.receiveDataStatisticEventAndCheckCompletion(
         subtask, event)) {
-      GlobalStatisticsAggregator<K> lastCompletedAggregator =
+      GlobalStatisticsAggregator<D, S> lastCompletedAggregator =
           globalStatisticsAggregatorTracker.lastCompletedAggregator();
       sendDataStatisticsToSubtasks(
           lastCompletedAggregator.checkpointId(), lastCompletedAggregator.dataStatistics());
@@ -186,10 +185,10 @@ class DataStatisticsCoordinator<K> implements OperatorCoordinator {
   }
 
   private void sendDataStatisticsToSubtasks(
-      long checkpointId, DataStatistics<K> globalDataStatistics) {
+      long checkpointId, DataStatistics<D, S> globalDataStatistics) {
     callInCoordinatorThread(
         () -> {
-          DataStatisticsEvent<K> dataStatisticsEvent =
+          DataStatisticsEvent<D, S> dataStatisticsEvent =
               new DataStatisticsEvent<>(checkpointId, globalDataStatistics);
           int parallelism = parallelism();
           for (int i = 0; i < parallelism; ++i) {
@@ -212,7 +211,7 @@ class DataStatisticsCoordinator<K> implements OperatorCoordinator {
               operatorName,
               event);
           Preconditions.checkArgument(event instanceof DataStatisticsEvent);
-          handleDataStatisticRequest(subtask, ((DataStatisticsEvent<K>) event));
+          handleDataStatisticRequest(subtask, ((DataStatisticsEvent<D, S>) event));
         },
         "handling operator event %s from subtask %d (#%d)",
         event.getClass(),
@@ -318,7 +317,7 @@ class DataStatisticsCoordinator<K> implements OperatorCoordinator {
   }
 
   @VisibleForTesting
-  GlobalStatisticsAggregatorTracker<K> globalStatisticsAggregatorTracker() {
+  GlobalStatisticsAggregatorTracker<D, S> globalStatisticsAggregatorTracker() {
     return globalStatisticsAggregatorTracker;
   }
 

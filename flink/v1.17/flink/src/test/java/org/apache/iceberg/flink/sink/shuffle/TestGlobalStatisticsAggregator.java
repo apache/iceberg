@@ -18,6 +18,13 @@
  */
 package org.apache.iceberg.flink.sink.shuffle;
 
+import java.util.Map;
+import org.apache.flink.table.data.GenericRowData;
+import org.apache.flink.table.data.RowData;
+import org.apache.flink.table.data.StringData;
+import org.apache.flink.table.runtime.typeutils.RowDataSerializer;
+import org.apache.flink.table.types.logical.RowType;
+import org.apache.flink.table.types.logical.VarCharType;
 import org.junit.Test;
 import org.junit.jupiter.api.Assertions;
 
@@ -25,16 +32,20 @@ public class TestGlobalStatisticsAggregator {
 
   @Test
   public void mergeDataStatisticTest() {
-    GlobalStatisticsAggregator<String> globalStatisticsAggregator =
-        new GlobalStatisticsAggregator<>(1, MapDataStatistics::new);
-    DataStatistics<String> mapDataStatistics1 = new MapDataStatistics<>();
-    mapDataStatistics1.add("a");
-    mapDataStatistics1.add("a");
-    mapDataStatistics1.add("b");
+    GlobalStatisticsAggregator<MapDataStatistics, Map<RowData, Long>> globalStatisticsAggregator =
+        new GlobalStatisticsAggregator<>(
+            1,
+            MapDataStatisticsSerializer.fromKeySerializer(
+                new RowDataSerializer(RowType.of(new VarCharType()))));
+    DataStatistics<MapDataStatistics, Map<RowData, Long>> mapDataStatistics1 =
+        new MapDataStatistics();
+    mapDataStatistics1.add(GenericRowData.of(StringData.fromString("a")));
+    mapDataStatistics1.add(GenericRowData.of(StringData.fromString("a")));
+    mapDataStatistics1.add(GenericRowData.of(StringData.fromString("b")));
     globalStatisticsAggregator.mergeDataStatistic(
         1, new DataStatisticsEvent<>(1, mapDataStatistics1));
-    DataStatistics<String> mapDataStatistics2 = new MapDataStatistics<>();
-    mapDataStatistics2.add("a");
+    MapDataStatistics mapDataStatistics2 = new MapDataStatistics();
+    mapDataStatistics2.add(GenericRowData.of(StringData.fromString("a")));
     globalStatisticsAggregator.mergeDataStatistic(
         2, new DataStatisticsEvent<>(1, mapDataStatistics2));
     globalStatisticsAggregator.mergeDataStatistic(
@@ -42,14 +53,16 @@ public class TestGlobalStatisticsAggregator {
     Assertions.assertEquals(
         3L,
         (long)
-            ((MapDataStatistics<String>) globalStatisticsAggregator.dataStatistics())
-                .mapStatistics()
-                .get("a"));
+            globalStatisticsAggregator
+                .dataStatistics()
+                .statistics()
+                .get(GenericRowData.of(StringData.fromString("a"))));
     Assertions.assertEquals(
         1L,
         (long)
-            ((MapDataStatistics<String>) globalStatisticsAggregator.dataStatistics())
-                .mapStatistics()
-                .get("b"));
+            globalStatisticsAggregator
+                .dataStatistics()
+                .statistics()
+                .get(GenericRowData.of(StringData.fromString("b"))));
   }
 }
