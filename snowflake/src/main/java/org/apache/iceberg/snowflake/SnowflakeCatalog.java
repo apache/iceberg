@@ -209,7 +209,7 @@ public class SnowflakeCatalog extends BaseMetastoreCatalog
       default:
         throw new IllegalArgumentException(
             String.format(
-                "loadNamespaceMetadat must be at either DATABASE or SCHEMA level; got %s from namespace %s",
+                "loadNamespaceMetadata must be at either DATABASE or SCHEMA level; got %s from namespace %s",
                 id, namespace));
     }
     if (namespaceExists) {
