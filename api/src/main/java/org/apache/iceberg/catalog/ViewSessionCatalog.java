@@ -26,8 +26,8 @@ import org.apache.iceberg.exceptions.NoSuchViewException;
 import org.apache.iceberg.view.View;
 import org.apache.iceberg.view.ViewBuilder;
 
-/** A Catalog API for view create, drop, and load operations. */
-public interface ViewCatalog {
+/** A session Catalog API for view create, drop, and load operations. */
+public interface ViewSessionCatalog {
 
   /**
    * Return the name for this catalog.
@@ -43,7 +43,7 @@ public interface ViewCatalog {
    * @return a list of identifiers for views
    * @throws NoSuchNamespaceException if the namespace is not found
    */
-  List<TableIdentifier> listViews(Namespace namespace);
+  List<TableIdentifier> listViews(SessionCatalog.SessionContext context, Namespace namespace);
 
   /**
    * Load a view.
@@ -52,7 +52,7 @@ public interface ViewCatalog {
    * @return instance of {@link View} implementation referred by the identifier
    * @throws NoSuchViewException if the view does not exist
    */
-  View loadView(TableIdentifier identifier);
+  View loadView(SessionCatalog.SessionContext context, TableIdentifier identifier);
 
   /**
    * Check whether view exists.
@@ -60,9 +60,9 @@ public interface ViewCatalog {
    * @param identifier a view identifier
    * @return true if the view exists, false otherwise
    */
-  default boolean viewExists(TableIdentifier identifier) {
+  default boolean viewExists(SessionCatalog.SessionContext context, TableIdentifier identifier) {
     try {
-      loadView(identifier);
+      loadView(context, identifier);
       return true;
     } catch (NoSuchViewException e) {
       return false;
@@ -75,7 +75,7 @@ public interface ViewCatalog {
    * @param identifier a view identifier
    * @return a view builder
    */
-  ViewBuilder buildView(TableIdentifier identifier);
+  ViewBuilder buildView(SessionCatalog.SessionContext context, TableIdentifier identifier);
 
   /**
    * Drop a view.
@@ -83,7 +83,7 @@ public interface ViewCatalog {
    * @param identifier a view identifier
    * @return true if the view was dropped, false if the view did not exist
    */
-  boolean dropView(TableIdentifier identifier);
+  boolean dropView(SessionCatalog.SessionContext context, TableIdentifier identifier);
 
   /**
    * Rename a view.
@@ -94,7 +94,7 @@ public interface ViewCatalog {
    * @throws AlreadyExistsException if the "to" view already exists
    * @throws NoSuchNamespaceException if the "to" namespace doesn't exist
    */
-  void renameView(TableIdentifier from, TableIdentifier to);
+  void renameView(SessionCatalog.SessionContext context, TableIdentifier from, TableIdentifier to);
 
   /**
    * Invalidate cached view metadata from current catalog.
@@ -104,7 +104,7 @@ public interface ViewCatalog {
    *
    * @param identifier a view identifier
    */
-  default void invalidateView(TableIdentifier identifier) {}
+  default void invalidateView(SessionCatalog.SessionContext context, TableIdentifier identifier) {}
 
   /**
    * Initialize a view catalog given a custom name and a map of catalog properties.
@@ -116,5 +116,5 @@ public interface ViewCatalog {
    * @param name a custom name for the catalog
    * @param properties catalog properties
    */
-  default void initialize(String name, Map<String, String> properties) {}
+  void initialize(String name, Map<String, String> properties);
 }

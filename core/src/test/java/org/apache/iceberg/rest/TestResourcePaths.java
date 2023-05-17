@@ -143,4 +143,51 @@ public class TestResourcePaths {
         .isEqualTo("v1/ws/catalog/namespaces/ns/register");
     Assertions.assertThat(withoutPrefix.register(ns)).isEqualTo("v1/namespaces/ns/register");
   }
+
+  @Test
+  public void views() {
+    Namespace ns = Namespace.of("ns");
+    Assertions.assertThat(withPrefix.views(ns)).isEqualTo("v1/ws/catalog/namespaces/ns/views");
+    Assertions.assertThat(withoutPrefix.views(ns)).isEqualTo("v1/namespaces/ns/views");
+  }
+
+  @Test
+  public void viewsWithSlash() {
+    Namespace ns = Namespace.of("n/s");
+    Assertions.assertThat(withPrefix.views(ns)).isEqualTo("v1/ws/catalog/namespaces/n%2Fs/views");
+    Assertions.assertThat(withoutPrefix.views(ns)).isEqualTo("v1/namespaces/n%2Fs/views");
+  }
+
+  @Test
+  public void viewsWithMultipartNamespace() {
+    Namespace ns = Namespace.of("n", "s");
+    Assertions.assertThat(withPrefix.views(ns)).isEqualTo("v1/ws/catalog/namespaces/n%1Fs/views");
+    Assertions.assertThat(withoutPrefix.views(ns)).isEqualTo("v1/namespaces/n%1Fs/views");
+  }
+
+  @Test
+  public void view() {
+    TableIdentifier ident = TableIdentifier.of("ns", "view-name");
+    Assertions.assertThat(withPrefix.view(ident))
+        .isEqualTo("v1/ws/catalog/namespaces/ns/views/view-name");
+    Assertions.assertThat(withoutPrefix.view(ident)).isEqualTo("v1/namespaces/ns/views/view-name");
+  }
+
+  @Test
+  public void viewWithSlash() {
+    TableIdentifier ident = TableIdentifier.of("n/s", "vi/ew-name");
+    Assertions.assertThat(withPrefix.view(ident))
+        .isEqualTo("v1/ws/catalog/namespaces/n%2Fs/views/vi%2Few-name");
+    Assertions.assertThat(withoutPrefix.view(ident))
+        .isEqualTo("v1/namespaces/n%2Fs/views/vi%2Few-name");
+  }
+
+  @Test
+  public void viewWithMultipartNamespace() {
+    TableIdentifier ident = TableIdentifier.of("n", "s", "view-name");
+    Assertions.assertThat(withPrefix.view(ident))
+        .isEqualTo("v1/ws/catalog/namespaces/n%1Fs/views/view-name");
+    Assertions.assertThat(withoutPrefix.view(ident))
+        .isEqualTo("v1/namespaces/n%1Fs/views/view-name");
+  }
 }

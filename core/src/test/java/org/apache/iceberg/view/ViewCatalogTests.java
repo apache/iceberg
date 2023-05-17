@@ -247,8 +247,9 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
                     .withQuery(trino.dialect(), trino.sql())
                     .withQuery(trino.dialect(), trino.sql())
                     .create())
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid view version: Cannot add multiple queries for dialect trino");
+        .isInstanceOf(Exception.class)
+        .hasMessageContaining(
+            "Invalid view version: Cannot add multiple queries for dialect trino");
   }
 
   @Test

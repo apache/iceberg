@@ -44,6 +44,9 @@ import org.apache.iceberg.catalog.TableIdentifierParser;
 import org.apache.iceberg.rest.auth.OAuth2Util;
 import org.apache.iceberg.rest.requests.CommitTransactionRequest;
 import org.apache.iceberg.rest.requests.CommitTransactionRequestParser;
+import org.apache.iceberg.rest.requests.CreateViewRequest;
+import org.apache.iceberg.rest.requests.CreateViewRequestParser;
+import org.apache.iceberg.rest.requests.ImmutableCreateViewRequest;
 import org.apache.iceberg.rest.requests.ImmutableRegisterTableRequest;
 import org.apache.iceberg.rest.requests.ImmutableReportMetricsRequest;
 import org.apache.iceberg.rest.requests.RegisterTableRequest;
@@ -56,6 +59,9 @@ import org.apache.iceberg.rest.requests.UpdateTableRequest.UpdateRequirement;
 import org.apache.iceberg.rest.requests.UpdateTableRequestParser;
 import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.apache.iceberg.rest.responses.ErrorResponseParser;
+import org.apache.iceberg.rest.responses.ImmutableLoadViewResponse;
+import org.apache.iceberg.rest.responses.LoadViewResponse;
+import org.apache.iceberg.rest.responses.LoadViewResponseParser;
 import org.apache.iceberg.rest.responses.OAuthTokenResponse;
 import org.apache.iceberg.util.JsonUtil;
 
@@ -101,7 +107,16 @@ public class RESTSerializers {
         .addDeserializer(RegisterTableRequest.class, new RegisterTableRequestDeserializer<>())
         .addSerializer(ImmutableRegisterTableRequest.class, new RegisterTableRequestSerializer<>())
         .addDeserializer(
-            ImmutableRegisterTableRequest.class, new RegisterTableRequestDeserializer<>());
+            ImmutableRegisterTableRequest.class, new RegisterTableRequestDeserializer<>())
+        .addSerializer(CreateViewRequest.class, new CreateViewRequestSerializer<>())
+        .addSerializer(ImmutableCreateViewRequest.class, new CreateViewRequestSerializer<>())
+        .addDeserializer(CreateViewRequest.class, new CreateViewRequestDeserializer<>())
+        .addDeserializer(ImmutableCreateViewRequest.class, new CreateViewRequestDeserializer<>())
+        .addSerializer(LoadViewResponse.class, new LoadViewResponseSerializer<>())
+        .addSerializer(ImmutableLoadViewResponse.class, new LoadViewResponseSerializer<>())
+        .addDeserializer(LoadViewResponse.class, new LoadViewResponseDeserializer<>())
+        .addDeserializer(ImmutableLoadViewResponse.class, new LoadViewResponseDeserializer<>());
+
     mapper.registerModule(module);
   }
 
@@ -377,6 +392,40 @@ public class RESTSerializers {
     public T deserialize(JsonParser p, DeserializationContext context) throws IOException {
       JsonNode jsonNode = p.getCodec().readTree(p);
       return (T) RegisterTableRequestParser.fromJson(jsonNode);
+    }
+  }
+
+  static class CreateViewRequestSerializer<T extends CreateViewRequest> extends JsonSerializer<T> {
+    @Override
+    public void serialize(T request, JsonGenerator gen, SerializerProvider serializers)
+        throws IOException {
+      CreateViewRequestParser.toJson(request, gen);
+    }
+  }
+
+  static class CreateViewRequestDeserializer<T extends CreateViewRequest>
+      extends JsonDeserializer<T> {
+    @Override
+    public T deserialize(JsonParser p, DeserializationContext context) throws IOException {
+      JsonNode jsonNode = p.getCodec().readTree(p);
+      return (T) CreateViewRequestParser.fromJson(jsonNode);
+    }
+  }
+
+  static class LoadViewResponseSerializer<T extends LoadViewResponse> extends JsonSerializer<T> {
+    @Override
+    public void serialize(T request, JsonGenerator gen, SerializerProvider serializers)
+        throws IOException {
+      LoadViewResponseParser.toJson(request, gen);
+    }
+  }
+
+  static class LoadViewResponseDeserializer<T extends LoadViewResponse>
+      extends JsonDeserializer<T> {
+    @Override
+    public T deserialize(JsonParser p, DeserializationContext context) throws IOException {
+      JsonNode jsonNode = p.getCodec().readTree(p);
+      return (T) LoadViewResponseParser.fromJson(jsonNode);
     }
   }
 }

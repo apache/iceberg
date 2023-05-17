@@ -62,7 +62,7 @@ public class ViewMetadataParser {
     return JsonUtil.generate(gen -> toJson(metadata, gen), pretty);
   }
 
-  static void toJson(ViewMetadata metadata, JsonGenerator gen) throws IOException {
+  public static void toJson(ViewMetadata metadata, JsonGenerator gen) throws IOException {
     Preconditions.checkArgument(null != metadata, "Invalid view metadata: null");
 
     gen.writeStartObject();

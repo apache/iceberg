@@ -26,6 +26,7 @@ import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.ForbiddenException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
+import org.apache.iceberg.exceptions.NoSuchViewException;
 import org.apache.iceberg.exceptions.NotAuthorizedException;
 import org.apache.iceberg.exceptions.RESTException;
 import org.apache.iceberg.exceptions.ServiceFailureException;
@@ -53,6 +54,14 @@ public class ErrorHandlers {
 
   public static Consumer<ErrorResponse> tableErrorHandler() {
     return TableErrorHandler.INSTANCE;
+  }
+
+  public static Consumer<ErrorResponse> viewErrorHandler() {
+    return ViewErrorHandler.INSTANCE;
+  }
+
+  public static Consumer<ErrorResponse> viewCommitHandler() {
+    return ViewCommitErrorHandler.INSTANCE;
   }
 
   public static Consumer<ErrorResponse> tableCommitHandler() {
@@ -101,6 +110,49 @@ public class ErrorHandlers {
             throw new NoSuchNamespaceException("%s", error.message());
           } else {
             throw new NoSuchTableException("%s", error.message());
+          }
+        case 409:
+          throw new AlreadyExistsException("%s", error.message());
+      }
+
+      super.accept(error);
+    }
+  }
+
+  /** View commit error handler. */
+  private static class ViewCommitErrorHandler extends DefaultErrorHandler {
+    private static final ErrorHandler INSTANCE = new ViewCommitErrorHandler();
+
+    @Override
+    public void accept(ErrorResponse error) {
+      switch (error.code()) {
+        case 404:
+          throw new NoSuchViewException("%s", error.message());
+        case 409:
+          throw new CommitFailedException("Commit failed: %s", error.message());
+        case 500:
+        case 502:
+        case 504:
+          throw new CommitStateUnknownException(
+              new ServiceFailureException("Service failed: %s: %s", error.code(), error.message()));
+      }
+
+      super.accept(error);
+    }
+  }
+
+  /** View level error handler. */
+  private static class ViewErrorHandler extends DefaultErrorHandler {
+    private static final ErrorHandler INSTANCE = new ViewErrorHandler();
+
+    @Override
+    public void accept(ErrorResponse error) {
+      switch (error.code()) {
+        case 404:
+          if (NoSuchNamespaceException.class.getSimpleName().equals(error.type())) {
+            throw new NoSuchNamespaceException("%s", error.message());
+          } else {
+            throw new NoSuchViewException("%s", error.message());
           }
         case 409:
           throw new AlreadyExistsException("%s", error.message());

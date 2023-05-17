@@ -20,10 +20,16 @@ package org.apache.iceberg;
 
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.view.ViewMetadata;
 
 /** Represents a requirement for a {@link MetadataUpdate} */
 public interface UpdateRequirement {
   void validate(TableMetadata base);
+
+  default void validate(ViewMetadata base) {
+    throw new UnsupportedOperationException(
+        String.format("Cannot validate %s against a view", this.getClass().getSimpleName()));
+  }
 
   class AssertTableDoesNotExist implements UpdateRequirement {
     public AssertTableDoesNotExist() {}
