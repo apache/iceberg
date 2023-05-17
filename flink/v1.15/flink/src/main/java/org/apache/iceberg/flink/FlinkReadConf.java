@@ -161,6 +161,17 @@ public class FlinkReadConf {
         .parse();
   }
 
+  public Duration reloadInterval() {
+    String duration =
+        confParser
+            .stringConf()
+            .option(FlinkReadOptions.RELOAD_INTERVAL)
+            .flinkConfig(FlinkReadOptions.RELOAD_INTERVAL_OPTION)
+            .defaultValue(FlinkReadOptions.RELOAD_INTERVAL_OPTION.defaultValue())
+            .parse();
+    return TimeUtils.parseDuration(duration);
+  }
+
   public String nameMapping() {
     return confParser.stringConf().option(TableProperties.DEFAULT_NAME_MAPPING).parseOptional();
   }
