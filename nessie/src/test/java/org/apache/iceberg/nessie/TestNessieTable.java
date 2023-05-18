@@ -593,10 +593,16 @@ public class TestNessieTable extends BaseTestIceberg {
         .isNotNull()
         .isEqualTo("false");
 
+    // Forceful setting of property also should get override with false
     icebergTable
         .updateProperties()
         .set(TableProperties.METADATA_DELETE_AFTER_COMMIT_ENABLED, "true")
         .commit();
+    Assertions.assertThat(
+            icebergTable.properties().get(TableProperties.METADATA_DELETE_AFTER_COMMIT_ENABLED))
+        .isNotNull()
+        .isEqualTo("false");
+
     icebergTable
         .updateProperties()
         .set(TableProperties.METADATA_PREVIOUS_VERSIONS_MAX, "1")
