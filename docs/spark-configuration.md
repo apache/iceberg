@@ -184,9 +184,6 @@ df.write
     .insertInto("catalog.db.table")
 ```
 
-
-
-
 | Spark option           | Default                    | Description                                                  |
 | ---------------------- | -------------------------- | ------------------------------------------------------------ |
 | write-format           | Table write.format.default | File format to use for this write operation; parquet, avro, or orc |
