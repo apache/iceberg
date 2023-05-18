@@ -63,6 +63,21 @@ public class SparkReadConf {
     this.branch = branch;
     this.readOptions = readOptions;
     this.confParser = new SparkConfParser(spark, table, readOptions);
+
+    // We only want to check the session conf and the read options, since the table can
+    // also be read with other version of r
+    if (spark.conf().contains(SparkSQLProperties.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE)) {
+      throw new UnsupportedOperationException(
+          "Spark configuration "
+              + SparkSQLProperties.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE
+              + " is not supported in Spark 3.4 due to the introduction of native support for timestamp without timezone.");
+    }
+    if (readOptions.containsKey(SparkReadOptions.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE)) {
+      throw new UnsupportedOperationException(
+          "Read option "
+              + SparkReadOptions.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE
+              + " is not supported in Spark 3.4 due to the introduction of native support for timestamp without timezone.");
+    }
   }
 
   public boolean caseSensitive() {
