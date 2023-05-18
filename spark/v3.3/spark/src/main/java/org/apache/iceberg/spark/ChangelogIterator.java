@@ -80,7 +80,7 @@ public abstract class ChangelogIterator implements Iterator<Row> {
   }
 
   public static Iterator<Row> netChanges(Iterator<Row> rowIterator, StructType rowType) {
-    ChangelogIterator changelogIterator = new NetChangelogIterator(rowIterator, rowType);
+    ChangelogIterator changelogIterator = new RemoveNetCarryoverIterator(rowIterator, rowType);
     return Iterators.filter(changelogIterator, Objects::nonNull);
   }
 

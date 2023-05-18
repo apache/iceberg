@@ -25,8 +25,8 @@ import org.apache.spark.sql.Row;
 import org.apache.spark.sql.types.StructType;
 
 /**
- * This class is used to compute the net changes between multiple snapshots. It takes a row
- * iterator, and returns the net changes between multiple snapshots. It assumes the following:
+ * This class computes the net changes across multiple snapshots. It takes a row iterator, and
+ * assumes the following:
  *
  * <ul>
  *   <li>The row iterator is partitioned by the primary key.
@@ -34,22 +34,22 @@ import org.apache.spark.sql.types.StructType;
  *       order is 1-to-1 mapping to snapshot id.
  * </ul>
  */
-public class NetChangelogIterator extends RemoveCarryoverIterator {
+public class RemoveNetCarryoverIterator extends RemoveCarryoverIterator {
 
   private Row cachedNextRow = null;
   private final List<Row> cachedRows = Lists.newArrayList();
 
-  protected NetChangelogIterator(Iterator<Row> rowIterator, StructType rowType) {
+  protected RemoveNetCarryoverIterator(Iterator<Row> rowIterator, StructType rowType) {
     super(rowIterator, rowType);
   }
 
   @Override
   public boolean hasNext() {
-    if(!cachedRows.isEmpty()) {
+    if (!cachedRows.isEmpty()) {
       return true;
     }
 
-    if(cachedNextRow != null) {
+    if (cachedNextRow != null) {
       return true;
     }
 
