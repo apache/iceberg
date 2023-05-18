@@ -36,7 +36,6 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
-import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -49,7 +48,12 @@ import org.apache.iceberg.spark.SparkTestBaseWithCatalog;
 import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.SnapshotUtil;
-import org.apache.spark.sql.*;
+import org.apache.spark.sql.Column;
+import org.apache.spark.sql.Dataset;
+import org.apache.spark.sql.Encoders;
+import org.apache.spark.sql.Row;
+import org.apache.spark.sql.SaveMode;
+import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.junit.AfterClass;
 import org.junit.Assert;
@@ -449,30 +453,36 @@ public class TestDataSourceOptions extends SparkTestBaseWithCatalog {
   }
 
   @Test
-  public void testExtraSnapshotMetadataWithDelete() throws InterruptedException, IOException, NoSuchTableException {
+  public void testExtraSnapshotMetadataWithDelete()
+      throws InterruptedException, IOException, NoSuchTableException {
     spark.sessionState().conf().setConfString("spark.sql.shuffle.partitions", "1");
     sql("CREATE TABLE %s (id INT, data STRING) USING iceberg", tableName);
     List<SimpleRecord> expectedRecords =
-            Lists.newArrayList(new SimpleRecord(1, "a"), new SimpleRecord(2, "b"), new SimpleRecord(3, "c"));
+        Lists.newArrayList(
+            new SimpleRecord(1, "a"), new SimpleRecord(2, "b"), new SimpleRecord(3, "c"));
     Dataset<Row> originalDf = spark.createDataFrame(expectedRecords, SimpleRecord.class);
-    originalDf.repartition(5, new Column("data"))
-            .select("id", "data").writeTo(tableName).append();
+    originalDf.repartition(5, new Column("data")).select("id", "data").writeTo(tableName).append();
     spark.sql("SELECT * from " + tableName + ".files").show();
-    System.out.println(spark.sql("EXPLAIN DELETE FROM " + tableName + " where id = 1").collectAsList().get(0).get(0));
+    System.out.println(
+        spark
+            .sql("EXPLAIN DELETE FROM " + tableName + " where id = 1")
+            .collectAsList()
+            .get(0)
+            .get(0));
     System.out.println("finished inserting");
     Thread writerThread =
-            new Thread(
-                    () -> {
-                      Map<String, String> properties = Maps.newHashMap();
-                      properties.put("writer-thread", String.valueOf(Thread.currentThread().getName()));
-                      CommitMetadata.withCommitProperties(
-                              properties,
-                              () -> {
-                                spark.sql("DELETE FROM " + tableName + " where id = 1");
-                                return 0;
-                              },
-                              RuntimeException.class);
-                    });
+        new Thread(
+            () -> {
+              Map<String, String> properties = Maps.newHashMap();
+              properties.put("writer-thread", String.valueOf(Thread.currentThread().getName()));
+              CommitMetadata.withCommitProperties(
+                  properties,
+                  () -> {
+                    spark.sql("DELETE FROM " + tableName + " where id = 1");
+                    return 0;
+                  },
+                  RuntimeException.class);
+            });
     writerThread.setName("test-extra-commit-message-delete-thread");
     writerThread.start();
     writerThread.join();
