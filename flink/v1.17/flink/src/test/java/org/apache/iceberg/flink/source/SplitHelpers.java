@@ -20,27 +20,27 @@ package org.apache.iceberg.flink.source;
 
 import java.io.File;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.BaseCombinedScanTask;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.data.GenericAppenderHelper;
 import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.flink.TestFixtures;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
 import org.apache.iceberg.hadoop.HadoopCatalog;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.ThreadPools;
 import org.junit.Assert;
 import org.junit.rules.TemporaryFolder;
 
 public class SplitHelpers {
-
-  private static final AtomicLong splitLengthIncrement = new AtomicLong();
 
   private SplitHelpers() {}
 
@@ -62,8 +62,15 @@ public class SplitHelpers {
     final String warehouse = "file:" + warehouseFile;
     Configuration hadoopConf = new Configuration();
     final HadoopCatalog catalog = new HadoopCatalog(hadoopConf, warehouse);
+    ImmutableMap<String, String> properties = ImmutableMap.of(TableProperties.FORMAT_VERSION, "2");
     try {
-      final Table table = catalog.createTable(TestFixtures.TABLE_IDENTIFIER, TestFixtures.SCHEMA);
+      final Table table =
+          catalog.createTable(
+              TestFixtures.TABLE_IDENTIFIER,
+              TestFixtures.SCHEMA,
+              PartitionSpec.unpartitioned(),
+              null,
+              properties);
       final GenericAppenderHelper dataAppender =
           new GenericAppenderHelper(table, FileFormat.PARQUET, temporaryFolder);
       for (int i = 0; i < fileCount; ++i) {
