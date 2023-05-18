@@ -35,7 +35,6 @@ import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
-import org.apache.iceberg.TableScan;
 import org.apache.iceberg.expressions.AggregateEvaluator;
 import org.apache.iceberg.expressions.Binder;
 import org.apache.iceberg.expressions.BoundAggregate;
@@ -222,26 +221,7 @@ public class SparkScanBuilder
       return false;
     }
 
-    org.apache.iceberg.Scan scan;
-    if (readConf.startSnapshotId() == null) {
-      scan = table.newScan().includeColumnStats();
-      Snapshot snapshot = readSnapshot();
-      if (snapshot == null) {
-        LOG.info("Skipping aggregate pushdown: table snapshot is null");
-        return false;
-      }
-      scan = ((TableScan) scan).useSnapshot(snapshot.snapshotId());
-      scan = ((TableScan) scan).filter(filterExpression());
-    } else {
-      scan = table.newIncrementalAppendScan().includeColumnStats();
-      scan = ((IncrementalAppendScan) scan).fromSnapshotExclusive(readConf.startSnapshotId());
-      Long endSnapshotId = readConf.endSnapshotId();
-      if (endSnapshotId != null) {
-        scan = ((IncrementalAppendScan) scan).toSnapshot(endSnapshotId);
-      }
-      scan = ((IncrementalAppendScan) scan).filter(filterExpression());
-    }
-    scan = configureSplitPlanning(scan);
+    org.apache.iceberg.Scan scan = buildIcebergBatchScan(true);
 
     try (CloseableIterable<FileScanTask> fileScanTasks = scan.planFiles()) {
       List<FileScanTask> tasks = ImmutableList.copyOf(fileScanTasks);
@@ -383,6 +363,17 @@ public class SparkScanBuilder
   }
 
   private Scan buildBatchScan() {
+    Schema expectedSchema = schemaWithMetadataColumns();
+    return new SparkBatchQueryScan(
+        spark,
+        table,
+        buildIcebergBatchScan(false),
+        readConf,
+        expectedSchema,
+        filterExpressions);
+  }
+
+  private org.apache.iceberg.Scan buildIcebergBatchScan(boolean withStats) {
     Long snapshotId = readConf.snapshotId();
     Long asOfTimestamp = readConf.asOfTimestamp();
     String branch = readConf.branch();
@@ -423,13 +414,14 @@ public class SparkScanBuilder
         SparkReadOptions.END_TIMESTAMP);
 
     if (startSnapshotId != null) {
-      return buildIncrementalAppendScan(startSnapshotId, endSnapshotId);
+      return buildIncrementalAppendScan(startSnapshotId, endSnapshotId, withStats);
     } else {
-      return buildBatchScan(snapshotId, asOfTimestamp, branch, tag);
+      return buildBatchScan(snapshotId, asOfTimestamp, branch, tag, withStats);
     }
   }
 
-  private Scan buildBatchScan(Long snapshotId, Long asOfTimestamp, String branch, String tag) {
+  private org.apache.iceberg.Scan buildBatchScan(
+      Long snapshotId, Long asOfTimestamp, String branch, String tag, boolean withStats) {
     Schema expectedSchema = schemaWithMetadataColumns();
 
     BatchScan scan =
@@ -438,6 +430,10 @@ public class SparkScanBuilder
             .caseSensitive(caseSensitive)
             .filter(filterExpression())
             .project(expectedSchema);
+
+    if (withStats) {
+      scan = scan.includeColumnStats();
+    }
 
     if (snapshotId != null) {
       scan = scan.useSnapshot(snapshotId);
@@ -455,12 +451,11 @@ public class SparkScanBuilder
       scan = scan.useRef(tag);
     }
 
-    scan = configureSplitPlanning(scan);
-
-    return new SparkBatchQueryScan(spark, table, scan, readConf, expectedSchema, filterExpressions);
+    return configureSplitPlanning(scan);
   }
 
-  private Scan buildIncrementalAppendScan(long startSnapshotId, Long endSnapshotId) {
+  private org.apache.iceberg.Scan buildIncrementalAppendScan(
+      long startSnapshotId, Long endSnapshotId, boolean withStats) {
     Schema expectedSchema = schemaWithMetadataColumns();
 
     IncrementalAppendScan scan =
@@ -471,13 +466,15 @@ public class SparkScanBuilder
             .filter(filterExpression())
             .project(expectedSchema);
 
+    if (withStats) {
+      scan = scan.includeColumnStats();
+    }
+
     if (endSnapshotId != null) {
       scan = scan.toSnapshot(endSnapshotId);
     }
 
-    scan = configureSplitPlanning(scan);
-
-    return new SparkBatchQueryScan(spark, table, scan, readConf, expectedSchema, filterExpressions);
+    return configureSplitPlanning(scan);
   }
 
   public Scan buildChangelogScan() {
