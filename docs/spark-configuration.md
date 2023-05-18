@@ -184,6 +184,23 @@ df.write
     .insertInto("catalog.db.table")
 ```
 
+specifically, if you run SQL statements, you could use `org.apache.iceberg.spark.CommitMetadata` to add entries with custom-keys and corresponding values in the snapshot summary  
+
+```java
+
+import org.apache.iceberg.spark.CommitMetadata;
+Map<String, String> properties = Maps.newHashMap();
+properties.put("writer-thread", String.valueOf(Thread.currentThread().getName()));
+CommitMetadata.withCommitProperties(properties,
+        () -> {
+        spark.sql("DELETE FROM " + tableName + " where id = 1");
+        return 0;
+        },
+        RuntimeException.class);
+
+```
+
+
 | Spark option           | Default                    | Description                                                  |
 | ---------------------- | -------------------------- | ------------------------------------------------------------ |
 | write-format           | Table write.format.default | File format to use for this write operation; parquet, avro, or orc |
