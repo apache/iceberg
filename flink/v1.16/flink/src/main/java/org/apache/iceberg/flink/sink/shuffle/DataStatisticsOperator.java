@@ -20,8 +20,7 @@ package org.apache.iceberg.flink.sink.shuffle;
 
 import org.apache.flink.api.common.state.ListState;
 import org.apache.flink.api.common.state.ListStateDescriptor;
-import org.apache.flink.api.common.typeinfo.TypeHint;
-import org.apache.flink.api.common.typeinfo.TypeInformation;
+import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.runtime.operators.coordination.OperatorEvent;
 import org.apache.flink.runtime.operators.coordination.OperatorEventGateway;
@@ -31,6 +30,7 @@ import org.apache.flink.runtime.state.StateSnapshotContext;
 import org.apache.flink.streaming.api.operators.AbstractStreamOperator;
 import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
+import org.apache.flink.table.data.RowData;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
@@ -40,50 +40,49 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
  * shuffle record to improve data clustering while maintaining relative balanced traffic
  * distribution to downstream subtasks.
  */
-class DataStatisticsOperator<T, K> extends AbstractStreamOperator<DataStatisticsOrRecord<T, K>>
-    implements OneInputStreamOperator<T, DataStatisticsOrRecord<T, K>>, OperatorEventHandler {
+class DataStatisticsOperator<D extends DataStatistics<D, S>, S>
+    extends AbstractStreamOperator<DataStatisticsOrRecord<D, S>>
+    implements OneInputStreamOperator<RowData, DataStatisticsOrRecord<D, S>>, OperatorEventHandler {
   private static final long serialVersionUID = 1L;
 
   // keySelector will be used to generate key from data for collecting data statistics
-  private final KeySelector<T, K> keySelector;
+  private final KeySelector<RowData, RowData> keySelector;
   private final OperatorEventGateway operatorEventGateway;
-  private final DataStatisticsFactory<K> statisticsFactory;
-  private transient volatile DataStatistics<K> localStatistics;
-  private transient volatile DataStatistics<K> globalStatistics;
-  private transient ListState<DataStatistics<K>> globalStatisticsState;
+  private final TypeSerializer<DataStatistics<D, S>> statisticsSerializer;
+  private transient volatile DataStatistics<D, S> localStatistics;
+  private transient volatile DataStatistics<D, S> globalStatistics;
+  private transient ListState<DataStatistics<D, S>> globalStatisticsState;
 
   DataStatisticsOperator(
-      KeySelector<T, K> keySelector,
+      KeySelector<RowData, RowData> keySelector,
       OperatorEventGateway operatorEventGateway,
-      DataStatisticsFactory<K> statisticsFactory) {
+      TypeSerializer<DataStatistics<D, S>> statisticsSerializer) {
     this.keySelector = keySelector;
     this.operatorEventGateway = operatorEventGateway;
-    this.statisticsFactory = statisticsFactory;
+    this.statisticsSerializer = statisticsSerializer;
   }
 
   @Override
   public void initializeState(StateInitializationContext context) throws Exception {
-    localStatistics = statisticsFactory.createDataStatistics();
+    localStatistics = statisticsSerializer.createInstance();
     globalStatisticsState =
         context
             .getOperatorStateStore()
             .getUnionListState(
-                new ListStateDescriptor<>(
-                    "globalStatisticsState",
-                    TypeInformation.of(new TypeHint<DataStatistics<K>>() {})));
+                new ListStateDescriptor<>("globalStatisticsState", statisticsSerializer));
 
     if (context.isRestored()) {
       int subtaskIndex = getRuntimeContext().getIndexOfThisSubtask();
       if (globalStatisticsState.get() == null
           || !globalStatisticsState.get().iterator().hasNext()) {
         LOG.warn("Subtask {} doesn't have global statistics state to restore", subtaskIndex);
-        globalStatistics = statisticsFactory.createDataStatistics();
+        globalStatistics = statisticsSerializer.createInstance();
       } else {
         LOG.info("Restoring global statistics state for subtask {}", subtaskIndex);
         globalStatistics = globalStatisticsState.get().iterator().next();
       }
     } else {
-      globalStatistics = statisticsFactory.createDataStatistics();
+      globalStatistics = statisticsSerializer.createInstance();
     }
   }
 
@@ -96,19 +95,19 @@ class DataStatisticsOperator<T, K> extends AbstractStreamOperator<DataStatistics
   }
 
   @Override
-  @SuppressWarnings("unchecked")
   public void handleOperatorEvent(OperatorEvent event) {
     Preconditions.checkArgument(
         event instanceof DataStatisticsEvent,
         "Received unexpected operator event " + event.getClass());
-    globalStatistics = ((DataStatisticsEvent<K>) event).dataStatistics();
+    DataStatisticsEvent<D, S> statisticsEvent = (DataStatisticsEvent<D, S>) event;
+    globalStatistics = statisticsEvent.dataStatistics();
     output.collect(new StreamRecord<>(DataStatisticsOrRecord.fromDataStatistics(globalStatistics)));
   }
 
   @Override
-  public void processElement(StreamRecord<T> streamRecord) throws Exception {
-    T record = streamRecord.getValue();
-    K key = keySelector.getKey(record);
+  public void processElement(StreamRecord<RowData> streamRecord) throws Exception {
+    RowData record = streamRecord.getValue();
+    RowData key = keySelector.getKey(record);
     localStatistics.add(key);
     output.collect(new StreamRecord<>(DataStatisticsOrRecord.fromRecord(record)));
   }
@@ -135,16 +134,16 @@ class DataStatisticsOperator<T, K> extends AbstractStreamOperator<DataStatistics
         new DataStatisticsEvent<>(checkpointId, localStatistics));
 
     // Recreate the local statistics
-    localStatistics = statisticsFactory.createDataStatistics();
+    localStatistics = statisticsSerializer.createInstance();
   }
 
   @VisibleForTesting
-  DataStatistics<K> localDataStatistics() {
+  DataStatistics<D, S> localDataStatistics() {
     return localStatistics;
   }
 
   @VisibleForTesting
-  DataStatistics<K> globalDataStatistics() {
+  DataStatistics<D, S> globalDataStatistics() {
     return globalStatistics;
   }
 }
