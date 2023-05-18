@@ -35,7 +35,9 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.IncrementalAppendScan;
 import org.apache.iceberg.RewriteJobOrder;
+import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
@@ -63,6 +65,7 @@ import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecut
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.ThreadFactoryBuilder;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.PropertyUtil;
+import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.StructLikeMap;
 import org.apache.iceberg.util.Tasks;
 import org.apache.spark.sql.SparkSession;
@@ -82,7 +85,11 @@ public class RewriteDataFilesSparkAction
           PARTIAL_PROGRESS_MAX_COMMITS,
           TARGET_FILE_SIZE_BYTES,
           USE_STARTING_SEQUENCE_NUMBER,
-          REWRITE_JOB_ORDER);
+          REWRITE_JOB_ORDER,
+          START_SNAPSHOT_ID,
+          END_SNAPSHOT_ID,
+          START_TIMESTAMP,
+          END_TIMESTAMP);
 
   private final Table table;
 
@@ -93,6 +100,9 @@ public class RewriteDataFilesSparkAction
   private boolean useStartingSequenceNumber;
   private RewriteJobOrder rewriteJobOrder;
   private FileRewriter<FileScanTask, DataFile> rewriter = null;
+
+  private Long startSnapshotId = null;
+  private Long endSnapshotId = null;
 
   RewriteDataFilesSparkAction(SparkSession spark, Table table) {
     super(spark.cloneSession());
@@ -145,6 +155,34 @@ public class RewriteDataFilesSparkAction
   }
 
   @Override
+  public RewriteDataFiles startSnapshotId(Long newStartSnapshotId) {
+    Preconditions.checkArgument(newStartSnapshotId != null, "start snapshot id cannot be null");
+    option(START_SNAPSHOT_ID, Long.toString(newStartSnapshotId));
+    return this;
+  }
+
+  @Override
+  public RewriteDataFiles endSnapshotId(Long newEndSnapshotId) {
+    Preconditions.checkArgument(newEndSnapshotId != null, "end snapshot id cannot be null");
+    option(END_SNAPSHOT_ID, Long.toString(newEndSnapshotId));
+    return this;
+  }
+
+  @Override
+  public RewriteDataFiles startTimestamp(Long newStartTimestamp) {
+    Preconditions.checkArgument(newStartTimestamp != null, "start timestamp cannot be null");
+    option(START_TIMESTAMP, Long.toString(newStartTimestamp));
+    return this;
+  }
+
+  @Override
+  public RewriteDataFiles endTimestamp(Long newEndTimestamp) {
+    Preconditions.checkArgument(newEndTimestamp != null, "end timestamp cannot be null");
+    option(END_TIMESTAMP, Long.toString(newEndTimestamp));
+    return this;
+  }
+
+  @Override
   public RewriteDataFiles.Result execute() {
     if (table.currentSnapshot() == null) {
       return ImmutableRewriteDataFiles.Result.builder().rewriteResults(ImmutableList.of()).build();
@@ -159,8 +197,13 @@ public class RewriteDataFilesSparkAction
 
     validateAndInitOptions();
 
-    Map<StructLike, List<List<FileScanTask>>> fileGroupsByPartition =
-        planFileGroups(startingSnapshotId);
+    Map<StructLike, List<List<FileScanTask>>> fileGroupsByPartition;
+    if (startSnapshotId != null || endSnapshotId != null) {
+      fileGroupsByPartition = planIncrementalScanFileGroups();
+    } else {
+      fileGroupsByPartition = planScanFileGroups(startingSnapshotId);
+    }
+
     RewriteExecutionContext ctx = new RewriteExecutionContext(fileGroupsByPartition);
 
     if (ctx.totalGroupCount() == 0) {
@@ -178,7 +221,7 @@ public class RewriteDataFilesSparkAction
     }
   }
 
-  Map<StructLike, List<List<FileScanTask>>> planFileGroups(long startingSnapshotId) {
+  Map<StructLike, List<List<FileScanTask>>> planScanFileGroups(long startingSnapshotId) {
     CloseableIterable<FileScanTask> fileScanTasks =
         table
             .newScan()
@@ -187,6 +230,28 @@ public class RewriteDataFilesSparkAction
             .ignoreResiduals()
             .planFiles();
 
+    return planFileGroups(fileScanTasks);
+  }
+
+  Map<StructLike, List<List<FileScanTask>>> planIncrementalScanFileGroups() {
+    IncrementalAppendScan scan = table.newIncrementalAppendScan();
+
+    if (startSnapshotId != null) {
+      scan = scan.fromSnapshotExclusive(startSnapshotId);
+    }
+
+    if (endSnapshotId == null) {
+      endSnapshotId = table.currentSnapshot().snapshotId();
+    }
+
+    CloseableIterable<FileScanTask> fileScanTasks =
+        scan.toSnapshot(endSnapshotId).filter(filter).ignoreResiduals().planFiles();
+
+    return planFileGroups(fileScanTasks);
+  }
+
+  private StructLikeMap<List<List<FileScanTask>>> planFileGroups(
+      CloseableIterable<FileScanTask> fileScanTasks) {
     try {
       StructType partitionType = table.spec().partitionType();
       StructLikeMap<List<FileScanTask>> filesByPartition = StructLikeMap.create(partitionType);
@@ -455,6 +520,39 @@ public class RewriteDataFilesSparkAction
         RewriteJobOrder.fromName(
             PropertyUtil.propertyAsString(options(), REWRITE_JOB_ORDER, REWRITE_JOB_ORDER_DEFAULT));
 
+    startSnapshotId = PropertyUtil.propertyAsNullableLong(options(), START_SNAPSHOT_ID);
+    Long startTimestamp = PropertyUtil.propertyAsNullableLong(options(), START_TIMESTAMP);
+    endSnapshotId = PropertyUtil.propertyAsNullableLong(options(), END_SNAPSHOT_ID);
+    Long endTimestamp = PropertyUtil.propertyAsNullableLong(options(), END_TIMESTAMP);
+
+    Preconditions.checkArgument(
+        !(startSnapshotId != null && startTimestamp != null),
+        "Cannot set both %s and %s",
+        RewriteDataFiles.START_SNAPSHOT_ID,
+        RewriteDataFiles.START_TIMESTAMP);
+
+    Preconditions.checkArgument(
+        !(endSnapshotId != null && endTimestamp != null),
+        "Cannot set both %s and %s",
+        RewriteDataFiles.END_SNAPSHOT_ID,
+        RewriteDataFiles.END_TIMESTAMP);
+
+    if (startTimestamp != null && endTimestamp != null) {
+      Preconditions.checkArgument(
+          startTimestamp < endTimestamp,
+          "Cannot set %s to be greater than %s",
+          RewriteDataFiles.START_TIMESTAMP,
+          RewriteDataFiles.END_TIMESTAMP);
+    }
+
+    if (startTimestamp != null) {
+      startSnapshotId = getStartSnapshotId(startTimestamp);
+    }
+
+    if (endTimestamp != null) {
+      endSnapshotId = SnapshotUtil.snapshotIdAsOfTime(table, endTimestamp);
+    }
+
     Preconditions.checkArgument(
         maxConcurrentFileGroupRewrites >= 1,
         "Cannot set %s to %s, the value must be positive.",
@@ -467,6 +565,21 @@ public class RewriteDataFilesSparkAction
         PARTIAL_PROGRESS_MAX_COMMITS,
         maxCommits,
         PARTIAL_PROGRESS_ENABLED);
+  }
+
+  private Long getStartSnapshotId(Long startTimestamp) {
+    Snapshot oldestSnapshotAfter = SnapshotUtil.oldestAncestorAfter(table, startTimestamp);
+    Preconditions.checkArgument(
+        oldestSnapshotAfter != null,
+        "Cannot find a snapshot older than %s for table %s",
+        startTimestamp,
+        table.name());
+
+    if (oldestSnapshotAfter.timestampMillis() == startTimestamp) {
+      return oldestSnapshotAfter.snapshotId();
+    } else {
+      return oldestSnapshotAfter.parentId();
+    }
   }
 
   private String jobDesc(RewriteFileGroup group, RewriteExecutionContext ctx) {

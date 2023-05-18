@@ -180,6 +180,274 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
   }
 
   @Test
+  public void testIncrementDataRewriteWithStart() {
+    Table table = createTable(4);
+    shouldHaveFiles(table, 4);
+    table.refresh();
+    Snapshot snapshotA = table.currentSnapshot();
+    long snapshotAId = snapshotA.snapshotId();
+    long snapshotATimestamp = snapshotA.timestampMillis();
+    waitUntilAfter(snapshotATimestamp);
+
+    writeRecords(8, SCALE);
+    table.refresh();
+    Snapshot snapshotB = table.currentSnapshot();
+    long snapshotBId = snapshotB.snapshotId();
+    long snapshotBTimestamp = snapshotB.timestampMillis();
+
+    writeRecords(8, SCALE);
+    table.refresh();
+    Snapshot snapshotC = table.currentSnapshot();
+    long snapshotCId = snapshotC.snapshotId();
+
+    List<Object[]> expectedRecords = currentData();
+    long dataSizeBefore =
+        Streams.stream(
+                table.newIncrementalAppendScan().fromSnapshotExclusive(snapshotAId).planFiles())
+            .mapToLong(FileScanTask::length)
+            .sum();
+
+    Result result = basicRewrite(table).startTimestamp(snapshotATimestamp).execute();
+    assertResult(table, expectedRecords, 8 + 8, 4 + 1, dataSizeBefore, result);
+
+    table.manageSnapshots().rollbackTo(snapshotCId).commit();
+    result =
+        basicRewrite(table)
+            .option(RewriteDataFiles.START_TIMESTAMP, String.valueOf(snapshotATimestamp))
+            .execute();
+    assertResult(table, expectedRecords, 8 + 8, 4 + 1, dataSizeBefore, result);
+
+    table.manageSnapshots().rollbackTo(snapshotCId).commit();
+    Result result2 = basicRewrite(table).startSnapshotId(snapshotAId).execute();
+    assertResult(table, expectedRecords, 8 + 8, 4 + 1, dataSizeBefore, result2);
+
+    table.manageSnapshots().rollbackTo(snapshotCId).commit();
+    result2 =
+        basicRewrite(table)
+            .option(RewriteDataFiles.START_SNAPSHOT_ID, String.valueOf(snapshotAId))
+            .execute();
+    assertResult(table, expectedRecords, 8 + 8, 4 + 1, dataSizeBefore, result2);
+
+    table.manageSnapshots().rollbackTo(snapshotCId).commit();
+    dataSizeBefore =
+        Streams.stream(
+                table.newIncrementalAppendScan().fromSnapshotExclusive(snapshotBId).planFiles())
+            .mapToLong(FileScanTask::length)
+            .sum();
+    Result result3 = basicRewrite(table).startTimestamp(snapshotBTimestamp).execute();
+    assertResult(table, expectedRecords, 8, 4 + 8 + 1, dataSizeBefore, result3);
+
+    table.manageSnapshots().rollbackTo(snapshotCId).commit();
+    Result result4 = basicRewrite(table).startSnapshotId(snapshotBId).execute();
+    assertResult(table, expectedRecords, 8, 4 + 8 + 1, dataSizeBefore, result4);
+
+    Assertions.assertThatThrownBy(
+            () ->
+                basicRewrite(table)
+                    .startSnapshotId(snapshotAId)
+                    .startTimestamp(snapshotATimestamp)
+                    .execute())
+        .hasMessage(
+            "Cannot set both %s and %s",
+            RewriteDataFiles.START_SNAPSHOT_ID, RewriteDataFiles.START_TIMESTAMP);
+
+    Assertions.assertThatThrownBy(() -> basicRewrite(table).startSnapshotId(null).execute())
+        .hasMessage("start snapshot id cannot be null");
+
+    Assertions.assertThatThrownBy(
+            () -> basicRewrite(table).startTimestamp(Long.MAX_VALUE).execute())
+        .hasMessage("Cannot find a snapshot older than %s for table %s", Long.MAX_VALUE, table);
+  }
+
+  @Test
+  public void testIncrementDataRewriteWithEnd() {
+    Table table = createTable(4);
+    shouldHaveFiles(table, 4);
+    table.refresh();
+    Snapshot snapshotA = table.currentSnapshot();
+    long snapshotAId = snapshotA.snapshotId();
+    long snapshotATimestamp = snapshotA.timestampMillis();
+    waitUntilAfter(snapshotATimestamp);
+
+    writeRecords(8, SCALE);
+    table.refresh();
+    Snapshot snapshotB = table.currentSnapshot();
+    long snapshotBId = snapshotB.snapshotId();
+    long snapshotBTimestamp = snapshotB.timestampMillis();
+
+    writeRecords(8, SCALE);
+    table.refresh();
+    Snapshot snapshotC = table.currentSnapshot();
+    long snapshotCId = snapshotC.snapshotId();
+    long snapshotCTimestamp = snapshotC.timestampMillis();
+
+    List<Object[]> expectedRecords = currentData();
+
+    long dataSizeBefore =
+        Streams.stream(table.newIncrementalAppendScan().toSnapshot(snapshotBId).planFiles())
+            .mapToLong(FileScanTask::length)
+            .sum();
+
+    Result result = basicRewrite(table).endTimestamp(snapshotBTimestamp).execute();
+    assertResult(table, expectedRecords, 4 + 8, 1 + 8, dataSizeBefore, result);
+
+    table.manageSnapshots().rollbackTo(snapshotCId).commit();
+    result =
+        basicRewrite(table)
+            .option(RewriteDataFiles.END_TIMESTAMP, String.valueOf(snapshotBTimestamp))
+            .execute();
+    assertResult(table, expectedRecords, 4 + 8, 1 + 8, dataSizeBefore, result);
+
+    table.manageSnapshots().rollbackTo(snapshotCId).commit();
+    Result result2 = basicRewrite(table).endSnapshotId(snapshotBId).execute();
+    assertResult(table, expectedRecords, 4 + 8, 1 + 8, dataSizeBefore, result2);
+
+    table.manageSnapshots().rollbackTo(snapshotCId).commit();
+    result2 =
+        basicRewrite(table)
+            .option(RewriteDataFiles.END_SNAPSHOT_ID, String.valueOf(snapshotBId))
+            .execute();
+    assertResult(table, expectedRecords, 4 + 8, 1 + 8, dataSizeBefore, result2);
+
+    table.manageSnapshots().rollbackTo(snapshotCId).commit();
+    dataSizeBefore =
+        Streams.stream(table.newIncrementalAppendScan().planFiles())
+            .mapToLong(FileScanTask::length)
+            .sum();
+    Result result3 = basicRewrite(table).endTimestamp(snapshotCTimestamp).execute();
+    assertResult(table, expectedRecords, 4 + 8 + 8, 1, dataSizeBefore, result3);
+
+    table.manageSnapshots().rollbackTo(snapshotCId).commit();
+    Result result4 = basicRewrite(table).endSnapshotId(snapshotCId).execute();
+    assertResult(table, expectedRecords, 4 + 8 + 8, 1, dataSizeBefore, result4);
+
+    Assertions.assertThatThrownBy(
+            () ->
+                basicRewrite(table)
+                    .endSnapshotId(snapshotBId)
+                    .endTimestamp(snapshotBTimestamp)
+                    .execute())
+        .hasMessage(
+            "Cannot set both %s and %s",
+            RewriteDataFiles.END_SNAPSHOT_ID, RewriteDataFiles.END_TIMESTAMP);
+
+    Assertions.assertThatThrownBy(() -> basicRewrite(table).endSnapshotId(null).execute())
+        .hasMessage("end snapshot id cannot be null");
+  }
+
+  @Test
+  public void testIncrementDataRewriteWithStartAndEnd() {
+    Table table = createTable(4);
+    shouldHaveFiles(table, 4);
+    table.refresh();
+    Snapshot snapshotA = table.currentSnapshot();
+    long snapshotAId = snapshotA.snapshotId();
+    long snapshotATimestamp = snapshotA.timestampMillis();
+    waitUntilAfter(snapshotATimestamp);
+
+    writeRecords(8, SCALE);
+    table.refresh();
+    Snapshot snapshotB = table.currentSnapshot();
+    long snapshotBId = snapshotB.snapshotId();
+    long snapshotBTimestamp = snapshotB.timestampMillis();
+
+    writeRecords(8, SCALE);
+    table.refresh();
+    Snapshot snapshotC = table.currentSnapshot();
+    long snapshotCId = snapshotC.snapshotId();
+    long snapshotCTimestamp = snapshotC.timestampMillis();
+
+    List<Object[]> expectedRecords = currentData();
+    long dataSizeBefore =
+        Streams.stream(
+                table
+                    .newIncrementalAppendScan()
+                    .fromSnapshotExclusive(snapshotAId)
+                    .toSnapshot(snapshotBId)
+                    .planFiles())
+            .mapToLong(FileScanTask::length)
+            .sum();
+
+    Result result =
+        basicRewrite(table).startSnapshotId(snapshotAId).endSnapshotId(snapshotBId).execute();
+    assertResult(table, expectedRecords, 8, 4 + 1 + 8, dataSizeBefore, result);
+
+    table.manageSnapshots().rollbackTo(snapshotCId).commit();
+    result =
+        basicRewrite(table)
+            .option(RewriteDataFiles.START_SNAPSHOT_ID, String.valueOf(snapshotAId))
+            .option(RewriteDataFiles.END_SNAPSHOT_ID, String.valueOf(snapshotBId))
+            .execute();
+    assertResult(table, expectedRecords, 8, 4 + 1 + 8, dataSizeBefore, result);
+
+    // Roll back the table and using the time range to rewrite the file again.
+    table.manageSnapshots().rollbackTo(snapshotCId).commit();
+    Result result2 =
+        basicRewrite(table)
+            .startTimestamp(snapshotATimestamp)
+            .endTimestamp(snapshotBTimestamp)
+            .execute();
+    assertResult(table, expectedRecords, 8, 4 + 1 + 8, dataSizeBefore, result2);
+
+    table.manageSnapshots().rollbackTo(snapshotCId).commit();
+    result2 =
+        basicRewrite(table)
+            .option(RewriteDataFiles.START_TIMESTAMP, String.valueOf(snapshotATimestamp))
+            .option(RewriteDataFiles.END_TIMESTAMP, String.valueOf(snapshotBTimestamp))
+            .execute();
+    assertResult(table, expectedRecords, 8, 4 + 1 + 8, dataSizeBefore, result2);
+
+    // Roll back the table and using both the snapshot ID and time range rewrite the file again
+    table.manageSnapshots().rollbackTo(snapshotCId).commit();
+    dataSizeBefore =
+        Streams.stream(
+                table.newIncrementalAppendScan().fromSnapshotExclusive(snapshotAId).planFiles())
+            .mapToLong(FileScanTask::length)
+            .sum();
+
+    Result result3 =
+        basicRewrite(table).startTimestamp(snapshotATimestamp).endSnapshotId(snapshotCId).execute();
+    assertResult(table, expectedRecords, 16, 4 + 1, dataSizeBefore, result3);
+
+    table.manageSnapshots().rollbackTo(snapshotCId).commit();
+    Result result4 =
+        basicRewrite(table).startSnapshotId(snapshotAId).endTimestamp(snapshotCTimestamp).execute();
+    assertResult(table, expectedRecords, 16, 4 + 1, dataSizeBefore, result4);
+
+    Assertions.assertThatThrownBy(
+            () ->
+                basicRewrite(table)
+                    .startTimestamp(snapshotBTimestamp)
+                    .endTimestamp(snapshotATimestamp)
+                    .execute())
+        .hasMessage(
+            "Cannot set %s to be greater than %s",
+            RewriteDataFiles.START_TIMESTAMP, RewriteDataFiles.END_TIMESTAMP);
+  }
+
+  private void assertResult(
+      Table table,
+      List<Object[]> expectedRecords,
+      int expectedRewrittenFiles,
+      int expectedTableFiles,
+      long dataSizeBefore,
+      Result result) {
+    Assert.assertEquals(
+        "Action should rewrite 8 data files",
+        expectedRewrittenFiles,
+        result.rewrittenDataFilesCount());
+    assertThat(result.addedDataFilesCount())
+        .as("Action should add 1 data file")
+        .isInstanceOf(Integer.class)
+        .isEqualTo(1);
+    assertThat(result.rewrittenBytesCount()).isEqualTo(dataSizeBefore);
+
+    shouldHaveFiles(table, expectedTableFiles);
+    List<Object[]> actual = currentData();
+    assertEquals("Rows must match", expectedRecords, actual);
+  }
+
+  @Test
   public void testBinPackPartitionedTable() {
     Table table = createTablePartitioned(4, 2);
     shouldHaveFiles(table, 8);
@@ -1391,7 +1659,7 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
   private Stream<RewriteFileGroup> toGroupStream(Table table, RewriteDataFilesSparkAction rewrite) {
     rewrite.validateAndInitOptions();
     Map<StructLike, List<List<FileScanTask>>> fileGroupsByPartition =
-        rewrite.planFileGroups(table.currentSnapshot().snapshotId());
+        rewrite.planScanFileGroups(table.currentSnapshot().snapshotId());
 
     return rewrite.toGroupStream(
         new RewriteExecutionContext(fileGroupsByPartition), fileGroupsByPartition);

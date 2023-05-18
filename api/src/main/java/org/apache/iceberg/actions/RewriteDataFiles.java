@@ -122,6 +122,30 @@ public interface RewriteDataFiles
   String REWRITE_JOB_ORDER_DEFAULT = RewriteJobOrder.NONE.orderName();
 
   /**
+   * The start snapshot id to use for the rewrite operation (exclusive). Cannot be used with
+   * start-timestamp.
+   */
+  String START_SNAPSHOT_ID = "start-snapshot-id";
+
+  /**
+   * The end snapshot id to use for the rewrite operation (inclusive). Cannot be used with
+   * end-timestamp.
+   */
+  String END_SNAPSHOT_ID = "end-snapshot-id";
+
+  /**
+   * The start timestamp to use for the rewrite operation (exclusive). Cannot be used with
+   * start-snapshot-id.
+   */
+  String START_TIMESTAMP = "start-timestamp";
+
+  /**
+   * The end timestamp to use for the rewrite operation (inclusive). Cannot be used with
+   * end-snapshot-id.
+   */
+  String END_TIMESTAMP = "end-timestamp";
+
+  /**
    * Choose BINPACK as a strategy for this rewrite operation
    *
    * @return this for method chaining
@@ -172,6 +196,50 @@ public interface RewriteDataFiles
    * @return this for chaining
    */
   RewriteDataFiles filter(Expression expression);
+
+  /**
+   * Specify the start snapshot id to use for the rewrite operation. Cannot be used with
+   * start-timestamp.
+   *
+   * @param newStartSnapshotId the snapshot id to start the rewrite from (exclusive)
+   * @return this for chaining
+   */
+  default RewriteDataFiles startSnapshotId(Long newStartSnapshotId) {
+    throw new UnsupportedOperationException("Start Snapshot id not implemented for this framework");
+  }
+
+  /**
+   * Specify the end snapshot id to use for the rewrite operation. Cannot be used with
+   * end-timestamp.
+   *
+   * @param newEndSnapshotId the snapshot id to end the rewrite at (inclusive)
+   * @return this for chaining
+   */
+  default RewriteDataFiles endSnapshotId(Long newEndSnapshotId) {
+    throw new UnsupportedOperationException("End Snapshot id not implemented for this framework");
+  }
+
+  /**
+   * Specify the start timestamp to use for the rewrite operation. Cannot be used with
+   * start-snapshot-id.
+   *
+   * @param newStartTimestamp the timestamp to start the rewrite from (exclusive)
+   * @return this for chaining
+   */
+  default RewriteDataFiles startTimestamp(Long newStartTimestamp) {
+    throw new UnsupportedOperationException("Start timestamp not implemented for this framework");
+  }
+
+  /**
+   * Specify the end timestamp to use for the rewrite operation. Cannot be used with
+   * end-snapshot-id.
+   *
+   * @param newEndTimestamp the timestamp to end the rewrite at (inclusive)
+   * @return this for chaining
+   */
+  default RewriteDataFiles endTimestamp(Long newEndTimestamp) {
+    throw new UnsupportedOperationException("End timestamp not implemented for this framework");
+  }
 
   /**
    * A map of file group information to the results of rewriting that file group. If the results are
