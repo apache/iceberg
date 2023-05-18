@@ -365,12 +365,7 @@ public class SparkScanBuilder
   private Scan buildBatchScan() {
     Schema expectedSchema = schemaWithMetadataColumns();
     return new SparkBatchQueryScan(
-        spark,
-        table,
-        buildIcebergBatchScan(false),
-        readConf,
-        expectedSchema,
-        filterExpressions);
+        spark, table, buildIcebergBatchScan(false), readConf, expectedSchema, filterExpressions);
   }
 
   private org.apache.iceberg.Scan buildIcebergBatchScan(boolean withStats) {
