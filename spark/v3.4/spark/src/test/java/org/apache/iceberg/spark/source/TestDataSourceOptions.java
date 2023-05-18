@@ -25,6 +25,7 @@ import java.math.RoundingMode;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
@@ -43,14 +44,12 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.math.LongMath;
 import org.apache.iceberg.spark.CommitMetadata;
 import org.apache.iceberg.spark.SparkReadOptions;
+import org.apache.iceberg.spark.SparkTestBaseWithCatalog;
 import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.SnapshotUtil;
-import org.apache.spark.sql.Dataset;
-import org.apache.spark.sql.Encoders;
-import org.apache.spark.sql.Row;
-import org.apache.spark.sql.SaveMode;
-import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.*;
+import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.assertj.core.api.Assertions;
 import org.junit.AfterClass;
 import org.junit.Assert;
@@ -59,7 +58,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
-public class TestDataSourceOptions {
+public class TestDataSourceOptions extends SparkTestBaseWithCatalog {
 
   private static final Configuration CONF = new Configuration();
   private static final Schema SCHEMA =
@@ -444,5 +443,40 @@ public class TestDataSourceOptions {
     Assert.assertEquals(2, threadNames.size());
     Assert.assertTrue(threadNames.contains(null));
     Assert.assertTrue(threadNames.contains("test-extra-commit-message-writer-thread"));
+  }
+
+  @Test
+  public void testExtraSnapshotMetadataWithDelete() throws InterruptedException, IOException, NoSuchTableException {
+    spark.sessionState().conf().setConfString("spark.sql.shuffle.partitions", "1");
+    sql("CREATE TABLE %s (id INT, data STRING) USING iceberg", tableName);
+    List<SimpleRecord> expectedRecords =
+            Lists.newArrayList(new SimpleRecord(1, "a"), new SimpleRecord(2, "b"), new SimpleRecord(3, "c"));
+    Dataset<Row> originalDf = spark.createDataFrame(expectedRecords, SimpleRecord.class);
+    originalDf.repartition(5, new Column("data"))
+            .select("id", "data").writeTo(tableName).append();
+    Thread writerThread =
+            new Thread(
+                    () -> {
+                      Map<String, String> properties = Maps.newHashMap();
+                      properties.put("writer-thread", String.valueOf(Thread.currentThread().getName()));
+                      CommitMetadata.withCommitProperties(
+                              properties,
+                              () -> {
+                                spark.sql("DELETE FROM " + tableName + " where id = 1");
+                                return 0;
+                              },
+                              RuntimeException.class);
+                    });
+    writerThread.setName("test-extra-commit-message-delete-thread");
+    writerThread.start();
+    writerThread.join();
+    Set<String> threadNames = Sets.newHashSet();
+    Table table = validationCatalog.loadTable(tableIdent);
+    for (Snapshot snapshot : table.snapshots()) {
+      threadNames.add(snapshot.summary().get("writer-thread"));
+    }
+    Assert.assertEquals(2, threadNames.size());
+    Assert.assertTrue(threadNames.contains(null));
+    Assert.assertTrue(threadNames.contains("test-extra-commit-message-delete-thread"));
   }
 }

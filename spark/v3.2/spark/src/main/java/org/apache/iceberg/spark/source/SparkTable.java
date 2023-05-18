@@ -24,18 +24,10 @@ import static org.apache.iceberg.TableProperties.FORMAT_VERSION;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Set;
-import org.apache.iceberg.BaseMetadataTable;
+
+import org.apache.iceberg.*;
 import org.apache.iceberg.BaseTable;
-import org.apache.iceberg.DataFile;
-import org.apache.iceberg.FileScanTask;
-import org.apache.iceberg.MetadataColumns;
-import org.apache.iceberg.PartitionSpec;
-import org.apache.iceberg.Partitioning;
-import org.apache.iceberg.Schema;
-import org.apache.iceberg.Table;
-import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableProperties;
-import org.apache.iceberg.TableScan;
 import org.apache.iceberg.expressions.Evaluator;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ExpressionUtil;
@@ -48,11 +40,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.spark.Spark3Util;
-import org.apache.iceberg.spark.SparkFilters;
-import org.apache.iceberg.spark.SparkReadOptions;
-import org.apache.iceberg.spark.SparkSchemaUtil;
-import org.apache.iceberg.spark.SparkUtil;
+import org.apache.iceberg.spark.*;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.sql.SparkSession;
@@ -326,11 +314,16 @@ public class SparkTable
       return;
     }
 
-    icebergTable
+    DeleteFiles deleteFiles = icebergTable
         .newDelete()
         .set("spark.app.id", sparkSession().sparkContext().applicationId())
-        .deleteFromRowFilter(deleteExpr)
-        .commit();
+        .deleteFromRowFilter(deleteExpr);
+
+    if (!CommitMetadata.commitProperties().isEmpty()) {
+      CommitMetadata.commitProperties().forEach(deleteFiles::set);
+    }
+
+    deleteFiles.commit();
   }
 
   @Override
