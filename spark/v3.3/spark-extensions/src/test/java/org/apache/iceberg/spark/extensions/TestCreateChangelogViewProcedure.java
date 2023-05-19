@@ -433,6 +433,7 @@ public class TestCreateChangelogViewProcedure extends SparkExtensionsTestBase {
     table.refresh();
     Snapshot snap3 = table.currentSnapshot();
 
+    // test with all snapshots
     List<Object[]> returns =
         sql(
             "CALL %s.system.create_changelog_view(table => '%s', net_changes => true)",
@@ -446,6 +447,20 @@ public class TestCreateChangelogViewProcedure extends SparkExtensionsTestBase {
             row(1, "a", 12, INSERT, 0, snap1.snapshotId()),
             row(3, "c", 15, INSERT, 2, snap3.snapshotId()),
             row(2, "e", 12, INSERT, 2, snap3.snapshotId())),
+        sql("select * from %s order by _change_ordinal, data", viewName));
+
+    // test with snap2 and snap3
+    sql(
+        "CALL %s.system.create_changelog_view(table => '%s', "
+            + "options => map('start-snapshot-id','%s'), "
+            + "net_changes => true)",
+        catalogName, tableName, snap1.snapshotId());
+
+    assertEquals(
+        "Rows should match",
+        ImmutableList.of(
+            row(2, "b", 11, DELETE, 0, snap2.snapshotId()),
+            row(3, "c", 15, INSERT, 1, snap3.snapshotId())),
         sql("select * from %s order by _change_ordinal, data", viewName));
   }
 
