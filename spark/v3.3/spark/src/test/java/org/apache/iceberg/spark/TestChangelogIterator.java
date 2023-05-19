@@ -301,7 +301,7 @@ public class TestChangelogIterator extends SparkTestHelperBase {
 
     assertEquals("Rows should match.", expectedRows, rowsToJava(result));
 
-    iterator = ChangelogIterator.netChanges(rowsWithDuplication.iterator(), SCHEMA);
+    iterator = ChangelogIterator.removeNetCarryovers(rowsWithDuplication.iterator(), SCHEMA);
     result = Lists.newArrayList(iterator);
 
     assertEquals("Rows should match.", expectedRows, rowsToJava(result));
@@ -336,7 +336,8 @@ public class TestChangelogIterator extends SparkTestHelperBase {
             new Object[] {1, "d", "data", INSERT},
             new Object[] {2, "d", "data", DELETE});
 
-    Iterator<Row> iterator = ChangelogIterator.netChanges(rowsWithDuplication.iterator(), SCHEMA);
+    Iterator<Row> iterator =
+        ChangelogIterator.removeNetCarryovers(rowsWithDuplication.iterator(), SCHEMA);
     List<Row> result = Lists.newArrayList(iterator);
 
     assertEquals("Rows should match.", expectedRows, rowsToJava(result));

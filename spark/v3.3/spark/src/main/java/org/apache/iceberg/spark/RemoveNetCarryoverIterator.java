@@ -20,6 +20,7 @@ package org.apache.iceberg.spark;
 
 import java.util.Iterator;
 import java.util.List;
+import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.types.StructType;
@@ -29,18 +30,21 @@ import org.apache.spark.sql.types.StructType;
  * assumes the following:
  *
  * <ul>
- *   <li>The row iterator is partitioned by the primary key.
- *   <li>The row iterator is sorted by the primary key, change order, and change type. The change
- *       order is 1-to-1 mapping to snapshot id.
+ *   <li>The row iterator is partitioned by all columns.
+ *   <li>The row iterator is sorted by all columns, change order, and change type. The change order
+ *       is 1-to-1 mapping to snapshot id.
  * </ul>
  */
 public class RemoveNetCarryoverIterator extends RemoveCarryoverIterator {
 
-  private Row cachedNextRow = null;
   private final List<Row> cachedRows = Lists.newArrayList();
+  private final int[] indicesToIdentifySameRow;
+
+  private Row cachedNextRow = null;
 
   protected RemoveNetCarryoverIterator(Iterator<Row> rowIterator, StructType rowType) {
     super(rowIterator, rowType);
+    this.indicesToIdentifySameRow = generateIndicesToIdentifySameRow();
   }
 
   @Override
@@ -117,5 +121,25 @@ public class RemoveNetCarryoverIterator extends RemoveCarryoverIterator {
             && currentRow.getString(changeTypeIndex()).equals(DELETE))
         || (nextRow.getString(changeTypeIndex()).equals(DELETE)
             && currentRow.getString(changeTypeIndex()).equals(INSERT));
+  }
+
+  private int[] generateIndicesToIdentifySameRow() {
+    int changeOrdinalIndex = rowType().fieldIndex(MetadataColumns.CHANGE_ORDINAL.name());
+    int snapshotIdIndex = rowType().fieldIndex(MetadataColumns.COMMIT_SNAPSHOT_ID.name());
+
+    int[] indices = new int[rowType().size() - 3];
+
+    for (int i = 0, j = 0; i < indices.length; i++) {
+      if (i != changeTypeIndex() && i != changeOrdinalIndex && i != snapshotIdIndex) {
+        indices[j] = i;
+        j++;
+      }
+    }
+    return indices;
+  }
+
+  @Override
+  protected int[] indicesToIdentifySameRow() {
+    return indicesToIdentifySameRow;
   }
 }

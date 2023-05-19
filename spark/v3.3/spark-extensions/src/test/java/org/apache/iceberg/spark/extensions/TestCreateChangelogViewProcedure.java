@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.spark.extensions;
 
+import static org.junit.Assert.assertThrows;
+
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.ChangelogOperation;
@@ -254,35 +256,6 @@ public class TestCreateChangelogViewProcedure extends SparkExtensionsTestBase {
   }
 
   @Test
-  public void testNetChanges() {
-    createTableWith2Columns();
-    sql("ALTER TABLE %s DROP PARTITION FIELD data", tableName);
-    sql("ALTER TABLE %s ADD PARTITION FIELD id", tableName);
-
-    sql("INSERT INTO %s VALUES (1, 'a'), (2, 'b')", tableName);
-    Table table = validationCatalog.loadTable(tableIdent);
-    Snapshot snap1 = table.currentSnapshot();
-
-    sql("INSERT OVERWRITE %s VALUES (3, 'c'), (2, 'd')", tableName);
-    table.refresh();
-    Snapshot snap2 = table.currentSnapshot();
-
-    List<Object[]> returns =
-        sql(
-            "CALL %s.system.create_changelog_view(table => '%s', identifier_columns => array('id'), net_changes => true)",
-            catalogName, tableName);
-
-    String viewName = (String) returns.get(0)[0];
-    assertEquals(
-        "Rows should match",
-        ImmutableList.of(
-            row(1, "a", INSERT, 0, snap1.snapshotId()),
-            row(2, "d", INSERT, 1, snap2.snapshotId()),
-            row(3, "c", INSERT, 1, snap2.snapshotId())),
-        sql("select * from %s order by _change_ordinal, id, data", viewName));
-  }
-
-  @Test
   public void testUpdateWithIdentifierField() {
     createTableWithIdentifierField();
 
@@ -438,6 +411,54 @@ public class TestCreateChangelogViewProcedure extends SparkExtensionsTestBase {
             row(2, "d", 11, INSERT, 1, snap2.snapshotId()),
             row(3, "c", 13, INSERT, 1, snap2.snapshotId())),
         sql("select * from %s order by _change_ordinal, id, data", viewName));
+  }
+
+  @Test
+  public void testNetChangesWithRemoveCarryOvers() {
+    // partitioned by id
+    createTableWith3Columns();
+
+    // insert rows: (1, 'a', 12) (2, 'b', 11) (2, 'e', 12)
+    sql("INSERT INTO %s VALUES (1, 'a', 12), (2, 'b', 11), (2, 'e', 12)", tableName);
+    Table table = validationCatalog.loadTable(tableIdent);
+    Snapshot snap1 = table.currentSnapshot();
+
+    // delete rows: (2, 'b', 11) (2, 'e', 12), insert rows: (3, 'c', 13) (2, 'd', 11) (2, 'e', 12)
+    sql("INSERT OVERWRITE %s VALUES (3, 'c', 13), (2, 'd', 11), (2, 'e', 12)", tableName);
+    table.refresh();
+    Snapshot snap2 = table.currentSnapshot();
+
+    // delete rows: (2, 'd', 11) (2, 'e', 12) (3, 'c', 13), insert rows: (3, 'c', 15) (2, 'e', 12)
+    sql("INSERT OVERWRITE %s VALUES (3, 'c', 15), (2, 'e', 12)", tableName);
+    table.refresh();
+    Snapshot snap3 = table.currentSnapshot();
+
+    List<Object[]> returns =
+        sql(
+            "CALL %s.system.create_changelog_view(table => '%s', net_changes => true)",
+            catalogName, tableName);
+
+    String viewName = (String) returns.get(0)[0];
+
+    assertEquals(
+        "Rows should match",
+        ImmutableList.of(
+            row(1, "a", 12, INSERT, 0, snap1.snapshotId()),
+            row(3, "c", 15, INSERT, 2, snap3.snapshotId()),
+            row(2, "e", 12, INSERT, 2, snap3.snapshotId())),
+        sql("select * from %s order by _change_ordinal, data", viewName));
+  }
+
+  @Test
+  public void testNetChangesWithComputeUpdates() {
+    createTableWith2Columns();
+    assertThrows(
+        "Should fail because net_changes is not supported with computing updates",
+        IllegalArgumentException.class,
+        () ->
+            sql(
+                "CALL %s.system.create_changelog_view(table => '%s', identifier_columns => array('id'), net_changes => true)",
+                catalogName, tableName));
   }
 
   @Test

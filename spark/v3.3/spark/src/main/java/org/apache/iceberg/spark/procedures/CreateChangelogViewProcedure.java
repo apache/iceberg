@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.procedures;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Predicate;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -148,7 +149,8 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
     boolean netChanges = input.asBoolean(NET_CHANGES, false);
 
     if (shouldComputeUpdateImages(input)) {
-      df = computeUpdateImages(identifierColumns(input, tableIdent), df, netChanges);
+      Preconditions.checkArgument(!netChanges, "Not support net changes with update images");
+      df = computeUpdateImages(identifierColumns(input, tableIdent), df);
     } else if (shouldRemoveCarryoverRows(input)) {
       df = removeCarryoverRows(df, netChanges);
     }
@@ -160,23 +162,19 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
     return toOutputRows(viewName);
   }
 
-  private Dataset<Row> computeUpdateImages(
-      String[] identifierColumns, Dataset<Row> df, boolean netChanges) {
+  private Dataset<Row> computeUpdateImages(String[] identifierColumns, Dataset<Row> df) {
     Preconditions.checkArgument(
         identifierColumns.length > 0,
         "Cannot compute the update images because identifier columns are not set");
 
-    int length = netChanges ? identifierColumns.length : identifierColumns.length + 1;
-    Column[] repartitionSpec = new Column[length];
+    Column[] repartitionSpec = new Column[identifierColumns.length + 1];
     for (int i = 0; i < identifierColumns.length; i++) {
       repartitionSpec[i] = df.col(identifierColumns[i]);
     }
 
-    if (!netChanges) {
-      repartitionSpec[repartitionSpec.length - 1] = df.col(MetadataColumns.CHANGE_ORDINAL.name());
-    }
+    repartitionSpec[repartitionSpec.length - 1] = df.col(MetadataColumns.CHANGE_ORDINAL.name());
 
-    return applyChangelogIterator(df, repartitionSpec, netChanges);
+    return applyChangelogIterator(df, repartitionSpec);
   }
 
   private boolean shouldComputeUpdateImages(ProcedureInput input) {
@@ -190,12 +188,23 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
   }
 
   private Dataset<Row> removeCarryoverRows(Dataset<Row> df, boolean netChanges) {
+    Predicate<String> columnsToRemove;
+    if (netChanges) {
+      columnsToRemove =
+          column ->
+              column.equals(MetadataColumns.CHANGE_TYPE.name())
+                  || column.equals(MetadataColumns.CHANGE_ORDINAL.name())
+                  || column.equals(MetadataColumns.COMMIT_SNAPSHOT_ID.name());
+    } else {
+      columnsToRemove = column -> column.equals(MetadataColumns.CHANGE_TYPE.name());
+    }
+
     Column[] repartitionSpec =
         Arrays.stream(df.columns())
-            .filter(c -> !c.equals(MetadataColumns.CHANGE_TYPE.name()))
+            .filter(columnsToRemove.negate())
             .map(df::col)
             .toArray(Column[]::new);
-    return applyCarryoverRemoveIterator(df, repartitionSpec);
+    return applyCarryoverRemoveIterator(df, repartitionSpec, netChanges);
   }
 
   private String[] identifierColumns(ProcedureInput input, Identifier tableIdent) {
@@ -223,9 +232,8 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
     return input.asString(CHANGELOG_VIEW_PARAM, defaultValue);
   }
 
-  private Dataset<Row> applyChangelogIterator(
-      Dataset<Row> df, Column[] repartitionSpec, boolean netChanges) {
-    Column[] sortSpec = sortSpec(df, repartitionSpec);
+  private Dataset<Row> applyChangelogIterator(Dataset<Row> df, Column[] repartitionSpec) {
+    Column[] sortSpec = sortSpec(df, repartitionSpec, false);
     StructType schema = df.schema();
     String[] identifierFields =
         Arrays.stream(repartitionSpec).map(Column::toString).toArray(String[]::new);
@@ -239,26 +247,30 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
             RowEncoder.apply(schema));
   }
 
-  private Dataset<Row> applyCarryoverRemoveIterator(Dataset<Row> df, Column[] repartitionSpec) {
-    // todo double check we should sort by (change order, change type) for net changes
-    Column[] sortSpec = sortSpec(df, repartitionSpec);
+  private Dataset<Row> applyCarryoverRemoveIterator(
+      Dataset<Row> df, Column[] repartitionSpec, boolean netChanges) {
+    Column[] sortSpec = sortSpec(df, repartitionSpec, netChanges);
     StructType schema = df.schema();
 
     return df.repartition(repartitionSpec)
         .sortWithinPartitions(sortSpec)
         .mapPartitions(
             (MapPartitionsFunction<Row, Row>)
-                rowIterator -> ChangelogIterator.removeCarryovers(rowIterator, schema),
+                rowIterator ->
+                    netChanges
+                        ? ChangelogIterator.removeNetCarryovers(rowIterator, schema)
+                        : ChangelogIterator.removeCarryovers(rowIterator, schema),
             RowEncoder.apply(schema));
   }
 
-  private static Column[] sortSpec(Dataset<Row> df, Column[] repartitionSpec) {
+  private static Column[] sortSpec(Dataset<Row> df, Column[] repartitionSpec, boolean netChanges) {
     Column changeOrdinal = df.col(MetadataColumns.CHANGE_ORDINAL.name());
     boolean noChangeOrdinal =
         Arrays.stream(repartitionSpec).noneMatch(c -> c.equals(changeOrdinal));
+    Preconditions.checkState(noChangeOrdinal, "Change ordinal should not be in repartition spec");
 
     Column[] sortSpec;
-    if (noChangeOrdinal) {
+    if (netChanges) {
       sortSpec = new Column[repartitionSpec.length + 2];
     } else {
       sortSpec = new Column[repartitionSpec.length + 1];
@@ -266,10 +278,11 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
 
     System.arraycopy(repartitionSpec, 0, sortSpec, 0, repartitionSpec.length);
 
-    if (noChangeOrdinal) {
+    sortSpec[sortSpec.length - 1] = df.col(MetadataColumns.CHANGE_TYPE.name());
+
+    if (netChanges) {
       sortSpec[sortSpec.length - 2] = changeOrdinal;
     }
-    sortSpec[sortSpec.length - 1] = df.col(MetadataColumns.CHANGE_TYPE.name());
     return sortSpec;
   }
 

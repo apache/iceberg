@@ -48,6 +48,7 @@ import org.apache.spark.sql.types.StructType;
  */
 class RemoveCarryoverIterator extends ChangelogIterator {
   private final int[] indicesToIdentifySameRow;
+  private final StructType rowType;
 
   private Row cachedDeletedRow = null;
   private long deletedRowCount = 0;
@@ -55,7 +56,8 @@ class RemoveCarryoverIterator extends ChangelogIterator {
 
   RemoveCarryoverIterator(Iterator<Row> rowIterator, StructType rowType) {
     super(rowIterator, rowType);
-    this.indicesToIdentifySameRow = generateIndicesToIdentifySameRow(rowType.size());
+    this.rowType = rowType;
+    this.indicesToIdentifySameRow = generateIndicesToIdentifySameRow();
   }
 
   @Override
@@ -139,8 +141,8 @@ class RemoveCarryoverIterator extends ChangelogIterator {
     return cachedDeletedRow != null;
   }
 
-  private int[] generateIndicesToIdentifySameRow(int columnSize) {
-    int[] indices = new int[columnSize - 1];
+  private int[] generateIndicesToIdentifySameRow() {
+    int[] indices = new int[rowType.size() - 1];
     for (int i = 0; i < indices.length; i++) {
       if (i < changeTypeIndex()) {
         indices[i] = i;
@@ -152,12 +154,20 @@ class RemoveCarryoverIterator extends ChangelogIterator {
   }
 
   protected boolean isSameRecord(Row currentRow, Row nextRow) {
-    for (int idx : indicesToIdentifySameRow) {
+    for (int idx : indicesToIdentifySameRow()) {
       if (isDifferentValue(currentRow, nextRow, idx)) {
         return false;
       }
     }
 
     return true;
+  }
+
+  protected StructType rowType() {
+    return rowType;
+  }
+
+  protected int[] indicesToIdentifySameRow() {
+    return indicesToIdentifySameRow;
   }
 }
