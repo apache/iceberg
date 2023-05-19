@@ -135,6 +135,9 @@ public class TableProperties {
   public static final String DELETE_PARQUET_PAGE_ROW_LIMIT = "write.delete.parquet.page-row-limit";
   public static final int PARQUET_PAGE_ROW_LIMIT_DEFAULT = 20_000;
 
+  public static final String PARQUET_DICT_ENABLED = "write.parquet.enable.dictionary";
+  public static final boolean PARQUET_DICT_ENABLED_DEFAULT = true;
+
   public static final String PARQUET_DICT_SIZE_BYTES = "write.parquet.dict-size-bytes";
   public static final String DELETE_PARQUET_DICT_SIZE_BYTES =
       "write.delete.parquet.dict-size-bytes";
