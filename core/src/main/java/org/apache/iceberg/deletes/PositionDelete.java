@@ -38,6 +38,13 @@ public class PositionDelete<R> implements StructLike {
     return this;
   }
 
+  public PositionDelete<R> set(CharSequence newPath, long newPos) {
+    this.path = newPath;
+    this.pos = newPos;
+    this.row = null;
+    return this;
+  }
+
   @Override
   public int size() {
     return 3;
