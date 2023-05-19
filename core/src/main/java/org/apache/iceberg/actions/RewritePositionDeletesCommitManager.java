@@ -55,12 +55,13 @@ public class RewritePositionDeletesCommitManager {
     RewriteFiles rewriteFiles = table.newRewrite().validateFromSnapshot(startingSnapshotId);
 
     for (RewritePositionDeletesGroup group : fileGroups) {
+      long maxSequenceNumber = group.maxRewrittenDataSequenceNumber();
       for (DeleteFile file : group.rewrittenDeleteFiles()) {
         rewriteFiles.deleteFile(file);
       }
 
       for (DeleteFile file : group.addedDeleteFiles()) {
-        rewriteFiles.addFile(file);
+        rewriteFiles.addFile(file, maxSequenceNumber);
       }
     }
 

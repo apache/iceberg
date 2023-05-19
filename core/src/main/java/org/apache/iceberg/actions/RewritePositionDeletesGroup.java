@@ -38,12 +38,18 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 public class RewritePositionDeletesGroup {
   private final FileGroupInfo info;
   private final List<PositionDeletesScanTask> tasks;
+  private final long maxRewrittenDataSequenceNumber;
 
   private Set<DeleteFile> addedDeleteFiles = Collections.emptySet();
 
   public RewritePositionDeletesGroup(FileGroupInfo info, List<PositionDeletesScanTask> tasks) {
     this.info = info;
     this.tasks = tasks;
+    this.maxRewrittenDataSequenceNumber =
+        tasks.stream()
+            .map(t -> t.file().dataSequenceNumber())
+            .max(Long::compare)
+            .orElseThrow(() -> new IllegalArgumentException("Empty file group"));
   }
 
   public FileGroupInfo info() {
@@ -56,6 +62,10 @@ public class RewritePositionDeletesGroup {
 
   public void setOutputFiles(Set<DeleteFile> files) {
     addedDeleteFiles = files;
+  }
+
+  public long maxRewrittenDataSequenceNumber() {
+    return maxRewrittenDataSequenceNumber;
   }
 
   public Set<DeleteFile> rewrittenDeleteFiles() {
