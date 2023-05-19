@@ -588,11 +588,6 @@ public class TestNessieTable extends BaseTestIceberg {
   public void testTableMetadataFilesCleanupDisable() throws NessieNotFoundException {
     Table icebergTable = catalog.loadTable(TABLE_IDENTIFIER);
 
-    Assertions.assertThat(
-            icebergTable.properties().get(TableProperties.METADATA_DELETE_AFTER_COMMIT_ENABLED))
-        .isNotNull()
-        .isEqualTo("false");
-
     // Forceful setting of property also should get override with false
     icebergTable
         .updateProperties()

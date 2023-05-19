@@ -93,9 +93,16 @@ public class NessieTableOperations extends BaseMetastoreTableOperations {
     // files.
     newProperties.put(TableProperties.GC_ENABLED, "false");
 
-    newProperties.put(TableProperties.METADATA_DELETE_AFTER_COMMIT_ENABLED, "false");
-    LOG.info(
-        "Clean up of table metadata files during commit is disabled as it can be in use by other references");
+    boolean metadataCleanupEnabled =
+        newProperties
+            .getOrDefault(TableProperties.METADATA_DELETE_AFTER_COMMIT_ENABLED, "false")
+            .equalsIgnoreCase("true");
+    if (metadataCleanupEnabled) {
+      newProperties.put(TableProperties.METADATA_DELETE_AFTER_COMMIT_ENABLED, "false");
+      LOG.warn(
+          "Clean up of table metadata files during commit is disabled as it can be in use by other references."
+              + " Use nessie-gc tool for reference aware GC");
+    }
 
     TableMetadata.Builder builder =
         TableMetadata.buildFrom(deserialized)
