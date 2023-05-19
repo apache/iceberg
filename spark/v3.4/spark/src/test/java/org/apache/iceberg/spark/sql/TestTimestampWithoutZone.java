@@ -148,15 +148,15 @@ public class TestTimestampWithoutZone extends SparkCatalogTestBase {
   @Test
   public void testWriteWithDeprecatedTimezoneProperty() {
     withSQLConf(
-        ImmutableMap.of(
-            SparkSQLProperties.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE,
-            "true",
-            "spark.sql.legacy.createHiveTableByDefault",
-            "false"),
+        ImmutableMap.of(SparkSQLProperties.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE, "true"),
         () -> {
           Assertions.assertThatThrownBy(
                   () -> {
-                    sql("CREATE TABLE %s AS SELECT * FROM %s", newTableName, tableName);
+                    try {
+                      sql("CREATE TABLE %s AS SELECT * FROM %s", newTableName, tableName);
+                    } catch (TableAlreadyExistsException exc) {
+                      // pass
+                    }
                   })
               .isInstanceOf(UnsupportedOperationException.class)
               .hasMessage(
