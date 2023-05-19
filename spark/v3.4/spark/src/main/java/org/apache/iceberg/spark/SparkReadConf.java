@@ -72,6 +72,7 @@ public class SparkReadConf {
               + SparkSQLProperties.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE
               + " is not supported in Spark 3.4 due to the introduction of native support for timestamp without timezone.");
     }
+
     if (readOptions.containsKey(SparkReadOptions.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE)) {
       throw new UnsupportedOperationException(
           "Read option "

@@ -83,6 +83,7 @@ public class SparkWriteConf {
               + SparkSQLProperties.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE
               + " is not supported in Spark 3.4 due to the introduction of native support for timestamp without timezone.");
     }
+
     if (writeOptions.containsKey(SparkWriteOptions.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE)) {
       throw new UnsupportedOperationException(
           "Write option "
