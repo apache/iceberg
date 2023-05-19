@@ -24,7 +24,6 @@ import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.spark.SparkCatalogConfig;
 import org.apache.iceberg.spark.source.SimpleRecord;
@@ -94,8 +93,10 @@ public class TestBranchDDL extends SparkExtensionsTestBase {
   @Test
   public void testCreateBranchOnEmptyTable() {
     Assertions.assertThatThrownBy(() -> sql("ALTER TABLE %s CREATE BRANCH %s", tableName, "b1"))
-        .isInstanceOf(ValidationException.class)
-        .hasMessageContaining("Cannot set b1 to unknown snapshot");
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining(
+            "Cannot complete create or replace branch operation on %s, no valid snapshotId found",
+            tableName);
   }
 
   @Test

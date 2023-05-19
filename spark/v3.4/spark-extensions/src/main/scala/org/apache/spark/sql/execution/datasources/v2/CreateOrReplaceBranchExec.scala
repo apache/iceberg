@@ -19,6 +19,7 @@
 
 package org.apache.spark.sql.execution.datasources.v2
 
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions
 import org.apache.iceberg.spark.source.SparkTable
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.Attribute
@@ -45,6 +46,9 @@ case class CreateOrReplaceBranchExec(
           .orElse(Option(iceberg.table.currentSnapshot()).map(_.snapshotId()))
           .map(java.lang.Long.valueOf)
           .orNull
+
+        Preconditions.checkArgument(snapshotId != null,
+          "Cannot complete create or replace branch operation on %s, no valid snapshotId found", ident)
 
         val manageSnapshots = iceberg.table().manageSnapshots()
         if (!replace) {

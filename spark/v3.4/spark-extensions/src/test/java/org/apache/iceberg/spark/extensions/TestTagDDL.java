@@ -123,8 +123,10 @@ public class TestTagDDL extends SparkExtensionsTestBase {
   @Test
   public void testCreateTagOnEmptyTable() {
     Assertions.assertThatThrownBy(() -> sql("ALTER TABLE %s CREATE TAG %s", tableName, "abc"))
-        .isInstanceOf(ValidationException.class)
-        .hasMessageContaining("Cannot set abc to unknown snapshot");
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining(
+            "Cannot complete create or replace tag operation on %s, no valid snapshotId found",
+            tableName);
   }
 
   @Test
