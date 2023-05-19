@@ -190,43 +190,9 @@ public class RewriteDataFilesSparkAction
 
     try {
       StructType partitionType = table.spec().partitionType();
-      StructLikeMap<List<FileScanTask>> filesByPartition = StructLikeMap.create(partitionType);
-      StructLike emptyStruct = GenericRecord.create(partitionType);
-
-      fileScanTasks.forEach(
-          task -> {
-            // If a task uses an incompatible partition spec the data inside could contain values
-            // which
-            // belong to multiple partitions in the current spec. Treating all such files as
-            // un-partitioned and
-            // grouping them together helps to minimize new files made.
-            StructLike taskPartition =
-                task.file().specId() == table.spec().specId()
-                    ? task.file().partition()
-                    : emptyStruct;
-
-            List<FileScanTask> files = filesByPartition.get(taskPartition);
-            if (files == null) {
-              files = Lists.newArrayList();
-            }
-
-            files.add(task);
-            filesByPartition.put(taskPartition, files);
-          });
-
-      StructLikeMap<List<List<FileScanTask>>> fileGroupsByPartition =
-          StructLikeMap.create(partitionType);
-
-      filesByPartition.forEach(
-          (partition, tasks) -> {
-            List<List<FileScanTask>> fileGroups =
-                ImmutableList.copyOf(rewriter.planFileGroups(tasks));
-            if (fileGroups.size() > 0) {
-              fileGroupsByPartition.put(partition, fileGroups);
-            }
-          });
-
-      return fileGroupsByPartition;
+      StructLikeMap<List<FileScanTask>> filesByPartition =
+          groupByPartition(partitionType, fileScanTasks);
+      return fileGroupsByPartition(filesByPartition);
     } finally {
       try {
         fileScanTasks.close();
@@ -234,6 +200,38 @@ public class RewriteDataFilesSparkAction
         LOG.error("Cannot properly close file iterable while planning for rewrite", io);
       }
     }
+  }
+
+  private StructLikeMap<List<FileScanTask>> groupByPartition(
+      StructType partitionType, Iterable<FileScanTask> tasks) {
+    StructLikeMap<List<FileScanTask>> filesByPartition = StructLikeMap.create(partitionType);
+    StructLike emptyStruct = GenericRecord.create(partitionType);
+
+    for (FileScanTask task : tasks) {
+      // If a task uses an incompatible partition spec the data inside could contain values
+      // which belong to multiple partitions in the current spec. Treating all such files as
+      // un-partitioned and grouping them together helps to minimize new files made.
+      StructLike taskPartition =
+          task.file().specId() == table.spec().specId() ? task.file().partition() : emptyStruct;
+
+      List<FileScanTask> files = filesByPartition.get(taskPartition);
+      if (files == null) {
+        files = Lists.newArrayList();
+      }
+
+      files.add(task);
+      filesByPartition.put(taskPartition, files);
+    }
+    return filesByPartition;
+  }
+
+  private StructLikeMap<List<List<FileScanTask>>> fileGroupsByPartition(
+      StructLikeMap<List<FileScanTask>> filesByPartition) {
+    return filesByPartition.transformValues(this::planFileGroups);
+  }
+
+  private List<List<FileScanTask>> planFileGroups(List<FileScanTask> tasks) {
+    return ImmutableList.copyOf(rewriter.planFileGroups(tasks));
   }
 
   @VisibleForTesting
