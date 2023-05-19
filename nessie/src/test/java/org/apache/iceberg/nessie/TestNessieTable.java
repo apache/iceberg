@@ -585,7 +585,7 @@ public class TestNessieTable extends BaseTestIceberg {
   }
 
   @Test
-  public void testTableMetadataFilesCleanupDisable() {
+  public void testTableMetadataFilesCleanupDisable() throws NessieNotFoundException {
     Table icebergTable = catalog.loadTable(TABLE_IDENTIFIER);
 
     Assertions.assertThat(
@@ -608,6 +608,7 @@ public class TestNessieTable extends BaseTestIceberg {
         .set(TableProperties.METADATA_PREVIOUS_VERSIONS_MAX, "1")
         .commit();
 
+    String hash = api.getReference().refName(BRANCH).get().getHash();
     String metadataFileLocation =
         ((BaseTable) icebergTable).operations().current().metadataFileLocation();
     Path metadataFileLocationPath = Paths.get(metadataFileLocation.replaceFirst("file:", ""));
@@ -620,6 +621,18 @@ public class TestNessieTable extends BaseTestIceberg {
     // old table metadata file should still exist after commits.
     Assertions.assertThat(metadataFileLocationPath).exists();
 
+    // load the table from the specific hash which reads the mapping metadataFileLocation
+    ImmutableTableReference tableReference =
+        ImmutableTableReference.builder().reference(BRANCH).hash(hash).name(TABLE_NAME).build();
+    TableIdentifier identifier = TableIdentifier.of(DB_NAME, tableReference.toString());
+    Assertions.assertThat(
+            ((BaseTable) catalog.loadTable(identifier))
+                .operations()
+                .current()
+                .metadataFileLocation())
+        .isEqualTo(metadataFileLocation);
+
+    // table at the latest hash should not contain `metadataFileLocation` in previousFiles.
     Set<String> tableMetadataFiles =
         ((BaseTable) icebergTable)
             .operations().current().previousFiles().stream()
