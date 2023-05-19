@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.avro;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
@@ -30,14 +32,12 @@ import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.junit.Assert;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 public class TestAvroEnums {
 
-  @Rule public TemporaryFolder temp = new TemporaryFolder();
+  @TempDir java.nio.file.Path temp;
 
   @Test
   public void writeAndValidateEnums() throws IOException {
@@ -53,15 +53,15 @@ public class TestAvroEnums {
             .endRecord();
 
     org.apache.avro.Schema enumSchema = avroSchema.getField("enumCol").schema().getTypes().get(0);
-    Record enumRecord1 = new GenericData.Record(avroSchema);
+    Record enumRecord1 = new Record(avroSchema);
     enumRecord1.put("enumCol", new GenericData.EnumSymbol(enumSchema, "SYMB1"));
-    Record enumRecord2 = new GenericData.Record(avroSchema);
+    Record enumRecord2 = new Record(avroSchema);
     enumRecord2.put("enumCol", new GenericData.EnumSymbol(enumSchema, "SYMB2"));
-    Record enumRecord3 = new GenericData.Record(avroSchema); // null enum
+    Record enumRecord3 = new Record(avroSchema); // null enum
     List<Record> expected = ImmutableList.of(enumRecord1, enumRecord2, enumRecord3);
 
-    File testFile = temp.newFile();
-    Assert.assertTrue("Delete should succeed", testFile.delete());
+    File testFile = temp.toFile();
+    assertThat(testFile.delete()).as("Delete should succeed").isTrue();
 
     try (DataFileWriter<Record> writer = new DataFileWriter<>(new GenericDatumWriter<>())) {
       writer.create(avroSchema, testFile);
@@ -71,8 +71,8 @@ public class TestAvroEnums {
     }
 
     Schema schema = new Schema(AvroSchemaUtil.convert(avroSchema).asStructType().fields());
-    List<GenericData.Record> rows;
-    try (AvroIterable<GenericData.Record> reader =
+    List<Record> rows;
+    try (AvroIterable<Record> reader =
         Avro.read(Files.localInput(testFile)).project(schema).build()) {
       rows = Lists.newArrayList(reader);
     }
@@ -82,7 +82,7 @@ public class TestAvroEnums {
     for (int i = 0; i < expected.size(); i += 1) {
       String expectedEnumString =
           expected.get(i).get("enumCol") == null ? null : expected.get(i).get("enumCol").toString();
-      Assert.assertEquals(expectedEnumString, rows.get(i).get("enumCol"));
+      assertThat(rows.get(i).get("enumCol")).isEqualTo(expectedEnumString);
     }
   }
 }
