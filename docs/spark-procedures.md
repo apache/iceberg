@@ -389,23 +389,23 @@ Dangling deletes are always filtered out during rewriting.
 |--------------------------------|------|----------------------------------------------------------------------------|
 | `rewritten_delete_files_count` | int  | Number of delete files which were removed by this command                  |
 | `rewritten_bytes_count`        | long | Count of bytes across delete files which were removed by this command      |
-| `rewritten_delete_files_count` | int  | Number of delete files which were added by this command                    |
-| `added_delete_files_count`     | long | Count of bytes across all new delete files which were added by this command |
+| `added_delete_files_count`     | int  | Number of delete files which were added by this command                    |
+| `added_bytes_count`            | long | Count of bytes across all new delete files which were added by this command |
 
 
 #### Examples
 
-Rewrite position delete files in table `db.sample` with default options.  This selects position delete files that fit the default rewrite criteria, and  files of the size `write.delete.target-file-size-bytes`.  Dangling deletes are removed from rewritten delete files.
+Rewrite position delete files in table `db.sample`.  This selects position delete files that fit default rewrite criteria, and writes new files of target size `target-file-size-bytes`.  Dangling deletes are removed from rewritten delete files.
 ```sql
 CALL catalog_name.system.rewrite_position_delete_files('db.sample')
 ```
 
-Rewrite all position delete files in table `db.sample`.  Dangling deletes are removed from rewritten delete files.
+Rewrite all position delete files in table `db.sample`, writing new files `target-file-size-bytes`.   Dangling deletes are removed from rewritten delete files.
 ```sql
 CALL catalog_name.system.rewrite_position_delete_files(table => 'db.sample', options => map('rewrite-all', 'true'))
 ```
 
-Rewrite position delete files in table `db.sample`.  This selects position delete files looks in partitions where 2 or more position delete files need to be rewritten based on size thresholds.  Dangling deletes are removed from rewritten delete files.
+Rewrite position delete files in table `db.sample`.  This selects position delete files in partitions where 2 or more position delete files need to be rewritten based on size criteria.  Dangling deletes are removed from rewritten delete files.
 ```sql
 CALL catalog_name.system.rewrite_data_files(table => 'db.sample', options => map('min-input-files','2'))
 ```
