@@ -152,7 +152,7 @@ CREATE TABLE `hive_catalog`.`default`.`sample` (
     id BIGINT COMMENT 'unique id',
     `data` STRING NOT NULL
 ) 
-WITH ('format-version'='2', 'write.upsert.enabled'='true');
+WITH ('format-version'='2');
 ```
 
 Table create commands support the commonly used [Flink create clauses](https://nightlies.apache.org/flink/flink-docs-master/docs/dev/table/sql/create/) including:
@@ -165,7 +165,7 @@ Currently, it does not support computed column and watermark definition etc.
 ### `PRIMARY KEY`
 
 Primary key constraint can be declared for a column or a set of columns, which must be unique and do not contain null.
-It's required for `UPSERT` mode.
+It's required for [`UPSERT` mode](../flink/flink-writes.md#upsert).
 
 ```sql
 CREATE TABLE `hive_catalog`.`default`.`sample` (
@@ -173,7 +173,7 @@ CREATE TABLE `hive_catalog`.`default`.`sample` (
     `data` STRING NOT NULL,
     PRIMARY KEY(`id`) NOT ENFORCED
 ) 
-WITH ('format-version'='2', 'write.upsert.enabled'='true');
+WITH ('format-version'='2');
 ```
 
 ### `PARTITIONED BY`
@@ -187,7 +187,7 @@ CREATE TABLE `hive_catalog`.`default`.`sample` (
     PRIMARY KEY(`id`) NOT ENFORCED
 ) 
 PARTITIONED BY (data) 
-WITH ('format-version'='2', 'write.upsert.enabled'='true');
+WITH ('format-version'='2');
 ```
 
 Iceberg supports hidden partition but Flink doesn't support partitioning by a function on columns, so there is no way to support hidden partition in Flink DDL.
