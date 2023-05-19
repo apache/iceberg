@@ -41,10 +41,14 @@ case class CreateOrReplaceBranchExec(
   override protected def run(): Seq[InternalRow] = {
     catalog.loadTable(ident) match {
       case iceberg: SparkTable =>
-        val snapshotId = branchOptions.snapshotId.getOrElse(iceberg.table.currentSnapshot().snapshotId())
+        val snapshotId: java.lang.Long = branchOptions.snapshotId
+          .orElse(Option(iceberg.table.currentSnapshot()).map(_.snapshotId()))
+          .map(java.lang.Long.valueOf)
+          .orNull
+
         val manageSnapshots = iceberg.table().manageSnapshots()
         if (!replace) {
-          val ref = iceberg.table().refs().get(branch);
+          val ref = iceberg.table().refs().get(branch)
           if (ref != null && ifNotExists) {
             return Nil
           }
@@ -76,6 +80,6 @@ case class CreateOrReplaceBranchExec(
   }
 
   override def simpleString(maxFields: Int): String = {
-    s"CreateOrReplace branch: ${branch} for table: ${ident.quoted}"
+    s"CreateOrReplace branch: $branch for table: ${ident.quoted}"
   }
 }

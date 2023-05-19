@@ -24,6 +24,7 @@ import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.spark.SparkCatalogConfig;
 import org.apache.iceberg.spark.source.SimpleRecord;
@@ -31,6 +32,7 @@ import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.catalyst.parser.extensions.IcebergParseException;
+import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -87,6 +89,13 @@ public class TestBranchDDL extends SparkExtensionsTestBase {
         IllegalArgumentException.class,
         "Ref b1 already exists",
         () -> sql("ALTER TABLE %s CREATE BRANCH %s", tableName, branchName));
+  }
+
+  @Test
+  public void testCreateBranchOnEmptyTable() {
+    Assertions.assertThatThrownBy(() -> sql("ALTER TABLE %s CREATE BRANCH %s", tableName, "b1"))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("Cannot set b1 to unknown snapshot");
   }
 
   @Test
