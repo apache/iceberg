@@ -267,7 +267,10 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
     Column changeOrdinal = df.col(MetadataColumns.CHANGE_ORDINAL.name());
     boolean noChangeOrdinal =
         Arrays.stream(repartitionSpec).noneMatch(c -> c.equals(changeOrdinal));
-    Preconditions.checkState(noChangeOrdinal, "Change ordinal should not be in repartition spec");
+
+    if (netChanges) {
+      Preconditions.checkState(noChangeOrdinal, "Change ordinal should not be in repartition spec");
+    }
 
     Column[] sortSpec;
     if (netChanges) {
