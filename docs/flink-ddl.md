@@ -26,11 +26,11 @@ menu:
  - limitations under the License.
  -->
 
-## DDL commands
+# DDL commands
 
-###  `CREATE Catalog`
+##  `CREATE Catalog`
 
-#### Hive catalog
+### Hive catalog
 
 This creates an Iceberg catalog named `hive_catalog` that can be configured using `'catalog-type'='hive'`, which loads tables from Hive metastore:
 
@@ -53,7 +53,7 @@ The following properties can be set if using the Hive catalog:
 * `hive-conf-dir`: Path to a directory containing a `hive-site.xml` configuration file which will be used to provide custom Hive configuration values. The value of `hive.metastore.warehouse.dir` from `<hive-conf-dir>/hive-site.xml` (or hive configure file from classpath) will be overwritten with the `warehouse` value if setting both `hive-conf-dir` and `warehouse` when creating iceberg catalog.
 * `hadoop-conf-dir`: Path to a directory containing `core-site.xml` and `hdfs-site.xml` configuration files which will be used to provide custom Hadoop configuration values.
 
-#### Hadoop catalog
+### Hadoop catalog
 
 Iceberg also supports a directory-based catalog in HDFS that can be configured using `'catalog-type'='hadoop'`:
 
@@ -72,7 +72,7 @@ The following properties can be set if using the Hadoop catalog:
 
 Execute the sql command `USE CATALOG hadoop_catalog` to set the current catalog.
 
-#### REST catalog
+### REST catalog
 
 This creates an iceberg catalog named `rest_catalog` that can be configured using `'catalog-type'='rest'`, which loads tables from a REST catalog:
 
@@ -90,7 +90,7 @@ The following properties can be set if using the REST catalog:
 * `credential`: A credential to exchange for a token in the OAuth2 client credentials flow (Optional)
 * `token`: A token which will be used to interact with the server (Optional)
 
-#### Custom catalog
+### Custom catalog
 
 Flink also supports loading a custom Iceberg `Catalog` implementation by specifying the `catalog-impl` property:
 
@@ -102,7 +102,7 @@ CREATE CATALOG my_catalog WITH (
 );
 ```
 
-#### Create through YAML config
+### Create through YAML config
 
 Catalogs can be registered in `sql-client-defaults.yaml` before starting the SQL client.
 
@@ -114,7 +114,7 @@ catalogs:
     warehouse: hdfs://nn:8020/warehouse/path
 ```
 
-#### Create through SQL Files
+### Create through SQL Files
 
 The Flink SQL Client supports the `-i` startup option to execute an initialization SQL file to set up environment when starting up the SQL Client.
 
@@ -136,7 +136,7 @@ Using `-i <init.sql>` option to initialize SQL Client session:
 /path/to/bin/sql-client.sh -i /path/to/init.sql
 ```
 
-### `CREATE DATABASE`
+## `CREATE DATABASE`
 
 By default, Iceberg will use the `default` database in Flink. Using the following example to create a separate database in order to avoid creating tables under the `default` database:
 
@@ -145,7 +145,40 @@ CREATE DATABASE iceberg_db;
 USE iceberg_db;
 ```
 
-### `CREATE TABLE`
+## `CREATE TABLE`
+
+```sql
+CREATE TABLE `hive_catalog`.`default`.`sample` (
+    id BIGINT COMMENT 'unique id',
+    `data` STRING NOT NULL
+) 
+WITH ('format-version'='2', 'write.upsert.enabled'='true');
+```
+
+Table create commands support the commonly used [Flink create clauses](https://nightlies.apache.org/flink/flink-docs-master/docs/dev/table/sql/create/) including:
+
+* `COMMENT 'table document'` to set a table description.
+* `WITH ('key'='value', ...)` to set [table configuration](../configuration) which will be stored in Iceberg table properties.
+
+Currently, it does not support computed column and watermark definition etc.
+
+### `PRIMARY KEY`
+
+Primary key constraint can be declared for a column or a set of columns, which must be unique and do not contain null.
+It's required for `UPSERT` mode.
+
+```sql
+CREATE TABLE `hive_catalog`.`default`.`sample` (
+    id BIGINT COMMENT 'unique id',
+    `data` STRING NOT NULL,
+    PRIMARY KEY(`id`) NOT ENFORCED
+) 
+WITH ('format-version'='2', 'write.upsert.enabled'='true');
+```
+
+### `PARTITIONED BY`
+
+To create a partition table, use `PARTITIONED BY`:
 
 ```sql
 CREATE TABLE `hive_catalog`.`default`.`sample` (
@@ -157,28 +190,9 @@ PARTITIONED BY (data)
 WITH ('format-version'='2', 'write.upsert.enabled'='true');
 ```
 
-Table create commands support the commonly used [Flink create clauses](https://nightlies.apache.org/flink/flink-docs-master/docs/dev/table/sql/create/) including:
+Iceberg supports hidden partition but Flink doesn't support partitioning by a function on columns, so there is no way to support hidden partition in Flink DDL.
 
-* `PARTITION BY (column1, column2, ...)` to configure partitioning, Flink does not yet support hidden partitioning.
-* `COMMENT 'table document'` to set a table description.
-* `WITH ('key'='value', ...)` to set [table configuration](../configuration) which will be stored in Iceberg table properties.
-
-Currently, it does not support computed column and watermark definition etc.
-
-### `PARTITIONED BY`
-
-To create a partition table, use `PARTITIONED BY`:
-
-```sql
-CREATE TABLE `hive_catalog`.`default`.`sample` (
-    id BIGINT COMMENT 'unique id',
-    data STRING
-) PARTITIONED BY (data);
-```
-
-Iceberg support hidden partition but Flink don't support partitioning by a function on columns, so there is no way to support hidden partition in Flink DDL.
-
-### `CREATE TABLE LIKE`
+## `CREATE TABLE LIKE`
 
 To create a table with the same schema, partitioning, and table properties as another table, use `CREATE TABLE LIKE`.
 
@@ -194,7 +208,7 @@ CREATE TABLE  `hive_catalog`.`default`.`sample_like` LIKE `hive_catalog`.`defaul
 For more details, refer to the [Flink `CREATE TABLE` documentation](https://nightlies.apache.org/flink/flink-docs-release-1.16/docs/dev/table/sql/create/).
 
 
-### `ALTER TABLE`
+## `ALTER TABLE`
 
 Iceberg only support altering table properties:
 
@@ -202,13 +216,13 @@ Iceberg only support altering table properties:
 ALTER TABLE `hive_catalog`.`default`.`sample` SET ('write.format.default'='avro')
 ```
 
-### `ALTER TABLE .. RENAME TO`
+## `ALTER TABLE .. RENAME TO`
 
 ```sql
 ALTER TABLE `hive_catalog`.`default`.`sample` RENAME TO `hive_catalog`.`default`.`new_sample`;
 ```
 
-### `DROP TABLE`
+## `DROP TABLE`
 
 To delete a table, run:
 
