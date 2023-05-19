@@ -269,9 +269,7 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
 
       extraSnapshotMetadata.forEach(operation::set);
 
-      if (!CommitMetadata.commitProperties().isEmpty()) {
-        CommitMetadata.commitProperties().forEach(operation::set);
-      }
+      CommitMetadata.commitProperties().forEach(operation::set);
 
       if (wapEnabled && wapId != null) {
         // write-audit-publish is enabled for this table and job
@@ -386,10 +384,13 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
     protected Map<Integer, StructProjection> buildPartitionProjections(
         Types.StructType partitionType, Map<Integer, PartitionSpec> specs) {
       Map<Integer, StructProjection> partitionProjections = Maps.newHashMap();
-      specs.forEach(
-          (specID, spec) ->
-              partitionProjections.put(
-                  specID, StructProjection.create(partitionType, spec.partitionType())));
+
+      for (int specId : specs.keySet()) {
+        PartitionSpec spec = specs.get(specId);
+        StructProjection projection = StructProjection.create(partitionType, spec.partitionType());
+        partitionProjections.put(specId, projection);
+      }
+
       return partitionProjections;
     }
   }
@@ -425,12 +426,10 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
       this.partitionRowWrapper = initPartitionRowWrapper(partitionType);
       this.partitionProjections = buildPartitionProjections(partitionType, specs);
 
-      this.specIdOrdinal = context.metadataSparkType().fieldIndex(MetadataColumns.SPEC_ID.name());
-      this.partitionOrdinal =
-          context.metadataSparkType().fieldIndex(MetadataColumns.PARTITION_COLUMN_NAME);
-      this.fileOrdinal = context.deleteSparkType().fieldIndex(MetadataColumns.FILE_PATH.name());
-      this.positionOrdinal =
-          context.deleteSparkType().fieldIndex(MetadataColumns.ROW_POSITION.name());
+      this.specIdOrdinal = context.specIdOrdinal();
+      this.partitionOrdinal = context.partitionOrdinal();
+      this.fileOrdinal = context.fileOrdinal();
+      this.positionOrdinal = context.positionOrdinal();
     }
 
     @Override
@@ -517,12 +516,10 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
       this.deletePartitionRowWrapper = initPartitionRowWrapper(partitionType);
       this.deletePartitionProjections = buildPartitionProjections(partitionType, specs);
 
-      this.specIdOrdinal = context.metadataSparkType().fieldIndex(MetadataColumns.SPEC_ID.name());
-      this.partitionOrdinal =
-          context.metadataSparkType().fieldIndex(MetadataColumns.PARTITION_COLUMN_NAME);
-      this.fileOrdinal = context.deleteSparkType().fieldIndex(MetadataColumns.FILE_PATH.name());
-      this.positionOrdinal =
-          context.deleteSparkType().fieldIndex(MetadataColumns.ROW_POSITION.name());
+      this.specIdOrdinal = context.specIdOrdinal();
+      this.partitionOrdinal = context.partitionOrdinal();
+      this.fileOrdinal = context.fileOrdinal();
+      this.positionOrdinal = context.positionOrdinal();
     }
 
     @Override
@@ -713,10 +710,6 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
       return deleteSparkType;
     }
 
-    StructType metadataSparkType() {
-      return metadataSparkType;
-    }
-
     FileFormat deleteFileFormat() {
       return deleteFileFormat;
     }
@@ -731,6 +724,22 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
 
     String queryId() {
       return queryId;
+    }
+
+    int specIdOrdinal() {
+      return metadataSparkType.fieldIndex(MetadataColumns.SPEC_ID.name());
+    }
+
+    int partitionOrdinal() {
+      return metadataSparkType.fieldIndex(MetadataColumns.PARTITION_COLUMN_NAME);
+    }
+
+    int fileOrdinal() {
+      return deleteSparkType.fieldIndex(MetadataColumns.FILE_PATH.name());
+    }
+
+    int positionOrdinal() {
+      return deleteSparkType.fieldIndex(MetadataColumns.ROW_POSITION.name());
     }
   }
 }
