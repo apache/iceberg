@@ -133,7 +133,7 @@ public class DaysFunction extends UnaryUnboundFunction {
 
     @Override
     public String canonicalName() {
-      return "iceberg.days(timestamp)";
+      return "iceberg.days(timestamp_ntz)";
     }
 
     @Override

@@ -104,6 +104,7 @@ public class TestSparkOrcReader extends AvroDataTest {
       Assert.assertFalse("Should not have extra rows", actualRows.hasNext());
     } catch (UnsupportedOperationException e) {
       // Fixed in https://github.com/apache/spark/pull/41103
+      // Can be removed once Spark 3.4.1 is released
       if (!Objects.equals(e.getMessage(), "Datatype not supported TimestampNTZType")) {
         throw e;
       }

@@ -32,14 +32,13 @@ import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Type.TypeID;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
-import org.apache.spark.sql.types.AbstractDataType;
 import org.apache.spark.sql.types.ArrayType;
+import org.apache.spark.sql.types.BinaryType;
 import org.apache.spark.sql.types.BinaryType$;
 import org.apache.spark.sql.types.BooleanType$;
 import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.DateType$;
 import org.apache.spark.sql.types.DecimalType;
-import org.apache.spark.sql.types.DecimalType$;
 import org.apache.spark.sql.types.DoubleType$;
 import org.apache.spark.sql.types.FloatType$;
 import org.apache.spark.sql.types.IntegerType$;
@@ -227,7 +226,7 @@ public class PruneColumnsWithReordering extends TypeUtil.CustomOrderSchemaVisito
 
   @Override
   public Type primitive(Type.PrimitiveType primitive) {
-    Set<Class<? extends AbstractDataType>> expectedType = TYPES.get(primitive.typeId());
+    Set<Class<? extends DataType>> expectedType = TYPES.get(primitive.typeId());
     Preconditions.checkArgument(
         expectedType != null && expectedType.contains(current.getClass()),
         "Cannot project %s to incompatible type: %s",
@@ -262,8 +261,8 @@ public class PruneColumnsWithReordering extends TypeUtil.CustomOrderSchemaVisito
     return primitive;
   }
 
-  private static final ImmutableMap<TypeID, Set<Class<? extends AbstractDataType>>> TYPES =
-      ImmutableMap.<TypeID, Set<Class<? extends AbstractDataType>>>builder()
+  private static final ImmutableMap<TypeID, Set<Class<? extends DataType>>> TYPES =
+      ImmutableMap.<TypeID, Set<Class<? extends DataType>>>builder()
           .put(TypeID.BOOLEAN, ImmutableSet.of(BooleanType$.class))
           .put(TypeID.INTEGER, ImmutableSet.of(IntegerType$.class))
           .put(TypeID.LONG, ImmutableSet.of(LongType$.class))
@@ -271,10 +270,10 @@ public class PruneColumnsWithReordering extends TypeUtil.CustomOrderSchemaVisito
           .put(TypeID.DOUBLE, ImmutableSet.of(DoubleType$.class))
           .put(TypeID.DATE, ImmutableSet.of(DateType$.class))
           .put(TypeID.TIMESTAMP, ImmutableSet.of(TimestampType$.class, TimestampNTZType$.class))
-          .put(TypeID.DECIMAL, ImmutableSet.of(DecimalType$.class))
+          .put(TypeID.DECIMAL, ImmutableSet.of(DecimalType.class))
           .put(TypeID.UUID, ImmutableSet.of(StringType$.class))
           .put(TypeID.STRING, ImmutableSet.of(StringType$.class))
           .put(TypeID.FIXED, ImmutableSet.of(BinaryType$.class))
-          .put(TypeID.BINARY, ImmutableSet.of(BinaryType$.class))
+          .put(TypeID.BINARY, ImmutableSet.of(BinaryType.class))
           .buildOrThrow();
 }

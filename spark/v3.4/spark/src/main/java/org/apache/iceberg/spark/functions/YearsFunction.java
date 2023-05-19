@@ -132,7 +132,7 @@ public class YearsFunction extends UnaryUnboundFunction {
 
     @Override
     public String canonicalName() {
-      return "iceberg.years(timestamp)";
+      return "iceberg.years(timestamp_ntz)";
     }
 
     @Override

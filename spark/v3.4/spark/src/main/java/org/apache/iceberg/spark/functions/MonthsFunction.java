@@ -132,7 +132,7 @@ public class MonthsFunction extends UnaryUnboundFunction {
 
     @Override
     public String canonicalName() {
-      return "iceberg.months(timestamp)";
+      return "iceberg.months(timestamp_ntz)";
     }
 
     @Override

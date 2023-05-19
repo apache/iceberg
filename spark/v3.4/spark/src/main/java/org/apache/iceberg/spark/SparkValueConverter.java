@@ -75,6 +75,7 @@ public class SparkValueConverter {
       case TIMESTAMP:
         Types.TimestampType ts = (Types.TimestampType) type.asPrimitiveType();
 
+        // This if/else can be removed once https://github.com/apache/spark/pull/41238 is in
         if (ts.shouldAdjustToUTC()) {
           // if spark.sql.datetime.java8API.enabled is set to true, java.time.Instant
           // for Spark SQL TIMESTAMP type is returned otherwise java.sql.Timestamp is returned.

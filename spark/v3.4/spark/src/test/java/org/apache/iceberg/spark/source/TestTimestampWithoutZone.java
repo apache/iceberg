@@ -153,7 +153,7 @@ public class TestTimestampWithoutZone extends SparkTestBase {
   }
 
   @Test
-  public void testUnpartitionedTimestampWithoutZoneSessionProperties() {
+  public void testUnpartitionedTimestampWithoutZoneAppend() {
     spark
         .read()
         .format("iceberg")

@@ -114,7 +114,7 @@ public class HoursFunction extends UnaryUnboundFunction {
 
     @Override
     public String canonicalName() {
-      return "iceberg.hours(timestamp)";
+      return "iceberg.hours(timestamp_ntz)";
     }
 
     @Override

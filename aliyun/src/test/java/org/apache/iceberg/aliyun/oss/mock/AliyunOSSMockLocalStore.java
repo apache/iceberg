@@ -37,6 +37,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import org.apache.commons.io.FileUtils;
+import org.apache.directory.api.util.Hex;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.io.ByteStreams;
@@ -88,7 +89,7 @@ public class AliyunOSSMockLocalStore {
     while ((numBytes = is.read(bytes)) != -1) {
       md.update(bytes, 0, numBytes);
     }
-    return javax.xml.bind.DatatypeConverter.printHexBinary(md.digest()).toUpperCase(Locale.ROOT);
+    return new String(Hex.encodeHex(md.digest())).toUpperCase(Locale.ROOT);
   }
 
   private static void inputStreamToFile(InputStream inputStream, File targetFile)
