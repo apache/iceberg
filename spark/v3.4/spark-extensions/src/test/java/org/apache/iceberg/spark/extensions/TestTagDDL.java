@@ -125,7 +125,7 @@ public class TestTagDDL extends SparkExtensionsTestBase {
     Assertions.assertThatThrownBy(() -> sql("ALTER TABLE %s CREATE TAG %s", tableName, "abc"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining(
-            "Cannot complete create or replace tag operation on %s, no valid snapshotId found",
+            "Cannot complete create or replace tag operation on %s, main has no snapshot",
             tableName);
   }
 

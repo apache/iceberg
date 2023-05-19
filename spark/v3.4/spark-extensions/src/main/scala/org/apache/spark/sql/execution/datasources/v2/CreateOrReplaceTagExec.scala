@@ -47,7 +47,7 @@ case class CreateOrReplaceTagExec(
           .orNull
 
         Preconditions.checkArgument(snapshotId != null,
-          "Cannot complete create or replace tag operation on %s, no valid snapshotId found", ident)
+          "Cannot complete create or replace tag operation on %s, main has no snapshot", ident)
 
         val manageSnapshot = iceberg.table.manageSnapshots()
         if (!replace) {

@@ -95,7 +95,7 @@ public class TestBranchDDL extends SparkExtensionsTestBase {
     Assertions.assertThatThrownBy(() -> sql("ALTER TABLE %s CREATE BRANCH %s", tableName, "b1"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining(
-            "Cannot complete create or replace branch operation on %s, no valid snapshotId found",
+            "Cannot complete create or replace branch operation on %s, main has no snapshot",
             tableName);
   }
 
