@@ -344,7 +344,6 @@ public class Parquet {
       private final int rowGroupSize;
       private final int pageSize;
       private final int pageRowLimit;
-
       private final boolean dictionaryEnabled;
       private final int dictionaryPageSize;
       private final CompressionCodecName codec;
