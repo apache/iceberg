@@ -102,8 +102,6 @@ def test_repr_primitive_types(input_index: int, input_type: Type[PrimitiveType])
 def test_is_primitive(input_type: IcebergType, result: bool) -> None:
     assert input_type.is_primitive == result
 
-    return obj == pickle.loads(pickle.dumps(obj))
-
 
 def test_fixed_type() -> None:
     type_var = FixedType(length=5)
