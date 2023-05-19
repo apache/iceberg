@@ -449,7 +449,6 @@ project(':iceberg-aliyun') {
       exclude module: 'logback-classic'
       exclude module: 'spring-boot-starter-logging'
     }
-    testImplementation 'commons-io:commons-io'
   }
 }
 
