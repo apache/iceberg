@@ -385,9 +385,8 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
         Types.StructType partitionType, Map<Integer, PartitionSpec> specs) {
       Map<Integer, StructProjection> partitionProjections = Maps.newHashMap();
 
-      for (Map.Entry<Integer, PartitionSpec> entry : specs.entrySet()) {
-        Integer specId = entry.getKey();
-        PartitionSpec spec = entry.getValue();
+      for (int specId : specs.keySet()) {
+        PartitionSpec spec = specs.get(specId);
         StructProjection projection = StructProjection.create(partitionType, spec.partitionType());
         partitionProjections.put(specId, projection);
       }
