@@ -494,7 +494,7 @@ class SetPredicate(UnboundPredicate[L], ABC):
     def __eq__(self, other: Any) -> bool:
         return self.term == other.term and self.literals == other.literals if isinstance(other, SetPredicate) else False
 
-    def __getnewargs__(self) -> Tuple[BoundTerm[L], Set[Literal[L]]]:
+    def __getnewargs__(self) -> Tuple[UnboundTerm[L], Set[Literal[L]]]:
         return (self.term, self.literals)
 
     @property
