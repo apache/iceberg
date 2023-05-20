@@ -50,7 +50,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.RegisterExtension;
 import org.junit.jupiter.api.io.TempDir;
 import org.projectnessie.client.api.NessieApiV1;
-import org.projectnessie.client.api.NessieApiV2;
+import org.projectnessie.client.ext.NessieApiVersion;
 import org.projectnessie.client.ext.NessieApiVersions;
 import org.projectnessie.client.ext.NessieClientFactory;
 import org.projectnessie.client.ext.NessieClientUri;
@@ -88,6 +88,7 @@ public abstract class BaseTestIceberg {
 
   protected NessieCatalog catalog;
   protected NessieApiV1 api;
+  private NessieApiVersion apiVersion;
   protected Configuration hadoopConfig;
   protected final String branch;
   private String initialHashOfDefaultBranch;
@@ -122,6 +123,7 @@ public abstract class BaseTestIceberg {
       throws IOException {
     this.uri = nessieUri.toASCIIString();
     this.api = clientFactory.make();
+    this.apiVersion = clientFactory.apiVersion();
 
     Branch defaultBranch = api.getDefaultBranch();
     initialHashOfDefaultBranch = defaultBranch.getHash();
@@ -146,8 +148,8 @@ public abstract class BaseTestIceberg {
             .put(CatalogProperties.URI, uri)
             .put("auth-type", "NONE")
             .put(CatalogProperties.WAREHOUSE_LOCATION, temp.toUri().toString());
-    if (api instanceof NessieApiV2) {
-      options.put(NessieUtil.CLIENT_API_VERSION, "v2");
+    if (apiVersion == NessieApiVersion.V2) {
+      options.put(NessieUtil.CLIENT_API_VERSION, "2");
     }
     if (null != hash) {
       options.put("ref.hash", hash);

@@ -33,7 +33,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.RegisterExtension;
 import org.junit.jupiter.api.io.TempDir;
 import org.projectnessie.client.api.NessieApiV1;
-import org.projectnessie.client.api.NessieApiV2;
+import org.projectnessie.client.ext.NessieApiVersion;
 import org.projectnessie.client.ext.NessieApiVersions;
 import org.projectnessie.client.ext.NessieClientFactory;
 import org.projectnessie.client.ext.NessieClientUri;
@@ -67,6 +67,7 @@ public class TestNessieCatalog extends CatalogTests<NessieCatalog> {
 
   private NessieCatalog catalog;
   private NessieApiV1 api;
+  private NessieApiVersion apiVersion;
   private Configuration hadoopConfig;
   private String initialHashOfDefaultBranch;
   private String uri;
@@ -75,6 +76,7 @@ public class TestNessieCatalog extends CatalogTests<NessieCatalog> {
   public void setUp(NessieClientFactory clientFactory, @NessieClientUri URI nessieUri)
       throws NessieNotFoundException {
     api = clientFactory.make();
+    apiVersion = clientFactory.apiVersion();
     initialHashOfDefaultBranch = api.getDefaultBranch().getHash();
     uri = nessieUri.toASCIIString();
     hadoopConfig = new Configuration();
@@ -121,8 +123,8 @@ public class TestNessieCatalog extends CatalogTests<NessieCatalog> {
             .put(CatalogProperties.URI, uri)
             .put("auth-type", "NONE")
             .put(CatalogProperties.WAREHOUSE_LOCATION, temp.toUri().toString());
-    if (api instanceof NessieApiV2) {
-      options.put(NessieUtil.CLIENT_API_VERSION, "v2");
+    if (apiVersion == NessieApiVersion.V2) {
+      options.put(NessieUtil.CLIENT_API_VERSION, "2");
     }
     newCatalog.initialize("nessie", options.buildOrThrow());
     return newCatalog;

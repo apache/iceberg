@@ -96,16 +96,15 @@ public class NessieCatalog extends BaseMetastoreCatalog
             .fromConfig(x -> options.get(removePrefix.apply(x)));
     final String apiVersion = options.get(NessieUtil.CLIENT_API_VERSION);
     NessieApiV1 api;
-    if (apiVersion == null || apiVersion.equalsIgnoreCase("v1")) {
+    if (apiVersion == null || apiVersion.equalsIgnoreCase("1")) {
       // default version is set to v1.
       api = nessieClientBuilder.build(NessieApiV1.class);
-    } else if (apiVersion.equalsIgnoreCase("v2")) {
+    } else if (apiVersion.equalsIgnoreCase("2")) {
       api = nessieClientBuilder.build(NessieApiV2.class);
     } else {
       throw new IllegalArgumentException(
           String.format(
-              "Unsupported %s: %s. Can only be v1 or v2",
-              NessieUtil.CLIENT_API_VERSION, apiVersion));
+              "Unsupported %s: %s. Can only be 1 or 2", NessieUtil.CLIENT_API_VERSION, apiVersion));
     }
 
     initialize(
