@@ -31,6 +31,7 @@ import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.catalyst.parser.extensions.IcebergParseException;
+import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -93,6 +94,15 @@ public class TestBranchDDL extends SparkExtensionsTestBase {
       Assert.assertEquals(
           TimeUnit.valueOf(timeUnit).toMillis(maxRefAge), ref.maxRefAgeMs().longValue());
     }
+  }
+
+  @Test
+  public void testCreateBranchOnEmptyTable() {
+    Assertions.assertThatThrownBy(() -> sql("ALTER TABLE %s CREATE BRANCH %s", tableName, "b1"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining(
+            "Cannot complete create or replace branch operation on %s, main has no snapshot",
+            tableName);
   }
 
   @Test
