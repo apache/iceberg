@@ -20,8 +20,9 @@ package org.apache.iceberg.flink.sink;
 
 import java.util.List;
 import java.util.UUID;
-import org.apache.flink.table.data.util.DataFormatConverters;
-import org.apache.flink.types.Row;
+import org.apache.flink.table.data.GenericRowData;
+import org.apache.flink.table.data.RowData;
+import org.apache.flink.table.data.StringData;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -41,9 +42,6 @@ final class TestBucketPartitionerUtils {
   }
 
   private TestBucketPartitionerUtils() {}
-
-  static final DataFormatConverters.RowConverter CONVERTER =
-      new DataFormatConverters.RowConverter(SimpleDataUtil.FLINK_SCHEMA.getFieldDataTypes());
 
   static PartitionSpec getPartitionSpec(TableSchemaType tableSchemaType, int numBuckets) {
     PartitionSpec partitionSpec = null;
@@ -82,13 +80,13 @@ final class TestBucketPartitionerUtils {
    * @param numBuckets max number of buckets to consider
    * @return the list of rows whose data "hashes" to the desired bucketId
    */
-  static List<Row> generateRowsForBucketIdRange(int numRowsPerBucket, int numBuckets) {
-    List<Row> rows = Lists.newArrayListWithCapacity(numBuckets * numRowsPerBucket);
+  static List<RowData> generateRowsForBucketIdRange(int numRowsPerBucket, int numBuckets) {
+    List<RowData> rows = Lists.newArrayListWithCapacity(numBuckets * numRowsPerBucket);
     // For some of our tests, this order of the generated rows matters
     for (int i = 0; i < numRowsPerBucket; i++) {
       for (int bucketId = 0; bucketId < numBuckets; bucketId++) {
         String value = generateValueForBucketId(bucketId, numBuckets);
-        rows.add(Row.of(1, value));
+        rows.add(GenericRowData.of(1, StringData.fromString(value)));
       }
     }
     return rows;

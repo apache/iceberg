@@ -21,7 +21,6 @@ package org.apache.iceberg.flink.sink;
 import static org.apache.iceberg.flink.MiniClusterResource.DISABLE_CLASSLOADER_CHECK_CONFIG;
 import static org.apache.iceberg.flink.TestFixtures.DATABASE;
 import static org.apache.iceberg.flink.TestFixtures.TABLE_IDENTIFIER;
-import static org.apache.iceberg.flink.sink.TestBucketPartitionerUtils.CONVERTER;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -29,13 +28,13 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
-import java.util.stream.Collectors;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.java.typeutils.RowTypeInfo;
 import org.apache.flink.runtime.testutils.MiniClusterResourceConfiguration;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.table.data.RowData;
+import org.apache.flink.table.data.util.DataFormatConverters;
 import org.apache.flink.test.junit5.MiniClusterExtension;
 import org.apache.flink.types.Row;
 import org.apache.iceberg.DistributionMode;
@@ -114,18 +113,16 @@ public class TestBucketPartitionerFlinkIcebergSink {
             ImmutableMap.of(TableProperties.DEFAULT_FILE_FORMAT, format.name()));
   }
 
-  private List<RowData> convertToRowData(List<Row> rows) {
-    return rows.stream().map(CONVERTER::toInternal).collect(Collectors.toList());
-  }
+  private void testWriteRowData(List<RowData> allRows) throws Exception {
+    DataFormatConverters.RowConverter converter =
+        new DataFormatConverters.RowConverter(SimpleDataUtil.FLINK_SCHEMA.getFieldDataTypes());
 
-  private BoundedTestSource<Row> createBoundedSource(List<Row> rows) {
-    return new BoundedTestSource<>(rows.toArray(new Row[0]));
-  }
-
-  private void testWriteRowData(List<Row> allRows) throws Exception {
     DataStream<RowData> dataStream =
-        env.addSource(createBoundedSource(allRows), ROW_TYPE_INFO)
-            .map(CONVERTER::toInternal, FlinkCompatibilityUtil.toTypeInfo(SimpleDataUtil.ROW_TYPE));
+        env.addSource(
+                new BoundedTestSource<>(
+                    allRows.stream().map(converter::toExternal).toArray(Row[]::new)),
+                ROW_TYPE_INFO)
+            .map(converter::toInternal, FlinkCompatibilityUtil.toTypeInfo(SimpleDataUtil.ROW_TYPE));
 
     FlinkSink.forRowData(dataStream)
         .table(table)
@@ -138,7 +135,7 @@ public class TestBucketPartitionerFlinkIcebergSink {
     env.execute("Test Iceberg DataStream");
 
     // Assert the iceberg table's records.
-    SimpleDataUtil.assertTableRows(table, convertToRowData(allRows));
+    SimpleDataUtil.assertTableRows(table, allRows);
   }
 
   @ParameterizedTest
@@ -147,7 +144,7 @@ public class TestBucketPartitionerFlinkIcebergSink {
       names = {"ONE_BUCKET", "IDENTITY_AND_BUCKET"})
   public void testSendRecordsToAllBucketsEvenly(TableSchemaType tableSchemaType) throws Exception {
     setupEnvironment(tableSchemaType);
-    List<Row> rows = generateTestDataRows();
+    List<RowData> rows = generateTestDataRows();
 
     testWriteRowData(rows);
     TableTestStats stats = extractPartitionResults(tableSchemaType);
@@ -178,7 +175,7 @@ public class TestBucketPartitionerFlinkIcebergSink {
   @EnumSource(value = TableSchemaType.class, names = "TWO_BUCKETS")
   public void testMultipleBucketsFallback(TableSchemaType tableSchemaType) throws Exception {
     setupEnvironment(tableSchemaType);
-    List<Row> rows = generateTestDataRows();
+    List<RowData> rows = generateTestDataRows();
 
     testWriteRowData(rows);
     TableTestStats stats = extractPartitionResults(tableSchemaType);
@@ -195,7 +192,7 @@ public class TestBucketPartitionerFlinkIcebergSink {
    * buckets)
    */
   @NotNull
-  private List<Row> generateTestDataRows() {
+  private List<RowData> generateTestDataRows() {
     int totalNumRows = parallelism * 2;
     int numRowsPerBucket = totalNumRows / numBuckets;
     return TestBucketPartitionerUtils.generateRowsForBucketIdRange(numRowsPerBucket, numBuckets);

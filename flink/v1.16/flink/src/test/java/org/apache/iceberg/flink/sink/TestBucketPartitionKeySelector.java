@@ -18,8 +18,6 @@
  */
 package org.apache.iceberg.flink.sink;
 
-import static org.apache.iceberg.flink.sink.TestBucketPartitionerUtils.CONVERTER;
-
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.flink.SimpleDataUtil;
 import org.assertj.core.api.Assertions;
@@ -44,10 +42,11 @@ public class TestBucketPartitionKeySelector {
 
     TestBucketPartitionerUtils.generateRowsForBucketIdRange(2, numBuckets)
         .forEach(
-            row -> {
+            rowData -> {
               int expectedBucketId =
-                  TestBucketPartitionerUtils.computeBucketId(numBuckets, (String) row.getField(1));
-              Integer key = keySelector.getKey(CONVERTER.toInternal(row));
+                  TestBucketPartitionerUtils.computeBucketId(
+                      numBuckets, rowData.getString(1).toString());
+              Integer key = keySelector.getKey(rowData);
               Assertions.assertThat(key).isEqualTo(expectedBucketId);
             });
   }
