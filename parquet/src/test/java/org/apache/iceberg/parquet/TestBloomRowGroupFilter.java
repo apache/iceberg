@@ -19,7 +19,6 @@
 package org.apache.iceberg.parquet;
 
 import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX;
-import static org.apache.iceberg.TableProperties.PARQUET_DICT_ENABLED;
 import static org.apache.iceberg.avro.AvroSchemaUtil.convert;
 import static org.apache.iceberg.expressions.Expressions.and;
 import static org.apache.iceberg.expressions.Expressions.equal;
@@ -71,6 +70,7 @@ import org.apache.iceberg.types.Types.UUIDType;
 import org.apache.parquet.column.values.bloomfilter.BloomFilter;
 import org.apache.parquet.hadoop.BloomFilterReader;
 import org.apache.parquet.hadoop.ParquetFileReader;
+import org.apache.parquet.hadoop.ParquetOutputFormat;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
 import org.apache.parquet.schema.MessageType;
@@ -198,7 +198,7 @@ public class TestBloomRowGroupFilter {
     try (FileAppender<Record> appender =
         Parquet.write(outFile)
             .schema(FILE_SCHEMA)
-            .set(PARQUET_DICT_ENABLED, "false")
+            .set(ParquetOutputFormat.ENABLE_DICTIONARY, "false")
             .set(PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "_id", "true")
             .set(PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "_long", "true")
             .set(PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "_double", "true")
