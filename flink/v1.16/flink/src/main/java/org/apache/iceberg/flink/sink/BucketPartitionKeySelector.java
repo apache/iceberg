@@ -55,10 +55,6 @@ class BucketPartitionKeySelector implements KeySelector<RowData, Integer> {
             .toArray()[0];
   }
 
-  /**
-   * Construct the {@link RowDataWrapper} lazily here because few members in it are not
-   * serializable. In this way, we don't have to serialize them with forcing.
-   */
   private RowDataWrapper lazyRowDataWrapper() {
     if (rowDataWrapper == null) {
       rowDataWrapper = new RowDataWrapper(flinkSchema, schema.asStruct());

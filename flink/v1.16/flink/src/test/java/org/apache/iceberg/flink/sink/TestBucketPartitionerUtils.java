@@ -34,6 +34,10 @@ final class TestBucketPartitionerUtils {
     ONE_BUCKET,
     IDENTITY_AND_BUCKET,
     TWO_BUCKETS;
+
+    public static int bucketPartitionColumnPosition(TableSchemaType tableSchemaType) {
+      return tableSchemaType == ONE_BUCKET ? 0 : 1;
+    }
   }
 
   private TestBucketPartitionerUtils() {}
@@ -97,15 +101,12 @@ final class TestBucketPartitionerUtils {
    * @return the string data that "hashes" to the desired bucketId
    */
   private static String generateValueForBucketId(int bucketId, int numBuckets) {
-    String value = "";
     while (true) {
       String uuid = UUID.randomUUID().toString();
       if (computeBucketId(numBuckets, uuid) == bucketId) {
-        value = uuid;
-        break;
+        return uuid;
       }
     }
-    return value;
   }
 
   /**

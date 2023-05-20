@@ -122,40 +122,6 @@ public class TestBucketPartitionerFlinkIcebergSink {
     return new BoundedTestSource<>(rows.toArray(new Row[0]));
   }
 
-  private TableTestStats extractTableTestStats(TableSchemaType tableSchemaType) throws IOException {
-    int totalRecordCount = 0;
-    Map<Integer, List<Integer>> writersPerBucket = Maps.newHashMap(); // <BucketId, List<WriterId>>
-    Map<Integer, Integer> filesPerBucket = Maps.newHashMap(); // <BucketId, NumFiles>
-    Map<Integer, Long> recordsPerFile = new TreeMap<>(); // <WriterId, NumRecords>
-
-    try (CloseableIterable<FileScanTask> fileScanTasks = table.newScan().planFiles()) {
-      for (FileScanTask scanTask : fileScanTasks) {
-        long recordCountInFile = scanTask.file().recordCount();
-
-        String[] splitFilePath = scanTask.file().path().toString().split("/");
-        String filename = splitFilePath[splitFilePath.length - 1];
-        int writerId = Integer.parseInt(filename.split("-")[0]);
-
-        totalRecordCount += recordCountInFile;
-        int bucketId =
-            scanTask
-                .file()
-                .partition()
-                .get(tableSchemaType == TableSchemaType.ONE_BUCKET ? 0 : 1, Integer.class);
-        writersPerBucket.computeIfAbsent(bucketId, k -> Lists.newArrayList());
-        writersPerBucket.get(bucketId).add(writerId);
-        filesPerBucket.put(bucketId, filesPerBucket.getOrDefault(bucketId, 0) + 1);
-        recordsPerFile.put(writerId, recordsPerFile.getOrDefault(writerId, 0L) + recordCountInFile);
-      }
-    }
-
-    for (int k : writersPerBucket.keySet()) {
-      Collections.sort(writersPerBucket.get(k));
-    }
-
-    return new TableTestStats(totalRecordCount, writersPerBucket, filesPerBucket, recordsPerFile);
-  }
-
   private void testWriteRowData(List<Row> allRows) throws Exception {
     DataStream<RowData> dataStream =
         env.addSource(createBoundedSource(allRows), ROW_TYPE_INFO)
@@ -184,7 +150,7 @@ public class TestBucketPartitionerFlinkIcebergSink {
     List<Row> rows = generateTestDataRows();
 
     testWriteRowData(rows);
-    TableTestStats stats = extractTableTestStats(tableSchemaType);
+    TableTestStats stats = extractPartitionResults(tableSchemaType);
 
     Assertions.assertThat(stats.totalRowCount).isEqualTo(rows.size());
     // All 4 buckets should've been written to
@@ -215,7 +181,7 @@ public class TestBucketPartitionerFlinkIcebergSink {
     List<Row> rows = generateTestDataRows();
 
     testWriteRowData(rows);
-    TableTestStats stats = extractTableTestStats(tableSchemaType);
+    TableTestStats stats = extractPartitionResults(tableSchemaType);
 
     Assertions.assertThat(stats.totalRowCount).isEqualTo(rows.size());
     for (int i = 0, j = numBuckets; i < numBuckets; i++, j++) {
@@ -233,6 +199,41 @@ public class TestBucketPartitionerFlinkIcebergSink {
     int totalNumRows = parallelism * 2;
     int numRowsPerBucket = totalNumRows / numBuckets;
     return TestBucketPartitionerUtils.generateRowsForBucketIdRange(numRowsPerBucket, numBuckets);
+  }
+
+  private TableTestStats extractPartitionResults(TableSchemaType tableSchemaType)
+      throws IOException {
+    int totalRecordCount = 0;
+    Map<Integer, List<Integer>> writersPerBucket = Maps.newHashMap(); // <BucketId, List<WriterId>>
+    Map<Integer, Integer> filesPerBucket = Maps.newHashMap(); // <BucketId, NumFiles>
+    Map<Integer, Long> recordsPerFile = new TreeMap<>(); // <WriterId, NumRecords>
+
+    try (CloseableIterable<FileScanTask> fileScanTasks = table.newScan().planFiles()) {
+      for (FileScanTask scanTask : fileScanTasks) {
+        long recordCountInFile = scanTask.file().recordCount();
+
+        String[] splitFilePath = scanTask.file().path().toString().split("/");
+        String filename = splitFilePath[splitFilePath.length - 1];
+        int writerId = Integer.parseInt(filename.split("-")[0]);
+
+        totalRecordCount += recordCountInFile;
+        int bucketId =
+            scanTask
+                .file()
+                .partition()
+                .get(TableSchemaType.bucketPartitionColumnPosition(tableSchemaType), Integer.class);
+        writersPerBucket.computeIfAbsent(bucketId, k -> Lists.newArrayList());
+        writersPerBucket.get(bucketId).add(writerId);
+        filesPerBucket.put(bucketId, filesPerBucket.getOrDefault(bucketId, 0) + 1);
+        recordsPerFile.put(writerId, recordsPerFile.getOrDefault(writerId, 0L) + recordCountInFile);
+      }
+    }
+
+    for (int k : writersPerBucket.keySet()) {
+      Collections.sort(writersPerBucket.get(k));
+    }
+
+    return new TableTestStats(totalRecordCount, writersPerBucket, filesPerBucket, recordsPerFile);
   }
 
   /** DTO to hold Test Stats */

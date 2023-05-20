@@ -28,7 +28,7 @@ import org.apache.iceberg.transforms.PartitionSpecVisitor;
 
 final class BucketPartitionerUtils {
   static final String BAD_NUMBER_OF_BUCKETS_ERROR_MESSAGE =
-      "Expected 1 Bucket transform in the provided PartitionSpec, found: ";
+      "Expected 1 Bucket transform in the provided PartitionSpec, found: %s";
 
   private BucketPartitionerUtils() {}
 
@@ -53,7 +53,8 @@ final class BucketPartitionerUtils {
     List<Tuple2<Integer, Integer>> bucketFields = getBucketFields(partitionSpec);
     Preconditions.checkArgument(
         bucketFields.size() == 1,
-        BucketPartitionerUtils.BAD_NUMBER_OF_BUCKETS_ERROR_MESSAGE + bucketFields.size());
+        BucketPartitionerUtils.BAD_NUMBER_OF_BUCKETS_ERROR_MESSAGE,
+        bucketFields.size());
     return bucketFields.get(0);
   }
 

@@ -18,82 +18,99 @@
  */
 package org.apache.iceberg.flink.sink;
 
-import static org.apache.iceberg.flink.sink.BucketPartitioner.BUCKET_OUT_OF_RANGE_MESSAGE_PREFIX;
+import static org.apache.iceberg.flink.sink.BucketPartitioner.BUCKET_GREATER_THAN_UPPER_BOUND_MESSAGE;
+import static org.apache.iceberg.flink.sink.BucketPartitioner.BUCKET_LESS_THAN_LOWER_BOUND_MESSAGE;
+import static org.apache.iceberg.flink.sink.BucketPartitioner.BUCKET_NULL_MESSAGE;
 
 import org.apache.iceberg.PartitionSpec;
 import org.assertj.core.api.Assertions;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.EnumSource;
-import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.params.provider.CsvSource;
 
 public class TestBucketPartitioner {
 
-  static final int NUM_BUCKETS = 60;
+  static final int DEFAULT_NUM_BUCKETS = 60;
 
   @ParameterizedTest
-  @EnumSource(
-      value = TestBucketPartitionerUtils.TableSchemaType.class,
-      names = {"ONE_BUCKET", "IDENTITY_AND_BUCKET"})
+  @CsvSource({"ONE_BUCKET,50", "IDENTITY_AND_BUCKET,50", "ONE_BUCKET,60", "IDENTITY_AND_BUCKET,60"})
   public void testPartitioningParallelismGreaterThanBuckets(
-      TestBucketPartitionerUtils.TableSchemaType tableSchemaType) {
+      String schemaTypeStr, String numBucketsStr) {
     final int numPartitions = 500;
-
+    final TestBucketPartitionerUtils.TableSchemaType tableSchemaType =
+        TestBucketPartitionerUtils.TableSchemaType.valueOf(schemaTypeStr);
+    final int numBuckets = Integer.parseInt(numBucketsStr);
     PartitionSpec partitionSpec =
-        TestBucketPartitionerUtils.getPartitionSpec(tableSchemaType, NUM_BUCKETS);
-
+        TestBucketPartitionerUtils.getPartitionSpec(tableSchemaType, numBuckets);
     BucketPartitioner bucketPartitioner = new BucketPartitioner(partitionSpec);
 
-    for (int expectedIdx = 0, bucketId = 0; expectedIdx < numPartitions; expectedIdx++) {
-      int actualIdx = bucketPartitioner.partition(bucketId, numPartitions);
-      Assertions.assertThat(actualIdx).isEqualTo(expectedIdx);
-      if (++bucketId == NUM_BUCKETS) {
+    int bucketId = 0;
+    for (int expectedIdx = 0; expectedIdx < numPartitions; expectedIdx++) {
+      int actualPartitionIndex = bucketPartitioner.partition(bucketId, numPartitions);
+      Assertions.assertThat(actualPartitionIndex).isEqualTo(expectedIdx);
+      bucketId++;
+      if (bucketId == numBuckets) {
         bucketId = 0;
       }
     }
   }
 
   @ParameterizedTest
-  @EnumSource(
-      value = TestBucketPartitionerUtils.TableSchemaType.class,
-      names = {"ONE_BUCKET", "IDENTITY_AND_BUCKET"})
+  @CsvSource({"ONE_BUCKET,50", "IDENTITY_AND_BUCKET,50", "ONE_BUCKET,60", "IDENTITY_AND_BUCKET,60"})
   public void testPartitioningParallelismEqualLessThanBuckets(
-      TestBucketPartitionerUtils.TableSchemaType tableSchemaType) {
+      String schemaTypeStr, String numBucketsStr) {
     final int numPartitions = 30;
-
+    final TestBucketPartitionerUtils.TableSchemaType tableSchemaType =
+        TestBucketPartitionerUtils.TableSchemaType.valueOf(schemaTypeStr);
+    final int numBuckets = Integer.parseInt(numBucketsStr);
     PartitionSpec partitionSpec =
-        TestBucketPartitionerUtils.getPartitionSpec(tableSchemaType, NUM_BUCKETS);
-
+        TestBucketPartitionerUtils.getPartitionSpec(tableSchemaType, numBuckets);
     BucketPartitioner bucketPartitioner = new BucketPartitioner(partitionSpec);
 
-    for (int bucketId = 0; bucketId < NUM_BUCKETS; bucketId++) {
-      int actualIdx = bucketPartitioner.partition(bucketId, numPartitions);
-      Assertions.assertThat(actualIdx).isEqualTo(bucketId % numPartitions);
+    for (int bucketId = 0; bucketId < numBuckets; bucketId++) {
+      int actualPartitionIndex = bucketPartitioner.partition(bucketId, numPartitions);
+      Assertions.assertThat(actualPartitionIndex).isEqualTo(bucketId % numPartitions);
     }
   }
 
-  @ParameterizedTest
-  @EnumSource(value = TestBucketPartitionerUtils.TableSchemaType.class, names = "TWO_BUCKETS")
-  public void testPartitionerMultipleBucketsFail(
-      TestBucketPartitionerUtils.TableSchemaType tableSchemaType) {
+  @Test
+  public void testPartitionerBucketIdNullFail() {
     PartitionSpec partitionSpec =
-        TestBucketPartitionerUtils.getPartitionSpec(tableSchemaType, NUM_BUCKETS);
+        TestBucketPartitionerUtils.getPartitionSpec(
+            TestBucketPartitionerUtils.TableSchemaType.ONE_BUCKET, DEFAULT_NUM_BUCKETS);
+    BucketPartitioner bucketPartitioner = new BucketPartitioner(partitionSpec);
+
+    Assertions.assertThatExceptionOfType(RuntimeException.class)
+        .isThrownBy(() -> bucketPartitioner.partition(null, DEFAULT_NUM_BUCKETS))
+        .withMessage(BUCKET_NULL_MESSAGE);
+  }
+
+  @Test
+  public void testPartitionerMultipleBucketsFail() {
+    PartitionSpec partitionSpec =
+        TestBucketPartitionerUtils.getPartitionSpec(
+            TestBucketPartitionerUtils.TableSchemaType.TWO_BUCKETS, DEFAULT_NUM_BUCKETS);
 
     Assertions.assertThatExceptionOfType(RuntimeException.class)
         .isThrownBy(() -> new BucketPartitioner(partitionSpec))
-        .withMessageContaining(BucketPartitionerUtils.BAD_NUMBER_OF_BUCKETS_ERROR_MESSAGE);
+        .withMessage(BucketPartitionerUtils.BAD_NUMBER_OF_BUCKETS_ERROR_MESSAGE, 2);
   }
 
-  @ParameterizedTest
-  @ValueSource(ints = {-1, NUM_BUCKETS})
-  public void testPartitionerBucketIdOutOfRangeFail(int bucketId) {
+  @Test
+  public void testPartitionerBucketIdOutOfRangeFail() {
     PartitionSpec partitionSpec =
         TestBucketPartitionerUtils.getPartitionSpec(
-            TestBucketPartitionerUtils.TableSchemaType.ONE_BUCKET, NUM_BUCKETS);
-
+            TestBucketPartitionerUtils.TableSchemaType.ONE_BUCKET, DEFAULT_NUM_BUCKETS);
     BucketPartitioner bucketPartitioner = new BucketPartitioner(partitionSpec);
 
+    int negativeBucketId = -1;
     Assertions.assertThatExceptionOfType(IllegalArgumentException.class)
-        .isThrownBy(() -> bucketPartitioner.partition(bucketId, 1))
-        .withMessageContaining(BUCKET_OUT_OF_RANGE_MESSAGE_PREFIX);
+        .isThrownBy(() -> bucketPartitioner.partition(negativeBucketId, 1))
+        .withMessage(BUCKET_LESS_THAN_LOWER_BOUND_MESSAGE, negativeBucketId);
+
+    int tooBigBucketId = DEFAULT_NUM_BUCKETS;
+    Assertions.assertThatExceptionOfType(IllegalArgumentException.class)
+        .isThrownBy(() -> bucketPartitioner.partition(tooBigBucketId, 1))
+        .withMessage(BUCKET_GREATER_THAN_UPPER_BOUND_MESSAGE, tooBigBucketId, DEFAULT_NUM_BUCKETS);
   }
 }

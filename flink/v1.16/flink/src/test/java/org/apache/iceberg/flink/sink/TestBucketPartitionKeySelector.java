@@ -23,6 +23,7 @@ import static org.apache.iceberg.flink.sink.TestBucketPartitionerUtils.CONVERTER
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.flink.SimpleDataUtil;
 import org.assertj.core.api.Assertions;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 
@@ -51,17 +52,17 @@ public class TestBucketPartitionKeySelector {
             });
   }
 
-  @ParameterizedTest
-  @EnumSource(value = TestBucketPartitionerUtils.TableSchemaType.class, names = "TWO_BUCKETS")
-  public void testKeySelectorMultipleBucketsFail(
-      TestBucketPartitionerUtils.TableSchemaType tableSchemaType) {
-    PartitionSpec partitionSpec = TestBucketPartitionerUtils.getPartitionSpec(tableSchemaType, 1);
+  @Test
+  public void testKeySelectorMultipleBucketsFail() {
+    PartitionSpec partitionSpec =
+        TestBucketPartitionerUtils.getPartitionSpec(
+            TestBucketPartitionerUtils.TableSchemaType.TWO_BUCKETS, 1);
 
     Assertions.assertThatExceptionOfType(RuntimeException.class)
         .isThrownBy(
             () ->
                 new BucketPartitionKeySelector(
                     partitionSpec, SimpleDataUtil.SCHEMA, SimpleDataUtil.ROW_TYPE))
-        .withMessageContaining(BucketPartitionerUtils.BAD_NUMBER_OF_BUCKETS_ERROR_MESSAGE);
+        .withMessage(BucketPartitionerUtils.BAD_NUMBER_OF_BUCKETS_ERROR_MESSAGE, 2);
   }
 }
