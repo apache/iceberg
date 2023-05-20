@@ -1596,11 +1596,22 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
 
     Table table = validationCatalog.loadTable(tableIdent);
 
+    SortOrder[] expectedOrdering =
+        new SortOrder[] {
+          Expressions.sort(
+              Expressions.column(MetadataColumns.SPEC_ID.name()), SortDirection.ASCENDING),
+          Expressions.sort(
+              Expressions.column(MetadataColumns.PARTITION_COLUMN_NAME), SortDirection.ASCENDING),
+          Expressions.sort(
+              Expressions.column(MetadataColumns.FILE_PATH.name()), SortDirection.ASCENDING),
+          Expressions.sort(
+              Expressions.column(MetadataColumns.ROW_POSITION.name()), SortDirection.ASCENDING),
+          Expressions.sort(Expressions.column("date"), SortDirection.ASCENDING),
+          Expressions.sort(Expressions.bucket(8, "data"), SortDirection.ASCENDING)
+        };
+
     checkPositionDeltaDistributionAndOrdering(
-        table,
-        UPDATE,
-        SPEC_ID_PARTITION_CLUSTERED_DISTRIBUTION,
-        SPEC_ID_PARTITION_FILE_POSITION_ORDERING);
+        table, UPDATE, SPEC_ID_PARTITION_CLUSTERED_DISTRIBUTION, expectedOrdering);
   }
 
   @Test
@@ -1615,8 +1626,22 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
 
     table.updateProperties().set(UPDATE_DISTRIBUTION_MODE, WRITE_DISTRIBUTION_MODE_NONE).commit();
 
+    SortOrder[] expectedOrdering =
+        new SortOrder[] {
+          Expressions.sort(
+              Expressions.column(MetadataColumns.SPEC_ID.name()), SortDirection.ASCENDING),
+          Expressions.sort(
+              Expressions.column(MetadataColumns.PARTITION_COLUMN_NAME), SortDirection.ASCENDING),
+          Expressions.sort(
+              Expressions.column(MetadataColumns.FILE_PATH.name()), SortDirection.ASCENDING),
+          Expressions.sort(
+              Expressions.column(MetadataColumns.ROW_POSITION.name()), SortDirection.ASCENDING),
+          Expressions.sort(Expressions.column("date"), SortDirection.ASCENDING),
+          Expressions.sort(Expressions.bucket(8, "data"), SortDirection.ASCENDING)
+        };
+
     checkPositionDeltaDistributionAndOrdering(
-        table, UPDATE, UNSPECIFIED_DISTRIBUTION, SPEC_ID_PARTITION_FILE_POSITION_ORDERING);
+        table, UPDATE, UNSPECIFIED_DISTRIBUTION, expectedOrdering);
   }
 
   @Test
@@ -1631,11 +1656,22 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
 
     table.updateProperties().set(UPDATE_DISTRIBUTION_MODE, WRITE_DISTRIBUTION_MODE_HASH).commit();
 
+    SortOrder[] expectedOrdering =
+        new SortOrder[] {
+          Expressions.sort(
+              Expressions.column(MetadataColumns.SPEC_ID.name()), SortDirection.ASCENDING),
+          Expressions.sort(
+              Expressions.column(MetadataColumns.PARTITION_COLUMN_NAME), SortDirection.ASCENDING),
+          Expressions.sort(
+              Expressions.column(MetadataColumns.FILE_PATH.name()), SortDirection.ASCENDING),
+          Expressions.sort(
+              Expressions.column(MetadataColumns.ROW_POSITION.name()), SortDirection.ASCENDING),
+          Expressions.sort(Expressions.column("date"), SortDirection.ASCENDING),
+          Expressions.sort(Expressions.bucket(8, "data"), SortDirection.ASCENDING)
+        };
+
     checkPositionDeltaDistributionAndOrdering(
-        table,
-        UPDATE,
-        SPEC_ID_PARTITION_CLUSTERED_DISTRIBUTION,
-        SPEC_ID_PARTITION_FILE_POSITION_ORDERING);
+        table, UPDATE, SPEC_ID_PARTITION_CLUSTERED_DISTRIBUTION, expectedOrdering);
   }
 
   @Test
@@ -1652,8 +1688,22 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
 
     Distribution expectedDistribution = Distributions.ordered(SPEC_ID_PARTITION_FILE_ORDERING);
 
+    SortOrder[] expectedOrdering =
+        new SortOrder[] {
+          Expressions.sort(
+              Expressions.column(MetadataColumns.SPEC_ID.name()), SortDirection.ASCENDING),
+          Expressions.sort(
+              Expressions.column(MetadataColumns.PARTITION_COLUMN_NAME), SortDirection.ASCENDING),
+          Expressions.sort(
+              Expressions.column(MetadataColumns.FILE_PATH.name()), SortDirection.ASCENDING),
+          Expressions.sort(
+              Expressions.column(MetadataColumns.ROW_POSITION.name()), SortDirection.ASCENDING),
+          Expressions.sort(Expressions.column("date"), SortDirection.ASCENDING),
+          Expressions.sort(Expressions.bucket(8, "data"), SortDirection.ASCENDING)
+        };
+
     checkPositionDeltaDistributionAndOrdering(
-        table, UPDATE, expectedDistribution, SPEC_ID_PARTITION_FILE_POSITION_ORDERING);
+        table, UPDATE, expectedDistribution, expectedOrdering);
   }
 
   // ==================================================================================

@@ -33,6 +33,8 @@ import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION;
 import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION_DEFAULT;
 import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION_LEVEL;
 import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION_LEVEL_DEFAULT;
+import static org.apache.iceberg.TableProperties.PARQUET_DICT_ENABLED;
+import static org.apache.iceberg.TableProperties.PARQUET_DICT_ENABLED_DEFAULT;
 import static org.apache.iceberg.TableProperties.PARQUET_DICT_SIZE_BYTES;
 import static org.apache.iceberg.TableProperties.PARQUET_DICT_SIZE_BYTES_DEFAULT;
 import static org.apache.iceberg.TableProperties.PARQUET_PAGE_ROW_LIMIT;
@@ -244,6 +246,7 @@ public class Parquet {
       int rowGroupSize = context.rowGroupSize();
       int pageSize = context.pageSize();
       int pageRowLimit = context.pageRowLimit();
+      boolean dictionaryEnabled = context.dictionaryEnabled();
       int dictionaryPageSize = context.dictionaryPageSize();
       String compressionLevel = context.compressionLevel();
       CompressionCodecName codec = context.codec();
@@ -286,6 +289,7 @@ public class Parquet {
                 .withWriterVersion(writerVersion)
                 .withPageSize(pageSize)
                 .withPageRowCountLimit(pageRowLimit)
+                .withDictionaryEncoding(dictionaryEnabled)
                 .withDictionaryPageSize(dictionaryPageSize)
                 .withMinRowCountForPageSizeCheck(rowGroupCheckMinRecordCount)
                 .withMaxRowCountForPageSizeCheck(rowGroupCheckMaxRecordCount)
@@ -323,6 +327,7 @@ public class Parquet {
                 .withRowGroupSize(rowGroupSize)
                 .withPageSize(pageSize)
                 .withPageRowCountLimit(pageRowLimit)
+                .withDictionaryEncoding(dictionaryEnabled)
                 .withDictionaryPageSize(dictionaryPageSize);
 
         for (Map.Entry<String, String> entry : columnBloomFilterEnabled.entrySet()) {
@@ -339,6 +344,7 @@ public class Parquet {
       private final int rowGroupSize;
       private final int pageSize;
       private final int pageRowLimit;
+      private final boolean dictionaryEnabled;
       private final int dictionaryPageSize;
       private final CompressionCodecName codec;
       private final String compressionLevel;
@@ -351,6 +357,7 @@ public class Parquet {
           int rowGroupSize,
           int pageSize,
           int pageRowLimit,
+          boolean dictionaryEnabled,
           int dictionaryPageSize,
           CompressionCodecName codec,
           String compressionLevel,
@@ -361,6 +368,7 @@ public class Parquet {
         this.rowGroupSize = rowGroupSize;
         this.pageSize = pageSize;
         this.pageRowLimit = pageRowLimit;
+        this.dictionaryEnabled = dictionaryEnabled;
         this.dictionaryPageSize = dictionaryPageSize;
         this.codec = codec;
         this.compressionLevel = compressionLevel;
@@ -385,6 +393,10 @@ public class Parquet {
             PropertyUtil.propertyAsInt(
                 config, PARQUET_PAGE_ROW_LIMIT, PARQUET_PAGE_ROW_LIMIT_DEFAULT);
         Preconditions.checkArgument(pageRowLimit > 0, "Page row count limit must be > 0");
+
+        boolean dictionaryEnabled =
+            PropertyUtil.propertyAsBoolean(
+                config, PARQUET_DICT_ENABLED, PARQUET_DICT_ENABLED_DEFAULT);
 
         int dictionaryPageSize =
             PropertyUtil.propertyAsInt(
@@ -429,6 +441,7 @@ public class Parquet {
             rowGroupSize,
             pageSize,
             pageRowLimit,
+            dictionaryEnabled,
             dictionaryPageSize,
             codec,
             compressionLevel,
@@ -500,6 +513,7 @@ public class Parquet {
             rowGroupSize,
             pageSize,
             pageRowLimit,
+            dataContext.dictionaryEnabled(),
             dictionaryPageSize,
             codec,
             compressionLevel,
@@ -527,6 +541,10 @@ public class Parquet {
 
       int pageRowLimit() {
         return pageRowLimit;
+      }
+
+      boolean dictionaryEnabled() {
+        return dictionaryEnabled;
       }
 
       int dictionaryPageSize() {

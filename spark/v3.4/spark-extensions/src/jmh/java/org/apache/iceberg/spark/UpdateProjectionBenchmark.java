@@ -50,26 +50,16 @@ import org.openjdk.jmh.annotations.TearDown;
 import org.openjdk.jmh.annotations.Threads;
 import org.openjdk.jmh.annotations.Warmup;
 
-/**
- * A benchmark that evaluates the performance of the cardinality check in MERGE operations.
- *
- * <p>To run this benchmark for spark-3.4: <code>
- *   ./gradlew -DsparkVersions=3.4 :iceberg-spark:iceberg-spark-extensions-3.4_2.12:jmh
- *       -PjmhIncludeRegex=MergeCardinalityCheckBenchmark
- *       -PjmhOutputPath=benchmark/iceberg-merge-cardinality-check-benchmark.txt
- * </code>
- */
 @Fork(1)
 @State(Scope.Benchmark)
 @Warmup(iterations = 3)
 @Measurement(iterations = 5)
 @BenchmarkMode(Mode.SingleShotTime)
-public class MergeCardinalityCheckBenchmark {
+public class UpdateProjectionBenchmark {
 
   private static final String TABLE_NAME = "test_table";
   private static final int NUM_FILES = 5;
   private static final int NUM_ROWS_PER_FILE = 1_000_000;
-  private static final int NUM_UNMATCHED_RECORDS_PER_MERGE = 100_000;
 
   private final Configuration hadoopConf = new Configuration();
   private SparkSession spark;
@@ -93,59 +83,52 @@ public class MergeCardinalityCheckBenchmark {
 
   @Benchmark
   @Threads(1)
-  public void copyOnWriteMergeCardinalityCheck10PercentUpdates() {
+  public void copyOnWriteUpdate10Percent() {
     runBenchmark(RowLevelOperationMode.COPY_ON_WRITE, 0.1);
   }
 
   @Benchmark
   @Threads(1)
-  public void copyOnWriteMergeCardinalityCheck30PercentUpdates() {
+  public void copyOnWriteUpdate30Percent() {
     runBenchmark(RowLevelOperationMode.COPY_ON_WRITE, 0.3);
   }
 
   @Benchmark
   @Threads(1)
-  public void copyOnWriteMergeCardinalityCheck90PercentUpdates() {
-    runBenchmark(RowLevelOperationMode.COPY_ON_WRITE, 0.9);
+  public void copyOnWriteUpdate75Percent() {
+    runBenchmark(RowLevelOperationMode.COPY_ON_WRITE, 0.75);
   }
 
   @Benchmark
   @Threads(1)
-  public void mergeOnReadMergeCardinalityCheck10PercentUpdates() {
+  public void mergeOnRead10Percent() {
     runBenchmark(RowLevelOperationMode.MERGE_ON_READ, 0.1);
   }
 
   @Benchmark
   @Threads(1)
-  public void mergeOnReadMergeCardinalityCheck30PercentUpdates() {
+  public void mergeOnReadUpdate30Percent() {
     runBenchmark(RowLevelOperationMode.MERGE_ON_READ, 0.3);
   }
 
   @Benchmark
   @Threads(1)
-  public void mergeOnReadMergeCardinalityCheck90PercentUpdates() {
-    runBenchmark(RowLevelOperationMode.MERGE_ON_READ, 0.9);
+  public void mergeOnReadUpdate75Percent() {
+    runBenchmark(RowLevelOperationMode.MERGE_ON_READ, 0.75);
   }
 
   private void runBenchmark(RowLevelOperationMode mode, double updatePercentage) {
     sql(
         "ALTER TABLE %s SET TBLPROPERTIES ('%s' '%s')",
-        TABLE_NAME, TableProperties.MERGE_MODE, mode.modeName());
+        TABLE_NAME, TableProperties.UPDATE_MODE, mode.modeName());
 
-    Dataset<Long> insertDataDF = spark.range(-NUM_UNMATCHED_RECORDS_PER_MERGE, 0, 1);
-    Dataset<Long> updateDataDF = spark.range((long) (updatePercentage * NUM_ROWS_PER_FILE));
-    Dataset<Long> sourceDF = updateDataDF.union(insertDataDF);
-    sourceDF.createOrReplaceTempView("source");
+    int mod = (int) (NUM_ROWS_PER_FILE / (NUM_ROWS_PER_FILE * updatePercentage));
 
     sql(
-        "MERGE INTO %s t USING source s "
-            + "ON t.id = s.id "
-            + "WHEN MATCHED THEN "
-            + " UPDATE SET stringCol = 'invalid' "
-            + "WHEN NOT MATCHED THEN "
-            + " INSERT (id, intCol, floatCol, doubleCol, decimalCol, dateCol, timestampCol, stringCol) "
-            + "   VALUES (s.id, null, null, null, null, null, null, 'new')",
-        TABLE_NAME);
+        "UPDATE %s "
+            + "SET intCol = intCol + 10, dateCol = date_add(dateCol, 1) "
+            + "WHERE mod(id, %d) = 0",
+        TABLE_NAME, mod);
 
     sql(
         "CALL system.rollback_to_snapshot(table => '%s', snapshot_id => %dL)",
@@ -183,7 +166,7 @@ public class MergeCardinalityCheckBenchmark {
             + " '%s' '%d',"
             + " '%s' '%d')",
         TABLE_NAME,
-        TableProperties.MERGE_DISTRIBUTION_MODE,
+        TableProperties.UPDATE_DISTRIBUTION_MODE,
         DistributionMode.NONE.modeName(),
         TableProperties.SPLIT_OPEN_FILE_COST,
         Integer.MAX_VALUE,

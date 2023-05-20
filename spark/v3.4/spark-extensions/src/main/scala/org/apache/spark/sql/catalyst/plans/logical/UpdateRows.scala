@@ -24,29 +24,18 @@ import org.apache.spark.sql.catalyst.expressions.AttributeSet
 import org.apache.spark.sql.catalyst.expressions.Expression
 import org.apache.spark.sql.catalyst.util.truncatedString
 
-case class MergeRows(
-    isSourceRowPresent: Expression,
-    isTargetRowPresent: Expression,
-    matchedConditions: Seq[Expression],
-    matchedOutputs: Seq[Seq[Seq[Expression]]],
-    notMatchedConditions: Seq[Expression],
-    notMatchedOutputs: Seq[Seq[Expression]],
-    targetOutput: Seq[Expression],
-    performCardinalityCheck: Boolean,
-    emitNotMatchedTargetRows: Boolean,
+case class UpdateRows(
+    deleteOutput: Seq[Expression],
+    insertOutput: Seq[Expression],
     output: Seq[Attribute],
     child: LogicalPlan) extends UnaryNode {
-
-  require(targetOutput.nonEmpty || !emitNotMatchedTargetRows)
 
   override lazy val producedAttributes: AttributeSet = {
     AttributeSet(output.filterNot(attr => inputSet.contains(attr)))
   }
 
-  override lazy val references: AttributeSet = child.outputSet
-
   override def simpleString(maxFields: Int): String = {
-    s"MergeRows${truncatedString(output, "[", ", ", "]", maxFields)}"
+    s"UpdateRows${truncatedString(output, "[", ", ", "]", maxFields)}"
   }
 
   override protected def withNewChildInternal(newChild: LogicalPlan): LogicalPlan = {

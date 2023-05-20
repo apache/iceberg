@@ -646,6 +646,40 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
   }
 
   @Test
+  public void testMergeWithOneMatchingBranchButMultipleSourceRowsForTargetRow() {
+    createAndInitTable(
+        "id INT, dep STRING",
+        "{ \"id\": 1, \"dep\": \"emp-id-one\" }\n" + "{ \"id\": 6, \"dep\": \"emp-id-6\" }");
+
+    createOrReplaceView(
+        "source",
+        "id INT, dep STRING",
+        "{ \"id\": 1, \"state\": \"on\" }\n"
+            + "{ \"id\": 1, \"state\": \"off\" }\n"
+            + "{ \"id\": 10, \"state\": \"on\" }");
+
+    String errorMsg = "a single row from the target table with multiple rows of the source table";
+    Assertions.assertThatThrownBy(
+            () ->
+                sql(
+                    "MERGE INTO %s AS t USING source AS s "
+                        + "ON t.id == s.id "
+                        + "WHEN MATCHED AND t.id = 6 THEN "
+                        + "  DELETE "
+                        + "WHEN NOT MATCHED THEN "
+                        + "  INSERT (id, dep) VALUES (s.id, 'unknown')",
+                    commitTarget()))
+        .cause()
+        .isInstanceOf(SparkException.class)
+        .hasMessageContaining(errorMsg);
+
+    assertEquals(
+        "Target should be unchanged",
+        ImmutableList.of(row(1, "emp-id-one"), row(6, "emp-id-6")),
+        sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", selectTarget()));
+  }
+
+  @Test
   public void testMergeWithMultipleUpdatesForTargetRowSmallTargetLargeSource() {
     createAndInitTable(
         "id INT, dep STRING",

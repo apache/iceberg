@@ -603,6 +603,10 @@ project(':iceberg-delta-lake') {
 }
 
 project(':iceberg-gcp') {
+  test {
+    useJUnitPlatform()
+  }
+
   dependencies {
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     api project(':iceberg-api')
@@ -791,6 +795,10 @@ project(':iceberg-arrow') {
 }
 
 project(':iceberg-pig') {
+  test {
+    useJUnitPlatform()
+  }
+
   dependencies {
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     api project(':iceberg-api')
