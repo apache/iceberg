@@ -43,13 +43,11 @@ public class RewritePositionDeletesGroup {
   private Set<DeleteFile> addedDeleteFiles = Collections.emptySet();
 
   public RewritePositionDeletesGroup(FileGroupInfo info, List<PositionDeletesScanTask> tasks) {
+    Preconditions.checkArgument(tasks.size() > 0, "Tasks must not be empty");
     this.info = info;
     this.tasks = tasks;
     this.maxRewrittenDataSequenceNumber =
-        tasks.stream()
-            .map(t -> t.file().dataSequenceNumber())
-            .max(Long::compare)
-            .orElseThrow(() -> new IllegalArgumentException("Empty file group"));
+        tasks.stream().mapToLong(t -> t.file().dataSequenceNumber()).max().getAsLong();
   }
 
   public FileGroupInfo info() {

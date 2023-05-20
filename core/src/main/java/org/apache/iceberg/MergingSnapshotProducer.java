@@ -246,11 +246,13 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
 
   /** Add a delete file to the new snapshot. */
   protected void add(DeleteFile file) {
+    Preconditions.checkNotNull(file, "Invalid delete file: null");
     add(new DeleteFileHolder(file));
   }
 
   /** Add a delete file to the new snapshot. */
   protected void add(DeleteFile file, long dataSequenceNumber) {
+    Preconditions.checkNotNull(file, "Invalid delete file: null");
     add(new DeleteFileHolder(file, dataSequenceNumber));
   }
 
@@ -1151,19 +1153,18 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     private final Long dataSequenceNumber;
 
     /**
-     * Queue a delete file for commit with a given data sequence number
+     * Wrap a delete file for commit with a given data sequence number
      *
      * @param deleteFile delete file
      * @param dataSequenceNumber data sequence number to apply
      */
     DeleteFileHolder(DeleteFile deleteFile, long dataSequenceNumber) {
-      Preconditions.checkNotNull(deleteFile, "Invalid delete file: null");
       this.deleteFile = deleteFile;
       this.dataSequenceNumber = dataSequenceNumber;
     }
 
     /**
-     * Queue a delete file for commit with the latest sequence number
+     * Wrap a delete file for commit with the latest sequence number
      *
      * @param deleteFile delete file
      */

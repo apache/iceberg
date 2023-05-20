@@ -798,9 +798,9 @@ public class TestRewritePositionDeleteFilesAction extends SparkCatalogTestBase {
     for (StructLike partition : rewrittenFilesPerPartition.keySet()) {
       Long maxRewrittenSeq =
           rewrittenFilesPerPartition.get(partition).stream()
-              .map(ContentFile::dataSequenceNumber)
-              .max(Long::compare)
-              .get();
+              .mapToLong(ContentFile::dataSequenceNumber)
+              .max()
+              .getAsLong();
       List<DeleteFile> addedPartitionFiles = addedFilesPerPartition.get(partition);
       if (addedPartitionFiles != null) {
         addedPartitionFiles.forEach(

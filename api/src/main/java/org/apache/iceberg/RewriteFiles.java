@@ -104,6 +104,10 @@ public interface RewriteFiles extends SnapshotUpdate<RewriteFiles> {
    * it is also recommended to discard delete records for files that are no longer part of the table
    * state. However, the set of applicable delete records must never change.
    *
+   * <p>To ensure equivalence in the set of applicable delete records, the sequence number of the a
+   * delete file must be the max sequence number of the delete files that it is replacing. It is not
+   * allowed to rewrite equality deletes that belong to different sequence numbers.
+   *
    * @param deleteFile a new delete file
    * @param dataSequenceNumber data sequence number to append on the file
    * @return this for method chaining
