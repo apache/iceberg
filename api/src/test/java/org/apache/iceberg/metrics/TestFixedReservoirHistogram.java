@@ -29,32 +29,32 @@ import java.util.concurrent.Future;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.assertj.core.api.Assertions;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestFixedReservoirHistogram {
   @Test
   public void emptyHistogram() {
     FixedReservoirHistogram histogram = new FixedReservoirHistogram(100);
-    Assertions.assertThat(histogram.count()).isEqualTo(0);
+    Assertions.assertThat(histogram.count()).isZero();
     Histogram.Statistics statistics = histogram.statistics();
-    Assertions.assertThat(statistics.size()).isEqualTo(0);
-    Assertions.assertThat(statistics.mean()).isEqualTo(0.0);
-    Assertions.assertThat(statistics.stdDev()).isEqualTo(0.0);
-    Assertions.assertThat(statistics.max()).isEqualTo(0L);
-    Assertions.assertThat(statistics.min()).isEqualTo(0L);
-    Assertions.assertThat(statistics.percentile(0.50)).isEqualTo(0L);
-    Assertions.assertThat(statistics.percentile(0.99)).isEqualTo(0L);
+    Assertions.assertThat(statistics.size()).isZero();
+    Assertions.assertThat(statistics.mean()).isZero();
+    Assertions.assertThat(statistics.stdDev()).isZero();
+    Assertions.assertThat(statistics.max()).isZero();
+    Assertions.assertThat(statistics.min()).isZero();
+    Assertions.assertThat(statistics.percentile(0.50)).isZero();
+    Assertions.assertThat(statistics.percentile(0.99)).isZero();
   }
 
   @Test
   public void singleObservation() {
     FixedReservoirHistogram histogram = new FixedReservoirHistogram(100);
     histogram.update(123L);
-    Assertions.assertThat(histogram.count()).isEqualTo(1);
+    Assertions.assertThat(histogram.count()).isOne();
     Histogram.Statistics statistics = histogram.statistics();
-    Assertions.assertThat(statistics.size()).isEqualTo(1);
+    Assertions.assertThat(statistics.size()).isOne();
     Assertions.assertThat(statistics.mean()).isEqualTo(123.0);
-    Assertions.assertThat(statistics.stdDev()).isEqualTo(0.0);
+    Assertions.assertThat(statistics.stdDev()).isZero();
     Assertions.assertThat(statistics.max()).isEqualTo(123L);
     Assertions.assertThat(statistics.min()).isEqualTo(123L);
     Assertions.assertThat(statistics.percentile(0.50)).isEqualTo(123L);
@@ -70,7 +70,7 @@ public class TestFixedReservoirHistogram {
     }
 
     Histogram.Statistics statistics = histogram.statistics();
-    Assertions.assertThat(statistics.percentile(0.0)).isEqualTo(0L);
+    Assertions.assertThat(statistics.percentile(0.0)).isZero();
     Assertions.assertThat(statistics.percentile(1.0)).isEqualTo(99L);
   }
 
@@ -141,7 +141,7 @@ public class TestFixedReservoirHistogram {
     Assertions.assertThat(statistics.mean()).isEqualTo(500.5);
     Assertions.assertThat(statistics.stdDev()).isCloseTo(288.67499, withinPercentage(0.001));
     Assertions.assertThat(statistics.max()).isEqualTo(1000L);
-    Assertions.assertThat(statistics.min()).isEqualTo(1L);
+    Assertions.assertThat(statistics.min()).isOne();
     Assertions.assertThat(statistics.percentile(0.50)).isEqualTo(500);
     Assertions.assertThat(statistics.percentile(0.75)).isEqualTo(750);
     Assertions.assertThat(statistics.percentile(0.90)).isEqualTo(900);

@@ -21,7 +21,7 @@ package org.apache.iceberg.util;
 import java.io.IOException;
 import java.util.Arrays;
 import org.assertj.core.api.Assertions;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestExceptionUtil {
 

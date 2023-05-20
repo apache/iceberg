@@ -18,14 +18,15 @@
  */
 package org.apache.iceberg.expressions;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import java.util.List;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.StructType;
-import org.assertj.core.api.Assertions;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestAggregateBinding {
   private static final List<UnboundAggregate<Integer>> list =
@@ -38,8 +39,10 @@ public class TestAggregateBinding {
     for (UnboundAggregate<Integer> unbound : list) {
       Expression expr = unbound.bind(struct, true);
       BoundAggregate<Integer, ?> bound = assertAndUnwrapAggregate(expr);
-      Assert.assertEquals("Should reference correct field ID", 10, bound.ref().fieldId());
-      Assert.assertEquals("Should not change the comparison operation", unbound.op(), bound.op());
+      assertThat(bound.ref().fieldId()).as("Should reference correct field ID").isEqualTo(10);
+      assertThat(bound.op())
+          .as("Should not change the comparison operation")
+          .isEqualTo(unbound.op());
     }
   }
 
@@ -49,14 +52,15 @@ public class TestAggregateBinding {
     Expression expr = unbound.bind(null, false);
     BoundAggregate<?, Long> bound = assertAndUnwrapAggregate(expr);
 
-    Assert.assertEquals(
-        "Should not change the comparison operation", Expression.Operation.COUNT_STAR, bound.op());
+    assertThat(bound.op())
+        .as("Should not change the comparison operation")
+        .isEqualTo(Expression.Operation.COUNT_STAR);
   }
 
   @Test
   public void testBoundAggregateFails() {
     Expression unbound = Expressions.count("x");
-    Assertions.assertThatThrownBy(() -> Binder.bind(struct, Binder.bind(struct, unbound)))
+    assertThatThrownBy(() -> Binder.bind(struct, Binder.bind(struct, unbound)))
         .isInstanceOf(IllegalStateException.class)
         .hasMessageContaining("Found already bound aggregate");
   }
@@ -66,15 +70,16 @@ public class TestAggregateBinding {
     Expression expr = Expressions.max("X");
     Expression boundExpr = Binder.bind(struct, expr, false);
     BoundAggregate<Integer, Integer> bound = assertAndUnwrapAggregate(boundExpr);
-    Assert.assertEquals("Should reference correct field ID", 10, bound.ref().fieldId());
-    Assert.assertEquals(
-        "Should not change the comparison operation", Expression.Operation.MAX, bound.op());
+    assertThat(bound.ref().fieldId()).as("Should reference correct field ID").isEqualTo(10);
+    assertThat(bound.op())
+        .as("Should not change the comparison operation")
+        .isEqualTo(Expression.Operation.MAX);
   }
 
   @Test
   public void testCaseSensitiveReference() {
     Expression expr = Expressions.max("X");
-    Assertions.assertThatThrownBy(() -> Binder.bind(struct, expr, true))
+    assertThatThrownBy(() -> Binder.bind(struct, expr, true))
         .isInstanceOf(ValidationException.class)
         .hasMessageContaining("Cannot find field 'X' in struct");
   }
@@ -82,13 +87,13 @@ public class TestAggregateBinding {
   @Test
   public void testMissingField() {
     UnboundAggregate<?> unbound = Expressions.count("missing");
-    Assertions.assertThatThrownBy(() -> unbound.bind(struct, false))
+    assertThatThrownBy(() -> unbound.bind(struct, false))
         .isInstanceOf(ValidationException.class)
         .hasMessageContaining("Cannot find field 'missing' in struct:");
   }
 
   private static <T, C> BoundAggregate<T, C> assertAndUnwrapAggregate(Expression expr) {
-    Assertions.assertThat(expr).isInstanceOf(BoundAggregate.class);
+    assertThat(expr).isInstanceOf(BoundAggregate.class);
     return (BoundAggregate<T, C>) expr;
   }
 }

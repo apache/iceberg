@@ -21,6 +21,7 @@ package org.apache.iceberg.transforms;
 import static org.apache.iceberg.TestHelpers.assertAndUnwrapUnbound;
 import static org.apache.iceberg.expressions.Expressions.startsWith;
 import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -34,9 +35,7 @@ import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.expressions.Projections;
 import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.types.Types;
-import org.assertj.core.api.Assertions;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestStartsWith {
 
@@ -57,7 +56,7 @@ public class TestStartsWith {
     assertProjectionStrict(spec, startsWith(COLUMN, "abab"), "abab", Expression.Operation.EQ);
 
     Expression projection = Projections.strict(spec).project(startsWith(COLUMN, "ababab"));
-    Assertions.assertThat(projection).isInstanceOf(False.class);
+    assertThat(projection).isInstanceOf(False.class);
   }
 
   @Test
@@ -71,9 +70,9 @@ public class TestStartsWith {
     UnboundPredicate<String> projected = trunc.project(COLUMN, boundExpr);
     Evaluator evaluator = new Evaluator(SCHEMA.asStruct(), projected);
 
-    Assert.assertTrue(
-        "startsWith(abcde, truncate(abcdg,2))  => true",
-        evaluator.eval(TestHelpers.Row.of("abcdg")));
+    assertThat(evaluator.eval(TestHelpers.Row.of("abcdg")))
+        .as("startsWith(abcde, truncate(abcdg,2))  => true")
+        .isTrue();
   }
 
   private void assertProjectionInclusive(
@@ -106,7 +105,7 @@ public class TestStartsWith {
         (Truncate<CharSequence>) spec.getFieldsBySourceId(1).get(0).transform();
     String output = transform.toHumanString(Types.StringType.get(), (String) literal.value());
 
-    Assert.assertEquals(expectedOp, predicate.op());
-    Assert.assertEquals(expectedLiteral, output);
+    assertThat(predicate.op()).isEqualTo(expectedOp);
+    assertThat(output).isEqualTo(expectedLiteral);
   }
 }

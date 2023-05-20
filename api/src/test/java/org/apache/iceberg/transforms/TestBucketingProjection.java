@@ -28,6 +28,7 @@ import static org.apache.iceberg.expressions.Expressions.lessThanOrEqual;
 import static org.apache.iceberg.expressions.Expressions.notEqual;
 import static org.apache.iceberg.expressions.Expressions.notIn;
 import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
@@ -42,8 +43,7 @@ import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestBucketingProjection {
 
@@ -56,10 +56,10 @@ public class TestBucketingProjection {
     Expression projection = Projections.strict(spec).project(filter);
     UnboundPredicate<?> predicate = assertAndUnwrapUnbound(projection);
 
-    Assert.assertEquals(expectedOp, predicate.op());
-
-    Assert.assertNotEquals(
-        "Strict projection never runs for IN", Expression.Operation.IN, predicate.op());
+    assertThat(predicate.op())
+        .isEqualTo(expectedOp)
+        .as("Strict projection never runs for IN")
+        .isNotEqualTo(Expression.Operation.IN);
 
     if (predicate.op() == Expression.Operation.NOT_IN) {
       Iterable<?> values = Iterables.transform(predicate.literals(), Literal::value);
@@ -69,24 +69,24 @@ public class TestBucketingProjection {
               .map(String::valueOf)
               .collect(Collectors.toList())
               .toString();
-      Assert.assertEquals(expectedLiteral, actual);
+      assertThat(actual).isEqualTo(expectedLiteral);
     } else {
       Literal<?> literal = predicate.literal();
       String output = String.valueOf(literal.value());
-      Assert.assertEquals(expectedLiteral, output);
+      assertThat(output).isEqualTo(expectedLiteral);
     }
   }
 
   public void assertProjectionStrictValue(
       PartitionSpec spec, UnboundPredicate<?> filter, Expression.Operation expectedOp) {
     Expression projection = Projections.strict(spec).project(filter);
-    Assert.assertEquals(projection.op(), expectedOp);
+    assertThat(expectedOp).isEqualTo(projection.op());
   }
 
   public void assertProjectionInclusiveValue(
       PartitionSpec spec, UnboundPredicate<?> filter, Expression.Operation expectedOp) {
     Expression projection = Projections.inclusive(spec).project(filter);
-    Assert.assertEquals(projection.op(), expectedOp);
+    assertThat(expectedOp).isEqualTo(projection.op());
   }
 
   public void assertProjectionInclusive(
@@ -97,10 +97,11 @@ public class TestBucketingProjection {
     Expression projection = Projections.inclusive(spec).project(filter);
     UnboundPredicate<?> predicate = assertAndUnwrapUnbound(projection);
 
-    Assert.assertEquals(predicate.op(), expectedOp);
+    assertThat(expectedOp).isEqualTo(predicate.op());
 
-    Assert.assertNotEquals(
-        "Inclusive projection never runs for NOT_IN", Expression.Operation.NOT_IN, predicate.op());
+    assertThat(predicate.op())
+        .as("Inclusive projection never runs for NOT_IN")
+        .isNotEqualTo(Expression.Operation.NOT_IN);
 
     if (predicate.op() == Expression.Operation.IN) {
       Iterable<?> values = Iterables.transform(predicate.literals(), Literal::value);
@@ -110,11 +111,11 @@ public class TestBucketingProjection {
               .map(String::valueOf)
               .collect(Collectors.toList())
               .toString();
-      Assert.assertEquals(expectedLiteral, actual);
+      assertThat(actual).isEqualTo(expectedLiteral);
     } else {
       Literal<?> literal = predicate.literal();
       String output = String.valueOf(literal.value());
-      Assert.assertEquals(expectedLiteral, output);
+      assertThat(output).isEqualTo(expectedLiteral);
     }
   }
 

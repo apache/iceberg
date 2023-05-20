@@ -18,12 +18,13 @@
  */
 package org.apache.iceberg.transforms;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.types.Types;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestIdentity {
   @Test
@@ -31,8 +32,9 @@ public class TestIdentity {
     Types.LongType longType = Types.LongType.get();
     Transform<Long, Long> identity = Transforms.identity();
 
-    Assert.assertEquals(
-        "Should produce \"null\" for null", "null", identity.toHumanString(longType, null));
+    assertThat(identity.toHumanString(longType, null))
+        .as("Should produce \"null\" for null")
+        .isEqualTo("null");
   }
 
   @Test
@@ -40,10 +42,9 @@ public class TestIdentity {
     Types.BinaryType binary = Types.BinaryType.get();
     Transform<ByteBuffer, ByteBuffer> identity = Transforms.identity();
 
-    Assert.assertEquals(
-        "Should base64-encode binary",
-        "AQID",
-        identity.toHumanString(binary, ByteBuffer.wrap(new byte[] {1, 2, 3})));
+    assertThat(identity.toHumanString(binary, ByteBuffer.wrap(new byte[] {1, 2, 3})))
+        .as("Should base64-encode binary")
+        .isEqualTo("AQID");
   }
 
   @Test
@@ -51,10 +52,9 @@ public class TestIdentity {
     Types.FixedType fixed3 = Types.FixedType.ofLength(3);
     Transform<byte[], byte[]> identity = Transforms.identity();
 
-    Assert.assertEquals(
-        "Should base64-encode binary",
-        "AQID",
-        identity.toHumanString(fixed3, new byte[] {1, 2, 3}));
+    assertThat(identity.toHumanString(fixed3, new byte[] {1, 2, 3}))
+        .as("Should base64-encode binary")
+        .isEqualTo("AQID");
   }
 
   @Test
@@ -65,8 +65,9 @@ public class TestIdentity {
     String dateString = "2017-12-01";
     Literal<Integer> dateLit = Literal.of(dateString).to(date);
 
-    Assert.assertEquals(
-        "Should produce identical date", dateString, identity.toHumanString(date, dateLit.value()));
+    assertThat(identity.toHumanString(date, dateLit.value()))
+        .as("Should produce identical date")
+        .isEqualTo(dateString);
   }
 
   @Test
@@ -77,8 +78,9 @@ public class TestIdentity {
     String dateString = "2017-12-01";
     Literal<Integer> dateLit = Literal.of(dateString).to(date);
 
-    Assert.assertEquals(
-        "Should produce identical date", dateString, identity.toHumanString(dateLit.value()));
+    assertThat(identity.toHumanString(dateLit.value()))
+        .as("Should produce identical date")
+        .isEqualTo(dateString);
   }
 
   @Test
@@ -89,8 +91,9 @@ public class TestIdentity {
     String timeString = "10:12:55.038194";
     Literal<Long> timeLit = Literal.of(timeString).to(time);
 
-    Assert.assertEquals(
-        "Should produce identical time", timeString, identity.toHumanString(time, timeLit.value()));
+    assertThat(identity.toHumanString(time, timeLit.value()))
+        .as("Should produce identical time")
+        .isEqualTo(timeString);
   }
 
   @Test
@@ -101,10 +104,9 @@ public class TestIdentity {
     Literal<Long> ts = Literal.of("2017-12-01T10:12:55.038194-08:00").to(timestamptz);
 
     // value will always be in UTC
-    Assert.assertEquals(
-        "Should produce timestamp with time zone adjusted to UTC",
-        "2017-12-01T18:12:55.038194Z",
-        identity.toHumanString(timestamptz, ts.value()));
+    assertThat(identity.toHumanString(timestamptz, ts.value()))
+        .as("Should produce timestamp with time zone adjusted to UTC")
+        .isEqualTo("2017-12-01T18:12:55.038194Z");
   }
 
   @Test
@@ -116,10 +118,9 @@ public class TestIdentity {
     Literal<Long> ts = Literal.of(tsString).to(timestamp);
 
     // value is not changed
-    Assert.assertEquals(
-        "Should produce identical timestamp without time zone",
-        tsString,
-        identity.toHumanString(timestamp, ts.value()));
+    assertThat(identity.toHumanString(timestamp, ts.value()))
+        .as("Should produce identical timestamp without time zone")
+        .isEqualTo(tsString);
   }
 
   @Test
@@ -127,10 +128,9 @@ public class TestIdentity {
     Types.LongType longType = Types.LongType.get();
     Transform<Long, Long> identity = Transforms.identity();
 
-    Assert.assertEquals(
-        "Should use Long toString",
-        "-1234567890000",
-        identity.toHumanString(longType, -1234567890000L));
+    assertThat(identity.toHumanString(longType, -1234567890000L))
+        .as("Should use Long toString")
+        .isEqualTo("-1234567890000");
   }
 
   @Test
@@ -139,8 +139,9 @@ public class TestIdentity {
     Transform<String, String> identity = Transforms.identity();
 
     String withSlash = "a/b/c=d";
-    Assert.assertEquals(
-        "Should not modify Strings", withSlash, identity.toHumanString(string, withSlash));
+    assertThat(identity.toHumanString(string, withSlash))
+        .as("Should not modify Strings")
+        .isEqualTo(withSlash);
   }
 
   @Test
@@ -150,7 +151,8 @@ public class TestIdentity {
 
     String decimalString = "-1.50";
     BigDecimal bigDecimal = new BigDecimal(decimalString);
-    Assert.assertEquals(
-        "Should not modify Strings", decimalString, identity.toHumanString(decimal, bigDecimal));
+    assertThat(identity.toHumanString(decimal, bigDecimal))
+        .as("Should not modify Strings")
+        .isEqualTo(decimalString);
   }
 }

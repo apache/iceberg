@@ -299,6 +299,10 @@ project(':iceberg-bundled-guava') {
 }
 
 project(':iceberg-api') {
+  test {
+    useJUnitPlatform()
+  }
+
   dependencies {
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     compileOnly "com.google.errorprone:error_prone_annotations"

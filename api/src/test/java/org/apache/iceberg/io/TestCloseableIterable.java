@@ -18,6 +18,9 @@
  */
 package org.apache.iceberg.io;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
@@ -31,8 +34,7 @@ import org.apache.iceberg.metrics.DefaultMetricsContext;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.assertj.core.api.Assertions;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestCloseableIterable {
 
@@ -43,26 +45,26 @@ public class TestCloseableIterable {
 
     CloseableIterable<Integer> filtered = CloseableIterable.filter(iterable, x -> x > 5);
 
-    Assert.assertFalse("Iterable should not be closed", iterable.closed());
-    Assert.assertFalse("Iterator should not be closed", iterator.closed());
+    assertThat(iterable.closed()).as("Iterable should not be closed").isFalse();
+    assertThat(iterator.closed()).as("Iterator should not be closed").isFalse();
 
     filtered.iterator().close();
-    Assert.assertFalse("Iterable should not be closed", iterable.closed());
-    Assert.assertTrue("Iterator should be closed", iterator.closed());
+    assertThat(iterable.closed()).as("Iterable should not be closed").isFalse();
+    assertThat(iterator.closed()).as("Iterator should be closed").isTrue();
 
     filtered.close();
-    Assert.assertTrue("Iterable should be closed", iterable.closed());
-    Assert.assertTrue("Iterator should be closed", iterator.closed());
+    assertThat(iterable.closed()).as("Iterable should be closed").isTrue();
+    assertThat(iterator.closed()).as("Iterator should be closed").isTrue();
   }
 
   @Test
   public void testFilterAutomaticallyClosable() throws IOException {
     TestableCloseableIterable iterable = new TestableCloseableIterable();
-    Assert.assertFalse("Iterable should not be closed", iterable.closed());
+    assertThat(iterable.closed()).as("Iterable should not be closed").isFalse();
     try (CloseableIterable<Integer> filtered = CloseableIterable.filter(iterable, x -> x > 5)) {
-      Assert.assertFalse("Iterable should not be closed", iterable.closed());
+      assertThat(iterable.closed()).as("Iterable should not be closed").isFalse();
     }
-    Assert.assertTrue("Iterable should be closed", iterable.closed());
+    assertThat(iterable.closed()).as("Iterable should be closed").isTrue();
   }
 
   @Test
@@ -73,19 +75,19 @@ public class TestCloseableIterable {
 
     CloseableIterable<Integer> concat1 =
         CloseableIterable.concat(Lists.newArrayList(iter, empty, empty));
-    Assert.assertEquals(Iterables.getLast(concat1).intValue(), 3);
+    assertThat(Iterables.getLast(concat1).intValue()).isEqualTo(3);
 
     CloseableIterable<Integer> concat2 =
         CloseableIterable.concat(Lists.newArrayList(empty, empty, iter));
-    Assert.assertEquals(Iterables.getLast(concat2).intValue(), 3);
+    assertThat(Iterables.getLast(concat2).intValue()).isEqualTo(3);
 
     CloseableIterable<Integer> concat3 =
         CloseableIterable.concat(Lists.newArrayList(empty, iter, empty));
-    Assert.assertEquals(Iterables.getLast(concat3).intValue(), 3);
+    assertThat(Iterables.getLast(concat3).intValue()).isEqualTo(3);
 
     CloseableIterable<Integer> concat4 =
         CloseableIterable.concat(Lists.newArrayList(empty, iter, empty, empty, iter));
-    Assert.assertEquals(Iterables.getLast(concat4).intValue(), 3);
+    assertThat(Iterables.getLast(concat4).intValue()).isEqualTo(3);
 
     // This will throw a NoSuchElementException
     CloseableIterable<Integer> concat5 =
@@ -109,7 +111,7 @@ public class TestCloseableIterable {
             CloseableIterable.combine(items, () -> {}), completionCounter::incrementAndGet)) {
       iter.forEach(val -> Assertions.assertThat(completionCounter.get()).isEqualTo(0));
     }
-    Assertions.assertThat(completionCounter.get()).isEqualTo(1);
+    Assertions.assertThat(completionCounter.get()).isOne();
   }
 
   @Test
@@ -119,9 +121,9 @@ public class TestCloseableIterable {
     try (CloseableIterable<Integer> iter =
         CloseableIterable.whenComplete(
             CloseableIterable.combine(empty, () -> {}), completionCounter::incrementAndGet)) {
-      iter.forEach(val -> Assertions.assertThat(completionCounter.get()).isEqualTo(0));
+      iter.forEach(val -> Assertions.assertThat(completionCounter.get()).isZero());
     }
-    Assertions.assertThat(completionCounter.get()).isEqualTo(1);
+    Assertions.assertThat(completionCounter.get()).isOne();
   }
 
   @Test
@@ -131,9 +133,9 @@ public class TestCloseableIterable {
     CloseableIterable<Integer> iter =
         CloseableIterable.whenComplete(
             CloseableIterable.combine(items, () -> {}), completionCounter::incrementAndGet);
-    iter.forEach(val -> Assertions.assertThat(completionCounter.get()).isEqualTo(0));
+    iter.forEach(val -> assertThat(completionCounter.get()).isZero());
     // given that we never close iter, the completionRunnable is never called
-    Assertions.assertThat(completionCounter.get()).isEqualTo(0);
+    assertThat(completionCounter.get()).isZero();
   }
 
   @Test
@@ -141,7 +143,7 @@ public class TestCloseableIterable {
     AtomicInteger completionCounter = new AtomicInteger(0);
     List<Integer> items = Lists.newArrayList(1, 2, 3, 4, 5);
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> {
               try (CloseableIterable<Integer> iter =
                   CloseableIterable.whenComplete(
@@ -151,20 +153,20 @@ public class TestCloseableIterable {
                             throw new RuntimeException("expected");
                           }),
                       completionCounter::incrementAndGet)) {
-                iter.forEach(val -> Assertions.assertThat(completionCounter.get()).isEqualTo(0));
+                iter.forEach(val -> assertThat(completionCounter.get()).isZero());
               }
             })
         .isInstanceOf(RuntimeException.class)
         .hasMessage("expected");
 
-    Assertions.assertThat(completionCounter.get()).isEqualTo(1);
+    assertThat(completionCounter.get()).isOne();
   }
 
   @Test
   public void testConcatWithEmpty() {
     AtomicInteger counter = new AtomicInteger(0);
     CloseableIterable.concat(Collections.emptyList()).forEach(c -> counter.incrementAndGet());
-    Assertions.assertThat(counter.get()).isEqualTo(0);
+    Assertions.assertThat(counter.get()).isZero();
   }
 
   @Test
@@ -214,7 +216,7 @@ public class TestCloseableIterable {
     CloseableIterable<Integer> items =
         CloseableIterable.count(
             counter, CloseableIterable.withNoopClose(Arrays.asList(1, 2, 3, 4, 5)));
-    Assertions.assertThat(counter.value()).isEqualTo(0);
+    Assertions.assertThat(counter.value()).isZero();
     items.forEach(item -> {});
     Assertions.assertThat(counter.value()).isEqualTo(5);
   }
@@ -227,7 +229,7 @@ public class TestCloseableIterable {
             counter,
             CloseableIterable.withNoopClose(Arrays.asList(1, 2, 3, 4, 5)),
             x -> x % 2 == 0);
-    Assertions.assertThat(counter.value()).isEqualTo(0);
+    Assertions.assertThat(counter.value()).isZero();
     items.forEach(item -> {});
     Assertions.assertThat(counter.value()).isEqualTo(3);
   }
