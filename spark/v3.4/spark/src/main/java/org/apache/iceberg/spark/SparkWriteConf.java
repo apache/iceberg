@@ -75,21 +75,7 @@ public class SparkWriteConf {
     this.writeOptions = writeOptions;
     this.confParser = new SparkConfParser(spark, table, writeOptions);
 
-    // We only want to check the session conf and the write options, since the table can
-    // also be read with other version of Spark
-    if (spark.conf().contains(SparkSQLProperties.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE)) {
-      throw new UnsupportedOperationException(
-          "Spark configuration "
-              + SparkSQLProperties.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE
-              + " is not supported in Spark 3.4 due to the introduction of native support for timestamp without timezone.");
-    }
-
-    if (writeOptions.containsKey(SparkWriteOptions.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE)) {
-      throw new UnsupportedOperationException(
-          "Write option "
-              + SparkWriteOptions.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE
-              + " is not supported in Spark 3.4 due to the introduction of native support for timestamp without timezone.");
-    }
+    SparkUtil.validateTimestampWithoutTimezoneConfig(spark.conf(), writeOptions);
   }
 
   public boolean checkNullability() {

@@ -566,14 +566,7 @@ public class SparkCatalog extends BaseCatalog {
       }
     }
 
-    if (sparkSession
-        .conf()
-        .contains(SparkSQLProperties.USE_TIMESTAMP_WITHOUT_TIME_ZONE_IN_NEW_TABLES)) {
-      throw new UnsupportedOperationException(
-          "Spark configuration "
-              + SparkSQLProperties.USE_TIMESTAMP_WITHOUT_TIME_ZONE_IN_NEW_TABLES
-              + " is not supported in Spark 3.4 due to the introduction of native support for timestamp without timezone.");
-    }
+    SparkUtil.validateTimestampWithoutTimezoneConfig(sparkSession.conf());
 
     EnvironmentContext.put(EnvironmentContext.ENGINE_NAME, "spark");
     EnvironmentContext.put(
