@@ -368,8 +368,8 @@ CALL catalog_name.system.rewrite_manifests('db.sample', false)
 ### `rewrite_position_delete_files`
 
 Iceberg can rewrite position delete files, which serves two purposes:
-* Minor Compaction: Compact small position delete files into larger ones.  This reduces size of metadata stored in manifest files and overhead of opening small delete files.
-* Remove Dangling Deletes: Filter out position delete records that refer to data files that are no longer live.  After rewrite_data_files, position delete records pointing to the rewritten data files are not immediately marked for removeal and remain tracked by the table's live snapshot metadata.  This is known as the 'dangling delete' problem, and is because a single position delete file can apply to more than one data file, and not all applicable data files are removed during rewrite.
+* Minor Compaction: Compact small position delete files into larger ones.  This reduces the size of metadata stored in manifest files and overhead of opening small delete files.
+* Remove Dangling Deletes: Filter out position delete records that refer to data files that are no longer live.  After rewrite_data_files, position delete records pointing to the rewritten data files are not always marked for removal, and can remain tracked by the table's live snapshot metadata.  This is known as the 'dangling delete' problem.
 
 #### Usage
 
