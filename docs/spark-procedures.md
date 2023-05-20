@@ -388,8 +388,8 @@ Dangling deletes are always filtered out during rewriting.
 | Output Name                    | Type | Description                                                                |
 |--------------------------------|------|----------------------------------------------------------------------------|
 | `rewritten_delete_files_count` | int  | Number of delete files which were removed by this command                  |
-| `rewritten_bytes_count`        | long | Count of bytes across delete files which were removed by this command      |
 | `added_delete_files_count`     | int  | Number of delete files which were added by this command                    |
+| `rewritten_bytes_count`        | long | Count of bytes across delete files which were removed by this command      |
 | `added_bytes_count`            | long | Count of bytes across all new delete files which were added by this command |
 
 
