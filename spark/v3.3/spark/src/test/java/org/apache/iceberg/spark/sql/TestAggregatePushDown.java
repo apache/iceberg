@@ -33,8 +33,13 @@ import org.apache.iceberg.hive.TestHiveMetastore;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkCatalogTestBase;
+import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkTestBase;
+import org.apache.spark.sql.Dataset;
+import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.execution.ExplainMode;
+import org.apache.spark.sql.functions;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -533,6 +538,106 @@ public class TestAggregatePushDown extends SparkCatalogTestBase {
 
     List<Object[]> actual2 = sql("SELECT count(id) FROM %s", tableName);
     assertEquals("count push down", expected2, actual2);
+  }
+
+  @Test
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
+  public void testAggregatePushDownForIncrementalScan() {
+    sql("CREATE TABLE %s (id LONG, data INT) USING iceberg", tableName);
+    sql(
+        "INSERT INTO TABLE %s VALUES (1, 1111), (1, 2222), (2, 3333), (2, 4444), (3, 5555), (3, 6666) ",
+        tableName);
+    long snapshotId1 = validationCatalog.loadTable(tableIdent).currentSnapshot().snapshotId();
+    sql("INSERT INTO %s VALUES (4, 7777), (5, 8888)", tableName);
+    long snapshotId2 = validationCatalog.loadTable(tableIdent).currentSnapshot().snapshotId();
+    sql("INSERT INTO %s VALUES (6, -7777), (7, 8888)", tableName);
+    long snapshotId3 = validationCatalog.loadTable(tableIdent).currentSnapshot().snapshotId();
+    sql("INSERT INTO %s VALUES (8, 7777), (9, 9999)", tableName);
+
+    Dataset<Row> dfWithAggPushdown1 =
+        spark
+            .read()
+            .format("iceberg")
+            .option(SparkReadOptions.START_SNAPSHOT_ID, snapshotId2)
+            .option(SparkReadOptions.END_SNAPSHOT_ID, snapshotId3)
+            .load(tableName)
+            .agg(functions.min("data"), functions.max("data"), functions.count("data"));
+    String explain1 =
+        dfWithAggPushdown1.queryExecution().explainString(ExplainMode.fromString("simple"));
+    boolean explainContainsPushDownAggregates1 = false;
+    if (explain1.contains("count(data)")
+        && explain1.contains("min(data)")
+        && explain1.contains("max(data)")) {
+      explainContainsPushDownAggregates1 = true;
+    }
+
+    Assert.assertTrue("aggregate pushed down", explainContainsPushDownAggregates1);
+
+    Dataset<Row> dfWithoutAggPushdown1 =
+        spark
+            .read()
+            .format("iceberg")
+            .option(SparkReadOptions.START_SNAPSHOT_ID, snapshotId2)
+            .option(SparkReadOptions.END_SNAPSHOT_ID, snapshotId3)
+            .option(SparkReadOptions.AGGREGATE_PUSH_DOWN_ENABLED, "false")
+            .load(tableName)
+            .agg(functions.min("data"), functions.max("data"), functions.count("data"));
+    String explain2 =
+        dfWithoutAggPushdown1.queryExecution().explainString(ExplainMode.fromString("simple"));
+    explainContainsPushDownAggregates1 = false;
+    if (explain2.contains("count(data)")
+        || explain2.contains("min(data)")
+        || explain2.contains("max(data)")) {
+      explainContainsPushDownAggregates1 = true;
+    }
+
+    Assert.assertFalse("aggregate pushed down", explainContainsPushDownAggregates1);
+    assertEquals(
+        "Aggregate pushdown and non-aggregate pushdown should have the same results",
+        rowsToJava(dfWithAggPushdown1.collectAsList()),
+        rowsToJava(dfWithoutAggPushdown1.collectAsList()));
+
+    Dataset<Row> dfWithAggPushdown2 =
+        spark
+            .read()
+            .format("iceberg")
+            .option(SparkReadOptions.START_SNAPSHOT_ID, snapshotId1)
+            .load(tableName)
+            .agg(functions.min("data"), functions.max("data"), functions.count("data"));
+
+    String explain3 =
+        dfWithAggPushdown2.queryExecution().explainString(ExplainMode.fromString("simple"));
+    boolean explainContainsPushDownAggregates2 = false;
+    if (explain3.contains("count(data)")
+        && explain3.contains("min(data)")
+        && explain3.contains("max(data)")) {
+      explainContainsPushDownAggregates2 = true;
+    }
+
+    Assert.assertTrue("aggregate pushed down", explainContainsPushDownAggregates2);
+
+    Dataset<Row> dfWithoutAggPushdown2 =
+        spark
+            .read()
+            .format("iceberg")
+            .option(SparkReadOptions.START_SNAPSHOT_ID, snapshotId1)
+            .option(SparkReadOptions.AGGREGATE_PUSH_DOWN_ENABLED, "false")
+            .load(tableName)
+            .agg(functions.min("data"), functions.max("data"), functions.count("data"));
+    String explain4 =
+        dfWithoutAggPushdown2.queryExecution().explainString(ExplainMode.fromString("simple"));
+    explainContainsPushDownAggregates2 = false;
+    if (explain4.contains("count(data)")
+        || explain4.contains("min(data)")
+        || explain4.contains("max(data)")) {
+      explainContainsPushDownAggregates2 = true;
+    }
+
+    Assert.assertFalse("aggregate pushed down", explainContainsPushDownAggregates2);
+    assertEquals(
+        "Aggregate pushdown and non-aggregate pushdown should have the same results ",
+        rowsToJava(dfWithAggPushdown2.collectAsList()),
+        rowsToJava(dfWithoutAggPushdown2.collectAsList()));
   }
 
   @Test

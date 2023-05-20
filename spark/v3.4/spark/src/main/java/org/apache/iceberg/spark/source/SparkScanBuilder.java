@@ -187,7 +187,6 @@ public class SparkScanBuilder
   }
 
   @Override
-  @SuppressWarnings("checkstyle:CyclomaticComplexity")
   public boolean pushAggregation(Aggregation aggregation) {
     if (!canPushDownAggregation(aggregation)) {
       return false;
@@ -221,7 +220,7 @@ public class SparkScanBuilder
       return false;
     }
 
-    org.apache.iceberg.Scan scan = buildIcebergBatchScan(true);
+    org.apache.iceberg.Scan scan = buildIcebergBatchScan(true /* include Column Stats */);
 
     try (CloseableIterable<FileScanTask> fileScanTasks = scan.planFiles()) {
       List<FileScanTask> tasks = ImmutableList.copyOf(fileScanTasks);
@@ -365,7 +364,12 @@ public class SparkScanBuilder
   private Scan buildBatchScan() {
     Schema expectedSchema = schemaWithMetadataColumns();
     return new SparkBatchQueryScan(
-        spark, table, buildIcebergBatchScan(false), readConf, expectedSchema, filterExpressions);
+        spark,
+        table,
+        buildIcebergBatchScan(false /* not include ColumnS tats */),
+        readConf,
+        expectedSchema,
+        filterExpressions);
   }
 
   private org.apache.iceberg.Scan buildIcebergBatchScan(boolean withStats) {
