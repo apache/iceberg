@@ -407,7 +407,7 @@ CALL catalog_name.system.rewrite_position_delete_files(table => 'db.sample', opt
 
 Rewrite position delete files in table `db.sample`.  This selects position delete files in partitions where 2 or more position delete files need to be rewritten based on size criteria.  Dangling deletes are removed from rewritten delete files.
 ```sql
-CALL catalog_name.system.rewrite_data_files(table => 'db.sample', options => map('min-input-files','2'))
+CALL catalog_name.system.rewrite_position_delete_files(table => 'db.sample', options => map('min-input-files','2'))
 ```
 
 ## Table migration
