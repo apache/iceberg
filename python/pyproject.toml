@@ -66,7 +66,7 @@ adlfs = { version = ">=2021.07.0,<2024.1.0", optional = true } # Upper bound set
 pytest = "7.3.1"
 pytest-checkdocs = "2.9.0"
 pre-commit = "3.3.1"
-fastavro = "1.7.3"
+fastavro = "1.7.4"
 coverage = { version = "^7.2.3", extras = ["toml"] }
 requests-mock = "1.10.0"
 moto = "^4.1.7"
