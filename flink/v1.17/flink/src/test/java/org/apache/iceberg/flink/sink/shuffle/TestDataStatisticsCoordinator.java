@@ -30,6 +30,7 @@ import org.apache.flink.runtime.operators.coordination.MockOperatorCoordinatorCo
 import org.apache.flink.table.data.GenericRowData;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.StringData;
+import org.apache.flink.table.data.binary.BinaryRowData;
 import org.apache.flink.table.runtime.typeutils.RowDataSerializer;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.table.types.logical.VarCharType;
@@ -43,6 +44,8 @@ public class TestDataStatisticsCoordinator {
   private static final String OPERATOR_NAME = "TestCoordinator";
   private static final OperatorID TEST_OPERATOR_ID = new OperatorID(1234L, 5678L);
   private static final int NUM_SUBTASKS = 2;
+  private TypeSerializer<DataStatistics<MapDataStatistics, Map<RowData, Long>>>
+      statisticsSerializer;
 
   private EventReceivingTasks receivingTasks;
   private DataStatisticsCoordinator<MapDataStatistics, Map<RowData, Long>>
@@ -51,7 +54,7 @@ public class TestDataStatisticsCoordinator {
   @Before
   public void before() throws Exception {
     receivingTasks = EventReceivingTasks.createForRunningTasks();
-    TypeSerializer<DataStatistics<MapDataStatistics, Map<RowData, Long>>> statisticsSerializer =
+    statisticsSerializer =
         MapDataStatisticsSerializer.fromKeySerializer(
             new RowDataSerializer(RowType.of(new VarCharType())));
 
@@ -77,7 +80,7 @@ public class TestDataStatisticsCoordinator {
         IllegalStateException.class,
         () ->
             dataStatisticsCoordinator.handleEventFromOperator(
-                0, 0, new DataStatisticsEvent<>(0, new MapDataStatistics())));
+                0, 0, new DataStatisticsEvent<>(0, new MapDataStatistics(), statisticsSerializer)));
     Assert.assertThrows(
         failureMessage,
         IllegalStateException.class,
@@ -91,25 +94,32 @@ public class TestDataStatisticsCoordinator {
   @Test
   public void testDataStatisticsEventHandling() throws Exception {
     tasksReady();
+    RowType rowType = RowType.of(new VarCharType());
+    BinaryRowData binaryRowDataA =
+        new RowDataSerializer(rowType).toBinaryRow(GenericRowData.of(StringData.fromString("a")));
+    BinaryRowData binaryRowDataB =
+        new RowDataSerializer(rowType).toBinaryRow(GenericRowData.of(StringData.fromString("b")));
+    BinaryRowData binaryRowDataC =
+        new RowDataSerializer(rowType).toBinaryRow(GenericRowData.of(StringData.fromString("c")));
 
     MapDataStatistics checkpoint1Subtask0DataStatistic = new MapDataStatistics();
-    checkpoint1Subtask0DataStatistic.add(GenericRowData.of(StringData.fromString("a")));
-    checkpoint1Subtask0DataStatistic.add(GenericRowData.of(StringData.fromString("b")));
-    checkpoint1Subtask0DataStatistic.add(GenericRowData.of(StringData.fromString("b")));
-    checkpoint1Subtask0DataStatistic.add(GenericRowData.of(StringData.fromString("c")));
-    checkpoint1Subtask0DataStatistic.add(GenericRowData.of(StringData.fromString("c")));
-    checkpoint1Subtask0DataStatistic.add(GenericRowData.of(StringData.fromString("c")));
+    checkpoint1Subtask0DataStatistic.add(binaryRowDataA);
+    checkpoint1Subtask0DataStatistic.add(binaryRowDataB);
+    checkpoint1Subtask0DataStatistic.add(binaryRowDataB);
+    checkpoint1Subtask0DataStatistic.add(binaryRowDataC);
+    checkpoint1Subtask0DataStatistic.add(binaryRowDataC);
+    checkpoint1Subtask0DataStatistic.add(binaryRowDataC);
     DataStatisticsEvent<MapDataStatistics, Map<RowData, Long>>
         checkpoint1Subtask0DataStatisticEvent =
-            new DataStatisticsEvent<>(1, checkpoint1Subtask0DataStatistic);
+            new DataStatisticsEvent<>(1, checkpoint1Subtask0DataStatistic, statisticsSerializer);
     MapDataStatistics checkpoint1Subtask1DataStatistic = new MapDataStatistics();
-    checkpoint1Subtask1DataStatistic.add(GenericRowData.of(StringData.fromString("a")));
-    checkpoint1Subtask1DataStatistic.add(GenericRowData.of(StringData.fromString("b")));
-    checkpoint1Subtask1DataStatistic.add(GenericRowData.of(StringData.fromString("c")));
-    checkpoint1Subtask1DataStatistic.add(GenericRowData.of(StringData.fromString("c")));
+    checkpoint1Subtask1DataStatistic.add(binaryRowDataA);
+    checkpoint1Subtask1DataStatistic.add(binaryRowDataB);
+    checkpoint1Subtask1DataStatistic.add(binaryRowDataC);
+    checkpoint1Subtask1DataStatistic.add(binaryRowDataC);
     DataStatisticsEvent<MapDataStatistics, Map<RowData, Long>>
         checkpoint1Subtask1DataStatisticEvent =
-            new DataStatisticsEvent<>(1, checkpoint1Subtask1DataStatistic);
+            new DataStatisticsEvent<>(1, checkpoint1Subtask1DataStatistic, statisticsSerializer);
     // Handle events from operators for checkpoint 1
     dataStatisticsCoordinator.handleEventFromOperator(0, 0, checkpoint1Subtask0DataStatisticEvent);
     dataStatisticsCoordinator.handleEventFromOperator(1, 0, checkpoint1Subtask1DataStatisticEvent);
@@ -125,30 +135,15 @@ public class TestDataStatisticsCoordinator {
     assertThat(globalDataStatistics.statistics())
         .containsExactlyInAnyOrderEntriesOf(
             ImmutableMap.of(
-                GenericRowData.of(StringData.fromString("a")),
-                checkpoint1Subtask0DataStatistic
-                        .statistics()
-                        .get(GenericRowData.of(StringData.fromString("a")))
-                    + (long)
-                        checkpoint1Subtask1DataStatistic
-                            .statistics()
-                            .get(GenericRowData.of(StringData.fromString("a"))),
-                GenericRowData.of(StringData.fromString("b")),
-                checkpoint1Subtask0DataStatistic
-                        .statistics()
-                        .get(GenericRowData.of(StringData.fromString("b")))
-                    + (long)
-                        checkpoint1Subtask1DataStatistic
-                            .statistics()
-                            .get(GenericRowData.of(StringData.fromString("b"))),
-                GenericRowData.of(StringData.fromString("c")),
-                checkpoint1Subtask0DataStatistic
-                        .statistics()
-                        .get(GenericRowData.of(StringData.fromString("c")))
-                    + (long)
-                        checkpoint1Subtask1DataStatistic
-                            .statistics()
-                            .get(GenericRowData.of(StringData.fromString("c")))));
+                binaryRowDataA,
+                checkpoint1Subtask0DataStatistic.statistics().get(binaryRowDataA)
+                    + (long) checkpoint1Subtask1DataStatistic.statistics().get(binaryRowDataA),
+                binaryRowDataB,
+                checkpoint1Subtask0DataStatistic.statistics().get(binaryRowDataB)
+                    + (long) checkpoint1Subtask1DataStatistic.statistics().get(binaryRowDataB),
+                binaryRowDataC,
+                checkpoint1Subtask0DataStatistic.statistics().get(binaryRowDataC)
+                    + (long) checkpoint1Subtask1DataStatistic.statistics().get(binaryRowDataC)));
   }
 
   static void setAllTasksReady(

@@ -18,9 +18,17 @@
  */
 package org.apache.iceberg.flink.sink.shuffle;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 import java.io.Serializable;
+import java.util.Set;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
+import org.apache.flink.core.memory.DataInputDeserializer;
+import org.apache.flink.core.memory.DataOutputSerializer;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -77,7 +85,8 @@ class GlobalStatisticsAggregatorTracker<D extends DataStatistics<D, S>, S> imple
             EXPECTED_DATA_STATISTICS_RECEIVED_PERCENTAGE,
             lastCompletedAggregator);
         inProgressAggregator = new GlobalStatisticsAggregator<>(checkpointId, statisticsSerializer);
-        inProgressAggregator.mergeDataStatistic(subtask, event);
+        inProgressAggregator.mergeDataStatistic(
+            subtask, event.checkpointId(), event.dataStatistics(statisticsSerializer));
         return true;
       } else {
         LOG.info(
@@ -100,7 +109,8 @@ class GlobalStatisticsAggregatorTracker<D extends DataStatistics<D, S>, S> imple
       return false;
     }
 
-    inProgressAggregator.mergeDataStatistic(subtask, event);
+    inProgressAggregator.mergeDataStatistic(
+        subtask, event.checkpointId(), event.dataStatistics(statisticsSerializer));
 
     if (inProgressAggregator.aggregatedSubtasksCount() == parallelism) {
       lastCompletedAggregator = inProgressAggregator;
@@ -124,7 +134,37 @@ class GlobalStatisticsAggregatorTracker<D extends DataStatistics<D, S>, S> imple
     return lastCompletedAggregator;
   }
 
-  void setLastCompletedAggregator(GlobalStatisticsAggregator<D, S> lastCompletedAggregator) {
-    this.lastCompletedAggregator = lastCompletedAggregator;
+  byte[] serializeLastCompletedAggregator() throws IOException {
+    ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+    ObjectOutputStream out = new ObjectOutputStream(bytes);
+
+    DataOutputSerializer outSerializer = new DataOutputSerializer(64);
+    out.writeLong(lastCompletedAggregator.checkpointId());
+    statisticsSerializer.serialize(lastCompletedAggregator.dataStatistics(), outSerializer);
+    byte[] statisticsBytes = outSerializer.getCopyOfBuffer();
+    out.writeInt(statisticsBytes.length);
+    out.write(statisticsBytes);
+    out.writeObject(lastCompletedAggregator.subtaskSet());
+    out.flush();
+
+    return bytes.toByteArray();
+  }
+
+  @SuppressWarnings("unchecked")
+  void deserializeLastCompletedAggregator(byte[] checkpointData)
+      throws IOException, ClassNotFoundException {
+    ByteArrayInputStream bytes = new ByteArrayInputStream(checkpointData);
+    ObjectInputStream in = new ObjectInputStream(bytes);
+
+    long completedCheckpointId = in.readLong();
+    int statisticsBytesLength = in.readInt();
+    byte[] statisticsBytes = new byte[statisticsBytesLength];
+    DataInputDeserializer input =
+        new DataInputDeserializer(statisticsBytes, 0, statisticsBytesLength);
+    final DataStatistics<D, S> dataStatistics = statisticsSerializer.deserialize(input);
+    Set<Integer> subtaskSet = (Set<Integer>) in.readObject();
+
+    lastCompletedAggregator =
+        new GlobalStatisticsAggregator<>(completedCheckpointId, dataStatistics, subtaskSet);
   }
 }

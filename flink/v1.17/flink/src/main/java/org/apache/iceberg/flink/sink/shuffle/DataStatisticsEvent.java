@@ -18,7 +18,11 @@
  */
 package org.apache.iceberg.flink.sink.shuffle;
 
+import java.io.IOException;
 import org.apache.flink.annotation.Internal;
+import org.apache.flink.api.common.typeutils.TypeSerializer;
+import org.apache.flink.core.memory.DataInputDeserializer;
+import org.apache.flink.core.memory.DataOutputSerializer;
 import org.apache.flink.runtime.operators.coordination.OperatorEvent;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 
@@ -30,20 +34,39 @@ import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 class DataStatisticsEvent<D extends DataStatistics<D, S>, S> implements OperatorEvent {
 
   private static final long serialVersionUID = 1L;
-
   private final long checkpointId;
-  private final DataStatistics<D, S> dataStatistics;
+  private final byte[] dataStatisticsBytes;
 
-  DataStatisticsEvent(long checkpointId, DataStatistics<D, S> dataStatistics) {
+  DataStatisticsEvent(
+      long checkpointId,
+      DataStatistics<D, S> dataStatistics,
+      TypeSerializer<DataStatistics<D, S>> statisticsSerializer) {
     this.checkpointId = checkpointId;
-    this.dataStatistics = dataStatistics;
+    DataOutputSerializer out = new DataOutputSerializer(64);
+    try {
+      statisticsSerializer.serialize(dataStatistics, out);
+      this.dataStatisticsBytes = out.getCopyOfBuffer();
+    } catch (IOException e) {
+      throw new IllegalStateException("Fail to serialize data statistics", e);
+    }
   }
 
   long checkpointId() {
     return checkpointId;
   }
 
-  DataStatistics<D, S> dataStatistics() {
+  @SuppressWarnings("unchecked")
+  D dataStatistics(TypeSerializer<DataStatistics<D, S>> statisticsSerializer) {
+    DataInputDeserializer input =
+        new DataInputDeserializer(dataStatisticsBytes, 0, dataStatisticsBytes.length);
+    D dataStatistics;
+
+    try {
+      dataStatistics = (D) statisticsSerializer.deserialize(input);
+    } catch (IOException e) {
+      throw new IllegalStateException("Fail to serialize data statistics", e);
+    }
+
     return dataStatistics;
   }
 
@@ -51,7 +74,7 @@ class DataStatisticsEvent<D extends DataStatistics<D, S>, S> implements Operator
   public String toString() {
     return MoreObjects.toStringHelper(this)
         .add("checkpointId", checkpointId)
-        .add("dataStatistics", dataStatistics)
+        .add("dataStatisticsBytes", dataStatisticsBytes)
         .toString();
   }
 }

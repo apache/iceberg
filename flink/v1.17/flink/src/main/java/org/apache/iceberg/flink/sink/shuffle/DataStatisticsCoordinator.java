@@ -21,7 +21,6 @@ package org.apache.iceberg.flink.sink.shuffle;
 import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -32,7 +31,6 @@ import org.apache.flink.runtime.operators.coordination.OperatorCoordinator;
 import org.apache.flink.runtime.operators.coordination.OperatorEvent;
 import org.apache.flink.util.ExceptionUtils;
 import org.apache.flink.util.FlinkRuntimeException;
-import org.apache.flink.util.InstantiationUtil;
 import org.apache.flink.util.Preconditions;
 import org.apache.flink.util.ThrowableCatchingRunnable;
 import org.apache.flink.util.function.ThrowingRunnable;
@@ -63,6 +61,8 @@ class DataStatisticsCoordinator<D extends DataStatistics<D, S>, S> implements Op
       coordinatorThreadFactory;
   private final GlobalStatisticsAggregatorTracker<D, S> globalStatisticsAggregatorTracker;
 
+  private final TypeSerializer<DataStatistics<D, S>> statisticsSerializer;
+
   private volatile boolean started;
 
   DataStatisticsCoordinator(
@@ -76,6 +76,7 @@ class DataStatisticsCoordinator<D extends DataStatistics<D, S>, S> implements Op
     this.coordinatorExecutor = Executors.newSingleThreadExecutor(coordinatorThreadFactory);
     this.operatorCoordinatorContext = context;
     this.subtaskGateways = new SubtaskGateways(parallelism());
+    this.statisticsSerializer = statisticsSerializer;
     this.globalStatisticsAggregatorTracker =
         new GlobalStatisticsAggregatorTracker<>(statisticsSerializer, parallelism());
   }
@@ -190,9 +191,10 @@ class DataStatisticsCoordinator<D extends DataStatistics<D, S>, S> implements Op
     callInCoordinatorThread(
         () -> {
           DataStatisticsEvent<D, S> dataStatisticsEvent =
-              new DataStatisticsEvent<>(checkpointId, globalDataStatistics);
+              new DataStatisticsEvent<>(checkpointId, globalDataStatistics, statisticsSerializer);
           int parallelism = parallelism();
           for (int i = 0; i < parallelism; ++i) {
+            System.out.println("dataStatisticsEvent " + dataStatisticsEvent);
             subtaskGateways.getOnlyGatewayAndCheckReady(i).sendEvent(dataStatisticsEvent);
           }
           return null;
@@ -228,17 +230,8 @@ class DataStatisticsCoordinator<D extends DataStatistics<D, S>, S> implements Op
               "Taking a state snapshot on data statistics coordinator {} for checkpoint {}",
               operatorName,
               checkpointId);
-          try {
-            byte[] serializedDataDistributionWeight =
-                InstantiationUtil.serializeObject(
-                    globalStatisticsAggregatorTracker.lastCompletedAggregator());
-            resultFuture.complete(serializedDataDistributionWeight);
-          } catch (Throwable e) {
-            ExceptionUtils.rethrowIfFatalErrorOrOOM(e);
-            resultFuture.completeExceptionally(
-                new CompletionException(
-                    String.format("Failed to checkpoint data statistics for %s", operatorName), e));
-          }
+          resultFuture.complete(
+              globalStatisticsAggregatorTracker.serializeLastCompletedAggregator());
         },
         "taking checkpoint %d",
         checkpointId);
@@ -261,9 +254,8 @@ class DataStatisticsCoordinator<D extends DataStatistics<D, S>, S> implements Op
 
     LOG.info(
         "Restoring data statistic coordinator {} from checkpoint {}.", operatorName, checkpointId);
-    globalStatisticsAggregatorTracker.setLastCompletedAggregator(
-        InstantiationUtil.deserializeObject(
-            checkpointData, GlobalStatisticsAggregator.class.getClassLoader()));
+
+    globalStatisticsAggregatorTracker.deserializeLastCompletedAggregator(checkpointData);
   }
 
   @Override

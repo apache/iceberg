@@ -97,12 +97,13 @@ class DataStatisticsOperator<D extends DataStatistics<D, S>, S>
   }
 
   @Override
+  @SuppressWarnings("unchecked")
   public void handleOperatorEvent(OperatorEvent event) {
     Preconditions.checkArgument(
         event instanceof DataStatisticsEvent,
         "Received unexpected operator event " + event.getClass());
     DataStatisticsEvent<D, S> statisticsEvent = (DataStatisticsEvent<D, S>) event;
-    globalStatistics = statisticsEvent.dataStatistics();
+    globalStatistics = statisticsEvent.dataStatistics(statisticsSerializer);
     output.collect(new StreamRecord<>(DataStatisticsOrRecord.fromDataStatistics(globalStatistics)));
   }
 
@@ -137,7 +138,7 @@ class DataStatisticsOperator<D extends DataStatistics<D, S>, S>
 
     // For now, we make it simple to send localStatistics at checkpoint
     operatorEventGateway.sendEventToCoordinator(
-        new DataStatisticsEvent<>(checkpointId, localStatistics));
+        new DataStatisticsEvent(checkpointId, localStatistics, statisticsSerializer));
     LOG.debug(
         "Send local statistics {} from subtask {} at checkpoint {} to coordinator",
         localStatistics,

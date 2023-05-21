@@ -19,9 +19,11 @@
 package org.apache.iceberg.flink.sink.shuffle;
 
 import java.util.Map;
+import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.table.data.GenericRowData;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.StringData;
+import org.apache.flink.table.data.binary.BinaryRowData;
 import org.apache.flink.table.runtime.typeutils.RowDataSerializer;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.table.types.logical.VarCharType;
@@ -29,40 +31,35 @@ import org.junit.Test;
 import org.junit.jupiter.api.Assertions;
 
 public class TestGlobalStatisticsAggregator {
+  private final RowType rowType = RowType.of(new VarCharType());
+  private final TypeSerializer<RowData> rowSerializer = new RowDataSerializer(rowType);
+  private final TypeSerializer<DataStatistics<MapDataStatistics, Map<RowData, Long>>>
+      statisticsSerializer = MapDataStatisticsSerializer.fromKeySerializer(rowSerializer);
 
   @Test
   public void mergeDataStatisticTest() {
+    BinaryRowData binaryRowDataA =
+        new RowDataSerializer(rowType).toBinaryRow(GenericRowData.of(StringData.fromString("a")));
+    BinaryRowData binaryRowDataB =
+        new RowDataSerializer(rowType).toBinaryRow(GenericRowData.of(StringData.fromString("b")));
+
     GlobalStatisticsAggregator<MapDataStatistics, Map<RowData, Long>> globalStatisticsAggregator =
         new GlobalStatisticsAggregator<>(
             1,
             MapDataStatisticsSerializer.fromKeySerializer(
                 new RowDataSerializer(RowType.of(new VarCharType()))));
-    DataStatistics<MapDataStatistics, Map<RowData, Long>> mapDataStatistics1 =
-        new MapDataStatistics();
-    mapDataStatistics1.add(GenericRowData.of(StringData.fromString("a")));
-    mapDataStatistics1.add(GenericRowData.of(StringData.fromString("a")));
-    mapDataStatistics1.add(GenericRowData.of(StringData.fromString("b")));
-    globalStatisticsAggregator.mergeDataStatistic(
-        1, new DataStatisticsEvent<>(1, mapDataStatistics1));
+    MapDataStatistics mapDataStatistics1 = new MapDataStatistics();
+    mapDataStatistics1.add(binaryRowDataA);
+    mapDataStatistics1.add(binaryRowDataA);
+    mapDataStatistics1.add(binaryRowDataB);
+    globalStatisticsAggregator.mergeDataStatistic(1, 1, mapDataStatistics1);
     MapDataStatistics mapDataStatistics2 = new MapDataStatistics();
-    mapDataStatistics2.add(GenericRowData.of(StringData.fromString("a")));
-    globalStatisticsAggregator.mergeDataStatistic(
-        2, new DataStatisticsEvent<>(1, mapDataStatistics2));
-    globalStatisticsAggregator.mergeDataStatistic(
-        1, new DataStatisticsEvent<>(1, mapDataStatistics1));
+    mapDataStatistics2.add(binaryRowDataA);
+    globalStatisticsAggregator.mergeDataStatistic(2, 1, mapDataStatistics2);
+    globalStatisticsAggregator.mergeDataStatistic(1, 1, mapDataStatistics1);
     Assertions.assertEquals(
-        3L,
-        (long)
-            globalStatisticsAggregator
-                .dataStatistics()
-                .statistics()
-                .get(GenericRowData.of(StringData.fromString("a"))));
+        3L, (long) globalStatisticsAggregator.dataStatistics().statistics().get(binaryRowDataA));
     Assertions.assertEquals(
-        1L,
-        (long)
-            globalStatisticsAggregator
-                .dataStatistics()
-                .statistics()
-                .get(GenericRowData.of(StringData.fromString("b"))));
+        1L, (long) globalStatisticsAggregator.dataStatistics().statistics().get(binaryRowDataB));
   }
 }

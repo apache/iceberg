@@ -37,12 +37,20 @@ class GlobalStatisticsAggregator<D extends DataStatistics<D, S>, S> implements S
 
   private final long checkpointId;
   private final DataStatistics<D, S> dataStatistics;
-  private final Set<Integer> subtaskSet = Sets.newHashSet();
+  private final Set<Integer> subtaskSet;
 
   GlobalStatisticsAggregator(
-      long checkpoint, final TypeSerializer<DataStatistics<D, S>> statisticsSerializer) {
+      long checkpoint, TypeSerializer<DataStatistics<D, S>> statisticsSerializer) {
     this.checkpointId = checkpoint;
     this.dataStatistics = statisticsSerializer.createInstance();
+    this.subtaskSet = Sets.newHashSet();
+  }
+
+  GlobalStatisticsAggregator(
+      long checkpoint, DataStatistics<D, S> dataStatistics, Set<Integer> subtaskSet) {
+    this.checkpointId = checkpoint;
+    this.dataStatistics = dataStatistics;
+    this.subtaskSet = subtaskSet;
   }
 
   long checkpointId() {
@@ -53,12 +61,11 @@ class GlobalStatisticsAggregator<D extends DataStatistics<D, S>, S> implements S
     return dataStatistics;
   }
 
-  @SuppressWarnings("unchecked")
-  void mergeDataStatistic(int subtask, DataStatisticsEvent<D, S> event) {
+  void mergeDataStatistic(int subtask, long eventCheckpointId, D eventDataStatistics) {
     Preconditions.checkArgument(
-        checkpointId == event.checkpointId(),
+        checkpointId == eventCheckpointId,
         "Received unexpected event from checkpoint %s. Expected checkpoint %s",
-        event.checkpointId(),
+        eventCheckpointId,
         checkpointId);
     if (!subtaskSet.add(subtask)) {
       LOG.debug(
@@ -68,11 +75,15 @@ class GlobalStatisticsAggregator<D extends DataStatistics<D, S>, S> implements S
       return;
     }
 
-    dataStatistics.merge((D) event.dataStatistics());
+    dataStatistics.merge(eventDataStatistics);
   }
 
   int aggregatedSubtasksCount() {
     return subtaskSet.size();
+  }
+
+  Set<Integer> subtaskSet() {
+    return subtaskSet;
   }
 
   @Override

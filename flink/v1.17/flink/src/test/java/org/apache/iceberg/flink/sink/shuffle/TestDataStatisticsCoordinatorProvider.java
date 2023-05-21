@@ -27,6 +27,7 @@ import org.apache.flink.runtime.operators.coordination.RecreateOnResetOperatorCo
 import org.apache.flink.table.data.GenericRowData;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.StringData;
+import org.apache.flink.table.data.binary.BinaryRowData;
 import org.apache.flink.table.runtime.typeutils.RowDataSerializer;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.table.types.logical.VarCharType;
@@ -37,12 +38,15 @@ import org.junit.Test;
 public class TestDataStatisticsCoordinatorProvider {
   private static final OperatorID OPERATOR_ID = new OperatorID();
   private static final int NUM_SUBTASKS = 1;
+
   private DataStatisticsCoordinatorProvider<MapDataStatistics, Map<RowData, Long>> provider;
   private EventReceivingTasks receivingTasks;
+  private TypeSerializer<DataStatistics<MapDataStatistics, Map<RowData, Long>>>
+      statisticsSerializer;
 
   @Before
   public void before() {
-    TypeSerializer<DataStatistics<MapDataStatistics, Map<RowData, Long>>> statisticsSerializer =
+    statisticsSerializer =
         MapDataStatisticsSerializer.fromKeySerializer(
             new RowDataSerializer(RowType.of(new VarCharType())));
     provider =
@@ -54,6 +58,18 @@ public class TestDataStatisticsCoordinatorProvider {
   @Test
   @SuppressWarnings("unchecked")
   public void testCheckpointAndReset() throws Exception {
+    RowType rowType = RowType.of(new VarCharType());
+    BinaryRowData binaryRowDataA =
+        new RowDataSerializer(rowType).toBinaryRow(GenericRowData.of(StringData.fromString("a")));
+    BinaryRowData binaryRowDataB =
+        new RowDataSerializer(rowType).toBinaryRow(GenericRowData.of(StringData.fromString("b")));
+    BinaryRowData binaryRowDataC =
+        new RowDataSerializer(rowType).toBinaryRow(GenericRowData.of(StringData.fromString("c")));
+    BinaryRowData binaryRowDataD =
+        new RowDataSerializer(rowType).toBinaryRow(GenericRowData.of(StringData.fromString("d")));
+    BinaryRowData binaryRowDataE =
+        new RowDataSerializer(rowType).toBinaryRow(GenericRowData.of(StringData.fromString("e")));
+
     RecreateOnResetOperatorCoordinator coordinator =
         (RecreateOnResetOperatorCoordinator)
             provider.create(new MockOperatorCoordinatorContext(OPERATOR_ID, NUM_SUBTASKS));
@@ -66,12 +82,12 @@ public class TestDataStatisticsCoordinatorProvider {
     TestDataStatisticsCoordinator.setAllTasksReady(
         NUM_SUBTASKS, dataStatisticsCoordinator, receivingTasks);
     MapDataStatistics checkpoint1Subtask0DataStatistic = new MapDataStatistics();
-    checkpoint1Subtask0DataStatistic.add(GenericRowData.of(StringData.fromString("a")));
-    checkpoint1Subtask0DataStatistic.add(GenericRowData.of(StringData.fromString("b")));
-    checkpoint1Subtask0DataStatistic.add(GenericRowData.of(StringData.fromString("c")));
+    checkpoint1Subtask0DataStatistic.add(binaryRowDataA);
+    checkpoint1Subtask0DataStatistic.add(binaryRowDataB);
+    checkpoint1Subtask0DataStatistic.add(binaryRowDataC);
     DataStatisticsEvent<MapDataStatistics, Map<RowData, Long>>
         checkpoint1Subtask0DataStatisticEvent =
-            new DataStatisticsEvent<>(1, checkpoint1Subtask0DataStatistic);
+            new DataStatisticsEvent<>(1, checkpoint1Subtask0DataStatistic, statisticsSerializer);
 
     // Handle events from operators for checkpoint 1
     coordinator.handleEventFromOperator(0, 0, checkpoint1Subtask0DataStatisticEvent);
@@ -84,39 +100,21 @@ public class TestDataStatisticsCoordinatorProvider {
                 .lastCompletedAggregator()
                 .dataStatistics();
     Assert.assertEquals(
-        checkpoint1Subtask0DataStatistic
-            .statistics()
-            .get(GenericRowData.of(StringData.fromString("a"))),
-        checkpoint1GlobalDataStatistics
-            .statistics()
-            .get(GenericRowData.of(StringData.fromString("a"))));
-    Assert.assertEquals(
-        checkpoint1Subtask0DataStatistic
-            .statistics()
-            .get(GenericRowData.of(StringData.fromString("b"))),
-        checkpoint1GlobalDataStatistics
-            .statistics()
-            .get(GenericRowData.of(StringData.fromString("b"))));
-    Assert.assertEquals(
-        checkpoint1Subtask0DataStatistic
-            .statistics()
-            .get(GenericRowData.of(StringData.fromString("c"))),
-        checkpoint1GlobalDataStatistics
-            .statistics()
-            .get(GenericRowData.of(StringData.fromString("c"))));
+        checkpoint1Subtask0DataStatistic.statistics(),
+        checkpoint1GlobalDataStatistics.statistics());
     byte[] bytes = TestDataStatisticsCoordinator.waitForCheckpoint(1L, dataStatisticsCoordinator);
 
     MapDataStatistics checkpoint2Subtask0DataStatistic = new MapDataStatistics();
-    checkpoint1Subtask0DataStatistic.add(GenericRowData.of(StringData.fromString("d")));
-    checkpoint1Subtask0DataStatistic.add(GenericRowData.of(StringData.fromString("e")));
-    checkpoint1Subtask0DataStatistic.add(GenericRowData.of(StringData.fromString("e")));
+    checkpoint2Subtask0DataStatistic.add(binaryRowDataD);
+    checkpoint2Subtask0DataStatistic.add(binaryRowDataE);
+    checkpoint2Subtask0DataStatistic.add(binaryRowDataE);
     DataStatisticsEvent<MapDataStatistics, Map<RowData, Long>>
         checkpoint2Subtask0DataStatisticEvent =
-            new DataStatisticsEvent<>(2, checkpoint2Subtask0DataStatistic);
+            new DataStatisticsEvent<>(2, checkpoint2Subtask0DataStatistic, statisticsSerializer);
     // Handle events from operators for checkpoint 2
     coordinator.handleEventFromOperator(0, 0, checkpoint2Subtask0DataStatisticEvent);
     TestDataStatisticsCoordinator.waitForCoordinatorToProcessActions(dataStatisticsCoordinator);
-    // Verify checkpoint 1 global data statistics
+    // Verify checkpoint 2 global data statistics
     MapDataStatistics checkpoint2GlobalDataStatistics =
         (MapDataStatistics)
             dataStatisticsCoordinator
@@ -124,19 +122,8 @@ public class TestDataStatisticsCoordinatorProvider {
                 .lastCompletedAggregator()
                 .dataStatistics();
     Assert.assertEquals(
-        checkpoint2Subtask0DataStatistic
-            .statistics()
-            .get(GenericRowData.of(StringData.fromString("d"))),
-        checkpoint2GlobalDataStatistics
-            .statistics()
-            .get(GenericRowData.of(StringData.fromString("d"))));
-    Assert.assertEquals(
-        checkpoint2Subtask0DataStatistic
-            .statistics()
-            .get(GenericRowData.of(StringData.fromString("e"))),
-        checkpoint2GlobalDataStatistics
-            .statistics()
-            .get(GenericRowData.of(StringData.fromString("e"))));
+        checkpoint2Subtask0DataStatistic.statistics(),
+        checkpoint2GlobalDataStatistics.statistics());
     TestDataStatisticsCoordinator.waitForCheckpoint(2L, dataStatisticsCoordinator);
 
     // Reset coordinator to checkpoint 1
@@ -157,25 +144,6 @@ public class TestDataStatisticsCoordinatorProvider {
                 .lastCompletedAggregator()
                 .dataStatistics();
     Assert.assertEquals(
-        checkpoint1GlobalDataStatistics
-            .statistics()
-            .get(GenericRowData.of(StringData.fromString("a"))),
-        restoredAggregateDataStatistics
-            .statistics()
-            .get(GenericRowData.of(StringData.fromString("a"))));
-    Assert.assertEquals(
-        checkpoint1GlobalDataStatistics
-            .statistics()
-            .get(GenericRowData.of(StringData.fromString("b"))),
-        restoredAggregateDataStatistics
-            .statistics()
-            .get(GenericRowData.of(StringData.fromString("b"))));
-    Assert.assertEquals(
-        checkpoint1GlobalDataStatistics
-            .statistics()
-            .get(GenericRowData.of(StringData.fromString("c"))),
-        restoredAggregateDataStatistics
-            .statistics()
-            .get(GenericRowData.of(StringData.fromString("c"))));
+        checkpoint1GlobalDataStatistics.statistics(), restoredAggregateDataStatistics.statistics());
   }
 }
