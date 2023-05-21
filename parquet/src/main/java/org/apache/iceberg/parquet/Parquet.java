@@ -33,8 +33,6 @@ import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION;
 import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION_DEFAULT;
 import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION_LEVEL;
 import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION_LEVEL_DEFAULT;
-import static org.apache.iceberg.TableProperties.PARQUET_DICT_ENABLED;
-import static org.apache.iceberg.TableProperties.PARQUET_DICT_ENABLED_DEFAULT;
 import static org.apache.iceberg.TableProperties.PARQUET_DICT_SIZE_BYTES;
 import static org.apache.iceberg.TableProperties.PARQUET_DICT_SIZE_BYTES_DEFAULT;
 import static org.apache.iceberg.TableProperties.PARQUET_PAGE_ROW_LIMIT;
@@ -100,6 +98,7 @@ import org.apache.parquet.column.ParquetProperties;
 import org.apache.parquet.column.ParquetProperties.WriterVersion;
 import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.ParquetFileWriter;
+import org.apache.parquet.hadoop.ParquetOutputFormat;
 import org.apache.parquet.hadoop.ParquetReader;
 import org.apache.parquet.hadoop.ParquetWriter;
 import org.apache.parquet.hadoop.api.ReadSupport;
@@ -246,7 +245,6 @@ public class Parquet {
       int rowGroupSize = context.rowGroupSize();
       int pageSize = context.pageSize();
       int pageRowLimit = context.pageRowLimit();
-      boolean dictionaryEnabled = context.dictionaryEnabled();
       int dictionaryPageSize = context.dictionaryPageSize();
       String compressionLevel = context.compressionLevel();
       CompressionCodecName codec = context.codec();
@@ -254,6 +252,7 @@ public class Parquet {
       int rowGroupCheckMaxRecordCount = context.rowGroupCheckMaxRecordCount();
       int bloomFilterMaxBytes = context.bloomFilterMaxBytes();
       Map<String, String> columnBloomFilterEnabled = context.columnBloomFilterEnabled();
+      boolean dictionaryEnabled = context.dictionaryEnabled();
 
       if (compressionLevel != null) {
         switch (codec) {
@@ -344,7 +343,6 @@ public class Parquet {
       private final int rowGroupSize;
       private final int pageSize;
       private final int pageRowLimit;
-      private final boolean dictionaryEnabled;
       private final int dictionaryPageSize;
       private final CompressionCodecName codec;
       private final String compressionLevel;
@@ -352,23 +350,23 @@ public class Parquet {
       private final int rowGroupCheckMaxRecordCount;
       private final int bloomFilterMaxBytes;
       private final Map<String, String> columnBloomFilterEnabled;
+      private final boolean dictionaryEnabled;
 
       private Context(
           int rowGroupSize,
           int pageSize,
           int pageRowLimit,
-          boolean dictionaryEnabled,
           int dictionaryPageSize,
           CompressionCodecName codec,
           String compressionLevel,
           int rowGroupCheckMinRecordCount,
           int rowGroupCheckMaxRecordCount,
           int bloomFilterMaxBytes,
-          Map<String, String> columnBloomFilterEnabled) {
+          Map<String, String> columnBloomFilterEnabled,
+          boolean dictionaryEnabled) {
         this.rowGroupSize = rowGroupSize;
         this.pageSize = pageSize;
         this.pageRowLimit = pageRowLimit;
-        this.dictionaryEnabled = dictionaryEnabled;
         this.dictionaryPageSize = dictionaryPageSize;
         this.codec = codec;
         this.compressionLevel = compressionLevel;
@@ -376,6 +374,7 @@ public class Parquet {
         this.rowGroupCheckMaxRecordCount = rowGroupCheckMaxRecordCount;
         this.bloomFilterMaxBytes = bloomFilterMaxBytes;
         this.columnBloomFilterEnabled = columnBloomFilterEnabled;
+        this.dictionaryEnabled = dictionaryEnabled;
       }
 
       static Context dataContext(Map<String, String> config) {
@@ -393,10 +392,6 @@ public class Parquet {
             PropertyUtil.propertyAsInt(
                 config, PARQUET_PAGE_ROW_LIMIT, PARQUET_PAGE_ROW_LIMIT_DEFAULT);
         Preconditions.checkArgument(pageRowLimit > 0, "Page row count limit must be > 0");
-
-        boolean dictionaryEnabled =
-            PropertyUtil.propertyAsBoolean(
-                config, PARQUET_DICT_ENABLED, PARQUET_DICT_ENABLED_DEFAULT);
 
         int dictionaryPageSize =
             PropertyUtil.propertyAsInt(
@@ -437,18 +432,21 @@ public class Parquet {
         Map<String, String> columnBloomFilterEnabled =
             PropertyUtil.propertiesWithPrefix(config, PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX);
 
+        boolean dictionaryEnabled =
+            PropertyUtil.propertyAsBoolean(config, ParquetOutputFormat.ENABLE_DICTIONARY, true);
+
         return new Context(
             rowGroupSize,
             pageSize,
             pageRowLimit,
-            dictionaryEnabled,
             dictionaryPageSize,
             codec,
             compressionLevel,
             rowGroupCheckMinRecordCount,
             rowGroupCheckMaxRecordCount,
             bloomFilterMaxBytes,
-            columnBloomFilterEnabled);
+            columnBloomFilterEnabled,
+            dictionaryEnabled);
       }
 
       static Context deleteContext(Map<String, String> config) {
@@ -509,18 +507,21 @@ public class Parquet {
         Map<String, String> columnBloomFilterEnabled =
             PropertyUtil.propertiesWithPrefix(config, PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX);
 
+        boolean dictionaryEnabled =
+            PropertyUtil.propertyAsBoolean(config, ParquetOutputFormat.ENABLE_DICTIONARY, true);
+
         return new Context(
             rowGroupSize,
             pageSize,
             pageRowLimit,
-            dataContext.dictionaryEnabled(),
             dictionaryPageSize,
             codec,
             compressionLevel,
             rowGroupCheckMinRecordCount,
             rowGroupCheckMaxRecordCount,
             bloomFilterMaxBytes,
-            columnBloomFilterEnabled);
+            columnBloomFilterEnabled,
+            dictionaryEnabled);
       }
 
       private static CompressionCodecName toCodec(String codecAsString) {
@@ -541,10 +542,6 @@ public class Parquet {
 
       int pageRowLimit() {
         return pageRowLimit;
-      }
-
-      boolean dictionaryEnabled() {
-        return dictionaryEnabled;
       }
 
       int dictionaryPageSize() {
@@ -573,6 +570,10 @@ public class Parquet {
 
       Map<String, String> columnBloomFilterEnabled() {
         return columnBloomFilterEnabled;
+      }
+
+      boolean dictionaryEnabled() {
+        return dictionaryEnabled;
       }
     }
   }
