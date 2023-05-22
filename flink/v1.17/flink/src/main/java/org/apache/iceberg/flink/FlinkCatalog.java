@@ -18,9 +18,6 @@
  */
 package org.apache.iceberg.flink;
 
-import static org.apache.iceberg.flink.util.FlinkAlterTableUtil.applyPropertyChanges;
-import static org.apache.iceberg.flink.util.FlinkAlterTableUtil.applySchemaChanges;
-
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Collections;
@@ -74,6 +71,7 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
+import org.apache.iceberg.flink.util.FlinkAlterTableUtil;
 import org.apache.iceberg.flink.util.FlinkCompatibilityUtil;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -665,13 +663,13 @@ public class FlinkCatalog extends AbstractCatalog {
 
     if (!schemaChanges.isEmpty()) {
       UpdateSchema updateSchema = transaction.updateSchema();
-      applySchemaChanges(updateSchema, schemaChanges);
+      FlinkAlterTableUtil.applySchemaChanges(updateSchema, schemaChanges);
       updateSchema.commit();
     }
 
     if (!propertyChanges.isEmpty()) {
       UpdateProperties updateProperties = transaction.updateProperties();
-      applyPropertyChanges(updateProperties, propertyChanges);
+      FlinkAlterTableUtil.applyPropertyChanges(updateProperties, propertyChanges);
       updateProperties.commit();
     }
 

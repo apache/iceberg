@@ -29,6 +29,8 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Type;
 
 public class FlinkAlterTableUtil {
+  private FlinkAlterTableUtil() {}
+
   /**
    * Applies a list of Flink table changes to an {@link UpdateSchema} operation.
    *
