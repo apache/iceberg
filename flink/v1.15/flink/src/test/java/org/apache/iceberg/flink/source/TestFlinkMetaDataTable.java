@@ -24,6 +24,7 @@ import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.avro.generic.GenericData;
@@ -41,6 +42,7 @@ import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.MetadataTableUtils;
 import org.apache.iceberg.MetricsUtil;
+import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
@@ -129,6 +131,101 @@ public class TestFlinkMetaDataTable extends FlinkCatalogTestBase {
     sql("DROP TABLE IF EXISTS %s.%s", flinkDatabase, TABLE_NAME);
     sql("DROP DATABASE IF EXISTS %s", flinkDatabase);
     super.clean();
+  }
+
+  @Test
+  public void testSchemasWithNoChanges() {
+    String sql = String.format("SELECT * FROM %s$schemas ", TABLE_NAME);
+    List<Row> result = sql(sql);
+    Table table = validationCatalog.loadTable(TableIdentifier.of(icebergNamespace, TABLE_NAME));
+    Assert.assertEquals("Should have expected schemas size", table.schemas().size(), result.size());
+
+    Set<Map.Entry<Integer, Schema>> entries = table.schemas().entrySet();
+    Iterator<Integer> schemaids =
+        entries.stream().map(Map.Entry::getKey).collect(Collectors.toList()).iterator();
+    Iterator<List<String>> fields =
+        entries.stream()
+            .map(
+                entry ->
+                    entry.getValue().asStruct().fields().stream()
+                        .map(
+                            field ->
+                                "id:"
+                                    + field.fieldId()
+                                    + ", name:"
+                                    + field.name()
+                                    + ", type:"
+                                    + field.type())
+                        .collect(Collectors.toList()))
+            .collect(Collectors.toList())
+            .iterator();
+    List<String> partitions =
+        table.spec().fields().stream().map(PartitionField::name).collect(Collectors.toList());
+    Iterator<Set<String>> primaryKeys =
+        entries.stream()
+            .map(entry -> entry.getValue().identifierFieldNames())
+            .collect(Collectors.toList())
+            .iterator();
+    for (Row row : result) {
+      Assert.assertEquals("Should have expected scheam id", schemaids.next(), row.getField(0));
+      Assert.assertEquals("Should have expected fields", fields.next().toString(), row.getField(1));
+      Assert.assertEquals(
+          "Should have expected partitions", partitions.toString(), row.getField(2));
+      Assert.assertEquals(
+          "Should have expected primary keys", primaryKeys.next().toString(), row.getField(3));
+    }
+  }
+
+  @Test
+  public void testSchemasWithChanges() {
+    Table table = validationCatalog.loadTable(TableIdentifier.of(icebergNamespace, TABLE_NAME));
+    // add column, add primary key, add partition to update schema
+    table
+        .updateSchema()
+        .allowIncompatibleChanges()
+        .addRequiredColumn("did", Types.StringType.get())
+        .commit();
+    table.updateSpec().addField("id").commit();
+    table.updateSchema().setIdentifierFields("did").commit();
+
+    String sql = String.format("SELECT * FROM %s$schemas ", TABLE_NAME);
+    List<Row> result = sql(sql);
+    Assert.assertEquals("Should have expected schemas size", table.schemas().size(), result.size());
+
+    Set<Map.Entry<Integer, Schema>> entries = table.schemas().entrySet();
+    Iterator<Integer> schemaids =
+        entries.stream().map(Map.Entry::getKey).collect(Collectors.toList()).iterator();
+    Iterator<List<String>> fields =
+        entries.stream()
+            .map(
+                entry ->
+                    entry.getValue().asStruct().fields().stream()
+                        .map(
+                            field ->
+                                "id:"
+                                    + field.fieldId()
+                                    + ", name:"
+                                    + field.name()
+                                    + ", type:"
+                                    + field.type())
+                        .collect(Collectors.toList()))
+            .collect(Collectors.toList())
+            .iterator();
+    List<String> partitions =
+        table.spec().fields().stream().map(PartitionField::name).collect(Collectors.toList());
+    Iterator<Set<String>> primaryKeys =
+        entries.stream()
+            .map(entry -> entry.getValue().identifierFieldNames())
+            .collect(Collectors.toList())
+            .iterator();
+    for (Row row : result) {
+      Assert.assertEquals("Should have expected scheam id", schemaids.next(), row.getField(0));
+      Assert.assertEquals("Should have expected fields", fields.next().toString(), row.getField(1));
+      Assert.assertEquals(
+          "Should have expected partitions", partitions.toString(), row.getField(2));
+      Assert.assertEquals(
+          "Should have expected primary keys", primaryKeys.next().toString(), row.getField(3));
+    }
   }
 
   @Test

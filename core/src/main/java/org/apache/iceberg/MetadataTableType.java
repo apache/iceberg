@@ -36,7 +36,8 @@ public enum MetadataTableType {
   ALL_FILES,
   ALL_MANIFESTS,
   ALL_ENTRIES,
-  POSITION_DELETES;
+  POSITION_DELETES,
+  SCHEMAS;
 
   public static MetadataTableType from(String name) {
     try {
