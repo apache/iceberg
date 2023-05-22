@@ -18,12 +18,12 @@
  */
 package org.apache.iceberg.avro;
 
-import static org.junit.Assert.assertFalse;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.Collections;
 import org.apache.avro.SchemaBuilder;
 import org.apache.iceberg.Schema;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestAvroSchemaProjection {
 
@@ -84,9 +84,9 @@ public class TestAvroSchemaProjection {
         AvroSchemaUtil.buildAvroProjection(
             idAllocatedUpdatedAvroSchema, currentIcebergSchema, Collections.emptyMap());
 
-    assertFalse(
-        "Result of buildAvroProjection is missing some IDs",
-        AvroSchemaUtil.missingIds(projectedAvroSchema));
+    assertThat(AvroSchemaUtil.missingIds(projectedAvroSchema))
+        .as("Result of buildAvroProjection is missing some IDs")
+        .isFalse();
   }
 
   @Test
@@ -146,8 +146,8 @@ public class TestAvroSchemaProjection {
         AvroSchemaUtil.buildAvroProjection(
             idAllocatedUpdatedAvroSchema, currentIcebergSchema, Collections.emptyMap());
 
-    assertFalse(
-        "Result of buildAvroProjection is missing some IDs",
-        AvroSchemaUtil.missingIds(projectedAvroSchema));
+    assertThat(AvroSchemaUtil.missingIds(projectedAvroSchema))
+        .as("Result of buildAvroProjection is missing some IDs")
+        .isFalse();
   }
 }
