@@ -43,6 +43,8 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DataFile;
@@ -1453,6 +1455,31 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
                     String.format(
                         "Cannot write to both branch and WAP branch, but got branch [%s] and WAP branch [wap]",
                         branch)));
+  }
+
+  @Test
+  public void subExpressionEliminationInCodegen() {
+    createAndInitTable("id INT, c1 INT, c2 INT");
+
+    sql("INSERT INTO TABLE %s VALUES (1, 11, 111), (2, 22, 222)", tableName);
+    createBranchIfNeeded();
+
+    // disable AQE to see the final plan with codegen in EXPLAIN
+    withSQLConf(
+        ImmutableMap.of(SQLConf.ADAPTIVE_EXECUTION_ENABLED().key(), "false"),
+        () -> {
+          String code = generateCode("UPDATE %s SET c1 = c1 - 11, c2 = c1 - 11", commitTarget());
+          int exprCount = StringUtils.countMatches(code, "- 11");
+          Assert.assertEquals("Must evaluate expr only once", 1, exprCount);
+        });
+  }
+
+  // calls EXPLAIN CODEGEN on a statement and finds only generated code, ignoring the plan
+  private String generateCode(String query, Object... args) {
+    String codegen = (String) scalarSql("EXPLAIN CODEGEN " + query, args);
+    return Arrays.stream(codegen.split("\\n"))
+        .filter(line -> line.startsWith("/*"))
+        .collect(Collectors.joining("\n"));
   }
 
   private RowLevelOperationMode mode(Table table) {

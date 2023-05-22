@@ -146,6 +146,7 @@ public class UpdateProjectionBenchmark {
             .config(SQLConf.DYNAMIC_PARTITION_PRUNING_ENABLED().key(), "false")
             .config(SQLConf.ADAPTIVE_EXECUTION_ENABLED().key(), "false")
             .config(SQLConf.SHUFFLE_PARTITIONS().key(), "2")
+            .config(SQLConf.CODEGEN_FACTORY_MODE().key(), "CODEGEN_ONLY")
             .master("local")
             .getOrCreate();
   }
