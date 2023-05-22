@@ -21,8 +21,6 @@ from pyspark.sql.functions import current_date, date_add, expr
 
 spark = SparkSession.builder.getOrCreate()
 
-print("Create database")
-
 spark.sql(
     """
   CREATE DATABASE IF NOT EXISTS default;
