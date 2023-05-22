@@ -522,7 +522,7 @@ def _read_deletes(fs: FileSystem, data_file: DataFile) -> Dict[str, pa.ChunkedAr
         fs, data_file, file_format_kwargs={"dictionary_columns": ("file_path",), "pre_buffer": True, "buffer_size": ONE_MEGABYTE}
     )
     table = ds.Scanner.from_fragment(fragment=delete_fragment).to_table()
-    table.unify_dictionaries()
+    table = table.unify_dictionaries()
     return {
         file.as_py(): table.filter(pc.field("file_path") == file).column("pos")
         for file in table.column("file_path").chunks[0].dictionary
