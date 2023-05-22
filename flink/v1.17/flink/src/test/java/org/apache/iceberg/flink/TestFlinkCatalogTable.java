@@ -28,6 +28,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 import org.apache.flink.table.api.DataTypes;
+import org.apache.flink.table.api.TableException;
 import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.api.ValidationException;
 import org.apache.flink.table.api.constraints.UniqueConstraint;
@@ -346,6 +347,187 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
         .get()
         .alterTable(new ObjectPath(DATABASE, "tl"), catalogTable.copy(properties), false);
     assertThat(table("tl").properties()).containsAllEntriesOf(properties);
+  }
+
+  @Test
+  public void testAlterTableProperties() throws TableNotExistException {
+    sql("CREATE TABLE tl(id BIGINT) WITH ('oldK'='oldV')");
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put("oldK", "oldV");
+
+    // new
+    sql("ALTER TABLE tl SET('newK'='newV')");
+    properties.put("newK", "newV");
+    Assert.assertEquals(properties, table("tl").properties());
+
+    // update old
+    sql("ALTER TABLE tl SET('oldK'='oldV2')");
+    properties.put("oldK", "oldV2");
+    Assert.assertEquals(properties, table("tl").properties());
+
+    // remove property
+    sql("ALTER TABLE tl RESET('oldK')");
+    properties.remove("oldK");
+    Assert.assertEquals(properties, table("tl").properties());
+  }
+
+  @Test
+  public void testAlterTableAddColumn() {
+    sql("CREATE TABLE tl(id BIGINT)");
+    Schema schemaBefore = table("tl").schema();
+    Assert.assertEquals(
+        new Schema(Types.NestedField.optional(1, "id", Types.LongType.get())).asStruct(),
+        schemaBefore.asStruct());
+
+    sql("ALTER TABLE tl ADD (dt STRING)");
+    Schema schemaAfter = table("tl").schema();
+    Assert.assertEquals(
+        new Schema(
+                Types.NestedField.optional(1, "id", Types.LongType.get()),
+                Types.NestedField.optional(2, "dt", Types.StringType.get()))
+            .asStruct(),
+        schemaAfter.asStruct());
+  }
+
+  @Test
+  public void testAlterTableDropColumn() {
+    sql("CREATE TABLE tl(id BIGINT, dt STRING)");
+    Schema schemaBefore = table("tl").schema();
+    Assert.assertEquals(
+        new Schema(
+                Types.NestedField.optional(1, "id", Types.LongType.get()),
+                Types.NestedField.optional(2, "dt", Types.StringType.get()))
+            .asStruct(),
+        schemaBefore.asStruct());
+
+    sql("ALTER TABLE tl DROP (dt)");
+    Schema schemaAfter = table("tl").schema();
+    Assert.assertEquals(
+        new Schema(Types.NestedField.optional(1, "id", Types.LongType.get())).asStruct(),
+        schemaAfter.asStruct());
+  }
+
+  @Test
+  public void testAlterTableModifyColumnName() {
+    sql("CREATE TABLE tl(id BIGINT, dt STRING)");
+    Schema schemaBefore = table("tl").schema();
+    Assert.assertEquals(
+        new Schema(
+                Types.NestedField.optional(1, "id", Types.LongType.get()),
+                Types.NestedField.optional(2, "dt", Types.StringType.get()))
+            .asStruct(),
+        schemaBefore.asStruct());
+
+    sql("ALTER TABLE tl RENAME dt TO data");
+    Schema schemaAfter = table("tl").schema();
+    Assert.assertEquals(
+        new Schema(
+                Types.NestedField.optional(1, "id", Types.LongType.get()),
+                Types.NestedField.optional(2, "data", Types.StringType.get()))
+            .asStruct(),
+        schemaAfter.asStruct());
+  }
+
+  @Test
+  public void testAlterTableModifyColumnType() {
+    sql("CREATE TABLE tl(id INTEGER, dt STRING)");
+    Schema schemaBefore = table("tl").schema();
+    Assert.assertEquals(
+        new Schema(
+                Types.NestedField.optional(1, "id", Types.IntegerType.get()),
+                Types.NestedField.optional(2, "dt", Types.StringType.get()))
+            .asStruct(),
+        schemaBefore.asStruct());
+
+    sql("ALTER TABLE tl MODIFY (id BIGINT)");
+    Schema schemaAfter = table("tl").schema();
+    Assert.assertEquals(
+        new Schema(
+                Types.NestedField.optional(1, "id", Types.LongType.get()),
+                Types.NestedField.optional(2, "dt", Types.StringType.get()))
+            .asStruct(),
+        schemaAfter.asStruct());
+  }
+
+  @Test
+  public void testAlterTableModifyColumnPosition() {
+    sql("CREATE TABLE tl(id BIGINT, dt STRING)");
+    Schema schemaBefore = table("tl").schema();
+    Assert.assertEquals(
+        new Schema(
+                Types.NestedField.optional(1, "id", Types.LongType.get()),
+                Types.NestedField.optional(2, "dt", Types.StringType.get()))
+            .asStruct(),
+        schemaBefore.asStruct());
+
+    sql("ALTER TABLE tl MODIFY (dt STRING FIRST)");
+    Schema schemaAfter = table("tl").schema();
+    Assert.assertEquals(
+        new Schema(
+                Types.NestedField.optional(2, "dt", Types.StringType.get()),
+                Types.NestedField.optional(1, "id", Types.LongType.get()))
+            .asStruct(),
+        schemaAfter.asStruct());
+
+    sql("ALTER TABLE tl MODIFY (dt STRING AFTER id)");
+    Schema schemaAfterAfter = table("tl").schema();
+    Assert.assertEquals(
+        new Schema(
+                Types.NestedField.optional(1, "id", Types.LongType.get()),
+                Types.NestedField.optional(2, "dt", Types.StringType.get()))
+            .asStruct(),
+        schemaAfterAfter.asStruct());
+  }
+
+  @Test
+  public void testAlterTableModifyColumnComment() {
+    sql("CREATE TABLE tl(id BIGINT, dt STRING)");
+    Schema schemaBefore = table("tl").schema();
+    Assert.assertEquals(
+        new Schema(
+                Types.NestedField.optional(1, "id", Types.LongType.get()),
+                Types.NestedField.optional(2, "dt", Types.StringType.get()))
+            .asStruct(),
+        schemaBefore.asStruct());
+
+    sql("ALTER TABLE tl MODIFY (dt STRING COMMENT 'some data')");
+    Schema schemaAfter = table("tl").schema();
+    Assert.assertEquals(
+        new Schema(
+                Types.NestedField.optional(1, "id", Types.LongType.get()),
+                Types.NestedField.optional(2, "dt", Types.StringType.get(), "some data"))
+            .asStruct(),
+        schemaAfter.asStruct());
+  }
+
+  @Test
+  public void testAlterTableConstraint() {
+    sql("CREATE TABLE tl(id BIGINT NOT NULL, dt STRING NOT NULL)");
+    Schema schemaBefore = table("tl").schema();
+    Assert.assertEquals(
+        new Schema(
+                Types.NestedField.required(1, "id", Types.LongType.get()),
+                Types.NestedField.required(2, "dt", Types.StringType.get()))
+            .asStruct(),
+        schemaBefore.asStruct());
+    Assert.assertEquals(ImmutableSet.of(), schemaBefore.identifierFieldNames());
+
+    sql("ALTER TABLE tl ADD (PRIMARY KEY (id) NOT ENFORCED)");
+    Schema schemaAfterAdd = table("tl").schema();
+    Assert.assertEquals(ImmutableSet.of("id"), schemaAfterAdd.identifierFieldNames());
+
+    sql("ALTER TABLE tl MODIFY (PRIMARY KEY (dt) NOT ENFORCED)");
+    Schema schemaAfterModify = table("tl").schema();
+    Assert.assertEquals(
+        new Schema(
+                Types.NestedField.required(1, "id", Types.LongType.get()),
+                Types.NestedField.required(2, "dt", Types.StringType.get()))
+            .asStruct(),
+        schemaAfterModify.asStruct());
+    Assert.assertEquals(ImmutableSet.of("dt"), schemaAfterModify.identifierFieldNames());
+
+    Assertions.assertThatThrownBy(() -> sql("ALTER TABLE tl DROP PRIMARY KEY"))
+        .isInstanceOf(TableException.class);
   }
 
   @Test
