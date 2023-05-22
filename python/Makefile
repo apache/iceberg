@@ -34,7 +34,8 @@ test-s3:
 
 test-integration:
 	docker-compose -f dev/docker-compose-integration.yml kill
-	docker-compose -f dev/docker-compose-integration.yml build
+	docker-compose -f dev/docker-compose-integration.yml rm -f
+	docker-compose -f dev/docker-compose-integration.yml build --no-cache
 	docker-compose -f dev/docker-compose-integration.yml up -d
 	sleep 30
 	poetry run pytest tests/ -m integration ${PYTEST_ARGS}

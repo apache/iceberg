@@ -104,52 +104,47 @@ spark.sql(
     """
 )
 
-spark.sql(
-    """
-  DROP TABLE IF EXISTS test_deletes;
+spark.sql("""
+DROP TABLE IF EXISTS test_positional_mor_deletes;
 """
 )
 
-spark.sql(
-    """
-  CREATE TABLE test_positional_mor_deletes (
+spark.sql("""
+CREATE TABLE test_positional_mor_deletes (
     number integer,
     letter string
-  )
-  USING iceberg
-  TBLPROPERTIES (
+)
+USING iceberg
+TBLPROPERTIES (
     'write.delete.mode'='merge-on-read',
     'write.update.mode'='merge-on-read',
-    'write.merge.mode'='merge-on-read'
-  );
+    'write.merge.mode'='merge-on-read',
+    'format-version'='2'
+);
 """
 )
 
-spark.sql(
-    """
-    INSERT INTO test_positional_mor_deletes
-    VALUES (
-        (1, 'a'),
-        (2, 'b'),
-        (3, 'c'),
-        (4, 'd'),
-        (5, 'e'),
-        (6, 'f'),
-        (7, 'g'),
-        (8, 'h'),
-        (9, 'i'),
-        (10, 'j'),
-        (11, 'k'),
-        (12, 'l'),
-    )
+spark.sql("""
+INSERT INTO test_positional_mor_deletes
+VALUES
+    (1, 'a'),
+    (2, 'b'),
+    (3, 'c'),
+    (4, 'd'),
+    (5, 'e'),
+    (6, 'f'),
+    (7, 'g'),
+    (8, 'h'),
+    (9, 'i'),
+    (10, 'j'),
+    (11, 'k'),
+    (12, 'l');
 """
 )
 
-spark.sql(
-    """
-    DELETE FROM test_positional_mor_deletes WHERE number % 2 = 0
-"""
-)
+spark.sql("""
+DELETE FROM test_positional_mor_deletes WHERE number = 9
+""")
 
 
 spark.sql(
@@ -162,7 +157,8 @@ spark.sql(
   TBLPROPERTIES (
     'write.delete.mode'='merge-on-read',
     'write.update.mode'='merge-on-read',
-    'write.merge.mode'='merge-on-read'
+    'write.merge.mode'='merge-on-read',
+    'format-version'='2'
   );
 """
 )
@@ -182,14 +178,14 @@ spark.sql(
         (9, 'i'),
         (10, 'j'),
         (11, 'k'),
-        (12, 'l'),
+        (12, 'l')
     )
 """
 )
 
 spark.sql(
     """
-    DELETE FROM test_positional_mor_double_deletes WHERE number % 2 = 1
+    DELETE FROM test_positional_mor_double_deletes WHERE number = 9
 """
 )
 

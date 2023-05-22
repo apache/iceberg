@@ -182,51 +182,69 @@ def test_pyarrow_to_iceberg_all_types(table_test_all_types: Table) -> None:
 
 @pytest.mark.integration
 def test_pyarrow_deletes(test_positional_mor_deletes: Table) -> None:
+    # number, letter
+    #  (1, 'a'),
+    #  (2, 'b'),
+    #  (3, 'c'),
+    #  (4, 'd'),
+    #  (5, 'e'),
+    #  (6, 'f'),
+    #  (7, 'g'),
+    #  (8, 'h'),
+    #  (9, 'i'), <- deleted
+    #  (10, 'j'),
+    #  (11, 'k'),
+    #  (12, 'l')
     arrow_table = test_positional_mor_deletes.scan().to_arrow()
-    assert len(arrow_table) == 6
-    assert arrow_table["number"] == pa.Array([2, 4, 6, 8, 10, 12])
+    assert arrow_table["number"].to_pylist() == [1, 2, 3, 4, 5, 6, 7, 8, 10, 11, 12]
 
     # Checking the filter
     arrow_table = test_positional_mor_deletes.scan(
         row_filter=And(GreaterThanOrEqual("letter", "e"), LessThan("letter", "k"))
     ).to_arrow()
-    assert len(arrow_table) == 3
-    assert arrow_table["number"] == pa.Array([6, 8, 10])
+    assert arrow_table["number"] == pa.array([6, 7, 8, 10])
 
     # Testing the combination of a filter and a limit
     arrow_table = test_positional_mor_deletes.scan(
         row_filter=And(GreaterThanOrEqual("letter", "e"), LessThan("letter", "k")), limit=1
     ).to_arrow()
-    assert len(arrow_table) == 1
-    assert arrow_table["number"] == pa.Array([6])
+    assert arrow_table["number"] == pa.array([6])
 
     # Testing the slicing of indices
     arrow_table = test_positional_mor_deletes.scan(limit=3).to_arrow()
-    assert len(arrow_table) == 3
-    assert arrow_table["number"] == pa.Array([2, 4, 6])
+    assert arrow_table["number"] == pa.array([2, 3, 4])
 
 
 @pytest.mark.integration
 def test_pyarrow_deletes_double(test_positional_mor_double_deletes: Table) -> None:
+    # number, letter
+    #  (1, 'a'),
+    #  (2, 'b'),
+    #  (3, 'c'),
+    #  (4, 'd'),
+    #  (5, 'e'),
+    #  (6, 'f'), <- second delete
+    #  (7, 'g'),
+    #  (8, 'h'),
+    #  (9, 'i'), <- first delete
+    #  (10, 'j'),
+    #  (11, 'k'),
+    #  (12, 'l')
     arrow_table = test_positional_mor_double_deletes.scan().to_arrow()
-    assert len(arrow_table) == 5
-    assert arrow_table["number"] == pa.Array([2, 4, 8, 10, 12])
+    assert arrow_table["number"] == pa.array([1, 2, 3, 4, 5, 7, 8, 10, 11, 12])
 
     # Checking the filter
     arrow_table = test_positional_mor_double_deletes.scan(
         row_filter=And(GreaterThanOrEqual("letter", "e"), LessThan("letter", "k"))
     ).to_arrow()
-    assert len(arrow_table) == 2
-    assert arrow_table["number"] == pa.Array([8, 10])
+    assert arrow_table["number"] == pa.array([5, 7, 8, 10])
 
     # Testing the combination of a filter and a limit
     arrow_table = test_positional_mor_double_deletes.scan(
         row_filter=And(GreaterThanOrEqual("letter", "e"), LessThan("letter", "k")), limit=1
     ).to_arrow()
-    assert len(arrow_table) == 1
-    assert arrow_table["number"] == pa.Array([8])
+    assert arrow_table["number"] == pa.array([5])
 
     # Testing the slicing of indices
-    arrow_table = test_positional_mor_double_deletes.scan(limit=3).to_arrow()
-    assert len(arrow_table) == 3
-    assert arrow_table["number"] == pa.Array([2, 4, 8])
+    arrow_table = test_positional_mor_double_deletes.scan(limit=8).to_arrow()
+    assert arrow_table["number"] == pa.array([1, 2, 3, 4, 5, 7, 8, 10])
