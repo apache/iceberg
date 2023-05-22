@@ -86,7 +86,7 @@ public class TestRewriteFiles extends TableTestBase {
                     .rewriteFiles(
                         ImmutableSet.of(),
                         ImmutableSet.of(FILE_A_DELETES),
-                        ImmutableSet.of(FILE_A),
+                        ImmutableSet.of(),
                         ImmutableSet.of(FILE_B_DELETES)),
                 branch));
   }
@@ -142,7 +142,7 @@ public class TestRewriteFiles extends TableTestBase {
     AssertHelpers.assertThrows(
         "Expected an exception",
         IllegalArgumentException.class,
-        "Files to delete cannot be null or empty",
+        "Files to delete cannot be empty",
         () ->
             apply(
                 table.newRewrite().rewriteFiles(Collections.emptySet(), Sets.newSet(FILE_A)),
@@ -151,7 +151,7 @@ public class TestRewriteFiles extends TableTestBase {
     AssertHelpers.assertThrows(
         "Expected an exception",
         IllegalArgumentException.class,
-        "Files to delete cannot be null or empty",
+        "Files to delete cannot be empty",
         () ->
             apply(
                 table
@@ -166,7 +166,7 @@ public class TestRewriteFiles extends TableTestBase {
     AssertHelpers.assertThrows(
         "Expected an exception",
         IllegalArgumentException.class,
-        "Files to delete cannot be null or empty",
+        "Files to delete cannot be empty",
         () ->
             apply(
                 table

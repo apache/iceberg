@@ -218,7 +218,7 @@ public class SparkDistributionAndOrderingUtil {
   }
 
   public static SortOrder[] buildPositionDeltaOrdering(Table table, Command command) {
-    if (command == DELETE || command == UPDATE) {
+    if (command == DELETE) {
       return POSITION_DELETE_ORDERING;
     } else {
       // all metadata columns like _spec_id, _file, _pos will be null for new data records

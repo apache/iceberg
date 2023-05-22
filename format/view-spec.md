@@ -60,8 +60,8 @@ The view version metadata file has the following fields:
 |-------------|----------------------|-------------|
 | _required_  | `format-version`     | An integer version number for the view format; must be 1 |
 | _required_  | `location`           | The view's base location; used to create metadata file locations |
-| _optional_  | `current-schema-id`  | ID of the current schema of the view, if known |
-| _optional_  | `schemas`            | A list of known schemas |
+| _required_  | `current-schema-id`  | ID of the current schema of the view, if known |
+| _required_  | `schemas`            | A list of known schemas |
 | _required_  | `current-version-id` | ID of the current version of the view (`version-id`) |
 | _required_  | `versions`           | A list of known [versions](#versions) of the view [1] |
 | _required_  | `version-log`        | A list of [version log](#version-log) entries with the timestamp and `version-id` for every change to `current-version-id` |
@@ -75,12 +75,13 @@ Notes:
 
 Each version in `versions` is a struct with the following fields:
 
-| Requirement | Field name        | Description |
-|-------------|-------------------|-------------|
-| _required_  | `version-id`      | ID for the version |
-| _required_  | `timestamp-ms`    | Timestamp when the version was created (ms from epoch) |
+| Requirement | Field name        | Description                                                              |
+|-------------|-------------------|--------------------------------------------------------------------------|
+| _required_  | `version-id`      | ID for the version                                                       |
+| _required_  | `schema-id`       | ID of the schema for the view version                                    |
+| _required_  | `timestamp-ms`    | Timestamp when the version was created (ms from epoch)                   |
 | _required_  | `summary`         | A string to string map of [summary metadata](#summary) about the version |
-| _required_  | `representations` | A list of [representations](#representations) for the view definition |
+| _required_  | `representations` | A list of [representations](#representations) for the view definition    |
 
 #### Summary
 
@@ -98,6 +99,8 @@ View definitions can be represented in multiple ways. Representations are docume
 
 A view version can have more than one representation. All representations for a version must express the same underlying definition. Engines are free to choose the representation to use.
 
+View versions are immutable. Once a version is created, it cannot be changed. This means that representations for a version cannot be changed. If a view definition changes (or new representations are to be added), a new version must be created.
+
 Each representation is an object with at least one common field, `type`, that is one of the following:
 * `sql`: a SQL SELECT statement that defines the view
 
@@ -107,12 +110,13 @@ Representations further define metadata for each type.
 
 The SQL representation stores the view definition as a SQL SELECT, with metadata such as the SQL dialect.
 
+A view version can have multiple SQL representations of different dialects, but only one SQL representation per dialect.
+
 | Requirement | Field name          | Type           | Description |
 |-------------|---------------------|----------------|-------------|
 | _required_  | `type`              | `string`       | Must be `sql` |
 | _required_  | `sql`               | `string`       | A SQL SELECT statement |
 | _required_  | `dialect`           | `string`       | The dialect of the `sql` SELECT statement (e.g., "trino" or "spark") |
-| _optional_  | `schema-id`         | `int`          | ID of the schema produced by the SELECT statement |
 | _optional_  | `default-catalog`   | `string`       | Catalog name to use when a reference in the SELECT does not contain a catalog |
 | _optional_  | `default-namespace` | `list<string>` | Namespace to use when a reference in the SELECT is a single identifier |
 | _optional_  | `field-aliases`     | `list<string>` | Column names optionally specified in the create statement |
@@ -140,7 +144,6 @@ This create statement would produce the following `sql` representation metadata:
 | `type`              | `"sql"` |
 | `sql`               | `"SELECT\n    COUNT(1), CAST(event_ts AS DATE)\nFROM events\nGROUP BY 2"` |
 | `dialect`           | `"spark"` |
-| `schema-id`         | `1` |
 | `default-catalog`   | `"prod"` |
 | `default-namespace` | `["default"]` |
 | `field-aliases`     | `["event_count", "event_date"]` |
@@ -201,6 +204,7 @@ s3://bucket/warehouse/default.db/event_agg/metadata/00001-(uuid).metadata.json
   "versions" : [ {
     "version-id" : 1,
     "timestamp-ms" : 1573518431292,
+    "schema-id" : 1,
     "summary" : {
       "operation" : "create",
       "engine-name" : "Spark",
@@ -210,7 +214,6 @@ s3://bucket/warehouse/default.db/event_agg/metadata/00001-(uuid).metadata.json
       "type" : "sql",
       "sql" : "SELECT\n    COUNT(1), CAST(event_ts AS DATE)\nFROM events\nGROUP BY 2",
       "dialect" : "spark",
-      "schema-id" : 1,
       "default-catalog" : "prod",
       "default-namespace" : [ "default" ],
       "field-aliases" : ["event_count", "event_date"],
@@ -270,6 +273,7 @@ s3://bucket/warehouse/default.db/event_agg/metadata/00002-(uuid).metadata.json
   "versions" : [ {
     "version-id" : 1,
     "timestamp-ms" : 1573518431292,
+    "schema-id" : 1,
     "summary" : {
       "operation" : "create",
       "engine-name" : "Spark",
@@ -279,7 +283,6 @@ s3://bucket/warehouse/default.db/event_agg/metadata/00002-(uuid).metadata.json
       "type" : "sql",
       "sql" : "SELECT\n    COUNT(1), CAST(event_ts AS DATE)\nFROM events\nGROUP BY 2",
       "dialect" : "spark",
-      "schema-id" : 1,
       "default-catalog" : "prod",
       "default-namespace" : [ "default" ],
       "field-aliases" : ["event_count", "event_date"],
@@ -297,7 +300,6 @@ s3://bucket/warehouse/default.db/event_agg/metadata/00002-(uuid).metadata.json
       "type" : "sql",
       "sql" : "SELECT\n    COUNT(1), CAST(event_ts AS DATE)\nFROM prod.default.events\nGROUP BY 2",
       "dialect" : "spark",
-      "schema-id" : 1,
       "default-catalog" : "prod",
       "default-namespace" : [ "default" ],
       "field-aliases" : ["event_count", "event_date"]

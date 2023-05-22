@@ -391,6 +391,13 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
       return this;
     }
 
+    public Builder<T> maxAllowedPlanningFailures(int maxAllowedPlanningFailures) {
+      readOptions.put(
+          FlinkReadOptions.MAX_ALLOWED_PLANNING_FAILURES_OPTION.key(),
+          Integer.toString(maxAllowedPlanningFailures));
+      return this;
+    }
+
     /**
      * Set the read properties for Flink source. View the supported properties in {@link
      * FlinkReadOptions}

@@ -417,6 +417,10 @@ acceptedBreaks:
     - code: "java.method.addedToInterface"
       new: "method java.lang.String org.apache.iceberg.view.ViewVersion::operation()"
       justification: "Add operation API to view version"
+    - code: "java.method.addedToInterface"
+      new: "method java.util.List<org.apache.iceberg.actions.RewritePositionDeleteFiles.FileGroupRewriteResult>\
+        \ org.apache.iceberg.actions.RewritePositionDeleteFiles.Result::rewriteResults()"
+      justification: "New method added to un-implemented interface"
     - code: "java.method.removed"
       old: "method java.lang.Integer org.apache.iceberg.view.ImmutableSQLViewRepresentation::schemaId()"
       justification: "Moving SchemaID to ViewVersion. View Spec implementation has\

@@ -46,6 +46,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Type.TypeID;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.UUIDUtil;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.io.api.Binary;
 import org.apache.parquet.schema.GroupType;
@@ -233,6 +234,7 @@ public class SparkParquetReaders {
     }
 
     @Override
+    @SuppressWarnings("checkstyle:CyclomaticComplexity")
     public ParquetValueReader<?> primitive(
         org.apache.iceberg.types.Type.PrimitiveType expected, PrimitiveType primitive) {
       ColumnDescriptor desc = type.getColumnDescription(currentPath());
@@ -283,6 +285,9 @@ public class SparkParquetReaders {
       switch (primitive.getPrimitiveTypeName()) {
         case FIXED_LEN_BYTE_ARRAY:
         case BINARY:
+          if (expected != null && expected.typeId() == TypeID.UUID) {
+            return new UUIDReader(desc);
+          }
           return new ParquetValueReaders.ByteArrayReader(desc);
         case INT32:
           if (expected != null && expected.typeId() == TypeID.LONG) {
@@ -411,6 +416,18 @@ public class SparkParquetReaders {
       } else {
         return UTF8String.fromBytes(binary.getBytes());
       }
+    }
+  }
+
+  private static class UUIDReader extends PrimitiveReader<UTF8String> {
+    UUIDReader(ColumnDescriptor desc) {
+      super(desc);
+    }
+
+    @Override
+    @SuppressWarnings("ByteBufferBackingArray")
+    public UTF8String read(UTF8String ignored) {
+      return UTF8String.fromString(UUIDUtil.convert(column.nextBinary().toByteBuffer()).toString());
     }
   }
 

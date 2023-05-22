@@ -27,7 +27,6 @@ import org.apache.iceberg.arrow.vectorized.VectorizedReaderBuilder;
 import org.apache.iceberg.data.DeleteFilter;
 import org.apache.iceberg.parquet.TypeWithSchemaVisitor;
 import org.apache.iceberg.parquet.VectorizedReader;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.parquet.schema.MessageType;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.slf4j.Logger;
@@ -51,62 +50,6 @@ public class VectorizedSparkParquetReaders {
   }
 
   private VectorizedSparkParquetReaders() {}
-
-  /**
-   * @deprecated will be removed in 1.3.0, use {@link #buildReader(Schema, MessageType, Map,
-   *     DeleteFilter)} instead.
-   */
-  @Deprecated
-  public static ColumnarBatchReader buildReader(
-      Schema expectedSchema, MessageType fileSchema, boolean setArrowValidityVector) {
-    return buildReader(expectedSchema, fileSchema, setArrowValidityVector, Maps.newHashMap());
-  }
-
-  /**
-   * @deprecated will be removed in 1.3.0, use {@link #buildReader(Schema, MessageType, Map,
-   *     DeleteFilter)} instead.
-   */
-  @Deprecated
-  public static ColumnarBatchReader buildReader(
-      Schema expectedSchema,
-      MessageType fileSchema,
-      boolean setArrowValidityVector,
-      Map<Integer, ?> idToConstant) {
-    return (ColumnarBatchReader)
-        TypeWithSchemaVisitor.visit(
-            expectedSchema.asStruct(),
-            fileSchema,
-            new VectorizedReaderBuilder(
-                expectedSchema,
-                fileSchema,
-                setArrowValidityVector,
-                idToConstant,
-                ColumnarBatchReader::new));
-  }
-
-  /**
-   * @deprecated will be removed in 1.3.0, use {@link #buildReader(Schema, MessageType, Map,
-   *     DeleteFilter)} instead.
-   */
-  @Deprecated
-  public static ColumnarBatchReader buildReader(
-      Schema expectedSchema,
-      MessageType fileSchema,
-      boolean setArrowValidityVector,
-      Map<Integer, ?> idToConstant,
-      DeleteFilter<InternalRow> deleteFilter) {
-    return (ColumnarBatchReader)
-        TypeWithSchemaVisitor.visit(
-            expectedSchema.asStruct(),
-            fileSchema,
-            new ReaderBuilder(
-                expectedSchema,
-                fileSchema,
-                setArrowValidityVector,
-                idToConstant,
-                ColumnarBatchReader::new,
-                deleteFilter));
-  }
 
   public static ColumnarBatchReader buildReader(
       Schema expectedSchema,

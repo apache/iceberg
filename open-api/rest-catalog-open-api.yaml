@@ -2014,6 +2014,157 @@ components:
           additionalProperties:
             type: string
 
+    OAuthError:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: string
+          enum:
+            - invalid_request
+            - invalid_client
+            - invalid_grant
+            - unauthorized_client
+            - unsupported_grant_type
+            - invalid_scope
+        error_description:
+          type: string
+        error_uri:
+          type: string
+
+    OAuthTokenResponse:
+      type: object
+      required:
+        - access_token
+        - token_type
+      properties:
+        access_token:
+          type: string
+          description:
+            The access token, for client credentials or token exchange
+        token_type:
+          type: string
+          enum:
+            - bearer
+            - mac
+            - N_A
+          description:
+            Access token type for client credentials or token exchange
+
+
+            See https://datatracker.ietf.org/doc/html/rfc6749#section-7.1
+        expires_in:
+          type: integer
+          description:
+            Lifetime of the access token in seconds for client credentials or token exchange
+        issued_token_type:
+          $ref: '#/components/schemas/TokenType'
+        refresh_token:
+          type: string
+          description: Refresh token for client credentials or token exchange
+        scope:
+          type: string
+          description: Authorization scope for client credentials or token exchange
+
+    IcebergErrorResponse:
+      type: object
+      properties:
+        error:
+          $ref: '#/components/schemas/ErrorModel'
+      additionalProperties: false
+
+    CreateNamespaceResponse:
+      type: object
+      required:
+        - namespace
+      properties:
+        namespace:
+          $ref: '#/components/schemas/Namespace'
+        properties:
+          type: object
+          additionalProperties:
+            type: string
+          description:
+            Properties stored on the namespace, if supported by the server.
+          example: { "owner": "Ralph", "created_at": "1452120468" }
+          default: { }
+
+    GetNamespaceResponse:
+      type: object
+      required:
+        - namespace
+      properties:
+        namespace:
+          $ref: '#/components/schemas/Namespace'
+        properties:
+          type: object
+          description:
+            Properties stored on the namespace, if supported by the server.
+            If the server does not support namespace properties, it should return null for this field.
+            If namespace properties are supported, but none are set, it should return an empty object.
+          additionalProperties:
+            type: string
+          example: { "owner": "Ralph", 'transient_lastDdlTime': '1452120468' }
+          default: { }
+          nullable: true
+
+    ListTablesResponse:
+      type: object
+      properties:
+        identifiers:
+          type: array
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/TableIdentifier'
+
+    ListNamespacesResponse:
+      type: object
+      properties:
+        namespaces:
+          type: array
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/Namespace'
+
+    UpdateNamespacePropertiesResponse:
+      type: object
+      required:
+        - updated
+        - removed
+      properties:
+        updated:
+          description: List of property keys that were added or updated
+          type: array
+          uniqueItems: true
+          items:
+            type: string
+        removed:
+          description: List of properties that were removed
+          type: array
+          items:
+            type: string
+        missing:
+          type: array
+          items:
+            type: string
+          description:
+            List of properties requested for removal that were not found
+            in the namespace's properties. Represents a partial success response.
+            Server's do not need to implement this.
+          nullable: true
+
+    CommitTableResponse:
+      type: object
+      required:
+        - metadata-location
+        - metadata
+      properties:
+        metadata-location:
+          type: string
+        metadata:
+          $ref: '#/components/schemas/TableMetadata'
+
 
   #############################
   # Reusable Response Objects #
@@ -2025,59 +2176,14 @@ components:
       content:
         application/json:
           schema:
-            required:
-              - access_token
-              - token_type
-            properties:
-              access_token:
-                type: string
-                description:
-                  The access token, for client credentials or token exchange
-              token_type:
-                type: string
-                enum:
-                  - bearer
-                  - mac
-                  - N_A
-                description:
-                  Access token type for client credentials or token exchange
-
-
-                  See https://datatracker.ietf.org/doc/html/rfc6749#section-7.1
-              expires_in:
-                type: integer
-                description:
-                  Lifetime of the access token in seconds for client credentials or token exchange
-              issued_token_type:
-                $ref: '#/components/schemas/TokenType'
-              refresh_token:
-                type: string
-                description: Refresh token for client credentials or token exchange
-              scope:
-                type: string
-                description: Authorization scope for client credentials or token exchange
+            $ref: '#/components/schemas/OAuthTokenResponse'
 
     OAuthErrorResponse:
       description: OAuth2 error response
       content:
         application/json:
           schema:
-            required:
-              - error
-            properties:
-              error:
-                type: string
-                enum:
-                  - invalid_request
-                  - invalid_client
-                  - invalid_grant
-                  - unauthorized_client
-                  - unsupported_grant_type
-                  - invalid_scope
-              error_description:
-                type: string
-              error_uri:
-                type: string
+            $ref: '#/components/schemas/OAuthError'
 
     BadRequestErrorResponse:
       description:
@@ -2151,11 +2257,7 @@ components:
       content:
         application/json:
           schema:
-            type: object
-            properties:
-              error:
-                $ref: '#/components/schemas/ErrorModel'
-            additionalProperties: false
+            $ref: '#/components/schemas/IcebergErrorResponse'
             example: {
               "error": {
                 "message": "The server does not support this operation",
@@ -2172,20 +2274,7 @@ components:
       content:
         application/json:
           schema:
-            type: object
-            required:
-              - namespace
-            properties:
-              namespace:
-                $ref: '#/components/schemas/Namespace'
-              properties:
-                type: object
-                additionalProperties:
-                  type: string
-                description:
-                  Properties stored on the namespace, if supported by the server.
-                example: { "owner": "Ralph", "created_at": "1452120468" }
-                default: { }
+            $ref: '#/components/schemas/CreateNamespaceResponse'
           example: {
             "namespace": ["accounting", "tax"],
             "properties": { "owner": "Ralph", "created_at": "1452120468" }
@@ -2198,36 +2287,14 @@ components:
       content:
         application/json:
           schema:
-            type: object
-            required:
-              - namespace
-            properties:
-              namespace:
-                $ref: '#/components/schemas/Namespace'
-              properties:
-                type: object
-                description:
-                  Properties stored on the namespace, if supported by the server.
-                  If the server does not support namespace properties, it should return null for this field.
-                  If namespace properties are supported, but none are set, it should return an empty object.
-                additionalProperties:
-                  type: string
-                example: { "owner": "Ralph", 'transient_lastDdlTime': '1452120468' }
-                default: { }
-                nullable: true
+            $ref: '#/components/schemas/GetNamespaceResponse'
 
     ListTablesResponse:
       description: A list of table identifiers
       content:
         application/json:
           schema:
-            type: object
-            properties:
-              identifiers:
-                type: array
-                uniqueItems: true
-                items:
-                  $ref: '#/components/schemas/TableIdentifier'
+            $ref: '#/components/schemas/ListTablesResponse'
           examples:
             ListTablesResponseNonEmpty:
               $ref: '#/components/examples/ListTablesNonEmptyExample'
@@ -2239,13 +2306,7 @@ components:
       content:
         application/json:
           schema:
-            type: object
-            properties:
-              namespaces:
-                type: array
-                uniqueItems: true
-                items:
-                  $ref: '#/components/schemas/Namespace'
+            $ref: '#/components/schemas/ListNamespacesResponse'
           examples:
             NonEmptyResponse:
               $ref: '#/components/examples/ListNamespacesNonEmptyExample'
@@ -2307,31 +2368,7 @@ components:
       content:
         application/json:
           schema:
-            type: object
-            required:
-              - updated
-              - removed
-            properties:
-              updated:
-                description: List of property keys that were added or updated
-                type: array
-                uniqueItems: true
-                items:
-                  type: string
-              removed:
-                description: List of properties that were removed
-                type: array
-                items:
-                  type: string
-              missing:
-                type: array
-                items:
-                  type: string
-                description:
-                  List of properties requested for removal that were not found
-                  in the namespace's properties. Represents a partial success response.
-                  Server's do not need to implement this.
-                nullable: true
+            $ref: '#/components/schemas/UpdateNamespacePropertiesResponse'
           example: {
             "updated": [ "owner" ],
             "removed": [ "foo" ],
@@ -2360,15 +2397,7 @@ components:
       content:
         application/json:
           schema:
-            type: object
-            required:
-              - metadata-location
-              - metadata
-            properties:
-              metadata-location:
-                type: string
-              metadata:
-                $ref: '#/components/schemas/TableMetadata'
+            $ref: '#/components/schemas/CommitTableResponse'
 
   #######################################
   # Common examples of different values #

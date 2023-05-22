@@ -16,18 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.flink.sink.shuffle;
 
-import org.apache.flink.annotation.Internal;
+package org.apache.spark.sql.catalyst.plans.logical
 
-/**
- * DataStatisticsFactory defines the interface to create {@link DataStatistics}.
- *
- * <p>For low-cardinality key, MapDataStatisticsFactory will be implemented to create
- * MapDataStatistics.
- */
-@Internal
-interface DataStatisticsFactory<K> {
-
-  DataStatistics<K> createDataStatistics();
-}
+case class TagOptions(snapshotId: Option[Long], snapshotRefRetain: Option[Long])

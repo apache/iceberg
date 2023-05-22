@@ -62,8 +62,8 @@ import org.junit.Test;
 
 public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
 
-  public TestFlinkCatalogTable(String catalogName, Namespace baseNamepace) {
-    super(catalogName, baseNamepace);
+  public TestFlinkCatalogTable(String catalogName, Namespace baseNamespace) {
+    super(catalogName, baseNamespace);
   }
 
   @Override

@@ -271,6 +271,11 @@ public class SparkScanBuilder
       return false;
     }
 
+    if (readConf.startSnapshotId() != null) {
+      LOG.info("Skipping aggregate pushdown: incremental scan is not supported");
+      return false;
+    }
+
     // If group by expression is the same as the partition, the statistics information can still
     // be used to calculate min/max/count, will enable aggregate push down in next phase.
     // TODO: enable aggregate push down for partition col group by expression

@@ -68,7 +68,9 @@ class RewriteDataFilesProcedure extends BaseProcedure {
                 "rewritten_data_files_count", DataTypes.IntegerType, false, Metadata.empty()),
             new StructField(
                 "added_data_files_count", DataTypes.IntegerType, false, Metadata.empty()),
-            new StructField("rewritten_bytes_count", DataTypes.LongType, false, Metadata.empty())
+            new StructField("rewritten_bytes_count", DataTypes.LongType, false, Metadata.empty()),
+            new StructField(
+                "failed_data_files_count", DataTypes.IntegerType, false, Metadata.empty())
           });
 
   public static ProcedureBuilder builder() {
@@ -216,8 +218,14 @@ class RewriteDataFilesProcedure extends BaseProcedure {
     int rewrittenDataFilesCount = result.rewrittenDataFilesCount();
     long rewrittenBytesCount = result.rewrittenBytesCount();
     int addedDataFilesCount = result.addedDataFilesCount();
+    int failedDataFilesCount = result.failedDataFilesCount();
+
     InternalRow row =
-        newInternalRow(rewrittenDataFilesCount, addedDataFilesCount, rewrittenBytesCount);
+        newInternalRow(
+            rewrittenDataFilesCount,
+            addedDataFilesCount,
+            rewrittenBytesCount,
+            failedDataFilesCount);
     return new InternalRow[] {row};
   }
 

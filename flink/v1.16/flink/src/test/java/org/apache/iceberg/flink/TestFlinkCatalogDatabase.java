@@ -37,8 +37,8 @@ import org.junit.Test;
 
 public class TestFlinkCatalogDatabase extends FlinkCatalogTestBase {
 
-  public TestFlinkCatalogDatabase(String catalogName, Namespace baseNamepace) {
-    super(catalogName, baseNamepace);
+  public TestFlinkCatalogDatabase(String catalogName, Namespace baseNamespace) {
+    super(catalogName, baseNamespace);
   }
 
   @After

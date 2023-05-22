@@ -97,6 +97,15 @@ catalog:
       cabundle: /absolute/path/to/cabundle.pem
 ```
 
+| Key                 | Example                 | Description                                                                |
+| ------------------- | ----------------------- | -------------------------------------------------------------------------- |
+| uri                 | https://rest-catalog/ws | URI identifying the REST Server                                            |
+| credential          | t-1234:secret           | Credential to use for OAuth2 credential flow when initializing the catalog |
+| token               | FEW23.DFSDF.FSDF        | Bearer token value to use for `Authorization` header                       |
+| rest.sigv4-enabled  | true                    | Sign requests to the REST Server using AWS SigV4 protocol                  |
+| rest.signing-region | us-east-1               | The region to use when SigV4 signing a request                             |
+| rest.signing-name   | execute-api             | The service signing name to use when SigV4 signing a request               |
+
 ## Hive Catalog
 
 ```yaml

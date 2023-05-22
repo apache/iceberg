@@ -16,19 +16,23 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.flink.sink.shuffle;
 
-import org.apache.flink.annotation.Internal;
+package org.apache.spark.sql.catalyst.plans.logical
 
-/**
- * MapDataStatisticsFactory creates {@link MapDataStatistics} to track traffic volume for
- * low-cardinality key in hash mode
- */
-@Internal
-class MapDataStatisticsFactory<K> implements DataStatisticsFactory<K> {
+import org.apache.spark.sql.catalyst.expressions.Attribute
 
-  @Override
-  public DataStatistics<K> createDataStatistics() {
-    return new MapDataStatistics<>();
+case class CreateOrReplaceTag(
+    table: Seq[String],
+    tag: String,
+    tagOptions: TagOptions,
+    replace: Boolean,
+    ifNotExists: Boolean) extends LeafCommand {
+
+  import org.apache.spark.sql.connector.catalog.CatalogV2Implicits._
+
+  override lazy val output: Seq[Attribute] = Nil
+
+  override def simpleString(maxFields: Int): String = {
+    s"CreateOrReplaceTag tag: ${tag} for table: ${table.quoted}"
   }
 }

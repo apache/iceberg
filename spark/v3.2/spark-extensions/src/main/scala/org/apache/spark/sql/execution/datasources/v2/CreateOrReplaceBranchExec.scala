@@ -19,6 +19,7 @@
 
 package org.apache.spark.sql.execution.datasources.v2
 
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions
 import org.apache.iceberg.spark.source.SparkTable
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.Attribute
@@ -41,10 +42,17 @@ case class CreateOrReplaceBranchExec(
   override protected def run(): Seq[InternalRow] = {
     catalog.loadTable(ident) match {
       case iceberg: SparkTable =>
-        val snapshotId = branchOptions.snapshotId.getOrElse(iceberg.table.currentSnapshot().snapshotId())
+        val snapshotId: java.lang.Long = branchOptions.snapshotId
+          .orElse(Option(iceberg.table.currentSnapshot()).map(_.snapshotId()))
+          .map(java.lang.Long.valueOf)
+          .orNull
+
+        Preconditions.checkArgument(snapshotId != null,
+          "Cannot complete create or replace branch operation on %s, main has no snapshot", ident)
+
         val manageSnapshots = iceberg.table().manageSnapshots()
         if (!replace) {
-          val ref = iceberg.table().refs().get(branch);
+          val ref = iceberg.table().refs().get(branch)
           if (ref != null && ifNotExists) {
             return Nil
           }
@@ -76,6 +84,6 @@ case class CreateOrReplaceBranchExec(
   }
 
   override def simpleString(maxFields: Int): String = {
-    s"CreateOrReplace branch: ${branch} for table: ${ident.quoted}"
+    s"CreateOrReplace branch: $branch for table: ${ident.quoted}"
   }
 }

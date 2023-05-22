@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.transforms;
 
-import static org.apache.iceberg.AssertHelpers.assertThrows;
 import static org.apache.iceberg.TestHelpers.assertAndUnwrap;
 import static org.apache.iceberg.TestHelpers.assertAndUnwrapUnbound;
 import static org.apache.iceberg.expressions.Expressions.and;
@@ -133,12 +132,10 @@ public class TestProjection {
   @Test
   public void testCaseSensitiveIdentityProjection() {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("id").build();
-
-    assertThrows(
-        "X != x when case sensitivity is on",
-        ValidationException.class,
-        "Cannot find field 'ID' in struct",
-        () -> Projections.inclusive(spec, true).project(Expressions.notNull("ID")));
+    Assertions.assertThatThrownBy(
+            () -> Projections.inclusive(spec, true).project(Expressions.notNull("ID")))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("Cannot find field 'ID' in struct");
   }
 
   @Test
@@ -220,12 +217,10 @@ public class TestProjection {
   @Test
   public void testCaseSensitiveStrictIdentityProjection() {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("id").build();
-
-    assertThrows(
-        "X != x when case sensitivity is on",
-        ValidationException.class,
-        "Cannot find field 'ID' in struct",
-        () -> Projections.strict(spec, true).project(Expressions.notNull("ID")));
+    Assertions.assertThatThrownBy(
+            () -> Projections.strict(spec, true).project(Expressions.notNull("ID")))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("Cannot find field 'ID' in struct");
   }
 
   @Test

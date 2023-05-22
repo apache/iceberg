@@ -32,15 +32,113 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
  * will be resolved by applying the changes to the new latest snapshot and reattempting the commit.
  * If any of the deleted files are no longer in the latest snapshot when reattempting, the commit
  * will throw a {@link ValidationException}.
+ *
+ * <p>Note that the new state of the table after each rewrite must be logically equivalent to the
+ * original table state.
  */
 public interface RewriteFiles extends SnapshotUpdate<RewriteFiles> {
+  /**
+   * Remove a data file from the current table state.
+   *
+   * <p>This rewrite operation may change the size or layout of the data files. When applicable, it
+   * is also recommended to discard already deleted records while rewriting data files. However, the
+   * set of live data records must never change.
+   *
+   * @param dataFile a rewritten data file
+   * @return this for method chaining
+   */
+  default RewriteFiles deleteFile(DataFile dataFile) {
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " does not implement deleteFile");
+  }
+
+  /**
+   * Remove a delete file from the table state.
+   *
+   * <p>This rewrite operation may change the size or layout of the delete files. When applicable,
+   * it is also recommended to discard delete records for files that are no longer part of the table
+   * state. However, the set of applicable delete records must never change.
+   *
+   * @param deleteFile a rewritten delete file
+   * @return this for method chaining
+   */
+  default RewriteFiles deleteFile(DeleteFile deleteFile) {
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " does not implement deleteFile");
+  }
+
+  /**
+   * Add a new data file.
+   *
+   * <p>This rewrite operation may change the size or layout of the data files. When applicable, it
+   * is also recommended to discard already deleted records while rewriting data files. However, the
+   * set of live data records must never change.
+   *
+   * @param dataFile a new data file
+   * @return this for method chaining
+   */
+  default RewriteFiles addFile(DataFile dataFile) {
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " does not implement addFile");
+  }
+
+  /**
+   * Add a new delete file.
+   *
+   * <p>This rewrite operation may change the size or layout of the delete files. When applicable,
+   * it is also recommended to discard delete records for files that are no longer part of the table
+   * state. However, the set of applicable delete records must never change.
+   *
+   * @param deleteFile a new delete file
+   * @return this for method chaining
+   */
+  default RewriteFiles addFile(DeleteFile deleteFile) {
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " does not implement addFile");
+  }
+
+  /**
+   * Add a new delete file with the given data sequence number.
+   *
+   * <p>This rewrite operation may change the size or layout of the delete files. When applicable,
+   * it is also recommended to discard delete records for files that are no longer part of the table
+   * state. However, the set of applicable delete records must never change.
+   *
+   * <p>To ensure equivalence in the set of applicable delete records, the sequence number of the
+   * delete file must be the max sequence number of the delete files that it is replacing. Rewriting
+   * equality deletes that belong to different sequence numbers is not allowed.
+   *
+   * @param deleteFile a new delete file
+   * @param dataSequenceNumber data sequence number to append on the file
+   * @return this for method chaining
+   */
+  default RewriteFiles addFile(DeleteFile deleteFile, long dataSequenceNumber) {
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " does not implement addFile");
+  }
+
+  /**
+   * Configure the data sequence number for this rewrite operation. This data sequence number will
+   * be used for all new data files that are added in this rewrite. This method is helpful to avoid
+   * commit conflicts between data compaction and adding equality deletes.
+   *
+   * @param sequenceNumber a data sequence number
+   * @return this for method chaining
+   */
+  default RewriteFiles dataSequenceNumber(long sequenceNumber) {
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " does not implement dataSequenceNumber");
+  }
+
   /**
    * Add a rewrite that replaces one set of data files with another set that contains the same data.
    *
    * @param filesToDelete files that will be replaced (deleted), cannot be null or empty.
    * @param filesToAdd files that will be added, cannot be null or empty.
    * @return this for method chaining
+   * @deprecated since 1.3.0, will be removed in 2.0.0
    */
+  @Deprecated
   default RewriteFiles rewriteFiles(Set<DataFile> filesToDelete, Set<DataFile> filesToAdd) {
     return rewriteFiles(filesToDelete, ImmutableSet.of(), filesToAdd, ImmutableSet.of());
   }
@@ -53,7 +151,9 @@ public interface RewriteFiles extends SnapshotUpdate<RewriteFiles> {
    * @param filesToAdd files that will be added, cannot be null or empty.
    * @param sequenceNumber sequence number to use for all data files added
    * @return this for method chaining
+   * @deprecated since 1.3.0, will be removed in 2.0.0
    */
+  @Deprecated
   RewriteFiles rewriteFiles(
       Set<DataFile> filesToDelete, Set<DataFile> filesToAdd, long sequenceNumber);
 
@@ -65,7 +165,9 @@ public interface RewriteFiles extends SnapshotUpdate<RewriteFiles> {
    * @param dataFilesToAdd data files that will be added.
    * @param deleteFilesToAdd delete files that will be added.
    * @return this for method chaining.
+   * @deprecated since 1.3.0, will be removed in 2.0.0
    */
+  @Deprecated
   RewriteFiles rewriteFiles(
       Set<DataFile> dataFilesToReplace,
       Set<DeleteFile> deleteFilesToReplace,

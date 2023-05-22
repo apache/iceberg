@@ -21,6 +21,8 @@ package org.apache.spark.sql.catalyst.analysis
 
 import org.apache.spark.sql.AnalysisException
 import org.apache.spark.sql.catalyst.expressions.Alias
+import org.apache.spark.sql.catalyst.expressions.Attribute
+import org.apache.spark.sql.catalyst.expressions.AttributeReference
 import org.apache.spark.sql.catalyst.expressions.EqualNullSafe
 import org.apache.spark.sql.catalyst.expressions.Expression
 import org.apache.spark.sql.catalyst.expressions.If
@@ -34,13 +36,16 @@ import org.apache.spark.sql.catalyst.plans.logical.Project
 import org.apache.spark.sql.catalyst.plans.logical.ReplaceIcebergData
 import org.apache.spark.sql.catalyst.plans.logical.Union
 import org.apache.spark.sql.catalyst.plans.logical.UpdateIcebergTable
+import org.apache.spark.sql.catalyst.plans.logical.UpdateRows
 import org.apache.spark.sql.catalyst.plans.logical.WriteIcebergDelta
 import org.apache.spark.sql.catalyst.util.RowDeltaUtils._
+import org.apache.spark.sql.catalyst.util.WriteDeltaProjections
 import org.apache.spark.sql.connector.catalog.SupportsRowLevelOperations
 import org.apache.spark.sql.connector.write.RowLevelOperation.Command.UPDATE
 import org.apache.spark.sql.connector.write.RowLevelOperationTable
 import org.apache.spark.sql.connector.write.SupportsDelta
 import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Relation
+import org.apache.spark.sql.types.IntegerType
 import org.apache.spark.sql.util.CaseInsensitiveStringMap
 
 /**
@@ -142,17 +147,45 @@ object RewriteUpdateTable extends RewriteRowLevelIcebergCommand {
 
     // construct a scan relation and include all required metadata columns
     val readRelation = buildRelationWithAttrs(relation, operationTable, rowIdAttrs ++ metadataAttrs)
+    val readAttrs = readRelation.output
+    val metadataReadAttrs = readAttrs.filterNot(relation.outputSet.contains)
 
     // build a plan for updated records that match the cond
     val matchedRowsPlan = Filter(cond, readRelation)
-    val updatedRowsPlan = buildUpdateProjection(matchedRowsPlan, assignments)
-    val operationType = Alias(Literal(UPDATE_OPERATION), OPERATION_COLUMN)()
-    val project = Project(operationType +: updatedRowsPlan.output, updatedRowsPlan)
+    val updatedRowsPlan = updateRows(
+      matchedRowsPlan, assignments, readAttrs,
+      rowAttrs, rowIdAttrs, metadataReadAttrs)
 
     // build a plan to write the row delta to the table
     val writeRelation = relation.copy(table = operationTable)
-    val projections = buildWriteDeltaProjections(project, rowAttrs, rowIdAttrs, metadataAttrs)
-    WriteIcebergDelta(writeRelation, project, relation, projections)
+    val projections = buildDeltaProjections(updatedRowsPlan, rowAttrs, rowIdAttrs, metadataAttrs)
+    WriteIcebergDelta(writeRelation, updatedRowsPlan, relation, projections)
+  }
+
+  private def updateRows(
+      matchedRowsPlan: LogicalPlan,
+      assignments: Seq[Assignment],
+      readAttrs: Seq[Attribute],
+      rowAttrs: Seq[Attribute],
+      rowIdAttrs: Seq[Attribute],
+      metadataAttrs: Seq[Attribute]): UpdateRows = {
+
+    val delete = deltaDeleteOutput(rowAttrs, rowIdAttrs, metadataAttrs)
+    val insert = deltaInsertOutput(assignments.map(_.value), metadataAttrs)
+    val outputs = Seq(delete, insert)
+    val operationTypeAttr = AttributeReference(OPERATION_COLUMN, IntegerType, nullable = false)()
+    val updateRowsOutput = buildMergingOutput(outputs, operationTypeAttr +: readAttrs)
+    UpdateRows(delete, insert, updateRowsOutput, matchedRowsPlan)
+  }
+
+  private def buildDeltaProjections(
+      updateRows: UpdateRows,
+      rowAttrs: Seq[Attribute],
+      rowIdAttrs: Seq[Attribute],
+      metadataAttrs: Seq[Attribute]): WriteDeltaProjections = {
+
+    val outputs = Seq(updateRows.deleteOutput, updateRows.insertOutput)
+    buildDeltaProjections(updateRows, outputs, rowAttrs, rowIdAttrs, metadataAttrs)
   }
 
   // this method assumes the assignments have been already aligned before
