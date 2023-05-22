@@ -91,4 +91,9 @@ public class SparkActions implements ActionsProvider {
   public DeleteReachableFilesSparkAction deleteReachableFiles(String metadataLocation) {
     return new DeleteReachableFilesSparkAction(spark, metadataLocation);
   }
+
+  @Override
+  public RewritePositionDeleteFilesSparkAction rewritePositionDeletes(Table table) {
+    return new RewritePositionDeleteFilesSparkAction(spark, table);
+  }
 }
