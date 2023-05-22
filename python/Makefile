@@ -37,7 +37,8 @@ test-integration:
 	docker-compose -f dev/docker-compose-integration.yml rm -f
 	docker-compose -f dev/docker-compose-integration.yml build --no-cache
 	docker-compose -f dev/docker-compose-integration.yml up -d
-	sleep 30
+	sleep 10
+	docker-compose -f dev/docker-compose-integration.yml exec spark-iceberg ipython ./provision.py
 	poetry run pytest tests/ -m integration ${PYTEST_ARGS}
 
 test-adlfs:

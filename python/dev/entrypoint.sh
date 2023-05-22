@@ -18,10 +18,8 @@
 # under the License.
 #
 
-set -ex
-
 start-master.sh -p 7077
 start-worker.sh spark://spark-iceberg:7077
 start-history-server.sh
 
-ipython -i ./provision.py
+tail -f /dev/null

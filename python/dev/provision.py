@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import time
 
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import current_date, date_add, expr
@@ -29,19 +28,7 @@ spark.sql(
 
 spark.sql(
     """
-  use default;
-"""
-)
-
-spark.sql(
-    """
-  DROP TABLE IF EXISTS test_null_nan;
-"""
-)
-
-spark.sql(
-    """
-  CREATE TABLE test_null_nan
+  CREATE OR REPLACE TABLE default.test_null_nan
   USING iceberg
   AS SELECT
     1            AS idx,
@@ -57,60 +44,43 @@ UNION ALL SELECT
 
 spark.sql(
     """
-  DROP TABLE IF EXISTS test_null_nan_rewritten;
-"""
-)
-
-spark.sql(
-    """
-  CREATE TABLE test_null_nan_rewritten
+  CREATE OR REPLACE TABLE default.test_null_nan_rewritten
   USING iceberg
   AS SELECT * FROM test_null_nan
 """
 )
 
+
 spark.sql(
     """
-  DROP TABLE IF EXISTS test_limit;
+CREATE OR REPLACE TABLE default.test_limit
+USING iceberg
+  AS SELECT
+      1            AS idx
+  UNION ALL SELECT
+      2            AS idx
+  UNION ALL SELECT
+      3            AS idx
+  UNION ALL SELECT
+      4            AS idx
+  UNION ALL SELECT
+      5            AS idx
+  UNION ALL SELECT
+      6            AS idx
+  UNION ALL SELECT
+      7            AS idx
+  UNION ALL SELECT
+      8            AS idx
+  UNION ALL SELECT
+      9            AS idx
+  UNION ALL SELECT
+      10           AS idx
 """
 )
 
 spark.sql(
     """
-    CREATE TABLE test_limit
-    USING iceberg
-      AS SELECT
-          1            AS idx
-      UNION ALL SELECT
-          2            AS idx
-      UNION ALL SELECT
-          3            AS idx
-      UNION ALL SELECT
-          4            AS idx
-      UNION ALL SELECT
-          5            AS idx
-      UNION ALL SELECT
-          6            AS idx
-      UNION ALL SELECT
-          7            AS idx
-      UNION ALL SELECT
-          8            AS idx
-      UNION ALL SELECT
-          9            AS idx
-      UNION ALL SELECT
-          10           AS idx
-    """
-)
-
-spark.sql(
-    """
-DROP TABLE IF EXISTS test_positional_mor_deletes;
-"""
-)
-
-spark.sql(
-    """
-CREATE TABLE test_positional_mor_deletes (
+CREATE OR REPLACE TABLE default.test_positional_mor_deletes (
     number integer,
     letter string
 )
@@ -126,7 +96,7 @@ TBLPROPERTIES (
 
 spark.sql(
     """
-INSERT INTO test_positional_mor_deletes
+INSERT INTO default.test_positional_mor_deletes
 VALUES
     (1, 'a'),
     (2, 'b'),
@@ -145,14 +115,14 @@ VALUES
 
 spark.sql(
     """
-DELETE FROM test_positional_mor_deletes WHERE number = 9
+DELETE FROM default.test_positional_mor_deletes WHERE number = 9
 """
 )
 
 
 spark.sql(
     """
-  CREATE TABLE test_positional_mor_double_deletes (
+  CREATE OR REPLACE TABLE test_positional_mor_double_deletes (
     number integer,
     letter string
   )
@@ -168,21 +138,21 @@ spark.sql(
 
 spark.sql(
     """
-    INSERT INTO test_positional_mor_double_deletes
-    VALUES (
-        (1, 'a'),
-        (2, 'b'),
-        (3, 'c'),
-        (4, 'd'),
-        (5, 'e'),
-        (6, 'f'),
-        (7, 'g'),
-        (8, 'h'),
-        (9, 'i'),
-        (10, 'j'),
-        (11, 'k'),
-        (12, 'l')
-    )
+INSERT INTO test_positional_mor_double_deletes
+VALUES (
+    (1, 'a'),
+    (2, 'b'),
+    (3, 'c'),
+    (4, 'd'),
+    (5, 'e'),
+    (6, 'f'),
+    (7, 'g'),
+    (8, 'h'),
+    (9, 'i'),
+    (10, 'j'),
+    (11, 'k'),
+    (12, 'l')
+)
 """
 )
 
@@ -222,6 +192,3 @@ all_types_dataframe = (
 all_types_dataframe.writeTo("default.test_all_types").tableProperty("format-version", "2").partitionedBy(
     "intCol"
 ).createOrReplace()
-
-while True:
-    time.sleep(1)
