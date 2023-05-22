@@ -19,12 +19,19 @@
 import math
 from urllib.parse import urlparse
 
+import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
 from pyarrow.fs import S3FileSystem
 
 from pyiceberg.catalog import Catalog, load_catalog
-from pyiceberg.expressions import IsNaN, NotNaN
+from pyiceberg.expressions import (
+    And,
+    GreaterThanOrEqual,
+    IsNaN,
+    LessThan,
+    NotNaN,
+)
 from pyiceberg.io.pyarrow import pyarrow_to_schema
 from pyiceberg.schema import Schema
 from pyiceberg.table import Table
@@ -62,6 +69,18 @@ def table_test_limit(catalog: Catalog) -> Table:
 @pytest.fixture()
 def table_test_all_types(catalog: Catalog) -> Table:
     return catalog.load_table("default.test_all_types")
+
+
+@pytest.fixture()
+def test_positional_mor_deletes(catalog: Catalog) -> Table:
+    """Table that has positional deletes"""
+    return catalog.load_table("default.test_positional_mor_deletes")
+
+
+@pytest.fixture()
+def test_positional_mor_double_deletes(catalog: Catalog) -> Table:
+    """Table that has multiple positional deletes"""
+    return catalog.load_table("default.test_positional_mor_double_deletes")
 
 
 @pytest.mark.integration
@@ -159,3 +178,55 @@ def test_pyarrow_to_iceberg_all_types(table_test_all_types: Table) -> None:
             stored_iceberg_schema = Schema.parse_raw(parquet_schema.metadata.get(b"iceberg.schema"))
             converted_iceberg_schema = pyarrow_to_schema(parquet_schema)
             assert converted_iceberg_schema == stored_iceberg_schema
+
+
+@pytest.mark.integration
+def test_pyarrow_deletes(test_positional_mor_deletes: Table) -> None:
+    arrow_table = test_positional_mor_deletes.scan().to_arrow()
+    assert len(arrow_table) == 6
+    assert arrow_table["number"] == pa.Array([2, 4, 6, 8, 10, 12])
+
+    # Checking the filter
+    arrow_table = test_positional_mor_deletes.scan(
+        row_filter=And(GreaterThanOrEqual("letter", "e"), LessThan("letter", "k"))
+    ).to_arrow()
+    assert len(arrow_table) == 3
+    assert arrow_table["number"] == pa.Array([6, 8, 10])
+
+    # Testing the combination of a filter and a limit
+    arrow_table = test_positional_mor_deletes.scan(
+        row_filter=And(GreaterThanOrEqual("letter", "e"), LessThan("letter", "k")), limit=1
+    ).to_arrow()
+    assert len(arrow_table) == 1
+    assert arrow_table["number"] == pa.Array([6])
+
+    # Testing the slicing of indices
+    arrow_table = test_positional_mor_deletes.scan(limit=3).to_arrow()
+    assert len(arrow_table) == 3
+    assert arrow_table["number"] == pa.Array([2, 4, 6])
+
+
+@pytest.mark.integration
+def test_pyarrow_deletes_double(test_positional_mor_double_deletes: Table) -> None:
+    arrow_table = test_positional_mor_double_deletes.scan().to_arrow()
+    assert len(arrow_table) == 5
+    assert arrow_table["number"] == pa.Array([2, 4, 8, 10, 12])
+
+    # Checking the filter
+    arrow_table = test_positional_mor_double_deletes.scan(
+        row_filter=And(GreaterThanOrEqual("letter", "e"), LessThan("letter", "k"))
+    ).to_arrow()
+    assert len(arrow_table) == 2
+    assert arrow_table["number"] == pa.Array([8, 10])
+
+    # Testing the combination of a filter and a limit
+    arrow_table = test_positional_mor_double_deletes.scan(
+        row_filter=And(GreaterThanOrEqual("letter", "e"), LessThan("letter", "k")), limit=1
+    ).to_arrow()
+    assert len(arrow_table) == 1
+    assert arrow_table["number"] == pa.Array([8])
+
+    # Testing the slicing of indices
+    arrow_table = test_positional_mor_double_deletes.scan(limit=3).to_arrow()
+    assert len(arrow_table) == 3
+    assert arrow_table["number"] == pa.Array([2, 4, 8])

@@ -112,27 +112,94 @@ spark.sql(
 
 spark.sql(
     """
-  CREATE TABLE test_deletes
+  CREATE TABLE test_positional_mor_deletes (
+    number integer,
+    letter string
+  )
   USING iceberg
   TBLPROPERTIES (
     'write.delete.mode'='merge-on-read',
     'write.update.mode'='merge-on-read',
     'write.merge.mode'='merge-on-read'
-  )
-  AS SELECT
-    1       AS idx,
-    True    AS deleted
-UNION ALL SELECT
-    2       AS idx,
-    False   AS deleted;
+  );
 """
 )
 
 spark.sql(
     """
-  DELETE FROM test_deletes WHERE deleted = True;
+    INSERT INTO test_positional_mor_deletes
+    VALUES (
+        (1, 'a'),
+        (2, 'b'),
+        (3, 'c'),
+        (4, 'd'),
+        (5, 'e'),
+        (6, 'f'),
+        (7, 'g'),
+        (8, 'h'),
+        (9, 'i'),
+        (10, 'j'),
+        (11, 'k'),
+        (12, 'l'),
+    )
 """
 )
+
+spark.sql(
+    """
+    DELETE FROM test_positional_mor_deletes WHERE number % 2 = 0
+"""
+)
+
+
+spark.sql(
+    """
+  CREATE TABLE test_positional_mor_double_deletes (
+    number integer,
+    letter string
+  )
+  USING iceberg
+  TBLPROPERTIES (
+    'write.delete.mode'='merge-on-read',
+    'write.update.mode'='merge-on-read',
+    'write.merge.mode'='merge-on-read'
+  );
+"""
+)
+
+spark.sql(
+    """
+    INSERT INTO test_positional_mor_double_deletes
+    VALUES (
+        (1, 'a'),
+        (2, 'b'),
+        (3, 'c'),
+        (4, 'd'),
+        (5, 'e'),
+        (6, 'f'),
+        (7, 'g'),
+        (8, 'h'),
+        (9, 'i'),
+        (10, 'j'),
+        (11, 'k'),
+        (12, 'l'),
+    )
+"""
+)
+
+spark.sql(
+    """
+    DELETE FROM test_positional_mor_double_deletes WHERE number % 2 = 1
+"""
+)
+
+
+spark.sql(
+    """
+    DELETE FROM test_positional_mor_double_deletes WHERE letter == 'f'
+"""
+)
+
 
 all_types_dataframe = (
     spark.range(0, 5, 1, 5)

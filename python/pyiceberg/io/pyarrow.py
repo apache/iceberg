@@ -536,10 +536,11 @@ def _create_positional_deletes_indices(positional_deletes: List[pa.ChunkedArray]
         deleted_pos = next(sorted_deleted).as_py()  # type: ignore
         for pos in range(fn_rows()):
             if deleted_pos == pos:
-                try:
-                    deleted_pos = next(sorted_deleted).as_py()  # type: ignore
-                except StopIteration:
-                    deleted_pos = -1
+                while deleted_pos == pos:
+                    try:
+                        deleted_pos = next(sorted_deleted).as_py()  # type: ignore
+                    except StopIteration:
+                        deleted_pos = -1
             else:
                 yield pos
 
@@ -820,12 +821,29 @@ def _task_to_table(
             return None
 
 
+def _read_all_delete_files(fs: FileSystem, pool: ThreadPool, tasks: Iterable[FileScanTask]) -> Dict[str, List[ChunkedArray]]:
+    deletes_per_file: Dict[str, List[ChunkedArray]] = {}
+    unique_deletes = set(chain.from_iterable([task.delete_files for task in tasks]))
+    if len(unique_deletes) > 0:
+        deletes_per_files: List[Dict[str, ChunkedArray]] = pool.starmap(
+            func=_read_deletes, iterable=[(fs, delete) for delete in unique_deletes]
+        )
+        for delete in deletes_per_files:
+            for file, arr in delete.items():
+                if file in deletes_per_file:
+                    deletes_per_file[file].append(arr)
+                else:
+                    deletes_per_file[file] = [arr]
+
+    return deletes_per_file
+
+
 def project_table(
     tasks: Iterable[FileScanTask],
     table: Table,
     row_filter: BooleanExpression,
     projected_schema: Schema,
-    case_sensitive: bool,
+    case_sensitive: bool = True,
     limit: Optional[int] = None,
 ) -> pa.Table:
     """Resolves the right columns based on the identifier
@@ -836,6 +854,7 @@ def project_table(
         row_filter (BooleanExpression): The expression for filtering rows
         projected_schema (Schema): The output schema
         case_sensitive (bool): Case sensitivity when looking up column names
+        limit (Optional[int]): Limit the number of records
 
     Raises:
         ResolveError: When an incompatible query is done
@@ -865,21 +884,7 @@ def project_table(
     rows_counter = multiprocessing.Value("i", 0)
 
     with ThreadPool() as pool:
-        # Fetch the deletes
-        deletes_per_file: Dict[str, List[ChunkedArray]] = {}
-        unique_deletes = set(chain.from_iterable([task.delete_files for task in tasks]))
-        if len(unique_deletes) > 0:
-            deletes_per_files: List[Dict[str, ChunkedArray]] = pool.starmap(
-                func=_read_deletes, iterable=[(fs, delete) for delete in unique_deletes]
-            )
-            for delete in deletes_per_files:
-                for file, arr in delete.items():
-                    if file in deletes_per_file:
-                        deletes_per_file[file].append(arr)
-                    else:
-                        deletes_per_file[file] = [arr]
-
-        # Fetch teh data
+        deletes_per_file = _read_all_delete_files(fs, pool, tasks)
         tables = [
             table
             for table in pool.starmap(
