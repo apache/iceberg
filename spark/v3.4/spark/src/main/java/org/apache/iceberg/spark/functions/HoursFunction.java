@@ -24,6 +24,7 @@ import org.apache.spark.sql.connector.catalog.functions.BoundFunction;
 import org.apache.spark.sql.connector.catalog.functions.ScalarFunction;
 import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.DataTypes;
+import org.apache.spark.sql.types.TimestampNTZType;
 import org.apache.spark.sql.types.TimestampType;
 
 /**
@@ -37,6 +38,8 @@ public class HoursFunction extends UnaryUnboundFunction {
   protected BoundFunction doBind(DataType valueType) {
     if (valueType instanceof TimestampType) {
       return new TimestampToHoursFunction();
+    } else if (valueType instanceof TimestampNTZType) {
+      return new TimestampNtzToHoursFunction();
     } else {
       throw new UnsupportedOperationException(
           "Expected value to be timestamp: " + valueType.catalogString());
@@ -79,6 +82,39 @@ public class HoursFunction extends UnaryUnboundFunction {
     @Override
     public String canonicalName() {
       return "iceberg.hours(timestamp)";
+    }
+
+    @Override
+    public Integer produceResult(InternalRow input) {
+      // return null for null input to match what Spark does in codegen
+      return input.isNullAt(0) ? null : invoke(input.getLong(0));
+    }
+  }
+
+  public static class TimestampNtzToHoursFunction implements ScalarFunction<Integer> {
+    // magic method used in codegen
+    public static int invoke(long micros) {
+      return DateTimeUtil.microsToHours(micros);
+    }
+
+    @Override
+    public String name() {
+      return "hours";
+    }
+
+    @Override
+    public DataType[] inputTypes() {
+      return new DataType[] {DataTypes.TimestampNTZType};
+    }
+
+    @Override
+    public DataType resultType() {
+      return DataTypes.IntegerType;
+    }
+
+    @Override
+    public String canonicalName() {
+      return "iceberg.hours(timestamp_ntz)";
     }
 
     @Override

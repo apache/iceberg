@@ -70,6 +70,13 @@ public class TestSparkBucketFunction extends SparkTestBaseWithCatalog {
         -2047944441,
         new BucketFunction.BucketLong(DataTypes.TimestampType).hash(timestampVal.value()));
 
+    Literal<Long> timestampntzVal =
+        Literal.of("2017-11-16T22:31:08").to(Types.TimestampType.withoutZone());
+    Assert.assertEquals(
+        "Spec example: hash(2017-11-16T22:31:08) = -2047944441",
+        -2047944441,
+        new BucketFunction.BucketLong(DataTypes.TimestampNTZType).hash(timestampntzVal.value()));
+
     Assert.assertEquals(
         "Spec example: hash(\"iceberg\") = 1210000089",
         1210000089,

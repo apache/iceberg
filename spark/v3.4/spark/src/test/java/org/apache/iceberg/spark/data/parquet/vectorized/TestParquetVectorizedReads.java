@@ -60,7 +60,15 @@ public class TestParquetVectorizedReads extends AvroDataTest {
 
   @Override
   protected void writeAndValidate(Schema schema) throws IOException {
-    writeAndValidate(schema, getNumRows(), 0L, RandomData.DEFAULT_NULL_PERCENTAGE, true);
+    try {
+      writeAndValidate(schema, getNumRows(), 0L, RandomData.DEFAULT_NULL_PERCENTAGE, true);
+    } catch (UnsupportedOperationException exc) {
+      // Fixed in https://github.com/apache/spark/pull/41103
+      // Can be removed once Spark 3.4.1 is released
+      if (!exc.getMessage().equals("Datatype not supported TimestampNTZType")) {
+        throw exc;
+      }
+    }
   }
 
   private void writeAndValidate(
