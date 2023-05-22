@@ -96,7 +96,7 @@ class InMemoryCatalog(Catalog):
                             ],
                         },
                         "partition-spec": [{"name": "x", "transform": "identity", "source-id": 1, "field-id": 1000}],
-                        "properties": {},
+                        "properties": properties,
                         "current-snapshot-id": -1,
                         "snapshots": [{"snapshot-id": 1925, "timestamp-ms": 1602638573822}],
                     }
@@ -175,6 +175,10 @@ class InMemoryCatalog(Catalog):
         return list_tables
 
     def list_namespaces(self, namespace: Union[str, Identifier] = ()) -> List[Identifier]:
+        # Hierarchical namespace is not supported. Return an empty list
+        if namespace:
+            return []
+
         return list(self.__namespaces.keys())
 
     def load_namespace_properties(self, namespace: Union[str, Identifier]) -> Properties:
