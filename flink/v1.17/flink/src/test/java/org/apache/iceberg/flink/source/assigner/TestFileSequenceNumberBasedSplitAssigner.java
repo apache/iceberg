@@ -21,6 +21,7 @@ package org.apache.iceberg.flink.source.assigner;
 import java.util.List;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.flink.source.SplitHelpers;
+import org.apache.iceberg.flink.source.split.FileSequenceNumberBasedComparator;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
 import org.assertj.core.api.Assertions;
 import org.junit.Assert;
@@ -29,7 +30,7 @@ import org.junit.Test;
 public class TestFileSequenceNumberBasedSplitAssigner extends SplitAssignerTestBase {
   @Override
   protected SplitAssigner splitAssigner() {
-    return new FileSequenceNumberBasedSplitAssignerFactory().createAssigner();
+    return new SortedSplitAssignerFactory(new FileSequenceNumberBasedComparator()).createAssigner();
   }
 
   /** Test the assigner when multiple files are in a single split */

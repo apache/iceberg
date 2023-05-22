@@ -20,6 +20,7 @@ package org.apache.iceberg.flink.source.reader;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.Map;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.api.connector.source.SourceReaderContext;
@@ -36,9 +37,10 @@ public class IcebergSourceReader<T>
   public IcebergSourceReader(
       IcebergSourceReaderMetrics metrics,
       ReaderFunction<T> readerFunction,
+      Comparator<IcebergSourceSplit> splitComparator,
       SourceReaderContext context) {
     super(
-        () -> new IcebergSourceSplitReader<>(metrics, readerFunction, context),
+        () -> new IcebergSourceSplitReader<>(metrics, readerFunction, splitComparator, context),
         new IcebergSourceRecordEmitter<>(),
         context.getConfiguration(),
         context);

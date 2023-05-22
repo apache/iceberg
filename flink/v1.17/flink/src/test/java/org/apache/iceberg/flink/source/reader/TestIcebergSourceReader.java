@@ -20,6 +20,7 @@ package org.apache.iceberg.flink.source.reader;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import org.apache.flink.api.connector.source.SourceReaderContext;
 import org.apache.flink.configuration.Configuration;
@@ -55,11 +56,65 @@ public class TestIcebergSourceReader {
     TestingReaderOutput<RowData> readerOutput = new TestingReaderOutput<>();
     TestingMetricGroup metricGroup = new TestingMetricGroup();
     TestingReaderContext readerContext = new TestingReaderContext(new Configuration(), metricGroup);
-    IcebergSourceReader reader = createReader(metricGroup, readerContext);
+    IcebergSourceReader reader = createReader(metricGroup, readerContext, null);
     reader.start();
 
     testOneSplitFetcher(reader, readerOutput, metricGroup, 1);
     testOneSplitFetcher(reader, readerOutput, metricGroup, 2);
+  }
+
+  @Test
+  public void testReaderOrder() throws Exception {
+    // Create 2 splits
+    List<List<Record>> recordBatchList1 =
+        ReaderUtil.createRecordBatchList(0L, TestFixtures.SCHEMA, 1, 1);
+    CombinedScanTask task1 =
+        ReaderUtil.createCombinedScanTask(
+            recordBatchList1, TEMPORARY_FOLDER, FileFormat.PARQUET, appenderFactory);
+
+    List<List<Record>> recordBatchList2 =
+        ReaderUtil.createRecordBatchList(1L, TestFixtures.SCHEMA, 1, 1);
+    CombinedScanTask task2 =
+        ReaderUtil.createCombinedScanTask(
+            recordBatchList2, TEMPORARY_FOLDER, FileFormat.PARQUET, appenderFactory);
+
+    // Sort the splits in one way
+    List<RowData> rowData1 =
+        read(
+            Arrays.asList(
+                IcebergSourceSplit.fromCombinedScanTask(task1),
+                IcebergSourceSplit.fromCombinedScanTask(task2)),
+            2);
+
+    // Reverse the splits
+    List<RowData> rowData2 =
+        read(
+            Arrays.asList(
+                IcebergSourceSplit.fromCombinedScanTask(task2),
+                IcebergSourceSplit.fromCombinedScanTask(task1)),
+            2);
+
+    // Check that the order of the elements is not changed
+    Assert.assertEquals(rowData1.get(0), rowData2.get(0));
+    Assert.assertEquals(rowData1.get(1), rowData2.get(1));
+  }
+
+  private List<RowData> read(List<IcebergSourceSplit> splits, long expected) throws Exception {
+    TestingMetricGroup metricGroup = new TestingMetricGroup();
+    TestingReaderContext readerContext = new TestingReaderContext(new Configuration(), metricGroup);
+    IcebergSourceReader reader = createReader(metricGroup, readerContext, new IdBasedComparator());
+    reader.start();
+
+    reader.addSplits(splits);
+    TestingReaderOutput<RowData> readerOutput = new TestingReaderOutput<>();
+    while (readerOutput.getEmittedRecords().size() < expected) {
+      reader.pollNext(readerOutput);
+    }
+
+    reader.pollNext(readerOutput);
+
+    Assert.assertEquals(expected, readerOutput.getEmittedRecords().size());
+    return readerOutput.getEmittedRecords();
   }
 
   private void testOneSplitFetcher(
@@ -96,7 +151,9 @@ public class TestIcebergSourceReader {
   }
 
   private IcebergSourceReader createReader(
-      MetricGroup metricGroup, SourceReaderContext readerContext) {
+      MetricGroup metricGroup,
+      SourceReaderContext readerContext,
+      Comparator<IcebergSourceSplit> splitComparator) {
     IcebergSourceReaderMetrics readerMetrics =
         new IcebergSourceReaderMetrics(metricGroup, "db.tbl");
     RowDataReaderFunction readerFunction =
@@ -109,6 +166,13 @@ public class TestIcebergSourceReader {
             new HadoopFileIO(new org.apache.hadoop.conf.Configuration()),
             new PlaintextEncryptionManager(),
             Collections.emptyList());
-    return new IcebergSourceReader<>(readerMetrics, readerFunction, readerContext);
+    return new IcebergSourceReader<>(readerMetrics, readerFunction, splitComparator, readerContext);
+  }
+
+  private static class IdBasedComparator implements Comparator<IcebergSourceSplit> {
+    @Override
+    public int compare(IcebergSourceSplit o1, IcebergSourceSplit o2) {
+      return o1.splitId().compareTo(o2.splitId());
+    }
   }
 }
