@@ -102,12 +102,14 @@ spark.sql(
     """
 )
 
-spark.sql("""
+spark.sql(
+    """
 DROP TABLE IF EXISTS test_positional_mor_deletes;
 """
 )
 
-spark.sql("""
+spark.sql(
+    """
 CREATE TABLE test_positional_mor_deletes (
     number integer,
     letter string
@@ -122,7 +124,8 @@ TBLPROPERTIES (
 """
 )
 
-spark.sql("""
+spark.sql(
+    """
 INSERT INTO test_positional_mor_deletes
 VALUES
     (1, 'a'),
@@ -140,9 +143,11 @@ VALUES
 """
 )
 
-spark.sql("""
+spark.sql(
+    """
 DELETE FROM test_positional_mor_deletes WHERE number = 9
-""")
+"""
+)
 
 
 spark.sql(

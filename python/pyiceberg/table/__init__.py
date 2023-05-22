@@ -348,6 +348,30 @@ def _min_data_file_sequence_number(manifests: List[ManifestFile]) -> int:
         return INITIAL_SEQUENCE_NUMBER
 
 
+def _match_deletes_to_datafile(data_entry: ManifestEntry, positional_delete_entries: SortedList[ManifestEntry]) -> Set[DataFile]:
+    """This method will check if the delete file is relevant for the data file
+     by using the column metrics to see if the filename is in the lower and upper bound
+
+    Args:
+        data_entry (ManifestEntry): The manifest entry path of the datafile
+        positional_delete_entries (List[ManifestEntry]): All the candidate positional deletes manifest entries
+
+    Returns:
+        A set of files that are relevant for the data file.
+    """
+    relevant_entries = positional_delete_entries[positional_delete_entries.bisect_right(data_entry) :]
+
+    if len(relevant_entries) > 0:
+        evaluator = _InclusiveMetricsEvaluator(POSITIONAL_DELETE_SCHEMA, EqualTo("file_path", data_entry.data_file.file_path))
+        return {
+            positional_delete_entry.data_file
+            for positional_delete_entry in relevant_entries
+            if evaluator.eval(positional_delete_entry.data_file)
+        }
+    else:
+        return set()
+
+
 class DataScan(TableScan):
     def __init__(
         self,
@@ -414,6 +438,7 @@ class DataScan(TableScan):
 
         # step 1: filter manifests using partition summaries
         # the filter depends on the partition spec used to write the manifest file, so create a cache of filters for each spec id
+
         manifest_evaluators: Dict[int, Callable[[ManifestFile], bool]] = KeyDefaultDict(self._build_manifest_evaluator)
 
         manifests = [
@@ -464,37 +489,13 @@ class DataScan(TableScan):
         return [
             FileScanTask(
                 data_entry.data_file,
-                delete_files=self._match_deletes_to_datafile(
-                    data_entry.data_file.file_path,
-                    positional_delete_entries[positional_delete_entries.bisect_right(data_entry) :],
+                delete_files=_match_deletes_to_datafile(
+                    data_entry,
+                    positional_delete_entries,
                 ),
             )
             for data_entry in data_entries
         ]
-
-    def _match_deletes_to_datafile(self, data_file_path: str, positional_delete_entries: List[ManifestEntry]) -> Set[DataFile]:
-        """This method will check if the delete file is relevant for the data file
-
-        It will:
-            - Check if the delete file has been written after the data file
-            - Use the column metrics to see if the filename is part of the metrics
-
-        Args:
-            data_file_path (str): The manifest entry path of the datafile
-            positional_delete_entries (List[ManifestEntry]): All the candidate positional deletes manifest entries
-
-        Returns:
-            A set of files that are relevant for the data file.
-        """
-        if len(positional_delete_entries) > 0:
-            evaluator = _InclusiveMetricsEvaluator(POSITIONAL_DELETE_SCHEMA, EqualTo("file_path", data_file_path))
-            return {
-                positional_delete_entry.data_file
-                for positional_delete_entry in positional_delete_entries
-                if evaluator.eval(positional_delete_entry.data_file)
-            }
-        else:
-            return set()
 
     def to_arrow(self) -> pa.Table:
         from pyiceberg.io.pyarrow import project_table
