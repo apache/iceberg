@@ -18,20 +18,16 @@
  */
 package org.apache.iceberg.spark.source;
 
-import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.IsolationLevel;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.spark.SparkDistributionAndOrderingUtil;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.spark.SparkWriteConf;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.spark.sql.SparkSession;
-import org.apache.spark.sql.connector.distributions.Distribution;
-import org.apache.spark.sql.connector.expressions.SortOrder;
 import org.apache.spark.sql.connector.read.Scan;
 import org.apache.spark.sql.connector.write.DeltaWrite;
 import org.apache.spark.sql.connector.write.DeltaWriteBuilder;
@@ -81,23 +77,8 @@ class SparkPositionDeltaWriteBuilder implements DeltaWriteBuilder {
     validateMetadataSchema();
     SparkUtil.validatePartitionTransforms(table.spec());
 
-    Distribution distribution =
-        SparkDistributionAndOrderingUtil.buildPositionDeltaDistribution(
-            table, command, distributionMode());
-    SortOrder[] ordering =
-        SparkDistributionAndOrderingUtil.buildPositionDeltaOrdering(table, command);
-
     return new SparkPositionDeltaWrite(
-        spark,
-        table,
-        command,
-        scan,
-        isolationLevel,
-        writeConf,
-        info,
-        dataSchema,
-        distribution,
-        ordering);
+        spark, table, command, scan, isolationLevel, writeConf, info, dataSchema);
   }
 
   private Schema dataSchema() {
@@ -130,18 +111,5 @@ class SparkPositionDeltaWriteBuilder implements DeltaWriteBuilder {
 
   private void validateSchema(String context, Schema expected, Schema actual) {
     TypeUtil.validateSchema(context, expected, actual, checkNullability, checkOrdering);
-  }
-
-  private DistributionMode distributionMode() {
-    switch (command) {
-      case DELETE:
-        return writeConf.deleteDistributionMode();
-      case UPDATE:
-        return writeConf.updateDistributionMode();
-      case MERGE:
-        return writeConf.positionDeltaMergeDistributionMode();
-      default:
-        throw new IllegalArgumentException("Unexpected command: " + command);
-    }
   }
 }

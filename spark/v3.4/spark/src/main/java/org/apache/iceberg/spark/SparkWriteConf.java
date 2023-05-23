@@ -31,11 +31,15 @@ import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.spark.sql.RuntimeConfig;
 import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.connector.write.RowLevelOperation.Command;
 import org.apache.spark.sql.internal.SQLConf;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * A class for common Iceberg configs for Spark writes.
@@ -56,6 +60,8 @@ import org.apache.spark.sql.internal.SQLConf;
  * <p>Note this class is NOT meant to be serialized and sent to executors.
  */
 public class SparkWriteConf {
+
+  private static final Logger LOG = LoggerFactory.getLogger(SparkWriteConf.class);
 
   private final Table table;
   private final String branch;
@@ -205,7 +211,17 @@ public class SparkWriteConf {
         .parseOptional();
   }
 
-  public DistributionMode distributionMode() {
+  public SparkWriteRequirements writeRequirements() {
+    if (ignoreTableDistributionAndOrdering()) {
+      LOG.info("Skipping distribution/ordering: disabled per job configuration");
+      return SparkWriteRequirements.EMPTY;
+    }
+
+    return SparkWriteUtil.writeRequirements(table, distributionMode(), fanoutWriterEnabled());
+  }
+
+  @VisibleForTesting
+  DistributionMode distributionMode() {
     String modeName =
         confParser
             .stringConf()
@@ -242,7 +258,50 @@ public class SparkWriteConf {
     }
   }
 
-  public DistributionMode deleteDistributionMode() {
+  public SparkWriteRequirements copyOnWriteRequirements(Command command) {
+    if (ignoreTableDistributionAndOrdering()) {
+      LOG.info("Skipping distribution/ordering: disabled per job configuration");
+      return SparkWriteRequirements.EMPTY;
+    }
+
+    return SparkWriteUtil.copyOnWriteRequirements(
+        table, command, copyOnWriteDistributionMode(command), fanoutWriterEnabled());
+  }
+
+  @VisibleForTesting
+  DistributionMode copyOnWriteDistributionMode(Command command) {
+    switch (command) {
+      case DELETE:
+        return deleteDistributionMode();
+      case UPDATE:
+        return updateDistributionMode();
+      case MERGE:
+        return copyOnWriteMergeDistributionMode();
+      default:
+        throw new IllegalArgumentException("Unexpected command: " + command);
+    }
+  }
+
+  public SparkWriteRequirements positionDeltaRequirements(Command command) {
+    return SparkWriteUtil.positionDeltaRequirements(
+        table, command, positionDeltaDistributionMode(command));
+  }
+
+  @VisibleForTesting
+  DistributionMode positionDeltaDistributionMode(Command command) {
+    switch (command) {
+      case DELETE:
+        return deleteDistributionMode();
+      case UPDATE:
+        return updateDistributionMode();
+      case MERGE:
+        return positionDeltaMergeDistributionMode();
+      default:
+        throw new IllegalArgumentException("Unexpected command: " + command);
+    }
+  }
+
+  private DistributionMode deleteDistributionMode() {
     String deleteModeName =
         confParser
             .stringConf()
@@ -254,7 +313,7 @@ public class SparkWriteConf {
     return DistributionMode.fromName(deleteModeName);
   }
 
-  public DistributionMode updateDistributionMode() {
+  private DistributionMode updateDistributionMode() {
     String updateModeName =
         confParser
             .stringConf()
@@ -266,7 +325,7 @@ public class SparkWriteConf {
     return DistributionMode.fromName(updateModeName);
   }
 
-  public DistributionMode copyOnWriteMergeDistributionMode() {
+  private DistributionMode copyOnWriteMergeDistributionMode() {
     String mergeModeName =
         confParser
             .stringConf()
@@ -287,7 +346,7 @@ public class SparkWriteConf {
     }
   }
 
-  public DistributionMode positionDeltaMergeDistributionMode() {
+  private DistributionMode positionDeltaMergeDistributionMode() {
     String mergeModeName =
         confParser
             .stringConf()
@@ -299,11 +358,12 @@ public class SparkWriteConf {
     return DistributionMode.fromName(mergeModeName);
   }
 
-  public boolean useTableDistributionAndOrdering() {
+  private boolean ignoreTableDistributionAndOrdering() {
     return confParser
         .booleanConf()
         .option(SparkWriteOptions.USE_TABLE_DISTRIBUTION_AND_ORDERING)
         .defaultValue(SparkWriteOptions.USE_TABLE_DISTRIBUTION_AND_ORDERING_DEFAULT)
+        .negate()
         .parse();
   }
 

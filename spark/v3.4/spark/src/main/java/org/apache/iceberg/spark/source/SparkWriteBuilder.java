@@ -18,25 +18,20 @@
  */
 package org.apache.iceberg.spark.source;
 
-import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.IsolationLevel;
-import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.UpdateSchema;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.spark.SparkDistributionAndOrderingUtil;
 import org.apache.iceberg.spark.SparkFilters;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.spark.SparkWriteConf;
+import org.apache.iceberg.spark.SparkWriteRequirements;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.spark.sql.SparkSession;
-import org.apache.spark.sql.connector.distributions.Distribution;
-import org.apache.spark.sql.connector.distributions.Distributions;
-import org.apache.spark.sql.connector.expressions.SortOrder;
 import org.apache.spark.sql.connector.read.Scan;
 import org.apache.spark.sql.connector.write.BatchWrite;
 import org.apache.spark.sql.connector.write.LogicalWriteInfo;
@@ -48,13 +43,8 @@ import org.apache.spark.sql.connector.write.WriteBuilder;
 import org.apache.spark.sql.connector.write.streaming.StreamingWrite;
 import org.apache.spark.sql.sources.Filter;
 import org.apache.spark.sql.types.StructType;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, SupportsOverwrite {
-  private static final Logger LOG = LoggerFactory.getLogger(SparkWriteBuilder.class);
-  private static final SortOrder[] NO_ORDERING = new SortOrder[0];
-
   private final SparkSession spark;
   private final Table table;
   private final SparkWriteConf writeConf;
@@ -62,7 +52,6 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
   private final StructType dsSchema;
   private final String overwriteMode;
   private final String rewrittenFileSetId;
-  private final boolean useTableDistributionAndOrdering;
   private boolean overwriteDynamic = false;
   private boolean overwriteByFilter = false;
   private Expression overwriteExpr = null;
@@ -79,7 +68,6 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
     this.dsSchema = info.schema();
     this.overwriteMode = writeConf.overwriteMode();
     this.rewrittenFileSetId = writeConf.rewrittenFileSetId();
-    this.useTableDistributionAndOrdering = writeConf.useTableDistributionAndOrdering();
   }
 
   public WriteBuilder overwriteFiles(Scan scan, Command command, IsolationLevel isolationLevel) {
@@ -135,20 +123,8 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
     // Get application id
     String appId = spark.sparkContext().applicationId();
 
-    Distribution distribution;
-    SortOrder[] ordering;
-
-    if (useTableDistributionAndOrdering) {
-      distribution = buildRequiredDistribution();
-      ordering = buildRequiredOrdering(distribution);
-    } else {
-      LOG.info("Skipping distribution/ordering: disabled per job configuration");
-      distribution = Distributions.unspecified();
-      ordering = NO_ORDERING;
-    }
-
     return new SparkWrite(
-        spark, table, writeConf, writeInfo, appId, writeSchema, dsSchema, distribution, ordering) {
+        spark, table, writeConf, writeInfo, appId, writeSchema, dsSchema, writeRequirements()) {
 
       @Override
       public BatchWrite toBatch() {
@@ -185,41 +161,12 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
     };
   }
 
-  private Distribution buildRequiredDistribution() {
+  private SparkWriteRequirements writeRequirements() {
     if (overwriteFiles) {
-      DistributionMode distributionMode = copyOnWriteDistributionMode();
-      return SparkDistributionAndOrderingUtil.buildCopyOnWriteDistribution(
-          table, copyOnWriteCommand, distributionMode);
+      return writeConf.copyOnWriteRequirements(copyOnWriteCommand);
     } else {
-      DistributionMode distributionMode = writeConf.distributionMode();
-      return SparkDistributionAndOrderingUtil.buildRequiredDistribution(table, distributionMode);
+      return writeConf.writeRequirements();
     }
-  }
-
-  private DistributionMode copyOnWriteDistributionMode() {
-    switch (copyOnWriteCommand) {
-      case DELETE:
-        return writeConf.deleteDistributionMode();
-      case UPDATE:
-        return writeConf.updateDistributionMode();
-      case MERGE:
-        return writeConf.copyOnWriteMergeDistributionMode();
-      default:
-        throw new IllegalArgumentException("Unexpected command: " + copyOnWriteCommand);
-    }
-  }
-
-  private SortOrder[] buildRequiredOrdering(Distribution requiredDistribution) {
-    if (overwriteFiles) {
-      return SparkDistributionAndOrderingUtil.buildCopyOnWriteOrdering(
-          table, copyOnWriteCommand, requiredDistribution);
-    } else {
-      return SparkDistributionAndOrderingUtil.buildRequiredOrdering(table, requiredDistribution);
-    }
-  }
-
-  private boolean allIdentityTransforms(PartitionSpec spec) {
-    return spec.fields().stream().allMatch(field -> field.transform().isIdentity());
   }
 
   private static Schema validateOrMergeWriteSchema(
