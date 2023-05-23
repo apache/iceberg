@@ -31,6 +31,7 @@ site/site
 spark/v3.1/spark/benchmark/*
 spark/v3.2/spark/benchmark/*
 spark/v3.3/spark/benchmark/*
+spark/v3.3/spark-extensions/benchmark/*
 spark/v3.4/spark/benchmark/*
 spark/v3.4/spark-extensions/benchmark/*
 data/benchmark/*
