@@ -241,16 +241,16 @@ public class TestMetadataTableScansWithPartitionEvolution extends MetadataTableS
     // must contain the partition column even when the current spec is non-partitioned.
     Assertions.assertThat(partitionsTable.schema().findField("partition")).isNotNull();
 
-    try (CloseableIterable<ContentFile<?>> files =
-        PartitionsTable.planFiles((StaticTableScan) partitionsTable.newScan())) {
+    try (CloseableIterable<ManifestEntry<?>> entries =
+        PartitionsTable.planEntries((StaticTableScan) partitionsTable.newScan())) {
       // four partitioned data files and one non-partitioned data file.
-      Assertions.assertThat(files).hasSize(5);
+      Assertions.assertThat(entries).hasSize(5);
 
       // check for null partition value.
-      Assertions.assertThat(StreamSupport.stream(files.spliterator(), false))
+      Assertions.assertThat(StreamSupport.stream(entries.spliterator(), false))
           .anyMatch(
-              file -> {
-                StructLike partition = file.partition();
+              entry -> {
+                StructLike partition = entry.file().partition();
                 return Objects.equals(null, partition.get(0, Object.class));
               });
     }
