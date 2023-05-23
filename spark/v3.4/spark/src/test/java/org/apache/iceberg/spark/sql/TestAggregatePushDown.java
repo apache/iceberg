@@ -40,6 +40,7 @@ import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.execution.ExplainMode;
 import org.apache.spark.sql.functions;
+import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -564,14 +565,7 @@ public class TestAggregatePushDown extends SparkCatalogTestBase {
             .agg(functions.min("data"), functions.max("data"), functions.count("data"));
     String explain1 =
         dfWithAggPushdown1.queryExecution().explainString(ExplainMode.fromString("simple"));
-    boolean explainContainsPushDownAggregates1 = false;
-    if (explain1.contains("count(data)")
-        && explain1.contains("min(data)")
-        && explain1.contains("max(data)")) {
-      explainContainsPushDownAggregates1 = true;
-    }
-
-    Assert.assertTrue("aggregate pushed down", explainContainsPushDownAggregates1);
+    Assertions.assertThat(explain1).contains("LocalTableScan");
 
     Dataset<Row> dfWithoutAggPushdown1 =
         spark
@@ -584,14 +578,8 @@ public class TestAggregatePushDown extends SparkCatalogTestBase {
             .agg(functions.min("data"), functions.max("data"), functions.count("data"));
     String explain2 =
         dfWithoutAggPushdown1.queryExecution().explainString(ExplainMode.fromString("simple"));
-    explainContainsPushDownAggregates1 = false;
-    if (explain2.contains("count(data)")
-        || explain2.contains("min(data)")
-        || explain2.contains("max(data)")) {
-      explainContainsPushDownAggregates1 = true;
-    }
+    Assertions.assertThat(explain2).doesNotContain("LocalTableScan");
 
-    Assert.assertFalse("aggregate pushed down", explainContainsPushDownAggregates1);
     assertEquals(
         "Aggregate pushdown and non-aggregate pushdown should have the same results",
         rowsToJava(dfWithAggPushdown1.collectAsList()),
@@ -604,17 +592,9 @@ public class TestAggregatePushDown extends SparkCatalogTestBase {
             .option(SparkReadOptions.START_SNAPSHOT_ID, snapshotId1)
             .load(tableName)
             .agg(functions.min("data"), functions.max("data"), functions.count("data"));
-
     String explain3 =
         dfWithAggPushdown2.queryExecution().explainString(ExplainMode.fromString("simple"));
-    boolean explainContainsPushDownAggregates2 = false;
-    if (explain3.contains("count(data)")
-        && explain3.contains("min(data)")
-        && explain3.contains("max(data)")) {
-      explainContainsPushDownAggregates2 = true;
-    }
-
-    Assert.assertTrue("aggregate pushed down", explainContainsPushDownAggregates2);
+    Assertions.assertThat(explain3).contains("LocalTableScan");
 
     Dataset<Row> dfWithoutAggPushdown2 =
         spark
@@ -626,14 +606,8 @@ public class TestAggregatePushDown extends SparkCatalogTestBase {
             .agg(functions.min("data"), functions.max("data"), functions.count("data"));
     String explain4 =
         dfWithoutAggPushdown2.queryExecution().explainString(ExplainMode.fromString("simple"));
-    explainContainsPushDownAggregates2 = false;
-    if (explain4.contains("count(data)")
-        || explain4.contains("min(data)")
-        || explain4.contains("max(data)")) {
-      explainContainsPushDownAggregates2 = true;
-    }
+    Assertions.assertThat(explain4).doesNotContain("LocalTableScan");
 
-    Assert.assertFalse("aggregate pushed down", explainContainsPushDownAggregates2);
     assertEquals(
         "Aggregate pushdown and non-aggregate pushdown should have the same results ",
         rowsToJava(dfWithAggPushdown2.collectAsList()),
