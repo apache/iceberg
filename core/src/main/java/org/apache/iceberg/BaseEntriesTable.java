@@ -194,16 +194,21 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
         StructProjection structProjection,
         ManifestEntry<? extends ContentFile<?>> entry,
         Types.NestedField readableMetricsField) {
-      int projectionColumnCount = projection.columns().size();
+      StructProjection struct = structProjection.wrap((StructLike) entry);
+      int structSize = projection.columns().size();
+
+      MetricsUtil.ReadableMetricsStruct readableMetrics =
+          readableMetrics(entry.file(), readableMetricsField);
       int metricsPosition = projection.columns().indexOf(readableMetricsField);
 
-      StructProjection entryStruct = structProjection.wrap((StructLike) entry);
-      StructType projectedMetricType = readableMetricsField.type().asStructType();
-      MetricsUtil.ReadableMetricsStruct readableMetrics =
-          MetricsUtil.readableMetricsStruct(dataTableSchema, entry.file(), projectedMetricType);
-
       return new MetricsUtil.StructWithReadableMetrics(
-          entryStruct, readableMetrics, projectionColumnCount, metricsPosition);
+          struct, structSize, readableMetrics, metricsPosition);
+    }
+
+    private MetricsUtil.ReadableMetricsStruct readableMetrics(
+        ContentFile<?> file, Types.NestedField readableMetricsField) {
+      StructType projectedMetricType = readableMetricsField.type().asStructType();
+      return MetricsUtil.readableMetricsStruct(dataTableSchema, file, projectedMetricType);
     }
 
     @Override

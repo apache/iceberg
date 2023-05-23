@@ -191,14 +191,19 @@ abstract class BaseFilesTable extends BaseMetadataTable {
      */
     private StructLike withReadableMetrics(
         ContentFile<?> file, Types.NestedField readableMetricsField) {
-      int metricsPosition = projection.columns().indexOf(readableMetricsField);
-      int columnCount = projection.columns().size();
-
-      StructType projectedMetricType = readableMetricsField.type().asStructType();
+      int structSize = projection.columns().size();
       MetricsUtil.ReadableMetricsStruct readableMetrics =
-          MetricsUtil.readableMetricsStruct(dataTableSchema, file, projectedMetricType);
+          readableMetrics(file, readableMetricsField);
+      int metricsPosition = projection.columns().indexOf(readableMetricsField);
+
       return new MetricsUtil.StructWithReadableMetrics(
-          (StructLike) file, readableMetrics, columnCount, metricsPosition);
+          (StructLike) file, structSize, readableMetrics, metricsPosition);
+    }
+
+    private MetricsUtil.ReadableMetricsStruct readableMetrics(
+        ContentFile<?> file, Types.NestedField readableMetricsField) {
+      StructType projectedMetricType = readableMetricsField.type().asStructType();
+      return MetricsUtil.readableMetricsStruct(dataTableSchema, file, projectedMetricType);
     }
 
     /**
@@ -206,14 +211,14 @@ abstract class BaseFilesTable extends BaseMetadataTable {
      * ensuring that the underlying metrics used to create that column are part of the final
      * projection.
      *
-     * @param projectionSchema projection to transform
+     * @param requestedProjection requested projection
      * @param readableMetricsField readable_metrics field
      * @return actual projection to be used
      */
     private Schema projectionForReadableMetrics(
-        Schema projectionSchema, Types.NestedField readableMetricsField) {
+        Schema requestedProjection, Types.NestedField readableMetricsField) {
       Set<Integer> readableMetricsIds = TypeUtil.getProjectedIds(readableMetricsField.type());
-      Schema realProjection = TypeUtil.selectNot(projectionSchema, readableMetricsIds);
+      Schema realProjection = TypeUtil.selectNot(requestedProjection, readableMetricsIds);
 
       Schema requiredMetricsColumns =
           new Schema(

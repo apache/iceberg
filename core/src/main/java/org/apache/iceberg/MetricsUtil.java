@@ -367,20 +367,19 @@ public class MetricsUtil {
     /**
      * Constructs a struct with readable metrics column
      *
-     * @param structProjection struct on which to append 'readable_metrics' struct
+     * @param struct struct on which to append 'readable_metrics' struct
+     * @param structSize total number of struct columns, including 'readable_metrics' column
      * @param readableMetrics struct of 'readable_metrics'
-     * @param projectionColumnCount total number of projected columns, including 'readable_metrics'
-     *     column
      * @param metricsPosition position of 'readable_metrics' column
      */
     StructWithReadableMetrics(
-        StructLike structProjection,
+        StructLike struct,
+        int structSize,
         MetricsUtil.ReadableMetricsStruct readableMetrics,
-        int projectionColumnCount,
         int metricsPosition) {
-      this.struct = structProjection;
+      this.struct = struct;
       this.readableMetrics = readableMetrics;
-      this.projectionColumnCount = projectionColumnCount;
+      this.projectionColumnCount = structSize;
       this.metricsPosition = metricsPosition;
     }
 
