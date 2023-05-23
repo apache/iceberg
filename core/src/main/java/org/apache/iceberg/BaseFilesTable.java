@@ -49,8 +49,8 @@ abstract class BaseFilesTable extends BaseMetadataTable {
     StructType partitionType = Partitioning.partitionType(table());
     Schema schema = new Schema(DataFile.getType(partitionType).fields());
     if (partitionType.fields().size() < 1) {
-      // avoid returning an empty struct, which is not always supported. instead, drop the partition
-      // field
+      // avoid returning an empty struct, which is not always supported.
+      // instead, drop the partition field
       schema = TypeUtil.selectNot(schema, Sets.newHashSet(DataFile.PARTITION_ID));
     }
 
@@ -162,21 +162,10 @@ abstract class BaseFilesTable extends BaseMetadataTable {
       if (readableMetricsField == null) {
         return CloseableIterable.transform(files(projection), file -> (StructLike) file);
       } else {
-        // Remove virtual columns from the file projection and ensure that the underlying metrics
-        // used to create those columns are part of the file projection
-        Set<Integer> readableMetricsIds = TypeUtil.getProjectedIds(readableMetricsField.type());
-        Schema fileProjection = TypeUtil.selectNot(projection, readableMetricsIds);
-        int metricsPosition = projection.columns().indexOf(readableMetricsField);
 
-        Schema projectionForReadableMetrics =
-            new Schema(
-                MetricsUtil.READABLE_METRIC_COLS.stream()
-                    .map(MetricsUtil.ReadableMetricColDefinition::originalCol)
-                    .collect(Collectors.toList()));
-
-        Schema projectionForMetrics = TypeUtil.join(fileProjection, projectionForReadableMetrics);
+        Schema actualProjection = projectionForReadableMetrics(projection, readableMetricsField);
         return CloseableIterable.transform(
-            files(projectionForMetrics), f -> withReadableMetrics(f, metricsPosition));
+            files(actualProjection), f -> withReadableMetrics(f, readableMetricsField));
       }
     }
 
@@ -192,14 +181,51 @@ abstract class BaseFilesTable extends BaseMetadataTable {
       }
     }
 
-    private StructLike withReadableMetrics(ContentFile<?> file, int metricsPosition) {
-      int columnCount = projection.columns().size();
-      StructType projectedMetricType =
-          projection.findField(MetricsUtil.READABLE_METRICS).type().asStructType();
+    /**
+     * Given content file metadata, append a 'readable_metrics' column that return the file's
+     * metrics in human-readable form.
+     *
+     * @file content file metadata
+     * @param readableMetricsField projected "readable_metrics" field
+     * @return struct representing content file, with appended readable_metrics field
+     */
+    private StructLike withReadableMetrics(
+        ContentFile<?> file, Types.NestedField readableMetricsField) {
+      int structSize = projection.columns().size();
       MetricsUtil.ReadableMetricsStruct readableMetrics =
-          MetricsUtil.readableMetricsStruct(dataTableSchema, file, projectedMetricType);
-      return new ContentFileStructWithMetrics(
-          columnCount, metricsPosition, (StructLike) file, readableMetrics);
+          readableMetrics(file, readableMetricsField);
+      int metricsPosition = projection.columns().indexOf(readableMetricsField);
+
+      return new MetricsUtil.StructWithReadableMetrics(
+          (StructLike) file, structSize, readableMetrics, metricsPosition);
+    }
+
+    private MetricsUtil.ReadableMetricsStruct readableMetrics(
+        ContentFile<?> file, Types.NestedField readableMetricsField) {
+      StructType projectedMetricType = readableMetricsField.type().asStructType();
+      return MetricsUtil.readableMetricsStruct(dataTableSchema, file, projectedMetricType);
+    }
+
+    /**
+     * Create a projection on content files metadata by removing virtual 'readable_column' and
+     * ensuring that the underlying metrics used to create that column are part of the final
+     * projection.
+     *
+     * @param requestedProjection requested projection
+     * @param readableMetricsField readable_metrics field
+     * @return actual projection to be used
+     */
+    private Schema projectionForReadableMetrics(
+        Schema requestedProjection, Types.NestedField readableMetricsField) {
+      Set<Integer> readableMetricsIds = TypeUtil.getProjectedIds(readableMetricsField.type());
+      Schema realProjection = TypeUtil.selectNot(requestedProjection, readableMetricsIds);
+
+      Schema requiredMetricsColumns =
+          new Schema(
+              MetricsUtil.READABLE_METRIC_COLS.stream()
+                  .map(MetricsUtil.ReadableMetricColDefinition::originalCol)
+                  .collect(Collectors.toList()));
+      return TypeUtil.join(realProjection, requiredMetricsColumns);
     }
 
     @Override
@@ -210,48 +236,6 @@ abstract class BaseFilesTable extends BaseMetadataTable {
     @VisibleForTesting
     ManifestFile manifest() {
       return manifest;
-    }
-  }
-
-  static class ContentFileStructWithMetrics implements StructLike {
-    private final StructLike fileAsStruct;
-    private final MetricsUtil.ReadableMetricsStruct readableMetrics;
-    private final int columnCount;
-    private final int metricsPosition;
-
-    ContentFileStructWithMetrics(
-        int columnCount,
-        int metricsPosition,
-        StructLike fileAsStruct,
-        MetricsUtil.ReadableMetricsStruct readableMetrics) {
-      this.fileAsStruct = fileAsStruct;
-      this.readableMetrics = readableMetrics;
-      this.columnCount = columnCount;
-      this.metricsPosition = metricsPosition;
-    }
-
-    @Override
-    public int size() {
-      return columnCount;
-    }
-
-    @Override
-    public <T> T get(int pos, Class<T> javaClass) {
-      if (pos < metricsPosition) {
-        return fileAsStruct.get(pos, javaClass);
-      } else if (pos == metricsPosition) {
-        return javaClass.cast(readableMetrics);
-      } else {
-        // columnCount = fileAsStruct column count + the readable metrics field.
-        // When pos is greater than metricsPosition, the actual position of the field in
-        // fileAsStruct should be subtracted by 1.
-        return fileAsStruct.get(pos - 1, javaClass);
-      }
-    }
-
-    @Override
-    public <T> void set(int pos, T value) {
-      throw new UnsupportedOperationException("ContentFileStructWithMetrics is read only");
     }
   }
 }
