@@ -84,7 +84,6 @@ object RewriteMergeIntoTable extends RewriteRowLevelIcebergCommand with Predicat
 
   private final val ROW_FROM_SOURCE_REF = FieldReference(ROW_FROM_SOURCE)
   private final val ROW_FROM_TARGET_REF = FieldReference(ROW_FROM_TARGET)
-  private final val ROW_ID_REF = FieldReference(ROW_ID)
 
   override def apply(plan: LogicalPlan): LogicalPlan = plan resolveOperators {
     case m @ MergeIntoIcebergTable(aliasedTable, source, cond, matchedActions, notMatchedActions, None)
@@ -139,7 +138,6 @@ object RewriteMergeIntoTable extends RewriteRowLevelIcebergCommand with Predicat
             notMatchedConditions = notMatchedConditions,
             notMatchedOutputs = notMatchedOutputs,
             targetOutput = Nil,
-            rowIdAttrs = Nil,
             performCardinalityCheck = false,
             emitNotMatchedTargetRows = false,
             output = buildMergeRowsOutput(Nil, notMatchedOutputs, r.output),
@@ -187,11 +185,17 @@ object RewriteMergeIntoTable extends RewriteRowLevelIcebergCommand with Predicat
     val readRelation = buildRelationWithAttrs(relation, operationTable, metadataAttrs)
     val readAttrs = readRelation.output
 
+    val performCardinalityCheck = isCardinalityCheckNeeded(matchedActions)
+
     // project an extra column to check if a target row exists after the join
-    // project a synthetic row ID to perform the cardinality check
+    // if needed, project a synthetic row ID to perform the cardinality check
     val rowFromTarget = Alias(TrueLiteral, ROW_FROM_TARGET)()
-    val rowId = Alias(MonotonicallyIncreasingID(), ROW_ID)()
-    val targetTableProjExprs = readAttrs ++ Seq(rowFromTarget, rowId)
+    val targetTableProjExprs = if (performCardinalityCheck) {
+      val rowId = Alias(MonotonicallyIncreasingID(), ROW_ID)()
+      readAttrs ++ Seq(rowFromTarget, rowId)
+    } else {
+      readAttrs :+ rowFromTarget
+    }
     val targetTableProj = Project(targetTableProjExprs, readRelation)
 
     // project an extra column to check if a source row exists after the join
@@ -214,7 +218,6 @@ object RewriteMergeIntoTable extends RewriteRowLevelIcebergCommand with Predicat
     val notMatchedConditions = notMatchedActions.map(actionCondition)
     val notMatchedOutputs = notMatchedActions.map(actionOutput(_, metadataAttrs))
 
-    val rowIdAttr = resolveAttrRef(ROW_ID_REF, joinPlan)
     val rowFromSourceAttr = resolveAttrRef(ROW_FROM_SOURCE_REF, joinPlan)
     val rowFromTargetAttr = resolveAttrRef(ROW_FROM_TARGET_REF, joinPlan)
 
@@ -226,8 +229,7 @@ object RewriteMergeIntoTable extends RewriteRowLevelIcebergCommand with Predicat
       notMatchedConditions = notMatchedConditions,
       notMatchedOutputs = notMatchedOutputs,
       targetOutput = readAttrs,
-      rowIdAttrs = Seq(rowIdAttr),
-      performCardinalityCheck = isCardinalityCheckNeeded(matchedActions),
+      performCardinalityCheck = performCardinalityCheck,
       emitNotMatchedTargetRows = true,
       output = buildMergeRowsOutput(matchedOutputs, notMatchedOutputs, readAttrs),
       joinPlan)
@@ -257,8 +259,17 @@ object RewriteMergeIntoTable extends RewriteRowLevelIcebergCommand with Predicat
 
     val (targetCond, joinCond) = splitMergeCond(cond, readRelation)
 
+    val performCardinalityCheck = isCardinalityCheckNeeded(matchedActions)
+
     // project an extra column to check if a target row exists after the join
-    val targetTableProjExprs = readAttrs :+ Alias(TrueLiteral, ROW_FROM_TARGET)()
+    // if needed, project a synthetic row ID to perform the cardinality check
+    val rowFromTarget = Alias(TrueLiteral, ROW_FROM_TARGET)()
+    val targetTableProjExprs = if (performCardinalityCheck) {
+      val rowId = Alias(MonotonicallyIncreasingID(), ROW_ID)()
+      readAttrs ++ Seq(rowFromTarget, rowId)
+    } else {
+      readAttrs :+ rowFromTarget
+    }
     val targetTableProj = Project(targetTableProjExprs, Filter(targetCond, readRelation))
 
     // project an extra column to check if a source row exists after the join
@@ -297,8 +308,7 @@ object RewriteMergeIntoTable extends RewriteRowLevelIcebergCommand with Predicat
       notMatchedOutputs = notMatchedOutputs,
       // only needed if emitting unmatched target rows
       targetOutput = Nil,
-      rowIdAttrs = rowIdAttrs,
-      performCardinalityCheck = isCardinalityCheckNeeded(matchedActions),
+      performCardinalityCheck = performCardinalityCheck,
       emitNotMatchedTargetRows = false,
       output = mergeRowsOutput,
       joinPlan)
