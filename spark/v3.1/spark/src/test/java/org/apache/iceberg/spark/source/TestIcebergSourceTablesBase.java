@@ -1232,7 +1232,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
         Types.StructType.of(
             required(
                 9,
-                "last_updated_at",
+                "last_updated",
                 Types.TimestampType.withZone(),
                 "Partition last updated timestamp"),
             required(
@@ -1274,7 +1274,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
         new GenericRecordBuilder(AvroSchemaUtil.convert(partitionsTable.schema(), "partitions"));
     GenericData.Record expectedRow =
         builder
-            .set("last_updated_at", table.currentSnapshot().timestampMillis() * 1000)
+            .set("last_updated", table.currentSnapshot().timestampMillis() * 1000)
             .set("last_updated_snapshot_id", table.currentSnapshot().snapshotId())
             .set("record_count", 1L)
             .set("file_count", 1)
@@ -1349,7 +1349,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
             .set("equality_delete_record_count", 0L)
             .set("equality_delete_file_count", 0)
             .set("spec_id", 0)
-            .set("last_updated_at", table.snapshot(firstCommitId).timestampMillis() * 1000)
+            .set("last_updated", table.snapshot(firstCommitId).timestampMillis() * 1000)
             .set("last_updated_snapshot_id", firstCommitId)
             .build());
     expected.add(
@@ -1362,7 +1362,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
             .set("equality_delete_record_count", 0L)
             .set("equality_delete_file_count", 0)
             .set("spec_id", 0)
-            .set("last_updated_at", table.snapshot(secondCommitId).timestampMillis() * 1000)
+            .set("last_updated", table.snapshot(secondCommitId).timestampMillis() * 1000)
             .set("last_updated_snapshot_id", secondCommitId)
             .build());
 

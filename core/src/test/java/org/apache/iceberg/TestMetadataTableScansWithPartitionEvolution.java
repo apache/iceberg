@@ -154,7 +154,7 @@ public class TestMetadataTableScansWithPartitionEvolution extends MetadataTableS
 
     TableScan scanNoFilter = partitionsTable.newScan().select("partition");
     Assert.assertEquals(idPartition, scanNoFilter.schema().asStruct());
-    CloseableIterable<ManifestEntry<? extends ContentFile<?>>> entries =
+    CloseableIterable<ManifestEntry<?>> entries =
         PartitionsTable.planEntries((StaticTableScan) scanNoFilter);
     Assert.assertEquals(4, Iterators.size(entries.iterator()));
     validatePartition(entries, 0, 0);

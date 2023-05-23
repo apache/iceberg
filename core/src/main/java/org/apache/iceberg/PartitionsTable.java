@@ -51,7 +51,7 @@ public class PartitionsTable extends BaseMetadataTable {
             Types.NestedField.required(4, "spec_id", Types.IntegerType.get()),
             Types.NestedField.required(
                 9,
-                "last_updated_at",
+                "last_updated",
                 Types.TimestampType.withZone(),
                 "Partition last updated timestamp"),
             Types.NestedField.required(
@@ -95,7 +95,7 @@ public class PartitionsTable extends BaseMetadataTable {
   public Schema schema() {
     if (unpartitionedTable) {
       return schema.select(
-          "last_updated_at",
+          "last_updated",
           "last_updated_snapshot_id",
           "record_count",
           "file_count",
@@ -175,28 +175,30 @@ public class PartitionsTable extends BaseMetadataTable {
   }
 
   @VisibleForTesting
-  static CloseableIterable<ManifestEntry<? extends ContentFile<?>>> planEntries(
-      StaticTableScan scan) {
+  static CloseableIterable<ManifestEntry<?>> planEntries(StaticTableScan scan) {
     Table table = scan.table();
 
     CloseableIterable<ManifestFile> filteredManifests =
         filteredManifests(scan, table, scan.snapshot().allManifests(table.io()));
 
-    Iterable<CloseableIterable<ManifestEntry<? extends ContentFile<?>>>> tasks =
-        CloseableIterable.transform(
-            filteredManifests,
-            manifest ->
-                CloseableIterable.transform(
-                    ManifestFiles.open(manifest, table.io(), table.specs())
-                        .caseSensitive(scan.isCaseSensitive())
-                        .select(scanColumns(manifest.content())) // don't select stats columns
-                        .entries(),
-                    t ->
-                        (ManifestEntry<? extends ContentFile<?>>)
-                            // defensive copy of manifest entry without stats columns
-                            t.copyWithoutStats()));
+    Iterable<CloseableIterable<ManifestEntry<?>>> tasks =
+        CloseableIterable.transform(filteredManifests, manifest -> readEntries(manifest, scan));
 
     return new ParallelIterable<>(tasks, scan.planExecutor());
+  }
+
+  private static CloseableIterable<ManifestEntry<?>> readEntries(
+      ManifestFile manifest, StaticTableScan scan) {
+    Table table = scan.table();
+    return CloseableIterable.transform(
+        ManifestFiles.open(manifest, table.io(), table.specs())
+            .caseSensitive(scan.isCaseSensitive())
+            .select(scanColumns(manifest.content())) // don't select stats columns
+            .entries(),
+        t ->
+            (ManifestEntry<? extends ContentFile<?>>)
+                // defensive copy of manifest entry without stats columns
+                t.copyWithoutStats());
   }
 
   private static List<String> scanColumns(ManifestContent content) {
@@ -288,8 +290,9 @@ public class PartitionsTable extends BaseMetadataTable {
     }
 
     void update(ContentFile<?> file, Snapshot snapshot) {
-      if (snapshot.timestampMillis() * 1000 > this.lastUpdatedAt) {
-        this.lastUpdatedAt = snapshot.timestampMillis() * 1000;
+      long snapshotCommitTime = snapshot == null ? 0 : snapshot.timestampMillis() * 1000;
+      if (snapshotCommitTime > this.lastUpdatedAt) {
+        this.lastUpdatedAt = snapshotCommitTime;
         this.lastUpdatedSnapshotId = snapshot.snapshotId();
       }
       switch (file.content()) {

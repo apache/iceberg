@@ -317,7 +317,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     TableScan scanNoFilter = partitionsTable.newScan().select("partition.data_bucket");
     Assert.assertEquals(expected, scanNoFilter.schema().asStruct());
 
-    CloseableIterable<ManifestEntry<? extends ContentFile<?>>> entries =
+    CloseableIterable<ManifestEntry<?>> entries =
         PartitionsTable.planEntries((StaticTableScan) scanNoFilter);
     if (formatVersion == 2) {
       Assert.assertEquals(8, Iterators.size(entries.iterator()));
@@ -342,7 +342,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
 
     TableScan scanWithProjection = partitionsTable.newScan().select("file_count");
     Assert.assertEquals(expected, scanWithProjection.schema().asStruct());
-    CloseableIterable<ManifestEntry<? extends ContentFile<?>>> entries =
+    CloseableIterable<ManifestEntry<?>> entries =
         PartitionsTable.planEntries((StaticTableScan) scanWithProjection);
     if (formatVersion == 2) {
       Assert.assertEquals(8, Iterators.size(entries.iterator()));
@@ -361,7 +361,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     table.newFastAppend().appendFile(FILE_WITH_STATS).commit();
 
     Table partitionsTable = new PartitionsTable(table);
-    CloseableIterable<ManifestEntry<? extends ContentFile<?>>> tasksAndEq =
+    CloseableIterable<ManifestEntry<?>> tasksAndEq =
         PartitionsTable.planEntries((StaticTableScan) partitionsTable.newScan());
     for (ManifestEntry<? extends ContentFile<?>> task : tasksAndEq) {
       Assert.assertNull(task.file().columnSizes());
@@ -384,7 +384,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
             Expressions.equal("partition.data_bucket", 0),
             Expressions.greaterThan("record_count", 0));
     TableScan scanAndEq = partitionsTable.newScan().filter(andEquals);
-    CloseableIterable<ManifestEntry<? extends ContentFile<?>>> entries =
+    CloseableIterable<ManifestEntry<?>> entries =
         PartitionsTable.planEntries((StaticTableScan) scanAndEq);
     if (formatVersion == 2) {
       Assert.assertEquals(2, Iterators.size(entries.iterator()));
@@ -406,7 +406,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
             Expressions.lessThan("partition.data_bucket", 2),
             Expressions.greaterThan("record_count", 0));
     TableScan scanLtAnd = partitionsTable.newScan().filter(ltAnd);
-    CloseableIterable<ManifestEntry<? extends ContentFile<?>>> entries =
+    CloseableIterable<ManifestEntry<?>> entries =
         PartitionsTable.planEntries((StaticTableScan) scanLtAnd);
     if (formatVersion == 2) {
       Assert.assertEquals(4, Iterators.size(entries.iterator()));
@@ -430,7 +430,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
             Expressions.greaterThan("record_count", 0));
     TableScan scanOr = partitionsTable.newScan().filter(or);
 
-    CloseableIterable<ManifestEntry<? extends ContentFile<?>>> entries =
+    CloseableIterable<ManifestEntry<?>> entries =
         PartitionsTable.planEntries((StaticTableScan) scanOr);
     if (formatVersion == 2) {
       Assert.assertEquals(8, Iterators.size(entries.iterator()));
@@ -451,7 +451,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
 
     Expression not = Expressions.not(Expressions.lessThan("partition.data_bucket", 2));
     TableScan scanNot = partitionsTable.newScan().filter(not);
-    CloseableIterable<ManifestEntry<? extends ContentFile<?>>> entries =
+    CloseableIterable<ManifestEntry<?>> entries =
         PartitionsTable.planEntries((StaticTableScan) scanNot);
     if (formatVersion == 2) {
       Assert.assertEquals(4, Iterators.size(entries.iterator()));
@@ -471,7 +471,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
 
     Expression set = Expressions.in("partition.data_bucket", 2, 3);
     TableScan scanSet = partitionsTable.newScan().filter(set);
-    CloseableIterable<ManifestEntry<? extends ContentFile<?>>> entries =
+    CloseableIterable<ManifestEntry<?>> entries =
         PartitionsTable.planEntries((StaticTableScan) scanSet);
     if (formatVersion == 2) {
       Assert.assertEquals(4, Iterators.size(entries.iterator()));
@@ -491,7 +491,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
 
     Expression unary = Expressions.notNull("partition.data_bucket");
     TableScan scanUnary = partitionsTable.newScan().filter(unary);
-    CloseableIterable<ManifestEntry<? extends ContentFile<?>>> entries =
+    CloseableIterable<ManifestEntry<?>> entries =
         PartitionsTable.planEntries((StaticTableScan) scanUnary);
     if (formatVersion == 2) {
       Assert.assertEquals(8, Iterators.size(entries.iterator()));
@@ -792,7 +792,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
         Expressions.and(
             Expressions.equal("partition.id", 10), Expressions.greaterThan("record_count", 0));
     TableScan scan = metadataTable.newScan().filter(filter);
-    CloseableIterable<ManifestEntry<? extends ContentFile<?>>> entries =
+    CloseableIterable<ManifestEntry<?>> entries =
         PartitionsTable.planEntries((StaticTableScan) scan);
     if (formatVersion == 2) {
       // Four data files and delete files of old spec, one new data file of new spec
@@ -857,7 +857,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
         Expressions.and(
             Expressions.equal("partition.id", 10), Expressions.greaterThan("record_count", 0));
     TableScan scan = metadataTable.newScan().filter(filter);
-    CloseableIterable<ManifestEntry<? extends ContentFile<?>>> entries =
+    CloseableIterable<ManifestEntry<?>> entries =
         PartitionsTable.planEntries((StaticTableScan) scan);
 
     if (formatVersion == 2) {
@@ -945,7 +945,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
             Expressions.equal("partition.partition", 0),
             Expressions.greaterThan("record_count", 0));
     TableScan scanAndEq = partitionsTable.newScan().filter(andEquals);
-    CloseableIterable<ManifestEntry<? extends ContentFile<?>>> entries =
+    CloseableIterable<ManifestEntry<?>> entries =
         PartitionsTable.planEntries((StaticTableScan) scanAndEq);
     Assert.assertEquals(1, Iterators.size(entries.iterator()));
     validateSingleFieldPartition(entries, 0);
@@ -1016,7 +1016,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
                           true); // daemon threads will be terminated abruptly when the JVM exits
                       return thread;
                     }));
-    CloseableIterable<ManifestEntry<? extends ContentFile<?>>> entries =
+    CloseableIterable<ManifestEntry<?>> entries =
         PartitionsTable.planEntries((StaticTableScan) scan);
     if (formatVersion == 2) {
       Assert.assertEquals(8, Iterators.size(entries.iterator()));
