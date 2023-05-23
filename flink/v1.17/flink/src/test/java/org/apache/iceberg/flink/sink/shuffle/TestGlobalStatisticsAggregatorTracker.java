@@ -46,10 +46,6 @@ public class TestGlobalStatisticsAggregatorTracker {
 
   @Before
   public void before() throws Exception {
-    TypeSerializer<DataStatistics<MapDataStatistics, Map<RowData, Long>>> statisticsSerializer =
-        MapDataStatisticsSerializer.fromKeySerializer(
-            new RowDataSerializer(RowType.of(new VarCharType())));
-
     globalStatisticsAggregatorTracker =
         new GlobalStatisticsAggregatorTracker<>(statisticsSerializer, NUM_SUBTASKS);
   }

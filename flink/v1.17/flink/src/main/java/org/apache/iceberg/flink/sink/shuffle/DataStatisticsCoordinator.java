@@ -148,8 +148,7 @@ class DataStatisticsCoordinator<D extends DataStatistics<D, S>, S> implements Op
             runnable));
   }
 
-  private void runInCoordinatorThread(
-      ThrowingRunnable<Throwable> action, String actionName, Object... actionNameFormatParameters) {
+  private void runInCoordinatorThread(ThrowingRunnable<Throwable> action, String actionString) {
     ensureStarted();
     runInCoordinatorThread(
         () -> {
@@ -157,7 +156,6 @@ class DataStatisticsCoordinator<D extends DataStatistics<D, S>, S> implements Op
             action.run();
           } catch (Throwable t) {
             ExceptionUtils.rethrowIfFatalErrorOrOOM(t);
-            String actionString = String.format(actionName, actionNameFormatParameters);
             LOG.error(
                 "Uncaught exception in the data statistics {} while {}. Triggering job failover.",
                 operatorName,
@@ -194,7 +192,6 @@ class DataStatisticsCoordinator<D extends DataStatistics<D, S>, S> implements Op
               new DataStatisticsEvent<>(checkpointId, globalDataStatistics, statisticsSerializer);
           int parallelism = parallelism();
           for (int i = 0; i < parallelism; ++i) {
-            System.out.println("dataStatisticsEvent " + dataStatisticsEvent);
             subtaskGateways.getOnlyGatewayAndCheckReady(i).sendEvent(dataStatisticsEvent);
           }
           return null;
@@ -216,10 +213,9 @@ class DataStatisticsCoordinator<D extends DataStatistics<D, S>, S> implements Op
           Preconditions.checkArgument(event instanceof DataStatisticsEvent);
           handleDataStatisticRequest(subtask, ((DataStatisticsEvent<D, S>) event));
         },
-        "handling operator event %s from subtask %d (#%d)",
-        event.getClass(),
-        subtask,
-        attemptNumber);
+        String.format(
+            "handling operator event %s from subtask %d (#%d)",
+            event.getClass(), subtask, attemptNumber));
   }
 
   @Override
@@ -233,8 +229,7 @@ class DataStatisticsCoordinator<D extends DataStatistics<D, S>, S> implements Op
           resultFuture.complete(
               globalStatisticsAggregatorTracker.serializeLastCompletedAggregator());
         },
-        "taking checkpoint %d",
-        checkpointId);
+        String.format("taking checkpoint %d", checkpointId));
   }
 
   @Override
@@ -271,9 +266,7 @@ class DataStatisticsCoordinator<D extends DataStatistics<D, S>, S> implements Op
               this.coordinatorThreadFactory.isCurrentThreadCoordinatorThread());
           subtaskGateways.reset(subtask);
         },
-        "handling subtask %d recovery to checkpoint %d",
-        subtask,
-        checkpointId);
+        String.format("handling subtask %d recovery to checkpoint %d", subtask, checkpointId));
   }
 
   @Override
@@ -289,9 +282,7 @@ class DataStatisticsCoordinator<D extends DataStatistics<D, S>, S> implements Op
               this.coordinatorThreadFactory.isCurrentThreadCoordinatorThread());
           subtaskGateways.unregisterSubtaskGateway(subtask, attemptNumber);
         },
-        "handling subtask %d (#%d) failure",
-        subtask,
-        attemptNumber);
+        String.format("handling subtask %d (#%d) failure", subtask, attemptNumber));
   }
 
   @Override
@@ -304,9 +295,8 @@ class DataStatisticsCoordinator<D extends DataStatistics<D, S>, S> implements Op
               this.coordinatorThreadFactory.isCurrentThreadCoordinatorThread());
           subtaskGateways.registerSubtaskGateway(gateway);
         },
-        "making event gateway to subtask %d (#%d) available",
-        subtask,
-        attemptNumber);
+        String.format(
+            "making event gateway to subtask %d (#%d) available", subtask, attemptNumber));
   }
 
   @VisibleForTesting
