@@ -88,8 +88,8 @@ abstract class BaseDeltaTaskWriter extends BaseTaskWriter<RowData> {
 
       case UPDATE_BEFORE:
         if (upsert) {
-          break; // UPDATE_BEFORE is not necessary for UPSERT, we do nothing to prevent delete one
-          // row twice
+          writer.deleteKey(keyProjection.wrap(row));
+          break; // UPDATE_BEFORE is also necessary for UPSERT, when there have not UPDATE_AFTER
         }
         writer.delete(row);
         break;
