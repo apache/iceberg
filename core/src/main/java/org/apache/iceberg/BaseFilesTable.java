@@ -185,7 +185,7 @@ abstract class BaseFilesTable extends BaseMetadataTable {
      * Given content file metadata, append a 'readable_metrics' column that return the file's
      * metrics in human-readable form.
      *
-     * @file content file metadata
+     * @param file content file metadata
      * @param readableMetricsField projected "readable_metrics" field
      * @return struct representing content file, with appended readable_metrics field
      */
