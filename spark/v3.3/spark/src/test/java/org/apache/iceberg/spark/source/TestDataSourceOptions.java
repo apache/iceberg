@@ -299,7 +299,10 @@ public class TestDataSourceOptions extends SparkTestBaseWithCatalog {
             .option("start-snapshot-id", snapshotIds.get(3).toString())
             .load(tableLocation);
     List<SimpleRecord> result1 =
-        unboundedIncrementalResult.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
+        unboundedIncrementalResult
+            .orderBy("id")
+            .as(Encoders.bean(SimpleRecord.class))
+            .collectAsList();
     Assert.assertEquals("Records should match", expectedRecords.subList(1, 4), result1);
     Assert.assertEquals(
         "Unprocessed count should match record count", 3, unboundedIncrementalResult.count());
