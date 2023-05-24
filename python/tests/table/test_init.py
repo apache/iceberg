@@ -317,3 +317,61 @@ def test_match_deletes_to_datafile() -> None:
     ) == {
         delete_entry_2.data_file,
     }
+
+
+def test_match_deletes_to_datafile_duplicate_number() -> None:
+    data_entry = ManifestEntry(
+        status=ManifestEntryStatus.ADDED,
+        sequence_number=1,
+        data_file=DataFile(
+            content=DataFileContent.DATA,
+            file_path="s3://bucket/0000.parquet",
+            file_format=FileFormat.PARQUET,
+            partition={},
+            record_count=3,
+            file_size_in_bytes=3,
+        ),
+    )
+    delete_entry_1 = ManifestEntry(
+        status=ManifestEntryStatus.ADDED,
+        sequence_number=3,
+        data_file=DataFile(
+            content=DataFileContent.POSITION_DELETES,
+            file_path="s3://bucket/0001-delete.parquet",
+            file_format=FileFormat.PARQUET,
+            partition={},
+            record_count=3,
+            file_size_in_bytes=3,
+            # We don't really care about the tests here
+            value_counts={},
+            null_value_counts={},
+            nan_value_counts={},
+            lower_bounds={},
+            upper_bounds={},
+        ),
+    )
+    delete_entry_2 = ManifestEntry(
+        status=ManifestEntryStatus.ADDED,
+        sequence_number=3,
+        data_file=DataFile(
+            content=DataFileContent.POSITION_DELETES,
+            file_path="s3://bucket/0002-delete.parquet",
+            file_format=FileFormat.PARQUET,
+            partition={},
+            record_count=3,
+            file_size_in_bytes=3,
+            # We don't really care about the tests here
+            value_counts={},
+            null_value_counts={},
+            nan_value_counts={},
+            lower_bounds={},
+            upper_bounds={},
+        ),
+    )
+    assert _match_deletes_to_datafile(
+        data_entry,
+        SortedList(iterable=[delete_entry_1, delete_entry_2], key=lambda entry: entry.sequence_number or INITIAL_SEQUENCE_NUMBER),
+    ) == {
+        delete_entry_1.data_file,
+        delete_entry_2.data_file,
+    }

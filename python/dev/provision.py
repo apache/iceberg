@@ -46,7 +46,7 @@ spark.sql(
     """
   CREATE OR REPLACE TABLE default.test_null_nan_rewritten
   USING iceberg
-  AS SELECT * FROM test_null_nan
+  AS SELECT * FROM default.test_null_nan
 """
 )
 
@@ -81,6 +81,7 @@ USING iceberg
 spark.sql(
     """
 CREATE OR REPLACE TABLE default.test_positional_mor_deletes (
+    dt     date,
     number integer,
     letter string
 )
@@ -94,22 +95,31 @@ TBLPROPERTIES (
 """
 )
 
+# Partitioning is not really needed, but there is a bug:
+# https://github.com/apache/iceberg/pull/7685
+spark.sql(
+    """
+    ALTER TABLE default.test_positional_mor_deletes ADD PARTITION FIELD years(dt) AS dt_years
+"""
+)
+
+
 spark.sql(
     """
 INSERT INTO default.test_positional_mor_deletes
 VALUES
-    (1, 'a'),
-    (2, 'b'),
-    (3, 'c'),
-    (4, 'd'),
-    (5, 'e'),
-    (6, 'f'),
-    (7, 'g'),
-    (8, 'h'),
-    (9, 'i'),
-    (10, 'j'),
-    (11, 'k'),
-    (12, 'l');
+    (CAST('2023-03-01' AS date), 1, 'a'),
+    (CAST('2023-03-02' AS date), 2, 'b'),
+    (CAST('2023-03-03' AS date), 3, 'c'),
+    (CAST('2023-03-04' AS date), 4, 'd'),
+    (CAST('2023-03-05' AS date), 5, 'e'),
+    (CAST('2023-03-06' AS date), 6, 'f'),
+    (CAST('2023-03-07' AS date), 7, 'g'),
+    (CAST('2023-03-08' AS date), 8, 'h'),
+    (CAST('2023-03-09' AS date), 9, 'i'),
+    (CAST('2023-03-10' AS date), 10, 'j'),
+    (CAST('2023-03-11' AS date), 11, 'k'),
+    (CAST('2023-03-12' AS date), 12, 'l');
 """
 )
 
@@ -122,7 +132,8 @@ DELETE FROM default.test_positional_mor_deletes WHERE number = 9
 
 spark.sql(
     """
-  CREATE OR REPLACE TABLE test_positional_mor_double_deletes (
+  CREATE OR REPLACE TABLE default.test_positional_mor_double_deletes (
+    dt     date,
     number integer,
     letter string
   )
@@ -136,36 +147,46 @@ spark.sql(
 """
 )
 
-spark.sql(
-    """
-INSERT INTO test_positional_mor_double_deletes
-VALUES (
-    (1, 'a'),
-    (2, 'b'),
-    (3, 'c'),
-    (4, 'd'),
-    (5, 'e'),
-    (6, 'f'),
-    (7, 'g'),
-    (8, 'h'),
-    (9, 'i'),
-    (10, 'j'),
-    (11, 'k'),
-    (12, 'l')
-)
-"""
-)
 
+
+# Partitioning is not really needed, but there is a bug:
+# https://github.com/apache/iceberg/pull/7685
 spark.sql(
     """
-    DELETE FROM test_positional_mor_double_deletes WHERE number = 9
+    ALTER TABLE default.test_positional_mor_double_deletes ADD PARTITION FIELD years(dt) AS dt_years
 """
 )
 
 
 spark.sql(
     """
-    DELETE FROM test_positional_mor_double_deletes WHERE letter == 'f'
+INSERT INTO default.test_positional_mor_double_deletes
+VALUES
+    (CAST('2023-03-01' AS date), 1, 'a'),
+    (CAST('2023-03-02' AS date), 2, 'b'),
+    (CAST('2023-03-03' AS date), 3, 'c'),
+    (CAST('2023-03-04' AS date), 4, 'd'),
+    (CAST('2023-03-05' AS date), 5, 'e'),
+    (CAST('2023-03-06' AS date), 6, 'f'),
+    (CAST('2023-03-07' AS date), 7, 'g'),
+    (CAST('2023-03-08' AS date), 8, 'h'),
+    (CAST('2023-03-09' AS date), 9, 'i'),
+    (CAST('2023-03-10' AS date), 10, 'j'),
+    (CAST('2023-03-11' AS date), 11, 'k'),
+    (CAST('2023-03-12' AS date), 12, 'l');
+"""
+)
+
+spark.sql(
+    """
+    DELETE FROM default.test_positional_mor_double_deletes WHERE number = 9
+"""
+)
+
+
+spark.sql(
+    """
+    DELETE FROM default.test_positional_mor_double_deletes WHERE letter == 'f'
 """
 )
 

@@ -231,7 +231,7 @@ def test_pyarrow_deletes_double(test_positional_mor_double_deletes: Table) -> No
     #  (11, 'k'),
     #  (12, 'l')
     arrow_table = test_positional_mor_double_deletes.scan().to_arrow()
-    assert arrow_table["number"] == pa.array([1, 2, 3, 4, 5, 7, 8, 10, 11, 12])
+    assert arrow_table["number"].to_pylist() == [1, 2, 3, 4, 5, 7, 8, 10, 11, 12]
 
     # Checking the filter
     arrow_table = test_positional_mor_double_deletes.scan(
