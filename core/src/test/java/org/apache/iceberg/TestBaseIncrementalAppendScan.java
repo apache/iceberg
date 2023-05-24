@@ -19,6 +19,7 @@
 package org.apache.iceberg;
 
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -48,6 +49,10 @@ public class TestBaseIncrementalAppendScan
     IncrementalAppendScan scanWithToSnapshot =
         newScan().fromSnapshotInclusive(snapshotAId).toSnapshot(snapshotCId);
     Assert.assertEquals(3, Iterables.size(scanWithToSnapshot.planFiles()));
+
+    IncrementalAppendScan scanWithSameSnapshotId =
+        newScan().fromSnapshotInclusive(snapshotAId).toSnapshot(snapshotAId);
+    Assert.assertEquals(1, Iterables.size(scanWithSameSnapshotId.planFiles()));
   }
 
   @Test
@@ -65,6 +70,11 @@ public class TestBaseIncrementalAppendScan
     IncrementalAppendScan scanWithToSnapshot =
         newScan().fromSnapshotExclusive(snapshotAId).toSnapshot(snapshotBId);
     Assert.assertEquals(1, Iterables.size(scanWithToSnapshot.planFiles()));
+
+    Assert.assertTrue(
+        Lists.newArrayList(
+                newScan().fromSnapshotExclusive(snapshotAId).toSnapshot(snapshotAId).planFiles())
+            .isEmpty());
   }
 
   @Test

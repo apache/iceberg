@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg;
 
+import java.util.Objects;
 import org.apache.iceberg.events.IncrementalScanEvent;
 import org.apache.iceberg.events.Listeners;
 import org.apache.iceberg.io.CloseableIterable;
@@ -70,6 +71,10 @@ abstract class BaseIncrementalScan<ThisT, T extends ScanTask, G extends ScanTask
 
     long toSnapshotIdInclusive = toSnapshotIdInclusive();
     Long fromSnapshotIdExclusive = fromSnapshotIdExclusive(toSnapshotIdInclusive);
+
+    if (Objects.equals(fromSnapshotIdExclusive, toSnapshotIdInclusive)) {
+      return CloseableIterable.empty();
+    }
 
     if (fromSnapshotIdExclusive != null) {
       Listeners.notifyAll(
@@ -128,6 +133,10 @@ abstract class BaseIncrementalScan<ThisT, T extends ScanTask, G extends ScanTask
         return table().snapshot(fromSnapshotId).parentId();
 
       } else {
+        if (Objects.equals(fromSnapshotId, toSnapshotIdInclusive)) {
+          return fromSnapshotId;
+        }
+
         // validate there is an ancestor of toSnapshotIdInclusive where parent is fromSnapshotId
         Preconditions.checkArgument(
             SnapshotUtil.isParentAncestorOf(table(), toSnapshotIdInclusive, fromSnapshotId),

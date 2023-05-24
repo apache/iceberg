@@ -166,8 +166,6 @@ class IncrementalDataTableScan extends DataTableScan {
 
   private static void validateSnapshotIds(Table table, long fromSnapshotId, long toSnapshotId) {
     Preconditions.checkArgument(
-        fromSnapshotId != toSnapshotId, "from and to snapshot ids cannot be the same");
-    Preconditions.checkArgument(
         table.snapshot(fromSnapshotId) != null, "from snapshot %s does not exist", fromSnapshotId);
     Preconditions.checkArgument(
         table.snapshot(toSnapshotId) != null, "to snapshot %s does not exist", toSnapshotId);
