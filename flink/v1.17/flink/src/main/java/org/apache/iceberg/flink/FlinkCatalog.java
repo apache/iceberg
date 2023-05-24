@@ -81,6 +81,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * A Flink Catalog implementation that wraps an Iceberg {@link Catalog}.
@@ -95,6 +97,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
  */
 public class FlinkCatalog extends AbstractCatalog {
 
+  private static final Logger LOG = LoggerFactory.getLogger(FlinkCatalog.class);
   private final CatalogLoader catalogLoader;
   private final Catalog icebergCatalog;
   private final Namespace baseNamespace;
@@ -479,6 +482,9 @@ public class FlinkCatalog extends AbstractCatalog {
     // CatalogTable instances, unless the Flink schema contains Iceberg column IDs.
 
     // To alter columns, use the other alterTable API and provide a list of TableChange's.
+    LOG.warn(
+        "This alterTable API only supports altering table properties. "
+            + "To alter columns, use the other alterTable API and provide a list of TableChange's.");
     validateTableSchemaAndPartition(table, (CatalogTable) newTable);
 
     Map<String, String> oldProperties = table.getOptions();
