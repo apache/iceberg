@@ -607,7 +607,7 @@ public class TestAggregatePushDown extends SparkCatalogTestBase {
             .load(tableName)
             .agg(functions.min("data"), functions.max("data"), functions.count("data"));
     String explain4 =
-        unboundedPushdownResult.queryExecution().explainString(ExplainMode.fromString("simple"));
+        unboundedNoPushdownResult.queryExecution().explainString(ExplainMode.fromString("simple"));
     Assertions.assertThat(explain4)
         .doesNotContain("LocalTableScan", "min(data)", "max(data)", "count(data)");
 
