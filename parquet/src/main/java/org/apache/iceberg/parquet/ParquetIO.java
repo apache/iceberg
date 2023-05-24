@@ -93,7 +93,7 @@ class ParquetIO {
 
   static PositionOutputStream stream(org.apache.iceberg.io.PositionOutputStream stream) {
     if (stream instanceof DelegatingOutputStream) {
-      OutputStream wrapped = ((DelegatingOutputStream) stream).getDelegate();
+      OutputStream wrapped = ((DelegatingOutputStream) stream).takeDelegate();
       if (wrapped instanceof FSDataOutputStream) {
         return HadoopStreams.wrap((FSDataOutputStream) wrapped);
       }

@@ -22,4 +22,6 @@ import java.io.OutputStream;
 
 public interface DelegatingOutputStream {
   OutputStream getDelegate();
+
+  OutputStream takeDelegate();
 }

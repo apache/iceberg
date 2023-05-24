@@ -143,7 +143,7 @@ public class HadoopStreams {
   /** PositionOutputStream implementation for FSDataOutputStream. */
   private static class HadoopPositionOutputStream extends PositionOutputStream
       implements DelegatingOutputStream {
-    private final FSDataOutputStream stream;
+    private FSDataOutputStream stream;
     private final StackTraceElement[] createStack;
     private boolean closed;
 
@@ -156,6 +156,13 @@ public class HadoopStreams {
     @Override
     public OutputStream getDelegate() {
       return stream;
+    }
+
+    @Override
+    public OutputStream takeDelegate() {
+      OutputStream delegate = stream;
+      this.stream = null;
+      return delegate;
     }
 
     @Override
@@ -193,7 +200,7 @@ public class HadoopStreams {
     @Override
     protected void finalize() throws Throwable {
       super.finalize();
-      if (!closed) {
+      if (!closed && this.stream != null) {
         close(); // releasing resources is more important than printing the warning
         String trace =
             Joiner.on("\n\t").join(Arrays.copyOfRange(createStack, 1, createStack.length));
