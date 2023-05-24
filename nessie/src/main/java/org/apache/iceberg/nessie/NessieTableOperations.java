@@ -92,6 +92,19 @@ public class NessieTableOperations extends BaseMetastoreTableOperations {
     // Nessie CLI will provide a reference aware GC functionality for the expired/unreferenced
     // files.
     newProperties.put(TableProperties.GC_ENABLED, "false");
+
+    boolean metadataCleanupEnabled =
+        newProperties
+            .getOrDefault(TableProperties.METADATA_DELETE_AFTER_COMMIT_ENABLED, "false")
+            .equalsIgnoreCase("true");
+    if (metadataCleanupEnabled) {
+      newProperties.put(TableProperties.METADATA_DELETE_AFTER_COMMIT_ENABLED, "false");
+      LOG.warn(
+          "Automatic table metadata files cleanup was requested, but disabled because "
+              + "the Nessie catalog can use historical metadata files from other references. "
+              + "Use the 'nessie-gc' tool for history-aware GC");
+    }
+
     TableMetadata.Builder builder =
         TableMetadata.buildFrom(deserialized)
             .setPreviousFileLocation(null)
