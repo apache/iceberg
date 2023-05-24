@@ -292,23 +292,24 @@ public class TestDataSourceOptions extends SparkTestBaseWithCatalog {
         });
 
     // test (1st snapshot, current snapshot] incremental scan.
-    Dataset<Row> resultDf1 =
+    Dataset<Row> unboundedIncrementalResult =
         spark
             .read()
             .format("iceberg")
             .option("start-snapshot-id", snapshotIds.get(3).toString())
             .load(tableLocation);
     List<SimpleRecord> result1 =
-        resultDf1.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
+        unboundedIncrementalResult.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
     Assert.assertEquals("Records should match", expectedRecords.subList(1, 4), result1);
-    Assert.assertEquals("Unprocessed count should match record count", 3, resultDf1.count());
+    Assert.assertEquals(
+        "Unprocessed count should match record count", 3, unboundedIncrementalResult.count());
 
-    Row row1 = resultDf1.agg(functions.min("id"), functions.max("id")).head();
+    Row row1 = unboundedIncrementalResult.agg(functions.min("id"), functions.max("id")).head();
     Assert.assertEquals("min value should match", 2, row1.getInt(0));
     Assert.assertEquals("max value should match", 4, row1.getInt(1));
 
     // test (2nd snapshot, 3rd snapshot] incremental scan.
-    Dataset<Row> resultDf2 =
+    Dataset<Row> incrementalResult =
         spark
             .read()
             .format("iceberg")
@@ -316,11 +317,12 @@ public class TestDataSourceOptions extends SparkTestBaseWithCatalog {
             .option("end-snapshot-id", snapshotIds.get(1).toString())
             .load(tableLocation);
     List<SimpleRecord> result2 =
-        resultDf2.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
+        incrementalResult.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
     Assert.assertEquals("Records should match", expectedRecords.subList(2, 3), result2);
-    Assert.assertEquals("Unprocessed count should match record count", 1, resultDf2.count());
+    Assert.assertEquals(
+        "Unprocessed count should match record count", 1, incrementalResult.count());
 
-    Row row2 = resultDf2.agg(functions.min("id"), functions.max("id")).head();
+    Row row2 = incrementalResult.agg(functions.min("id"), functions.max("id")).head();
     Assert.assertEquals("min value should match", 3, row2.getInt(0));
     Assert.assertEquals("max value should match", 3, row2.getInt(0));
   }

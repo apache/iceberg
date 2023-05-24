@@ -541,7 +541,6 @@ public class TestAggregatePushDown extends SparkCatalogTestBase {
   }
 
   @Test
-  @SuppressWarnings("checkstyle:CyclomaticComplexity")
   public void testAggregatePushDownForIncrementalScan() {
     sql("CREATE TABLE %s (id LONG, data INT) USING iceberg", tableName);
     sql(
@@ -554,7 +553,7 @@ public class TestAggregatePushDown extends SparkCatalogTestBase {
     long snapshotId3 = validationCatalog.loadTable(tableIdent).currentSnapshot().snapshotId();
     sql("INSERT INTO %s VALUES (8, 7777), (9, 9999)", tableName);
 
-    Dataset<Row> dfWithAggPushdown1 =
+    Dataset<Row> pushdownResult =
         spark
             .read()
             .format("iceberg")
@@ -563,17 +562,11 @@ public class TestAggregatePushDown extends SparkCatalogTestBase {
             .load(tableName)
             .agg(functions.min("data"), functions.max("data"), functions.count("data"));
     String explain1 =
-        dfWithAggPushdown1.queryExecution().explainString(ExplainMode.fromString("simple"));
-    boolean explainContainsPushDownAggregates1 = false;
-    if (explain1.contains("count(data)")
-        && explain1.contains("min(data)")
-        && explain1.contains("max(data)")) {
-      explainContainsPushDownAggregates1 = true;
-    }
+        pushdownResult.queryExecution().explainString(ExplainMode.fromString("simple"));
+    Assertions.assertThat(explain1)
+        .contains("LocalTableScan", "min(data)", "max(data)", "count(data)");
 
-    Assert.assertTrue("aggregate pushed down", explainContainsPushDownAggregates1);
-
-    Dataset<Row> dfWithoutAggPushdown1 =
+    Dataset<Row> noPushdownResult =
         spark
             .read()
             .format("iceberg")
@@ -583,40 +576,28 @@ public class TestAggregatePushDown extends SparkCatalogTestBase {
             .load(tableName)
             .agg(functions.min("data"), functions.max("data"), functions.count("data"));
     String explain2 =
-        dfWithoutAggPushdown1.queryExecution().explainString(ExplainMode.fromString("simple"));
-    explainContainsPushDownAggregates1 = false;
-    if (explain2.contains("count(data)")
-        || explain2.contains("min(data)")
-        || explain2.contains("max(data)")) {
-      explainContainsPushDownAggregates1 = true;
-    }
+        noPushdownResult.queryExecution().explainString(ExplainMode.fromString("simple"));
+    Assertions.assertThat(explain2)
+        .doesNotContain("LocalTableScan", "min(data)", "max(data)", "count(data)");
 
-    Assert.assertFalse("aggregate pushed down", explainContainsPushDownAggregates1);
     assertEquals(
         "Aggregate pushdown and non-aggregate pushdown should have the same results",
-        rowsToJava(dfWithAggPushdown1.collectAsList()),
-        rowsToJava(dfWithoutAggPushdown1.collectAsList()));
+        rowsToJava(pushdownResult.collectAsList()),
+        rowsToJava(noPushdownResult.collectAsList()));
 
-    Dataset<Row> dfWithAggPushdown2 =
+    Dataset<Row> unboundedPushdownResult =
         spark
             .read()
             .format("iceberg")
             .option(SparkReadOptions.START_SNAPSHOT_ID, snapshotId1)
             .load(tableName)
             .agg(functions.min("data"), functions.max("data"), functions.count("data"));
-
     String explain3 =
-        dfWithAggPushdown2.queryExecution().explainString(ExplainMode.fromString("simple"));
-    boolean explainContainsPushDownAggregates2 = false;
-    if (explain3.contains("count(data)")
-        && explain3.contains("min(data)")
-        && explain3.contains("max(data)")) {
-      explainContainsPushDownAggregates2 = true;
-    }
+        unboundedPushdownResult.queryExecution().explainString(ExplainMode.fromString("simple"));
+    Assertions.assertThat(explain3)
+        .contains("LocalTableScan", "min(data)", "max(data)", "count(data)");
 
-    Assert.assertTrue("aggregate pushed down", explainContainsPushDownAggregates2);
-
-    Dataset<Row> dfWithoutAggPushdown2 =
+    Dataset<Row> unboundedNoPushdownResult =
         spark
             .read()
             .format("iceberg")
@@ -625,19 +606,14 @@ public class TestAggregatePushDown extends SparkCatalogTestBase {
             .load(tableName)
             .agg(functions.min("data"), functions.max("data"), functions.count("data"));
     String explain4 =
-        dfWithoutAggPushdown2.queryExecution().explainString(ExplainMode.fromString("simple"));
-    explainContainsPushDownAggregates2 = false;
-    if (explain4.contains("count(data)")
-        || explain4.contains("min(data)")
-        || explain4.contains("max(data)")) {
-      explainContainsPushDownAggregates2 = true;
-    }
+        unboundedPushdownResult.queryExecution().explainString(ExplainMode.fromString("simple"));
+    Assertions.assertThat(explain4)
+        .doesNotContain("LocalTableScan", "min(data)", "max(data)", "count(data)");
 
-    Assert.assertFalse("aggregate pushed down", explainContainsPushDownAggregates2);
     assertEquals(
         "Aggregate pushdown and non-aggregate pushdown should have the same results ",
-        rowsToJava(dfWithAggPushdown2.collectAsList()),
-        rowsToJava(dfWithoutAggPushdown2.collectAsList()));
+        rowsToJava(unboundedNoPushdownResult.collectAsList()),
+        rowsToJava(unboundedPushdownResult.collectAsList()));
   }
 
   @Test
