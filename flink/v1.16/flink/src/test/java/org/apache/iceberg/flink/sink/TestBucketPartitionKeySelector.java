@@ -20,6 +20,7 @@ package org.apache.iceberg.flink.sink;
 
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.flink.SimpleDataUtil;
+import org.apache.iceberg.flink.sink.TestBucketPartitionerUtils.TableSchemaType;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -29,13 +30,12 @@ public class TestBucketPartitionKeySelector {
 
   @ParameterizedTest
   @EnumSource(
-      value = TestBucketPartitionerUtils.TableSchemaType.class,
+      value = TableSchemaType.class,
       names = {"ONE_BUCKET", "IDENTITY_AND_BUCKET"})
-  public void testCorrectKeySelection(TestBucketPartitionerUtils.TableSchemaType tableSchemaType) {
+  public void testCorrectKeySelection(TableSchemaType tableSchemaType) {
     final int numBuckets = 60;
 
-    PartitionSpec partitionSpec =
-        TestBucketPartitionerUtils.getPartitionSpec(tableSchemaType, numBuckets);
+    PartitionSpec partitionSpec = TableSchemaType.getPartitionSpec(tableSchemaType, numBuckets);
     BucketPartitionKeySelector keySelector =
         new BucketPartitionKeySelector(
             partitionSpec, SimpleDataUtil.SCHEMA, SimpleDataUtil.ROW_TYPE);
@@ -53,9 +53,7 @@ public class TestBucketPartitionKeySelector {
 
   @Test
   public void testKeySelectorMultipleBucketsFail() {
-    PartitionSpec partitionSpec =
-        TestBucketPartitionerUtils.getPartitionSpec(
-            TestBucketPartitionerUtils.TableSchemaType.TWO_BUCKETS, 1);
+    PartitionSpec partitionSpec = TableSchemaType.getPartitionSpec(TableSchemaType.TWO_BUCKETS, 1);
 
     Assertions.assertThatExceptionOfType(RuntimeException.class)
         .isThrownBy(

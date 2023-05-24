@@ -39,38 +39,38 @@ final class TestBucketPartitionerUtils {
     public static int bucketPartitionColumnPosition(TableSchemaType tableSchemaType) {
       return tableSchemaType == ONE_BUCKET ? 0 : 1;
     }
+
+    public static PartitionSpec getPartitionSpec(TableSchemaType tableSchemaType, int numBuckets) {
+      PartitionSpec partitionSpec = null;
+
+      switch (tableSchemaType) {
+        case ONE_BUCKET:
+          partitionSpec =
+              PartitionSpec.builderFor(SimpleDataUtil.SCHEMA).bucket("data", numBuckets).build();
+          break;
+        case IDENTITY_AND_BUCKET:
+          partitionSpec =
+              PartitionSpec.builderFor(SimpleDataUtil.SCHEMA)
+                  .identity("id")
+                  .bucket("data", numBuckets)
+                  .build();
+          break;
+        case TWO_BUCKETS:
+          partitionSpec =
+              PartitionSpec.builderFor(SimpleDataUtil.SCHEMA)
+                  .bucket("id", numBuckets)
+                  .bucket("data", numBuckets)
+                  .build();
+          break;
+      }
+
+      Preconditions.checkNotNull(
+          partitionSpec, "Invalid tableSchemaType provided: " + tableSchemaType);
+      return partitionSpec;
+    }
   }
 
   private TestBucketPartitionerUtils() {}
-
-  static PartitionSpec getPartitionSpec(TableSchemaType tableSchemaType, int numBuckets) {
-    PartitionSpec partitionSpec = null;
-
-    switch (tableSchemaType) {
-      case ONE_BUCKET:
-        partitionSpec =
-            PartitionSpec.builderFor(SimpleDataUtil.SCHEMA).bucket("data", numBuckets).build();
-        break;
-      case IDENTITY_AND_BUCKET:
-        partitionSpec =
-            PartitionSpec.builderFor(SimpleDataUtil.SCHEMA)
-                .identity("id")
-                .bucket("data", numBuckets)
-                .build();
-        break;
-      case TWO_BUCKETS:
-        partitionSpec =
-            PartitionSpec.builderFor(SimpleDataUtil.SCHEMA)
-                .bucket("id", numBuckets)
-                .bucket("data", numBuckets)
-                .build();
-        break;
-    }
-
-    Preconditions.checkNotNull(
-        partitionSpec, "Invalid tableSchemaType provided: " + tableSchemaType);
-    return partitionSpec;
-  }
 
   /**
    * Utility method to generate rows whose values will "hash" to a range of bucketIds (from 0 to

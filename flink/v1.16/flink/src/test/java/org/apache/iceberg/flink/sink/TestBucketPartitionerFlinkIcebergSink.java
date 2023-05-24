@@ -101,8 +101,7 @@ public class TestBucketPartitionerFlinkIcebergSink {
   }
 
   private Table getTable(TableSchemaType tableSchemaType) {
-    PartitionSpec partitionSpec =
-        TestBucketPartitionerUtils.getPartitionSpec(tableSchemaType, numBuckets);
+    PartitionSpec partitionSpec = TableSchemaType.getPartitionSpec(tableSchemaType, numBuckets);
 
     return catalogExtension
         .catalog()

@@ -23,6 +23,7 @@ import static org.apache.iceberg.flink.sink.BucketPartitioner.BUCKET_LESS_THAN_L
 import static org.apache.iceberg.flink.sink.BucketPartitioner.BUCKET_NULL_MESSAGE;
 
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.flink.sink.TestBucketPartitionerUtils.TableSchemaType;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -37,11 +38,9 @@ public class TestBucketPartitioner {
   public void testPartitioningParallelismGreaterThanBuckets(
       String schemaTypeStr, String numBucketsStr) {
     final int numPartitions = 500;
-    final TestBucketPartitionerUtils.TableSchemaType tableSchemaType =
-        TestBucketPartitionerUtils.TableSchemaType.valueOf(schemaTypeStr);
+    final TableSchemaType tableSchemaType = TableSchemaType.valueOf(schemaTypeStr);
     final int numBuckets = Integer.parseInt(numBucketsStr);
-    PartitionSpec partitionSpec =
-        TestBucketPartitionerUtils.getPartitionSpec(tableSchemaType, numBuckets);
+    PartitionSpec partitionSpec = TableSchemaType.getPartitionSpec(tableSchemaType, numBuckets);
     BucketPartitioner bucketPartitioner = new BucketPartitioner(partitionSpec);
 
     int bucketId = 0;
@@ -60,11 +59,9 @@ public class TestBucketPartitioner {
   public void testPartitioningParallelismEqualLessThanBuckets(
       String schemaTypeStr, String numBucketsStr) {
     final int numPartitions = 30;
-    final TestBucketPartitionerUtils.TableSchemaType tableSchemaType =
-        TestBucketPartitionerUtils.TableSchemaType.valueOf(schemaTypeStr);
+    final TableSchemaType tableSchemaType = TableSchemaType.valueOf(schemaTypeStr);
     final int numBuckets = Integer.parseInt(numBucketsStr);
-    PartitionSpec partitionSpec =
-        TestBucketPartitionerUtils.getPartitionSpec(tableSchemaType, numBuckets);
+    PartitionSpec partitionSpec = TableSchemaType.getPartitionSpec(tableSchemaType, numBuckets);
     BucketPartitioner bucketPartitioner = new BucketPartitioner(partitionSpec);
 
     for (int bucketId = 0; bucketId < numBuckets; bucketId++) {
@@ -76,8 +73,7 @@ public class TestBucketPartitioner {
   @Test
   public void testPartitionerBucketIdNullFail() {
     PartitionSpec partitionSpec =
-        TestBucketPartitionerUtils.getPartitionSpec(
-            TestBucketPartitionerUtils.TableSchemaType.ONE_BUCKET, DEFAULT_NUM_BUCKETS);
+        TableSchemaType.getPartitionSpec(TableSchemaType.ONE_BUCKET, DEFAULT_NUM_BUCKETS);
     BucketPartitioner bucketPartitioner = new BucketPartitioner(partitionSpec);
 
     Assertions.assertThatExceptionOfType(RuntimeException.class)
@@ -88,8 +84,7 @@ public class TestBucketPartitioner {
   @Test
   public void testPartitionerMultipleBucketsFail() {
     PartitionSpec partitionSpec =
-        TestBucketPartitionerUtils.getPartitionSpec(
-            TestBucketPartitionerUtils.TableSchemaType.TWO_BUCKETS, DEFAULT_NUM_BUCKETS);
+        TableSchemaType.getPartitionSpec(TableSchemaType.TWO_BUCKETS, DEFAULT_NUM_BUCKETS);
 
     Assertions.assertThatExceptionOfType(RuntimeException.class)
         .isThrownBy(() -> new BucketPartitioner(partitionSpec))
@@ -99,8 +94,7 @@ public class TestBucketPartitioner {
   @Test
   public void testPartitionerBucketIdOutOfRangeFail() {
     PartitionSpec partitionSpec =
-        TestBucketPartitionerUtils.getPartitionSpec(
-            TestBucketPartitionerUtils.TableSchemaType.ONE_BUCKET, DEFAULT_NUM_BUCKETS);
+        TableSchemaType.getPartitionSpec(TableSchemaType.ONE_BUCKET, DEFAULT_NUM_BUCKETS);
     BucketPartitioner bucketPartitioner = new BucketPartitioner(partitionSpec);
 
     int negativeBucketId = -1;
