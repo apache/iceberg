@@ -159,6 +159,7 @@ class GlobalStatisticsAggregatorTracker<D extends DataStatistics<D, S>, S> imple
     long completedCheckpointId = in.readLong();
     int statisticsBytesLength = in.readInt();
     byte[] statisticsBytes = new byte[statisticsBytesLength];
+    in.readFully(statisticsBytes);
     DataInputDeserializer input =
         new DataInputDeserializer(statisticsBytes, 0, statisticsBytesLength);
     final DataStatistics<D, S> dataStatistics = statisticsSerializer.deserialize(input);
