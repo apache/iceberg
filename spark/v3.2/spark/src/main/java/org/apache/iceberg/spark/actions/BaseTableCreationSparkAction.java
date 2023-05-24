@@ -47,6 +47,7 @@ import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.apache.spark.sql.connector.catalog.V1Table;
 import org.apache.spark.sql.connector.expressions.Transform;
 import org.apache.spark.sql.types.StructType;
+import org.apache.iceberg.MetadataUtil;
 
 abstract class BaseTableCreationSparkAction<ThisT> extends BaseSparkAction<ThisT> {
   private static final Set<String> ALLOWED_SOURCES =
@@ -173,10 +174,6 @@ abstract class BaseTableCreationSparkAction<ThisT> extends BaseSparkAction<ThisT
   }
 
   protected String getMetadataLocation(Table table) {
-    return table
-        .properties()
-        .getOrDefault(
-            TableProperties.WRITE_METADATA_LOCATION,
-            table.location() + "/" + ICEBERG_METADATA_FOLDER);
+    return MetadataUtil.metadataLocation(table);
   }
 }

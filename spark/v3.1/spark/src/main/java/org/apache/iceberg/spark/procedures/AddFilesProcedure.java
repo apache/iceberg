@@ -24,6 +24,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.hadoop.fs.Path;
+import org.apache.iceberg.MetadataUtil;
 import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotSummary;
@@ -223,8 +224,7 @@ class AddFilesProcedure extends BaseProcedure {
   }
 
   private String getMetadataLocation(Table table) {
-    String defaultValue = table.location() + "/metadata";
-    return table.properties().getOrDefault(TableProperties.WRITE_METADATA_LOCATION, defaultValue);
+    return MetadataUtil.metadataLocation(table);
   }
 
   @Override

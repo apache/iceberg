@@ -24,6 +24,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.hadoop.fs.Path;
+import org.apache.iceberg.MetadataUtil;
 import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Snapshot;
@@ -69,7 +70,7 @@ class AddFilesProcedure extends BaseProcedure {
   private static final StructType OUTPUT_TYPE =
       new StructType(
           new StructField[] {
-            new StructField("added_files_count", DataTypes.LongType, false, Metadata.empty())
+              new StructField("added_files_count", DataTypes.LongType, false, Metadata.empty())
           });
 
   private AddFilesProcedure(TableCatalog tableCatalog) {
@@ -118,8 +119,8 @@ class AddFilesProcedure extends BaseProcedure {
     String[] namespace = ident.namespace();
     return namespace.length == 1
         && (namespace[0].equalsIgnoreCase("orc")
-            || namespace[0].equalsIgnoreCase("parquet")
-            || namespace[0].equalsIgnoreCase("avro"));
+        || namespace[0].equalsIgnoreCase("parquet")
+        || namespace[0].equalsIgnoreCase("avro"));
   }
 
   private long importToIceberg(
@@ -210,8 +211,7 @@ class AddFilesProcedure extends BaseProcedure {
   }
 
   private String getMetadataLocation(Table table) {
-    String defaultValue = table.location() + "/metadata";
-    return table.properties().getOrDefault(TableProperties.WRITE_METADATA_LOCATION, defaultValue);
+    return MetadataUtil.metadataLocation(table);
   }
 
   @Override
