@@ -25,6 +25,7 @@ import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.spark.source.HasIcebergCatalog;
+import org.apache.spark.sql.RuntimeConfig;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.analysis.NamespaceAlreadyExistsException;
 import org.apache.spark.sql.catalyst.analysis.NoSuchFunctionException;
@@ -45,6 +46,7 @@ import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.apache.spark.sql.connector.catalog.TableChange;
 import org.apache.spark.sql.connector.catalog.functions.UnboundFunction;
 import org.apache.spark.sql.connector.expressions.Transform;
+import org.apache.spark.sql.internal.StaticSQLConf;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 
@@ -304,6 +306,7 @@ public class SparkSessionCatalog<T extends TableCatalog & FunctionCatalog & Supp
   @Override
   public final void initialize(String name, CaseInsensitiveStringMap options) {
     if (options.containsKey("type") && options.get("type").equalsIgnoreCase("hive")) {
+      checkHiveSupport();
       validateHmsUri(options.get(CatalogProperties.URI));
     }
 
@@ -316,6 +319,22 @@ public class SparkSessionCatalog<T extends TableCatalog & FunctionCatalog & Supp
     this.createParquetAsIceberg = options.getBoolean("parquet-enabled", createParquetAsIceberg);
     this.createAvroAsIceberg = options.getBoolean("avro-enabled", createAvroAsIceberg);
     this.createOrcAsIceberg = options.getBoolean("orc-enabled", createOrcAsIceberg);
+  }
+
+  private void checkHiveSupport() {
+    RuntimeConfig runtimeConfig = SparkSession.active().conf();
+    String sparkCatalogKey = StaticSQLConf.CATALOG_IMPLEMENTATION().key();
+    String sparkCatalogImpl = runtimeConfig.get(sparkCatalogKey);
+    if (sparkCatalogImpl != null) {
+      Preconditions.checkArgument(
+          sparkCatalogImpl.equals("hive"),
+          "Please enable hive support for Spark"
+              + "by calling enableHiveSupport() or setting '%s=hive'. "
+              + "Using Spark's built-in %s catalog with Iceberg's hive catalog "
+              + "might result in inconsistent behavior of SparkSessionCatalog. ",
+          sparkCatalogKey,
+          sparkCatalogImpl);
+    }
   }
 
   private void validateHmsUri(String catalogHmsUri) {
