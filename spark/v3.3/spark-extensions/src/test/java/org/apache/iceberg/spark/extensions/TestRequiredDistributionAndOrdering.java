@@ -298,4 +298,21 @@ public class TestRequiredDistributionAndOrdering extends SparkExtensionsTestBase
         ImmutableList.of(row(7L)),
         sql("SELECT count(*) FROM %s", tableName));
   }
+
+  @Test
+  public void testDefaultSortOnBinaryColumn() {
+    sql(
+        "CREATE TABLE %s (c1 INT, c2 Binary) "
+            + "USING iceberg "
+            + "PARTITIONED BY (truncate(2, c2))",
+        tableName);
+
+    sql("INSERT INTO %s VALUES (1, X'A1B1'), (2, X'A2B2')", tableName);
+
+    byte[] bytes1 = new byte[] {-95, -79};
+    byte[] bytes2 = new byte[] {-94, -78};
+    List<Object[]> expected = ImmutableList.of(row(1, bytes1), row(2, bytes2));
+
+    assertEquals("Rows must match", expected, sql("SELECT * FROM %s ORDER BY c1", tableName));
+  }
 }
