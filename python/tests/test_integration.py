@@ -19,7 +19,6 @@
 import math
 from urllib.parse import urlparse
 
-import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
 from pyarrow.fs import S3FileSystem
@@ -202,17 +201,17 @@ def test_pyarrow_deletes(test_positional_mor_deletes: Table) -> None:
     arrow_table = test_positional_mor_deletes.scan(
         row_filter=And(GreaterThanOrEqual("letter", "e"), LessThan("letter", "k"))
     ).to_arrow()
-    assert arrow_table["number"] == pa.array([6, 7, 8, 10])
+    assert arrow_table["number"].to_pylist() == [5, 6, 7, 8, 10]
 
     # Testing the combination of a filter and a limit
     arrow_table = test_positional_mor_deletes.scan(
         row_filter=And(GreaterThanOrEqual("letter", "e"), LessThan("letter", "k")), limit=1
     ).to_arrow()
-    assert arrow_table["number"] == pa.array([6])
+    assert arrow_table["number"].to_pylist() == [5]
 
     # Testing the slicing of indices
     arrow_table = test_positional_mor_deletes.scan(limit=3).to_arrow()
-    assert arrow_table["number"] == pa.array([2, 3, 4])
+    assert arrow_table["number"].to_pylist() == [1, 2, 3]
 
 
 @pytest.mark.integration
@@ -237,14 +236,14 @@ def test_pyarrow_deletes_double(test_positional_mor_double_deletes: Table) -> No
     arrow_table = test_positional_mor_double_deletes.scan(
         row_filter=And(GreaterThanOrEqual("letter", "e"), LessThan("letter", "k"))
     ).to_arrow()
-    assert arrow_table["number"] == pa.array([5, 7, 8, 10])
+    assert arrow_table["number"].to_pylist() == [5, 7, 8, 10]
 
     # Testing the combination of a filter and a limit
     arrow_table = test_positional_mor_double_deletes.scan(
         row_filter=And(GreaterThanOrEqual("letter", "e"), LessThan("letter", "k")), limit=1
     ).to_arrow()
-    assert arrow_table["number"] == pa.array([5])
+    assert arrow_table["number"].to_pylist() == [5]
 
     # Testing the slicing of indices
     arrow_table = test_positional_mor_double_deletes.scan(limit=8).to_arrow()
-    assert arrow_table["number"] == pa.array([1, 2, 3, 4, 5, 7, 8, 10])
+    assert arrow_table["number"].to_pylist() == [1, 2, 3, 4, 5, 7, 8, 10]

@@ -54,6 +54,7 @@ from pyiceberg.manifest import (
     DataFileContent,
     ManifestContent,
     ManifestEntry,
+    ManifestEntryStatus,
     ManifestFile,
     live_entries,
 )
@@ -323,6 +324,26 @@ class FileScanTask(ScanTask):
         self.length = length or data_file.file_size_in_bytes
 
 
+def _inherit_sequence_numbers(manifest_entry: ManifestEntry, manifest: ManifestFile) -> ManifestEntry:
+    # The snapshot_id is required in V1, inherit with V2
+    if manifest_entry.snapshot_id is None:
+        manifest_entry.snapshot_id = manifest.added_snapshot_id
+
+    if manifest_entry.sequence_number is None and (
+        manifest.sequence_number == 0 or manifest_entry.status == ManifestEntryStatus.ADDED
+    ):
+        # Only available in V2, always 0 in V1
+        manifest_entry.sequence_number = manifest.sequence_number
+
+    if manifest_entry.file_sequence_number is None and (
+        manifest.sequence_number == 0 or manifest_entry.status == ManifestEntryStatus.ADDED
+    ):
+        # Only available in V2, always 0 in V1
+        manifest_entry.file_sequence_number = manifest.sequence_number
+
+    return manifest_entry
+
+
 def _open_manifest(
     io: FileIO,
     manifest: ManifestFile,
@@ -330,7 +351,7 @@ def _open_manifest(
     metrics_evaluator: Callable[[DataFile], bool],
 ) -> List[ManifestEntry]:
     return [
-        manifest_entry
+        _inherit_sequence_numbers(manifest_entry, manifest)
         for manifest_entry in live_entries(io.new_input(manifest.manifest_path))
         if partition_filter(manifest_entry.data_file) and metrics_evaluator(manifest_entry.data_file)
     ]

@@ -148,7 +148,6 @@ spark.sql(
 )
 
 
-
 # Partitioning is not really needed, but there is a bug:
 # https://github.com/apache/iceberg/pull/7685
 spark.sql(

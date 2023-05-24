@@ -530,7 +530,10 @@ def _read_deletes(fs: FileSystem, data_file: DataFile) -> Dict[str, pa.ChunkedAr
 
 
 def _create_positional_deletes_indices(positional_deletes: List[pa.ChunkedArray], fn_rows: Callable[[], int]) -> pa.Array:
-    sorted_deleted = merge(*positional_deletes)
+    # This is not ideal, looking for a native PyArrow implementation :)
+    # Ideally with uniqueness as well
+    # https://github.com/apache/arrow/issues/35748
+    sorted_deleted = merge(*positional_deletes, key=lambda e: e.as_py())
 
     def generator() -> Generator[int, None, None]:
         deleted_pos = next(sorted_deleted).as_py()  # type: ignore
