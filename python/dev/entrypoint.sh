@@ -22,4 +22,4 @@ start-master.sh -p 7077
 start-worker.sh spark://spark-iceberg:7077
 start-history-server.sh
 
-python3 ./provision.py
+tail -f /dev/null
