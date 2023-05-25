@@ -177,7 +177,7 @@ def test_read_manifest_list(generated_manifest_file_file: str) -> None:
 
 
 def test_read_manifest(generated_manifest_file_file: str) -> None:
-    io = load_file_io({})
+    io = load_file_io()
 
     snapshot = Snapshot(
         snapshot_id=25,
@@ -191,9 +191,9 @@ def test_read_manifest(generated_manifest_file_file: str) -> None:
 
     assert manifest_list.manifest_length == 7989
     assert manifest_list.partition_spec_id == 0
-    assert manifest_list.content is None
-    assert manifest_list.sequence_number is None
-    assert manifest_list.min_sequence_number is None
+    assert manifest_list.content == 0
+    assert manifest_list.sequence_number == 0
+    assert manifest_list.min_sequence_number == 0
     assert manifest_list.added_snapshot_id == 9182715666859759686
     assert manifest_list.added_files_count == 3
     assert manifest_list.existing_files_count == 0

@@ -29,6 +29,7 @@ from pyiceberg.avro.reader import (
     BooleanReader,
     DateReader,
     DecimalReader,
+    DefaultReader,
     DoubleReader,
     FixedReader,
     FloatReader,
@@ -76,6 +77,8 @@ from pyiceberg.types import (
     TimeType,
     UUIDType,
 )
+
+STRUCT_ROOT = -1
 
 
 def construct_reader(
@@ -128,8 +131,7 @@ class SchemaResolver(PrimitiveWithPartnerVisitor[IcebergType, Reader]):
         self.context.pop()
 
     def struct(self, struct: StructType, expected_struct: Optional[IcebergType], field_readers: List[Reader]) -> Reader:
-        # -1 indicates the struct root
-        read_struct_id = self.context[-1] if len(self.context) > 0 else -1
+        read_struct_id = self.context[STRUCT_ROOT] if len(self.context) > 0 else STRUCT_ROOT
         struct_callable = self.read_types.get(read_struct_id, Record)
 
         if not expected_struct:
@@ -150,8 +152,12 @@ class SchemaResolver(PrimitiveWithPartnerVisitor[IcebergType, Reader]):
             if read_field.field_id not in file_fields:
                 if read_field.required:
                     raise ResolveError(f"{read_field} is non-optional, and not part of the file schema")
-                # Just set the new field to None
-                results.append((pos, NoneReader()))
+                if isinstance(read_field, NestedField) and read_field.initial_default is not None:
+                    # The field is not in the file, but there is a default value
+                    results.append((pos, DefaultReader(read_field.initial_default)))
+                else:
+                    # Just set the new field to None
+                    results.append((pos, NoneReader()))
 
         return StructReader(tuple(results), struct_callable, expected_struct)
 
