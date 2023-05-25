@@ -68,6 +68,7 @@ public abstract class WritersBenchmark extends IcebergSourceBenchmark {
   private static final int NUM_ROWS = 2500000;
   private static final int NUM_DATA_FILES_PER_POSITION_DELETE_FILE = 100;
   private static final int NUM_DELETED_POSITIONS_PER_DATA_FILE = 50_000;
+  private static final int DELETE_POSITION_STEP = 10;
   private static final long TARGET_FILE_SIZE_IN_BYTES = 50L * 1024 * 1024;
 
   private static final Schema SCHEMA =
@@ -100,7 +101,7 @@ public abstract class WritersBenchmark extends IcebergSourceBenchmark {
             row -> transform.bind(Types.IntegerType.get()).apply(row.getInt(1))));
     this.rows = data;
 
-    this.positionDeleteRows = generatePositionDeletes(false /* shuffle */);
+    this.positionDeleteRows = generatePositionDeletes(false /* no shuffle */);
     this.shuffledPositionDeleteRows = generatePositionDeletes(true /* shuffle */);
 
     this.unpartitionedSpec = table().specs().get(0);
@@ -114,9 +115,8 @@ public abstract class WritersBenchmark extends IcebergSourceBenchmark {
 
     for (int pathIndex = 0; pathIndex < NUM_DATA_FILES_PER_POSITION_DELETE_FILE; pathIndex++) {
       UTF8String path = UTF8String.fromString("path/to/position/delete/file/" + UUID.randomUUID());
-      int step = 10;
       for (long pos = 0; pos < NUM_DELETED_POSITIONS_PER_DATA_FILE; pos++) {
-        deletes.add(new GenericInternalRow(new Object[] {path, pos * step}));
+        deletes.add(new GenericInternalRow(new Object[] {path, pos * DELETE_POSITION_STEP}));
       }
     }
 

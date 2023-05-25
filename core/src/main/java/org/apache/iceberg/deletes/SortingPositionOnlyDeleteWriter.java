@@ -93,7 +93,7 @@ public class SortingPositionOnlyDeleteWriter<T>
         PeekableLongIterator positions = positionsByPath.get(path).getLongIterator();
         while (positions.hasNext()) {
           long position = positions.next();
-          writer.write(positionDelete.set(path.get(), position));
+          writer.write(positionDelete.set(path.get(), position, null /* no row */));
         }
       }
     } finally {
