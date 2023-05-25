@@ -446,7 +446,7 @@ public class TestDataSourceOptions extends SparkTestBaseWithCatalog {
     Assert.assertEquals(2, snapshots.size());
     Assert.assertNull(snapshots.get(0).summary().get("writer-thread"));
     Assert.assertEquals(
-        "test-extra-commit-message-delete-thread", snapshots.get(1).summary().get("writer-thread"));
+        "test-extra-commit-message-writer-thread", snapshots.get(1).summary().get("writer-thread"));
   }
 
   @Test
