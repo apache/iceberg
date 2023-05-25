@@ -19,6 +19,7 @@
 package org.apache.iceberg;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
 import java.io.IOException;
@@ -70,6 +71,7 @@ public class TestSplitPlanning extends TableTestBase {
     table = TABLES.create(SCHEMA, tableLocation);
     table
         .updateProperties()
+        .set(TableProperties.ADAPTIVE_SPLIT_PLANNING, "false")
         .set(TableProperties.SPLIT_SIZE, String.valueOf(128 * 1024 * 1024))
         .set(TableProperties.SPLIT_OPEN_FILE_COST, String.valueOf(4 * 1024 * 1024))
         .set(TableProperties.SPLIT_LOOKBACK, String.valueOf(Integer.MAX_VALUE))
@@ -86,6 +88,23 @@ public class TestSplitPlanning extends TableTestBase {
     appendFiles(files32Mb);
     // we expect 8 bins after we add 16 files 32MB each as they will form additional 4 bins
     Assert.assertEquals(8, Iterables.size(table.newScan().planTasks()));
+  }
+
+  @Test
+  public void testAdaptiveSplitPlanning() {
+    table.updateProperties().set(TableProperties.ADAPTIVE_SPLIT_PLANNING, "true").commit();
+
+    List<DataFile> files16Mb = newFiles(10, 2 * 1024 * 1024);
+    appendFiles(files16Mb);
+    // we expect 10 bins since min parallelism has not been met and we have 10 files;
+    assertThat(Iterables.size(table.newScan().planTasks())).isEqualTo(10);
+
+    List<DataFile> files8Mb = newFiles(2, 2 * 1024 * 1024);
+    appendFiles(files8Mb);
+    // we expect 12 bins now because adaptive planning is trying to fit into a
+    // smaller split size to achieve 10 tasks, but the files count and size
+    // limits the parallelism
+    assertThat(Iterables.size(table.newScan().planTasks())).isEqualTo(12);
   }
 
   @Test
@@ -216,6 +235,17 @@ public class TestSplitPlanning extends TableTestBase {
         table.newScan().option(TableProperties.SPLIT_SIZE, String.valueOf(10L * 1024 * 1024));
     Assert.assertEquals(
         "We should get one task per row group", 32, Iterables.size(scan.planTasks()));
+  }
+
+  @Test
+  public void testAdaptiveSplitPlanningWithOffests() {
+    table.updateProperties().set(TableProperties.ADAPTIVE_SPLIT_PLANNING, "true").commit();
+
+    List<DataFile> files16Mb = newFiles(4, 16 * 1024 * 1024, 4);
+    appendFiles(files16Mb);
+    // The calculated split size will align with the file sizes and split based on the
+    // number of files.
+    assertThat(Iterables.size(table.newScan().planTasks())).isEqualTo(16);
   }
 
   @Test

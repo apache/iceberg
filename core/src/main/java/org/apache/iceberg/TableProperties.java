@@ -204,6 +204,9 @@ public class TableProperties {
       "write.delete.orc.compression-strategy";
   public static final String ORC_COMPRESSION_STRATEGY_DEFAULT = "speed";
 
+  public static final String ADAPTIVE_SPLIT_PLANNING = "read.split.adaptive-enabled";
+  public static final boolean ADAPTIVE_SPLIT_PLANNING_DEFAULT = true;
+
   public static final String SPLIT_SIZE = "read.split.target-size";
   public static final long SPLIT_SIZE_DEFAULT = 128 * 1024 * 1024; // 128 MB
 
@@ -215,6 +218,9 @@ public class TableProperties {
 
   public static final String SPLIT_OPEN_FILE_COST = "read.split.open-file-cost";
   public static final long SPLIT_OPEN_FILE_COST_DEFAULT = 4 * 1024 * 1024; // 4MB
+
+  public static final String SPLIT_MIN_PARALLELISM = "read.split.min-parallelism";
+  public static final int SPLIT_MIN_PARALLELISM_DEFAULT = 10;
 
   public static final String PARQUET_VECTORIZATION_ENABLED = "read.parquet.vectorization.enabled";
   public static final boolean PARQUET_VECTORIZATION_ENABLED_DEFAULT = true;

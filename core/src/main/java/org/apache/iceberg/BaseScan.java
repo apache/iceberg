@@ -22,12 +22,16 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
+import java.util.stream.Stream;
 import org.apache.iceberg.expressions.Binder;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.metrics.MetricsReporter;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
@@ -35,6 +39,8 @@ import org.apache.iceberg.util.PropertyUtil;
 
 abstract class BaseScan<ThisT, T extends ScanTask, G extends ScanTaskGroup<T>>
     implements Scan<ThisT, T, G> {
+
+  protected static final int DEFAULT_MIN_PARALLELISM = 10;
 
   protected static final List<String> SCAN_COLUMNS =
       ImmutableList.of(
@@ -187,7 +193,10 @@ abstract class BaseScan<ThisT, T extends ScanTask, G extends ScanTaskGroup<T>>
     long tableValue =
         PropertyUtil.propertyAsLong(
             table().properties(), TableProperties.SPLIT_SIZE, TableProperties.SPLIT_SIZE_DEFAULT);
-    return PropertyUtil.propertyAsLong(context.options(), TableProperties.SPLIT_SIZE, tableValue);
+
+    long splitSize = adaptiveSplitSize(tableValue).orElse(tableValue);
+
+    return PropertyUtil.propertyAsLong(context.options(), TableProperties.SPLIT_SIZE, splitSize);
   }
 
   @Override
@@ -255,5 +264,96 @@ abstract class BaseScan<ThisT, T extends ScanTask, G extends ScanTaskGroup<T>>
   @Override
   public ThisT metricsReporter(MetricsReporter reporter) {
     return newRefinedScan(table(), schema(), context().reportWith(reporter));
+  }
+
+  private Optional<Long> adaptiveSplitSize(long tableSplitSize) {
+    if (!PropertyUtil.propertyAsBoolean(
+        table.properties(),
+        TableProperties.ADAPTIVE_SPLIT_PLANNING,
+        TableProperties.ADAPTIVE_SPLIT_PLANNING_DEFAULT)) {
+      return Optional.empty();
+    }
+
+    int minParallelism =
+        PropertyUtil.propertyAsInt(
+            table.properties(),
+            TableProperties.SPLIT_MIN_PARALLELISM,
+            TableProperties.SPLIT_MIN_PARALLELISM_DEFAULT);
+
+    Preconditions.checkArgument(minParallelism > 0, "Minimum parallelism must be a positive value");
+
+    Snapshot snapshot =
+        Stream.of(context.snapshotId(), context.toSnapshotId())
+            .filter(Objects::nonNull)
+            .map(table::snapshot)
+            .findFirst()
+            .orElseGet(table::currentSnapshot);
+
+    if (snapshot == null || snapshot.summary() == null) {
+      return Optional.empty();
+    }
+
+    Map<String, String> summary = snapshot.summary();
+    long totalFiles =
+        PropertyUtil.propertyAsLong(summary, SnapshotSummary.TOTAL_DATA_FILES_PROP, 0);
+    long totalSize = PropertyUtil.propertyAsLong(summary, SnapshotSummary.TOTAL_FILE_SIZE_PROP, 0);
+
+    if (totalFiles <= 0 || totalSize <= 0) {
+      return Optional.empty();
+    }
+
+    if (totalFiles > minParallelism && totalSize >= tableSplitSize * minParallelism) {
+      // If it is possible that splits could normally be calculated to meet the
+      // minimum parallelism, do not adjust the split size
+      return Optional.empty();
+    }
+
+    FileFormat fileFormat =
+        FileFormat.fromString(
+            table
+                .properties()
+                .getOrDefault(
+                    TableProperties.DEFAULT_FILE_FORMAT,
+                    TableProperties.DEFAULT_FILE_FORMAT_DEFAULT));
+
+    if (!fileFormat.isSplittable()) {
+      return Optional.of(totalSize / totalFiles);
+    }
+
+    long rowGroupSize;
+
+    switch (fileFormat) {
+      case PARQUET:
+        rowGroupSize =
+            PropertyUtil.propertyAsLong(
+                table.properties(),
+                TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES,
+                TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES_DEFAULT);
+        break;
+      case ORC:
+        rowGroupSize =
+            PropertyUtil.propertyAsLong(
+                table.properties(),
+                TableProperties.ORC_BLOCK_SIZE_BYTES,
+                TableProperties.ORC_BLOCK_SIZE_BYTES_DEFAULT);
+        break;
+      case AVRO:
+        rowGroupSize = 16 * 1024 * 1024;
+        break;
+      default:
+        rowGroupSize = tableSplitSize;
+    }
+
+    if (totalFiles <= 1) {
+      // For a table with a single small file, default to the smallest of
+      // the configured table split size or the format block size
+      return Optional.of(Math.min(rowGroupSize, tableSplitSize));
+    }
+
+    long minSplitSize = totalSize / minParallelism;
+    // target split size chosen to provide the most parallelism
+    long targetSplitSize = Math.min(minSplitSize, rowGroupSize);
+
+    return Optional.of(targetSplitSize);
   }
 }
