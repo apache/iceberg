@@ -1500,6 +1500,9 @@ components:
           properties:
             schema:
               $ref: '#/components/schemas/Schema'
+            last-column-id:
+              type: integer
+              description: The last column ID in the schema
 
     SetCurrentSchemaUpdate:
       allOf:
@@ -1670,9 +1673,9 @@ components:
         - `assert-default-sort-order-id` - the table's default sort order id must match the requirement's `default-sort-order-id`
       type: object
       required:
-        - requirement
+        - type
       properties:
-        requirement:
+        type:
           type: string
           enum:
             - assert-create
