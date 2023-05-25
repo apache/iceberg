@@ -52,28 +52,8 @@ spark.sql(
 
 spark.sql(
     """
-CREATE OR REPLACE TABLE default.test_limit
-USING iceberg
-  AS SELECT
-      1            AS idx
-  UNION ALL SELECT
-      2            AS idx
-  UNION ALL SELECT
-      3            AS idx
-  UNION ALL SELECT
-      4            AS idx
-  UNION ALL SELECT
-      5            AS idx
-  UNION ALL SELECT
-      6            AS idx
-  UNION ALL SELECT
-      7            AS idx
-  UNION ALL SELECT
-      8            AS idx
-  UNION ALL SELECT
-      9            AS idx
-  UNION ALL SELECT
-      10           AS idx
+CREATE OR REPLACE TABLE default.test_limit as
+  SELECT * LATERAL VIEW explode(ARRAY(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)) AS idx;
 """
 )
 
