@@ -50,11 +50,11 @@ The following table projects the capabilities of each of the available Catalog i
 | ---------------------- | ---- | ---- | ---- | -------- |
 | CRUD Namespaces        | ✓    | ✓    | ✓    | ✓        |
 | CRUD Tables            | ✓    | ✓    | ✓    | ✓        |
-| Update format version  | ✓    | ✕    | ✕    | ✕        |
+| Update format version  | ✕    | ✕    | ✕    | ✕        |
 | Alter table properties | ✓    | ✕    | ✕    | ✕        |
-| Alter schema           | ✓    | ✕    | ✕    | ✕        |
-| Alter partition spec   | ✓    | ✕    | ✕    | ✕        |
-| Alter sort order       | ✓    | ✕    | ✕    | ✕        |
+| Alter schema           | ✕    | ✕    | ✕    | ✕        |
+| Alter partition spec   | ✕    | ✕    | ✕    | ✕        |
+| Alter sort order       | ✕    | ✕    | ✕    | ✕        |
 | Alter snapshots        | ✕    | ✕    | ✕    | ✕        |
 | Refresh tables         | ✓    | ✕    | ✕    | ✕        |
 

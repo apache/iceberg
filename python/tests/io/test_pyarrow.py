@@ -27,7 +27,7 @@ import pytest
 from pyarrow.fs import FileType
 
 from pyiceberg.avro.resolver import ResolveError
-from pyiceberg.catalog.null import NoopCatalog
+from pyiceberg.catalog.noop import NoopCatalog
 from pyiceberg.expressions import (
     AlwaysFalse,
     AlwaysTrue,

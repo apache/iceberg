@@ -27,13 +27,13 @@ from unittest import mock
 from click.testing import CliRunner
 
 from pyiceberg.catalog import Catalog, PropertiesUpdateSummary
-from pyiceberg.catalog.null import NoopCatalog
+from pyiceberg.catalog.noop import NoopCatalog
 from pyiceberg.cli.console import run
 from pyiceberg.exceptions import NoSuchNamespaceError, NoSuchTableError
 from pyiceberg.io import load_file_io
 from pyiceberg.partitioning import UNPARTITIONED_PARTITION_SPEC, PartitionSpec
 from pyiceberg.schema import Schema
-from pyiceberg.table import BaseTableUpdate, Table
+from pyiceberg.table import TableUpdate, Table
 from pyiceberg.table.metadata import TableMetadataV2
 from pyiceberg.table.sorting import UNSORTED_SORT_ORDER, SortOrder
 from pyiceberg.typedef import EMPTY_DICT, Identifier, Properties
@@ -120,7 +120,7 @@ class MockCatalog(Catalog):
             catalog=self,
         )
 
-    def alter_table(self, identifier: Union[str, Identifier], updates: Tuple[BaseTableUpdate, ...]) -> Table:
+    def update_table(self, identifier: Union[str, Identifier], updates: Tuple[TableUpdate, ...]) -> Table:
         raise NotImplementedError
 
     def load_table(self, identifier: Union[str, Identifier]) -> Table:

@@ -52,12 +52,12 @@ from pyiceberg.exceptions import (
     ServerError,
     ServiceUnavailableError,
     TableAlreadyExistsError,
-    UnauthorizedError,
+    UnauthorizedError, CommitFailedException, CommitStateUnknownException,
 )
 from pyiceberg.partitioning import UNPARTITIONED_PARTITION_SPEC, PartitionSpec
 from pyiceberg.schema import Schema
 from pyiceberg.table import (
-    BaseTableUpdate,
+    TableUpdate,
     CommitTableRequest,
     Table,
     TableMetadata,
@@ -498,16 +498,15 @@ class RestCatalog(Catalog):
 
         return self.load_table(to_identifier)
 
-    def alter_table(self, identifier: Union[str, Identifier], updates: Tuple[BaseTableUpdate, ...]) -> TableResponse:
+    def update_table(self, identifier: Union[str, Identifier], updates: Tuple[TableUpdate, ...]) -> TableResponse:
         """Updates the table
 
         Args:
             identifier (str | Identifier): Namespace identifier
-            updates (Tuple[BaseTableUpdate]): Updates to be applied to the table
+            updates (Tuple[TableUpdate]): Updates to be applied to the table
         Raises:
             NoSuchTableError: If a table with the given identifier does not exist
         """
-        print(updates)
         payload = CommitTableRequest(updates=updates).json()
         response = self._session.post(
             self.url(Endpoints.update_table, prefixed=True, **self._split_identifier_for_path(identifier)),
@@ -516,7 +515,12 @@ class RestCatalog(Catalog):
         try:
             response.raise_for_status()
         except HTTPError as exc:
-            self._handle_non_200_response(exc, {})
+            self._handle_non_200_response(exc, {
+                409: CommitFailedException,
+                500: CommitStateUnknownException,
+                502: CommitStateUnknownException,
+                504: CommitStateUnknownException
+            })
         return TableResponse(**response.json())
 
     def create_namespace(self, namespace: Union[str, Identifier], properties: Properties = EMPTY_DICT) -> None:

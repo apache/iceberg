@@ -107,25 +107,27 @@ def test_add_field(table: Table) -> None:
         NestedField(field_id=5, name="double", field_type=DoubleType(), required=False),
         schema_id=1,
     )
-
-    table = table.alter().set_schema(schema).commit()
-    assert table.schema() == schema
+    with pytest.raises(NotImplementedError):
+        table = table.alter().set_schema(schema).commit()
+        assert table.schema() == schema
 
 
 @pytest.mark.integration
 def test_add_partition_spec_field(table: Table) -> None:
     spec = PartitionSpec(PartitionField(source_id=4, field_id=1000, transform=DayTransform(), name="datetime_day"), spec_id=1)
 
-    table = table.alter().set_partition_spec(spec).commit()
-    assert table.spec() == spec
+    with pytest.raises(NotImplementedError):
+        table = table.alter().set_partition_spec(spec).commit()
+        assert table.spec() == spec
 
 
 @pytest.mark.integration
 def test_add_sort_order(table: Table) -> None:
     order = SortOrder(SortField(source_id=2, transform=IdentityTransform()), order_id=1)
 
-    table = table.alter().set_sort_order(order).commit()
-    assert table.sort_order() == order
+    with pytest.raises(NotImplementedError):
+        table = table.alter().set_sort_order(order).commit()
+        assert table.sort_order() == order
 
 
 @pytest.mark.integration
@@ -136,7 +138,7 @@ def test_table_properties(table: Table) -> None:
 
     assert table.properties == {"abc": "def"}
 
-    table = table.alter().unset_properties("abc").commit()
+    table = table.alter().remove_properties("abc").commit()
 
     assert table.properties == {}
 

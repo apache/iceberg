@@ -19,7 +19,7 @@ from typing import Any, Dict
 
 import pytest
 
-from pyiceberg.catalog.null import NoopCatalog
+from pyiceberg.catalog.noop import NoopCatalog
 from pyiceberg.expressions import (
     AlwaysTrue,
     And,

@@ -220,7 +220,7 @@ table = table.alter().set_properties(abc="def").commit()
 
 assert table.properties == {"abc": "def"}
 
-table = table.alter().unset_properties("abc").commit()
+table = table.alter().remove_properties("abc").commit()
 
 assert table.properties == {}
 ```

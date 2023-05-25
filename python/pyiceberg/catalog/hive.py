@@ -67,7 +67,7 @@ from pyiceberg.io import FileIO, load_file_io
 from pyiceberg.partitioning import UNPARTITIONED_PARTITION_SPEC, PartitionSpec
 from pyiceberg.schema import Schema, SchemaVisitor, visit
 from pyiceberg.serializers import FromInputFile
-from pyiceberg.table import BaseTableUpdate, Table
+from pyiceberg.table import TableUpdate, Table
 from pyiceberg.table.metadata import new_table_metadata
 from pyiceberg.table.sorting import UNSORTED_SORT_ORDER, SortOrder
 from pyiceberg.typedef import EMPTY_DICT
@@ -304,12 +304,12 @@ class HiveCatalog(Catalog):
 
         return self._convert_hive_into_iceberg(hive_table, io)
 
-    def alter_table(self, identifier: Union[str, Identifier], updates: Tuple[BaseTableUpdate, ...]) -> Table:
+    def update_table(self, identifier: Union[str, Identifier], updates: Tuple[TableUpdate, ...]) -> Table:
         """Updates the table
 
         Args:
             identifier (str | Identifier): Namespace identifier
-            updates (Tuple[BaseTableUpdate]): Updates to be applied to the table
+            updates (Tuple[TableUpdate]): Updates to be applied to the table
         Raises:
             NoSuchTableError: If a table with the given identifier does not exist
         """

@@ -14248,7 +14248,7 @@ class Processor(fb303.FacebookService.Processor, Iface, TProcessor):
         iprot.readMessageEnd()
         result = alter_table_result()
         try:
-            self._handler.alter_table(args.dbname, args.tbl_name, args.new_tbl)
+            self._handler.update_table(args.dbname, args.tbl_name, args.new_tbl)
             msg_type = TMessageType.REPLY
         except TTransport.TTransportException:
             raise

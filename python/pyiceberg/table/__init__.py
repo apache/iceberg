@@ -32,7 +32,7 @@ from typing import (
     Optional,
     Tuple,
     TypeVar,
-    Union,
+    Union, Literal,
 )
 
 from pydantic import Field
@@ -76,15 +76,15 @@ if TYPE_CHECKING:
 ALWAYS_TRUE = AlwaysTrue()
 
 
-class AlterTable:
+class TableUpdates:
     _table: Table
-    _updates: Tuple[BaseTableUpdate, ...]
+    _updates: Tuple[TableUpdate, ...]
 
-    def __init__(self, table: Table, actions: Optional[Tuple[BaseTableUpdate, ...]] = None):
+    def __init__(self, table: Table, actions: Optional[Tuple[TableUpdate, ...]] = None):
         self._table = table
         self._updates = actions or ()
 
-    def _append_updates(self, *new_updates: BaseTableUpdate) -> AlterTable:
+    def _append_updates(self, *new_updates: TableUpdate) -> TableUpdates:
         """Appends updates to the set of staged updates
 
         Args:
@@ -100,9 +100,10 @@ class AlterTable:
             type_new_update = type(new_update)
             if any(type(update) == type_new_update for update in self._updates):
                 raise ValueError(f"Updates in a single commit need to be unique, duplicate: {type_new_update}")
-        return AlterTable(self._table, self._updates + new_updates)
+        self._updates = self._updates + new_updates
+        return self
 
-    def set_table_version(self, format_version: int) -> AlterTable:
+    def set_table_version(self, format_version: int) -> TableUpdates:
         """Sets the table to a certain version
 
         Args:
@@ -111,11 +112,9 @@ class AlterTable:
         Returns:
             The alter table builder
         """
-        if format_version not in {1, 2}:
-            raise ValueError(f"Format version not (yet) supported: {format_version}")
-        return self._append_updates(UpgradeFormatVersionUpdate(format_version=format_version))
+        raise NotImplementedError("Not yet implemented")
 
-    def set_schema(self, new_schema: Schema) -> AlterTable:
+    def set_schema(self, new_schema: Schema) -> TableUpdates:
         """Set the schema, and updates the current-schema-id
 
         Args:
@@ -127,15 +126,9 @@ class AlterTable:
         Raises:
             ValueError: When a schema with the same fields already exists
         """
-        last_column_id = max(self._table.schema().highest_field_id, new_schema.highest_field_id)
+        raise NotImplementedError("Not yet implemented")
 
-        exists = [schema for schema in self._table.schemas().values() if new_schema.fields == schema.fields]
-        if len(exists) > 0:
-            raise ValueError(f"Schema already exists, schema-id {exists[0].schema_id}")
-
-        return self._append_updates(AddSchemaUpdate(schema_=new_schema, last_column_id=last_column_id), SetCurrentSchemaUpdate())
-
-    def set_partition_spec(self, spec: PartitionSpec) -> AlterTable:
+    def set_partition_spec(self, spec: PartitionSpec) -> TableUpdates:
         """Sets the partition spec, and updates the default-spec-id
 
         Args:
@@ -144,9 +137,9 @@ class AlterTable:
         Returns:
             The alter table builder
         """
-        return self._append_updates(AddPartitionSpecUpdate(spec=spec), SetDefaultSpecUpdate())
+        raise NotImplementedError("Not yet implemented")
 
-    def set_sort_order(self, sort_order: SortOrder) -> AlterTable:
+    def set_sort_order(self, sort_order: SortOrder) -> TableUpdates:
         """Sets the sort order, and updates the default-sort-order-id
 
         Args:
@@ -155,9 +148,9 @@ class AlterTable:
         Returns:
             The alter table builder
         """
-        return self._append_updates(AddSortOrderUpdate(sort_order=sort_order), SetDefaultSortOrderUpdate())
+        raise NotImplementedError("Not yet implemented")
 
-    def set_properties(self, **updates: str) -> AlterTable:
+    def set_properties(self, **updates: str) -> TableUpdates:
         """Set properties
 
         When a property is already set, it will be overwritten
@@ -170,7 +163,7 @@ class AlterTable:
         """
         return self._append_updates(SetPropertiesUpdate(updates=updates))
 
-    def unset_properties(self, *removals: str) -> AlterTable:
+    def remove_properties(self, *removals: str) -> TableUpdates:
         """Removes properties
 
         Args:
@@ -181,7 +174,7 @@ class AlterTable:
         """
         return self._append_updates(RemovePropertiesUpdate(removals=removals))
 
-    def update_location(self, location: str) -> AlterTable:
+    def update_location(self, location: str) -> TableUpdates:
         """Sets the new table location
 
         Args:
@@ -190,7 +183,7 @@ class AlterTable:
         Returns:
             The alter table builder
         """
-        return self._append_updates(SetLocationUpdate(location=location))
+        raise NotImplementedError("Not yet implemented")
 
     def commit(self) -> Table:
         """Commits the changes to the catalog
@@ -200,7 +193,7 @@ class AlterTable:
         """
         # Strip the catalog name
         if len(self._updates) > 0:
-            table_response = self._table.catalog.alter_table(self._table.identifier[1:], self._updates)
+            table_response = self._table.catalog.update_table(self._table.identifier[1:], self._updates)
             return Table(
                 self._table.identifier,
                 metadata=table_response.metadata,
@@ -229,90 +222,120 @@ class TableUpdateAction(Enum):
     remove_properties = "remove-properties"
 
 
-class BaseTableUpdate(IcebergBaseModel):
+class TableUpdate(IcebergBaseModel):
     action: TableUpdateAction
 
 
-class UpgradeFormatVersionUpdate(BaseTableUpdate):
+class UpgradeFormatVersionUpdate(TableUpdate):
     action = TableUpdateAction.upgrade_format_version
     format_version: int = Field(alias="format-version")
 
 
-class AddSchemaUpdate(BaseTableUpdate):
+class AddSchemaUpdate(TableUpdate):
     action = TableUpdateAction.add_schema
     schema_: Schema = Field(alias="schema")
-    last_column_id: int = Field(alias="last-column-id")
 
 
-class SetCurrentSchemaUpdate(BaseTableUpdate):
+class SetCurrentSchemaUpdate(TableUpdate):
     action = TableUpdateAction.set_current_schema
     schema_id: int = Field(
         alias="schema-id", description="Schema ID to set as current, or -1 to set last added schema", default=-1
     )
 
 
-class AddPartitionSpecUpdate(BaseTableUpdate):
+class AddPartitionSpecUpdate(TableUpdate):
     action = TableUpdateAction.add_spec
     spec: PartitionSpec
 
 
-class SetDefaultSpecUpdate(BaseTableUpdate):
+class SetDefaultSpecUpdate(TableUpdate):
     action = TableUpdateAction.set_default_spec
     spec_id: int = Field(
         alias="spec-id", description="Partition spec ID to set as the default, or -1 to set last added spec", default=-1
     )
 
 
-class AddSortOrderUpdate(BaseTableUpdate):
+class AddSortOrderUpdate(TableUpdate):
     action = TableUpdateAction.add_sort_order
     sort_order: SortOrder = Field(alias="sort-order")
 
 
-class SetDefaultSortOrderUpdate(BaseTableUpdate):
+class SetDefaultSortOrderUpdate(TableUpdate):
     action = TableUpdateAction.set_default_sort_order
     sort_order_id: int = Field(
         alias="sort-order-id", description="Sort order ID to set as the default, or -1 to set last added sort order", default=-1
     )
 
 
-class AddSnapshotUpdate(BaseTableUpdate):
+class AddSnapshotUpdate(TableUpdate):
     action = TableUpdateAction.add_snapshot
     snapshot: Snapshot
 
 
-class SetSnapshotRefUpdate(BaseTableUpdate):
+class SetSnapshotRefUpdate(TableUpdate):
     action = TableUpdateAction.set_snapshot_ref
     ref_name: str = Field(alias="ref-name")
+    type: Literal["tag", "branch"]
+    snapshot_id = Field(alias="snapshot-id")
+    max_age_ref_ms: int = Field(alias="max-ref-age-ms")
+    max_snapshot_age_ms: int = Field(alias="max-snapshot-age-ms")
+    min_snapshots_to_keep: int = Field(alias="min-snapshots-to-keep")
 
 
-class RemoveSnapshotsUpdate(BaseTableUpdate):
+class RemoveSnapshotsUpdate(TableUpdate):
     action = TableUpdateAction.remove_snapshots
     snapshot_ids: List[int] = Field(alias="snapshot-ids")
 
 
-class RemoveSnapshotRefUpdate(BaseTableUpdate):
+class RemoveSnapshotRefUpdate(TableUpdate):
     action = TableUpdateAction.remove_snapshot_ref
     ref_name: str = Field(alias="ref-name")
 
 
-class SetLocationUpdate(BaseTableUpdate):
+class SetLocationUpdate(TableUpdate):
     action = TableUpdateAction.set_location
     location: str
 
 
-class SetPropertiesUpdate(BaseTableUpdate):
+class SetPropertiesUpdate(TableUpdate):
     action = TableUpdateAction.set_properties
     updates: Dict[str, str]
 
 
-class RemovePropertiesUpdate(BaseTableUpdate):
+class RemovePropertiesUpdate(TableUpdate):
     action = TableUpdateAction.remove_properties
     removals: List[str]
 
 
+
+class Requirement(Enum):
+    assert_create = 'assert-create'
+    assert_table_uuid = 'assert-table-uuid'
+    assert_ref_snapshot_id = 'assert-ref-snapshot-id'
+    assert_last_assigned_field_id = 'assert-last-assigned-field-id'
+    assert_current_schema_id = 'assert-current-schema-id'
+    assert_last_assigned_partition_id = 'assert-last-assigned-partition-id'
+    assert_default_spec_id = 'assert-default-spec-id'
+    assert_default_sort_order_id = 'assert-default-sort-order-id'
+
+
+class TableRequirement(IcebergBaseModel):
+    requirement: Requirement
+    ref: Optional[str] = None
+    uuid: Optional[str] = None
+    snapshot_id: Optional[int] = Field(None, alias='snapshot-id')
+    last_assigned_field_id: Optional[int] = Field(None, alias='last-assigned-field-id')
+    current_schema_id: Optional[int] = Field(None, alias='current-schema-id')
+    last_assigned_partition_id: Optional[int] = Field(
+        None, alias='last-assigned-partition-id'
+    )
+    default_spec_id: Optional[int] = Field(None, alias='default-spec-id')
+    default_sort_order_id: Optional[int] = Field(None, alias='default-sort-order-id')
+
+
 class CommitTableRequest(IcebergBaseModel):
-    requirements: List[Any] = Field(default_factory=list)
-    updates: List[BaseTableUpdate] = Field(default_factory=list)
+    requirements: List[TableRequirement] = Field(default_factory=list)
+    updates: List[TableUpdate] = Field(default_factory=list)
 
 
 class Table:
@@ -331,8 +354,8 @@ class Table:
         self.io = io
         self.catalog = catalog
 
-    def alter(self) -> AlterTable:
-        return AlterTable(self)
+    def alter(self) -> TableUpdates:
+        return TableUpdates(self)
 
     def refresh(self) -> Table:
         """Refresh the current table metadata"""
@@ -445,7 +468,7 @@ class StaticTable(Table):
 
         metadata = FromInputFile.table_metadata(file)
 
-        from pyiceberg.catalog.null import NoopCatalog
+        from pyiceberg.catalog.noop import NoopCatalog
 
         return cls(
             identifier=("static-table", metadata_location),
