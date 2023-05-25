@@ -130,15 +130,16 @@ public class SparkWriteUtil {
 
   /** Builds requirements for merge-on-read DELETE, UPDATE, MERGE operations. */
   public static SparkWriteRequirements positionDeltaRequirements(
-      Table table, Command command, DistributionMode mode) {
+      Table table, Command command, DistributionMode mode, boolean fanoutEnabled) {
 
     if (command == UPDATE || command == MERGE) {
       Distribution distribution = positionDeltaUpdateMergeDistribution(table, mode);
-      SortOrder[] ordering = concat(POSITION_DELETE_ORDERING, ordering(table));
+      SortOrder[] ordering = positionDeltaUpdateMergeOrdering(table, fanoutEnabled);
       return new SparkWriteRequirements(distribution, ordering);
     } else {
       Distribution distribution = positionDeltaDeleteDistribution(table, mode);
-      return new SparkWriteRequirements(distribution, POSITION_DELETE_ORDERING);
+      SortOrder[] ordering = fanoutEnabled ? EMPTY_ORDERING : POSITION_DELETE_ORDERING;
+      return new SparkWriteRequirements(distribution, ordering);
     }
   }
 
@@ -165,6 +166,14 @@ public class SparkWriteUtil {
 
       default:
         throw new IllegalArgumentException("Unsupported distribution mode: " + mode);
+    }
+  }
+
+  private static SortOrder[] positionDeltaUpdateMergeOrdering(Table table, boolean fanoutEnabled) {
+    if (fanoutEnabled && table.sortOrder().isUnsorted()) {
+      return EMPTY_ORDERING;
+    } else {
+      return concat(POSITION_DELETE_ORDERING, ordering(table));
     }
   }
 

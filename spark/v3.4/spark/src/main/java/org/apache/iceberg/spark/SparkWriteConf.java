@@ -283,8 +283,13 @@ public class SparkWriteConf {
   }
 
   public SparkWriteRequirements positionDeltaRequirements(Command command) {
+    if (ignoreTableDistributionAndOrdering()) {
+      LOG.info("Skipping distribution/ordering: disabled per job configuration");
+      return SparkWriteRequirements.EMPTY;
+    }
+
     return SparkWriteUtil.positionDeltaRequirements(
-        table, command, positionDeltaDistributionMode(command));
+        table, command, positionDeltaDistributionMode(command), fanoutWriterEnabled());
   }
 
   @VisibleForTesting
