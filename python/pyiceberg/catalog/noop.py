@@ -25,7 +25,7 @@ from typing import (
 from pyiceberg.catalog import Catalog, PropertiesUpdateSummary
 from pyiceberg.partitioning import UNPARTITIONED_PARTITION_SPEC, PartitionSpec
 from pyiceberg.schema import Schema
-from pyiceberg.table import TableUpdate, SortOrder, Table
+from pyiceberg.table import SortOrder, Table, TableUpdate
 from pyiceberg.table.sorting import UNSORTED_SORT_ORDER
 from pyiceberg.typedef import EMPTY_DICT, Identifier, Properties
 

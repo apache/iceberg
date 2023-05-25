@@ -43,6 +43,8 @@ from pyiceberg.catalog import (
 from pyiceberg.exceptions import (
     AuthorizationExpiredError,
     BadRequestError,
+    CommitFailedException,
+    CommitStateUnknownException,
     ForbiddenError,
     NamespaceAlreadyExistsError,
     NoSuchNamespaceError,
@@ -52,15 +54,15 @@ from pyiceberg.exceptions import (
     ServerError,
     ServiceUnavailableError,
     TableAlreadyExistsError,
-    UnauthorizedError, CommitFailedException, CommitStateUnknownException,
+    UnauthorizedError,
 )
 from pyiceberg.partitioning import UNPARTITIONED_PARTITION_SPEC, PartitionSpec
 from pyiceberg.schema import Schema
 from pyiceberg.table import (
-    TableUpdate,
     CommitTableRequest,
     Table,
     TableMetadata,
+    TableUpdate,
 )
 from pyiceberg.table.sorting import UNSORTED_SORT_ORDER, SortOrder
 from pyiceberg.typedef import EMPTY_DICT, IcebergBaseModel
@@ -515,12 +517,15 @@ class RestCatalog(Catalog):
         try:
             response.raise_for_status()
         except HTTPError as exc:
-            self._handle_non_200_response(exc, {
-                409: CommitFailedException,
-                500: CommitStateUnknownException,
-                502: CommitStateUnknownException,
-                504: CommitStateUnknownException
-            })
+            self._handle_non_200_response(
+                exc,
+                {
+                    409: CommitFailedException,
+                    500: CommitStateUnknownException,
+                    502: CommitStateUnknownException,
+                    504: CommitStateUnknownException,
+                },
+            )
         return TableResponse(**response.json())
 
     def create_namespace(self, namespace: Union[str, Identifier], properties: Properties = EMPTY_DICT) -> None:

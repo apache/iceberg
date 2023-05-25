@@ -29,10 +29,11 @@ from typing import (
     Dict,
     Iterator,
     List,
+    Literal,
     Optional,
     Tuple,
     TypeVar,
-    Union, Literal,
+    Union,
 )
 
 from pydantic import Field
@@ -276,7 +277,7 @@ class SetSnapshotRefUpdate(TableUpdate):
     action = TableUpdateAction.set_snapshot_ref
     ref_name: str = Field(alias="ref-name")
     type: Literal["tag", "branch"]
-    snapshot_id = Field(alias="snapshot-id")
+    snapshot_id: int = Field(alias="snapshot-id")
     max_age_ref_ms: int = Field(alias="max-ref-age-ms")
     max_snapshot_age_ms: int = Field(alias="max-snapshot-age-ms")
     min_snapshots_to_keep: int = Field(alias="min-snapshots-to-keep")
@@ -307,30 +308,27 @@ class RemovePropertiesUpdate(TableUpdate):
     removals: List[str]
 
 
-
 class Requirement(Enum):
-    assert_create = 'assert-create'
-    assert_table_uuid = 'assert-table-uuid'
-    assert_ref_snapshot_id = 'assert-ref-snapshot-id'
-    assert_last_assigned_field_id = 'assert-last-assigned-field-id'
-    assert_current_schema_id = 'assert-current-schema-id'
-    assert_last_assigned_partition_id = 'assert-last-assigned-partition-id'
-    assert_default_spec_id = 'assert-default-spec-id'
-    assert_default_sort_order_id = 'assert-default-sort-order-id'
+    assert_create = "assert-create"
+    assert_table_uuid = "assert-table-uuid"
+    assert_ref_snapshot_id = "assert-ref-snapshot-id"
+    assert_last_assigned_field_id = "assert-last-assigned-field-id"
+    assert_current_schema_id = "assert-current-schema-id"
+    assert_last_assigned_partition_id = "assert-last-assigned-partition-id"
+    assert_default_spec_id = "assert-default-spec-id"
+    assert_default_sort_order_id = "assert-default-sort-order-id"
 
 
 class TableRequirement(IcebergBaseModel):
     requirement: Requirement
     ref: Optional[str] = None
     uuid: Optional[str] = None
-    snapshot_id: Optional[int] = Field(None, alias='snapshot-id')
-    last_assigned_field_id: Optional[int] = Field(None, alias='last-assigned-field-id')
-    current_schema_id: Optional[int] = Field(None, alias='current-schema-id')
-    last_assigned_partition_id: Optional[int] = Field(
-        None, alias='last-assigned-partition-id'
-    )
-    default_spec_id: Optional[int] = Field(None, alias='default-spec-id')
-    default_sort_order_id: Optional[int] = Field(None, alias='default-sort-order-id')
+    snapshot_id: Optional[int] = Field(None, alias="snapshot-id")
+    last_assigned_field_id: Optional[int] = Field(None, alias="last-assigned-field-id")
+    current_schema_id: Optional[int] = Field(None, alias="current-schema-id")
+    last_assigned_partition_id: Optional[int] = Field(None, alias="last-assigned-partition-id")
+    default_spec_id: Optional[int] = Field(None, alias="default-spec-id")
+    default_sort_order_id: Optional[int] = Field(None, alias="default-sort-order-id")
 
 
 class CommitTableRequest(IcebergBaseModel):
