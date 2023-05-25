@@ -122,8 +122,6 @@ case class ExtendedDataSourceV2Strategy(spark: SparkSession) extends Strategy wi
         }
         filter
       }.toArray
-      // scalastyle:off
-      println("DeleteFromIcebergTable")
       DeleteFromTableExec(r.table.asDeletable, filters, refreshCache(r)) :: Nil
 
     case NoStatsUnaryNode(child) =>

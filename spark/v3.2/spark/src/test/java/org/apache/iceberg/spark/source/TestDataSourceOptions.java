@@ -443,6 +443,7 @@ public class TestDataSourceOptions extends SparkTestBaseWithCatalog {
     writerThread.setName("test-extra-commit-message-writer-thread");
     writerThread.start();
     writerThread.join();
+
     Set<String> threadNames = Sets.newHashSet();
     for (Snapshot snapshot : table.snapshots()) {
       threadNames.add(snapshot.summary().get("writer-thread"));
@@ -454,7 +455,7 @@ public class TestDataSourceOptions extends SparkTestBaseWithCatalog {
 
   @Test
   public void testExtraSnapshotMetadataWithDelete()
-      throws InterruptedException, IOException, NoSuchTableException {
+      throws InterruptedException, NoSuchTableException {
     spark.sessionState().conf().setConfString("spark.sql.shuffle.partitions", "1");
     sql("CREATE TABLE %s (id INT, data STRING) USING iceberg", tableName);
     List<SimpleRecord> expectedRecords =
@@ -478,6 +479,7 @@ public class TestDataSourceOptions extends SparkTestBaseWithCatalog {
     writerThread.setName("test-extra-commit-message-delete-thread");
     writerThread.start();
     writerThread.join();
+
     Set<String> threadNames = Sets.newHashSet();
     Table table = validationCatalog.loadTable(tableIdent);
     for (Snapshot snapshot : table.snapshots()) {

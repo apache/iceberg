@@ -443,6 +443,7 @@ public class TestDataSourceOptions extends SparkTestBaseWithCatalog {
     writerThread.setName("test-extra-commit-message-writer-thread");
     writerThread.start();
     writerThread.join();
+
     Set<String> threadNames = Sets.newHashSet();
     for (Snapshot snapshot : table.snapshots()) {
       threadNames.add(snapshot.summary().get("writer-thread"));
@@ -454,7 +455,7 @@ public class TestDataSourceOptions extends SparkTestBaseWithCatalog {
 
   @Test
   public void testExtraSnapshotMetadataWithDelete()
-      throws InterruptedException, IOException, NoSuchTableException {
+      throws InterruptedException, NoSuchTableException {
     spark.sessionState().conf().setConfString("spark.sql.shuffle.partitions", "1");
     sql("CREATE TABLE %s (id INT, data STRING) USING iceberg", tableName);
     List<SimpleRecord> expectedRecords =
@@ -462,14 +463,6 @@ public class TestDataSourceOptions extends SparkTestBaseWithCatalog {
             new SimpleRecord(1, "a"), new SimpleRecord(2, "b"), new SimpleRecord(3, "c"));
     Dataset<Row> originalDf = spark.createDataFrame(expectedRecords, SimpleRecord.class);
     originalDf.repartition(5, new Column("data")).select("id", "data").writeTo(tableName).append();
-    spark.sql("SELECT * from " + tableName + ".files").show();
-    System.out.println(
-        spark
-            .sql("EXPLAIN DELETE FROM " + tableName + " where id = 1")
-            .collectAsList()
-            .get(0)
-            .get(0));
-    System.out.println("finished inserting");
     Thread writerThread =
         new Thread(
             () -> {
@@ -486,14 +479,11 @@ public class TestDataSourceOptions extends SparkTestBaseWithCatalog {
     writerThread.setName("test-extra-commit-message-delete-thread");
     writerThread.start();
     writerThread.join();
+
     Set<String> threadNames = Sets.newHashSet();
-    spark.sql("SELECT * from " + tableName).show();
     Table table = validationCatalog.loadTable(tableIdent);
     for (Snapshot snapshot : table.snapshots()) {
       threadNames.add(snapshot.summary().get("writer-thread"));
-    }
-    for (String t : threadNames) {
-      System.out.println(t);
     }
     Assert.assertEquals(2, threadNames.size());
     Assert.assertTrue(threadNames.contains(null));
