@@ -24,7 +24,6 @@ import java.io.IOException;
 import java.math.RoundingMode;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DataFile;
@@ -40,7 +39,6 @@ import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.math.LongMath;
 import org.apache.iceberg.spark.CommitMetadata;
 import org.apache.iceberg.spark.SparkReadOptions;
@@ -447,7 +445,8 @@ public class TestDataSourceOptions extends SparkTestBaseWithCatalog {
     List<Snapshot> snapshots = Lists.newArrayList(table.snapshots());
     Assert.assertEquals(2, snapshots.size());
     Assert.assertNull(snapshots.get(0).summary().get("writer-thread"));
-    Assert.assertEquals("test-extra-commit-message-delete-thread", snapshots.get(1).summary().get("writer-thread"));
+    Assert.assertEquals(
+        "test-extra-commit-message-delete-thread", snapshots.get(1).summary().get("writer-thread"));
   }
 
   @Test
@@ -481,6 +480,7 @@ public class TestDataSourceOptions extends SparkTestBaseWithCatalog {
     List<Snapshot> snapshots = Lists.newArrayList(table.snapshots());
     Assert.assertEquals(2, snapshots.size());
     Assert.assertNull(snapshots.get(0).summary().get("writer-thread"));
-    Assert.assertEquals("test-extra-commit-message-delete-thread", snapshots.get(1).summary().get("writer-thread"));
+    Assert.assertEquals(
+        "test-extra-commit-message-delete-thread", snapshots.get(1).summary().get("writer-thread"));
   }
 }
