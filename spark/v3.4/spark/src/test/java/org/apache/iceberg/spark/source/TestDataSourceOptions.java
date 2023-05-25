@@ -441,13 +441,10 @@ public class TestDataSourceOptions extends SparkTestBaseWithCatalog {
     writerThread.start();
     writerThread.join();
 
-    Set<String> threadNames = Sets.newHashSet();
-    for (Snapshot snapshot : table.snapshots()) {
-      threadNames.add(snapshot.summary().get("writer-thread"));
-    }
-    Assert.assertEquals(2, threadNames.size());
-    Assert.assertTrue(threadNames.contains(null));
-    Assert.assertTrue(threadNames.contains("test-extra-commit-message-writer-thread"));
+    List<Snapshot> snapshots = Lists.newArrayList(table.snapshots());
+    Assert.assertEquals(2, snapshots.size());
+    Assert.assertNull(snapshots.get(0).summary().get("writer-thread"));
+    Assert.assertEquals("test-extra-commit-message-delete-thread", snapshots.get(1).summary().get("writer-thread"));
   }
 
   @Test
@@ -476,14 +473,11 @@ public class TestDataSourceOptions extends SparkTestBaseWithCatalog {
     writerThread.setName("test-extra-commit-message-delete-thread");
     writerThread.start();
     writerThread.join();
-    
-    Set<String> threadNames = Sets.newHashSet();
+
     Table table = validationCatalog.loadTable(tableIdent);
-    for (Snapshot snapshot : table.snapshots()) {
-      threadNames.add(snapshot.summary().get("writer-thread"));
-    }
-    Assert.assertEquals(2, threadNames.size());
-    Assert.assertTrue(threadNames.contains(null));
-    Assert.assertTrue(threadNames.contains("test-extra-commit-message-delete-thread"));
+    List<Snapshot> snapshots = Lists.newArrayList(table.snapshots());
+    Assert.assertEquals(2, snapshots.size());
+    Assert.assertNull(snapshots.get(0).summary().get("writer-thread"));
+    Assert.assertEquals("test-extra-commit-message-delete-thread", snapshots.get(1).summary().get("writer-thread"));
   }
 }
