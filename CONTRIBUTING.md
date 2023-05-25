@@ -111,7 +111,7 @@ Example:
 ## Style
 
 For Java styling, check out the section
-[Setting up IDE and Code Style](https://iceberg.apache.org/community/#setting-up-ide-and-code-style) from the
+[Setting up IDE and Code Style](https://iceberg.apache.org/contribute/#setting-up-ide-and-code-style) from the
 documentation site.
 
 ### Java style guidelines

@@ -54,6 +54,7 @@ public class SparkWriteOptions {
   public static final String REWRITTEN_FILE_SCAN_TASK_SET_ID = "rewritten-file-scan-task-set-id";
 
   // Controls whether to allow writing timestamps without zone info
+  @Deprecated
   public static final String HANDLE_TIMESTAMP_WITHOUT_TIMEZONE =
       "handle-timestamp-without-timezone";
 

@@ -20,12 +20,10 @@
 package org.apache.spark.sql.catalyst.analysis
 
 import org.apache.spark.sql.AnalysisException
-import org.apache.spark.sql.catalyst.ProjectingInternalRow
 import org.apache.spark.sql.catalyst.expressions.Alias
 import org.apache.spark.sql.catalyst.expressions.And
 import org.apache.spark.sql.catalyst.expressions.Attribute
 import org.apache.spark.sql.catalyst.expressions.AttributeReference
-import org.apache.spark.sql.catalyst.expressions.AttributeSet
 import org.apache.spark.sql.catalyst.expressions.Expression
 import org.apache.spark.sql.catalyst.expressions.IsNotNull
 import org.apache.spark.sql.catalyst.expressions.Literal
@@ -66,8 +64,6 @@ import org.apache.spark.sql.connector.write.RowLevelOperationTable
 import org.apache.spark.sql.connector.write.SupportsDelta
 import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Relation
 import org.apache.spark.sql.types.IntegerType
-import org.apache.spark.sql.types.StructField
-import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.util.CaseInsensitiveStringMap
 
 /**
@@ -84,7 +80,6 @@ object RewriteMergeIntoTable extends RewriteRowLevelIcebergCommand with Predicat
 
   private final val ROW_FROM_SOURCE_REF = FieldReference(ROW_FROM_SOURCE)
   private final val ROW_FROM_TARGET_REF = FieldReference(ROW_FROM_TARGET)
-  private final val ROW_ID_REF = FieldReference(ROW_ID)
 
   override def apply(plan: LogicalPlan): LogicalPlan = plan resolveOperators {
     case m @ MergeIntoIcebergTable(aliasedTable, source, cond, matchedActions, notMatchedActions, None)
@@ -128,7 +123,7 @@ object RewriteMergeIntoTable extends RewriteRowLevelIcebergCommand with Predicat
           val joinPlan = Join(source, r, LeftAnti, Some(cond), JoinHint.NONE)
 
           val notMatchedConditions = notMatchedActions.map(actionCondition)
-          val notMatchedOutputs = notMatchedActions.map(actionOutput(_, Nil))
+          val notMatchedOutputs = notMatchedActions.map(notMatchedActionOutput(_, Nil))
 
           // merge rows as there are multiple not matched actions
           val mergeRows = MergeRows(
@@ -139,7 +134,6 @@ object RewriteMergeIntoTable extends RewriteRowLevelIcebergCommand with Predicat
             notMatchedConditions = notMatchedConditions,
             notMatchedOutputs = notMatchedOutputs,
             targetOutput = Nil,
-            rowIdAttrs = Nil,
             performCardinalityCheck = false,
             emitNotMatchedTargetRows = false,
             output = buildMergeRowsOutput(Nil, notMatchedOutputs, r.output),
@@ -187,11 +181,17 @@ object RewriteMergeIntoTable extends RewriteRowLevelIcebergCommand with Predicat
     val readRelation = buildRelationWithAttrs(relation, operationTable, metadataAttrs)
     val readAttrs = readRelation.output
 
+    val performCardinalityCheck = isCardinalityCheckNeeded(matchedActions)
+
     // project an extra column to check if a target row exists after the join
-    // project a synthetic row ID to perform the cardinality check
+    // if needed, project a synthetic row ID to perform the cardinality check
     val rowFromTarget = Alias(TrueLiteral, ROW_FROM_TARGET)()
-    val rowId = Alias(MonotonicallyIncreasingID(), ROW_ID)()
-    val targetTableProjExprs = readAttrs ++ Seq(rowFromTarget, rowId)
+    val targetTableProjExprs = if (performCardinalityCheck) {
+      val rowId = Alias(MonotonicallyIncreasingID(), ROW_ID)()
+      readAttrs ++ Seq(rowFromTarget, rowId)
+    } else {
+      readAttrs :+ rowFromTarget
+    }
     val targetTableProj = Project(targetTableProjExprs, readRelation)
 
     // project an extra column to check if a source row exists after the join
@@ -206,15 +206,12 @@ object RewriteMergeIntoTable extends RewriteRowLevelIcebergCommand with Predicat
     val joinHint = JoinHint(leftHint = Some(HintInfo(Some(NO_BROADCAST_HASH))), rightHint = None)
     val joinPlan = Join(NoStatsUnaryNode(targetTableProj), sourceTableProj, joinType, Some(cond), joinHint)
 
-    // add an extra matched action to output the original row if none of the actual actions matched
-    // this is needed to keep target rows that should be copied over
-    val matchedConditions = matchedActions.map(actionCondition) :+ TrueLiteral
-    val matchedOutputs = matchedActions.map(actionOutput(_, metadataAttrs)) :+ readAttrs
+    val matchedConditions = matchedActions.map(actionCondition)
+    val matchedOutputs = matchedActions.map(matchedActionOutput(_, metadataAttrs))
 
     val notMatchedConditions = notMatchedActions.map(actionCondition)
-    val notMatchedOutputs = notMatchedActions.map(actionOutput(_, metadataAttrs))
+    val notMatchedOutputs = notMatchedActions.map(notMatchedActionOutput(_, metadataAttrs))
 
-    val rowIdAttr = resolveAttrRef(ROW_ID_REF, joinPlan)
     val rowFromSourceAttr = resolveAttrRef(ROW_FROM_SOURCE_REF, joinPlan)
     val rowFromTargetAttr = resolveAttrRef(ROW_FROM_TARGET_REF, joinPlan)
 
@@ -226,8 +223,7 @@ object RewriteMergeIntoTable extends RewriteRowLevelIcebergCommand with Predicat
       notMatchedConditions = notMatchedConditions,
       notMatchedOutputs = notMatchedOutputs,
       targetOutput = readAttrs,
-      rowIdAttrs = Seq(rowIdAttr),
-      performCardinalityCheck = isCardinalityCheckNeeded(matchedActions),
+      performCardinalityCheck = performCardinalityCheck,
       emitNotMatchedTargetRows = true,
       output = buildMergeRowsOutput(matchedOutputs, notMatchedOutputs, readAttrs),
       joinPlan)
@@ -257,8 +253,17 @@ object RewriteMergeIntoTable extends RewriteRowLevelIcebergCommand with Predicat
 
     val (targetCond, joinCond) = splitMergeCond(cond, readRelation)
 
+    val performCardinalityCheck = isCardinalityCheckNeeded(matchedActions)
+
     // project an extra column to check if a target row exists after the join
-    val targetTableProjExprs = readAttrs :+ Alias(TrueLiteral, ROW_FROM_TARGET)()
+    // if needed, project a synthetic row ID to perform the cardinality check
+    val rowFromTarget = Alias(TrueLiteral, ROW_FROM_TARGET)()
+    val targetTableProjExprs = if (performCardinalityCheck) {
+      val rowId = Alias(MonotonicallyIncreasingID(), ROW_ID)()
+      readAttrs ++ Seq(rowFromTarget, rowId)
+    } else {
+      readAttrs :+ rowFromTarget
+    }
     val targetTableProj = Project(targetTableProjExprs, Filter(targetCond, readRelation))
 
     // project an extra column to check if a source row exists after the join
@@ -272,14 +277,17 @@ object RewriteMergeIntoTable extends RewriteRowLevelIcebergCommand with Predicat
     val joinHint = JoinHint(leftHint = Some(HintInfo(Some(NO_BROADCAST_HASH))), rightHint = None)
     val joinPlan = Join(NoStatsUnaryNode(targetTableProj), sourceTableProj, joinType, Some(joinCond), joinHint)
 
-    val deleteRowValues = buildDeltaDeleteRowValues(rowAttrs, rowIdAttrs)
     val metadataReadAttrs = readAttrs.filterNot(relation.outputSet.contains)
 
     val matchedConditions = matchedActions.map(actionCondition)
-    val matchedOutputs = matchedActions.map(deltaActionOutput(_, deleteRowValues, metadataReadAttrs))
+    val matchedOutputs = matchedActions.map { action =>
+      matchedDeltaActionOutput(action, rowAttrs, rowIdAttrs, metadataReadAttrs)
+    }
 
     val notMatchedConditions = notMatchedActions.map(actionCondition)
-    val notMatchedOutputs = notMatchedActions.map(deltaActionOutput(_, deleteRowValues, metadataReadAttrs))
+    val notMatchedOutputs = notMatchedActions.map { action =>
+      notMatchedDeltaActionOutput(action, metadataReadAttrs)
+    }
 
     val operationTypeAttr = AttributeReference(OPERATION_COLUMN, IntegerType, nullable = false)()
     val rowFromSourceAttr = resolveAttrRef(ROW_FROM_SOURCE_REF, joinPlan)
@@ -297,15 +305,14 @@ object RewriteMergeIntoTable extends RewriteRowLevelIcebergCommand with Predicat
       notMatchedOutputs = notMatchedOutputs,
       // only needed if emitting unmatched target rows
       targetOutput = Nil,
-      rowIdAttrs = rowIdAttrs,
-      performCardinalityCheck = isCardinalityCheckNeeded(matchedActions),
+      performCardinalityCheck = performCardinalityCheck,
       emitNotMatchedTargetRows = false,
       output = mergeRowsOutput,
       joinPlan)
 
     // build a plan to write the row delta to the table
     val writeRelation = relation.copy(table = operationTable)
-    val projections = buildMergeDeltaProjections(mergeRows, rowAttrs, rowIdAttrs, metadataAttrs)
+    val projections = buildDeltaProjections(mergeRows, rowAttrs, rowIdAttrs, metadataAttrs)
     WriteIcebergDelta(writeRelation, mergeRows, relation, projections)
   }
 
@@ -313,63 +320,77 @@ object RewriteMergeIntoTable extends RewriteRowLevelIcebergCommand with Predicat
     action.condition.getOrElse(TrueLiteral)
   }
 
-  private def actionOutput(
+  private def matchedActionOutput(
       clause: MergeAction,
-      metadataAttrs: Seq[Attribute]): Seq[Expression] = {
+      metadataAttrs: Seq[Attribute]): Seq[Seq[Expression]] = {
 
     clause match {
       case u: UpdateAction =>
-        u.assignments.map(_.value) ++ metadataAttrs
+        Seq(u.assignments.map(_.value) ++ metadataAttrs)
 
       case _: DeleteAction =>
         Nil
 
+      case other =>
+        throw new AnalysisException(s"Unexpected WHEN MATCHED action: $other")
+    }
+  }
+
+  private def notMatchedActionOutput(
+      clause: MergeAction,
+      metadataAttrs: Seq[Attribute]): Seq[Expression] = {
+
+    clause match {
       case i: InsertAction =>
         i.assignments.map(_.value) ++ metadataAttrs.map(attr => Literal(null, attr.dataType))
 
       case other =>
-        throw new AnalysisException(s"Unexpected action: $other")
+        throw new AnalysisException(s"Unexpected WHEN NOT MATCHED action: $other")
     }
   }
 
-  private def deltaActionOutput(
+  private def matchedDeltaActionOutput(
       action: MergeAction,
-      deleteRowValues: Seq[Expression],
-      metadataAttrs: Seq[Attribute]): Seq[Expression] = {
+      rowAttrs: Seq[Attribute],
+      rowIdAttrs: Seq[Attribute],
+      metadataAttrs: Seq[Attribute]): Seq[Seq[Expression]] = {
 
     action match {
       case u: UpdateAction =>
-        Seq(Literal(UPDATE_OPERATION)) ++ u.assignments.map(_.value) ++ metadataAttrs
+        val delete = deltaDeleteOutput(rowAttrs, rowIdAttrs, metadataAttrs)
+        val insert = deltaInsertOutput(u.assignments.map(_.value), metadataAttrs)
+        Seq(delete, insert)
 
       case _: DeleteAction =>
-        Seq(Literal(DELETE_OPERATION)) ++ deleteRowValues ++ metadataAttrs
-
-      case i: InsertAction =>
-        val metadataAttrValues = metadataAttrs.map(attr => Literal(null, attr.dataType))
-        Seq(Literal(INSERT_OPERATION)) ++ i.assignments.map(_.value) ++ metadataAttrValues
+        val delete = deltaDeleteOutput(rowAttrs, rowIdAttrs, metadataAttrs)
+        Seq(delete)
 
       case other =>
-        throw new AnalysisException(s"Unexpected action: $other")
+        throw new AnalysisException(s"Unexpected WHEN MATCHED action: $other")
+    }
+  }
+
+  private def notMatchedDeltaActionOutput(
+      action: MergeAction,
+      metadataAttrs: Seq[Attribute]): Seq[Expression] = {
+
+    action match {
+      case i: InsertAction =>
+        deltaInsertOutput(i.assignments.map(_.value), metadataAttrs)
+
+      case other =>
+        throw new AnalysisException(s"Unexpected WHEN NOT MATCHED action: $other")
     }
   }
 
   private def buildMergeRowsOutput(
-      matchedOutputs: Seq[Seq[Expression]],
+      matchedOutputs: Seq[Seq[Seq[Expression]]],
       notMatchedOutputs: Seq[Seq[Expression]],
       attrs: Seq[Attribute]): Seq[Attribute] = {
 
-    // collect all outputs from matched and not matched actions (ignoring DELETEs)
-    val outputs = matchedOutputs.filter(_.nonEmpty) ++ notMatchedOutputs.filter(_.nonEmpty)
-
-    // build a correct nullability map for output attributes
-    // an attribute is nullable if at least one matched or not matched action may produce null
-    val nullabilityMap = attrs.indices.map { index =>
-      index -> outputs.exists(output => output(index).nullable)
-    }.toMap
-
-    attrs.zipWithIndex.map { case (attr, index) =>
-      AttributeReference(attr.name, attr.dataType, nullabilityMap(index), attr.metadata)()
-    }
+    // collect all outputs from matched and not matched actions (ignoring actions that discard rows)
+    val outputs = matchedOutputs.flatten.filter(_.nonEmpty) ++ notMatchedOutputs.filter(_.nonEmpty)
+    buildMergingOutput(outputs, attrs)
   }
 
   private def isCardinalityCheckNeeded(actions: Seq[MergeAction]): Boolean = actions match {
@@ -377,71 +398,18 @@ object RewriteMergeIntoTable extends RewriteRowLevelIcebergCommand with Predicat
     case _ => true
   }
 
-  private def buildDeltaDeleteRowValues(
-      rowAttrs: Seq[Attribute],
-      rowIdAttrs: Seq[Attribute]): Seq[Expression] = {
-
-    // nullify all row attrs that are not part of the row ID
-    val rowIdAttSet = AttributeSet(rowIdAttrs)
-    rowAttrs.map {
-      case attr if rowIdAttSet.contains(attr) => attr
-      case attr => Literal(null, attr.dataType)
-    }
-  }
-
   private def resolveAttrRef(ref: NamedReference, plan: LogicalPlan): AttributeReference = {
     V2ExpressionUtils.resolveRef[AttributeReference](ref, plan)
   }
 
-  private def buildMergeDeltaProjections(
+  private def buildDeltaProjections(
       mergeRows: MergeRows,
       rowAttrs: Seq[Attribute],
       rowIdAttrs: Seq[Attribute],
       metadataAttrs: Seq[Attribute]): WriteDeltaProjections = {
 
-    val outputAttrs = mergeRows.output
-
-    val outputs = mergeRows.matchedOutputs ++ mergeRows.notMatchedOutputs
-    val insertAndUpdateOutputs = outputs.filterNot(_.head == Literal(DELETE_OPERATION))
-    val updateAndDeleteOutputs = outputs.filterNot(_.head == Literal(INSERT_OPERATION))
-
-    val rowProjection = if (rowAttrs.nonEmpty) {
-      Some(newLazyProjection(insertAndUpdateOutputs, outputAttrs, rowAttrs))
-    } else {
-      None
-    }
-
-    val rowIdProjection = newLazyProjection(updateAndDeleteOutputs, outputAttrs, rowIdAttrs)
-
-    val metadataProjection = if (metadataAttrs.nonEmpty) {
-      Some(newLazyProjection(updateAndDeleteOutputs, outputAttrs, metadataAttrs))
-    } else {
-      None
-    }
-
-    WriteDeltaProjections(rowProjection, rowIdProjection, metadataProjection)
-  }
-
-  // the projection is done by name, ignoring expr IDs
-  private def newLazyProjection(
-      outputs: Seq[Seq[Expression]],
-      outputAttrs: Seq[Attribute],
-      projectedAttrs: Seq[Attribute]): ProjectingInternalRow = {
-
-    val projectedOrdinals = projectedAttrs.map(attr => outputAttrs.indexWhere(_.name == attr.name))
-
-    val structFields = projectedAttrs.zip(projectedOrdinals).map { case (attr, ordinal) =>
-      // output attr is nullable if at least one action may produce null for that attr
-      // but row ID and metadata attrs are projected only in update/delete actions and
-      // row attrs are projected only in insert/update actions
-      // that's why the projection schema must rely only on relevant action outputs
-      // instead of blindly inheriting the output attr nullability
-      val nullable = outputs.exists(output => output(ordinal).nullable)
-      StructField(attr.name, attr.dataType, nullable, attr.metadata)
-    }
-    val schema = StructType(structFields)
-
-    ProjectingInternalRow(schema, projectedOrdinals)
+    val outputs = mergeRows.matchedOutputs.flatten ++ mergeRows.notMatchedOutputs
+    buildDeltaProjections(mergeRows, outputs, rowAttrs, rowIdAttrs, metadataAttrs)
   }
 
   // splits the MERGE condition into a predicate that references columns only from the target table,

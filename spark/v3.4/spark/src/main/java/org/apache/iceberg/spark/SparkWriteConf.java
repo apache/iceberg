@@ -31,11 +31,15 @@ import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.spark.sql.RuntimeConfig;
 import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.connector.write.RowLevelOperation.Command;
 import org.apache.spark.sql.internal.SQLConf;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * A class for common Iceberg configs for Spark writes.
@@ -57,6 +61,8 @@ import org.apache.spark.sql.internal.SQLConf;
  */
 public class SparkWriteConf {
 
+  private static final Logger LOG = LoggerFactory.getLogger(SparkWriteConf.class);
+
   private final Table table;
   private final String branch;
   private final RuntimeConfig sessionConf;
@@ -74,6 +80,8 @@ public class SparkWriteConf {
     this.sessionConf = spark.conf();
     this.writeOptions = writeOptions;
     this.confParser = new SparkConfParser(spark, table, writeOptions);
+
+    SparkUtil.validateTimestampWithoutTimezoneConfig(spark.conf(), writeOptions);
   }
 
   public boolean checkNullability() {
@@ -91,28 +99,6 @@ public class SparkWriteConf {
         .option(SparkWriteOptions.CHECK_ORDERING)
         .sessionConf(SparkSQLProperties.CHECK_ORDERING)
         .defaultValue(SparkSQLProperties.CHECK_ORDERING_DEFAULT)
-        .parse();
-  }
-
-  /**
-   * Enables writing a timestamp with time zone as a timestamp without time zone.
-   *
-   * <p>Generally, this is not safe as a timestamp without time zone is supposed to represent the
-   * wall-clock time, i.e. no matter the reader/writer timezone 3PM should always be read as 3PM,
-   * but a timestamp with time zone represents instant semantics, i.e. the timestamp is adjusted so
-   * that the corresponding time in the reader timezone is displayed.
-   *
-   * <p>When set to false (default), an exception must be thrown if the table contains a timestamp
-   * without time zone.
-   *
-   * @return boolean indicating if writing timestamps without timezone is allowed
-   */
-  public boolean handleTimestampWithoutZone() {
-    return confParser
-        .booleanConf()
-        .option(SparkWriteOptions.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE)
-        .sessionConf(SparkSQLProperties.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE)
-        .defaultValue(SparkSQLProperties.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE_DEFAULT)
         .parse();
   }
 
@@ -225,7 +211,17 @@ public class SparkWriteConf {
         .parseOptional();
   }
 
-  public DistributionMode distributionMode() {
+  public SparkWriteRequirements writeRequirements() {
+    if (ignoreTableDistributionAndOrdering()) {
+      LOG.info("Skipping distribution/ordering: disabled per job configuration");
+      return SparkWriteRequirements.EMPTY;
+    }
+
+    return SparkWriteUtil.writeRequirements(table, distributionMode(), fanoutWriterEnabled());
+  }
+
+  @VisibleForTesting
+  DistributionMode distributionMode() {
     String modeName =
         confParser
             .stringConf()
@@ -262,7 +258,50 @@ public class SparkWriteConf {
     }
   }
 
-  public DistributionMode deleteDistributionMode() {
+  public SparkWriteRequirements copyOnWriteRequirements(Command command) {
+    if (ignoreTableDistributionAndOrdering()) {
+      LOG.info("Skipping distribution/ordering: disabled per job configuration");
+      return SparkWriteRequirements.EMPTY;
+    }
+
+    return SparkWriteUtil.copyOnWriteRequirements(
+        table, command, copyOnWriteDistributionMode(command), fanoutWriterEnabled());
+  }
+
+  @VisibleForTesting
+  DistributionMode copyOnWriteDistributionMode(Command command) {
+    switch (command) {
+      case DELETE:
+        return deleteDistributionMode();
+      case UPDATE:
+        return updateDistributionMode();
+      case MERGE:
+        return copyOnWriteMergeDistributionMode();
+      default:
+        throw new IllegalArgumentException("Unexpected command: " + command);
+    }
+  }
+
+  public SparkWriteRequirements positionDeltaRequirements(Command command) {
+    return SparkWriteUtil.positionDeltaRequirements(
+        table, command, positionDeltaDistributionMode(command));
+  }
+
+  @VisibleForTesting
+  DistributionMode positionDeltaDistributionMode(Command command) {
+    switch (command) {
+      case DELETE:
+        return deleteDistributionMode();
+      case UPDATE:
+        return updateDistributionMode();
+      case MERGE:
+        return positionDeltaMergeDistributionMode();
+      default:
+        throw new IllegalArgumentException("Unexpected command: " + command);
+    }
+  }
+
+  private DistributionMode deleteDistributionMode() {
     String deleteModeName =
         confParser
             .stringConf()
@@ -274,7 +313,7 @@ public class SparkWriteConf {
     return DistributionMode.fromName(deleteModeName);
   }
 
-  public DistributionMode updateDistributionMode() {
+  private DistributionMode updateDistributionMode() {
     String updateModeName =
         confParser
             .stringConf()
@@ -286,7 +325,7 @@ public class SparkWriteConf {
     return DistributionMode.fromName(updateModeName);
   }
 
-  public DistributionMode copyOnWriteMergeDistributionMode() {
+  private DistributionMode copyOnWriteMergeDistributionMode() {
     String mergeModeName =
         confParser
             .stringConf()
@@ -307,7 +346,7 @@ public class SparkWriteConf {
     }
   }
 
-  public DistributionMode positionDeltaMergeDistributionMode() {
+  private DistributionMode positionDeltaMergeDistributionMode() {
     String mergeModeName =
         confParser
             .stringConf()
@@ -319,11 +358,12 @@ public class SparkWriteConf {
     return DistributionMode.fromName(mergeModeName);
   }
 
-  public boolean useTableDistributionAndOrdering() {
+  private boolean ignoreTableDistributionAndOrdering() {
     return confParser
         .booleanConf()
         .option(SparkWriteOptions.USE_TABLE_DISTRIBUTION_AND_ORDERING)
         .defaultValue(SparkWriteOptions.USE_TABLE_DISTRIBUTION_AND_ORDERING_DEFAULT)
+        .negate()
         .parse();
   }
 

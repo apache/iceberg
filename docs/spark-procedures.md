@@ -365,6 +365,51 @@ Rewrite the manifests in table `db.sample` and disable the use of Spark caching.
 CALL catalog_name.system.rewrite_manifests('db.sample', false)
 ```
 
+### `rewrite_position_delete_files`
+
+Iceberg can rewrite position delete files, which serves two purposes:
+* Minor Compaction: Compact small position delete files into larger ones.  This reduces the size of metadata stored in manifest files and overhead of opening small delete files.
+* Remove Dangling Deletes: Filter out position delete records that refer to data files that are no longer live.  After rewrite_data_files, position delete records pointing to the rewritten data files are not always marked for removal, and can remain tracked by the table's live snapshot metadata.  This is known as the 'dangling delete' problem.
+
+#### Usage
+
+| Argument Name | Required? | Type | Description                      |
+|---------------|-----------|------|----------------------------------|
+| `table`       | ✔️  | string | Name of the table to update      |
+| `options`     | ️   | map<string, string> | Options to be used for procedure |
+
+See the [`SizeBasedFileRewriter` Javadoc](../../../javadoc/{{% icebergVersion %}}/org/apache/iceberg/actions/SizeBasedFileRewriter.html#field.summary),
+for list of all the supported options for this procedure.
+
+Dangling deletes are always filtered out during rewriting.
+
+#### Output
+
+| Output Name                    | Type | Description                                                                |
+|--------------------------------|------|----------------------------------------------------------------------------|
+| `rewritten_delete_files_count` | int  | Number of delete files which were removed by this command                  |
+| `added_delete_files_count`     | int  | Number of delete files which were added by this command                    |
+| `rewritten_bytes_count`        | long | Count of bytes across delete files which were removed by this command      |
+| `added_bytes_count`            | long | Count of bytes across all new delete files which were added by this command |
+
+
+#### Examples
+
+Rewrite position delete files in table `db.sample`.  This selects position delete files that fit default rewrite criteria, and writes new files of target size `target-file-size-bytes`.  Dangling deletes are removed from rewritten delete files.
+```sql
+CALL catalog_name.system.rewrite_position_delete_files('db.sample')
+```
+
+Rewrite all position delete files in table `db.sample`, writing new files `target-file-size-bytes`.   Dangling deletes are removed from rewritten delete files.
+```sql
+CALL catalog_name.system.rewrite_position_delete_files(table => 'db.sample', options => map('rewrite-all', 'true'))
+```
+
+Rewrite position delete files in table `db.sample`.  This selects position delete files in partitions where 2 or more position delete files need to be rewritten based on size criteria.  Dangling deletes are removed from rewritten delete files.
+```sql
+CALL catalog_name.system.rewrite_position_delete_files(table => 'db.sample', options => map('min-input-files','2'))
+```
+
 ## Table migration
 
 The `snapshot` and `migrate` procedures help test and migrate existing Hive or Spark tables to Iceberg.

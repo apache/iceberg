@@ -54,6 +54,7 @@ public class SparkProcedures {
     mapBuilder.put("register_table", RegisterTableProcedure::builder);
     mapBuilder.put("publish_changes", PublishChangesProcedure::builder);
     mapBuilder.put("create_changelog_view", CreateChangelogViewProcedure::builder);
+    mapBuilder.put("rewrite_position_delete_files", RewritePositionDeleteFilesProcedure::builder);
     return mapBuilder.build();
   }
 

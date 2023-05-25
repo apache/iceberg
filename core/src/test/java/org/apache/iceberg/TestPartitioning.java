@@ -386,4 +386,25 @@ public class TestPartitioning {
         "Conflicting partition fields",
         () -> Partitioning.groupingKeyType(table.schema(), table.specs().values()));
   }
+
+  @Test
+  public void testDeletingPartitionField() {
+    TestTables.TestTable table =
+        TestTables.create(tableDir, "test", SCHEMA, BY_DATA_SPEC, V1_FORMAT_VERSION);
+
+    table.updateSpec().removeField("data").commit();
+
+    table.updateSchema().deleteColumn("data").commit();
+
+    table.updateSpec().addField("id").commit();
+
+    PartitionSpec spec =
+        PartitionSpec.builderFor(SCHEMA)
+            .withSpecId(2)
+            .alwaysNull("data", "data")
+            .identity("id")
+            .build();
+
+    Assert.assertEquals("The spec should be there", spec, table.spec());
+  }
 }

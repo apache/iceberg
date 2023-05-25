@@ -27,6 +27,7 @@ import java.nio.ByteBuffer;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
@@ -40,7 +41,6 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
-import org.apache.arrow.vector.ValueVector;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericData.Record;
 import org.apache.iceberg.DataFile;
@@ -55,7 +55,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.spark.SparkSchemaUtil;
-import org.apache.iceberg.spark.data.vectorized.IcebergArrowColumnVector;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.orc.storage.serde2.io.DateWritable;
@@ -75,7 +74,6 @@ import org.apache.spark.sql.types.Decimal;
 import org.apache.spark.sql.types.MapType;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
-import org.apache.spark.sql.vectorized.ColumnVector;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
 import org.apache.spark.unsafe.types.UTF8String;
 import org.assertj.core.api.Assertions;
@@ -104,10 +102,7 @@ public class TestHelpers {
   }
 
   public static void assertEqualsBatch(
-      Types.StructType struct,
-      Iterator<Record> expected,
-      ColumnarBatch batch,
-      boolean checkArrowValidityVector) {
+      Types.StructType struct, Iterator<Record> expected, ColumnarBatch batch) {
     for (int rowId = 0; rowId < batch.numRows(); rowId++) {
       List<Types.NestedField> fields = struct.fields();
       InternalRow row = batch.getRow(rowId);
@@ -117,15 +112,6 @@ public class TestHelpers {
         Object expectedValue = rec.get(i);
         Object actualValue = row.isNullAt(i) ? null : row.get(i, convert(fieldType));
         assertEqualsUnsafe(fieldType, expectedValue, actualValue);
-
-        if (checkArrowValidityVector) {
-          ColumnVector columnVector = batch.column(i);
-          ValueVector arrowVector =
-              ((IcebergArrowColumnVector) columnVector).vectorAccessor().getVector();
-          Assert.assertFalse(
-              "Nullability doesn't match of " + columnVector.dataType(),
-              expectedValue == null ^ arrowVector.isNull(rowId));
-        }
       }
     }
   }
@@ -186,12 +172,27 @@ public class TestHelpers {
         Assert.assertEquals("ISO-8601 date should be equal", date.toString(), actual.toString());
         break;
       case TIMESTAMP:
+        Types.TimestampType timestampType = (Types.TimestampType) type;
+
         Assertions.assertThat(expected).as("Should be a long").isInstanceOf(Long.class);
-        Assertions.assertThat(actual).as("Should be a Timestamp").isInstanceOf(Timestamp.class);
-        Timestamp ts = (Timestamp) actual;
-        // milliseconds from nanos has already been added by getTime
-        long tsMicros = (ts.getTime() * 1000) + ((ts.getNanos() / 1000) % 1000);
-        Assert.assertEquals("Timestamp micros should be equal", expected, tsMicros);
+        if (timestampType.shouldAdjustToUTC()) {
+          Assertions.assertThat(actual).as("Should be a Timestamp").isInstanceOf(Timestamp.class);
+
+          Timestamp ts = (Timestamp) actual;
+          // milliseconds from nanos has already been added by getTime
+          long tsMicros = (ts.getTime() * 1000) + ((ts.getNanos() / 1000) % 1000);
+          Assert.assertEquals("Timestamp micros should be equal", expected, tsMicros);
+        } else {
+          Assertions.assertThat(actual)
+              .as("Should be a LocalDateTime")
+              .isInstanceOf(LocalDateTime.class);
+
+          LocalDateTime ts = (LocalDateTime) actual;
+          Instant instant = ts.toInstant(ZoneOffset.UTC);
+          // milliseconds from nanos has already been added by getTime
+          long tsMicros = (instant.toEpochMilli() * 1000) + ((ts.getNano() / 1000) % 1000);
+          Assert.assertEquals("Timestamp micros should be equal", expected, tsMicros);
+        }
         break;
       case STRING:
         Assertions.assertThat(actual).as("Should be a String").isInstanceOf(String.class);

@@ -125,33 +125,8 @@ public class SparkSchemaUtil {
    * @throws IllegalArgumentException if the type cannot be converted
    */
   public static Schema convert(StructType sparkType) {
-    return convert(sparkType, false);
-  }
-
-  /**
-   * Convert a Spark {@link StructType struct} to a {@link Schema} with new field ids.
-   *
-   * <p>This conversion assigns fresh ids.
-   *
-   * <p>Some data types are represented as the same Spark type. These are converted to a default
-   * type.
-   *
-   * <p>To convert using a reference schema for field ids and ambiguous types, use {@link
-   * #convert(Schema, StructType)}.
-   *
-   * @param sparkType a Spark StructType
-   * @param useTimestampWithoutZone boolean flag indicates that timestamp should be stored without
-   *     timezone
-   * @return the equivalent Schema
-   * @throws IllegalArgumentException if the type cannot be converted
-   */
-  public static Schema convert(StructType sparkType, boolean useTimestampWithoutZone) {
     Type converted = SparkTypeVisitor.visit(sparkType, new SparkTypeToType(sparkType));
-    Schema schema = new Schema(converted.asNestedType().asStructType().fields());
-    if (useTimestampWithoutZone) {
-      schema = SparkFixupTimestampType.fixup(schema);
-    }
-    return schema;
+    return new Schema(converted.asNestedType().asStructType().fields());
   }
 
   /**

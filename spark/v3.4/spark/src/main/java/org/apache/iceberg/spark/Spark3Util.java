@@ -79,6 +79,7 @@ import org.apache.spark.sql.connector.expressions.Expression;
 import org.apache.spark.sql.connector.expressions.Expressions;
 import org.apache.spark.sql.connector.expressions.Literal;
 import org.apache.spark.sql.connector.expressions.NamedReference;
+import org.apache.spark.sql.connector.expressions.SortOrder;
 import org.apache.spark.sql.connector.expressions.Transform;
 import org.apache.spark.sql.execution.datasources.FileStatusCache;
 import org.apache.spark.sql.execution.datasources.InMemoryFileIndex;
@@ -254,6 +255,12 @@ public class Spark3Util {
         table instanceof SparkTable, "Table %s is not an Iceberg table", table);
     SparkTable sparkTable = (SparkTable) table;
     return sparkTable.table();
+  }
+
+  public static SortOrder[] toOrdering(org.apache.iceberg.SortOrder sortOrder) {
+    SortOrderToSpark visitor = new SortOrderToSpark(sortOrder.schema());
+    List<SortOrder> ordering = SortOrderVisitor.visit(sortOrder, visitor);
+    return ordering.toArray(new SortOrder[0]);
   }
 
   public static Transform[] toTransforms(Schema schema, List<PartitionField> fields) {

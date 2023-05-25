@@ -18,7 +18,9 @@
  */
 package org.apache.iceberg.flink.data;
 
+import java.util.Arrays;
 import java.util.Map;
+import java.util.Objects;
 import org.apache.flink.table.data.ArrayData;
 import org.apache.flink.table.data.DecimalData;
 import org.apache.flink.table.data.MapData;
@@ -28,6 +30,7 @@ import org.apache.flink.table.data.StringData;
 import org.apache.flink.table.data.TimestampData;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.types.RowKind;
+import org.apache.flink.util.StringUtils;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -155,11 +158,17 @@ public class RowDataProjection implements RowData {
   }
 
   public RowData wrap(RowData row) {
+    // StructProjection allow wrapping null root struct object.
+    // See more discussions in https://github.com/apache/iceberg/pull/7517.
+    // RowDataProjection never allowed null root object to be wrapped.
+    // Hence, it is fine to enforce strict Preconditions check here.
+    Preconditions.checkArgument(row != null, "Invalid row data: null");
     this.rowData = row;
     return this;
   }
 
   private Object getValue(int pos) {
+    Preconditions.checkState(rowData != null, "Row data not wrapped");
     return getters[pos].getFieldOrNull(rowData);
   }
 
@@ -170,6 +179,7 @@ public class RowDataProjection implements RowData {
 
   @Override
   public RowKind getRowKind() {
+    Preconditions.checkState(rowData != null, "Row data not wrapped");
     return rowData.getRowKind();
   }
 
@@ -180,7 +190,7 @@ public class RowDataProjection implements RowData {
 
   @Override
   public boolean isNullAt(int pos) {
-    return rowData == null || getValue(pos) == null;
+    return getValue(pos) == null;
   }
 
   @Override
@@ -257,5 +267,75 @@ public class RowDataProjection implements RowData {
   @Override
   public RowData getRow(int pos, int numFields) {
     return (RowData) getValue(pos);
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (this == o) {
+      return true;
+    }
+
+    if (!(o instanceof RowDataProjection)) {
+      return false;
+    }
+
+    RowDataProjection that = (RowDataProjection) o;
+    return deepEquals(that);
+  }
+
+  @Override
+  public int hashCode() {
+    int result = Objects.hashCode(getRowKind());
+    for (int pos = 0; pos < getArity(); pos++) {
+      if (!isNullAt(pos)) {
+        // Arrays.deepHashCode handles array object properly
+        result = 31 * result + Arrays.deepHashCode(new Object[] {getValue(pos)});
+      }
+    }
+
+    return result;
+  }
+
+  @Override
+  public String toString() {
+    StringBuilder sb = new StringBuilder();
+    sb.append(getRowKind().shortString()).append("(");
+    for (int pos = 0; pos < getArity(); pos++) {
+      if (pos != 0) {
+        sb.append(",");
+      }
+      // copied the behavior from Flink GenericRowData
+      sb.append(StringUtils.arrayAwareToString(getValue(pos)));
+    }
+
+    sb.append(")");
+    return sb.toString();
+  }
+
+  private boolean deepEquals(RowDataProjection other) {
+    if (getRowKind() != other.getRowKind()) {
+      return false;
+    }
+
+    if (getArity() != other.getArity()) {
+      return false;
+    }
+
+    for (int pos = 0; pos < getArity(); ++pos) {
+      if (isNullAt(pos) && other.isNullAt(pos)) {
+        continue;
+      }
+
+      if ((isNullAt(pos) && !other.isNullAt(pos)) || (!isNullAt(pos) && other.isNullAt(pos))) {
+        return false;
+      }
+
+      // Objects.deepEquals handles array object properly
+      if (!Objects.deepEquals(getValue(pos), other.getValue(pos))) {
+        return false;
+      }
+    }
+
+    return true;
   }
 }

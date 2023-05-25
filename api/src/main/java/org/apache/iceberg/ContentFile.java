@@ -114,6 +114,40 @@ public interface ContentFile<F> {
   }
 
   /**
+   * Returns the data sequence number of the file.
+   *
+   * <p>This method represents the sequence number to which the file should apply. Note the data
+   * sequence number may differ from the sequence number of the snapshot in which the underlying
+   * file was added (a.k.a the file sequence number). New snapshots can add files that belong to
+   * older sequence numbers (e.g. compaction). The data sequence number also does not change when
+   * the file is marked as deleted.
+   *
+   * <p>This method can return null if the data sequence number is unknown. This may happen while
+   * reading a v2 manifest that did not persist the data sequence number for manifest entries with
+   * status DELETED (older Iceberg versions).
+   */
+  default Long dataSequenceNumber() {
+    return null;
+  }
+
+  /**
+   * Returns the file sequence number.
+   *
+   * <p>The file sequence number represents the sequence number of the snapshot in which the
+   * underlying file was added. The file sequence number is always assigned at commit and cannot be
+   * provided explicitly, unlike the data sequence number. The file sequence number does not change
+   * upon assigning. In case of rewrite (like compaction), file sequence number can be higher than
+   * the data sequence number.
+   *
+   * <p>This method can return null if the file sequence number is unknown. This may happen while
+   * reading a v2 manifest that did not persist the file sequence number for manifest entries with
+   * status EXISTING or DELETED (older Iceberg versions).
+   */
+  default Long fileSequenceNumber() {
+    return null;
+  }
+
+  /**
    * Copies this file. Manifest readers can reuse file instances; use this method to copy data when
    * collecting files from tasks.
    *

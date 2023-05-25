@@ -28,6 +28,7 @@ import java.security.MessageDigest;
 import java.security.SecureRandom;
 import java.util.Base64;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 import java.util.UUID;
 import javax.crypto.KeyGenerator;
@@ -138,6 +139,34 @@ public class TestS3FileIOIntegration {
         PutObjectRequest.builder().bucket(bucketName).key(objectKey).build(),
         RequestBody.fromBytes(contentBytes));
     S3FileIO s3FileIO = new S3FileIO(clientFactory::s3);
+    validateRead(s3FileIO);
+  }
+
+  @Test
+  public void testS3FileIOWithS3FileIOAwsClientFactoryImpl() throws Exception {
+    s3.putObject(
+        PutObjectRequest.builder().bucket(bucketName).key(objectKey).build(),
+        RequestBody.fromBytes(contentBytes));
+    S3FileIO s3FileIO = new S3FileIO();
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(
+        S3FileIOProperties.CLIENT_FACTORY,
+        "org.apache.iceberg.aws.s3.DefaultS3FileIOAwsClientFactory");
+    s3FileIO.initialize(properties);
+    validateRead(s3FileIO);
+  }
+
+  @Test
+  public void testS3FileIOWithDefaultAwsClientFactoryImpl() throws Exception {
+    s3.putObject(
+        PutObjectRequest.builder().bucket(bucketName).key(objectKey).build(),
+        RequestBody.fromBytes(contentBytes));
+    S3FileIO s3FileIO = new S3FileIO();
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(
+        S3FileIOProperties.CLIENT_FACTORY,
+        "org.apache.iceberg.aws.s3.DefaultS3FileIOAwsClientFactory");
+    s3FileIO.initialize(properties);
     validateRead(s3FileIO);
   }
 

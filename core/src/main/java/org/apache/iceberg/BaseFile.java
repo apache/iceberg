@@ -63,6 +63,8 @@ abstract class BaseFile<F>
   private PartitionData partitionData = null;
   private Long recordCount = null;
   private long fileSizeInBytes = -1L;
+  private Long dataSequenceNumber = null;
+  private Long fileSequenceNumber = null;
 
   // optional fields
   private Map<Integer, Long> columnSizes = null;
@@ -208,6 +210,8 @@ abstract class BaseFile<F>
             ? Arrays.copyOf(toCopy.equalityIds, toCopy.equalityIds.length)
             : null;
     this.sortOrderId = toCopy.sortOrderId;
+    this.dataSequenceNumber = toCopy.dataSequenceNumber;
+    this.fileSequenceNumber = toCopy.fileSequenceNumber;
   }
 
   /** Constructor for Java serialization. */
@@ -220,6 +224,24 @@ abstract class BaseFile<F>
 
   void setSpecId(int specId) {
     this.partitionSpecId = specId;
+  }
+
+  @Override
+  public Long dataSequenceNumber() {
+    return dataSequenceNumber;
+  }
+
+  public void setDataSequenceNumber(Long dataSequenceNumber) {
+    this.dataSequenceNumber = dataSequenceNumber;
+  }
+
+  @Override
+  public Long fileSequenceNumber() {
+    return fileSequenceNumber;
+  }
+
+  public void setFileSequenceNumber(Long fileSequenceNumber) {
+    this.fileSequenceNumber = fileSequenceNumber;
   }
 
   protected abstract Schema getAvroSchema(Types.StructType partitionStruct);
@@ -478,6 +500,8 @@ abstract class BaseFile<F>
         .add("split_offsets", splitOffsets == null ? "null" : splitOffsets())
         .add("equality_ids", equalityIds == null ? "null" : equalityFieldIds())
         .add("sort_order_id", sortOrderId)
+        .add("data_sequence_number", dataSequenceNumber == null ? "null" : dataSequenceNumber)
+        .add("file_sequence_number", fileSequenceNumber == null ? "null" : fileSequenceNumber)
         .toString();
   }
 }

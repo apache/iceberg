@@ -16,19 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.flink.sink.shuffle;
 
-import org.apache.flink.annotation.Internal;
+package org.apache.spark.sql.catalyst.plans.logical
 
-/**
- * MapDataStatisticsFactory creates {@link MapDataStatistics} to track traffic volume for
- * low-cardinality key in hash mode
- */
-@Internal
-class MapDataStatisticsFactory<K> implements DataStatisticsFactory<K> {
-
-  @Override
-  public DataStatistics<K> createDataStatistics() {
-    return new MapDataStatistics<>();
-  }
-}
+case class TagOptions(snapshotId: Option[Long], snapshotRefRetain: Option[Long])

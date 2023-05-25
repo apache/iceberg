@@ -26,6 +26,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Objects;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.io.CloseableIterable;
@@ -101,6 +102,12 @@ public class TestSparkOrcReader extends AvroDataTest {
         assertEquals(schema, expectedRows.next(), actualRows.next());
       }
       Assert.assertFalse("Should not have extra rows", actualRows.hasNext());
+    } catch (UnsupportedOperationException e) {
+      // Fixed in https://github.com/apache/spark/pull/41103
+      // Can be removed once Spark 3.4.1 is released
+      if (!Objects.equals(e.getMessage(), "Datatype not supported TimestampNTZType")) {
+        throw e;
+      }
     }
   }
 

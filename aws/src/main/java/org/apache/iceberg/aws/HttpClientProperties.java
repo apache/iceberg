@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.aws;
 
+import java.io.Serializable;
 import java.util.Collections;
 import java.util.Map;
 import org.apache.iceberg.common.DynMethods;
@@ -25,7 +26,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.util.PropertyUtil;
 import software.amazon.awssdk.awscore.client.builder.AwsSyncClientBuilder;
 
-public class HttpClientProperties {
+public class HttpClientProperties implements Serializable {
 
   /**
    * The type of {@link software.amazon.awssdk.http.SdkHttpClient} implementation used by {@link

@@ -33,15 +33,14 @@ github:
     projects: true
   collaborators:  # Note: the number of collaborators is limited to 20
     - chenjunjiedada
-    - kbendick
     - jun-he
     - marton-bod
-    - nastra
     - samarthjain
     - findepi
     - SreeramGarlapati
     - samredai
     - gaborkaszab
+    - bitsondatadev
   ghp_branch: gh-pages
   ghp_path: ~
 
