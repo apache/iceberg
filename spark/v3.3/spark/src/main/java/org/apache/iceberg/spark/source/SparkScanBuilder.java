@@ -171,7 +171,10 @@ public class SparkScanBuilder
         }
 
       } catch (Exception e) {
-        LOG.warn("Failed to check if {} can be pushed down: {}", filter, e.getMessage());
+        LOG.warn(
+            "Failed to check if {} can be pushed down: {}, skipping push down for this expression",
+            filter,
+            e.getMessage());
         postScanFilters.add(filter);
       }
     }
