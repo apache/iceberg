@@ -410,8 +410,7 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
 
     // the spec requires position deletes to be ordered by file and position
     // use a fanout writer if the input is unordered no matter whether fanout writers are enabled
-    // clustered writers only validate records for the same spec/paritition are co-located,
-    // which is not enough for position deletes
+    // clustered writers assume that the position deletes are already ordered by file and position
     protected PartitioningWriter<PositionDelete<InternalRow>, DeleteWriteResult> newDeleteWriter(
         Table table, SparkFileWriterFactory writers, OutputFileFactory files, Context context) {
 
