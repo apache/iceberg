@@ -20,20 +20,17 @@ package org.apache.iceberg.encryption;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.util.Map;
-import java.util.function.Function;
 import org.apache.avro.Schema;
-import org.apache.avro.io.DatumReader;
 import org.apache.avro.message.MessageDecoder;
-import org.apache.avro.message.MissingSchemaException;
-import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.avro.GenericAvroReader;
 import org.apache.iceberg.data.avro.RawDecoder;
 import org.apache.iceberg.relocated.com.google.common.collect.MapMaker;
 
-public class KeyMetadataDecoder<D> extends MessageDecoder.BaseDecoder<D> {
+class KeyMetadataDecoder extends MessageDecoder.BaseDecoder<KeyMetadata> {
   private final org.apache.iceberg.Schema readSchema;
-  private final Map<Byte, RawDecoder<D>> decoders = new MapMaker().makeMap();
+  private final Map<Byte, RawDecoder<KeyMetadata>> decoders = new MapMaker().makeMap();
 
   /**
    * Creates a new decoder that constructs key metadata instances described by schema version.
@@ -41,45 +38,35 @@ public class KeyMetadataDecoder<D> extends MessageDecoder.BaseDecoder<D> {
    * <p>The {@code readSchemaVersion} is as used the version of the expected (read) schema. Datum
    * instances created by this class will are described by the expected schema.
    */
-  public KeyMetadataDecoder(byte readSchemaVersion) {
-    this.readSchema = KeyMetadata.supportedSchemaVersions.get(readSchemaVersion);
+  KeyMetadataDecoder(byte readSchemaVersion) {
+    this.readSchema = KeyMetadata.supportedSchemaVersions().get(readSchemaVersion);
   }
 
   @Override
-  public D decode(InputStream stream, D reuse) throws IOException {
+  public KeyMetadata decode(InputStream stream, KeyMetadata reuse) throws IOException {
     byte writeSchemaVersion;
 
     try {
       writeSchemaVersion = (byte) stream.read();
     } catch (IOException e) {
-      throw new IOException("Failed to read the version byte", e);
+      throw new UncheckedIOException("Failed to read the version byte", e);
     }
 
     if (writeSchemaVersion < 0) {
       throw new IOException("Version byte - end of stream reached");
     }
 
-    org.apache.iceberg.Schema writeSchema =
-        KeyMetadata.supportedSchemaVersions.get(writeSchemaVersion);
+    Schema writeSchema = KeyMetadata.supportedAvroSchemaVersions().get(writeSchemaVersion);
 
     if (writeSchema == null) {
-      throw new MissingSchemaException("Cannot resolve schema for version: " + writeSchemaVersion);
+      throw new UnsupportedOperationException(
+          "Cannot resolve schema for version: " + writeSchemaVersion);
     }
 
-    RawDecoder<D> decoder = decoders.get(writeSchemaVersion);
+    RawDecoder<KeyMetadata> decoder = decoders.get(writeSchemaVersion);
 
     if (decoder == null) {
-      Function<Schema, DatumReader<?>> createReaderFunc =
-          schema -> {
-            GenericAvroReader<?> reader = GenericAvroReader.create(schema);
-            return reader;
-          };
-
-      decoder =
-          new RawDecoder<>(
-              readSchema,
-              createReaderFunc,
-              AvroSchemaUtil.convert(writeSchema, KeyMetadata.class.getCanonicalName()));
+      decoder = new RawDecoder<>(readSchema, GenericAvroReader::create, writeSchema);
 
       decoders.put(writeSchemaVersion, decoder);
     }

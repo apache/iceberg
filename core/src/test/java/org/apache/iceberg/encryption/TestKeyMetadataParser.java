@@ -20,6 +20,8 @@ package org.apache.iceberg.encryption;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+
+import org.apache.iceberg.AssertHelpers;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -27,15 +29,23 @@ public class TestKeyMetadataParser {
 
   @Test
   public void testParser() {
-    String wrappingKeyId = "keyA";
     ByteBuffer encryptionKey = ByteBuffer.wrap("0123456789012345".getBytes(StandardCharsets.UTF_8));
     ByteBuffer aadPrefix = ByteBuffer.wrap("1234567890123456".getBytes(StandardCharsets.UTF_8));
-    KeyMetadata metadata = new KeyMetadata(encryptionKey, wrappingKeyId, aadPrefix);
+    KeyMetadata metadata = new KeyMetadata(encryptionKey, aadPrefix);
     ByteBuffer serialized = metadata.buffer();
 
     KeyMetadata parsedMetadata = KeyMetadata.parse(serialized);
-    Assert.assertEquals(parsedMetadata.wrappingKeyId(), wrappingKeyId);
     Assert.assertEquals(parsedMetadata.encryptionKey(), encryptionKey);
     Assert.assertEquals(parsedMetadata.aadPrefix(), aadPrefix);
+  }
+
+  @Test
+  public void testUnsupportedVersion() {
+    ByteBuffer badBuffer = ByteBuffer.wrap(new byte[] {0x02});
+    AssertHelpers.assertThrows(
+            "Should throw when attempting to parse a buffer with wrong key metadata version",
+            UnsupportedOperationException.class,
+            "Cannot resolve schema for version",
+            () -> KeyMetadata.parse(badBuffer));
   }
 }

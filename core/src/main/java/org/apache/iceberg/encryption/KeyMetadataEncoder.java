@@ -26,17 +26,16 @@ import org.apache.avro.io.BinaryEncoder;
 import org.apache.avro.io.DatumWriter;
 import org.apache.avro.io.EncoderFactory;
 import org.apache.avro.message.MessageEncoder;
-import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.avro.GenericAvroWriter;
 
-public class KeyMetadataEncoder<D> implements MessageEncoder<D> {
+class KeyMetadataEncoder implements MessageEncoder<KeyMetadata> {
   private static final ThreadLocal<BufferOutputStream> TEMP =
       ThreadLocal.withInitial(BufferOutputStream::new);
   private static final ThreadLocal<BinaryEncoder> ENCODER = new ThreadLocal<>();
 
   private final byte schemaVersion;
   private final boolean copyOutputBytes;
-  private final DatumWriter<D> writer;
+  private final DatumWriter<KeyMetadata> writer;
 
   /**
    * Creates a new {@link MessageEncoder} that will deconstruct {@link KeyMetadata} instances
@@ -45,7 +44,7 @@ public class KeyMetadataEncoder<D> implements MessageEncoder<D> {
    * <p>Buffers returned by {@code encode} are copied and will not be modified by future calls to
    * {@code encode}.
    */
-  public KeyMetadataEncoder(byte schemaVersion) {
+  KeyMetadataEncoder(byte schemaVersion) {
     this(schemaVersion, true);
   }
 
@@ -61,18 +60,15 @@ public class KeyMetadataEncoder<D> implements MessageEncoder<D> {
    * only set {@code shouldCopy} to false if the buffer will be copied before the current thread's
    * next call to {@code encode}.
    */
-  public KeyMetadataEncoder(byte schemaVersion, boolean shouldCopy) {
-    org.apache.avro.Schema avroSchema =
-        AvroSchemaUtil.convert(
-            KeyMetadata.supportedSchemaVersions.get(schemaVersion),
-            KeyMetadata.class.getCanonicalName());
-    writer = GenericAvroWriter.create(avroSchema);
+  KeyMetadataEncoder(byte schemaVersion, boolean shouldCopy) {
+    this.writer =
+        GenericAvroWriter.create(KeyMetadata.supportedAvroSchemaVersions().get(schemaVersion));
     this.schemaVersion = schemaVersion;
     this.copyOutputBytes = shouldCopy;
   }
 
   @Override
-  public ByteBuffer encode(D datum) throws IOException {
+  public ByteBuffer encode(KeyMetadata datum) throws IOException {
     BufferOutputStream temp = TEMP.get();
     temp.reset();
     temp.write(schemaVersion);
@@ -86,7 +82,7 @@ public class KeyMetadataEncoder<D> implements MessageEncoder<D> {
   }
 
   @Override
-  public void encode(D datum, OutputStream stream) throws IOException {
+  public void encode(KeyMetadata datum, OutputStream stream) throws IOException {
     BinaryEncoder encoder = EncoderFactory.get().directBinaryEncoder(stream, ENCODER.get());
     ENCODER.set(encoder);
     writer.write(datum, encoder);

@@ -45,9 +45,9 @@ public class RawDecoder<D> extends MessageDecoder.BaseDecoder<D> {
    */
   public RawDecoder(
       org.apache.iceberg.Schema readSchema,
-      Function<Schema, DatumReader<?>> getReader,
+      Function<Schema, DatumReader<?>> readerFunction,
       Schema writeSchema) {
-    this.reader = new ProjectionDatumReader<>(getReader, readSchema, ImmutableMap.of(), null);
+    this.reader = new ProjectionDatumReader<>(readerFunction, readSchema, ImmutableMap.of(), null);
     this.reader.setSchema(writeSchema);
   }
 
