@@ -124,7 +124,7 @@ public class TestNessieCatalog extends CatalogTests<NessieCatalog> {
             .put("auth-type", "NONE")
             .put(CatalogProperties.WAREHOUSE_LOCATION, temp.toUri().toString());
     if (apiVersion == NessieApiVersion.V2) {
-      options.put(NessieUtil.CLIENT_API_VERSION, "2");
+      options.put("client-api-version", "2");
     }
     newCatalog.initialize("nessie", options.buildOrThrow());
     return newCatalog;

@@ -88,7 +88,7 @@ public abstract class BaseTestIceberg {
 
   protected NessieCatalog catalog;
   protected NessieApiV1 api;
-  private NessieApiVersion apiVersion;
+  protected String apiVersion;
   protected Configuration hadoopConfig;
   protected final String branch;
   private String initialHashOfDefaultBranch;
@@ -123,7 +123,7 @@ public abstract class BaseTestIceberg {
       throws IOException {
     this.uri = nessieUri.toASCIIString();
     this.api = clientFactory.make();
-    this.apiVersion = clientFactory.apiVersion();
+    this.apiVersion = clientFactory.apiVersion() == NessieApiVersion.V2 ? "2" : "1";
 
     Branch defaultBranch = api.getDefaultBranch();
     initialHashOfDefaultBranch = defaultBranch.getHash();
@@ -147,10 +147,8 @@ public abstract class BaseTestIceberg {
             .put("ref", ref)
             .put(CatalogProperties.URI, uri)
             .put("auth-type", "NONE")
-            .put(CatalogProperties.WAREHOUSE_LOCATION, temp.toUri().toString());
-    if (apiVersion == NessieApiVersion.V2) {
-      options.put(NessieUtil.CLIENT_API_VERSION, "2");
-    }
+            .put(CatalogProperties.WAREHOUSE_LOCATION, temp.toUri().toString())
+            .put("client-api-version", apiVersion);
     if (null != hash) {
       options.put("ref.hash", hash);
     }

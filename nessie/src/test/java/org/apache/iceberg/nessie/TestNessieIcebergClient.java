@@ -96,10 +96,10 @@ public class TestNessieIcebergClient extends BaseTestIceberg {
     try (NessieCatalog newCatalog = new NessieCatalog()) {
       newCatalog.setConf(hadoopConfig);
       ImmutableMap.Builder<String, String> options =
-          ImmutableMap.<String, String>builder().put(NessieUtil.CLIENT_API_VERSION, "3");
+          ImmutableMap.<String, String>builder().put("client-api-version", "3");
       Assertions.assertThatThrownBy(() -> newCatalog.initialize("nessie", options.buildOrThrow()))
           .isInstanceOf(IllegalArgumentException.class)
-          .hasMessage("Unsupported nessie.client-api-version: 3. Can only be 1 or 2");
+          .hasMessage("Unsupported client-api-version: 3. Can only be 1 or 2");
     }
   }
 }

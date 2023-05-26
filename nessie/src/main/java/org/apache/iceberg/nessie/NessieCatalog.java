@@ -95,7 +95,8 @@ public class NessieCatalog extends BaseMetastoreCatalog
                 options.get(NessieConfigConstants.CONF_NESSIE_CLIENT_BUILDER_IMPL))
             .fromConfig(x -> options.get(removePrefix.apply(x)));
     // default version is set to v1.
-    final String apiVersion = options.getOrDefault(NessieUtil.CLIENT_API_VERSION, "1");
+    final String apiVersion =
+        options.getOrDefault(removePrefix.apply(NessieUtil.CLIENT_API_VERSION), "1");
     NessieApiV1 api;
     switch (apiVersion) {
       case "1":
@@ -108,7 +109,7 @@ public class NessieCatalog extends BaseMetastoreCatalog
         throw new IllegalArgumentException(
             String.format(
                 "Unsupported %s: %s. Can only be 1 or 2",
-                NessieUtil.CLIENT_API_VERSION, apiVersion));
+                removePrefix.apply(NessieUtil.CLIENT_API_VERSION), apiVersion));
     }
 
     initialize(
