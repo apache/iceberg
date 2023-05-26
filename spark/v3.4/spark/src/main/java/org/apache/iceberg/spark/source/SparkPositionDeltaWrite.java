@@ -392,7 +392,7 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
       return partitionProjections;
     }
 
-    // use the fanout writer only if enabled and the input is unordered
+    // use a fanout writer only if enabled and the input is unordered and the table is partitioned
     protected PartitioningWriter<InternalRow, DataWriteResult> newDataWriter(
         Table table, SparkFileWriterFactory writers, OutputFileFactory files, Context context) {
 
@@ -401,7 +401,7 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
       boolean inputOrdered = context.inputOrdered();
       long targetFileSize = context.targetDataFileSize();
 
-      if (fanoutEnabled && !inputOrdered) {
+      if (table.spec().isPartitioned() && fanoutEnabled && !inputOrdered) {
         return new FanoutDataWriter<>(writers, files, io, targetFileSize);
       } else {
         return new ClusteredDataWriter<>(writers, files, io, targetFileSize);
