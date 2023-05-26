@@ -37,7 +37,7 @@ public final class NessieUtil {
   public static final String NESSIE_CONFIG_PREFIX = "nessie.";
   static final String APPLICATION_TYPE = "application-type";
 
-  public static final String CLIENT_API_VERSION = "client-api-version";
+  public static final String CLIENT_API_VERSION = "nessie.client-api-version";
 
   private NessieUtil() {}
 
