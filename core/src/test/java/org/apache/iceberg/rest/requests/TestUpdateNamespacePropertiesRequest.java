@@ -21,13 +21,13 @@ package org.apache.iceberg.rest.requests;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import java.util.List;
 import java.util.Map;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.rest.RequestResponseTestBase;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -118,94 +118,82 @@ public class TestUpdateNamespacePropertiesRequest
     // Invalid top-level types
     String jsonInvalidTypeOnRemovalField =
         "{\"removals\":{\"foo\":\"bar\"},\"updates\":{\"owner\":\"Hank\"}}";
-    AssertHelpers.assertThrows(
-        "A JSON request with an invalid type for one of the fields should fail to parse",
-        JsonProcessingException.class,
-        () -> deserialize(jsonInvalidTypeOnRemovalField));
+    Assertions.assertThatThrownBy(() -> deserialize(jsonInvalidTypeOnRemovalField))
+        .isInstanceOf(JsonProcessingException.class)
+        .hasMessageStartingWith("Cannot deserialize value of type");
 
     String jsonInvalidTypeOnUpdatesField =
         "{\"removals\":[\"foo\":\"bar\"],\"updates\":[\"owner\"]}";
-    AssertHelpers.assertThrows(
-        "A JSON value with an invalid type for one of the fields should fail to parse",
-        JsonProcessingException.class,
-        () -> deserialize(jsonInvalidTypeOnUpdatesField));
+    Assertions.assertThatThrownBy(() -> deserialize(jsonInvalidTypeOnUpdatesField))
+        .isInstanceOf(JsonProcessingException.class)
+        .hasMessageStartingWith("Unexpected character")
+        .hasMessageContaining("expecting comma to separate Array entries");
 
     // Valid top-level (array) types, but at least one entry in the list is not the expected type
     // NOTE: non-string values that are integral types will still parse into a string list.
     //    e.g. { removals: [ "foo", "bar", 1234 ] } will parse correctly.
     String invalidJsonWrongTypeInRemovalsList =
         "{\"removals\":[\"foo\",\"bar\", {\"owner\": \"Hank\"}],\"updates\":{\"owner\":\"Hank\"}}";
-    AssertHelpers.assertThrows(
-        "A JSON value with an invalid type inside one of the list fields should fail to parse",
-        JsonProcessingException.class,
-        () -> deserialize(invalidJsonWrongTypeInRemovalsList));
+    Assertions.assertThatThrownBy(() -> deserialize(invalidJsonWrongTypeInRemovalsList))
+        .isInstanceOf(JsonProcessingException.class)
+        .hasMessageStartingWith("Cannot deserialize value of type");
 
     String nullJson = null;
-    AssertHelpers.assertThrows(
-        "A null JSON should fail to parse",
-        IllegalArgumentException.class,
-        "argument \"content\" is null",
-        () -> deserialize(nullJson));
+    Assertions.assertThatThrownBy(() -> deserialize(nullJson))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("argument \"content\" is null");
   }
 
   @Test
   public void testBuilderDoesNotCreateInvalidObjects() {
-    AssertHelpers.assertThrows(
-        "The builder should not allow using null as a key to remove",
-        NullPointerException.class,
-        "Invalid property to remove: null",
-        () -> UpdateNamespacePropertiesRequest.builder().remove(null).build());
+    Assertions.assertThatThrownBy(
+            () -> UpdateNamespacePropertiesRequest.builder().remove(null).build())
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("Invalid property to remove: null");
 
-    AssertHelpers.assertThrows(
-        "The builder should not allow passing a null list of properties to remove",
-        NullPointerException.class,
-        "Invalid list of properties to remove: null",
-        () -> UpdateNamespacePropertiesRequest.builder().removeAll(null).build());
+    Assertions.assertThatThrownBy(
+            () -> UpdateNamespacePropertiesRequest.builder().removeAll(null).build())
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("Invalid list of properties to remove: null");
 
     List<String> listWithNull = Lists.newArrayList("a", null, null);
-    AssertHelpers.assertThrows(
-        "The builder should not allow passing a list of properties to remove with a null element",
-        IllegalArgumentException.class,
-        "Invalid property to remove: null",
-        () -> UpdateNamespacePropertiesRequest.builder().removeAll(listWithNull).build());
+    Assertions.assertThatThrownBy(
+            () -> UpdateNamespacePropertiesRequest.builder().removeAll(listWithNull).build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid property to remove: null");
 
-    AssertHelpers.assertThrows(
-        "The builder should not allow using null as a key to update",
-        NullPointerException.class,
-        "Invalid property to update: null",
-        () -> UpdateNamespacePropertiesRequest.builder().update(null, "100").build());
+    Assertions.assertThatThrownBy(
+            () -> UpdateNamespacePropertiesRequest.builder().update(null, "100").build())
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("Invalid property to update: null");
 
-    AssertHelpers.assertThrows(
-        "The builder should not allow using null as a value to update",
-        NullPointerException.class,
-        "Invalid value to update for key [owner]: null. Use remove instead",
-        () -> UpdateNamespacePropertiesRequest.builder().update("owner", null).build());
+    Assertions.assertThatThrownBy(
+            () -> UpdateNamespacePropertiesRequest.builder().update("owner", null).build())
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("Invalid value to update for key [owner]: null. Use remove instead");
 
-    AssertHelpers.assertThrows(
-        "The builder should not allow passing a null collection of properties to update",
-        NullPointerException.class,
-        "Invalid collection of properties to update: null",
-        () -> UpdateNamespacePropertiesRequest.builder().updateAll(null).build());
+    Assertions.assertThatThrownBy(
+            () -> UpdateNamespacePropertiesRequest.builder().updateAll(null).build())
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("Invalid collection of properties to update: null");
 
     Map<String, String> mapWithNullKey = Maps.newHashMap();
     mapWithNullKey.put(null, "hello");
-    AssertHelpers.assertThrows(
-        "The builder should not allow using null as a key to update from a collection of updates",
-        IllegalArgumentException.class,
-        "Invalid property to update: null",
-        () -> UpdateNamespacePropertiesRequest.builder().updateAll(mapWithNullKey).build());
+    Assertions.assertThatThrownBy(
+            () -> UpdateNamespacePropertiesRequest.builder().updateAll(mapWithNullKey).build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid property to update: null");
 
     Map<String, String> mapWithMultipleNullValues = Maps.newHashMap();
     mapWithMultipleNullValues.put("a", null);
     mapWithMultipleNullValues.put("b", "b");
-    AssertHelpers.assertThrows(
-        "The builder should not allow using null as a value to update from a collection of updates",
-        IllegalArgumentException.class,
-        "Invalid value to update for properties [a]: null. Use remove instead",
-        () ->
-            UpdateNamespacePropertiesRequest.builder()
-                .updateAll(mapWithMultipleNullValues)
-                .build());
+    Assertions.assertThatThrownBy(
+            () ->
+                UpdateNamespacePropertiesRequest.builder()
+                    .updateAll(mapWithMultipleNullValues)
+                    .build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid value to update for properties [a]: null. Use remove instead");
   }
 
   @Override
