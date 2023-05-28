@@ -64,11 +64,11 @@ public class NameMappingWithAvroSchema extends AvroWithTypeByStructureVisitor<Ma
       // containing two array types or two map types are not permitted, but two types with different
       // names are permitted.
       // Therefore, for non-named types, use the Avro type toString() as the field mapping key. For
-      // named types, use the full record name of the Avro type as the field mapping key.
+      // named types, use the record name of the Avro type as the field mapping key.
       for (Schema option : union.getTypes()) {
         if (option.getType() != Schema.Type.NULL) {
           // Check if current option is a named type, i.e., a RECORD, ENUM, or FIXED type. If so,
-          // use the full record name of the Avro type as the field name. Otherwise, use the Avro
+          // use the record name of the Avro type as the field name. Otherwise, use the Avro
           // type toString().
           if (option.getType() == Schema.Type.RECORD
               || option.getType() == Schema.Type.ENUM
@@ -76,7 +76,7 @@ public class NameMappingWithAvroSchema extends AvroWithTypeByStructureVisitor<Ma
             fields.add(
                 MappedField.of(
                     struct.fields().get(index).fieldId(),
-                    option.getFullName(),
+                    option.getName(),
                     optionResults.get(index)));
           } else {
             fields.add(
