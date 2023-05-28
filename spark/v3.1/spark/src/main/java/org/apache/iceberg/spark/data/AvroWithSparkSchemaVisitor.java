@@ -70,13 +70,6 @@ public abstract class AvroWithSparkSchemaVisitor<T>
   }
 
   @Override
-  protected int structSize(DataType structType) {
-    Preconditions.checkArgument(
-        structType instanceof StructType, "Invalid struct: %s is not a struct", structType);
-    return ((StructType) structType).fields().length;
-  }
-
-  @Override
   protected DataType nullType() {
     return DataTypes.NullType;
   }

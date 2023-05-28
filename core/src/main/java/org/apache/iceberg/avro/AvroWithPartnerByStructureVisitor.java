@@ -20,10 +20,10 @@ package org.apache.iceberg.avro;
 
 import java.util.Deque;
 import java.util.List;
+import java.util.stream.Collectors;
 import org.apache.avro.Schema;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Pair;
 
 /**
@@ -104,29 +104,16 @@ public abstract class AvroWithPartnerByStructureVisitor<P, T> {
         }
       }
     } else {
-      Types.StructType struct = (Types.StructType) type;
-      int index = 0;
-      for (Schema branch : types) {
-        if (branch.getType() != Schema.Type.NULL) {
-          options.add(visit(fieldTypeByName(type, "field" + index, visitor), branch, visitor));
-          index++;
-        }
+      List<Schema> nonNullTypes =
+          types.stream().filter(t -> t.getType() != Schema.Type.NULL).collect(Collectors.toList());
+      for (int i = 0; i < nonNullTypes.size(); i++) {
+        // In the case of complex union, the corresponding "type" is a struct. Non-null type i in
+        // the union maps to struct filed i + 1 because the first struct field is the "tag".
+        options.add(
+            visit(visitor.fieldNameAndType(type, i + 1).second(), nonNullTypes.get(i), visitor));
       }
     }
     return visitor.union(type, union, options);
-  }
-
-  private static <P, T> P fieldTypeByName(
-      P struct, String name, AvroWithPartnerByStructureVisitor<P, T> visitor) {
-    // Iterate on fieldNameAndType to find the field with the given name, then return the type
-    // of that field.
-    for (int i = 0; i < visitor.structSize(struct); i += 1) {
-      Pair<String, P> nameAndType = visitor.fieldNameAndType(struct, i);
-      if (nameAndType.first().equals(name)) {
-        return nameAndType.second();
-      }
-    }
-    return null;
   }
 
   private static <P, T> T visitArray(
@@ -166,8 +153,6 @@ public abstract class AvroWithPartnerByStructureVisitor<P, T> {
   protected abstract P mapValueType(P mapType);
 
   protected abstract Pair<String, P> fieldNameAndType(P structType, int pos);
-
-  protected abstract int structSize(P structType);
 
   protected abstract P nullType();
 

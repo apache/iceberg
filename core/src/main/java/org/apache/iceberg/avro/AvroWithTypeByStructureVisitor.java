@@ -55,11 +55,6 @@ public class AvroWithTypeByStructureVisitor<T> extends AvroWithPartnerByStructur
   }
 
   @Override
-  protected int structSize(Type structType) {
-    return structType.asStructType().fields().size();
-  }
-
-  @Override
   protected Type nullType() {
     return null;
   }

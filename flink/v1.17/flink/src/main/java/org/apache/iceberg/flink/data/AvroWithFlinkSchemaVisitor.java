@@ -69,13 +69,6 @@ public abstract class AvroWithFlinkSchemaVisitor<T>
   }
 
   @Override
-  protected int structSize(LogicalType structType) {
-    Preconditions.checkArgument(
-        structType instanceof RowType, "Invalid struct: %s is not a struct", structType);
-    return ((RowType) structType).getFieldCount();
-  }
-
-  @Override
   protected LogicalType nullType() {
     return new NullType();
   }
