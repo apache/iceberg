@@ -113,7 +113,7 @@ The SQL representation stores the view definition as a SQL SELECT, with metadata
 | _required_  | `type`              | `string`       | Must be `sql` |
 | _required_  | `sql`               | `string`       | A SQL SELECT statement |
 | _required_  | `dialect`           | `string`       | The dialect of the `sql` SELECT statement (e.g., "trino" or "spark"). Unless a version is provided only one view definition for each `type` and `dialect` should be present in a view definition.  |
-| _optional_  | `dialect_version`   | `string`       | A version to provide additional information for consumers of the view. It is permissible to have multiple versions of the same dialect in a view definition.  |
+| _optional_  | `dialect_version`   | `string`       | A version to provide additional information for consumers of the view. Dialects are non-identifying (as noted above only one representation per SQL dialect is allowed)  |
 | _optional_  | `default-catalog`   | `string`       | Catalog name to use when a reference in the SELECT does not contain a catalog |
 | _optional_  | `default-namespace` | `list<string>` | Namespace to use when a reference in the SELECT is a single identifier |
 | _optional_  | `field-aliases`     | `list<string>` | Column names optionally specified in the create statement. The schema in the view should mirror these field names. |
@@ -153,7 +153,6 @@ If a create statement does not include column names or comments before `AS`, the
 The version log tracks changes to the view's current version. This is the view's history and allows reconstructing what version of the view would have been used at some point in time.
 
 Note that this is not the version's creation time, which is stored in each version's metadata. A version can appear multiple times in the version log, indicating that the view definition was rolled back.
-
 
 Each entry in `version-log` is a struct with the following fields:
 
