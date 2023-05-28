@@ -206,6 +206,10 @@ public interface CloseableIterable<T> extends Iterable<T>, Closeable {
     };
   }
 
+  static <E> CloseableIterable<E> concat(CloseableIterable<E> i1, CloseableIterable<E> i2) {
+    return concat(ImmutableList.of(i1, i2));
+  }
+
   static <E> CloseableIterable<E> concat(Iterable<CloseableIterable<E>> iterable) {
     return new ConcatCloseableIterable<>(iterable);
   }
