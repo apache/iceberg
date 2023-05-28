@@ -33,7 +33,7 @@ buildscript {
     // well.
     classpath "net.ltgt.gradle:gradle-errorprone-plugin:3.0.1"
 
-    classpath 'com.diffplug.spotless:spotless-plugin-gradle:6.13.0'
+    classpath 'com.diffplug.spotless:spotless-plugin-gradle:6.19.0'
     classpath 'gradle.plugin.org.inferred:gradle-processors:3.7.0'
     classpath 'me.champeau.jmh:jmh-gradle-plugin:0.7.1'
     classpath 'gradle.plugin.io.morethan.jmhreport:gradle-jmh-report:0.9.0'
