@@ -18,13 +18,14 @@
  */
 package org.apache.iceberg.expressions;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.util.Collection;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.expressions.Expression.Operation;
 import org.apache.iceberg.types.Types;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestExpressionSerialization {
   @Test
@@ -65,9 +66,9 @@ public class TestExpressionSerialization {
 
     for (Expression expression : expressions) {
       Expression copy = TestHelpers.roundTripSerialize(expression);
-      Assert.assertTrue(
-          "Expression should equal the deserialized copy: " + expression + " != " + copy,
-          equals(expression, copy));
+      assertThat(equals(expression, copy))
+          .as("Expression should equal the deserialized copy: " + expression + " != " + copy)
+          .isTrue();
     }
   }
 
