@@ -36,16 +36,7 @@ import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericRecordBuilder;
-import org.apache.iceberg.DataFile;
-import org.apache.iceberg.DeleteFile;
-import org.apache.iceberg.Files;
-import org.apache.iceberg.ManifestFile;
-import org.apache.iceberg.PartitionSpec;
-import org.apache.iceberg.Schema;
-import org.apache.iceberg.Snapshot;
-import org.apache.iceberg.StructLike;
-import org.apache.iceberg.Table;
-import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.*;
 import org.apache.iceberg.actions.DeleteOrphanFiles;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.avro.AvroSchemaUtil;
@@ -1953,6 +1944,60 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
     }
   }
 
+  @Test
+  public void testSessionConfigSupport() throws IOException {
+    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("id").build();
+    TableIdentifier tableIdentifier = TableIdentifier.of("db", "session_config_table");
+    Table table = createTable(tableIdentifier, SCHEMA, spec);
+
+    List<SimpleRecord> records =
+        Lists.newArrayList(
+            new SimpleRecord(1, "a"), new SimpleRecord(2, "b"), new SimpleRecord(3, "c"));
+
+    Dataset<Row> df = spark.createDataFrame(records, SimpleRecord.class);
+
+    df.select("id", "data")
+        .write()
+        .format("iceberg")
+        .mode(SaveMode.Append)
+        .save(loadLocation(tableIdentifier));
+
+    createBranch(table, "after-first-written");
+
+    // set write option through session configuration
+    SQLConf sessionConf = spark.sessionState().conf();
+    sessionConf.setConfString("spark.datasource.iceberg.overwrite-mode", "dynamic");
+    // overwrite with 2*id to replace record 2, append 4 and 6
+    df.withColumn("id", df.col("id").multiply(2))
+        .select("id", "data")
+        .write()
+        .format("iceberg")
+        .mode(SaveMode.Overwrite)
+        .save(loadLocation(tableIdentifier));
+
+    table.refresh();
+
+    Dataset<Row> result = spark.read().format("iceberg").load(loadLocation(tableIdentifier));
+    List<SimpleRecord> actual =
+        result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
+    List<SimpleRecord> expected =
+        Lists.newArrayList(
+            new SimpleRecord(1, "a"),
+            new SimpleRecord(2, "a"),
+            new SimpleRecord(3, "c"),
+            new SimpleRecord(4, "b"),
+            new SimpleRecord(6, "c"));
+    Assert.assertEquals("Number of rows should match", expected.size(), actual.size());
+    Assert.assertEquals("Result rows should match", expected, actual);
+
+    // set read option through session configuration
+    sessionConf.setConfString("spark.datasource.iceberg.branch", "after-first-written");
+    Dataset<Row> result1 = spark.read().format("iceberg").load(loadLocation(tableIdentifier));
+    List<SimpleRecord> actual1 = result1.as(Encoders.bean(SimpleRecord.class)).collectAsList();
+    Assert.assertEquals("Number of rows should match", records.size(), actual1.size());
+    Assert.assertEquals("Result rows should match", records, actual1);
+  }
+
   private GenericData.Record manifestRecord(
       Table manifestTable, Long referenceSnapshotId, ManifestFile manifest) {
     GenericRecordBuilder builder =
@@ -2053,6 +2098,12 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
           deleteRowSchema);
     } catch (IOException e) {
       throw new RuntimeException(e);
+    }
+  }
+
+  private void createBranch(Table table, String branch) {
+    if (branch != null && !branch.equals(SnapshotRef.MAIN_BRANCH)) {
+      table.manageSnapshots().createBranch(branch, table.currentSnapshot().snapshotId()).commit();
     }
   }
 }
