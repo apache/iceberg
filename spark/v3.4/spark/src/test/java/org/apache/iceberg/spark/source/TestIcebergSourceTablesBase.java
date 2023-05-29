@@ -2184,6 +2184,65 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
     assertThat(actual).as("Rows must match").containsExactlyInAnyOrderElementsOf(expected);
   }
 
+  @Test
+  public void testSessionConfigSupport() {
+    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("id").build();
+    TableIdentifier tableIdentifier = TableIdentifier.of("db", "session_config_table");
+    Table table = createTable(tableIdentifier, SCHEMA, spec);
+
+    List<SimpleRecord> records =
+        Lists.newArrayList(
+            new SimpleRecord(1, "a"), new SimpleRecord(2, "b"), new SimpleRecord(3, "c"));
+
+    Dataset<Row> df = spark.createDataFrame(records, SimpleRecord.class);
+
+    df.select("id", "data")
+        .write()
+        .format("iceberg")
+        .mode(SaveMode.Append)
+        .save(loadLocation(tableIdentifier));
+
+    long snapshotId = table.currentSnapshot().snapshotId();
+
+    withSQLConf(
+        // set write option through session configuration
+        ImmutableMap.of("spark.datasource.iceberg.overwrite-mode", "dynamic"),
+        () -> {
+          // overwrite with 2*id to replace record 2, append 4 and 6
+          df.withColumn("id", df.col("id").multiply(2))
+              .select("id", "data")
+              .write()
+              .format("iceberg")
+              .mode(SaveMode.Overwrite)
+              .save(loadLocation(tableIdentifier));
+        });
+
+    table.refresh();
+
+    withSQLConf(
+        // set read option through session configuration
+        ImmutableMap.of("spark.datasource.iceberg.snapshot-id", String.valueOf(snapshotId)),
+        () -> {
+          Dataset<Row> result = spark.read().format("iceberg").load(loadLocation(tableIdentifier));
+          List<SimpleRecord> actual = result.as(Encoders.bean(SimpleRecord.class)).collectAsList();
+          Assert.assertEquals("Number of rows should match", records.size(), actual.size());
+          Assert.assertEquals("Result rows should match", records, actual);
+        });
+
+    Dataset<Row> result = spark.read().format("iceberg").load(loadLocation(tableIdentifier));
+    List<SimpleRecord> actual =
+        result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
+    List<SimpleRecord> expected =
+        Lists.newArrayList(
+            new SimpleRecord(1, "a"),
+            new SimpleRecord(2, "a"),
+            new SimpleRecord(3, "c"),
+            new SimpleRecord(4, "b"),
+            new SimpleRecord(6, "c"));
+    Assert.assertEquals("Number of rows should match", expected.size(), actual.size());
+    Assert.assertEquals("Result rows should match", expected, actual);
+  }
+
   private GenericData.Record manifestRecord(
       Table manifestTable, Long referenceSnapshotId, ManifestFile manifest) {
     GenericRecordBuilder builder =
