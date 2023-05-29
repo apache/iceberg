@@ -59,8 +59,7 @@ public class TestHelpers {
   }
 
   public static <T> T assertAndUnwrap(Expression expr, Class<T> expected) {
-    assertThat(expr).as("Expression should have expected type: " + expected)
-            .isInstanceOf(expected);
+    assertThat(expr).as("Expression should have expected type: " + expected).isInstanceOf(expected);
     return expected.cast(expr);
   }
 

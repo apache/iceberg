@@ -209,6 +209,7 @@ public class TestExpressionBinding {
         .isInstanceOf(BoundTransform.class);
     BoundTransform<?, ?> transformExpr = (BoundTransform<?, ?>) pred.term();
     assertThat(transformExpr.transform())
-        .as("Should use a bucket[16] transform").hasToString("bucket[16]");
+        .as("Should use a bucket[16] transform")
+        .hasToString("bucket[16]");
   }
 }
