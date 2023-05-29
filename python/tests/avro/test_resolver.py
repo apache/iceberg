@@ -290,7 +290,7 @@ def test_resolver_initial_value() -> None:
     )
     read_schema = Schema(
         NestedField(2, "something", StringType(), required=False, initial_default="vo"),
-        schema_id=1,
+        schema_id=2,
     )
 
     assert resolve(write_schema, read_schema) == StructReader(

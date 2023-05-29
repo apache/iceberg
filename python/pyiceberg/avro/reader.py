@@ -113,7 +113,7 @@ class DefaultReader(Reader):
         return self.default_value
 
     def skip(self, decoder: BinaryDecoder) -> None:
-        return None
+        pass
 
 
 class BooleanReader(Reader):
