@@ -89,6 +89,31 @@ public class DataFiles {
     return data;
   }
 
+  static PartitionData fillFromValues(
+      PartitionSpec spec, List<String> partitionValues, PartitionData reuse) {
+    PartitionData data = reuse;
+    if (data == null) {
+      data = newPartitionData(spec);
+    }
+
+    Preconditions.checkArgument(
+        partitionValues.size() <= spec.fields().size(),
+        "Invalid partition data, too many fields (expecting %s): %s",
+        spec.fields().size(),
+        partitionValues.size());
+    Preconditions.checkArgument(
+        partitionValues.size() >= spec.fields().size(),
+        "Invalid partition data, not enough fields (expecting %s): %s",
+        spec.fields().size(),
+        partitionValues.size());
+
+    for (int i = 0; i < partitionValues.size(); i += 1) {
+      data.set(i, Conversions.fromPartitionString(data.getType(i), partitionValues.get(i)));
+    }
+
+    return data;
+  }
+
   public static PartitionData data(PartitionSpec spec, String partitionPath) {
     return fillFromPath(spec, partitionPath, null);
   }
@@ -244,6 +269,16 @@ public class DataFiles {
           "Cannot add partition data for an unpartitioned table");
       if (!newPartitionPath.isEmpty()) {
         this.partitionData = fillFromPath(spec, newPartitionPath, partitionData);
+      }
+      return this;
+    }
+
+    public Builder withPartitionValues(List<String> partitionValues) {
+      Preconditions.checkArgument(
+          isPartitioned || partitionValues.isEmpty(),
+          "Cannot add partition data for an unpartitioned table");
+      if (!partitionValues.isEmpty()) {
+        this.partitionData = fillFromValues(spec, partitionValues, partitionData);
       }
       return this;
     }

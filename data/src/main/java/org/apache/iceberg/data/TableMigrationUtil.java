@@ -60,10 +60,10 @@ public class TableMigrationUtil {
    * <p>For Parquet and ORC partitions, this will read metrics from the file footer. For Avro
    * partitions, metrics are set to null.
    *
-   * <p>Note: certain metrics, like NaN counts, that are only supported by iceberg file writers but
+   * <p>Note: certain metrics, like NaN counts, that are only supported by Iceberg file writers but
    * not file footers, will not be populated.
    *
-   * @param partition partition key, e.g., "a=1/b=2"
+   * @param partition map of partition columns to column values
    * @param uri partition location URI
    * @param format partition format, avro, parquet or orc
    * @param spec a partition spec
@@ -83,27 +83,47 @@ public class TableMigrationUtil {
     return listPartition(partition, uri, format, spec, conf, metricsConfig, mapping, 1);
   }
 
+  /**
+   * Returns the data files in a partition by listing the partition location using some number of
+   * threads.
+   *
+   * <p>For Parquet and ORC partitions, this will read metrics from the file footer. For Avro
+   * partitions, metrics are set to null.
+   *
+   * <p>Note: certain metrics, like NaN counts, that are only supported by Iceberg file writers but
+   * not file footers, will not be populated.
+   *
+   * @param partition map of partition columns to column values
+   * @param uri partition location URI
+   * @param format partition format, avro, parquet or orc
+   * @param spec a partition spec
+   * @param conf a Hadoop conf
+   * @param metricsConfig a metrics conf
+   * @param mapping a name mapping
+   * @param parallelism number of threads to use
+   * @return a List of DataFile
+   */
   public static List<DataFile> listPartition(
-      Map<String, String> partitionPath,
-      String partitionUri,
+      Map<String, String> partition,
+      String uri,
       String format,
       PartitionSpec spec,
       Configuration conf,
-      MetricsConfig metricsSpec,
+      MetricsConfig metricsConfig,
       NameMapping mapping,
       int parallelism) {
     ExecutorService service = null;
     try {
-      String partitionKey =
+      List<String> partitionValues =
           spec.fields().stream()
               .map(PartitionField::name)
-              .map(name -> String.format("%s=%s", name, partitionPath.get(name)))
-              .collect(Collectors.joining("/"));
+              .map(partition::get)
+              .collect(Collectors.toList());
 
-      Path partition = new Path(partitionUri);
-      FileSystem fs = partition.getFileSystem(conf);
+      Path partitionDir = new Path(uri);
+      FileSystem fs = partitionDir.getFileSystem(conf);
       List<FileStatus> fileStatus =
-          Arrays.stream(fs.listStatus(partition, HIDDEN_PATH_FILTER))
+          Arrays.stream(fs.listStatus(partitionDir, HIDDEN_PATH_FILTER))
               .filter(FileStatus::isFile)
               .collect(Collectors.toList());
       DataFile[] datafiles = new DataFile[fileStatus.size()];
@@ -120,30 +140,30 @@ public class TableMigrationUtil {
             index -> {
               Metrics metrics = getAvroMetrics(fileStatus.get(index).getPath(), conf);
               datafiles[index] =
-                  buildDataFile(fileStatus.get(index), partitionKey, spec, metrics, "avro");
+                  buildDataFile(fileStatus.get(index), partitionValues, spec, metrics, "avro");
             });
       } else if (format.contains("parquet")) {
         task.run(
             index -> {
               Metrics metrics =
-                  getParquetMetrics(fileStatus.get(index).getPath(), conf, metricsSpec, mapping);
+                  getParquetMetrics(fileStatus.get(index).getPath(), conf, metricsConfig, mapping);
               datafiles[index] =
-                  buildDataFile(fileStatus.get(index), partitionKey, spec, metrics, "parquet");
+                  buildDataFile(fileStatus.get(index), partitionValues, spec, metrics, "parquet");
             });
       } else if (format.contains("orc")) {
         task.run(
             index -> {
               Metrics metrics =
-                  getOrcMetrics(fileStatus.get(index).getPath(), conf, metricsSpec, mapping);
+                  getOrcMetrics(fileStatus.get(index).getPath(), conf, metricsConfig, mapping);
               datafiles[index] =
-                  buildDataFile(fileStatus.get(index), partitionKey, spec, metrics, "orc");
+                  buildDataFile(fileStatus.get(index), partitionValues, spec, metrics, "orc");
             });
       } else {
         throw new UnsupportedOperationException("Unknown partition format: " + format);
       }
       return Arrays.asList(datafiles);
     } catch (IOException e) {
-      throw new RuntimeException("Unable to list files in partition: " + partitionUri, e);
+      throw new RuntimeException("Unable to list files in partition: " + uri, e);
     } finally {
       if (service != null) {
         service.shutdown();
@@ -162,40 +182,44 @@ public class TableMigrationUtil {
   }
 
   private static Metrics getParquetMetrics(
-      Path path, Configuration conf, MetricsConfig metricsSpec, NameMapping mapping) {
+      Path path, Configuration conf, MetricsConfig metricsConfig, NameMapping mapping) {
     try {
       InputFile file = HadoopInputFile.fromPath(path, conf);
-      return ParquetUtil.fileMetrics(file, metricsSpec, mapping);
+      return ParquetUtil.fileMetrics(file, metricsConfig, mapping);
     } catch (UncheckedIOException e) {
       throw new RuntimeException("Unable to read the metrics of the Parquet file: " + path, e);
     }
   }
 
   private static Metrics getOrcMetrics(
-      Path path, Configuration conf, MetricsConfig metricsSpec, NameMapping mapping) {
+      Path path, Configuration conf, MetricsConfig metricsConfig, NameMapping mapping) {
     try {
-      return OrcMetrics.fromInputFile(HadoopInputFile.fromPath(path, conf), metricsSpec, mapping);
+      return OrcMetrics.fromInputFile(HadoopInputFile.fromPath(path, conf), metricsConfig, mapping);
     } catch (UncheckedIOException e) {
       throw new RuntimeException("Unable to read the metrics of the Orc file: " + path, e);
     }
   }
 
   private static DataFile buildDataFile(
-      FileStatus stat, String partitionKey, PartitionSpec spec, Metrics metrics, String format) {
+      FileStatus stat,
+      List<String> partitionValues,
+      PartitionSpec spec,
+      Metrics metrics,
+      String format) {
     return DataFiles.builder(spec)
         .withPath(stat.getPath().toString())
         .withFormat(format)
         .withFileSizeInBytes(stat.getLen())
         .withMetrics(metrics)
-        .withPartitionPath(partitionKey)
+        .withPartitionValues(partitionValues)
         .build();
   }
 
-  private static ExecutorService migrationService(int concurrentDeletes) {
+  private static ExecutorService migrationService(int numThreads) {
     return MoreExecutors.getExitingExecutorService(
         (ThreadPoolExecutor)
             Executors.newFixedThreadPool(
-                concurrentDeletes,
+                numThreads,
                 new ThreadFactoryBuilder().setNameFormat("table-migration-%d").build()));
   }
 }
