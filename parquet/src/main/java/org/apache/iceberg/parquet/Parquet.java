@@ -87,6 +87,7 @@ import org.apache.iceberg.parquet.ParquetValueWriters.PositionDeleteStructWriter
 import org.apache.iceberg.parquet.ParquetValueWriters.StructWriter;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.ArrayUtil;
@@ -532,14 +533,6 @@ public class Parquet {
             rowGroupCheckMaxRecordCount >= rowGroupCheckMinRecordCount,
             "Row group check maximum record count must be >= minimal record count");
 
-        int bloomFilterMaxBytes =
-            PropertyUtil.propertyAsInt(
-                config, PARQUET_BLOOM_FILTER_MAX_BYTES, PARQUET_BLOOM_FILTER_MAX_BYTES_DEFAULT);
-        Preconditions.checkArgument(bloomFilterMaxBytes > 0, "bloom Filter Max Bytes must be > 0");
-
-        Map<String, String> columnBloomFilterEnabled =
-            PropertyUtil.propertiesWithPrefix(config, PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX);
-
         boolean dictionaryEnabled =
             PropertyUtil.propertyAsBoolean(config, ParquetOutputFormat.ENABLE_DICTIONARY, true);
 
@@ -552,8 +545,8 @@ public class Parquet {
             compressionLevel,
             rowGroupCheckMinRecordCount,
             rowGroupCheckMaxRecordCount,
-            bloomFilterMaxBytes,
-            columnBloomFilterEnabled,
+            PARQUET_BLOOM_FILTER_MAX_BYTES_DEFAULT,
+            ImmutableMap.of(),
             dictionaryEnabled);
       }
 
