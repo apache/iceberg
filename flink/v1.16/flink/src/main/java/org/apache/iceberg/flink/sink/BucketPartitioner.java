@@ -33,20 +33,19 @@ class BucketPartitioner implements Partitioner<Integer> {
 
   static final String BUCKET_NULL_MESSAGE = "bucketId cannot be null";
   static final String BUCKET_LESS_THAN_LOWER_BOUND_MESSAGE =
-      "bucketId out of range: %s, must be non-negative.";
+      "Invalid bucket ID %s: must be non-negative.";
   static final String BUCKET_GREATER_THAN_UPPER_BOUND_MESSAGE =
-      "bucketId out of range: %s, must be less than bucket limit: %s.";
+      "Invalid bucket ID %s: must be less than bucket limit: %s.";
 
   private final int maxNumBuckets;
 
   // To hold the OFFSET of the next writer to use for any bucket, only used when writers > the
-  // number
-  // of buckets
+  // number of buckets
   private final int[] currentBucketWriterOffset;
 
   BucketPartitioner(PartitionSpec partitionSpec) {
     Tuple2<Integer, Integer> bucketFieldInfo =
-        BucketPartitionerUtils.getBucketFieldInfo(partitionSpec);
+        BucketPartitionerUtil.getBucketFieldInfo(partitionSpec);
 
     this.maxNumBuckets = bucketFieldInfo.f1;
     this.currentBucketWriterOffset = new int[this.maxNumBuckets];

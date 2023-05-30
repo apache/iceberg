@@ -20,7 +20,6 @@ package org.apache.iceberg.flink.sink;
 
 import java.util.stream.IntStream;
 import org.apache.flink.api.java.functions.KeySelector;
-import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.iceberg.PartitionKey;
@@ -42,13 +41,10 @@ class BucketPartitionKeySelector implements KeySelector<RowData, Integer> {
   private transient RowDataWrapper rowDataWrapper;
 
   BucketPartitionKeySelector(PartitionSpec partitionSpec, Schema schema, RowType flinkSchema) {
-    Tuple2<Integer, Integer> bucketFieldInfo =
-        BucketPartitionerUtils.getBucketFieldInfo(partitionSpec);
-
-    int bucketFieldId = bucketFieldInfo.f0;
     this.schema = schema;
     this.partitionKey = new PartitionKey(partitionSpec, schema);
     this.flinkSchema = flinkSchema;
+    int bucketFieldId = BucketPartitionerUtil.getBucketFieldInfo(partitionSpec).f0;
     this.bucketFieldPosition =
         IntStream.range(0, partitionSpec.fields().size())
             .filter(i -> partitionSpec.fields().get(i).fieldId() == bucketFieldId)

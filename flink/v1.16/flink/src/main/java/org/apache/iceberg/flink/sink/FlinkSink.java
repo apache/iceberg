@@ -505,7 +505,7 @@ public class FlinkSink {
                       + "and table is unpartitioned");
               return input;
             } else {
-              if (BucketPartitionerUtils.hasOneBucketField(partitionSpec)) {
+              if (BucketPartitionerUtil.hasOneBucketField(partitionSpec)) {
                 return input.partitionCustom(
                     new BucketPartitioner(partitionSpec),
                     new BucketPartitionKeySelector(partitionSpec, iSchema, flinkRowType));

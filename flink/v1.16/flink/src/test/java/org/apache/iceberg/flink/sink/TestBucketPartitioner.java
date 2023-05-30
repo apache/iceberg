@@ -37,9 +37,9 @@ public class TestBucketPartitioner {
   @CsvSource({"ONE_BUCKET,50", "IDENTITY_AND_BUCKET,50", "ONE_BUCKET,60", "IDENTITY_AND_BUCKET,60"})
   public void testPartitioningParallelismGreaterThanBuckets(
       String schemaTypeStr, String numBucketsStr) {
-    final int numPartitions = 500;
-    final TableSchemaType tableSchemaType = TableSchemaType.valueOf(schemaTypeStr);
-    final int numBuckets = Integer.parseInt(numBucketsStr);
+    int numPartitions = 500;
+    TableSchemaType tableSchemaType = TableSchemaType.valueOf(schemaTypeStr);
+    int numBuckets = Integer.parseInt(numBucketsStr);
     PartitionSpec partitionSpec = TableSchemaType.getPartitionSpec(tableSchemaType, numBuckets);
     BucketPartitioner bucketPartitioner = new BucketPartitioner(partitionSpec);
 
@@ -58,9 +58,9 @@ public class TestBucketPartitioner {
   @CsvSource({"ONE_BUCKET,50", "IDENTITY_AND_BUCKET,50", "ONE_BUCKET,60", "IDENTITY_AND_BUCKET,60"})
   public void testPartitioningParallelismEqualLessThanBuckets(
       String schemaTypeStr, String numBucketsStr) {
-    final int numPartitions = 30;
-    final TableSchemaType tableSchemaType = TableSchemaType.valueOf(schemaTypeStr);
-    final int numBuckets = Integer.parseInt(numBucketsStr);
+    int numPartitions = 30;
+    TableSchemaType tableSchemaType = TableSchemaType.valueOf(schemaTypeStr);
+    int numBuckets = Integer.parseInt(numBucketsStr);
     PartitionSpec partitionSpec = TableSchemaType.getPartitionSpec(tableSchemaType, numBuckets);
     BucketPartitioner bucketPartitioner = new BucketPartitioner(partitionSpec);
 
@@ -88,7 +88,7 @@ public class TestBucketPartitioner {
 
     Assertions.assertThatExceptionOfType(RuntimeException.class)
         .isThrownBy(() -> new BucketPartitioner(partitionSpec))
-        .withMessage(BucketPartitionerUtils.BAD_NUMBER_OF_BUCKETS_ERROR_MESSAGE, 2);
+        .withMessage(BucketPartitionerUtil.BAD_NUMBER_OF_BUCKETS_ERROR_MESSAGE, 2);
   }
 
   @Test

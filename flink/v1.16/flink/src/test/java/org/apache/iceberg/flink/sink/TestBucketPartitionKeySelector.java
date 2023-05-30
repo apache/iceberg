@@ -33,7 +33,7 @@ public class TestBucketPartitionKeySelector {
       value = TableSchemaType.class,
       names = {"ONE_BUCKET", "IDENTITY_AND_BUCKET"})
   public void testCorrectKeySelection(TableSchemaType tableSchemaType) {
-    final int numBuckets = 60;
+    int numBuckets = 60;
 
     PartitionSpec partitionSpec = TableSchemaType.getPartitionSpec(tableSchemaType, numBuckets);
     BucketPartitionKeySelector keySelector =
@@ -60,6 +60,6 @@ public class TestBucketPartitionKeySelector {
             () ->
                 new BucketPartitionKeySelector(
                     partitionSpec, SimpleDataUtil.SCHEMA, SimpleDataUtil.ROW_TYPE))
-        .withMessage(BucketPartitionerUtils.BAD_NUMBER_OF_BUCKETS_ERROR_MESSAGE, 2);
+        .withMessage(BucketPartitionerUtil.BAD_NUMBER_OF_BUCKETS_ERROR_MESSAGE, 2);
   }
 }

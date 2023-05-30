@@ -26,11 +26,11 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.transforms.PartitionSpecVisitor;
 
-final class BucketPartitionerUtils {
+final class BucketPartitionerUtil {
   static final String BAD_NUMBER_OF_BUCKETS_ERROR_MESSAGE =
-      "Expected 1 Bucket transform in the provided PartitionSpec, found: %s";
+      "Unsupported partition spec: bucket partitioner expects 1 bucket partition, received: %s";
 
-  private BucketPartitionerUtils() {}
+  private BucketPartitionerUtil() {}
 
   /**
    * Determines whether the PartitionSpec has one and only one Bucket definition
@@ -53,7 +53,7 @@ final class BucketPartitionerUtils {
     List<Tuple2<Integer, Integer>> bucketFields = getBucketFields(partitionSpec);
     Preconditions.checkArgument(
         bucketFields.size() == 1,
-        BucketPartitionerUtils.BAD_NUMBER_OF_BUCKETS_ERROR_MESSAGE,
+        BucketPartitionerUtil.BAD_NUMBER_OF_BUCKETS_ERROR_MESSAGE,
         bucketFields.size());
     return bucketFields.get(0);
   }
