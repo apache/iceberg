@@ -19,7 +19,6 @@
 package org.apache.iceberg.rest.requests;
 
 import java.util.List;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.rest.requests.UpdateTableRequest.UpdateRequirement;
 import org.assertj.core.api.Assertions;
@@ -36,11 +35,9 @@ public class TestUpdateRequirementParser {
             "{\"uuid\":\"2cc52516-5e73-41f2-b139-545d41a4e151\"}");
 
     for (String json : invalidJson) {
-      AssertHelpers.assertThrows(
-          "UpdateRequirement without a recognized requirement type should fail to deserialize",
-          IllegalArgumentException.class,
-          "Cannot parse update requirement. Missing field: type",
-          () -> UpdateRequirementParser.fromJson(json));
+      Assertions.assertThatThrownBy(() -> UpdateRequirementParser.fromJson(json))
+          .isInstanceOf(IllegalArgumentException.class)
+          .hasMessage("Cannot parse update requirement. Missing field: type");
     }
   }
 
