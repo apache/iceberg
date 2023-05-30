@@ -25,6 +25,9 @@ public class SparkSQLProperties {
   // Controls whether vectorized reads are enabled
   public static final String VECTORIZATION_ENABLED = "spark.sql.iceberg.vectorization.enabled";
 
+  // Controls whether locality reads are enabled
+  public static final String LOCALITY_ENABLED = "spark.sql.iceberg.locality.enabled";
+
   // Controls whether reading/writing timestamps without timezones is allowed
   @Deprecated
   public static final String HANDLE_TIMESTAMP_WITHOUT_TIMEZONE =
