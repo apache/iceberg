@@ -609,14 +609,14 @@ public class TestEvaluator {
 
   @Test
   public void testIn() {
-    assertThat(in("s", 7, 8, 9).literals().size()).isEqualTo(3);
-    assertThat(in("s", 7, 8.1, Long.MAX_VALUE).literals().size()).isEqualTo(3);
-    assertThat(in("s", "abc", "abd", "abc").literals().size()).isEqualTo(3);
-    assertThat(in("s").literals().size()).isEqualTo(0);
-    assertThat(in("s", 5).literals().size()).isEqualTo(1);
-    assertThat(in("s", 5, 5).literals().size()).isEqualTo(2);
-    assertThat(in("s", Arrays.asList(5, 5)).literals().size()).isEqualTo(2);
-    assertThat(in("s", Collections.emptyList()).literals().size()).isEqualTo(0);
+    assertThat(in("s", 7, 8, 9).literals()).hasSize(3);
+    assertThat(in("s", 7, 8.1, Long.MAX_VALUE).literals()).hasSize(3);
+    assertThat(in("s", "abc", "abd", "abc").literals()).hasSize(3);
+    assertThat(in("s").literals()).isEmpty();
+    assertThat(in("s", 5).literals()).hasSize(1);
+    assertThat(in("s", 5, 5).literals()).hasSize(2);
+    assertThat(in("s", Arrays.asList(5, 5)).literals()).hasSize(2);
+    assertThat(in("s", Collections.emptyList()).literals()).isEmpty();
 
     Evaluator evaluator = new Evaluator(STRUCT, in("x", 7, 8, Long.MAX_VALUE));
     assertThat(evaluator.eval(TestHelpers.Row.of(7, 8, null))).as("7 in [7, 8] => true").isTrue();
@@ -710,14 +710,14 @@ public class TestEvaluator {
 
   @Test
   public void testNotIn() {
-    assertThat(notIn("s", 7, 8, 9).literals().size()).isEqualTo(3);
-    assertThat(notIn("s", 7, 8.1, Long.MAX_VALUE).literals().size()).isEqualTo(3);
-    assertThat(notIn("s", "abc", "abd", "abc").literals().size()).isEqualTo(3);
-    assertThat(notIn("s").literals().size()).isEqualTo(0);
-    assertThat(notIn("s", 5).literals().size()).isEqualTo(1);
-    assertThat(notIn("s", 5, 5).literals().size()).isEqualTo(2);
-    assertThat(notIn("s", Arrays.asList(5, 5)).literals().size()).isEqualTo(2);
-    assertThat(notIn("s", Collections.emptyList()).literals().size()).isEqualTo(0);
+    assertThat(notIn("s", 7, 8, 9).literals()).hasSize(3);
+    assertThat(notIn("s", 7, 8.1, Long.MAX_VALUE).literals()).hasSize(3);
+    assertThat(notIn("s", "abc", "abd", "abc").literals()).hasSize(3);
+    assertThat(notIn("s").literals()).isEmpty();
+    assertThat(notIn("s", 5).literals()).hasSize(1);
+    assertThat(notIn("s", 5, 5).literals()).hasSize(2);
+    assertThat(notIn("s", Arrays.asList(5, 5)).literals()).hasSize(2);
+    assertThat(notIn("s", Collections.emptyList()).literals()).isEmpty();
 
     Evaluator evaluator = new Evaluator(STRUCT, notIn("x", 7, 8, Long.MAX_VALUE));
     assertThat(evaluator.eval(TestHelpers.Row.of(7, 8, null)))

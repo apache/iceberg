@@ -100,9 +100,9 @@ public class TestExpressionBinding {
 
     // make sure the refs are for the right fields
     BoundPredicate<?> left = TestHelpers.assertAndUnwrap(and.left());
-    assertThat(left.term().ref().fieldId()).as("Should bind x correctly").isEqualTo(0);
+    assertThat(left.term().ref().fieldId()).as("Should bind x correctly").isZero();
     BoundPredicate<?> right = TestHelpers.assertAndUnwrap(and.right());
-    assertThat(right.term().ref().fieldId()).as("Should bind y correctly").isEqualTo(1);
+    assertThat(right.term().ref().fieldId()).as("Should bind y correctly").isOne();
   }
 
   @Test
@@ -118,7 +118,7 @@ public class TestExpressionBinding {
     BoundPredicate<?> left = TestHelpers.assertAndUnwrap(or.left());
     assertThat(left.term().ref().fieldId()).as("Should bind z correctly").isEqualTo(2);
     BoundPredicate<?> right = TestHelpers.assertAndUnwrap(or.right());
-    assertThat(right.term().ref().fieldId()).as("Should bind y correctly").isEqualTo(1);
+    assertThat(right.term().ref().fieldId()).as("Should bind y correctly").isOne();
   }
 
   @Test
@@ -132,7 +132,7 @@ public class TestExpressionBinding {
 
     // make sure the refs are for the right fields
     BoundPredicate<?> child = TestHelpers.assertAndUnwrap(not.child());
-    assertThat(child.term().ref().fieldId()).as("Should bind x correctly").isEqualTo(0);
+    assertThat(child.term().ref().fieldId()).as("Should bind x correctly").isZero();
   }
 
   @Test
@@ -146,7 +146,7 @@ public class TestExpressionBinding {
     assertThat(pred.op())
         .as("Should be right operation")
         .isEqualTo(Expression.Operation.STARTS_WITH);
-    assertThat(pred.term().ref().fieldId()).as("Should bind s correctly").isEqualTo(0);
+    assertThat(pred.term().ref().fieldId()).as("Should bind s correctly").isZero();
   }
 
   @Test
@@ -196,7 +196,7 @@ public class TestExpressionBinding {
 
     Expression bound = Binder.bind(STRUCT, not(not(lessThan("y", 100))));
     BoundPredicate<?> pred = TestHelpers.assertAndUnwrap(bound);
-    assertThat(pred.term().ref().fieldId()).as("Should have the correct bound field").isEqualTo(1);
+    assertThat(pred.term().ref().fieldId()).as("Should have the correct bound field").isOne();
   }
 
   @Test

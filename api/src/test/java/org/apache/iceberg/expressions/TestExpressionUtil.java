@@ -846,9 +846,9 @@ public class TestExpressionUtil {
   }
 
   private void assertEquals(UnboundPredicate<?> expected, UnboundPredicate<?> actual) {
-    assertThat(actual.op()).as("Operation should match").isEqualTo(expected.op());
+    assertThat(actual.op()).isEqualTo(expected.op());
     assertEquals(expected.term(), actual.term());
-    assertThat(actual.literals()).as("Literals should match").isEqualTo(expected.literals());
+    assertThat(actual.literals()).isEqualTo(expected.literals());
   }
 
   private void assertEquals(UnboundTerm<?> expected, UnboundTerm<?> actual) {

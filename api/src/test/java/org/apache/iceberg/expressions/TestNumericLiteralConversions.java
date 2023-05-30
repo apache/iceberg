@@ -32,7 +32,7 @@ public class TestNumericLiteralConversions {
     Literal<Integer> lit = Literal.of(34);
     Literal<Long> longLit = lit.to(Types.LongType.get());
 
-    assertThat((long) longLit.value()).as("Value should match").isEqualTo(34L);
+    assertThat((long) longLit.value()).isEqualTo(34L);
   }
 
   @Test
@@ -40,7 +40,7 @@ public class TestNumericLiteralConversions {
     Literal<Integer> lit = Literal.of(34);
     Literal<Float> floatLit = lit.to(Types.FloatType.get());
 
-    assertThat(floatLit.value()).as("Value should match").isCloseTo(34.0F, offset(0.0000000001F));
+    assertThat(floatLit.value()).isCloseTo(34.0F, offset(0.0000000001F));
   }
 
   @Test
@@ -48,22 +48,18 @@ public class TestNumericLiteralConversions {
     Literal<Integer> lit = Literal.of(34);
     Literal<Double> doubleLit = lit.to(Types.DoubleType.get());
 
-    assertThat(doubleLit.value()).as("Value should match").isCloseTo(34.0D, offset(0.0000000001D));
+    assertThat(doubleLit.value()).isCloseTo(34.0D, offset(0.0000000001D));
   }
 
   @Test
   public void testIntegerToDecimalConversion() {
     Literal<Integer> lit = Literal.of(34);
 
-    assertThat(lit.to(Types.DecimalType.of(9, 0)).value())
-        .as("Value should match")
-        .isEqualTo(new BigDecimal("34"));
-    assertThat(lit.to(Types.DecimalType.of(9, 2)).value())
-        .as("Value should match")
-        .isEqualTo(new BigDecimal("34.00"));
-    assertThat(lit.to(Types.DecimalType.of(9, 4)).value())
-        .as("Value should match")
-        .isEqualTo(new BigDecimal("34.0000"));
+    assertThat(lit.to(Types.DecimalType.of(9, 0)).value()).isEqualTo(new BigDecimal("34"));
+
+    assertThat(lit.to(Types.DecimalType.of(9, 2)).value()).isEqualTo(new BigDecimal("34.00"));
+
+    assertThat(lit.to(Types.DecimalType.of(9, 4)).value()).isEqualTo(new BigDecimal("34.0000"));
   }
 
   @Test
@@ -71,7 +67,7 @@ public class TestNumericLiteralConversions {
     Literal<Long> lit = Literal.of(34L);
     Literal<Integer> intLit = lit.to(Types.IntegerType.get());
 
-    assertThat((int) intLit.value()).as("Value should match").isEqualTo(34);
+    assertThat((int) intLit.value()).isEqualTo(34);
 
     assertThat(Literal.of((long) Integer.MAX_VALUE + 1L).to(Types.IntegerType.get()))
         .as("Values above Integer.MAX_VALUE should be Literals.aboveMax()")
@@ -86,7 +82,7 @@ public class TestNumericLiteralConversions {
     Literal<Long> lit = Literal.of(34L);
     Literal<Float> floatLit = lit.to(Types.FloatType.get());
 
-    assertThat(floatLit.value()).as("Value should match").isCloseTo(34.0F, offset(0.0000000001F));
+    assertThat(floatLit.value()).isCloseTo(34.0F, offset(0.0000000001F));
   }
 
   @Test
@@ -94,22 +90,18 @@ public class TestNumericLiteralConversions {
     Literal<Long> lit = Literal.of(34L);
     Literal<Double> doubleLit = lit.to(Types.DoubleType.get());
 
-    assertThat(doubleLit.value()).as("Value should match").isCloseTo(34.0D, offset(0.0000000001D));
+    assertThat(doubleLit.value()).isCloseTo(34.0D, offset(0.0000000001D));
   }
 
   @Test
   public void testLongToDecimalConversion() {
     Literal<Long> lit = Literal.of(34L);
 
-    assertThat(lit.to(Types.DecimalType.of(9, 0)).value())
-        .as("Value should match")
-        .isEqualTo(new BigDecimal("34"));
-    assertThat(lit.to(Types.DecimalType.of(9, 2)).value())
-        .as("Value should match")
-        .isEqualTo(new BigDecimal("34.00"));
-    assertThat(lit.to(Types.DecimalType.of(9, 4)).value())
-        .as("Value should match")
-        .isEqualTo(new BigDecimal("34.0000"));
+    assertThat(lit.to(Types.DecimalType.of(9, 0)).value()).isEqualTo(new BigDecimal("34"));
+
+    assertThat(lit.to(Types.DecimalType.of(9, 2)).value()).isEqualTo(new BigDecimal("34.00"));
+
+    assertThat(lit.to(Types.DecimalType.of(9, 4)).value()).isEqualTo(new BigDecimal("34.0000"));
   }
 
   @Test
@@ -117,7 +109,7 @@ public class TestNumericLiteralConversions {
     Literal<Float> lit = Literal.of(34.56F);
     Literal<Double> doubleLit = lit.to(Types.DoubleType.get());
 
-    assertThat(doubleLit.value()).as("Value should match").isCloseTo(34.56D, offset(0.001D));
+    assertThat(doubleLit.value()).isCloseTo(34.56D, offset(0.001D));
   }
 
   @Test
@@ -127,12 +119,9 @@ public class TestNumericLiteralConversions {
     assertThat(lit.to(Types.DecimalType.of(9, 1)).value())
         .as("Value should round using HALF_UP")
         .isEqualTo(new BigDecimal("34.6"));
-    assertThat(lit.to(Types.DecimalType.of(9, 2)).value())
-        .as("Value should match")
-        .isEqualTo(new BigDecimal("34.56"));
-    assertThat(lit.to(Types.DecimalType.of(9, 4)).value())
-        .as("Value should match")
-        .isEqualTo(new BigDecimal("34.5600"));
+    assertThat(lit.to(Types.DecimalType.of(9, 2)).value()).isEqualTo(new BigDecimal("34.56"));
+
+    assertThat(lit.to(Types.DecimalType.of(9, 4)).value()).isEqualTo(new BigDecimal("34.5600"));
   }
 
   @Test
@@ -140,7 +129,7 @@ public class TestNumericLiteralConversions {
     Literal<Double> lit = Literal.of(34.56D);
     Literal<Float> doubleLit = lit.to(Types.FloatType.get());
 
-    assertThat(doubleLit.value()).as("Value should match").isCloseTo(34.56F, offset(0.001F));
+    assertThat(doubleLit.value()).isCloseTo(34.56F, offset(0.001F));
 
     // this adjusts Float.MAX_VALUE using multipliers because most integer adjustments are lost by
     // floating point precision.
@@ -159,12 +148,9 @@ public class TestNumericLiteralConversions {
     assertThat(lit.to(Types.DecimalType.of(9, 1)).value())
         .as("Value should round using HALF_UP")
         .isEqualTo(new BigDecimal("34.6"));
-    assertThat(lit.to(Types.DecimalType.of(9, 2)).value())
-        .as("Value should match")
-        .isEqualTo(new BigDecimal("34.56"));
-    assertThat(lit.to(Types.DecimalType.of(9, 4)).value())
-        .as("Value should match")
-        .isEqualTo(new BigDecimal("34.5600"));
+    assertThat(lit.to(Types.DecimalType.of(9, 2)).value()).isEqualTo(new BigDecimal("34.56"));
+
+    assertThat(lit.to(Types.DecimalType.of(9, 4)).value()).isEqualTo(new BigDecimal("34.5600"));
   }
 
   @Test
@@ -186,24 +172,16 @@ public class TestNumericLiteralConversions {
   @Test
   public void testIntegerToDateConversion() {
     Literal<Integer> lit = Literal.of(0);
-    assertThat(new Literals.DateLiteral(0))
-        .as("Dates should be equal")
-        .isEqualTo(lit.to(Types.DateType.get()));
+    assertThat(new Literals.DateLiteral(0)).isEqualTo(lit.to(Types.DateType.get()));
     lit = Literal.of(365 * 50);
-    assertThat(new Literals.DateLiteral(365 * 50))
-        .as("Dates should be equal")
-        .isEqualTo(lit.to(Types.DateType.get()));
+    assertThat(new Literals.DateLiteral(365 * 50)).isEqualTo(lit.to(Types.DateType.get()));
   }
 
   @Test
   public void testLongToDateConversion() {
     Literal<Long> lit = Literal.of(0L);
-    assertThat(new Literals.DateLiteral(0))
-        .as("Dates should be equal")
-        .isEqualTo(lit.to(Types.DateType.get()));
+    assertThat(new Literals.DateLiteral(0)).isEqualTo(lit.to(Types.DateType.get()));
     lit = Literal.of(365L * 50);
-    assertThat(new Literals.DateLiteral(365 * 50))
-        .as("Dates should be equal")
-        .isEqualTo(lit.to(Types.DateType.get()));
+    assertThat(new Literals.DateLiteral(365 * 50)).isEqualTo(lit.to(Types.DateType.get()));
   }
 }

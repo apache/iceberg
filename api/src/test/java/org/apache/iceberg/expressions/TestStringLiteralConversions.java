@@ -55,7 +55,7 @@ public class TestStringLiteralConversions {
     int avroValue =
         avroConversion.toInt(LocalDate.of(2017, 8, 18), avroSchema, avroSchema.getLogicalType());
 
-    assertThat((int) date.value()).as("Date should match").isEqualTo(avroValue);
+    assertThat((int) date.value()).isEqualTo(avroValue);
   }
 
   @Test
@@ -89,7 +89,7 @@ public class TestStringLiteralConversions {
             .toLong(
                 LocalTime.of(14, 21, 1, 919 * 1000000), avroSchema, avroSchema.getLogicalType());
 
-    assertThat((long) time.value()).as("Time should match").isEqualTo(avroValue);
+    assertThat((long) time.value()).isEqualTo(avroValue);
   }
 
   @Test
@@ -108,7 +108,7 @@ public class TestStringLiteralConversions {
             avroSchema,
             avroSchema.getLogicalType());
 
-    assertThat((long) timestamp.value()).as("Timestamp should match").isEqualTo(avroValue);
+    assertThat((long) timestamp.value()).isEqualTo(avroValue);
 
     // Timestamp without an explicit zone should be UTC (equal to the previous converted value)
     timestampStr = Literal.of("2017-08-18T14:21:01.919");
@@ -202,7 +202,7 @@ public class TestStringLiteralConversions {
     Literal<CharSequence> uuidStr = Literal.of(expected.toString());
     Literal<UUID> uuid = uuidStr.to(Types.UUIDType.get());
 
-    assertThat(uuid.value()).as("UUID should match").isEqualTo(expected);
+    assertThat(uuid.value()).isEqualTo(expected);
   }
 
   @Test
@@ -215,7 +215,7 @@ public class TestStringLiteralConversions {
             scale -> {
               Literal<BigDecimal> decimal = decimalStr.to(Types.DecimalType.of(9, scale));
               assertThat(decimal.value().scale()).as("Decimal should have scale 3").isEqualTo(3);
-              assertThat(decimal.value()).as("Decimal should match").isEqualTo(expected);
+              assertThat(decimal.value()).isEqualTo(expected);
             });
   }
 }

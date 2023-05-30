@@ -112,18 +112,14 @@ public class TestExpressionSerialization {
     } else if (left instanceof UnboundTransform && right instanceof UnboundTransform) {
       UnboundTransform<?, ?> unboundLeft = (UnboundTransform<?, ?>) left;
       UnboundTransform<?, ?> unboundRight = (UnboundTransform<?, ?>) right;
-      if (equals(unboundLeft.ref(), unboundRight.ref())
-          && unboundLeft.transform().toString().equals(unboundRight.transform().toString())) {
-        return true;
-      }
+      return equals(unboundLeft.ref(), unboundRight.ref())
+          && unboundLeft.transform().toString().equals(unboundRight.transform().toString());
 
     } else if (left instanceof BoundTransform && right instanceof BoundTransform) {
       BoundTransform<?, ?> boundLeft = (BoundTransform<?, ?>) left;
       BoundTransform<?, ?> boundRight = (BoundTransform<?, ?>) right;
-      if (equals(boundLeft.ref(), boundRight.ref())
-          && boundLeft.transform().toString().equals(boundRight.transform().toString())) {
-        return true;
-      }
+      return equals(boundLeft.ref(), boundRight.ref())
+          && boundLeft.transform().toString().equals(boundRight.transform().toString());
     }
 
     return false;
