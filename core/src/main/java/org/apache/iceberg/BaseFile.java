@@ -21,6 +21,7 @@ package org.apache.iceberg;
 import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -444,12 +445,12 @@ abstract class BaseFile<F>
 
   @Override
   public Map<Integer, ByteBuffer> lowerBounds() {
-    return toReadableMap(lowerBounds);
+    return toReadableByteBufferMap(lowerBounds);
   }
 
   @Override
   public Map<Integer, ByteBuffer> upperBounds() {
-    return toReadableMap(upperBounds);
+    return toReadableByteBufferMap(upperBounds);
   }
 
   @Override
@@ -473,10 +474,22 @@ abstract class BaseFile<F>
   }
 
   private static <K, V> Map<K, V> toReadableMap(Map<K, V> map) {
-    if (map instanceof SerializableMap) {
+    if (map == null) {
+      return null;
+    } else if (map instanceof SerializableMap) {
       return ((SerializableMap<K, V>) map).immutableMap();
     } else {
-      return map;
+      return Collections.unmodifiableMap(map);
+    }
+  }
+
+  private static Map<Integer, ByteBuffer> toReadableByteBufferMap(Map<Integer, ByteBuffer> map) {
+    if (map == null) {
+      return null;
+    } else if (map instanceof SerializableByteBufferMap) {
+      return ((SerializableByteBufferMap) map).immutableMap();
+    } else {
+      return Collections.unmodifiableMap(map);
     }
   }
 

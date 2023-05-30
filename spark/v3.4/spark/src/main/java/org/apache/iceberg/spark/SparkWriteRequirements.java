@@ -43,4 +43,8 @@ public class SparkWriteRequirements {
   public SortOrder[] ordering() {
     return ordering;
   }
+
+  public boolean hasOrdering() {
+    return ordering.length != 0;
+  }
 }
