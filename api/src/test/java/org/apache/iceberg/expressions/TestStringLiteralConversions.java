@@ -214,7 +214,7 @@ public class TestStringLiteralConversions {
         .forEach(
             scale -> {
               Literal<BigDecimal> decimal = decimalStr.to(Types.DecimalType.of(9, scale));
-              assertThat(decimal.value().scale()).as("Decimal should have scale 3").isEqualTo(3);
+              assertThat(decimal.value().scale()).isEqualTo(3);
               assertThat(decimal.value()).isEqualTo(expected);
             });
   }
