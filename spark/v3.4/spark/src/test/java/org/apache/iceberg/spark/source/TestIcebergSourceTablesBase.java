@@ -1972,7 +1972,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
         .mode(SaveMode.Append)
         .save(loadLocation(tableIdentifier));
 
-    createBranch(table, "after-first-written");
+    long snapshotId = table.currentSnapshot().snapshotId();
 
     // set write option through session configuration
     SQLConf sessionConf = spark.sessionState().conf();
@@ -1984,6 +1984,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
         .format("iceberg")
         .mode(SaveMode.Overwrite)
         .save(loadLocation(tableIdentifier));
+    sessionConf.unsetConf("spark.datasource.iceberg.overwrite-mode");
 
     table.refresh();
 
@@ -2001,8 +2002,9 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
     Assert.assertEquals("Result rows should match", expected, actual);
 
     // set read option through session configuration
-    sessionConf.setConfString("spark.datasource.iceberg.branch", "after-first-written");
+    sessionConf.setConfString("spark.datasource.iceberg.snapshot-id", String.valueOf(snapshotId));
     Dataset<Row> result1 = spark.read().format("iceberg").load(loadLocation(tableIdentifier));
+    sessionConf.unsetConf("spark.datasource.iceberg.snapshot-id");
     List<SimpleRecord> actual1 = result1.as(Encoders.bean(SimpleRecord.class)).collectAsList();
     Assert.assertEquals("Number of rows should match", records.size(), actual1.size());
     Assert.assertEquals("Result rows should match", records, actual1);
