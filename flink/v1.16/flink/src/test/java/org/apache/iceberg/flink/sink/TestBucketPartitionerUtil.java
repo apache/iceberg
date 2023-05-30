@@ -25,52 +25,50 @@ import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.StringData;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.flink.SimpleDataUtil;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.BucketUtil;
 
-final class TestBucketPartitionerUtils {
+final class TestBucketPartitionerUtil {
 
   enum TableSchemaType {
-    ONE_BUCKET,
-    IDENTITY_AND_BUCKET,
-    TWO_BUCKETS;
-
-    public static int bucketPartitionColumnPosition(TableSchemaType tableSchemaType) {
-      return tableSchemaType == ONE_BUCKET ? 0 : 1;
-    }
-
-    public static PartitionSpec getPartitionSpec(TableSchemaType tableSchemaType, int numBuckets) {
-      PartitionSpec partitionSpec = null;
-
-      switch (tableSchemaType) {
-        case ONE_BUCKET:
-          partitionSpec =
-              PartitionSpec.builderFor(SimpleDataUtil.SCHEMA).bucket("data", numBuckets).build();
-          break;
-        case IDENTITY_AND_BUCKET:
-          partitionSpec =
-              PartitionSpec.builderFor(SimpleDataUtil.SCHEMA)
-                  .identity("id")
-                  .bucket("data", numBuckets)
-                  .build();
-          break;
-        case TWO_BUCKETS:
-          partitionSpec =
-              PartitionSpec.builderFor(SimpleDataUtil.SCHEMA)
-                  .bucket("id", numBuckets)
-                  .bucket("data", numBuckets)
-                  .build();
-          break;
+    ONE_BUCKET {
+      @Override
+      public int bucketPartitionColumnPosition() {
+        return 0;
       }
 
-      Preconditions.checkNotNull(
-          partitionSpec, "Invalid tableSchemaType provided: " + tableSchemaType);
-      return partitionSpec;
+      @Override
+      public PartitionSpec getPartitionSpec(int numBuckets) {
+        return PartitionSpec.builderFor(SimpleDataUtil.SCHEMA).bucket("data", numBuckets).build();
+      }
+    },
+    IDENTITY_AND_BUCKET {
+      @Override
+      public PartitionSpec getPartitionSpec(int numBuckets) {
+        return PartitionSpec.builderFor(SimpleDataUtil.SCHEMA)
+            .identity("id")
+            .bucket("data", numBuckets)
+            .build();
+      }
+    },
+    TWO_BUCKETS {
+      @Override
+      public PartitionSpec getPartitionSpec(int numBuckets) {
+        return PartitionSpec.builderFor(SimpleDataUtil.SCHEMA)
+            .bucket("id", numBuckets)
+            .bucket("data", numBuckets)
+            .build();
+      }
+    };
+
+    public int bucketPartitionColumnPosition() {
+      return 1;
     }
+
+    public abstract PartitionSpec getPartitionSpec(int numBuckets);
   }
 
-  private TestBucketPartitionerUtils() {}
+  private TestBucketPartitionerUtil() {}
 
   /**
    * Utility method to generate rows whose values will "hash" to a range of bucketIds (from 0 to

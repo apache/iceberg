@@ -45,7 +45,7 @@ import org.apache.iceberg.flink.HadoopCatalogExtension;
 import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.TestFixtures;
-import org.apache.iceberg.flink.sink.TestBucketPartitionerUtils.TableSchemaType;
+import org.apache.iceberg.flink.sink.TestBucketPartitionerUtil.TableSchemaType;
 import org.apache.iceberg.flink.source.BoundedTestSource;
 import org.apache.iceberg.flink.util.FlinkCompatibilityUtil;
 import org.apache.iceberg.io.CloseableIterable;
@@ -88,7 +88,7 @@ public class TestBucketPartitionerFlinkIcebergSink {
   private TableLoader tableLoader;
 
   private void setupEnvironment(TableSchemaType tableSchemaType) {
-    PartitionSpec partitionSpec = TableSchemaType.getPartitionSpec(tableSchemaType, numBuckets);
+    PartitionSpec partitionSpec = tableSchemaType.getPartitionSpec(numBuckets);
     table =
         catalogExtension
             .catalog()
@@ -184,7 +184,7 @@ public class TestBucketPartitionerFlinkIcebergSink {
   private List<RowData> generateTestDataRows() {
     int totalNumRows = parallelism * 2;
     int numRowsPerBucket = totalNumRows / numBuckets;
-    return TestBucketPartitionerUtils.generateRowsForBucketIdRange(numRowsPerBucket, numBuckets);
+    return TestBucketPartitionerUtil.generateRowsForBucketIdRange(numRowsPerBucket, numBuckets);
   }
 
   private TableTestStats extractPartitionResults(TableSchemaType tableSchemaType)
@@ -209,7 +209,7 @@ public class TestBucketPartitionerFlinkIcebergSink {
             scanTask
                 .file()
                 .partition()
-                .get(TableSchemaType.bucketPartitionColumnPosition(tableSchemaType), Integer.class);
+                .get(tableSchemaType.bucketPartitionColumnPosition(), Integer.class);
         writersPerBucket.computeIfAbsent(bucketId, k -> Lists.newArrayList());
         writersPerBucket.get(bucketId).add(writerId);
         filesPerBucket.put(bucketId, filesPerBucket.getOrDefault(bucketId, 0) + 1);
