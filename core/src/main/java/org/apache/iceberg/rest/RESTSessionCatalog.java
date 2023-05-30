@@ -46,6 +46,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.Transactions;
 import org.apache.iceberg.catalog.BaseSessionCatalog;
@@ -55,6 +56,7 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.hadoop.Configurable;
+import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.metrics.MetricsReporters;
@@ -99,6 +101,7 @@ public class RESTSessionCatalog extends BaseSessionCatalog
   private final Function<Map<String, String>, RESTClient> clientBuilder;
   private final BiFunction<SessionContext, Map<String, String>, FileIO> ioBuilder;
   private Cache<String, AuthSession> sessions = null;
+  private Cache<TableOperations, FileIO> fileIOCloser;
   private AuthSession catalogAuth = null;
   private boolean keepTokenRefreshed = true;
   private RESTClient client = null;
@@ -108,6 +111,7 @@ public class RESTSessionCatalog extends BaseSessionCatalog
   private FileIO io = null;
   private MetricsReporter reporter = null;
   private boolean reportingViaRestEnabled;
+  private CloseableGroup closeables = null;
 
   // a lazy thread pool for token refresh
   private volatile ScheduledExecutorService refreshExecutor = null;
@@ -192,6 +196,12 @@ public class RESTSessionCatalog extends BaseSessionCatalog
     }
 
     this.io = newFileIO(SessionContext.createEmpty(), mergedProps);
+
+    this.fileIOCloser = newFileIOCloser();
+    this.closeables = new CloseableGroup();
+    this.closeables.addCloseable(this.io);
+    this.closeables.addCloseable(this.client);
+    this.closeables.setSuppressCloseFailure(true);
 
     this.snapshotMode =
         SnapshotMode.valueOf(
@@ -319,6 +329,7 @@ public class RESTSessionCatalog extends BaseSessionCatalog
       }
     }
 
+    TableIdentifier finalIdentifier = loadedIdent;
     AuthSession session = tableSession(response.config(), session(context));
     TableMetadata tableMetadata;
 
@@ -329,7 +340,7 @@ public class RESTSessionCatalog extends BaseSessionCatalog
               .setPreviousFileLocation(null)
               .setSnapshotsSupplier(
                   () ->
-                      loadInternal(context, identifier, SnapshotMode.ALL)
+                      loadInternal(context, finalIdentifier, SnapshotMode.ALL)
                           .tableMetadata()
                           .snapshots())
               .discardChanges()
@@ -341,21 +352,29 @@ public class RESTSessionCatalog extends BaseSessionCatalog
     RESTTableOperations ops =
         new RESTTableOperations(
             client,
-            paths.table(loadedIdent),
+            paths.table(finalIdentifier),
             session::headers,
             tableFileIO(context, response.config()),
             tableMetadata);
 
+    trackFileIO(ops);
+
     BaseTable table =
         new BaseTable(
             ops,
-            fullTableName(loadedIdent),
-            metricsReporter(paths.metrics(loadedIdent), session::headers));
+            fullTableName(finalIdentifier),
+            metricsReporter(paths.metrics(finalIdentifier), session::headers));
     if (metadataType != null) {
       return MetadataTableUtils.createMetadataTableInstance(table, metadataType);
     }
 
     return table;
+  }
+
+  private void trackFileIO(RESTTableOperations ops) {
+    if (io != ops.io()) {
+      fileIOCloser.put(ops, ops.io());
+    }
   }
 
   private MetricsReporter metricsReporter(
@@ -485,8 +504,13 @@ public class RESTSessionCatalog extends BaseSessionCatalog
   public void close() throws IOException {
     shutdownRefreshExecutor();
 
-    if (client != null) {
-      client.close();
+    if (closeables != null) {
+      closeables.close();
+    }
+
+    if (fileIOCloser != null) {
+      fileIOCloser.invalidateAll();
+      fileIOCloser.cleanUp();
     }
   }
 
@@ -592,6 +616,8 @@ public class RESTSessionCatalog extends BaseSessionCatalog
               tableFileIO(context, response.config()),
               response.tableMetadata());
 
+      trackFileIO(ops);
+
       return new BaseTable(
           ops, fullTableName(ident), metricsReporter(paths.metrics(ident), session::headers));
     }
@@ -613,6 +639,8 @@ public class RESTSessionCatalog extends BaseSessionCatalog
               RESTTableOperations.UpdateType.CREATE,
               createChanges(meta),
               meta);
+
+      trackFileIO(ops);
 
       return Transactions.createTableTransaction(
           fullName, ops, meta, metricsReporter(paths.metrics(ident), session::headers));
@@ -664,6 +692,8 @@ public class RESTSessionCatalog extends BaseSessionCatalog
               RESTTableOperations.UpdateType.REPLACE,
               changes.build(),
               base);
+
+      trackFileIO(ops);
 
       return Transactions.replaceTableTransaction(
           fullName, ops, replacement, metricsReporter(paths.metrics(ident), session::headers));
@@ -871,6 +901,19 @@ public class RESTSessionCatalog extends BaseSessionCatalog
         .expireAfterAccess(Duration.ofMillis(expirationIntervalMs))
         .removalListener(
             (RemovalListener<String, AuthSession>) (id, auth, cause) -> auth.stopRefreshing())
+        .build();
+  }
+
+  private Cache<TableOperations, FileIO> newFileIOCloser() {
+    return Caffeine.newBuilder()
+        .weakKeys()
+        .removalListener(
+            (RemovalListener<TableOperations, FileIO>)
+                (ops, fileIO, cause) -> {
+                  if (null != fileIO) {
+                    fileIO.close();
+                  }
+                })
         .build();
   }
 }

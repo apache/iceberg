@@ -25,6 +25,7 @@ import org.apache.spark.sql.connector.catalog.functions.ScalarFunction;
 import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.DateType;
+import org.apache.spark.sql.types.TimestampNTZType;
 import org.apache.spark.sql.types.TimestampType;
 
 /**
@@ -40,6 +41,8 @@ public class MonthsFunction extends UnaryUnboundFunction {
       return new DateToMonthsFunction();
     } else if (valueType instanceof TimestampType) {
       return new TimestampToMonthsFunction();
+    } else if (valueType instanceof TimestampNTZType) {
+      return new TimestampNtzToMonthsFunction();
     } else {
       throw new UnsupportedOperationException(
           "Expected value to be date or timestamp: " + valueType.catalogString());
@@ -107,6 +110,29 @@ public class MonthsFunction extends UnaryUnboundFunction {
     @Override
     public String canonicalName() {
       return "iceberg.months(timestamp)";
+    }
+
+    @Override
+    public Integer produceResult(InternalRow input) {
+      // return null for null input to match what Spark does in codegen
+      return input.isNullAt(0) ? null : invoke(input.getLong(0));
+    }
+  }
+
+  public static class TimestampNtzToMonthsFunction extends BaseToMonthsFunction {
+    // magic method used in codegen
+    public static int invoke(long micros) {
+      return DateTimeUtil.microsToMonths(micros);
+    }
+
+    @Override
+    public DataType[] inputTypes() {
+      return new DataType[] {DataTypes.TimestampNTZType};
+    }
+
+    @Override
+    public String canonicalName() {
+      return "iceberg.months(timestamp_ntz)";
     }
 
     @Override

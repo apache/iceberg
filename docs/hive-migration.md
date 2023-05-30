@@ -4,6 +4,7 @@ url: hive-migration
 menu:
   main:
     parent: "Migration"
+    identifier: hive_migration
     weight: 200
 ---
 <!--

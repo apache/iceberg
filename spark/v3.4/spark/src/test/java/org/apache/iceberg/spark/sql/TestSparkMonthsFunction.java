@@ -66,6 +66,23 @@ public class TestSparkMonthsFunction extends SparkTestBaseWithCatalog {
   }
 
   @Test
+  public void testTimestampNtz() {
+    Assert.assertEquals(
+        "Expected to produce 47 * 12 + 11 = 575",
+        575,
+        scalarSql("SELECT system.months(TIMESTAMP_NTZ '2017-12-01 10:12:55.038194 UTC')"));
+    Assert.assertEquals(
+        "Expected to produce 0 * 12 + 0 = 0",
+        0,
+        scalarSql("SELECT system.months(TIMESTAMP_NTZ '1970-01-01 00:00:01.000001 UTC')"));
+    Assert.assertEquals(
+        "Expected to produce -1",
+        -1,
+        scalarSql("SELECT system.months(TIMESTAMP_NTZ '1969-12-31 23:59:58.999999 UTC')"));
+    Assert.assertNull(scalarSql("SELECT system.months(CAST(null AS TIMESTAMP_NTZ))"));
+  }
+
+  @Test
   public void testWrongNumberOfArguments() {
     Assertions.assertThatThrownBy(() -> scalarSql("SELECT system.months()"))
         .isInstanceOf(AnalysisException.class)

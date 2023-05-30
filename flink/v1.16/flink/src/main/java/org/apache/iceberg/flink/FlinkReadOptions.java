@@ -105,4 +105,8 @@ public class FlinkReadOptions {
   public static final String LIMIT = "limit";
   public static final ConfigOption<Long> LIMIT_OPTION =
       ConfigOptions.key(PREFIX + LIMIT).longType().defaultValue(-1L);
+
+  public static final String MAX_ALLOWED_PLANNING_FAILURES = "max-allowed-planning-failures";
+  public static final ConfigOption<Integer> MAX_ALLOWED_PLANNING_FAILURES_OPTION =
+      ConfigOptions.key(PREFIX + MAX_ALLOWED_PLANNING_FAILURES).intType().defaultValue(3);
 }

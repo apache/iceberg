@@ -18,20 +18,40 @@
  */
 package org.apache.iceberg.flink.data;
 
-import java.util.Iterator;
+import java.util.List;
+import org.apache.flink.table.data.GenericArrayData;
+import org.apache.flink.table.data.GenericMapData;
+import org.apache.flink.table.data.GenericRowData;
 import org.apache.flink.table.data.RowData;
+import org.apache.flink.table.data.StringData;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
+import org.apache.iceberg.flink.DataGenerator;
+import org.apache.iceberg.flink.DataGenerators;
 import org.apache.iceberg.flink.TestHelpers;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.StructProjection;
 import org.assertj.core.api.Assertions;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestRowDataProjection {
+  @Test
+  public void testNullRootRowData() {
+    Schema schema =
+        new Schema(
+            Types.NestedField.required(0, "id", Types.LongType.get()),
+            Types.NestedField.optional(1, "data", Types.StringType.get()));
+
+    RowDataProjection projection = RowDataProjection.create(schema, schema.select("id"));
+
+    Assertions.assertThatThrownBy(() -> projection.wrap(null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid row data: null");
+  }
 
   @Test
   public void testFullProjection() {
@@ -41,6 +61,11 @@ public class TestRowDataProjection {
             Types.NestedField.optional(1, "data", Types.StringType.get()));
 
     generateAndValidate(schema, schema);
+
+    GenericRowData rowData = GenericRowData.of(1L, StringData.fromString("a"));
+    GenericRowData copyRowData = GenericRowData.of(1L, StringData.fromString("a"));
+    GenericRowData otherRowData = GenericRowData.of(2L, StringData.fromString("b"));
+    testEqualsAndHashCode(schema, schema, rowData, copyRowData, otherRowData);
   }
 
   @Test
@@ -56,6 +81,11 @@ public class TestRowDataProjection {
             Types.NestedField.required(0, "id", Types.LongType.get()));
 
     generateAndValidate(schema, reordered);
+
+    GenericRowData rowData = GenericRowData.of(1L, StringData.fromString("a"));
+    GenericRowData copyRowData = GenericRowData.of(1L, StringData.fromString("a"));
+    GenericRowData otherRowData = GenericRowData.of(2L, StringData.fromString("b"));
+    testEqualsAndHashCode(schema, reordered, rowData, copyRowData, otherRowData);
   }
 
   @Test
@@ -64,10 +94,16 @@ public class TestRowDataProjection {
         new Schema(
             Types.NestedField.required(0, "id", Types.LongType.get()),
             Types.NestedField.optional(1, "data", Types.StringType.get()));
-    Schema id = new Schema(Types.NestedField.required(0, "id", Types.LongType.get()));
-    Schema data = new Schema(Types.NestedField.optional(1, "data", Types.StringType.get()));
-    generateAndValidate(schema, id);
-    generateAndValidate(schema, data);
+    Schema idOnly = new Schema(Types.NestedField.required(0, "id", Types.LongType.get()));
+    Schema dataOnly = new Schema(Types.NestedField.optional(1, "data", Types.StringType.get()));
+    generateAndValidate(schema, idOnly);
+    generateAndValidate(schema, dataOnly);
+
+    GenericRowData rowData = GenericRowData.of(1L, StringData.fromString("a"));
+    GenericRowData copyRowData = GenericRowData.of(1L, StringData.fromString("a"));
+    GenericRowData otherRowData = GenericRowData.of(2L, StringData.fromString("b"));
+    testEqualsAndHashCode(schema, idOnly, rowData, copyRowData, otherRowData);
+    testEqualsAndHashCode(schema, dataOnly, rowData, copyRowData, otherRowData);
   }
 
   @Test
@@ -77,6 +113,11 @@ public class TestRowDataProjection {
             Types.NestedField.required(0, "id", Types.LongType.get()),
             Types.NestedField.optional(1, "data", Types.StringType.get()));
     generateAndValidate(schema, schema.select());
+
+    GenericRowData rowData = GenericRowData.of(1L, StringData.fromString("a"));
+    GenericRowData copyRowData = GenericRowData.of(1L, StringData.fromString("a"));
+    GenericRowData otherRowData = GenericRowData.of(2L, StringData.fromString("b"));
+    testEqualsAndHashCode(schema, schema.select(), rowData, copyRowData, otherRowData, true);
   }
 
   @Test
@@ -91,6 +132,11 @@ public class TestRowDataProjection {
             Types.NestedField.required(0, "id", Types.LongType.get()),
             Types.NestedField.optional(1, "renamed", Types.StringType.get()));
     generateAndValidate(schema, renamed);
+
+    GenericRowData rowData = GenericRowData.of(1L, StringData.fromString("a"));
+    GenericRowData copyRowData = GenericRowData.of(1L, StringData.fromString("a"));
+    GenericRowData otherRowData = GenericRowData.of(2L, StringData.fromString("b"));
+    testEqualsAndHashCode(schema, renamed, rowData, copyRowData, otherRowData);
   }
 
   @Test
@@ -105,9 +151,21 @@ public class TestRowDataProjection {
                     Types.NestedField.required(1, "lat", Types.FloatType.get()),
                     Types.NestedField.required(2, "long", Types.FloatType.get()))));
 
+    GenericRowData rowData = GenericRowData.of(1L, GenericRowData.of(1.0f, 1.0f));
+    GenericRowData copyRowData = GenericRowData.of(1L, GenericRowData.of(1.0f, 1.0f));
+    GenericRowData otherRowData = GenericRowData.of(2L, GenericRowData.of(2.0f, 2.0f));
+
+    GenericRowData rowDataNullStruct = GenericRowData.of(1L, null);
+    GenericRowData copyRowDataNullStruct = GenericRowData.of(1L, null);
+    GenericRowData otherRowDataNullStruct = GenericRowData.of(2L, null);
+
     // Project id only.
     Schema idOnly = new Schema(Types.NestedField.required(0, "id", Types.LongType.get()));
+    Assertions.assertThat(idOnly.columns().size()).isGreaterThan(0);
     generateAndValidate(schema, idOnly);
+    testEqualsAndHashCode(schema, idOnly, rowData, copyRowData, otherRowData);
+    testEqualsAndHashCode(
+        schema, idOnly, rowDataNullStruct, copyRowDataNullStruct, otherRowDataNullStruct);
 
     // Project lat only.
     Schema latOnly =
@@ -116,7 +174,11 @@ public class TestRowDataProjection {
                 3,
                 "location",
                 Types.StructType.of(Types.NestedField.required(1, "lat", Types.FloatType.get()))));
+    Assertions.assertThat(latOnly.columns().size()).isGreaterThan(0);
     generateAndValidate(schema, latOnly);
+    testEqualsAndHashCode(schema, latOnly, rowData, copyRowData, otherRowData);
+    testEqualsAndHashCode(
+        schema, latOnly, rowDataNullStruct, copyRowDataNullStruct, otherRowDataNullStruct, true);
 
     // Project long only.
     Schema longOnly =
@@ -125,86 +187,133 @@ public class TestRowDataProjection {
                 3,
                 "location",
                 Types.StructType.of(Types.NestedField.required(2, "long", Types.FloatType.get()))));
+    Assertions.assertThat(longOnly.columns().size()).isGreaterThan(0);
     generateAndValidate(schema, longOnly);
+    testEqualsAndHashCode(schema, longOnly, rowData, copyRowData, otherRowData);
+    testEqualsAndHashCode(
+        schema, longOnly, rowDataNullStruct, copyRowDataNullStruct, otherRowDataNullStruct, true);
 
     // Project location.
     Schema locationOnly = schema.select("location");
+    Assertions.assertThat(locationOnly.columns().size()).isGreaterThan(0);
     generateAndValidate(schema, locationOnly);
+    testEqualsAndHashCode(schema, locationOnly, rowData, copyRowData, otherRowData);
+    testEqualsAndHashCode(
+        schema,
+        locationOnly,
+        rowDataNullStruct,
+        copyRowDataNullStruct,
+        otherRowDataNullStruct,
+        true);
   }
 
   @Test
-  public void testPrimitiveTypeProjection() {
-    Schema schema =
-        new Schema(
-            Types.NestedField.required(0, "id", Types.LongType.get()),
-            Types.NestedField.optional(1, "data", Types.StringType.get()),
-            Types.NestedField.required(2, "b", Types.BooleanType.get()),
-            Types.NestedField.optional(3, "i", Types.IntegerType.get()),
-            Types.NestedField.required(4, "l", Types.LongType.get()),
-            Types.NestedField.optional(5, "f", Types.FloatType.get()),
-            Types.NestedField.required(6, "d", Types.DoubleType.get()),
-            Types.NestedField.optional(7, "date", Types.DateType.get()),
-            Types.NestedField.optional(8, "time", Types.TimeType.get()),
-            Types.NestedField.required(9, "ts", Types.TimestampType.withoutZone()),
-            Types.NestedField.required(10, "ts_tz", Types.TimestampType.withZone()),
-            Types.NestedField.required(11, "s", Types.StringType.get()),
-            Types.NestedField.required(12, "fixed", Types.FixedType.ofLength(7)),
-            Types.NestedField.optional(13, "bytes", Types.BinaryType.get()),
-            Types.NestedField.required(14, "dec_9_0", Types.DecimalType.of(9, 0)),
-            Types.NestedField.required(15, "dec_11_2", Types.DecimalType.of(11, 2)),
-            Types.NestedField.required(
-                16, "dec_38_10", Types.DecimalType.of(38, 10)) // maximum precision
-            );
-
+  public void testPrimitivesFullProjection() {
+    DataGenerator dataGenerator = new DataGenerators.Primitives();
+    Schema schema = dataGenerator.icebergSchema();
     generateAndValidate(schema, schema);
+
+    GenericRowData rowData = dataGenerator.generateFlinkRowData();
+    GenericRowData copyRowData = dataGenerator.generateFlinkRowData();
+    GenericRowData otherRowData = dataGenerator.generateFlinkRowData();
+    // modify the string field value (position 6)
+    otherRowData.setField(6, StringData.fromString("foo_bar"));
+    testEqualsAndHashCode(schema, schema, rowData, copyRowData, otherRowData);
+
+    GenericRowData rowDataNullOptionalFields = dataGenerator.generateFlinkRowData();
+    setOptionalFieldsNullForPrimitives(rowDataNullOptionalFields);
+    GenericRowData copyRowDataNullOptionalFields = dataGenerator.generateFlinkRowData();
+    setOptionalFieldsNullForPrimitives(copyRowDataNullOptionalFields);
+    GenericRowData otherRowDataNullOptionalFields = dataGenerator.generateFlinkRowData();
+    // modify the string field value (position 6)
+    otherRowDataNullOptionalFields.setField(6, StringData.fromString("foo_bar"));
+    setOptionalFieldsNullForPrimitives(otherRowData);
+    testEqualsAndHashCode(
+        schema,
+        schema,
+        rowDataNullOptionalFields,
+        copyRowDataNullOptionalFields,
+        otherRowDataNullOptionalFields);
+  }
+
+  private void setOptionalFieldsNullForPrimitives(GenericRowData rowData) {
+    // fields from [1, 5] range are optional
+    for (int pos = 1; pos <= 5; ++pos) {
+      rowData.setField(pos, null);
+    }
   }
 
   @Test
-  public void testPrimitiveMapTypeProjection() {
-    Schema schema =
-        new Schema(
-            Types.NestedField.required(0, "id", Types.LongType.get()),
-            Types.NestedField.optional(
-                3,
-                "map",
-                Types.MapType.ofOptional(1, 2, Types.IntegerType.get(), Types.StringType.get())));
+  public void testMapOfPrimitivesProjection() {
+    DataGenerator dataGenerator = new DataGenerators.MapOfPrimitives();
+    Schema schema = dataGenerator.icebergSchema();
 
     // Project id only.
-    Schema idOnly = schema.select("id");
+    Schema idOnly = schema.select("row_id");
+    Assertions.assertThat(idOnly.columns().size()).isGreaterThan(0);
     generateAndValidate(schema, idOnly);
 
     // Project map only.
-    Schema mapOnly = schema.select("map");
+    Schema mapOnly = schema.select("map_of_primitives");
+    Assertions.assertThat(mapOnly.columns().size()).isGreaterThan(0);
     generateAndValidate(schema, mapOnly);
 
     // Project all.
     generateAndValidate(schema, schema);
+
+    GenericRowData rowData = dataGenerator.generateFlinkRowData();
+    GenericRowData copyRowData = dataGenerator.generateFlinkRowData();
+    // modify the map field value
+    GenericRowData otherRowData =
+        GenericRowData.of(
+            StringData.fromString("row_id_value"),
+            new GenericMapData(
+                ImmutableMap.of(StringData.fromString("foo"), 1, StringData.fromString("bar"), 2)));
+    testEqualsAndHashCode(schema, idOnly, rowData, copyRowData, otherRowData, true);
+    testEqualsAndHashCode(schema, mapOnly, rowData, copyRowData, otherRowData);
+    testEqualsAndHashCode(schema, schema, rowData, copyRowData, otherRowData);
+
+    GenericRowData rowDataNullOptionalFields =
+        GenericRowData.of(StringData.fromString("row_id_value"), null);
+    GenericRowData copyRowDataNullOptionalFields =
+        GenericRowData.of(StringData.fromString("row_id_value"), null);
+    // modify the map field value
+    GenericRowData otherRowDataNullOptionalFields =
+        GenericRowData.of(StringData.fromString("other_row_id_value"), null);
+    testEqualsAndHashCode(
+        schema,
+        idOnly,
+        rowDataNullOptionalFields,
+        copyRowDataNullOptionalFields,
+        otherRowDataNullOptionalFields);
+    testEqualsAndHashCode(
+        schema,
+        mapOnly,
+        rowDataNullOptionalFields,
+        copyRowDataNullOptionalFields,
+        otherRowDataNullOptionalFields,
+        true);
+    testEqualsAndHashCode(
+        schema,
+        schema,
+        rowDataNullOptionalFields,
+        copyRowDataNullOptionalFields,
+        otherRowDataNullOptionalFields);
   }
 
   @Test
-  public void testNestedMapTypeProjection() {
-    Schema schema =
-        new Schema(
-            Types.NestedField.required(0, "id", Types.LongType.get()),
-            Types.NestedField.optional(
-                7,
-                "map",
-                Types.MapType.ofOptional(
-                    5,
-                    6,
-                    Types.StructType.of(
-                        Types.NestedField.required(1, "key", Types.LongType.get()),
-                        Types.NestedField.required(2, "keyData", Types.LongType.get())),
-                    Types.StructType.of(
-                        Types.NestedField.required(3, "value", Types.LongType.get()),
-                        Types.NestedField.required(4, "valueData", Types.LongType.get())))));
+  public void testMapOfStructStructProjection() {
+    DataGenerator dataGenerator = new DataGenerators.MapOfStructStruct();
+    Schema schema = dataGenerator.icebergSchema();
 
     // Project id only.
-    Schema idOnly = schema.select("id");
+    Schema idOnly = schema.select("row_id");
+    Assertions.assertThat(idOnly.columns().size()).isGreaterThan(0);
     generateAndValidate(schema, idOnly);
 
     // Project map only.
     Schema mapOnly = schema.select("map");
+    Assertions.assertThat(mapOnly.columns().size()).isGreaterThan(0);
     generateAndValidate(schema, mapOnly);
 
     // Project all.
@@ -214,82 +323,164 @@ public class TestRowDataProjection {
     Schema partialMapKey =
         new Schema(
             Types.NestedField.optional(
-                7,
+                2,
                 "map",
                 Types.MapType.ofOptional(
-                    5,
-                    6,
-                    Types.StructType.of(Types.NestedField.required(1, "key", Types.LongType.get())),
+                    101,
+                    102,
                     Types.StructType.of(
-                        Types.NestedField.required(3, "value", Types.LongType.get()),
-                        Types.NestedField.required(4, "valueData", Types.LongType.get())))));
-
+                        Types.NestedField.required(201, "key", Types.LongType.get())),
+                    Types.StructType.of(
+                        Types.NestedField.required(203, "value", Types.LongType.get()),
+                        Types.NestedField.required(204, "valueData", Types.StringType.get())))));
     Assertions.assertThatThrownBy(() -> generateAndValidate(schema, partialMapKey))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageStartingWith("Cannot project a partial map key or value struct.");
+        .hasMessageContaining("Cannot project a partial map key or value struct.");
 
     // Project partial map key.
     Schema partialMapValue =
         new Schema(
             Types.NestedField.optional(
-                7,
+                2,
                 "map",
                 Types.MapType.ofOptional(
-                    5,
-                    6,
+                    101,
+                    102,
                     Types.StructType.of(
-                        Types.NestedField.required(1, "key", Types.LongType.get()),
-                        Types.NestedField.required(2, "keyData", Types.LongType.get())),
+                        Types.NestedField.required(201, "key", Types.LongType.get()),
+                        Types.NestedField.required(202, "keyData", Types.StringType.get())),
                     Types.StructType.of(
-                        Types.NestedField.required(3, "value", Types.LongType.get())))));
-
+                        Types.NestedField.required(203, "value", Types.LongType.get())))));
     Assertions.assertThatThrownBy(() -> generateAndValidate(schema, partialMapValue))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageStartingWith("Cannot project a partial map key or value struct.");
+        .hasMessageContaining("Cannot project a partial map key or value struct.");
+
+    GenericRowData rowData = dataGenerator.generateFlinkRowData();
+    GenericRowData copyRowData = dataGenerator.generateFlinkRowData();
+    // modify the map field value
+    GenericRowData otherRowData =
+        GenericRowData.of(
+            StringData.fromString("other_row_id_value"),
+            new GenericMapData(
+                ImmutableMap.of(
+                    GenericRowData.of(1L, StringData.fromString("other_key_data")),
+                    GenericRowData.of(1L, StringData.fromString("other_value_data")))));
+    testEqualsAndHashCode(schema, idOnly, rowData, copyRowData, otherRowData);
+    testEqualsAndHashCode(schema, mapOnly, rowData, copyRowData, otherRowData);
+    testEqualsAndHashCode(schema, schema, rowData, copyRowData, otherRowData);
+
+    GenericRowData rowDataNullOptionalFields =
+        GenericRowData.of(
+            StringData.fromString("row_id_value"),
+            new GenericMapData(
+                ImmutableMap.of(GenericRowData.of(1L, null), GenericRowData.of(1L, null))));
+    GenericRowData copyRowDataNullOptionalFields =
+        GenericRowData.of(
+            StringData.fromString("row_id_value"),
+            new GenericMapData(
+                ImmutableMap.of(GenericRowData.of(1L, null), GenericRowData.of(1L, null))));
+    // modify the map field value
+    GenericRowData otherRowDataNullOptionalFields =
+        GenericRowData.of(
+            StringData.fromString("other_row_id_value"),
+            new GenericMapData(
+                ImmutableMap.of(GenericRowData.of(2L, null), GenericRowData.of(2L, null))));
+    testEqualsAndHashCode(
+        schema,
+        idOnly,
+        rowDataNullOptionalFields,
+        copyRowDataNullOptionalFields,
+        otherRowDataNullOptionalFields);
+    testEqualsAndHashCode(
+        schema,
+        mapOnly,
+        rowDataNullOptionalFields,
+        copyRowDataNullOptionalFields,
+        otherRowDataNullOptionalFields);
+    testEqualsAndHashCode(
+        schema,
+        schema,
+        rowDataNullOptionalFields,
+        copyRowDataNullOptionalFields,
+        otherRowDataNullOptionalFields);
   }
 
   @Test
-  public void testPrimitiveListTypeProjection() {
-    Schema schema =
-        new Schema(
-            Types.NestedField.required(0, "id", Types.LongType.get()),
-            Types.NestedField.optional(
-                2, "list", Types.ListType.ofOptional(1, Types.StringType.get())));
+  public void testArrayOfPrimitiveProjection() {
+    DataGenerator dataGenerator = new DataGenerators.ArrayOfPrimitive();
+    Schema schema = dataGenerator.icebergSchema();
 
     // Project id only.
-    Schema idOnly = schema.select("id");
+    Schema idOnly = schema.select("row_id");
+    Assertions.assertThat(idOnly.columns().size()).isGreaterThan(0);
     generateAndValidate(schema, idOnly);
 
     // Project list only.
-    Schema mapOnly = schema.select("list");
-    generateAndValidate(schema, mapOnly);
+    Schema arrayOnly = schema.select("array_of_int");
+    Assertions.assertThat(arrayOnly.columns().size()).isGreaterThan(0);
+    generateAndValidate(schema, arrayOnly);
 
     // Project all.
     generateAndValidate(schema, schema);
+
+    GenericRowData rowData = dataGenerator.generateFlinkRowData();
+    GenericRowData copyRowData = dataGenerator.generateFlinkRowData();
+    // modify the map field value
+    GenericRowData otherRowData =
+        GenericRowData.of(
+            StringData.fromString("other_row_id_value"),
+            new GenericArrayData(new Integer[] {4, 5, 6}));
+    testEqualsAndHashCode(schema, idOnly, rowData, copyRowData, otherRowData);
+    testEqualsAndHashCode(schema, arrayOnly, rowData, copyRowData, otherRowData);
+    testEqualsAndHashCode(schema, schema, rowData, copyRowData, otherRowData);
+
+    GenericRowData rowDataNullOptionalFields =
+        GenericRowData.of(
+            StringData.fromString("row_id_value"),
+            new GenericArrayData(new Integer[] {1, null, 3}));
+    GenericRowData copyRowDataNullOptionalFields =
+        GenericRowData.of(
+            StringData.fromString("row_id_value"),
+            new GenericArrayData(new Integer[] {1, null, 3}));
+    // modify the map field value
+    GenericRowData otherRowDataNullOptionalFields =
+        GenericRowData.of(
+            StringData.fromString("other_row_id_value"),
+            new GenericArrayData(new Integer[] {4, null, 6}));
+    testEqualsAndHashCode(
+        schema,
+        idOnly,
+        rowDataNullOptionalFields,
+        copyRowDataNullOptionalFields,
+        otherRowDataNullOptionalFields);
+    testEqualsAndHashCode(
+        schema,
+        arrayOnly,
+        rowDataNullOptionalFields,
+        copyRowDataNullOptionalFields,
+        otherRowDataNullOptionalFields);
+    testEqualsAndHashCode(
+        schema,
+        schema,
+        rowDataNullOptionalFields,
+        copyRowDataNullOptionalFields,
+        otherRowDataNullOptionalFields);
   }
 
   @Test
-  public void testNestedListTypeProjection() {
-    Schema schema =
-        new Schema(
-            Types.NestedField.required(0, "id", Types.LongType.get()),
-            Types.NestedField.optional(
-                5,
-                "list",
-                Types.ListType.ofOptional(
-                    4,
-                    Types.StructType.of(
-                        Types.NestedField.required(1, "nestedListField1", Types.LongType.get()),
-                        Types.NestedField.required(2, "nestedListField2", Types.LongType.get()),
-                        Types.NestedField.required(3, "nestedListField3", Types.LongType.get())))));
+  public void testArrayOfStructProjection() {
+    DataGenerator dataGenerator = new DataGenerators.ArrayOfStruct();
+    Schema schema = dataGenerator.icebergSchema();
 
     // Project id only.
-    Schema idOnly = schema.select("id");
+    Schema idOnly = schema.select("row_id");
+    Assertions.assertThat(idOnly.columns().size()).isGreaterThan(0);
     generateAndValidate(schema, idOnly);
 
     // Project list only.
-    Schema mapOnly = schema.select("list");
-    generateAndValidate(schema, mapOnly);
+    Schema arrayOnly = schema.select("array_of_struct");
+    Assertions.assertThat(arrayOnly.columns().size()).isGreaterThan(0);
+    generateAndValidate(schema, arrayOnly);
 
     // Project all.
     generateAndValidate(schema, schema);
@@ -298,40 +489,105 @@ public class TestRowDataProjection {
     Schema partialList =
         new Schema(
             Types.NestedField.optional(
-                5,
-                "list",
+                2,
+                "array_of_struct",
                 Types.ListType.ofOptional(
-                    4,
+                    101,
                     Types.StructType.of(
-                        Types.NestedField.required(2, "nestedListField2", Types.LongType.get())))));
+                        Types.NestedField.required(202, "name", Types.StringType.get())))));
 
     Assertions.assertThatThrownBy(() -> generateAndValidate(schema, partialList))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageStartingWith("Cannot project a partial list element struct.");
+        .hasMessageContaining("Cannot project a partial list element struct.");
+
+    GenericRowData rowData = dataGenerator.generateFlinkRowData();
+    GenericRowData copyRowData = dataGenerator.generateFlinkRowData();
+    // modify the map field value
+    GenericRowData otherRowData =
+        GenericRowData.of(
+            StringData.fromString("row_id_value"), new GenericArrayData(new Integer[] {4, 5, 6}));
+    testEqualsAndHashCode(schema, schema, rowData, copyRowData, otherRowData);
+
+    GenericRowData rowDataNullOptionalFields =
+        GenericRowData.of(
+            StringData.fromString("row_id_value"),
+            new GenericArrayData(new Integer[] {1, null, 3}));
+    GenericRowData copyRowDataNullOptionalFields =
+        GenericRowData.of(
+            StringData.fromString("row_id_value"),
+            new GenericArrayData(new Integer[] {1, null, 3}));
+    // modify the map field value
+    GenericRowData otherRowDataNullOptionalFields =
+        GenericRowData.of(
+            StringData.fromString("row_id_value"),
+            new GenericArrayData(new Integer[] {4, null, 6}));
+    testEqualsAndHashCode(
+        schema,
+        schema,
+        rowDataNullOptionalFields,
+        copyRowDataNullOptionalFields,
+        otherRowDataNullOptionalFields);
   }
 
   private void generateAndValidate(Schema schema, Schema projectSchema) {
     int numRecords = 100;
-    Iterable<Record> recordList = RandomGenericData.generate(schema, numRecords, 102L);
-    Iterable<RowData> rowDataList = RandomRowData.generate(schema, numRecords, 102L);
+    List<Record> recordList = RandomGenericData.generate(schema, numRecords, 102L);
+    List<RowData> rowDataList =
+        Lists.newArrayList(RandomRowData.generate(schema, numRecords, 102L).iterator());
+    Assertions.assertThat(rowDataList).hasSize(recordList.size());
 
     StructProjection structProjection = StructProjection.create(schema, projectSchema);
     RowDataProjection rowDataProjection = RowDataProjection.create(schema, projectSchema);
 
-    Iterator<Record> recordIter = recordList.iterator();
-    Iterator<RowData> rowDataIter = rowDataList.iterator();
-
     for (int i = 0; i < numRecords; i++) {
-      Assert.assertTrue("Should have more records", recordIter.hasNext());
-      Assert.assertTrue("Should have more RowData", rowDataIter.hasNext());
+      StructLike expected = structProjection.wrap(recordList.get(i));
+      RowData projected = rowDataProjection.wrap(rowDataList.get(i));
+      TestHelpers.assertRowData(projectSchema, expected, projected);
 
-      StructLike expected = structProjection.wrap(recordIter.next());
-      RowData actual = rowDataProjection.wrap(rowDataIter.next());
-
-      TestHelpers.assertRowData(projectSchema, expected, actual);
+      Assertions.assertThat(projected).isEqualTo(projected);
+      Assertions.assertThat(projected).hasSameHashCodeAs(projected);
+      // make sure toString doesn't throw NPE for null values
+      Assertions.assertThatNoException().isThrownBy(projected::toString);
     }
+  }
 
-    Assert.assertFalse("Shouldn't have more record", recordIter.hasNext());
-    Assert.assertFalse("Shouldn't have more RowData", rowDataIter.hasNext());
+  private void testEqualsAndHashCode(
+      Schema schema,
+      Schema projectionSchema,
+      RowData rowData,
+      RowData copyRowData,
+      RowData otherRowData) {
+    testEqualsAndHashCode(schema, projectionSchema, rowData, copyRowData, otherRowData, false);
+  }
+
+  /**
+   * @param isOtherRowDataSameAsRowData sometimes projection on otherRowData can result in the same
+   *     RowData, e.g. due to empty projection or null struct
+   */
+  private void testEqualsAndHashCode(
+      Schema schema,
+      Schema projectionSchema,
+      RowData rowData,
+      RowData copyRowData,
+      RowData otherRowData,
+      boolean isOtherRowDataSameAsRowData) {
+    RowDataProjection projection = RowDataProjection.create(schema, projectionSchema);
+    RowDataProjection copyProjection = RowDataProjection.create(schema, projectionSchema);
+    RowDataProjection otherProjection = RowDataProjection.create(schema, projectionSchema);
+
+    Assertions.assertThat(projection.wrap(rowData)).isEqualTo(copyProjection.wrap(copyRowData));
+    Assertions.assertThat(projection.wrap(rowData))
+        .hasSameHashCodeAs(copyProjection.wrap(copyRowData));
+
+    if (isOtherRowDataSameAsRowData) {
+      Assertions.assertThat(projection.wrap(rowData)).isEqualTo(otherProjection.wrap(otherRowData));
+      Assertions.assertThat(projection.wrap(rowData))
+          .hasSameHashCodeAs(otherProjection.wrap(otherRowData));
+    } else {
+      Assertions.assertThat(projection.wrap(rowData))
+          .isNotEqualTo(otherProjection.wrap(otherRowData));
+      Assertions.assertThat(projection.wrap(rowData))
+          .doesNotHaveSameHashCodeAs(otherProjection.wrap(otherRowData));
+    }
   }
 }

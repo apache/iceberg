@@ -4,6 +4,7 @@ url: aws
 menu:
     main:
         parent: Integrations
+        identifier: aws_integration
         weight: 0
 ---
 <!--

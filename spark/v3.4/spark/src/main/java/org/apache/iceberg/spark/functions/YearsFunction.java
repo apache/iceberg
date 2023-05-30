@@ -25,6 +25,7 @@ import org.apache.spark.sql.connector.catalog.functions.ScalarFunction;
 import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.DateType;
+import org.apache.spark.sql.types.TimestampNTZType;
 import org.apache.spark.sql.types.TimestampType;
 
 /**
@@ -40,6 +41,8 @@ public class YearsFunction extends UnaryUnboundFunction {
       return new DateToYearsFunction();
     } else if (valueType instanceof TimestampType) {
       return new TimestampToYearsFunction();
+    } else if (valueType instanceof TimestampNTZType) {
+      return new TimestampNtzToYearsFunction();
     } else {
       throw new UnsupportedOperationException(
           "Expected value to be date or timestamp: " + valueType.catalogString());
@@ -107,6 +110,29 @@ public class YearsFunction extends UnaryUnboundFunction {
     @Override
     public String canonicalName() {
       return "iceberg.years(timestamp)";
+    }
+
+    @Override
+    public Integer produceResult(InternalRow input) {
+      // return null for null input to match what Spark does in codegen
+      return input.isNullAt(0) ? null : invoke(input.getLong(0));
+    }
+  }
+
+  public static class TimestampNtzToYearsFunction extends BaseToYearsFunction {
+    // magic method used in codegen
+    public static int invoke(long micros) {
+      return DateTimeUtil.microsToYears(micros);
+    }
+
+    @Override
+    public DataType[] inputTypes() {
+      return new DataType[] {DataTypes.TimestampNTZType};
+    }
+
+    @Override
+    public String canonicalName() {
+      return "iceberg.years(timestamp_ntz)";
     }
 
     @Override

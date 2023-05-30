@@ -546,6 +546,16 @@ class V2Metadata {
     }
 
     @Override
+    public Long dataSequenceNumber() {
+      return wrapped.dataSequenceNumber();
+    }
+
+    @Override
+    public Long fileSequenceNumber() {
+      return wrapped.fileSequenceNumber();
+    }
+
+    @Override
     public F copy() {
       throw new UnsupportedOperationException("Cannot copy IndexedDataFile wrapper");
     }

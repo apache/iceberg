@@ -20,7 +20,8 @@ package org.apache.iceberg.pig;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
-import static org.junit.Assert.assertEquals;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
 import org.apache.iceberg.Schema;
@@ -37,8 +38,7 @@ import org.apache.iceberg.types.Types.StringType;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.pig.ResourceSchema;
 import org.apache.pig.impl.logicalLayer.FrontendException;
-import org.assertj.core.api.Assertions;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class SchemaUtilTest {
 
@@ -56,9 +56,9 @@ public class SchemaUtilTest {
             optional(8, "bi", BinaryType.get()));
 
     ResourceSchema pigSchema = SchemaUtil.convert(icebergSchema);
-    assertEquals(
-        "b:boolean,i:int,l:long,f:float,d:double,dec:bigdecimal,s:chararray,bi:bytearray",
-        pigSchema.toString());
+    assertThat(pigSchema.toString())
+        .isEqualTo(
+            "b:boolean,i:int,l:long,f:float,d:double,dec:bigdecimal,s:chararray,bi:bytearray");
   }
 
   @Test
@@ -78,7 +78,7 @@ public class SchemaUtilTest {
 
   @Test
   public void invalidMap() {
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 convertToPigSchema(
                     new Schema(
@@ -243,7 +243,7 @@ public class SchemaUtilTest {
 
     ResourceSchema pigSchema = SchemaUtil.convert(icebergSchema);
     // The output should contain a nested struct within a list within a map, I think.
-    assertEquals("nested_list:[{(id:long,data:chararray)}]", pigSchema.toString());
+    assertThat(pigSchema.toString()).isEqualTo("nested_list:[{(id:long,data:chararray)}]");
   }
 
   @Test
@@ -282,6 +282,6 @@ public class SchemaUtilTest {
   private static void convertToPigSchema(
       Schema icebergSchema, String expectedPigSchema, String assertMessage) throws IOException {
     ResourceSchema pigSchema = SchemaUtil.convert(icebergSchema);
-    assertEquals(assertMessage, expectedPigSchema, pigSchema.toString());
+    assertThat(pigSchema.toString()).as(assertMessage).isEqualTo(expectedPigSchema);
   }
 }

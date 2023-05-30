@@ -22,7 +22,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.IntStream;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MockFileScanTask;
@@ -34,6 +33,7 @@ import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -85,24 +85,24 @@ public class TestSortStrategy extends TableTestBase {
 
   @Test
   public void testInvalidSortOrder() {
-    AssertHelpers.assertThrows(
-        "Should not allow an unsorted Sort order",
-        IllegalArgumentException.class,
-        () -> defaultSort().sortOrder(SortOrder.unsorted()).options(Collections.emptyMap()));
+    Assertions.assertThatThrownBy(
+            () -> defaultSort().sortOrder(SortOrder.unsorted()).options(Collections.emptyMap()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot set strategy sort order: unsorted");
 
-    AssertHelpers.assertThrows(
-        "Should not allow a Sort order with bad columns",
-        ValidationException.class,
-        () -> {
-          Schema badSchema =
-              new Schema(
-                  ImmutableList.of(
-                      Types.NestedField.required(0, "nonexistant", Types.IntegerType.get())));
+    Assertions.assertThatThrownBy(
+            () -> {
+              Schema badSchema =
+                  new Schema(
+                      ImmutableList.of(
+                          Types.NestedField.required(0, "nonexistant", Types.IntegerType.get())));
 
-          defaultSort()
-              .sortOrder(SortOrder.builderFor(badSchema).asc("nonexistant").build())
-              .options(Collections.emptyMap());
-        });
+              defaultSort()
+                  .sortOrder(SortOrder.builderFor(badSchema).asc("nonexistant").build())
+                  .options(Collections.emptyMap());
+            })
+        .isInstanceOf(ValidationException.class)
+        .hasMessageStartingWith("Cannot find field 'nonexistant' in struct");
   }
 
   @Test

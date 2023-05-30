@@ -19,6 +19,7 @@
 package org.apache.iceberg.flink.sink.shuffle;
 
 import org.apache.flink.annotation.Internal;
+import org.apache.flink.table.data.RowData;
 
 /**
  * DataStatistics defines the interface to collect data distribution information.
@@ -28,10 +29,10 @@ import org.apache.flink.annotation.Internal;
  * (sketching) can be used.
  */
 @Internal
-interface DataStatistics<K> {
+interface DataStatistics<D extends DataStatistics, S> {
 
   /**
-   * Check if data statistics contains any statistics information
+   * Check if data statistics contains any statistics information.
    *
    * @return true if data statistics doesn't contain any statistics information
    */
@@ -42,12 +43,19 @@ interface DataStatistics<K> {
    *
    * @param key generate from data by applying key selector
    */
-  void add(K key);
+  void add(RowData key);
 
   /**
-   * Merge current statistics with other statistics
+   * Merge current statistics with other statistics.
    *
    * @param otherStatistics the statistics to be merged
    */
-  void merge(DataStatistics<K> otherStatistics);
+  void merge(D otherStatistics);
+
+  /**
+   * Get the underline statistics.
+   *
+   * @return the underline statistics
+   */
+  S statistics();
 }

@@ -16,18 +16,23 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.flink.sink.shuffle;
+package org.apache.iceberg.aws.s3;
 
-import org.apache.flink.annotation.Internal;
+import java.io.Serializable;
+import java.util.Map;
+import software.amazon.awssdk.services.s3.S3Client;
 
-/**
- * DataStatisticsFactory defines the interface to create {@link DataStatistics}.
- *
- * <p>For low-cardinality key, MapDataStatisticsFactory will be implemented to create
- * MapDataStatistics.
- */
-@Internal
-interface DataStatisticsFactory<K> {
-
-  DataStatistics<K> createDataStatistics();
+public interface S3FileIOAwsClientFactory extends Serializable {
+  /**
+   * create a Amazon S3 client
+   *
+   * @return s3 client
+   */
+  S3Client s3();
+  /**
+   * Initialize AWS client factory from catalog properties.
+   *
+   * @param properties catalog properties
+   */
+  void initialize(Map<String, String> properties);
 }

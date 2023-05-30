@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.aws;
 
+import java.io.Serializable;
 import java.util.Map;
 import org.apache.iceberg.common.DynClasses;
 import org.apache.iceberg.common.DynMethods;
@@ -32,7 +33,7 @@ import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.awscore.client.builder.AwsClientBuilder;
 import software.amazon.awssdk.regions.Region;
 
-public class AwsClientProperties {
+public class AwsClientProperties implements Serializable {
   /**
    * Configure the AWS credentials provider used to create AWS clients. A fully qualified concrete
    * class with package that implements the {@link AwsCredentialsProvider} interface is required.

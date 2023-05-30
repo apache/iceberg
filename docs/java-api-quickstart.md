@@ -6,6 +6,7 @@ aliases:
 menu:
     main:
         parent: "API"
+        identifier: java_api_quickstart
         weight: 100
 ---
 <!--

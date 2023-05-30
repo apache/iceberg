@@ -19,6 +19,7 @@
 
 package org.apache.spark.sql.execution.datasources.v2
 
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions
 import org.apache.iceberg.spark.source.SparkTable
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.Attribute
@@ -40,10 +41,17 @@ case class CreateOrReplaceTagExec(
   override protected def run(): Seq[InternalRow] = {
     catalog.loadTable(ident) match {
       case iceberg: SparkTable =>
-        val snapshotId = tagOptions.snapshotId.getOrElse(iceberg.table.currentSnapshot().snapshotId())
+        val snapshotId: java.lang.Long = tagOptions.snapshotId
+          .orElse(Option(iceberg.table.currentSnapshot()).map(_.snapshotId()))
+          .map(java.lang.Long.valueOf)
+          .orNull
+
+        Preconditions.checkArgument(snapshotId != null,
+          "Cannot complete create or replace tag operation on %s, main has no snapshot", ident)
+
         val manageSnapshot = iceberg.table.manageSnapshots()
         if (!replace) {
-          val ref = iceberg.table().refs().get(tag);
+          val ref = iceberg.table().refs().get(tag)
           if (ref != null && ifNotExists) {
             return Nil
           }
@@ -67,6 +75,6 @@ case class CreateOrReplaceTagExec(
   }
 
   override def simpleString(maxFields: Int): String = {
-    s"Create tag: ${tag} for table: ${ident.quoted}"
+    s"Create tag: $tag for table: ${ident.quoted}"
   }
 }

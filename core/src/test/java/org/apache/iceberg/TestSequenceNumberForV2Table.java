@@ -71,14 +71,26 @@ public class TestSequenceNumberForV2Table extends TableTestBase {
         V2Assert.assertEquals(
             "FILE_A sequence number should be 1", 1, entry.dataSequenceNumber().longValue());
         V2Assert.assertEquals(
+            "FILE_A sequence number should be 1", 1, entry.file().dataSequenceNumber().longValue());
+        V2Assert.assertEquals(
             "FILE_A file sequence number should be 1", 1, entry.fileSequenceNumber().longValue());
+        V2Assert.assertEquals(
+            "FILE_A file sequence number should be 1",
+            1,
+            entry.file().fileSequenceNumber().longValue());
       }
 
       if (entry.file().path().equals(FILE_B.path())) {
         V2Assert.assertEquals(
             "FILE_b sequence number should be 2", 2, entry.dataSequenceNumber().longValue());
         V2Assert.assertEquals(
+            "FILE_b sequence number should be 2", 2, entry.file().dataSequenceNumber().longValue());
+        V2Assert.assertEquals(
             "FILE_B file sequence number should be 2", 2, entry.fileSequenceNumber().longValue());
+        V2Assert.assertEquals(
+            "FILE_B file sequence number should be 2",
+            2,
+            entry.file().fileSequenceNumber().longValue());
       }
     }
   }

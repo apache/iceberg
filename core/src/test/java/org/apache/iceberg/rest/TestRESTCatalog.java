@@ -38,7 +38,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.FileScanTask;
@@ -289,17 +288,14 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   @Test
   public void testInitializeWithBadArguments() throws IOException {
     RESTCatalog restCat = new RESTCatalog();
-    AssertHelpers.assertThrows(
-        "Configuration passed to initialize cannot be null",
-        IllegalArgumentException.class,
-        "Invalid configuration: null",
-        () -> restCat.initialize("prod", null));
+    org.assertj.core.api.Assertions.assertThatThrownBy(() -> restCat.initialize("prod", null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid configuration: null");
 
-    AssertHelpers.assertThrows(
-        "Configuration passed to initialize must have uri",
-        NullPointerException.class,
-        "Invalid uri for http client: null",
-        () -> restCat.initialize("prod", ImmutableMap.of()));
+    org.assertj.core.api.Assertions.assertThatThrownBy(
+            () -> restCat.initialize("prod", ImmutableMap.of()))
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("Invalid uri for http client: null");
 
     restCat.close();
   }
