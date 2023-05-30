@@ -37,7 +37,9 @@ import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.Metrics;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.PartitionField;
+import org.apache.iceberg.PartitionKey;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.io.InputFile;
@@ -46,6 +48,8 @@ import org.apache.iceberg.orc.OrcMetrics;
 import org.apache.iceberg.parquet.ParquetUtil;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.ThreadFactoryBuilder;
+import org.apache.iceberg.types.Conversions;
+import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.Tasks;
 
 public class TableMigrationUtil {
@@ -67,11 +71,110 @@ public class TableMigrationUtil {
    * @param uri partition location URI
    * @param format partition format, avro, parquet or orc
    * @param spec a partition spec
+   * @param schema a table schema
    * @param conf a Hadoop conf
    * @param metricsConfig a metrics conf
    * @param mapping a name mapping
    * @return a List of DataFile
    */
+  public static List<DataFile> listPartition(
+      Map<String, String> partition,
+      String uri,
+      String format,
+      PartitionSpec spec,
+      Schema schema,
+      Configuration conf,
+      MetricsConfig metricsConfig,
+      NameMapping mapping) {
+    return listPartition(partition, uri, format, spec, schema, conf, metricsConfig, mapping, 1);
+  }
+
+  public static List<DataFile> listPartition(
+      Map<String, String> partitionKeys,
+      String partitionUri,
+      String format,
+      PartitionSpec spec,
+      Schema schema,
+      Configuration conf,
+      MetricsConfig metricsSpec,
+      NameMapping mapping,
+      int parallelism) {
+    ExecutorService service = null;
+    try {
+      List<FileStatus> fileStatus = fileStatusListInPartition(partitionUri, conf);
+
+      PartitionKey partitionKey = createPartitionKey(spec, schema, partitionKeys);
+
+      DataFile[] datafiles = new DataFile[fileStatus.size()];
+      Tasks.Builder<Integer> task =
+          Tasks.range(fileStatus.size()).stopOnFailure().throwFailureWhenFinished();
+
+      if (parallelism > 1) {
+        service = migrationService(parallelism);
+        task.executeWith(service);
+      }
+
+      if (format.contains("avro")) {
+        task.run(
+            index -> {
+              Metrics metrics = getAvroMetrics(fileStatus.get(index).getPath(), conf);
+              datafiles[index] =
+                  buildDataFile(fileStatus.get(index), partitionKey, spec, metrics, "avro");
+            });
+      } else if (format.contains("parquet")) {
+        task.run(
+            index -> {
+              Metrics metrics =
+                  getParquetMetrics(fileStatus.get(index).getPath(), conf, metricsSpec, mapping);
+              datafiles[index] =
+                  buildDataFile(fileStatus.get(index), partitionKey, spec, metrics, "parquet");
+            });
+      } else if (format.contains("orc")) {
+        task.run(
+            index -> {
+              Metrics metrics =
+                  getOrcMetrics(fileStatus.get(index).getPath(), conf, metricsSpec, mapping);
+              datafiles[index] =
+                  buildDataFile(fileStatus.get(index), partitionKey, spec, metrics, "orc");
+            });
+      } else {
+        throw new UnsupportedOperationException("Unknown partition format: " + format);
+      }
+      return Arrays.asList(datafiles);
+    } catch (IOException e) {
+      throw new RuntimeException("Unable to list files in partition: " + partitionUri, e);
+    } finally {
+      if (service != null) {
+        service.shutdown();
+      }
+    }
+  }
+
+  /**
+   * Returns the data files in a partition by listing the partition location.
+   *
+   * <p>For Parquet and ORC partitions, this will read metrics from the file footer. For Avro
+   * partitions, metrics are set to null.
+   *
+   * <p>Note: certain metrics, like NaN counts, that are only supported by iceberg file writers but
+   * not file footers, will not be populated.
+   *
+   * <p>Note, this function doesn't handle partition values that contain '/' character. In general
+   * this function gets the partition values by parsing the path of the partition that leads to
+   * incorrect partition values if there are URL-encoded values in the path. Because of this prefer
+   * using the version of listPartition function that gets a Schema parameter as well.
+   *
+   * @param partition partition key, e.g., "a=1/b=2"
+   * @param uri partition location URI
+   * @param format partition format, avro, parquet or orc
+   * @param spec a partition spec
+   * @param conf a Hadoop conf
+   * @param metricsConfig a metrics conf
+   * @param mapping a name mapping
+   * @return a List of DataFile
+   * @deprecated from 1.4.0. Will be removed in 1.5.0.
+   */
+  @Deprecated
   public static List<DataFile> listPartition(
       Map<String, String> partition,
       String uri,
@@ -83,6 +186,8 @@ public class TableMigrationUtil {
     return listPartition(partition, uri, format, spec, conf, metricsConfig, mapping, 1);
   }
 
+  /** @deprecated from 1.4.0. Will be removed in 1.5.0. */
+  @Deprecated
   public static List<DataFile> listPartition(
       Map<String, String> partitionPath,
       String partitionUri,
@@ -151,6 +256,36 @@ public class TableMigrationUtil {
     }
   }
 
+  private static List<FileStatus> fileStatusListInPartition(String partitionUri, Configuration conf)
+      throws IOException {
+    Path partitionPath = new Path(partitionUri);
+    FileSystem fs = partitionPath.getFileSystem(conf);
+    return Arrays.stream(fs.listStatus(partitionPath, HIDDEN_PATH_FILTER))
+        .filter(FileStatus::isFile)
+        .collect(Collectors.toList());
+  }
+
+  private static PartitionKey createPartitionKey(
+      PartitionSpec spec, Schema schema, Map<String, String> partitionKeys) {
+    PartitionKey partitionKey = new PartitionKey(spec, schema);
+    StructType partitionType = spec.partitionType();
+    int idx = 0;
+    for (PartitionField field : spec.fields()) {
+      String fieldValueStr = partitionKeys.get(field.name());
+      if (fieldValueStr == null) {
+        throw new RuntimeException("Unknown value for partition field: " + field.name());
+      }
+
+      Object fieldValue =
+          Conversions.fromPartitionString(
+              partitionType.field(field.fieldId()).type(), fieldValueStr);
+
+      partitionKey.set(idx, fieldValue);
+      ++idx;
+    }
+    return partitionKey;
+  }
+
   private static Metrics getAvroMetrics(Path path, Configuration conf) {
     try {
       InputFile file = HadoopInputFile.fromPath(path, conf);
@@ -180,6 +315,8 @@ public class TableMigrationUtil {
     }
   }
 
+  /** @deprecated from 1.4.0. Will be removed in 1.5.0. */
+  @Deprecated
   private static DataFile buildDataFile(
       FileStatus stat, String partitionKey, PartitionSpec spec, Metrics metrics, String format) {
     return DataFiles.builder(spec)
@@ -188,6 +325,21 @@ public class TableMigrationUtil {
         .withFileSizeInBytes(stat.getLen())
         .withMetrics(metrics)
         .withPartitionPath(partitionKey)
+        .build();
+  }
+
+  private static DataFile buildDataFile(
+      FileStatus stat,
+      PartitionKey partitionKey,
+      PartitionSpec spec,
+      Metrics metrics,
+      String format) {
+    return DataFiles.builder(spec)
+        .withPath(stat.getPath().toString())
+        .withFormat(format)
+        .withFileSizeInBytes(stat.getLen())
+        .withMetrics(metrics)
+        .withPartition(partitionKey)
         .build();
   }
 
