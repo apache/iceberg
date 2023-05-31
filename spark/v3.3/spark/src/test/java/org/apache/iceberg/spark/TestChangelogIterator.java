@@ -348,19 +348,19 @@ public class TestChangelogIterator extends SparkTestHelperBase {
             new GenericRowWithSchema(new Object[] {1, "d", "data", INSERT, 1, 1}, null),
             // a pair of insert and delete rows
             new GenericRowWithSchema(new Object[] {1, "d", "data", INSERT, 2, 2}, null),
-            new GenericRowWithSchema(new Object[] {1, "d", "data", DELETE, 2, 2}, null),
+            new GenericRowWithSchema(new Object[] {1, "d", "data", DELETE, 3, 3}, null),
             // extra insert rows
-            new GenericRowWithSchema(new Object[] {1, "d", "data", INSERT, 2, 2}, null),
-            new GenericRowWithSchema(new Object[] {1, "d", "data", INSERT, 2, 2}, null),
+            new GenericRowWithSchema(new Object[] {1, "d", "data", INSERT, 4, 4}, null),
+            new GenericRowWithSchema(new Object[] {1, "d", "data", INSERT, 4, 4}, null),
             // different key
-            new GenericRowWithSchema(new Object[] {2, "d", "data", DELETE, 3, 3}, null));
+            new GenericRowWithSchema(new Object[] {2, "d", "data", DELETE, 4, 4}, null));
 
     List<Object[]> expectedRows =
         Lists.newArrayList(
             new Object[] {0, "d", "data", DELETE, 0, 0},
-            new Object[] {1, "d", "data", INSERT, 2, 2},
-            new Object[] {1, "d", "data", INSERT, 2, 2},
-            new Object[] {2, "d", "data", DELETE, 3, 3});
+            new Object[] {1, "d", "data", INSERT, 4, 4},
+            new Object[] {1, "d", "data", INSERT, 4, 4},
+            new Object[] {2, "d", "data", DELETE, 4, 4});
 
     Iterator<Row> iterator =
         ChangelogIterator.removeNetCarryovers(

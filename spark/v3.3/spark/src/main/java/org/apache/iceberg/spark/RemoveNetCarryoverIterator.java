@@ -19,9 +19,7 @@
 package org.apache.iceberg.spark;
 
 import java.util.Iterator;
-import java.util.List;
 import org.apache.iceberg.MetadataColumns;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.types.StructType;
 
@@ -37,10 +35,11 @@ import org.apache.spark.sql.types.StructType;
  */
 public class RemoveNetCarryoverIterator extends RemoveCarryoverIterator {
 
-  private final List<Row> cachedRows = Lists.newArrayList();
   private final int[] indicesToIdentifySameRow;
 
   private Row cachedNextRow = null;
+  private Row cachedRow = null;
+  private long cachedRowCount = 0;
 
   protected RemoveNetCarryoverIterator(Iterator<Row> rowIterator, StructType rowType) {
     super(rowIterator, rowType);
@@ -49,7 +48,7 @@ public class RemoveNetCarryoverIterator extends RemoveCarryoverIterator {
 
   @Override
   public boolean hasNext() {
-    if (!cachedRows.isEmpty()) {
+    if (cachedRowCount > 0) {
       return true;
     }
 
@@ -63,8 +62,9 @@ public class RemoveNetCarryoverIterator extends RemoveCarryoverIterator {
   @Override
   public Row next() {
     // if there are cached rows, return one of them from the beginning
-    if (!cachedRows.isEmpty()) {
-      return cachedRows.remove(0);
+    if (cachedRowCount > 0) {
+      cachedRowCount--;
+      return cachedRow;
     }
 
     Row currentRow = getCurrentRow();
@@ -76,27 +76,25 @@ public class RemoveNetCarryoverIterator extends RemoveCarryoverIterator {
 
     Row nextRow = rowIterator().next();
 
-    cachedRows.add(currentRow);
+    cachedRow = currentRow;
+    cachedRowCount = 1;
     // if they are the same row, remove the cached row or stack to the cached row
     while (isSameRecord(currentRow, nextRow)) {
       if (matched(currentRow, nextRow)) {
-        // if matched, remove both rows, remove the last row in the cache
-        cachedRows.remove(cachedRows.size() - 1);
+        // remove both rows
+        cachedRowCount--;
         nextRow = null;
       } else {
-        // stack the row into the cache
-        cachedRows.add(nextRow);
+        // stack the next row to the cached row
         nextRow = null;
+        cachedRowCount++;
       }
 
       // break the loop if there is no next row or the cache is empty
-      if (cachedRows.isEmpty() || !rowIterator().hasNext()) {
+      if (cachedRowCount <= 0 || !rowIterator().hasNext()) {
         break;
       }
 
-      // get the current row from the cache, and get the next row from the iterator for the next
-      // loop
-      currentRow = cachedRows.get(cachedRows.size() - 1);
       nextRow = rowIterator().next();
     }
 
