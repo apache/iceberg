@@ -64,7 +64,24 @@ public class TestSparkDaysFunction extends SparkTestBaseWithCatalog {
         "Expected to produce 1969-12-31",
         Date.valueOf("1969-12-31"),
         scalarSql("SELECT system.days(TIMESTAMP '1969-12-31 23:59:58.999999 UTC+00:00')"));
-    Assert.assertNull(scalarSql("SELECT system.days(CAST(null AS DATE))"));
+    Assert.assertNull(scalarSql("SELECT system.days(CAST(null AS TIMESTAMP))"));
+  }
+
+  @Test
+  public void testTimestampNtz() {
+    Assert.assertEquals(
+        "Expected to produce 2017-12-01",
+        Date.valueOf("2017-12-01"),
+        scalarSql("SELECT system.days(TIMESTAMP_NTZ '2017-12-01 10:12:55.038194 UTC')"));
+    Assert.assertEquals(
+        "Expected to produce 1970-01-01",
+        Date.valueOf("1970-01-01"),
+        scalarSql("SELECT system.days(TIMESTAMP_NTZ '1970-01-01 00:00:01.000001 UTC')"));
+    Assert.assertEquals(
+        "Expected to produce 1969-12-31",
+        Date.valueOf("1969-12-31"),
+        scalarSql("SELECT system.days(TIMESTAMP_NTZ '1969-12-31 23:59:58.999999 UTC')"));
+    Assert.assertNull(scalarSql("SELECT system.days(CAST(null AS TIMESTAMP_NTZ))"));
   }
 
   @Test

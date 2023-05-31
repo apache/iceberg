@@ -85,7 +85,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   // update data
   private final List<DataFile> newDataFiles = Lists.newArrayList();
   private Long newDataFilesDataSequenceNumber;
-  private final Map<Integer, List<DeleteFile>> newDeleteFilesBySpec = Maps.newHashMap();
+  private final Map<Integer, List<DeleteFileHolder>> newDeleteFilesBySpec = Maps.newHashMap();
   private final List<ManifestFile> appendManifests = Lists.newArrayList();
   private final List<ManifestFile> rewrittenAppendManifests = Lists.newArrayList();
   private final SnapshotSummary.Builder addedFilesSummary = SnapshotSummary.builder();
@@ -247,11 +247,22 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   /** Add a delete file to the new snapshot. */
   protected void add(DeleteFile file) {
     Preconditions.checkNotNull(file, "Invalid delete file: null");
-    PartitionSpec fileSpec = ops.current().spec(file.specId());
-    List<DeleteFile> deleteFiles =
-        newDeleteFilesBySpec.computeIfAbsent(file.specId(), specId -> Lists.newArrayList());
-    deleteFiles.add(file);
-    addedFilesSummary.addedFile(fileSpec, file);
+    add(new DeleteFileHolder(file));
+  }
+
+  /** Add a delete file to the new snapshot. */
+  protected void add(DeleteFile file, long dataSequenceNumber) {
+    Preconditions.checkNotNull(file, "Invalid delete file: null");
+    add(new DeleteFileHolder(file, dataSequenceNumber));
+  }
+
+  private void add(DeleteFileHolder fileHolder) {
+    int specId = fileHolder.deleteFile().specId();
+    PartitionSpec fileSpec = ops.current().spec(specId);
+    List<DeleteFileHolder> deleteFiles =
+        newDeleteFilesBySpec.computeIfAbsent(specId, s -> Lists.newArrayList());
+    deleteFiles.add(fileHolder);
+    addedFilesSummary.addedFile(fileSpec, fileHolder.deleteFile());
     hasNewDeleteFiles = true;
   }
 
@@ -1008,7 +1019,14 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
             try {
               ManifestWriter<DeleteFile> writer = newDeleteManifestWriter(spec);
               try {
-                writer.addAll(deleteFiles);
+                deleteFiles.forEach(
+                    df -> {
+                      if (df.dataSequenceNumber() != null) {
+                        writer.add(df.deleteFile(), df.dataSequenceNumber());
+                      } else {
+                        writer.add(df.deleteFile());
+                      }
+                    });
               } finally {
                 writer.close();
               }
@@ -1127,6 +1145,40 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     @Override
     protected ManifestReader<DeleteFile> newManifestReader(ManifestFile manifest) {
       return MergingSnapshotProducer.this.newDeleteManifestReader(manifest);
+    }
+  }
+
+  private static class DeleteFileHolder {
+    private final DeleteFile deleteFile;
+    private final Long dataSequenceNumber;
+
+    /**
+     * Wrap a delete file for commit with a given data sequence number
+     *
+     * @param deleteFile delete file
+     * @param dataSequenceNumber data sequence number to apply
+     */
+    DeleteFileHolder(DeleteFile deleteFile, long dataSequenceNumber) {
+      this.deleteFile = deleteFile;
+      this.dataSequenceNumber = dataSequenceNumber;
+    }
+
+    /**
+     * Wrap a delete file for commit with the latest sequence number
+     *
+     * @param deleteFile delete file
+     */
+    DeleteFileHolder(DeleteFile deleteFile) {
+      this.deleteFile = deleteFile;
+      this.dataSequenceNumber = null;
+    }
+
+    public DeleteFile deleteFile() {
+      return deleteFile;
+    }
+
+    public Long dataSequenceNumber() {
+      return dataSequenceNumber;
     }
   }
 }

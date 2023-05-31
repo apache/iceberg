@@ -20,7 +20,6 @@ package org.apache.iceberg.gcp.gcs;
 
 import static java.lang.String.format;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.Assert.assertFalse;
 
 import com.google.cloud.storage.BlobInfo;
 import com.google.cloud.storage.Storage;
@@ -37,9 +36,8 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
 public class GCSFileIOTest {
   private static final String TEST_BUCKET = "TEST_BUCKET";
@@ -48,7 +46,7 @@ public class GCSFileIOTest {
   private final Storage storage = LocalStorageHelper.getOptions().getService();
   private GCSFileIO io;
 
-  @Before
+  @BeforeEach
   public void before() {
     io = new GCSFileIO(() -> storage, new GCPProperties());
   }
@@ -60,7 +58,7 @@ public class GCSFileIOTest {
     random.nextBytes(expected);
 
     InputFile in = io.newInputFile(location);
-    assertFalse(in.exists());
+    assertThat(in.exists()).isFalse();
 
     OutputFile out = io.newOutputFile(location);
     try (OutputStream os = out.createOrOverwrite()) {
@@ -109,7 +107,7 @@ public class GCSFileIOTest {
     testGCSFileIO.initialize(ImmutableMap.of("k1", "v1"));
     FileIO roundTripSerializedFileIO = TestHelpers.KryoHelpers.roundTripSerialize(testGCSFileIO);
 
-    Assert.assertEquals(testGCSFileIO.properties(), roundTripSerializedFileIO.properties());
+    assertThat(testGCSFileIO.properties()).isEqualTo(roundTripSerializedFileIO.properties());
   }
 
   @Test
@@ -120,6 +118,6 @@ public class GCSFileIOTest {
     testGCSFileIO.initialize(ImmutableMap.of("k1", "v1"));
     FileIO roundTripSerializedFileIO = TestHelpers.roundTripSerialize(testGCSFileIO);
 
-    Assert.assertEquals(testGCSFileIO.properties(), roundTripSerializedFileIO.properties());
+    assertThat(testGCSFileIO.properties()).isEqualTo(roundTripSerializedFileIO.properties());
   }
 }

@@ -78,6 +78,7 @@ public class TestSparkDataFile {
           required(106, "d", Types.DoubleType.get()),
           optional(107, "date", Types.DateType.get()),
           required(108, "ts", Types.TimestampType.withZone()),
+          required(109, "tsntz", Types.TimestampType.withoutZone()),
           required(110, "s", Types.StringType.get()),
           optional(113, "bytes", Types.BinaryType.get()),
           required(114, "dec_9_0", Types.DecimalType.of(9, 0)),
@@ -94,6 +95,7 @@ public class TestSparkDataFile {
           .identity("date")
           .hour("ts")
           .identity("ts")
+          .identity("tsntz")
           .truncate("s", 2)
           .identity("bytes")
           .bucket("dec_9_0", 2)

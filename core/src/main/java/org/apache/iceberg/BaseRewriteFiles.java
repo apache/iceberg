@@ -70,6 +70,12 @@ class BaseRewriteFiles extends MergingSnapshotProducer<RewriteFiles> implements 
   }
 
   @Override
+  public RewriteFiles addFile(DeleteFile deleteFile, long dataSequenceNumber) {
+    add(deleteFile, dataSequenceNumber);
+    return self();
+  }
+
+  @Override
   public RewriteFiles dataSequenceNumber(long sequenceNumber) {
     setNewDataFilesDataSequenceNumber(sequenceNumber);
     return self();

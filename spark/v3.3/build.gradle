@@ -135,6 +135,7 @@ project(":iceberg-spark:iceberg-spark-extensions-${sparkMajorVersion}_${scalaVer
 
   dependencies {
     implementation("org.scala-lang.modules:scala-collection-compat_${scalaVersion}")
+    implementation "org.roaringbitmap:RoaringBitmap"
 
     compileOnly "org.scala-lang:scala-library:${scalaVersion}"
     compileOnly project(path: ':iceberg-bundled-guava', configuration: 'shadow')
@@ -151,6 +152,7 @@ project(":iceberg-spark:iceberg-spark-extensions-${sparkMajorVersion}_${scalaVer
       exclude group: 'io.netty', module: 'netty-common'
       exclude group: 'org.roaringbitmap'
     }
+    compileOnly "com.google.errorprone:error_prone_annotations"
 
     testImplementation project(path: ':iceberg-data')
     testImplementation project(path: ':iceberg-parquet')

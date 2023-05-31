@@ -356,4 +356,55 @@ public class MetricsUtil {
     return new ReadableMetricsStruct(
         colMetrics.stream().map(m -> (StructLike) m).collect(Collectors.toList()));
   }
+
+  /** Custom struct that returns a 'readable_metric' column at a specific position */
+  static class StructWithReadableMetrics implements StructLike {
+    private final StructLike struct;
+    private final MetricsUtil.ReadableMetricsStruct readableMetrics;
+    private final int projectionColumnCount;
+    private final int metricsPosition;
+
+    /**
+     * Constructs a struct with readable metrics column
+     *
+     * @param struct struct on which to append 'readable_metrics' struct
+     * @param structSize total number of struct columns, including 'readable_metrics' column
+     * @param readableMetrics struct of 'readable_metrics'
+     * @param metricsPosition position of 'readable_metrics' column
+     */
+    StructWithReadableMetrics(
+        StructLike struct,
+        int structSize,
+        MetricsUtil.ReadableMetricsStruct readableMetrics,
+        int metricsPosition) {
+      this.struct = struct;
+      this.readableMetrics = readableMetrics;
+      this.projectionColumnCount = structSize;
+      this.metricsPosition = metricsPosition;
+    }
+
+    @Override
+    public int size() {
+      return projectionColumnCount;
+    }
+
+    @Override
+    public <T> T get(int pos, Class<T> javaClass) {
+      if (pos < metricsPosition) {
+        return struct.get(pos, javaClass);
+      } else if (pos == metricsPosition) {
+        return javaClass.cast(readableMetrics);
+      } else {
+        // columnCount = fileAsStruct column count + the readable metrics field.
+        // When pos is greater than metricsPosition, the actual position of the field in
+        // fileAsStruct should be subtracted by 1.
+        return struct.get(pos - 1, javaClass);
+      }
+    }
+
+    @Override
+    public <T> void set(int pos, T value) {
+      throw new UnsupportedOperationException("StructWithReadableMetrics is read only");
+    }
+  }
 }
