@@ -83,3 +83,5 @@ DELL:
   - dell/**/*
 SNOWFLAKE:
   - snowflake/**/*
+OPENAPI:
+  - open-api/**/*

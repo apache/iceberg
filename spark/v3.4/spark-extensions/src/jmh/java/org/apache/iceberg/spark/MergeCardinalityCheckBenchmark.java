@@ -22,6 +22,8 @@ import static org.apache.spark.sql.functions.current_date;
 import static org.apache.spark.sql.functions.date_add;
 import static org.apache.spark.sql.functions.expr;
 
+import com.google.errorprone.annotations.FormatMethod;
+import com.google.errorprone.annotations.FormatString;
 import java.util.UUID;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.DistributionMode;
@@ -221,7 +223,8 @@ public class MergeCardinalityCheckBenchmark {
     return hadoopConf.get("hadoop.tmp.dir") + UUID.randomUUID();
   }
 
-  private void sql(String query, Object... args) {
+  @FormatMethod
+  private void sql(@FormatString String query, Object... args) {
     spark.sql(String.format(query, args));
   }
 }

@@ -55,10 +55,11 @@ public class ManifestFiles {
 
   @VisibleForTesting
   static Caffeine<Object, Object> newManifestCacheBuilder() {
+    int maxSize = SystemConfigs.IO_MANIFEST_CACHE_MAX_FILEIO.value();
     return Caffeine.newBuilder()
         .weakKeys()
         .softValues()
-        .maximumSize(maxFileIO())
+        .maximumSize(maxSize)
         .removalListener(
             (io, contentCache, cause) ->
                 LOG.debug("Evicted {} from FileIO-level cache ({})", io, cause))
@@ -365,18 +366,6 @@ public class ManifestFiles {
 
     // caching is not enable for this io or caught RuntimeException.
     return io.newInputFile(path, length);
-  }
-
-  private static int maxFileIO() {
-    String value = System.getProperty(SystemProperties.IO_MANIFEST_CACHE_MAX_FILEIO);
-    if (value != null) {
-      try {
-        return Integer.parseUnsignedInt(value);
-      } catch (NumberFormatException e) {
-        // will return the default
-      }
-    }
-    return SystemProperties.IO_MANIFEST_CACHE_MAX_FILEIO_DEFAULT;
   }
 
   static boolean cachingEnabled(FileIO io) {

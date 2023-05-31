@@ -64,7 +64,7 @@ project(':iceberg-mr') {
 
     testImplementation("org.apache.avro:avro")
     testImplementation("org.apache.calcite:calcite-core")
-    testImplementation("com.esotericsoftware:kryo-shaded:4.0.2")
+    testImplementation("com.esotericsoftware:kryo-shaded:4.0.3")
     testImplementation("com.fasterxml.jackson.core:jackson-annotations:2.15.0")
     testImplementation("org.apache.hive:hive-service") {
       exclude group: 'org.apache.hive', module: 'hive-exec'

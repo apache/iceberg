@@ -50,6 +50,23 @@ public class TestSparkHoursFunction extends SparkTestBaseWithCatalog {
   }
 
   @Test
+  public void testTimestampsNtz() {
+    Assert.assertEquals(
+        "Expected to produce 17501 * 24 + 10",
+        420034,
+        scalarSql("SELECT system.hours(TIMESTAMP_NTZ '2017-12-01 10:12:55.038194 UTC')"));
+    Assert.assertEquals(
+        "Expected to produce 0 * 24 + 0 = 0",
+        0,
+        scalarSql("SELECT system.hours(TIMESTAMP_NTZ '1970-01-01 00:00:01.000001 UTC')"));
+    Assert.assertEquals(
+        "Expected to produce -1",
+        -1,
+        scalarSql("SELECT system.hours(TIMESTAMP_NTZ '1969-12-31 23:59:58.999999 UTC')"));
+    Assert.assertNull(scalarSql("SELECT system.hours(CAST(null AS TIMESTAMP_NTZ))"));
+  }
+
+  @Test
   public void testWrongNumberOfArguments() {
     Assertions.assertThatThrownBy(() -> scalarSql("SELECT system.hours()"))
         .isInstanceOf(AnalysisException.class)

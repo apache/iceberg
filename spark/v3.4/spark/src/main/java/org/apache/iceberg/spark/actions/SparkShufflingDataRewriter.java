@@ -26,7 +26,7 @@ import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
-import org.apache.iceberg.spark.SparkDistributionAndOrderingUtil;
+import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkFunctionCatalog;
 import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkWriteOptions;
@@ -106,7 +106,7 @@ abstract class SparkShufflingDataRewriter extends SparkSizeBasedDataRewriter {
   }
 
   private Function<Dataset<Row>, Dataset<Row>> sortFunction(List<FileScanTask> group) {
-    SortOrder[] ordering = SparkDistributionAndOrderingUtil.convert(outputSortOrder(group));
+    SortOrder[] ordering = Spark3Util.toOrdering(outputSortOrder(group));
     int numShufflePartitions = numShufflePartitions(group);
     return (df) -> transformPlan(df, plan -> sortPlan(plan, ordering, numShufflePartitions));
   }

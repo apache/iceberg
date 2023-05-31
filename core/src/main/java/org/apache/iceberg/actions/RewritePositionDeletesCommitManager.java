@@ -60,7 +60,7 @@ public class RewritePositionDeletesCommitManager {
       }
 
       for (DeleteFile file : group.addedDeleteFiles()) {
-        rewriteFiles.addFile(file);
+        rewriteFiles.addFile(file, group.maxRewrittenDataSequenceNumber());
       }
     }
 

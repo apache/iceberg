@@ -41,6 +41,7 @@ import org.apache.spark.sql.types.MetadataBuilder;
 import org.apache.spark.sql.types.StringType$;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType$;
+import org.apache.spark.sql.types.TimestampNTZType$;
 import org.apache.spark.sql.types.TimestampType$;
 
 class TypeToSparkType extends TypeUtil.SchemaVisitor<DataType> {
@@ -105,7 +106,12 @@ class TypeToSparkType extends TypeUtil.SchemaVisitor<DataType> {
       case TIME:
         throw new UnsupportedOperationException("Spark does not support time fields");
       case TIMESTAMP:
-        return TimestampType$.MODULE$;
+        Types.TimestampType ts = (Types.TimestampType) primitive;
+        if (ts.shouldAdjustToUTC()) {
+          return TimestampType$.MODULE$;
+        } else {
+          return TimestampNTZType$.MODULE$;
+        }
       case STRING:
         return StringType$.MODULE$;
       case UUID:

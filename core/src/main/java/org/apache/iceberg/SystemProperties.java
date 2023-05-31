@@ -18,7 +18,12 @@
  */
 package org.apache.iceberg;
 
-/** Configuration properties that are controlled by Java system properties. */
+/**
+ * Configuration properties that are controlled by Java system properties.
+ *
+ * @deprecated Use {@link SystemConfigs} instead; will be removed in 2.0.0
+ */
+@Deprecated
 public class SystemProperties {
 
   private SystemProperties() {}
@@ -46,6 +51,7 @@ public class SystemProperties {
     if (value != null) {
       return Boolean.parseBoolean(value);
     }
+
     return defaultValue;
   }
 }

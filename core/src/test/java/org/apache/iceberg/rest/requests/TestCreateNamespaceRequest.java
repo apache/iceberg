@@ -20,11 +20,11 @@ package org.apache.iceberg.rest.requests;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import java.util.Map;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.RequestResponseTestBase;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -77,70 +77,60 @@ public class TestCreateNamespaceRequest extends RequestResponseTestBase<CreateNa
   public void testDeserializeInvalidRequest() {
     String jsonIncorrectTypeForNamespace =
         "{\"namespace\":\"accounting%1Ftax\",\"properties\":null}";
-    AssertHelpers.assertThrows(
-        "A JSON request with incorrect types for fields should fail to deserialize and validate",
-        JsonProcessingException.class,
-        "Cannot parse string array from non-array",
-        () -> deserialize(jsonIncorrectTypeForNamespace));
+    Assertions.assertThatThrownBy(() -> deserialize(jsonIncorrectTypeForNamespace))
+        .isInstanceOf(JsonProcessingException.class)
+        .hasMessageStartingWith("Cannot parse string array from non-array");
 
     String jsonIncorrectTypeForProperties =
         "{\"namespace\":[\"accounting\",\"tax\"],\"properties\":[]}";
-    AssertHelpers.assertThrows(
-        "A JSON request with incorrect types for fields should fail to parse and validate",
-        JsonProcessingException.class,
-        () -> deserialize(jsonIncorrectTypeForProperties));
+    Assertions.assertThatThrownBy(() -> deserialize(jsonIncorrectTypeForProperties))
+        .isInstanceOf(JsonProcessingException.class)
+        .hasMessageStartingWith("Cannot deserialize value of type");
 
     String jsonMisspelledKeys =
         "{\"namepsace\":[\"accounting\",\"tax\"],\"propertiezzzz\":{\"owner\":\"Hank\"}}";
-    AssertHelpers.assertThrows(
-        "A JSON request with the keys spelled incorrectly should fail to deserialize and validate",
-        IllegalArgumentException.class,
-        "Invalid namespace: null",
-        () -> deserialize(jsonMisspelledKeys));
+    Assertions.assertThatThrownBy(() -> deserialize(jsonMisspelledKeys))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid namespace: null");
 
     String emptyJson = "{}";
-    AssertHelpers.assertThrows(
-        "An empty JSON object should not parse into a CreateNamespaceRequest instance that passes validation",
-        IllegalArgumentException.class,
-        "Invalid namespace: null",
-        () -> deserialize(emptyJson));
+    Assertions.assertThatThrownBy(() -> deserialize(emptyJson))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid namespace: null");
 
-    AssertHelpers.assertThrows(
-        "An empty JSON request should fail to deserialize",
-        IllegalArgumentException.class,
-        () -> deserialize(null));
+    Assertions.assertThatThrownBy(() -> deserialize(null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("argument \"content\" is null");
   }
 
   @Test
   public void testBuilderDoesNotBuildInvalidRequests() {
-    AssertHelpers.assertThrows(
-        "The builder should not allow using null for the namespace",
-        NullPointerException.class,
-        "Invalid namespace: null",
-        () -> CreateNamespaceRequest.builder().withNamespace(null).build());
+    Assertions.assertThatThrownBy(
+            () -> CreateNamespaceRequest.builder().withNamespace(null).build())
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("Invalid namespace: null");
 
-    AssertHelpers.assertThrows(
-        "The builder should not allow passing a null collection of properties",
-        NullPointerException.class,
-        "Invalid collection of properties: null",
-        () -> CreateNamespaceRequest.builder().setProperties(null).build());
+    Assertions.assertThatThrownBy(
+            () -> CreateNamespaceRequest.builder().setProperties(null).build())
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("Invalid collection of properties: null");
 
     Map<String, String> mapWithNullKey = Maps.newHashMap();
     mapWithNullKey.put(null, "hello");
-    AssertHelpers.assertThrows(
-        "The builder should not allow using null as a key in the properties to set",
-        IllegalArgumentException.class,
-        "Invalid property: null",
-        () -> CreateNamespaceRequest.builder().setProperties(mapWithNullKey).build());
+
+    Assertions.assertThatThrownBy(
+            () -> CreateNamespaceRequest.builder().setProperties(mapWithNullKey).build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid property: null");
 
     Map<String, String> mapWithMultipleNullValues = Maps.newHashMap();
     mapWithMultipleNullValues.put("a", null);
     mapWithMultipleNullValues.put("b", "b");
-    AssertHelpers.assertThrows(
-        "The builder should not allow using null as a value in the properties to set",
-        IllegalArgumentException.class,
-        "Invalid value for properties [a]: null",
-        () -> CreateNamespaceRequest.builder().setProperties(mapWithMultipleNullValues).build());
+
+    Assertions.assertThatThrownBy(
+            () -> CreateNamespaceRequest.builder().setProperties(mapWithMultipleNullValues).build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid value for properties [a]: null");
   }
 
   @Override

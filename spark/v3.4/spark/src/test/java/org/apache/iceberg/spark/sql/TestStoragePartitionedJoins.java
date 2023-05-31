@@ -123,6 +123,11 @@ public class TestStoragePartitionedJoins extends SparkTestBaseWithCatalog {
   }
 
   @Test
+  public void testJoinsWithBucketingOnTimestampNtzColumn() throws NoSuchTableException {
+    checkJoin("timestamp_col", "TIMESTAMP_NTZ", "bucket(16, timestamp_col)");
+  }
+
+  @Test
   public void testJoinsWithBucketingOnDateColumn() throws NoSuchTableException {
     checkJoin("date_col", "DATE", "bucket(8, date_col)");
   }
@@ -143,6 +148,11 @@ public class TestStoragePartitionedJoins extends SparkTestBaseWithCatalog {
   }
 
   @Test
+  public void testJoinsWithYearsOnTimestampNtzColumn() throws NoSuchTableException {
+    checkJoin("timestamp_col", "TIMESTAMP_NTZ", "years(timestamp_col)");
+  }
+
+  @Test
   public void testJoinsWithYearsOnDateColumn() throws NoSuchTableException {
     checkJoin("date_col", "DATE", "years(date_col)");
   }
@@ -150,6 +160,11 @@ public class TestStoragePartitionedJoins extends SparkTestBaseWithCatalog {
   @Test
   public void testJoinsWithMonthsOnTimestampColumn() throws NoSuchTableException {
     checkJoin("timestamp_col", "TIMESTAMP", "months(timestamp_col)");
+  }
+
+  @Test
+  public void testJoinsWithMonthsOnTimestampNtzColumn() throws NoSuchTableException {
+    checkJoin("timestamp_col", "TIMESTAMP_NTZ", "months(timestamp_col)");
   }
 
   @Test
@@ -163,6 +178,11 @@ public class TestStoragePartitionedJoins extends SparkTestBaseWithCatalog {
   }
 
   @Test
+  public void testJoinsWithDaysOnTimestampNtzColumn() throws NoSuchTableException {
+    checkJoin("timestamp_col", "TIMESTAMP_NTZ", "days(timestamp_col)");
+  }
+
+  @Test
   public void testJoinsWithDaysOnDateColumn() throws NoSuchTableException {
     checkJoin("date_col", "DATE", "days(date_col)");
   }
@@ -170,6 +190,11 @@ public class TestStoragePartitionedJoins extends SparkTestBaseWithCatalog {
   @Test
   public void testJoinsWithHoursOnTimestampColumn() throws NoSuchTableException {
     checkJoin("timestamp_col", "TIMESTAMP", "hours(timestamp_col)");
+  }
+
+  @Test
+  public void testJoinsWithHoursOnTimestampNtzColumn() throws NoSuchTableException {
+    checkJoin("timestamp_col", "TIMESTAMP_NTZ", "hours(timestamp_col)");
   }
 
   @Test
