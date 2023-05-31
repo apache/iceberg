@@ -123,7 +123,7 @@ public class FlinkAlterTableUtil {
           (TableChange.ModifyPhysicalColumnType) modifyColumn;
       Type type = FlinkSchemaUtil.convert(modifyType.getNewType().getLogicalType());
       String columnName = modifyType.getOldColumn().getName();
-      pendingUpdate.updateColumn(modifyType.getOldColumn().getName(), type.asPrimitiveType());
+      pendingUpdate.updateColumn(columnName, type.asPrimitiveType());
       if (modifyType.getNewColumn().getDataType().getLogicalType().isNullable()) {
         pendingUpdate.makeColumnOptional(columnName);
       } else {
