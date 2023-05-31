@@ -97,13 +97,8 @@ public class DataFiles {
     }
 
     Preconditions.checkArgument(
-        partitionValues.size() <= spec.fields().size(),
-        "Invalid partition data, too many fields (expecting %s): %s",
-        spec.fields().size(),
-        partitionValues.size());
-    Preconditions.checkArgument(
-        partitionValues.size() >= spec.fields().size(),
-        "Invalid partition data, not enough fields (expecting %s): %s",
+        partitionValues.size() == spec.fields().size(),
+        "Invalid partition data, expecting %s fields, found %s",
         spec.fields().size(),
         partitionValues.size());
 
