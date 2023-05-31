@@ -56,9 +56,7 @@ public class TestNumericLiteralConversions {
     Literal<Integer> lit = Literal.of(34);
 
     assertThat(lit.to(Types.DecimalType.of(9, 0)).value()).isEqualTo(new BigDecimal("34"));
-
     assertThat(lit.to(Types.DecimalType.of(9, 2)).value()).isEqualTo(new BigDecimal("34.00"));
-
     assertThat(lit.to(Types.DecimalType.of(9, 4)).value()).isEqualTo(new BigDecimal("34.0000"));
   }
 
@@ -98,9 +96,7 @@ public class TestNumericLiteralConversions {
     Literal<Long> lit = Literal.of(34L);
 
     assertThat(lit.to(Types.DecimalType.of(9, 0)).value()).isEqualTo(new BigDecimal("34"));
-
     assertThat(lit.to(Types.DecimalType.of(9, 2)).value()).isEqualTo(new BigDecimal("34.00"));
-
     assertThat(lit.to(Types.DecimalType.of(9, 4)).value()).isEqualTo(new BigDecimal("34.0000"));
   }
 
@@ -120,7 +116,6 @@ public class TestNumericLiteralConversions {
         .as("Value should round using HALF_UP")
         .isEqualTo(new BigDecimal("34.6"));
     assertThat(lit.to(Types.DecimalType.of(9, 2)).value()).isEqualTo(new BigDecimal("34.56"));
-
     assertThat(lit.to(Types.DecimalType.of(9, 4)).value()).isEqualTo(new BigDecimal("34.5600"));
   }
 
@@ -149,7 +144,6 @@ public class TestNumericLiteralConversions {
         .as("Value should round using HALF_UP")
         .isEqualTo(new BigDecimal("34.6"));
     assertThat(lit.to(Types.DecimalType.of(9, 2)).value()).isEqualTo(new BigDecimal("34.56"));
-
     assertThat(lit.to(Types.DecimalType.of(9, 4)).value()).isEqualTo(new BigDecimal("34.5600"));
   }
 
