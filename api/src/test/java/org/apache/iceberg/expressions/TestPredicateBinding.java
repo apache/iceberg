@@ -209,7 +209,7 @@ public class TestPredicateBinding {
     assertThat(ltMax.isLiteralPredicate()).isTrue();
     assertThat(ltMax.asLiteralPredicate().literal().value())
         .as("Should translate bound to Integer")
-        .isEqualTo((Integer) Integer.MAX_VALUE);
+        .isEqualTo(Integer.MAX_VALUE);
 
     Expression lteqExpr =
         new UnboundPredicate<>(LT_EQ, ref("i"), (long) Integer.MAX_VALUE).bind(struct);
