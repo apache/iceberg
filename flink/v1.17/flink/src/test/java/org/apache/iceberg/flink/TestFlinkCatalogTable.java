@@ -454,25 +454,25 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
     sql("CREATE TABLE tl(id INTEGER NOT NULL, dt STRING)");
     Schema schemaBefore = table("tl").schema();
     Assert.assertEquals(
-            new Schema(
-                    Types.NestedField.required(1, "id", Types.IntegerType.get()),
-                    Types.NestedField.optional(2, "dt", Types.StringType.get()))
-                    .asStruct(),
-            schemaBefore.asStruct());
+        new Schema(
+                Types.NestedField.required(1, "id", Types.IntegerType.get()),
+                Types.NestedField.optional(2, "dt", Types.StringType.get()))
+            .asStruct(),
+        schemaBefore.asStruct());
 
     // Cannot change nullability from optional to required
     Assertions.assertThatThrownBy(() -> sql("ALTER TABLE tl MODIFY (dt STRING NOT NULL)"))
-            .isInstanceOf(TableException.class);
+        .isInstanceOf(TableException.class);
 
     // Set nullability from required to optional
     sql("ALTER TABLE tl MODIFY (id INTEGER)");
     Schema schemaAfter = table("tl").schema();
     Assert.assertEquals(
-            new Schema(
-                    Types.NestedField.optional(1, "id", Types.IntegerType.get()),
-                    Types.NestedField.optional(2, "dt", Types.StringType.get()))
-                    .asStruct(),
-            schemaAfter.asStruct());
+        new Schema(
+                Types.NestedField.optional(1, "id", Types.IntegerType.get()),
+                Types.NestedField.optional(2, "dt", Types.StringType.get()))
+            .asStruct(),
+        schemaAfter.asStruct());
   }
 
   @Test
