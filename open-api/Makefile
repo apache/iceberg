@@ -28,5 +28,6 @@ generate:
 	        --field-constraints \
 	        --input rest-catalog-open-api.yaml \
 	        --disable-timestamp \
+	        --custom-file-header header.txt \
 	        --input-file-type openapi \
 	        --output rest-catalog-open-api.py
