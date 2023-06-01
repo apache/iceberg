@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.deletes;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.util.List;
 import java.util.function.Predicate;
 import org.apache.avro.util.Utf8;
@@ -27,8 +29,7 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestPositionFilter {
   @Test
@@ -46,26 +47,23 @@ public class TestPositionFilter {
             Row.of("file_b.avro", 70L),
             Row.of("file_b.avro", 91L));
 
-    Assert.assertEquals(
-        "Should contain only file_a positions",
-        Lists.newArrayList(0L, 3L, 9L, 22L, 56L),
-        Lists.newArrayList(
+    assertThat(
             Deletes.deletePositions(
-                "file_a.avro", CloseableIterable.withNoopClose(positionDeletes))));
+                "file_a.avro", CloseableIterable.withNoopClose(positionDeletes)))
+        .as("Should contain only file_a positions")
+        .containsExactly(0L, 3L, 9L, 22L, 56L);
 
-    Assert.assertEquals(
-        "Should contain only file_b positions",
-        Lists.newArrayList(16L, 19L, 63L, 70L, 91L),
-        Lists.newArrayList(
+    assertThat(
             Deletes.deletePositions(
-                "file_b.avro", CloseableIterable.withNoopClose(positionDeletes))));
+                "file_b.avro", CloseableIterable.withNoopClose(positionDeletes)))
+        .as("Should contain only file_b positions")
+        .containsExactly(16L, 19L, 63L, 70L, 91L);
 
-    Assert.assertEquals(
-        "Should contain no positions for file_c",
-        Lists.newArrayList(),
-        Lists.newArrayList(
+    assertThat(
             Deletes.deletePositions(
-                "file_c.avro", CloseableIterable.withNoopClose(positionDeletes))));
+                "file_c.avro", CloseableIterable.withNoopClose(positionDeletes)))
+        .as("Should contain no positions for file_c")
+        .isEmpty();
   }
 
   @Test
@@ -96,10 +94,9 @@ public class TestPositionFilter {
             CloseableIterable.withNoopClose(positionDeletes2),
             CloseableIterable.withNoopClose(positionDeletes3));
 
-    Assert.assertEquals(
-        "Should merge deletes in order, with duplicates",
-        Lists.newArrayList(0L, 3L, 3L, 9L, 16L, 19L, 19L, 22L, 22L, 56L, 63L, 70L, 91L),
-        Lists.newArrayList(Deletes.deletePositions("file_a.avro", deletes)));
+    assertThat(Deletes.deletePositions("file_a.avro", deletes))
+        .as("Should merge deletes in order, with duplicates")
+        .containsExactly(0L, 3L, 3L, 9L, 16L, 19L, 19L, 22L, 22L, 56L, 63L, 70L, 91L);
   }
 
   @Test
@@ -123,10 +120,10 @@ public class TestPositionFilter {
 
     CloseableIterable<StructLike> actual =
         Deletes.streamingFilter(rows, row -> row.get(0, Long.class), deletes);
-    Assert.assertEquals(
-        "Filter should produce expected rows",
-        Lists.newArrayList(1L, 2L, 5L, 6L, 8L),
-        Lists.newArrayList(Iterables.transform(actual, row -> row.get(0, Long.class))));
+
+    assertThat(Iterables.transform(actual, row -> row.get(0, Long.class)))
+        .as("Filter should produce expected rows")
+        .containsExactlyElementsOf(Lists.newArrayList(1L, 2L, 5L, 6L, 8L));
   }
 
   @Test
@@ -154,10 +151,11 @@ public class TestPositionFilter {
             row -> row.get(0, Long.class), /* row to position */
             deletes,
             row -> row.set(2, true) /* delete marker */);
-    Assert.assertEquals(
-        "Filter should produce expected rows",
-        Lists.newArrayList(true, false, false, true, true, false, false, true, false, true),
-        Lists.newArrayList(Iterables.transform(actual, row -> row.get(2, Boolean.class))));
+
+    assertThat(Iterables.transform(actual, row -> row.get(2, Boolean.class)))
+        .as("Filter should produce expected rows")
+        .containsExactlyElementsOf(
+            Lists.newArrayList(true, false, false, true, true, false, false, true, false, true));
   }
 
   @Test
@@ -181,10 +179,10 @@ public class TestPositionFilter {
 
     CloseableIterable<StructLike> actual =
         Deletes.streamingFilter(rows, row -> row.get(0, Long.class), deletes);
-    Assert.assertEquals(
-        "Filter should produce expected rows",
-        Lists.newArrayList(1L, 2L, 5L, 6L, 8L),
-        Lists.newArrayList(Iterables.transform(actual, row -> row.get(0, Long.class))));
+
+    assertThat(Iterables.transform(actual, row -> row.get(0, Long.class)))
+        .as("Filter should produce expected rows")
+        .containsExactlyElementsOf(Lists.newArrayList(1L, 2L, 5L, 6L, 8L));
   }
 
   @Test
@@ -199,10 +197,10 @@ public class TestPositionFilter {
 
     CloseableIterable<StructLike> actual =
         Deletes.streamingFilter(rows, row -> row.get(0, Long.class), deletes);
-    Assert.assertEquals(
-        "Filter should produce expected rows",
-        Lists.newArrayList(5L, 6L),
-        Lists.newArrayList(Iterables.transform(actual, row -> row.get(0, Long.class))));
+
+    assertThat(Iterables.transform(actual, row -> row.get(0, Long.class)))
+        .as("Filter should produce expected rows")
+        .containsExactlyElementsOf(Lists.newArrayList(5L, 6L));
   }
 
   @Test
@@ -245,10 +243,9 @@ public class TestPositionFilter {
             Deletes.deletePositions(
                 "file_a.avro", ImmutableList.of(positionDeletes1, positionDeletes2)));
 
-    Assert.assertEquals(
-        "Filter should produce expected rows",
-        Lists.newArrayList(1L, 2L, 5L, 6L, 8L),
-        Lists.newArrayList(Iterables.transform(actual, row -> row.get(0, Long.class))));
+    assertThat(Iterables.transform(actual, row -> row.get(0, Long.class)))
+        .as("Filter should produce expected rows")
+        .containsExactlyElementsOf(Lists.newArrayList(1L, 2L, 5L, 6L, 8L));
   }
 
   @Test
@@ -273,10 +270,10 @@ public class TestPositionFilter {
     Predicate<StructLike> shouldKeep =
         row -> !Deletes.toPositionIndex(deletes).isDeleted(row.get(0, Long.class));
     CloseableIterable<StructLike> actual = CloseableIterable.filter(rows, shouldKeep);
-    Assert.assertEquals(
-        "Filter should produce expected rows",
-        Lists.newArrayList(1L, 2L, 5L, 6L, 8L),
-        Lists.newArrayList(Iterables.transform(actual, row -> row.get(0, Long.class))));
+
+    assertThat(Iterables.transform(actual, row -> row.get(0, Long.class)))
+        .as("Filter should produce expected rows")
+        .containsExactlyElementsOf(Lists.newArrayList(1L, 2L, 5L, 6L, 8L));
   }
 
   @Test
@@ -320,9 +317,8 @@ public class TestPositionFilter {
 
     CloseableIterable<StructLike> actual = CloseableIterable.filter(rows, isDeleted.negate());
 
-    Assert.assertEquals(
-        "Filter should produce expected rows",
-        Lists.newArrayList(1L, 2L, 5L, 6L, 8L),
-        Lists.newArrayList(Iterables.transform(actual, row -> row.get(0, Long.class))));
+    assertThat(Iterables.transform(actual, row -> row.get(0, Long.class)))
+        .as("Filter should produce expected rows")
+        .containsExactlyElementsOf(Lists.newArrayList(1L, 2L, 5L, 6L, 8L));
   }
 }
