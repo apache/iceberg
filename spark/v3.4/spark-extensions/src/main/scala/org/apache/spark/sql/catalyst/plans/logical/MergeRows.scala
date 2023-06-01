@@ -28,7 +28,7 @@ case class MergeRows(
     isSourceRowPresent: Expression,
     isTargetRowPresent: Expression,
     matchedConditions: Seq[Expression],
-    matchedOutputs: Seq[Seq[Expression]],
+    matchedOutputs: Seq[Seq[Seq[Expression]]],
     notMatchedConditions: Seq[Expression],
     notMatchedOutputs: Seq[Seq[Expression]],
     targetOutput: Seq[Expression],

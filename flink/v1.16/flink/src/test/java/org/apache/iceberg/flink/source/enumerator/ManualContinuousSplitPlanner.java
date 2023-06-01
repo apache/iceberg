@@ -32,16 +32,23 @@ class ManualContinuousSplitPlanner implements ContinuousSplitPlanner {
   // track splits per snapshot
   private final NavigableMap<Long, List<IcebergSourceSplit>> splits;
   private long latestSnapshotId;
+  private int remainingFailures;
 
-  ManualContinuousSplitPlanner(ScanContext scanContext) {
+  ManualContinuousSplitPlanner(ScanContext scanContext, int expectedFailures) {
     this.maxPlanningSnapshotCount = scanContext.maxPlanningSnapshotCount();
     this.splits = new TreeMap<>();
     this.latestSnapshotId = 0L;
+    this.remainingFailures = expectedFailures;
   }
 
   @Override
   public synchronized ContinuousEnumerationResult planSplits(
       IcebergEnumeratorPosition lastPosition) {
+    if (remainingFailures > 0) {
+      remainingFailures--;
+      throw new RuntimeException("Expected failure at planning");
+    }
+
     long fromSnapshotIdExclusive = 0;
     if (lastPosition != null && lastPosition.snapshotId() != null) {
       fromSnapshotIdExclusive = lastPosition.snapshotId();

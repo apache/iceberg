@@ -20,6 +20,7 @@ package org.apache.iceberg.flink.sink;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Supplier;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
@@ -54,8 +55,10 @@ class FlinkManifestUtil {
     return writer.toManifestFile();
   }
 
-  static List<DataFile> readDataFiles(ManifestFile manifestFile, FileIO io) throws IOException {
-    try (CloseableIterable<DataFile> dataFiles = ManifestFiles.read(manifestFile, io)) {
+  static List<DataFile> readDataFiles(
+      ManifestFile manifestFile, FileIO io, Map<Integer, PartitionSpec> specsById)
+      throws IOException {
+    try (CloseableIterable<DataFile> dataFiles = ManifestFiles.read(manifestFile, io, specsById)) {
       return Lists.newArrayList(dataFiles);
     }
   }
@@ -73,6 +76,12 @@ class FlinkManifestUtil {
         attemptNumber);
   }
 
+  /**
+   * Write the {@link WriteResult} to temporary manifest files.
+   *
+   * @param result all those DataFiles/DeleteFiles in this WriteResult should be written with same
+   *     partition spec
+   */
   static DeltaManifests writeCompletedFiles(
       WriteResult result, Supplier<OutputFile> outputFileSupplier, PartitionSpec spec)
       throws IOException {
@@ -104,19 +113,20 @@ class FlinkManifestUtil {
     return new DeltaManifests(dataManifest, deleteManifest, result.referencedDataFiles());
   }
 
-  static WriteResult readCompletedFiles(DeltaManifests deltaManifests, FileIO io)
+  static WriteResult readCompletedFiles(
+      DeltaManifests deltaManifests, FileIO io, Map<Integer, PartitionSpec> specsById)
       throws IOException {
     WriteResult.Builder builder = WriteResult.builder();
 
     // Read the completed data files from persisted data manifest file.
     if (deltaManifests.dataManifest() != null) {
-      builder.addDataFiles(readDataFiles(deltaManifests.dataManifest(), io));
+      builder.addDataFiles(readDataFiles(deltaManifests.dataManifest(), io, specsById));
     }
 
     // Read the completed delete files from persisted delete manifests file.
     if (deltaManifests.deleteManifest() != null) {
       try (CloseableIterable<DeleteFile> deleteFiles =
-          ManifestFiles.readDeleteManifest(deltaManifests.deleteManifest(), io, null)) {
+          ManifestFiles.readDeleteManifest(deltaManifests.deleteManifest(), io, specsById)) {
         builder.addDeleteFiles(deleteFiles);
       }
     }

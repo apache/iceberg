@@ -28,14 +28,12 @@ import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
-import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.transforms.UnknownTransform;
-import org.apache.iceberg.types.TypeUtil;
-import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Pair;
 import org.apache.spark.sql.RuntimeConfig;
 import org.apache.spark.sql.SparkSession;
@@ -50,17 +48,6 @@ import org.apache.spark.sql.types.StructType;
 import org.joda.time.DateTime;
 
 public class SparkUtil {
-
-  public static final String TIMESTAMP_WITHOUT_TIMEZONE_ERROR =
-      String.format(
-          "Cannot handle timestamp without"
-              + " timezone fields in Spark. Spark does not natively support this type but if you would like to handle all"
-              + " timestamps as timestamp with timezone set '%s' to true. This will not change the underlying values stored"
-              + " but will change their displayed values in Spark. For more information please see"
-              + " https://docs.databricks.com/spark/latest/dataframes-datasets/dates-timestamps.html#ansi-sql-and"
-              + "-spark-sql-timestamps",
-          SparkSQLProperties.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE);
-
   private static final String SPARK_CATALOG_CONF_PREFIX = "spark.sql.catalog";
   // Format string used as the prefix for Spark configuration keys to override Hadoop configuration
   // values for Iceberg tables from a given catalog. These keys can be specified as
@@ -130,35 +117,6 @@ public class SparkUtil {
   }
 
   /**
-   * Responsible for checking if the table schema has a timestamp without timezone column
-   *
-   * @param schema table schema to check if it contains a timestamp without timezone column
-   * @return boolean indicating if the schema passed in has a timestamp field without a timezone
-   */
-  public static boolean hasTimestampWithoutZone(Schema schema) {
-    return TypeUtil.find(schema, t -> Types.TimestampType.withoutZone().equals(t)) != null;
-  }
-
-  /**
-   * Checks whether timestamp types for new tables should be stored with timezone info.
-   *
-   * <p>The default value is false and all timestamp fields are stored as {@link
-   * Types.TimestampType#withZone()}. If enabled, all timestamp fields in new tables will be stored
-   * as {@link Types.TimestampType#withoutZone()}.
-   *
-   * @param sessionConf a Spark runtime config
-   * @return true if timestamp types for new tables should be stored with timezone info
-   */
-  public static boolean useTimestampWithoutZoneInNewTables(RuntimeConfig sessionConf) {
-    String sessionConfValue =
-        sessionConf.get(SparkSQLProperties.USE_TIMESTAMP_WITHOUT_TIME_ZONE_IN_NEW_TABLES, null);
-    if (sessionConfValue != null) {
-      return Boolean.parseBoolean(sessionConfValue);
-    }
-    return SparkSQLProperties.USE_TIMESTAMP_WITHOUT_TIME_ZONE_IN_NEW_TABLES_DEFAULT;
-  }
-
-  /**
    * Pulls any Catalog specific overrides for the Hadoop conf from the current SparkSession, which
    * can be set via `spark.sql.catalog.$catalogName.hadoop.*`
    *
@@ -197,6 +155,40 @@ public class SparkUtil {
 
   private static String hadoopConfPrefixForCatalog(String catalogName) {
     return String.format(SPARK_CATALOG_HADOOP_CONF_OVERRIDE_FMT_STR, catalogName);
+  }
+
+  public static void validateTimestampWithoutTimezoneConfig(RuntimeConfig conf) {
+    validateTimestampWithoutTimezoneConfig(conf, ImmutableMap.of());
+  }
+
+  /**
+   * Checks for properties both supplied by Spark's RuntimeConfig and the read or write options
+   *
+   * @param conf The RuntimeConfig of the active Spark session
+   * @param options The read or write options supplied when reading/writing a table
+   */
+  public static void validateTimestampWithoutTimezoneConfig(
+      RuntimeConfig conf, Map<String, String> options) {
+    if (conf.contains(SparkSQLProperties.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE)) {
+      throw new UnsupportedOperationException(
+          "Spark configuration "
+              + SparkSQLProperties.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE
+              + " is not supported in Spark 3.4 due to the introduction of native support for timestamp without timezone.");
+    }
+
+    if (options.containsKey(SparkReadOptions.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE)) {
+      throw new UnsupportedOperationException(
+          "Option "
+              + SparkReadOptions.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE
+              + " is not supported in Spark 3.4 due to the introduction of native support for timestamp without timezone.");
+    }
+
+    if (conf.contains(SparkSQLProperties.USE_TIMESTAMP_WITHOUT_TIME_ZONE_IN_NEW_TABLES)) {
+      throw new UnsupportedOperationException(
+          "Spark configuration "
+              + SparkSQLProperties.USE_TIMESTAMP_WITHOUT_TIME_ZONE_IN_NEW_TABLES
+              + " is not supported in Spark 3.4 due to the introduction of native support for timestamp without timezone.");
+    }
   }
 
   /**

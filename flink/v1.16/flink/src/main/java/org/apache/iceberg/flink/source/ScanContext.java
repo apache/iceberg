@@ -64,6 +64,7 @@ public class ScanContext implements Serializable {
   private final boolean includeColumnStats;
   private final Integer planParallelism;
   private final int maxPlanningSnapshotCount;
+  private final int maxAllowedPlanningFailures;
 
   private ScanContext(
       boolean caseSensitive,
@@ -86,6 +87,7 @@ public class ScanContext implements Serializable {
       boolean exposeLocality,
       Integer planParallelism,
       int maxPlanningSnapshotCount,
+      int maxAllowedPlanningFailures,
       String branch,
       String tag,
       String startTag,
@@ -115,6 +117,7 @@ public class ScanContext implements Serializable {
     this.exposeLocality = exposeLocality;
     this.planParallelism = planParallelism;
     this.maxPlanningSnapshotCount = maxPlanningSnapshotCount;
+    this.maxAllowedPlanningFailures = maxAllowedPlanningFailures;
 
     validate();
   }
@@ -155,6 +158,10 @@ public class ScanContext implements Serializable {
     Preconditions.checkArgument(
         !(endTag != null && endSnapshotId() != null),
         "END_SNAPSHOT_ID and END_TAG cannot both be set.");
+
+    Preconditions.checkArgument(
+        maxAllowedPlanningFailures >= -1,
+        "Cannot set maxAllowedPlanningFailures to a negative number other than -1.");
   }
 
   public boolean caseSensitive() {
@@ -253,6 +260,10 @@ public class ScanContext implements Serializable {
     return maxPlanningSnapshotCount;
   }
 
+  public int maxAllowedPlanningFailures() {
+    return maxAllowedPlanningFailures;
+  }
+
   public ScanContext copyWithAppendsBetween(Long newStartSnapshotId, long newEndSnapshotId) {
     return ScanContext.builder()
         .caseSensitive(caseSensitive)
@@ -277,6 +288,7 @@ public class ScanContext implements Serializable {
         .exposeLocality(exposeLocality)
         .planParallelism(planParallelism)
         .maxPlanningSnapshotCount(maxPlanningSnapshotCount)
+        .maxAllowedPlanningFailures(maxAllowedPlanningFailures)
         .build();
   }
 
@@ -304,6 +316,7 @@ public class ScanContext implements Serializable {
         .exposeLocality(exposeLocality)
         .planParallelism(planParallelism)
         .maxPlanningSnapshotCount(maxPlanningSnapshotCount)
+        .maxAllowedPlanningFailures(maxAllowedPlanningFailures)
         .build();
   }
 
@@ -341,6 +354,8 @@ public class ScanContext implements Serializable {
         FlinkConfigOptions.TABLE_EXEC_ICEBERG_WORKER_POOL_SIZE.defaultValue();
     private int maxPlanningSnapshotCount =
         FlinkReadOptions.MAX_PLANNING_SNAPSHOT_COUNT_OPTION.defaultValue();
+    private int maxAllowedPlanningFailures =
+        FlinkReadOptions.MAX_ALLOWED_PLANNING_FAILURES_OPTION.defaultValue();
 
     private Builder() {}
 
@@ -464,6 +479,11 @@ public class ScanContext implements Serializable {
       return this;
     }
 
+    public Builder maxAllowedPlanningFailures(int newMaxAllowedPlanningFailures) {
+      this.maxAllowedPlanningFailures = newMaxAllowedPlanningFailures;
+      return this;
+    }
+
     public Builder resolveConfig(
         Table table, Map<String, String> readOptions, ReadableConfig readableConfig) {
       FlinkReadConf flinkReadConf = new FlinkReadConf(table, readOptions, readableConfig);
@@ -488,7 +508,8 @@ public class ScanContext implements Serializable {
           .limit(flinkReadConf.limit())
           .planParallelism(flinkReadConf.workerPoolSize())
           .includeColumnStats(flinkReadConf.includeColumnStats())
-          .maxPlanningSnapshotCount(flinkReadConf.maxPlanningSnapshotCount());
+          .maxPlanningSnapshotCount(flinkReadConf.maxPlanningSnapshotCount())
+          .maxAllowedPlanningFailures(maxAllowedPlanningFailures);
     }
 
     public ScanContext build() {
@@ -513,6 +534,7 @@ public class ScanContext implements Serializable {
           exposeLocality,
           planParallelism,
           maxPlanningSnapshotCount,
+          maxAllowedPlanningFailures,
           branch,
           tag,
           startTag,

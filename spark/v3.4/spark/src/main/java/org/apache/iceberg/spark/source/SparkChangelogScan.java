@@ -30,12 +30,10 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.CloseableIterable;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.SparkSchemaUtil;
-import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.sql.SparkSession;
@@ -57,7 +55,6 @@ class SparkChangelogScan implements Scan, SupportsReportStatistics {
   private final List<Expression> filters;
   private final Long startSnapshotId;
   private final Long endSnapshotId;
-  private final boolean readTimestampWithoutZone;
 
   // lazy variables
   private List<ScanTaskGroup<ChangelogScanTask>> taskGroups = null;
@@ -81,7 +78,6 @@ class SparkChangelogScan implements Scan, SupportsReportStatistics {
     this.filters = filters != null ? filters : Collections.emptyList();
     this.startSnapshotId = readConf.startSnapshotId();
     this.endSnapshotId = readConf.endSnapshotId();
-    this.readTimestampWithoutZone = readConf.handleTimestampWithoutZone();
   }
 
   @Override
@@ -94,10 +90,6 @@ class SparkChangelogScan implements Scan, SupportsReportStatistics {
   @Override
   public StructType readSchema() {
     if (expectedSparkType == null) {
-      Preconditions.checkArgument(
-          readTimestampWithoutZone || !SparkUtil.hasTimestampWithoutZone(expectedSchema),
-          SparkUtil.TIMESTAMP_WITHOUT_TIMEZONE_ERROR);
-
       this.expectedSparkType = SparkSchemaUtil.convert(expectedSchema);
     }
 

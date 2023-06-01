@@ -28,11 +28,9 @@ import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.expressions.Expression;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.SparkSchemaUtil;
-import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.spark.source.metrics.NumDeletes;
 import org.apache.iceberg.spark.source.metrics.NumSplits;
 import org.apache.iceberg.types.Types;
@@ -59,7 +57,6 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
   private final boolean caseSensitive;
   private final Schema expectedSchema;
   private final List<Expression> filterExpressions;
-  private final boolean readTimestampWithoutZone;
   private final String branch;
 
   // lazy variables
@@ -80,7 +77,6 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
     this.caseSensitive = readConf.caseSensitive();
     this.expectedSchema = expectedSchema;
     this.filterExpressions = filters != null ? filters : Collections.emptyList();
-    this.readTimestampWithoutZone = readConf.handleTimestampWithoutZone();
     this.branch = readConf.branch();
   }
 
@@ -125,9 +121,6 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
   @Override
   public StructType readSchema() {
     if (readSchema == null) {
-      Preconditions.checkArgument(
-          readTimestampWithoutZone || !SparkUtil.hasTimestampWithoutZone(expectedSchema),
-          SparkUtil.TIMESTAMP_WITHOUT_TIMEZONE_ERROR);
       this.readSchema = SparkSchemaUtil.convert(expectedSchema);
     }
     return readSchema;

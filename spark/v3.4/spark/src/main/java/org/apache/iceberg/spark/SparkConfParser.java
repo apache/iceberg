@@ -58,6 +58,7 @@ class SparkConfParser {
 
   class BooleanConfParser extends ConfParser<BooleanConfParser, Boolean> {
     private Boolean defaultValue;
+    private boolean negate = false;
 
     @Override
     protected BooleanConfParser self() {
@@ -74,9 +75,15 @@ class SparkConfParser {
       return self();
     }
 
+    public BooleanConfParser negate() {
+      this.negate = true;
+      return self();
+    }
+
     public boolean parse() {
       Preconditions.checkArgument(defaultValue != null, "Default value cannot be null");
-      return parse(Boolean::parseBoolean, defaultValue);
+      boolean value = parse(Boolean::parseBoolean, defaultValue);
+      return negate ? !value : value;
     }
   }
 

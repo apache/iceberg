@@ -32,6 +32,13 @@ import org.apache.iceberg.io.FileWriter;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.CharSequenceSet;
 
+/**
+ * A position delete writer that can handle deletes ordered by file and position.
+ *
+ * <p>This writer does not keep track of seen deletes and assumes all incoming records are ordered
+ * by file and position as required by the spec. If there is no external process to order the
+ * records, consider using {@link SortingPositionOnlyDeleteWriter} instead.
+ */
 public class PositionDeleteWriter<T> implements FileWriter<PositionDelete<T>, DeleteWriteResult> {
   private final FileAppender<StructLike> appender;
   private final FileFormat format;

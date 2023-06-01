@@ -27,6 +27,7 @@ import java.nio.ByteBuffer;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
@@ -171,12 +172,27 @@ public class TestHelpers {
         Assert.assertEquals("ISO-8601 date should be equal", date.toString(), actual.toString());
         break;
       case TIMESTAMP:
+        Types.TimestampType timestampType = (Types.TimestampType) type;
+
         Assertions.assertThat(expected).as("Should be a long").isInstanceOf(Long.class);
-        Assertions.assertThat(actual).as("Should be a Timestamp").isInstanceOf(Timestamp.class);
-        Timestamp ts = (Timestamp) actual;
-        // milliseconds from nanos has already been added by getTime
-        long tsMicros = (ts.getTime() * 1000) + ((ts.getNanos() / 1000) % 1000);
-        Assert.assertEquals("Timestamp micros should be equal", expected, tsMicros);
+        if (timestampType.shouldAdjustToUTC()) {
+          Assertions.assertThat(actual).as("Should be a Timestamp").isInstanceOf(Timestamp.class);
+
+          Timestamp ts = (Timestamp) actual;
+          // milliseconds from nanos has already been added by getTime
+          long tsMicros = (ts.getTime() * 1000) + ((ts.getNanos() / 1000) % 1000);
+          Assert.assertEquals("Timestamp micros should be equal", expected, tsMicros);
+        } else {
+          Assertions.assertThat(actual)
+              .as("Should be a LocalDateTime")
+              .isInstanceOf(LocalDateTime.class);
+
+          LocalDateTime ts = (LocalDateTime) actual;
+          Instant instant = ts.toInstant(ZoneOffset.UTC);
+          // milliseconds from nanos has already been added by getTime
+          long tsMicros = (instant.toEpochMilli() * 1000) + ((ts.getNano() / 1000) % 1000);
+          Assert.assertEquals("Timestamp micros should be equal", expected, tsMicros);
+        }
         break;
       case STRING:
         Assertions.assertThat(actual).as("Should be a String").isInstanceOf(String.class);

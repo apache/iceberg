@@ -19,6 +19,8 @@
 package org.apache.iceberg.flink.sink.shuffle;
 
 import java.io.Serializable;
+import org.apache.flink.api.common.typeutils.TypeSerializer;
+import org.apache.flink.table.data.RowData;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
@@ -32,14 +34,14 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
  * After shuffling, a filter and mapper are required to filter out the data distribution weight,
  * unwrap the object and extract the original record type T.
  */
-class DataStatisticsOrRecord<T, K> implements Serializable {
+class DataStatisticsOrRecord<D extends DataStatistics<D, S>, S> implements Serializable {
 
   private static final long serialVersionUID = 1L;
 
-  private final DataStatistics<K> statistics;
-  private final T record;
+  private DataStatistics<D, S> statistics;
+  private RowData record;
 
-  private DataStatisticsOrRecord(T record, DataStatistics<K> statistics) {
+  private DataStatisticsOrRecord(DataStatistics<D, S> statistics, RowData record) {
     Preconditions.checkArgument(
         record != null ^ statistics != null,
         "A DataStatisticsOrRecord contain either statistics or record, not neither or both");
@@ -47,12 +49,35 @@ class DataStatisticsOrRecord<T, K> implements Serializable {
     this.record = record;
   }
 
-  static <T, K> DataStatisticsOrRecord<T, K> fromRecord(T record) {
-    return new DataStatisticsOrRecord<>(record, null);
+  static <D extends DataStatistics<D, S>, S> DataStatisticsOrRecord<D, S> fromRecord(
+      RowData record) {
+    return new DataStatisticsOrRecord<>(null, record);
   }
 
-  static <T, K> DataStatisticsOrRecord<T, K> fromDataStatistics(DataStatistics<K> statistics) {
-    return new DataStatisticsOrRecord<>(null, statistics);
+  static <D extends DataStatistics<D, S>, S> DataStatisticsOrRecord<D, S> fromDataStatistics(
+      DataStatistics<D, S> statistics) {
+    return new DataStatisticsOrRecord<>(statistics, null);
+  }
+
+  static <D extends DataStatistics<D, S>, S> DataStatisticsOrRecord<D, S> reuseRecord(
+      DataStatisticsOrRecord<D, S> reuse, TypeSerializer<RowData> recordSerializer) {
+    if (reuse.hasRecord()) {
+      return reuse;
+    } else {
+      // not reusable
+      return DataStatisticsOrRecord.fromRecord(recordSerializer.createInstance());
+    }
+  }
+
+  static <D extends DataStatistics<D, S>, S> DataStatisticsOrRecord<D, S> reuseStatistics(
+      DataStatisticsOrRecord<D, S> reuse,
+      TypeSerializer<DataStatistics<D, S>> statisticsSerializer) {
+    if (reuse.hasDataStatistics()) {
+      return reuse;
+    } else {
+      // not reusable
+      return DataStatisticsOrRecord.fromDataStatistics(statisticsSerializer.createInstance());
+    }
   }
 
   boolean hasDataStatistics() {
@@ -63,12 +88,20 @@ class DataStatisticsOrRecord<T, K> implements Serializable {
     return record != null;
   }
 
-  DataStatistics<K> dataStatistics() {
+  DataStatistics<D, S> dataStatistics() {
     return statistics;
   }
 
-  T record() {
+  void dataStatistics(DataStatistics<D, S> newStatistics) {
+    this.statistics = newStatistics;
+  }
+
+  RowData record() {
     return record;
+  }
+
+  void record(RowData newRecord) {
+    this.record = newRecord;
   }
 
   @Override

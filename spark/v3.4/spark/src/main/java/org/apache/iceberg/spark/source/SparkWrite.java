@@ -57,6 +57,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.CommitMetadata;
 import org.apache.iceberg.spark.FileRewriteCoordinator;
 import org.apache.iceberg.spark.SparkWriteConf;
+import org.apache.iceberg.spark.SparkWriteRequirements;
 import org.apache.spark.TaskContext;
 import org.apache.spark.TaskContext$;
 import org.apache.spark.api.java.JavaSparkContext;
@@ -98,8 +99,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
   private final StructType dsSchema;
   private final Map<String, String> extraSnapshotMetadata;
   private final boolean partitionedFanoutEnabled;
-  private final Distribution requiredDistribution;
-  private final SortOrder[] requiredOrdering;
+  private final SparkWriteRequirements writeRequirements;
 
   private boolean cleanupOnAbort = true;
 
@@ -111,8 +111,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
       String applicationId,
       Schema writeSchema,
       StructType dsSchema,
-      Distribution requiredDistribution,
-      SortOrder[] requiredOrdering) {
+      SparkWriteRequirements writeRequirements) {
     this.sparkContext = JavaSparkContext.fromSparkContext(spark.sparkContext());
     this.table = table;
     this.writeConf = writeConf;
@@ -127,14 +126,13 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
     this.dsSchema = dsSchema;
     this.extraSnapshotMetadata = writeConf.extraSnapshotMetadata();
     this.partitionedFanoutEnabled = writeConf.fanoutWriterEnabled();
-    this.requiredDistribution = requiredDistribution;
-    this.requiredOrdering = requiredOrdering;
+    this.writeRequirements = writeRequirements;
     this.outputSpecId = writeConf.outputSpecId();
   }
 
   @Override
   public Distribution requiredDistribution() {
-    return requiredDistribution;
+    return writeRequirements.distribution();
   }
 
   @Override
@@ -144,7 +142,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
 
   @Override
   public SortOrder[] requiredOrdering() {
-    return requiredOrdering;
+    return writeRequirements.ordering();
   }
 
   BatchWrite asBatchAppend() {

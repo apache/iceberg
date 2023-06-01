@@ -16,18 +16,18 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.flink.sink.shuffle;
 
-import org.apache.flink.annotation.Internal;
+package org.apache.spark.sql.catalyst.plans.logical
 
-/**
- * DataStatisticsFactory defines the interface to create {@link DataStatistics}.
- *
- * <p>For low-cardinality key, MapDataStatisticsFactory will be implemented to create
- * MapDataStatistics.
- */
-@Internal
-interface DataStatisticsFactory<K> {
+import org.apache.spark.sql.catalyst.expressions.Attribute
 
-  DataStatistics<K> createDataStatistics();
+case class DropTag(table: Seq[String], tag: String, ifExists: Boolean) extends LeafCommand {
+
+  import org.apache.spark.sql.connector.catalog.CatalogV2Implicits._
+
+  override lazy val output: Seq[Attribute] = Nil
+
+  override def simpleString(maxFields: Int): String = {
+    s"DropTag tag: ${tag} for table: ${table.quoted}"
+  }
 }

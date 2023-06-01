@@ -98,6 +98,26 @@ public interface RewriteFiles extends SnapshotUpdate<RewriteFiles> {
   }
 
   /**
+   * Add a new delete file with the given data sequence number.
+   *
+   * <p>This rewrite operation may change the size or layout of the delete files. When applicable,
+   * it is also recommended to discard delete records for files that are no longer part of the table
+   * state. However, the set of applicable delete records must never change.
+   *
+   * <p>To ensure equivalence in the set of applicable delete records, the sequence number of the
+   * delete file must be the max sequence number of the delete files that it is replacing. Rewriting
+   * equality deletes that belong to different sequence numbers is not allowed.
+   *
+   * @param deleteFile a new delete file
+   * @param dataSequenceNumber data sequence number to append on the file
+   * @return this for method chaining
+   */
+  default RewriteFiles addFile(DeleteFile deleteFile, long dataSequenceNumber) {
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " does not implement addFile");
+  }
+
+  /**
    * Configure the data sequence number for this rewrite operation. This data sequence number will
    * be used for all new data files that are added in this rewrite. This method is helpful to avoid
    * commit conflicts between data compaction and adding equality deletes.
