@@ -43,7 +43,6 @@ import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
-import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
@@ -1955,7 +1954,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
   }
 
   @Test
-  public void testSessionConfigSupport() throws IOException {
+  public void testSessionConfigSupport() {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("id").build();
     TableIdentifier tableIdentifier = TableIdentifier.of("db", "session_config_table");
     Table table = createTable(tableIdentifier, SCHEMA, spec);
@@ -1974,19 +1973,30 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
 
     long snapshotId = table.currentSnapshot().snapshotId();
 
-    // set write option through session configuration
-    SQLConf sessionConf = spark.sessionState().conf();
-    sessionConf.setConfString("spark.datasource.iceberg.overwrite-mode", "dynamic");
-    // overwrite with 2*id to replace record 2, append 4 and 6
-    df.withColumn("id", df.col("id").multiply(2))
-        .select("id", "data")
-        .write()
-        .format("iceberg")
-        .mode(SaveMode.Overwrite)
-        .save(loadLocation(tableIdentifier));
-    sessionConf.unsetConf("spark.datasource.iceberg.overwrite-mode");
+    withSQLConf(
+        // set write option through session configuration
+        ImmutableMap.of("spark.datasource.iceberg.overwrite-mode", "dynamic"),
+        () -> {
+          // overwrite with 2*id to replace record 2, append 4 and 6
+          df.withColumn("id", df.col("id").multiply(2))
+              .select("id", "data")
+              .write()
+              .format("iceberg")
+              .mode(SaveMode.Overwrite)
+              .save(loadLocation(tableIdentifier));
+        });
 
     table.refresh();
+
+    withSQLConf(
+        // set read option through session configuration
+        ImmutableMap.of("spark.datasource.iceberg.snapshot-id", String.valueOf(snapshotId)),
+        () -> {
+          Dataset<Row> result = spark.read().format("iceberg").load(loadLocation(tableIdentifier));
+          List<SimpleRecord> actual = result.as(Encoders.bean(SimpleRecord.class)).collectAsList();
+          Assert.assertEquals("Number of rows should match", records.size(), actual.size());
+          Assert.assertEquals("Result rows should match", records, actual);
+        });
 
     Dataset<Row> result = spark.read().format("iceberg").load(loadLocation(tableIdentifier));
     List<SimpleRecord> actual =
@@ -2000,14 +2010,6 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
             new SimpleRecord(6, "c"));
     Assert.assertEquals("Number of rows should match", expected.size(), actual.size());
     Assert.assertEquals("Result rows should match", expected, actual);
-
-    // set read option through session configuration
-    sessionConf.setConfString("spark.datasource.iceberg.snapshot-id", String.valueOf(snapshotId));
-    Dataset<Row> result1 = spark.read().format("iceberg").load(loadLocation(tableIdentifier));
-    sessionConf.unsetConf("spark.datasource.iceberg.snapshot-id");
-    List<SimpleRecord> actual1 = result1.as(Encoders.bean(SimpleRecord.class)).collectAsList();
-    Assert.assertEquals("Number of rows should match", records.size(), actual1.size());
-    Assert.assertEquals("Result rows should match", records, actual1);
   }
 
   private GenericData.Record manifestRecord(
@@ -2110,12 +2112,6 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
           deleteRowSchema);
     } catch (IOException e) {
       throw new RuntimeException(e);
-    }
-  }
-
-  private void createBranch(Table table, String branch) {
-    if (branch != null && !branch.equals(SnapshotRef.MAIN_BRANCH)) {
-      table.manageSnapshots().createBranch(branch, table.currentSnapshot().snapshotId()).commit();
     }
   }
 }
