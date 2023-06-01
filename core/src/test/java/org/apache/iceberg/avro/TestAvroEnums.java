@@ -72,8 +72,8 @@ public class TestAvroEnums {
     }
 
     Schema schema = new Schema(AvroSchemaUtil.convert(avroSchema).asStructType().fields());
-    List<Record> rows;
-    try (AvroIterable<Record> reader =
+    List<GenericData.Record> rows;
+    try (AvroIterable<GenericData.Record> reader =
         Avro.read(Files.localInput(testFile)).project(schema).build()) {
       rows = Lists.newArrayList(reader);
     }
