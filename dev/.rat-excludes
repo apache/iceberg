@@ -29,3 +29,4 @@ sitemap.xml
 derby.log
 .python-version
 .*_index.md
+open-api/rest-catalog-open-api.py
