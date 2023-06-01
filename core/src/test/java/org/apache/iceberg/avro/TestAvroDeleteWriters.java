@@ -22,6 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.List;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileContent;
@@ -56,7 +57,7 @@ public class TestAvroDeleteWriters {
 
   private List<Record> records;
 
-  @TempDir java.nio.file.Path temp;
+  @TempDir Path temp;
 
   @BeforeEach
   public void createDeleteRecords() {

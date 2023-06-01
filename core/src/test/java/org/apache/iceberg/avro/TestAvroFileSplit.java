@@ -21,6 +21,7 @@ package org.apache.iceberg.avro;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.UUID;
 import org.apache.iceberg.Files;
@@ -50,7 +51,7 @@ public class TestAvroFileSplit {
 
   private static final int NUM_RECORDS = 100_000;
 
-  @TempDir java.nio.file.Path temp;
+  @TempDir Path temp;
 
   public List<Record> expected = null;
   public InputFile file = null;

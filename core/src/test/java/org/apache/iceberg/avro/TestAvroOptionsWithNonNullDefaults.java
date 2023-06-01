@@ -25,6 +25,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.List;
 import org.apache.avro.Schema;
 import org.apache.avro.file.DataFileWriter;
@@ -38,7 +39,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 public class TestAvroOptionsWithNonNullDefaults {
 
-  @TempDir java.nio.file.Path temp;
+  @TempDir Path temp;
 
   @Test
   public void writeAndValidateOptionWithNonNullDefaultsPruning() throws IOException {

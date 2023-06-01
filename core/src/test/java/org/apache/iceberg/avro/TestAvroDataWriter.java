@@ -21,6 +21,7 @@ package org.apache.iceberg.avro;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.List;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileContent;
@@ -50,7 +51,7 @@ public class TestAvroDataWriter {
 
   private List<Record> records;
 
-  @TempDir java.nio.file.Path temp;
+  @TempDir Path temp;
 
   @BeforeEach
   public void createRecords() {
@@ -95,9 +96,7 @@ public class TestAvroDataWriter {
     assertThat(dataFile.content()).as("Should be data file").isEqualTo(FileContent.DATA);
     assertThat(dataFile.recordCount()).as("Record count should match").isEqualTo(records.size());
     assertThat(dataFile.partition().size()).as("Partition should be empty").isEqualTo(0);
-    assertThat((int) dataFile.sortOrderId())
-        .as("Sort order should match")
-        .isEqualTo(sortOrder.orderId());
+    assertThat(dataFile.sortOrderId()).as("Sort order should match").isEqualTo(sortOrder.orderId());
     assertThat(dataFile.keyMetadata()).as("Key metadata should be null").isNull();
 
     List<Record> writtenRecords;

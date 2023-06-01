@@ -22,6 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.List;
 import org.apache.avro.SchemaBuilder;
 import org.apache.avro.file.DataFileWriter;
@@ -37,7 +38,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 public class TestAvroEnums {
 
-  @TempDir java.nio.file.Path temp;
+  @TempDir Path temp;
 
   @Test
   public void writeAndValidateEnums() throws IOException {
@@ -53,11 +54,11 @@ public class TestAvroEnums {
             .endRecord();
 
     org.apache.avro.Schema enumSchema = avroSchema.getField("enumCol").schema().getTypes().get(0);
-    Record enumRecord1 = new Record(avroSchema);
+    Record enumRecord1 = new GenericData.Record(avroSchema);
     enumRecord1.put("enumCol", new GenericData.EnumSymbol(enumSchema, "SYMB1"));
-    Record enumRecord2 = new Record(avroSchema);
+    Record enumRecord2 = new GenericData.Record(avroSchema);
     enumRecord2.put("enumCol", new GenericData.EnumSymbol(enumSchema, "SYMB2"));
-    Record enumRecord3 = new Record(avroSchema); // null enum
+    Record enumRecord3 = new GenericData.Record(avroSchema); // null enum
     List<Record> expected = ImmutableList.of(enumRecord1, enumRecord2, enumRecord3);
 
     File testFile = temp.toFile();
