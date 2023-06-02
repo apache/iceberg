@@ -69,7 +69,7 @@ public class RemoveNetCarryoverIterator extends RemoveCarryoverIterator {
 
     Row currentRow = getCurrentRow();
 
-    // if there is no next row, return the current row
+    // return it directly if the current row is the last row
     if (!rowIterator().hasNext()) {
       return currentRow;
     }
@@ -78,19 +78,20 @@ public class RemoveNetCarryoverIterator extends RemoveCarryoverIterator {
 
     cachedRow = currentRow;
     cachedRowCount = 1;
-    // if they are the same row, remove the cached row or stack to the cached row
+
+    // pull rows from the iterator until two consecutive rows are different
     while (isSameRecord(currentRow, nextRow)) {
-      if (matched(currentRow, nextRow)) {
-        // remove both rows
+      if (oppositeChangeType(currentRow, nextRow)) {
+        // two rows with opposite change types means no net changes
         cachedRowCount--;
         nextRow = null;
       } else {
-        // stack the next row to the cached row
+        // two rows with same change types means potential net changes
         nextRow = null;
         cachedRowCount++;
       }
 
-      // break the loop if there is no next row or the cache is empty
+      // stop pulling rows if there is no more rows or the next row is different
       if (cachedRowCount <= 0 || !rowIterator().hasNext()) {
         break;
       }
@@ -114,7 +115,7 @@ public class RemoveNetCarryoverIterator extends RemoveCarryoverIterator {
     return currentRow;
   }
 
-  private boolean matched(Row currentRow, Row nextRow) {
+  private boolean oppositeChangeType(Row currentRow, Row nextRow) {
     return (nextRow.getString(changeTypeIndex()).equals(INSERT)
             && currentRow.getString(changeTypeIndex()).equals(DELETE))
         || (nextRow.getString(changeTypeIndex()).equals(DELETE)
