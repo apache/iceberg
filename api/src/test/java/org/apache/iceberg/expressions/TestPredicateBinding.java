@@ -134,7 +134,7 @@ public class TestPredicateBinding {
       assertThat(bound.isLiteralPredicate()).isTrue();
       assertThat(bound.asLiteralPredicate().literal().value())
           .as("Should convert literal value to decimal")
-          .isEqualTo("12.40");
+          .isEqualTo(new BigDecimal("12.40"));
       assertThat(bound.ref().fieldId()).as("Should reference correct field ID").isEqualTo(15);
       assertThat(bound.op()).as("Should not change the comparison operation").isEqualTo(op);
     }
@@ -508,7 +508,7 @@ public class TestPredicateBinding {
     assertThat(bound.isLiteralPredicate()).isTrue();
     assertThat(bound.asLiteralPredicate().literal().value())
         .as("Should convert literal set values to a single decimal")
-        .isEqualTo("12.40");
+        .isEqualTo(new BigDecimal("12.40"));
     assertThat(bound.ref().fieldId()).as("Should reference correct field ID").isEqualTo(15);
     assertThat(bound.op()).as("Should change the IN operation to EQ").isEqualTo(EQ);
   }
@@ -629,7 +629,7 @@ public class TestPredicateBinding {
     assertThat(bound.isLiteralPredicate()).isTrue();
     assertThat(bound.asLiteralPredicate().literal().value())
         .as("Should convert literal set values to a single decimal")
-        .isEqualTo("12.40");
+        .isEqualTo(new BigDecimal("12.40"));
     assertThat(bound.ref().fieldId()).as("Should reference correct field ID").isEqualTo(15);
     assertThat(bound.op()).as("Should change the NOT_IN operation to NOT_EQ").isEqualTo(NOT_EQ);
   }
