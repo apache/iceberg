@@ -70,7 +70,7 @@ fastavro = "1.7.4"
 coverage = { version = "^7.2.3", extras = ["toml"] }
 requests-mock = "1.10.0"
 moto = "^4.1.7"
-typing-extensions = "4.5.0"
+typing-extensions = "^4.5.0"
 
 [tool.poetry.scripts]
 pyiceberg = "pyiceberg.cli.console:run"

@@ -27,7 +27,7 @@ on:
     - 'apache-iceberg-**'
   pull_request:
     paths:
-    - '.github/workflows/python-ci.yml'
+    - '.github/workflows/python-integration.yml'
     - 'python/**'
 
 concurrency:
