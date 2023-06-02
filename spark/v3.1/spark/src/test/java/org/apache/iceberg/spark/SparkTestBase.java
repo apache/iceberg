@@ -42,6 +42,7 @@ import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.execution.ui.SQLExecutionUIData;
 import org.apache.spark.sql.internal.SQLConf;
+import org.assertj.core.api.Assertions;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -173,7 +174,7 @@ public abstract class SparkTestBase {
       if (expectedValue != null && expectedValue.getClass().isArray()) {
         String newContext = String.format("%s (nested col %d)", context, col + 1);
         if (expectedValue instanceof byte[]) {
-          Assert.assertArrayEquals(newContext, (byte[]) expectedValue, (byte[]) actualValue);
+          Assertions.assertThat(actualValue).as(newContext).isEqualTo(expectedValue);
         } else {
           assertEquals(newContext, (Object[]) expectedValue, (Object[]) actualValue);
         }
