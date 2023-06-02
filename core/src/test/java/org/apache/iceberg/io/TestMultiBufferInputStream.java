@@ -45,12 +45,8 @@ public class TestMultiBufferInputStream extends TestByteBufferInputStreams {
   @Override
   protected void checkOriginalData() {
     for (ByteBuffer buffer : DATA) {
-      assertThat(buffer.position())
-              .as("Position should not change")
-              .isEqualTo(0);
-      assertThat(buffer.limit())
-              .as("Limit should not change")
-              .isEqualTo(buffer.array().length);
+      assertThat(buffer.position()).as("Position should not change").isEqualTo(0);
+      assertThat(buffer.limit()).as("Limit should not change").isEqualTo(buffer.array().length);
     }
   }
 
@@ -67,26 +63,22 @@ public class TestMultiBufferInputStream extends TestByteBufferInputStreams {
       buffers.add(stream.slice(bytesToSlice));
     }
 
-    assertThat(stream.getPos())
-            .as("Position should be at end")
-            .isEqualTo(length);
-    assertThat(buffers.size())
-            .as("Should produce 5 buffers")
-            .isEqualTo(5);
+    assertThat(stream.getPos()).as("Position should be at end").isEqualTo(length);
+    assertThat(buffers.size()).as("Should produce 5 buffers").isEqualTo(5);
 
     int i = 0;
 
     // one is a view of the first buffer because it is smaller
     ByteBuffer one = buffers.get(0);
     assertThat(DATA.get(0).array())
-            .as("Should be a duplicate of the first array")
-            .isSameAs(one.array());
+        .as("Should be a duplicate of the first array")
+        .isSameAs(one.array());
     assertThat(one.remaining()).isEqualTo(8);
     assertThat(one.position()).isEqualTo(0);
     assertThat(one.limit()).isEqualTo(8);
     assertThat(one.capacity()).isEqualTo(9);
     for (; i < 8; i += 1) {
-      assertThat(one.get()).as("Should produce correct values").isEqualTo((byte)i);
+      assertThat(one.get()).as("Should produce correct values").isEqualTo((byte) i);
     }
 
     // two should be a copy of the next 8 bytes
@@ -96,24 +88,20 @@ public class TestMultiBufferInputStream extends TestByteBufferInputStreams {
     assertThat(two.limit()).isEqualTo(8);
     assertThat(two.capacity()).isEqualTo(8);
     for (; i < 16; i += 1) {
-      assertThat(two.get())
-              .as("Should produce correct values")
-              .isEqualTo((byte)i);
+      assertThat(two.get()).as("Should produce correct values").isEqualTo((byte) i);
     }
 
     // three is a copy of part of the 4th buffer
     ByteBuffer three = buffers.get(2);
     assertThat(DATA.get(3).array())
-            .as("Should be a duplicate of the fourth array")
-            .isSameAs(three.array());
+        .as("Should be a duplicate of the fourth array")
+        .isSameAs(three.array());
     assertThat(three.remaining()).isEqualTo(8);
     assertThat(three.position()).isEqualTo(3);
     assertThat(three.limit()).isEqualTo(11);
     assertThat(three.capacity()).isEqualTo(12);
     for (; i < 24; i += 1) {
-      assertThat(three.get())
-              .as("Should produce correct values")
-              .isEqualTo((byte)i);
+      assertThat(three.get()).as("Should produce correct values").isEqualTo((byte) i);
     }
 
     // four should be a copy of the next 8 bytes
@@ -123,7 +111,7 @@ public class TestMultiBufferInputStream extends TestByteBufferInputStreams {
     assertThat(four.limit()).isEqualTo(8);
     assertThat(four.capacity()).isEqualTo(8);
     for (; i < 32; i += 1) {
-      assertThat(four.get()).as("Should produce correct values").isEqualTo((byte)i);
+      assertThat(four.get()).as("Should produce correct values").isEqualTo((byte) i);
     }
 
     // five should be a copy of the next 8 bytes
@@ -134,9 +122,7 @@ public class TestMultiBufferInputStream extends TestByteBufferInputStreams {
     assertThat(five.limit()).isEqualTo(3);
     assertThat(five.capacity()).isEqualTo(3);
     for (; i < 35; i += 1) {
-      assertThat(five.get())
-              .as("Should produce correct values")
-              .isEqualTo((byte)i);
+      assertThat(five.get()).as("Should produce correct values").isEqualTo((byte) i);
     }
   }
 
@@ -153,7 +139,7 @@ public class TestMultiBufferInputStream extends TestByteBufferInputStreams {
     }
 
     assertThat(buffers)
-            .as("Should return duplicates of all non-empty buffers")
-            .isEqualTo(nonEmptyBuffers);
+        .as("Should return duplicates of all non-empty buffers")
+        .isEqualTo(nonEmptyBuffers);
   }
 }

@@ -41,13 +41,9 @@ public class TestSingleBufferInputStream extends TestByteBufferInputStreams {
 
   @Override
   protected void checkOriginalData() {
-    assertThat(DATA.position())
-            .as("Position should not change")
-            .isEqualTo(0);
+    assertThat(DATA.position()).as("Position should not change").isEqualTo(0);
 
-    assertThat(DATA.limit())
-            .as("Limit should not change")
-            .isEqualTo(DATA.array().length);
+    assertThat(DATA.limit()).as("Limit should not change").isEqualTo(DATA.array().length);
   }
 
   @Test
@@ -63,12 +59,8 @@ public class TestSingleBufferInputStream extends TestByteBufferInputStreams {
       buffers.add(stream.slice(bytesToSlice));
     }
 
-    assertThat(stream.getPos())
-            .as("Position should be at end")
-            .isEqualTo(length);
-    assertThat(buffers.size())
-            .as("Should produce 5 buffers")
-            .isEqualTo(5);
+    assertThat(stream.getPos()).as("Position should be at end").isEqualTo(length);
+    assertThat(buffers.size()).as("Should produce 5 buffers").isEqualTo(5);
 
     int i = 0;
 
@@ -79,31 +71,27 @@ public class TestSingleBufferInputStream extends TestByteBufferInputStreams {
     assertThat(one.limit()).isEqualTo(8);
     assertThat(one.capacity()).isEqualTo(35);
     for (; i < 8; i += 1) {
-      assertThat(one.get()).as("Should produce correct values").isEqualTo((byte)i);
+      assertThat(one.get()).as("Should produce correct values").isEqualTo((byte) i);
     }
 
     ByteBuffer two = buffers.get(1);
-    assertThat(two.array())
-            .as("Should use the same backing array")
-            .isSameAs(DATA.array());
+    assertThat(two.array()).as("Should use the same backing array").isSameAs(DATA.array());
     assertThat(two.remaining()).isEqualTo(8);
     assertThat(two.position()).isEqualTo(8);
     assertThat(two.limit()).isEqualTo(16);
     assertThat(two.capacity()).isEqualTo(35);
     for (; i < 16; i += 1) {
-      assertThat(two.get()).as("Should produce correct values").isEqualTo((byte)i);
+      assertThat(two.get()).as("Should produce correct values").isEqualTo((byte) i);
     }
     // three is a copy of part of the 4th buffer
     ByteBuffer three = buffers.get(2);
-    assertThat(three.array())
-            .as("Should use the same backing array")
-            .isSameAs(DATA.array());
+    assertThat(three.array()).as("Should use the same backing array").isSameAs(DATA.array());
     assertThat(three.remaining()).isEqualTo(8);
     assertThat(three.position()).isEqualTo(16);
     assertThat(three.limit()).isEqualTo(24);
     assertThat(three.capacity()).isEqualTo(35);
     for (; i < 24; i += 1) {
-      assertThat(three.get()).as("Should produce correct values").isEqualTo((byte)i);
+      assertThat(three.get()).as("Should produce correct values").isEqualTo((byte) i);
     }
 
     // four should be a copy of the next 8 bytes
@@ -114,7 +102,7 @@ public class TestSingleBufferInputStream extends TestByteBufferInputStreams {
     assertThat(four.limit()).isEqualTo(32);
     assertThat(four.capacity()).isEqualTo(35);
     for (; i < 32; i += 1) {
-      assertThat(four.get()).as("Should produce correct values").isEqualTo((byte)i);
+      assertThat(four.get()).as("Should produce correct values").isEqualTo((byte) i);
     }
 
     // five should be a copy of the next 8 bytes
@@ -125,7 +113,7 @@ public class TestSingleBufferInputStream extends TestByteBufferInputStreams {
     assertThat(five.limit()).isEqualTo(35);
     assertThat(five.capacity()).isEqualTo(35);
     for (; i < 35; i += 1) {
-      assertThat(five.get()).as("Should produce correct values").isEqualTo((byte)i);
+      assertThat(five.get()).as("Should produce correct values").isEqualTo((byte) i);
     }
   }
 
@@ -135,7 +123,7 @@ public class TestSingleBufferInputStream extends TestByteBufferInputStreams {
 
     List<ByteBuffer> buffers = stream.sliceBuffers(stream.available());
     assertThat(buffers)
-            .as("Should return duplicates of all non-empty buffers")
-            .isEqualTo(Collections.singletonList(DATA));
+        .as("Should return duplicates of all non-empty buffers")
+        .isEqualTo(Collections.singletonList(DATA));
   }
 }

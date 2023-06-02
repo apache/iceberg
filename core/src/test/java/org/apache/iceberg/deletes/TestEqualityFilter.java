@@ -71,9 +71,7 @@ public class TestEqualityFilter {
                 row -> Row.of(row.get(0, Long.class)),
                 Deletes.toEqualitySet(deletes, ROW_SCHEMA.select("id").asStruct())));
 
-    assertThat(actual)
-        .as("Filter should produce expected rows")
-        .isEqualTo(expected);
+    assertThat(actual).as("Filter should produce expected rows").isEqualTo(expected);
   }
 
   @Test
@@ -96,9 +94,7 @@ public class TestEqualityFilter {
                 row -> Row.of(row.get(1, CharSequence.class)),
                 Deletes.toEqualitySet(deletes, ROW_SCHEMA.select("name").asStruct())));
 
-    assertThat(actual)
-        .as("Filter should produce expected rows")
-        .isEqualTo(expected);
+    assertThat(actual).as("Filter should produce expected rows").isEqualTo(expected);
   }
 
   @Test
@@ -123,9 +119,7 @@ public class TestEqualityFilter {
                 row -> Row.of(row.get(2, CharSequence.class)),
                 Deletes.toEqualitySet(deletes, ROW_SCHEMA.select("description").asStruct())));
 
-    assertThat(actual)
-        .as("Filter should produce expected rows")
-        .isEqualTo(expected);
+    assertThat(actual).as("Filter should produce expected rows").isEqualTo(expected);
   }
 
   @Test
@@ -150,8 +144,6 @@ public class TestEqualityFilter {
                 row -> Row.of(row.get(0, Long.class), row.get(2, CharSequence.class)),
                 Deletes.toEqualitySet(deletes, ROW_SCHEMA.select("id", "description").asStruct())));
 
-    assertThat(actual)
-        .as("Filter should produce expected rows")
-        .isEqualTo(expected);
+    assertThat(actual).as("Filter should produce expected rows").isEqualTo(expected);
   }
 }

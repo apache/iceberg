@@ -36,11 +36,13 @@ public class TestIOUtil {
     MockInputStream stream = new MockInputStream();
     IOUtil.readFully(stream, buffer, 0, buffer.length);
 
-    Assertions.assertThat(buffer).as("Byte array contents should match")
-            .isEqualTo(Arrays.copyOfRange(MockInputStream.TEST_ARRAY, 0, 5));
+    Assertions.assertThat(buffer)
+        .as("Byte array contents should match")
+        .isEqualTo(Arrays.copyOfRange(MockInputStream.TEST_ARRAY, 0, 5));
 
-    Assertions.assertThat(stream.getPos()).as("Stream position should reflect bytes read")
-            .isEqualTo(5);
+    Assertions.assertThat(stream.getPos())
+        .as("Stream position should reflect bytes read")
+        .isEqualTo(5);
   }
 
   @Test
@@ -51,12 +53,12 @@ public class TestIOUtil {
     IOUtil.readFully(stream, buffer, 0, buffer.length);
 
     Assertions.assertThat(buffer)
-            .as("Byte array contents should match")
-            .containsExactly(Arrays.copyOfRange(MockInputStream.TEST_ARRAY, 0, 5));
+        .as("Byte array contents should match")
+        .containsExactly(Arrays.copyOfRange(MockInputStream.TEST_ARRAY, 0, 5));
 
     Assertions.assertThat(stream.getPos())
-            .as("Stream position should reflect bytes read")
-            .isEqualTo(5);
+        .as("Stream position should reflect bytes read")
+        .isEqualTo(5);
   }
 
   @Test
@@ -67,12 +69,12 @@ public class TestIOUtil {
     IOUtil.readFully(stream, buffer, 0, buffer.length);
 
     Assertions.assertThat(buffer)
-            .as("Byte array contents should match")
-            .isEqualTo(MockInputStream.TEST_ARRAY);
+        .as("Byte array contents should match")
+        .isEqualTo(MockInputStream.TEST_ARRAY);
 
     Assertions.assertThat(stream.getPos())
-            .as("Stream position should reflect bytes read")
-            .isEqualTo(10);
+        .as("Stream position should reflect bytes read")
+        .isEqualTo(10);
 
     Assertions.assertThatThrownBy(() -> IOUtil.readFully(stream, buffer, 0, 1))
         .isInstanceOf(EOFException.class)
@@ -90,12 +92,12 @@ public class TestIOUtil {
         .hasMessage("Reached the end of stream with 1 bytes left to read");
 
     Assertions.assertThat(Arrays.copyOfRange(buffer, 0, 10))
-            .as("Should have consumed bytes")
-            .isEqualTo(MockInputStream.TEST_ARRAY);
+        .as("Should have consumed bytes")
+        .isEqualTo(MockInputStream.TEST_ARRAY);
 
     Assertions.assertThat(stream.getPos())
-            .as("Stream position should reflect bytes read")
-            .isEqualTo(10);
+        .as("Stream position should reflect bytes read")
+        .isEqualTo(10);
   }
 
   @Test
@@ -106,12 +108,12 @@ public class TestIOUtil {
     IOUtil.readFully(stream, buffer, 2, 5);
 
     Assertions.assertThat(Arrays.copyOfRange(buffer, 2, 7))
-            .as("Byte array contents should match")
-            .isEqualTo(Arrays.copyOfRange(MockInputStream.TEST_ARRAY, 0, 5));
+        .as("Byte array contents should match")
+        .isEqualTo(Arrays.copyOfRange(MockInputStream.TEST_ARRAY, 0, 5));
 
     Assertions.assertThat(stream.getPos())
-            .as("Stream position should reflect bytes read")
-            .isEqualTo(5);
+        .as("Stream position should reflect bytes read")
+        .isEqualTo(5);
   }
 
   @Test
@@ -121,7 +123,9 @@ public class TestIOUtil {
     MockInputStream stream = new MockInputStream();
     IOUtil.readFully(stream, buffer, 0, buffer.length);
 
-    Assertions.assertThat(stream.getPos()).as("Stream position should reflect bytes read").isEqualTo(0);
+    Assertions.assertThat(stream.getPos())
+        .as("Stream position should reflect bytes read")
+        .isEqualTo(0);
   }
 
   @Test
@@ -132,12 +136,12 @@ public class TestIOUtil {
     IOUtil.readFully(stream, buffer, 2, 5);
 
     Assertions.assertThat(Arrays.copyOfRange(buffer, 2, 7))
-            .as("Byte array contents should match")
-            .isEqualTo(Arrays.copyOfRange(MockInputStream.TEST_ARRAY, 0, 5));
+        .as("Byte array contents should match")
+        .isEqualTo(Arrays.copyOfRange(MockInputStream.TEST_ARRAY, 0, 5));
 
     Assertions.assertThat(stream.getPos())
-            .as("Stream position should reflect bytes read")
-            .isEqualTo(5);
+        .as("Stream position should reflect bytes read")
+        .isEqualTo(5);
   }
 
   @Test

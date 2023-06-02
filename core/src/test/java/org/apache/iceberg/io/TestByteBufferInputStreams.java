@@ -59,7 +59,7 @@ public abstract class TestByteBufferInputStreams {
     Assertions.assertThat(bytesRead).as("Should read the entire buffer").isEqualTo(bytes.length);
 
     for (int i = 0; i < bytes.length; i += 1) {
-      Assertions.assertThat(bytes[i]).as("Byte i should be i").isEqualTo((byte)i);
+      Assertions.assertThat(bytes[i]).as("Byte i should be i").isEqualTo((byte) i);
       Assertions.assertThat(stream.getPos()).as("Should advance position").isEqualTo(35);
     }
 
@@ -98,7 +98,7 @@ public abstract class TestByteBufferInputStreams {
 
         // validate the bytes that were read
         for (int i = 0; i < lastBytesRead; i += 1) {
-          Assertions.assertThat(bytes[i]).as("Byte i should be i").isEqualTo((byte)(offset + i));
+          Assertions.assertThat(bytes[i]).as("Byte i should be i").isEqualTo((byte) (offset + i));
         }
       }
 
@@ -145,7 +145,7 @@ public abstract class TestByteBufferInputStreams {
           .isEqualTo(bytes.length % size);
 
       for (int i = 0; i < bytes.length; i += 1) {
-        Assertions.assertThat(bytes[i]).as("Byte i should be i").isEqualTo((byte)i);
+        Assertions.assertThat(bytes[i]).as("Byte i should be i").isEqualTo((byte) i);
       }
 
       Assertions.assertThat(stream.available())
@@ -205,7 +205,7 @@ public abstract class TestByteBufferInputStreams {
       ByteBuffer buffer = stream.slice(bytesToSlice);
 
       for (int j = 0; j < bytesToSlice; j += 1) {
-        Assertions.assertThat(buffer.get()).as("Data should be correct").isEqualTo((byte)(i + j));
+        Assertions.assertThat(buffer.get()).as("Data should be correct").isEqualTo((byte) (i + j));
       }
 
       i += bytesToSlice;
@@ -299,7 +299,7 @@ public abstract class TestByteBufferInputStreams {
     // next value in the original stream
     buffer.limit(sliceLength + 1);
     for (int i = 0; i < sliceLength + 1; i += 1) {
-      Assertions.assertThat(buffer.get()).as("Should have correct data").isEqualTo((byte)i);
+      Assertions.assertThat(buffer.get()).as("Should have correct data").isEqualTo((byte) i);
     }
 
     Assertions.assertThat(stream.getPos())
