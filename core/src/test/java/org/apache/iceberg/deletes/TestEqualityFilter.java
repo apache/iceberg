@@ -73,7 +73,6 @@ public class TestEqualityFilter {
 
     assertThat(actual)
         .as("Filter should produce expected rows")
-        .usingRecursiveComparison()
         .isEqualTo(expected);
   }
 
@@ -99,7 +98,6 @@ public class TestEqualityFilter {
 
     assertThat(actual)
         .as("Filter should produce expected rows")
-        .usingRecursiveComparison()
         .isEqualTo(expected);
   }
 
@@ -127,7 +125,6 @@ public class TestEqualityFilter {
 
     assertThat(actual)
         .as("Filter should produce expected rows")
-        .usingRecursiveComparison()
         .isEqualTo(expected);
   }
 
@@ -155,7 +152,6 @@ public class TestEqualityFilter {
 
     assertThat(actual)
         .as("Filter should produce expected rows")
-        .usingRecursiveComparison()
         .isEqualTo(expected);
   }
 }
