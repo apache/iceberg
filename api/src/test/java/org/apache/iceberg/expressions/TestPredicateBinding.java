@@ -71,7 +71,7 @@ public class TestPredicateBinding {
     assertThat(bound.isLiteralPredicate()).isTrue();
     assertThat(bound.asLiteralPredicate().literal().value())
         .as("Should not alter literal value")
-        .isEqualTo(Integer.valueOf(6));
+        .isEqualTo(6);
   }
 
   @Test
