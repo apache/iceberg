@@ -64,7 +64,7 @@ public class TestTransformSerialization {
 
         if (transform.canTransform(type)) {
           SerializableFunction<?, ?> func = transform.bind(type);
-          assertThat(func.getClass().isInstance(TestHelpers.roundTripSerialize(func))).isTrue();
+          assertThat(func).isInstanceOf(TestHelpers.roundTripSerialize(func).getClass());
         }
       }
     }

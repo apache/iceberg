@@ -156,8 +156,9 @@ public class TestCloseableIterable {
               }
             })
         .isInstanceOf(RuntimeException.class)
-        .hasMessage("expected")
-        .isEqualTo(1);
+        .hasMessage("expected");
+
+    Assertions.assertThat(completionCounter.get()).isOne();
   }
 
   @Test

@@ -132,11 +132,9 @@ public class TestBucketing {
         .isEqualTo(1488055340);
 
     ByteBuffer bytes = ByteBuffer.wrap(new byte[] {0, 1, 2, 3});
-    assertThat(BucketUtil.hash(bytes))
-        .as("Spec example: hash([00 01 02 03]) = -188683207")
-        .isEqualTo(-188683207)
-        .as("Spec example: hash([00 01 02 03]) = -188683207")
-        .isEqualTo(-188683207);
+    assertThat(BucketUtil.hash(bytes)).as("Spec example: hash([00 01 02 03]) = -188683207").isEqualTo(-188683207);
+    //another assertion for confirming that hashing a ByteBuffer again doesnt modify its value.
+    assertThat(BucketUtil.hash(bytes)).as("Spec example: hash([00 01 02 03]) = -188683207").isEqualTo(-188683207);
   }
 
   @Test

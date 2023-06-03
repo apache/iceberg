@@ -32,7 +32,7 @@ public class TestClosingIterator {
   public void testEmptyIterator() {
     CloseableIterator<String> underlying = mock(CloseableIterator.class);
     ClosingIterator<String> closingIterator = new ClosingIterator<>(underlying);
-    assertThat(closingIterator.hasNext()).isFalse();
+    assertThat(closingIterator).isExhausted();
   }
 
   @Test
@@ -41,7 +41,7 @@ public class TestClosingIterator {
     when(underlying.hasNext()).thenReturn(true);
     when(underlying.next()).thenReturn("hello");
     ClosingIterator<String> closingIterator = new ClosingIterator<>(underlying);
-    assertThat(closingIterator.hasNext()).isTrue();
+    assertThat(closingIterator).hasNext();
     assertThat(closingIterator.next()).isEqualTo("hello");
   }
 
@@ -51,9 +51,9 @@ public class TestClosingIterator {
     when(underlying.hasNext()).thenReturn(true).thenReturn(false);
     when(underlying.next()).thenReturn("hello");
     ClosingIterator<String> closingIterator = new ClosingIterator<>(underlying);
-    assertThat(closingIterator.hasNext()).isTrue();
+    assertThat(closingIterator).hasNext();
     assertThat(closingIterator.next()).isEqualTo("hello");
-    assertThat(closingIterator.hasNext()).isFalse();
+    assertThat(closingIterator).isExhausted();
     verify(underlying, times(1)).close();
   }
 
@@ -61,7 +61,7 @@ public class TestClosingIterator {
   public void testCloseCalledOnceForMultipleHasNextCalls() throws Exception {
     CloseableIterator<String> underlying = mock(CloseableIterator.class);
     ClosingIterator<String> closingIterator = new ClosingIterator<>(underlying);
-    assertThat(closingIterator.hasNext()).isFalse();
+    assertThat(closingIterator).isExhausted();
     verify(underlying, times(1)).close();
   }
 

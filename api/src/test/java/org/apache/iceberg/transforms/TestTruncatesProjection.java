@@ -104,9 +104,9 @@ public class TestTruncatesProjection {
     Expression projection = Projections.inclusive(spec).project(filter);
     UnboundPredicate<?> predicate = assertAndUnwrapUnbound(projection);
 
-    assertThat(expectedOp).isEqualTo(predicate.op());
-
     assertThat(predicate.op())
+        .as("Operation should match")
+        .isEqualTo(expectedOp)
         .as("Inclusive projection never runs for NOT_IN")
         .isNotEqualTo(Expression.Operation.NOT_IN);
 
