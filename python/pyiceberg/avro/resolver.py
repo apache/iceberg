@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=arguments-renamed,unused-argument
+from enum import Enum
 from typing import (
     Callable,
     Dict,
@@ -24,11 +25,13 @@ from typing import (
     Union,
 )
 
+from pyiceberg.avro.decoder import BinaryDecoder
 from pyiceberg.avro.reader import (
     BinaryReader,
     BooleanReader,
     DateReader,
     DecimalReader,
+    DefaultReader,
     DoubleReader,
     FixedReader,
     FloatReader,
@@ -77,6 +80,8 @@ from pyiceberg.types import (
     UUIDType,
 )
 
+STRUCT_ROOT = -1
+
 
 def construct_reader(
     file_schema: Union[Schema, IcebergType], read_types: Dict[int, Callable[..., StructProtocol]] = EMPTY_DICT
@@ -96,26 +101,53 @@ def resolve(
     file_schema: Union[Schema, IcebergType],
     read_schema: Union[Schema, IcebergType],
     read_types: Dict[int, Callable[..., StructProtocol]] = EMPTY_DICT,
+    read_enums: Dict[int, Callable[..., Enum]] = EMPTY_DICT,
 ) -> Reader:
     """Resolves the file and read schema to produce a reader
 
     Args:
         file_schema (Schema | IcebergType): The schema of the Avro file
         read_schema (Schema | IcebergType): The requested read schema which is equal, subset or superset of the file schema
-        read_types (Dict[int, Callable[[Schema], StructProtocol]]): A dict of types to use for struct data
+        read_types (Dict[int, Callable[..., StructProtocol]]): A dict of types to use for struct data
+        read_enums (Dict[int, Callable[..., Enum]]): A dict of fields that have to be converted to an enum
 
     Raises:
         NotImplementedError: If attempting to resolve an unrecognized object type
     """
-    return visit_with_partner(file_schema, read_schema, SchemaResolver(read_types), SchemaPartnerAccessor())  # type: ignore
+    return visit_with_partner(
+        file_schema, read_schema, SchemaResolver(read_types, read_enums), SchemaPartnerAccessor()
+    )  # type: ignore
+
+
+class EnumReader(Reader):
+    """An Enum reader to wrap primitive values into an Enum"""
+
+    enum: Callable[..., Enum]
+    reader: Reader
+
+    def __init__(self, enum: Callable[..., Enum], reader: Reader) -> None:
+        self.enum = enum
+        self.reader = reader
+
+    def read(self, decoder: BinaryDecoder) -> Enum:
+        return self.enum(self.reader.read(decoder))
+
+    def skip(self, decoder: BinaryDecoder) -> None:
+        pass
 
 
 class SchemaResolver(PrimitiveWithPartnerVisitor[IcebergType, Reader]):
     read_types: Dict[int, Callable[..., StructProtocol]]
+    read_enums: Dict[int, Callable[..., Enum]]
     context: List[int]
 
-    def __init__(self, read_types: Dict[int, Callable[..., StructProtocol]] = EMPTY_DICT) -> None:
+    def __init__(
+        self,
+        read_types: Dict[int, Callable[..., StructProtocol]] = EMPTY_DICT,
+        read_enums: Dict[int, Callable[..., Enum]] = EMPTY_DICT,
+    ) -> None:
         self.read_types = read_types
+        self.read_enums = read_enums
         self.context = []
 
     def schema(self, schema: Schema, expected_schema: Optional[IcebergType], result: Reader) -> Reader:
@@ -128,8 +160,7 @@ class SchemaResolver(PrimitiveWithPartnerVisitor[IcebergType, Reader]):
         self.context.pop()
 
     def struct(self, struct: StructType, expected_struct: Optional[IcebergType], field_readers: List[Reader]) -> Reader:
-        # -1 indicates the struct root
-        read_struct_id = self.context[-1] if len(self.context) > 0 else -1
+        read_struct_id = self.context[STRUCT_ROOT] if len(self.context) > 0 else STRUCT_ROOT
         struct_callable = self.read_types.get(read_struct_id, Record)
 
         if not expected_struct:
@@ -142,16 +173,26 @@ class SchemaResolver(PrimitiveWithPartnerVisitor[IcebergType, Reader]):
 
         # first, add readers for the file fields that must be in order
         results: List[Tuple[Optional[int], Reader]] = [
-            (expected_positions.get(field.field_id), result_reader) for field, result_reader in zip(struct.fields, field_readers)
+            (
+                expected_positions.get(field.field_id),
+                # Check if we need to convert it to an Enum
+                result_reader if not (enum_type := self.read_enums.get(field.field_id)) else EnumReader(enum_type, result_reader),
+            )
+            for field, result_reader in zip(struct.fields, field_readers)
         ]
 
         file_fields = {field.field_id: field for field in struct.fields}
         for pos, read_field in enumerate(expected_struct.fields):
             if read_field.field_id not in file_fields:
-                if read_field.required:
+                if isinstance(read_field, NestedField) and read_field.initial_default is not None:
+                    # The field is not in the file, but there is a default value
+                    # and that one can be required
+                    results.append((pos, DefaultReader(read_field.initial_default)))
+                elif read_field.required:
                     raise ResolveError(f"{read_field} is non-optional, and not part of the file schema")
-                # Just set the new field to None
-                results.append((pos, NoneReader()))
+                else:
+                    # Just set the new field to None
+                    results.append((pos, NoneReader()))
 
         return StructReader(tuple(results), struct_callable, expected_struct)
 
