@@ -27,6 +27,7 @@ import static org.apache.iceberg.expressions.Expressions.lessThanOrEqual;
 import static org.apache.iceberg.expressions.Expressions.notEqual;
 import static org.apache.iceberg.expressions.Expressions.notStartsWith;
 import static org.apache.iceberg.expressions.Expressions.startsWith;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -35,8 +36,7 @@ import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.types.Types;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestTruncatesResiduals {
 
@@ -58,7 +58,7 @@ public class TestTruncatesResiduals {
     ResidualEvaluator resEval = ResidualEvaluator.of(spec, predicate, true);
     Expression residual = resEval.residualFor(TestHelpers.Row.of(partitionValue));
 
-    Assert.assertEquals(expectedOp, residual.op());
+    assertThat(residual.op()).isEqualTo(expectedOp);
   }
 
   /**
@@ -76,9 +76,9 @@ public class TestTruncatesResiduals {
     Expression residual = resEval.residualFor(TestHelpers.Row.of(partitionValue));
 
     UnboundPredicate<?> unbound = assertAndUnwrapUnbound(residual);
-    Assert.assertEquals(predicate.op(), unbound.op());
-    Assert.assertEquals(predicate.ref().name(), unbound.ref().name());
-    Assert.assertEquals(predicate.literal().value(), unbound.literal().value());
+    assertThat(unbound.op()).isEqualTo(predicate.op());
+    assertThat(unbound.ref().name()).isEqualTo(predicate.ref().name());
+    assertThat(unbound.literal().value()).isEqualTo(predicate.literal().value());
   }
 
   @Test

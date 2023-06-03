@@ -22,6 +22,7 @@ import static org.apache.iceberg.TestHelpers.assertAndUnwrapUnbound;
 import static org.apache.iceberg.expressions.Expressions.notStartsWith;
 import static org.apache.iceberg.types.Conversions.toByteBuffer;
 import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.PartitionSpec;
@@ -42,8 +43,7 @@ import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.StringType;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestNotStartsWith {
 
@@ -79,7 +79,7 @@ public class TestNotStartsWith {
     // inclusive projection
     // when using notStartsWith.
     Expression projection = Projections.inclusive(spec).project(notStartsWith(COLUMN, "ababab"));
-    Assert.assertTrue(projection instanceof True);
+    assertThat(projection).isInstanceOf(True.class);
 
     assertProjectionStrict(
         spec, notStartsWith(COLUMN, "ab"), "ab", Expression.Operation.NOT_STARTS_WITH);
@@ -101,28 +101,29 @@ public class TestNotStartsWith {
     UnboundPredicate<String> projected = trunc.projectStrict(COLUMN, boundExpr);
     Evaluator evaluator = new Evaluator(SCHEMA.asStruct(), projected);
 
-    Assert.assertEquals(
-        "The projected literal should be truncated to the truncation width",
-        projected.literal().value(),
-        "ab");
+    assertThat(projected.literal().value())
+        .as("The projected literal should be truncated to the truncation width")
+        .isEqualTo("ab");
 
-    Assert.assertFalse(
-        "notStartsWith(abcde, truncate(abcde,2)) => false",
-        evaluator.eval(TestHelpers.Row.of("abcde")));
+    assertThat(evaluator.eval(TestHelpers.Row.of("abcde")))
+        .as("notStartsWith(abcde, truncate(abcde,2)) => false")
+        .isFalse();
 
-    Assert.assertFalse(
-        "notStartsWith(abcde, truncate(ab, 2)) => false", evaluator.eval(TestHelpers.Row.of("ab")));
+    assertThat(evaluator.eval(TestHelpers.Row.of("ab")))
+        .as("notStartsWith(abcde, truncate(ab, 2)) => false")
+        .isFalse();
 
-    Assert.assertFalse(
-        "notStartsWith(abcde, truncate(abcdz, 2)) => false",
-        evaluator.eval(TestHelpers.Row.of("abcdz")));
+    assertThat(evaluator.eval(TestHelpers.Row.of("abcdz")))
+        .as("notStartsWith(abcde, truncate(abcdz, 2)) => false")
+        .isFalse();
 
-    Assert.assertTrue(
-        "notStartsWith(abcde, truncate(a, 2)) => true", evaluator.eval(TestHelpers.Row.of("a")));
+    assertThat(evaluator.eval(TestHelpers.Row.of("a")))
+        .as("notStartsWith(abcde, truncate(a, 2)) => true")
+        .isTrue();
 
-    Assert.assertTrue(
-        "notStartsWith(abcde, truncate(aczcde, 2)) => true",
-        evaluator.eval(TestHelpers.Row.of("aczcde")));
+    assertThat(evaluator.eval(TestHelpers.Row.of("aczcde")))
+        .as("notStartsWith(abcde, truncate(aczcde, 2)) => true")
+        .isTrue();
   }
 
   @Test
@@ -135,20 +136,22 @@ public class TestNotStartsWith {
     UnboundPredicate<String> projected = trunc.projectStrict(COLUMN, boundExpr);
     Evaluator evaluator = new Evaluator(SCHEMA.asStruct(), projected);
 
-    Assert.assertEquals(
-        "The projected literal should not be truncated as its size is shorter than truncation width",
-        projected.literal().value(),
-        "ab");
+    assertThat(projected.literal().value())
+        .as(
+            "The projected literal should not be truncated as its size is shorter than truncation width")
+        .isEqualTo("ab");
 
-    Assert.assertFalse(
-        "notStartsWith(ab, truncate(abcde, 16)) => false",
-        evaluator.eval(TestHelpers.Row.of("abcde")));
+    assertThat(evaluator.eval(TestHelpers.Row.of("abcde")))
+        .as("notStartsWith(ab, truncate(abcde, 16)) => false")
+        .isFalse();
 
-    Assert.assertFalse(
-        "notStartsWith(ab, truncate(ab, 16)) => false", evaluator.eval(TestHelpers.Row.of("ab")));
+    assertThat(evaluator.eval(TestHelpers.Row.of("ab")))
+        .as("notStartsWith(ab, truncate(ab, 16)) => false")
+        .isFalse();
 
-    Assert.assertTrue(
-        "notStartsWith(ab, truncate(a, 16)) => true", evaluator.eval(TestHelpers.Row.of("a")));
+    assertThat(evaluator.eval(TestHelpers.Row.of("a")))
+        .as("notStartsWith(ab, truncate(a, 16)) => true")
+        .isTrue();
   }
 
   @Test
@@ -161,48 +164,50 @@ public class TestNotStartsWith {
     UnboundPredicate<String> projected = trunc.projectStrict(COLUMN, boundExpr);
     Evaluator evaluator = new Evaluator(SCHEMA.asStruct(), projected);
 
-    Assert.assertEquals(
-        "The projected literal should not be truncated as its size is equal to truncation width",
-        projected.literal().value(),
-        "abcdefg");
+    assertThat(projected.literal().value())
+        .as(
+            "The projected literal should not be truncated as its size is equal to truncation width")
+        .isEqualTo("abcdefg");
 
-    Assert.assertFalse(
-        "notStartsWith(abcdefg, truncate(abcdefg, 7)) => false",
-        evaluator.eval(TestHelpers.Row.of("abcdefg")));
+    assertThat(evaluator.eval(TestHelpers.Row.of("abcdefg")))
+        .as("notStartsWith(abcdefg, truncate(abcdefg, 7)) => false")
+        .isFalse();
 
-    Assert.assertTrue(
-        "notStartsWith(abcdefg, truncate(ab, 2)) => true",
-        evaluator.eval(TestHelpers.Row.of("ab")));
+    assertThat(evaluator.eval(TestHelpers.Row.of("ab")))
+        .as("notStartsWith(abcdefg, truncate(ab, 2)) => true")
+        .isTrue();
 
-    Assert.assertTrue(
-        "notStartsWith(abcdefg, truncate(a, 16)) => true", evaluator.eval(TestHelpers.Row.of("a")));
+    assertThat(evaluator.eval(TestHelpers.Row.of("a")))
+        .as("notStartsWith(abcdefg, truncate(a, 16)) => true")
+        .isTrue();
   }
 
   @Test
   public void testStrictMetricsEvaluatorForNotStartsWith() {
     boolean shouldRead =
         new StrictMetricsEvaluator(SCHEMA, notStartsWith(COLUMN, "bbb")).eval(FILE_1);
-    Assert.assertFalse(
-        "Should not match: strict metrics eval is always false for notStartsWith", shouldRead);
+    assertThat(shouldRead)
+        .as("Should not match: strict metrics eval is always false for notStartsWith")
+        .isFalse();
   }
 
   @Test
   public void testInclusiveMetricsEvaluatorForNotStartsWith() {
     boolean shouldRead =
         new InclusiveMetricsEvaluator(SCHEMA, notStartsWith(COLUMN, "aaa")).eval(FILE_1);
-    Assert.assertTrue("Should match: some columns meet the filter criteria", shouldRead);
+    assertThat(shouldRead).as("Should match: some columns meet the filter criteria").isTrue();
 
     shouldRead = new InclusiveMetricsEvaluator(SCHEMA, notStartsWith(COLUMN, "b")).eval(FILE_1);
-    Assert.assertFalse("Should not match: no columns match the filter criteria", shouldRead);
+    assertThat(shouldRead).as("Should not match: no columns match the filter criteria").isFalse();
 
     shouldRead = new InclusiveMetricsEvaluator(SCHEMA, notStartsWith(COLUMN, "bb")).eval(FILE_1);
-    Assert.assertFalse("Should not match: no columns match the filter criteria", shouldRead);
+    assertThat(shouldRead).as("Should not match: no columns match the filter criteria").isFalse();
 
     shouldRead = new InclusiveMetricsEvaluator(SCHEMA, notStartsWith(COLUMN, "bbb")).eval(FILE_1);
-    Assert.assertFalse("Should not match: no columns match the filter criteria", shouldRead);
+    assertThat(shouldRead).as("Should not match: no columns match the filter criteria").isFalse();
 
     shouldRead = new InclusiveMetricsEvaluator(SCHEMA, notStartsWith(COLUMN, "bbbb")).eval(FILE_1);
-    Assert.assertTrue("Should match: some columns match the filter criteria", shouldRead);
+    assertThat(shouldRead).as("Should match: some columns match the filter criteria").isTrue();
   }
 
   private void assertProjectionInclusive(
@@ -235,7 +240,7 @@ public class TestNotStartsWith {
         (Truncate<CharSequence>) spec.getFieldsBySourceId(1).get(0).transform();
     String output = transform.toHumanString(Types.StringType.get(), (String) literal.value());
 
-    Assert.assertEquals(expectedOp, predicate.op());
-    Assert.assertEquals(expectedLiteral, output);
+    assertThat(predicate.op()).isEqualTo(expectedOp);
+    assertThat(output).isEqualTo(expectedLiteral);
   }
 }
