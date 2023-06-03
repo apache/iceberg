@@ -18,17 +18,17 @@
  */
 package org.apache.iceberg;
 
-import org.junit.Assert;
-import org.junit.Test;
+import static org.assertj.core.api.Assertions.assertThat;
+
+import org.junit.jupiter.api.Test;
 
 public class TestTransformSerialization extends PartitionSpecTestBase {
   @Test
   public void testTransforms() throws Exception {
     for (PartitionSpec spec : SPECS) {
-      Assert.assertEquals(
-          "Deserialization should produce equal partition spec",
-          spec,
-          TestHelpers.roundTripSerialize(spec));
+      assertThat(TestHelpers.roundTripSerialize(spec))
+          .as("Deserialization should produce equal partition spec")
+          .isEqualTo(spec);
     }
   }
 }
