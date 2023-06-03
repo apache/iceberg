@@ -100,7 +100,7 @@ abstract class FanoutWriter<T, R> implements PartitioningWriter<T, R> {
     Preconditions.checkArgument(
         spec.isUnpartitioned() || partition != null,
         "Partition must not be null when creating output file for partitioned spec");
-    return partition == null
+    return spec.isUnpartitioned() || partition == null
         ? fileFactory.newOutputFile()
         : fileFactory.newOutputFile(spec, partition);
   }
