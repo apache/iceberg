@@ -103,6 +103,19 @@ class NoneReader(Reader):
         return None
 
 
+class DefaultReader(Reader):
+    default_value: Any
+
+    def __init__(self, default_value: Any) -> None:
+        self.default_value = default_value
+
+    def read(self, _: BinaryDecoder) -> Any:
+        return self.default_value
+
+    def skip(self, decoder: BinaryDecoder) -> None:
+        pass
+
+
 class BooleanReader(Reader):
     def read(self, decoder: BinaryDecoder) -> bool:
         return decoder.read_boolean()

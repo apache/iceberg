@@ -589,7 +589,7 @@ manifest_entry_records = [
     },
 ]
 
-manifest_file_records = [
+manifest_file_records_v1 = [
     {
         "manifest_path": "/home/iceberg/warehouse/nyc/taxis_partitioned/metadata/0125c686-8aa6-4502-bdcc-b6d17ca41a3b-m0.avro",
         "manifest_length": 7989,
@@ -607,9 +607,31 @@ manifest_file_records = [
     }
 ]
 
+manifest_file_records_v2 = [
+    {
+        "manifest_path": "/home/iceberg/warehouse/nyc/taxis_partitioned/metadata/0125c686-8aa6-4502-bdcc-b6d17ca41a3b-m0.avro",
+        "manifest_length": 7989,
+        "partition_spec_id": 0,
+        "content": 1,
+        "sequence_number": None,  # To be inherited
+        "min_sequence_number": None,  # To be inherited
+        "added_snapshot_id": 9182715666859759686,
+        "added_files_count": 3,
+        "existing_files_count": 0,
+        "deleted_files_count": 0,
+        "added_rows_count": 237993,
+        "existing_rows_count": 0,
+        "deleted_rows_count": 0,
+        "partitions": [
+            {"contains_null": True, "contains_nan": False, "lower_bound": b"\x01\x00\x00\x00", "upper_bound": b"\x02\x00\x00\x00"}
+        ],
+        "key_metadata": b"\x19\x25",
+    }
+]
+
 
 @pytest.fixture(scope="session")
-def avro_schema_manifest_file() -> Dict[str, Any]:
+def avro_schema_manifest_file_v1() -> Dict[str, Any]:
     return {
         "type": "record",
         "name": "manifest_file",
@@ -705,6 +727,85 @@ def avro_schema_manifest_file() -> Dict[str, Any]:
                 "doc": "Deleted rows count",
                 "default": None,
                 "field-id": 514,
+            },
+        ],
+    }
+
+
+@pytest.fixture(scope="session")
+def avro_schema_manifest_file_v2() -> Dict[str, Any]:
+    return {
+        "type": "record",
+        "name": "manifest_file",
+        "fields": [
+            {"name": "manifest_path", "type": "string", "doc": "Location URI with FS scheme", "field-id": 500},
+            {"name": "manifest_length", "type": "long", "doc": "Total file size in bytes", "field-id": 501},
+            {"name": "partition_spec_id", "type": "int", "doc": "Spec ID used to write", "field-id": 502},
+            {"name": "content", "type": "int", "doc": "Contents of the manifest: 0=data, 1=deletes", "field-id": 517},
+            {
+                "name": "sequence_number",
+                "type": ["null", "long"],
+                "doc": "Sequence number when the manifest was added",
+                "field-id": 515,
+            },
+            {
+                "name": "min_sequence_number",
+                "type": ["null", "long"],
+                "doc": "Lowest sequence number in the manifest",
+                "field-id": 516,
+            },
+            {"name": "added_snapshot_id", "type": "long", "doc": "Snapshot ID that added the manifest", "field-id": 503},
+            {"name": "added_files_count", "type": "int", "doc": "Added entry count", "field-id": 504},
+            {"name": "existing_files_count", "type": "int", "doc": "Existing entry count", "field-id": 505},
+            {"name": "deleted_files_count", "type": "int", "doc": "Deleted entry count", "field-id": 506},
+            {"name": "added_rows_count", "type": "long", "doc": "Added rows count", "field-id": 512},
+            {"name": "existing_rows_count", "type": "long", "doc": "Existing rows count", "field-id": 513},
+            {"name": "deleted_rows_count", "type": "long", "doc": "Deleted rows count", "field-id": 514},
+            {
+                "name": "partitions",
+                "type": [
+                    "null",
+                    {
+                        "type": "array",
+                        "items": {
+                            "type": "record",
+                            "name": "r508",
+                            "fields": [
+                                {
+                                    "name": "contains_null",
+                                    "type": "boolean",
+                                    "doc": "True if any file has a null partition value",
+                                    "field-id": 509,
+                                },
+                                {
+                                    "name": "contains_nan",
+                                    "type": ["null", "boolean"],
+                                    "doc": "True if any file has a nan partition value",
+                                    "default": None,
+                                    "field-id": 518,
+                                },
+                                {
+                                    "name": "lower_bound",
+                                    "type": ["null", "bytes"],
+                                    "doc": "Partition lower bound for all files",
+                                    "default": None,
+                                    "field-id": 510,
+                                },
+                                {
+                                    "name": "upper_bound",
+                                    "type": ["null", "bytes"],
+                                    "doc": "Partition upper bound for all files",
+                                    "default": None,
+                                    "field-id": 511,
+                                },
+                            ],
+                        },
+                        "element-id": 508,
+                    },
+                ],
+                "doc": "Summary for each partition",
+                "default": None,
+                "field-id": 507,
             },
         ],
     }
@@ -969,20 +1070,38 @@ def generated_manifest_entry_file(avro_schema_manifest_entry: Dict[str, Any]) ->
 
 
 @pytest.fixture(scope="session")
-def generated_manifest_file_file(
-    avro_schema_manifest_file: Dict[str, Any], generated_manifest_entry_file: str
+def generated_manifest_file_file_v1(
+    avro_schema_manifest_file_v1: Dict[str, Any], generated_manifest_entry_file: str
 ) -> Generator[str, None, None]:
     from fastavro import parse_schema, writer
 
-    parsed_schema = parse_schema(avro_schema_manifest_file)
+    parsed_schema = parse_schema(avro_schema_manifest_file_v1)
 
     # Make sure that a valid manifest_path is set
-    manifest_file_records[0]["manifest_path"] = generated_manifest_entry_file
+    manifest_file_records_v1[0]["manifest_path"] = generated_manifest_entry_file
 
     with TemporaryDirectory() as tmpdir:
         tmp_avro_file = tmpdir + "/manifest.avro"
         with open(tmp_avro_file, "wb") as out:
-            writer(out, parsed_schema, manifest_file_records)
+            writer(out, parsed_schema, manifest_file_records_v1)
+        yield tmp_avro_file
+
+
+@pytest.fixture(scope="session")
+def generated_manifest_file_file_v2(
+    avro_schema_manifest_file_v2: Dict[str, Any], generated_manifest_entry_file: str
+) -> Generator[str, None, None]:
+    from fastavro import parse_schema, writer
+
+    parsed_schema = parse_schema(avro_schema_manifest_file_v2)
+
+    # Make sure that a valid manifest_path is set
+    manifest_file_records_v2[0]["manifest_path"] = generated_manifest_entry_file
+
+    with TemporaryDirectory() as tmpdir:
+        tmp_avro_file = tmpdir + "/manifest.avro"
+        with open(tmp_avro_file, "wb") as out:
+            writer(out, parsed_schema, manifest_file_records_v2)
         yield tmp_avro_file
 
 

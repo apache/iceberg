@@ -18,13 +18,14 @@
  */
 package org.apache.iceberg.avro;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericData;
 import org.apache.iceberg.types.Type;
-import org.junit.Assert;
 
 public class TestAvroEncoderUtil extends AvroDataTest {
 
@@ -43,13 +44,13 @@ public class TestAvroEncoderUtil extends AvroDataTest {
       // While the avro schema will convert the 'map' type to be a list of key/value pairs for
       // non-string keys, it
       // would be failing to read the 'array' from a 'map'.
-      Assert.assertEquals(expectedRecord.toString(), record.toString());
+      assertThat(record.toString()).isEqualTo(expectedRecord.toString());
 
       byte[] serializedData2 = AvroEncoderUtil.encode(expectedRecord, avroSchema);
-      Assert.assertArrayEquals(serializedData2, serializedData);
+      assertThat(serializedData2).isEqualTo(serializedData);
 
       expectedRecord = AvroEncoderUtil.decode(serializedData2);
-      Assert.assertEquals(expectedRecord.toString(), record.toString());
+      assertThat(record.toString()).isEqualTo(expectedRecord.toString());
     }
   }
 }

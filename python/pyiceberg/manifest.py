@@ -229,9 +229,9 @@ MANIFEST_FILE_SCHEMA: Schema = Schema(
     NestedField(500, "manifest_path", StringType(), required=True, doc="Location URI with FS scheme"),
     NestedField(501, "manifest_length", LongType(), required=True),
     NestedField(502, "partition_spec_id", IntegerType(), required=True),
-    NestedField(517, "content", IntegerType(), required=False),
-    NestedField(515, "sequence_number", LongType(), required=False),
-    NestedField(516, "min_sequence_number", LongType(), required=False),
+    NestedField(517, "content", IntegerType(), required=False, initial_default=ManifestContent.DATA),
+    NestedField(515, "sequence_number", LongType(), required=False, initial_default=0),
+    NestedField(516, "min_sequence_number", LongType(), required=False, initial_default=0),
     NestedField(503, "added_snapshot_id", LongType(), required=False),
     NestedField(504, "added_files_count", IntegerType(), required=False),
     NestedField(505, "existing_files_count", IntegerType(), required=False),
@@ -283,5 +283,7 @@ def files(input_file: InputFile) -> Iterator[DataFile]:
 
 
 def read_manifest_list(input_file: InputFile) -> Iterator[ManifestFile]:
-    with AvroFile[ManifestFile](input_file, MANIFEST_FILE_SCHEMA, {-1: ManifestFile, 508: PartitionFieldSummary}) as reader:
+    with AvroFile[ManifestFile](
+        input_file, MANIFEST_FILE_SCHEMA, {-1: ManifestFile, 508: PartitionFieldSummary}, {517: ManifestContent}
+    ) as reader:
         yield from reader
