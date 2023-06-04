@@ -1650,6 +1650,8 @@ components:
         - $ref: '#/components/schemas/RemovePropertiesUpdate'
 
     AssertCreate:
+      allOf:
+        - $ref: "#/components/schemas/TableRequirement"
       type: object
       description: The table must not already exist; used for create transactions
       required:
@@ -1660,6 +1662,8 @@ components:
           enum: ["assert-create"]
 
     AssertTableUUID:
+      allOf:
+        - $ref: "#/components/schemas/TableRequirement"
       description: The table UUID must match the requirement's `uuid`
       required:
         - type
@@ -1672,6 +1676,8 @@ components:
           type: string
 
     AssertRefSnapshotId:
+      allOf:
+        - $ref: "#/components/schemas/TableRequirement"
       description:
         The table branch or tag identified by the requirement's `ref` must reference the requirement's `snapshot-id`; 
         if `snapshot-id` is `null` or missing, the ref must not already exist
@@ -1690,6 +1696,8 @@ components:
           format: int64
 
     AssertLastAssignedFieldId:
+      allOf:
+        - $ref: "#/components/schemas/TableRequirement"
       description:
         The table's last assigned column id must match the requirement's `last-assigned-field-id`
       required:
@@ -1703,6 +1711,8 @@ components:
           type: integer
 
     AssertCurrentSchemaId:
+      allOf:
+        - $ref: "#/components/schemas/TableRequirement"
       description:
         The table's current schema id must match the requirement's `current-schema-id`
       required:
@@ -1716,6 +1726,8 @@ components:
           type: integer
 
     AssertLastAssignedPartitionId:
+      allOf:
+        - $ref: "#/components/schemas/TableRequirement"
       description:
         The table's last assigned partition id must match the requirement's `last-assigned-partition-id`
       required:
@@ -1729,6 +1741,8 @@ components:
           type: integer
 
     AssertDefaultSpecId:
+      allOf:
+        - $ref: "#/components/schemas/TableRequirement"
       description:
         The table's default spec id must match the requirement's `default-spec-id`
       required:
@@ -1742,6 +1756,8 @@ components:
           type: integer
 
     AssertDefaultSortOrderId:
+      allOf:
+        - $ref: "#/components/schemas/TableRequirement"
       description:
         The table's default sort order id must match the requirement's `default-sort-order-id`
       required:
@@ -1755,15 +1771,6 @@ components:
           type: integer
 
     TableRequirement:
-      oneOf:
-        - $ref: '#/components/schemas/AssertCreate'
-        - $ref: '#/components/schemas/AssertTableUUID'
-        - $ref: '#/components/schemas/AssertRefSnapshotId'
-        - $ref: '#/components/schemas/AssertLastAssignedFieldId'
-        - $ref: '#/components/schemas/AssertCurrentSchemaId'
-        - $ref: '#/components/schemas/AssertLastAssignedPartitionId'
-        - $ref: '#/components/schemas/AssertDefaultSpecId'
-        - $ref: '#/components/schemas/AssertDefaultSortOrderId'
       discriminator:
         propertyName: type
         mapping:
@@ -1775,7 +1782,10 @@ components:
           assert-last-assigned-partition-id: '#/components/schemas/AssertLastAssignedPartitionId'
           assert-default-spec-id: '#/components/schemas/AssertDefaultSpecId'
           assert-default-sort-order-id: '#/components/schemas/AssertDefaultSortOrderId'
-
+      type: object
+      properties:
+        name:
+          type: "string"
 
     LoadTableResult:
       description: |
