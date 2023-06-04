@@ -80,10 +80,17 @@ ALWAYS_TRUE = AlwaysTrue()
 class TableUpdates:
     _table: Table
     _updates: Tuple[TableUpdate, ...]
+    _requirements: Tuple[TableRequirement, ...]
 
-    def __init__(self, table: Table, actions: Optional[Tuple[TableUpdate, ...]] = None):
+    def __init__(
+        self,
+        table: Table,
+        actions: Optional[Tuple[TableUpdate, ...]] = None,
+        requirements: Optional[Tuple[TableRequirement, ...]] = None,
+    ):
         self._table = table
         self._updates = actions or ()
+        self._requirements = requirements or ()
 
     def _append_updates(self, *new_updates: TableUpdate) -> TableUpdates:
         """Appends updates to the set of staged updates
@@ -104,47 +111,11 @@ class TableUpdates:
         self._updates = self._updates + new_updates
         return self
 
-    def set_table_version(self, format_version: int) -> TableUpdates:
+    def set_table_version(self, format_version: Literal[1, 2]) -> TableUpdates:
         """Sets the table to a certain version
 
         Args:
             format_version: The newly set version
-
-        Returns:
-            The alter table builder
-        """
-        raise NotImplementedError("Not yet implemented")
-
-    def set_schema(self, new_schema: Schema) -> TableUpdates:
-        """Set the schema, and updates the current-schema-id
-
-        Args:
-            new_schema: The new schema
-
-        Returns:
-            The alter table builder
-
-        Raises:
-            ValueError: When a schema with the same fields already exists
-        """
-        raise NotImplementedError("Not yet implemented")
-
-    def set_partition_spec(self, spec: PartitionSpec) -> TableUpdates:
-        """Sets the partition spec, and updates the default-spec-id
-
-        Args:
-            spec: The new partition spec
-
-        Returns:
-            The alter table builder
-        """
-        raise NotImplementedError("Not yet implemented")
-
-    def set_sort_order(self, sort_order: SortOrder) -> TableUpdates:
-        """Sets the sort order, and updates the default-sort-order-id
-
-        Args:
-            sort_order: The new sort order
 
         Returns:
             The alter table builder
@@ -194,7 +165,7 @@ class TableUpdates:
         """
         # Strip the catalog name
         if len(self._updates) > 0:
-            table_response = self._table.catalog.commit_table(self._table.identifier[1:], self._updates)
+            table_response = self._table.catalog.commit_table(self._table.identifier[1:], self._updates, self._requirements)
             return Table(
                 self._table.identifier,
                 metadata=table_response.metadata,
@@ -308,30 +279,84 @@ class RemovePropertiesUpdate(TableUpdate):
     removals: List[str]
 
 
-class Requirement(Enum):
-    assert_create = "assert-create"
-    assert_table_uuid = "assert-table-uuid"
-    assert_ref_snapshot_id = "assert-ref-snapshot-id"
-    assert_last_assigned_field_id = "assert-last-assigned-field-id"
-    assert_current_schema_id = "assert-current-schema-id"
-    assert_last_assigned_partition_id = "assert-last-assigned-partition-id"
-    assert_default_spec_id = "assert-default-spec-id"
-    assert_default_sort_order_id = "assert-default-sort-order-id"
-
-
 class TableRequirement(IcebergBaseModel):
-    requirement: Requirement
-    ref: Optional[str] = None
-    uuid: Optional[str] = None
-    snapshot_id: Optional[int] = Field(None, alias="snapshot-id")
-    last_assigned_field_id: Optional[int] = Field(None, alias="last-assigned-field-id")
-    current_schema_id: Optional[int] = Field(None, alias="current-schema-id")
-    last_assigned_partition_id: Optional[int] = Field(None, alias="last-assigned-partition-id")
-    default_spec_id: Optional[int] = Field(None, alias="default-spec-id")
-    default_sort_order_id: Optional[int] = Field(None, alias="default-sort-order-id")
+    type: str
+
+
+class AssertCreate(TableRequirement):
+    """
+    The table must not already exist; used for create transactions
+    """
+
+    type: Literal["assert-create"]
+
+
+class AssertTableUUID(TableRequirement):
+    """
+    The table UUID must match the requirement's `uuid`
+    """
+
+    type: Literal["assert-table-uuid"]
+    uuid: str
+
+
+class AssertRefSnapshotId(TableRequirement):
+    """
+    The table branch or tag identified by the requirement's `ref` must reference the requirement's `snapshot-id`; if `snapshot-id` is `null` or missing, the ref must not already exist
+    """
+
+    type: Literal["assert-ref-snapshot-id"]
+    ref: str
+    snapshot_id: int = Field(..., alias="snapshot-id")
+
+
+class AssertLastAssignedFieldId(TableRequirement):
+    """
+    The table's last assigned column id must match the requirement's `last-assigned-field-id`
+    """
+
+    type: Literal["assert-last-assigned-field-id"]
+    last_assigned_field_id: int = Field(..., alias="last-assigned-field-id")
+
+
+class AssertCurrentSchemaId(TableRequirement):
+    """
+    The table's current schema id must match the requirement's `current-schema-id`
+    """
+
+    type: Literal["assert-current-schema-id"]
+    current_schema_id: int = Field(..., alias="current-schema-id")
+
+
+class AssertLastAssignedPartitionId(TableRequirement):
+    """
+    The table's last assigned partition id must match the requirement's `last-assigned-partition-id`
+    """
+
+    type: Literal["assert-last-assigned-partition-id"]
+    last_assigned_partition_id: int = Field(..., alias="last-assigned-partition-id")
+
+
+class AssertDefaultSpecId(TableRequirement):
+    """
+    The table's default spec id must match the requirement's `default-spec-id`
+    """
+
+    type: Literal["assert-default-spec-id"]
+    default_spec_id: int = Field(..., alias="default-spec-id")
+
+
+class AssertDefaultSortOrderId(TableRequirement):
+    """
+    The table's default sort order id must match the requirement's `default-sort-order-id`
+    """
+
+    type: Literal["assert-default-sort-order-id"]
+    default_sort_order_id: int = Field(..., alias="default-sort-order-id")
 
 
 class CommitTableRequest(IcebergBaseModel):
+    identifier: Optional[Identifier] = Field()
     requirements: List[TableRequirement] = Field(default_factory=list)
     updates: List[TableUpdate] = Field(default_factory=list)
 

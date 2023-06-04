@@ -67,7 +67,7 @@ from pyiceberg.io import FileIO, load_file_io
 from pyiceberg.partitioning import UNPARTITIONED_PARTITION_SPEC, PartitionSpec
 from pyiceberg.schema import Schema, SchemaVisitor, visit
 from pyiceberg.serializers import FromInputFile
-from pyiceberg.table import Table, TableUpdate
+from pyiceberg.table import Table, TableRequirement, TableUpdate
 from pyiceberg.table.metadata import new_table_metadata
 from pyiceberg.table.sorting import UNSORTED_SORT_ORDER, SortOrder
 from pyiceberg.typedef import EMPTY_DICT
@@ -304,7 +304,9 @@ class HiveCatalog(Catalog):
 
         return self._convert_hive_into_iceberg(hive_table, io)
 
-    def commit_table(self, identifier: Union[str, Identifier], updates: Tuple[TableUpdate, ...]) -> Table:
+    def commit_table(
+        self, identifier: Union[str, Identifier], updates: Tuple[TableUpdate, ...], requirements: Tuple[TableRequirement, ...]
+    ) -> Table:
         """Updates the table
 
         Args:

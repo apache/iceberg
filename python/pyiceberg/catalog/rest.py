@@ -62,6 +62,7 @@ from pyiceberg.table import (
     CommitTableRequest,
     Table,
     TableMetadata,
+    TableRequirement,
     TableUpdate,
 )
 from pyiceberg.table.sorting import UNSORTED_SORT_ORDER, SortOrder
@@ -500,7 +501,9 @@ class RestCatalog(Catalog):
 
         return self.load_table(to_identifier)
 
-    def commit_table(self, identifier: Union[str, Identifier], updates: Tuple[TableUpdate, ...]) -> TableResponse:
+    def commit_table(
+        self, identifier: Union[str, Identifier], updates: Tuple[TableUpdate, ...], requirements: Tuple[TableRequirement, ...]
+    ) -> TableResponse:
         """Updates the table
 
         Args:
