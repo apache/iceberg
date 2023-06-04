@@ -168,8 +168,8 @@ To create a partition table, use `PARTITIONED BY`:
 
 ```sql
 CREATE TABLE `hive_catalog`.`default`.`sample` (
-                                                   id BIGINT COMMENT 'unique id',
-                                                   data STRING
+    id BIGINT COMMENT 'unique id',
+    data STRING
 ) PARTITIONED BY (data);
 ```
 
@@ -181,8 +181,8 @@ To create a table with the same schema, partitioning, and table properties as an
 
 ```sql
 CREATE TABLE `hive_catalog`.`default`.`sample` (
-                                                   id BIGINT COMMENT 'unique id',
-                                                   data STRING
+    id BIGINT COMMENT 'unique id',
+    data STRING
 );
 
 CREATE TABLE  `hive_catalog`.`default`.`sample_like` LIKE `hive_catalog`.`default`.`sample`;
