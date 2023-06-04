@@ -49,9 +49,8 @@ public class TestIcebergBuild {
         .isNotEqualTo("unknown");
     assertThat(
             Pattern.compile("[0-9a-f]{40}")
-                .matcher(IcebergBuild.gitCommitId().toLowerCase(Locale.ROOT))
-                .matches())
+                .matcher(IcebergBuild.gitCommitId().toLowerCase(Locale.ROOT)))
         .as("Should be a hexadecimal string of 20 bytes")
-        .isTrue();
+        .matches();
   }
 }
