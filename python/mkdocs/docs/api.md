@@ -146,69 +146,6 @@ catalog.create_table(
 )
 ```
 
-## Altering the table metadata
-
-Using the Python API you can alter table metadata.
-
-### Update the schema
-
-Add a new field to the table:
-
-```python
-from pyiceberg.schema import Schema
-from pyiceberg.types import (
-    BooleanType,
-    DoubleType,
-    IntegerType,
-    NestedField,
-    StringType,
-    TimestampType,
-)
-
-schema = Schema(
-    NestedField(field_id=1, name="str", field_type=StringType(), required=False),
-    NestedField(field_id=2, name="int", field_type=IntegerType(), required=True),
-    NestedField(field_id=3, name="bool", field_type=BooleanType(), required=False),
-    NestedField(
-        field_id=4, name="datetime", field_type=TimestampType(), required=False
-    ),
-    # Add a new column to the table
-    NestedField(field_id=5, name="double", field_type=DoubleType(), required=False),
-)
-
-table = table.alter().set_schema(schema).commit()
-```
-
-### Update the partition spec
-
-Updates the partition spec that will be applied for all new data that's being added to the table.
-
-```python
-from pyiceberg.partitioning import PartitionField, PartitionSpec
-from pyiceberg.transforms import DayTransform
-
-spec = PartitionSpec(
-    PartitionField(
-        source_id=4, field_id=1000, transform=DayTransform(), name="datetime_day"
-    )
-)
-
-table = table.alter().set_partition_spec(spec).commit()
-```
-
-### Update the sort order
-
-Updates the sort order of the table.
-
-```python
-from pyiceberg.table.sorting import SortOrder, SortField
-from pyiceberg.transforms import IdentityTransform
-
-order = SortOrder(SortField(source_id=2, transform=IdentityTransform()))
-
-table = table.alter().set_sort_order(order).commit()
-```
-
 ### Update the properties
 
 Add, update and remove properties:
