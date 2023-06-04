@@ -403,10 +403,9 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
   public void testAlterNamespaceMeta() throws IOException {
     HadoopCatalog catalog = hadoopCatalog();
     Assertions.assertThatThrownBy(
-            () -> {
-              catalog.setProperties(
-                  Namespace.of("db", "db2", "ns2"), ImmutableMap.of("property", "test"));
-            })
+            () ->
+                catalog.setProperties(
+                    Namespace.of("db", "db2", "ns2"), ImmutableMap.of("property", "test")))
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessage("Cannot set namespace properties db.db2.ns2 : setProperties is not supported");
   }
@@ -427,10 +426,7 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
     Lists.newArrayList(tbl1, tbl2)
         .forEach(t -> catalog.createTable(t, SCHEMA, PartitionSpec.unpartitioned()));
 
-    Assertions.assertThatThrownBy(
-            () -> {
-              catalog.dropNamespace(Namespace.of("db"));
-            })
+    Assertions.assertThatThrownBy(() -> catalog.dropNamespace(Namespace.of("db")))
         .isInstanceOf(NamespaceNotEmptyException.class)
         .hasMessage("Namespace " + namespace1 + " is not empty.");
     Assert.assertFalse(
