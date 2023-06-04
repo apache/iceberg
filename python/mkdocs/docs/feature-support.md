@@ -42,22 +42,6 @@ The goal is that the python library will provide a functional, performant subset
 | Drop Namespace           |  X   |   X    |
 | Set Namespace Properties |  X   |   X    |
 
-## Catalog capabilities
-
-The following table projects the capabilities of each of the available Catalog implementations:
-
-|                        | Rest | Hive | Glue | DynamoDB |
-| ---------------------- | ---- | ---- | ---- | -------- |
-| CRUD Namespaces        | ✓    | ✓    | ✓    | ✓        |
-| CRUD Tables            | ✓    | ✓    | ✓    | ✓        |
-| Update format version  | ✕    | ✕    | ✕    | ✕        |
-| Alter table properties | ✓    | ✕    | ✕    | ✕        |
-| Alter schema           | ✕    | ✕    | ✕    | ✕        |
-| Alter partition spec   | ✕    | ✕    | ✕    | ✕        |
-| Alter sort order       | ✕    | ✕    | ✕    | ✕        |
-| Alter snapshots        | ✕    | ✕    | ✕    | ✕        |
-| Refresh tables         | ✓    | ✕    | ✕    | ✕        |
-
 ## Types
 
 The types are kept in `pyiceberg.types`.
