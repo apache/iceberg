@@ -109,7 +109,7 @@ class InMemoryCatalog(Catalog):
             self.__tables[identifier] = table
             return table
 
-    def update_table(self, identifier: Union[str, Identifier], updates: Tuple[TableUpdate, ...]) -> Table:
+    def commit_table(self, identifier: Union[str, Identifier], updates: Tuple[TableUpdate, ...]) -> Table:
         raise NotImplementedError
 
     def load_table(self, identifier: Union[str, Identifier]) -> Table:

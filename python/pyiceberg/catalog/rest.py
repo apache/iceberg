@@ -500,7 +500,7 @@ class RestCatalog(Catalog):
 
         return self.load_table(to_identifier)
 
-    def update_table(self, identifier: Union[str, Identifier], updates: Tuple[TableUpdate, ...]) -> TableResponse:
+    def commit_table(self, identifier: Union[str, Identifier], updates: Tuple[TableUpdate, ...]) -> TableResponse:
         """Updates the table
 
         Args:

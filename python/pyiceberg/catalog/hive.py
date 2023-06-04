@@ -304,7 +304,7 @@ class HiveCatalog(Catalog):
 
         return self._convert_hive_into_iceberg(hive_table, io)
 
-    def update_table(self, identifier: Union[str, Identifier], updates: Tuple[TableUpdate, ...]) -> Table:
+    def commit_table(self, identifier: Union[str, Identifier], updates: Tuple[TableUpdate, ...]) -> Table:
         """Updates the table
 
         Args:

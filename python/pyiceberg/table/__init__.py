@@ -194,7 +194,7 @@ class TableUpdates:
         """
         # Strip the catalog name
         if len(self._updates) > 0:
-            table_response = self._table.catalog.update_table(self._table.identifier[1:], self._updates)
+            table_response = self._table.catalog.commit_table(self._table.identifier[1:], self._updates)
             return Table(
                 self._table.identifier,
                 metadata=table_response.metadata,
