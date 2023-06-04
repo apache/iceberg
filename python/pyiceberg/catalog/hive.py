@@ -310,8 +310,10 @@ class HiveCatalog(Catalog):
         """Updates the table
 
         Args:
-            identifier (str | Identifier): Namespace identifier
-            updates (Tuple[TableUpdate]): Updates to be applied to the table
+            identifier (Union[str, Identifier]): Namespace identifier
+            updates (Tuple[TableUpdate, ...]): Updates to be applied to the table
+            requirements (TableRequirement[TableUpdate, ...]): Requirement that need to be met prior to the updates
+
         Raises:
             NoSuchTableError: If a table with the given identifier does not exist
         """
