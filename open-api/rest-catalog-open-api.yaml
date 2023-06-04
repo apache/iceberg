@@ -1783,8 +1783,10 @@ components:
           assert-default-spec-id: '#/components/schemas/AssertDefaultSpecId'
           assert-default-sort-order-id: '#/components/schemas/AssertDefaultSortOrderId'
       type: object
+      required:
+        - type
       properties:
-        name:
+        type:
           type: "string"
 
     LoadTableResult:
