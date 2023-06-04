@@ -163,7 +163,7 @@ class StructWriter(Writer):
     field_writers: Tuple[Writer, ...] = dataclassfield()
 
     def write(self, encoder: BinaryEncoder, val: StructType) -> None:
-        for writer, value in zip(self.field_writers, val.fields):
+        for writer, value in zip(self.field_writers, val.fields()):
             writer.write(encoder, value)
 
     def __eq__(self, other: Any) -> bool:
@@ -184,6 +184,8 @@ class ListWriter(Writer):
         encoder.write_int(len(val))
         for v in val:
             self.element_writer.write(encoder, v)
+        if len(val) > 0:
+            encoder.write_int(0)
 
 
 @dataclass(frozen=True)
@@ -193,6 +195,8 @@ class MapWriter(Writer):
 
     def write(self, encoder: BinaryEncoder, val: Dict[Any, Any]) -> None:
         encoder.write_int(len(val))
-        for k, v in val:
+        for k, v in val.items():
             self.key_writer.write(encoder, k)
             self.value_writer.write(encoder, v)
+        if len(val) > 0:
+            encoder.write_int(0)

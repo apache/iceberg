@@ -15,6 +15,7 @@
 #  specific language governing permissions and limitations
 #  under the License.
 from json import JSONDecodeError
+from enum import Enum
 from typing import (
     Any,
     Dict,

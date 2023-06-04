@@ -24,6 +24,7 @@ from typing import (
     Any,
     Callable,
     Dict,
+    List,
     Optional,
     Protocol,
     Set,
@@ -155,3 +156,6 @@ class Record(StructProtocol):
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}[{', '.join(f'{key}={repr(value)}' for key, value in self.__dict__.items() if not key.startswith('_'))}]"
+    
+    def fields(self) -> List[str]:
+        return [self.__getattribute__(v) if hasattr(self, v) else None for v in self._position_to_field_name.values()]
