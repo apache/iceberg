@@ -1702,12 +1702,12 @@ components:
         The table's last assigned column id must match the requirement's `last-assigned-field-id`
       required:
         - type
-        - last-assigned-partition-id
+        - last-assigned-field-id
       properties:
         type:
           type: string
           enum: [ "assert-last-assigned-field-id" ]
-        last-assigned-partition-id:
+        last-assigned-field-id:
           type: integer
 
     AssertCurrentSchemaId:
