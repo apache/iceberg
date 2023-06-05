@@ -97,11 +97,11 @@ def table(catalog: Catalog) -> Table:
 def test_table_properties(table: Table) -> None:
     assert table.properties == {}
 
-    table = table.alter().set_properties(abc="def").commit()
+    table = table.new_transaction().set_properties(abc="def").commit()
 
     assert table.properties == {"abc": "def"}
 
-    table = table.alter().remove_properties("abc").commit()
+    table = table.new_transaction().remove_properties("abc").commit()
 
     assert table.properties == {}
 

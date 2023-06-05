@@ -40,12 +40,7 @@ from pyiceberg.manifest import ManifestFile
 from pyiceberg.partitioning import UNPARTITIONED_PARTITION_SPEC, PartitionSpec
 from pyiceberg.schema import Schema
 from pyiceberg.serializers import ToOutputFile
-from pyiceberg.table import (
-    Table,
-    TableMetadata,
-    TableRequirement,
-    TableUpdate,
-)
+from pyiceberg.table import CommitTableRequest, Table, TableMetadata
 from pyiceberg.table.sorting import UNSORTED_SORT_ORDER, SortOrder
 from pyiceberg.typedef import (
     EMPTY_DICT,
@@ -329,15 +324,11 @@ class Catalog(ABC):
         """
 
     @abstractmethod
-    def commit_table(
-        self, identifier: Union[str, Identifier], updates: Tuple[TableUpdate, ...], requirements: Tuple[TableRequirement, ...]
-    ) -> Table:
-        """Updates the table
+    def _commit(self, *table_requests: CommitTableRequest) -> Table:
+        """Updates one or more tables
 
         Args:
-            identifier (Union[str, Identifier]): Table identifier
-            updates (Tuple[TableUpdate, ...]): Updates to be applied to the table
-            requirements (TableRequirement[TableUpdate, ...]): Requirement that need to be met prior to the updates
+            table_requests (Tuple[CommitTableRequest, ...]): The table requests to be carried out
 
         Raises:
             NoSuchTableError: If a table with the given identifier does not exist

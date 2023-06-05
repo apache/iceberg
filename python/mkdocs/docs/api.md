@@ -153,11 +153,11 @@ Add, update and remove properties:
 ```python
 assert table.properties == {}
 
-table = table.alter().set_properties(abc="def").commit()
+table = table.new_transaction().set_properties(abc="def")._commit()
 
 assert table.properties == {"abc": "def"}
 
-table = table.alter().remove_properties("abc").commit()
+table = table.new_transaction().remove_properties("abc")._commit()
 
 assert table.properties == {}
 ```

@@ -77,7 +77,7 @@ if TYPE_CHECKING:
 ALWAYS_TRUE = AlwaysTrue()
 
 
-class TableUpdates:
+class Transaction:
     _table: Table
     _updates: Tuple[TableUpdate, ...]
     _requirements: Tuple[TableRequirement, ...]
@@ -92,7 +92,7 @@ class TableUpdates:
         self._updates = actions or ()
         self._requirements = requirements or ()
 
-    def _append_updates(self, *new_updates: TableUpdate) -> TableUpdates:
+    def _append_updates(self, *new_updates: TableUpdate) -> Transaction:
         """Appends updates to the set of staged updates
 
         Args:
@@ -111,7 +111,7 @@ class TableUpdates:
         self._updates = self._updates + new_updates
         return self
 
-    def set_table_version(self, format_version: Literal[1, 2]) -> TableUpdates:
+    def set_table_version(self, format_version: Literal[1, 2]) -> Transaction:
         """Sets the table to a certain version
 
         Args:
@@ -122,7 +122,7 @@ class TableUpdates:
         """
         raise NotImplementedError("Not yet implemented")
 
-    def set_properties(self, **updates: str) -> TableUpdates:
+    def set_properties(self, **updates: str) -> Transaction:
         """Set properties
 
         When a property is already set, it will be overwritten
@@ -135,7 +135,7 @@ class TableUpdates:
         """
         return self._append_updates(SetPropertiesUpdate(updates=updates))
 
-    def remove_properties(self, *removals: str) -> TableUpdates:
+    def remove_properties(self, *removals: str) -> Transaction:
         """Removes properties
 
         Args:
@@ -146,7 +146,7 @@ class TableUpdates:
         """
         return self._append_updates(RemovePropertiesUpdate(removals=removals))
 
-    def update_location(self, location: str) -> TableUpdates:
+    def update_location(self, location: str) -> Transaction:
         """Sets the new table location
 
         Args:
@@ -165,13 +165,12 @@ class TableUpdates:
         """
         # Strip the catalog name
         if len(self._updates) > 0:
-            table_response = self._table.catalog.commit_table(self._table.identifier[1:], self._updates, self._requirements)
-            return Table(
-                self._table.identifier,
-                metadata=table_response.metadata,
-                metadata_location=table_response.metadata_location,
-                io=self._table.io,
-                catalog=self._table.catalog,
+            return self._table.catalog._commit(  # pylint: disable=W0212
+                CommitTableRequest(
+                    identifier=self._table.identifier[1:],
+                    requirements=self._requirements,
+                    updates=self._updates,
+                )
             )
         else:
             return self._table
@@ -356,7 +355,7 @@ class AssertDefaultSortOrderId(TableRequirement):
 
 
 class CommitTableRequest(IcebergBaseModel):
-    identifier: Optional[Identifier] = Field()
+    identifier: Identifier = Field()
     requirements: List[TableRequirement] = Field(default_factory=list)
     updates: List[TableUpdate] = Field(default_factory=list)
 
@@ -377,8 +376,8 @@ class Table:
         self.io = io
         self.catalog = catalog
 
-    def alter(self) -> TableUpdates:
-        return TableUpdates(self)
+    def new_transaction(self) -> Transaction:
+        return Transaction(self)
 
     def refresh(self) -> Table:
         """Refresh the current table metadata"""

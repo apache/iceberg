@@ -18,19 +18,13 @@ from typing import (
     List,
     Optional,
     Set,
-    Tuple,
     Union,
 )
 
 from pyiceberg.catalog import Catalog, PropertiesUpdateSummary
 from pyiceberg.partitioning import UNPARTITIONED_PARTITION_SPEC, PartitionSpec
 from pyiceberg.schema import Schema
-from pyiceberg.table import (
-    SortOrder,
-    Table,
-    TableRequirement,
-    TableUpdate,
-)
+from pyiceberg.table import CommitTableRequest, SortOrder, Table
 from pyiceberg.table.sorting import UNSORTED_SORT_ORDER
 from pyiceberg.typedef import EMPTY_DICT, Identifier, Properties
 
@@ -56,9 +50,7 @@ class NoopCatalog(Catalog):
     def rename_table(self, from_identifier: Union[str, Identifier], to_identifier: Union[str, Identifier]) -> Table:
         raise NotImplementedError
 
-    def commit_table(
-        self, identifier: Union[str, Identifier], updates: Tuple[TableUpdate, ...], requirements: Tuple[TableRequirement, ...]
-    ) -> Table:
+    def _commit(self, *table_requests: CommitTableRequest) -> Table:
         raise NotImplementedError
 
     def create_namespace(self, namespace: Union[str, Identifier], properties: Properties = EMPTY_DICT) -> None:

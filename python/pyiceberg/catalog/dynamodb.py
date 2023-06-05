@@ -22,7 +22,6 @@ from typing import (
     List,
     Optional,
     Set,
-    Tuple,
     Union,
 )
 
@@ -53,7 +52,7 @@ from pyiceberg.io import load_file_io
 from pyiceberg.partitioning import UNPARTITIONED_PARTITION_SPEC, PartitionSpec
 from pyiceberg.schema import Schema
 from pyiceberg.serializers import FromInputFile
-from pyiceberg.table import Table, TableRequirement, TableUpdate
+from pyiceberg.table import CommitTableRequest, Table
 from pyiceberg.table.metadata import new_table_metadata
 from pyiceberg.table.sorting import UNSORTED_SORT_ORDER, SortOrder
 from pyiceberg.typedef import EMPTY_DICT
@@ -169,15 +168,11 @@ class DynamoDbCatalog(Catalog):
 
         return self.load_table(identifier=identifier)
 
-    def commit_table(
-        self, identifier: Union[str, Identifier], updates: Tuple[TableUpdate, ...], requirements: Tuple[TableRequirement, ...]
-    ) -> Table:
+    def _commit(self, *table_requests: CommitTableRequest) -> Table:
         """Updates the table
 
         Args:
-            identifier (Union[str, Identifier]): Table identifier
-            updates (Tuple[TableUpdate, ...]): Updates to be applied to the table
-            requirements (TableRequirement[TableUpdate, ...]): Requirement that need to be met prior to the updates
+            table_requests (Tuple[CommitTableRequest, ...]): The table requests to be carried out
 
         Raises:
             NoSuchTableError: If a table with the given identifier does not exist

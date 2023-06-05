@@ -58,13 +58,7 @@ from pyiceberg.exceptions import (
 )
 from pyiceberg.partitioning import UNPARTITIONED_PARTITION_SPEC, PartitionSpec
 from pyiceberg.schema import Schema
-from pyiceberg.table import (
-    CommitTableRequest,
-    Table,
-    TableMetadata,
-    TableRequirement,
-    TableUpdate,
-)
+from pyiceberg.table import CommitTableRequest, Table, TableMetadata
 from pyiceberg.table.sorting import UNSORTED_SORT_ORDER, SortOrder
 from pyiceberg.typedef import EMPTY_DICT, IcebergBaseModel
 
@@ -403,6 +397,17 @@ class RestCatalog(Catalog):
 
         session.mount(self.uri, SigV4Adapter(**self.properties))
 
+    def _response_to_table(self, identifier_tuple: Tuple[str, ...], table_response: TableResponse) -> Table:
+        return Table(
+            identifier=(self.name,) + identifier_tuple if self.name else identifier_tuple,
+            metadata_location=table_response.metadata_location,
+            metadata=table_response.metadata,
+            io=self._load_file_io(
+                {**table_response.metadata.properties, **table_response.config}, table_response.metadata_location
+            ),
+            catalog=self,
+        )
+
     def create_table(
         self,
         identifier: Union[str, Identifier],
@@ -432,16 +437,7 @@ class RestCatalog(Catalog):
             self._handle_non_200_response(exc, {409: TableAlreadyExistsError})
 
         table_response = TableResponse(**response.json())
-
-        return Table(
-            identifier=(self.name,) + self.identifier_to_tuple(identifier),
-            metadata_location=table_response.metadata_location,
-            metadata=table_response.metadata,
-            io=self._load_file_io(
-                {**table_response.metadata.properties, **table_response.config}, table_response.metadata_location
-            ),
-            catalog=self,
-        )
+        return self._response_to_table(self.identifier_to_tuple(identifier), table_response)
 
     def list_tables(self, namespace: Union[str, Identifier]) -> List[Identifier]:
         namespace_tuple = self._check_valid_namespace_identifier(namespace)
@@ -466,15 +462,7 @@ class RestCatalog(Catalog):
             self._handle_non_200_response(exc, {404: NoSuchTableError})
 
         table_response = TableResponse(**response.json())
-        return Table(
-            identifier=(self.name,) + identifier_tuple if self.name else identifier_tuple,
-            metadata_location=table_response.metadata_location,
-            metadata=table_response.metadata,
-            io=self._load_file_io(
-                {**table_response.metadata.properties, **table_response.config}, table_response.metadata_location
-            ),
-            catalog=self,
-        )
+        return self._response_to_table(identifier_tuple, table_response)
 
     def drop_table(self, identifier: Union[str, Identifier], purge_requested: bool = False) -> None:
         response = self._session.delete(
@@ -501,23 +489,21 @@ class RestCatalog(Catalog):
 
         return self.load_table(to_identifier)
 
-    def commit_table(
-        self, identifier: Union[str, Identifier], updates: Tuple[TableUpdate, ...], requirements: Tuple[TableRequirement, ...]
-    ) -> TableResponse:
+    def _commit(self, *table_requests: CommitTableRequest) -> Table:
         """Updates the table
 
         Args:
-            identifier (Union[str, Identifier]): Table identifier
-            updates (Tuple[TableUpdate, ...]): Updates to be applied to the table
-            requirements (TableRequirement[TableUpdate, ...]): Requirement that need to be met prior to the updates
+            table_requests (Tuple[CommitTableRequest, ...]): The table requests to be carried out
 
         Raises:
             NoSuchTableError: If a table with the given identifier does not exist
         """
-        payload = CommitTableRequest(updates=updates).json()
+        if len(table_requests) > 1:
+            raise ValueError("Multi table transactions not yet supported")
+        table_request = table_requests[0]
         response = self._session.post(
-            self.url(Endpoints.update_table, prefixed=True, **self._split_identifier_for_path(identifier)),
-            data=payload,
+            self.url(Endpoints.update_table, prefixed=True, **self._split_identifier_for_path(table_request.identifier)),
+            data=table_request.json(),
         )
         try:
             response.raise_for_status()
@@ -531,7 +517,8 @@ class RestCatalog(Catalog):
                     504: CommitStateUnknownException,
                 },
             )
-        return TableResponse(**response.json())
+        table_response = TableResponse(**response.json())
+        return self._response_to_table(table_request.identifier, table_response)
 
     def create_namespace(self, namespace: Union[str, Identifier], properties: Properties = EMPTY_DICT) -> None:
         namespace_tuple = self._check_valid_namespace_identifier(namespace)

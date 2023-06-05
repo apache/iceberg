@@ -23,7 +23,6 @@ from typing import (
     List,
     Optional,
     Set,
-    Tuple,
     Type,
     Union,
 )
@@ -67,7 +66,7 @@ from pyiceberg.io import FileIO, load_file_io
 from pyiceberg.partitioning import UNPARTITIONED_PARTITION_SPEC, PartitionSpec
 from pyiceberg.schema import Schema, SchemaVisitor, visit
 from pyiceberg.serializers import FromInputFile
-from pyiceberg.table import Table, TableRequirement, TableUpdate
+from pyiceberg.table import CommitTableRequest, Table
 from pyiceberg.table.metadata import new_table_metadata
 from pyiceberg.table.sorting import UNSORTED_SORT_ORDER, SortOrder
 from pyiceberg.typedef import EMPTY_DICT
@@ -304,15 +303,11 @@ class HiveCatalog(Catalog):
 
         return self._convert_hive_into_iceberg(hive_table, io)
 
-    def commit_table(
-        self, identifier: Union[str, Identifier], updates: Tuple[TableUpdate, ...], requirements: Tuple[TableRequirement, ...]
-    ) -> Table:
+    def _commit(self, *table_requests: CommitTableRequest) -> Table:
         """Updates the table
 
         Args:
-            identifier (Union[str, Identifier]): Namespace identifier
-            updates (Tuple[TableUpdate, ...]): Updates to be applied to the table
-            requirements (TableRequirement[TableUpdate, ...]): Requirement that need to be met prior to the updates
+            table_requests (Tuple[CommitTableRequest, ...]): The table requests to be carried out
 
         Raises:
             NoSuchTableError: If a table with the given identifier does not exist

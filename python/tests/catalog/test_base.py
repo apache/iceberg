@@ -21,7 +21,6 @@ from typing import (
     List,
     Optional,
     Set,
-    Tuple,
     Union,
 )
 
@@ -43,7 +42,7 @@ from pyiceberg.exceptions import (
 from pyiceberg.io import load_file_io
 from pyiceberg.partitioning import UNPARTITIONED_PARTITION_SPEC, PartitionField, PartitionSpec
 from pyiceberg.schema import Schema
-from pyiceberg.table import Table, TableRequirement, TableUpdate
+from pyiceberg.table import CommitTableRequest, Table
 from pyiceberg.table.metadata import TableMetadataV1
 from pyiceberg.table.sorting import UNSORTED_SORT_ORDER, SortOrder
 from pyiceberg.transforms import IdentityTransform
@@ -109,9 +108,7 @@ class InMemoryCatalog(Catalog):
             self.__tables[identifier] = table
             return table
 
-    def commit_table(
-        self, identifier: Union[str, Identifier], updates: Tuple[TableUpdate, ...], requirements: Tuple[TableRequirement, ...]
-    ) -> Table:
+    def _commit(self, *table_requests: CommitTableRequest) -> Table:
         raise NotImplementedError
 
     def load_table(self, identifier: Union[str, Identifier]) -> Table:
