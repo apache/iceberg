@@ -161,4 +161,10 @@ public class CatalogProperties {
 
   public static final String ENCRYPTION_KMS_TYPE = "encryption.kms-type";
   public static final String ENCRYPTION_KMS_IMPL = "encryption.kms-impl";
+  public static final String WRITER_KEK_TIMEOUT_SEC = "encryption.kek-timeout-sec";
+
+  /**
+   * Default time-out of key encryption keys. Per NIST SP 800-57 P1 R5 section 5.3.6, set to 1 week.
+   */
+  public static final long WRITER_KEK_TIMEOUT_SEC_DEFAULT = TimeUnit.DAYS.toSeconds(7);
 }

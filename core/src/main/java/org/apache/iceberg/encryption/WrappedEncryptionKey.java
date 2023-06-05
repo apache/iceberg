@@ -18,24 +18,39 @@
  */
 package org.apache.iceberg.encryption;
 
+import java.io.Serializable;
 import java.nio.ByteBuffer;
 
-/** {@link EncryptionKeyMetadata} for use with format-native encryption. */
-public interface NativeEncryptionKeyMetadata extends EncryptionKeyMetadata {
-  /** Encryption key as a {@link ByteBuffer} */
-  ByteBuffer encryptionKey();
+public class WrappedEncryptionKey implements Serializable {
+  private final String keyID;
+  private final ByteBuffer wrappedKey;
+  private final long timestamp;
+  private ByteBuffer keyBytes;
 
-  /** Additional authentication data as a {@link ByteBuffer} */
-  ByteBuffer aadPrefix();
+  public WrappedEncryptionKey(
+      String keyID, ByteBuffer keyBytes, ByteBuffer wrappedKey, long timestamp) {
+    this.keyID = keyID;
+    this.wrappedKey = wrappedKey;
+    this.timestamp = timestamp;
+  }
 
-  /** Encrypted file length */
-  Long fileLength();
+  public String id() {
+    return keyID;
+  }
 
-  /**
-   * Copy this key metadata and set the file length.
-   *
-   * @param length length of the encrypted file in bytes
-   * @return a copy of this key metadata (key and AAD) with the file length
-   */
-  NativeEncryptionKeyMetadata copyWithLength(long length);
+  public ByteBuffer wrappedKey() {
+    return wrappedKey;
+  }
+
+  public long timestamp() {
+    return timestamp;
+  }
+
+  public ByteBuffer key() {
+    return keyBytes;
+  }
+
+  public void setUnwrappedKey(ByteBuffer key) {
+    keyBytes = key;
+  }
 }

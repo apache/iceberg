@@ -16,26 +16,28 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.encryption;
+package org.apache.iceberg;
 
 import java.nio.ByteBuffer;
+import org.apache.iceberg.encryption.EncryptionManager;
 
-/** {@link EncryptionKeyMetadata} for use with format-native encryption. */
-public interface NativeEncryptionKeyMetadata extends EncryptionKeyMetadata {
-  /** Encryption key as a {@link ByteBuffer} */
-  ByteBuffer encryptionKey();
+public interface ManifestListFile {
 
-  /** Additional authentication data as a {@link ByteBuffer} */
-  ByteBuffer aadPrefix();
+  /** Location of manifest list file. */
+  String location();
 
-  /** Encrypted file length */
-  Long fileLength();
+  /** Snapshot ID of the manifest list. */
+  long snapshotId();
 
   /**
-   * Copy this key metadata and set the file length.
-   *
-   * @param length length of the encrypted file in bytes
-   * @return a copy of this key metadata (key and AAD) with the file length
+   * The manifest list key metadata is encrypted with a "key encryption key" (KEK). Returns the KEK
+   * ID for this manifest file.
    */
-  NativeEncryptionKeyMetadata copyWithLength(long length);
+  String keyMetadataKeyId();
+
+  /** Returns the manifest list key metadata, encrypted with its KEK. */
+  ByteBuffer encryptedKeyMetadata();
+
+  /** Decrypt and return the encrypted key metadata */
+  ByteBuffer decryptKeyMetadata(EncryptionManager em);
 }

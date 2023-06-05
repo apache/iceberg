@@ -20,28 +20,70 @@ package org.apache.iceberg.encryption;
 
 import java.nio.ByteBuffer;
 import java.security.SecureRandom;
+import java.util.Base64;
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
+import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.SeekableInputStream;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.ByteBuffers;
 
 public class StandardEncryptionManager implements EncryptionManager {
-  private final transient KeyManagementClient kmsClient;
   private final String tableKeyId;
   private final int dataKeyLength;
+  private final long writerKekTimeout;
+
+  // a holder class of metadata that is not available after serialization
+  private static class KeyManagementMetadata {
+    private final KeyManagementClient kmsClient;
+    private final Map<String, WrappedEncryptionKey> encryptionKeys;
+    private WrappedEncryptionKey currentEncryptionKey;
+
+    private KeyManagementMetadata(KeyManagementClient kmsClient) {
+      this.kmsClient = kmsClient;
+      this.encryptionKeys = Maps.newLinkedHashMap();
+      this.currentEncryptionKey = null;
+    }
+  }
+
+  private final transient KeyManagementMetadata keyData;
 
   private transient volatile SecureRandom lazyRNG = null;
+
+  /**
+   * @deprecated will be removed in 2.0.0. use {@link #StandardEncryptionManager(String, int, List,
+   *     KeyManagementClient, long)} instead.
+   */
+  @Deprecated
+  public StandardEncryptionManager(
+      String tableKeyId, int dataKeyLength, KeyManagementClient kmsClient) {
+    this(
+        tableKeyId,
+        dataKeyLength,
+        ImmutableList.of(),
+        kmsClient,
+        CatalogProperties.WRITER_KEK_TIMEOUT_SEC_DEFAULT);
+  }
 
   /**
    * @param tableKeyId table encryption key id
    * @param dataKeyLength length of data encryption key (16/24/32 bytes)
    * @param kmsClient Client of KMS used to wrap/unwrap keys in envelope encryption
+   * @param writerKekTimeout timeout of kek (key encryption key) cache entries
    */
-  public StandardEncryptionManager(
-      String tableKeyId, int dataKeyLength, KeyManagementClient kmsClient) {
+  StandardEncryptionManager(
+      String tableKeyId,
+      int dataKeyLength,
+      List<WrappedEncryptionKey> keys,
+      KeyManagementClient kmsClient,
+      long writerKekTimeout) {
     Preconditions.checkNotNull(tableKeyId, "Invalid encryption key ID: null");
     Preconditions.checkArgument(
         dataKeyLength == 16 || dataKeyLength == 24 || dataKeyLength == 32,
@@ -49,8 +91,18 @@ public class StandardEncryptionManager implements EncryptionManager {
         dataKeyLength);
     Preconditions.checkNotNull(kmsClient, "Invalid KMS client: null");
     this.tableKeyId = tableKeyId;
-    this.kmsClient = kmsClient;
+    this.keyData = new KeyManagementMetadata(kmsClient);
     this.dataKeyLength = dataKeyLength;
+    this.writerKekTimeout = writerKekTimeout;
+
+    for (WrappedEncryptionKey key : keys) {
+      keyData.encryptionKeys.put(key.id(), key);
+
+      if (keyData.currentEncryptionKey == null
+          || keyData.currentEncryptionKey.timestamp() < key.timestamp()) {
+        keyData.currentEncryptionKey = key;
+      }
+    }
   }
 
   @Override
@@ -82,21 +134,79 @@ public class StandardEncryptionManager implements EncryptionManager {
   }
 
   public ByteBuffer wrapKey(ByteBuffer secretKey) {
-    if (kmsClient == null) {
+    if (keyData == null) {
       throw new IllegalStateException(
           "Cannot wrap key after called after serialization (missing KMS client)");
     }
 
-    return kmsClient.wrapKey(secretKey, tableKeyId);
+    return keyData.kmsClient.wrapKey(secretKey, tableKeyId);
   }
 
   public ByteBuffer unwrapKey(ByteBuffer wrappedSecretKey) {
-    if (kmsClient == null) {
-      throw new IllegalStateException(
-          "Cannot wrap key after called after serialization (missing KMS client)");
+    if (keyData == null) {
+      throw new IllegalStateException("Cannot unwrap key after serialization (missing KMS client)");
     }
 
-    return kmsClient.unwrapKey(wrappedSecretKey, tableKeyId);
+    return keyData.kmsClient.unwrapKey(wrappedSecretKey, tableKeyId);
+  }
+
+  public String currentSnapshotKeyId() {
+    if (keyData == null) {
+      throw new IllegalStateException("Cannot return the current snapshot key after serialization");
+    }
+
+    if (keyData.currentEncryptionKey == null
+        || keyData.currentEncryptionKey.timestamp()
+            < System.currentTimeMillis() - writerKekTimeout) {
+      createNewEncryptionKey();
+    }
+
+    return keyData.currentEncryptionKey.id();
+  }
+
+  public ByteBuffer unwrapKey(String keyId) {
+    if (keyData == null) {
+      throw new IllegalStateException("Cannot unwrap key after serialization (missing KMS client)");
+    }
+
+    WrappedEncryptionKey cachedKey = keyData.encryptionKeys.get(keyId);
+    ByteBuffer key = cachedKey.key();
+
+    if (key == null) {
+      key = unwrapKey(cachedKey.wrappedKey());
+      cachedKey.setUnwrappedKey(key);
+    }
+
+    return key;
+  }
+
+  Collection<WrappedEncryptionKey> keys() {
+    if (keyData == null) {
+      throw new IllegalStateException("Cannot return the current keys after serialization");
+    }
+
+    return keyData.encryptionKeys.values();
+  }
+
+  private ByteBuffer newKey() {
+    byte[] newKey = new byte[dataKeyLength];
+    workerRNG().nextBytes(newKey);
+    return ByteBuffer.wrap(newKey);
+  }
+
+  private String newKeyId() {
+    byte[] idBytes = new byte[6];
+    workerRNG().nextBytes(idBytes);
+    return Base64.getEncoder().encodeToString(idBytes);
+  }
+
+  private void createNewEncryptionKey() {
+    long now = System.currentTimeMillis();
+    ByteBuffer keyBytes = newKey();
+    WrappedEncryptionKey key =
+        new WrappedEncryptionKey(newKeyId(), keyBytes, wrapKey(keyBytes), now);
+    keyData.encryptionKeys.put(key.id(), key);
+    keyData.currentEncryptionKey = key;
   }
 
   private class StandardEncryptedOutputFile implements NativeEncryptionOutputFile {
@@ -173,7 +283,8 @@ public class StandardEncryptionManager implements EncryptionManager {
             new AesGcmInputFile(
                 encryptedInputFile.encryptedInputFile(),
                 ByteBuffers.toByteArray(keyMetadata().encryptionKey()),
-                ByteBuffers.toByteArray(keyMetadata().aadPrefix()));
+                ByteBuffers.toByteArray(keyMetadata().aadPrefix()),
+                keyMetadata().fileLength());
       }
 
       return lazyDecryptedInputFile;
