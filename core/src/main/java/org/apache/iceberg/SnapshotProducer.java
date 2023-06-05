@@ -266,6 +266,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
         ManifestLists.write(
             ops.current().formatVersion(),
             manifestList,
+            ops.encryption(),
             snapshotId(),
             parentSnapshotId,
             sequenceNumber,
@@ -323,7 +324,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
         manifestList.location(),
         nextRowId,
         assignedRows,
-        null);
+        writer.toManifestListFile().encryptionKeyID());
   }
 
   protected abstract Map<String, String> summary();
