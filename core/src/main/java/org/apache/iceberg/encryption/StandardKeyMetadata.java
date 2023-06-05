@@ -36,7 +36,8 @@ class StandardKeyMetadata implements NativeEncryptionKeyMetadata, IndexedRecord 
   private static final Schema SCHEMA_V1 =
       new Schema(
           required(0, "encryption_key", Types.BinaryType.get()),
-          optional(1, "aad_prefix", Types.BinaryType.get()));
+          optional(1, "aad_prefix", Types.BinaryType.get()),
+          optional(2, "file_length", Types.LongType.get()));
   private static final org.apache.avro.Schema AVRO_SCHEMA_V1 =
       AvroSchemaUtil.convert(SCHEMA_V1, StandardKeyMetadata.class.getCanonicalName());
 
@@ -49,20 +50,31 @@ class StandardKeyMetadata implements NativeEncryptionKeyMetadata, IndexedRecord 
 
   private ByteBuffer encryptionKey;
   private ByteBuffer aadPrefix;
-  private org.apache.avro.Schema avroSchema;
+  private Long fileLength;
 
   /** Used by Avro reflection to instantiate this class * */
   StandardKeyMetadata() {}
 
   StandardKeyMetadata(byte[] key, byte[] aad) {
-    this.encryptionKey = ByteBuffer.wrap(key);
-    this.aadPrefix = ByteBuffer.wrap(aad);
+    this(key, aad, null);
   }
 
-  private StandardKeyMetadata(ByteBuffer encryptionKey, ByteBuffer aadPrefix) {
-    this.encryptionKey = encryptionKey;
-    this.aadPrefix = aadPrefix;
-    this.avroSchema = AVRO_SCHEMA_V1;
+  StandardKeyMetadata(byte[] key, byte[] aad, Long fileLength) {
+    this.encryptionKey = ByteBuffer.wrap(key);
+    this.aadPrefix = ByteBuffer.wrap(aad);
+    this.fileLength = fileLength;
+  }
+
+  /**
+   * Copy constructor.
+   *
+   * @param toCopy a StandardKeymetadata to copy
+   * @param fileLength file length that overrides toCopy if not null
+   */
+  private StandardKeyMetadata(StandardKeyMetadata toCopy, Long fileLength) {
+    this.encryptionKey = toCopy.encryptionKey;
+    this.aadPrefix = toCopy.aadPrefix;
+    this.fileLength = fileLength != null ? fileLength : toCopy.fileLength;
   }
 
   static Map<Byte, Schema> supportedSchemaVersions() {
@@ -81,6 +93,11 @@ class StandardKeyMetadata implements NativeEncryptionKeyMetadata, IndexedRecord 
   @Override
   public ByteBuffer aadPrefix() {
     return aadPrefix;
+  }
+
+  @Override
+  public Long fileLength() {
+    return fileLength;
   }
 
   static StandardKeyMetadata castOrParse(EncryptionKeyMetadata keyMetadata) {
@@ -116,7 +133,12 @@ class StandardKeyMetadata implements NativeEncryptionKeyMetadata, IndexedRecord 
 
   @Override
   public EncryptionKeyMetadata copy() {
-    return new StandardKeyMetadata(encryptionKey(), aadPrefix());
+    return new StandardKeyMetadata(this, null);
+  }
+
+  @Override
+  public NativeEncryptionKeyMetadata copyWithLength(long length) {
+    return new StandardKeyMetadata(this, length);
   }
 
   @Override
@@ -127,6 +149,9 @@ class StandardKeyMetadata implements NativeEncryptionKeyMetadata, IndexedRecord 
         return;
       case 1:
         this.aadPrefix = (ByteBuffer) v;
+        return;
+      case 2:
+        this.fileLength = (Long) v;
         return;
       default:
         // ignore the object, it must be from a newer version of the format
@@ -140,6 +165,8 @@ class StandardKeyMetadata implements NativeEncryptionKeyMetadata, IndexedRecord 
         return encryptionKey;
       case 1:
         return aadPrefix;
+      case 2:
+        return fileLength;
       default:
         throw new UnsupportedOperationException("Unknown field ordinal: " + i);
     }
@@ -147,6 +174,6 @@ class StandardKeyMetadata implements NativeEncryptionKeyMetadata, IndexedRecord 
 
   @Override
   public org.apache.avro.Schema getSchema() {
-    return avroSchema;
+    return AVRO_SCHEMA_V1;
   }
 }

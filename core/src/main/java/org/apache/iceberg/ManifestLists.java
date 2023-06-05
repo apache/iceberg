@@ -20,10 +20,13 @@ package org.apache.iceberg;
 
 import java.io.IOException;
 import java.util.List;
+import org.apache.iceberg.encryption.EncryptionManager;
+import org.apache.iceberg.encryption.PlaintextEncryptionManager;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
@@ -47,9 +50,29 @@ class ManifestLists {
     }
   }
 
+  // or should we modify all related tests (to pass PlaintextEncryptionManager)?
+  @VisibleForTesting
   static ManifestListWriter write(
       int formatVersion,
       OutputFile manifestListFile,
+      long snapshotId,
+      Long parentSnapshotId,
+      long sequenceNumber,
+      Long firstRowId) {
+    return write(
+        formatVersion,
+        manifestListFile,
+        PlaintextEncryptionManager.instance(),
+        snapshotId,
+        parentSnapshotId,
+        sequenceNumber,
+        firstRowId);
+  }
+
+  static ManifestListWriter write(
+      int formatVersion,
+      OutputFile manifestListFile,
+      EncryptionManager encryptionManager,
       long snapshotId,
       Long parentSnapshotId,
       long sequenceNumber,
@@ -60,16 +83,27 @@ class ManifestLists {
             sequenceNumber == TableMetadata.INITIAL_SEQUENCE_NUMBER,
             "Invalid sequence number for v1 manifest list: %s",
             sequenceNumber);
-        return new ManifestListWriter.V1Writer(manifestListFile, snapshotId, parentSnapshotId);
+        return new ManifestListWriter.V1Writer(
+            manifestListFile, encryptionManager, snapshotId, parentSnapshotId);
       case 2:
         return new ManifestListWriter.V2Writer(
-            manifestListFile, snapshotId, parentSnapshotId, sequenceNumber);
+            manifestListFile, encryptionManager, snapshotId, parentSnapshotId, sequenceNumber);
       case 3:
         return new ManifestListWriter.V3Writer(
-            manifestListFile, snapshotId, parentSnapshotId, sequenceNumber, firstRowId);
+            manifestListFile,
+            encryptionManager,
+            snapshotId,
+            parentSnapshotId,
+            sequenceNumber,
+            firstRowId);
       case 4:
         return new ManifestListWriter.V4Writer(
-            manifestListFile, snapshotId, parentSnapshotId, sequenceNumber, firstRowId);
+            manifestListFile,
+            encryptionManager,
+            snapshotId,
+            parentSnapshotId,
+            sequenceNumber,
+            firstRowId);
     }
     throw new UnsupportedOperationException(
         "Cannot write manifest list for table version: " + formatVersion);
