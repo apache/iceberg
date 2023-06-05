@@ -20,6 +20,7 @@ from pyiceberg.io.pyarrow import PyArrowFileIO
 from pyiceberg.manifest import (
     DataFile,
     FileFormat,
+    ManifestContent,
     ManifestEntryStatus,
     PartitionFieldSummary,
     read_manifest_entry,
@@ -150,8 +151,8 @@ def test_read_manifest_entry(generated_manifest_entry_file: str) -> None:
     assert data_file.sort_order_id == 0
 
 
-def test_read_manifest_list(generated_manifest_file_file: str) -> None:
-    input_file = PyArrowFileIO().new_input(generated_manifest_file_file)
+def test_read_manifest_list(generated_manifest_file_file_v1: str) -> None:
+    input_file = PyArrowFileIO().new_input(generated_manifest_file_file_v1)
     manifest_list = list(read_manifest_list(input_file))[0]
 
     assert manifest_list.manifest_length == 7989
@@ -176,14 +177,14 @@ def test_read_manifest_list(generated_manifest_file_file: str) -> None:
     assert manifest_list.deleted_rows_count == 0
 
 
-def test_read_manifest(generated_manifest_file_file: str) -> None:
-    io = load_file_io({})
+def test_read_manifest_v1(generated_manifest_file_file_v1: str) -> None:
+    io = load_file_io()
 
     snapshot = Snapshot(
         snapshot_id=25,
         parent_snapshot_id=19,
         timestamp_ms=1602638573590,
-        manifest_list=generated_manifest_file_file,
+        manifest_list=generated_manifest_file_file_v1,
         summary=Summary(Operation.APPEND),
         schema_id=3,
     )
@@ -191,9 +192,48 @@ def test_read_manifest(generated_manifest_file_file: str) -> None:
 
     assert manifest_list.manifest_length == 7989
     assert manifest_list.partition_spec_id == 0
-    assert manifest_list.content is None
-    assert manifest_list.sequence_number is None
-    assert manifest_list.min_sequence_number is None
+    assert manifest_list.content == ManifestContent.DATA
+    assert manifest_list.sequence_number == 0
+    assert manifest_list.min_sequence_number == 0
+    assert manifest_list.added_snapshot_id == 9182715666859759686
+    assert manifest_list.added_files_count == 3
+    assert manifest_list.existing_files_count == 0
+    assert manifest_list.deleted_files_count == 0
+    assert manifest_list.added_rows_count == 237993
+    assert manifest_list.existing_rows_count == 0
+    assert manifest_list.deleted_rows_count == 0
+    assert manifest_list.key_metadata is None
+
+    assert isinstance(manifest_list.partitions, list)
+
+    partition = manifest_list.partitions[0]
+
+    assert isinstance(partition, PartitionFieldSummary)
+
+    assert partition.contains_null is True
+    assert partition.contains_nan is False
+    assert partition.lower_bound == b"\x01\x00\x00\x00"
+    assert partition.upper_bound == b"\x02\x00\x00\x00"
+
+
+def test_read_manifest_v2(generated_manifest_file_file_v2: str) -> None:
+    io = load_file_io()
+
+    snapshot = Snapshot(
+        snapshot_id=25,
+        parent_snapshot_id=19,
+        timestamp_ms=1602638573590,
+        manifest_list=generated_manifest_file_file_v2,
+        summary=Summary(Operation.APPEND),
+        schema_id=3,
+    )
+    manifest_list = snapshot.manifests(io)[0]
+
+    assert manifest_list.manifest_length == 7989
+    assert manifest_list.partition_spec_id == 0
+    assert manifest_list.content == ManifestContent.DELETES
+    assert manifest_list.sequence_number is None  # inheritance
+    assert manifest_list.min_sequence_number is None  # inheritance
     assert manifest_list.added_snapshot_id == 9182715666859759686
     assert manifest_list.added_files_count == 3
     assert manifest_list.existing_files_count == 0

@@ -18,38 +18,38 @@
  */
 package org.apache.iceberg.catalog;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import org.assertj.core.api.Assertions;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestTableIdentifier {
 
   @Test
   public void testTableIdentifierParsing() {
     TableIdentifier oneLevelIdentifier = TableIdentifier.parse("tbl");
-    Assert.assertFalse(oneLevelIdentifier.hasNamespace());
-    Assert.assertEquals("tbl", oneLevelIdentifier.name());
+    assertThat(oneLevelIdentifier.hasNamespace()).isFalse();
+    assertThat(oneLevelIdentifier.name()).isEqualTo("tbl");
 
     TableIdentifier twoLevelIdentifier = TableIdentifier.parse("userdb.tbl");
-    Assert.assertEquals(1, twoLevelIdentifier.namespace().levels().length);
-    Assert.assertEquals("userdb", twoLevelIdentifier.namespace().levels()[0]);
-    Assert.assertEquals("tbl", twoLevelIdentifier.name());
+    assertThat(twoLevelIdentifier.namespace().levels()).hasSize(1);
+    assertThat(twoLevelIdentifier.namespace().levels()[0]).isEqualTo("userdb");
+    assertThat(twoLevelIdentifier.name()).isEqualTo("tbl");
 
     TableIdentifier threeLevelIdentifier = TableIdentifier.parse("catalog.userdb.tbl");
-    Assert.assertEquals(2, threeLevelIdentifier.namespace().levels().length);
-    Assert.assertEquals("catalog", threeLevelIdentifier.namespace().levels()[0]);
-    Assert.assertEquals("userdb", threeLevelIdentifier.namespace().levels()[1]);
-    Assert.assertEquals("tbl", threeLevelIdentifier.name());
+    assertThat(threeLevelIdentifier.namespace().levels()).hasSize(2);
+    assertThat(threeLevelIdentifier.namespace().levels()[0]).isEqualTo("catalog");
+    assertThat(threeLevelIdentifier.namespace().levels()[1]).isEqualTo("userdb");
+    assertThat(threeLevelIdentifier.name()).isEqualTo("tbl");
   }
 
   @Test
   public void testToLowerCase() {
-    Assert.assertEquals(TableIdentifier.of("Tbl").toLowerCase(), TableIdentifier.of("tbl"));
-    Assert.assertEquals(
-        TableIdentifier.of("dB", "TBL").toLowerCase(), TableIdentifier.of("db", "tbl"));
-    Assert.assertEquals(
-        TableIdentifier.of("Catalog", "dB", "TBL").toLowerCase(),
-        TableIdentifier.of("catalog", "db", "tbl"));
+    assertThat(TableIdentifier.of("tbl")).isEqualTo(TableIdentifier.of("Tbl").toLowerCase());
+    assertThat(TableIdentifier.of("db", "tbl"))
+        .isEqualTo(TableIdentifier.of("dB", "TBL").toLowerCase());
+    assertThat(TableIdentifier.of("catalog", "db", "tbl"))
+        .isEqualTo(TableIdentifier.of("Catalog", "dB", "TBL").toLowerCase());
   }
 
   @Test
