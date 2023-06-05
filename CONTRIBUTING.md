@@ -249,7 +249,7 @@ Checks on exceptions should always make sure to assert that a particular excepti
 
 ### Awaitility
 
-Avoid using `Thread.sleep()` in tests as it leads to long test durations and flaky behavior if a condition takes slightly longer than expected.
+Avoid using `Awaitility` in tests as it leads to long test durations and flaky behavior if a condition takes slightly longer than expected.
 
 ```java
 deleteTablesAsync();
