@@ -47,7 +47,7 @@ public class UpdateTableRequest implements RESTRequest {
     this.updates = updates;
   }
 
-  public UpdateTableRequest(
+  UpdateTableRequest(
       TableIdentifier identifier,
       List<UpdateRequirement> requirements,
       List<MetadataUpdate> updates) {
@@ -98,7 +98,6 @@ public class UpdateTableRequest implements RESTRequest {
     private final List<MetadataUpdate> updates = Lists.newArrayList();
     private final Set<String> changedRefs = Sets.newHashSet();
     private final boolean isReplace;
-    private TableIdentifier identifier = null;
     private boolean addedSchema = false;
     private boolean setSchemaId = false;
     private boolean addedSpec = false;
@@ -108,12 +107,6 @@ public class UpdateTableRequest implements RESTRequest {
     public Builder(TableMetadata base, boolean isReplace) {
       this.base = base;
       this.isReplace = isReplace;
-    }
-
-    public Builder forTable(TableIdentifier ident) {
-      Preconditions.checkArgument(null != ident, "Invalid table identifier: null");
-      this.identifier = ident;
-      return this;
     }
 
     private Builder require(UpdateRequirement requirement) {
@@ -238,8 +231,7 @@ public class UpdateTableRequest implements RESTRequest {
     }
 
     public UpdateTableRequest build() {
-      return new UpdateTableRequest(
-          identifier, requirements.build(), ImmutableList.copyOf(updates));
+      return new UpdateTableRequest(requirements.build(), ImmutableList.copyOf(updates));
     }
   }
 

@@ -20,22 +20,26 @@ package org.apache.iceberg.rest.requests;
 
 import java.util.List;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.rest.RESTRequest;
-import org.immutables.value.Value;
 
-@Value.Immutable
-public interface CommitTransactionRequest extends RESTRequest {
-  List<UpdateTableRequest> tableChanges();
+public class CommitTransactionRequest implements RESTRequest {
+  private final List<UpdateTableRequest> tableChanges;
 
-  @Override
-  default void validate() {
-    check();
+  public CommitTransactionRequest(List<UpdateTableRequest> tableChanges) {
+    this.tableChanges = tableChanges;
+    validate();
   }
 
-  @Value.Check
-  default void check() {
-    Preconditions.checkArgument(!tableChanges().isEmpty(), "Invalid table changes: empty");
-    for (UpdateTableRequest tableChange : tableChanges()) {
+  public List<UpdateTableRequest> tableChanges() {
+    return ImmutableList.copyOf(tableChanges);
+  }
+
+  @Override
+  public void validate() {
+    Preconditions.checkArgument(null != tableChanges, "Invalid table changes: null");
+    Preconditions.checkArgument(!tableChanges.isEmpty(), "Invalid table changes: empty");
+    for (UpdateTableRequest tableChange : tableChanges) {
       Preconditions.checkArgument(
           null != tableChange.identifier(), "Invalid table changes: table identifier required");
     }

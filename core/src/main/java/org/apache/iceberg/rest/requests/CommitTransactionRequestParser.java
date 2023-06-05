@@ -86,32 +86,41 @@ public class CommitTransactionRequestParser {
   public static CommitTransactionRequest fromJson(JsonNode json) {
     Preconditions.checkArgument(null != json, "Cannot parse commit tx request from null object");
 
-    ImmutableCommitTransactionRequest.Builder builder = ImmutableCommitTransactionRequest.builder();
+    List<UpdateTableRequest> tableChanges = Lists.newArrayList();
     JsonNode changes = JsonUtil.get(TABLE_CHANGES, json);
 
     Preconditions.checkArgument(
         changes.isArray(), "Cannot parse commit tx request from non-array: %s", changes);
 
     for (JsonNode node : changes) {
-      TableIdentifier identifier = TableIdentifierParser.fromJson(JsonUtil.get(IDENTIFIER, node));
-
-      JsonNode requirementsNode = JsonUtil.get(REQUIREMENTS, node);
+      TableIdentifier identifier = null;
       List<UpdateTableRequest.UpdateRequirement> requirements = Lists.newArrayList();
-      Preconditions.checkArgument(
-          requirementsNode.isArray(),
-          "Cannot parse requirements from non-array: %s",
-          requirementsNode);
-      requirementsNode.forEach(req -> requirements.add(UpdateRequirementParser.fromJson(req)));
-
-      JsonNode updatesNode = JsonUtil.get(UPDATES, node);
       List<MetadataUpdate> updates = Lists.newArrayList();
-      Preconditions.checkArgument(
-          updatesNode.isArray(), "Cannot parse metadata updates from non-array: %s", updatesNode);
 
-      updatesNode.forEach(update -> updates.add(MetadataUpdateParser.fromJson(update)));
-      builder.addTableChanges(new UpdateTableRequest(identifier, requirements, updates));
+      if (node.hasNonNull(IDENTIFIER)) {
+        identifier = TableIdentifierParser.fromJson(JsonUtil.get(IDENTIFIER, node));
+      }
+
+      if (node.hasNonNull(REQUIREMENTS)) {
+        JsonNode requirementsNode = JsonUtil.get(REQUIREMENTS, node);
+        Preconditions.checkArgument(
+            requirementsNode.isArray(),
+            "Cannot parse requirements from non-array: %s",
+            requirementsNode);
+        requirementsNode.forEach(req -> requirements.add(UpdateRequirementParser.fromJson(req)));
+      }
+
+      if (node.hasNonNull(UPDATES)) {
+        JsonNode updatesNode = JsonUtil.get(UPDATES, node);
+        Preconditions.checkArgument(
+            updatesNode.isArray(), "Cannot parse metadata updates from non-array: %s", updatesNode);
+
+        updatesNode.forEach(update -> updates.add(MetadataUpdateParser.fromJson(update)));
+      }
+
+      tableChanges.add(new UpdateTableRequest(identifier, requirements, updates));
     }
 
-    return builder.build();
+    return new CommitTransactionRequest(tableChanges);
   }
 }

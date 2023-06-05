@@ -60,7 +60,7 @@ public class TestCommitTransactionRequestParser {
                 CommitTransactionRequestParser.fromJson(
                     "{\"table-changes\":[{\"ns1.table1\" : \"ns1.table1\"}]}"))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse missing field: identifier");
+        .hasMessage("Invalid table changes: table identifier required");
 
     assertThatThrownBy(
             () ->
@@ -75,74 +75,6 @@ public class TestCommitTransactionRequestParser {
                     "{\"table-changes\":[{\"identifier\" : { \"name\": 23}}]}"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse to a string value: name: 23");
-  }
-
-  @Test
-  public void invalidRequirements() {
-    assertThatThrownBy(
-            () ->
-                CommitTransactionRequestParser.fromJson(
-                    "{\"table-changes\":[{\"identifier\":{\"namespace\":[\"ns1\"],\"name\":\"table1\"}}]}"))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse missing field: requirements");
-
-    assertThatThrownBy(
-            () ->
-                CommitTransactionRequestParser.fromJson(
-                    "{\"table-changes\":[{\"identifier\":{\"namespace\":[\"ns1\"],\"name\":\"table1\"},"
-                        + "\"requirements\":[23],\"updates\":[]}]}"))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse update requirement from non-object value: 23");
-
-    assertThatThrownBy(
-            () ->
-                CommitTransactionRequestParser.fromJson(
-                    "{\"table-changes\":[{\"identifier\":{\"namespace\":[\"ns1\"],\"name\":\"table1\"},"
-                        + "\"requirements\":[{}],\"updates\":[]}]}"))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse update requirement. Missing field: type");
-
-    assertThatThrownBy(
-            () ->
-                CommitTransactionRequestParser.fromJson(
-                    "{\"table-changes\":[{\"identifier\":{\"namespace\":[\"ns1\"],\"name\":\"table1\"},"
-                        + "\"requirements\":[{\"type\":\"assert-table-uuid\"}],\"updates\":[]}]}"))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse missing string: uuid");
-  }
-
-  @Test
-  public void invalidMetadataUpdates() {
-    assertThatThrownBy(
-            () ->
-                CommitTransactionRequestParser.fromJson(
-                    "{\"table-changes\":[{\"identifier\":{\"namespace\":[\"ns1\"],\"name\":\"table1\"},\"requirements\":[]}]}"))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse missing field: updates");
-
-    assertThatThrownBy(
-            () ->
-                CommitTransactionRequestParser.fromJson(
-                    "{\"table-changes\":[{\"identifier\":{\"namespace\":[\"ns1\"],\"name\":\"table1\"},"
-                        + "\"requirements\":[],\"updates\":[23]}]}"))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse metadata update from non-object value: 23");
-
-    assertThatThrownBy(
-            () ->
-                CommitTransactionRequestParser.fromJson(
-                    "{\"table-changes\":[{\"identifier\":{\"namespace\":[\"ns1\"],\"name\":\"table1\"},"
-                        + "\"requirements\":[],\"updates\":[{}]}]}"))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse metadata update. Missing field: action");
-
-    assertThatThrownBy(
-            () ->
-                CommitTransactionRequestParser.fromJson(
-                    "{\"table-changes\":[{\"identifier\":{\"namespace\":[\"ns1\"],\"name\":\"table1\"},"
-                        + "\"requirements\":[],\"updates\":[{\"action\":\"assign-uuid\"}]}]}"))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse missing string: uuid");
   }
 
   @Test
@@ -167,9 +99,8 @@ public class TestCommitTransactionRequestParser {
                 new MetadataUpdate.RemoveSnapshot(101L), new MetadataUpdate.SetCurrentSchema(25)));
 
     CommitTransactionRequest request =
-        ImmutableCommitTransactionRequest.builder()
-            .addTableChanges(commitTableRequestOne, commitTableRequestTwo)
-            .build();
+        new CommitTransactionRequest(
+            ImmutableList.of(commitTableRequestOne, commitTableRequestTwo));
 
     String expectedJson =
         "{\n"
@@ -227,11 +158,10 @@ public class TestCommitTransactionRequestParser {
   @Test
   public void emptyRequirementsAndUpdates() {
     CommitTransactionRequest commitTxRequest =
-        ImmutableCommitTransactionRequest.builder()
-            .addTableChanges(
+        new CommitTransactionRequest(
+            ImmutableList.of(
                 new UpdateTableRequest(
-                    TableIdentifier.of("ns1", "table1"), ImmutableList.of(), ImmutableList.of()))
-            .build();
+                    TableIdentifier.of("ns1", "table1"), ImmutableList.of(), ImmutableList.of())));
 
     String json =
         "{\"table-changes\":[{\"identifier\":{\"namespace\":[\"ns1\"],\"name\":\"table1\"},\"requirements\":[],\"updates\":[]}]}";

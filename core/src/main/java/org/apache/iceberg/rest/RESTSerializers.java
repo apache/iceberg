@@ -44,7 +44,6 @@ import org.apache.iceberg.catalog.TableIdentifierParser;
 import org.apache.iceberg.rest.auth.OAuth2Util;
 import org.apache.iceberg.rest.requests.CommitTransactionRequest;
 import org.apache.iceberg.rest.requests.CommitTransactionRequestParser;
-import org.apache.iceberg.rest.requests.ImmutableCommitTransactionRequest;
 import org.apache.iceberg.rest.requests.ImmutableReportMetricsRequest;
 import org.apache.iceberg.rest.requests.ReportMetricsRequest;
 import org.apache.iceberg.rest.requests.ReportMetricsRequestParser;
@@ -87,13 +86,9 @@ public class RESTSerializers {
         .addSerializer(ImmutableReportMetricsRequest.class, new ReportMetricsRequestSerializer<>())
         .addDeserializer(
             ImmutableReportMetricsRequest.class, new ReportMetricsRequestDeserializer<>())
-        .addSerializer(CommitTransactionRequest.class, new CommitTransactionRequestSerializer<>())
-        .addSerializer(
-            ImmutableCommitTransactionRequest.class, new CommitTransactionRequestSerializer<>())
+        .addSerializer(CommitTransactionRequest.class, new CommitTransactionRequestSerializer())
         .addDeserializer(
-            CommitTransactionRequest.class, new CommitTransactionRequestDeserializer<>())
-        .addDeserializer(
-            ImmutableCommitTransactionRequest.class, new CommitTransactionRequestDeserializer<>());
+            CommitTransactionRequest.class, new CommitTransactionRequestDeserializer());
     mapper.registerModule(module);
   }
 
@@ -291,21 +286,23 @@ public class RESTSerializers {
     }
   }
 
-  public static class CommitTransactionRequestSerializer<T extends CommitTransactionRequest>
-      extends JsonSerializer<T> {
+  public static class CommitTransactionRequestSerializer
+      extends JsonSerializer<CommitTransactionRequest> {
     @Override
-    public void serialize(T request, JsonGenerator gen, SerializerProvider serializers)
+    public void serialize(
+        CommitTransactionRequest request, JsonGenerator gen, SerializerProvider serializers)
         throws IOException {
       CommitTransactionRequestParser.toJson(request, gen);
     }
   }
 
-  public static class CommitTransactionRequestDeserializer<T extends CommitTransactionRequest>
-      extends JsonDeserializer<T> {
+  public static class CommitTransactionRequestDeserializer
+      extends JsonDeserializer<CommitTransactionRequest> {
     @Override
-    public T deserialize(JsonParser p, DeserializationContext context) throws IOException {
+    public CommitTransactionRequest deserialize(JsonParser p, DeserializationContext context)
+        throws IOException {
       JsonNode jsonNode = p.getCodec().readTree(p);
-      return (T) CommitTransactionRequestParser.fromJson(jsonNode);
+      return CommitTransactionRequestParser.fromJson(jsonNode);
     }
   }
 }
