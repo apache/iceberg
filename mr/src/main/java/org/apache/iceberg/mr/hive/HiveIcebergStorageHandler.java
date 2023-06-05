@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.mr.hive;
 
+import java.io.IOException;
 import java.io.Serializable;
 import java.util.Collection;
 import java.util.Map;
@@ -34,6 +35,7 @@ import org.apache.hadoop.hive.serde2.AbstractSerDe;
 import org.apache.hadoop.hive.serde2.Deserializer;
 import org.apache.hadoop.mapred.InputFormat;
 import org.apache.hadoop.mapred.JobConf;
+import org.apache.hadoop.mapred.JobContext;
 import org.apache.hadoop.mapred.OutputFormat;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
@@ -90,7 +92,11 @@ public class HiveIcebergStorageHandler implements HiveStoragePredicateHandler, H
   public void configureOutputJobProperties(TableDesc tableDesc, Map<String, String> map) {
     overlayTableProperties(conf, tableDesc, map);
     // For Tez, setting the committer here is enough to make sure it'll be part of the jobConf
-    map.put("mapred.output.committer.class", HiveIcebergOutputCommitter.class.getName());
+    if (conf.get("hive.execution.engine").equals("tez")) {
+      map.put("mapred.output.committer.class", HiveIcebergNoJobCommitter.class.getName());
+    } else {
+      map.put("mapred.output.committer.class", HiveIcebergOutputCommitter.class.getName());
+    }
     // For MR, the jobConf is set only in configureJobConf, so we're setting the write key here to
     // detect it over there
     map.put(WRITE_KEY, "true");
@@ -101,6 +107,19 @@ public class HiveIcebergStorageHandler implements HiveStoragePredicateHandler, H
     // the serde config for all tables in the query, not just the output tables, so we can't rely on
     // that in the serde.
     tableDesc.getProperties().put(WRITE_KEY, "true");
+  }
+
+  /**
+   * Committer with no-op job commit. We can pass this into the Tez AM to take care of task
+   * commits/aborts, as well as aborting jobs reliably if an execution error occurred. However, we
+   * want to execute job commits on the HS2-side during the MoveTask, so we will use the
+   * full-featured HiveIcebergOutputCommitter there.
+   */
+  static class HiveIcebergNoJobCommitter extends HiveIcebergOutputCommitter {
+    @Override
+    public void commitJob(JobContext originalContext) throws IOException {
+      // do nothing
+    }
   }
 
   @Override
@@ -126,7 +145,11 @@ public class HiveIcebergStorageHandler implements HiveStoragePredicateHandler, H
               + "'");
       String tables = jobConf.get(InputFormatConfig.OUTPUT_TABLES);
       tables = tables == null ? tableName : tables + TABLE_NAME_SEPARATOR + tableName;
-      jobConf.set("mapred.output.committer.class", HiveIcebergOutputCommitter.class.getName());
+      if (conf.get("hive.execution.engine").equals("tez")) {
+        jobConf.set("mapred.output.committer.class", HiveIcebergNoJobCommitter.class.getName());
+      } else {
+        jobConf.set("mapred.output.committer.class", HiveIcebergOutputCommitter.class.getName());
+      }
       jobConf.set(InputFormatConfig.OUTPUT_TABLES, tables);
 
       String catalogName = tableDesc.getProperties().getProperty(InputFormatConfig.CATALOG_NAME);

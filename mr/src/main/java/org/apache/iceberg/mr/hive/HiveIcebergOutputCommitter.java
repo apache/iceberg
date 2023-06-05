@@ -26,10 +26,13 @@ import java.util.Collection;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Properties;
+import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.conf.HiveConf;
@@ -263,10 +266,16 @@ public class HiveIcebergOutputCommitter extends OutputCommitter {
               output -> {
                 LOG.info("Cleaning table {} with job id {}", output, jobContext.getJobID());
                 Table table = HiveIcebergStorageHandler.table(jobConf, output);
-                jobLocations.add(
-                    generateJobLocation(table.location(), jobConf, jobContext.getJobID()));
+                String jobLocation =
+                    generateJobLocation(table.location(), jobConf, jobContext.getJobID());
+                jobLocations.add(jobLocation);
+                // list jobLocation to get number of forCommit files
+                // we do this because map/reduce num in jobConf is unreliable and we have no access
+                // to vertex status info
+                int numTasks = listForCommits(jobConf, jobLocation).size();
                 Collection<DataFile> dataFiles =
-                    dataFiles(fileExecutor, table.location(), jobContext, table.io(), false);
+                    dataFiles(
+                        numTasks, fileExecutor, table.location(), jobContext, table.io(), false);
 
                 // Check if we have files already committed and remove data files if there are any
                 if (dataFiles.size() > 0) {
@@ -280,7 +289,8 @@ public class HiveIcebergOutputCommitter extends OutputCommitter {
                                   "Failed to remove data file {} on abort job", file.path(), exc))
                       .run(file -> table.io().deleteFile(file.path().toString()));
                 }
-              });
+              },
+              IOException.class);
     } finally {
       fileExecutor.shutdown();
       if (tableExecutor != null) {
@@ -291,6 +301,32 @@ public class HiveIcebergOutputCommitter extends OutputCommitter {
     LOG.info("Job {} is aborted. Data file cleaning finished", jobContext.getJobID());
 
     cleanup(jobContext, jobLocations);
+  }
+
+  /**
+   * Lists the forCommit files under a job location. This should only be used by {@link
+   * #abortJob(JobContext, int)}, since on the Tez AM-side it will have no access to the correct
+   * number of writer tasks otherwise. The commitJob should not need to use this listing as it
+   * should have access to the vertex status info on the HS2-side.
+   *
+   * @param jobConf jobConf used for getting the FS
+   * @param jobLocation The job location that we should list
+   * @return The set of forCommit files under the job location
+   * @throws IOException if the listing fails
+   */
+  private Set<FileStatus> listForCommits(JobConf jobConf, String jobLocation) throws IOException {
+    Path path = new Path(jobLocation);
+    LOG.debug("Listing job location to get forCommits for abort: {}", jobLocation);
+    FileStatus[] children = path.getFileSystem(jobConf).listStatus(path);
+    LOG.debug(
+        "Listing the job location: {} yielded these files: {}",
+        jobLocation,
+        Arrays.toString(children));
+    return Arrays.stream(children)
+        .filter(
+            child ->
+                !child.isDirectory() && child.getPath().getName().endsWith(FOR_COMMIT_EXTENSION))
+        .collect(Collectors.toSet());
   }
 
   /**
@@ -325,7 +361,24 @@ public class HiveIcebergOutputCommitter extends OutputCommitter {
         table,
         generateJobLocation(location, conf, jobContext.getJobID()));
 
-    Collection<DataFile> dataFiles = dataFiles(executor, location, jobContext, io, true);
+    // If there are reducers, then every reducer will generate a result file.
+    // If this is a map only task, then every mapper will generate a result file.
+    int expectedFiles = conf.getInt(TezUtil.HIVE_TEZ_COMMIT_TASK_COUNT_PREFIX + name, -1);
+    if (expectedFiles == -1) {
+      // Fallback logic, if number of tasks are not available in the config
+      // If there are reducers, then every reducer will generate a result file.
+      // If this is a map only task, then every mapper will generate a result file.
+      LOG.info(
+          "Number of tasks not available in config for jobID: {}, table: {}. Falling back to jobConf "
+              + "numReduceTasks/numMapTasks",
+          jobContext.getJobID(),
+          name);
+      expectedFiles =
+          conf.getNumReduceTasks() > 0 ? conf.getNumReduceTasks() : conf.getNumMapTasks();
+    }
+
+    Collection<DataFile> dataFiles =
+        dataFiles(expectedFiles, executor, location, jobContext, io, true);
 
     if (dataFiles.size() > 0) {
       // Appending data files to the table
@@ -437,23 +490,20 @@ public class HiveIcebergOutputCommitter extends OutputCommitter {
    * @return The list of the committed data files
    */
   private static Collection<DataFile> dataFiles(
+      int numTasks,
       ExecutorService executor,
       String location,
       JobContext jobContext,
       FileIO io,
       boolean throwOnFailure) {
     JobConf conf = jobContext.getJobConf();
-    // If there are reducers, then every reducer will generate a result file.
-    // If this is a map only task, then every mapper will generate a result file.
-    int expectedFiles =
-        conf.getNumReduceTasks() > 0 ? conf.getNumReduceTasks() : conf.getNumMapTasks();
 
     Collection<DataFile> dataFiles = new ConcurrentLinkedQueue<>();
 
     // Reading the committed files. The assumption here is that the taskIds are generated in
     // sequential order
     // starting from 0.
-    Tasks.range(expectedFiles)
+    Tasks.range(numTasks)
         .throwFailureWhenFinished(throwOnFailure)
         .executeWith(executor)
         .retry(3)
