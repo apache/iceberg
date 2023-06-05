@@ -21,8 +21,10 @@ package org.apache.iceberg;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.Iterator;
 import java.util.Map;
+import org.apache.iceberg.encryption.SnapshotEncryptionKey;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
@@ -82,10 +84,10 @@ public class SnapshotParser {
       generator.writeEndObject();
     }
 
-    String manifestList = snapshot.manifestListLocation();
-    if (manifestList != null) {
+    ManifestListFile manifestList = snapshot.manifestListFile();
+    if (manifestList.location() != null) {
       // write just the location. manifests should not be embedded in JSON along with a list
-      generator.writeStringField(MANIFEST_LIST, manifestList);
+      generator.writeStringField(MANIFEST_LIST, manifestList.location());
     } else {
       // embed the manifest list in the JSON, v1 only
       JsonUtil.writeStringArray(
@@ -122,6 +124,10 @@ public class SnapshotParser {
   }
 
   static Snapshot fromJson(JsonNode node) {
+    return fromJson(node, null);
+  }
+
+  static Snapshot fromJson(JsonNode node, Map<String, SnapshotEncryptionKey> encryptionKeys) {
     Preconditions.checkArgument(
         node.isObject(), "Cannot parse table version from a non-object: %s", node);
 
@@ -179,6 +185,20 @@ public class SnapshotParser {
     if (node.has(MANIFEST_LIST)) {
       // the manifest list is stored in a manifest list file
       String manifestList = JsonUtil.getString(MANIFEST_LIST, node);
+
+      // If manifest list is encrypted, its key metadata are taken from encryption keys table
+      String encryptionKeyId = null;
+      ByteBuffer encryptedKeyMetadata = null;
+      if (encryptionKeys != null) {
+        String snapshotKeyID = Long.toString(snapshotId);
+        SnapshotEncryptionKey snapshotKey = encryptionKeys.get(snapshotKeyID);
+        encryptionKeyId = snapshotKey.encryptionKeyID();
+        encryptedKeyMetadata = snapshotKey.keyPayloadBytes();
+      }
+
+      ManifestListFile manifestListFile =
+          new BaseManifestListFile(manifestList, snapshotId, encryptionKeyId, encryptedKeyMetadata);
+
       return new BaseSnapshot(
           sequenceNumber,
           snapshotId,
@@ -187,7 +207,7 @@ public class SnapshotParser {
           operation,
           summary,
           schemaId,
-          manifestList,
+          manifestListFile,
           firstRowId,
           addedRows,
           keyId);
