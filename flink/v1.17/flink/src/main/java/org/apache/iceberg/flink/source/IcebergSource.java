@@ -49,8 +49,7 @@ import org.apache.iceberg.flink.FlinkConfigOptions;
 import org.apache.iceberg.flink.FlinkReadOptions;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.TableLoader;
-import org.apache.iceberg.flink.source.assigner.SimpleSplitAssignerFactory;
-import org.apache.iceberg.flink.source.assigner.SortedSplitAssignerFactory;
+import org.apache.iceberg.flink.source.assigner.DefaultSplitAssignerFactory;
 import org.apache.iceberg.flink.source.assigner.SplitAssigner;
 import org.apache.iceberg.flink.source.assigner.SplitAssignerFactory;
 import org.apache.iceberg.flink.source.enumerator.ContinuousIcebergEnumerator;
@@ -476,9 +475,9 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
 
       if (splitAssignerFactory == null) {
         if (splitComparator == null) {
-          splitAssignerFactory = new SimpleSplitAssignerFactory();
+          splitAssignerFactory = new DefaultSplitAssignerFactory();
         } else {
-          splitAssignerFactory = new SortedSplitAssignerFactory(splitComparator);
+          splitAssignerFactory = new DefaultSplitAssignerFactory(splitComparator);
         }
       }
 

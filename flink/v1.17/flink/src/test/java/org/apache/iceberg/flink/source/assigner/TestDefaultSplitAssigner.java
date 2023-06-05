@@ -18,25 +18,26 @@
  */
 package org.apache.iceberg.flink.source.assigner;
 
-import java.util.Collection;
-import java.util.Comparator;
-import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
-import org.apache.iceberg.flink.source.split.IcebergSourceSplitState;
+import org.apache.iceberg.flink.source.SplitHelpers;
+import org.junit.Test;
 
-public class SortedSplitAssignerFactory implements SplitAssignerFactory {
-  private final Comparator<IcebergSourceSplit> splitComparator;
-
-  public SortedSplitAssignerFactory(Comparator<IcebergSourceSplit> splitComparator) {
-    this.splitComparator = splitComparator;
+public class TestDefaultSplitAssigner extends SplitAssignerTestBase {
+  @Override
+  protected SplitAssigner splitAssigner() {
+    return new DefaultSplitAssigner(null);
   }
 
-  @Override
-  public SplitAssigner createAssigner() {
-    return new SortedSplitAssigner(splitComparator);
-  }
+  /** Test the assigner when multiple files are in a single split */
+  @Test
+  public void testMultipleFilesInASplit() throws Exception {
+    SplitAssigner assigner = splitAssigner();
+    assigner.onDiscoveredSplits(
+        SplitHelpers.createSplitsFromTransientHadoopTable(TEMPORARY_FOLDER, 4, 2));
 
-  @Override
-  public SplitAssigner createAssigner(Collection<IcebergSourceSplitState> assignerState) {
-    return new SortedSplitAssigner(splitComparator, assignerState);
+    assertGetNext(assigner, GetSplitResult.Status.AVAILABLE);
+    assertSnapshot(assigner, 1);
+    assertGetNext(assigner, GetSplitResult.Status.AVAILABLE);
+    assertGetNext(assigner, GetSplitResult.Status.UNAVAILABLE);
+    assertSnapshot(assigner, 0);
   }
 }

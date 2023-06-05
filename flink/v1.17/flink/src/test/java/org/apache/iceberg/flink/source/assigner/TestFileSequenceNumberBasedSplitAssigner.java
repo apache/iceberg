@@ -30,7 +30,8 @@ import org.junit.Test;
 public class TestFileSequenceNumberBasedSplitAssigner extends SplitAssignerTestBase {
   @Override
   protected SplitAssigner splitAssigner() {
-    return new SortedSplitAssignerFactory(new FileSequenceNumberBasedComparator()).createAssigner();
+    return new DefaultSplitAssignerFactory(new FileSequenceNumberBasedComparator())
+        .createAssigner();
   }
 
   /** Test the assigner when multiple files are in a single split */

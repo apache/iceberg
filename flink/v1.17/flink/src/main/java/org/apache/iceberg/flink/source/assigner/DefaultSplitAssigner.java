@@ -18,42 +18,38 @@
  */
 package org.apache.iceberg.flink.source.assigner;
 
+import java.util.ArrayDeque;
 import java.util.Collection;
 import java.util.Comparator;
-import java.util.TreeSet;
+import java.util.PriorityQueue;
+import java.util.Queue;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
-import org.apache.iceberg.ContentFile;
+import org.apache.flink.annotation.Internal;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplitState;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplitStatus;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
- * {@link SplitAssigner} which assigns the splits ordered by the {@link
- * ContentFile#fileSequenceNumber()}.
+ * Since all methods are called in the source coordinator thread by enumerator, there is no need for
+ * locking.
  */
-class SortedSplitAssigner implements SplitAssigner {
-  private static final Logger LOG = LoggerFactory.getLogger(SortedSplitAssigner.class);
+@Internal
+public class DefaultSplitAssigner implements SplitAssigner {
 
-  // CHECKSTYLE.OFF: IllegalTypeCheck - We use TreeSet.pollFirst
-  private final TreeSet<IcebergSourceSplit> pendingSplits;
-  // CHECKSTYLE.ON: IllegalTypeCheck
+  private final Queue<IcebergSourceSplit> pendingSplits;
   private CompletableFuture<Void> availableFuture;
 
-  SortedSplitAssigner(Comparator<IcebergSourceSplit> comparator) {
-    this(comparator, ImmutableList.of());
+  public DefaultSplitAssigner(Comparator<IcebergSourceSplit> comparator) {
+    this.pendingSplits = comparator == null ? new ArrayDeque<>() : new PriorityQueue<>(comparator);
   }
 
-  SortedSplitAssigner(
+  public DefaultSplitAssigner(
       Comparator<IcebergSourceSplit> comparator,
       Collection<IcebergSourceSplitState> assignerState) {
-    this.pendingSplits = Sets.newTreeSet(comparator);
-    // Because simple assigner only tracks unassigned splits,
+    this(comparator);
+    // Because default assigner only tracks unassigned splits,
     // there is no need to filter splits based on status (unassigned) here.
     assignerState.forEach(splitState -> pendingSplits.add(splitState.split()));
   }
@@ -63,21 +59,18 @@ class SortedSplitAssigner implements SplitAssigner {
     if (pendingSplits.isEmpty()) {
       return GetSplitResult.unavailable();
     } else {
-      IcebergSourceSplit split = pendingSplits.pollFirst();
-      LOG.info("Split served {}", split);
+      IcebergSourceSplit split = pendingSplits.poll();
       return GetSplitResult.forSplit(split);
     }
   }
 
   @Override
   public void onDiscoveredSplits(Collection<IcebergSourceSplit> splits) {
-    LOG.info("Splits discovered {}", splits);
     addSplits(splits);
   }
 
   @Override
   public void onUnassignedSplits(Collection<IcebergSourceSplit> splits) {
-    LOG.info("Splits unassigned {}", splits);
     addSplits(splits);
   }
 

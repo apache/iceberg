@@ -45,7 +45,7 @@ import org.apache.iceberg.flink.MiniClusterResource;
 import org.apache.iceberg.flink.TestFixtures;
 import org.apache.iceberg.flink.TestHelpers;
 import org.apache.iceberg.flink.data.RowDataToRowMapper;
-import org.apache.iceberg.flink.source.assigner.SimpleSplitAssignerFactory;
+import org.apache.iceberg.flink.source.assigner.DefaultSplitAssignerFactory;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.Assert;
 import org.junit.ClassRule;
@@ -375,7 +375,7 @@ public class TestIcebergSourceContinuous {
         env.fromSource(
                 IcebergSource.forRowData()
                     .tableLoader(tableResource.tableLoader())
-                    .assignerFactory(new SimpleSplitAssignerFactory())
+                    .assignerFactory(new DefaultSplitAssignerFactory())
                     .streaming(scanContext.isStreaming())
                     .streamingStartingStrategy(scanContext.streamingStartingStrategy())
                     .startSnapshotTimestamp(scanContext.startSnapshotTimestamp())

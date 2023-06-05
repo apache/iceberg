@@ -25,7 +25,7 @@ public enum SplitAssignerType {
   SIMPLE {
     @Override
     public SplitAssignerFactory factory() {
-      return new SimpleSplitAssignerFactory();
+      return new DefaultSplitAssignerFactory();
     }
   };
 

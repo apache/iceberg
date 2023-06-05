@@ -48,7 +48,7 @@ import org.apache.iceberg.flink.HadoopTableResource;
 import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.flink.TestFixtures;
 import org.apache.iceberg.flink.sink.FlinkSink;
-import org.apache.iceberg.flink.source.assigner.SimpleSplitAssignerFactory;
+import org.apache.iceberg.flink.source.assigner.DefaultSplitAssignerFactory;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.ClassRule;
 import org.junit.Rule;
@@ -86,7 +86,7 @@ public class TestIcebergSourceFailover {
     config.setInteger(FlinkConfigOptions.SOURCE_READER_FETCH_BATCH_RECORD_COUNT, 128);
     return IcebergSource.forRowData()
         .tableLoader(sourceTableResource.tableLoader())
-        .assignerFactory(new SimpleSplitAssignerFactory())
+        .assignerFactory(new DefaultSplitAssignerFactory())
         .flinkConfig(config);
   }
 
