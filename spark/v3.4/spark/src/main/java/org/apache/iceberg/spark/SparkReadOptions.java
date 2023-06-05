@@ -75,6 +75,7 @@ public class SparkReadOptions {
   public static final boolean STREAMING_SKIP_OVERWRITE_SNAPSHOTS_DEFAULT = false;
 
   // Controls whether to allow reading timestamps without zone info
+  @Deprecated
   public static final String HANDLE_TIMESTAMP_WITHOUT_TIMEZONE =
       "handle-timestamp-without-timezone";
 

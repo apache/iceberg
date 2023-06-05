@@ -18,6 +18,9 @@
  */
 package org.apache.iceberg;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.fail;
+
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
@@ -40,7 +43,6 @@ import org.apache.iceberg.expressions.ExpressionVisitors;
 import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.util.ByteBuffers;
 import org.assertj.core.api.Assertions;
-import org.junit.Assert;
 import org.objenesis.strategy.StdInstantiatorStrategy;
 
 public class TestHelpers {
@@ -57,29 +59,31 @@ public class TestHelpers {
   }
 
   public static <T> T assertAndUnwrap(Expression expr, Class<T> expected) {
-    Assert.assertTrue(
-        "Expression should have expected type: " + expected, expected.isInstance(expr));
+    assertThat(expr).as("Expression should have expected type: " + expected).isInstanceOf(expected);
     return expected.cast(expr);
   }
 
   @SuppressWarnings("unchecked")
   public static <T> BoundPredicate<T> assertAndUnwrap(Expression expr) {
-    Assert.assertTrue(
-        "Expression should be a bound predicate: " + expr, expr instanceof BoundPredicate);
+    assertThat(expr)
+        .as("Expression should be a bound predicate: " + expr)
+        .isInstanceOf(BoundPredicate.class);
     return (BoundPredicate<T>) expr;
   }
 
   @SuppressWarnings("unchecked")
   public static <T> BoundSetPredicate<T> assertAndUnwrapBoundSet(Expression expr) {
-    Assert.assertTrue(
-        "Expression should be a bound set predicate: " + expr, expr instanceof BoundSetPredicate);
+    assertThat(expr)
+        .as("Expression should be a bound set predicate: " + expr)
+        .isInstanceOf(BoundSetPredicate.class);
     return (BoundSetPredicate<T>) expr;
   }
 
   @SuppressWarnings("unchecked")
   public static <T> UnboundPredicate<T> assertAndUnwrapUnbound(Expression expr) {
-    Assert.assertTrue(
-        "Expression should be an unbound predicate: " + expr, expr instanceof UnboundPredicate);
+    assertThat(expr)
+        .as("Expression should be an unbound predicate: " + expr)
+        .isInstanceOf(UnboundPredicate.class);
     return (UnboundPredicate<T>) expr;
   }
 
@@ -110,31 +114,35 @@ public class TestHelpers {
             index -> {
               Schema schema1 = list1.get(index);
               Schema schema2 = list2.get(index);
-              Assert.assertEquals(
-                  "Should have matching schema id", schema1.schemaId(), schema2.schemaId());
-              Assert.assertEquals(
-                  "Should have matching schema struct", schema1.asStruct(), schema2.asStruct());
+              assertThat(schema2.schemaId())
+                  .as("Should have matching schema id")
+                  .isEqualTo(schema1.schemaId());
+              assertThat(schema2.asStruct())
+                  .as("Should have matching schema struct")
+                  .isEqualTo(schema1.asStruct());
             });
   }
 
   public static void assertSerializedMetadata(Table expected, Table actual) {
-    Assert.assertEquals("Name must match", expected.name(), actual.name());
-    Assert.assertEquals("Location must match", expected.location(), actual.location());
-    Assert.assertEquals("Props must match", expected.properties(), actual.properties());
-    Assert.assertEquals(
-        "Schema must match", expected.schema().asStruct(), actual.schema().asStruct());
-    Assert.assertEquals("Spec must match", expected.spec(), actual.spec());
-    Assert.assertEquals("Sort order must match", expected.sortOrder(), actual.sortOrder());
+    assertThat(actual.name()).as("Name must match").isEqualTo(expected.name());
+    assertThat(actual.location()).as("Location must match").isEqualTo(expected.location());
+    assertThat(actual.properties()).as("Props must match").isEqualTo(expected.properties());
+    assertThat(actual.schema().asStruct())
+        .as("Schema must match")
+        .isEqualTo(expected.schema().asStruct());
+    assertThat(actual.spec()).as("Spec must match").isEqualTo(expected.spec());
+    assertThat(actual.sortOrder()).as("Sort order must match").isEqualTo(expected.sortOrder());
   }
 
   public static void assertSerializedAndLoadedMetadata(Table expected, Table actual) {
     assertSerializedMetadata(expected, actual);
-    Assert.assertEquals("Specs must match", expected.specs(), actual.specs());
-    Assert.assertEquals("Sort orders must match", expected.sortOrders(), actual.sortOrders());
-    Assert.assertEquals(
-        "Current snapshot must match", expected.currentSnapshot(), actual.currentSnapshot());
-    Assert.assertEquals("Snapshots must match", expected.snapshots(), actual.snapshots());
-    Assert.assertEquals("History must match", expected.history(), actual.history());
+    assertThat(actual.specs()).as("Specs must match").isEqualTo(expected.specs());
+    assertThat(actual.sortOrders()).as("Sort orders must match").isEqualTo(expected.sortOrders());
+    assertThat(actual.currentSnapshot())
+        .as("Current snapshot must match")
+        .isEqualTo(expected.currentSnapshot());
+    assertThat(actual.snapshots()).as("Snapshots must match").isEqualTo(expected.snapshots());
+    assertThat(actual.history()).as("History must match").isEqualTo(expected.history());
   }
 
   public static void assertSameSchemaMap(Map<Integer, Schema> map1, Map<Integer, Schema> map2) {
@@ -145,15 +153,18 @@ public class TestHelpers {
     map1.forEach(
         (schemaId, schema1) -> {
           Schema schema2 = map2.get(schemaId);
-          Assert.assertNotNull(
-              String.format("Schema ID %s does not exist in map: %s", schemaId, map2), schema2);
+          assertThat(schema2)
+              .as(String.format("Schema ID %s does not exist in map: %s", schemaId, map2))
+              .isNotNull();
 
-          Assert.assertEquals(
-              "Should have matching schema id", schema1.schemaId(), schema2.schemaId());
-          Assert.assertTrue(
-              String.format(
-                  "Should be the same schema. Schema 1: %s, schema 2: %s", schema1, schema2),
-              schema1.sameSchema(schema2));
+          assertThat(schema2.schemaId())
+              .as("Should have matching schema id")
+              .isEqualTo(schema1.schemaId());
+          assertThat(schema1.sameSchema(schema2))
+              .as(
+                  String.format(
+                      "Should be the same schema. Schema 1: %s, schema 2: %s", schema1, schema2))
+              .isTrue();
         });
   }
 
@@ -194,7 +205,7 @@ public class TestHelpers {
 
     @Override
     public <T> Void predicate(UnboundPredicate<T> pred) {
-      Assert.fail(message + ": Found unbound predicate: " + pred);
+      fail(message + ": Found unbound predicate: " + pred);
       return null;
     }
   }

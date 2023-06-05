@@ -30,7 +30,6 @@ import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.spark.ScanTaskSetManager;
 import org.apache.iceberg.spark.SparkSchemaUtil;
-import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.spark.SparkWriteConf;
 import org.apache.iceberg.util.StructLikeSet;
 import org.apache.spark.sql.SparkSession;
@@ -69,13 +68,9 @@ public class SparkPositionDeletesRewriteBuilder implements WriteBuilder {
   @Override
   public Write build() {
     String fileSetId = writeConf.rewrittenFileSetId();
-    boolean handleTimestampWithoutZone = writeConf.handleTimestampWithoutZone();
 
     Preconditions.checkArgument(
         fileSetId != null, "Can only write to %s via actions", table.name());
-    Preconditions.checkArgument(
-        handleTimestampWithoutZone || !SparkUtil.hasTimestampWithoutZone(table.schema()),
-        SparkUtil.TIMESTAMP_WITHOUT_TIMEZONE_ERROR);
 
     // all files of rewrite group have same partition and spec id
     ScanTaskSetManager taskSetManager = ScanTaskSetManager.get();

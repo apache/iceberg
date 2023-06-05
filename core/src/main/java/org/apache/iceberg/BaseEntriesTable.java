@@ -51,8 +51,8 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
     StructType partitionType = Partitioning.partitionType(table());
     Schema schema = ManifestEntry.getSchema(partitionType);
     if (partitionType.fields().size() < 1) {
-      // avoid returning an empty struct, which is not always supported. instead, drop the partition
-      // field (id 102)
+      // avoid returning an empty struct, which is not always supported.
+      // instead, drop the partition field (id 102)
       schema = TypeUtil.selectNot(schema, Sets.newHashSet(DataFile.PARTITION_ID));
     }
 
@@ -133,16 +133,13 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
       Types.NestedField readableMetricsField = projection.findField(MetricsUtil.READABLE_METRICS);
 
       if (readableMetricsField == null) {
-        CloseableIterable<StructLike> entryAsStruct =
-            CloseableIterable.transform(
-                entries(fileProjection),
-                entry -> (GenericManifestEntry<? extends ContentFile<?>>) entry);
-
         StructProjection structProjection = structProjection(projection);
-        return CloseableIterable.transform(entryAsStruct, structProjection::wrap);
+
+        return CloseableIterable.transform(
+            entries(fileProjection), entry -> structProjection.wrap((StructLike) entry));
       } else {
         Schema requiredFileProjection = requiredFileProjection();
-        Schema actualProjection = removeReadableMetrics(readableMetricsField);
+        Schema actualProjection = removeReadableMetrics(projection, readableMetricsField);
         StructProjection structProjection = structProjection(actualProjection);
 
         return CloseableIterable.transform(
@@ -153,9 +150,7 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
 
     /**
      * Ensure that the underlying metrics used to populate readable metrics column are part of the
-     * file projection
-     *
-     * @return file projection with required columns to read readable metrics
+     * file projection.
      */
     private Schema requiredFileProjection() {
       Schema projectionForReadableMetrics =
@@ -166,9 +161,10 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
       return TypeUtil.join(fileProjection, projectionForReadableMetrics);
     }
 
-    private Schema removeReadableMetrics(Types.NestedField readableMetricsField) {
+    private Schema removeReadableMetrics(
+        Schema projectionSchema, Types.NestedField readableMetricsField) {
       Set<Integer> readableMetricsIds = TypeUtil.getProjectedIds(readableMetricsField.type());
-      return TypeUtil.selectNot(projection, readableMetricsIds);
+      return TypeUtil.selectNot(projectionSchema, readableMetricsIds);
     }
 
     private StructProjection structProjection(Schema projectedSchema) {
@@ -176,74 +172,48 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
       return StructProjection.create(manifestEntrySchema, projectedSchema);
     }
 
+    /**
+     * @param fileStructProjection projection to apply on the 'data_files' struct
+     * @return entries of this read task's manifest
+     */
     private CloseableIterable<? extends ManifestEntry<? extends ContentFile<?>>> entries(
-        Schema newFileProjection) {
-      return ManifestFiles.open(manifest, io, specsById).project(newFileProjection).entries();
+        Schema fileStructProjection) {
+      return ManifestFiles.open(manifest, io, specsById).project(fileStructProjection).entries();
     }
 
+    /**
+     * Given a manifest entry and its projection, append a 'readable_metrics' column that returns
+     * the entry's metrics in human-readable form.
+     *
+     * @param entry manifest entry
+     * @param structProjection projection to apply on the manifest entry
+     * @param readableMetricsField projected "readable_metrics" field
+     * @return struct representing projected manifest entry, with appended readable_metrics field
+     */
     private StructLike withReadableMetrics(
         StructProjection structProjection,
         ManifestEntry<? extends ContentFile<?>> entry,
         Types.NestedField readableMetricsField) {
-      int projectionColumnCount = projection.columns().size();
+      StructProjection struct = structProjection.wrap((StructLike) entry);
+      int structSize = projection.columns().size();
+
+      MetricsUtil.ReadableMetricsStruct readableMetrics =
+          readableMetrics(entry.file(), readableMetricsField);
       int metricsPosition = projection.columns().indexOf(readableMetricsField);
 
-      StructProjection entryStruct = structProjection.wrap((StructLike) entry);
+      return new MetricsUtil.StructWithReadableMetrics(
+          struct, structSize, readableMetrics, metricsPosition);
+    }
 
-      StructType projectedMetricType =
-          projection.findField(MetricsUtil.READABLE_METRICS).type().asStructType();
-      MetricsUtil.ReadableMetricsStruct readableMetrics =
-          MetricsUtil.readableMetricsStruct(dataTableSchema, entry.file(), projectedMetricType);
-
-      return new ManifestEntryStructWithMetrics(
-          projectionColumnCount, metricsPosition, entryStruct, readableMetrics);
+    private MetricsUtil.ReadableMetricsStruct readableMetrics(
+        ContentFile<?> file, Types.NestedField readableMetricsField) {
+      StructType projectedMetricType = readableMetricsField.type().asStructType();
+      return MetricsUtil.readableMetricsStruct(dataTableSchema, file, projectedMetricType);
     }
 
     @Override
     public Iterable<FileScanTask> split(long splitSize) {
       return ImmutableList.of(this); // don't split
-    }
-  }
-
-  static class ManifestEntryStructWithMetrics implements StructLike {
-    private final StructProjection entryAsStruct;
-    private final MetricsUtil.ReadableMetricsStruct readableMetrics;
-    private final int projectionColumnCount;
-    private final int metricsPosition;
-
-    ManifestEntryStructWithMetrics(
-        int projectionColumnCount,
-        int metricsPosition,
-        StructProjection entryAsStruct,
-        MetricsUtil.ReadableMetricsStruct readableMetrics) {
-      this.entryAsStruct = entryAsStruct;
-      this.readableMetrics = readableMetrics;
-      this.projectionColumnCount = projectionColumnCount;
-      this.metricsPosition = metricsPosition;
-    }
-
-    @Override
-    public int size() {
-      return projectionColumnCount;
-    }
-
-    @Override
-    public <T> T get(int pos, Class<T> javaClass) {
-      if (pos < metricsPosition) {
-        return entryAsStruct.get(pos, javaClass);
-      } else if (pos == metricsPosition) {
-        return javaClass.cast(readableMetrics);
-      } else {
-        // columnCount = fileAsStruct column count + the readable metrics field.
-        // When pos is greater than metricsPosition, the actual position of the field in
-        // fileAsStruct should be subtracted by 1.
-        return entryAsStruct.get(pos - 1, javaClass);
-      }
-    }
-
-    @Override
-    public <T> void set(int pos, T value) {
-      throw new UnsupportedOperationException("ManifestEntryStructWithMetrics is read only");
     }
   }
 }

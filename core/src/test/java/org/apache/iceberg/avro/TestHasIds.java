@@ -18,10 +18,11 @@
  */
 package org.apache.iceberg.avro;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.types.Types;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestHasIds {
   @Test
@@ -41,10 +42,9 @@ public class TestHasIds {
                         Types.NestedField.optional(2, "long", Types.FloatType.get())))));
 
     org.apache.avro.Schema avroSchema = RemoveIds.removeIds(schema);
-    Assert.assertFalse(AvroSchemaUtil.hasIds(avroSchema));
-
+    assertThat(AvroSchemaUtil.hasIds(avroSchema)).as("Avro schema should not have IDs").isFalse();
     avroSchema.getFields().get(0).addProp("field-id", 1);
-    Assert.assertTrue(AvroSchemaUtil.hasIds(avroSchema));
+    assertThat(AvroSchemaUtil.hasIds(avroSchema)).as("Avro schema should have IDs").isTrue();
 
     // Create a fresh copy
     avroSchema = RemoveIds.removeIds(schema);
@@ -60,6 +60,6 @@ public class TestHasIds {
         .getFields()
         .get(1)
         .addProp("field-id", 1);
-    Assert.assertTrue(AvroSchemaUtil.hasIds(avroSchema));
+    assertThat(AvroSchemaUtil.hasIds(avroSchema)).as("Avro schema should have IDs").isTrue();
   }
 }

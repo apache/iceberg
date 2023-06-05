@@ -22,17 +22,16 @@ package org.apache.spark.sql.execution.datasources.v2
 import org.apache.spark.SparkException
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.catalyst.InternalRow
-import org.apache.spark.sql.catalyst.expressions.Ascending
 import org.apache.spark.sql.catalyst.expressions.Attribute
 import org.apache.spark.sql.catalyst.expressions.AttributeSet
 import org.apache.spark.sql.catalyst.expressions.BasePredicate
 import org.apache.spark.sql.catalyst.expressions.Expression
-import org.apache.spark.sql.catalyst.expressions.SortOrder
 import org.apache.spark.sql.catalyst.expressions.UnsafeProjection
 import org.apache.spark.sql.catalyst.expressions.codegen.GeneratePredicate
 import org.apache.spark.sql.catalyst.util.truncatedString
 import org.apache.spark.sql.execution.SparkPlan
 import org.apache.spark.sql.execution.UnaryExecNode
+import org.roaringbitmap.longlong.Roaring64Bitmap
 
 case class MergeRowsExec(
     isSourceRowPresent: Expression,
@@ -42,20 +41,12 @@ case class MergeRowsExec(
     notMatchedConditions: Seq[Expression],
     notMatchedOutputs: Seq[Seq[Expression]],
     targetOutput: Seq[Expression],
-    rowIdAttrs: Seq[Attribute],
     performCardinalityCheck: Boolean,
     emitNotMatchedTargetRows: Boolean,
     output: Seq[Attribute],
     child: SparkPlan) extends UnaryExecNode {
 
-  override def requiredChildOrdering: Seq[Seq[SortOrder]] = {
-    if (performCardinalityCheck) {
-      // request a local sort by the row ID attrs to co-locate matches for the same target row
-      Seq(rowIdAttrs.map(attr => SortOrder(attr, Ascending)))
-    } else {
-      Seq(Nil)
-    }
-  }
+  private final val ROW_ID = "__row_id"
 
   @transient override lazy val producedAttributes: AttributeSet = {
     AttributeSet(output.filterNot(attr => inputSet.contains(attr)))
@@ -127,7 +118,6 @@ case class MergeRowsExec(
     val nonMatchedPairs = notMatchedPreds zip notMatchedProjs
 
     val projectTargetCols = createProjection(targetOutput, inputAttrs)
-    val rowIdProj = createProjection(rowIdAttrs, inputAttrs)
 
     // This method is responsible for processing a input row to emit the resultant row with an
     // additional column that indicates whether the row is going to be included in the final
@@ -148,24 +138,22 @@ case class MergeRowsExec(
       }
     }
 
-    var lastMatchedRowId: InternalRow = null
+    val matchedRowIds = new Roaring64Bitmap()
 
-    def processRowWithCardinalityCheck(inputRow: InternalRow): InternalRow = {
+    def processRowWithCardinalityCheck(rowIdOrdinal: Int)(inputRow: InternalRow): InternalRow = {
       val isSourceRowPresent = isSourceRowPresentPred.eval(inputRow)
       val isTargetRowPresent = isTargetRowPresentPred.eval(inputRow)
 
       if (isSourceRowPresent && isTargetRowPresent) {
-        val currentRowId = rowIdProj.apply(inputRow)
-        if (currentRowId == lastMatchedRowId) {
+        val currentRowId = inputRow.getLong(rowIdOrdinal)
+        if (matchedRowIds.contains(currentRowId)) {
           throw new SparkException(
             "The ON search condition of the MERGE statement matched a single row from " +
             "the target table with multiple rows of the source table. This could result " +
             "in the target row being operated on more than once with an update or delete " +
             "operation and is not allowed.")
         }
-        lastMatchedRowId = currentRowId.copy()
-      } else {
-        lastMatchedRowId = null
+        matchedRowIds.add(currentRowId)
       }
 
       if (emitNotMatchedTargetRows && !isSourceRowPresent) {
@@ -178,7 +166,9 @@ case class MergeRowsExec(
     }
 
     val processFunc: InternalRow => InternalRow = if (performCardinalityCheck) {
-      processRowWithCardinalityCheck
+      val rowIdOrdinal = child.output.indexWhere(attr => conf.resolver(attr.name, ROW_ID))
+      assert(rowIdOrdinal != -1, "Cannot find row ID attr")
+      processRowWithCardinalityCheck(rowIdOrdinal)
     } else {
       processRow
     }

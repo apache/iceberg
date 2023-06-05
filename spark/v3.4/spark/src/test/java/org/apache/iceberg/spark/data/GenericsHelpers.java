@@ -127,22 +127,30 @@ public class GenericsHelpers {
             "ISO-8601 date should be equal", expected.toString(), actual.toString());
         break;
       case TIMESTAMP:
-        Assertions.assertThat(actual).as("Should be a Timestamp").isInstanceOf(Timestamp.class);
-        Timestamp ts = (Timestamp) actual;
-        // milliseconds from nanos has already been added by getTime
-        OffsetDateTime actualTs =
-            EPOCH.plusNanos((ts.getTime() * 1_000_000) + (ts.getNanos() % 1_000_000));
         Types.TimestampType timestampType = (Types.TimestampType) type;
         if (timestampType.shouldAdjustToUTC()) {
+          // Timestamptz
+          Assertions.assertThat(actual).as("Should be a Timestamp").isInstanceOf(Timestamp.class);
+          Timestamp ts = (Timestamp) actual;
+          // milliseconds from nanos has already been added by getTime
+          OffsetDateTime actualTs =
+              EPOCH.plusNanos((ts.getTime() * 1_000_000) + (ts.getNanos() % 1_000_000));
+
           Assertions.assertThat(expected)
               .as("Should expect an OffsetDateTime")
               .isInstanceOf(OffsetDateTime.class);
           Assert.assertEquals("Timestamp should be equal", expected, actualTs);
         } else {
+          // Timestamp
+          Assertions.assertThat(actual)
+              .as("Should be a LocalDateTime")
+              .isInstanceOf(LocalDateTime.class);
+          LocalDateTime ts = (LocalDateTime) actual;
+
           Assertions.assertThat(expected)
               .as("Should expect an LocalDateTime")
               .isInstanceOf(LocalDateTime.class);
-          Assert.assertEquals("Timestamp should be equal", expected, actualTs.toLocalDateTime());
+          Assert.assertEquals("Timestamp should be equal", expected, ts);
         }
         break;
       case STRING:

@@ -33,6 +33,7 @@ import static org.apache.iceberg.expressions.Expressions.truncate;
 import static org.apache.iceberg.expressions.Expressions.year;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;
 import org.apache.iceberg.PartitionSpec;
@@ -47,8 +48,7 @@ import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.assertj.core.api.Assertions;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestProjection {
   private static final Schema SCHEMA = new Schema(optional(16, "id", Types.LongType.get()));
@@ -76,17 +76,16 @@ public class TestProjection {
       // check inclusive the bound predicate to ensure the types are correct
       BoundPredicate<?> bound = assertAndUnwrap(predicate.bind(spec.schema().asStruct(), true));
 
-      Assert.assertEquals(
-          "Field name should match partition struct field", "id", projected.ref().name());
-      Assert.assertEquals("Operation should match", bound.op(), projected.op());
+      assertThat(projected.ref().name())
+          .as("Field name should match partition struct field")
+          .isEqualTo("id");
+      assertThat(projected.op()).isEqualTo(bound.op());
 
       if (bound.isLiteralPredicate()) {
-        Assert.assertEquals(
-            "Literal should be equal",
-            bound.asLiteralPredicate().literal().value(),
-            projected.literal().value());
+        assertThat(projected.literal().value())
+            .isEqualTo(bound.asLiteralPredicate().literal().value());
       } else {
-        Assert.assertNull("Literal should be null", projected.literal());
+        assertThat(projected.literal()).isNull();
       }
     }
   }
@@ -114,17 +113,16 @@ public class TestProjection {
       // check inclusive the bound predicate to ensure the types are correct
       BoundPredicate<?> bound = assertAndUnwrap(predicate.bind(spec.schema().asStruct(), false));
 
-      Assert.assertEquals(
-          "Field name should match partition struct field", "id", projected.ref().name());
-      Assert.assertEquals("Operation should match", bound.op(), projected.op());
+      assertThat(projected.ref().name())
+          .as("Field name should match partition struct field")
+          .isEqualTo("id");
+      assertThat(projected.op()).isEqualTo(bound.op());
 
       if (bound.isLiteralPredicate()) {
-        Assert.assertEquals(
-            "Literal should be equal",
-            bound.asLiteralPredicate().literal().value(),
-            projected.literal().value());
+        assertThat(projected.literal().value())
+            .isEqualTo(bound.asLiteralPredicate().literal().value());
       } else {
-        Assert.assertNull("Literal should be null", projected.literal());
+        assertThat(projected.literal()).isNull();
       }
     }
   }
@@ -161,17 +159,16 @@ public class TestProjection {
       // check inclusive the bound predicate to ensure the types are correct
       BoundPredicate<?> bound = assertAndUnwrap(predicate.bind(spec.schema().asStruct(), true));
 
-      Assert.assertEquals(
-          "Field name should match partition struct field", "id", projected.ref().name());
-      Assert.assertEquals("Operation should match", bound.op(), projected.op());
+      assertThat(projected.ref().name())
+          .as("Field name should match partition struct field")
+          .isEqualTo("id");
+      assertThat(projected.op()).isEqualTo(bound.op());
 
       if (bound.isLiteralPredicate()) {
-        Assert.assertEquals(
-            "Literal should be equal",
-            bound.asLiteralPredicate().literal().value(),
-            projected.literal().value());
+        assertThat(projected.literal().value())
+            .isEqualTo(bound.asLiteralPredicate().literal().value());
       } else {
-        Assert.assertNull("Literal should be null", projected.literal());
+        assertThat(projected.literal()).isNull();
       }
     }
   }
@@ -199,17 +196,16 @@ public class TestProjection {
       // check inclusive the bound predicate to ensure the types are correct
       BoundPredicate<?> bound = assertAndUnwrap(predicate.bind(spec.schema().asStruct(), false));
 
-      Assert.assertEquals(
-          "Field name should match partition struct field", "id", projected.ref().name());
-      Assert.assertEquals("Operation should match", bound.op(), projected.op());
+      assertThat(projected.ref().name())
+          .as("Field name should match partition struct field")
+          .isEqualTo("id");
+      assertThat(projected.op()).isEqualTo(bound.op());
 
       if (bound.isLiteralPredicate()) {
-        Assert.assertEquals(
-            "Literal should be equal",
-            bound.asLiteralPredicate().literal().value(),
-            projected.literal().value());
+        assertThat(projected.literal().value())
+            .isEqualTo(bound.asLiteralPredicate().literal().value());
       } else {
-        Assert.assertNull("Literal should be null", projected.literal());
+        assertThat(projected.literal()).isNull();
       }
     }
   }
@@ -255,16 +251,16 @@ public class TestProjection {
     Assertions.assertThat(projection).isInstanceOf(Or.class);
     Or or1 = (Or) projection;
     UnboundPredicate<?> dateint1 = assertAndUnwrapUnbound(or1.left());
-    Assert.assertEquals("Should be a dateint predicate", "dateint", dateint1.ref().name());
-    Assert.assertEquals("Should be dateint=20180416", 20180416, dateint1.literal().value());
+    assertThat(dateint1.ref().name()).as("Should be a dateint predicate").isEqualTo("dateint");
+    assertThat(dateint1.literal().value()).as("Should be dateint=20180416").isEqualTo(20180416);
     Assertions.assertThat(or1.right()).isInstanceOf(Or.class);
     Or or2 = (Or) or1.right();
     UnboundPredicate<?> dateint2 = assertAndUnwrapUnbound(or2.left());
-    Assert.assertEquals("Should be a dateint predicate", "dateint", dateint2.ref().name());
-    Assert.assertEquals("Should be dateint=20180415", 20180415, dateint2.literal().value());
+    assertThat(dateint2.ref().name()).as("Should be a dateint predicate").isEqualTo("dateint");
+    assertThat(dateint2.literal().value()).as("Should be dateint=20180415").isEqualTo(20180415);
     UnboundPredicate<?> dateint3 = assertAndUnwrapUnbound(or2.right());
-    Assert.assertEquals("Should be a dateint predicate", "dateint", dateint3.ref().name());
-    Assert.assertEquals("Should be dateint=20180417", 20180417, dateint3.literal().value());
+    assertThat(dateint3.ref().name()).as("Should be a dateint predicate").isEqualTo("dateint");
+    assertThat(dateint3.literal().value()).as("Should be dateint=20180417").isEqualTo(20180417);
   }
 
   @Test
@@ -299,88 +295,82 @@ public class TestProjection {
     UnboundPredicate<Integer> predicate =
         (UnboundPredicate<Integer>)
             Projections.strict(partitionSpec).project(equal(hour("timestamp1"), 20));
-    Assert.assertEquals(
-        "should expected timestamp1_hour", "timestamp1_hour", predicate.ref().name());
+    assertThat(predicate.ref().name()).isEqualTo("timestamp1_hour");
     predicate =
         (UnboundPredicate<Integer>)
             Projections.inclusive(partitionSpec).project(equal(hour("timestamp1"), 20));
-    Assert.assertEquals(
-        "should expected timestamp1_hour", "timestamp1_hour", predicate.ref().name());
+    assertThat(predicate.ref().name()).isEqualTo("timestamp1_hour");
 
     predicate =
         (UnboundPredicate<Integer>)
             Projections.strict(partitionSpec).project(equal(day("timestamp2"), 20));
-    Assert.assertEquals("should expected timestamp2_day", "timestamp2_day", predicate.ref().name());
+    assertThat(predicate.ref().name()).isEqualTo("timestamp2_day");
     predicate =
         (UnboundPredicate<Integer>)
             Projections.inclusive(partitionSpec).project(equal(day("timestamp2"), 20));
-    Assert.assertEquals("should expected timestamp2_day", "timestamp2_day", predicate.ref().name());
+    assertThat(predicate.ref().name()).isEqualTo("timestamp2_day");
 
     predicate =
         (UnboundPredicate<Integer>)
             Projections.strict(partitionSpec).project(equal(month("timestamp3"), 20));
-    Assert.assertEquals(
-        "should expected timestamp3_month", "timestamp3_month", predicate.ref().name());
+    assertThat(predicate.ref().name()).isEqualTo("timestamp3_month");
     predicate =
         (UnboundPredicate<Integer>)
             Projections.inclusive(partitionSpec).project(equal(month("timestamp3"), 20));
-    Assert.assertEquals(
-        "should expected timestamp3_month", "timestamp3_month", predicate.ref().name());
+    assertThat(predicate.ref().name()).isEqualTo("timestamp3_month");
 
     predicate =
         (UnboundPredicate<Integer>)
             Projections.strict(partitionSpec).project(equal(year("timestamp4"), 20));
-    Assert.assertEquals(
-        "should expected timestamp4_year", "timestamp4_year", predicate.ref().name());
+    assertThat(predicate.ref().name()).isEqualTo("timestamp4_year");
     predicate =
         (UnboundPredicate<Integer>)
             Projections.inclusive(partitionSpec).project(equal(year("timestamp4"), 20));
-    Assert.assertEquals(
-        "should expected timestamp4_year", "timestamp4_year", predicate.ref().name());
+    assertThat(predicate.ref().name()).isEqualTo("timestamp4_year");
 
     predicate =
         (UnboundPredicate<Integer>)
             Projections.strict(partitionSpec).project(equal(day("date1"), 20));
-    Assert.assertEquals("should expected date1_day", "date1_day", predicate.ref().name());
+    assertThat(predicate.ref().name()).isEqualTo("date1_day");
     predicate =
         (UnboundPredicate<Integer>)
             Projections.inclusive(partitionSpec).project(equal(day("date1"), 20));
-    Assert.assertEquals("should expected date1_day", "date1_day", predicate.ref().name());
+    assertThat(predicate.ref().name()).isEqualTo("date1_day");
 
     predicate =
         (UnboundPredicate<Integer>)
             Projections.strict(partitionSpec).project(equal(month("date2"), 20));
-    Assert.assertEquals("should expected date2_month", "date2_month", predicate.ref().name());
+    assertThat(predicate.ref().name()).isEqualTo("date2_month");
     predicate =
         (UnboundPredicate<Integer>)
             Projections.inclusive(partitionSpec).project(equal(month("date2"), 20));
-    Assert.assertEquals("should expected date2_month", "date2_month", predicate.ref().name());
+    assertThat(predicate.ref().name()).isEqualTo("date2_month");
 
     predicate =
         (UnboundPredicate<Integer>)
             Projections.strict(partitionSpec).project(equal(year("date3"), 20));
-    Assert.assertEquals("should expected date3_year", "date3_year", predicate.ref().name());
+    assertThat(predicate.ref().name()).isEqualTo("date3_year");
     predicate =
         (UnboundPredicate<Integer>)
             Projections.inclusive(partitionSpec).project(equal(year("date3"), 20));
-    Assert.assertEquals("should expected date3_year", "date3_year", predicate.ref().name());
+    assertThat(predicate.ref().name()).isEqualTo("date3_year");
 
     predicate =
         (UnboundPredicate<Integer>)
             Projections.strict(partitionSpec).project(equal(bucket("long", 10), 20));
-    Assert.assertEquals("should expected long_bucket", "long_bucket", predicate.ref().name());
+    assertThat(predicate.ref().name()).isEqualTo("long_bucket");
     predicate =
         (UnboundPredicate<Integer>)
             Projections.inclusive(partitionSpec).project(equal(bucket("long", 10), 20));
-    Assert.assertEquals("should expected long_bucket", "long_bucket", predicate.ref().name());
+    assertThat(predicate.ref().name()).isEqualTo("long_bucket");
 
     predicate =
         (UnboundPredicate<Integer>)
             Projections.strict(partitionSpec).project(equal(truncate("string", 10), "abc"));
-    Assert.assertEquals("should expected string_trunc", "string_trunc", predicate.ref().name());
+    assertThat(predicate.ref().name()).isEqualTo("string_trunc");
     predicate =
         (UnboundPredicate<Integer>)
             Projections.inclusive(partitionSpec).project(equal(truncate("string", 10), "abc"));
-    Assert.assertEquals("should expected string_trunc", "string_trunc", predicate.ref().name());
+    assertThat(predicate.ref().name()).isEqualTo("string_trunc");
   }
 }
