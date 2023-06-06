@@ -20,9 +20,11 @@ package org.apache.iceberg.data.avro;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Map;
+import org.apache.avro.AvroRuntimeException;
 import org.apache.avro.Schema;
 import org.apache.avro.SchemaNormalization;
 import org.apache.avro.message.BadHeaderException;
@@ -141,7 +143,11 @@ public class IcebergDecoder<D> extends MessageDecoder.BaseDecoder<D> {
 
     RawDecoder<D> decoder = getDecoder(FP_BUFFER.get().getLong(2));
 
-    return decoder.decode(stream, reuse);
+    try {
+      return decoder.decode(stream, reuse);
+    } catch (UncheckedIOException e) {
+      throw new AvroRuntimeException(e);
+    }
   }
 
   /**

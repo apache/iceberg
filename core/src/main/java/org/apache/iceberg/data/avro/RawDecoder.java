@@ -20,8 +20,8 @@ package org.apache.iceberg.data.avro;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.util.function.Function;
-import org.apache.avro.AvroRuntimeException;
 import org.apache.avro.Schema;
 import org.apache.avro.io.BinaryDecoder;
 import org.apache.avro.io.DatumReader;
@@ -58,7 +58,7 @@ public class RawDecoder<D> extends MessageDecoder.BaseDecoder<D> {
     try {
       return reader.read(reuse, decoder);
     } catch (IOException e) {
-      throw new AvroRuntimeException("Decoding datum failed", e);
+      throw new UncheckedIOException("Decoding datum failed", e);
     }
   }
 }

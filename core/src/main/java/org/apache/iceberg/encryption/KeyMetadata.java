@@ -44,17 +44,15 @@ class KeyMetadata implements EncryptionKeyMetadata, IndexedRecord {
   private static final Map<Byte, org.apache.avro.Schema> avroSchemaVersions =
       ImmutableMap.of(V1, AVRO_SCHEMA_V1);
 
-  private static final KeyMetadataEncoder keyMetadataEncoder = new KeyMetadataEncoder(V1);
-  private static final KeyMetadataDecoder keyMetadataDecoder = new KeyMetadataDecoder(V1);
+  private static final KeyMetadataEncoder KEY_METADATA_ENCODER = new KeyMetadataEncoder(V1);
+  private static final KeyMetadataDecoder KEY_METADATA_DECODER = new KeyMetadataDecoder(V1);
 
   private ByteBuffer encryptionKey;
   private ByteBuffer aadPrefix;
   private org.apache.avro.Schema avroSchema;
 
   /** Used by Avro reflection to instantiate this class * */
-  KeyMetadata(org.apache.avro.Schema avroSchema) {
-    this.avroSchema = avroSchema;
-  }
+  KeyMetadata() {}
 
   KeyMetadata(ByteBuffer encryptionKey, ByteBuffer aadPrefix) {
     this.encryptionKey = encryptionKey;
@@ -80,7 +78,7 @@ class KeyMetadata implements EncryptionKeyMetadata, IndexedRecord {
 
   static KeyMetadata parse(ByteBuffer buffer) {
     try {
-      return keyMetadataDecoder.decode(buffer);
+      return KEY_METADATA_DECODER.decode(buffer);
     } catch (IOException e) {
       throw new UncheckedIOException("Failed to parse envelope encryption metadata", e);
     }
@@ -89,7 +87,7 @@ class KeyMetadata implements EncryptionKeyMetadata, IndexedRecord {
   @Override
   public ByteBuffer buffer() {
     try {
-      return keyMetadataEncoder.encode(this);
+      return KEY_METADATA_ENCODER.encode(this);
     } catch (IOException e) {
       throw new UncheckedIOException("Failed to serialize envelope key metadata", e);
     }

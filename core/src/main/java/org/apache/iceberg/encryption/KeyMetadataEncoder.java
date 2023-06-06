@@ -22,6 +22,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
+import org.apache.avro.Schema;
 import org.apache.avro.io.BinaryEncoder;
 import org.apache.avro.io.DatumWriter;
 import org.apache.avro.io.EncoderFactory;
@@ -61,8 +62,14 @@ class KeyMetadataEncoder implements MessageEncoder<KeyMetadata> {
    * next call to {@code encode}.
    */
   KeyMetadataEncoder(byte schemaVersion, boolean shouldCopy) {
-    this.writer =
-        GenericAvroWriter.create(KeyMetadata.supportedAvroSchemaVersions().get(schemaVersion));
+    Schema writeSchema = KeyMetadata.supportedAvroSchemaVersions().get(schemaVersion);
+
+    if (writeSchema == null) {
+      throw new UnsupportedOperationException(
+          "Cannot resolve schema for version: " + schemaVersion);
+    }
+
+    this.writer = GenericAvroWriter.create(writeSchema);
     this.schemaVersion = schemaVersion;
     this.copyOutputBytes = shouldCopy;
   }

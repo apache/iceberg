@@ -43,7 +43,7 @@ class KeyMetadataDecoder extends MessageDecoder.BaseDecoder<KeyMetadata> {
   }
 
   @Override
-  public KeyMetadata decode(InputStream stream, KeyMetadata reuse) throws IOException {
+  public KeyMetadata decode(InputStream stream, KeyMetadata reuse) {
     byte writeSchemaVersion;
 
     try {
@@ -53,7 +53,7 @@ class KeyMetadataDecoder extends MessageDecoder.BaseDecoder<KeyMetadata> {
     }
 
     if (writeSchemaVersion < 0) {
-      throw new IOException("Version byte - end of stream reached");
+      throw new RuntimeException("Version byte - end of stream reached");
     }
 
     Schema writeSchema = KeyMetadata.supportedAvroSchemaVersions().get(writeSchemaVersion);
