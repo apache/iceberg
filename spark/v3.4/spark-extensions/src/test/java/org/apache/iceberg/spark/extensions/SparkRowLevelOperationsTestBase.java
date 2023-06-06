@@ -26,6 +26,7 @@ import static org.apache.iceberg.SnapshotSummary.CHANGED_PARTITION_COUNT_PROP;
 import static org.apache.iceberg.SnapshotSummary.DELETED_FILES_PROP;
 import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT;
 import static org.apache.iceberg.TableProperties.PARQUET_VECTORIZATION_ENABLED;
+import static org.apache.iceberg.TableProperties.SPARK_WRITE_PARTITIONED_FANOUT_ENABLED;
 import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE;
 import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE_HASH;
 import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE_NONE;
@@ -71,6 +72,7 @@ public abstract class SparkRowLevelOperationsTestBase extends SparkExtensionsTes
   protected final String fileFormat;
   protected final boolean vectorized;
   protected final String distributionMode;
+  protected final boolean fanoutEnabled;
   protected final String branch;
 
   public SparkRowLevelOperationsTestBase(
@@ -80,18 +82,20 @@ public abstract class SparkRowLevelOperationsTestBase extends SparkExtensionsTes
       String fileFormat,
       boolean vectorized,
       String distributionMode,
+      boolean fanoutEnabled,
       String branch) {
     super(catalogName, implementation, config);
     this.fileFormat = fileFormat;
     this.vectorized = vectorized;
     this.distributionMode = distributionMode;
+    this.fanoutEnabled = fanoutEnabled;
     this.branch = branch;
   }
 
   @Parameters(
       name =
           "catalogName = {0}, implementation = {1}, config = {2},"
-              + " format = {3}, vectorized = {4}, distributionMode = {5}, branch = {6}")
+              + " format = {3}, vectorized = {4}, distributionMode = {5}, fanout = {6}, branch = {7}")
   public static Object[][] parameters() {
     return new Object[][] {
       {
@@ -103,6 +107,7 @@ public abstract class SparkRowLevelOperationsTestBase extends SparkExtensionsTes
         "orc",
         true,
         WRITE_DISTRIBUTION_MODE_NONE,
+        true,
         SnapshotRef.MAIN_BRANCH
       },
       {
@@ -114,6 +119,7 @@ public abstract class SparkRowLevelOperationsTestBase extends SparkExtensionsTes
         "parquet",
         true,
         WRITE_DISTRIBUTION_MODE_NONE,
+        false,
         null,
       },
       {
@@ -123,6 +129,7 @@ public abstract class SparkRowLevelOperationsTestBase extends SparkExtensionsTes
         "parquet",
         RANDOM.nextBoolean(),
         WRITE_DISTRIBUTION_MODE_HASH,
+        true,
         null
       },
       {
@@ -139,6 +146,7 @@ public abstract class SparkRowLevelOperationsTestBase extends SparkExtensionsTes
         "avro",
         false,
         WRITE_DISTRIBUTION_MODE_RANGE,
+        false,
         "test"
       }
     };
@@ -147,10 +155,15 @@ public abstract class SparkRowLevelOperationsTestBase extends SparkExtensionsTes
   protected abstract Map<String, String> extraTableProperties();
 
   protected void initTable() {
-    sql("ALTER TABLE %s SET TBLPROPERTIES('%s' '%s')", tableName, DEFAULT_FILE_FORMAT, fileFormat);
     sql(
-        "ALTER TABLE %s SET TBLPROPERTIES('%s' '%s')",
-        tableName, WRITE_DISTRIBUTION_MODE, distributionMode);
+        "ALTER TABLE %s SET TBLPROPERTIES('%s' '%s', '%s' '%s', '%s' '%s')",
+        tableName,
+        DEFAULT_FILE_FORMAT,
+        fileFormat,
+        WRITE_DISTRIBUTION_MODE,
+        distributionMode,
+        SPARK_WRITE_PARTITIONED_FANOUT_ENABLED,
+        String.valueOf(fanoutEnabled));
 
     switch (fileFormat) {
       case "parquet":

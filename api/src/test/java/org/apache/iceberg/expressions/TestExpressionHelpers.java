@@ -44,6 +44,7 @@ import static org.apache.iceberg.expressions.Expressions.rewriteNot;
 import static org.apache.iceberg.expressions.Expressions.startsWith;
 import static org.apache.iceberg.expressions.Expressions.truncate;
 import static org.apache.iceberg.expressions.Expressions.year;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.concurrent.Callable;
 import org.apache.iceberg.transforms.Transforms;
@@ -51,38 +52,43 @@ import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.types.Types.StructType;
 import org.assertj.core.api.Assertions;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestExpressionHelpers {
   private final UnboundPredicate<?> pred = lessThan("x", 7);
 
   @Test
   public void testSimplifyOr() {
-    Assert.assertEquals("alwaysTrue or pred => alwaysTrue", alwaysTrue(), or(alwaysTrue(), pred));
-    Assert.assertEquals("pred or alwaysTrue => alwaysTrue", alwaysTrue(), or(pred, alwaysTrue()));
+    assertThat(or(alwaysTrue(), pred))
+        .as("alwaysTrue or pred => alwaysTrue")
+        .isEqualTo(alwaysTrue());
+    assertThat(or(pred, alwaysTrue()))
+        .as("pred or alwaysTrue => alwaysTrue")
+        .isEqualTo(alwaysTrue());
 
-    Assert.assertEquals("alwaysFalse or pred => pred", pred, or(alwaysFalse(), pred));
-    Assert.assertEquals("pred or alwaysTrue => pred", pred, or(pred, alwaysFalse()));
+    assertThat(or(alwaysFalse(), pred)).as("alwaysFalse or pred => pred").isEqualTo(pred);
+    assertThat(or(pred, alwaysFalse())).as("pred or alwaysTrue => pred").isEqualTo(pred);
   }
 
   @Test
   public void testSimplifyAnd() {
-    Assert.assertEquals("alwaysTrue and pred => pred", pred, and(alwaysTrue(), pred));
-    Assert.assertEquals("pred and alwaysTrue => pred", pred, and(pred, alwaysTrue()));
+    assertThat(and(alwaysTrue(), pred)).as("alwaysTrue and pred => pred").isEqualTo(pred);
+    assertThat(and(pred, alwaysTrue())).as("pred and alwaysTrue => pred").isEqualTo(pred);
 
-    Assert.assertEquals(
-        "alwaysFalse and pred => alwaysFalse", alwaysFalse(), and(alwaysFalse(), pred));
-    Assert.assertEquals(
-        "pred and alwaysFalse => alwaysFalse", alwaysFalse(), and(pred, alwaysFalse()));
+    assertThat(and(alwaysFalse(), pred))
+        .as("alwaysFalse and pred => alwaysFalse")
+        .isEqualTo(alwaysFalse());
+    assertThat(and(pred, alwaysFalse()))
+        .as("pred and alwaysFalse => alwaysFalse")
+        .isEqualTo(alwaysFalse());
   }
 
   @Test
   public void testSimplifyNot() {
-    Assert.assertEquals("not(alwaysTrue) => alwaysFalse", alwaysFalse(), not(alwaysTrue()));
-    Assert.assertEquals("not(alwaysFalse) => alwaysTrue", alwaysTrue(), not(alwaysFalse()));
+    assertThat(not(alwaysTrue())).as("not(alwaysTrue) => alwaysFalse").isEqualTo(alwaysFalse());
+    assertThat(not(alwaysFalse())).as("not(alwaysFalse) => alwaysTrue").isEqualTo(alwaysTrue());
 
-    Assert.assertEquals("not(not(pred)) => pred", pred, not(not(pred)));
+    assertThat(not(not(pred))).as("not(not(pred)) => pred").isEqualTo(pred);
   }
 
   @Test
@@ -125,51 +131,42 @@ public class TestExpressionHelpers {
 
     for (Expression[] pair : expressions) {
       // unbound rewrite
-      Assert.assertEquals(
-          String.format("rewriteNot(%s) should be %s", pair[1], pair[0]),
-          pair[0].toString(),
-          rewriteNot(pair[1]).toString());
+      assertThat(rewriteNot(pair[1]))
+          .as(String.format("rewriteNot(%s) should be %s", pair[1], pair[0]))
+          .hasToString(pair[0].toString());
 
       // bound rewrite
       Expression expectedBound = Binder.bind(struct, pair[0]);
       Expression toRewriteBound = Binder.bind(struct, pair[1]);
-      Assert.assertEquals(
-          String.format("rewriteNot(%s) should be %s", toRewriteBound, expectedBound),
-          expectedBound.toString(),
-          rewriteNot(toRewriteBound).toString());
+      assertThat(rewriteNot(toRewriteBound))
+          .as(String.format("rewriteNot(%s) should be %s", toRewriteBound, expectedBound))
+          .hasToString(expectedBound.toString());
     }
   }
 
   @Test
   public void testTransformExpressions() {
-    Assert.assertEquals(
-        "Should produce the correct expression string",
-        "year(ref(name=\"ts\")) == \"2019\"",
-        equal(year("ts"), "2019").toString());
-    Assert.assertEquals(
-        "Should produce the correct expression string",
-        "month(ref(name=\"ts\")) == 1234",
-        equal(month("ts"), 1234).toString());
-    Assert.assertEquals(
-        "Should produce the correct expression string",
-        "day(ref(name=\"ts\")) == \"2019-12-04\"",
-        equal(day("ts"), "2019-12-04").toString());
-    Assert.assertEquals(
-        "Should produce the correct expression string",
-        "hour(ref(name=\"ts\")) == \"2019-12-04-10\"",
-        equal(hour("ts"), "2019-12-04-10").toString());
-    Assert.assertEquals(
-        "Should produce the correct expression string",
-        "truncate[6](ref(name=\"str\")) == \"abcdef\"",
-        equal(truncate("str", 6), "abcdef").toString());
-    Assert.assertEquals(
-        "Should produce the correct expression string",
-        "truncate[5](ref(name=\"i\")) == 10",
-        equal(truncate("i", 5), 10).toString());
-    Assert.assertEquals(
-        "Should produce the correct expression string",
-        "bucket[16](ref(name=\"id\")) == 12",
-        equal(bucket("id", 16), 12).toString());
+    assertThat(equal(year("ts"), "2019"))
+        .as("Should produce the correct expression string")
+        .hasToString("year(ref(name=\"ts\")) == \"2019\"");
+    assertThat(equal(month("ts"), 1234))
+        .as("Should produce the correct expression string")
+        .hasToString("month(ref(name=\"ts\")) == 1234");
+    assertThat(equal(day("ts"), "2019-12-04"))
+        .as("Should produce the correct expression string")
+        .hasToString("day(ref(name=\"ts\")) == \"2019-12-04\"");
+    assertThat(equal(hour("ts"), "2019-12-04-10"))
+        .as("Should produce the correct expression string")
+        .hasToString("hour(ref(name=\"ts\")) == \"2019-12-04-10\"");
+    assertThat(equal(truncate("str", 6), "abcdef"))
+        .as("Should produce the correct expression string")
+        .hasToString("truncate[6](ref(name=\"str\")) == \"abcdef\"");
+    assertThat(equal(truncate("i", 5), 10))
+        .as("Should produce the correct expression string")
+        .hasToString("truncate[5](ref(name=\"i\")) == 10");
+    assertThat(equal(bucket("id", 16), 12))
+        .as("Should produce the correct expression string")
+        .hasToString("bucket[16](ref(name=\"id\")) == 12");
   }
 
   @Test
@@ -192,7 +189,7 @@ public class TestExpressionHelpers {
 
     Expression actual = and(equal("a", 1), equal("b", 2), equal("c", 3));
 
-    Assert.assertEquals(expected.toString(), actual.toString());
+    assertThat(actual).hasToString(expected.toString());
   }
 
   @Test

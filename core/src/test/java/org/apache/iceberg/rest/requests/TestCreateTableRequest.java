@@ -23,7 +23,6 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import java.util.Map;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.NullOrder;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.PartitionSpecParser;
@@ -35,6 +34,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.RequestResponseTestBase;
 import org.apache.iceberg.types.Types;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -168,93 +168,73 @@ public class TestCreateTableRequest extends RequestResponseTestBase<CreateTableR
     String jsonMissingSchema =
         "{\"name\":\"foo\",\"location\":null,\"partition-spec\":null,\"write-order\":null,\"properties\":{},"
             + "\"stage-create\":false}";
-    AssertHelpers.assertThrows(
-        "A JSON request with the keys spelled incorrectly should fail to deserialize and validate",
-        IllegalArgumentException.class,
-        "Invalid schema: null",
-        () -> deserialize(jsonMissingSchema));
+    Assertions.assertThatThrownBy(() -> deserialize(jsonMissingSchema))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid schema: null");
 
     String jsonMissingName =
         String.format(
             "{\"location\":null,\"schema\":%s,\"spec\":null,\"write-order\":null,\"properties\":{},"
                 + "\"stage-create\":false}",
             SAMPLE_SCHEMA_JSON);
-    AssertHelpers.assertThrows(
-        "A JSON request with the keys spelled incorrectly should fail to deserialize and validate",
-        IllegalArgumentException.class,
-        "Invalid table name: null",
-        () -> deserialize(jsonMissingName));
+    Assertions.assertThatThrownBy(() -> deserialize(jsonMissingName))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid table name: null");
 
     String jsonIncorrectTypeForProperties =
         String.format(
             "{\"name\":\"foo\",\"location\":null,\"schema\":%s,\"partition-spec\":null,\"write-order\":null,"
                 + "\"properties\":[],\"stage-create\":false}",
             SAMPLE_SCHEMA_JSON);
-    AssertHelpers.assertThrows(
-        "A JSON request with incorrect types for fields should fail to parse and validate",
-        JsonProcessingException.class,
-        () -> deserialize(jsonIncorrectTypeForProperties));
+    Assertions.assertThatThrownBy(() -> deserialize(jsonIncorrectTypeForProperties))
+        .isInstanceOf(JsonProcessingException.class)
+        .hasMessageStartingWith("Cannot deserialize value of type");
 
-    AssertHelpers.assertThrows(
-        "An empty JSON object should not parse into a CreateNamespaceRequest instance that passes validation",
-        IllegalArgumentException.class,
-        "Invalid table name: null",
-        () -> deserialize("{}"));
+    Assertions.assertThatThrownBy(() -> deserialize("{}"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid table name: null");
 
-    AssertHelpers.assertThrows(
-        "An empty JSON request should fail to deserialize",
-        IllegalArgumentException.class,
-        () -> deserialize(null));
+    Assertions.assertThatThrownBy(() -> deserialize(null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("argument \"content\" is null");
   }
 
   @Test
   public void testBuilderDoesNotBuildInvalidRequests() {
-    AssertHelpers.assertThrows(
-        "The builder should not allow using null for the namespace",
-        NullPointerException.class,
-        "Invalid name: null",
-        () -> CreateTableRequest.builder().withName(null));
+    Assertions.assertThatThrownBy(() -> CreateTableRequest.builder().withName(null))
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("Invalid name: null");
 
-    AssertHelpers.assertThrows(
-        "The builder should not allow using null for the schema",
-        NullPointerException.class,
-        "Invalid schema: null",
-        () -> CreateTableRequest.builder().withSchema(null));
+    Assertions.assertThatThrownBy(() -> CreateTableRequest.builder().withSchema(null))
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("Invalid schema: null");
 
-    AssertHelpers.assertThrows(
-        "The builder should not allow passing a null collection of properties",
-        NullPointerException.class,
-        "Invalid collection of properties: null",
-        () -> CreateTableRequest.builder().setProperties(null));
+    Assertions.assertThatThrownBy(() -> CreateTableRequest.builder().setProperties(null))
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("Invalid collection of properties: null");
 
     Map<String, String> mapWithNullKey = Maps.newHashMap();
     mapWithNullKey.put(null, "hello");
-    AssertHelpers.assertThrows(
-        "The builder should not allow using null as a key in the properties to set",
-        IllegalArgumentException.class,
-        "Invalid property: null",
-        () -> CreateTableRequest.builder().setProperties(mapWithNullKey));
+
+    Assertions.assertThatThrownBy(() -> CreateTableRequest.builder().setProperties(mapWithNullKey))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid property: null");
 
     Map<String, String> mapWithNullValue = Maps.newHashMap();
     mapWithNullValue.put("a", null);
     mapWithNullValue.put("b", "b");
-    AssertHelpers.assertThrows(
-        "The builder should not allow using null as a value in the properties to set",
-        IllegalArgumentException.class,
-        "Invalid value for properties [a]: null",
-        () -> CreateTableRequest.builder().setProperties(mapWithNullValue).build());
+    Assertions.assertThatThrownBy(
+            () -> CreateTableRequest.builder().setProperties(mapWithNullValue).build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid value for properties [a]: null");
 
-    AssertHelpers.assertThrows(
-        "The builder should not allow using null as a value when setting a single property",
-        IllegalArgumentException.class,
-        "Invalid value for property foo: null",
-        () -> CreateTableRequest.builder().setProperty("foo", null));
+    Assertions.assertThatThrownBy(() -> CreateTableRequest.builder().setProperty("foo", null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid value for property foo: null");
 
-    AssertHelpers.assertThrows(
-        "The builder should not allow using null as a key when setting a single property",
-        IllegalArgumentException.class,
-        "Invalid property: null",
-        () -> CreateTableRequest.builder().setProperty(null, "foo"));
+    Assertions.assertThatThrownBy(() -> CreateTableRequest.builder().setProperty(null, "foo"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid property: null");
   }
 
   @Override

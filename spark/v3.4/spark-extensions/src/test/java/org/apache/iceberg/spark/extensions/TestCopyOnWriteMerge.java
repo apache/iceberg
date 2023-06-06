@@ -59,8 +59,17 @@ public class TestCopyOnWriteMerge extends TestMerge {
       String fileFormat,
       boolean vectorized,
       String distributionMode,
+      boolean fanoutEnabled,
       String branch) {
-    super(catalogName, implementation, config, fileFormat, vectorized, distributionMode, branch);
+    super(
+        catalogName,
+        implementation,
+        config,
+        fileFormat,
+        vectorized,
+        distributionMode,
+        fanoutEnabled,
+        branch);
   }
 
   @Override

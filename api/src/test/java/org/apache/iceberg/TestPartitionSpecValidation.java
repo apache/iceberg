@@ -18,12 +18,13 @@
  */
 package org.apache.iceberg;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.NestedField;
 import org.assertj.core.api.Assertions;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestPartitionSpecValidation {
   private static final Schema SCHEMA =
@@ -172,34 +173,49 @@ public class TestPartitionSpecValidation {
 
   @Test
   public void testSettingPartitionTransformsWithCustomTargetNames() {
-    Assert.assertEquals(
-        PartitionSpec.builderFor(SCHEMA).year("ts", "custom_year").build().fields().get(0).name(),
-        "custom_year");
-    Assert.assertEquals(
-        PartitionSpec.builderFor(SCHEMA).month("ts", "custom_month").build().fields().get(0).name(),
-        "custom_month");
-    Assert.assertEquals(
-        PartitionSpec.builderFor(SCHEMA).day("ts", "custom_day").build().fields().get(0).name(),
-        "custom_day");
-    Assert.assertEquals(
-        PartitionSpec.builderFor(SCHEMA).hour("ts", "custom_hour").build().fields().get(0).name(),
-        "custom_hour");
-    Assert.assertEquals(
-        PartitionSpec.builderFor(SCHEMA)
-            .bucket("ts", 4, "custom_bucket")
-            .build()
-            .fields()
-            .get(0)
-            .name(),
-        "custom_bucket");
-    Assert.assertEquals(
-        PartitionSpec.builderFor(SCHEMA)
-            .truncate("s", 1, "custom_truncate")
-            .build()
-            .fields()
-            .get(0)
-            .name(),
-        "custom_truncate");
+    assertThat(
+            PartitionSpec.builderFor(SCHEMA)
+                .year("ts", "custom_year")
+                .build()
+                .fields()
+                .get(0)
+                .name())
+        .isEqualTo("custom_year");
+    assertThat(
+            PartitionSpec.builderFor(SCHEMA)
+                .month("ts", "custom_month")
+                .build()
+                .fields()
+                .get(0)
+                .name())
+        .isEqualTo("custom_month");
+    assertThat(
+            PartitionSpec.builderFor(SCHEMA).day("ts", "custom_day").build().fields().get(0).name())
+        .isEqualTo("custom_day");
+    assertThat(
+            PartitionSpec.builderFor(SCHEMA)
+                .hour("ts", "custom_hour")
+                .build()
+                .fields()
+                .get(0)
+                .name())
+        .isEqualTo("custom_hour");
+    assertThat(
+            PartitionSpec.builderFor(SCHEMA)
+                .bucket("ts", 4, "custom_bucket")
+                .build()
+                .fields()
+                .get(0)
+                .name())
+        .isEqualTo("custom_bucket");
+    assertThat(
+            PartitionSpec.builderFor(SCHEMA)
+                .truncate("s", 1, "custom_truncate")
+                .build()
+                .fields()
+                .get(0)
+                .name())
+        .isEqualTo("custom_truncate");
   }
 
   @Test
@@ -281,11 +297,11 @@ public class TestPartitionSpecValidation {
             .truncate("s", 1, "custom_truncate")
             .build();
 
-    Assert.assertEquals(1000, spec.fields().get(0).fieldId());
-    Assert.assertEquals(1001, spec.fields().get(1).fieldId());
-    Assert.assertEquals(1002, spec.fields().get(2).fieldId());
-    Assert.assertEquals(1003, spec.fields().get(3).fieldId());
-    Assert.assertEquals(1003, spec.lastAssignedFieldId());
+    assertThat(spec.fields().get(0).fieldId()).isEqualTo(1000);
+    assertThat(spec.fields().get(1).fieldId()).isEqualTo(1001);
+    assertThat(spec.fields().get(2).fieldId()).isEqualTo(1002);
+    assertThat(spec.fields().get(3).fieldId()).isEqualTo(1003);
+    assertThat(spec.lastAssignedFieldId()).isEqualTo(1003);
   }
 
   @Test
@@ -297,10 +313,10 @@ public class TestPartitionSpecValidation {
             .add(1, 1002, "id_partition3", Transforms.bucket(6))
             .build();
 
-    Assert.assertEquals(1005, spec.fields().get(0).fieldId());
-    Assert.assertEquals(1006, spec.fields().get(1).fieldId());
-    Assert.assertEquals(1002, spec.fields().get(2).fieldId());
-    Assert.assertEquals(1006, spec.lastAssignedFieldId());
+    assertThat(spec.fields().get(0).fieldId()).isEqualTo(1005);
+    assertThat(spec.fields().get(1).fieldId()).isEqualTo(1006);
+    assertThat(spec.fields().get(2).fieldId()).isEqualTo(1002);
+    assertThat(spec.lastAssignedFieldId()).isEqualTo(1006);
   }
 
   @Test
@@ -312,9 +328,9 @@ public class TestPartitionSpecValidation {
             .truncate("s", 1, "custom_truncate")
             .build();
 
-    Assert.assertEquals(1000, spec.fields().get(0).fieldId());
-    Assert.assertEquals(1005, spec.fields().get(1).fieldId());
-    Assert.assertEquals(1006, spec.fields().get(2).fieldId());
-    Assert.assertEquals(1006, spec.lastAssignedFieldId());
+    assertThat(spec.fields().get(0).fieldId()).isEqualTo(1000);
+    assertThat(spec.fields().get(1).fieldId()).isEqualTo(1005);
+    assertThat(spec.fields().get(2).fieldId()).isEqualTo(1006);
+    assertThat(spec.lastAssignedFieldId()).isEqualTo(1006);
   }
 }
