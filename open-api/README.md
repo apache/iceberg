@@ -38,3 +38,5 @@ When updating `rest-catalog-open-api.yaml`, make sure to update `rest-catalog-op
 make install
 make generate
 ```
+
+The generated code is not being used in the project, but helps to see what the changes in the open-API definition are in the generated code.
