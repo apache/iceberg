@@ -96,8 +96,10 @@ class Transaction:
         return self
 
     def __exit__(self, _: Any, value: Any, traceback: Any) -> None:
-        self.commit_transaction()
-        self._table.refresh()
+        fresh_table = self.commit_transaction()
+        # Update the new data in place
+        self._table.metadata = fresh_table.metadata
+        self._table.metadata_location = fresh_table.metadata_location
 
     def _append_updates(self, *new_updates: TableUpdate) -> Transaction:
         """Appends updates to the set of staged updates
