@@ -23,8 +23,8 @@ from pyiceberg.manifest import (
     FileFormat,
     ManifestContent,
     ManifestEntryStatus,
+    ManifestFile,
     PartitionFieldSummary,
-    read_manifest_entry,
     read_manifest_list,
 )
 from pyiceberg.table import Snapshot
@@ -32,13 +32,15 @@ from pyiceberg.table.snapshots import Operation, Summary
 
 
 def test_read_manifest_entry(generated_manifest_entry_file: str) -> None:
-    input_file = PyArrowFileIO().new_input(location=generated_manifest_entry_file)
-    manifest_entries = list(read_manifest_entry(input_file))
+    manifest = ManifestFile(
+        manifest_path=generated_manifest_entry_file, manifest_length=0, partition_spec_id=0, sequence_number=None, partitions=[]
+    )
+    manifest_entries = manifest.fetch_manifest_entry(PyArrowFileIO())
     manifest_entry = manifest_entries[0]
 
     assert manifest_entry.status == ManifestEntryStatus.ADDED
     assert manifest_entry.snapshot_id == 8744736658442914487
-    assert manifest_entry.sequence_number is None
+    assert manifest_entry.data_sequence_number is None
     assert isinstance(manifest_entry.data_file, DataFile)
 
     data_file = manifest_entry.data_file
@@ -222,7 +224,7 @@ def test_read_manifest_v1(generated_manifest_file_file_v1: str) -> None:
 
     entry = entries[0]
 
-    assert entry.sequence_number == 0
+    assert entry.data_sequence_number == 0
     assert entry.file_sequence_number == 0
     assert entry.snapshot_id == 8744736658442914487
     assert entry.status == ManifestEntryStatus.ADDED
@@ -244,8 +246,8 @@ def test_read_manifest_v2(generated_manifest_file_file_v2: str) -> None:
     assert manifest_list.manifest_length == 7989
     assert manifest_list.partition_spec_id == 0
     assert manifest_list.content == ManifestContent.DELETES
-    assert manifest_list.sequence_number == 3  # inherited
-    assert manifest_list.min_sequence_number == 3  # inherited
+    assert manifest_list.sequence_number == 3
+    assert manifest_list.min_sequence_number == 3
     assert manifest_list.added_snapshot_id == 9182715666859759686
     assert manifest_list.added_files_count == 3
     assert manifest_list.existing_files_count == 0
@@ -272,7 +274,7 @@ def test_read_manifest_v2(generated_manifest_file_file_v2: str) -> None:
 
     entry = entries[0]
 
-    assert entry.sequence_number == 3
+    assert entry.data_sequence_number == 3
     assert entry.file_sequence_number == 3
     assert entry.snapshot_id == 8744736658442914487
     assert entry.status == ManifestEntryStatus.ADDED

@@ -191,7 +191,7 @@ class DataFile(Record):
 MANIFEST_ENTRY_SCHEMA = Schema(
     NestedField(0, "status", IntegerType(), required=True),
     NestedField(1, "snapshot_id", LongType(), required=False),
-    NestedField(3, "sequence_number", LongType(), required=False),
+    NestedField(3, "data_sequence_number", LongType(), required=False),
     NestedField(4, "file_sequence_number", LongType(), required=False),
     NestedField(2, "data_file", DATA_FILE_TYPE, required=False),
 )
@@ -200,7 +200,7 @@ MANIFEST_ENTRY_SCHEMA = Schema(
 class ManifestEntry(Record):
     status: ManifestEntryStatus
     snapshot_id: Optional[int]
-    sequence_number: Optional[int]
+    data_sequence_number: Optional[int]
     file_sequence_number: Optional[int]
     data_file: DataFile
 
@@ -265,36 +265,29 @@ class ManifestFile(Record):
     def __init__(self, *data: Any, **named_data: Any) -> None:
         super().__init__(*data, **{"struct": MANIFEST_FILE_SCHEMA.as_struct(), **named_data})
 
-    def fetch_manifest_entry(self, io: FileIO) -> List[ManifestEntry]:
-        file = io.new_input(self.manifest_path)
-        return [_inherit_sequence_number(entry, self) for entry in read_manifest_entry(file)]
+    def fetch_manifest_entry(self, io: FileIO, discard_deleted: bool = True) -> List[ManifestEntry]:
+        """
+        Reads the manifest entries from the manifest file
 
+        Args:
+            io: The FileIO to fetch the file
+            discard_deleted: Filter on live entries
 
-def read_manifest_entry(input_file: InputFile) -> Iterator[ManifestEntry]:
-    """
-    Reads the manifest entries from the manifest file
-
-    Args:
-        input_file: The input file where the stream can be read from
-
-    Returns:
-        An Iterator of manifest entries
-    """
-    with AvroFile[ManifestEntry](
-        input_file,
-        MANIFEST_ENTRY_SCHEMA,
-        read_types={-1: ManifestEntry, 2: DataFile},
-        read_enums={0: ManifestEntryStatus, 101: FileFormat, 134: DataFileContent},
-    ) as reader:
-        yield from reader
-
-
-def live_entries(input_file: InputFile) -> Iterator[ManifestEntry]:
-    return (entry for entry in read_manifest_entry(input_file) if entry.status != ManifestEntryStatus.DELETED)
-
-
-def files(input_file: InputFile) -> Iterator[DataFile]:
-    return (entry.data_file for entry in live_entries(input_file))
+        Returns:
+            An Iterator of manifest entries
+        """
+        input_file = io.new_input(self.manifest_path)
+        with AvroFile[ManifestEntry](
+            input_file,
+            MANIFEST_ENTRY_SCHEMA,
+            read_types={-1: ManifestEntry, 2: DataFile},
+            read_enums={0: ManifestEntryStatus, 101: FileFormat, 134: DataFileContent},
+        ) as reader:
+            return [
+                _inherit_sequence_number(entry, self)
+                for entry in reader
+                if not discard_deleted or entry.status != ManifestEntryStatus.DELETED
+            ]
 
 
 def read_manifest_list(input_file: InputFile) -> Iterator[ManifestFile]:
@@ -334,8 +327,8 @@ def _inherit_sequence_number(entry: ManifestEntry, manifest: ManifestFile) -> Ma
 
     # in v1 tables, the data sequence number is not persisted and can be safely defaulted to 0
     # in v2 tables, the data sequence number should be inherited iff the entry status is ADDED
-    if entry.sequence_number is None and (manifest.sequence_number == 0 or entry.status == ManifestEntryStatus.ADDED):
-        entry.sequence_number = manifest.sequence_number
+    if entry.data_sequence_number is None and (manifest.sequence_number == 0 or entry.status == ManifestEntryStatus.ADDED):
+        entry.data_sequence_number = manifest.sequence_number
 
     # in v1 tables, the file sequence number is not persisted and can be safely defaulted to 0
     # in v2 tables, the file sequence number should be inherited iff the entry status is ADDED
