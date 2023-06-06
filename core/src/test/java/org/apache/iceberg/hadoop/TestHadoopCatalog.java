@@ -28,7 +28,6 @@ import java.util.Set;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
@@ -130,27 +129,24 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
     HadoopCatalog catalog = hadoopCatalog();
     TableIdentifier tableIdent = TableIdentifier.of("db", "ns1", "ns2", "tbl");
 
-    AssertHelpers.assertThrows(
-        "Should reject a custom location",
-        IllegalArgumentException.class,
-        "Cannot set a custom location for a path-based table",
-        () -> catalog.buildTable(tableIdent, SCHEMA).withLocation("custom").create());
+    Assertions.assertThatThrownBy(
+            () -> catalog.buildTable(tableIdent, SCHEMA).withLocation("custom").create())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Cannot set a custom location for a path-based table");
 
-    AssertHelpers.assertThrows(
-        "Should reject a custom location",
-        IllegalArgumentException.class,
-        "Cannot set a custom location for a path-based table",
-        () -> catalog.buildTable(tableIdent, SCHEMA).withLocation("custom").createTransaction());
+    Assertions.assertThatThrownBy(
+            () -> catalog.buildTable(tableIdent, SCHEMA).withLocation("custom").createTransaction())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Cannot set a custom location for a path-based table");
 
-    AssertHelpers.assertThrows(
-        "Should reject a custom location",
-        IllegalArgumentException.class,
-        "Cannot set a custom location for a path-based table",
-        () ->
-            catalog
-                .buildTable(tableIdent, SCHEMA)
-                .withLocation("custom")
-                .createOrReplaceTransaction());
+    Assertions.assertThatThrownBy(
+            () ->
+                catalog
+                    .buildTable(tableIdent, SCHEMA)
+                    .withLocation("custom")
+                    .createOrReplaceTransaction())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Cannot set a custom location for a path-based table");
   }
 
   @Test
@@ -251,13 +247,10 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
     HadoopCatalog catalog = hadoopCatalog();
     TableIdentifier testTable = TableIdentifier.of("db", "tbl1");
     catalog.createTable(testTable, SCHEMA, PartitionSpec.unpartitioned());
-    AssertHelpers.assertThrows(
-        "should throw exception",
-        UnsupportedOperationException.class,
-        "Cannot rename Hadoop tables",
-        () -> {
-          catalog.renameTable(testTable, TableIdentifier.of("db", "tbl2"));
-        });
+    Assertions.assertThatThrownBy(
+            () -> catalog.renameTable(testTable, TableIdentifier.of("db", "tbl2")))
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage("Cannot rename Hadoop tables");
   }
 
   @Test
@@ -282,13 +275,9 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
     Assert.assertEquals("table identifiers", 1, tbls2.size());
     Assert.assertEquals("table name", "tbl3", tbls2.get(0).name());
 
-    AssertHelpers.assertThrows(
-        "should throw exception",
-        NoSuchNamespaceException.class,
-        "Namespace does not exist: ",
-        () -> {
-          catalog.listTables(Namespace.of("db", "ns1", "ns2"));
-        });
+    Assertions.assertThatThrownBy(() -> catalog.listTables(Namespace.of("db", "ns1", "ns2")))
+        .isInstanceOf(NoSuchNamespaceException.class)
+        .hasMessage("Namespace does not exist: db.ns1.ns2");
   }
 
   @Test
@@ -326,13 +315,9 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
     FileSystem fs2 = Util.getFs(new Path(metaLocation2), catalog.getConf());
     Assert.assertTrue(fs2.isDirectory(new Path(metaLocation2)));
 
-    AssertHelpers.assertThrows(
-        "Should fail to create when namespace already exist: " + tbl1.namespace(),
-        org.apache.iceberg.exceptions.AlreadyExistsException.class,
-        "Namespace already exists: " + tbl1.namespace(),
-        () -> {
-          catalog.createNamespace(tbl1.namespace());
-        });
+    Assertions.assertThatThrownBy(() -> catalog.createNamespace(tbl1.namespace()))
+        .isInstanceOf(org.apache.iceberg.exceptions.AlreadyExistsException.class)
+        .hasMessage("Namespace already exists: " + tbl1.namespace());
   }
 
   @Test
@@ -371,13 +356,9 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
     Assert.assertTrue(tblSet3.contains("db"));
     Assert.assertTrue(tblSet3.contains("db2"));
 
-    AssertHelpers.assertThrows(
-        "Should fail to list namespace doesn't exist",
-        NoSuchNamespaceException.class,
-        "Namespace does not exist: ",
-        () -> {
-          catalog.listNamespaces(Namespace.of("db", "db2", "ns2"));
-        });
+    Assertions.assertThatThrownBy(() -> catalog.listNamespaces(Namespace.of("db", "db2", "ns2")))
+        .isInstanceOf(NoSuchNamespaceException.class)
+        .hasMessage("Namespace does not exist: db.db2.ns2");
   }
 
   @Test
@@ -393,13 +374,10 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
         .forEach(t -> catalog.createTable(t, SCHEMA, PartitionSpec.unpartitioned()));
     catalog.loadNamespaceMetadata(Namespace.of("db"));
 
-    AssertHelpers.assertThrows(
-        "Should fail to load namespace doesn't exist",
-        NoSuchNamespaceException.class,
-        "Namespace does not exist: ",
-        () -> {
-          catalog.loadNamespaceMetadata(Namespace.of("db", "db2", "ns2"));
-        });
+    Assertions.assertThatThrownBy(
+            () -> catalog.loadNamespaceMetadata(Namespace.of("db", "db2", "ns2")))
+        .isInstanceOf(NoSuchNamespaceException.class)
+        .hasMessage("Namespace does not exist: db.db2.ns2");
   }
 
   @Test
@@ -424,14 +402,12 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
   @Test
   public void testAlterNamespaceMeta() throws IOException {
     HadoopCatalog catalog = hadoopCatalog();
-    AssertHelpers.assertThrows(
-        "Should fail to change namespace",
-        UnsupportedOperationException.class,
-        "Cannot set namespace properties db.db2.ns2 : setProperties is not supported",
-        () -> {
-          catalog.setProperties(
-              Namespace.of("db", "db2", "ns2"), ImmutableMap.of("property", "test"));
-        });
+    Assertions.assertThatThrownBy(
+            () ->
+                catalog.setProperties(
+                    Namespace.of("db", "db2", "ns2"), ImmutableMap.of("property", "test")))
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage("Cannot set namespace properties db.db2.ns2 : setProperties is not supported");
   }
 
   @Test
@@ -450,13 +426,9 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
     Lists.newArrayList(tbl1, tbl2)
         .forEach(t -> catalog.createTable(t, SCHEMA, PartitionSpec.unpartitioned()));
 
-    AssertHelpers.assertThrows(
-        "Should fail to drop namespace is not empty " + namespace1,
-        NamespaceNotEmptyException.class,
-        "Namespace " + namespace1 + " is not empty.",
-        () -> {
-          catalog.dropNamespace(Namespace.of("db"));
-        });
+    Assertions.assertThatThrownBy(() -> catalog.dropNamespace(Namespace.of("db")))
+        .isInstanceOf(NamespaceNotEmptyException.class)
+        .hasMessage("Namespace " + namespace1 + " is not empty.");
     Assert.assertFalse(
         "Should fail to drop namespace doesn't exist", catalog.dropNamespace(Namespace.of("db2")));
     Assert.assertTrue(catalog.dropTable(tbl1));
@@ -546,11 +518,9 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
     // Check that we got 0 findVersion, and a NoSuchTableException is thrown when trying to load the
     // table
     Assert.assertEquals(0, tableOperations.findVersion());
-    AssertHelpers.assertThrows(
-        "Should not be able to find the table",
-        NoSuchTableException.class,
-        "Table does not exist",
-        () -> TABLES.load(tableLocation));
+    Assertions.assertThatThrownBy(() -> TABLES.load(tableLocation))
+        .isInstanceOf(NoSuchTableException.class)
+        .hasMessageStartingWith("Table does not exist");
   }
 
   @Test
