@@ -92,6 +92,12 @@ class Transaction:
         self._updates = actions or ()
         self._requirements = requirements or ()
 
+    def __enter__(self) -> Transaction:
+        return self
+
+    def __exit__(self, _: Any, value: Any, traceback: Any) -> None:
+        self.commit()
+
     def _append_updates(self, *new_updates: TableUpdate) -> Transaction:
         """Appends updates to the set of staged updates
 
@@ -381,7 +387,7 @@ class Table:
 
     def refresh(self) -> Table:
         """Refresh the current table metadata"""
-        raise NotImplementedError("To be implemented")
+        return self.catalog.load_table(self.identifier[1:])
 
     def name(self) -> Identifier:
         """Return the identifier of this table"""

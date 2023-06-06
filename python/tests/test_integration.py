@@ -105,6 +105,16 @@ def test_table_properties(table: Table) -> None:
 
     assert table.properties == {}
 
+    with table.new_transaction() as transaction:
+        transaction.set_properties(abc="🤪")
+
+    assert table.refresh().properties == {"abc": "🤪"}
+
+    with table.new_transaction() as transaction:
+        transaction.remove_properties("abc")
+
+    assert table.refresh().properties == {}
+
 
 @pytest.mark.integration
 def test_pyarrow_nan(table_test_null_nan: Table) -> None:
