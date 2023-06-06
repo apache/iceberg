@@ -28,6 +28,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.google.api.pathtemplate.ValidationException;
 import com.google.cloud.bigquery.biglake.v1.Catalog;
 import com.google.cloud.bigquery.biglake.v1.CatalogName;
 import com.google.cloud.bigquery.biglake.v1.Database;
@@ -102,13 +103,32 @@ public class BigLakeCatalogTest extends CatalogTests<BigLakeCatalog> {
     return fakeBigLakeCatalog;
   }
 
-  // By pass this test from CatalogTests, because BigLake API does not support "/" in resource IDs.
-  @Test
-  public void testNamespaceWithSlash() {}
+  @Override
+  protected boolean supportsNamesWithSlashes() {
+    return false;
+  }
 
-  // By pass this test from CatalogTests, because BigLake API does not support "/" in resource IDs.
   @Test
-  public void testTableNameWithSlash() {}
+  public void testNamespaceWithSlash() {
+    BigLakeCatalog catalog = catalog();
+
+    Exception exception =
+        assertThrows(
+            ValidationException.class, () -> catalog.createNamespace(Namespace.of("new/db")));
+    assertEquals("Invalid character \"/\" in path section \"new/db\".", exception.getMessage());
+  }
+
+  @Test
+  public void testTableNameWithSlash() {
+    BigLakeCatalog catalog = catalog();
+
+    catalog.createNamespace(Namespace.of("ns"));
+    TableIdentifier ident = TableIdentifier.of("ns", "tab/le");
+
+    Exception exception =
+        assertThrows(ValidationException.class, () -> catalog.buildTable(ident, SCHEMA).create());
+    assertEquals("Invalid character \"/\" in path section \"tab/le\".", exception.getMessage());
+  }
 
   @Test
   public void testDefaultWarehouseWithDatabaseLocation_asExpected() {
