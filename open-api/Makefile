@@ -15,14 +15,19 @@
 # specific language governing permissions and limitations
 # under the License.
 
-mkdocs==1.4.3
-griffe==0.29.0
-jinja2==3.1.2
-mkdocstrings==0.22.0
-mkdocstrings-python==1.1.0
-mkdocs-literate-nav==0.6.0
-mkdocs-autorefs==0.4.1
-mkdocs-gen-files==0.5.0
-mkdocs-material==9.1.15
-mkdocs-material-extensions==1.1.1
-mkdocs-section-index==0.3.5
+install:
+	pip install -r requirements.txt
+
+lint:
+	openapi-spec-validator --errors all rest-catalog-open-api.yaml
+
+generate:
+	datamodel-codegen \
+	        --target-python-version 3.8 \
+	        --use-schema-description \
+	        --field-constraints \
+	        --input rest-catalog-open-api.yaml \
+	        --disable-timestamp \
+	        --custom-file-header-path header.txt \
+	        --input-file-type openapi \
+	        --output rest-catalog-open-api.py

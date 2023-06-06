@@ -21,6 +21,7 @@ package org.apache.iceberg.expressions;
 import static org.apache.iceberg.types.Conversions.toByteBuffer;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;
 import org.apache.iceberg.DataFile;
@@ -32,8 +33,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types.IntegerType;
 import org.apache.iceberg.types.Types.StringType;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestAggregateEvaluator {
   private static final Schema SCHEMA =
@@ -109,7 +109,7 @@ public class TestAggregateEvaluator {
       aggregateEvaluator.update(dataFile);
     }
 
-    Assert.assertTrue(aggregateEvaluator.allAggregatorsValid());
+    assertThat(aggregateEvaluator.allAggregatorsValid()).isTrue();
     StructLike result = aggregateEvaluator.result();
     Object[] expected = {90L, 60L, 3333, -33};
     assertEvaluatorResult(result, expected);
@@ -129,7 +129,7 @@ public class TestAggregateEvaluator {
       aggregateEvaluator.update(dataFile);
     }
 
-    Assert.assertTrue(aggregateEvaluator.allAggregatorsValid());
+    assertThat(aggregateEvaluator.allAggregatorsValid()).isTrue();
     StructLike result = aggregateEvaluator.result();
     Object[] expected = {90L, 0L, null, null};
     assertEvaluatorResult(result, expected);
@@ -148,7 +148,7 @@ public class TestAggregateEvaluator {
       aggregateEvaluator.update(dataFile);
     }
 
-    Assert.assertFalse(aggregateEvaluator.allAggregatorsValid());
+    assertThat(aggregateEvaluator.allAggregatorsValid()).isFalse();
     StructLike result = aggregateEvaluator.result();
     Object[] expected = {90L, null, null, null};
     assertEvaluatorResult(result, expected);
@@ -167,7 +167,7 @@ public class TestAggregateEvaluator {
       aggregateEvaluator.update(dataFile);
     }
 
-    Assert.assertFalse(aggregateEvaluator.allAggregatorsValid());
+    assertThat(aggregateEvaluator.allAggregatorsValid()).isFalse();
     StructLike result = aggregateEvaluator.result();
     Object[] expected = {90L, null, null, null};
     assertEvaluatorResult(result, expected);
@@ -179,6 +179,6 @@ public class TestAggregateEvaluator {
       actual[i] = result.get(i, Object.class);
     }
 
-    Assert.assertEquals("equals", expected, actual);
+    assertThat(actual).as("equals").isEqualTo(expected);
   }
 }

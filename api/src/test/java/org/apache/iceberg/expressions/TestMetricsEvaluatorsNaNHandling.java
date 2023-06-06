@@ -21,6 +21,7 @@ package org.apache.iceberg.expressions;
 import static org.apache.iceberg.types.Conversions.toByteBuffer;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.nio.ByteBuffer;
 import java.util.Set;
@@ -31,8 +32,7 @@ import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.types.Types;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 /**
  * This test class ensures that metrics evaluators could handle NaN as upper/lower bounds correctly.
@@ -95,30 +95,34 @@ public class TestMetricsEvaluatorsNaNHandling {
     for (BiFunction<String, Number, Expression> func : LESS_THAN_EXPRESSIONS) {
       boolean shouldRead =
           new InclusiveMetricsEvaluator(SCHEMA, func.apply("all_nan", 1D)).eval(FILE);
-      Assert.assertFalse("Should not match: all nan column doesn't contain number", shouldRead);
+      assertThat(shouldRead)
+          .as("Should not match: all nan column doesn't contain number")
+          .isFalse();
 
       shouldRead = new InclusiveMetricsEvaluator(SCHEMA, func.apply("max_nan", 1D)).eval(FILE);
-      Assert.assertFalse("Should not match: 1 is smaller than lower bound", shouldRead);
+      assertThat(shouldRead).as("Should not match: 1 is smaller than lower bound").isFalse();
 
       shouldRead = new InclusiveMetricsEvaluator(SCHEMA, func.apply("max_nan", 10D)).eval(FILE);
-      Assert.assertTrue("Should match: 10 is larger than lower bound", shouldRead);
+      assertThat(shouldRead).as("Should match: 10 is larger than lower bound").isTrue();
 
       shouldRead = new InclusiveMetricsEvaluator(SCHEMA, func.apply("min_max_nan", 1F)).eval(FILE);
-      Assert.assertTrue("Should match: no visibility", shouldRead);
+      assertThat(shouldRead).as("Should match: no visibility").isTrue();
 
       shouldRead =
           new InclusiveMetricsEvaluator(SCHEMA, func.apply("all_nan_null_bounds", 1D)).eval(FILE);
-      Assert.assertFalse("Should not match: all nan column doesn't contain number", shouldRead);
+      assertThat(shouldRead)
+          .as("Should not match: all nan column doesn't contain number")
+          .isFalse();
 
       shouldRead =
           new InclusiveMetricsEvaluator(SCHEMA, func.apply("some_nan_correct_bounds", 1F))
               .eval(FILE);
-      Assert.assertFalse("Should not match: 1 is smaller than lower bound", shouldRead);
+      assertThat(shouldRead).as("Should not match: 1 is smaller than lower bound").isFalse();
 
       shouldRead =
           new InclusiveMetricsEvaluator(SCHEMA, func.apply("some_nan_correct_bounds", 10F))
               .eval(FILE);
-      Assert.assertTrue("Should match: 10 larger than lower bound", shouldRead);
+      assertThat(shouldRead).as("Should match: 10 larger than lower bound").isTrue();
     }
   }
 
@@ -127,35 +131,39 @@ public class TestMetricsEvaluatorsNaNHandling {
     for (BiFunction<String, Number, Expression> func : GREATER_THAN_EXPRESSIONS) {
       boolean shouldRead =
           new InclusiveMetricsEvaluator(SCHEMA, func.apply("all_nan", 1D)).eval(FILE);
-      Assert.assertFalse("Should not match: all nan column doesn't contain number", shouldRead);
+      assertThat(shouldRead)
+          .as("Should not match: all nan column doesn't contain number")
+          .isFalse();
 
       shouldRead = new InclusiveMetricsEvaluator(SCHEMA, func.apply("max_nan", 1D)).eval(FILE);
-      Assert.assertTrue("Should match: upper bound is larger than 1", shouldRead);
+      assertThat(shouldRead).as("Should match: upper bound is larger than 1").isTrue();
 
       shouldRead = new InclusiveMetricsEvaluator(SCHEMA, func.apply("max_nan", 10D)).eval(FILE);
-      Assert.assertTrue("Should match: upper bound is larger than 10", shouldRead);
+      assertThat(shouldRead).as("Should match: upper bound is larger than 10").isTrue();
 
       shouldRead = new InclusiveMetricsEvaluator(SCHEMA, func.apply("min_max_nan", 1F)).eval(FILE);
-      Assert.assertTrue("Should match: no visibility", shouldRead);
+      assertThat(shouldRead).as("Should match: no visibility").isTrue();
 
       shouldRead =
           new InclusiveMetricsEvaluator(SCHEMA, func.apply("all_nan_null_bounds", 1D)).eval(FILE);
-      Assert.assertFalse("Should not match: all nan column doesn't contain number", shouldRead);
+      assertThat(shouldRead)
+          .as("Should not match: all nan column doesn't contain number")
+          .isFalse();
 
       shouldRead =
           new InclusiveMetricsEvaluator(SCHEMA, func.apply("some_nan_correct_bounds", 1F))
               .eval(FILE);
-      Assert.assertTrue("Should match: 1 is smaller than upper bound", shouldRead);
+      assertThat(shouldRead).as("Should match: 1 is smaller than upper bound").isTrue();
 
       shouldRead =
           new InclusiveMetricsEvaluator(SCHEMA, func.apply("some_nan_correct_bounds", 10F))
               .eval(FILE);
-      Assert.assertTrue("Should match: 10 is smaller than upper bound", shouldRead);
+      assertThat(shouldRead).as("Should match: 10 is smaller than upper bound").isTrue();
 
       shouldRead =
           new InclusiveMetricsEvaluator(SCHEMA, func.apply("some_nan_correct_bounds", 30))
               .eval(FILE);
-      Assert.assertFalse("Should not match: 30 is greater than upper bound", shouldRead);
+      assertThat(shouldRead).as("Should not match: 30 is greater than upper bound").isFalse();
     }
   }
 
@@ -163,38 +171,38 @@ public class TestMetricsEvaluatorsNaNHandling {
   public void testInclusiveMetricsEvaluatorEquals() {
     boolean shouldRead =
         new InclusiveMetricsEvaluator(SCHEMA, Expressions.equal("all_nan", 1D)).eval(FILE);
-    Assert.assertFalse("Should not match: all nan column doesn't contain number", shouldRead);
+    assertThat(shouldRead).as("Should not match: all nan column doesn't contain number").isFalse();
 
     shouldRead = new InclusiveMetricsEvaluator(SCHEMA, Expressions.equal("max_nan", 1D)).eval(FILE);
-    Assert.assertFalse("Should not match: 1 is smaller than lower bound", shouldRead);
+    assertThat(shouldRead).as("Should not match: 1 is smaller than lower bound").isFalse();
 
     shouldRead =
         new InclusiveMetricsEvaluator(SCHEMA, Expressions.equal("max_nan", 10D)).eval(FILE);
-    Assert.assertTrue("Should match: 10 is within bounds", shouldRead);
+    assertThat(shouldRead).as("Should match: 10 is within bounds").isTrue();
 
     shouldRead =
         new InclusiveMetricsEvaluator(SCHEMA, Expressions.equal("min_max_nan", 1F)).eval(FILE);
-    Assert.assertTrue("Should match: no visibility", shouldRead);
+    assertThat(shouldRead).as("Should match: no visibility").isTrue();
 
     shouldRead =
         new InclusiveMetricsEvaluator(SCHEMA, Expressions.equal("all_nan_null_bounds", 1D))
             .eval(FILE);
-    Assert.assertFalse("Should not match: all nan column doesn't contain number", shouldRead);
+    assertThat(shouldRead).as("Should not match: all nan column doesn't contain number").isFalse();
 
     shouldRead =
         new InclusiveMetricsEvaluator(SCHEMA, Expressions.equal("some_nan_correct_bounds", 1F))
             .eval(FILE);
-    Assert.assertFalse("Should not match: 1 is smaller than lower bound", shouldRead);
+    assertThat(shouldRead).as("Should not match: 1 is smaller than lower bound").isFalse();
 
     shouldRead =
         new InclusiveMetricsEvaluator(SCHEMA, Expressions.equal("some_nan_correct_bounds", 10F))
             .eval(FILE);
-    Assert.assertTrue("Should match: 10 is within bounds", shouldRead);
+    assertThat(shouldRead).as("Should match: 10 is within bounds").isTrue();
 
     shouldRead =
         new InclusiveMetricsEvaluator(SCHEMA, Expressions.equal("some_nan_correct_bounds", 30))
             .eval(FILE);
-    Assert.assertFalse("Should not match: 30 is greater than upper bound", shouldRead);
+    assertThat(shouldRead).as("Should not match: 30 is greater than upper bound").isFalse();
   }
 
   @Test
@@ -231,39 +239,39 @@ public class TestMetricsEvaluatorsNaNHandling {
             & new InclusiveMetricsEvaluator(
                     SCHEMA, Expressions.notEqual("some_nan_correct_bounds", 30))
                 .eval(FILE);
-    Assert.assertTrue("Should match: no visibility", shouldRead);
+    assertThat(shouldRead).as("Should match: no visibility").isTrue();
   }
 
   @Test
   public void testInclusiveMetricsEvaluatorIn() {
     boolean shouldRead =
         new InclusiveMetricsEvaluator(SCHEMA, Expressions.in("all_nan", 1D, 10D, 30D)).eval(FILE);
-    Assert.assertFalse("Should not match: all nan column doesn't contain number", shouldRead);
+    assertThat(shouldRead).as("Should not match: all nan column doesn't contain number").isFalse();
 
     shouldRead =
         new InclusiveMetricsEvaluator(SCHEMA, Expressions.in("max_nan", 1D, 10D, 30D)).eval(FILE);
-    Assert.assertTrue("Should match: 10 and 30 are greater than lower bound", shouldRead);
+    assertThat(shouldRead).as("Should match: 10 and 30 are greater than lower bound").isTrue();
 
     shouldRead =
         new InclusiveMetricsEvaluator(SCHEMA, Expressions.in("min_max_nan", 1F, 10F, 30F))
             .eval(FILE);
-    Assert.assertTrue("Should match: no visibility", shouldRead);
+    assertThat(shouldRead).as("Should match: no visibility").isTrue();
 
     shouldRead =
         new InclusiveMetricsEvaluator(SCHEMA, Expressions.in("all_nan_null_bounds", 1D, 10D, 30D))
             .eval(FILE);
-    Assert.assertFalse("Should not match: all nan column doesn't contain number", shouldRead);
+    assertThat(shouldRead).as("Should not match: all nan column doesn't contain number").isFalse();
 
     shouldRead =
         new InclusiveMetricsEvaluator(
                 SCHEMA, Expressions.in("some_nan_correct_bounds", 1F, 10F, 30F))
             .eval(FILE);
-    Assert.assertTrue("Should match: 10 within bounds", shouldRead);
+    assertThat(shouldRead).as("Should match: 10 within bounds").isTrue();
 
     shouldRead =
         new InclusiveMetricsEvaluator(SCHEMA, Expressions.in("some_nan_correct_bounds", 1F, 30F))
             .eval(FILE);
-    Assert.assertFalse("Should not match: 1 not within bounds", shouldRead);
+    assertThat(shouldRead).as("Should not match: 1 not within bounds").isFalse();
   }
 
   @Test
@@ -299,28 +307,32 @@ public class TestMetricsEvaluatorsNaNHandling {
             & new InclusiveMetricsEvaluator(
                     SCHEMA, Expressions.notIn("some_nan_correct_bounds", 30))
                 .eval(FILE);
-    Assert.assertTrue("Should match: no visibility", shouldRead);
+    assertThat(shouldRead).as("Should match: no visibility").isTrue();
   }
 
   @Test
   public void testStrictMetricsEvaluatorLessThanAndLessThanOrEqual() {
     for (BiFunction<String, Number, Expression> func : LESS_THAN_EXPRESSIONS) {
       boolean shouldRead = new StrictMetricsEvaluator(SCHEMA, func.apply("all_nan", 1D)).eval(FILE);
-      Assert.assertFalse("Should not match: all nan column doesn't contain number", shouldRead);
+      assertThat(shouldRead)
+          .as("Should not match: all nan column doesn't contain number")
+          .isFalse();
 
       shouldRead = new StrictMetricsEvaluator(SCHEMA, func.apply("max_nan", 10D)).eval(FILE);
-      Assert.assertFalse("Should not match: 10 is less than upper bound", shouldRead);
+      assertThat(shouldRead).as("Should not match: 10 is less than upper bound").isFalse();
 
       shouldRead = new StrictMetricsEvaluator(SCHEMA, func.apply("min_max_nan", 1F)).eval(FILE);
-      Assert.assertFalse("Should not match: no visibility", shouldRead);
+      assertThat(shouldRead).as("Should not match: no visibility").isFalse();
 
       shouldRead =
           new StrictMetricsEvaluator(SCHEMA, func.apply("all_nan_null_bounds", 1D)).eval(FILE);
-      Assert.assertFalse("Should not match: all nan column doesn't contain number", shouldRead);
+      assertThat(shouldRead)
+          .as("Should not match: all nan column doesn't contain number")
+          .isFalse();
 
       shouldRead =
           new StrictMetricsEvaluator(SCHEMA, func.apply("some_nan_correct_bounds", 30F)).eval(FILE);
-      Assert.assertFalse("Should not match: nan value exists", shouldRead);
+      assertThat(shouldRead).as("Should not match: nan value exists").isFalse();
     }
   }
 
@@ -328,24 +340,28 @@ public class TestMetricsEvaluatorsNaNHandling {
   public void testStrictMetricsEvaluatorGreaterThanAndGreaterThanOrEqual() {
     for (BiFunction<String, Number, Expression> func : GREATER_THAN_EXPRESSIONS) {
       boolean shouldRead = new StrictMetricsEvaluator(SCHEMA, func.apply("all_nan", 1D)).eval(FILE);
-      Assert.assertFalse("Should not match: all nan column doesn't contain number", shouldRead);
+      assertThat(shouldRead)
+          .as("Should not match: all nan column doesn't contain number")
+          .isFalse();
 
       shouldRead = new StrictMetricsEvaluator(SCHEMA, func.apply("max_nan", 1D)).eval(FILE);
-      Assert.assertTrue("Should match: 1 is smaller than lower bound", shouldRead);
+      assertThat(shouldRead).as("Should match: 1 is smaller than lower bound").isTrue();
 
       shouldRead = new StrictMetricsEvaluator(SCHEMA, func.apply("max_nan", 10D)).eval(FILE);
-      Assert.assertFalse("Should not match: 10 is larger than lower bound", shouldRead);
+      assertThat(shouldRead).as("Should not match: 10 is larger than lower bound").isFalse();
 
       shouldRead = new StrictMetricsEvaluator(SCHEMA, func.apply("min_max_nan", 1F)).eval(FILE);
-      Assert.assertFalse("Should not match: no visibility", shouldRead);
+      assertThat(shouldRead).as("Should not match: no visibility").isFalse();
 
       shouldRead =
           new StrictMetricsEvaluator(SCHEMA, func.apply("all_nan_null_bounds", 1D)).eval(FILE);
-      Assert.assertFalse("Should not match: all nan column doesn't contain number", shouldRead);
+      assertThat(shouldRead)
+          .as("Should not match: all nan column doesn't contain number")
+          .isFalse();
 
       shouldRead =
           new StrictMetricsEvaluator(SCHEMA, func.apply("some_nan_correct_bounds", 30)).eval(FILE);
-      Assert.assertFalse("Should not match: nan value exists", shouldRead);
+      assertThat(shouldRead).as("Should not match: nan value exists").isFalse();
     }
   }
 
@@ -353,38 +369,38 @@ public class TestMetricsEvaluatorsNaNHandling {
   public void testStrictMetricsEvaluatorNotEquals() {
     boolean shouldRead =
         new StrictMetricsEvaluator(SCHEMA, Expressions.notEqual("all_nan", 1D)).eval(FILE);
-    Assert.assertTrue("Should match: all nan column doesn't contain number", shouldRead);
+    assertThat(shouldRead).as("Should match: all nan column doesn't contain number").isTrue();
 
     shouldRead = new StrictMetricsEvaluator(SCHEMA, Expressions.notEqual("max_nan", 1D)).eval(FILE);
-    Assert.assertTrue("Should match: 1 is smaller than lower bound", shouldRead);
+    assertThat(shouldRead).as("Should match: 1 is smaller than lower bound").isTrue();
 
     shouldRead =
         new StrictMetricsEvaluator(SCHEMA, Expressions.notEqual("max_nan", 10D)).eval(FILE);
-    Assert.assertFalse("Should not match: 10 is within bounds", shouldRead);
+    assertThat(shouldRead).as("Should not match: 10 is within bounds").isFalse();
 
     shouldRead =
         new StrictMetricsEvaluator(SCHEMA, Expressions.notEqual("min_max_nan", 1F)).eval(FILE);
-    Assert.assertFalse("Should not match: no visibility", shouldRead);
+    assertThat(shouldRead).as("Should not match: no visibility").isFalse();
 
     shouldRead =
         new StrictMetricsEvaluator(SCHEMA, Expressions.notEqual("all_nan_null_bounds", 1D))
             .eval(FILE);
-    Assert.assertTrue("Should match: all nan column doesn't contain number", shouldRead);
+    assertThat(shouldRead).as("Should match: all nan column doesn't contain number").isTrue();
 
     shouldRead =
         new StrictMetricsEvaluator(SCHEMA, Expressions.notEqual("some_nan_correct_bounds", 1F))
             .eval(FILE);
-    Assert.assertTrue("Should match: 1 is smaller than lower bound", shouldRead);
+    assertThat(shouldRead).as("Should match: 1 is smaller than lower bound").isTrue();
 
     shouldRead =
         new StrictMetricsEvaluator(SCHEMA, Expressions.notEqual("some_nan_correct_bounds", 10F))
             .eval(FILE);
-    Assert.assertFalse("Should not match: 10 is within bounds", shouldRead);
+    assertThat(shouldRead).as("Should not match: 10 is within bounds").isFalse();
 
     shouldRead =
         new StrictMetricsEvaluator(SCHEMA, Expressions.notEqual("some_nan_correct_bounds", 30))
             .eval(FILE);
-    Assert.assertTrue("Should match: 30 is greater than upper bound", shouldRead);
+    assertThat(shouldRead).as("Should match: 30 is greater than upper bound").isTrue();
   }
 
   @Test
@@ -416,47 +432,47 @@ public class TestMetricsEvaluatorsNaNHandling {
         shouldRead
             | new StrictMetricsEvaluator(SCHEMA, Expressions.equal("some_nan_correct_bounds", 30))
                 .eval(FILE);
-    Assert.assertFalse("Should not match: bounds not equal to given value", shouldRead);
+    assertThat(shouldRead).as("Should not match: bounds not equal to given value").isFalse();
   }
 
   @Test
   public void testStrictMetricsEvaluatorNotIn() {
     boolean shouldRead =
         new StrictMetricsEvaluator(SCHEMA, Expressions.notIn("all_nan", 1D, 10D, 30D)).eval(FILE);
-    Assert.assertTrue("Should match: all nan column doesn't contain number", shouldRead);
+    assertThat(shouldRead).as("Should match: all nan column doesn't contain number").isTrue();
 
     shouldRead =
         new StrictMetricsEvaluator(SCHEMA, Expressions.notIn("max_nan", 1D, 10D, 30D)).eval(FILE);
-    Assert.assertFalse("Should not match: 10 and 30 are greater than lower bound", shouldRead);
+    assertThat(shouldRead).as("Should not match: 10 and 30 are greater than lower bound").isFalse();
 
     shouldRead = new StrictMetricsEvaluator(SCHEMA, Expressions.notIn("max_nan", 1D)).eval(FILE);
-    Assert.assertTrue("Should match: 1 is less than lower bound", shouldRead);
+    assertThat(shouldRead).as("Should match: 1 is less than lower bound").isTrue();
 
     shouldRead =
         new StrictMetricsEvaluator(SCHEMA, Expressions.notIn("min_max_nan", 1F, 10F, 30F))
             .eval(FILE);
-    Assert.assertFalse("Should not match: no visibility", shouldRead);
+    assertThat(shouldRead).as("Should not match: no visibility").isFalse();
 
     shouldRead =
         new StrictMetricsEvaluator(SCHEMA, Expressions.notIn("all_nan_null_bounds", 1D, 10D, 30D))
             .eval(FILE);
-    Assert.assertTrue("Should match: all nan column doesn't contain number", shouldRead);
+    assertThat(shouldRead).as("Should match: all nan column doesn't contain number").isTrue();
 
     shouldRead =
         new StrictMetricsEvaluator(
                 SCHEMA, Expressions.notIn("some_nan_correct_bounds", 1F, 10F, 30F))
             .eval(FILE);
-    Assert.assertFalse("Should not match: 10 within bounds", shouldRead);
+    assertThat(shouldRead).as("Should not match: 10 within bounds").isFalse();
 
     shouldRead =
         new StrictMetricsEvaluator(SCHEMA, Expressions.notIn("some_nan_correct_bounds", 1D))
             .eval(FILE);
-    Assert.assertTrue("Should match: 1 not within bounds", shouldRead);
+    assertThat(shouldRead).as("Should match: 1 not within bounds").isTrue();
 
     shouldRead =
         new StrictMetricsEvaluator(SCHEMA, Expressions.notIn("some_nan_correct_bounds", 30D))
             .eval(FILE);
-    Assert.assertTrue("Should match: 30 not within bounds", shouldRead);
+    assertThat(shouldRead).as("Should match: 30 not within bounds").isTrue();
   }
 
   @Test
@@ -486,6 +502,6 @@ public class TestMetricsEvaluatorsNaNHandling {
         shouldRead
             | new StrictMetricsEvaluator(SCHEMA, Expressions.equal("some_nan_correct_bounds", 30))
                 .eval(FILE);
-    Assert.assertFalse("Should not match: bounds not equal to given value", shouldRead);
+    assertThat(shouldRead).as("Should not match: bounds not equal to given value").isFalse();
   }
 }

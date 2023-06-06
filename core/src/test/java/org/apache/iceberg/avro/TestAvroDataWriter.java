@@ -18,7 +18,10 @@
  */
 package org.apache.iceberg.avro;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.List;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileContent;
@@ -29,17 +32,16 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
+import org.apache.iceberg.data.avro.DataReader;
 import org.apache.iceberg.io.DataWriter;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 public class TestAvroDataWriter {
   private static final Schema SCHEMA =
@@ -49,9 +51,9 @@ public class TestAvroDataWriter {
 
   private List<Record> records;
 
-  @Rule public TemporaryFolder temp = new TemporaryFolder();
+  @TempDir Path temp;
 
-  @Before
+  @BeforeEach
   public void createRecords() {
     GenericRecord record = GenericRecord.create(SCHEMA);
 
@@ -67,7 +69,7 @@ public class TestAvroDataWriter {
 
   @Test
   public void testDataWriter() throws IOException {
-    OutputFile file = Files.localOutput(temp.newFile());
+    OutputFile file = Files.localOutput(temp.toFile());
 
     SortOrder sortOrder = SortOrder.builderFor(SCHEMA).withOrderId(10).asc("id").build();
 
@@ -90,23 +92,22 @@ public class TestAvroDataWriter {
 
     DataFile dataFile = dataWriter.toDataFile();
 
-    Assert.assertEquals("Format should be Avro", FileFormat.AVRO, dataFile.format());
-    Assert.assertEquals("Should be data file", FileContent.DATA, dataFile.content());
-    Assert.assertEquals("Record count should match", records.size(), dataFile.recordCount());
-    Assert.assertEquals("Partition should be empty", 0, dataFile.partition().size());
-    Assert.assertEquals(
-        "Sort order should match", sortOrder.orderId(), (int) dataFile.sortOrderId());
-    Assert.assertNull("Key metadata should be null", dataFile.keyMetadata());
+    assertThat(dataFile.format()).as("Format should be Avro").isEqualTo(FileFormat.AVRO);
+    assertThat(dataFile.content()).as("Should be data file").isEqualTo(FileContent.DATA);
+    assertThat(dataFile.recordCount()).as("Record count should match").isEqualTo(records.size());
+    assertThat(dataFile.partition().size()).as("Partition should be empty").isEqualTo(0);
+    assertThat(dataFile.sortOrderId()).as("Sort order should match").isEqualTo(sortOrder.orderId());
+    assertThat(dataFile.keyMetadata()).as("Key metadata should be null").isNull();
 
     List<Record> writtenRecords;
     try (AvroIterable<Record> reader =
         Avro.read(file.toInputFile())
             .project(SCHEMA)
-            .createReaderFunc(org.apache.iceberg.data.avro.DataReader::create)
+            .createReaderFunc(DataReader::create)
             .build()) {
       writtenRecords = Lists.newArrayList(reader);
     }
 
-    Assert.assertEquals("Written records should match", records, writtenRecords);
+    assertThat(writtenRecords).as("Written records should match").isEqualTo(records);
   }
 }

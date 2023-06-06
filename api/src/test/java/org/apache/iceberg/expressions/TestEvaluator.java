@@ -40,6 +40,7 @@ import static org.apache.iceberg.expressions.Expressions.predicate;
 import static org.apache.iceberg.expressions.Expressions.startsWith;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -50,8 +51,7 @@ import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.StructType;
 import org.assertj.core.api.Assertions;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestEvaluator {
   private static final StructType STRUCT =
@@ -90,455 +90,502 @@ public class TestEvaluator {
   @Test
   public void testLessThan() {
     Evaluator evaluator = new Evaluator(STRUCT, lessThan("x", 7));
-    Assert.assertFalse("7 < 7 => false", evaluator.eval(TestHelpers.Row.of(7, 8, null, null)));
-    Assert.assertTrue("6 < 7 => true", evaluator.eval(TestHelpers.Row.of(6, 8, null, null)));
+    assertThat(evaluator.eval(TestHelpers.Row.of(7, 8, null, null))).as("7 < 7 => false").isFalse();
+    assertThat(evaluator.eval(TestHelpers.Row.of(6, 8, null, null))).as("6 < 7 => true").isTrue();
 
     Evaluator structEvaluator = new Evaluator(STRUCT, lessThan("s1.s2.s3.s4.i", 7));
-    Assert.assertFalse(
-        "7 < 7 => false",
-        structEvaluator.eval(
-            TestHelpers.Row.of(
-                7,
-                8,
-                null,
+    assertThat(
+            structEvaluator.eval(
                 TestHelpers.Row.of(
-                    TestHelpers.Row.of(TestHelpers.Row.of(TestHelpers.Row.of(7)))))));
-    Assert.assertTrue(
-        "6 < 7 => true",
-        structEvaluator.eval(
-            TestHelpers.Row.of(
-                6,
-                8,
-                null,
+                    7,
+                    8,
+                    null,
+                    TestHelpers.Row.of(
+                        TestHelpers.Row.of(TestHelpers.Row.of(TestHelpers.Row.of(7)))))))
+        .as("7 < 7 => false")
+        .isFalse();
+    assertThat(
+            structEvaluator.eval(
                 TestHelpers.Row.of(
-                    TestHelpers.Row.of(TestHelpers.Row.of(TestHelpers.Row.of(6)))))));
+                    6,
+                    8,
+                    null,
+                    TestHelpers.Row.of(
+                        TestHelpers.Row.of(TestHelpers.Row.of(TestHelpers.Row.of(6)))))))
+        .as("6 < 7 => true")
+        .isTrue();
   }
 
   @Test
   public void testLessThanOrEqual() {
     Evaluator evaluator = new Evaluator(STRUCT, lessThanOrEqual("x", 7));
-    Assert.assertTrue("7 <= 7 => true", evaluator.eval(TestHelpers.Row.of(7, 8, null)));
-    Assert.assertTrue("6 <= 7 => true", evaluator.eval(TestHelpers.Row.of(6, 8, null)));
-    Assert.assertFalse("8 <= 7 => false", evaluator.eval(TestHelpers.Row.of(8, 8, null)));
+    assertThat(evaluator.eval(TestHelpers.Row.of(7, 8, null))).as("7 <= 7 => true").isTrue();
+    assertThat(evaluator.eval(TestHelpers.Row.of(6, 8, null))).as("6 <= 7 => true").isTrue();
+    assertThat(evaluator.eval(TestHelpers.Row.of(8, 8, null))).as("8 <= 7 => false").isFalse();
 
     Evaluator structEvaluator = new Evaluator(STRUCT, lessThanOrEqual("s1.s2.s3.s4.i", 7));
-    Assert.assertTrue(
-        "7 <= 7 => true",
-        structEvaluator.eval(
-            TestHelpers.Row.of(
-                7,
-                8,
-                null,
+    assertThat(
+            structEvaluator.eval(
                 TestHelpers.Row.of(
-                    TestHelpers.Row.of(TestHelpers.Row.of(TestHelpers.Row.of(7)))))));
+                    7,
+                    8,
+                    null,
+                    TestHelpers.Row.of(
+                        TestHelpers.Row.of(TestHelpers.Row.of(TestHelpers.Row.of(7)))))))
+        .as("7 <= 7 => true")
+        .isTrue();
 
-    Assert.assertTrue(
-        "6 <= 7 => true",
-        structEvaluator.eval(
-            TestHelpers.Row.of(
-                6,
-                8,
-                null,
+    assertThat(
+            structEvaluator.eval(
                 TestHelpers.Row.of(
-                    TestHelpers.Row.of(TestHelpers.Row.of(TestHelpers.Row.of(6)))))));
+                    6,
+                    8,
+                    null,
+                    TestHelpers.Row.of(
+                        TestHelpers.Row.of(TestHelpers.Row.of(TestHelpers.Row.of(6)))))))
+        .as("6 <= 7 => true")
+        .isTrue();
 
-    Assert.assertFalse(
-        "8 <= 7 => false",
-        structEvaluator.eval(
-            TestHelpers.Row.of(
-                6,
-                8,
-                null,
+    assertThat(
+            structEvaluator.eval(
                 TestHelpers.Row.of(
-                    TestHelpers.Row.of(TestHelpers.Row.of(TestHelpers.Row.of(8)))))));
+                    6,
+                    8,
+                    null,
+                    TestHelpers.Row.of(
+                        TestHelpers.Row.of(TestHelpers.Row.of(TestHelpers.Row.of(8)))))))
+        .as("8 <= 7 => false")
+        .isFalse();
   }
 
   @Test
   public void testGreaterThan() {
     Evaluator evaluator = new Evaluator(STRUCT, greaterThan("x", 7));
-    Assert.assertFalse("7 > 7 => false", evaluator.eval(TestHelpers.Row.of(7, 8, null)));
-    Assert.assertFalse("6 > 7 => false", evaluator.eval(TestHelpers.Row.of(6, 8, null)));
-    Assert.assertTrue("8 > 7 => true", evaluator.eval(TestHelpers.Row.of(8, 8, null)));
+    assertThat(evaluator.eval(TestHelpers.Row.of(7, 8, null))).as("7 > 7 => false").isFalse();
+    assertThat(evaluator.eval(TestHelpers.Row.of(6, 8, null))).as("6 > 7 => false").isFalse();
+    assertThat(evaluator.eval(TestHelpers.Row.of(8, 8, null))).as("8 > 7 => true").isTrue();
 
     Evaluator structEvaluator = new Evaluator(STRUCT, greaterThan("s1.s2.s3.s4.i", 7));
-    Assert.assertFalse(
-        "7 > 7 => false",
-        structEvaluator.eval(
-            TestHelpers.Row.of(
-                7,
-                8,
-                null,
+    assertThat(
+            structEvaluator.eval(
                 TestHelpers.Row.of(
-                    TestHelpers.Row.of(TestHelpers.Row.of(TestHelpers.Row.of(7)))))));
-    Assert.assertFalse(
-        "6 > 7 => false",
-        structEvaluator.eval(
-            TestHelpers.Row.of(
-                7,
-                8,
-                null,
+                    7,
+                    8,
+                    null,
+                    TestHelpers.Row.of(
+                        TestHelpers.Row.of(TestHelpers.Row.of(TestHelpers.Row.of(7)))))))
+        .as("7 > 7 => false")
+        .isFalse();
+    assertThat(
+            structEvaluator.eval(
                 TestHelpers.Row.of(
-                    TestHelpers.Row.of(TestHelpers.Row.of(TestHelpers.Row.of(6)))))));
-    Assert.assertTrue(
-        "8 > 7 => true",
-        structEvaluator.eval(
-            TestHelpers.Row.of(
-                7,
-                8,
-                null,
+                    7,
+                    8,
+                    null,
+                    TestHelpers.Row.of(
+                        TestHelpers.Row.of(TestHelpers.Row.of(TestHelpers.Row.of(6)))))))
+        .as("6 > 7 => false")
+        .isFalse();
+    assertThat(
+            structEvaluator.eval(
                 TestHelpers.Row.of(
-                    TestHelpers.Row.of(TestHelpers.Row.of(TestHelpers.Row.of(8)))))));
+                    7,
+                    8,
+                    null,
+                    TestHelpers.Row.of(
+                        TestHelpers.Row.of(TestHelpers.Row.of(TestHelpers.Row.of(8)))))))
+        .as("8 > 7 => true")
+        .isTrue();
   }
 
   @Test
   public void testGreaterThanOrEqual() {
     Evaluator evaluator = new Evaluator(STRUCT, greaterThanOrEqual("x", 7));
-    Assert.assertTrue("7 >= 7 => true", evaluator.eval(TestHelpers.Row.of(7, 8, null)));
-    Assert.assertFalse("6 >= 7 => false", evaluator.eval(TestHelpers.Row.of(6, 8, null)));
-    Assert.assertTrue("8 >= 7 => true", evaluator.eval(TestHelpers.Row.of(8, 8, null)));
+    assertThat(evaluator.eval(TestHelpers.Row.of(7, 8, null))).as("7 >= 7 => true").isTrue();
+    assertThat(evaluator.eval(TestHelpers.Row.of(6, 8, null))).as("6 >= 7 => false").isFalse();
+    assertThat(evaluator.eval(TestHelpers.Row.of(8, 8, null))).as("8 >= 7 => true").isTrue();
 
     Evaluator structEvaluator = new Evaluator(STRUCT, greaterThanOrEqual("s1.s2.s3.s4.i", 7));
-    Assert.assertTrue(
-        "7 >= 7 => true",
-        structEvaluator.eval(
-            TestHelpers.Row.of(
-                7,
-                8,
-                null,
+    assertThat(
+            structEvaluator.eval(
                 TestHelpers.Row.of(
-                    TestHelpers.Row.of(TestHelpers.Row.of(TestHelpers.Row.of(7)))))));
-    Assert.assertFalse(
-        "6 >= 7 => false",
-        structEvaluator.eval(
-            TestHelpers.Row.of(
-                7,
-                8,
-                null,
+                    7,
+                    8,
+                    null,
+                    TestHelpers.Row.of(
+                        TestHelpers.Row.of(TestHelpers.Row.of(TestHelpers.Row.of(7)))))))
+        .as("7 >= 7 => true")
+        .isTrue();
+    assertThat(
+            structEvaluator.eval(
                 TestHelpers.Row.of(
-                    TestHelpers.Row.of(TestHelpers.Row.of(TestHelpers.Row.of(6)))))));
-    Assert.assertTrue(
-        "8 >= 7 => true",
-        structEvaluator.eval(
-            TestHelpers.Row.of(
-                7,
-                8,
-                null,
+                    7,
+                    8,
+                    null,
+                    TestHelpers.Row.of(
+                        TestHelpers.Row.of(TestHelpers.Row.of(TestHelpers.Row.of(6)))))))
+        .as("6 >= 7 => false")
+        .isFalse();
+    assertThat(
+            structEvaluator.eval(
                 TestHelpers.Row.of(
-                    TestHelpers.Row.of(TestHelpers.Row.of(TestHelpers.Row.of(8)))))));
+                    7,
+                    8,
+                    null,
+                    TestHelpers.Row.of(
+                        TestHelpers.Row.of(TestHelpers.Row.of(TestHelpers.Row.of(8)))))))
+        .as("8 >= 7 => true")
+        .isTrue();
   }
 
   @Test
   public void testEqual() {
-    Assert.assertEquals(1, equal("x", 5).literals().size());
+    assertThat(equal("x", 5).literals().size()).isEqualTo(1);
 
     Evaluator evaluator = new Evaluator(STRUCT, equal("x", 7));
-    Assert.assertTrue("7 == 7 => true", evaluator.eval(TestHelpers.Row.of(7, 8, null)));
-    Assert.assertFalse("6 == 7 => false", evaluator.eval(TestHelpers.Row.of(6, 8, null)));
+    assertThat(evaluator.eval(TestHelpers.Row.of(7, 8, null))).as("7 == 7 => true").isTrue();
+    assertThat(evaluator.eval(TestHelpers.Row.of(6, 8, null))).as("6 == 7 => false").isFalse();
 
     Evaluator structEvaluator = new Evaluator(STRUCT, equal("s1.s2.s3.s4.i", 7));
-    Assert.assertTrue(
-        "7 == 7 => true",
-        structEvaluator.eval(
-            TestHelpers.Row.of(
-                7,
-                8,
-                null,
+    assertThat(
+            structEvaluator.eval(
                 TestHelpers.Row.of(
-                    TestHelpers.Row.of(TestHelpers.Row.of(TestHelpers.Row.of(7)))))));
-    Assert.assertFalse(
-        "6 == 7 => false",
-        structEvaluator.eval(
-            TestHelpers.Row.of(
-                6,
-                8,
-                null,
+                    7,
+                    8,
+                    null,
+                    TestHelpers.Row.of(
+                        TestHelpers.Row.of(TestHelpers.Row.of(TestHelpers.Row.of(7)))))))
+        .as("7 == 7 => true")
+        .isTrue();
+    assertThat(
+            structEvaluator.eval(
                 TestHelpers.Row.of(
-                    TestHelpers.Row.of(TestHelpers.Row.of(TestHelpers.Row.of(6)))))));
+                    6,
+                    8,
+                    null,
+                    TestHelpers.Row.of(
+                        TestHelpers.Row.of(TestHelpers.Row.of(TestHelpers.Row.of(6)))))))
+        .as("6 == 7 => false")
+        .isFalse();
   }
 
   @Test
   public void testNotEqual() {
-    Assert.assertEquals(1, notEqual("x", 5).literals().size());
+    assertThat(notEqual("x", 5).literals().size()).isEqualTo(1);
 
     Evaluator evaluator = new Evaluator(STRUCT, notEqual("x", 7));
-    Assert.assertFalse("7 != 7 => false", evaluator.eval(TestHelpers.Row.of(7, 8, null)));
-    Assert.assertTrue("6 != 7 => true", evaluator.eval(TestHelpers.Row.of(6, 8, null)));
+    assertThat(evaluator.eval(TestHelpers.Row.of(7, 8, null))).as("7 != 7 => false").isFalse();
+    assertThat(evaluator.eval(TestHelpers.Row.of(6, 8, null))).as("6 != 7 => true").isTrue();
 
     Evaluator structEvaluator = new Evaluator(STRUCT, notEqual("s1.s2.s3.s4.i", 7));
-    Assert.assertFalse(
-        "7 != 7 => false",
-        structEvaluator.eval(
-            TestHelpers.Row.of(
-                7,
-                8,
-                null,
+    assertThat(
+            structEvaluator.eval(
                 TestHelpers.Row.of(
-                    TestHelpers.Row.of(TestHelpers.Row.of(TestHelpers.Row.of(7)))))));
-    Assert.assertTrue(
-        "6 != 7 => true",
-        structEvaluator.eval(
-            TestHelpers.Row.of(
-                6,
-                8,
-                null,
+                    7,
+                    8,
+                    null,
+                    TestHelpers.Row.of(
+                        TestHelpers.Row.of(TestHelpers.Row.of(TestHelpers.Row.of(7)))))))
+        .as("7 != 7 => false")
+        .isFalse();
+    assertThat(
+            structEvaluator.eval(
                 TestHelpers.Row.of(
-                    TestHelpers.Row.of(TestHelpers.Row.of(TestHelpers.Row.of(6)))))));
+                    6,
+                    8,
+                    null,
+                    TestHelpers.Row.of(
+                        TestHelpers.Row.of(TestHelpers.Row.of(TestHelpers.Row.of(6)))))))
+        .as("6 != 7 => true")
+        .isTrue();
   }
 
   @Test
   public void testStartsWith() {
     StructType struct = StructType.of(required(24, "s", Types.StringType.get()));
     Evaluator evaluator = new Evaluator(struct, startsWith("s", "abc"));
-    Assert.assertTrue(
-        "abc startsWith abc should be true", evaluator.eval(TestHelpers.Row.of("abc")));
-    Assert.assertFalse(
-        "xabc startsWith abc should be false", evaluator.eval(TestHelpers.Row.of("xabc")));
-    Assert.assertFalse(
-        "Abc startsWith abc should be false", evaluator.eval(TestHelpers.Row.of("Abc")));
-    Assert.assertFalse("a startsWith abc should be false", evaluator.eval(TestHelpers.Row.of("a")));
-    Assert.assertTrue(
-        "abcd startsWith abc should be true", evaluator.eval(TestHelpers.Row.of("abcd")));
-    Assert.assertFalse(
-        "null startsWith abc should be false", evaluator.eval(TestHelpers.Row.of((String) null)));
+    assertThat(evaluator.eval(TestHelpers.Row.of("abc")))
+        .as("abc startsWith abc should be true")
+        .isTrue();
+    assertThat(evaluator.eval(TestHelpers.Row.of("xabc")))
+        .as("xabc startsWith abc should be false")
+        .isFalse();
+    assertThat(evaluator.eval(TestHelpers.Row.of("Abc")))
+        .as("Abc startsWith abc should be false")
+        .isFalse();
+    assertThat(evaluator.eval(TestHelpers.Row.of("a")))
+        .as("a startsWith abc should be false")
+        .isFalse();
+    assertThat(evaluator.eval(TestHelpers.Row.of("abcd")))
+        .as("abcd startsWith abc should be true")
+        .isTrue();
+    assertThat(evaluator.eval(TestHelpers.Row.of((String) null)))
+        .as("null startsWith abc should be false")
+        .isFalse();
   }
 
   @Test
   public void testNotStartsWith() {
     StructType struct = StructType.of(required(24, "s", Types.StringType.get()));
     Evaluator evaluator = new Evaluator(struct, notStartsWith("s", "abc"));
-    Assert.assertFalse(
-        "abc notStartsWith abc should be false", evaluator.eval(TestHelpers.Row.of("abc")));
-    Assert.assertTrue(
-        "xabc notStartsWith abc should be true", evaluator.eval(TestHelpers.Row.of("xabc")));
-    Assert.assertTrue(
-        "Abc notStartsWith abc should be true", evaluator.eval(TestHelpers.Row.of("Abc")));
-    Assert.assertTrue(
-        "a notStartsWith abc should be true", evaluator.eval(TestHelpers.Row.of("a")));
-    Assert.assertFalse(
-        "abcde notStartsWith abc should be false", evaluator.eval(TestHelpers.Row.of("abcde")));
-    Assert.assertTrue(
-        "Abcde notStartsWith abc should be true", evaluator.eval(TestHelpers.Row.of("Abcde")));
+    assertThat(evaluator.eval(TestHelpers.Row.of("abc")))
+        .as("abc notStartsWith abc should be false")
+        .isFalse();
+    assertThat(evaluator.eval(TestHelpers.Row.of("xabc")))
+        .as("xabc notStartsWith abc should be true")
+        .isTrue();
+    assertThat(evaluator.eval(TestHelpers.Row.of("Abc")))
+        .as("Abc notStartsWith abc should be true")
+        .isTrue();
+    assertThat(evaluator.eval(TestHelpers.Row.of("a")))
+        .as("a notStartsWith abc should be true")
+        .isTrue();
+    assertThat(evaluator.eval(TestHelpers.Row.of("abcde")))
+        .as("abcde notStartsWith abc should be false")
+        .isFalse();
+    assertThat(evaluator.eval(TestHelpers.Row.of("Abcde")))
+        .as("Abcde notStartsWith abc should be true")
+        .isTrue();
   }
 
   @Test
   public void testAlwaysTrue() {
     Evaluator evaluator = new Evaluator(STRUCT, alwaysTrue());
-    Assert.assertTrue("always true", evaluator.eval(TestHelpers.Row.of()));
+    assertThat(evaluator.eval(TestHelpers.Row.of())).as("always true").isTrue();
   }
 
   @Test
   public void testAlwaysFalse() {
     Evaluator evaluator = new Evaluator(STRUCT, alwaysFalse());
-    Assert.assertFalse("always false", evaluator.eval(TestHelpers.Row.of()));
+    assertThat(evaluator.eval(TestHelpers.Row.of())).as("always false").isFalse();
   }
 
   @Test
   public void testIsNull() {
     Evaluator evaluator = new Evaluator(STRUCT, isNull("z"));
-    Assert.assertTrue("null is null", evaluator.eval(TestHelpers.Row.of(1, 2, null)));
-    Assert.assertFalse("3 is not null", evaluator.eval(TestHelpers.Row.of(1, 2, 3)));
+    assertThat(evaluator.eval(TestHelpers.Row.of(1, 2, null))).as("null is null").isTrue();
+    assertThat(evaluator.eval(TestHelpers.Row.of(1, 2, 3))).as("3 is not null").isFalse();
 
     Evaluator structEvaluator = new Evaluator(STRUCT, isNull("s1.s2.s3.s4.i"));
-    Assert.assertFalse(
-        "3 is not null",
-        structEvaluator.eval(
-            TestHelpers.Row.of(
-                1,
-                2,
-                3,
+    assertThat(
+            structEvaluator.eval(
                 TestHelpers.Row.of(
-                    TestHelpers.Row.of(TestHelpers.Row.of(TestHelpers.Row.of(3)))))));
+                    1,
+                    2,
+                    3,
+                    TestHelpers.Row.of(
+                        TestHelpers.Row.of(TestHelpers.Row.of(TestHelpers.Row.of(3)))))))
+        .as("3 is not null")
+        .isFalse();
   }
 
   @Test
   public void testNotNull() {
     Evaluator evaluator = new Evaluator(STRUCT, notNull("z"));
-    Assert.assertFalse("null is null", evaluator.eval(TestHelpers.Row.of(1, 2, null)));
-    Assert.assertTrue("3 is not null", evaluator.eval(TestHelpers.Row.of(1, 2, 3)));
+    assertThat(evaluator.eval(TestHelpers.Row.of(1, 2, null))).as("null is null").isFalse();
+    assertThat(evaluator.eval(TestHelpers.Row.of(1, 2, 3))).as("3 is not null").isTrue();
 
     Evaluator structEvaluator = new Evaluator(STRUCT, notNull("s1.s2.s3.s4.i"));
-    Assert.assertTrue(
-        "3 is not null",
-        structEvaluator.eval(
-            TestHelpers.Row.of(
-                1,
-                2,
-                3,
+    assertThat(
+            structEvaluator.eval(
                 TestHelpers.Row.of(
-                    TestHelpers.Row.of(TestHelpers.Row.of(TestHelpers.Row.of(3)))))));
+                    1,
+                    2,
+                    3,
+                    TestHelpers.Row.of(
+                        TestHelpers.Row.of(TestHelpers.Row.of(TestHelpers.Row.of(3)))))))
+        .as("3 is not null")
+        .isTrue();
   }
 
   @Test
   public void testIsNan() {
     Evaluator evaluator = new Evaluator(STRUCT, isNaN("y"));
-    Assert.assertTrue("NaN is NaN", evaluator.eval(TestHelpers.Row.of(1, Double.NaN, 3)));
-    Assert.assertFalse("2 is not NaN", evaluator.eval(TestHelpers.Row.of(1, 2.0, 3)));
+    assertThat(evaluator.eval(TestHelpers.Row.of(1, Double.NaN, 3))).as("NaN is NaN").isTrue();
+    assertThat(evaluator.eval(TestHelpers.Row.of(1, 2.0, 3))).as("2 is not NaN").isFalse();
 
     Evaluator structEvaluator = new Evaluator(STRUCT, isNaN("s5.s6.f"));
-    Assert.assertTrue(
-        "NaN is NaN",
-        structEvaluator.eval(
-            TestHelpers.Row.of(1, 2, 3, null, TestHelpers.Row.of(TestHelpers.Row.of(Float.NaN)))));
-    Assert.assertFalse(
-        "4F is not NaN",
-        structEvaluator.eval(
-            TestHelpers.Row.of(1, 2, 3, null, TestHelpers.Row.of(TestHelpers.Row.of(4F)))));
+    assertThat(
+            structEvaluator.eval(
+                TestHelpers.Row.of(
+                    1, 2, 3, null, TestHelpers.Row.of(TestHelpers.Row.of(Float.NaN)))))
+        .as("NaN is NaN")
+        .isTrue();
+    assertThat(
+            structEvaluator.eval(
+                TestHelpers.Row.of(1, 2, 3, null, TestHelpers.Row.of(TestHelpers.Row.of(4F)))))
+        .as("4F is not NaN")
+        .isFalse();
   }
 
   @Test
   public void testNotNaN() {
     Evaluator evaluator = new Evaluator(STRUCT, notNaN("y"));
-    Assert.assertFalse("NaN is NaN", evaluator.eval(TestHelpers.Row.of(1, Double.NaN, 3)));
-    Assert.assertTrue("2 is not NaN", evaluator.eval(TestHelpers.Row.of(1, 2.0, 3)));
+    assertThat(evaluator.eval(TestHelpers.Row.of(1, Double.NaN, 3))).as("NaN is NaN").isFalse();
+    assertThat(evaluator.eval(TestHelpers.Row.of(1, 2.0, 3))).as("2 is not NaN").isTrue();
 
     Evaluator structEvaluator = new Evaluator(STRUCT, notNaN("s5.s6.f"));
-    Assert.assertFalse(
-        "NaN is NaN",
-        structEvaluator.eval(
-            TestHelpers.Row.of(1, 2, 3, null, TestHelpers.Row.of(TestHelpers.Row.of(Float.NaN)))));
-    Assert.assertTrue(
-        "4F is not NaN",
-        structEvaluator.eval(
-            TestHelpers.Row.of(1, 2, 3, null, TestHelpers.Row.of(TestHelpers.Row.of(4F)))));
+    assertThat(
+            structEvaluator.eval(
+                TestHelpers.Row.of(
+                    1, 2, 3, null, TestHelpers.Row.of(TestHelpers.Row.of(Float.NaN)))))
+        .as("NaN is NaN")
+        .isFalse();
+    assertThat(
+            structEvaluator.eval(
+                TestHelpers.Row.of(1, 2, 3, null, TestHelpers.Row.of(TestHelpers.Row.of(4F)))))
+        .as("4F is not NaN")
+        .isTrue();
   }
 
   @Test
   public void testAnd() {
     Evaluator evaluator = new Evaluator(STRUCT, and(equal("x", 7), notNull("z")));
-    Assert.assertTrue("7, 3 => true", evaluator.eval(TestHelpers.Row.of(7, 0, 3)));
-    Assert.assertFalse("8, 3 => false", evaluator.eval(TestHelpers.Row.of(8, 0, 3)));
-    Assert.assertFalse("7, null => false", evaluator.eval(TestHelpers.Row.of(7, 0, null)));
-    Assert.assertFalse("8, null => false", evaluator.eval(TestHelpers.Row.of(8, 0, null)));
+    assertThat(evaluator.eval(TestHelpers.Row.of(7, 0, 3))).as("7, 3 => true").isTrue();
+    assertThat(evaluator.eval(TestHelpers.Row.of(8, 0, 3))).as("8, 3 => false").isFalse();
+    assertThat(evaluator.eval(TestHelpers.Row.of(7, 0, null))).as("7, null => false").isFalse();
+    assertThat(evaluator.eval(TestHelpers.Row.of(8, 0, null))).as("8, null => false").isFalse();
 
     Evaluator structEvaluator =
         new Evaluator(STRUCT, and(equal("s1.s2.s3.s4.i", 7), notNull("s1.s2.s3.s4.i")));
 
-    Assert.assertTrue(
-        "7, 7 => true",
-        structEvaluator.eval(
-            TestHelpers.Row.of(
-                7,
-                0,
-                3,
+    assertThat(
+            structEvaluator.eval(
                 TestHelpers.Row.of(
-                    TestHelpers.Row.of(TestHelpers.Row.of(TestHelpers.Row.of(7)))))));
-    Assert.assertFalse(
-        "8, 8 => false",
-        structEvaluator.eval(
-            TestHelpers.Row.of(
-                8,
-                0,
-                3,
+                    7,
+                    0,
+                    3,
+                    TestHelpers.Row.of(
+                        TestHelpers.Row.of(TestHelpers.Row.of(TestHelpers.Row.of(7)))))))
+        .as("7, 7 => true")
+        .isTrue();
+    assertThat(
+            structEvaluator.eval(
                 TestHelpers.Row.of(
-                    TestHelpers.Row.of(TestHelpers.Row.of(TestHelpers.Row.of(8)))))));
+                    8,
+                    0,
+                    3,
+                    TestHelpers.Row.of(
+                        TestHelpers.Row.of(TestHelpers.Row.of(TestHelpers.Row.of(8)))))))
+        .as("8, 8 => false")
+        .isFalse();
 
-    Assert.assertFalse(
-        "7, null => false", structEvaluator.eval(TestHelpers.Row.of(7, 0, null, null)));
+    assertThat(structEvaluator.eval(TestHelpers.Row.of(7, 0, null, null)))
+        .as("7, null => false")
+        .isFalse();
 
-    Assert.assertFalse(
-        "8, notnull => false",
-        structEvaluator.eval(
-            TestHelpers.Row.of(
-                8,
-                0,
-                null,
+    assertThat(
+            structEvaluator.eval(
                 TestHelpers.Row.of(
-                    TestHelpers.Row.of(TestHelpers.Row.of(TestHelpers.Row.of(8)))))));
+                    8,
+                    0,
+                    null,
+                    TestHelpers.Row.of(
+                        TestHelpers.Row.of(TestHelpers.Row.of(TestHelpers.Row.of(8)))))))
+        .as("8, notnull => false")
+        .isFalse();
   }
 
   @Test
   public void testOr() {
     Evaluator evaluator = new Evaluator(STRUCT, or(equal("x", 7), notNull("z")));
-    Assert.assertTrue("7, 3 => true", evaluator.eval(TestHelpers.Row.of(7, 0, 3)));
-    Assert.assertTrue("8, 3 => true", evaluator.eval(TestHelpers.Row.of(8, 0, 3)));
-    Assert.assertTrue("7, null => true", evaluator.eval(TestHelpers.Row.of(7, 0, null)));
-    Assert.assertFalse("8, null => false", evaluator.eval(TestHelpers.Row.of(8, 0, null)));
+    assertThat(evaluator.eval(TestHelpers.Row.of(7, 0, 3))).as("7, 3 => true").isTrue();
+    assertThat(evaluator.eval(TestHelpers.Row.of(8, 0, 3))).as("8, 3 => true").isTrue();
+    assertThat(evaluator.eval(TestHelpers.Row.of(7, 0, null))).as("7, null => true").isTrue();
+    assertThat(evaluator.eval(TestHelpers.Row.of(8, 0, null))).as("8, null => false").isFalse();
 
     Evaluator structEvaluator =
         new Evaluator(STRUCT, or(equal("s1.s2.s3.s4.i", 7), notNull("s1.s2.s3.s4.i")));
 
-    Assert.assertTrue(
-        "7, 7 => true",
-        structEvaluator.eval(
-            TestHelpers.Row.of(
-                7,
-                0,
-                3,
+    assertThat(
+            structEvaluator.eval(
                 TestHelpers.Row.of(
-                    TestHelpers.Row.of(TestHelpers.Row.of(TestHelpers.Row.of(7)))))));
-    Assert.assertTrue(
-        "8, 8 => false",
-        structEvaluator.eval(
-            TestHelpers.Row.of(
-                8,
-                0,
-                3,
+                    7,
+                    0,
+                    3,
+                    TestHelpers.Row.of(
+                        TestHelpers.Row.of(TestHelpers.Row.of(TestHelpers.Row.of(7)))))))
+        .as("7, 7 => true")
+        .isTrue();
+    assertThat(
+            structEvaluator.eval(
                 TestHelpers.Row.of(
-                    TestHelpers.Row.of(TestHelpers.Row.of(TestHelpers.Row.of(8)))))));
+                    8,
+                    0,
+                    3,
+                    TestHelpers.Row.of(
+                        TestHelpers.Row.of(TestHelpers.Row.of(TestHelpers.Row.of(8)))))))
+        .as("8, 8 => false")
+        .isTrue();
 
-    Assert.assertTrue(
-        "7, notnull => false",
-        structEvaluator.eval(
-            TestHelpers.Row.of(
-                7,
-                0,
-                null,
+    assertThat(
+            structEvaluator.eval(
                 TestHelpers.Row.of(
-                    TestHelpers.Row.of(TestHelpers.Row.of(TestHelpers.Row.of(7)))))));
+                    7,
+                    0,
+                    null,
+                    TestHelpers.Row.of(
+                        TestHelpers.Row.of(TestHelpers.Row.of(TestHelpers.Row.of(7)))))))
+        .as("7, notnull => false")
+        .isTrue();
   }
 
   @Test
   public void testNot() {
     Evaluator evaluator = new Evaluator(STRUCT, not(equal("x", 7)));
-    Assert.assertFalse("not(7 == 7) => false", evaluator.eval(TestHelpers.Row.of(7)));
-    Assert.assertTrue("not(8 == 7) => false", evaluator.eval(TestHelpers.Row.of(8)));
+    assertThat(evaluator.eval(TestHelpers.Row.of(7))).as("not(7 == 7) => false").isFalse();
+    assertThat(evaluator.eval(TestHelpers.Row.of(8))).as("not(8 == 7) => false").isTrue();
 
     Evaluator structEvaluator = new Evaluator(STRUCT, not(equal("s1.s2.s3.s4.i", 7)));
-    Assert.assertFalse(
-        "not(7 == 7) => false",
-        structEvaluator.eval(
-            TestHelpers.Row.of(
-                7,
-                null,
-                null,
+    assertThat(
+            structEvaluator.eval(
                 TestHelpers.Row.of(
-                    TestHelpers.Row.of(TestHelpers.Row.of(TestHelpers.Row.of(7)))))));
-    Assert.assertTrue(
-        "not(8 == 7) => false",
-        structEvaluator.eval(
-            TestHelpers.Row.of(
-                8,
-                null,
-                null,
+                    7,
+                    null,
+                    null,
+                    TestHelpers.Row.of(
+                        TestHelpers.Row.of(TestHelpers.Row.of(TestHelpers.Row.of(7)))))))
+        .as("not(7 == 7) => false")
+        .isFalse();
+    assertThat(
+            structEvaluator.eval(
                 TestHelpers.Row.of(
-                    TestHelpers.Row.of(TestHelpers.Row.of(TestHelpers.Row.of(8)))))));
+                    8,
+                    null,
+                    null,
+                    TestHelpers.Row.of(
+                        TestHelpers.Row.of(TestHelpers.Row.of(TestHelpers.Row.of(8)))))))
+        .as("not(8 == 7) => false")
+        .isTrue();
   }
 
   @Test
   public void testCaseInsensitiveNot() {
     Evaluator evaluator = new Evaluator(STRUCT, not(equal("X", 7)), false);
-    Assert.assertFalse("not(7 == 7) => false", evaluator.eval(TestHelpers.Row.of(7)));
-    Assert.assertTrue("not(8 == 7) => false", evaluator.eval(TestHelpers.Row.of(8)));
+    assertThat(evaluator.eval(TestHelpers.Row.of(7))).as("not(7 == 7) => false").isFalse();
+    assertThat(evaluator.eval(TestHelpers.Row.of(8))).as("not(8 == 7) => false").isTrue();
 
     Evaluator structEvaluator = new Evaluator(STRUCT, not(equal("s1.s2.s3.s4.i", 7)), false);
-    Assert.assertFalse(
-        "not(7 == 7) => false",
-        structEvaluator.eval(
-            TestHelpers.Row.of(
-                7,
-                null,
-                null,
+    assertThat(
+            structEvaluator.eval(
                 TestHelpers.Row.of(
-                    TestHelpers.Row.of(TestHelpers.Row.of(TestHelpers.Row.of(7)))))));
-    Assert.assertTrue(
-        "not(8 == 7) => false",
-        structEvaluator.eval(
-            TestHelpers.Row.of(
-                8,
-                null,
-                null,
+                    7,
+                    null,
+                    null,
+                    TestHelpers.Row.of(
+                        TestHelpers.Row.of(TestHelpers.Row.of(TestHelpers.Row.of(7)))))))
+        .as("not(7 == 7) => false")
+        .isFalse();
+    assertThat(
+            structEvaluator.eval(
                 TestHelpers.Row.of(
-                    TestHelpers.Row.of(TestHelpers.Row.of(TestHelpers.Row.of(8)))))));
+                    8,
+                    null,
+                    null,
+                    TestHelpers.Row.of(
+                        TestHelpers.Row.of(TestHelpers.Row.of(TestHelpers.Row.of(8)))))))
+        .as("not(8 == 7) => false")
+        .isTrue();
   }
 
   @Test
@@ -552,72 +599,81 @@ public class TestEvaluator {
   public void testCharSeqValue() {
     StructType struct = StructType.of(required(34, "s", Types.StringType.get()));
     Evaluator evaluator = new Evaluator(struct, equal("s", "abc"));
-    Assert.assertTrue(
-        "string(abc) == utf8(abc) => true", evaluator.eval(TestHelpers.Row.of(new Utf8("abc"))));
-    Assert.assertFalse(
-        "string(abc) == utf8(abcd) => false", evaluator.eval(TestHelpers.Row.of(new Utf8("abcd"))));
+    assertThat(evaluator.eval(TestHelpers.Row.of(new Utf8("abc"))))
+        .as("string(abc) == utf8(abc) => true")
+        .isTrue();
+    assertThat(evaluator.eval(TestHelpers.Row.of(new Utf8("abcd"))))
+        .as("string(abc) == utf8(abcd) => false")
+        .isFalse();
   }
 
   @Test
   public void testIn() {
-    Assert.assertEquals(3, in("s", 7, 8, 9).literals().size());
-    Assert.assertEquals(3, in("s", 7, 8.1, Long.MAX_VALUE).literals().size());
-    Assert.assertEquals(3, in("s", "abc", "abd", "abc").literals().size());
-    Assert.assertEquals(0, in("s").literals().size());
-    Assert.assertEquals(1, in("s", 5).literals().size());
-    Assert.assertEquals(2, in("s", 5, 5).literals().size());
-    Assert.assertEquals(2, in("s", Arrays.asList(5, 5)).literals().size());
-    Assert.assertEquals(0, in("s", Collections.emptyList()).literals().size());
+    assertThat(in("s", 7, 8, 9).literals()).hasSize(3);
+    assertThat(in("s", 7, 8.1, Long.MAX_VALUE).literals()).hasSize(3);
+    assertThat(in("s", "abc", "abd", "abc").literals()).hasSize(3);
+    assertThat(in("s").literals()).isEmpty();
+    assertThat(in("s", 5).literals()).hasSize(1);
+    assertThat(in("s", 5, 5).literals()).hasSize(2);
+    assertThat(in("s", Arrays.asList(5, 5)).literals()).hasSize(2);
+    assertThat(in("s", Collections.emptyList()).literals()).isEmpty();
 
     Evaluator evaluator = new Evaluator(STRUCT, in("x", 7, 8, Long.MAX_VALUE));
-    Assert.assertTrue("7 in [7, 8] => true", evaluator.eval(TestHelpers.Row.of(7, 8, null)));
-    Assert.assertFalse("9 in [7, 8]  => false", evaluator.eval(TestHelpers.Row.of(9, 8, null)));
+    assertThat(evaluator.eval(TestHelpers.Row.of(7, 8, null))).as("7 in [7, 8] => true").isTrue();
+    assertThat(evaluator.eval(TestHelpers.Row.of(9, 8, null)))
+        .as("9 in [7, 8]  => false")
+        .isFalse();
 
     Evaluator intSetEvaluator =
         new Evaluator(STRUCT, in("x", Long.MAX_VALUE, Integer.MAX_VALUE, Long.MIN_VALUE));
-    Assert.assertTrue(
-        "Integer.MAX_VALUE in [Integer.MAX_VALUE] => true",
-        intSetEvaluator.eval(TestHelpers.Row.of(Integer.MAX_VALUE, 7.0, null)));
-    Assert.assertFalse(
-        "6 in [Integer.MAX_VALUE]  => false",
-        intSetEvaluator.eval(TestHelpers.Row.of(6, 6.8, null)));
+    assertThat(intSetEvaluator.eval(TestHelpers.Row.of(Integer.MAX_VALUE, 7.0, null)))
+        .as("Integer.MAX_VALUE in [Integer.MAX_VALUE] => true")
+        .isTrue();
+    assertThat(intSetEvaluator.eval(TestHelpers.Row.of(6, 6.8, null)))
+        .as("6 in [Integer.MAX_VALUE]  => false")
+        .isFalse();
 
     Evaluator integerEvaluator = new Evaluator(STRUCT, in("y", 7, 8, 9.1));
-    Assert.assertTrue(
-        "7.0 in [7, 8, 9.1] => true", integerEvaluator.eval(TestHelpers.Row.of(0, 7.0, null)));
-    Assert.assertTrue(
-        "9.1 in [7, 8, 9.1] => true", integerEvaluator.eval(TestHelpers.Row.of(7, 9.1, null)));
-    Assert.assertFalse(
-        "6.8 in [7, 8, 9.1]  => false", integerEvaluator.eval(TestHelpers.Row.of(6, 6.8, null)));
+    assertThat(integerEvaluator.eval(TestHelpers.Row.of(0, 7.0, null)))
+        .as("7.0 in [7, 8, 9.1] => true")
+        .isTrue();
+    assertThat(integerEvaluator.eval(TestHelpers.Row.of(7, 9.1, null)))
+        .as("9.1 in [7, 8, 9.1] => true")
+        .isTrue();
+    assertThat(integerEvaluator.eval(TestHelpers.Row.of(6, 6.8, null)))
+        .as("6.8 in [7, 8, 9.1]  => false")
+        .isFalse();
 
     Evaluator structEvaluator = new Evaluator(STRUCT, in("s1.s2.s3.s4.i", 7, 8, 9));
-    Assert.assertTrue(
-        "7 in [7, 8, 9] => true",
-        structEvaluator.eval(
-            TestHelpers.Row.of(
-                7,
-                8,
-                null,
+    assertThat(
+            structEvaluator.eval(
                 TestHelpers.Row.of(
-                    TestHelpers.Row.of(TestHelpers.Row.of(TestHelpers.Row.of(7)))))));
-    Assert.assertFalse(
-        "6 in [7, 8, 9]  => false",
-        structEvaluator.eval(
-            TestHelpers.Row.of(
-                6,
-                8,
-                null,
+                    7,
+                    8,
+                    null,
+                    TestHelpers.Row.of(
+                        TestHelpers.Row.of(TestHelpers.Row.of(TestHelpers.Row.of(7)))))))
+        .as("7 in [7, 8, 9] => true")
+        .isTrue();
+    assertThat(
+            structEvaluator.eval(
                 TestHelpers.Row.of(
-                    TestHelpers.Row.of(TestHelpers.Row.of(TestHelpers.Row.of(6)))))));
+                    6,
+                    8,
+                    null,
+                    TestHelpers.Row.of(
+                        TestHelpers.Row.of(TestHelpers.Row.of(TestHelpers.Row.of(6)))))))
+        .as("6 in [7, 8, 9]  => false")
+        .isFalse();
 
     StructType charSeqStruct = StructType.of(required(34, "s", Types.StringType.get()));
     Evaluator charSeqEvaluator = new Evaluator(charSeqStruct, in("s", "abc", "abd", "abc"));
-    Assert.assertTrue(
-        "utf8(abc) in [string(abc), string(abd)] => true",
-        charSeqEvaluator.eval(TestHelpers.Row.of(new Utf8("abc"))));
-    Assert.assertFalse(
-        "utf8(abcd) in [string(abc), string(abd)] => false",
-        charSeqEvaluator.eval(TestHelpers.Row.of(new Utf8("abcd"))));
+    assertThat(charSeqEvaluator.eval(TestHelpers.Row.of(new Utf8("abc"))))
+        .as("utf8(abc) in [string(abc), string(abd)] => true")
+        .isTrue();
+    assertThat(charSeqEvaluator.eval(TestHelpers.Row.of(new Utf8("abcd"))))
+        .as("utf8(abcd) in [string(abc), string(abd)] => false")
+        .isFalse();
   }
 
   @Test
@@ -654,64 +710,73 @@ public class TestEvaluator {
 
   @Test
   public void testNotIn() {
-    Assert.assertEquals(3, notIn("s", 7, 8, 9).literals().size());
-    Assert.assertEquals(3, notIn("s", 7, 8.1, Long.MAX_VALUE).literals().size());
-    Assert.assertEquals(3, notIn("s", "abc", "abd", "abc").literals().size());
-    Assert.assertEquals(0, notIn("s").literals().size());
-    Assert.assertEquals(1, notIn("s", 5).literals().size());
-    Assert.assertEquals(2, notIn("s", 5, 5).literals().size());
-    Assert.assertEquals(2, notIn("s", Arrays.asList(5, 5)).literals().size());
-    Assert.assertEquals(0, notIn("s", Collections.emptyList()).literals().size());
+    assertThat(notIn("s", 7, 8, 9).literals()).hasSize(3);
+    assertThat(notIn("s", 7, 8.1, Long.MAX_VALUE).literals()).hasSize(3);
+    assertThat(notIn("s", "abc", "abd", "abc").literals()).hasSize(3);
+    assertThat(notIn("s").literals()).isEmpty();
+    assertThat(notIn("s", 5).literals()).hasSize(1);
+    assertThat(notIn("s", 5, 5).literals()).hasSize(2);
+    assertThat(notIn("s", Arrays.asList(5, 5)).literals()).hasSize(2);
+    assertThat(notIn("s", Collections.emptyList()).literals()).isEmpty();
 
     Evaluator evaluator = new Evaluator(STRUCT, notIn("x", 7, 8, Long.MAX_VALUE));
-    Assert.assertFalse("7 not in [7, 8] => false", evaluator.eval(TestHelpers.Row.of(7, 8, null)));
-    Assert.assertTrue("6 not in [7, 8]  => true", evaluator.eval(TestHelpers.Row.of(9, 8, null)));
+    assertThat(evaluator.eval(TestHelpers.Row.of(7, 8, null)))
+        .as("7 not in [7, 8] => false")
+        .isFalse();
+    assertThat(evaluator.eval(TestHelpers.Row.of(9, 8, null)))
+        .as("6 not in [7, 8]  => true")
+        .isTrue();
 
     Evaluator intSetEvaluator =
         new Evaluator(STRUCT, notIn("x", Long.MAX_VALUE, Integer.MAX_VALUE, Long.MIN_VALUE));
-    Assert.assertFalse(
-        "Integer.MAX_VALUE not_in [Integer.MAX_VALUE] => false",
-        intSetEvaluator.eval(TestHelpers.Row.of(Integer.MAX_VALUE, 7.0, null)));
-    Assert.assertTrue(
-        "6 not_in [Integer.MAX_VALUE]  => true",
-        intSetEvaluator.eval(TestHelpers.Row.of(6, 6.8, null)));
+    assertThat(intSetEvaluator.eval(TestHelpers.Row.of(Integer.MAX_VALUE, 7.0, null)))
+        .as("Integer.MAX_VALUE not_in [Integer.MAX_VALUE] => false")
+        .isFalse();
+    assertThat(intSetEvaluator.eval(TestHelpers.Row.of(6, 6.8, null)))
+        .as("6 not_in [Integer.MAX_VALUE]  => true")
+        .isTrue();
 
     Evaluator integerEvaluator = new Evaluator(STRUCT, notIn("y", 7, 8, 9.1));
-    Assert.assertFalse(
-        "7.0 not in [7, 8, 9] => false", integerEvaluator.eval(TestHelpers.Row.of(0, 7.0, null)));
-    Assert.assertFalse(
-        "9.1 not in [7, 8, 9.1] => false", integerEvaluator.eval(TestHelpers.Row.of(7, 9.1, null)));
-    Assert.assertTrue(
-        "6.8 not in [7, 8, 9.1]  => true", integerEvaluator.eval(TestHelpers.Row.of(6, 6.8, null)));
+    assertThat(integerEvaluator.eval(TestHelpers.Row.of(0, 7.0, null)))
+        .as("7.0 not in [7, 8, 9] => false")
+        .isFalse();
+    assertThat(integerEvaluator.eval(TestHelpers.Row.of(7, 9.1, null)))
+        .as("9.1 not in [7, 8, 9.1] => false")
+        .isFalse();
+    assertThat(integerEvaluator.eval(TestHelpers.Row.of(6, 6.8, null)))
+        .as("6.8 not in [7, 8, 9.1]  => true")
+        .isTrue();
 
     Evaluator structEvaluator = new Evaluator(STRUCT, notIn("s1.s2.s3.s4.i", 7, 8, 9));
-    Assert.assertFalse(
-        "7 not in [7, 8, 9] => false",
-        structEvaluator.eval(
-            TestHelpers.Row.of(
-                7,
-                8,
-                null,
+    assertThat(
+            structEvaluator.eval(
                 TestHelpers.Row.of(
-                    TestHelpers.Row.of(TestHelpers.Row.of(TestHelpers.Row.of(7)))))));
-    Assert.assertTrue(
-        "6 not in [7, 8, 9]  => true",
-        structEvaluator.eval(
-            TestHelpers.Row.of(
-                6,
-                8,
-                null,
+                    7,
+                    8,
+                    null,
+                    TestHelpers.Row.of(
+                        TestHelpers.Row.of(TestHelpers.Row.of(TestHelpers.Row.of(7)))))))
+        .as("7 not in [7, 8, 9] => false")
+        .isFalse();
+    assertThat(
+            structEvaluator.eval(
                 TestHelpers.Row.of(
-                    TestHelpers.Row.of(TestHelpers.Row.of(TestHelpers.Row.of(6)))))));
+                    6,
+                    8,
+                    null,
+                    TestHelpers.Row.of(
+                        TestHelpers.Row.of(TestHelpers.Row.of(TestHelpers.Row.of(6)))))))
+        .as("6 not in [7, 8, 9]  => true")
+        .isTrue();
 
     StructType charSeqStruct = StructType.of(required(34, "s", Types.StringType.get()));
     Evaluator charSeqEvaluator = new Evaluator(charSeqStruct, notIn("s", "abc", "abd", "abc"));
-    Assert.assertFalse(
-        "utf8(abc) not in [string(abc), string(abd)] => false",
-        charSeqEvaluator.eval(TestHelpers.Row.of(new Utf8("abc"))));
-    Assert.assertTrue(
-        "utf8(abcd) not in [string(abc), string(abd)] => true",
-        charSeqEvaluator.eval(TestHelpers.Row.of(new Utf8("abcd"))));
+    assertThat(charSeqEvaluator.eval(TestHelpers.Row.of(new Utf8("abc"))))
+        .as("utf8(abc) not in [string(abc), string(abd)] => false")
+        .isFalse();
+    assertThat(charSeqEvaluator.eval(TestHelpers.Row.of(new Utf8("abcd"))))
+        .as("utf8(abcd) not in [string(abc), string(abd)] => true")
+        .isTrue();
   }
 
   @Test
