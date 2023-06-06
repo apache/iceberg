@@ -20,11 +20,11 @@ package org.apache.iceberg.types;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.TestHelpers;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestSerializableTypes {
   @Test
@@ -47,10 +47,9 @@ public class TestSerializableTypes {
         };
 
     for (Type type : identityPrimitives) {
-      Assert.assertSame(
-          "Serialization result should be identical to starting type",
-          type,
-          TestHelpers.roundTripSerialize(type));
+      assertThat(TestHelpers.roundTripSerialize(type))
+          .as("Serialization result should be identical to starting type")
+          .isSameAs(type);
     }
   }
 
@@ -65,10 +64,9 @@ public class TestSerializableTypes {
         };
 
     for (Type type : equalityPrimitives) {
-      Assert.assertEquals(
-          "Serialization result should be equal to starting type",
-          type,
-          TestHelpers.roundTripSerialize(type));
+      assertThat(TestHelpers.roundTripSerialize(type))
+          .as("Serialization result should be equal to starting type")
+          .isEqualTo(type);
     }
   }
 
@@ -80,15 +78,17 @@ public class TestSerializableTypes {
             Types.NestedField.optional(35, "col", Types.DecimalType.of(38, 2)));
 
     Type copy = TestHelpers.roundTripSerialize(struct);
-    Assert.assertEquals("Struct serialization should be equal to starting type", struct, copy);
+    assertThat(copy).as("Struct serialization should be equal to starting type").isEqualTo(struct);
 
     Type stringType = copy.asNestedType().asStructType().fieldType("Name!");
-    Assert.assertSame(
-        "Struct serialization should preserve identity type", Types.StringType.get(), stringType);
+    assertThat(stringType)
+        .as("Struct serialization should preserve identity type")
+        .isSameAs(Types.StringType.get());
 
     Type decimalType = copy.asNestedType().asStructType().field(35).type();
-    Assert.assertEquals(
-        "Struct serialization should support id lookup", Types.DecimalType.of(38, 2), decimalType);
+    assertThat(decimalType)
+        .as("Struct serialization should support id lookup")
+        .isEqualTo(Types.DecimalType.of(38, 2));
   }
 
   @Test
@@ -101,11 +101,10 @@ public class TestSerializableTypes {
 
     for (Type map : maps) {
       Type copy = TestHelpers.roundTripSerialize(map);
-      Assert.assertEquals("Map serialization should be equal to starting type", map, copy);
-      Assert.assertSame(
-          "Map serialization should preserve identity type",
-          Types.LongType.get(),
-          map.asNestedType().asMapType().valueType());
+      assertThat(copy).as("Map serialization should be equal to starting type").isEqualTo(map);
+      assertThat(map.asNestedType().asMapType().valueType())
+          .as("Map serialization should preserve identity type")
+          .isSameAs(Types.LongType.get());
     }
   }
 
@@ -119,11 +118,10 @@ public class TestSerializableTypes {
 
     for (Type list : maps) {
       Type copy = TestHelpers.roundTripSerialize(list);
-      Assert.assertEquals("List serialization should be equal to starting type", list, copy);
-      Assert.assertSame(
-          "List serialization should preserve identity type",
-          Types.DoubleType.get(),
-          list.asNestedType().asListType().elementType());
+      assertThat(copy).as("List serialization should be equal to starting type").isEqualTo(list);
+      assertThat(list.asNestedType().asListType().elementType())
+          .as("List serialization should preserve identity type")
+          .isSameAs(Types.DoubleType.get());
     }
   }
 
@@ -173,9 +171,8 @@ public class TestSerializableTypes {
                         optional(24, "y", Types.LongType.get())),
                     Types.StringType.get())));
 
-    Assert.assertEquals(
-        "Schema serialization should be equal to starting schema",
-        schema.asStruct(),
-        TestHelpers.roundTripSerialize(schema).asStruct());
+    assertThat(TestHelpers.roundTripSerialize(schema).asStruct())
+        .as("Schema serialization should be equal to starting schema")
+        .isEqualTo(schema.asStruct());
   }
 }

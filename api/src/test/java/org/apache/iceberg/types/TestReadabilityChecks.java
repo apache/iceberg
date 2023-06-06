@@ -20,12 +20,12 @@ package org.apache.iceberg.types;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.types.Type.PrimitiveType;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestReadabilityChecks {
   private static final Type.PrimitiveType[] PRIMITIVES =
@@ -59,13 +59,13 @@ public class TestReadabilityChecks {
                 new Schema(required(1, "to_field", to)), fromSchema);
 
         if (TypeUtil.isPromotionAllowed(from, to)) {
-          Assert.assertEquals("Should produce 0 error messages", 0, errors.size());
+          assertThat(errors).as("Should produce 0 error messages").isEmpty();
         } else {
-          Assert.assertEquals("Should produce 1 error message", 1, errors.size());
+          assertThat(errors).hasSize(1);
 
-          Assert.assertTrue(
-              "Should complain that promotion is not allowed",
-              errors.get(0).contains("cannot be promoted to"));
+          assertThat(errors.get(0))
+              .as("Should complain that promotion is not allowed")
+              .contains("cannot be promoted to");
         }
       }
 
@@ -81,11 +81,11 @@ public class TestReadabilityChecks {
             required(1, "map_field", Types.MapType.ofRequired(2, 3, Types.StringType.get(), from)));
 
     List<String> errors = CheckCompatibility.writeCompatibilityErrors(mapSchema, fromSchema);
-    Assert.assertEquals("Should produce 1 error message", 1, errors.size());
+    assertThat(errors).hasSize(1);
 
-    Assert.assertTrue(
-        "Should complain that primitive to map is not allowed",
-        errors.get(0).contains("cannot be read as a map"));
+    assertThat(errors.get(0))
+        .as("Should complain that primitive to map is not allowed")
+        .contains("cannot be read as a map");
   }
 
   private void testDisallowPrimitiveToList(PrimitiveType from, Schema fromSchema) {
@@ -93,10 +93,10 @@ public class TestReadabilityChecks {
     Schema listSchema = new Schema(required(1, "list_field", Types.ListType.ofRequired(2, from)));
 
     List<String> errors = CheckCompatibility.writeCompatibilityErrors(listSchema, fromSchema);
-    Assert.assertEquals("Should produce 1 error message", 1, errors.size());
-    Assert.assertTrue(
-        "Should complain that primitive to list is not allowed",
-        errors.get(0).contains("cannot be read as a list"));
+    assertThat(errors).hasSize(1);
+    assertThat(errors.get(0))
+        .as("Should complain that primitive to list is not allowed")
+        .contains("cannot be read as a list");
   }
 
   private void testDisallowPrimitiveToStruct(PrimitiveType from, Schema fromSchema) {
@@ -104,10 +104,10 @@ public class TestReadabilityChecks {
         new Schema(required(1, "struct_field", Types.StructType.of(required(2, "from", from))));
 
     List<String> errors = CheckCompatibility.writeCompatibilityErrors(structSchema, fromSchema);
-    Assert.assertEquals("Should produce 1 error message", 1, errors.size());
-    Assert.assertTrue(
-        "Should complain that primitive to struct is not allowed",
-        errors.get(0).contains("cannot be read as a struct"));
+    assertThat(errors).hasSize(1);
+    assertThat(errors.get(0))
+        .as("Should complain that primitive to struct is not allowed")
+        .contains("cannot be read as a struct");
   }
 
   @Test
@@ -116,11 +116,11 @@ public class TestReadabilityChecks {
     Schema read = new Schema(required(1, "to_field", Types.IntegerType.get()));
 
     List<String> errors = CheckCompatibility.writeCompatibilityErrors(read, write);
-    Assert.assertEquals("Should produce 1 error message", 1, errors.size());
+    assertThat(errors).hasSize(1);
 
-    Assert.assertTrue(
-        "Should complain that a required column is optional",
-        errors.get(0).contains("should be required, but is optional"));
+    assertThat(errors.get(0))
+        .as("Should complain that a required column is optional")
+        .contains("should be required, but is optional");
   }
 
   @Test
@@ -129,11 +129,11 @@ public class TestReadabilityChecks {
     Schema read = new Schema(required(1, "to_field", Types.IntegerType.get()));
 
     List<String> errors = CheckCompatibility.writeCompatibilityErrors(read, write);
-    Assert.assertEquals("Should produce 1 error message", 1, errors.size());
+    assertThat(errors).hasSize(1);
 
-    Assert.assertTrue(
-        "Should complain that a required column is missing",
-        errors.get(0).contains("is required, but is missing"));
+    assertThat(errors.get(0))
+        .as("Should complain that a required column is missing")
+        .contains("is required, but is missing");
   }
 
   @Test
@@ -152,11 +152,11 @@ public class TestReadabilityChecks {
                 Types.StructType.of(required(1, "to_field", Types.IntegerType.get()))));
 
     List<String> errors = CheckCompatibility.writeCompatibilityErrors(read, write);
-    Assert.assertEquals("Should produce 1 error message", 1, errors.size());
+    assertThat(errors).hasSize(1);
 
-    Assert.assertTrue(
-        "Should complain that a required field is optional",
-        errors.get(0).contains("should be required, but is optional"));
+    assertThat(errors.get(0))
+        .as("Should complain that a required field is optional")
+        .contains("should be required, but is optional");
   }
 
   @Test
@@ -175,11 +175,11 @@ public class TestReadabilityChecks {
                 Types.StructType.of(required(1, "to_field", Types.IntegerType.get()))));
 
     List<String> errors = CheckCompatibility.writeCompatibilityErrors(read, write);
-    Assert.assertEquals("Should produce 1 error message", 1, errors.size());
+    assertThat(errors).hasSize(1);
 
-    Assert.assertTrue(
-        "Should complain that a required field is missing",
-        errors.get(0).contains("is required, but is missing"));
+    assertThat(errors.get(0))
+        .as("Should complain that a required field is missing")
+        .contains("is required, but is missing");
   }
 
   @Test
@@ -198,7 +198,7 @@ public class TestReadabilityChecks {
                 Types.StructType.of(optional(1, "to_field", Types.IntegerType.get()))));
 
     List<String> errors = CheckCompatibility.writeCompatibilityErrors(read, write);
-    Assert.assertEquals("Should produce no error messages", 0, errors.size());
+    assertThat(errors).isEmpty();
   }
 
   @Test
@@ -215,11 +215,11 @@ public class TestReadabilityChecks {
                 0, "nested", Types.StructType.of(required(1, "to_field", Types.FloatType.get()))));
 
     List<String> errors = CheckCompatibility.writeCompatibilityErrors(read, write);
-    Assert.assertEquals("Should produce 1 error message", 1, errors.size());
+    assertThat(errors).hasSize(1);
 
-    Assert.assertTrue(
-        "Should complain about incompatible types",
-        errors.get(0).contains("cannot be promoted to float"));
+    assertThat(errors.get(0))
+        .as("Should complain about incompatible types")
+        .contains("cannot be promoted to float");
   }
 
   @Test
@@ -233,11 +233,11 @@ public class TestReadabilityChecks {
     Schema read = new Schema(required(0, "nested", Types.StringType.get()));
 
     List<String> errors = CheckCompatibility.writeCompatibilityErrors(read, write);
-    Assert.assertEquals("Should produce 1 error message", 1, errors.size());
+    assertThat(errors).hasSize(1);
 
-    Assert.assertTrue(
-        "Should complain about incompatible types",
-        errors.get(0).contains("struct cannot be read as a string"));
+    assertThat(errors.get(0))
+        .as("Should complain about incompatible types")
+        .contains("struct cannot be read as a string");
   }
 
   @Test
@@ -255,14 +255,14 @@ public class TestReadabilityChecks {
                 0, "nested", Types.StructType.of(required(1, "to_field", Types.FloatType.get()))));
 
     List<String> errors = CheckCompatibility.writeCompatibilityErrors(read, write);
-    Assert.assertEquals("Should produce 1 error message", 2, errors.size());
+    assertThat(errors).hasSize(2);
 
-    Assert.assertTrue(
-        "Should complain that a required field is optional",
-        errors.get(0).contains("should be required, but is optional"));
-    Assert.assertTrue(
-        "Should complain about incompatible types",
-        errors.get(1).contains("cannot be promoted to float"));
+    assertThat(errors.get(0))
+        .as("Should complain that a required field is optional")
+        .contains("should be required, but is optional");
+    assertThat(errors.get(1))
+        .as("Should complain about incompatible types")
+        .contains("cannot be promoted to float");
   }
 
   @Test
@@ -281,11 +281,11 @@ public class TestReadabilityChecks {
                 Types.MapType.ofRequired(1, 2, Types.StringType.get(), Types.IntegerType.get())));
 
     List<String> errors = CheckCompatibility.writeCompatibilityErrors(read, write);
-    Assert.assertEquals("Should produce 1 error message", 1, errors.size());
+    assertThat(errors).hasSize(1);
 
-    Assert.assertTrue(
-        "Should complain that values are optional",
-        errors.get(0).contains("values should be required, but are optional"));
+    assertThat(errors.get(0))
+        .as("Should complain that values are optional")
+        .contains("values should be required, but are optional");
   }
 
   @Test
@@ -304,11 +304,11 @@ public class TestReadabilityChecks {
                 Types.MapType.ofOptional(1, 2, Types.DoubleType.get(), Types.StringType.get())));
 
     List<String> errors = CheckCompatibility.writeCompatibilityErrors(read, write);
-    Assert.assertEquals("Should produce 1 error message", 1, errors.size());
+    assertThat(errors).hasSize(1);
 
-    Assert.assertTrue(
-        "Should complain about incompatible types",
-        errors.get(0).contains("cannot be promoted to double"));
+    assertThat(errors.get(0))
+        .as("Should complain about incompatible types")
+        .contains("cannot be promoted to double");
   }
 
   @Test
@@ -327,11 +327,11 @@ public class TestReadabilityChecks {
                 Types.MapType.ofOptional(1, 2, Types.StringType.get(), Types.DoubleType.get())));
 
     List<String> errors = CheckCompatibility.writeCompatibilityErrors(read, write);
-    Assert.assertEquals("Should produce 1 error message", 1, errors.size());
+    assertThat(errors).hasSize(1);
 
-    Assert.assertTrue(
-        "Should complain about incompatible types",
-        errors.get(0).contains("cannot be promoted to double"));
+    assertThat(errors.get(0))
+        .as("Should complain about incompatible types")
+        .contains("cannot be promoted to double");
   }
 
   @Test
@@ -345,11 +345,11 @@ public class TestReadabilityChecks {
     Schema read = new Schema(required(0, "map_field", Types.StringType.get()));
 
     List<String> errors = CheckCompatibility.writeCompatibilityErrors(read, write);
-    Assert.assertEquals("Should produce 1 error message", 1, errors.size());
+    assertThat(errors).hasSize(1);
 
-    Assert.assertTrue(
-        "Should complain about incompatible types",
-        errors.get(0).contains("map cannot be read as a string"));
+    assertThat(errors.get(0))
+        .as("Should complain about incompatible types")
+        .contains("map cannot be read as a string");
   }
 
   @Test
@@ -362,11 +362,11 @@ public class TestReadabilityChecks {
             required(0, "list_field", Types.ListType.ofRequired(1, Types.IntegerType.get())));
 
     List<String> errors = CheckCompatibility.writeCompatibilityErrors(read, write);
-    Assert.assertEquals("Should produce 1 error message", 1, errors.size());
+    assertThat(errors).hasSize(1);
 
-    Assert.assertTrue(
-        "Should complain that elements are optional",
-        errors.get(0).contains("elements should be required, but are optional"));
+    assertThat(errors.get(0))
+        .as("Should complain that elements are optional")
+        .contains("elements should be required, but are optional");
   }
 
   @Test
@@ -378,11 +378,11 @@ public class TestReadabilityChecks {
         new Schema(required(0, "list_field", Types.ListType.ofOptional(1, Types.StringType.get())));
 
     List<String> errors = CheckCompatibility.writeCompatibilityErrors(read, write);
-    Assert.assertEquals("Should produce 1 error message", 1, errors.size());
+    assertThat(errors).hasSize(1);
 
-    Assert.assertTrue(
-        "Should complain about incompatible types",
-        errors.get(0).contains("cannot be promoted to string"));
+    assertThat(errors.get(0))
+        .as("Should complain about incompatible types")
+        .contains("cannot be promoted to string");
   }
 
   @Test
@@ -393,11 +393,11 @@ public class TestReadabilityChecks {
     Schema read = new Schema(required(0, "list_field", Types.StringType.get()));
 
     List<String> errors = CheckCompatibility.writeCompatibilityErrors(read, write);
-    Assert.assertEquals("Should produce 1 error message", 1, errors.size());
+    assertThat(errors).hasSize(1);
 
-    Assert.assertTrue(
-        "Should complain about incompatible types",
-        errors.get(0).contains("list cannot be read as a string"));
+    assertThat(errors.get(0))
+        .as("Should complain about incompatible types")
+        .contains("list cannot be read as a string");
   }
 
   @Test
@@ -421,7 +421,7 @@ public class TestReadabilityChecks {
                     required(1, "field_a", Types.IntegerType.get()))));
 
     List<String> errors = CheckCompatibility.writeCompatibilityErrors(read, write, false);
-    Assert.assertEquals("Should produce 0 error message", 0, errors.size());
+    assertThat(errors).as("Should produce 0 error message").isEmpty();
   }
 
   @Test
@@ -445,11 +445,11 @@ public class TestReadabilityChecks {
                     required(1, "field_a", Types.IntegerType.get()))));
 
     List<String> errors = CheckCompatibility.writeCompatibilityErrors(read, write);
-    Assert.assertEquals("Should produce 1 error message", 1, errors.size());
+    assertThat(errors).hasSize(1);
 
-    Assert.assertTrue(
-        "Should complain about field_b before field_a",
-        errors.get(0).contains("field_b is out of order, before field_a"));
+    assertThat(errors.get(0))
+        .as("Should complain about field_b before field_a")
+        .contains("field_b is out of order, before field_a");
   }
 
   @Test
@@ -473,7 +473,7 @@ public class TestReadabilityChecks {
                     required(1, "field_a", Types.IntegerType.get()))));
 
     List<String> errors = CheckCompatibility.readCompatibilityErrors(read, write);
-    Assert.assertEquals("Should produce no error messages", 0, errors.size());
+    assertThat(errors).isEmpty();
   }
 
   @Test
@@ -492,10 +492,10 @@ public class TestReadabilityChecks {
                         Types.NestedField.required(1, "lat", Types.FloatType.get()),
                         Types.NestedField.required(2, "long", Types.FloatType.get())))));
 
-    Assert.assertNotNull(schema.caseInsensitiveSelect("ID").findField(0));
-    Assert.assertNotNull(schema.caseInsensitiveSelect("loCATIONs").findField(5));
-    Assert.assertNotNull(schema.caseInsensitiveSelect("LoCaTiOnS.LaT").findField(1));
-    Assert.assertNotNull(schema.caseInsensitiveSelect("locations.LONG").findField(2));
+    assertThat(schema.caseInsensitiveSelect("ID").findField(0)).isNotNull();
+    assertThat(schema.caseInsensitiveSelect("loCATIONs").findField(5)).isNotNull();
+    assertThat(schema.caseInsensitiveSelect("LoCaTiOnS.LaT").findField(1)).isNotNull();
+    assertThat(schema.caseInsensitiveSelect("locations.LONG").findField(2)).isNotNull();
   }
 
   @Test
@@ -504,7 +504,7 @@ public class TestReadabilityChecks {
     Schema read = new Schema(required(1, "to_field", Types.IntegerType.get()));
 
     List<String> errors = CheckCompatibility.typeCompatibilityErrors(read, write);
-    Assert.assertEquals("Should produce no error messages", 0, errors.size());
+    assertThat(errors).isEmpty();
   }
 
   @Test
@@ -523,6 +523,6 @@ public class TestReadabilityChecks {
                 Types.StructType.of(required(1, "to_field", Types.IntegerType.get()))));
 
     List<String> errors = CheckCompatibility.typeCompatibilityErrors(read, write);
-    Assert.assertEquals("Should produce no error messages", 0, errors.size());
+    assertThat(errors).isEmpty();
   }
 }
