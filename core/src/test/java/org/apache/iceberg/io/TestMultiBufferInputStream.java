@@ -116,7 +116,6 @@ public class TestMultiBufferInputStream extends TestByteBufferInputStreams {
 
     // five should be a copy of the next 8 bytes
     ByteBuffer five = buffers.get(4);
-
     assertThat(five.remaining()).isEqualTo(3);
     assertThat(five.position()).isEqualTo(0);
     assertThat(five.limit()).isEqualTo(3);

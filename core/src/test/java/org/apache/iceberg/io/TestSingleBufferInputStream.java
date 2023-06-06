@@ -42,7 +42,6 @@ public class TestSingleBufferInputStream extends TestByteBufferInputStreams {
   @Override
   protected void checkOriginalData() {
     assertThat(DATA.position()).as("Position should not change").isEqualTo(0);
-
     assertThat(DATA.limit()).as("Limit should not change").isEqualTo(DATA.array().length);
   }
 

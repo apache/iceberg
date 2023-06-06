@@ -30,9 +30,7 @@ public class TestInMemoryInputFile {
     InMemoryInputFile inputFile =
         new InMemoryInputFile("abc".getBytes(StandardCharsets.ISO_8859_1));
     InputStream inputStream = inputFile.newStream();
-    Assertions.assertThat(inputStream.read())
-        .as("Checking read value from inputStream")
-        .isEqualTo('a');
+    Assertions.assertThat(inputStream.read()).isEqualTo('a');
     inputStream.close();
     Assertions.assertThatThrownBy(inputStream::read).hasMessage("Stream is closed");
   }
