@@ -54,9 +54,7 @@ from pyiceberg.manifest import (
     DataFileContent,
     ManifestContent,
     ManifestEntry,
-    ManifestEntryStatus,
     ManifestFile,
-    live_entries,
 )
 from pyiceberg.partitioning import PartitionSpec
 from pyiceberg.schema import Schema
@@ -324,26 +322,6 @@ class FileScanTask(ScanTask):
         self.length = length or data_file.file_size_in_bytes
 
 
-def _inherit_sequence_numbers(manifest_entry: ManifestEntry, manifest: ManifestFile) -> ManifestEntry:
-    # The snapshot_id is required in V1, inherit with V2
-    if manifest_entry.snapshot_id is None:
-        manifest_entry.snapshot_id = manifest.added_snapshot_id
-
-    if manifest_entry.sequence_number is None and (
-        manifest.sequence_number == 0 or manifest_entry.status == ManifestEntryStatus.ADDED
-    ):
-        # Only available in V2, always 0 in V1
-        manifest_entry.sequence_number = manifest.sequence_number
-
-    if manifest_entry.file_sequence_number is None and (
-        manifest.sequence_number == 0 or manifest_entry.status == ManifestEntryStatus.ADDED
-    ):
-        # Only available in V2, always 0 in V1
-        manifest_entry.file_sequence_number = manifest.sequence_number
-
-    return manifest_entry
-
-
 def _open_manifest(
     io: FileIO,
     manifest: ManifestFile,
@@ -351,8 +329,8 @@ def _open_manifest(
     metrics_evaluator: Callable[[DataFile], bool],
 ) -> List[ManifestEntry]:
     return [
-        _inherit_sequence_numbers(manifest_entry, manifest)
-        for manifest_entry in live_entries(io.new_input(manifest.manifest_path))
+        manifest_entry
+        for manifest_entry in manifest.fetch_manifest_entry(io, discard_deleted=True)
         if partition_filter(manifest_entry.data_file) and metrics_evaluator(manifest_entry.data_file)
     ]
 
@@ -362,7 +340,7 @@ def _min_data_file_sequence_number(manifests: List[ManifestFile]) -> int:
         return min(
             manifest.min_sequence_number or INITIAL_SEQUENCE_NUMBER
             for manifest in manifests
-            if manifest.content is None or manifest.content == ManifestContent.DATA
+            if manifest.content == ManifestContent.DATA
         )
     except ValueError:
         # In case of an empty iterator
@@ -438,7 +416,7 @@ class DataScan(TableScan):
         Returns:
             Boolean indicating if it is either a data file, or a relevant delete file
         """
-        return (manifest.content is None or manifest.content == ManifestContent.DATA) or (
+        return manifest.content == ManifestContent.DATA or (
             # Not interested in deletes that are older than the data
             manifest.content == ManifestContent.DELETES
             and (manifest.sequence_number or INITIAL_SEQUENCE_NUMBER) >= min_data_sequence_number
@@ -477,7 +455,7 @@ class DataScan(TableScan):
         min_data_sequence_number = _min_data_file_sequence_number(manifests)
 
         data_entries: List[ManifestEntry] = []
-        positional_delete_entries = SortedList(key=lambda entry: entry.sequence_number or INITIAL_SEQUENCE_NUMBER)
+        positional_delete_entries = SortedList(key=lambda entry: entry.data_sequence_number or INITIAL_SEQUENCE_NUMBER)
 
         with ThreadPool() as pool:
             for manifest_entry in chain(
@@ -496,7 +474,7 @@ class DataScan(TableScan):
                 )
             ):
                 data_file = manifest_entry.data_file
-                if data_file.content is None or data_file.content == DataFileContent.DATA:
+                if data_file.content == DataFileContent.DATA:
                     data_entries.append(manifest_entry)
                 elif data_file.content == DataFileContent.POSITION_DELETES:
                     positional_delete_entries.add(manifest_entry)

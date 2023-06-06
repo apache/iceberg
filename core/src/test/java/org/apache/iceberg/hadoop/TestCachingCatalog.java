@@ -29,7 +29,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.CachingCatalog;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.MetadataTableType;
@@ -343,10 +342,11 @@ public class TestCachingCatalog extends HadoopTableTestBase {
 
   @Test
   public void testCachingCatalogRejectsExpirationIntervalOfZero() {
-    AssertHelpers.assertThrows(
-        "Caching catalog should disallow an expiration interval of zero, as zero signifies not to cache at all",
-        IllegalArgumentException.class,
-        () -> TestableCachingCatalog.wrap(hadoopCatalog(), Duration.ZERO, ticker));
+    Assertions.assertThatThrownBy(
+            () -> TestableCachingCatalog.wrap(hadoopCatalog(), Duration.ZERO, ticker))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "When cache.expiration-interval-ms is set to 0, the catalog cache should be disabled. This indicates a bug.");
   }
 
   @Test

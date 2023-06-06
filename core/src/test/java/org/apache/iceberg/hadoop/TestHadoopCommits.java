@@ -39,7 +39,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import org.apache.hadoop.fs.FileSystem;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
@@ -199,11 +198,9 @@ public class TestHadoopCommits extends HadoopTableTestBase {
 
     version(2).createNewFile();
 
-    AssertHelpers.assertThrows(
-        "Should fail to commit change based on v1 when v2 exists",
-        CommitFailedException.class,
-        "Version 2 already exists",
-        update::commit);
+    Assertions.assertThatThrownBy(update::commit)
+        .isInstanceOf(CommitFailedException.class)
+        .hasMessageStartingWith("Version 2 already exists");
 
     List<File> manifests = listManifestFiles();
     Assert.assertEquals("Should contain 0 Avro manifest files", 0, manifests.size());
@@ -235,11 +232,9 @@ public class TestHadoopCommits extends HadoopTableTestBase {
     Assert.assertEquals(
         "Copy should be back in sync", table.schema().asStruct(), tableCopy.schema().asStruct());
 
-    AssertHelpers.assertThrows(
-        "Should fail with stale base metadata",
-        CommitFailedException.class,
-        "based on stale table metadata",
-        updateCopy::commit);
+    Assertions.assertThatThrownBy(updateCopy::commit)
+        .isInstanceOf(CommitFailedException.class)
+        .hasMessage("Cannot commit changes based on stale table metadata");
 
     List<File> manifests = listManifestFiles();
     Assert.assertEquals("Should contain 0 Avro manifest files", 0, manifests.size());

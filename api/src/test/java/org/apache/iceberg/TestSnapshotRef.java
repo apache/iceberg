@@ -18,37 +18,38 @@
  */
 package org.apache.iceberg;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import org.assertj.core.api.Assertions;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestSnapshotRef {
 
   @Test
   public void testTagDefault() {
     SnapshotRef ref = SnapshotRef.tagBuilder(1L).build();
-    Assert.assertEquals(1L, ref.snapshotId());
-    Assert.assertEquals(SnapshotRefType.TAG, ref.type());
-    Assert.assertNull(ref.minSnapshotsToKeep());
-    Assert.assertNull(ref.maxSnapshotAgeMs());
-    Assert.assertNull(ref.maxRefAgeMs());
+    assertThat(ref.snapshotId()).isEqualTo(1L);
+    assertThat(ref.type()).isEqualTo(SnapshotRefType.TAG);
+    assertThat(ref.minSnapshotsToKeep()).isNull();
+    assertThat(ref.maxSnapshotAgeMs()).isNull();
+    assertThat(ref.maxRefAgeMs()).isNull();
   }
 
   @Test
   public void testBranchDefault() {
     SnapshotRef ref = SnapshotRef.branchBuilder(1L).build();
-    Assert.assertEquals(1L, ref.snapshotId());
-    Assert.assertEquals(SnapshotRefType.BRANCH, ref.type());
-    Assert.assertNull(ref.minSnapshotsToKeep());
-    Assert.assertNull(ref.maxSnapshotAgeMs());
+    assertThat(ref.snapshotId()).isEqualTo(1L);
+    assertThat(ref.type()).isEqualTo(SnapshotRefType.BRANCH);
+    assertThat(ref.minSnapshotsToKeep()).isNull();
+    assertThat(ref.maxSnapshotAgeMs()).isNull();
   }
 
   @Test
   public void testTagWithOverride() {
     SnapshotRef ref = SnapshotRef.branchBuilder(1L).maxRefAgeMs(10L).build();
-    Assert.assertEquals(1L, ref.snapshotId());
-    Assert.assertEquals(SnapshotRefType.BRANCH, ref.type());
-    Assert.assertEquals(10L, (long) ref.maxRefAgeMs());
+    assertThat(ref.snapshotId()).isEqualTo(1L);
+    assertThat(ref.type()).isEqualTo(SnapshotRefType.BRANCH);
+    assertThat((long) ref.maxRefAgeMs()).isEqualTo(10L);
   }
 
   @Test
@@ -59,11 +60,11 @@ public class TestSnapshotRef {
             .maxSnapshotAgeMs(20L)
             .maxRefAgeMs(30L)
             .build();
-    Assert.assertEquals(1L, ref.snapshotId());
-    Assert.assertEquals(SnapshotRefType.BRANCH, ref.type());
-    Assert.assertEquals(10, (int) ref.minSnapshotsToKeep());
-    Assert.assertEquals(20L, (long) ref.maxSnapshotAgeMs());
-    Assert.assertEquals(30L, (long) ref.maxRefAgeMs());
+    assertThat(ref.snapshotId()).isEqualTo(1L);
+    assertThat(ref.type()).isEqualTo(SnapshotRefType.BRANCH);
+    assertThat((int) ref.minSnapshotsToKeep()).isEqualTo(10);
+    assertThat((long) ref.maxSnapshotAgeMs()).isEqualTo(20L);
+    assertThat((long) ref.maxRefAgeMs()).isEqualTo(30L);
   }
 
   @Test
