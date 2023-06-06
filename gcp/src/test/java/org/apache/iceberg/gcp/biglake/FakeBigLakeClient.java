@@ -46,7 +46,8 @@ class FakeBigLakeClient implements BigLakeClient {
   @Override
   public Catalog createCatalog(CatalogName name, Catalog catalog) {
     if (catalogs.containsKey(name.toString())) {
-      throw new AlreadyExistsException("BigLake resource %s already exists", name.getCatalog());
+      throw new AlreadyExistsException(
+          "Namespace already exists: BigLake resource %s already exists", name.getCatalog());
     }
     catalogs.put(name.toString(), catalog.toBuilder().setName(name.toString()).build());
     return catalog;
@@ -72,7 +73,8 @@ class FakeBigLakeClient implements BigLakeClient {
   @Override
   public Database createDatabase(DatabaseName name, Database db) {
     if (dbs.containsKey(name.toString())) {
-      throw new AlreadyExistsException("BigLake resource %s already exists", name.getDatabase());
+      throw new AlreadyExistsException(
+          "Namespace already exists: BigLake resource %s already exists", name.getDatabase());
     }
     dbs.put(name.toString(), db.toBuilder().setName(name.toString()).build());
     return db;

@@ -276,7 +276,8 @@ final class BigLakeClientImpl implements BigLakeClient {
     } catch (PermissionDeniedException e) {
       throw new NotAuthorizedException(e, "BigLake API permission denied");
     } catch (com.google.api.gax.rpc.AlreadyExistsException e) {
-      throw new AlreadyExistsException(e, "BigLake resource already exists");
+      throw new AlreadyExistsException(
+          e, "Namespace already exists: BigLake resource already exists");
     }
   }
 

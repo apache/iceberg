@@ -25,9 +25,7 @@ import com.google.cloud.bigquery.biglake.v1.HiveTableOptions.StorageDescriptor;
 import com.google.cloud.bigquery.biglake.v1.Table;
 import com.google.cloud.bigquery.biglake.v1.TableName;
 import java.util.Map;
-import org.apache.hadoop.hive.common.StatsSetupConst;
 import org.apache.iceberg.BaseMetastoreTableOperations;
-import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
@@ -67,6 +65,7 @@ public final class BigLakeTableOperations extends BaseMetastoreTableOperations {
         throw new NoSuchIcebergTableException(
             "Table %s is not a valid Iceberg table, metadata location not found", tableName());
       }
+
       metadataLocation = hiveOptions.getParametersOrThrow(METADATA_LOCATION_PROP);
     } catch (NoSuchTableException e) {
       if (currentMetadataLocation() != null) {
@@ -74,6 +73,7 @@ public final class BigLakeTableOperations extends BaseMetastoreTableOperations {
         throw e;
       }
     }
+
     refreshFromMetadataLocation(metadataLocation);
   }
 
@@ -91,6 +91,7 @@ public final class BigLakeTableOperations extends BaseMetastoreTableOperations {
       } else {
         updateTable(base.metadataFileLocation(), newMetadataLocation, metadata);
       }
+
       commitStatus = CommitStatus.SUCCESS;
     } catch (AlreadyExistsException | CommitFailedException | CommitStateUnknownException e) {
       throw e;
@@ -99,6 +100,7 @@ public final class BigLakeTableOperations extends BaseMetastoreTableOperations {
       if (commitStatus == CommitStatus.FAILURE) {
         throw new CommitFailedException(e, "Failed to commit");
       }
+
       if (commitStatus == CommitStatus.UNKNOWN) {
         throw new CommitStateUnknownException(e);
       }
@@ -151,6 +153,7 @@ public final class BigLakeTableOperations extends BaseMetastoreTableOperations {
       throw new NoSuchIcebergTableException(
           "Table %s is not a valid Iceberg table, metadata location is empty", tableName());
     }
+
     // If `metadataLocationFromMetastore` is different from metadata location of base, it means
     // someone has updated metadata location in metastore, which is a conflict update.
     if (!metadataLocationFromMetastore.equals(oldMetadataLocation)) {
@@ -205,30 +208,15 @@ public final class BigLakeTableOperations extends BaseMetastoreTableOperations {
     if (metadata.uuid() != null) {
       parameters.put(TableProperties.UUID, metadata.uuid());
     }
+
     if (currentMetadataLocation() != null && !currentMetadataLocation().isEmpty()) {
       parameters.put(PREVIOUS_METADATA_LOCATION_PROP, currentMetadataLocation());
     }
+
     parameters.put(METADATA_LOCATION_PROP, metadataFileLocation);
     // Follow HMS to use the EXTERNAL type.
     parameters.put("EXTERNAL", "TRUE");
     parameters.put("table_type", "ICEBERG");
-
-    // Hive style basic statistics.
-    if (metadata.currentSnapshot() != null) {
-      Map<String, String> summary = metadata.currentSnapshot().summary();
-      if (summary.get(SnapshotSummary.TOTAL_DATA_FILES_PROP) != null) {
-        parameters.put(
-            StatsSetupConst.NUM_FILES, summary.get(SnapshotSummary.TOTAL_DATA_FILES_PROP));
-      }
-      if (summary.get(SnapshotSummary.TOTAL_RECORDS_PROP) != null) {
-        parameters.put(StatsSetupConst.ROW_COUNT, summary.get(SnapshotSummary.TOTAL_RECORDS_PROP));
-      }
-      if (summary.get(SnapshotSummary.TOTAL_FILE_SIZE_PROP) != null) {
-        parameters.put(
-            StatsSetupConst.TOTAL_SIZE, summary.get(SnapshotSummary.TOTAL_FILE_SIZE_PROP));
-      }
-    }
-    // TODO: to expose more Iceberg metadata if needed, e.g., statistic, schema, partition spec.
     return parameters;
   }
 }

@@ -103,6 +103,7 @@ public final class BigLakeCatalog extends BaseMetastoreCatalog
     String propProjectId = properties.get(PROPERTIES_KEY_GCP_PROJECT);
     String propLocation =
         properties.getOrDefault(PROPERTIES_KEY_GCP_LOCATION, DEFAULT_GCP_LOCATION);
+
     BigLakeClient newClient;
     try {
       // TODO: to add more auth options of the client. Currently it uses default auth
@@ -154,6 +155,7 @@ public final class BigLakeCatalog extends BaseMetastoreCatalog
       return new BigLakeTableOperations(
           client, fileIO, getTableName(identifier.namespace().level(0), /* tableId= */ ""));
     }
+
     return new BigLakeTableOperations(
         client,
         fileIO,
@@ -182,6 +184,7 @@ public final class BigLakeCatalog extends BaseMetastoreCatalog
           ? ImmutableList.of()
           : ImmutableList.of(TableIdentifier.of("placeholder"));
     }
+
     return Streams.stream(client.listTables(getDatabaseName(namespace)))
         .map(BigLakeCatalog::getTableIdentifier)
         .collect(ImmutableList.toImmutableList());
@@ -199,9 +202,11 @@ public final class BigLakeCatalog extends BaseMetastoreCatalog
       LOG.warn("Dropping table failed", e);
       return false;
     }
+
     if (purge && lastMetadata != null) {
       CatalogUtil.dropTableData(ops.io(), lastMetadata);
     }
+
     return true;
   }
 
@@ -244,6 +249,7 @@ public final class BigLakeCatalog extends BaseMetastoreCatalog
       // well), returns empty to unblock deletion.
       return ImmutableList.of();
     }
+
     return Streams.stream(client.listDatabases(catalogName))
         .map(BigLakeCatalog::getNamespace)
         .collect(ImmutableList.toImmutableList());
@@ -267,6 +273,7 @@ public final class BigLakeCatalog extends BaseMetastoreCatalog
       LOG.warn("Dropping namespace failed", e);
       return false;
     }
+
     return true;
   }
 
@@ -282,6 +289,7 @@ public final class BigLakeCatalog extends BaseMetastoreCatalog
           e);
       return false;
     }
+
     HiveDatabaseOptions.Builder optionsBuilder = builder.getHiveOptionsBuilder();
     properties.forEach(optionsBuilder::putParameters);
     client.updateDatabaseParameters(getDatabaseName(namespace), optionsBuilder.getParametersMap());
@@ -301,6 +309,7 @@ public final class BigLakeCatalog extends BaseMetastoreCatalog
           e);
       return false;
     }
+
     HiveDatabaseOptions.Builder optionsBuilder = builder.getHiveOptionsBuilder();
     properties.forEach(optionsBuilder::removeParameters);
     client.updateDatabaseParameters(getDatabaseName(namespace), optionsBuilder.getParametersMap());
