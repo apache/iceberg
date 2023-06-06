@@ -146,21 +146,9 @@ catalog.create_table(
 )
 ```
 
-### Update the properties
+### Update table properties
 
-Add, update and remove properties:
-
-```python
-table = table.transaction().set_properties(abc="def")._commit()
-
-assert table.properties == {"abc": "def"}
-
-table = table.transaction().remove_properties("abc")._commit()
-
-assert table.properties == {}
-```
-
-Or using a context manager:
+Set and remove properties through the `Transaction` API:
 
 ```python
 with table.transaction() as transaction:
@@ -170,6 +158,18 @@ assert table.properties == {"abc": "def"}
 
 with table.transaction() as transaction:
     transaction.remove_properties("abc")
+
+assert table.properties == {}
+```
+
+Or, without a context manager:
+
+```python
+table = table.transaction().set_properties(abc="def").commit_transaction()
+
+assert table.properties == {"abc": "def"}
+
+table = table.transaction().remove_properties("abc").commit_transaction()
 
 assert table.properties == {}
 ```
