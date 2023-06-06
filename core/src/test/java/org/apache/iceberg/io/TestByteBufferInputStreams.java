@@ -562,7 +562,6 @@ public abstract class TestByteBufferInputStreams {
     ByteBufferInputStream stream = newStream();
 
     stream.mark(5);
-
     Assertions.assertThat(stream.read(new byte[5])).as("Should read 5 bytes").isEqualTo(5);
 
     stream.reset();
