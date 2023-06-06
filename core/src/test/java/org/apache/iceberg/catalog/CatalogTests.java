@@ -559,7 +559,6 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     Assertions.assertThat(catalog.tableExists(ident)).as("Table should not exist").isFalse();
 
     catalog.buildTable(ident, SCHEMA).create();
-
     Assertions.assertThat(catalog.tableExists(ident)).as("Table should exist").isTrue();
 
     Table loaded = catalog.loadTable(ident);
