@@ -38,7 +38,7 @@ repos:
       - id: isort
         args: [--settings-path=python/pyproject.toml]
   - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.2.0
+    rev: v1.3.0
     hooks:
       - id: mypy
         args:
@@ -52,12 +52,12 @@ repos:
           - prettier@2.7.1
           - prettier-plugin-toml@0.3.1
   - repo: https://github.com/hadialqattan/pycln
-    rev: v2.1.3
+    rev: v2.1.5
     hooks:
       - id: pycln
         args: [--config=python/pyproject.toml]
   - repo: https://github.com/asottile/pyupgrade
-    rev: v3.3.2
+    rev: v3.4.0
     hooks:
       - id: pyupgrade
         args: [--py38-plus, --keep-runtime-typing]
@@ -79,12 +79,12 @@ repos:
     hooks:
       - id: mdformat
         additional_dependencies:
-          - mdformat-black
-          - mdformat-config
-          - mdformat-beautysh
-          - mdformat-admon
-          - mdformat-mkdocs
-          - mdformat-frontmatter
+          - mdformat-black==0.1.1
+          - mdformat-config==0.1.3
+          - mdformat-beautysh==0.1.1
+          - mdformat-admon==1.0.1
+          - mdformat-mkdocs==1.0.1
+          - mdformat-frontmatter==2.0.1
   - repo: https://github.com/pycqa/pydocstyle
     rev: 6.3.0
     hooks:
