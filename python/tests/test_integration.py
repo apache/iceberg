@@ -97,6 +97,16 @@ def table(catalog: Catalog) -> Table:
 def test_table_properties(table: Table) -> None:
     assert table.properties == {}
 
+    with table.transaction() as transaction:
+        transaction.set_properties(abc="🤪")
+
+    assert table.properties == {"abc": "🤪"}
+
+    with table.transaction() as transaction:
+        transaction.remove_properties("abc")
+
+    assert table.properties == {}
+
     table = table.transaction().set_properties(abc="def").commit_transaction()
 
     assert table.properties == {"abc": "def"}
@@ -104,16 +114,6 @@ def test_table_properties(table: Table) -> None:
     table = table.transaction().remove_properties("abc").commit_transaction()
 
     assert table.properties == {}
-
-    with table.transaction() as transaction:
-        transaction.set_properties(abc="🤪")
-
-    assert table.refresh().properties == {"abc": "🤪"}
-
-    with table.transaction() as transaction:
-        transaction.remove_properties("abc")
-
-    assert table.refresh().properties == {}
 
 
 @pytest.mark.integration

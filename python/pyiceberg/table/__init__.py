@@ -97,6 +97,7 @@ class Transaction:
 
     def __exit__(self, _: Any, value: Any, traceback: Any) -> None:
         self.commit_transaction()
+        self._table.refresh()
 
     def _append_updates(self, *new_updates: TableUpdate) -> Transaction:
         """Appends updates to the set of staged updates
@@ -387,7 +388,10 @@ class Table:
 
     def refresh(self) -> Table:
         """Refresh the current table metadata"""
-        return self.catalog.load_table(self.identifier[1:])
+        fresh = self.catalog.load_table(self.identifier[1:])
+        self.metadata = fresh.metadata
+        self.metadata_location = fresh.metadata_location
+        return self
 
     def name(self) -> Identifier:
         """Return the identifier of this table"""
