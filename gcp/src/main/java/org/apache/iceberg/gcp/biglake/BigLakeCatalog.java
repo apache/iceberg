@@ -110,7 +110,7 @@ public final class BigLakeCatalog extends BaseMetastoreCatalog
       // (https://github.com/googleapis/google-cloud-java#application-default-credentials)
       // that works on GCP services (e.g., GCE, GKE, Dataproc).
       newClient =
-          new BigLakeClientImpl(
+          new BigLakeClient(
               properties.getOrDefault(
                   PROPERTIES_KEY_BIGLAKE_ENDPOINT, DEFAULT_BIGLAKE_SERVICE_ENDPOINT),
               propProjectId,

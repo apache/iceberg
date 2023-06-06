@@ -18,120 +18,293 @@
  */
 package org.apache.iceberg.gcp.biglake;
 
+import com.google.api.gax.rpc.PermissionDeniedException;
 import com.google.cloud.bigquery.biglake.v1.Catalog;
 import com.google.cloud.bigquery.biglake.v1.CatalogName;
+import com.google.cloud.bigquery.biglake.v1.CreateCatalogRequest;
+import com.google.cloud.bigquery.biglake.v1.CreateDatabaseRequest;
+import com.google.cloud.bigquery.biglake.v1.CreateTableRequest;
 import com.google.cloud.bigquery.biglake.v1.Database;
 import com.google.cloud.bigquery.biglake.v1.DatabaseName;
+import com.google.cloud.bigquery.biglake.v1.DeleteCatalogRequest;
+import com.google.cloud.bigquery.biglake.v1.DeleteDatabaseRequest;
+import com.google.cloud.bigquery.biglake.v1.DeleteTableRequest;
+import com.google.cloud.bigquery.biglake.v1.GetCatalogRequest;
+import com.google.cloud.bigquery.biglake.v1.GetDatabaseRequest;
+import com.google.cloud.bigquery.biglake.v1.GetTableRequest;
+import com.google.cloud.bigquery.biglake.v1.ListDatabasesRequest;
+import com.google.cloud.bigquery.biglake.v1.ListTablesRequest;
+import com.google.cloud.bigquery.biglake.v1.LocationName;
+import com.google.cloud.bigquery.biglake.v1.MetastoreServiceClient;
+import com.google.cloud.bigquery.biglake.v1.MetastoreServiceSettings;
+import com.google.cloud.bigquery.biglake.v1.RenameTableRequest;
 import com.google.cloud.bigquery.biglake.v1.Table;
 import com.google.cloud.bigquery.biglake.v1.TableName;
+import com.google.cloud.bigquery.biglake.v1.UpdateDatabaseRequest;
+import com.google.cloud.bigquery.biglake.v1.UpdateTableRequest;
+import com.google.protobuf.Empty;
+import com.google.protobuf.FieldMask;
+import java.io.IOException;
 import java.util.Map;
+import java.util.function.Supplier;
+import org.apache.iceberg.exceptions.AlreadyExistsException;
+import org.apache.iceberg.exceptions.NoSuchNamespaceException;
+import org.apache.iceberg.exceptions.NoSuchTableException;
+import org.apache.iceberg.exceptions.NotAuthorizedException;
 
-/** A client interface of Google BigLake service. */
-interface BigLakeClient {
+/** A client of Google BigLake service. */
+final class BigLakeClient {
 
-  /**
-   * Creates and returns a new catalog.
-   *
-   * @param name full catalog name
-   * @param catalog body of catalog to create
-   */
-  Catalog createCatalog(CatalogName name, Catalog catalog);
-
-  /**
-   * Returns a catalog.
-   *
-   * @param name full catalog name
-   */
-  Catalog getCatalog(CatalogName name);
+  private final String projectId;
+  private final String location;
+  private final MetastoreServiceClient stub;
 
   /**
-   * Deletes a catalog.
+   * Constructs a client of Google BigLake Service.
    *
-   * @param name full catalog name
+   * @param settings BigLake service settings
+   * @param projectId GCP project ID
+   * @param location GCP region supported by BigLake, e.g., "us"
    */
-  void deleteCatalog(CatalogName name);
+  BigLakeClient(MetastoreServiceSettings settings, String projectId, String location)
+      throws IOException {
+    this.projectId = projectId;
+    this.location = location;
+    this.stub = MetastoreServiceClient.create(settings);
+  }
 
   /**
-   * Creates and returns a new database.
+   * Constructs a client of Google BigLake Service.
    *
-   * @param name full database name
-   * @param db body of database to create
+   * @param biglakeEndpoint BigLake service gRPC endpoint, e.g., "biglake.googleapis.com:443"
+   * @param projectId GCP project ID
+   * @param location GCP region supported by BigLake, e.g., "us"
    */
-  Database createDatabase(DatabaseName name, Database db);
+  BigLakeClient(String biglakeEndpoint, String projectId, String location) throws IOException {
+    this(
+        MetastoreServiceSettings.newBuilder().setEndpoint(biglakeEndpoint).build(),
+        projectId,
+        location);
+  }
 
-  /**
-   * Returns a database.
-   *
-   * @param name full database name
-   */
-  Database getDatabase(DatabaseName name);
+  public Catalog createCatalog(CatalogName name, Catalog catalog) {
+    return convertException(
+        () ->
+            stub.createCatalog(
+                CreateCatalogRequest.newBuilder()
+                    .setParent(LocationName.of(name.getProject(), name.getLocation()).toString())
+                    .setCatalogId(name.getCatalog())
+                    .setCatalog(catalog)
+                    .build()),
+        name.getCatalog());
+  }
 
-  /**
-   * Updates the parameters of a Hive database and returns the updated database.
-   *
-   * @param name full database name
-   * @param parameters Hive options parameters to fully update
-   */
-  Database updateDatabaseParameters(DatabaseName name, Map<String, String> parameters);
+  public Catalog getCatalog(CatalogName name) {
+    return convertException(
+        () -> {
+          try {
+            return stub.getCatalog(GetCatalogRequest.newBuilder().setName(name.toString()).build());
+          } catch (PermissionDeniedException e) {
+            throw new NoSuchNamespaceException(
+                e, "Namespace does not exist: %s", name.getCatalog());
+          }
+        },
+        name.getCatalog());
+  }
 
-  /**
-   * Returns all databases in a catalog.
-   *
-   * @param name full catalog name
-   */
-  Iterable<Database> listDatabases(CatalogName name);
+  public void deleteCatalog(CatalogName name) {
+    convertException(
+        () -> {
+          try {
+            stub.deleteCatalog(DeleteCatalogRequest.newBuilder().setName(name.toString()).build());
+            return Empty.getDefaultInstance();
+          } catch (PermissionDeniedException e) {
+            throw new NoSuchNamespaceException(
+                e, "Namespace does not exist: %s", name.getCatalog());
+          }
+        },
+        name.getCatalog());
+  }
 
-  /**
-   * Deletes a database.
-   *
-   * @param name full database name
-   */
-  void deleteDatabase(DatabaseName name);
+  public Database createDatabase(DatabaseName name, Database db) {
+    return convertException(
+        () ->
+            stub.createDatabase(
+                CreateDatabaseRequest.newBuilder()
+                    .setParent(
+                        CatalogName.of(name.getProject(), name.getLocation(), name.getCatalog())
+                            .toString())
+                    .setDatabaseId(name.getDatabase())
+                    .setDatabase(db)
+                    .build()),
+        name.getDatabase());
+  }
 
-  /**
-   * Creates and returns a new table.
-   *
-   * @param name full database name
-   * @param table body of table to create
-   */
-  Table createTable(TableName name, Table table);
+  public Database getDatabase(DatabaseName name) {
+    return convertException(
+        () -> {
+          try {
+            return stub.getDatabase(
+                GetDatabaseRequest.newBuilder().setName(name.toString()).build());
+          } catch (PermissionDeniedException e) {
+            throw new NoSuchNamespaceException(
+                e, "Namespace does not exist: %s", name.getDatabase());
+          }
+        },
+        name.getDatabase());
+  }
 
-  /**
-   * Returns a table.
-   *
-   * @param name full table name
-   */
-  Table getTable(TableName name);
+  public Database updateDatabaseParameters(DatabaseName name, Map<String, String> parameters) {
+    Database.Builder builder = Database.newBuilder().setName(name.toString());
+    builder.getHiveOptionsBuilder().putAllParameters(parameters);
+    return convertException(
+        () -> {
+          try {
+            return stub.updateDatabase(
+                UpdateDatabaseRequest.newBuilder()
+                    .setDatabase(builder)
+                    .setUpdateMask(FieldMask.newBuilder().addPaths("hive_options.parameters"))
+                    .build());
+          } catch (PermissionDeniedException e) {
+            throw new NoSuchNamespaceException(
+                e, "Namespace does not exist: %s", name.getDatabase());
+          }
+        },
+        name.getDatabase());
+  }
 
-  /**
-   * Updates the parameters of a Hive table and returns the updated table.
-   *
-   * @param name full table name
-   * @param parameters Hive options parameters to fully update
-   * @param etag representation of table fields for concurrent update detection, see
-   *     https://www.rfc-editor.org/rfc/rfc7232#section-2.3
-   */
-  Table updateTableParameters(TableName name, Map<String, String> parameters, String etag);
+  public Iterable<Database> listDatabases(CatalogName name) {
+    return convertException(
+        () ->
+            stub.listDatabases(ListDatabasesRequest.newBuilder().setParent(name.toString()).build())
+                .iterateAll(),
+        name.getCatalog());
+  }
 
-  /**
-   * Renames a table.
-   *
-   * @param name full table name
-   * @param newName new full table name
-   */
-  Table renameTable(TableName name, TableName newName);
+  public void deleteDatabase(DatabaseName name) {
+    convertException(
+        () -> {
+          try {
+            stub.deleteDatabase(
+                DeleteDatabaseRequest.newBuilder().setName(name.toString()).build());
+            return Empty.getDefaultInstance();
+          } catch (PermissionDeniedException e) {
+            throw new NoSuchNamespaceException(
+                e, "Namespace does not exist: %s", name.getDatabase());
+          }
+        },
+        name.getDatabase());
+  }
 
-  /**
-   * Deletes a table.
-   *
-   * @param name full table name
-   */
-  Table deleteTable(TableName name);
+  public Table createTable(TableName name, Table table) {
+    return convertException(
+        () -> {
+          try {
+            return stub.createTable(
+                CreateTableRequest.newBuilder()
+                    .setParent(getDatabase(name).toString())
+                    .setTableId(name.getTable())
+                    .setTable(table)
+                    .build());
+          } catch (com.google.api.gax.rpc.AlreadyExistsException e) {
+            throw new AlreadyExistsException(e, "Table already exists: %s", name.getTable());
+          }
+        },
+        name.getTable());
+  }
 
-  /**
-   * Returns all tables in a database.
-   *
-   * @param name full database name
-   */
-  Iterable<Table> listTables(DatabaseName name);
+  public Table getTable(TableName name) {
+    if (name.getTable().isEmpty()) {
+      throw new NoSuchTableException("BigLake API does not allow tables with empty ID");
+    }
+    return convertException(
+        () -> {
+          try {
+            return stub.getTable(GetTableRequest.newBuilder().setName(name.toString()).build());
+          } catch (PermissionDeniedException e) {
+            throw new NoSuchTableException(
+                e, "Table does not exist: %s (or permission denied)", name.getTable());
+          }
+        },
+        name.getTable());
+  }
+
+  public Table updateTableParameters(TableName name, Map<String, String> parameters, String etag) {
+    Table.Builder builder = Table.newBuilder().setName(name.toString()).setEtag(etag);
+    builder.getHiveOptionsBuilder().putAllParameters(parameters);
+    return convertException(
+        () -> {
+          try {
+            return stub.updateTable(
+                UpdateTableRequest.newBuilder()
+                    .setTable(builder)
+                    .setUpdateMask(FieldMask.newBuilder().addPaths("hive_options.parameters"))
+                    .build());
+          } catch (PermissionDeniedException e) {
+            throw new NoSuchTableException(
+                e, "Table does not exist: %s (or permission denied)", name.getTable());
+          }
+        },
+        name.getTable());
+  }
+
+  public Table renameTable(TableName name, TableName newName) {
+    return convertException(
+        () -> {
+          try {
+            return stub.renameTable(
+                RenameTableRequest.newBuilder()
+                    .setName(name.toString())
+                    .setNewName(newName.toString())
+                    .build());
+          } catch (PermissionDeniedException e) {
+            throw new NoSuchTableException(
+                e, "Table does not exist: %s (or permission denied)", name.getTable());
+          } catch (com.google.api.gax.rpc.AlreadyExistsException e) {
+            throw new AlreadyExistsException(e, "Table already exists: %s", newName.getTable());
+          }
+        },
+        name.getTable());
+  }
+
+  public Table deleteTable(TableName name) {
+    return convertException(
+        () -> {
+          try {
+            return stub.deleteTable(
+                DeleteTableRequest.newBuilder().setName(name.toString()).build());
+          } catch (PermissionDeniedException e) {
+            throw new NoSuchTableException(
+                e, "Table does not exist: %s (or permission denied)", name.getTable());
+          }
+        },
+        name.getTable());
+  }
+
+  public Iterable<Table> listTables(DatabaseName name) {
+    return convertException(
+        () ->
+            stub.listTables(ListTablesRequest.newBuilder().setParent(name.toString()).build())
+                .iterateAll(),
+        name.getDatabase());
+  }
+
+  // Converts BigLake API errors to Iceberg errors.
+  private <T> T convertException(Supplier<T> result, String resourceId) {
+    try {
+      return result.get();
+    } catch (PermissionDeniedException e) {
+      throw new NotAuthorizedException(e, "BigLake API permission denied");
+    } catch (com.google.api.gax.rpc.AlreadyExistsException e) {
+      throw new AlreadyExistsException(e, "Namespace already exists: %s", resourceId);
+    }
+  }
+
+  private static DatabaseName getDatabase(TableName tableName) {
+    return DatabaseName.of(
+        tableName.getProject(),
+        tableName.getLocation(),
+        tableName.getCatalog(),
+        tableName.getDatabase());
+  }
 }

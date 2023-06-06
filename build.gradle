@@ -638,18 +638,19 @@ project(':iceberg-gcp') {
       exclude group: 'com.zaxxer', module: 'HikariCP'
     }
 
-    testImplementation 'com.google.cloud:google-cloud-nio'
-
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
 
-    testImplementation("org.apache.hadoop:hadoop-common") {
+    testImplementation 'com.google.api.grpc:grpc-google-cloud-biglake-v1'
+    testImplementation 'com.google.cloud:google-cloud-nio'
+    testImplementation 'com.google.api:gax-grpc:2.28.1:testlib'
+    testImplementation 'com.esotericsoftware:kryo'
+    testImplementation('org.apache.hadoop:hadoop-common') {
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
       exclude group: 'javax.servlet', module: 'servlet-api'
       exclude group: 'com.google.code.gson', module: 'gson'
     }
-    testImplementation "com.esotericsoftware:kryo"
   }
 }
 
