@@ -28,7 +28,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import org.apache.iceberg.AppendFiles;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.PartitionSpec;
@@ -41,6 +40,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Types;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -75,11 +75,10 @@ public class TestHadoopTables {
   public void testDropTable() {
     TABLES.create(SCHEMA, tableDir.toURI().toString());
     TABLES.dropTable(tableDir.toURI().toString());
-    AssertHelpers.assertThrows(
-        "Should complain about missing table",
-        NoSuchTableException.class,
-        "Table does not exist",
-        () -> TABLES.load(tableDir.toURI().toString()));
+
+    Assertions.assertThatThrownBy(() -> TABLES.load(tableDir.toURI().toString()))
+        .isInstanceOf(NoSuchTableException.class)
+        .hasMessageStartingWith("Table does not exist");
   }
 
   @Test
@@ -89,11 +88,9 @@ public class TestHadoopTables {
     createDummyTable(tableDir, dataDir);
 
     TABLES.dropTable(tableDir.toURI().toString(), true);
-    AssertHelpers.assertThrows(
-        "Should complain about missing table",
-        NoSuchTableException.class,
-        "Table does not exist",
-        () -> TABLES.load(tableDir.toURI().toString()));
+    Assertions.assertThatThrownBy(() -> TABLES.load(tableDir.toURI().toString()))
+        .isInstanceOf(NoSuchTableException.class)
+        .hasMessageStartingWith("Table does not exist");
 
     Assert.assertEquals(0, dataDir.listFiles().length);
     Assert.assertFalse(tableDir.exists());
@@ -108,11 +105,9 @@ public class TestHadoopTables {
     createDummyTable(tableDir, dataDir);
 
     TABLES.dropTable(tableDir.toURI().toString(), false);
-    AssertHelpers.assertThrows(
-        "Should complain about missing table",
-        NoSuchTableException.class,
-        "Table does not exist",
-        () -> TABLES.load(tableDir.toURI().toString()));
+    Assertions.assertThatThrownBy(() -> TABLES.load(tableDir.toURI().toString()))
+        .isInstanceOf(NoSuchTableException.class)
+        .hasMessageStartingWith("Table does not exist");
 
     Assert.assertEquals(1, dataDir.listFiles().length);
     Assert.assertFalse(tableDir.exists());
