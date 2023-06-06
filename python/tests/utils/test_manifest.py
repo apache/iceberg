@@ -19,6 +19,7 @@ from pyiceberg.io import load_file_io
 from pyiceberg.io.pyarrow import PyArrowFileIO
 from pyiceberg.manifest import (
     DataFile,
+    DataFileContent,
     FileFormat,
     ManifestContent,
     ManifestEntryStatus,
@@ -42,7 +43,7 @@ def test_read_manifest_entry(generated_manifest_entry_file: str) -> None:
 
     data_file = manifest_entry.data_file
 
-    assert data_file.content is None
+    assert data_file.content is DataFileContent.DATA
     assert (
         data_file.file_path
         == "/home/iceberg/warehouse/nyc/taxis_partitioned/data/VendorID=null/00000-633-d8a4223e-dc97-45a1-86e1-adaba6e8abd7-00001.parquet"
@@ -215,6 +216,17 @@ def test_read_manifest_v1(generated_manifest_file_file_v1: str) -> None:
     assert partition.lower_bound == b"\x01\x00\x00\x00"
     assert partition.upper_bound == b"\x02\x00\x00\x00"
 
+    entries = manifest_list.fetch_manifest_entry(io)
+
+    assert isinstance(entries, list)
+
+    entry = entries[0]
+
+    assert entry.sequence_number == 0
+    assert entry.file_sequence_number == 0
+    assert entry.snapshot_id == 8744736658442914487
+    assert entry.status == ManifestEntryStatus.ADDED
+
 
 def test_read_manifest_v2(generated_manifest_file_file_v2: str) -> None:
     io = load_file_io()
@@ -232,8 +244,8 @@ def test_read_manifest_v2(generated_manifest_file_file_v2: str) -> None:
     assert manifest_list.manifest_length == 7989
     assert manifest_list.partition_spec_id == 0
     assert manifest_list.content == ManifestContent.DELETES
-    assert manifest_list.sequence_number is None  # inheritance
-    assert manifest_list.min_sequence_number is None  # inheritance
+    assert manifest_list.sequence_number == 3  # inherited
+    assert manifest_list.min_sequence_number == 3  # inherited
     assert manifest_list.added_snapshot_id == 9182715666859759686
     assert manifest_list.added_files_count == 3
     assert manifest_list.existing_files_count == 0
@@ -253,3 +265,14 @@ def test_read_manifest_v2(generated_manifest_file_file_v2: str) -> None:
     assert partition.contains_nan is False
     assert partition.lower_bound == b"\x01\x00\x00\x00"
     assert partition.upper_bound == b"\x02\x00\x00\x00"
+
+    entries = manifest_list.fetch_manifest_entry(io)
+
+    assert isinstance(entries, list)
+
+    entry = entries[0]
+
+    assert entry.sequence_number == 3
+    assert entry.file_sequence_number == 3
+    assert entry.snapshot_id == 8744736658442914487
+    assert entry.status == ManifestEntryStatus.ADDED

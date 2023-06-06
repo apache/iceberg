@@ -613,8 +613,8 @@ manifest_file_records_v2 = [
         "manifest_length": 7989,
         "partition_spec_id": 0,
         "content": 1,
-        "sequence_number": None,  # To be inherited
-        "min_sequence_number": None,  # To be inherited
+        "sequence_number": 3,
+        "min_sequence_number": 3,
         "added_snapshot_id": 9182715666859759686,
         "added_files_count": 3,
         "existing_files_count": 0,
