@@ -15,9 +15,5 @@
 # specific language governing permissions and limitations
 # under the License.
 
-openapi-spec-validator==0.5.1
-# We can change back to the package once
-# https://github.com/koxudaxi/datamodel-code-generator/pull/1346
-# has been merged
-# datamodel-code-generator==0.20.0
-git+https://github.com/Fokko/datamodel-code-generator/@fd-fix-custom-file-header
+openapi-spec-validator==0.5.2
+git+https://github.com/koxudaxi/datamodel-code-generator/
