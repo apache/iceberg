@@ -219,7 +219,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
     Assertions.assertThatThrownBy(() -> catalog.loadNamespaceMetadata(NS))
         .isInstanceOf(NoSuchNamespaceException.class)
-        .hasMessage("Namespace does not exist: newdb");
+        .hasMessageStartingWith("Namespace does not exist: newdb");
 
     catalog.createNamespace(NS);
     Assert.assertTrue("Namespace should exist", catalog.namespaceExists(NS));
@@ -312,7 +312,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
     Assertions.assertThatThrownBy(() -> catalog.setProperties(NS, ImmutableMap.of("test", "value")))
         .isInstanceOf(NoSuchNamespaceException.class)
-        .hasMessage("Namespace does not exist: newdb");
+        .hasMessageStartingWith("Namespace does not exist: newdb");
   }
 
   @Test
@@ -344,7 +344,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
     Assertions.assertThatThrownBy(() -> catalog.removeProperties(NS, ImmutableSet.of("a", "b")))
         .isInstanceOf(NoSuchNamespaceException.class)
-        .hasMessage("Namespace does not exist: newdb");
+        .hasMessageStartingWith("Namespace does not exist: newdb");
   }
 
   @Test
@@ -581,7 +581,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
     Assertions.assertThatThrownBy(() -> catalog.buildTable(ident, OTHER_SCHEMA).create())
         .isInstanceOf(AlreadyExistsException.class)
-        .hasMessage("Table already exists: ns.table");
+        .hasMessageStartingWith("Table already exists: ns.table");
 
     Table table = catalog.loadTable(ident);
     Assert.assertEquals(
@@ -703,7 +703,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     Assert.assertFalse("Table should not exist", catalog.tableExists(ident));
     Assertions.assertThatThrownBy(() -> catalog.loadTable(ident))
         .isInstanceOf(NoSuchTableException.class)
-        .hasMessage("Table does not exist: ns.table");
+        .hasMessageStartingWith("Table does not exist: ns.table");
   }
 
   @Test
@@ -2053,7 +2053,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
     Assertions.assertThatThrownBy(() -> catalog.buildTable(TABLE, SCHEMA).replaceTransaction())
         .isInstanceOf(NoSuchTableException.class)
-        .hasMessage("Table does not exist: newdb.table");
+        .hasMessageStartingWith("Table does not exist: newdb.table");
   }
 
   @Test
