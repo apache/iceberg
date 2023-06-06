@@ -124,6 +124,17 @@ public class TestMetadataUpdateParser {
   }
 
   @Test
+  public void testAddSchemaFromJsonWithoutLastColumnId() {
+    String action = MetadataUpdateParser.ADD_SCHEMA;
+    Schema schema = ID_DATA_SCHEMA;
+    int lastColumnId = schema.highestFieldId();
+    String json =
+        String.format("{\"action\":\"add-schema\",\"schema\":%s}", SchemaParser.toJson(schema));
+    MetadataUpdate actualUpdate = new MetadataUpdate.AddSchema(schema, lastColumnId);
+    assertEquals(action, actualUpdate, MetadataUpdateParser.fromJson(json));
+  }
+
+  @Test
   public void testAddSchemaToJson() {
     Schema schema = ID_DATA_SCHEMA;
     int lastColumnId = schema.highestFieldId();
