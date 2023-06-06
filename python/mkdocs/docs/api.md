@@ -151,11 +151,11 @@ catalog.create_table(
 Add, update and remove properties:
 
 ```python
-table = table.new_transaction().set_properties(abc="def")._commit()
+table = table.transaction().set_properties(abc="def")._commit()
 
 assert table.properties == {"abc": "def"}
 
-table = table.new_transaction().remove_properties("abc")._commit()
+table = table.transaction().remove_properties("abc")._commit()
 
 assert table.properties == {}
 ```
@@ -163,12 +163,12 @@ assert table.properties == {}
 Or using a context manager:
 
 ```python
-with table.new_transaction() as transaction:
+with table.transaction() as transaction:
     transaction.set_properties(abc="def")
 
 assert table.properties == {"abc": "def"}
 
-with table.new_transaction() as transaction:
+with table.transaction() as transaction:
     transaction.remove_properties("abc")
 
 assert table.properties == {}

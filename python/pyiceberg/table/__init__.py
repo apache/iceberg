@@ -96,7 +96,7 @@ class Transaction:
         return self
 
     def __exit__(self, _: Any, value: Any, traceback: Any) -> None:
-        self.commit()
+        self.commit_transaction()
 
     def _append_updates(self, *new_updates: TableUpdate) -> Transaction:
         """Appends updates to the set of staged updates
@@ -163,7 +163,7 @@ class Transaction:
         """
         raise NotImplementedError("Not yet implemented")
 
-    def commit(self) -> Table:
+    def commit_transaction(self) -> Table:
         """Commits the changes to the catalog
 
         Returns:
@@ -382,7 +382,7 @@ class Table:
         self.io = io
         self.catalog = catalog
 
-    def new_transaction(self) -> Transaction:
+    def transaction(self) -> Transaction:
         return Transaction(self)
 
     def refresh(self) -> Table:
