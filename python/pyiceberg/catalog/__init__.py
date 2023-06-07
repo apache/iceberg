@@ -212,7 +212,7 @@ def delete_data_files(io: FileIO, manifests_to_delete: List[ManifestFile]) -> No
     """
     deleted_files: dict[str, bool] = {}
     for manifest_file in manifests_to_delete:
-        for entry in manifest_file.fetch_manifest_entry(io):
+        for entry in manifest_file.fetch_manifest_entry(io, discard_deleted=False):
             path = entry.data_file.file_path
             if not deleted_files.get(path, False):
                 try:

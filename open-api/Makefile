@@ -1,4 +1,3 @@
-#
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -15,39 +14,20 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-#
 
-name: "Python Integration"
-on:
-  push:
-    branches:
-    - 'master'
-    - '0.**'
-    tags:
-    - 'apache-iceberg-**'
-  pull_request:
-    paths:
-    - '.github/workflows/python-integration.yml'
-    - 'python/**'
+install:
+	pip install -r requirements.txt
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+lint:
+	openapi-spec-validator --errors all rest-catalog-open-api.yaml
 
-jobs:
-  integration-test:
-    runs-on: ubuntu-20.04
-
-    steps:
-    - uses: actions/checkout@v3
-      with:
-        fetch-depth: 2
-    - name: Install
-      run: make install
-      working-directory: ./python
-    - name: Run integration tests
-      run: make test-integration
-      working-directory: ./python
-    - name: Show debug logs
-      if: ${{ failure() }}
-      run: docker-compose -f python/dev/docker-compose.yml logs
+generate:
+	datamodel-codegen \
+	        --target-python-version 3.8 \
+	        --use-schema-description \
+	        --field-constraints \
+	        --input rest-catalog-open-api.yaml \
+	        --disable-timestamp \
+	        --custom-file-header-path header.txt \
+	        --input-file-type openapi \
+	        --output rest-catalog-open-api.py

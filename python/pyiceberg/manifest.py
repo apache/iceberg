@@ -82,6 +82,7 @@ DATA_FILE_TYPE = StructType(
         field_type=IntegerType(),
         required=False,
         doc="Contents of the file: 0=data, 1=position deletes, 2=equality deletes",
+        initial_default=DataFileContent.DATA,
     ),
     NestedField(field_id=100, name="file_path", field_type=StringType(), required=True, doc="Location URI with FS scheme"),
     NestedField(
@@ -159,7 +160,7 @@ DATA_FILE_TYPE = StructType(
 
 
 class DataFile(Record):
-    content: Optional[DataFileContent]
+    content: DataFileContent
     file_path: str
     file_format: FileFormat
     partition: Record
@@ -190,7 +191,7 @@ class DataFile(Record):
 MANIFEST_ENTRY_SCHEMA = Schema(
     NestedField(0, "status", IntegerType(), required=True),
     NestedField(1, "snapshot_id", LongType(), required=False),
-    NestedField(3, "sequence_number", LongType(), required=False),
+    NestedField(3, "data_sequence_number", LongType(), required=False),
     NestedField(4, "file_sequence_number", LongType(), required=False),
     NestedField(2, "data_file", DATA_FILE_TYPE, required=False),
 )
@@ -199,7 +200,7 @@ MANIFEST_ENTRY_SCHEMA = Schema(
 class ManifestEntry(Record):
     status: ManifestEntryStatus
     snapshot_id: Optional[int]
-    sequence_number: Optional[int]
+    data_sequence_number: Optional[int]
     file_sequence_number: Optional[int]
     data_file: DataFile
 
@@ -248,10 +249,10 @@ class ManifestFile(Record):
     manifest_path: str
     manifest_length: int
     partition_spec_id: int
-    content: Optional[ManifestContent]
-    sequence_number: Optional[int]
-    min_sequence_number: Optional[int]
-    added_snapshot_id: Optional[int]
+    content: ManifestContent
+    sequence_number: int
+    min_sequence_number: int
+    added_snapshot_id: int
     added_files_count: Optional[int]
     existing_files_count: Optional[int]
     deleted_files_count: Optional[int]
@@ -264,26 +265,75 @@ class ManifestFile(Record):
     def __init__(self, *data: Any, **named_data: Any) -> None:
         super().__init__(*data, **{"struct": MANIFEST_FILE_SCHEMA.as_struct(), **named_data})
 
-    def fetch_manifest_entry(self, io: FileIO) -> List[ManifestEntry]:
-        file = io.new_input(self.manifest_path)
-        return list(read_manifest_entry(file))
+    def fetch_manifest_entry(self, io: FileIO, discard_deleted: bool = True) -> List[ManifestEntry]:
+        """
+        Reads the manifest entries from the manifest file
 
+        Args:
+            io: The FileIO to fetch the file
+            discard_deleted: Filter on live entries
 
-def read_manifest_entry(input_file: InputFile) -> Iterator[ManifestEntry]:
-    with AvroFile[ManifestEntry](input_file, MANIFEST_ENTRY_SCHEMA, {-1: ManifestEntry, 2: DataFile}) as reader:
-        yield from reader
-
-
-def live_entries(input_file: InputFile) -> Iterator[ManifestEntry]:
-    return (entry for entry in read_manifest_entry(input_file) if entry.status != ManifestEntryStatus.DELETED)
-
-
-def files(input_file: InputFile) -> Iterator[DataFile]:
-    return (entry.data_file for entry in live_entries(input_file))
+        Returns:
+            An Iterator of manifest entries
+        """
+        input_file = io.new_input(self.manifest_path)
+        with AvroFile[ManifestEntry](
+            input_file,
+            MANIFEST_ENTRY_SCHEMA,
+            read_types={-1: ManifestEntry, 2: DataFile},
+            read_enums={0: ManifestEntryStatus, 101: FileFormat, 134: DataFileContent},
+        ) as reader:
+            return [
+                _inherit_sequence_number(entry, self)
+                for entry in reader
+                if not discard_deleted or entry.status != ManifestEntryStatus.DELETED
+            ]
 
 
 def read_manifest_list(input_file: InputFile) -> Iterator[ManifestFile]:
+    """
+    Reads the manifests from the manifest list
+
+    Args:
+        input_file: The input file where the stream can be read from
+
+    Returns:
+        An iterator of ManifestFiles that are part of the list
+    """
     with AvroFile[ManifestFile](
-        input_file, MANIFEST_FILE_SCHEMA, {-1: ManifestFile, 508: PartitionFieldSummary}, {517: ManifestContent}
+        input_file,
+        MANIFEST_FILE_SCHEMA,
+        read_types={-1: ManifestFile, 508: PartitionFieldSummary},
+        read_enums={517: ManifestContent},
     ) as reader:
         yield from reader
+
+
+def _inherit_sequence_number(entry: ManifestEntry, manifest: ManifestFile) -> ManifestEntry:
+    """Inherits the sequence numbers
+
+    More information in the spec: https://iceberg.apache.org/spec/#sequence-number-inheritance
+
+    Args:
+        entry: The manifest entry that has null sequence numbers
+        manifest: The manifest that has a sequence number
+
+    Returns:
+        The manifest entry with the sequence numbers set
+    """
+    # The snapshot_id is required in V1, inherit with V2 when null
+    if entry.snapshot_id is None:
+        entry.snapshot_id = manifest.added_snapshot_id
+
+    # in v1 tables, the data sequence number is not persisted and can be safely defaulted to 0
+    # in v2 tables, the data sequence number should be inherited iff the entry status is ADDED
+    if entry.data_sequence_number is None and (manifest.sequence_number == 0 or entry.status == ManifestEntryStatus.ADDED):
+        entry.data_sequence_number = manifest.sequence_number
+
+    # in v1 tables, the file sequence number is not persisted and can be safely defaulted to 0
+    # in v2 tables, the file sequence number should be inherited iff the entry status is ADDED
+    if entry.file_sequence_number is None and (manifest.sequence_number == 0 or entry.status == ManifestEntryStatus.ADDED):
+        # Only available in V2, always 0 in V1
+        entry.file_sequence_number = manifest.sequence_number
+
+    return entry

@@ -45,12 +45,7 @@ from pyiceberg.expressions import (
 )
 from pyiceberg.expressions.visitors import _InclusiveMetricsEvaluator, inclusive_projection
 from pyiceberg.io import FileIO, load_file_io
-from pyiceberg.manifest import (
-    DataFile,
-    ManifestContent,
-    ManifestFile,
-    files,
-)
+from pyiceberg.manifest import DataFile, ManifestContent, ManifestFile
 from pyiceberg.partitioning import PartitionSpec
 from pyiceberg.schema import Schema
 from pyiceberg.table.metadata import TableMetadata
@@ -326,7 +321,7 @@ def _open_manifest(
     partition_filter: Callable[[DataFile], bool],
     metrics_evaluator: Callable[[DataFile], bool],
 ) -> List[FileScanTask]:
-    all_files = files(io.new_input(manifest.manifest_path))
+    all_files = (entry.data_file for entry in manifest.fetch_manifest_entry(io, discard_deleted=True))
     matching_partition_files = filter(partition_filter, all_files)
     matching_partition_data_files = map(_check_content, matching_partition_files)
     return [FileScanTask(file) for file in matching_partition_data_files if metrics_evaluator(file)]
