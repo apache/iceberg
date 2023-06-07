@@ -20,12 +20,12 @@ package org.apache.iceberg.flink.source.reader;
 
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.Map;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.api.connector.source.SourceReaderContext;
 import org.apache.flink.connector.base.source.reader.SingleThreadMultiplexSourceReaderBase;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
+import org.apache.iceberg.flink.source.split.SerializableComparator;
 import org.apache.iceberg.flink.source.split.SplitRequestEvent;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
@@ -37,7 +37,7 @@ public class IcebergSourceReader<T>
   public IcebergSourceReader(
       IcebergSourceReaderMetrics metrics,
       ReaderFunction<T> readerFunction,
-      Comparator<IcebergSourceSplit> splitComparator,
+      SerializableComparator<IcebergSourceSplit> splitComparator,
       SourceReaderContext context) {
     super(
         () -> new IcebergSourceSplitReader<>(metrics, readerFunction, splitComparator, context),

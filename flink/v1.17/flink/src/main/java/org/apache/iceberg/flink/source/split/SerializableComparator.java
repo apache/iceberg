@@ -16,18 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.flink.source.assigner;
+package org.apache.iceberg.flink.source.split;
 
-import org.apache.flink.annotation.Internal;
+import java.io.Serializable;
+import java.util.Comparator;
 
-@Internal
-public enum SplitAssignerType {
-  SIMPLE {
-    @Override
-    public SplitAssignerFactory factory() {
-      return new SimpleSplitAssignerFactory();
-    }
-  };
-
-  public abstract SplitAssignerFactory factory();
-}
+public interface SerializableComparator<T> extends Comparator<T>, Serializable {}

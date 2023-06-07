@@ -22,7 +22,6 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayDeque;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Queue;
 import org.apache.flink.api.connector.source.SourceReaderContext;
@@ -33,6 +32,7 @@ import org.apache.flink.connector.base.source.reader.splitreader.SplitsAddition;
 import org.apache.flink.connector.base.source.reader.splitreader.SplitsChange;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
+import org.apache.iceberg.flink.source.split.SerializableComparator;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.slf4j.Logger;
@@ -43,7 +43,7 @@ class IcebergSourceSplitReader<T> implements SplitReader<RecordAndPosition<T>, I
 
   private final IcebergSourceReaderMetrics metrics;
   private final ReaderFunction<T> openSplitFunction;
-  private final Comparator<IcebergSourceSplit> splitComparator;
+  private final SerializableComparator<IcebergSourceSplit> splitComparator;
   private final int indexOfSubtask;
   private final Queue<IcebergSourceSplit> splits;
 
@@ -54,7 +54,7 @@ class IcebergSourceSplitReader<T> implements SplitReader<RecordAndPosition<T>, I
   IcebergSourceSplitReader(
       IcebergSourceReaderMetrics metrics,
       ReaderFunction<T> openSplitFunction,
-      Comparator<IcebergSourceSplit> splitComparator,
+      SerializableComparator<IcebergSourceSplit> splitComparator,
       SourceReaderContext context) {
     this.metrics = metrics;
     this.openSplitFunction = openSplitFunction;

@@ -20,7 +20,6 @@ package org.apache.iceberg.flink.source.assigner;
 
 import java.util.ArrayDeque;
 import java.util.Collection;
-import java.util.Comparator;
 import java.util.PriorityQueue;
 import java.util.Queue;
 import java.util.concurrent.CompletableFuture;
@@ -30,6 +29,7 @@ import org.apache.flink.annotation.Internal;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplitState;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplitStatus;
+import org.apache.iceberg.flink.source.split.SerializableComparator;
 
 /**
  * Since all methods are called in the source coordinator thread by enumerator, there is no need for
@@ -41,12 +41,12 @@ public class DefaultSplitAssigner implements SplitAssigner {
   private final Queue<IcebergSourceSplit> pendingSplits;
   private CompletableFuture<Void> availableFuture;
 
-  public DefaultSplitAssigner(Comparator<IcebergSourceSplit> comparator) {
+  public DefaultSplitAssigner(SerializableComparator<IcebergSourceSplit> comparator) {
     this.pendingSplits = comparator == null ? new ArrayDeque<>() : new PriorityQueue<>(comparator);
   }
 
   public DefaultSplitAssigner(
-      Comparator<IcebergSourceSplit> comparator,
+      SerializableComparator<IcebergSourceSplit> comparator,
       Collection<IcebergSourceSplitState> assignerState) {
     this(comparator);
     // Because default assigner only tracks unassigned splits,

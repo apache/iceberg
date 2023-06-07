@@ -85,7 +85,7 @@ Flink read options are passed when configuring the Flink IcebergSource:
 ```
 IcebergSource.forRowData()
     .tableLoader(TableLoader.fromCatalog(...))
-    .assignerFactory(new DefaultSplitAssignerFactory())
+    .assignerFactory(new SimpleSplitAssignerFactory())
     .streaming(true)
     .streamingStartingStrategy(StreamingStartingStrategy.INCREMENTAL_FROM_LATEST_SNAPSHOT)
     .startSnapshotId(3821550127947089987L)

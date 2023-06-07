@@ -18,16 +18,20 @@
  */
 package org.apache.iceberg.flink.source.assigner;
 
-import org.apache.flink.annotation.Internal;
+import java.util.Collection;
+import org.apache.iceberg.flink.source.split.IcebergSourceSplitState;
 
-@Internal
-public enum SplitAssignerType {
-  SIMPLE {
-    @Override
-    public SplitAssignerFactory factory() {
-      return new SimpleSplitAssignerFactory();
-    }
-  };
+/** Create simple assigner that hands out splits without any guarantee in order or locality. */
+public class SimpleSplitAssignerFactory implements SplitAssignerFactory {
+  public SimpleSplitAssignerFactory() {}
 
-  public abstract SplitAssignerFactory factory();
+  @Override
+  public DefaultSplitAssigner createAssigner() {
+    return new DefaultSplitAssigner(null);
+  }
+
+  @Override
+  public DefaultSplitAssigner createAssigner(Collection<IcebergSourceSplitState> assignerState) {
+    return new DefaultSplitAssigner(null, assignerState);
+  }
 }

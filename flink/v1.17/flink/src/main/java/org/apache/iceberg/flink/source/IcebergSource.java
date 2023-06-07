@@ -21,7 +21,6 @@ package org.apache.iceberg.flink.source;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.time.Duration;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -49,7 +48,8 @@ import org.apache.iceberg.flink.FlinkConfigOptions;
 import org.apache.iceberg.flink.FlinkReadOptions;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.TableLoader;
-import org.apache.iceberg.flink.source.assigner.DefaultSplitAssignerFactory;
+import org.apache.iceberg.flink.source.assigner.OrderedSplitAssignerFactory;
+import org.apache.iceberg.flink.source.assigner.SimpleSplitAssignerFactory;
 import org.apache.iceberg.flink.source.assigner.SplitAssigner;
 import org.apache.iceberg.flink.source.assigner.SplitAssignerFactory;
 import org.apache.iceberg.flink.source.enumerator.ContinuousIcebergEnumerator;
@@ -65,6 +65,7 @@ import org.apache.iceberg.flink.source.reader.ReaderFunction;
 import org.apache.iceberg.flink.source.reader.RowDataReaderFunction;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplitSerializer;
+import org.apache.iceberg.flink.source.split.SerializableComparator;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.ThreadPools;
 import org.slf4j.Logger;
@@ -78,7 +79,7 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
   private final ScanContext scanContext;
   private final ReaderFunction<T> readerFunction;
   private final SplitAssignerFactory assignerFactory;
-  private final Comparator<IcebergSourceSplit> splitComparator;
+  private final SerializableComparator<IcebergSourceSplit> splitComparator;
 
   // Can't use SerializableTable as enumerator needs a regular table
   // that can discover table changes
@@ -89,7 +90,7 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
       ScanContext scanContext,
       ReaderFunction<T> readerFunction,
       SplitAssignerFactory assignerFactory,
-      Comparator<IcebergSourceSplit> splitComparator,
+      SerializableComparator<IcebergSourceSplit> splitComparator,
       Table table) {
     this.tableLoader = tableLoader;
     this.scanContext = scanContext;
@@ -214,7 +215,7 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
     private TableLoader tableLoader;
     private Table table;
     private SplitAssignerFactory splitAssignerFactory;
-    private Comparator<IcebergSourceSplit> splitComparator;
+    private SerializableComparator<IcebergSourceSplit> splitComparator;
     private ReaderFunction<T> readerFunction;
     private ReadableConfig flinkConfig = new Configuration();
     private final ScanContext.Builder contextBuilder = ScanContext.builder();
@@ -240,7 +241,8 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
       return this;
     }
 
-    public Builder<T> splitComparator(Comparator<IcebergSourceSplit> newSplitComparator) {
+    public Builder<T> splitComparator(
+        SerializableComparator<IcebergSourceSplit> newSplitComparator) {
       this.splitComparator = newSplitComparator;
       return this;
     }
@@ -475,9 +477,9 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
 
       if (splitAssignerFactory == null) {
         if (splitComparator == null) {
-          splitAssignerFactory = new DefaultSplitAssignerFactory();
+          splitAssignerFactory = new SimpleSplitAssignerFactory();
         } else {
-          splitAssignerFactory = new DefaultSplitAssignerFactory(splitComparator);
+          splitAssignerFactory = new OrderedSplitAssignerFactory(splitComparator);
         }
       }
 

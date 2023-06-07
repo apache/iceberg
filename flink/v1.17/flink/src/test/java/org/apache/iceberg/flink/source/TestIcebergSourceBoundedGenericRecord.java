@@ -50,7 +50,7 @@ import org.apache.iceberg.flink.TestFixtures;
 import org.apache.iceberg.flink.TestHelpers;
 import org.apache.iceberg.flink.data.RowDataToRowMapper;
 import org.apache.iceberg.flink.sink.AvroGenericRecordToRowDataMapper;
-import org.apache.iceberg.flink.source.assigner.DefaultSplitAssignerFactory;
+import org.apache.iceberg.flink.source.assigner.SimpleSplitAssignerFactory;
 import org.apache.iceberg.flink.source.reader.AvroGenericRecordReaderFunction;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -170,7 +170,7 @@ public class TestIcebergSourceBoundedGenericRecord {
         IcebergSource.<GenericRecord>builder()
             .tableLoader(catalogResource.tableLoader())
             .readerFunction(readerFunction)
-            .assignerFactory(new DefaultSplitAssignerFactory())
+            .assignerFactory(new SimpleSplitAssignerFactory())
             .flinkConfig(config);
     if (projectedSchema != null) {
       sourceBuilder.project(projectedSchema);

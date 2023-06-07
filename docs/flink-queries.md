@@ -163,7 +163,7 @@ TableLoader tableLoader = TableLoader.fromHadoopTable("hdfs://nn:8020/warehouse/
 
 IcebergSource<RowData> source = IcebergSource.forRowData()
     .tableLoader(tableLoader)
-    .assignerFactory(new DefaultSplitAssignerFactory())
+    .assignerFactory(new SimpleSplitAssignerFactory())
     .build();
 
 DataStream<RowData> batch = env.fromSource(
@@ -191,7 +191,7 @@ TableLoader tableLoader = TableLoader.fromHadoopTable("hdfs://nn:8020/warehouse/
 
 IcebergSource source = IcebergSource.forRowData()
     .tableLoader(tableLoader)
-    .assignerFactory(new DefaultSplitAssignerFactory())
+    .assignerFactory(new SimpleSplitAssignerFactory())
     .streaming(true)
     .streamingStartingStrategy(StreamingStartingStrategy.INCREMENTAL_FROM_LATEST_SNAPSHOT)
     .monitorInterval(Duration.ofSeconds(60))
@@ -269,7 +269,7 @@ IcebergSource<GenericRecord> source =
     IcebergSource.<GenericRecord>builder()
         .tableLoader(tableLoader)
         .readerFunction(readerFunction)
-        .assignerFactory(new DefaultSplitAssignerFactory())
+        .assignerFactory(new SimpleSplitAssignerFactory())
         ...
         .build();
 
@@ -286,7 +286,7 @@ Flink read options are passed when configuring the Flink IcebergSource:
 ```
 IcebergSource.forRowData()
     .tableLoader(TableLoader.fromCatalog(...))
-    .assignerFactory(new DefaultSplitAssignerFactory())
+    .assignerFactory(new SimpleSplitAssignerFactory())
     .streaming(true)
     .streamingStartingStrategy(StreamingStartingStrategy.INCREMENTAL_FROM_LATEST_SNAPSHOT)
     .startSnapshotId(3821550127947089987L)
