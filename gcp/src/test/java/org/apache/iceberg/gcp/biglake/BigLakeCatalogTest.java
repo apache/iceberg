@@ -54,8 +54,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.junit.Rule;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -71,34 +70,25 @@ public class BigLakeCatalogTest extends CatalogTests<BigLakeCatalog> {
   private static final String GCP_REGION = "us";
   private static final String CATALOG_ID = "biglake";
 
-  private static MockMetastoreService mockMetastoreService;
-  private static MockServiceHelper mockServiceHelper;
+  private String warehouseLocation;
 
+  // For tests using a BigLake catalog connecting to a mocked service.
+  private MockMetastoreService mockMetastoreService;
+  private MockServiceHelper mockServiceHelper;
   private LocalChannelProvider channelProvider;
   private BigLakeCatalog bigLakeCatalogUsingMockService;
 
-  private String warehouseLocation;
-
+  // For tests using a BigLake catalog with a mocked client.
   private BigLakeClient mockBigLakeClient;
   private BigLakeCatalog bigLakeCatalogUsingMockClient;
 
-  @BeforeAll
-  public static void setUpStaticBigLakeService() throws Exception {
+  @BeforeEach
+  public void setUp() throws Exception {
     mockMetastoreService = new MockMetastoreService();
     mockServiceHelper =
         new MockServiceHelper(
             UUID.randomUUID().toString(), Arrays.<MockGrpcService>asList(mockMetastoreService));
     mockServiceHelper.start();
-  }
-
-  @AfterAll
-  public static void stopStaticBigLakeService() {
-    mockServiceHelper.stop();
-  }
-
-  @BeforeEach
-  public void createCatalog() throws Exception {
-    mockMetastoreService.reset();
 
     File warehouse = temp.toFile();
     warehouseLocation = warehouse.getAbsolutePath();
@@ -131,6 +121,11 @@ public class BigLakeCatalogTest extends CatalogTests<BigLakeCatalog> {
     bigLakeCatalogUsingMockClient.setConf(new Configuration());
     bigLakeCatalogUsingMockClient.initialize(
         CATALOG_ID, properties, GCP_PROJECT, GCP_REGION, mockBigLakeClient);
+  }
+
+  @AfterEach
+  public void tearDown() {
+    mockServiceHelper.stop();
   }
 
   @Override
