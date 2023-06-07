@@ -20,13 +20,13 @@ package org.apache.iceberg.data.avro;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.WeakHashMap;
 import org.apache.avro.Schema;
 import org.apache.avro.io.Decoder;
 import org.apache.avro.io.DecoderFactory;
 import org.apache.avro.io.ResolvingDecoder;
 import org.apache.iceberg.avro.ValueReader;
 import org.apache.iceberg.exceptions.RuntimeIOException;
-import org.apache.iceberg.relocated.com.google.common.collect.MapMaker;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 /**
@@ -36,7 +36,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 public class DecoderResolver {
 
   private static final ThreadLocal<Map<Schema, Map<Schema, ResolvingDecoder>>> DECODER_CACHES =
-      ThreadLocal.withInitial(() -> new MapMaker().weakKeys().makeMap());
+      ThreadLocal.withInitial(WeakHashMap::new);
 
   private DecoderResolver() {}
 
