@@ -67,6 +67,7 @@ import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
+import org.apache.iceberg.exceptions.ForbiddenException;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.flink.util.FlinkCompatibilityUtil;
@@ -130,6 +131,9 @@ public class FlinkCatalog extends AbstractCatalog {
       createDatabase(getDefaultDatabase(), ImmutableMap.of(), true);
     } catch (DatabaseAlreadyExistException e) {
       // Ignore the exception if it's already exist.
+    } catch (ForbiddenException e) {
+      // Ignore if the user doesn't have CREATE DATABASE permissions,
+      // and we assume that the database already exists
     }
   }
 
