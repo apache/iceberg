@@ -28,14 +28,18 @@ import java.util.Map;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.RowDelta;
 import org.apache.iceberg.RowLevelOperationMode;
+import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.spark.SparkSQLProperties;
 import org.apache.iceberg.spark.source.SparkTable;
 import org.apache.iceberg.spark.source.TestSparkCatalog;
+import org.apache.iceberg.util.SnapshotUtil;
+import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.junit.Assert;
 import org.junit.Test;
@@ -134,6 +138,30 @@ public class TestMergeOnReadDelete extends TestDelete {
         "Should have expected rows",
         ImmutableList.of(row(1, "hr", "c1"), row(3, "hr", "c1")),
         sql("SELECT * FROM %s ORDER BY id", "dummy_catalog.default.table"));
+  }
+
+  @Test
+  public void testOverrideModeInSQLConf() throws NoSuchTableException {
+    createAndInitPartitionedTable();
+
+    append(
+        tableName,
+        new Employee(1, "hr"),
+        new Employee(1, "hardware"),
+        new Employee(2, "hardware"),
+        new Employee(3, "hr"));
+    createBranchIfNeeded();
+
+    withSQLConf(
+        ImmutableMap.of(
+            SparkSQLProperties.WRITE_DELETE_MODE, RowLevelOperationMode.COPY_ON_WRITE.modeName()),
+        () -> {
+          sql("DELETE FROM %s WHERE id = 1", commitTarget());
+        });
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    Snapshot currentSnapshot = SnapshotUtil.latestSnapshot(table, branch);
+    validateCopyOnWrite(currentSnapshot, "2", "2", "2");
   }
 
   @Test

@@ -372,6 +372,33 @@ public class SparkWriteConf {
         .parse();
   }
 
+  public String writeDeleteMode() {
+    return confParser
+        .stringConf()
+        .sessionConf(SparkSQLProperties.WRITE_DELETE_MODE)
+        .tableProperty(TableProperties.DELETE_MODE)
+        .defaultValue(TableProperties.DELETE_MODE_DEFAULT)
+        .parse();
+  }
+
+  public String writeUpdateMode() {
+    return confParser
+        .stringConf()
+        .sessionConf(SparkSQLProperties.WRITE_UPDATE_MODE)
+        .tableProperty(TableProperties.UPDATE_MODE)
+        .defaultValue(TableProperties.UPDATE_MODE_DEFAULT)
+        .parse();
+  }
+
+  public String writeMergeMode() {
+    return confParser
+        .stringConf()
+        .sessionConf(SparkSQLProperties.WRITE_MERGE_MODE)
+        .tableProperty(TableProperties.MERGE_MODE)
+        .defaultValue(TableProperties.MERGE_MODE_DEFAULT)
+        .parse();
+  }
+
   public Long validateFromSnapshotId() {
     return confParser
         .longConf()

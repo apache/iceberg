@@ -56,6 +56,11 @@ public class SparkSQLProperties {
   // Controls write distribution mode
   public static final String DISTRIBUTION_MODE = "spark.sql.iceberg.distribution-mode";
 
+  // Controls write delete/update/merge mode (copy-on-write or merge-on-read)
+  public static final String WRITE_DELETE_MODE = "spark.sql.iceberg.write.delete.mode";
+  public static final String WRITE_UPDATE_MODE = "spark.sql.iceberg.write.update.mode";
+  public static final String WRITE_MERGE_MODE = "spark.sql.iceberg.write.merge.mode";
+
   // Controls the WAP ID used for write-audit-publish workflow.
   // When set, new snapshots will be staged with this ID in snapshot summary.
   public static final String WAP_ID = "spark.wap.id";
