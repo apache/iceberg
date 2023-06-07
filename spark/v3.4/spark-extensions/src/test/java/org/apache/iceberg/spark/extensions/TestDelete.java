@@ -19,6 +19,7 @@
 package org.apache.iceberg.spark.extensions;
 
 import static org.apache.iceberg.RowLevelOperationMode.COPY_ON_WRITE;
+import static org.apache.iceberg.RowLevelOperationMode.MERGE_ON_READ;
 import static org.apache.iceberg.TableProperties.DELETE_DISTRIBUTION_MODE;
 import static org.apache.iceberg.TableProperties.DELETE_ISOLATION_LEVEL;
 import static org.apache.iceberg.TableProperties.DELETE_MODE;
@@ -1202,6 +1203,41 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
         "Should have expected rows",
         ImmutableList.of(row(2, "hr", "c1")),
         sql("SELECT * FROM %s ORDER BY id", selectTarget()));
+  }
+
+  @Test
+  public void testOverrideModeInSQLConf() throws NoSuchTableException {
+    createAndInitPartitionedTable();
+    Table table = validationCatalog.loadTable(tableIdent);
+    RowLevelOperationMode tableMode = mode(table);
+    if (tableMode == COPY_ON_WRITE) {
+      sql(
+          "ALTER TABLE %s SET TBLPROPERTIES('%s' '%s')",
+          tableName, TableProperties.FORMAT_VERSION, "2");
+    }
+
+    append(
+        tableName,
+        new Employee(1, "hr"),
+        new Employee(1, "hardware"),
+        new Employee(2, "hardware"),
+        new Employee(3, "hr"));
+    createBranchIfNeeded();
+
+    RowLevelOperationMode newMode = (tableMode == COPY_ON_WRITE) ? MERGE_ON_READ : COPY_ON_WRITE;
+    withSQLConf(
+        ImmutableMap.of(SparkSQLProperties.WRITE_DELETE_MODE, newMode.modeName()),
+        () -> {
+          sql("DELETE FROM %s WHERE id = 1", commitTarget());
+        });
+
+    table.refresh();
+    Snapshot currentSnapshot = SnapshotUtil.latestSnapshot(table, branch);
+    if (newMode == COPY_ON_WRITE) {
+      validateCopyOnWrite(currentSnapshot, "2", "2", "2");
+    } else {
+      validateMergeOnRead(currentSnapshot, "2", "2", null);
+    }
   }
 
   @Test

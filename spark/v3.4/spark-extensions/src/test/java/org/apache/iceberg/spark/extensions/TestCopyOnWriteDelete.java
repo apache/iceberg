@@ -81,33 +81,6 @@ public class TestCopyOnWriteDelete extends TestDelete {
   }
 
   @Test
-  public void testOverrideModeInSQLConf() throws NoSuchTableException {
-    createAndInitPartitionedTable();
-    sql(
-        "ALTER TABLE %s SET TBLPROPERTIES('%s' '%s')",
-        tableName, TableProperties.FORMAT_VERSION, "2");
-
-    append(
-        tableName,
-        new Employee(1, "hr"),
-        new Employee(1, "hardware"),
-        new Employee(2, "hardware"),
-        new Employee(3, "hr"));
-    createBranchIfNeeded();
-
-    withSQLConf(
-        ImmutableMap.of(
-            SparkSQLProperties.WRITE_DELETE_MODE, RowLevelOperationMode.MERGE_ON_READ.modeName()),
-        () -> {
-          sql("DELETE FROM %s WHERE id = 1", commitTarget());
-        });
-
-    Table table = validationCatalog.loadTable(tableIdent);
-    Snapshot currentSnapshot = SnapshotUtil.latestSnapshot(table, branch);
-    validateMergeOnRead(currentSnapshot, "2", "2", null);
-  }
-
-  @Test
   public synchronized void testDeleteWithConcurrentTableRefresh() throws Exception {
     // this test can only be run with Hive tables as it requires a reliable lock
     // also, the table cache must be enabled so that the same table instance can be reused
