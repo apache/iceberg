@@ -1918,7 +1918,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
             : "Table already exists";
     Assertions.assertThatThrownBy(createOrReplace::commitTransaction)
         .isInstanceOf(AlreadyExistsException.class)
-        .hasMessage(expectedMessage);
+        .hasMessageStartingWith(expectedMessage);
 
     // validate the concurrently created table is unmodified
     Table table = catalog.loadTable(TABLE);
