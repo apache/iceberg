@@ -95,7 +95,7 @@ abstract class FanoutWriter<T, R> implements PartitioningWriter<T, R> {
     return aggregatedResult();
   }
 
-  /** @deprecated will be removed in 1.4.0 */
+  /** @deprecated will be removed in 1.5.0 */
   @Deprecated
   protected EncryptedOutputFile newOutputFile(
       OutputFileFactory fileFactory, PartitionSpec spec, StructLike partition) {
