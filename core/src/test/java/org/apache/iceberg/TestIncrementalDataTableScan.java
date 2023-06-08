@@ -145,6 +145,17 @@ public class TestIncrementalDataTableScan extends TableTestBase {
         UnsupportedOperationException.class,
         "Found overwrite operation, cannot support incremental data in snapshots (8, 9]",
         () -> appendsBetweenScan(8, 9));
+
+    // change table property to ignore overwrite
+    table
+        .updateProperties()
+        .set(TableProperties.INCREMENTAL_PULL_IGNORE_OVERWRITE, "true")
+        .commit();
+    Assert.assertTrue("Ignore overwrite snapshot", appendsBetweenScan(8, 9).isEmpty());
+    add(table.newAppend(), files("J")); // 10
+    filesMatch(Lists.newArrayList("J"), appendsBetweenScan(9, 10));
+    filesMatch(Lists.newArrayList("J"), appendsBetweenScan(8, 10));
+    filesMatch(Lists.newArrayList("B", "C", "D", "E", "I", "J"), appendsBetweenScan(1, 10));
   }
 
   @Test
