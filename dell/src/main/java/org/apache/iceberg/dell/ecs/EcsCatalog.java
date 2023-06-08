@@ -71,7 +71,7 @@ public class EcsCatalog extends BaseMetastoreCatalog
   /** Suffix of namespace metadata object */
   private static final String NAMESPACE_OBJECT_SUFFIX = ".namespace";
 
-  /** Key of properties version in ECS object user metadata. */
+  /** Key of properties version in ECS objects user metadata. */
   private static final String PROPERTIES_VERSION_USER_METADATA_KEY = "iceberg_properties_version";
 
   private static final Logger LOG = LoggerFactory.getLogger(EcsCatalog.class);
@@ -80,7 +80,7 @@ public class EcsCatalog extends BaseMetastoreCatalog
   private Object hadoopConf;
   private String catalogName;
 
-  /** Warehouse is unified with other catalog that without delimiter. */
+  /** Warehouse is unified with other catalogs without delimiter. */
   private EcsURI warehouseLocation;
 
   private FileIO fileIO;
@@ -219,7 +219,7 @@ public class EcsCatalog extends BaseMetastoreCatalog
   }
 
   /**
-   * Table rename will only move table object, the data objects will still be in-place.
+   * Renaming a table only moves the table object. The data objects remain in place.
    *
    * @param from identifier of the table to rename
    * @param to new table name
@@ -387,7 +387,7 @@ public class EcsCatalog extends BaseMetastoreCatalog
         warehouseLocation.name());
   }
 
-  /** Get S3 object metadata which include E-Tag, user metadata and so on. */
+  /** Get S3 object metadata which includes E-Tag, user metadata and so on. */
   public Optional<S3ObjectMetadata> objectMetadata(EcsURI uri) {
     checkURI(uri);
     try {

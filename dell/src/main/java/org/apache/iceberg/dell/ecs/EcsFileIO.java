@@ -87,7 +87,7 @@ public class EcsFileIO implements FileIO {
     this.dellClientFactory = DellClientFactories.from(properties);
     this.s3 = dellClientFactory::ecsS3;
 
-    // Report Hadoop metrics if Hadoop is available
+    // Report on Hadoop metrics if Hadoop is available
     try {
       DynConstructors.Ctor<MetricsContext> ctor =
           DynConstructors.builder(MetricsContext.class)

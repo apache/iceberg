@@ -47,7 +47,7 @@ The module is built and tested with `Delta Standalone:0.6.0` and supports Delta 
 Please refer to [Delta Lake Table Protocol Versioning](https://docs.delta.io/latest/versioning.html) for more details about Delta Lake protocol versions.
 
 ### API
-The `iceberg-delta-lake` module provides an interface named `DeltaLakeToIcebergMigrationActionsProvider`, which contains actions that helps converting from Delta Lake to Iceberg.
+The `iceberg-delta-lake` module provides an interface named `DeltaLakeToIcebergMigrationActionsProvider`, which contains actions that help convert from Delta Lake to Iceberg.
 The supported actions are:
 * `snapshotDeltaLakeTable`: snapshot an existing Delta Lake table to an Iceberg table
 
@@ -64,12 +64,12 @@ The original Delta Lake table remains unchanged.
 The newly created table can be changed or written to without affecting the source table, but the snapshot uses the original table's data files.
 Existing data files are added to the Iceberg table's metadata and can be read using a name-to-id mapping created from the original table schema.
 
-When inserts or overwrites run on the snapshot, new files are placed in the snapshot table's location. The location is default to be the same as that
+When inserts or overwrites run on the snapshot, new files are placed in the snapshot table's location. The location is defaulted to be the same as that
 of the source Delta Lake Table. Users can also specify a different location for the snapshot table.
 
 {{< hint info >}}
 Because tables created by `snapshotDeltaLakeTable` are not the sole owners of their data files, they are prohibited from
-actions like `expire_snapshots` which would physically delete data files. Iceberg deletes, which only effect metadata,
+actions like `expire_snapshots` which would physically delete data files. Iceberg deletes, which only affect metadata,
 are still allowed. In addition, any operations which affect the original data files will disrupt the Snapshot's
 integrity. DELETE statements executed against the original Delta Lake table will remove original data files and the
 `snapshotDeltaLakeTable` table will no longer be able to access them.
@@ -110,7 +110,7 @@ String sourceDeltaLakeTableLocation = "s3://my-bucket/delta-table";
 String destTableLocation = "s3://my-bucket/iceberg-table";
 TableIdentifier destTableIdentifier = TableIdentifier.of("my_db", "my_table");
 Catalog icebergCatalog = ...; // Iceberg Catalog fetched from engines like Spark or created via CatalogUtil.loadCatalog
-Configuration hadoopConf = ...; // Hadoop Configuration fetched from engines like Spark and have proper file system configuration to access the Delta Lake table.
+Configuration hadoopConf = ...; // Hadoop Configuration fetched from engines like Spark and has proper file system configuration to access the Delta Lake table.
     
 DeltaLakeToIcebergMigrationActionsProvider.defaultActions()
     .snapshotDeltaLakeTable(sourceDeltaLakeTableLocation)

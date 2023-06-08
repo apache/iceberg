@@ -224,7 +224,7 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
    * Commit the initial delta snapshot to iceberg transaction. It tries the snapshot starting from
    * {@code deltaStartVersion} to {@code latestVersion} and commit the first constructable one.
    *
-   * <p>There are two cases that the delta snapshot is not constructable:
+   * <p>There are two cases that the delta snapshot is not constructible:
    *
    * <ul>
    *   <li>the version is earlier than the earliest checkpoint
@@ -281,7 +281,7 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
    * <p>2. DeleteFiles - when there are only RemoveFile instances (a DELETE where all the records of
    * file(s) were removed)
    *
-   * <p>3. OverwriteFiles - when there are a mix of AddFile and RemoveFile (a DELETE/UPDATE)
+   * <p>3. OverwriteFiles - when there is a mix of AddFile and RemoveFile (a DELETE/UPDATE)
    *
    * @param versionLog the delta log version to commit to iceberg table transaction
    * @param transaction the iceberg table transaction to commit to

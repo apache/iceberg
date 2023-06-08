@@ -91,7 +91,7 @@ The related problems of catalog usage:
 Use the Dell ECS catalog with Flink, you first must create a Flink environment.
 
 ```bash
-# HADOOP_HOME is your hadoop root directory after unpack the binary package.
+# HADOOP_HOME is your hadoop root directory after unpacking the binary package.
 export HADOOP_CLASSPATH=`$HADOOP_HOME/bin/hadoop classpath`
 
 # download Iceberg dependency

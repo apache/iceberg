@@ -33,7 +33,7 @@ import org.apache.iceberg.metrics.MetricsContext.Unit;
  * String, Range)}
  *
  * <ol>
- *   <li>The stream is only be loaded when start reading.
+ *   <li>The stream is only loaded when start reading.
  *   <li>This class won't cache any bytes of content. It only maintains pos of {@link
  *       SeekableInputStream}
  *   <li>This class is not thread-safe.

@@ -36,13 +36,13 @@ class EcsAppendOutputStream extends PositionOutputStream {
   private final EcsURI uri;
 
   /**
-   * Local bytes cache that avoid too many requests
+   * Local bytes cache that avoids too many requests
    *
    * <p>Use {@link ByteBuffer} to maintain offset.
    */
   private final ByteBuffer localCache;
 
-  /** A marker for data file to put first part instead of append first part. */
+  /** A marker for data file to put the first part instead of append the first part. */
   private boolean firstPart = true;
 
   /** Pos for {@link PositionOutputStream} */

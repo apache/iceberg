@@ -76,13 +76,13 @@ public interface SnapshotDeltaLakeTable
 
   /**
    * Sets the Hadoop configuration used to access delta lake table's logs and datafiles. This is
-   * required to be set before execute the action.
+   * required to be set before executing the action.
    *
    * @param conf a Hadoop configuration @Returns this for method chaining
    */
   SnapshotDeltaLakeTable deltaLakeConfiguration(Configuration conf);
 
-  /** The action result that contains a summary of the execution. */
+  /** The action result contains a summary of the execution. */
   @Value.Immutable
   interface Result {
 
