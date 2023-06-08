@@ -578,23 +578,23 @@ class PyArrowSchemaVisitor(Generic[T], ABC):
 
     @abstractmethod
     def schema(self, schema: pa.Schema, field_results: List[Optional[T]]) -> Optional[T]:
-        """visit a schema"""
+        """Visit a schema"""
 
     @abstractmethod
     def struct(self, struct: pa.StructType, field_results: List[Optional[T]]) -> Optional[T]:
-        """visit a struct"""
+        """Visit a struct"""
 
     @abstractmethod
     def list(self, list_type: pa.ListType, element_result: Optional[T]) -> Optional[T]:
-        """visit a list"""
+        """Visit a list"""
 
     @abstractmethod
     def map(self, map_type: pa.MapType, key_result: Optional[T], value_result: Optional[T]) -> Optional[T]:
-        """visit a map"""
+        """Visit a map"""
 
     @abstractmethod
     def primitive(self, primitive: pa.DataType) -> Optional[T]:
-        """visit a primitive type"""
+        """Visit a primitive type"""
 
 
 def _get_field_id(field: pa.Field) -> Optional[int]:
