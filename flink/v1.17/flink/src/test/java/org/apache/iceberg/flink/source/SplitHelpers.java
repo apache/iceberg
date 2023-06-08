@@ -54,15 +54,45 @@ public class SplitHelpers {
    *
    *     <p>Since the table and data files are deleted before this method return, caller shouldn't
    *     attempt to read the data files.
+   *
+   *     <p>By default, v1 Iceberg table is created. For v2 table use {@link
+   *     SplitHelpers#createSplitsFromTransientHadoopTable(TemporaryFolder, int, int, String)}
+   *
+   * @param temporaryFolder Folder to place the data to
+   * @param fileCount The number of files to create and add to the table
+   * @param filesPerSplit The number of files used for a split
    */
   public static List<IcebergSourceSplit> createSplitsFromTransientHadoopTable(
       TemporaryFolder temporaryFolder, int fileCount, int filesPerSplit) throws Exception {
+    return createSplitsFromTransientHadoopTable(temporaryFolder, fileCount, filesPerSplit, "1");
+  }
+
+  /**
+   * This create a list of IcebergSourceSplit from real files
+   * <li>Create a new Hadoop table under the {@code temporaryFolder}
+   * <li>write {@code fileCount} number of files to the new Iceberg table
+   * <li>Discover the splits from the table and partition the splits by the {@code filePerSplit}
+   *     limit
+   * <li>Delete the Hadoop table
+   *
+   *     <p>Since the table and data files are deleted before this method return, caller shouldn't
+   *     attempt to read the data files.
+   *
+   * @param temporaryFolder Folder to place the data to
+   * @param fileCount The number of files to create and add to the table
+   * @param filesPerSplit The number of files used for a split
+   * @param version The table version to create
+   */
+  public static List<IcebergSourceSplit> createSplitsFromTransientHadoopTable(
+      TemporaryFolder temporaryFolder, int fileCount, int filesPerSplit, String version)
+      throws Exception {
     final File warehouseFile = temporaryFolder.newFolder();
     Assert.assertTrue(warehouseFile.delete());
     final String warehouse = "file:" + warehouseFile;
     Configuration hadoopConf = new Configuration();
     final HadoopCatalog catalog = new HadoopCatalog(hadoopConf, warehouse);
-    ImmutableMap<String, String> properties = ImmutableMap.of(TableProperties.FORMAT_VERSION, "2");
+    ImmutableMap<String, String> properties =
+        ImmutableMap.of(TableProperties.FORMAT_VERSION, version);
     try {
       final Table table =
           catalog.createTable(

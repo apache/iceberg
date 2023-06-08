@@ -79,7 +79,7 @@ public class TestIcebergSourceReader {
             recordBatchList2, TEMPORARY_FOLDER, FileFormat.PARQUET, appenderFactory);
 
     // Sort the splits in one way
-    List<RowData> rowData1 =
+    List<RowData> rowDataList1 =
         read(
             Arrays.asList(
                 IcebergSourceSplit.fromCombinedScanTask(task1),
@@ -87,7 +87,7 @@ public class TestIcebergSourceReader {
             2);
 
     // Reverse the splits
-    List<RowData> rowData2 =
+    List<RowData> rowDataList2 =
         read(
             Arrays.asList(
                 IcebergSourceSplit.fromCombinedScanTask(task2),
@@ -95,13 +95,14 @@ public class TestIcebergSourceReader {
             2);
 
     // Check that the order of the elements is not changed
-    Assert.assertEquals(rowData1.get(0), rowData2.get(0));
-    Assert.assertEquals(rowData1.get(1), rowData2.get(1));
+    Assert.assertEquals(rowDataList1.get(0), rowDataList2.get(0));
+    Assert.assertEquals(rowDataList1.get(1), rowDataList2.get(1));
   }
 
   private List<RowData> read(List<IcebergSourceSplit> splits, long expected) throws Exception {
     TestingMetricGroup metricGroup = new TestingMetricGroup();
     TestingReaderContext readerContext = new TestingReaderContext(new Configuration(), metricGroup);
+    // Using IdBasedComparator, so we can have a deterministic order of the splits
     IcebergSourceReader reader = createReader(metricGroup, readerContext, new IdBasedComparator());
     reader.start();
 

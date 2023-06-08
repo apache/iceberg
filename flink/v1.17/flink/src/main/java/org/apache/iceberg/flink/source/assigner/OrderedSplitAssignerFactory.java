@@ -23,7 +23,10 @@ import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplitState;
 import org.apache.iceberg.flink.source.split.SerializableComparator;
 
-/** Create simple assigner that hands out splits without any guarantee in order or locality. */
+/**
+ * Create default assigner with a comparator that hands out splits where the order of the splits
+ * will be defined by the {@link SerializableComparator}.
+ */
 public class OrderedSplitAssignerFactory implements SplitAssignerFactory {
   private final SerializableComparator<IcebergSourceSplit> comparator;
 
@@ -32,12 +35,12 @@ public class OrderedSplitAssignerFactory implements SplitAssignerFactory {
   }
 
   @Override
-  public DefaultSplitAssigner createAssigner() {
+  public SplitAssigner createAssigner() {
     return new DefaultSplitAssigner(comparator);
   }
 
   @Override
-  public DefaultSplitAssigner createAssigner(Collection<IcebergSourceSplitState> assignerState) {
+  public SplitAssigner createAssigner(Collection<IcebergSourceSplitState> assignerState) {
     return new DefaultSplitAssigner(comparator, assignerState);
   }
 }

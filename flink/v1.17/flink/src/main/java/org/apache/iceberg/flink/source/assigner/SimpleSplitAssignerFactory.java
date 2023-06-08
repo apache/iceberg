@@ -26,12 +26,12 @@ public class SimpleSplitAssignerFactory implements SplitAssignerFactory {
   public SimpleSplitAssignerFactory() {}
 
   @Override
-  public DefaultSplitAssigner createAssigner() {
+  public SplitAssigner createAssigner() {
     return new DefaultSplitAssigner(null);
   }
 
   @Override
-  public DefaultSplitAssigner createAssigner(Collection<IcebergSourceSplitState> assignerState) {
+  public SplitAssigner createAssigner(Collection<IcebergSourceSplitState> assignerState) {
     return new DefaultSplitAssigner(null, assignerState);
   }
 }

@@ -21,8 +21,8 @@ package org.apache.iceberg.flink.source.assigner;
 import java.util.List;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.flink.source.SplitHelpers;
-import org.apache.iceberg.flink.source.split.FileSequenceNumberBasedComparator;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
+import org.apache.iceberg.flink.source.split.SplitComparators;
 import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
@@ -30,8 +30,7 @@ import org.junit.Test;
 public class TestFileSequenceNumberBasedSplitAssigner extends SplitAssignerTestBase {
   @Override
   protected SplitAssigner splitAssigner() {
-    return new OrderedSplitAssignerFactory(new FileSequenceNumberBasedComparator())
-        .createAssigner();
+    return new OrderedSplitAssignerFactory(SplitComparators.fileSequenceNumber()).createAssigner();
   }
 
   /** Test the assigner when multiple files are in a single split */
@@ -41,7 +40,7 @@ public class TestFileSequenceNumberBasedSplitAssigner extends SplitAssignerTestB
     Assertions.assertThatThrownBy(
             () ->
                 assigner.onDiscoveredSplits(
-                    SplitHelpers.createSplitsFromTransientHadoopTable(TEMPORARY_FOLDER, 4, 2)),
+                    SplitHelpers.createSplitsFromTransientHadoopTable(TEMPORARY_FOLDER, 4, 2, "2")),
             "Multiple files in a split is not allowed")
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Please use 'split-open-file-cost'");
@@ -52,7 +51,7 @@ public class TestFileSequenceNumberBasedSplitAssigner extends SplitAssignerTestB
   public void testSplitSort() throws Exception {
     SplitAssigner assigner = splitAssigner();
     List<IcebergSourceSplit> splits =
-        SplitHelpers.createSplitsFromTransientHadoopTable(TEMPORARY_FOLDER, 5, 1);
+        SplitHelpers.createSplitsFromTransientHadoopTable(TEMPORARY_FOLDER, 5, 1, "2");
 
     assigner.onDiscoveredSplits(splits.subList(3, 5));
     assigner.onDiscoveredSplits(splits.subList(0, 1));
