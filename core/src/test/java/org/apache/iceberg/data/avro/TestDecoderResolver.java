@@ -26,9 +26,15 @@ import org.apache.avro.io.DecoderFactory;
 import org.apache.avro.io.ResolvingDecoder;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.avro.AvroSchemaUtil;
+import org.junit.Before;
 import org.junit.Test;
 
 public class TestDecoderResolver {
+
+  @Before
+  public void before() {
+    DecoderResolver.DECODER_CACHES.get().clear();
+  }
 
   @Test
   public void testDecoderCachingReadSchemaSameAsFileSchema() throws Exception {
