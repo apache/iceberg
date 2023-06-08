@@ -27,7 +27,7 @@ import org.apache.avro.io.DecoderFactory;
 import org.apache.avro.io.ResolvingDecoder;
 import org.apache.iceberg.avro.ValueReader;
 import org.apache.iceberg.exceptions.RuntimeIOException;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 
 /**
  * Resolver to resolve {@link Decoder} to a {@link ResolvingDecoder}. This class uses a {@link
@@ -35,7 +35,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
  */
 public class DecoderResolver {
 
-  private static final ThreadLocal<Map<Schema, Map<Schema, ResolvingDecoder>>> DECODER_CACHES =
+  @VisibleForTesting
+  static final ThreadLocal<Map<Schema, Map<Schema, ResolvingDecoder>>> DECODER_CACHES =
       ThreadLocal.withInitial(WeakHashMap::new);
 
   private DecoderResolver() {}
@@ -49,11 +50,12 @@ public class DecoderResolver {
     return value;
   }
 
-  private static ResolvingDecoder resolve(Decoder decoder, Schema readSchema, Schema fileSchema)
+  @VisibleForTesting
+  static ResolvingDecoder resolve(Decoder decoder, Schema readSchema, Schema fileSchema)
       throws IOException {
     Map<Schema, Map<Schema, ResolvingDecoder>> cache = DECODER_CACHES.get();
     Map<Schema, ResolvingDecoder> fileSchemaToResolver =
-        cache.computeIfAbsent(readSchema, k -> Maps.newHashMap());
+        cache.computeIfAbsent(readSchema, k -> new WeakHashMap<>());
 
     ResolvingDecoder resolver =
         fileSchemaToResolver.computeIfAbsent(fileSchema, schema -> newResolver(readSchema, schema));
