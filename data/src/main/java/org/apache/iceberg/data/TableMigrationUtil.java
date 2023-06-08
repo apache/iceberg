@@ -60,8 +60,8 @@ public class TableMigrationUtil {
    * <p>For Parquet and ORC partitions, this will read metrics from the file footer. For Avro
    * partitions, metrics are set to null.
    *
-   * <p>Note: certain metrics, like NaN counts, are only supported by iceberg file writers but
-   * file footers, will not be populated.
+   * <p>Note: certain metrics, like NaN counts, are only supported by iceberg file writers, but
+   * file footers are not populated.
    *
    * @param partition partition key, e.g., "a=1/b=2"
    * @param uri partition location URI
