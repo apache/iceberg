@@ -132,13 +132,17 @@ abstract class ClusteredWriter<T, R> implements PartitioningWriter<T, R> {
     return aggregatedResult();
   }
 
+  /** @deprecated will be removed in 1.5.0 */
+  @Deprecated
   protected EncryptedOutputFile newOutputFile(
       OutputFileFactory fileFactory, PartitionSpec spec, StructLike partition) {
     Preconditions.checkArgument(
         spec.isUnpartitioned() || partition != null,
         "Partition must not be null when creating output file for partitioned spec");
-    return partition == null
-        ? fileFactory.newOutputFile()
-        : fileFactory.newOutputFile(spec, partition);
+    if (spec.isUnpartitioned() || partition == null) {
+      return fileFactory.newOutputFile();
+    } else {
+      return fileFactory.newOutputFile(spec, partition);
+    }
   }
 }
