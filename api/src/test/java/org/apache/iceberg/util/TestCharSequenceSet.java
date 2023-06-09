@@ -22,7 +22,7 @@ import java.util.Arrays;
 import java.util.Set;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.assertj.core.api.Assertions;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestCharSequenceSet {
 

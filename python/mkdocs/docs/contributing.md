@@ -107,6 +107,22 @@ make test PYTEST_ARGS="--pdb"
 
 To see all available pytest arguments, run `make test PYTEST_ARGS="--help"`.
 
+### Integration tests
+
+PyIceberg has integration tests with Apache Spark. Spark will create a new database and provision some tables that PyIceberg can query against.
+
+```sh
+make test-integration
+```
+
+This will restart the containers, to get to a clean state, and then run the PyTest suite. In case something changed in the Dockerfile or the provision script, you can run:
+
+```sh
+make test-integration-rebuild
+```
+
+To rebuild the containers from scratch.
+
 ## Code standards
 
 Below are the formalized conventions that we adhere to in the PyIceberg project. The goal of this is to have a common agreement on how to evolve the codebase, but also using it as guidelines for newcomers to the project.

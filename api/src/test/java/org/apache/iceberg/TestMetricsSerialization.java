@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -26,8 +28,7 @@ import java.io.ObjectOutputStream;
 import java.nio.ByteBuffer;
 import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestMetricsSerialization {
 
@@ -103,10 +104,10 @@ public class TestMetricsSerialization {
   }
 
   private static void assertEquals(Metrics expected, Metrics actual) {
-    Assert.assertEquals(expected.recordCount(), actual.recordCount());
-    Assert.assertEquals(expected.columnSizes(), actual.columnSizes());
-    Assert.assertEquals(expected.valueCounts(), actual.valueCounts());
-    Assert.assertEquals(expected.nullValueCounts(), actual.nullValueCounts());
+    assertThat(actual.recordCount()).isEqualTo(expected.recordCount());
+    assertThat(actual.columnSizes()).isEqualTo(expected.columnSizes());
+    assertThat(actual.valueCounts()).isEqualTo(expected.valueCounts());
+    assertThat(actual.nullValueCounts()).isEqualTo(expected.nullValueCounts());
 
     assertEquals(expected.lowerBounds(), actual.lowerBounds());
     assertEquals(expected.upperBounds(), actual.upperBounds());
@@ -115,10 +116,10 @@ public class TestMetricsSerialization {
   private static void assertEquals(
       Map<Integer, ByteBuffer> expected, Map<Integer, ByteBuffer> actual) {
     if (expected == null) {
-      Assert.assertNull(actual);
+      assertThat(actual).isNull();
     } else {
-      Assert.assertEquals(expected.size(), actual.size());
-      expected.keySet().forEach(key -> Assert.assertEquals(expected.get(key), actual.get(key)));
+      assertThat(actual).hasSameSizeAs(expected);
+      expected.keySet().forEach(key -> assertThat(actual.get(key)).isEqualTo(expected.get(key)));
     }
   }
 }
