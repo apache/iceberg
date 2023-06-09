@@ -15,9 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=W0621
-"""
-Avro reader for reading Avro files
-"""
+"""Avro reader for reading Avro files"""
 from __future__ import annotations
 
 import json
