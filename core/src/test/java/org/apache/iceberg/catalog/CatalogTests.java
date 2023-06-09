@@ -239,9 +239,9 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     catalog.setProperties(NS, properties);
 
     Map<String, String> actualProperties = catalog.loadNamespaceMetadata(NS);
-    Assertions.assertThat(Sets.intersection(properties.entrySet(), actualProperties.entrySet()))
+    Assertions.assertThat(actualProperties.entrySet())
         .as("Set properties should be a subset of returned properties")
-        .isEqualTo(properties.entrySet());
+        .containsAll(properties.entrySet());
   }
 
   @Test
@@ -256,20 +256,18 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     catalog.setProperties(NS, initialProperties);
 
     Map<String, String> actualProperties = catalog.loadNamespaceMetadata(NS);
-    Assertions.assertThat(
-            Sets.intersection(initialProperties.entrySet(), actualProperties.entrySet()))
+    Assertions.assertThat(actualProperties.entrySet())
         .as("Set properties should be a subset of returned properties")
-        .isEqualTo(initialProperties.entrySet());
+        .containsAll(initialProperties.entrySet());
 
     Map<String, String> updatedProperties = ImmutableMap.of("owner", "newuser");
 
     catalog.setProperties(NS, updatedProperties);
 
     Map<String, String> finalProperties = catalog.loadNamespaceMetadata(NS);
-    Assertions.assertThat(
-            Sets.intersection(updatedProperties.entrySet(), finalProperties.entrySet()))
+    Assertions.assertThat(finalProperties.entrySet())
         .as("Updated properties should be a subset of returned properties")
-        .isEqualTo(updatedProperties.entrySet());
+        .containsAll(updatedProperties.entrySet());
   }
 
   @Test
@@ -284,10 +282,9 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     catalog.setProperties(NS, initialProperties);
 
     Map<String, String> actualProperties = catalog.loadNamespaceMetadata(NS);
-    Assertions.assertThat(
-            Sets.intersection(initialProperties.entrySet(), actualProperties.entrySet()))
+    Assertions.assertThat(actualProperties.entrySet())
         .as("Set properties should be a subset of returned properties")
-        .isEqualTo(initialProperties.entrySet());
+        .containsAll(initialProperties.entrySet());
 
     Map<String, String> updatedProperties =
         ImmutableMap.of("owner", "newuser", "last-modified-at", "now");
@@ -295,10 +292,9 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     catalog.setProperties(NS, updatedProperties);
 
     Map<String, String> finalProperties = catalog.loadNamespaceMetadata(NS);
-    Assertions.assertThat(
-            Sets.intersection(updatedProperties.entrySet(), finalProperties.entrySet()))
+    Assertions.assertThat(finalProperties.entrySet())
         .as("Updated properties should be a subset of returned properties")
-        .isEqualTo(updatedProperties.entrySet());
+        .containsAll(updatedProperties.entrySet());
   }
 
   @Test
@@ -1557,9 +1553,9 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     Assertions.assertThat(table.sortOrder())
         .as("Table should have create sort order")
         .isEqualTo(TABLE_WRITE_ORDER);
-    Assertions.assertThat(Sets.intersection(properties.entrySet(), table.properties().entrySet()))
+    Assertions.assertThat(table.properties().entrySet())
         .as("Table properties should be a superset of the requested properties")
-        .isEqualTo(properties.entrySet());
+        .containsAll(properties.entrySet());
     if (!overridesRequestedLocation()) {
       Assertions.assertThat(table.location())
           .as("Table location should match requested")
@@ -1655,9 +1651,9 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     Assertions.assertThat(table.sortOrder().orderId())
         .as("Table should have updated sort order ID")
         .isEqualTo(updateOrderId);
-    Assertions.assertThat(Sets.intersection(properties.entrySet(), table.properties().entrySet()))
+    Assertions.assertThat(table.properties().entrySet())
         .as("Table properties should be a superset of the requested properties")
-        .isEqualTo(properties.entrySet());
+        .containsAll(properties.entrySet());
     if (!overridesRequestedLocation()) {
       Assertions.assertThat(table.location())
           .as("Table location should match requested")
@@ -1722,7 +1718,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
         .isEqualTo(TABLE_WRITE_ORDER);
     Assertions.assertThat(Sets.intersection(properties.entrySet(), table.properties().entrySet()))
         .as("Table properties should be a superset of the requested properties")
-        .containsAll(expectedProps.entrySet());
+        .containsExactlyInAnyOrderElementsOf(expectedProps.entrySet());
     Assertions.assertThat(table.currentSnapshot().sequenceNumber())
         .as("Sequence number should start at 1 for v2 format")
         .isEqualTo(1);
