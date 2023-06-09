@@ -491,6 +491,7 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
 
     private void checkRequired() {
       Preconditions.checkNotNull(tableLoader, "tableLoader is required.");
+      Preconditions.checkNotNull(splitAssignerFactory, "assignerFactory is required.");
       Preconditions.checkNotNull(readerFunction, "readerFunction is required.");
     }
   }

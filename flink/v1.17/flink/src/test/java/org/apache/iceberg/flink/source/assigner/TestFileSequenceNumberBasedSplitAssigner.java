@@ -22,7 +22,9 @@ import java.util.List;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.flink.source.SplitHelpers;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
+import org.apache.iceberg.flink.source.split.SerializableComparator;
 import org.apache.iceberg.flink.source.split.SplitComparators;
+import org.apache.iceberg.util.SerializationUtil;
 import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
@@ -64,6 +66,14 @@ public class TestFileSequenceNumberBasedSplitAssigner extends SplitAssignerTestB
     assertGetNext(assigner, 5L);
 
     assertGetNext(assigner, GetSplitResult.Status.UNAVAILABLE);
+  }
+
+  @Test
+  public void testSerializable() {
+    byte[] bytes = SerializationUtil.serializeToBytes(SplitComparators.fileSequenceNumber());
+    SerializableComparator<IcebergSourceSplit> comparator =
+        SerializationUtil.deserializeFromBytes(bytes);
+    Assert.assertNotNull(comparator);
   }
 
   protected void assertGetNext(SplitAssigner assigner, Long expectedSequenceNumber) {

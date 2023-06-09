@@ -40,9 +40,13 @@ public class SplitComparators {
       Long seq2 = o2.task().files().iterator().next().file().fileSequenceNumber();
 
       Preconditions.checkNotNull(
-          seq1, "Invalid file sequence number for {}. Only V2 table format is supported", o1);
+          seq1,
+          "Invalid file sequence number: null. Doesn't support splits written with V1 format: %s",
+          o1);
       Preconditions.checkNotNull(
-          seq2, "Invalid file sequence number for {}. Only V2 table format is supported", o2);
+          seq2,
+          "IInvalid file sequence number: null. Doesn't support splits written with V1 format: %s",
+          o2);
 
       int temp = Long.compare(seq1, seq2);
       if (temp != 0) {
