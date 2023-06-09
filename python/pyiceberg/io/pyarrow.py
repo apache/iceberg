@@ -761,7 +761,6 @@ def project_table(
     Raises:
         ResolveError: When an incompatible query is done
     """
-
     scheme, _ = PyArrowFileIO.parse_location(table.location())
     if isinstance(table.io, PyArrowFileIO):
         fs = table.io.get_fs(scheme)

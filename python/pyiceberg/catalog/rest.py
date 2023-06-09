@@ -241,7 +241,6 @@ class RestCatalog(Catalog):
         Returns:
             The base url of the rest catalog
         """
-
         url = self.uri
         url = url + "v1/" if url.endswith("/") else url + "/v1/"
 

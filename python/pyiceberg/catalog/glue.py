@@ -368,7 +368,6 @@ class GlueCatalog(Catalog):
         Raises:
             NoSuchNamespaceError: If a namespace with the given name does not exist, or the identifier is invalid
         """
-
         database_name = self.identifier_to_database(namespace, NoSuchNamespaceError)
         table_list = []
         try:
@@ -449,7 +448,6 @@ class GlueCatalog(Catalog):
             NoSuchNamespaceError: If a namespace with the given name does not exist， or identifier is invalid
             ValueError: If removals and updates have overlapping keys.
         """
-
         current_properties = self.load_namespace_properties(namespace=namespace)
         properties_update_summary, updated_properties = self._get_updated_props_and_update_summary(
             current_properties=current_properties, removals=removals, updates=updates
