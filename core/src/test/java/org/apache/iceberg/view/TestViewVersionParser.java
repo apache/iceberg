@@ -21,7 +21,8 @@ package org.apache.iceberg.view;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.assertj.core.api.Assertions;
-import org.junit.jupiter.api.Test;
+import org.junit.Assert;
+import org.junit.Test;
 
 public class TestViewVersionParser {
 
@@ -56,9 +57,10 @@ public class TestViewVersionParser {
             "{\"version-id\":1, \"timestamp-ms\":12345, \"schema-id\":1, \"summary\":{\"operation\":\"create\", \"user\":\"some-user\"}, \"representations\":%s}",
             serializedRepresentations);
 
-    Assertions.assertThat(ViewVersionParser.fromJson(serializedViewVersion))
-        .as("Should be able to parse valid view version")
-        .isEqualTo(expectedViewVersion);
+    Assert.assertEquals(
+        "Should be able to parse valid view version",
+        expectedViewVersion,
+        ViewVersionParser.fromJson(serializedViewVersion));
   }
 
   @Test
@@ -92,9 +94,10 @@ public class TestViewVersionParser {
             "{\"version-id\":1,\"timestamp-ms\":12345,\"schema-id\":1,\"summary\":{\"operation\":\"create\",\"user\":\"some-user\"},\"representations\":%s}",
             expectedRepresentations);
 
-    Assertions.assertThat(ViewVersionParser.toJson(viewVersion))
-        .as("Should be able to serialize valid view version")
-        .isEqualTo(expectedViewVersion);
+    Assert.assertEquals(
+        "Should be able to serialize valid view version",
+        expectedViewVersion,
+        ViewVersionParser.toJson(viewVersion));
   }
 
   @Test
