@@ -85,4 +85,8 @@ public class ResourcePaths {
         RESTUtil.encodeString(identifier.name()),
         "metrics");
   }
+
+  public String commitTransaction() {
+    return SLASH.join("v1", prefix, "transactions", "commit");
+  }
 }

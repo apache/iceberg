@@ -23,6 +23,7 @@ import java.util.Set;
 import org.apache.iceberg.MetadataUpdate;
 import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -33,6 +34,7 @@ import org.apache.iceberg.rest.RESTRequest;
 
 public class UpdateTableRequest implements RESTRequest {
 
+  private TableIdentifier identifier;
   private List<UpdateRequirement> requirements;
   private List<MetadataUpdate> updates;
 
@@ -45,6 +47,14 @@ public class UpdateTableRequest implements RESTRequest {
     this.updates = updates;
   }
 
+  UpdateTableRequest(
+      TableIdentifier identifier,
+      List<UpdateRequirement> requirements,
+      List<MetadataUpdate> updates) {
+    this(requirements, updates);
+    this.identifier = identifier;
+  }
+
   @Override
   public void validate() {}
 
@@ -54,6 +64,10 @@ public class UpdateTableRequest implements RESTRequest {
 
   public List<MetadataUpdate> updates() {
     return updates != null ? updates : ImmutableList.of();
+  }
+
+  public TableIdentifier identifier() {
+    return identifier;
   }
 
   @Override
