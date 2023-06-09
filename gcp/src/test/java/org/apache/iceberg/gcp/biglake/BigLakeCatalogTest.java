@@ -83,7 +83,7 @@ public class BigLakeCatalogTest extends CatalogTests<BigLakeCatalog> {
   private BigLakeCatalog bigLakeCatalogUsingMockClient;
 
   @BeforeEach
-  public void setUp() throws Exception {
+  public void before() throws Exception {
     mockMetastoreService = new MockMetastoreService();
     mockServiceHelper =
         new MockServiceHelper(
@@ -124,7 +124,7 @@ public class BigLakeCatalogTest extends CatalogTests<BigLakeCatalog> {
   }
 
   @AfterEach
-  public void tearDown() {
+  public void after() {
     mockServiceHelper.stop();
   }
 
