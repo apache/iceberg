@@ -20,12 +20,14 @@ package org.apache.iceberg.data.avro;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.concurrent.TimeUnit;
 import org.apache.avro.Schema;
 import org.apache.avro.io.Decoder;
 import org.apache.avro.io.DecoderFactory;
 import org.apache.avro.io.ResolvingDecoder;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.avro.AvroSchemaUtil;
+import org.awaitility.Awaitility;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -71,17 +73,25 @@ public class TestDecoderResolver {
     fileSchema = null;
     System.gc();
     // Wait the weak reference keys are GCed
-    Thread.sleep(1000);
-
-    assertThat(DecoderResolver.DECODER_CACHES.get().size()).isEqualTo(1);
-    checkNotCached(fileSchema1);
+    Awaitility.await()
+        .atMost(5, TimeUnit.SECONDS)
+        .pollInSameThread()
+        .untilAsserted(
+            () -> {
+              assertThat(DecoderResolver.DECODER_CACHES.get().size()).isEqualTo(1);
+              checkNotCached(fileSchema1);
+            });
 
     fileSchema2 = null;
     System.gc();
     // Wait the weak reference keys are GCed
-    Thread.sleep(1000);
-
-    assertThat(DecoderResolver.DECODER_CACHES.get().size()).isEqualTo(0);
+    Awaitility.await()
+        .atMost(5, TimeUnit.SECONDS)
+        .pollInSameThread()
+        .untilAsserted(
+            () -> {
+              assertThat(DecoderResolver.DECODER_CACHES.get().size()).isEqualTo(0);
+            });
   }
 
   @Test
@@ -122,17 +132,25 @@ public class TestDecoderResolver {
     readSchema = null;
     System.gc();
     // Wait the weak reference keys are GCed
-    Thread.sleep(1000);
-
-    assertThat(DecoderResolver.DECODER_CACHES.get().size()).isEqualTo(1);
-    checkNotCached(readSchema1);
+    Awaitility.await()
+        .atMost(5, TimeUnit.SECONDS)
+        .pollInSameThread()
+        .untilAsserted(
+            () -> {
+              assertThat(DecoderResolver.DECODER_CACHES.get().size()).isEqualTo(1);
+              checkNotCached(readSchema1);
+            });
 
     readSchema2 = null;
     System.gc();
     // Wait the weak reference keys are GCed
-    Thread.sleep(1000);
-
-    assertThat(DecoderResolver.DECODER_CACHES.get().size()).isEqualTo(0);
+    Awaitility.await()
+        .atMost(5, TimeUnit.SECONDS)
+        .pollInSameThread()
+        .untilAsserted(
+            () -> {
+              assertThat(DecoderResolver.DECODER_CACHES.get().size()).isEqualTo(0);
+            });
   }
 
   private Schema avroSchema(String... columns) {
