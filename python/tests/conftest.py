@@ -1465,9 +1465,7 @@ def fixture_s3_bucket(_s3) -> None:  # type: ignore
 
 
 def get_bucket_name() -> str:
-    """
-    Set the environment variable AWS_TEST_BUCKET for a default bucket to test
-    """
+    """Set the environment variable AWS_TEST_BUCKET for a default bucket to test"""
     bucket_name = os.getenv("AWS_TEST_BUCKET")
     if bucket_name is None:
         raise ValueError("Please specify a bucket to run the test by setting environment variable AWS_TEST_BUCKET")

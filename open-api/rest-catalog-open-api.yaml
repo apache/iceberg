@@ -848,6 +848,121 @@ paths:
         5XX:
           $ref: '#/components/responses/ServerErrorResponse'
 
+  /v1/{prefix}/transactions/commit:
+    parameters:
+      - $ref: '#/components/parameters/prefix'
+
+    post:
+      tags:
+        - Catalog API
+      summary: Commit updates to multiple tables in an atomic operation
+      operationId: commitTransaction
+      requestBody:
+        description:
+          Commit updates to multiple tables in an atomic operation
+
+
+          A commit for a single table consists of a table identifier with requirements and updates.
+          Requirements are assertions that will be validated before attempting to make and commit changes.
+          For example, `assert-ref-snapshot-id` will check that a named ref's snapshot ID has a certain value.
+
+
+          Updates are changes to make to table metadata. For example, after asserting that the current main ref
+          is at the expected snapshot, a commit may add a new child snapshot and set the ref to the new
+          snapshot id.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CommitTransactionRequest'
+        required: true
+      responses:
+        204:
+          description: Success, no content
+        400:
+          $ref: '#/components/responses/BadRequestErrorResponse'
+        401:
+          $ref: '#/components/responses/UnauthorizedResponse'
+        403:
+          $ref: '#/components/responses/ForbiddenResponse'
+        404:
+          description:
+            Not Found - NoSuchTableException, table to load does not exist
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+              examples:
+                TableToUpdateDoesNotExist:
+                  $ref: '#/components/examples/NoSuchTableError'
+        409:
+          description:
+            Conflict - CommitFailedException, one or more requirements failed. The client may retry.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+        419:
+          $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        500:
+          description:
+            An unknown server-side problem occurred; the commit state is unknown.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+              example: {
+                "error": {
+                  "message": "Internal Server Error",
+                  "type": "CommitStateUnknownException",
+                  "code": 500
+                }
+              }
+        503:
+          $ref: '#/components/responses/ServiceUnavailableResponse'
+        502:
+          description:
+            A gateway or proxy received an invalid response from the upstream server; the commit state is unknown.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+              example: {
+                "error": {
+                  "message": "Invalid response from the upstream server",
+                  "type": "CommitStateUnknownException",
+                  "code": 502
+                }
+              }
+        504:
+          description:
+            A server-side gateway timeout occurred; the commit state is unknown.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+              example: {
+                "error": {
+                  "message": "Gateway timed out during commit",
+                  "type": "CommitStateUnknownException",
+                  "code": 504
+                }
+              }
+        5XX:
+          description:
+            A server-side problem that might not be addressable on the client.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+              example: {
+                "error": {
+                  "message": "Bad Gateway",
+                  "type": "InternalServerError",
+                  "code": 502
+                }
+              }
+
+
 components:
   #######################################################
   # Common Parameter Definitions Used In Several Routes #
@@ -1752,6 +1867,9 @@ components:
         - requirements
         - updates
       properties:
+        identifier:
+          description: Table identifier to update; must be present for CommitTransactionRequest
+          $ref: '#/components/schemas/TableIdentifier'
         requirements:
           type: array
           items:
@@ -1760,6 +1878,17 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/TableUpdate'
+
+    CommitTransactionRequest:
+      type: object
+      required:
+        - table-changes
+      properties:
+        table-changes:
+          type: array
+          items:
+            description: Table commit request; must provide an `identifier`
+            $ref: '#/components/schemas/CommitTableRequest'
 
     CreateTableRequest:
       type: object

@@ -14,8 +14,7 @@
 #  KIND, either express or implied.  See the License for the
 #  specific language governing permissions and limitations
 #  under the License.
-"""Helper methods for working with date/time representations
-"""
+"""Helper methods for working with date/time representations"""
 from __future__ import annotations
 
 import re

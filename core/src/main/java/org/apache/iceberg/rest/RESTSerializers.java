@@ -42,6 +42,8 @@ import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.catalog.TableIdentifierParser;
 import org.apache.iceberg.rest.auth.OAuth2Util;
+import org.apache.iceberg.rest.requests.CommitTransactionRequest;
+import org.apache.iceberg.rest.requests.CommitTransactionRequestParser;
 import org.apache.iceberg.rest.requests.ImmutableReportMetricsRequest;
 import org.apache.iceberg.rest.requests.ReportMetricsRequest;
 import org.apache.iceberg.rest.requests.ReportMetricsRequestParser;
@@ -83,7 +85,10 @@ public class RESTSerializers {
         .addDeserializer(ReportMetricsRequest.class, new ReportMetricsRequestDeserializer<>())
         .addSerializer(ImmutableReportMetricsRequest.class, new ReportMetricsRequestSerializer<>())
         .addDeserializer(
-            ImmutableReportMetricsRequest.class, new ReportMetricsRequestDeserializer<>());
+            ImmutableReportMetricsRequest.class, new ReportMetricsRequestDeserializer<>())
+        .addSerializer(CommitTransactionRequest.class, new CommitTransactionRequestSerializer())
+        .addDeserializer(
+            CommitTransactionRequest.class, new CommitTransactionRequestDeserializer());
     mapper.registerModule(module);
   }
 
@@ -278,6 +283,26 @@ public class RESTSerializers {
     public T deserialize(JsonParser p, DeserializationContext context) throws IOException {
       JsonNode jsonNode = p.getCodec().readTree(p);
       return (T) ReportMetricsRequestParser.fromJson(jsonNode);
+    }
+  }
+
+  public static class CommitTransactionRequestSerializer
+      extends JsonSerializer<CommitTransactionRequest> {
+    @Override
+    public void serialize(
+        CommitTransactionRequest request, JsonGenerator gen, SerializerProvider serializers)
+        throws IOException {
+      CommitTransactionRequestParser.toJson(request, gen);
+    }
+  }
+
+  public static class CommitTransactionRequestDeserializer
+      extends JsonDeserializer<CommitTransactionRequest> {
+    @Override
+    public CommitTransactionRequest deserialize(JsonParser p, DeserializationContext context)
+        throws IOException {
+      JsonNode jsonNode = p.getCodec().readTree(p);
+      return CommitTransactionRequestParser.fromJson(jsonNode);
     }
   }
 }
