@@ -19,6 +19,7 @@
 package org.apache.iceberg.data.orc;
 
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
 import java.io.IOException;
@@ -37,11 +38,9 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.orc.OrcConf;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 public class TestOrcRowIterator {
 
@@ -59,17 +58,14 @@ public class TestOrcRowIterator {
     }
   }
 
-  @Rule public TemporaryFolder temp = new TemporaryFolder();
+  @TempDir public File temp;
 
-  private File testFile;
-
-  @Before
+  @BeforeEach
   public void writeFile() throws IOException {
-    testFile = temp.newFile();
-    Assert.assertTrue("Delete should succeed", testFile.delete());
+    assertThat(temp.delete()).as("Delete should succeed").isTrue();
 
     try (FileAppender<Record> writer =
-        ORC.write(Files.localOutput(testFile))
+        ORC.write(Files.localOutput(temp))
             .createWriterFunc(GenericOrcWriter::buildWriter)
             .schema(DATA_SCHEMA)
             // write in such a way that the file contains 2 stripes each with 4 row groups of 1000
@@ -105,7 +101,7 @@ public class TestOrcRowIterator {
   private void readAndValidate(Expression filter, List<Record> expected) throws IOException {
     List<Record> rows;
     try (CloseableIterable<Record> reader =
-        ORC.read(Files.localInput(testFile))
+        ORC.read(Files.localInput(temp))
             .project(DATA_SCHEMA)
             .filter(filter)
             .createReaderFunc(fileSchema -> GenericOrcReader.buildReader(DATA_SCHEMA, fileSchema))

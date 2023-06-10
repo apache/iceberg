@@ -52,7 +52,7 @@ public class TestGenericData extends DataTest {
   protected void writeAndValidate(Schema schema) throws IOException {
     List<Record> expected = RandomGenericData.generate(schema, 100, 0L);
 
-    File testFile = temp.newFile();
+    File testFile = temp.resolve("junit.txt").toFile();
     Assert.assertTrue("Delete should succeed", testFile.delete());
 
     try (FileAppender<Record> appender =
@@ -101,7 +101,7 @@ public class TestGenericData extends DataTest {
             optional(2, "topbytes", Types.BinaryType.get()));
     org.apache.avro.Schema avroSchema = AvroSchemaUtil.convert(schema.asStruct());
 
-    File testFile = temp.newFile();
+    File testFile = temp.resolve("junit.txt").toFile();
     Assert.assertTrue(testFile.delete());
 
     ParquetWriter<org.apache.avro.generic.GenericRecord> writer =

@@ -379,6 +379,10 @@ project(':iceberg-core') {
 }
 
 project(':iceberg-data') {
+  test {
+    useJUnitPlatform()
+  }
+
   dependencies {
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     api project(':iceberg-api')

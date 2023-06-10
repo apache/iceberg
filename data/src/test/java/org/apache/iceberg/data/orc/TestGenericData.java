@@ -97,7 +97,7 @@ public class TestGenericData extends DataTest {
       record4.setField("tsTzCol", OffsetDateTime.parse("1935-05-16T17:10:34-08:00"));
       record4.setField("tsCol", LocalDateTime.parse("1935-05-01T00:01:00"));
 
-      File testFile = temp.newFile();
+      File testFile = temp.resolve("junit.txt").toFile();
       Assert.assertTrue("Delete should succeed", testFile.delete());
 
       try (FileAppender<Record> writer =
@@ -146,7 +146,7 @@ public class TestGenericData extends DataTest {
 
   @Test
   public void writeAndValidateExternalData() throws IOException {
-    File testFile = temp.newFile();
+    File testFile = temp.resolve("junit.txt").toFile();
     Assert.assertTrue("Delete should succeed", testFile.delete());
 
     Configuration conf = new Configuration();
@@ -186,7 +186,7 @@ public class TestGenericData extends DataTest {
   }
 
   private void writeAndValidateRecords(Schema schema, List<Record> expected) throws IOException {
-    File testFile = temp.newFile();
+    File testFile = temp.resolve("junit.txt").toFile();
     Assert.assertTrue("Delete should succeed", testFile.delete());
 
     try (FileAppender<Record> writer =
