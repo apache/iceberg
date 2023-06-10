@@ -15,8 +15,7 @@
 #  specific language governing permissions and limitations
 #  under the License.
 
-"""Helper methods for working with Python Decimals
-"""
+"""Helper methods for working with Python Decimals"""
 from decimal import Decimal
 from typing import Union
 

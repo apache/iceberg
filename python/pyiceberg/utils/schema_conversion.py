@@ -276,7 +276,7 @@ class AvroSchemaConversion:
         Args:
             record_type: The record type itself
 
-        Returns:
+        Returns: A StructType
         """
         if record_type["type"] != "record":
             raise ValueError(f"Expected record type, got: {record_type}")

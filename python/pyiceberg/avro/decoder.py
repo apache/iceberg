@@ -38,15 +38,11 @@ class BinaryDecoder:
     _input_stream: InputStream
 
     def __init__(self, input_stream: InputStream) -> None:
-        """
-        Reader is a Python object on which we can call read, seek, and tell.
-        """
+        """Reader is a Python object on which we can call read, seek, and tell."""
         self._input_stream = input_stream
 
     def read(self, n: int) -> bytes:
-        """
-        Read n bytes.
-        """
+        """Read n bytes."""
         if n < 0:
             raise ValueError(f"Requested {n} bytes to read, expected positive integer.")
         data: List[bytes] = []
@@ -122,9 +118,7 @@ class BinaryDecoder:
         return unscaled_to_decimal(unscaled_datum, scale)
 
     def read_bytes(self) -> bytes:
-        """
-        Bytes are encoded as a long followed by that many bytes of data.
-        """
+        """Bytes are encoded as a long followed by that many bytes of data."""
         num_bytes = self.read_int()
         return self.read(num_bytes) if num_bytes > 0 else b""
 
