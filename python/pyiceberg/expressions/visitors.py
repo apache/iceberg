@@ -1097,7 +1097,6 @@ class _InclusiveMetricsEvaluator(BoundBooleanExpressionVisitor[bool]):
 
     def eval(self, file: DataFile) -> bool:
         """Test whether the file may contain records that match the expression."""
-
         if file.record_count == 0:
             return ROWS_CANNOT_MATCH
 

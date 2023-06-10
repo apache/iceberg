@@ -234,7 +234,6 @@ class Schema(IcebergBaseModel):
         Returns:
             Accessor: An accessor for the given field ID
         """
-
         if field_id not in self._lazy_id_to_accessor:
             raise ValueError(f"Could not find accessor for field with id: {field_id}")
 
@@ -253,7 +252,6 @@ class Schema(IcebergBaseModel):
         Raises:
             ValueError: If a column is selected that doesn't exist
         """
-
         try:
             if case_sensitive:
                 ids = {self._name_to_id[name] for name in names}
@@ -746,7 +744,6 @@ def _(obj: StructType, visitor: SchemaVisitor[T]) -> T:
 @visit.register(ListType)
 def _(obj: ListType, visitor: SchemaVisitor[T]) -> T:
     """Visit a ListType with a concrete SchemaVisitor"""
-
     visitor.before_list_element(obj.element_field)
     result = visit(obj.element_type, visitor)
     visitor.after_list_element(obj.element_field)

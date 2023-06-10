@@ -485,7 +485,6 @@ class HiveCatalog(Catalog):
             NoSuchNamespaceError: If a namespace with the given name does not exist
             ValueError: If removals and updates have overlapping keys.
         """
-
         self._check_for_overlap(updates=updates, removals=removals)
         database_name = self.identifier_to_database(namespace, NoSuchNamespaceError)
         with self._client as open_client:
