@@ -37,7 +37,7 @@ RUN mkdir -p ${HADOOP_HOME} && mkdir -p ${SPARK_HOME} && mkdir -p /home/iceberg/
 WORKDIR ${SPARK_HOME}
 
 ENV SPARK_VERSION=3.3.2
-ENV ICEBERG_VERSION=1.2.1
+ENV ICEBERG_VERSION=1.3.0
 ENV AWS_SDK_VERSION=2.20.18
 
 RUN curl -s https://dlcdn.apache.org/spark/spark-${SPARK_VERSION}/spark-${SPARK_VERSION}-bin-hadoop3.tgz -o spark-${SPARK_VERSION}-bin-hadoop3.tgz \

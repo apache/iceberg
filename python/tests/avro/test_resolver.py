@@ -24,6 +24,7 @@ from pydantic import Field
 from pyiceberg.avro.file import AvroFile
 from pyiceberg.avro.reader import (
     DecimalReader,
+    DefaultReader,
     DoubleReader,
     FloatReader,
     IntegerReader,
@@ -280,3 +281,23 @@ def test_column_assignment() -> None:
             records = list(reader)
 
     assert repr(records) == "[Ints[c=3, d=None]]"
+
+
+def test_resolver_initial_value() -> None:
+    write_schema = Schema(
+        NestedField(1, "name", StringType()),
+        schema_id=1,
+    )
+    read_schema = Schema(
+        NestedField(2, "something", StringType(), required=False, initial_default="vo"),
+        schema_id=2,
+    )
+
+    assert resolve(write_schema, read_schema) == StructReader(
+        (
+            (None, StringReader()),  # The one we skip
+            (0, DefaultReader("vo")),
+        ),
+        Record,
+        read_schema.as_struct(),
+    )

@@ -33,7 +33,7 @@ logger = logging.getLogger(__name__)
 
 
 def merge_config(lhs: RecursiveDict, rhs: RecursiveDict) -> RecursiveDict:
-    """merges right-hand side into the left-hand side"""
+    """Merges right-hand side into the left-hand side"""
     new_config = lhs.copy()
     for rhs_key, rhs_value in rhs.items():
         if rhs_key in new_config:

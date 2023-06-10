@@ -142,7 +142,7 @@ class ConsoleOutput(Output):
             manifest_list = snapshot.manifests(io)
             for manifest in manifest_list:
                 manifest_tree = list_tree.add(f"Manifest: {manifest.manifest_path}")
-                for manifest_entry in manifest.fetch_manifest_entry(io):
+                for manifest_entry in manifest.fetch_manifest_entry(io, discard_deleted=False):
                     manifest_tree.add(f"Datafile: {manifest_entry.data_file.file_path}")
         Console().print(snapshot_tree)
 

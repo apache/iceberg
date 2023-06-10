@@ -15,13 +15,12 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=W0621
-"""
-Avro reader for reading Avro files
-"""
+"""Avro reader for reading Avro files"""
 from __future__ import annotations
 
 import json
 from dataclasses import dataclass
+from enum import Enum
 from types import TracebackType
 from typing import (
     Callable,
@@ -121,6 +120,7 @@ class AvroFile(Generic[D]):
     input_file: InputFile
     read_schema: Optional[Schema]
     read_types: Dict[int, Callable[..., StructProtocol]]
+    read_enums: Dict[int, Callable[..., Enum]]
     input_stream: InputStream
     header: AvroFileHeader
     schema: Schema
@@ -134,10 +134,12 @@ class AvroFile(Generic[D]):
         input_file: InputFile,
         read_schema: Optional[Schema] = None,
         read_types: Dict[int, Callable[..., StructProtocol]] = EMPTY_DICT,
+        read_enums: Dict[int, Callable[..., Enum]] = EMPTY_DICT,
     ) -> None:
         self.input_file = input_file
         self.read_schema = read_schema
         self.read_types = read_types
+        self.read_enums = read_enums
 
     def __enter__(self) -> AvroFile[D]:
         """
@@ -154,7 +156,7 @@ class AvroFile(Generic[D]):
         if not self.read_schema:
             self.read_schema = self.schema
 
-        self.reader = resolve(self.schema, self.read_schema, self.read_types)
+        self.reader = resolve(self.schema, self.read_schema, self.read_types, self.read_enums)
 
         return self
 

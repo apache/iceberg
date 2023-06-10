@@ -219,6 +219,7 @@ class NestedField(IcebergType):
     field_type: IcebergType = Field(alias="type")
     required: bool = Field(default=True)
     doc: Optional[str] = Field(default=None, repr=False)
+    initial_default: Any = Field(alias="initial-default", repr=False)
 
     def __init__(
         self,
@@ -227,6 +228,7 @@ class NestedField(IcebergType):
         field_type: Optional[IcebergType] = None,
         required: bool = True,
         doc: Optional[str] = None,
+        initial_default: Optional[Any] = None,
         **data: Any,
     ):
         # We need an init when we want to use positional arguments, but
@@ -236,6 +238,7 @@ class NestedField(IcebergType):
         data["field_type"] = data["type"] if "type" in data else field_type
         data["required"] = required
         data["doc"] = doc
+        data["initial_default"] = initial_default
         super().__init__(**data)
 
     def __str__(self) -> str:

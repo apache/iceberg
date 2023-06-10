@@ -494,16 +494,20 @@ class _ExpressionEvaluator(BoundBooleanExpressionVisitor[bool]):
         return term.eval(self.struct) != literal.value
 
     def visit_greater_than_or_equal(self, term: BoundTerm[L], literal: Literal[L]) -> bool:
-        return term.eval(self.struct) >= literal.value
+        value = term.eval(self.struct)
+        return value is not None and value >= literal.value
 
     def visit_greater_than(self, term: BoundTerm[L], literal: Literal[L]) -> bool:
-        return term.eval(self.struct) > literal.value
+        value = term.eval(self.struct)
+        return value is not None and value > literal.value
 
     def visit_less_than(self, term: BoundTerm[L], literal: Literal[L]) -> bool:
-        return term.eval(self.struct) < literal.value
+        value = term.eval(self.struct)
+        return value is not None and value < literal.value
 
     def visit_less_than_or_equal(self, term: BoundTerm[L], literal: Literal[L]) -> bool:
-        return term.eval(self.struct) <= literal.value
+        value = term.eval(self.struct)
+        return value is not None and value <= literal.value
 
     def visit_starts_with(self, term: BoundTerm[L], literal: Literal[L]) -> bool:
         eval_res = term.eval(self.struct)
@@ -1093,7 +1097,6 @@ class _InclusiveMetricsEvaluator(BoundBooleanExpressionVisitor[bool]):
 
     def eval(self, file: DataFile) -> bool:
         """Test whether the file may contain records that match the expression."""
-
         if file.record_count == 0:
             return ROWS_CANNOT_MATCH
 

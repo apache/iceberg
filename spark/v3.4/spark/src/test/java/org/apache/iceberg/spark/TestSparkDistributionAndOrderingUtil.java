@@ -1805,23 +1805,32 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
   // -------------------------------------------------------------------------
   // delete mode is NOT SET -> CLUSTER BY _spec_id, _partition, _file +
   //                           LOCALLY ORDERED BY _spec_id, _partition, _file, _pos
+  // delete mode is NOT SET (fanout) -> CLUSTER BY _spec_id, _partition, _file + empty ordering
   // delete mode is NONE -> unspecified distribution +
   //                        LOCALLY ORDERED BY _spec_id, _partition, _file, _pos
+  // delete mode is NOT SET (fanout) -> CLUSTER BY _spec_id, _partition, _file + empty ordering
   // delete mode is HASH -> CLUSTER BY _spec_id, _partition, _file  +
   //                        LOCALLY ORDERED BY _spec_id, _partition, _file, _pos
+  // delete mode is HASH (fanout) -> CLUSTER BY _spec_id, _partition, _file + empty ordering
   // delete mode is RANGE -> RANGE DISTRIBUTE BY _spec_id, _partition, _file +
   //                         LOCALLY ORDERED BY _spec_id, _partition, _file, _pos
+  // delete mode is RANGE (fanout) -> RANGE DISTRIBUTE BY _spec_id, _partition, _file +
+  //                                  empty ordering
   //
   // PARTITIONED BY date, days(ts) (ORDERED & UNORDERED)
   // -------------------------------------------------------------------------
   // delete mode is NOT SET -> CLUSTER BY _spec_id, _partition +
   //                           LOCALLY ORDERED BY _spec_id, _partition, _file, _pos
+  // delete mode is NOT SET (fanout) -> CLUSTER BY _spec_id, _partition + empty ordering
   // delete mode is NONE -> unspecified distribution +
   //                        LOCALLY ORDERED BY _spec_id, _partition, _file, _pos
+  // delete mode is NONE (fanout) -> unspecified distribution + empty ordering
   // delete mode is HASH -> CLUSTER BY _spec_id, _partition +
   //                        LOCALLY ORDERED BY _spec_id, _partition, _file, _pos
+  // delete mode is HASH (fanout) -> CLUSTER BY _spec_id, _partition + empty ordering
   // delete mode is RANGE -> RANGE DISTRIBUTE BY _spec_id, _partition +
   //                         LOCALLY ORDERED BY _spec_id, _partition, _file, _pos
+  // delete mode is RANGE (fanout) -> RANGE DISTRIBUTE BY _spec_id, _partition + empty ordering
 
   @Test
   public void testDefaultPositionDeltaDeleteUnpartitionedTable() {
@@ -1834,6 +1843,11 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
         DELETE,
         SPEC_ID_PARTITION_FILE_CLUSTERED_DISTRIBUTION,
         SPEC_ID_PARTITION_FILE_POSITION_ORDERING);
+
+    enableFanoutWriters(table);
+
+    checkPositionDeltaDistributionAndOrdering(
+        table, DELETE, SPEC_ID_PARTITION_FILE_CLUSTERED_DISTRIBUTION, EMPTY_ORDERING);
   }
 
   @Test
@@ -1846,6 +1860,11 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
 
     checkPositionDeltaDistributionAndOrdering(
         table, DELETE, UNSPECIFIED_DISTRIBUTION, SPEC_ID_PARTITION_FILE_POSITION_ORDERING);
+
+    enableFanoutWriters(table);
+
+    checkPositionDeltaDistributionAndOrdering(
+        table, DELETE, UNSPECIFIED_DISTRIBUTION, EMPTY_ORDERING);
   }
 
   @Test
@@ -1861,6 +1880,11 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
         DELETE,
         SPEC_ID_PARTITION_FILE_CLUSTERED_DISTRIBUTION,
         SPEC_ID_PARTITION_FILE_POSITION_ORDERING);
+
+    enableFanoutWriters(table);
+
+    checkPositionDeltaDistributionAndOrdering(
+        table, DELETE, SPEC_ID_PARTITION_FILE_CLUSTERED_DISTRIBUTION, EMPTY_ORDERING);
   }
 
   @Test
@@ -1875,6 +1899,10 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
 
     checkPositionDeltaDistributionAndOrdering(
         table, DELETE, expectedDistribution, SPEC_ID_PARTITION_FILE_POSITION_ORDERING);
+
+    enableFanoutWriters(table);
+
+    checkPositionDeltaDistributionAndOrdering(table, DELETE, expectedDistribution, EMPTY_ORDERING);
   }
 
   @Test
@@ -1892,6 +1920,11 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
         DELETE,
         SPEC_ID_PARTITION_CLUSTERED_DISTRIBUTION,
         SPEC_ID_PARTITION_FILE_POSITION_ORDERING);
+
+    enableFanoutWriters(table);
+
+    checkPositionDeltaDistributionAndOrdering(
+        table, DELETE, SPEC_ID_PARTITION_CLUSTERED_DISTRIBUTION, EMPTY_ORDERING);
   }
 
   @Test
@@ -1908,6 +1941,11 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
 
     checkPositionDeltaDistributionAndOrdering(
         table, DELETE, UNSPECIFIED_DISTRIBUTION, SPEC_ID_PARTITION_FILE_POSITION_ORDERING);
+
+    enableFanoutWriters(table);
+
+    checkPositionDeltaDistributionAndOrdering(
+        table, DELETE, UNSPECIFIED_DISTRIBUTION, EMPTY_ORDERING);
   }
 
   @Test
@@ -1927,6 +1965,11 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
         DELETE,
         SPEC_ID_PARTITION_CLUSTERED_DISTRIBUTION,
         SPEC_ID_PARTITION_FILE_POSITION_ORDERING);
+
+    enableFanoutWriters(table);
+
+    checkPositionDeltaDistributionAndOrdering(
+        table, DELETE, SPEC_ID_PARTITION_CLUSTERED_DISTRIBUTION, EMPTY_ORDERING);
   }
 
   @Test
@@ -1945,22 +1988,34 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
 
     checkPositionDeltaDistributionAndOrdering(
         table, DELETE, expectedDistribution, SPEC_ID_PARTITION_FILE_POSITION_ORDERING);
+
+    enableFanoutWriters(table);
+
+    checkPositionDeltaDistributionAndOrdering(table, DELETE, expectedDistribution, EMPTY_ORDERING);
   }
 
   // ===================================================================================
   // Distribution and ordering for merge-on-read UPDATE operations with position deletes
   // ===================================================================================
   //
+  // IMPORTANT: updates are represented as delete and insert
+  // IMPORTANT: metadata columns like _spec_id and _partition are NULL for new insert rows
+  //
   // UNPARTITIONED UNORDERED
   // -------------------------------------------------------------------------
   // update mode is NOT SET -> CLUSTER BY _spec_id, _partition, _file +
   //                           LOCALLY ORDERED BY _spec_id, _partition, _file, _pos
+  // update mode is NOT SET (fanout) -> CLUSTER BY _spec_id, _partition, _file + empty ordering
   // update mode is NONE -> unspecified distribution +
   //                        LOCALLY ORDERED BY _spec_id, _partition, _file, _pos
+  // update mode is NONE (fanout) -> unspecified distribution + empty ordering
   // update mode is HASH -> CLUSTER BY _spec_id, _partition, _file +
   //                        LOCALLY ORDERED BY _spec_id, _partition, _file, _pos
+  // update mode is HASH (fanout) -> CLUSTER BY _spec_id, _partition, _file + empty ordering
   // update mode is RANGE -> RANGE DISTRIBUTE BY _spec_id, _partition, _file +
   //                         LOCALLY ORDERED BY _spec_id, _partition, _file, _pos
+  // update mode is RANGE (fanout) -> RANGE DISTRIBUTE BY _spec_id, _partition, _file + empty
+  // ordering
   //
   // UNPARTITIONED ORDERED BY id, data
   // -------------------------------------------------------------------------
@@ -1977,12 +2032,19 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
   // -------------------------------------------------------------------------
   // update mode is NOT SET -> CLUSTER BY _spec_id, _partition, date, days(ts) +
   //                           LOCALLY ORDERED BY _spec_id, _partition, _file, _pos, date, days(ts)
+  // update mode is NOT SET (fanout) -> CLUSTER BY _spec_id, _partition, date, days(ts) +
+  //                                    empty ordering
   // update mode is NONE -> unspecified distribution +
   //                        LOCALLY ORDERED BY _spec_id, _partition, _file, _pos, date, days(ts)
+  // update mode is NONE (fanout) -> unspecified distribution + empty ordering
   // update mode is HASH -> CLUSTER BY _spec_id, _partition, date, days(ts) +
   //                        LOCALLY ORDERED BY _spec_id, _partition, _file, _pos, date, days(ts)
+  // update mode is HASH (fanout) -> CLUSTER BY _spec_id, _partition, date, days(ts) +
+  //                                 empty ordering
   // update mode is RANGE -> RANGE DISTRIBUTE BY _spec_id, _partition, date, days(ts) +
   //                         LOCALLY ORDERED BY _spec_id, _partition, _file, _pos, date, days(ts)
+  // update mode is RANGE (fanout) -> RANGE DISTRIBUTE BY _spec_id, _partition, date, days(ts) +
+  //                                  empty ordering
   //
   // PARTITIONED BY date ORDERED BY id
   // -------------------------------------------------------------------------
@@ -2006,6 +2068,11 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
         UPDATE,
         SPEC_ID_PARTITION_FILE_CLUSTERED_DISTRIBUTION,
         SPEC_ID_PARTITION_FILE_POSITION_ORDERING);
+
+    enableFanoutWriters(table);
+
+    checkPositionDeltaDistributionAndOrdering(
+        table, UPDATE, SPEC_ID_PARTITION_FILE_CLUSTERED_DISTRIBUTION, EMPTY_ORDERING);
   }
 
   @Test
@@ -2018,6 +2085,11 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
 
     checkPositionDeltaDistributionAndOrdering(
         table, UPDATE, UNSPECIFIED_DISTRIBUTION, SPEC_ID_PARTITION_FILE_POSITION_ORDERING);
+
+    enableFanoutWriters(table);
+
+    checkPositionDeltaDistributionAndOrdering(
+        table, UPDATE, UNSPECIFIED_DISTRIBUTION, EMPTY_ORDERING);
   }
 
   @Test
@@ -2033,6 +2105,11 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
         UPDATE,
         SPEC_ID_PARTITION_FILE_CLUSTERED_DISTRIBUTION,
         SPEC_ID_PARTITION_FILE_POSITION_ORDERING);
+
+    enableFanoutWriters(table);
+
+    checkPositionDeltaDistributionAndOrdering(
+        table, UPDATE, SPEC_ID_PARTITION_FILE_CLUSTERED_DISTRIBUTION, EMPTY_ORDERING);
   }
 
   @Test
@@ -2047,6 +2124,10 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
 
     checkPositionDeltaDistributionAndOrdering(
         table, UPDATE, expectedDistribution, SPEC_ID_PARTITION_FILE_POSITION_ORDERING);
+
+    table.updateProperties().set(SPARK_WRITE_PARTITIONED_FANOUT_ENABLED, "true").commit();
+
+    checkPositionDeltaDistributionAndOrdering(table, UPDATE, expectedDistribution, EMPTY_ORDERING);
   }
 
   @Test
@@ -2207,6 +2288,10 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
 
     checkPositionDeltaDistributionAndOrdering(
         table, UPDATE, expectedDistribution, expectedOrdering);
+
+    enableFanoutWriters(table);
+
+    checkPositionDeltaDistributionAndOrdering(table, UPDATE, expectedDistribution, EMPTY_ORDERING);
   }
 
   @Test
@@ -2237,6 +2322,11 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
 
     checkPositionDeltaDistributionAndOrdering(
         table, UPDATE, UNSPECIFIED_DISTRIBUTION, expectedOrdering);
+
+    enableFanoutWriters(table);
+
+    checkPositionDeltaDistributionAndOrdering(
+        table, UPDATE, UNSPECIFIED_DISTRIBUTION, EMPTY_ORDERING);
   }
 
   @Test
@@ -2276,6 +2366,10 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
 
     checkPositionDeltaDistributionAndOrdering(
         table, UPDATE, expectedDistribution, expectedOrdering);
+
+    enableFanoutWriters(table);
+
+    checkPositionDeltaDistributionAndOrdering(table, UPDATE, expectedDistribution, EMPTY_ORDERING);
   }
 
   @Test
@@ -2317,6 +2411,10 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
 
     checkPositionDeltaDistributionAndOrdering(
         table, UPDATE, expectedDistribution, expectedOrdering);
+
+    enableFanoutWriters(table);
+
+    checkPositionDeltaDistributionAndOrdering(table, UPDATE, expectedDistribution, EMPTY_ORDERING);
   }
 
   @Test
@@ -2490,12 +2588,18 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
   // -------------------------------------------------------------------------
   // merge mode is NOT SET -> CLUSTER BY _spec_id, _partition, _file +
   //                          LOCALLY ORDER BY _spec_id, _partition, _file, _pos
+  // merge mode is NOT SET (fanout) -> CLUSTER BY _spec_id, _partition, _file + empty ordering
   // merge mode is NONE -> unspecified distribution +
   //                       LOCALLY ORDER BY _spec_id, _partition, _file, _pos
+  // merge mode is NONE (fanout) -> unspecified distribution + empty ordering
   // merge mode is HASH -> CLUSTER BY _spec_id, _partition, _file +
   //                       LOCALLY ORDER BY _spec_id, _partition, _file, _pos
+  // merge mode is HASH (fanout) -> CLUSTER BY _spec_id, _partition, _file +
+  //                                empty ordering
   // merge mode is RANGE -> RANGE DISTRIBUTE BY _spec_id, _partition, _file +
   //                        LOCALLY ORDER BY _spec_id, _partition, _file, _pos
+  // merge mode is RANGE (fanout) -> RANGE DISTRIBUTE BY _spec_id, _partition, _file +
+  //                                 empty ordering
   //
   // UNPARTITIONED ORDERED BY id, data
   // -------------------------------------------------------------------------
@@ -2512,12 +2616,19 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
   // -------------------------------------------------------------------------
   // merge mode is NOT SET -> CLUSTER BY _spec_id, _partition, date, days(ts) +
   //                          LOCALLY ORDER BY _spec_id, _partition, _file, _pos, date, days(ts)
+  // merge mode is NOT SET (fanout) -> CLUSTER BY _spec_id, _partition, date, days(ts) +
+  //                                   empty ordering
   // merge mode is NONE -> unspecified distribution +
   //                       LOCALLY ORDERED BY _spec_id, _partition, _file, _pos, date, days(ts)
+  // merge mode is NONE (fanout) -> unspecified distribution + empty ordering
   // merge mode is HASH -> CLUSTER BY _spec_id, _partition, date, days(ts) +
   //                       LOCALLY ORDER BY _spec_id, _partition, _file, _pos, date, days(ts)
+  // merge mode is HASH (fanout) -> CLUSTER BY _spec_id, _partition, date, days(ts) +
+  //                                empty ordering
   // merge mode is RANGE -> RANGE DISTRIBUTE BY _spec_id, _partition, date, days(ts) +
   //                        LOCALLY ORDER BY _spec_id, _partition, _file, _pos, date, days(ts)
+  // merge mode is RANGE (fanout) -> RANGE DISTRIBUTE BY _spec_id, _partition, date, days(ts) +
+  //                                 empty ordering
   //
   // PARTITIONED BY date ORDERED BY id
   // -------------------------------------------------------------------------
@@ -2546,6 +2657,10 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
 
     checkPositionDeltaDistributionAndOrdering(
         table, MERGE, expectedDistribution, SPEC_ID_PARTITION_FILE_POSITION_ORDERING);
+
+    enableFanoutWriters(table);
+
+    checkPositionDeltaDistributionAndOrdering(table, MERGE, expectedDistribution, EMPTY_ORDERING);
   }
 
   @Test
@@ -2558,6 +2673,11 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
 
     checkPositionDeltaDistributionAndOrdering(
         table, MERGE, UNSPECIFIED_DISTRIBUTION, SPEC_ID_PARTITION_FILE_POSITION_ORDERING);
+
+    enableFanoutWriters(table);
+
+    checkPositionDeltaDistributionAndOrdering(
+        table, MERGE, UNSPECIFIED_DISTRIBUTION, EMPTY_ORDERING);
   }
 
   @Test
@@ -2578,6 +2698,10 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
 
     checkPositionDeltaDistributionAndOrdering(
         table, MERGE, expectedDistribution, SPEC_ID_PARTITION_FILE_POSITION_ORDERING);
+
+    enableFanoutWriters(table);
+
+    checkPositionDeltaDistributionAndOrdering(table, MERGE, expectedDistribution, EMPTY_ORDERING);
   }
 
   @Test
@@ -2601,6 +2725,10 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
 
     checkPositionDeltaDistributionAndOrdering(
         table, MERGE, expectedDistribution, SPEC_ID_PARTITION_FILE_POSITION_ORDERING);
+
+    enableFanoutWriters(table);
+
+    checkPositionDeltaDistributionAndOrdering(table, MERGE, expectedDistribution, EMPTY_ORDERING);
   }
 
   @Test
@@ -2773,6 +2901,10 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
         };
 
     checkPositionDeltaDistributionAndOrdering(table, MERGE, expectedDistribution, expectedOrdering);
+
+    enableFanoutWriters(table);
+
+    checkPositionDeltaDistributionAndOrdering(table, MERGE, expectedDistribution, EMPTY_ORDERING);
   }
 
   @Test
@@ -2803,6 +2935,11 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
 
     checkPositionDeltaDistributionAndOrdering(
         table, MERGE, UNSPECIFIED_DISTRIBUTION, expectedOrdering);
+
+    enableFanoutWriters(table);
+
+    checkPositionDeltaDistributionAndOrdering(
+        table, MERGE, UNSPECIFIED_DISTRIBUTION, EMPTY_ORDERING);
   }
 
   @Test
@@ -2841,6 +2978,10 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
         };
 
     checkPositionDeltaDistributionAndOrdering(table, MERGE, expectedDistribution, expectedOrdering);
+
+    enableFanoutWriters(table);
+
+    checkPositionDeltaDistributionAndOrdering(table, MERGE, expectedDistribution, EMPTY_ORDERING);
   }
 
   @Test
@@ -2881,6 +3022,10 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
         };
 
     checkPositionDeltaDistributionAndOrdering(table, MERGE, expectedDistribution, expectedOrdering);
+
+    enableFanoutWriters(table);
+
+    checkPositionDeltaDistributionAndOrdering(table, MERGE, expectedDistribution, EMPTY_ORDERING);
   }
 
   @Test
@@ -3080,5 +3225,9 @@ public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatal
 
     SortOrder[] ordering = requirements.ordering();
     Assert.assertArrayEquals("Ordering must match", expectedOrdering, ordering);
+  }
+
+  private void enableFanoutWriters(Table table) {
+    table.updateProperties().set(SPARK_WRITE_PARTITIONED_FANOUT_ENABLED, "true").commit();
   }
 }

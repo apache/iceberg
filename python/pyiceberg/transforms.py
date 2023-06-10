@@ -555,7 +555,7 @@ class IdentityTransform(Transform[S, S]):
         return True
 
     def satisfies_order_of(self, other: Transform[S, T]) -> bool:
-        """ordering by value is the same as long as the other preserves order"""
+        """Ordering by value is the same as long as the other preserves order"""
         return other.preserves_order
 
     def to_human_string(self, source_type: IcebergType, value: Optional[S]) -> str:

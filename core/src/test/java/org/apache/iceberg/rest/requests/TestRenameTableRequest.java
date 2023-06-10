@@ -19,11 +19,11 @@
 package org.apache.iceberg.rest.requests;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.catalog.TableIdentifierParser;
 import org.apache.iceberg.rest.RequestResponseTestBase;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -52,69 +52,56 @@ public class TestRenameTableRequest extends RequestResponseTestBase<RenameTableR
     String jsonSourceNullName =
         "{\"source\":{\"namespace\":[\"accounting\",\"tax\"],\"name\":null},"
             + "\"destination\":{\"namespace\":[\"accounting\",\"tax\"],\"name\":\"paid_2022\"}}";
-    AssertHelpers.assertThrows(
-        "A JSON request with an invalid source table identifier, with null for the name, should fail to deserialize",
-        JsonProcessingException.class,
-        "Cannot parse to a string value: name: null",
-        () -> deserialize(jsonSourceNullName));
+    Assertions.assertThatThrownBy(() -> deserialize(jsonSourceNullName))
+        .isInstanceOf(JsonProcessingException.class)
+        .hasMessageStartingWith("Cannot parse to a string value: name: null");
 
     String jsonDestinationNullName =
         "{\"source\":{\"namespace\":[\"accounting\",\"tax\"],\"name\":\"paid\"},"
             + "\"destination\":{\"namespace\":[\"accounting\",\"tax\"],\"name\":null}}";
-    AssertHelpers.assertThrows(
-        "A JSON request with an invalid destination table, with null for the name, should fail to deserialize",
-        JsonProcessingException.class,
-        "Cannot parse to a string value: name: null",
-        () -> deserialize(jsonDestinationNullName));
+    Assertions.assertThatThrownBy(() -> deserialize(jsonDestinationNullName))
+        .isInstanceOf(JsonProcessingException.class)
+        .hasMessageStartingWith("Cannot parse to a string value: name: null");
 
     String jsonSourceMissingName =
         "{\"source\":{\"namespace\":[\"accounting\",\"tax\"]},"
             + "\"destination\":{\"name\":\"paid_2022\"}}";
-    AssertHelpers.assertThrows(
-        "A JSON request with an invalid source table identifier, with no name, should fail to deserialize",
-        JsonProcessingException.class,
-        "Cannot parse missing string: name",
-        () -> deserialize(jsonSourceMissingName));
+    Assertions.assertThatThrownBy(() -> deserialize(jsonSourceMissingName))
+        .isInstanceOf(JsonProcessingException.class)
+        .hasMessageStartingWith("Cannot parse missing string: name");
 
     String jsonDestinationMissingName =
         "{\"source\":{\"namespace\":[\"accounting\",\"tax\"],\"name\":\"paid\"},"
             + "\"destination\":{\"namespace\":[\"accounting\",\"tax\"]}}";
-    AssertHelpers.assertThrows(
-        "A JSON request with an invalid destination table identifier, with no name, should fail to deserialize",
-        JsonProcessingException.class,
-        "Cannot parse missing string: name",
-        () -> deserialize(jsonDestinationMissingName));
+    Assertions.assertThatThrownBy(() -> deserialize(jsonDestinationMissingName))
+        .isInstanceOf(JsonProcessingException.class)
+        .hasMessageStartingWith("Cannot parse missing string: name");
 
     String emptyJson = "{}";
-    AssertHelpers.assertThrows(
-        "An empty JSON object should not parse into a valid RenameTableRequest instance",
-        IllegalArgumentException.class,
-        "Invalid source table: null",
-        () -> deserialize(emptyJson));
+    Assertions.assertThatThrownBy(() -> deserialize(emptyJson))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid source table: null");
 
-    AssertHelpers.assertThrows(
-        "An empty JSON request should fail to deserialize",
-        IllegalArgumentException.class,
-        () -> deserialize(null));
+    Assertions.assertThatThrownBy(() -> deserialize(null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("argument \"content\" is null");
   }
 
   @Test
   public void testBuilderDoesNotBuildInvalidRequests() {
-    AssertHelpers.assertThrows(
-        "The builder should not allow using null for the source table",
-        NullPointerException.class,
-        "Invalid source table identifier: null",
-        () ->
-            RenameTableRequest.builder()
-                .withSource(null)
-                .withDestination(TAX_PAID_RENAMED)
-                .build());
+    Assertions.assertThatThrownBy(
+            () ->
+                RenameTableRequest.builder()
+                    .withSource(null)
+                    .withDestination(TAX_PAID_RENAMED)
+                    .build())
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("Invalid source table identifier: null");
 
-    AssertHelpers.assertThrows(
-        "The builder should not allow using null for the destination table",
-        NullPointerException.class,
-        "Invalid destination table identifier: null",
-        () -> RenameTableRequest.builder().withSource(TAX_PAID).withDestination(null).build());
+    Assertions.assertThatThrownBy(
+            () -> RenameTableRequest.builder().withSource(TAX_PAID).withDestination(null).build())
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("Invalid destination table identifier: null");
   }
 
   @Override

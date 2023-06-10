@@ -38,15 +38,11 @@ class BinaryDecoder:
     _input_stream: InputStream
 
     def __init__(self, input_stream: InputStream) -> None:
-        """
-        reader is a Python object on which we can call read, seek, and tell.
-        """
+        """Reader is a Python object on which we can call read, seek, and tell."""
         self._input_stream = input_stream
 
     def read(self, n: int) -> bytes:
-        """
-        Read n bytes.
-        """
+        """Read n bytes."""
         if n < 0:
             raise ValueError(f"Requested {n} bytes to read, expected positive integer.")
         data: List[bytes] = []
@@ -71,7 +67,7 @@ class BinaryDecoder:
 
     def read_boolean(self) -> bool:
         """
-        a boolean is written as a single byte
+        A boolean is written as a single byte
         whose value is either 0 (false) or 1 (true).
         """
         return ord(self.read(1)) == 1
@@ -122,9 +118,7 @@ class BinaryDecoder:
         return unscaled_to_decimal(unscaled_datum, scale)
 
     def read_bytes(self) -> bytes:
-        """
-        Bytes are encoded as a long followed by that many bytes of data.
-        """
+        """Bytes are encoded as a long followed by that many bytes of data."""
         num_bytes = self.read_int()
         return self.read(num_bytes) if num_bytes > 0 else b""
 
@@ -141,7 +135,7 @@ class BinaryDecoder:
 
     def read_time_millis(self) -> time:
         """
-        int is decoded as python time object which represents
+        Int is decoded as python time object which represents
         the number of milliseconds after midnight, 00:00:00.000.
         """
         millis = self.read_int()
@@ -149,21 +143,21 @@ class BinaryDecoder:
 
     def read_time_micros(self) -> time:
         """
-        long is decoded as python time object which represents
+        Long is decoded as python time object which represents
         the number of microseconds after midnight, 00:00:00.000000.
         """
         return micros_to_time(self.read_int())
 
     def read_timestamp_micros(self) -> datetime:
         """
-        long is decoded as python datetime object which represents
+        Long is decoded as python datetime object which represents
         the number of microseconds from the unix epoch, 1 January 1970.
         """
         return micros_to_timestamp(self.read_int())
 
     def read_timestamptz_micros(self) -> datetime:
         """
-        long is decoded as python datetime object which represents
+        Long is decoded as python datetime object which represents
         the number of microseconds from the unix epoch, 1 January 1970.
 
         Adjusted to UTC
