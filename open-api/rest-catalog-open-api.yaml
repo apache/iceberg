@@ -594,7 +594,7 @@ paths:
               $ref: '#/components/schemas/CommitTableRequest'
       responses:
         200:
-          $ref: '#/components/responses/CommitTableResponse'
+          $ref: '#/components/responses/LoadTableResponse'
         400:
           $ref: '#/components/responses/BadRequestErrorResponse'
         401:
@@ -2288,18 +2288,6 @@ components:
             Server's do not need to implement this.
           nullable: true
 
-    CommitTableResponse:
-      type: object
-      required:
-        - metadata-location
-        - metadata
-      properties:
-        metadata-location:
-          type: string
-        metadata:
-          $ref: '#/components/schemas/TableMetadata'
-
-
   #############################
   # Reusable Response Objects #
   #############################
@@ -2523,15 +2511,6 @@ components:
           schema:
             $ref: '#/components/schemas/LoadTableResult'
 
-    CommitTableResponse:
-      description:
-        Response used when a table is successfully updated.
-
-        The table metadata JSON is returned in the metadata field. The corresponding file location of table metadata must be returned in the metadata-location field. Clients can check whether metadata has changed by comparing metadata locations.
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/CommitTableResponse'
 
   #######################################
   # Common examples of different values #

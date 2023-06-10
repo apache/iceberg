@@ -748,8 +748,16 @@ class LoadTableResult(BaseModel):
 
 
 class CommitTableRequest(BaseModel):
+    identifier: Optional[TableIdentifier] = Field(
+        None,
+        description='Table identifier to update; must be present for CommitTransactionRequest',
+    )
     requirements: List[TableRequirement]
     updates: List[TableUpdate]
+
+
+class CommitTransactionRequest(BaseModel):
+    table_changes: List[CommitTableRequest] = Field(..., alias='table-changes')
 
 
 class CreateTableRequest(BaseModel):
@@ -775,11 +783,6 @@ class ScanReport(BaseModel):
     projected_field_names: List[str] = Field(..., alias='projected-field-names')
     metrics: Metrics
     metadata: Optional[Dict[str, str]] = None
-
-
-class CommitTableResponse(BaseModel):
-    metadata_location: str = Field(..., alias='metadata-location')
-    metadata: TableMetadata
 
 
 class Schema(StructType):
