@@ -20,6 +20,7 @@ package org.apache.iceberg.data.avro;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import org.apache.avro.Schema;
 import org.apache.avro.io.Decoder;
@@ -27,6 +28,7 @@ import org.apache.avro.io.DecoderFactory;
 import org.apache.avro.io.ResolvingDecoder;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.avro.AvroSchemaUtil;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.awaitility.Awaitility;
 import org.junit.Before;
 import org.junit.Test;
@@ -54,9 +56,9 @@ public class TestDecoderResolver {
     assertThat(fileSchema1).isEqualTo(fileSchema);
     ResolvingDecoder resolvingDecoder1 =
         DecoderResolver.resolve(dummyDecoder, fileSchema1, fileSchema1);
-    assertThat(resolvingDecoder1).isSameAs(resolvingDecoder);
+    assertThat(resolvingDecoder1).isNotSameAs(resolvingDecoder);
 
-    assertThat(DecoderResolver.DECODER_CACHES.get().size()).isEqualTo(1);
+    assertThat(DecoderResolver.DECODER_CACHES.get().size()).isEqualTo(2);
     assertThat(DecoderResolver.DECODER_CACHES.get().get(fileSchema1).size()).isEqualTo(1);
     checkCached(fileSchema1, fileSchema1);
 
@@ -66,32 +68,20 @@ public class TestDecoderResolver {
         DecoderResolver.resolve(dummyDecoder, fileSchema2, fileSchema2);
     assertThat(resolvingDecoder2).isNotSameAs(resolvingDecoder);
 
-    assertThat(DecoderResolver.DECODER_CACHES.get().size()).isEqualTo(2);
+    assertThat(DecoderResolver.DECODER_CACHES.get().size()).isEqualTo(3);
     assertThat(DecoderResolver.DECODER_CACHES.get().get(fileSchema2).size()).isEqualTo(1);
     checkCached(fileSchema2, fileSchema2);
 
+    checkCachedSize(3);
+
     fileSchema = null;
-    System.gc();
-    // Wait the weak reference keys are GCed
-    Awaitility.await()
-        .atMost(5, TimeUnit.SECONDS)
-        .pollInSameThread()
-        .untilAsserted(
-            () -> {
-              assertThat(DecoderResolver.DECODER_CACHES.get().size()).isEqualTo(1);
-              checkNotCached(fileSchema1);
-            });
+    checkCachedSize(2);
+
+    fileSchema1 = null;
+    checkCachedSize(1);
 
     fileSchema2 = null;
-    System.gc();
-    // Wait the weak reference keys are GCed
-    Awaitility.await()
-        .atMost(5, TimeUnit.SECONDS)
-        .pollInSameThread()
-        .untilAsserted(
-            () -> {
-              assertThat(DecoderResolver.DECODER_CACHES.get().size()).isEqualTo(0);
-            });
+    checkCachedSize(0);
   }
 
   @Test
@@ -113,9 +103,9 @@ public class TestDecoderResolver {
     assertThat(readSchema1).isEqualTo(readSchema);
     ResolvingDecoder resolvingDecoder1 =
         DecoderResolver.resolve(dummyDecoder, readSchema1, fileSchema1);
-    assertThat(resolvingDecoder1).isSameAs(resolvingDecoder);
+    assertThat(resolvingDecoder1).isNotSameAs(resolvingDecoder);
 
-    assertThat(DecoderResolver.DECODER_CACHES.get().size()).isEqualTo(1);
+    assertThat(DecoderResolver.DECODER_CACHES.get().size()).isEqualTo(2);
     assertThat(DecoderResolver.DECODER_CACHES.get().get(readSchema1).size()).isEqualTo(1);
     checkCached(readSchema1, fileSchema1);
 
@@ -125,32 +115,20 @@ public class TestDecoderResolver {
         DecoderResolver.resolve(dummyDecoder, readSchema2, fileSchema);
     assertThat(resolvingDecoder2).isNotSameAs(resolvingDecoder);
 
-    assertThat(DecoderResolver.DECODER_CACHES.get().size()).isEqualTo(2);
+    assertThat(DecoderResolver.DECODER_CACHES.get().size()).isEqualTo(3);
     assertThat(DecoderResolver.DECODER_CACHES.get().get(readSchema2).size()).isEqualTo(1);
     checkCached(readSchema2, fileSchema);
 
+    checkCachedSize(3);
+
     readSchema = null;
-    System.gc();
-    // Wait the weak reference keys are GCed
-    Awaitility.await()
-        .atMost(5, TimeUnit.SECONDS)
-        .pollInSameThread()
-        .untilAsserted(
-            () -> {
-              assertThat(DecoderResolver.DECODER_CACHES.get().size()).isEqualTo(1);
-              checkNotCached(readSchema1);
-            });
+    checkCachedSize(2);
+
+    readSchema1 = null;
+    checkCachedSize(1);
 
     readSchema2 = null;
-    System.gc();
-    // Wait the weak reference keys are GCed
-    Awaitility.await()
-        .atMost(5, TimeUnit.SECONDS)
-        .pollInSameThread()
-        .untilAsserted(
-            () -> {
-              assertThat(DecoderResolver.DECODER_CACHES.get().size()).isEqualTo(0);
-            });
+    checkCachedSize(0);
   }
 
   private Schema avroSchema(String... columns) {
@@ -167,7 +145,23 @@ public class TestDecoderResolver {
         .isTrue();
   }
 
-  private void checkNotCached(Schema readSchema) {
-    assertThat(DecoderResolver.DECODER_CACHES.get().containsKey(readSchema)).isFalse();
+  private int getActualSize() {
+    // The size of keys included the GCed keys
+    Set<Schema> keys = DecoderResolver.DECODER_CACHES.get().keySet();
+    Set<Schema> identityKeys = Sets.newIdentityHashSet();
+    identityKeys.addAll(keys);
+    return identityKeys.size();
+  }
+
+  private void checkCachedSize(int expected) {
+    System.gc();
+    // Wait the weak reference keys are GCed
+    Awaitility.await()
+        .atMost(5, TimeUnit.SECONDS)
+        .pollInSameThread()
+        .untilAsserted(
+            () -> {
+              assertThat(getActualSize()).isEqualTo(expected);
+            });
   }
 }

@@ -28,6 +28,7 @@ import org.apache.avro.io.ResolvingDecoder;
 import org.apache.iceberg.avro.ValueReader;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
+import org.apache.iceberg.relocated.com.google.common.collect.MapMaker;
 
 /**
  * Resolver to resolve {@link Decoder} to a {@link ResolvingDecoder}. This class uses a {@link
@@ -37,7 +38,7 @@ public class DecoderResolver {
 
   @VisibleForTesting
   static final ThreadLocal<Map<Schema, Map<Schema, ResolvingDecoder>>> DECODER_CACHES =
-      ThreadLocal.withInitial(WeakHashMap::new);
+      ThreadLocal.withInitial(() -> new MapMaker().weakKeys().makeMap());
 
   private DecoderResolver() {}
 
