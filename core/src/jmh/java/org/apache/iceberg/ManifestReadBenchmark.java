@@ -18,8 +18,6 @@
  */
 package org.apache.iceberg;
 
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Maps;
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -32,6 +30,8 @@ import java.util.concurrent.TimeUnit;
 import org.apache.commons.io.FileUtils;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.io.Files;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -60,7 +60,7 @@ public class ManifestReadBenchmark {
   private String manifestListFile;
 
   @Setup
-  public void setup() {
+  public void before() {
     baseDir = Files.createTempDir().getAbsolutePath();
     manifestListFile = String.format("%s/%s.avro", baseDir, UUID.randomUUID());
 
@@ -102,7 +102,7 @@ public class ManifestReadBenchmark {
   }
 
   @TearDown
-  public void cleanup() {
+  public void after() {
     if (baseDir != null) {
       FileUtils.deleteQuietly(new File(baseDir));
       baseDir = null;
