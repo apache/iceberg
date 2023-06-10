@@ -748,8 +748,16 @@ class LoadTableResult(BaseModel):
 
 
 class CommitTableRequest(BaseModel):
+    identifier: Optional[TableIdentifier] = Field(
+        None,
+        description='Table identifier to update; must be present for CommitTransactionRequest',
+    )
     requirements: List[TableRequirement]
     updates: List[TableUpdate]
+
+
+class CommitTransactionRequest(BaseModel):
+    table_changes: List[CommitTableRequest] = Field(..., alias='table-changes')
 
 
 class CreateTableRequest(BaseModel):
