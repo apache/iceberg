@@ -79,6 +79,9 @@ jobs:
           key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
           restore-keys: ${{ runner.os }}-gradle-
       - run: echo -e "$(ip addr show eth0 | grep "inet\b" | awk '{print $2}' | cut -d/ -f1)\t$(hostname -f) $(hostname -s)" | sudo tee -a /etc/hosts
+      - run: |
+          mvn dependency:get -DgroupId=org.apache.orc -DartifactId=orc-core -Dversion=1.8.4-SNAPSHOT -Dpackaging=jar -D=remoteRepositories=https://repository.apache.org/snapshots
+          mvn dependency:get -DgroupId=org.apache.orc -DartifactId=orc-core -Dversion=1.8.4-SNAPSHOT -Dpackaging=jar -D=remoteRepositories=https://repository.apache.org/snapshots -Dclassifier=nohive
       - run: ./gradlew -DsparkVersions= -DhiveVersions= -DflinkVersions=${{ matrix.flink }} :iceberg-flink:iceberg-flink-${{ matrix.flink }}:check :iceberg-flink:iceberg-flink-runtime-${{ matrix.flink }}:check -DscalaVersion=2.11 -DknownScalaVersions=2.11 -Pquick=true -x javadoc
       - uses: actions/upload-artifact@v3
         if: failure()
@@ -110,6 +113,9 @@ jobs:
         key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
         restore-keys: ${{ runner.os }}-gradle-
     - run: echo -e "$(ip addr show eth0 | grep "inet\b" | awk '{print $2}' | cut -d/ -f1)\t$(hostname -f) $(hostname -s)" | sudo tee -a /etc/hosts
+    - run: |
+        mvn dependency:get -DgroupId=org.apache.orc -DartifactId=orc-core -Dversion=1.8.4-SNAPSHOT -Dpackaging=jar -D=remoteRepositories=https://repository.apache.org/snapshots
+        mvn dependency:get -DgroupId=org.apache.orc -DartifactId=orc-core -Dversion=1.8.4-SNAPSHOT -Dpackaging=jar -D=remoteRepositories=https://repository.apache.org/snapshots -Dclassifier=nohive
     - run: ./gradlew -DsparkVersions= -DhiveVersions= -DflinkVersions=${{ matrix.flink }} :iceberg-flink:iceberg-flink-${{ matrix.flink }}:check :iceberg-flink:iceberg-flink-runtime-${{ matrix.flink }}:check -Pquick=true -x javadoc
     - uses: actions/upload-artifact@v3
       if: failure()
