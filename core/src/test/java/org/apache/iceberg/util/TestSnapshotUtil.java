@@ -71,13 +71,13 @@ public class TestSnapshotUtil {
   private long snapshotFork1Id;
   private long snapshotFork2Id;
 
-  private Snapshot putSnapshot(String branch) {
+  private Snapshot appendFileTo(String branch) {
     table.newFastAppend().appendFile(FILE_A).toBranch(branch).commit();
     return table.snapshot(branch);
   }
 
-  private Snapshot putSnapshot() {
-    return putSnapshot(SnapshotRef.MAIN_BRANCH);
+  private Snapshot appendFileToMain() {
+    return appendFileTo(SnapshotRef.MAIN_BRANCH);
   }
 
   @Before
@@ -88,24 +88,24 @@ public class TestSnapshotUtil {
     this.metadataDir = new File(tableDir, "metadata");
 
     this.table = TestTables.create(tableDir, "test", SCHEMA, SPEC, 2);
-    Snapshot snapshotBase = putSnapshot();
+    Snapshot snapshotBase = appendFileToMain();
     this.snapshotBaseId = snapshotBase.snapshotId();
     this.snapshotBaseTimestamp = snapshotBase.timestampMillis();
     TestHelpers.waitUntilAfter(snapshotBaseTimestamp);
 
-    this.snapshotMain1Id = putSnapshot().snapshotId();
-    this.snapshotMain2Id = putSnapshot().snapshotId();
+    this.snapshotMain1Id = appendFileToMain().snapshotId();
+    this.snapshotMain2Id = appendFileToMain().snapshotId();
 
     String branchName = "b1";
     table.manageSnapshots().createBranch(branchName, snapshotBaseId).commit();
-    this.snapshotBranchId = putSnapshot(branchName).snapshotId();
+    this.snapshotBranchId = appendFileTo(branchName).snapshotId();
 
     // Create a branch that leads back to an expired snapshot
     String forkBranch = "fork";
     table.manageSnapshots().createBranch(forkBranch, snapshotBaseId).commit();
-    this.snapshotFork0Id = putSnapshot(forkBranch).snapshotId();
-    this.snapshotFork1Id = putSnapshot(forkBranch).snapshotId();
-    this.snapshotFork2Id = putSnapshot(forkBranch).snapshotId();
+    this.snapshotFork0Id = appendFileTo(forkBranch).snapshotId();
+    this.snapshotFork1Id = appendFileTo(forkBranch).snapshotId();
+    this.snapshotFork2Id = appendFileTo(forkBranch).snapshotId();
     table.expireSnapshots().expireSnapshotId(snapshotFork0Id).commit();
   }
 
