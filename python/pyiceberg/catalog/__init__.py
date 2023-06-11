@@ -162,7 +162,6 @@ def load_catalog(name: Optional[str], **properties: Optional[str]) -> Catalog:
         ValueError: Raises a ValueError in case properties are missing or malformed,
             or if it could not determine the catalog based on the properties
     """
-
     if name is None:
         name = _ENV_CONFIG.get_default_catalog_name()
 

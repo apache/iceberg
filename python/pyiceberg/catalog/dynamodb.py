@@ -331,7 +331,6 @@ class DynamoDbCatalog(Catalog):
         Returns:
             List[Identifier]: list of table identifiers.
         """
-
         database_name = self.identifier_to_database(namespace, NoSuchNamespaceError)
 
         paginator = self.dynamodb.get_paginator("query")
@@ -375,7 +374,6 @@ class DynamoDbCatalog(Catalog):
         Returns:
             List[Identifier]: a List of namespace identifiers
         """
-
         # Hierarchical namespace is not supported. Return an empty list
         if namespace:
             return []
@@ -443,7 +441,6 @@ class DynamoDbCatalog(Catalog):
             NoSuchNamespaceError: If a namespace with the given name does not exist， or identifier is invalid
             ValueError: If removals and updates have overlapping keys.
         """
-
         database_name = self.identifier_to_database(namespace, NoSuchNamespaceError)
         namespace_item = self._get_iceberg_namespace_item(database_name=database_name)
         namespace_dict = _convert_dynamo_item_to_regular_dict(namespace_item)
@@ -741,7 +738,6 @@ def _convert_dynamo_item_to_regular_dict(dynamo_json: Dict[str, Any]) -> Dict[st
 
     Only "S" and "N" data types are supported since those are the only ones that Iceberg is utilizing.
     """
-
     regular_json = {}
     for column_name, val_dict in dynamo_json.items():
         keys = list(val_dict.keys())

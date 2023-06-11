@@ -83,9 +83,7 @@ def run(ctx: Context, catalog: Optional[str], verbose: bool, output: str, uri: O
 
 
 def _catalog_and_output(ctx: Context) -> Tuple[Catalog, Output]:
-    """
-    Small helper to set the types
-    """
+    """Small helper to set the types"""
     return ctx.obj["catalog"], ctx.obj["output"]
 
 

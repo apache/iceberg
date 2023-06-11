@@ -144,9 +144,7 @@ class PartitionSpec(IcebergBaseModel):
         return self.source_id_to_fields_map.get(field_id, [])
 
     def compatible_with(self, other: "PartitionSpec") -> bool:
-        """
-        Produce a boolean to return True if two PartitionSpec are considered compatible
-        """
+        """Produce a boolean to return True if two PartitionSpec are considered compatible"""
         if self == other:
             return True
         if len(self.fields) != len(other.fields):
