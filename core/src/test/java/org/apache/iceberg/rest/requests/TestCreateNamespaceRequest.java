@@ -147,12 +147,8 @@ public class TestCreateNamespaceRequest extends RequestResponseTestBase<CreateNa
 
   @Override
   public void assertEquals(CreateNamespaceRequest actual, CreateNamespaceRequest expected) {
-    Assertions.assertThat(actual.namespace())
-        .as("Namespaces should be equal")
-        .isEqualTo(expected.namespace());
-    Assertions.assertThat(actual.properties())
-        .as("Properties should be equal")
-        .isEqualTo(expected.properties());
+    Assertions.assertThat(actual.namespace()).isEqualTo(expected.namespace());
+    Assertions.assertThat(actual.properties()).isEqualTo(expected.properties());
   }
 
   @Override

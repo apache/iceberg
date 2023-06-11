@@ -74,56 +74,51 @@ public class TestGetNamespaceResponse extends RequestResponseTestBase<GetNamespa
     String jsonPropertiesHasWrongType =
         "{\"namespace\":[\"accounting\",\"tax\"],\"properties\":[]}";
     Assertions.assertThatThrownBy(() -> deserialize(jsonPropertiesHasWrongType))
-        .as("A JSON response with the wrong type for a field should fail to deserialize")
-        .isInstanceOf(JsonProcessingException.class);
+        .isInstanceOf(JsonProcessingException.class)
+        .hasMessageContaining(
+            "Cannot deserialize value of type `java.util.LinkedHashMap<java.lang.String,java.lang.String>`");
 
     String emptyJson = "{}";
     Assertions.assertThatThrownBy(() -> deserialize(emptyJson))
-        .as("An empty JSON request should fail to deserialize after validation")
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Invalid namespace: null");
+        .hasMessage("Invalid namespace: null");
 
     String jsonWithKeysSpelledIncorrectly =
         "{\"namepsace\":[\"accounting\",\"tax\"],\"propertiezzzz\":{\"owner\":\"Hank\"}}";
     Assertions.assertThatThrownBy(() -> deserialize(jsonWithKeysSpelledIncorrectly))
-        .as("A JSON response with the keys spelled incorrectly should fail to deserialize")
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Invalid namespace: null");
+        .hasMessage("Invalid namespace: null");
 
     String nullJson = null;
     Assertions.assertThatThrownBy(() -> deserialize(nullJson))
-        .as("An empty JSON request should fail to deserialize")
-        .isInstanceOf(IllegalArgumentException.class);
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("argument \"content\" is null");
   }
 
   @Test
   public void testBuilderDoesNotBuildInvalidRequests() {
     Assertions.assertThatThrownBy(() -> GetNamespaceResponse.builder().withNamespace(null).build())
-        .as("The builder should not allow using null for the namespace")
         .isInstanceOf(NullPointerException.class)
-        .hasMessageContaining("Invalid namespace: null");
+        .hasMessage("Invalid namespace: null");
 
     Assertions.assertThatThrownBy(() -> GetNamespaceResponse.builder().setProperties(null).build())
-        .as("The builder should not allow passing a null collection of properties")
         .isInstanceOf(NullPointerException.class)
-        .hasMessageContaining("Invalid properties map: null");
+        .hasMessage("Invalid properties map: null");
 
     Map<String, String> mapWithNullKey = Maps.newHashMap();
     mapWithNullKey.put(null, "hello");
     Assertions.assertThatThrownBy(
             () -> GetNamespaceResponse.builder().setProperties(mapWithNullKey).build())
-        .as("The builder should not allow using null as a key in the properties to set")
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Invalid property: null");
+        .hasMessage("Invalid property: null");
 
     Map<String, String> mapWithMultipleNullValues = Maps.newHashMap();
     mapWithMultipleNullValues.put("a", null);
     mapWithMultipleNullValues.put("b", "b");
     Assertions.assertThatThrownBy(
             () -> GetNamespaceResponse.builder().setProperties(mapWithMultipleNullValues).build())
-        .as("The builder should not allow using null as a value in the properties to set")
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Invalid value for properties [a]: null");
+        .hasMessage("Invalid value for properties [a]: null");
   }
 
   @Override
@@ -141,12 +136,8 @@ public class TestGetNamespaceResponse extends RequestResponseTestBase<GetNamespa
 
   @Override
   public void assertEquals(GetNamespaceResponse actual, GetNamespaceResponse expected) {
-    Assertions.assertThat(actual.namespace())
-        .as("Namespace should be equal")
-        .isEqualTo(expected.namespace());
-    Assertions.assertThat(actual.properties())
-        .as("Properties should be equal")
-        .isEqualTo(expected.properties());
+    Assertions.assertThat(actual.namespace()).isEqualTo(expected.namespace());
+    Assertions.assertThat(actual.properties()).isEqualTo(expected.properties());
   }
 
   @Override

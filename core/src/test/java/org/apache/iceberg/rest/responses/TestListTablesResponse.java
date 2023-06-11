@@ -48,69 +48,60 @@ public class TestListTablesResponse extends RequestResponseTestBase<ListTablesRe
   public void testDeserializeInvalidResponsesThrows() {
     String identifiersHasWrongType = "{\"identifiers\":\"accounting%1Ftax\"}";
     Assertions.assertThatThrownBy(() -> deserialize(identifiersHasWrongType))
-        .as(
-            "A JSON response with the incorrect type for the field identifiers should fail to parse")
-        .isInstanceOf(JsonProcessingException.class);
+        .isInstanceOf(JsonProcessingException.class)
+        .hasMessageContaining(
+            "Cannot deserialize value of type `java.util.ArrayList<org.apache.iceberg.catalog.TableIdentifier>`");
 
     String emptyJson = "{}";
     Assertions.assertThatThrownBy(() -> deserialize(emptyJson))
-        .as("An empty JSON response should fail to deserialize")
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Invalid identifier list: null");
+        .hasMessage("Invalid identifier list: null");
 
     String jsonWithKeysSpelledIncorrectly =
         "{\"identifyrezzzz\":[{\"namespace\":[\"accounting\",\"tax\"],\"name\":\"paid\"}]}";
     Assertions.assertThatThrownBy(() -> deserialize(jsonWithKeysSpelledIncorrectly))
-        .as("A JSON response with the keys spelled incorrectly should fail to deserialize")
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Invalid identifier list: null");
+        .hasMessage("Invalid identifier list: null");
 
     String jsonWithInvalidIdentifiersInList =
         "{\"identifiers\":[{\"namespace\":\"accounting.tax\",\"name\":\"paid\"}]}";
     Assertions.assertThatThrownBy(() -> deserialize(jsonWithInvalidIdentifiersInList))
-        .as(
-            "A JSON response with an invalid identifier in the list of identifiers should fail to parse")
-        .isInstanceOf(JsonProcessingException.class);
+        .isInstanceOf(JsonProcessingException.class)
+        .hasMessageContaining("Cannot parse from non-array value");
 
     String jsonWithInvalidIdentifiersInList2 =
         "{\"identifiers\":[{\"namespace\":[\"accounting\",\"tax\"],\"name\":\"paid\"},\"accounting.tax.paid\"]}";
     Assertions.assertThatThrownBy(() -> deserialize(jsonWithInvalidIdentifiersInList2))
-        .as(
-            "A JSON response with an invalid identifier in the list of identifiers should fail to parse")
-        .isInstanceOf(JsonProcessingException.class);
+        .isInstanceOf(JsonProcessingException.class)
+        .hasMessageContaining("Cannot parse missing or non-object table identifier");
 
     String jsonWithInvalidTypeForNamePartOfIdentifier =
         "{\"identifiers\":[{\"namespace\":[\"accounting\",\"tax\"],\"name\":true}]}";
     Assertions.assertThatThrownBy(() -> deserialize(jsonWithInvalidTypeForNamePartOfIdentifier))
-        .as(
-            "A JSON response with an invalid identifier in the list of identifiers should fail to parse")
-        .isInstanceOf(JsonProcessingException.class);
+        .isInstanceOf(JsonProcessingException.class)
+        .hasMessageContaining("Cannot parse to a string value");
 
     String nullJson = null;
     Assertions.assertThatThrownBy(() -> deserialize(nullJson))
-        .as("A null JSON response should fail to deserialize")
-        .isInstanceOf(IllegalArgumentException.class);
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("argument \"content\" is null");
   }
 
   @Test
   public void testBuilderDoesNotCreateInvalidObjects() {
     Assertions.assertThatThrownBy(() -> ListTablesResponse.builder().add(null))
-        .as("The builder should not allow using null as a table identifier to add to the list")
         .isInstanceOf(NullPointerException.class)
-        .hasMessageContaining("Invalid table identifier: null");
+        .hasMessage("Invalid table identifier: null");
 
     Assertions.assertThatThrownBy(() -> ListTablesResponse.builder().addAll(null))
-        .as("The builder should not allow passing a null list of table identifiers to add")
         .isInstanceOf(NullPointerException.class)
-        .hasMessageContaining("Invalid table identifier list: null");
+        .hasMessage("Invalid table identifier list: null");
 
     List<TableIdentifier> listWithNullElement =
         Lists.newArrayList(TableIdentifier.of(Namespace.of("foo"), "bar"), null);
     Assertions.assertThatThrownBy(() -> ListTablesResponse.builder().addAll(listWithNullElement))
-        .as(
-            "The builder should not allow passing a collection of table identifiers with a null element in it")
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Invalid table identifier: null");
+        .hasMessage("Invalid table identifier: null");
   }
 
   @Override

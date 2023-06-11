@@ -145,40 +145,36 @@ public class TestConfigResponse extends RequestResponseTestBase<ConfigResponse> 
     String jsonDefaultsHasWrongType =
         "{\"defaults\":[\"warehouse\",\"s3://bucket/warehouse\"],\"overrides\":{\"clients\":\"5\"}}";
     Assertions.assertThatThrownBy(() -> deserialize(jsonDefaultsHasWrongType))
-        .as("A JSON response with the wrong type for the defaults field should fail to deserialize")
-        .isInstanceOf(JsonProcessingException.class);
+        .isInstanceOf(JsonProcessingException.class)
+        .hasMessageContaining(
+            "Cannot deserialize value of type `java.util.LinkedHashMap<java.lang.String,java.lang.String>`");
 
     String jsonOverridesHasWrongType =
         "{\"defaults\":{\"warehouse\":\"s3://bucket/warehouse\"},\"overrides\":\"clients\"}";
     Assertions.assertThatThrownBy(() -> deserialize(jsonOverridesHasWrongType))
-        .as(
-            "A JSON response with the wrong type for the overrides field should fail to deserialize")
-        .isInstanceOf(JsonProcessingException.class);
+        .isInstanceOf(JsonProcessingException.class)
+        .hasMessageContaining("Cannot construct instance of `java.util.LinkedHashMap`");
 
     Assertions.assertThatThrownBy(() -> deserialize(null))
-        .as("A null JSON response body should fail to deserialize")
-        .isInstanceOf(IllegalArgumentException.class);
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("argument \"content\" is null");
   }
 
   @Test
   public void testBuilderDoesNotCreateInvalidObjects() {
     Assertions.assertThatThrownBy(() -> ConfigResponse.builder().withOverride(null, "100").build())
-        .as("The builder should not allow using null as a key in the properties to override")
         .isInstanceOf(NullPointerException.class)
         .hasMessage("Invalid override property: null");
 
     Assertions.assertThatThrownBy(() -> ConfigResponse.builder().withDefault(null, "100").build())
-        .as("The builder should not allow using null as a key in the default properties")
         .isInstanceOf(NullPointerException.class)
         .hasMessage("Invalid default property: null");
 
     Assertions.assertThatThrownBy(() -> ConfigResponse.builder().withOverrides(null).build())
-        .as("The builder should not allow passing a null map of config properties to override")
         .isInstanceOf(NullPointerException.class)
         .hasMessage("Invalid override properties map: null");
 
     Assertions.assertThatThrownBy(() -> ConfigResponse.builder().withDefaults(null).build())
-        .as("The builder should not allow passing a null map of default config properties")
         .isInstanceOf(NullPointerException.class)
         .hasMessage("Invalid default properties map: null");
 
@@ -187,14 +183,11 @@ public class TestConfigResponse extends RequestResponseTestBase<ConfigResponse> 
     mapWithNullKey.put("b", "b");
     Assertions.assertThatThrownBy(
             () -> ConfigResponse.builder().withDefaults(mapWithNullKey).build())
-        .as(
-            "The builder should not allow passing a map of default config properties with a null key")
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid default property: null");
 
     Assertions.assertThatThrownBy(
             () -> ConfigResponse.builder().withOverrides(mapWithNullKey).build())
-        .as("The builder should not allow passing a map of properties to override with a null key")
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid override property: null");
   }
@@ -224,9 +217,9 @@ public class TestConfigResponse extends RequestResponseTestBase<ConfigResponse> 
         .as(
             "The merged properties map should use values from defaults, then client config, and finally overrides")
         .isEqualTo(expected);
-    Assertions.assertThat(merged.containsValue(null))
+    Assertions.assertThat(merged)
         .as("The merged properties map should omit keys with null values")
-        .isFalse();
+        .doesNotContainValue(null);
   }
 
   @Override

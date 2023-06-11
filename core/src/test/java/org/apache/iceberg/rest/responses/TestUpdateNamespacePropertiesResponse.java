@@ -144,26 +144,26 @@ public class TestUpdateNamespacePropertiesResponse
     String jsonInvalidTypeOnRemovedField =
         "{\"removed\":{\"foo\":true},\"updated\":[\"owner\"],\"missing\":[\"bar\"]}";
     Assertions.assertThatThrownBy(() -> deserialize(jsonInvalidTypeOnRemovedField))
-        .as("A JSON response with an invalid type for one of the fields should fail to parse")
-        .isInstanceOf(JsonProcessingException.class);
+        .isInstanceOf(JsonProcessingException.class)
+        .hasMessageContaining(
+            "Cannot deserialize value of type `java.util.ArrayList<java.lang.String>`");
 
     String jsonInvalidTypeOnUpdatedField = "{\"updated\":\"owner\",\"missing\":[\"bar\"]}";
     Assertions.assertThatThrownBy(() -> deserialize(jsonInvalidTypeOnUpdatedField))
-        .as("A JSON response with an invalid type for one of the fields should fail to parse")
-        .isInstanceOf(JsonProcessingException.class);
+        .isInstanceOf(JsonProcessingException.class)
+        .hasMessageContaining("Cannot construct instance of `java.util.ArrayList`");
 
     // Valid top-level (array) types, but at least one entry in the list is not the expected type
     String jsonInvalidValueOfTypeIntNestedInRemovedList =
         "{\"removed\":[\"foo\", \"bar\", 123456], ,\"updated\":[\"owner\"],\"missing\":[\"bar\"]}";
     Assertions.assertThatThrownBy(() -> deserialize(jsonInvalidValueOfTypeIntNestedInRemovedList))
-        .as(
-            "A JSON response with an invalid type inside one of the list fields should fail to deserialize")
-        .isInstanceOf(JsonProcessingException.class);
+        .isInstanceOf(JsonProcessingException.class)
+        .hasMessageContaining("Unexpected character (',' (code 44))");
 
     // Exception comes from Jackson
     Assertions.assertThatThrownBy(() -> deserialize(null))
-        .as("A null JSON response body should fail to deserialize")
-        .isInstanceOf(IllegalArgumentException.class);
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("argument \"content\" is null");
   }
 
   @Test
@@ -173,66 +173,54 @@ public class TestUpdateNamespacePropertiesResponse
     // updated
     Assertions.assertThatThrownBy(
             () -> UpdateNamespacePropertiesResponse.builder().addUpdated((String) null).build())
-        .as("The builder should not allow using null as a property that was updated")
         .isInstanceOf(NullPointerException.class)
         .hasMessage("Invalid updated property: null");
 
     Assertions.assertThatThrownBy(
             () ->
                 UpdateNamespacePropertiesResponse.builder().addUpdated((List<String>) null).build())
-        .as("The builder should not allow passing a null list of properties that were removed")
         .isInstanceOf(NullPointerException.class)
         .hasMessage("Invalid updated property list: null");
 
     Assertions.assertThatThrownBy(
             () ->
                 UpdateNamespacePropertiesResponse.builder().addUpdated(listContainingNull).build())
-        .as(
-            "The builder should not allow passing a list of properties that were removed with a null element")
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid updated property: null");
 
     // removed
     Assertions.assertThatThrownBy(
             () -> UpdateNamespacePropertiesResponse.builder().addRemoved((String) null).build())
-        .as("The builder should not allow using null as a property that was removed")
         .isInstanceOf(NullPointerException.class)
         .hasMessage("Invalid removed property: null");
 
     Assertions.assertThatThrownBy(
             () ->
                 UpdateNamespacePropertiesResponse.builder().addRemoved((List<String>) null).build())
-        .as("The builder should not allow passing a null list of properties that were removed")
         .isInstanceOf(NullPointerException.class)
         .hasMessage("Invalid removed property list: null");
 
     Assertions.assertThatThrownBy(
             () ->
                 UpdateNamespacePropertiesResponse.builder().addRemoved(listContainingNull).build())
-        .as(
-            "The builder should not allow passing a list of properties that were removed with a null element")
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid removed property: null");
 
     // missing
     Assertions.assertThatThrownBy(
             () -> UpdateNamespacePropertiesResponse.builder().addMissing((String) null).build())
-        .as("The builder should not allow using null as a property that was missing")
         .isInstanceOf(NullPointerException.class)
         .hasMessage("Invalid missing property: null");
 
     Assertions.assertThatThrownBy(
             () ->
                 UpdateNamespacePropertiesResponse.builder().addMissing((List<String>) null).build())
-        .as("The builder should not allow passing a null list of properties that were missing")
         .isInstanceOf(NullPointerException.class)
         .hasMessage("Invalid missing property list: null");
 
     Assertions.assertThatThrownBy(
             () ->
                 UpdateNamespacePropertiesResponse.builder().addMissing(listContainingNull).build())
-        .as(
-            "The builder should not allow passing a list of properties that were missing with a null element")
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid missing property: null");
   }

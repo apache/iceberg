@@ -98,7 +98,6 @@ public class TestLoadTableResponse extends RequestResponseTestBase<LoadTableResp
   @Test
   public void testFailures() {
     Assertions.assertThatThrownBy(() -> LoadTableResponse.builder().build())
-        .as("Table metadata should be required")
         .isInstanceOf(NullPointerException.class)
         .hasMessage("Invalid metadata: null");
   }
@@ -126,7 +125,6 @@ public class TestLoadTableResponse extends RequestResponseTestBase<LoadTableResp
     String tableMetadataJson = readTableMetadataInputFile("TableMetadataV1MissingSchemaType.json");
     Assertions.assertThatThrownBy(
             () -> TableMetadataParser.fromJson(TEST_METADATA_LOCATION, tableMetadataJson))
-        .as("Cannot parse type from json when there is no type")
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Cannot parse type from json:");
   }

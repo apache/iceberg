@@ -115,24 +115,20 @@ public class TestOAuthTokenResponse extends RequestResponseTestBase<OAuthTokenRe
   @Test
   public void testFailures() {
     Assertions.assertThatThrownBy(() -> deserialize("{\"token_type\":\"bearer\"}"))
-        .as("Token should be required")
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("missing string: access_token");
 
     Assertions.assertThatThrownBy(
             () -> deserialize("{\"access_token\":34,\"token_type\":\"bearer\"}"))
-        .as("Token should be string")
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Cannot parse to a string value: access_token: 34");
 
     Assertions.assertThatThrownBy(() -> deserialize("{\"access_token\":\"bearer-token\"}"))
-        .as("Token type should be required")
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("missing string: token_type");
 
     Assertions.assertThatThrownBy(
             () -> deserialize("{\"access_token\":\"bearer-token\",\"token_type\":34}"))
-        .as("Token type should be string")
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Cannot parse to a string value: token_type: 34");
   }

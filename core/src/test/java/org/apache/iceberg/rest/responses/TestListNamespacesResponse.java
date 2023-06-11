@@ -46,46 +46,41 @@ public class TestListNamespacesResponse extends RequestResponseTestBase<ListName
   public void testDeserializeInvalidResponseThrows() {
     String jsonNamespacesHasWrongType = "{\"namespaces\":\"accounting\"}";
     Assertions.assertThatThrownBy(() -> deserialize(jsonNamespacesHasWrongType))
-        .as("A malformed JSON response with the wrong type for a field should fail to deserialize")
-        .isInstanceOf(JsonProcessingException.class);
+        .isInstanceOf(JsonProcessingException.class)
+        .hasMessageContaining(
+            "Cannot deserialize value of type `java.util.ArrayList<org.apache.iceberg.catalog.Namespace>`");
 
     String emptyJson = "{}";
     Assertions.assertThatThrownBy(() -> deserialize(emptyJson))
-        .as("An empty JSON response will deserialize, but not into a valid object")
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Invalid namespace: null");
+        .hasMessage("Invalid namespace: null");
 
     String jsonWithKeysSpelledIncorrectly = "{\"namepsacezz\":[\"accounting\",\"tax\"]}";
     Assertions.assertThatThrownBy(() -> deserialize(jsonWithKeysSpelledIncorrectly))
-        .as("A JSON response with the keys spelled incorrectly should fail to deserialize")
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Invalid namespace: null");
+        .hasMessage("Invalid namespace: null");
 
     String nullJson = null;
     Assertions.assertThatThrownBy(() -> deserialize(nullJson))
-        .as("A null JSON response should fail to deserialize")
-        .isInstanceOf(IllegalArgumentException.class);
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("argument \"content\" is null");
   }
 
   @Test
   public void testBuilderDoesNotCreateInvalidObjects() {
     Assertions.assertThatThrownBy(() -> ListNamespacesResponse.builder().add(null).build())
-        .as("The builder should not allow using null as a namespace to add to the list")
         .isInstanceOf(NullPointerException.class)
-        .hasMessageContaining("Invalid namespace: null");
+        .hasMessage("Invalid namespace: null");
 
     Assertions.assertThatThrownBy(() -> ListNamespacesResponse.builder().addAll(null).build())
-        .as("The builder should not allow passing a null list of namespaces to add")
         .isInstanceOf(NullPointerException.class)
-        .hasMessageContaining("Invalid namespace list: null");
+        .hasMessage("Invalid namespace list: null");
 
     List<Namespace> listWithNullElement = Lists.newArrayList(Namespace.of("a"), null);
     Assertions.assertThatThrownBy(
             () -> ListNamespacesResponse.builder().addAll(listWithNullElement).build())
-        .as(
-            "The builder should not allow passing a collection of namespaces with a null element in it")
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Invalid namespace: null");
+        .hasMessage("Invalid namespace: null");
   }
 
   @Override
