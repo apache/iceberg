@@ -27,6 +27,7 @@ on:
 
 jobs:
   run-benchmark:
+    if: github.repository_owner == 'apache'
     runs-on: ubuntu-22.04
     strategy:
       fail-fast: false
