@@ -287,25 +287,22 @@ class TableRequirement(IcebergBaseModel):
 
 
 class AssertCreate(TableRequirement):
-    """
-    The table must not already exist; used for create transactions
-    """
+    """The table must not already exist; used for create transactions"""
 
     type: Literal["assert-create"]
 
 
 class AssertTableUUID(TableRequirement):
-    """
-    The table UUID must match the requirement's `uuid`
-    """
+    """The table UUID must match the requirement's `uuid`"""
 
     type: Literal["assert-table-uuid"]
     uuid: str
 
 
 class AssertRefSnapshotId(TableRequirement):
-    """
-    The table branch or tag identified by the requirement's `ref` must reference the requirement's `snapshot-id`; if `snapshot-id` is `null` or missing, the ref must not already exist
+    """The table branch or tag identified by the requirement's `ref` must reference the requirement's `snapshot-id`
+
+    if `snapshot-id` is `null` or missing, the ref must not already exist
     """
 
     type: Literal["assert-ref-snapshot-id"]
@@ -314,45 +311,35 @@ class AssertRefSnapshotId(TableRequirement):
 
 
 class AssertLastAssignedFieldId(TableRequirement):
-    """
-    The table's last assigned column id must match the requirement's `last-assigned-field-id`
-    """
+    """The table's last assigned column id must match the requirement's `last-assigned-field-id`"""
 
     type: Literal["assert-last-assigned-field-id"]
     last_assigned_field_id: int = Field(..., alias="last-assigned-field-id")
 
 
 class AssertCurrentSchemaId(TableRequirement):
-    """
-    The table's current schema id must match the requirement's `current-schema-id`
-    """
+    """The table's current schema id must match the requirement's `current-schema-id`"""
 
     type: Literal["assert-current-schema-id"]
     current_schema_id: int = Field(..., alias="current-schema-id")
 
 
 class AssertLastAssignedPartitionId(TableRequirement):
-    """
-    The table's last assigned partition id must match the requirement's `last-assigned-partition-id`
-    """
+    """The table's last assigned partition id must match the requirement's `last-assigned-partition-id`"""
 
     type: Literal["assert-last-assigned-partition-id"]
     last_assigned_partition_id: int = Field(..., alias="last-assigned-partition-id")
 
 
 class AssertDefaultSpecId(TableRequirement):
-    """
-    The table's default spec id must match the requirement's `default-spec-id`
-    """
+    """The table's default spec id must match the requirement's `default-spec-id`"""
 
     type: Literal["assert-default-spec-id"]
     default_spec_id: int = Field(..., alias="default-spec-id")
 
 
 class AssertDefaultSortOrderId(TableRequirement):
-    """
-    The table's default sort order id must match the requirement's `default-sort-order-id`
-    """
+    """The table's default sort order id must match the requirement's `default-sort-order-id`"""
 
     type: Literal["assert-default-sort-order-id"]
     default_sort_order_id: int = Field(..., alias="default-sort-order-id")
