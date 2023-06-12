@@ -26,10 +26,13 @@ import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.MetadataTableType;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.spark.SparkCatalogTestBase;
+import org.apache.iceberg.spark.SparkSQLProperties;
+import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -124,6 +127,46 @@ public class TestDropTable extends SparkCatalogTestBase {
 
     Assert.assertTrue("Table should not been dropped", validationCatalog.tableExists(tableIdent));
     Assert.assertTrue("All files should not be deleted", checkFilesExist(manifestAndFiles, true));
+  }
+
+  @Test
+  public void testDropTableWhenLocationDoesNotExist() throws IOException {
+    // drop table when metadata does not exist only supported for spark_catalog
+    if (!catalogName.equals("spark_catalog")) {
+      return;
+    }
+
+    assertEquals(
+        "Should have expected rows",
+        ImmutableList.of(row(1, "test")),
+        sql("SELECT * FROM %s", tableName));
+
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    Path tableLocation = new Path(table.location());
+    FileSystem fs = tableLocation.getFileSystem(hiveConf);
+
+    Assertions.assertThat(validationCatalog.tableExists(tableIdent))
+        .as("Table should exist")
+        .isTrue();
+
+    Assertions.assertThat(fs.delete(tableLocation, true))
+        .as("Delete table location and all sub folders(data, metadata)")
+        .isTrue();
+    Assertions.assertThat(fs.exists(tableLocation))
+        .as("Table location should not exists")
+        .isFalse();
+
+    Assertions.assertThatThrownBy(() -> sql("DROP TABLE %s", tableName))
+        .isInstanceOf(org.apache.iceberg.exceptions.NotFoundException.class)
+        .hasMessageContaining("Failed to open input stream for file");
+
+    spark.conf().set(SparkSQLProperties.LOAD_CATALOG_TABLE_WHEN_METADATA_NOT_FOUND_ENABLED, true);
+    sql("DROP TABLE %s", tableName);
+
+    Assertions.assertThat(validationCatalog.tableExists(tableIdent))
+        .as("Table should not exist")
+        .isFalse();
   }
 
   private List<String> manifestsAndFiles() {

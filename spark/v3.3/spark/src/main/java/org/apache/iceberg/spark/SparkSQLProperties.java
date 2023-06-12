@@ -63,4 +63,10 @@ public class SparkSQLProperties {
   // Controls the WAP branch used for write-audit-publish workflow.
   // When set, new snapshots will be committed to this branch.
   public static final String WAP_BRANCH = "spark.wap.branch";
+
+  // Controls whether to load table from session catalog when Iceberg unable load table due to
+  // location does not exist
+  public static final String LOAD_CATALOG_TABLE_WHEN_METADATA_NOT_FOUND_ENABLED =
+      "spark.sql.iceberg.load.catalog.table.when-metadata-not-found.enabled";
+  public static final String LOAD_CATALOG_TABLE_WHEN_METADATA_NOT_FOUND_ENABLED_DEFAULT = "false";
 }
