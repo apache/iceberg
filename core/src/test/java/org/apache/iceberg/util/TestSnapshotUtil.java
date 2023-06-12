@@ -33,6 +33,7 @@ import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.TestTables;
 import org.apache.iceberg.types.Types;
+import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -181,7 +182,7 @@ public class TestSnapshotUtil {
     }
 
     // Once snapshot iterator has been exhausted, call hasNext again to make sure it is stable.
-    Assert.assertFalse(snapshotIter.hasNext());
+    Assertions.assertThat(snapshotIter).isExhausted();
   }
 
   private void expectedSnapshots(long[] snapshotIdExpected, Iterable<Snapshot> snapshotsActual) {
