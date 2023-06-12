@@ -25,8 +25,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.RequestResponseTestBase;
 import org.assertj.core.api.Assertions;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestCreateNamespaceRequest extends RequestResponseTestBase<CreateNamespaceRequest> {
 
@@ -148,8 +147,8 @@ public class TestCreateNamespaceRequest extends RequestResponseTestBase<CreateNa
 
   @Override
   public void assertEquals(CreateNamespaceRequest actual, CreateNamespaceRequest expected) {
-    Assert.assertEquals("Namespaces should be equal", actual.namespace(), expected.namespace());
-    Assert.assertEquals("Properties should be equal", actual.properties(), expected.properties());
+    Assertions.assertThat(actual.namespace()).isEqualTo(expected.namespace());
+    Assertions.assertThat(actual.properties()).isEqualTo(expected.properties());
   }
 
   @Override

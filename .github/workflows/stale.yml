@@ -28,6 +28,7 @@ permissions:
 
 jobs:
   stale:
+    if: github.repository_owner == 'apache'
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/stale@v8.0.0

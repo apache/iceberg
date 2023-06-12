@@ -20,15 +20,13 @@ package org.apache.iceberg.rest.responses;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import java.util.List;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.rest.RequestResponseTestBase;
-import org.junit.Assert;
-import org.junit.Test;
+import org.assertj.core.api.Assertions;
+import org.junit.jupiter.api.Test;
 
 public class TestListTablesResponse extends RequestResponseTestBase<ListTablesResponse> {
 
@@ -49,75 +47,61 @@ public class TestListTablesResponse extends RequestResponseTestBase<ListTablesRe
   @Test
   public void testDeserializeInvalidResponsesThrows() {
     String identifiersHasWrongType = "{\"identifiers\":\"accounting%1Ftax\"}";
-    AssertHelpers.assertThrows(
-        "A JSON response with the incorrect type for the field identifiers should fail to parse",
-        JsonProcessingException.class,
-        () -> deserialize(identifiersHasWrongType));
+    Assertions.assertThatThrownBy(() -> deserialize(identifiersHasWrongType))
+        .isInstanceOf(JsonProcessingException.class)
+        .hasMessageContaining(
+            "Cannot deserialize value of type `java.util.ArrayList<org.apache.iceberg.catalog.TableIdentifier>`");
 
     String emptyJson = "{}";
-    AssertHelpers.assertThrows(
-        "An empty JSON response should fail to deserialize",
-        IllegalArgumentException.class,
-        "Invalid identifier list: null",
-        () -> deserialize(emptyJson));
+    Assertions.assertThatThrownBy(() -> deserialize(emptyJson))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid identifier list: null");
 
     String jsonWithKeysSpelledIncorrectly =
         "{\"identifyrezzzz\":[{\"namespace\":[\"accounting\",\"tax\"],\"name\":\"paid\"}]}";
-    AssertHelpers.assertThrows(
-        "A JSON response with the keys spelled incorrectly should fail to deserialize",
-        IllegalArgumentException.class,
-        "Invalid identifier list: null",
-        () -> deserialize(jsonWithKeysSpelledIncorrectly));
+    Assertions.assertThatThrownBy(() -> deserialize(jsonWithKeysSpelledIncorrectly))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid identifier list: null");
 
     String jsonWithInvalidIdentifiersInList =
         "{\"identifiers\":[{\"namespace\":\"accounting.tax\",\"name\":\"paid\"}]}";
-    AssertHelpers.assertThrows(
-        "A JSON response with an invalid identifier in the list of identifiers should fail to parse",
-        JsonProcessingException.class,
-        () -> deserialize(jsonWithInvalidIdentifiersInList));
+    Assertions.assertThatThrownBy(() -> deserialize(jsonWithInvalidIdentifiersInList))
+        .isInstanceOf(JsonProcessingException.class)
+        .hasMessageContaining("Cannot parse from non-array value");
 
     String jsonWithInvalidIdentifiersInList2 =
         "{\"identifiers\":[{\"namespace\":[\"accounting\",\"tax\"],\"name\":\"paid\"},\"accounting.tax.paid\"]}";
-    AssertHelpers.assertThrows(
-        "A JSON response with an invalid identifier in the list of identifiers should fail to parse",
-        JsonProcessingException.class,
-        () -> deserialize(jsonWithInvalidIdentifiersInList2));
+    Assertions.assertThatThrownBy(() -> deserialize(jsonWithInvalidIdentifiersInList2))
+        .isInstanceOf(JsonProcessingException.class)
+        .hasMessageContaining("Cannot parse missing or non-object table identifier");
 
     String jsonWithInvalidTypeForNamePartOfIdentifier =
         "{\"identifiers\":[{\"namespace\":[\"accounting\",\"tax\"],\"name\":true}]}";
-    AssertHelpers.assertThrows(
-        "A JSON response with an invalid identifier in the list of identifiers should fail to parse",
-        JsonProcessingException.class,
-        () -> deserialize(jsonWithInvalidTypeForNamePartOfIdentifier));
+    Assertions.assertThatThrownBy(() -> deserialize(jsonWithInvalidTypeForNamePartOfIdentifier))
+        .isInstanceOf(JsonProcessingException.class)
+        .hasMessageContaining("Cannot parse to a string value");
 
     String nullJson = null;
-    AssertHelpers.assertThrows(
-        "A null JSON response should fail to deserialize",
-        IllegalArgumentException.class,
-        () -> deserialize(nullJson));
+    Assertions.assertThatThrownBy(() -> deserialize(nullJson))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("argument \"content\" is null");
   }
 
   @Test
   public void testBuilderDoesNotCreateInvalidObjects() {
-    AssertHelpers.assertThrows(
-        "The builder should not allow using null as a table identifier to add to the list",
-        NullPointerException.class,
-        "Invalid table identifier: null",
-        () -> ListTablesResponse.builder().add(null).build());
+    Assertions.assertThatThrownBy(() -> ListTablesResponse.builder().add(null))
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("Invalid table identifier: null");
 
-    AssertHelpers.assertThrows(
-        "The builder should not allow passing a null list of table identifiers to add",
-        NullPointerException.class,
-        "Invalid table identifier list: null",
-        () -> ListTablesResponse.builder().addAll(null).build());
+    Assertions.assertThatThrownBy(() -> ListTablesResponse.builder().addAll(null))
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("Invalid table identifier list: null");
 
     List<TableIdentifier> listWithNullElement =
         Lists.newArrayList(TableIdentifier.of(Namespace.of("foo"), "bar"), null);
-    AssertHelpers.assertThrows(
-        "The builder should not allow passing a collection of table identifiers with a null element in it",
-        IllegalArgumentException.class,
-        "Invalid table identifier: null",
-        () -> ListTablesResponse.builder().addAll(listWithNullElement).build());
+    Assertions.assertThatThrownBy(() -> ListTablesResponse.builder().addAll(listWithNullElement))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid table identifier: null");
   }
 
   @Override
@@ -132,11 +116,10 @@ public class TestListTablesResponse extends RequestResponseTestBase<ListTablesRe
 
   @Override
   public void assertEquals(ListTablesResponse actual, ListTablesResponse expected) {
-    Assert.assertTrue(
-        "Identifiers should be equal",
-        actual.identifiers().size() == expected.identifiers().size()
-            && Sets.newHashSet(actual.identifiers())
-                .equals(Sets.newHashSet(expected.identifiers())));
+    Assertions.assertThat(actual.identifiers())
+        .as("Identifiers should be equal")
+        .hasSameSizeAs(expected.identifiers())
+        .containsExactlyInAnyOrderElementsOf(expected.identifiers());
   }
 
   @Override
