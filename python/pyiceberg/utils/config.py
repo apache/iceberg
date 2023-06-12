@@ -132,11 +132,10 @@ class Config:
         return config
 
     def get_default_catalog_name(self) -> str:
-        """
-        Looks into the configuration file for `default-catalog` and returns the name as the default catalog.
+        """Returns the default catalog name.
 
         Returns: The name of the default catalog in `default-catalog`.
-                 Returns `default` when the key cannot be found.
+                 Returns `default` when the key cannot be found in the config file.
         """
         if default_catalog_name := self.config.get(DEFAULT_CATALOG):
             if not isinstance(default_catalog_name, str):

@@ -332,6 +332,7 @@ class BoundBooleanExpressionVisitor(BooleanExpressionVisitor[T], ABC):
 
     def visit_unbound_predicate(self, predicate: UnboundPredicate[L]) -> T:
         """Visit an unbound predicate.
+
         Args:
             predicate (UnboundPredicate[L]): An unbound predicate.
         Raises:
@@ -341,6 +342,7 @@ class BoundBooleanExpressionVisitor(BooleanExpressionVisitor[T], ABC):
 
     def visit_bound_predicate(self, predicate: BoundPredicate[L]) -> T:
         """Visit a bound predicate.
+
         Args:
             predicate (BoundPredicate[L]): A bound predicate.
         """
@@ -1060,6 +1062,7 @@ def expression_to_plain_format(
     expressions: Tuple[BooleanExpression, ...], cast_int_to_datetime: bool = False
 ) -> List[List[Tuple[str, str, Any]]]:
     """Formats a Disjunctive Normal Form expression.
+
     These are the formats that the expression can be fed into:
 
     - https://arrow.apache.org/docs/python/generated/pyarrow.parquet.read_table.html

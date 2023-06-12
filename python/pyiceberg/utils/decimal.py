@@ -78,6 +78,7 @@ def decimal_to_bytes(value: Decimal) -> bytes:
 
 def truncate_decimal(value: Decimal, width: int) -> Decimal:
     """Get a truncated Decimal value given a decimal value and a width.
+
     Args:
         value (Decimal): a decimal value.
         width (int): A width for the returned Decimal instance.

@@ -140,7 +140,6 @@ class InputFile(ABC):
     def exists(self) -> bool:
         """Checks whether the location exists.
 
-
         Raises:
             PermissionError: If the file at self.location cannot be accessed due to a permission error.
         """
@@ -187,7 +186,6 @@ class OutputFile(ABC):
     @abstractmethod
     def exists(self) -> bool:
         """Checks whether the location exists.
-
 
         Raises:
             PermissionError: If the file at self.location cannot be accessed due to a permission error.

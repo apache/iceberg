@@ -52,7 +52,11 @@ class Operation(Enum):
 
 
 class Summary(IcebergBaseModel):
-    """The snapshot summary’s operation field is used by some operations, like snapshot expiration, to skip processing certain snapshots."""
+    """A class that stores the summary information for a Snapshot.
+
+    The snapshot summary’s operation field is used by some operations,
+    like snapshot expiration, to skip processing certain snapshots.
+    """
 
     __root__: Dict[str, Union[str, Operation]]
     _additional_properties: Dict[str, str] = PrivateAttr()
