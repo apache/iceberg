@@ -20,14 +20,12 @@ package org.apache.iceberg.rest.responses;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import java.util.List;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.rest.RequestResponseTestBase;
-import org.junit.Assert;
-import org.junit.Test;
+import org.assertj.core.api.Assertions;
+import org.junit.jupiter.api.Test;
 
 public class TestListNamespacesResponse extends RequestResponseTestBase<ListNamespacesResponse> {
 
@@ -47,52 +45,42 @@ public class TestListNamespacesResponse extends RequestResponseTestBase<ListName
   @Test
   public void testDeserializeInvalidResponseThrows() {
     String jsonNamespacesHasWrongType = "{\"namespaces\":\"accounting\"}";
-    AssertHelpers.assertThrows(
-        "A malformed JSON response with the wrong type for a field should fail to deserialize",
-        JsonProcessingException.class,
-        () -> deserialize(jsonNamespacesHasWrongType));
+    Assertions.assertThatThrownBy(() -> deserialize(jsonNamespacesHasWrongType))
+        .isInstanceOf(JsonProcessingException.class)
+        .hasMessageContaining(
+            "Cannot deserialize value of type `java.util.ArrayList<org.apache.iceberg.catalog.Namespace>`");
 
     String emptyJson = "{}";
-    AssertHelpers.assertThrows(
-        "An empty JSON response will deserialize, but not into a valid object",
-        IllegalArgumentException.class,
-        "Invalid namespace: null",
-        () -> deserialize(emptyJson));
+    Assertions.assertThatThrownBy(() -> deserialize(emptyJson))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid namespace: null");
 
     String jsonWithKeysSpelledIncorrectly = "{\"namepsacezz\":[\"accounting\",\"tax\"]}";
-    AssertHelpers.assertThrows(
-        "A JSON response with the keys spelled incorrectly should fail to deserialize",
-        IllegalArgumentException.class,
-        "Invalid namespace: null",
-        () -> deserialize(jsonWithKeysSpelledIncorrectly));
+    Assertions.assertThatThrownBy(() -> deserialize(jsonWithKeysSpelledIncorrectly))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid namespace: null");
 
     String nullJson = null;
-    AssertHelpers.assertThrows(
-        "A null JSON response should fail to deserialize",
-        IllegalArgumentException.class,
-        () -> deserialize(nullJson));
+    Assertions.assertThatThrownBy(() -> deserialize(nullJson))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("argument \"content\" is null");
   }
 
   @Test
   public void testBuilderDoesNotCreateInvalidObjects() {
-    AssertHelpers.assertThrows(
-        "The builder should not allow using null as a namespace to add to the list",
-        NullPointerException.class,
-        "Invalid namespace: null",
-        () -> ListNamespacesResponse.builder().add(null).build());
+    Assertions.assertThatThrownBy(() -> ListNamespacesResponse.builder().add(null).build())
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("Invalid namespace: null");
 
-    AssertHelpers.assertThrows(
-        "The builder should not allow passing a null list of namespaces to add",
-        NullPointerException.class,
-        "Invalid namespace list: null",
-        () -> ListNamespacesResponse.builder().addAll(null).build());
+    Assertions.assertThatThrownBy(() -> ListNamespacesResponse.builder().addAll(null).build())
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("Invalid namespace list: null");
 
     List<Namespace> listWithNullElement = Lists.newArrayList(Namespace.of("a"), null);
-    AssertHelpers.assertThrows(
-        "The builder should not allow passing a collection of namespaces with a null element in it",
-        IllegalArgumentException.class,
-        "Invalid namespace: null",
-        () -> ListNamespacesResponse.builder().addAll(listWithNullElement).build());
+    Assertions.assertThatThrownBy(
+            () -> ListNamespacesResponse.builder().addAll(listWithNullElement).build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid namespace: null");
   }
 
   @Override
@@ -107,10 +95,10 @@ public class TestListNamespacesResponse extends RequestResponseTestBase<ListName
 
   @Override
   public void assertEquals(ListNamespacesResponse actual, ListNamespacesResponse expected) {
-    Assert.assertTrue(
-        "Namespaces list should be equal",
-        actual.namespaces().size() == expected.namespaces().size()
-            && Sets.newHashSet(actual.namespaces()).equals(Sets.newHashSet(expected.namespaces())));
+    Assertions.assertThat(actual.namespaces())
+        .as("Namespaces list should be equal")
+        .hasSize(expected.namespaces().size())
+        .containsExactlyInAnyOrderElementsOf(expected.namespaces());
   }
 
   @Override
