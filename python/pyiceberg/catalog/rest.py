@@ -516,8 +516,8 @@ class RestCatalog(Catalog):
                     504: CommitStateUnknownException,
                 },
             )
-        table_response = TableResponse(**response.json())
-        return self._response_to_table(table_request.identifier, table_response)
+
+        return self.load_table(table_request.identifier)
 
     def create_namespace(self, namespace: Union[str, Identifier], properties: Properties = EMPTY_DICT) -> None:
         namespace_tuple = self._check_valid_namespace_identifier(namespace)
