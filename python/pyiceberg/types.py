@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Data types used in describing Iceberg schemas
+"""Data types used in describing Iceberg schemas.
 
 This module implements the data types described in the Iceberg specification for Iceberg schemas. To
 describe an Iceberg table schema, these classes can be used in the construction of a StructType instance.
@@ -55,7 +55,7 @@ FIXED_PARSER = ParseNumberFromBrackets(FIXED)
 
 
 class IcebergType(IcebergBaseModel, Singleton):
-    """Base type for all Iceberg Types
+    """Base type for all Iceberg Types.
 
     Example:
         >>> str(IcebergType())
@@ -107,7 +107,7 @@ class IcebergType(IcebergBaseModel, Singleton):
 
 
 class PrimitiveType(IcebergType):
-    """Base class for all Iceberg Primitive Types"""
+    """Base class for all Iceberg Primitive Types."""
 
     __root__: str = Field()
 
@@ -252,7 +252,7 @@ class NestedField(IcebergType):
 
 
 class StructType(IcebergType):
-    """A struct type in Iceberg
+    """A struct type in Iceberg.
 
     Example:
         >>> str(StructType(
@@ -288,7 +288,7 @@ class StructType(IcebergType):
 
 
 class ListType(IcebergType):
-    """A list type in Iceberg
+    """A list type in Iceberg.
 
     Example:
         >>> ListType(element_id=3, element_type=StringType(), element_required=True)
@@ -323,7 +323,7 @@ class ListType(IcebergType):
 
 
 class MapType(IcebergType):
-    """A map type in Iceberg
+    """A map type in Iceberg.
 
     Example:
         >>> MapType(key_id=1, key_type=StringType(), value_id=2, value_type=IntegerType(), value_required=True)
