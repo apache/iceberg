@@ -79,7 +79,29 @@ def serialize_to_binary(scalar: pa.Scalar) -> bytes:
         raise TypeError('Unsupported type: {}'.format(type(scalar)))
 
 
-def fill_parquet_file_metadata(df: DataFile, file_object: pa.NativeFile) -> DataFile:
+def fill_parquet_file_metadata(df: DataFile, file_object: pa.NativeFile, table: pa.Table = None) -> None:
+    """
+    Computes and fills the following fields of the DataFile object:
+
+    - file_format
+    - record_count
+    - file_size_in_bytes
+    - column_sizes
+    - value_counts
+    - null_value_counts
+    - nan_value_counts
+    - lower_bounds
+    - upper_bounds
+    - split_offsets
+    
+    Args:
+        df (DataFile): A DataFile object representing the Parquet file for which metadata is to be filled.
+        file_object (pa.NativeFile): A pyarrow NativeFile object pointing to the location where the 
+            Parquet file is stored.
+        table (pa.Table, optional): If the metadata is computed while writing a pyarrow Table to parquet
+            the table can be passed to compute the column statistics. If absent the table will be read
+            from file_object using pyarrow.parquet.read_table.
+    """
     
     parquet_file = pq.ParquetFile(file_object)
     metadata = parquet_file.metadata
@@ -107,7 +129,8 @@ def fill_parquet_file_metadata(df: DataFile, file_object: pa.NativeFile) -> Data
 
     split_offsets.sort()
 
-    pf = pa.parquet.read_table(file_object)
+    if table is None:
+        table = pa.parquet.read_table(file_object)
 
     null_value_counts = {}
     nan_value_counts  = {}
@@ -115,12 +138,12 @@ def fill_parquet_file_metadata(df: DataFile, file_object: pa.NativeFile) -> Data
     upper_bounds      = {}
 
     for c in range(metadata.num_columns):
-        null_value_counts[c+1] = pf.filter(pc.field(c).is_null(nan_is_null=False)).num_rows
-        nan_value_counts[c+1]  = pf.filter(pc.field(c).is_null(nan_is_null=True)).num_rows - null_value_counts[c+1]
+        null_value_counts[c+1] = table.filter(pc.field(c).is_null(nan_is_null=False)).num_rows
+        nan_value_counts[c+1]  = table.filter(pc.field(c).is_null(nan_is_null=True)).num_rows - null_value_counts[c+1]
 
         try:
-            lower = pc.min(pf[c])
-            upper = pc.max(pf[c])
+            lower = pc.min(table[c])
+            upper = pc.max(table[c])
 
             lower_bounds[c+1] = serialize_to_binary(lower)[:BOUND_TRUNCATED_LENGHT]
             upper_bounds[c+1] = serialize_to_binary(upper)[:BOUND_TRUNCATED_LENGHT]
