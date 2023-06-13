@@ -19,6 +19,7 @@
 package org.apache.iceberg.data;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Set;
@@ -50,7 +51,9 @@ public abstract class DeleteReadTests {
   public static final Schema SCHEMA =
       new Schema(
           Types.NestedField.required(1, "id", Types.IntegerType.get()),
-          Types.NestedField.required(2, "data", Types.StringType.get()));
+          Types.NestedField.required(2, "data", Types.StringType.get()),
+          Types.NestedField.required(3, "bin", Types.BinaryType.get())
+          );
 
   public static final Schema DATE_SCHEMA =
       new Schema(
@@ -83,13 +86,13 @@ public abstract class DeleteReadTests {
 
     // records all use IDs that are in bucket id_bucket=0
     GenericRecord record = GenericRecord.create(table.schema());
-    records.add(record.copy("id", 29, "data", "a"));
-    records.add(record.copy("id", 43, "data", "b"));
-    records.add(record.copy("id", 61, "data", "c"));
-    records.add(record.copy("id", 89, "data", "d"));
-    records.add(record.copy("id", 100, "data", "e"));
-    records.add(record.copy("id", 121, "data", "f"));
-    records.add(record.copy("id", 122, "data", "g"));
+    records.add(record.copy("id", 29, "data", "a", "bin", ByteBuffer.allocate(4).putInt(29).flip()));
+    records.add(record.copy("id", 43, "data", "b", "bin", ByteBuffer.allocate(4).putInt(43).flip()));
+    records.add(record.copy("id", 61, "data", "c", "bin", ByteBuffer.allocate(4).putInt(61).flip()));
+    records.add(record.copy("id", 89, "data", "d", "bin", ByteBuffer.allocate(4).putInt(89).flip()));
+    records.add(record.copy("id", 100, "data", "e", "bin", ByteBuffer.allocate(4).putInt(100).flip()));
+    records.add(record.copy("id", 121, "data", "f", "bin", ByteBuffer.allocate(4).putInt(121).flip()));
+    records.add(record.copy("id", 122, "data", "g", "bin", ByteBuffer.allocate(4).putInt(122).flip()));
 
     this.dataFile =
         FileHelpers.writeDataFile(table, Files.localOutput(temp.newFile()), Row.of(0), records);
@@ -189,6 +192,30 @@ public abstract class DeleteReadTests {
       Assert.assertEquals(
           "Table should contain expected number of deletes", expectedDeletes, actualDeletes);
     }
+  }
+
+  @Test
+  public void testBinaryEqualityDeletes() throws IOException {
+    Schema deleteRowSchema = table.schema().select("bin");
+    Record dataDelete = GenericRecord.create(deleteRowSchema);
+    List<Record> dataDeletes =
+            Lists.newArrayList(
+                    dataDelete.copy("bin", ByteBuffer.allocate(4).putInt(29).flip()), // id = 29
+                    dataDelete.copy("bin", ByteBuffer.allocate(4).putInt(89).flip()), // id = 89
+                    dataDelete.copy("bin", ByteBuffer.allocate(4).putInt(122).flip()) // id = 122
+            );
+
+    DeleteFile eqDeletes =
+            FileHelpers.writeDeleteFile(
+                    table, Files.localOutput(temp.newFile()), Row.of(0), dataDeletes, deleteRowSchema);
+
+    table.newRowDelta().addDeletes(eqDeletes).commit();
+
+    StructLikeSet expected = rowSetWithoutIds(table, records, 29, 89, 122);
+    StructLikeSet actual = rowSet(tableName, table, "*");
+
+    Assert.assertEquals("Table should contain expected rows", expected, actual);
+    checkDeleteCount(3L);
   }
 
   @Test
