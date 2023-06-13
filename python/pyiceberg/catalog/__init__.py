@@ -361,7 +361,7 @@ class Catalog(ABC):
         Raises:
             NoSuchNamespaceError: If a namespace with the given name does not exist.
         """
-        
+
     @abstractmethod
     def list_namespaces(self, namespace: Union[str, Identifier] = ()) -> List[Identifier]:
         """List namespaces from the given namespace. If not given, list top-level namespaces from the catalog.
