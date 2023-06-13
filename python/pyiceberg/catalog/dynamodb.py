@@ -278,12 +278,12 @@ class DynamoDbCatalog(Catalog):
         """Create a namespace in the catalog.
 
         Args:
-            namespace: Namespace identifier
-            properties: A string dictionary of properties for the given namespace
+            namespace: Namespace identifier.
+            properties: A string dictionary of properties for the given namespace.
 
         Raises:
-            ValueError: If the identifier is invalid
-            AlreadyExistsError: If a namespace with the given name already exists
+            ValueError: If the identifier is invalid.
+            AlreadyExistsError: If a namespace with the given name already exists.
         """
         database_name = self.identifier_to_database(namespace)
 
@@ -717,7 +717,7 @@ def _get_namespace_properties(namespace_dict: Dict[str, str]) -> Properties:
 def _convert_dynamo_item_to_regular_dict(dynamo_json: Dict[str, Any]) -> Dict[str, str]:
     """
     Converts a dynamo json to a regular json.
-    
+
     Example of a dynamo json:
     {
         "AlbumTitle": {
