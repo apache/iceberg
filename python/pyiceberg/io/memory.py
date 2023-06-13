@@ -25,7 +25,7 @@ from pyiceberg.io import InputStream
 
 class MemoryInputStream(InputStream):
     """
-    Simple in memory stream that we use to store decompressed blocks
+    Simple in memory stream that we use to store decompressed blocks.
 
     Examples:
         >>> stream = MemoryInputStream(b'22memory1925')
