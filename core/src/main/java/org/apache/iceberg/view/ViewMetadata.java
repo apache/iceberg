@@ -26,9 +26,12 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.util.PropertyUtil;
 import org.immutables.value.Value;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Value.Immutable
 public interface ViewMetadata extends Serializable {
+  Logger LOG = LoggerFactory.getLogger(ViewMetadata.class);
   int SUPPORTED_VIEW_FORMAT_VERSION = 1;
 
   int formatVersion();
@@ -107,13 +110,13 @@ public interface ViewMetadata extends Serializable {
             properties(),
             ViewProperties.VERSION_HISTORY_SIZE,
             ViewProperties.VERSION_HISTORY_SIZE_DEFAULT);
-    Preconditions.checkArgument(
-        versionHistorySizeToKeep >= 1,
-        "%s must be positive but was %s",
-        ViewProperties.VERSION_HISTORY_SIZE,
-        versionHistorySizeToKeep);
 
-    if (versions().size() > versionHistorySizeToKeep) {
+    if (versionHistorySizeToKeep <= 0) {
+      LOG.warn(
+          "{} must be positive but was {}",
+          ViewProperties.VERSION_HISTORY_SIZE,
+          versionHistorySizeToKeep);
+    } else if (versions().size() > versionHistorySizeToKeep) {
       List<ViewVersion> versions =
           versions().subList(versions().size() - versionHistorySizeToKeep, versions().size());
       List<ViewHistoryEntry> history =

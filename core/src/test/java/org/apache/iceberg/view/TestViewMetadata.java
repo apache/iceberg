@@ -181,31 +181,44 @@ public class TestViewMetadata {
 
   @Test
   public void invalidVersionHistorySizeToKeep() {
-    assertThatThrownBy(
-            () ->
-                ImmutableViewMetadata.builder()
-                    .properties(ImmutableMap.of(ViewProperties.VERSION_HISTORY_SIZE, "0"))
-                    .formatVersion(1)
-                    .location("location")
-                    .currentSchemaId(1)
-                    .currentVersionId(1)
-                    .addVersions(
-                        ImmutableViewVersion.builder()
-                            .schemaId(1)
-                            .versionId(1)
-                            .timestampMillis(23L)
-                            .putSummary("operation", "op")
-                            .build())
-                    .addHistory(
-                        ImmutableViewHistoryEntry.builder()
-                            .timestampMillis(23L)
-                            .versionId(1)
-                            .build())
-                    .addSchemas(
-                        new Schema(1, Types.NestedField.required(1, "x", Types.LongType.get())))
+    ImmutableViewMetadata viewMetadata =
+        ImmutableViewMetadata.builder()
+            // setting history to < 1 shouldn't do anything and only issue a WARN
+            .properties(ImmutableMap.of(ViewProperties.VERSION_HISTORY_SIZE, "0"))
+            .formatVersion(1)
+            .location("location")
+            .currentSchemaId(1)
+            .currentVersionId(3)
+            .addVersions(
+                ImmutableViewVersion.builder()
+                    .schemaId(1)
+                    .versionId(1)
+                    .timestampMillis(23L)
+                    .putSummary("operation", "a")
                     .build())
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("version.history.num-entries must be positive but was 0");
+            .addVersions(
+                ImmutableViewVersion.builder()
+                    .schemaId(1)
+                    .versionId(2)
+                    .timestampMillis(24L)
+                    .putSummary("operation", "b")
+                    .build())
+            .addVersions(
+                ImmutableViewVersion.builder()
+                    .schemaId(1)
+                    .versionId(3)
+                    .timestampMillis(25L)
+                    .putSummary("operation", "c")
+                    .build())
+            .addHistory(
+                ImmutableViewHistoryEntry.builder().versionId(1).timestampMillis(23L).build())
+            .addHistory(
+                ImmutableViewHistoryEntry.builder().versionId(2).timestampMillis(24L).build())
+            .addSchemas(new Schema(1, Types.NestedField.required(1, "x", Types.LongType.get())))
+            .build();
+
+    assertThat(viewMetadata.versions()).hasSize(3);
+    assertThat(viewMetadata.history()).hasSize(2);
   }
 
   @Test
