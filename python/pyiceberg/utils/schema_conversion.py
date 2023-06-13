@@ -232,7 +232,7 @@ class AvroSchemaConversion:
     def _convert_record_type(self, record_type: dict[str, Any]) -> StructType:
         """
         Converts the fields from a record into an Iceberg struct.
-        
+
         Examples:
             >>> from pyiceberg.utils.schema_conversion import AvroSchemaConversion
             >>> record_type = {
