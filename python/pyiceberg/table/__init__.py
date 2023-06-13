@@ -81,11 +81,11 @@ class Table:
         self.io = io
 
     def refresh(self) -> Table:
-        """Refresh the current table metadata"""
+        """Refresh the current table metadata."""
         raise NotImplementedError("To be implemented")
 
     def name(self) -> Identifier:
-        """Return the identifier of this table"""
+        """Return the identifier of this table."""
         return self.identifier
 
     def scan(
@@ -108,29 +108,29 @@ class Table:
         )
 
     def schema(self) -> Schema:
-        """Return the schema for this table"""
+        """Return the schema for this table."""
         return next(schema for schema in self.metadata.schemas if schema.schema_id == self.metadata.current_schema_id)
 
     def schemas(self) -> Dict[int, Schema]:
-        """Return a dict of the schema of this table"""
+        """Return a dict of the schema of this table."""
         return {schema.schema_id: schema for schema in self.metadata.schemas}
 
     def spec(self) -> PartitionSpec:
-        """Return the partition spec of this table"""
+        """Return the partition spec of this table."""
         return next(spec for spec in self.metadata.partition_specs if spec.spec_id == self.metadata.default_spec_id)
 
     def specs(self) -> Dict[int, PartitionSpec]:
-        """Return a dict the partition specs this table"""
+        """Return a dict the partition specs this table."""
         return {spec.spec_id: spec for spec in self.metadata.partition_specs}
 
     def sort_order(self) -> SortOrder:
-        """Return the sort order of this table"""
+        """Return the sort order of this table."""
         return next(
             sort_order for sort_order in self.metadata.sort_orders if sort_order.order_id == self.metadata.default_sort_order_id
         )
 
     def sort_orders(self) -> Dict[int, SortOrder]:
-        """Return a dict of the sort orders of this table"""
+        """Return a dict of the sort orders of this table."""
         return {sort_order.order_id: sort_order for sort_order in self.metadata.sort_orders}
 
     def location(self) -> str:
@@ -174,7 +174,7 @@ class StaticTable(Table):
     """Load a table directly from a metadata file (i.e., without using a catalog)."""
 
     def refresh(self) -> Table:
-        """Refresh the current table metadata"""
+        """Refresh the current table metadata."""
         raise NotImplementedError("To be implemented")
 
     @classmethod
@@ -195,14 +195,14 @@ class StaticTable(Table):
 
 
 def _parse_row_filter(expr: Union[str, BooleanExpression]) -> BooleanExpression:
-    """Accepts an expression in the form of a BooleanExpression or a string
+    """Accepts an expression in the form of a BooleanExpression or a string.
 
-    In the case of a string, it will be converted into a unbound BooleanExpression
+    In the case of a string, it will be converted into a unbound BooleanExpression.
 
     Args:
-        expr: Expression as a BooleanExpression or a string
+        expr: Expression as a BooleanExpression or a string.
 
-    Returns: An unbound BooleanExpression
+    Returns: An unbound BooleanExpression.
     """
     return parser.parse(expr) if isinstance(expr, str) else expr
 
