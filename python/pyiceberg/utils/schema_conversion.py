@@ -231,7 +231,7 @@ class AvroSchemaConversion:
 
     def _convert_record_type(self, record_type: dict[str, Any]) -> StructType:
         """
-        Converts the fields from a record into an Iceberg struct....
+        Converts the fields from a record into an Iceberg struct.
 
         Examples:
             >>> from pyiceberg.utils.schema_conversion import AvroSchemaConversion
@@ -297,6 +297,8 @@ class AvroSchemaConversion:
 
     def _convert_map_type(self, map_type: dict[str, Any]) -> MapType:
         """
+        Converts dict to MapType.
+        
         Args:
             map_type: The dict that describes the Avro map type.
 
@@ -333,8 +335,8 @@ class AvroSchemaConversion:
 
     def _convert_logical_type(self, avro_logical_type: dict[str, Any]) -> IcebergType:
         """
-        Convert a schema with a logical type annotation. For the decimal and map
-        we need to fetch more keys from the dict, and for the simple ones we can just
+        Convert a schema with a logical type annotation. 
+        For the decimal and map we need to fetch more keys from the dict, and for the simple ones we can just
         look it up in the mapping.
 
         Examples:
@@ -369,6 +371,8 @@ class AvroSchemaConversion:
 
     def _convert_logical_decimal_type(self, avro_type: dict[str, Any]) -> DecimalType:
         """
+        Converts Avro type to Iceberg DecimalType.
+        
         Args:
             avro_type: The Avro type.
 
@@ -395,8 +399,7 @@ class AvroSchemaConversion:
 
     def _convert_logical_map_type(self, avro_type: dict[str, Any]) -> MapType:
         """
-        In the case where a map hasn't a key as a type you can use a logical map to
-        still encode this in Avro.
+        In the case where a map hasn't a key as a type you can use a logical map to still encode this in Avro.
 
         Args:
             avro_type: The Avro Type.
@@ -447,10 +450,12 @@ class AvroSchemaConversion:
 
     def _convert_fixed_type(self, avro_type: dict[str, Any]) -> FixedType:
         """
-        https://avro.apache.org/docs/current/spec.html#Fixed
+        Converts Avro Type to the equivalent Iceberg fixed type.
+        
+        - https://avro.apache.org/docs/current/spec.html#Fixed
 
         Args:
-            avro_type: The Avro Type.
+            avro_type: The Avro type.
 
         Examples:
             >>> from pyiceberg.utils.schema_conversion import AvroSchemaConversion
