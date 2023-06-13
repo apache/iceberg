@@ -133,8 +133,7 @@ class Config:
 
     def get_default_catalog_name(self) -> str:
         """
-        Looks into the configuration file for `default-catalog`
-        and returns the name as the default catalog.
+        Looks into the configuration file for `default-catalog` and returns the name as the default catalog.
 
         Returns: The name of the default catalog in `default-catalog`.
                  Returns `default` when the key cannot be found.
