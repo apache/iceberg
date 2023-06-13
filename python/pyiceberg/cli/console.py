@@ -92,7 +92,7 @@ def _catalog_and_output(ctx: Context) -> Tuple[Catalog, Output]:
 @click.argument("parent", required=False)
 @catch_exception()
 def list(ctx: Context, parent: Optional[str]) -> None:  # pylint: disable=redefined-builtin
-    """Lists tables or namespaces"""
+    """Lists tables or namespaces."""
     catalog, output = _catalog_and_output(ctx)
 
     identifiers = catalog.list_namespaces(parent or ())
