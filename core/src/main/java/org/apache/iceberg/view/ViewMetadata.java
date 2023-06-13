@@ -51,7 +51,6 @@ public interface ViewMetadata extends Serializable {
     return versionsById().get(versionId);
   }
 
-  @Value.Lazy
   default ViewVersion currentVersion() {
     return versionsById().get(currentVersionId());
   }
@@ -76,7 +75,6 @@ public interface ViewMetadata extends Serializable {
     return builder.build();
   }
 
-  @Value.Lazy
   default Schema schema() {
     return schemasById().get(currentSchemaId());
   }
