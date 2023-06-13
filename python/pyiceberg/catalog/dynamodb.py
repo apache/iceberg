@@ -716,7 +716,9 @@ def _get_namespace_properties(namespace_dict: Dict[str, str]) -> Properties:
 
 def _convert_dynamo_item_to_regular_dict(dynamo_json: Dict[str, Any]) -> Dict[str, str]:
     """
-    Converts a dynamo json to a regular json. Example of a dynamo json:
+    Converts a dynamo json to a regular json.
+    
+    Example of a dynamo json:
     {
         "AlbumTitle": {
             "S": "Songs About Life",
