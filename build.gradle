@@ -835,6 +835,10 @@ project(':iceberg-nessie') {
     test {
       useJUnitPlatform()
     }
+    compileTestJava {
+      sourceCompatibility = "11"
+      targetCompatibility = "11"
+    }
   } else {
     // Do not test Nessie against Java 8, because in-JVM testing requires Nessie server components,
     // which require Java 11+.
