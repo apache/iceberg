@@ -196,7 +196,7 @@ class StaticTable(Table):
 
 def _parse_row_filter(expr: Union[str, BooleanExpression]) -> BooleanExpression:
     """Accepts an expression in the form of a BooleanExpression or a string.
-
+    
     In the case of a string, it will be converted into a unbound BooleanExpression.
 
     Args:
