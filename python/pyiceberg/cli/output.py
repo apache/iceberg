@@ -169,7 +169,7 @@ class ConsoleOutput(Output):
 
 
 class JsonOutput(Output):
-    """Writes json to stdout"""
+    """Writes json to stdout."""
 
     verbose: bool
 
@@ -187,7 +187,7 @@ class JsonOutput(Output):
 
     def describe_table(self, table: Table) -> None:
         class FauxTable(IcebergBaseModel):
-            """Just to encode it using Pydantic"""
+            """Just to encode it using Pydantic."""
 
             identifier: Identifier
             metadata_location: str
