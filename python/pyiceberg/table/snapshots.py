@@ -33,7 +33,7 @@ OPERATION = "operation"
 
 
 class Operation(Enum):
-    """Describes the operation
+    """Describes the operation.
 
     Possible operation values are:
         - append: Only data files were added and no files were removed.
