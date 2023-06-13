@@ -130,7 +130,7 @@ class BinaryDecoder:
         return self.read_bytes().decode("utf-8")
 
     def read_uuid_from_fixed(self) -> UUID:
-        """Reads a UUID as a fixed[16]"""
+        """Reads a UUID as a fixed[16]."""
         return UUID(bytes=self.read(16))
 
     def read_time_millis(self) -> time:
@@ -160,7 +160,7 @@ class BinaryDecoder:
         Long is decoded as python datetime object which represents
         the number of microseconds from the unix epoch, 1 January 1970.
 
-        Adjusted to UTC
+        Adjusted to UTC.
         """
         return micros_to_timestamptz(self.read_int())
 
