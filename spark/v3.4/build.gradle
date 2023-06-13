@@ -165,8 +165,8 @@ project(":iceberg-spark:iceberg-spark-extensions-${sparkMajorVersion}_${scalaVer
     testImplementation "org.apache.parquet:parquet-hadoop"
 
     // Required because we remove antlr plugin dependencies from the compile configuration, see note above
-    runtimeOnly "org.antlr:antlr4-runtime:4.8"
-    antlr "org.antlr:antlr4:4.8"
+    runtimeOnly "org.antlr:antlr4-runtime:4.9.3"
+    antlr "org.antlr:antlr4:4.9.3"
   }
 
   generateGrammarSource {

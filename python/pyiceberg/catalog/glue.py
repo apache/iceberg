@@ -56,7 +56,10 @@ from pyiceberg.table.metadata import new_table_metadata
 from pyiceberg.table.sorting import UNSORTED_SORT_ORDER, SortOrder
 from pyiceberg.typedef import EMPTY_DICT
 
+BOTO_SESSION_CONFIG_KEYS = ["aws_secret_key_id", "aws_secret_access_key", "aws_session_token", "region_name", "profile_name"]
+
 GLUE_CLIENT = "glue"
+
 
 PROP_GLUE_TABLE = "Table"
 PROP_GLUE_TABLE_TYPE = "TableType"
@@ -131,7 +134,10 @@ def _construct_database_input(database_name: str, properties: Properties) -> Dic
 class GlueCatalog(Catalog):
     def __init__(self, name: str, **properties: str):
         super().__init__(name, **properties)
-        self.glue = boto3.client(GLUE_CLIENT)
+
+        session_config = {k: v for k, v in properties.items() if k in BOTO_SESSION_CONFIG_KEYS}
+        session = boto3.Session(**session_config)
+        self.glue = session.client(GLUE_CLIENT)
 
     def _convert_glue_to_iceberg(self, glue_table: Dict[str, Any]) -> Table:
         properties: Properties = glue_table.get(PROP_GLUE_TABLE_PARAMETERS, {})

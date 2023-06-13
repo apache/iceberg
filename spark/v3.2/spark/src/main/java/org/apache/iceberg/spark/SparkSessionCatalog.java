@@ -22,6 +22,7 @@ import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.spark.source.HasIcebergCatalog;
@@ -277,7 +278,10 @@ public class SparkSessionCatalog<T extends TableCatalog & SupportsNamespaces> ex
 
   @Override
   public final void initialize(String name, CaseInsensitiveStringMap options) {
-    if (options.containsKey("type") && options.get("type").equalsIgnoreCase("hive")) {
+    if (options.containsKey(CatalogUtil.ICEBERG_CATALOG_TYPE)
+        && options
+            .get(CatalogUtil.ICEBERG_CATALOG_TYPE)
+            .equalsIgnoreCase(CatalogUtil.ICEBERG_CATALOG_TYPE_HIVE)) {
       validateHmsUri(options.get(CatalogProperties.URI));
     }
 
