@@ -52,7 +52,7 @@ public abstract class DeleteReadTests {
       new Schema(
           Types.NestedField.required(1, "id", Types.IntegerType.get()),
           Types.NestedField.required(2, "data", Types.StringType.get()),
-          Types.NestedField.required(3, "bin", Types.BinaryType.get())
+          Types.NestedField.optional(3, "bin", Types.BinaryType.get())
           );
 
   public static final Schema DATE_SCHEMA =
