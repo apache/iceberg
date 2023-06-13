@@ -358,7 +358,7 @@ class CommitTableRequest(IcebergBaseModel):
 
 class CommitTableResponse(IcebergBaseModel):
     metadata: TableMetadata = Field()
-    metadata_location: str = Field()
+    metadata_location: str = Field(alias="metadata-location")
 
 
 class Table:
