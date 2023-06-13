@@ -66,9 +66,7 @@ class BinaryDecoder:
         self._input_stream.seek(n, SEEK_CUR)
 
     def read_boolean(self) -> bool:
-        """
-        A boolean is written as a single byte whose value is either 0 (false) or 1 (true).
-        """
+        """A boolean is written as a single byte whose value is either 0 (false) or 1 (true)."""
         return ord(self.read(1)) == 1
 
     def read_int(self) -> int:
