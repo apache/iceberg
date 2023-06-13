@@ -169,13 +169,18 @@ class Transaction:
         """
         # Strip the catalog name
         if len(self._updates) > 0:
-            return self._table.catalog._commit(  # pylint: disable=W0212
+            response = self._table.catalog._commit(  # pylint: disable=W0212
                 CommitTableRequest(
                     identifier=self._table.identifier[1:],
                     requirements=self._requirements,
                     updates=self._updates,
                 )
             )
+            # Update the metadata with the new one
+            self._table.metadata = response.metadata
+            self._table.metadata_location = response.metadata_location
+
+            return self._table
         else:
             return self._table
 
@@ -349,6 +354,11 @@ class CommitTableRequest(IcebergBaseModel):
     identifier: Identifier = Field()
     requirements: List[TableRequirement] = Field(default_factory=list)
     updates: List[TableUpdate] = Field(default_factory=list)
+
+
+class CommitTableResponse(IcebergBaseModel):
+    metadata: TableMetadata = Field()
+    metadata_location: str = Field()
 
 
 class Table:

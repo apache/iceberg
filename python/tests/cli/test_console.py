@@ -32,7 +32,7 @@ from pyiceberg.exceptions import NoSuchNamespaceError, NoSuchTableError
 from pyiceberg.io import load_file_io
 from pyiceberg.partitioning import UNPARTITIONED_PARTITION_SPEC, PartitionSpec
 from pyiceberg.schema import Schema
-from pyiceberg.table import CommitTableRequest, Table
+from pyiceberg.table import CommitTableRequest, Table, CommitTableResponse
 from pyiceberg.table.metadata import TableMetadataV2
 from pyiceberg.table.sorting import UNSORTED_SORT_ORDER, SortOrder
 from pyiceberg.typedef import EMPTY_DICT, Identifier, Properties
@@ -119,7 +119,7 @@ class MockCatalog(Catalog):
             catalog=self,
         )
 
-    def _commit(self, *table_requests: CommitTableRequest) -> Table:
+    def _commit(self, *table_requests: CommitTableRequest) -> CommitTableResponse:
         raise NotImplementedError
 
     def load_table(self, identifier: Union[str, Identifier]) -> Table:

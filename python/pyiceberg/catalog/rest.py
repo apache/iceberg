@@ -58,7 +58,7 @@ from pyiceberg.exceptions import (
 )
 from pyiceberg.partitioning import UNPARTITIONED_PARTITION_SPEC, PartitionSpec
 from pyiceberg.schema import Schema
-from pyiceberg.table import CommitTableRequest, Table, TableMetadata
+from pyiceberg.table import CommitTableRequest, Table, TableMetadata, CommitTableResponse
 from pyiceberg.table.sorting import UNSORTED_SORT_ORDER, SortOrder
 from pyiceberg.typedef import EMPTY_DICT, IcebergBaseModel
 
@@ -488,11 +488,14 @@ class RestCatalog(Catalog):
 
         return self.load_table(to_identifier)
 
-    def _commit(self, *table_requests: CommitTableRequest) -> Table:
+    def _commit(self, *table_requests: CommitTableRequest) -> CommitTableResponse:
         """Updates the table
 
         Args:
             table_requests (Tuple[CommitTableRequest, ...]): The table requests to be carried out
+
+        Returns:
+            CommitTableResponse: The updated metadata
 
         Raises:
             NoSuchTableError: If a table with the given identifier does not exist
