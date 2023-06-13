@@ -404,8 +404,8 @@ class IntegerType(PrimitiveType):
 
 
 class LongType(PrimitiveType):
-    """A Long data type in Iceberg can be represented using an instance of this class. Longs in Iceberg are
-    64-bit signed integers.
+    """A Long data type in Iceberg can be represented using an instance of this class.
+    Longs in Iceberg are 64-bit signed integers.
 
     Example:
         >>> column_foo = LongType()
