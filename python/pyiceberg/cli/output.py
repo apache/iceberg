@@ -30,7 +30,7 @@ from pyiceberg.typedef import IcebergBaseModel, Identifier, Properties
 
 
 class Output(ABC):
-    """Output interface for exporting"""
+    """Output interface for exporting."""
 
     @abstractmethod
     def exception(self, ex: Exception) -> None:
@@ -70,7 +70,7 @@ class Output(ABC):
 
 
 class ConsoleOutput(Output):
-    """Writes to the console"""
+    """Writes to the console."""
 
     verbose: bool
 
