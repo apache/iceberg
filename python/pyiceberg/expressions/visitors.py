@@ -1059,7 +1059,8 @@ class ExpressionToPlainFormat(BoundBooleanExpressionVisitor[List[Tuple[str, str,
 def expression_to_plain_format(
     expressions: Tuple[BooleanExpression, ...], cast_int_to_datetime: bool = False
 ) -> List[List[Tuple[str, str, Any]]]:
-    """Formats a Disjunctive Normal Form expression into the format that can be fed into:
+    """Formats a Disjunctive Normal Form expression.
+    These are the formats that the expression can be fed into:
 
     - https://arrow.apache.org/docs/python/generated/pyarrow.parquet.read_table.html
     - https://docs.dask.org/en/stable/generated/dask.dataframe.read_parquet.html
