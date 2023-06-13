@@ -238,7 +238,7 @@ class Catalog(ABC):
     or tuple of strings.
 
     Attributes:
-        name (str | None): Name of the catalog.
+        name (str): Name of the catalog.
         properties (Properties): Catalog properties.
     """
 
