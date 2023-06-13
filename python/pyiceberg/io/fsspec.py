@@ -236,7 +236,7 @@ class FsspecOutputFile(OutputFile):
         return self._fs.open(self.location, "wb")
 
     def to_input_file(self) -> FsspecInputFile:
-        """Returns a new FsspecInputFile for the location at `self.location`"""
+        """Returns a new FsspecInputFile for the location at `self.location`."""
         return FsspecInputFile(location=self.location, fs=self._fs)
 
 
