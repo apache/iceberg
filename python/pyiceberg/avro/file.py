@@ -143,8 +143,7 @@ class AvroFile(Generic[D]):
 
     def __enter__(self) -> AvroFile[D]:
         """
-        Opens the file and reads the header and generates
-        a reader tree to start reading the payload.
+        Opens the file and reads the header and generates a reader tree to start reading the payload.
 
         Returns:
             A generator returning the AvroStructs
