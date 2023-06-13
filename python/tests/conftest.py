@@ -1378,21 +1378,21 @@ def fixture_aws_credentials() -> Generator[None, None, None]:
 
 @pytest.fixture(name="_s3")
 def fixture_s3(_aws_credentials: None) -> Generator[boto3.client, None, None]:
-    """Mocked S3 client"""
+    """Mocked S3 client."""
     with mock_s3():
         yield boto3.client("s3", region_name="us-east-1")
 
 
 @pytest.fixture(name="_glue")
 def fixture_glue(_aws_credentials: None) -> Generator[boto3.client, None, None]:
-    """Mocked glue client"""
+    """Mocked glue client."""
     with mock_glue():
         yield boto3.client("glue", region_name="us-east-1")
 
 
 @pytest.fixture(name="_dynamodb")
 def fixture_dynamodb(_aws_credentials: None) -> Generator[boto3.client, None, None]:
-    """Mocked DynamoDB client"""
+    """Mocked DynamoDB client."""
     with mock_dynamodb():
         yield boto3.client("dynamodb", region_name="us-east-1")
 
