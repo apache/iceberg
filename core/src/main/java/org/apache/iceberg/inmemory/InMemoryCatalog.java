@@ -204,6 +204,15 @@ public class InMemoryCatalog extends BaseMetastoreCatalog implements SupportsNam
   }
 
   @Override
+  public boolean dropNamespace(Namespace namespace, boolean cascade)
+      throws NamespaceNotEmptyException {
+    if (cascade) {
+      listTables(namespace).forEach(this::dropTable);
+    }
+    return dropNamespace(namespace);
+  }
+
+  @Override
   public boolean setProperties(Namespace namespace, Map<String, String> properties)
       throws NoSuchNamespaceException {
     if (!namespaceExists(namespace)) {

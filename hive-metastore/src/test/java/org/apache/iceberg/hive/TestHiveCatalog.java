@@ -1186,4 +1186,45 @@ public class TestHiveCatalog extends HiveMetastoreTest {
         .hasMessage("Table already exists: hivedb.t1");
     assertThat(catalog.dropTable(identifier, true)).isTrue();
   }
+
+  @Test
+  public void testDropNamespaceCascade() throws TException {
+    Namespace namespace = Namespace.of("dbname_drop_cascade_test");
+    TableIdentifier identifier = TableIdentifier.of(namespace, "table");
+    Schema schema =
+        new Schema(Types.StructType.of(required(1, "id", Types.LongType.get())).fields());
+
+    catalog.createNamespace(namespace, meta);
+    catalog.createTable(identifier, schema);
+    Map<String, String> nameMata = catalog.loadNamespaceMetadata(namespace);
+    Assert.assertTrue(nameMata.get("owner").equals("apache"));
+    Assert.assertTrue(nameMata.get("group").equals("iceberg"));
+
+    Assert.assertTrue(catalog.dropNamespace(namespace, true));
+    Assert.assertFalse(catalog.tableExists(identifier));
+    Assert.assertFalse(
+        "Should fail to drop when namespace doesn't exist",
+        catalog.dropNamespace(Namespace.of("db.ns1")));
+    assertThatThrownBy(() -> catalog.loadNamespaceMetadata(namespace))
+        .isInstanceOf(NoSuchNamespaceException.class)
+        .hasMessageContaining("Namespace does not exist");
+  }
+
+  @Test
+  public void testDropNamespaceCascadeFalse() throws TException {
+    Namespace namespace = Namespace.of("dbname_drop_cascade_test_false");
+    TableIdentifier identifier = TableIdentifier.of(namespace, "table");
+    Schema schema = getTestSchema();
+
+    catalog.createNamespace(namespace, meta);
+    catalog.createTable(identifier, schema);
+    Map<String, String> nameMata = catalog.loadNamespaceMetadata(namespace);
+    Assert.assertTrue(nameMata.get("owner").equals("apache"));
+    Assert.assertTrue(nameMata.get("group").equals("iceberg"));
+
+    assertThatThrownBy(() -> catalog.dropNamespace(namespace, false))
+        .isInstanceOf(NamespaceNotEmptyException.class)
+        .hasMessageContaining("is not empty. One or more tables exist.");
+    Assert.assertNotNull(catalog.loadNamespaceMetadata(namespace));
+  }
 }

@@ -516,7 +516,7 @@ public class SparkCatalog extends BaseCatalog {
       throws NoSuchNamespaceException {
     if (asNamespaceCatalog != null) {
       try {
-        return asNamespaceCatalog.dropNamespace(Namespace.of(namespace));
+        return asNamespaceCatalog.dropNamespace(Namespace.of(namespace), cascade);
       } catch (org.apache.iceberg.exceptions.NoSuchNamespaceException e) {
         throw new NoSuchNamespaceException(namespace);
       }

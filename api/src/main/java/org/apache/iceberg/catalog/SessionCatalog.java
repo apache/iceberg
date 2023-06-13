@@ -329,6 +329,23 @@ public interface SessionCatalog {
   boolean dropNamespace(SessionContext context, Namespace namespace);
 
   /**
+   * Drop a namespace. If the namespace exists and was dropped, this will return true.
+   *
+   * @param context session context
+   * @param namespace a {@link Namespace namespace}
+   * @param cascade – When true, deletes all objects under the namespace
+   * @return true if the namespace was dropped, false otherwise.
+   * @throws NamespaceNotEmptyException If the namespace is not empty
+   */
+  default boolean dropNamespace(SessionContext context, Namespace namespace, boolean cascade) {
+    if (cascade) {
+      throw new UnsupportedOperationException(
+          "dropNamespace with cascade not supported with this catalog");
+    }
+    return dropNamespace(context, namespace);
+  }
+
+  /**
    * Set a collection of properties on a namespace in the catalog.
    *
    * <p>Properties that are not in the given map are not modified or removed by this method.

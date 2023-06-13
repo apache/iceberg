@@ -350,6 +350,17 @@ public class HadoopCatalog extends BaseMetastoreCatalog
   }
 
   @Override
+  public boolean dropNamespace(Namespace namespace, boolean cascade)
+      throws NamespaceNotEmptyException {
+    if (cascade) {
+      // recursively delete all nested namespaces
+      listNamespaces(namespace).forEach(n -> dropNamespace(n, true));
+      listTables(namespace).forEach(this::dropTable);
+    }
+    return dropNamespace(namespace);
+  }
+
+  @Override
   public boolean setProperties(Namespace namespace, Map<String, String> properties) {
     throw new UnsupportedOperationException(
         "Cannot set namespace properties " + namespace + " : setProperties is not supported");

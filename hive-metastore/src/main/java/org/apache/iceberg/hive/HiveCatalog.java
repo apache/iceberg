@@ -331,6 +331,10 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
 
   @Override
   public boolean dropNamespace(Namespace namespace) {
+    return dropNamespaceInternal(namespace, false);
+  }
+
+  private boolean dropNamespaceInternal(Namespace namespace, boolean cascade) {
     if (!isValidateNamespace(namespace)) {
       return false;
     }
@@ -342,7 +346,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
                 namespace.level(0),
                 false /* deleteData */,
                 false /* ignoreUnknownDb */,
-                false /* cascade */);
+                cascade /* cascade */);
             return null;
           });
 
@@ -364,6 +368,12 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
       throw new RuntimeException(
           "Interrupted in call to drop dropDatabase(name) " + namespace + " in Hive Metastore", e);
     }
+  }
+
+  @Override
+  public boolean dropNamespace(Namespace namespace, boolean cascade)
+      throws NamespaceNotEmptyException {
+    return dropNamespaceInternal(namespace, cascade);
   }
 
   @Override

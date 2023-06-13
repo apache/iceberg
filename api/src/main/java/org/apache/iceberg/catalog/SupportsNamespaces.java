@@ -123,6 +123,23 @@ public interface SupportsNamespaces {
   boolean dropNamespace(Namespace namespace) throws NamespaceNotEmptyException;
 
   /**
+   * Drop a namespace. If the namespace exists and was dropped, this will return true.
+   *
+   * @param namespace a namespace. {@link Namespace}
+   * @param cascade – When true, deletes all objects under the namespace
+   * @return true if the namespace was dropped, false otherwise.
+   * @throws NamespaceNotEmptyException If the namespace is not empty
+   */
+  default boolean dropNamespace(Namespace namespace, boolean cascade)
+      throws NamespaceNotEmptyException {
+    if (cascade) {
+      throw new UnsupportedOperationException(
+          "dropNamespace with cascade not supported with this catalog");
+    }
+    return dropNamespace(namespace);
+  }
+
+  /**
    * Set a collection of properties on a namespace in the catalog.
    *
    * <p>Properties that are not in the given map are not modified or removed by this method.

@@ -144,6 +144,16 @@ public abstract class BaseSessionCatalog implements SessionCatalog {
     }
 
     @Override
+    public boolean dropNamespace(Namespace namespace, boolean cascade)
+        throws NamespaceNotEmptyException {
+      if (cascade) {
+        return BaseSessionCatalog.this.dropNamespace(context, namespace, true);
+      } else {
+        return dropNamespace(namespace);
+      }
+    }
+
+    @Override
     public boolean setProperties(Namespace namespace, Map<String, String> updates) {
       return BaseSessionCatalog.this.updateNamespaceMetadata(
           context, namespace, updates, ImmutableSet.of());
