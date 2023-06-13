@@ -178,13 +178,13 @@ class RestCatalog(Catalog):
     _session: Session
 
     def __init__(self, name: str, **properties: str):
-        """Rest Catalog
+        """Rest Catalog.
 
         You either need to provide a client_id and client_secret, or an already valid token.
 
         Args:
-            name: Name to identify the catalog
-            properties: Properties that are passed along to the configuration
+            name: Name to identify the catalog.
+            properties: Properties that are passed along to the configuration.
         """
         super().__init__(name, **properties)
         self.uri = properties[URI]
@@ -192,7 +192,7 @@ class RestCatalog(Catalog):
         self._session = self._create_session()
 
     def _create_session(self) -> Session:
-        """Creates a request session with provided catalog configuration"""
+        """Creates a request session with provided catalog configuration."""
         session = Session()
 
         # Sets the client side and server side SSL cert verification, if provided as properties.
@@ -225,21 +225,21 @@ class RestCatalog(Catalog):
         return session
 
     def _check_valid_namespace_identifier(self, identifier: Union[str, Identifier]) -> Identifier:
-        """The identifier should have at least one element"""
+        """The identifier should have at least one element."""
         identifier_tuple = Catalog.identifier_to_tuple(identifier)
         if len(identifier_tuple) < 1:
             raise NoSuchNamespaceError(f"Empty namespace identifier: {identifier}")
         return identifier_tuple
 
     def url(self, endpoint: str, prefixed: bool = True, **kwargs: Any) -> str:
-        """Constructs the endpoint
+        """Constructs the endpoint.
 
         Args:
-            endpoint: Resource identifier that points to the REST catalog
-            prefixed: If the prefix return by the config needs to be appended
+            endpoint: Resource identifier that points to the REST catalog.
+            prefixed: If the prefix return by the config needs to be appended.
 
         Returns:
-            The base url of the rest catalog
+            The base url of the rest catalog.
         """
         url = self.uri
         url = url + "v1/" if url.endswith("/") else url + "/v1/"
