@@ -198,8 +198,8 @@ df.write
 CommitMetadata provides an interface to add custom metadata to a snapshot summary during a SQL execution, which can be beneficial for purposes such as auditing or change tracking. Here is an example:
 
 ```java
-
 import org.apache.iceberg.spark.CommitMetadata;
+
 Map<String, String> properties = Maps.newHashMap();
 properties.put("property_key", "property_value");
 CommitMetadata.withCommitProperties(properties,
