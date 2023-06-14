@@ -146,6 +146,9 @@ class FixedType(PrimitiveType):
     def __repr__(self) -> str:
         return f"FixedType(length={self._len})"
 
+    def __getnewargs__(self) -> Tuple[int]:
+        return (self._len,)
+
 
 class DecimalType(PrimitiveType):
     """A fixed data type in Iceberg.
@@ -189,6 +192,9 @@ class DecimalType(PrimitiveType):
 
     def __repr__(self) -> str:
         return f"DecimalType(precision={self._precision}, scale={self._scale})"
+
+    def __getnewargs__(self) -> Tuple[int, int]:
+        return (self._precision, self._scale)
 
 
 class NestedField(IcebergType):
@@ -246,6 +252,9 @@ class NestedField(IcebergType):
         req = "required" if self.required else "optional"
         return f"{self.field_id}: {self.name}: {req} {self.field_type}{doc}"
 
+    def __getnewargs__(self) -> Tuple[int, str, IcebergType, bool, Optional[str]]:
+        return (self.field_id, self.name, self.field_type, self.required, self.doc)
+
     @property
     def optional(self) -> bool:
         return not self.required
@@ -286,6 +295,9 @@ class StructType(IcebergType):
     def __len__(self) -> int:
         return len(self.fields)
 
+    def __getnewargs__(self) -> Tuple[NestedField, ...]:
+        return self.fields
+
 
 class ListType(IcebergType):
     """A list type in Iceberg.
@@ -320,6 +332,9 @@ class ListType(IcebergType):
 
     def __str__(self) -> str:
         return f"list<{self.element_type}>"
+
+    def __getnewargs__(self) -> Tuple[int, IcebergType, bool]:
+        return (self.element_id, self.element_type, self.element_required)
 
 
 class MapType(IcebergType):
@@ -365,6 +380,9 @@ class MapType(IcebergType):
 
     def __str__(self) -> str:
         return f"map<{self.key_type}, {self.value_type}>"
+
+    def __getnewargs__(self) -> Tuple[int, IcebergType, int, IcebergType, bool]:
+        return (self.key_id, self.key_type, self.value_id, self.value_type, self.value_required)
 
 
 class BooleanType(PrimitiveType):
