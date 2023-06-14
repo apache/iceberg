@@ -81,22 +81,24 @@ public class TestCommitTransactionRequestParser {
   public void roundTripSerde() {
     String uuid = "2cc52516-5e73-41f2-b139-545d41a4e151";
     UpdateTableRequest commitTableRequestOne =
-        new UpdateTableRequest(
-            TableIdentifier.of("ns1", "table1"),
-            ImmutableList.of(
+        UpdateTableRequestBuilder.newBuilder()
+            .identifier(TableIdentifier.of("ns1", "table1"))
+            .addRequirements(
                 new UpdateRequirement.AssertTableUUID(uuid),
-                new UpdateRequirement.AssertTableDoesNotExist()),
-            ImmutableList.of(
-                new MetadataUpdate.AssignUUID(uuid), new MetadataUpdate.SetCurrentSchema(23)));
+                new UpdateRequirement.AssertTableDoesNotExist())
+            .addUpdates(
+                new MetadataUpdate.AssignUUID(uuid), new MetadataUpdate.SetCurrentSchema(23))
+            .build();
 
     UpdateTableRequest commitTableRequestTwo =
-        new UpdateTableRequest(
-            TableIdentifier.of("ns1", "table2"),
-            ImmutableList.of(
+        UpdateTableRequestBuilder.newBuilder()
+            .identifier(TableIdentifier.of("ns1", "table2"))
+            .addRequirements(
                 new UpdateRequirement.AssertDefaultSpecID(4),
-                new UpdateRequirement.AssertCurrentSchemaID(24)),
-            ImmutableList.of(
-                new MetadataUpdate.RemoveSnapshot(101L), new MetadataUpdate.SetCurrentSchema(25)));
+                new UpdateRequirement.AssertCurrentSchemaID(24))
+            .addUpdates(
+                new MetadataUpdate.RemoveSnapshot(101L), new MetadataUpdate.SetCurrentSchema(25))
+            .build();
 
     CommitTransactionRequest request =
         new CommitTransactionRequest(
@@ -160,8 +162,9 @@ public class TestCommitTransactionRequestParser {
     CommitTransactionRequest commitTxRequest =
         new CommitTransactionRequest(
             ImmutableList.of(
-                new UpdateTableRequest(
-                    TableIdentifier.of("ns1", "table1"), ImmutableList.of(), ImmutableList.of())));
+                UpdateTableRequestBuilder.newBuilder()
+                    .identifier(TableIdentifier.of("ns1", "table1"))
+                    .build()));
 
     String json =
         "{\"table-changes\":[{\"identifier\":{\"namespace\":[\"ns1\"],\"name\":\"table1\"},\"requirements\":[],\"updates\":[]}]}";

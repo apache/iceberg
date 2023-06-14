@@ -20,6 +20,7 @@ package org.apache.iceberg.rest.requests;
 
 import java.util.List;
 import java.util.Set;
+import javax.annotation.Nullable;
 import org.apache.iceberg.MetadataUpdate;
 import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.TableMetadata;
@@ -31,7 +32,10 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.rest.RESTRequest;
+import org.immutables.builder.Builder.Constructor;
+import org.immutables.value.Value;
 
+@Value.Style(newBuilder = "newBuilder")
 public class UpdateTableRequest implements RESTRequest {
 
   private TableIdentifier identifier;
@@ -42,13 +46,19 @@ public class UpdateTableRequest implements RESTRequest {
     // needed for Jackson deserialization
   }
 
+  /**
+   * @deprecated will be removed in 1.5.0; use {@link UpdateTableRequestBuilder#newBuilder()}
+   *     instead.
+   */
+  @Deprecated
   public UpdateTableRequest(List<UpdateRequirement> requirements, List<MetadataUpdate> updates) {
     this.requirements = requirements;
     this.updates = updates;
   }
 
+  @Constructor
   UpdateTableRequest(
-      TableIdentifier identifier,
+      @Nullable TableIdentifier identifier,
       List<UpdateRequirement> requirements,
       List<MetadataUpdate> updates) {
     this(requirements, updates);
@@ -73,6 +83,7 @@ public class UpdateTableRequest implements RESTRequest {
   @Override
   public String toString() {
     return MoreObjects.toStringHelper(this)
+        .add("identifier", identifier)
         .add("requirements", requirements)
         .add("updates", updates)
         .toString();
