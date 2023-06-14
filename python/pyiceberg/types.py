@@ -330,7 +330,7 @@ class ListType(IcebergType):
     def __str__(self) -> str:
         return f"list<{self.element_type}>"
 
-    def __getnewargs__(self) -> Tuple[Optional[int], Optional[IcebergType], bool]:
+    def __getnewargs__(self) -> Tuple[int, IcebergType, bool]:
         return (self.element_id, self.element_type, self.element_required)
 
 
