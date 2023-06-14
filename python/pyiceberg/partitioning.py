@@ -35,9 +35,7 @@ _PARTITION_DATA_ID_START: int = 1000
 
 
 class PartitionField(IcebergBaseModel):
-    """
-    PartitionField is a single element with name and unique id.
-    It represents how one partition value is derived from the source column via transformation.
+    """PartitionField represents how one partition value is derived from the source column via transformation.
 
     Attributes:
         source_id(int): The source column id of table's schema.

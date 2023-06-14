@@ -142,8 +142,7 @@ class AvroFile(Generic[D]):
         self.read_enums = read_enums
 
     def __enter__(self) -> AvroFile[D]:
-        """
-        Opens the file and reads the header and generates a reader tree to start reading the payload.
+        """Generates a reader tree for the payload within an avro file.
 
         Returns:
             A generator returning the AvroStructs
