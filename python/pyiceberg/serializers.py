@@ -58,7 +58,7 @@ class FromInputFile:
 
 
 class ToOutputFile:
-    """A collection of methods that serialize Iceberg objects into files given an OutputFile instance..."""
+    """A collection of methods that serialize Iceberg objects into files given an OutputFile instance."""
 
     @staticmethod
     def table_metadata(metadata: TableMetadata, output_file: OutputFile, overwrite: bool = False) -> None:
