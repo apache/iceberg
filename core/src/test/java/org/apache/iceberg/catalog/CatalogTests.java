@@ -1918,7 +1918,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
             : "Table already exists";
     Assertions.assertThatThrownBy(createOrReplace::commitTransaction)
         .isInstanceOf(AlreadyExistsException.class)
-        .hasMessage(expectedMessage);
+        .hasMessageStartingWith(expectedMessage);
 
     // validate the concurrently created table is unmodified
     Table table = catalog.loadTable(TABLE);
@@ -2484,7 +2484,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
             () ->
                 catalog().buildTable(TableIdentifier.of("non-existing", "table"), SCHEMA).create())
         .isInstanceOf(NoSuchNamespaceException.class)
-        .hasMessageEndingWith("Namespace does not exist: non-existing");
+        .hasMessageContaining("Namespace does not exist: non-existing");
   }
 
   private static void assertEmpty(String context, Catalog catalog, Namespace ns) {

@@ -18,7 +18,7 @@ from enum import Enum, auto
 
 
 class FileContentType(Enum):
-    """An enum that includes all possible content types for an Iceberg data file"""
+    """An enum that includes all possible content types for an Iceberg data file."""
 
     DATA = auto()
     POSITION_DELETES = auto()
@@ -26,7 +26,7 @@ class FileContentType(Enum):
 
 
 class FileFormat(Enum):
-    """An enum that includes all possible formats for an Iceberg data file"""
+    """An enum that includes all possible formats for an Iceberg data file."""
 
     ORC = "ORC"
     PARQUET = "PARQUET"

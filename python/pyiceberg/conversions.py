@@ -14,12 +14,12 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Utility module for various conversions around PrimitiveType implementations
+"""Utility module for various conversions around PrimitiveType implementations.
 
 This module enables:
-    - Converting partition strings to built-in python objects
-    - Converting a value to a byte buffer
-    - Converting a byte buffer to a value
+    - Converting partition strings to built-in python objects.
+    - Converting a value to a byte buffer.
+    - Converting a byte buffer to a value.
 
 Note:
     Conversion logic varies based on the PrimitiveType implementation. Therefore conversion functions
@@ -67,10 +67,10 @@ _UUID_STRUCT = Struct(">QQ")
 
 
 def handle_none(func: Callable) -> Callable:  # type: ignore
-    """A decorator function to handle cases where partition values are `None` or "__HIVE_DEFAULT_PARTITION__"
+    """A decorator function to handle cases where partition values are `None` or "__HIVE_DEFAULT_PARTITION__".
 
     Args:
-        func (Callable): A function registered to the singledispatch function `partition_to_py`
+        func (Callable): A function registered to the singledispatch function `partition_to_py`.
     """
 
     def wrapper(primitive_type: PrimitiveType, value_str: Optional[str]) -> Any:
@@ -85,11 +85,11 @@ def handle_none(func: Callable) -> Callable:  # type: ignore
 
 @singledispatch
 def partition_to_py(primitive_type: PrimitiveType, value_str: str) -> Union[int, float, str, uuid.UUID, bytes, Decimal]:
-    """A generic function which converts a partition string to a python built-in
+    """A generic function which converts a partition string to a python built-in.
 
     Args:
-        primitive_type (PrimitiveType): An implementation of the PrimitiveType base class
-        value_str (str): A string representation of a partition value
+        primitive_type (PrimitiveType): An implementation of the PrimitiveType base class.
+        value_str (str): A string representation of a partition value.
     """
     raise TypeError(f"Cannot convert '{value_str}' to unsupported type: {primitive_type}")
 
@@ -109,8 +109,9 @@ def _(primitive_type: BooleanType, value_str: str) -> Union[int, float, str, uui
 @handle_none
 def _(primitive_type: PrimitiveType, value_str: str) -> int:
     """
+    Conversion function.
     Raises:
-        ValueError: If the scale/exponent is not 0
+        ValueError: If the scale/exponent is not 0.
     """
     _, _, exponent = Decimal(value_str).as_tuple()
     if exponent != 0:  # Raise if there are digits to the right of the decimal
@@ -152,15 +153,15 @@ def _(_: DecimalType, value_str: str) -> Decimal:
 
 @singledispatch
 def to_bytes(primitive_type: PrimitiveType, _: Union[bool, bytes, Decimal, float, int, str, uuid.UUID]) -> bytes:
-    """A generic function which converts a built-in python value to bytes
+    """A generic function which converts a built-in python value to bytes.
 
     This conversion follows the serialization scheme for storing single values as individual binary values defined in the Iceberg specification that
     can be found at https://iceberg.apache.org/spec/#appendix-d-single-value-serialization
 
     Args:
-        primitive_type (PrimitiveType): An implementation of the PrimitiveType base class
+        primitive_type (PrimitiveType): An implementation of the PrimitiveType base class.
         _: The value to convert to bytes (The type of this value depends on which dispatched function is
-            used--check dispatchable functions for type hints)
+            used--check dispatchable functions for type hints).
     """
     raise TypeError(f"scale does not match {primitive_type}")
 
@@ -187,6 +188,8 @@ def _(_: PrimitiveType, value: int) -> bytes:
 @to_bytes.register(FloatType)
 def _(_: FloatType, value: float) -> bytes:
     """
+    Conversion function.
+
     Note: float in python is implemented using a double in C. Therefore this involves a conversion of a 32-bit (single precision)
     float to a 64-bit (double precision) float which introduces some imprecision.
     """
@@ -216,18 +219,18 @@ def _(_: PrimitiveType, value: bytes) -> bytes:
 
 @to_bytes.register(DecimalType)
 def _(primitive_type: DecimalType, value: Decimal) -> bytes:
-    """Convert a Decimal value to bytes given a DecimalType instance with defined precision and scale
+    """Convert a Decimal value to bytes given a DecimalType instance with defined precision and scale.
 
     Args:
-        primitive_type (DecimalType): A DecimalType instance with precision and scale
-        value (Decimal): A Decimal instance
+        primitive_type (DecimalType): A DecimalType instance with precision and scale.
+        value (Decimal): A Decimal instance.
 
     Raises:
-        ValueError: If either the precision or scale of `value` does not match that defined in the DecimalType instance
+        ValueError: If either the precision or scale of `value` does not match that defined in the DecimalType instance.
 
 
     Returns:
-        bytes: The byte representation of `value`
+        bytes: The byte representation of `value`.
     """
     _, digits, exponent = value.as_tuple()
     exponent = abs(int(exponent))
@@ -243,11 +246,11 @@ def _(primitive_type: DecimalType, value: Decimal) -> bytes:
 
 @singledispatch
 def from_bytes(primitive_type: PrimitiveType, b: bytes) -> L:
-    """A generic function which converts bytes to a built-in python value
+    """A generic function which converts bytes to a built-in python value.
 
     Args:
-        primitive_type (PrimitiveType): An implementation of the PrimitiveType base class
-        b (bytes): The bytes to convert
+        primitive_type (PrimitiveType): An implementation of the PrimitiveType base class.
+        b (bytes): The bytes to convert.
     """
     raise TypeError(f"Cannot deserialize bytes, type {primitive_type} not supported: {str(b)}")
 

@@ -19,7 +19,7 @@ from re import Pattern
 
 
 class ParseNumberFromBrackets:
-    """Extracts the size from a string in the form of prefix[22]"""
+    """Extracts the size from a string in the form of prefix[22]."""
 
     regex: Pattern  # type: ignore
     prefix: str

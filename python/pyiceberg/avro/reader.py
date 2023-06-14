@@ -15,13 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 """
-Classes for building the Reader tree
+Classes for building the Reader tree.
 
 Constructing a reader tree from the schema makes it easy
 to decouple the reader implementation from the schema.
 
 The reader tree can be changed in such a way that the
-read schema is different, while respecting the read schema
+read schema is different, while respecting the read schema.
 """
 from __future__ import annotations
 
@@ -47,7 +47,7 @@ from pyiceberg.utils.singleton import Singleton
 
 
 def _skip_map_array(decoder: BinaryDecoder, skip_entry: Callable[[], None]) -> None:
-    """Skips over an array or map
+    """Skips over an array or map.
 
     Both the array and map are encoded similar, and we can re-use
     the logic of skipping in an efficient way.
@@ -65,10 +65,10 @@ def _skip_map_array(decoder: BinaryDecoder, skip_entry: Callable[[], None]) -> N
 
     Args:
         decoder:
-            The decoder that reads the types from the underlying data
+            The decoder that reads the types from the underlying data.
         skip_entry:
             Function to skip over the underlying data, element in case of an array, and the
-            key/value in the case of a map
+            key/value in the case of a map.
     """
     block_count = decoder.read_int()
     while block_count != 0:
@@ -125,7 +125,7 @@ class BooleanReader(Reader):
 
 
 class IntegerReader(Reader):
-    """Longs and ints are encoded the same way, and there is no long in Python"""
+    """Longs and ints are encoded the same way, and there is no long in Python."""
 
     def read(self, decoder: BinaryDecoder) -> int:
         return decoder.read_int()
