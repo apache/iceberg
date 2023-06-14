@@ -29,8 +29,8 @@ import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
-import org.junit.Assert;
-import org.junit.Test;
+import org.assertj.core.api.Assertions;
+import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.ArgumentMatchers;
 import org.mockito.Mockito;
@@ -49,8 +49,8 @@ public class TestCatalogUtilDropTable extends HadoopTableTestBase {
     Set<String> manifestLocations = manifestLocations(snapshotSet, table.io());
     Set<String> dataLocations = dataLocations(snapshotSet, table.io());
     Set<String> metadataLocations = metadataLocations(tableMetadata);
-    Assert.assertEquals("should have 2 manifest lists", 2, manifestListLocations.size());
-    Assert.assertEquals("should have 3 metadata locations", 3, metadataLocations.size());
+    Assertions.assertThat(manifestListLocations.size()).as("should have 2 manifest lists").isEqualTo(2);
+    Assertions.assertThat(metadataLocations.size()).as("should have 3 metadata locations").isEqualTo(3);
 
     FileIO fileIO = Mockito.mock(FileIO.class);
     Mockito.when(fileIO.newInputFile(Mockito.anyString()))
@@ -73,15 +73,10 @@ public class TestCatalogUtilDropTable extends HadoopTableTestBase {
         .deleteFile(argumentCaptor.capture());
 
     List<String> deletedPaths = argumentCaptor.getAllValues();
-    Assert.assertTrue(
-        "should contain all created manifest lists",
-        deletedPaths.containsAll(manifestListLocations));
-    Assert.assertTrue(
-        "should contain all created manifests", deletedPaths.containsAll(manifestLocations));
-    Assert.assertTrue("should contain all created data", deletedPaths.containsAll(dataLocations));
-    Assert.assertTrue(
-        "should contain all created metadata locations",
-        deletedPaths.containsAll(metadataLocations));
+    Assertions.assertThat(deletedPaths).as("should contain all created manifest lists").containsAll(manifestListLocations);
+    Assertions.assertThat(deletedPaths).as("should contain all created manifests").containsAll(manifestLocations);
+    Assertions.assertThat(deletedPaths).as("should contain all created data").containsAll(dataLocations);
+    Assertions.assertThat(deletedPaths).as("should contain all created metadata locations").containsAll(metadataLocations);
   }
 
   @Test
@@ -124,8 +119,8 @@ public class TestCatalogUtilDropTable extends HadoopTableTestBase {
     Set<String> manifestListLocations = manifestListLocations(snapshotSet);
     Set<String> manifestLocations = manifestLocations(snapshotSet, table.io());
     Set<String> metadataLocations = metadataLocations(tableMetadata);
-    Assert.assertEquals("should have 2 manifest lists", 2, manifestListLocations.size());
-    Assert.assertEquals("should have 4 metadata locations", 4, metadataLocations.size());
+    Assertions.assertThat(manifestListLocations.size()).as("should have 2 manifest lists").isEqualTo(2);
+    Assertions.assertThat(metadataLocations.size()).as("should have 4 metadata locations").isEqualTo(4);
 
     FileIO fileIO = Mockito.mock(FileIO.class);
     Mockito.when(fileIO.newInputFile(Mockito.anyString()))
@@ -141,14 +136,9 @@ public class TestCatalogUtilDropTable extends HadoopTableTestBase {
         .deleteFile(argumentCaptor.capture());
 
     List<String> deletedPaths = argumentCaptor.getAllValues();
-    Assert.assertTrue(
-        "should contain all created manifest lists",
-        deletedPaths.containsAll(manifestListLocations));
-    Assert.assertTrue(
-        "should contain all created manifests", deletedPaths.containsAll(manifestLocations));
-    Assert.assertTrue(
-        "should contain all created metadata locations",
-        deletedPaths.containsAll(metadataLocations));
+    Assertions.assertThat(deletedPaths).as("should contain all created manifest lists").containsAll(manifestListLocations);
+    Assertions.assertThat(deletedPaths).as("should contain all created manifests").containsAll(manifestLocations);
+    Assertions.assertThat(deletedPaths).as("should contain all created metadata locations").containsAll(metadataLocations);
   }
 
   private Set<String> manifestListLocations(Set<Snapshot> snapshotSet) {
