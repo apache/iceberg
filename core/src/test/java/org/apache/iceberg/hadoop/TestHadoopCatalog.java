@@ -296,7 +296,7 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
 
   @Test
   public void testCreateNamespace() throws Exception {
-    String warehouseLocation = temp.newFolder().getAbsolutePath();
+    String warehouseLocation = temp.toFile().getAbsolutePath();
     HadoopCatalog catalog = new HadoopCatalog();
     catalog.setConf(new Configuration());
     catalog.initialize(
@@ -412,7 +412,7 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
 
   @Test
   public void testDropNamespace() throws IOException {
-    String warehouseLocation = temp.newFolder().getAbsolutePath();
+    String warehouseLocation = temp.toFile().getAbsolutePath();
     HadoopCatalog catalog = new HadoopCatalog();
     catalog.setConf(new Configuration());
     catalog.initialize(
