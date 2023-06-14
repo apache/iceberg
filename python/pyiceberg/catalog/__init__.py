@@ -437,7 +437,7 @@ class Catalog(ABC):
         """Extracts table namespace from a table identifier.
 
         Args:
-            identifier (str | Identifier: a table identifier.
+            identifier (Union[str, Identifier]): a table identifier.
 
         Returns:
             Identifier: Namespace identifier.
