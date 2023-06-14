@@ -510,7 +510,7 @@ def visit_pyarrow(obj: pa.DataType | pa.Schema, visitor: PyArrowSchemaVisitor[T]
     The function traverses the schema in post-order fashion.
 
     Args:
-        obj(pa.DataType): An instance of a Schema or an IcebergType.
+        obj (Union[pa.DataType, pa.Schema]): An instance of a Schema or an IcebergType.
         visitor (PyArrowSchemaVisitor[T]): An instance of an implementation of the generic PyarrowSchemaVisitor base class.
 
     Raises:
