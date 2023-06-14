@@ -28,7 +28,6 @@ import multiprocessing
 import os
 from abc import ABC, abstractmethod
 from functools import lru_cache, singledispatch
-from heapq import merge
 from itertools import chain
 from multiprocessing.pool import ThreadPool
 from multiprocessing.sharedctypes import Synchronized
@@ -37,7 +36,6 @@ from typing import (
     Any,
     Callable,
     Dict,
-    Generator,
     Generic,
     Iterable,
     List,
@@ -50,6 +48,7 @@ from typing import (
 )
 from urllib.parse import urlparse
 
+import numpy as np
 import pyarrow as pa
 import pyarrow.compute as pc
 import pyarrow.dataset as ds
@@ -529,26 +528,12 @@ def _read_deletes(fs: FileSystem, data_file: DataFile) -> Dict[str, pa.ChunkedAr
     }
 
 
-def _create_positional_deletes_indices(positional_deletes: List[pa.ChunkedArray], fn_rows: Callable[[], int]) -> pa.Array:
-    # This is not ideal, looking for a native PyArrow implementation :)
-    # Ideally with uniqueness as well
-    # https://github.com/apache/arrow/issues/35748
-    sorted_deleted = merge(*positional_deletes, key=lambda e: e.as_py())
-
-    def generator() -> Generator[int, None, None]:
-        deleted_pos = next(sorted_deleted).as_py()  # type: ignore
-        for pos in range(fn_rows()):
-            if deleted_pos == pos:
-                while deleted_pos == pos:
-                    try:
-                        deleted_pos = next(sorted_deleted).as_py()  # type: ignore
-                    except StopIteration:
-                        deleted_pos = -1
-            else:
-                yield pos
-
-    # Filter on the positions
-    return pa.array(generator(), type=pa.int64())
+def _combine_positional_deletes(positional_deletes: List[pa.ChunkedArray], rows: int) -> pa.Array:
+    if len(positional_deletes) == 1:
+        all_chunks = positional_deletes[0]
+    else:
+        all_chunks = pa.chunked_array(chain(*[arr.chunks for arr in positional_deletes]))
+    return np.setdiff1d(np.arange(rows), all_chunks, assume_unique=False)
 
 
 def pyarrow_to_schema(schema: pa.Schema) -> Schema:
@@ -782,10 +767,8 @@ def _task_to_table(
         )
 
         if positional_deletes:
-            # In the case of a mask, it is a bit awkward because we first
-            # need to go to a table to apply the bitwise mask, and then
-            # the table is warped into a dataset to apply the expression
-            indices = _create_positional_deletes_indices(positional_deletes, fragment.count_rows)
+            # Create the mask of indices that we're interested in
+            indices = _combine_positional_deletes(positional_deletes, fragment.count_rows())
 
             if limit:
                 if pyarrow_filter is not None:
@@ -802,7 +785,6 @@ def _task_to_table(
                 # Apply the user filter
                 if pyarrow_filter is not None:
                     arrow_table = arrow_table.filter(pyarrow_filter)
-
         else:
             # If there are no deletes, we can just take the head
             # and the user-filter is already applied

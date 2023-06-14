@@ -348,12 +348,13 @@ def _min_data_file_sequence_number(manifests: List[ManifestFile]) -> int:
 
 
 def _match_deletes_to_datafile(data_entry: ManifestEntry, positional_delete_entries: SortedList[ManifestEntry]) -> Set[DataFile]:
-    """This method will check if the delete file is relevant for the data file
-     by using the column metrics to see if the filename is in the lower and upper bound
+    """This method will check if the delete file is relevant for the data file.
+
+    Using the column metrics to see if the filename is in the lower and upper bound.
 
     Args:
-        data_entry (ManifestEntry): The manifest entry path of the datafile
-        positional_delete_entries (List[ManifestEntry]): All the candidate positional deletes manifest entries
+        data_entry (ManifestEntry): The manifest entry path of the datafile.
+        positional_delete_entries (List[ManifestEntry]): All the candidate positional deletes manifest entries.
 
     Returns:
         A set of files that are relevant for the data file.
@@ -406,15 +407,14 @@ class DataScan(TableScan):
         return lambda data_file: evaluator(data_file.partition)
 
     def _check_sequence_number(self, min_data_sequence_number: int, manifest: ManifestFile) -> bool:
-        """A helper function to make sure that no manifests are loaded that contain deletes
-        that are older than the data
+        """A helper function to make sure that no manifests are loaded that contain deletes that are older than the data.
 
         Args:
-            min_data_sequence_number (int): The minimal
-            manifest (ManifestFile): A ManifestFile that can be either data or deletes
+            min_data_sequence_number (int): The minimal sequence number.
+            manifest (ManifestFile): A ManifestFile that can be either data or deletes.
 
         Returns:
-            Boolean indicating if it is either a data file, or a relevant delete file
+            Boolean indicating if it is either a data file, or a relevant delete file.
         """
         return manifest.content == ManifestContent.DATA or (
             # Not interested in deletes that are older than the data
@@ -423,12 +423,11 @@ class DataScan(TableScan):
         )
 
     def plan_files(self) -> Iterable[FileScanTask]:
-        """Plans the relevant files by filtering on the PartitionSpecs
+        """Plans the relevant files by filtering on the PartitionSpecs.
 
         Returns:
-            List of FileScanTasks that contain both data and delete files
+            List of FileScanTasks that contain both data and delete files.
         """
-
         snapshot = self.snapshot()
         if not snapshot:
             return iter([])
