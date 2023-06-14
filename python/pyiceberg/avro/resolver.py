@@ -86,13 +86,13 @@ STRUCT_ROOT = -1
 def construct_reader(
     file_schema: Union[Schema, IcebergType], read_types: Dict[int, Callable[..., StructProtocol]] = EMPTY_DICT
 ) -> Reader:
-    """Constructs a reader from a file schema
+    """Constructs a reader from a file schema.
 
     Args:
-        file_schema (Schema | IcebergType): The schema of the Avro file
+        file_schema (Schema | IcebergType): The schema of the Avro file.
 
     Raises:
-        NotImplementedError: If attempting to resolve an unrecognized object type
+        NotImplementedError: If attempting to resolve an unrecognized object type.
     """
     return resolve(file_schema, file_schema, read_types)
 
@@ -103,16 +103,16 @@ def resolve(
     read_types: Dict[int, Callable[..., StructProtocol]] = EMPTY_DICT,
     read_enums: Dict[int, Callable[..., Enum]] = EMPTY_DICT,
 ) -> Reader:
-    """Resolves the file and read schema to produce a reader
+    """Resolves the file and read schema to produce a reader.
 
     Args:
         file_schema (Schema | IcebergType): The schema of the Avro file
-        read_schema (Schema | IcebergType): The requested read schema which is equal, subset or superset of the file schema
-        read_types (Dict[int, Callable[..., StructProtocol]]): A dict of types to use for struct data
-        read_enums (Dict[int, Callable[..., Enum]]): A dict of fields that have to be converted to an enum
+        read_schema (Schema | IcebergType): The requested read schema which is equal, subset or superset of the file schema.
+        read_types (Dict[int, Callable[..., StructProtocol]]): A dict of types to use for struct data.
+        read_enums (Dict[int, Callable[..., Enum]]): A dict of fields that have to be converted to an enum.
 
     Raises:
-        NotImplementedError: If attempting to resolve an unrecognized object type
+        NotImplementedError: If attempting to resolve an unrecognized object type.
     """
     return visit_with_partner(
         file_schema, read_schema, SchemaResolver(read_types, read_enums), SchemaPartnerAccessor()
@@ -120,7 +120,7 @@ def resolve(
 
 
 class EnumReader(Reader):
-    """An Enum reader to wrap primitive values into an Enum"""
+    """An Enum reader to wrap primitive values into an Enum."""
 
     enum: Callable[..., Enum]
     reader: Reader

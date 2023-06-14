@@ -66,10 +66,7 @@ class BinaryDecoder:
         self._input_stream.seek(n, SEEK_CUR)
 
     def read_boolean(self) -> bool:
-        """
-        A boolean is written as a single byte
-        whose value is either 0 (false) or 1 (true).
-        """
+        """A boolean is written as a single byte whose value is either 0 (false) or 1 (true)."""
         return ord(self.read(1)) == 1
 
     def read_int(self) -> int:
@@ -101,18 +98,12 @@ class BinaryDecoder:
         return float(STRUCT_DOUBLE.unpack(self.read(8))[0])
 
     def read_decimal_from_bytes(self, precision: int, scale: int) -> decimal.Decimal:
-        """
-        Decimal bytes are decoded as signed short, int or long depending on the
-        size of bytes.
-        """
+        """Decimal bytes are decoded as signed short, int or long depending on the size of bytes."""
         size = self.read_int()
         return self.read_decimal_from_fixed(precision, scale, size)
 
     def read_decimal_from_fixed(self, _: int, scale: int, size: int) -> decimal.Decimal:
-        """
-        Decimal is encoded as fixed. Fixed instances are encoded using the
-        number of bytes declared in the schema.
-        """
+        """Decimal is encoded as fixed. Fixed instances are encoded using the number of bytes declared in the schema."""
         data = self.read(size)
         unscaled_datum = int.from_bytes(data, byteorder="big", signed=True)
         return unscaled_to_decimal(unscaled_datum, scale)
@@ -123,44 +114,31 @@ class BinaryDecoder:
         return self.read(num_bytes) if num_bytes > 0 else b""
 
     def read_utf8(self) -> str:
-        """
-        A string is encoded as a long followed by
-        that many bytes of UTF-8 encoded character data.
-        """
+        """A string is encoded as a long followed by that many bytes of UTF-8 encoded character data."""
         return self.read_bytes().decode("utf-8")
 
     def read_uuid_from_fixed(self) -> UUID:
-        """Reads a UUID as a fixed[16]"""
+        """Reads a UUID as a fixed[16]."""
         return UUID(bytes=self.read(16))
 
     def read_time_millis(self) -> time:
-        """
-        Int is decoded as python time object which represents
-        the number of milliseconds after midnight, 00:00:00.000.
-        """
+        """Int is decoded as python time object which represents the number of milliseconds after midnight, 00:00:00.000."""
         millis = self.read_int()
         return micros_to_time(millis * 1000)
 
     def read_time_micros(self) -> time:
-        """
-        Long is decoded as python time object which represents
-        the number of microseconds after midnight, 00:00:00.000000.
-        """
+        """Long is decoded as python time object which represents the number of microseconds after midnight, 00:00:00.000000."""
         return micros_to_time(self.read_int())
 
     def read_timestamp_micros(self) -> datetime:
-        """
-        Long is decoded as python datetime object which represents
-        the number of microseconds from the unix epoch, 1 January 1970.
-        """
+        """Long is decoded as python datetime object which represents the number of microseconds from the unix epoch, 1 January 1970."""
         return micros_to_timestamp(self.read_int())
 
     def read_timestamptz_micros(self) -> datetime:
         """
-        Long is decoded as python datetime object which represents
-        the number of microseconds from the unix epoch, 1 January 1970.
+        Long is decoded as python datetime object which represents the number of microseconds from the unix epoch, 1 January 1970.
 
-        Adjusted to UTC
+        Adjusted to UTC.
         """
         return micros_to_timestamptz(self.read_int())
 

@@ -101,7 +101,7 @@ TRUNCATE_PARSER = ParseNumberFromBrackets(TRUNCATE)
 
 
 def _transform_literal(func: Callable[[L], L], lit: Literal[L]) -> Literal[L]:
-    """Small helper to upwrap the value from the literal, and wrap it again"""
+    """Small helper to upwrap the value from the literal, and wrap it again."""
     return literal(func(lit.value))
 
 
@@ -186,7 +186,7 @@ class Transform(IcebergBaseModel, ABC, Generic[S, T]):
 
 
 class BucketTransform(Transform[S, int]):
-    """Base Transform class to transform a value into a bucket partition value
+    """Base Transform class to transform a value into a bucket partition value.
 
     Transforms are parameterized by a number of buckets. Bucket partition transforms use a 32-bit
     hash of the source value to produce a positive value by mod the bucket number.
@@ -514,7 +514,7 @@ class HourTransform(TimeTransform[S]):
 
 
 def _base64encode(buffer: bytes) -> str:
-    """Converts bytes to base64 string"""
+    """Converts bytes to base64 string."""
     return base64.b64encode(buffer).decode("ISO-8859-1")
 
 
@@ -555,7 +555,7 @@ class IdentityTransform(Transform[S, S]):
         return True
 
     def satisfies_order_of(self, other: Transform[S, T]) -> bool:
-        """Ordering by value is the same as long as the other preserves order"""
+        """Ordering by value is the same as long as the other preserves order."""
         return other.preserves_order
 
     def to_human_string(self, source_type: IcebergType, value: Optional[S]) -> str:
@@ -571,9 +571,9 @@ class IdentityTransform(Transform[S, S]):
 class TruncateTransform(Transform[S, S]):
     """A transform for truncating a value to a specified width.
     Args:
-      width (int): The truncate width, should be positive
+      width (int): The truncate width, should be positive.
     Raises:
-      ValueError: If a type is provided that is incompatible with a Truncate transform
+      ValueError: If a type is provided that is incompatible with a Truncate transform.
     """
 
     __root__: str = Field()
@@ -707,12 +707,12 @@ def _(_type: IcebergType, value: int) -> str:
 
 
 class UnknownTransform(Transform[S, T]):
-    """A transform that represents when an unknown transform is provided
+    """A transform that represents when an unknown transform is provided.
     Args:
-      transform (str): A string name of a transform
+      transform (str): A string name of a transform.
 
     Keyword Args:
-      source_type (IcebergType): An Iceberg `Type`
+      source_type (IcebergType): An Iceberg `Type`.
     """
 
     __root__: LiteralType["unknown"] = Field(default="unknown")  # noqa: F821
@@ -739,7 +739,7 @@ class UnknownTransform(Transform[S, T]):
 
 
 class VoidTransform(Transform[S, None], Singleton):
-    """A transform that always returns None"""
+    """A transform that always returns None."""
 
     __root__ = "void"
 
@@ -832,7 +832,7 @@ def _set_apply_transform(name: str, pred: BoundSetPredicate[L], transform: Calla
 
 
 class BoundTransform(BoundTerm[L]):
-    """A transform expression"""
+    """A transform expression."""
 
     transform: Transform[L, Any]
 

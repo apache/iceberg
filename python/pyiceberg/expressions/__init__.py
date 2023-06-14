@@ -57,7 +57,7 @@ def _to_literal(value: Union[L, Literal[L]]) -> Literal[L]:
 
 
 class BooleanExpression(ABC):
-    """An expression that evaluates to a boolean"""
+    """An expression that evaluates to a boolean."""
 
     @abstractmethod
     def __invert__(self) -> BooleanExpression:
@@ -65,18 +65,18 @@ class BooleanExpression(ABC):
 
 
 class Term(Generic[L], ABC):
-    """A simple expression that evaluates to a value"""
+    """A simple expression that evaluates to a value."""
 
 
 class Bound(ABC):
-    """Represents a bound value expression"""
+    """Represents a bound value expression."""
 
 
 B = TypeVar("B")
 
 
 class Unbound(Generic[B], ABC):
-    """Represents an unbound value expression"""
+    """Represents an unbound value expression."""
 
     @abstractmethod
     def bind(self, schema: Schema, case_sensitive: bool = True) -> B:
@@ -89,23 +89,23 @@ class Unbound(Generic[B], ABC):
 
 
 class BoundTerm(Term[L], Bound, ABC):
-    """Represents a bound term"""
+    """Represents a bound term."""
 
     @abstractmethod
     def ref(self) -> BoundReference[L]:
-        """Returns the bound reference"""
+        """Returns the bound reference."""
 
     @abstractmethod
     def eval(self, struct: StructProtocol) -> L:  # pylint: disable=W0613
-        """Returns the value at the referenced field's position in an object that abides by the StructProtocol"""
+        """Returns the value at the referenced field's position in an object that abides by the StructProtocol."""
 
 
 class BoundReference(BoundTerm[L]):
-    """A reference bound to a field in a schema
+    """A reference bound to a field in a schema.
 
     Args:
-        field (NestedField): A referenced field in an Iceberg schema
-        accessor (Accessor): An Accessor object to access the value at the field's position
+        field (NestedField): A referenced field in an Iceberg schema.
+        accessor (Accessor): An Accessor object to access the value at the field's position.
     """
 
     field: NestedField
@@ -116,12 +116,12 @@ class BoundReference(BoundTerm[L]):
         self.accessor = accessor
 
     def eval(self, struct: StructProtocol) -> L:
-        """Returns the value at the referenced field's position in an object that abides by the StructProtocol
+        """Returns the value at the referenced field's position in an object that abides by the StructProtocol.
 
         Args:
-            struct (StructProtocol): A row object that abides by the StructProtocol and returns values given a position
+            struct (StructProtocol): A row object that abides by the StructProtocol and returns values given a position.
         Returns:
-            Any: The value at the referenced field's position in `struct`
+            Any: The value at the referenced field's position in `struct`.
         """
         return self.accessor.get(struct)
 
@@ -144,13 +144,13 @@ class UnboundTerm(Term[Any], Unbound[BoundTerm[L]], ABC):
 
 
 class Reference(UnboundTerm[Any]):
-    """A reference not yet bound to a field in a schema
+    """A reference not yet bound to a field in a schema.
 
     Args:
-        name (str): The name of the field
+        name (str): The name of the field.
 
     Note:
-        An unbound reference is sometimes referred to as a "named" reference
+        An unbound reference is sometimes referred to as a "named" reference.
     """
 
     name: str
@@ -165,17 +165,17 @@ class Reference(UnboundTerm[Any]):
         return self.name == other.name if isinstance(other, Reference) else False
 
     def bind(self, schema: Schema, case_sensitive: bool = True) -> BoundReference[L]:
-        """Bind the reference to an Iceberg schema
+        """Bind the reference to an Iceberg schema.
 
         Args:
-            schema (Schema): An Iceberg schema
-            case_sensitive (bool): Whether to consider case when binding the reference to the field
+            schema (Schema): An Iceberg schema.
+            case_sensitive (bool): Whether to consider case when binding the reference to the field.
 
         Raises:
-            ValueError: If an empty name is provided
+            ValueError: If an empty name is provided.
 
         Returns:
-            BoundReference: A reference bound to the specific field in the Iceberg schema
+            BoundReference: A reference bound to the specific field in the Iceberg schema.
         """
         field = schema.find_field(name_or_id=self.name, case_sensitive=case_sensitive)
         accessor = schema.accessor_for_field(field.field_id)
@@ -187,7 +187,7 @@ class Reference(UnboundTerm[Any]):
 
 
 class And(BooleanExpression):
-    """AND operation expression - logical conjunction"""
+    """AND operation expression - logical conjunction."""
 
     left: BooleanExpression
     right: BooleanExpression
@@ -222,7 +222,7 @@ class And(BooleanExpression):
 
 
 class Or(BooleanExpression):
-    """OR operation expression - logical disjunction"""
+    """OR operation expression - logical disjunction."""
 
     left: BooleanExpression
     right: BooleanExpression
@@ -254,7 +254,7 @@ class Or(BooleanExpression):
 
 
 class Not(BooleanExpression):
-    """NOT operation expression - logical negation"""
+    """NOT operation expression - logical negation."""
 
     child: BooleanExpression
 
@@ -280,7 +280,7 @@ class Not(BooleanExpression):
 
 
 class AlwaysTrue(BooleanExpression, Singleton):
-    """TRUE expression"""
+    """TRUE expression."""
 
     def __invert__(self) -> AlwaysFalse:
         return AlwaysFalse()
@@ -293,7 +293,7 @@ class AlwaysTrue(BooleanExpression, Singleton):
 
 
 class AlwaysFalse(BooleanExpression, Singleton):
-    """FALSE expression"""
+    """FALSE expression."""
 
     def __invert__(self) -> AlwaysTrue:
         return AlwaysTrue()

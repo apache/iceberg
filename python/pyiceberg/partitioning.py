@@ -36,14 +36,14 @@ _PARTITION_DATA_ID_START: int = 1000
 
 class PartitionField(IcebergBaseModel):
     """
-    PartitionField is a single element with name and unique id,
-    It represents how one partition value is derived from the source column via transformation
+    PartitionField is a single element with name and unique id.
+    It represents how one partition value is derived from the source column via transformation.
 
     Attributes:
-        source_id(int): The source column id of table's schema
-        field_id(int): The partition field id across all the table partition specs
-        transform(Transform): The transform used to produce partition values from source column
-        name(str): The name of this partition field
+        source_id(int): The source column id of table's schema.
+        field_id(int): The partition field id across all the table partition specs.
+        transform(Transform): The transform used to produce partition values from source column.
+        name(str): The name of this partition field.
     """
 
     source_id: int = Field(alias="source-id")
@@ -75,11 +75,11 @@ class PartitionField(IcebergBaseModel):
 
 class PartitionSpec(IcebergBaseModel):
     """
-    PartitionSpec captures the transformation from table data to partition values
+    PartitionSpec captures the transformation from table data to partition values.
 
     Attributes:
-        spec_id(int): any change to PartitionSpec will produce a new specId
-        fields(Tuple[PartitionField): list of partition fields to produce partition values
+        spec_id(int): any change to PartitionSpec will produce a new specId.
+        fields(Tuple[PartitionField): list of partition fields to produce partition values.
     """
 
     spec_id: int = Field(alias="spec-id", default=INITIAL_PARTITION_SPEC_ID)
@@ -96,10 +96,10 @@ class PartitionSpec(IcebergBaseModel):
 
     def __eq__(self, other: Any) -> bool:
         """
-        Produce a boolean to return True if two objects are considered equal
+        Produce a boolean to return True if two objects are considered equal.
 
         Note:
-            Equality of PartitionSpec is determined by spec_id and partition fields only
+            Equality of PartitionSpec is determined by spec_id and partition fields only.
         """
         if not isinstance(other, PartitionSpec):
             return False
@@ -107,10 +107,10 @@ class PartitionSpec(IcebergBaseModel):
 
     def __str__(self) -> str:
         """
-        Produce a human-readable string representation of PartitionSpec
+        Produce a human-readable string representation of PartitionSpec.
 
         Note:
-            Only include list of partition fields in the PartitionSpec's string representation
+            Only include list of partition fields in the PartitionSpec's string representation.
         """
         result_str = "["
         if self.fields:
@@ -144,7 +144,7 @@ class PartitionSpec(IcebergBaseModel):
         return self.source_id_to_fields_map.get(field_id, [])
 
     def compatible_with(self, other: "PartitionSpec") -> bool:
-        """Produce a boolean to return True if two PartitionSpec are considered compatible"""
+        """Produce a boolean to return True if two PartitionSpec are considered compatible."""
         if self == other:
             return True
         if len(self.fields) != len(other.fields):
@@ -157,20 +157,20 @@ class PartitionSpec(IcebergBaseModel):
         )
 
     def partition_type(self, schema: Schema) -> StructType:
-        """Produces a struct of the PartitionSpec
+        """Produces a struct of the PartitionSpec.
 
         The partition fields should be optional:
 
         - All partition transforms are required to produce null if the input value is null, so it can
-          happen when the source column is optional
+          happen when the source column is optional.
         - Partition fields may be added later, in which case not all files would have the result field,
           and it may be null.
 
         There is a case where we can guarantee that a partition field in the first and only partition spec
         that uses a required source column will never be null, but it doesn't seem worth tracking this case.
 
-        :param schema: The schema to bind to
-        :return: A StructType that represents the PartitionSpec, with a NestedField for each PartitionField
+        :param schema: The schema to bind to.
+        :return: A StructType that represents the PartitionSpec, with a NestedField for each PartitionField.
         """
         nested_fields = []
         for field in self.fields:

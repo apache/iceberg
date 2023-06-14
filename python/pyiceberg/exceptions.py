@@ -17,75 +17,75 @@
 
 
 class TableAlreadyExistsError(Exception):
-    """Raised when creating a table with a name that already exists"""
+    """Raised when creating a table with a name that already exists."""
 
 
 class NamespaceNotEmptyError(Exception):
-    """Raised when a name-space being dropped is not empty"""
+    """Raised when a name-space being dropped is not empty."""
 
 
 class NamespaceAlreadyExistsError(Exception):
-    """Raised when a name-space being created already exists in the catalog"""
+    """Raised when a name-space being created already exists in the catalog."""
 
 
 class ValidationError(Exception):
-    """Raises when there is an issue with the schema"""
+    """Raises when there is an issue with the schema."""
 
 
 class NoSuchTableError(Exception):
-    """Raises when the table can't be found in the REST catalog"""
+    """Raises when the table can't be found in the REST catalog."""
 
 
 class NoSuchIcebergTableError(NoSuchTableError):
-    """Raises when the table found in the REST catalog is not an iceberg table"""
+    """Raises when the table found in the REST catalog is not an iceberg table."""
 
 
 class NoSuchNamespaceError(Exception):
-    """Raised when a referenced name-space is not found"""
+    """Raised when a referenced name-space is not found."""
 
 
 class RESTError(Exception):
-    """Raises when there is an unknown response from the REST Catalog"""
+    """Raises when there is an unknown response from the REST Catalog."""
 
 
 class BadRequestError(RESTError):
-    """Raises when an invalid request is being made"""
+    """Raises when an invalid request is being made."""
 
 
 class UnauthorizedError(RESTError):
-    """Raises when you don't have the proper authorization"""
+    """Raises when you don't have the proper authorization."""
 
 
 class ServiceUnavailableError(RESTError):
-    """Raises when the service doesn't respond"""
+    """Raises when the service doesn't respond."""
 
 
 class ServerError(RESTError):
-    """Raises when there is an unhandled exception on the server side"""
+    """Raises when there is an unhandled exception on the server side."""
 
 
 class ForbiddenError(RESTError):
-    """Raises when you don't have the credentials to perform the action on the REST catalog"""
+    """Raises when you don't have the credentials to perform the action on the REST catalog."""
 
 
 class AuthorizationExpiredError(RESTError):
-    """When the credentials are expired when performing an action on the REST catalog"""
+    """When the credentials are expired when performing an action on the REST catalog."""
 
 
 class OAuthError(RESTError):
-    """Raises when there is an error with the OAuth call"""
+    """Raises when there is an error with the OAuth call."""
 
 
 class NoSuchPropertyException(Exception):
-    """When a property is missing"""
+    """When a property is missing."""
 
 
 class NotInstalledError(Exception):
-    """When an optional dependency is not installed"""
+    """When an optional dependency is not installed."""
 
 
 class SignError(Exception):
-    """Raises when unable to sign a S3 request"""
+    """Raises when unable to sign a S3 request."""
 
 
 class ResolveError(Exception):

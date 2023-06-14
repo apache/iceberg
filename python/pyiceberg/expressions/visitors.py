@@ -81,99 +81,99 @@ T = TypeVar("T")
 class BooleanExpressionVisitor(Generic[T], ABC):
     @abstractmethod
     def visit_true(self) -> T:
-        """Visit method for an AlwaysTrue boolean expression
+        """Visit method for an AlwaysTrue boolean expression.
 
         Note: This visit method has no arguments since AlwaysTrue instances have no context.
         """
 
     @abstractmethod
     def visit_false(self) -> T:
-        """Visit method for an AlwaysFalse boolean expression
+        """Visit method for an AlwaysFalse boolean expression.
 
         Note: This visit method has no arguments since AlwaysFalse instances have no context.
         """
 
     @abstractmethod
     def visit_not(self, child_result: T) -> T:
-        """Visit method for a Not boolean expression
+        """Visit method for a Not boolean expression.
 
         Args:
-            child_result (T): The result of visiting the child of the Not boolean expression
+            child_result (T): The result of visiting the child of the Not boolean expression.
         """
 
     @abstractmethod
     def visit_and(self, left_result: T, right_result: T) -> T:
-        """Visit method for an And boolean expression
+        """Visit method for an And boolean expression.
 
         Args:
-            left_result (T): The result of visiting the left side of the expression
-            right_result (T): The result of visiting the right side of the expression
+            left_result (T): The result of visiting the left side of the expression.
+            right_result (T): The result of visiting the right side of the expression.
         """
 
     @abstractmethod
     def visit_or(self, left_result: T, right_result: T) -> T:
-        """Visit method for an Or boolean expression
+        """Visit method for an Or boolean expression.
 
         Args:
-            left_result (T): The result of visiting the left side of the expression
-            right_result (T): The result of visiting the right side of the expression
+            left_result (T): The result of visiting the left side of the expression.
+            right_result (T): The result of visiting the right side of the expression.
         """
 
     @abstractmethod
     def visit_unbound_predicate(self, predicate: UnboundPredicate[L]) -> T:
-        """Visit method for an unbound predicate in an expression tree
+        """Visit method for an unbound predicate in an expression tree.
 
         Args:
-            predicate (UnboundPredicate[L): An instance of an UnboundPredicate
+            predicate (UnboundPredicate[L): An instance of an UnboundPredicate.
         """
 
     @abstractmethod
     def visit_bound_predicate(self, predicate: BoundPredicate[L]) -> T:
-        """Visit method for a bound predicate in an expression tree
+        """Visit method for a bound predicate in an expression tree.
 
         Args:
-            predicate (BoundPredicate[L]): An instance of a BoundPredicate
+            predicate (BoundPredicate[L]): An instance of a BoundPredicate.
         """
 
 
 @singledispatch
 def visit(obj: BooleanExpression, visitor: BooleanExpressionVisitor[T]) -> T:
-    """A generic function for applying a boolean expression visitor to any point within an expression
+    """A generic function for applying a boolean expression visitor to any point within an expression.
 
-    The function traverses the expression in post-order fashion
+    The function traverses the expression in post-order fashion.
 
     Args:
-        obj (BooleanExpression): An instance of a BooleanExpression
-        visitor (BooleanExpressionVisitor[T]): An instance of an implementation of the generic BooleanExpressionVisitor base class
+        obj (BooleanExpression): An instance of a BooleanExpression.
+        visitor (BooleanExpressionVisitor[T]): An instance of an implementation of the generic BooleanExpressionVisitor base class.
 
     Raises:
-        NotImplementedError: If attempting to visit an unsupported expression
+        NotImplementedError: If attempting to visit an unsupported expression.
     """
     raise NotImplementedError(f"Cannot visit unsupported expression: {obj}")
 
 
 @visit.register(AlwaysTrue)
 def _(_: AlwaysTrue, visitor: BooleanExpressionVisitor[T]) -> T:
-    """Visit an AlwaysTrue boolean expression with a concrete BooleanExpressionVisitor"""
+    """Visit an AlwaysTrue boolean expression with a concrete BooleanExpressionVisitor."""
     return visitor.visit_true()
 
 
 @visit.register(AlwaysFalse)
 def _(_: AlwaysFalse, visitor: BooleanExpressionVisitor[T]) -> T:
-    """Visit an AlwaysFalse boolean expression with a concrete BooleanExpressionVisitor"""
+    """Visit an AlwaysFalse boolean expression with a concrete BooleanExpressionVisitor."""
     return visitor.visit_false()
 
 
 @visit.register(Not)
 def _(obj: Not, visitor: BooleanExpressionVisitor[T]) -> T:
-    """Visit a Not boolean expression with a concrete BooleanExpressionVisitor"""
+    """Visit a Not boolean expression with a concrete BooleanExpressionVisitor."""
     child_result: T = visit(obj.child, visitor=visitor)
     return visitor.visit_not(child_result=child_result)
 
 
 @visit.register(And)
 def _(obj: And, visitor: BooleanExpressionVisitor[T]) -> T:
-    """Visit an And boolean expression with a concrete BooleanExpressionVisitor"""
+    """Visit an And boolean expression with a concrete BooleanExpressionVisitor."""
     left_result: T = visit(obj.left, visitor=visitor)
     right_result: T = visit(obj.right, visitor=visitor)
     return visitor.visit_and(left_result=left_result, right_result=right_result)
@@ -181,47 +181,47 @@ def _(obj: And, visitor: BooleanExpressionVisitor[T]) -> T:
 
 @visit.register(UnboundPredicate)
 def _(obj: UnboundPredicate[L], visitor: BooleanExpressionVisitor[T]) -> T:
-    """Visit an unbound boolean expression with a concrete BooleanExpressionVisitor"""
+    """Visit an unbound boolean expression with a concrete BooleanExpressionVisitor."""
     return visitor.visit_unbound_predicate(predicate=obj)
 
 
 @visit.register(BoundPredicate)
 def _(obj: BoundPredicate[L], visitor: BooleanExpressionVisitor[T]) -> T:
-    """Visit a bound boolean expression with a concrete BooleanExpressionVisitor"""
+    """Visit a bound boolean expression with a concrete BooleanExpressionVisitor."""
     return visitor.visit_bound_predicate(predicate=obj)
 
 
 @visit.register(Or)
 def _(obj: Or, visitor: BooleanExpressionVisitor[T]) -> T:
-    """Visit an Or boolean expression with a concrete BooleanExpressionVisitor"""
+    """Visit an Or boolean expression with a concrete BooleanExpressionVisitor."""
     left_result: T = visit(obj.left, visitor=visitor)
     right_result: T = visit(obj.right, visitor=visitor)
     return visitor.visit_or(left_result=left_result, right_result=right_result)
 
 
 def bind(schema: Schema, expression: BooleanExpression, case_sensitive: bool) -> BooleanExpression:
-    """Travers over an expression to bind the predicates to the schema
+    """Travers over an expression to bind the predicates to the schema.
 
     Args:
-      schema (Schema): A schema to use when binding the expression
-      expression (BooleanExpression): An expression containing UnboundPredicates that can be bound
-      case_sensitive (bool): Whether to consider case when binding a reference to a field in a schema, defaults to True
+      schema (Schema): A schema to use when binding the expression.
+      expression (BooleanExpression): An expression containing UnboundPredicates that can be bound.
+      case_sensitive (bool): Whether to consider case when binding a reference to a field in a schema, defaults to True.
 
     Raises:
-        TypeError: In the case a predicate is already bound
+        TypeError: In the case a predicate is already bound.
     """
     return visit(expression, BindVisitor(schema, case_sensitive))
 
 
 class BindVisitor(BooleanExpressionVisitor[BooleanExpression]):
-    """Rewrites a boolean expression by replacing unbound references with references to fields in a struct schema
+    """Rewrites a boolean expression by replacing unbound references with references to fields in a struct schema.
 
     Args:
-      schema (Schema): A schema to use when binding the expression
-      case_sensitive (bool): Whether to consider case when binding a reference to a field in a schema, defaults to True
+      schema (Schema): A schema to use when binding the expression.
+      case_sensitive (bool): Whether to consider case when binding a reference to a field in a schema, defaults to True.
 
     Raises:
-        TypeError: In the case a predicate is already bound
+        TypeError: In the case a predicate is already bound.
     """
 
     schema: Schema
@@ -256,93 +256,93 @@ class BindVisitor(BooleanExpressionVisitor[BooleanExpression]):
 class BoundBooleanExpressionVisitor(BooleanExpressionVisitor[T], ABC):
     @abstractmethod
     def visit_in(self, term: BoundTerm[L], literals: Set[L]) -> T:
-        """Visit a bound In predicate"""
+        """Visit a bound In predicate."""
 
     @abstractmethod
     def visit_not_in(self, term: BoundTerm[L], literals: Set[L]) -> T:
-        """Visit a bound NotIn predicate"""
+        """Visit a bound NotIn predicate."""
 
     @abstractmethod
     def visit_is_nan(self, term: BoundTerm[L]) -> T:
-        """Visit a bound IsNan predicate"""
+        """Visit a bound IsNan predicate."""
 
     @abstractmethod
     def visit_not_nan(self, term: BoundTerm[L]) -> T:
-        """Visit a bound NotNan predicate"""
+        """Visit a bound NotNan predicate."""
 
     @abstractmethod
     def visit_is_null(self, term: BoundTerm[L]) -> T:
-        """Visit a bound IsNull predicate"""
+        """Visit a bound IsNull predicate."""
 
     @abstractmethod
     def visit_not_null(self, term: BoundTerm[L]) -> T:
-        """Visit a bound NotNull predicate"""
+        """Visit a bound NotNull predicate."""
 
     @abstractmethod
     def visit_equal(self, term: BoundTerm[L], literal: Literal[L]) -> T:
-        """Visit a bound Equal predicate"""
+        """Visit a bound Equal predicate."""
 
     @abstractmethod
     def visit_not_equal(self, term: BoundTerm[L], literal: Literal[L]) -> T:
-        """Visit a bound NotEqual predicate"""
+        """Visit a bound NotEqual predicate."""
 
     @abstractmethod
     def visit_greater_than_or_equal(self, term: BoundTerm[L], literal: Literal[L]) -> T:
-        """Visit a bound GreaterThanOrEqual predicate"""
+        """Visit a bound GreaterThanOrEqual predicate."""
 
     @abstractmethod
     def visit_greater_than(self, term: BoundTerm[L], literal: Literal[L]) -> T:
-        """Visit a bound GreaterThan predicate"""
+        """Visit a bound GreaterThan predicate."""
 
     @abstractmethod
     def visit_less_than(self, term: BoundTerm[L], literal: Literal[L]) -> T:
-        """Visit a bound LessThan predicate"""
+        """Visit a bound LessThan predicate."""
 
     @abstractmethod
     def visit_less_than_or_equal(self, term: BoundTerm[L], literal: Literal[L]) -> T:
-        """Visit a bound LessThanOrEqual predicate"""
+        """Visit a bound LessThanOrEqual predicate."""
 
     @abstractmethod
     def visit_true(self) -> T:
-        """Visit a bound True predicate"""
+        """Visit a bound True predicate."""
 
     @abstractmethod
     def visit_false(self) -> T:
-        """Visit a bound False predicate"""
+        """Visit a bound False predicate."""
 
     @abstractmethod
     def visit_not(self, child_result: T) -> T:
-        """Visit a bound Not predicate"""
+        """Visit a bound Not predicate."""
 
     @abstractmethod
     def visit_and(self, left_result: T, right_result: T) -> T:
-        """Visit a bound And predicate"""
+        """Visit a bound And predicate."""
 
     @abstractmethod
     def visit_or(self, left_result: T, right_result: T) -> T:
-        """Visit a bound Or predicate"""
+        """Visit a bound Or predicate."""
 
     @abstractmethod
     def visit_starts_with(self, term: BoundTerm[L], literal: Literal[L]) -> T:
-        """Visit bound StartsWith predicate"""
+        """Visit bound StartsWith predicate."""
 
     @abstractmethod
     def visit_not_starts_with(self, term: BoundTerm[L], literal: Literal[L]) -> T:
-        """Visit bound NotStartsWith predicate"""
+        """Visit bound NotStartsWith predicate."""
 
     def visit_unbound_predicate(self, predicate: UnboundPredicate[L]) -> T:
-        """Visit an unbound predicate
+        """Visit an unbound predicate.
         Args:
-            predicate (UnboundPredicate[L]): An unbound predicate
+            predicate (UnboundPredicate[L]): An unbound predicate.
         Raises:
-            TypeError: This always raises since an unbound predicate is not expected in a bound boolean expression
+            TypeError: This always raises since an unbound predicate is not expected in a bound boolean expression.
         """
         raise TypeError(f"Not a bound predicate: {predicate}")
 
     def visit_bound_predicate(self, predicate: BoundPredicate[L]) -> T:
-        """Visit a bound predicate
+        """Visit a bound predicate.
         Args:
-            predicate (BoundPredicate[L]): A bound predicate
+            predicate (BoundPredicate[L]): A bound predicate.
         """
         return visit_bound_predicate(predicate, self)
 
@@ -394,7 +394,7 @@ def _(expr: BoundNotEqualTo[L], visitor: BoundBooleanExpressionVisitor[T]) -> T:
 
 @visit_bound_predicate.register(BoundGreaterThanOrEqual)
 def _(expr: BoundGreaterThanOrEqual[L], visitor: BoundBooleanExpressionVisitor[T]) -> T:
-    """Visit a bound GreaterThanOrEqual predicate"""
+    """Visit a bound GreaterThanOrEqual predicate."""
     return visitor.visit_greater_than_or_equal(term=expr.term, literal=expr.literal)
 
 
@@ -428,7 +428,7 @@ def rewrite_not(expr: BooleanExpression) -> BooleanExpression:
 
 
 class _RewriteNotVisitor(BooleanExpressionVisitor[BooleanExpression]):
-    """Inverts the negations"""
+    """Inverts the negations."""
 
     def visit_true(self) -> BooleanExpression:
         return AlwaysTrue()
@@ -851,15 +851,15 @@ def inclusive_projection(
 
 
 class _ColumnNameTranslator(BooleanExpressionVisitor[BooleanExpression]):
-    """Converts the column names with the ones in the actual file
+    """Converts the column names with the ones in the actual file.
 
     Args:
-      file_schema (Schema): The schema of the file
-      case_sensitive (bool): Whether to consider case when binding a reference to a field in a schema, defaults to True
+      file_schema (Schema): The schema of the file.
+      case_sensitive (bool): Whether to consider case when binding a reference to a field in a schema, defaults to True.
 
     Raises:
-        TypeError: In the case of an UnboundPredicate
-        ValueError: When a column name cannot be found
+        TypeError: In the case of an UnboundPredicate.
+        ValueError: When a column name cannot be found.
     """
 
     file_schema: Schema
@@ -908,7 +908,7 @@ def translate_column_names(expr: BooleanExpression, file_schema: Schema, case_se
 
 
 class _ExpressionFieldIDs(BooleanExpressionVisitor[Set[int]]):
-    """Extracts the field IDs used in the BooleanExpression"""
+    """Extracts the field IDs used in the BooleanExpression."""
 
     def visit_true(self) -> Set[int]:
         return set()
@@ -1059,7 +1059,8 @@ class ExpressionToPlainFormat(BoundBooleanExpressionVisitor[List[Tuple[str, str,
 def expression_to_plain_format(
     expressions: Tuple[BooleanExpression, ...], cast_int_to_datetime: bool = False
 ) -> List[List[Tuple[str, str, Any]]]:
-    """Formats a Disjunctive Normal Form expression into the format that can be fed into:
+    """Formats a Disjunctive Normal Form expression.
+    These are the formats that the expression can be fed into:
 
     - https://arrow.apache.org/docs/python/generated/pyarrow.parquet.read_table.html
     - https://docs.dask.org/en/stable/generated/dask.dataframe.read_parquet.html
@@ -1071,10 +1072,10 @@ def expression_to_plain_format(
     on a row level.
 
     Args:
-        expressions: Expression in Disjunctive Normal Form
+        expressions: Expression in Disjunctive Normal Form.
 
     Returns:
-        Formatter filter compatible with Dask and PyArrow
+        Formatter filter compatible with Dask and PyArrow.
     """
     # In the form of expr1 ∨ expr2 ∨ ... ∨ exprN
     visitor = ExpressionToPlainFormat(cast_int_to_datetime)

@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Base FileIO classes for implementing reading and writing table files
+"""Base FileIO classes for implementing reading and writing table files.
 
 The FileIO abstraction includes a subset of full filesystem implementations. Specifically,
 Iceberg needs to read or write a file at a given location (as a seekable stream), as well
@@ -54,7 +54,7 @@ S3_REGION = "s3.region"
 
 @runtime_checkable
 class InputStream(Protocol):
-    """A protocol for the file-like object returned by InputFile.open(...)
+    """A protocol for the file-like object returned by InputFile.open(...).
 
     This outlines the minimally required methods for a seekable input stream returned from an InputFile
     implementation's `open(...)` method. These methods are a subset of IOBase/RawIOBase.
@@ -88,7 +88,7 @@ class InputStream(Protocol):
 
 @runtime_checkable
 class OutputStream(Protocol):  # pragma: no cover
-    """A protocol for the file-like object returned by OutputFile.create(...)
+    """A protocol for the file-like object returned by OutputFile.create(...).
 
     This outlines the minimally required methods for a writable output stream returned from an OutputFile
     implementation's `create(...)` method. These methods are a subset of IOBase/RawIOBase.
@@ -114,14 +114,14 @@ class OutputStream(Protocol):  # pragma: no cover
 
 
 class InputFile(ABC):
-    """A base class for InputFile implementations
+    """A base class for InputFile implementations.
 
     Args:
-        location (str): A URI or a path to a local file
+        location (str): A URI or a path to a local file.
 
     Attributes:
-        location (str): The URI or path to a local file for an InputFile instance
-        exists (bool): Whether the file exists or not
+        location (str): The URI or path to a local file for an InputFile instance.
+        exists (bool): Whether the file exists or not.
     """
 
     def __init__(self, location: str):
@@ -129,47 +129,47 @@ class InputFile(ABC):
 
     @abstractmethod
     def __len__(self) -> int:
-        """Returns the total length of the file, in bytes"""
+        """Returns the total length of the file, in bytes."""
 
     @property
     def location(self) -> str:
-        """The fully-qualified location of the input file"""
+        """The fully-qualified location of the input file."""
         return self._location
 
     @abstractmethod
     def exists(self) -> bool:
-        """Checks whether the location exists
+        """Checks whether the location exists.
 
 
         Raises:
-            PermissionError: If the file at self.location cannot be accessed due to a permission error
+            PermissionError: If the file at self.location cannot be accessed due to a permission error.
         """
 
     @abstractmethod
     def open(self, seekable: bool = True) -> InputStream:
-        """This method should return an object that matches the InputStream protocol
+        """This method should return an object that matches the InputStream protocol.
 
         Args:
-            seekable: If the stream should support seek, or if it is consumed sequential
+            seekable: If the stream should support seek, or if it is consumed sequential.
 
         Returns:
-            InputStream: An object that matches the InputStream protocol
+            InputStream: An object that matches the InputStream protocol.
 
         Raises:
-            PermissionError: If the file at self.location cannot be accessed due to a permission error
-            FileNotFoundError: If the file at self.location does not exist
+            PermissionError: If the file at self.location cannot be accessed due to a permission error.
+            FileNotFoundError: If the file at self.location does not exist.
         """
 
 
 class OutputFile(ABC):
-    """A base class for OutputFile implementations
+    """A base class for OutputFile implementations.
 
     Args:
-        location (str): A URI or a path to a local file
+        location (str): A URI or a path to a local file.
 
     Attributes:
-        location (str): The URI or path to a local file for an OutputFile instance
-        exists (bool): Whether the file exists or not
+        location (str): The URI or path to a local file for an OutputFile instance.
+        exists (bool): Whether the file exists or not.
     """
 
     def __init__(self, location: str):
@@ -177,25 +177,25 @@ class OutputFile(ABC):
 
     @abstractmethod
     def __len__(self) -> int:
-        """Returns the total length of the file, in bytes"""
+        """Returns the total length of the file, in bytes."""
 
     @property
     def location(self) -> str:
-        """The fully-qualified location of the output file"""
+        """The fully-qualified location of the output file."""
         return self._location
 
     @abstractmethod
     def exists(self) -> bool:
-        """Checks whether the location exists
+        """Checks whether the location exists.
 
 
         Raises:
-            PermissionError: If the file at self.location cannot be accessed due to a permission error
+            PermissionError: If the file at self.location cannot be accessed due to a permission error.
         """
 
     @abstractmethod
     def to_input_file(self) -> InputFile:
-        """Returns an InputFile for the location of this output file"""
+        """Returns an InputFile for the location of this output file."""
 
     @abstractmethod
     def create(self, overwrite: bool = False) -> OutputStream:
@@ -203,19 +203,19 @@ class OutputFile(ABC):
 
         Args:
             overwrite (bool): If the file already exists at `self.location`
-                and `overwrite` is False a FileExistsError should be raised
+                and `overwrite` is False a FileExistsError should be raised.
 
         Returns:
-            OutputStream: An object that matches the OutputStream protocol
+            OutputStream: An object that matches the OutputStream protocol.
 
         Raises:
-            PermissionError: If the file at self.location cannot be accessed due to a permission error
-            FileExistsError: If the file at self.location already exists and `overwrite=False`
+            PermissionError: If the file at self.location cannot be accessed due to a permission error.
+            FileExistsError: If the file at self.location already exists and `overwrite=False`.
         """
 
 
 class FileIO(ABC):
-    """A base class for FileIO implementations"""
+    """A base class for FileIO implementations."""
 
     properties: Properties
 
@@ -224,31 +224,31 @@ class FileIO(ABC):
 
     @abstractmethod
     def new_input(self, location: str) -> InputFile:
-        """Get an InputFile instance to read bytes from the file at the given location
+        """Get an InputFile instance to read bytes from the file at the given location.
 
         Args:
-            location (str): A URI or a path to a local file
+            location (str): A URI or a path to a local file.
         """
 
     @abstractmethod
     def new_output(self, location: str) -> OutputFile:
-        """Get an OutputFile instance to write bytes to the file at the given location
+        """Get an OutputFile instance to write bytes to the file at the given location.
 
         Args:
-            location (str): A URI or a path to a local file
+            location (str): A URI or a path to a local file.
         """
 
     @abstractmethod
     def delete(self, location: Union[str, InputFile, OutputFile]) -> None:
-        """Delete the file at the given path
+        """Delete the file at the given path.
 
         Args:
             location (Union[str, InputFile, OutputFile]): A URI or a path to a local file--if an InputFile instance or
-                an OutputFile instance is provided, the location attribute for that instance is used as the URI to delete
+                an OutputFile instance is provided, the location attribute for that instance is used as the URI to delete.
 
         Raises:
-            PermissionError: If the file at location cannot be accessed due to a permission error
-            FileNotFoundError: When the file at the provided location does not exist
+            PermissionError: If the file at location cannot be accessed due to a permission error.
+            FileNotFoundError: When the file at the provided location does not exist.
         """
 
 

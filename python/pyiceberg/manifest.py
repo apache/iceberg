@@ -267,14 +267,14 @@ class ManifestFile(Record):
 
     def fetch_manifest_entry(self, io: FileIO, discard_deleted: bool = True) -> List[ManifestEntry]:
         """
-        Reads the manifest entries from the manifest file
+        Reads the manifest entries from the manifest file.
 
         Args:
-            io: The FileIO to fetch the file
-            discard_deleted: Filter on live entries
+            io: The FileIO to fetch the file.
+            discard_deleted: Filter on live entries.
 
         Returns:
-            An Iterator of manifest entries
+            An Iterator of manifest entries.
         """
         input_file = io.new_input(self.manifest_path)
         with AvroFile[ManifestEntry](
@@ -292,13 +292,13 @@ class ManifestFile(Record):
 
 def read_manifest_list(input_file: InputFile) -> Iterator[ManifestFile]:
     """
-    Reads the manifests from the manifest list
+    Reads the manifests from the manifest list.
 
     Args:
-        input_file: The input file where the stream can be read from
+        input_file: The input file where the stream can be read from.
 
     Returns:
-        An iterator of ManifestFiles that are part of the list
+        An iterator of ManifestFiles that are part of the list.
     """
     with AvroFile[ManifestFile](
         input_file,
@@ -310,16 +310,16 @@ def read_manifest_list(input_file: InputFile) -> Iterator[ManifestFile]:
 
 
 def _inherit_sequence_number(entry: ManifestEntry, manifest: ManifestFile) -> ManifestEntry:
-    """Inherits the sequence numbers
+    """Inherits the sequence numbers.
 
     More information in the spec: https://iceberg.apache.org/spec/#sequence-number-inheritance
 
     Args:
-        entry: The manifest entry that has null sequence numbers
-        manifest: The manifest that has a sequence number
+        entry: The manifest entry that has null sequence numbers.
+        manifest: The manifest that has a sequence number.
 
     Returns:
-        The manifest entry with the sequence numbers set
+        The manifest entry with the sequence numbers set.
     """
     # The snapshot_id is required in V1, inherit with V2 when null
     if entry.snapshot_id is None:

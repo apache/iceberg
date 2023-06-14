@@ -1026,7 +1026,7 @@ def simple_map() -> MapType:
 
 
 class LocalOutputFile(OutputFile):
-    """An OutputFile implementation for local files (for test use only)"""
+    """An OutputFile implementation for local files (for test use only)."""
 
     def __init__(self, location: str) -> None:
         parsed_location = urlparse(location)  # Create a ParseResult from the uri
@@ -1290,8 +1290,8 @@ def fsspec_fileio(request: pytest.FixtureRequest) -> FsspecFileIO:
 
 class MockAWSResponse(aiobotocore.awsrequest.AioAWSResponse):
     """
-    A mocked aws response implementation (for test use only)
-    See https://github.com/aio-libs/aiobotocore/issues/755
+    A mocked aws response implementation (for test use only).
+    See https://github.com/aio-libs/aiobotocore/issues/755.
     """
 
     def __init__(self, response: botocore.awsrequest.AWSResponse) -> None:
@@ -1309,8 +1309,8 @@ class MockAWSResponse(aiobotocore.awsrequest.AioAWSResponse):
 
 class MockHttpClientResponse(aiohttp.client_reqrep.ClientResponse):
     """
-    A mocked http client response implementation (for test use only)
-    See https://github.com/aio-libs/aiobotocore/issues/755
+    A mocked http client response implementation (for test use only).
+    See https://github.com/aio-libs/aiobotocore/issues/755.
     """
 
     def __init__(self, response: botocore.awsrequest.AWSResponse) -> None:
@@ -1330,8 +1330,8 @@ class MockHttpClientResponse(aiohttp.client_reqrep.ClientResponse):
 
 def patch_aiobotocore() -> None:
     """
-    Patch aiobotocore to work with moto
-    See https://github.com/aio-libs/aiobotocore/issues/755
+    Patch aiobotocore to work with moto.
+    See https://github.com/aio-libs/aiobotocore/issues/755.
     """
 
     def factory(original: Callable) -> Callable:  # type: ignore
@@ -1348,8 +1348,8 @@ def patch_aiobotocore() -> None:
 @pytest.fixture(name="_patch_aiobotocore")
 def fixture_aiobotocore():  # type: ignore
     """
-    Patch aiobotocore to work with moto
-    pending close of this issue: https://github.com/aio-libs/aiobotocore/issues/755
+    Patch aiobotocore to work with moto.
+    pending close of this issue: https://github.com/aio-libs/aiobotocore/issues/755.
     """
     stored_method = aiobotocore.endpoint.convert_to_response_dict
     yield patch_aiobotocore()
@@ -1378,21 +1378,21 @@ def fixture_aws_credentials() -> Generator[None, None, None]:
 
 @pytest.fixture(name="_s3")
 def fixture_s3(_aws_credentials: None) -> Generator[boto3.client, None, None]:
-    """Mocked S3 client"""
+    """Mocked S3 client."""
     with mock_s3():
         yield boto3.client("s3", region_name="us-east-1")
 
 
 @pytest.fixture(name="_glue")
 def fixture_glue(_aws_credentials: None) -> Generator[boto3.client, None, None]:
-    """Mocked glue client"""
+    """Mocked glue client."""
     with mock_glue():
         yield boto3.client("glue", region_name="us-east-1")
 
 
 @pytest.fixture(name="_dynamodb")
 def fixture_dynamodb(_aws_credentials: None) -> Generator[boto3.client, None, None]:
-    """Mocked DynamoDB client"""
+    """Mocked DynamoDB client."""
     with mock_dynamodb():
         yield boto3.client("dynamodb", region_name="us-east-1")
 
@@ -1465,7 +1465,7 @@ def fixture_s3_bucket(_s3) -> None:  # type: ignore
 
 
 def get_bucket_name() -> str:
-    """Set the environment variable AWS_TEST_BUCKET for a default bucket to test"""
+    """Set the environment variable AWS_TEST_BUCKET for a default bucket to test."""
     bucket_name = os.getenv("AWS_TEST_BUCKET")
     if bucket_name is None:
         raise ValueError("Please specify a bucket to run the test by setting environment variable AWS_TEST_BUCKET")
@@ -1488,7 +1488,7 @@ def fixture_s3_client() -> boto3.client:
 
 
 def clean_up(test_catalog: Catalog) -> None:
-    """Clean all databases and tables created during the integration test"""
+    """Clean all databases and tables created during the integration test."""
     for database_tuple in test_catalog.list_namespaces():
         database_name = database_tuple[0]
         if "my_iceberg_database-" in database_name:

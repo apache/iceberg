@@ -33,7 +33,7 @@ logger = logging.getLogger(__name__)
 
 
 def merge_config(lhs: RecursiveDict, rhs: RecursiveDict) -> RecursiveDict:
-    """Merges right-hand side into the left-hand side"""
+    """Merges right-hand side into the left-hand side."""
     new_config = lhs.copy()
     for rhs_key, rhs_value in rhs.items():
         if rhs_key in new_config:
@@ -52,7 +52,7 @@ def merge_config(lhs: RecursiveDict, rhs: RecursiveDict) -> RecursiveDict:
 
 
 def _lowercase_dictionary_keys(input_dict: RecursiveDict) -> RecursiveDict:
-    """Lowers all the keys of a dictionary in a recursive manner, to make the lookup case-insensitive"""
+    """Lowers all the keys of a dictionary in a recursive manner, to make the lookup case-insensitive."""
     return {k.lower(): _lowercase_dictionary_keys(v) if isinstance(v, dict) else v for k, v in input_dict.items()}
 
 
@@ -66,7 +66,7 @@ class Config:
 
     @staticmethod
     def _from_configuration_files() -> Optional[RecursiveDict]:
-        """Loads the first configuration file that its finds
+        """Loads the first configuration file that its finds.
 
         Will first look in the PYICEBERG_HOME env variable,
         and then in the home directory.
@@ -94,13 +94,13 @@ class Config:
 
     @staticmethod
     def _from_environment_variables(config: RecursiveDict) -> RecursiveDict:
-        """Reads the environment variables, to check if there are any prepended by PYICEBERG_
+        """Reads the environment variables, to check if there are any prepended by PYICEBERG_.
 
         Args:
-            config: Existing configuration that's being amended with configuration from environment variables
+            config: Existing configuration that's being amended with configuration from environment variables.
 
         Returns:
-            Amended configuration
+            Amended configuration.
         """
 
         def set_property(_config: RecursiveDict, path: List[str], config_value: str) -> None:
@@ -133,10 +133,9 @@ class Config:
 
     def get_default_catalog_name(self) -> str:
         """
-        Looks into the configuration file for `default-catalog`
-        and returns the name as the default catalog
+        Looks into the configuration file for `default-catalog` and returns the name as the default catalog.
 
-        Returns: The name of the default catalog in `default-catalog`
+        Returns: The name of the default catalog in `default-catalog`.
                  Returns `default` when the key cannot be found.
         """
         if default_catalog_name := self.config.get(DEFAULT_CATALOG):
