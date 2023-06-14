@@ -249,7 +249,7 @@ class NestedField(IcebergType):
         req = "required" if self.required else "optional"
         return f"{self.field_id}: {self.name}: {req} {self.field_type}{doc}"
 
-    def __getnewargs__(self) -> Tuple[Optional[int], Optional[str], Optional[IcebergType], bool, Optional[str]]:
+    def __getnewargs__(self) -> Tuple[int, str, IcebergType, bool, Optional[str]]:
         return (self.field_id, self.name, self.field_type, self.required, self.doc)
 
     @property
