@@ -504,7 +504,7 @@ def pyarrow_to_schema(schema: pa.Schema) -> Schema:
 
 
 @singledispatch
-def visit_pyarrow(obj: pa.DataType | pa.Schema, visitor: PyArrowSchemaVisitor[T]) -> T:
+def visit_pyarrow(obj: Union[pa.DataType, pa.Schema], visitor: PyArrowSchemaVisitor[T]) -> T:
     """A generic function for applying a pyarrow schema visitor to any point within a schema.
 
     The function traverses the schema in post-order fashion.
