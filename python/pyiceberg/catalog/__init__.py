@@ -329,16 +329,16 @@ class Catalog(ABC):
 
     @abstractmethod
     def _commit(self, *table_requests: CommitTableRequest) -> CommitTableResponse:
-        """Updates one or more tables
+        """Updates one or more tables.
 
         Args:
-            table_requests (Tuple[CommitTableRequest, ...]): The table requests to be carried out
+            table_requests (Tuple[CommitTableRequest, ...]): The table requests to be carried out.
 
         Returns:
-            CommitTableResponse: The updated metadata
+            CommitTableResponse: The updated metadata.
 
         Raises:
-            NoSuchTableError: If a table with the given identifier does not exist
+            NoSuchTableError: If a table with the given identifier does not exist.
         """
 
     @abstractmethod

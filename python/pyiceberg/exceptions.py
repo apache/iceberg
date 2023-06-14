@@ -105,8 +105,8 @@ class GenericDynamoDbError(DynamoDbError):
 
 
 class CommitFailedException(RESTError):
-    """Commit failed, refresh and try again"""
+    """Commit failed, refresh and try again."""
 
 
 class CommitStateUnknownException(RESTError):
-    """Commit failed due to unknown reason"""
+    """Commit failed due to unknown reason."""

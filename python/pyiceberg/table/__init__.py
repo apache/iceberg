@@ -97,16 +97,16 @@ class Transaction:
         self._table.metadata_location = fresh_table.metadata_location
 
     def _append_updates(self, *new_updates: TableUpdate) -> Transaction:
-        """Appends updates to the set of staged updates
+        """Appends updates to the set of staged updates.
 
         Args:
-            *new_updates: Any new updates
+            *new_updates: Any new updates.
 
         Raises:
             ValueError: When the type of update is not unique.
 
         Returns:
-            A new AlterTable object with the new updates appended
+            A new AlterTable object with the new updates appended.
         """
         for new_update in new_updates:
             type_new_update = type(new_update)
@@ -116,56 +116,56 @@ class Transaction:
         return self
 
     def set_table_version(self, format_version: Literal[1, 2]) -> Transaction:
-        """Sets the table to a certain version
+        """Sets the table to a certain version.
 
         Args:
-            format_version: The newly set version
+            format_version: The newly set version.
 
         Returns:
-            The alter table builder
+            The alter table builder.
         """
         raise NotImplementedError("Not yet implemented")
 
     def set_properties(self, **updates: str) -> Transaction:
-        """Set properties
+        """Set properties.
 
-        When a property is already set, it will be overwritten
+        When a property is already set, it will be overwritten.
 
         Args:
-            updates: The properties set on the table
+            updates: The properties set on the table.
 
         Returns:
-            The alter table builder
+            The alter table builder.
         """
         return self._append_updates(SetPropertiesUpdate(updates=updates))
 
     def remove_properties(self, *removals: str) -> Transaction:
-        """Removes properties
+        """Removes properties.
 
         Args:
-            removals: Properties to be removed
+            removals: Properties to be removed.
 
         Returns:
-            The alter table builder
+            The alter table builder.
         """
         return self._append_updates(RemovePropertiesUpdate(removals=removals))
 
     def update_location(self, location: str) -> Transaction:
-        """Sets the new table location
+        """Sets the new table location.
 
         Args:
-            location: The new location of the table
+            location: The new location of the table.
 
         Returns:
-            The alter table builder
+            The alter table builder.
         """
         raise NotImplementedError("Not yet implemented")
 
     def commit_transaction(self) -> Table:
-        """Commits the changes to the catalog
+        """Commits the changes to the catalog.
 
         Returns:
-            The table with the updates applied
+            The table with the updates applied.
         """
         # Strip the catalog name
         if len(self._updates) > 0:
@@ -292,22 +292,22 @@ class TableRequirement(IcebergBaseModel):
 
 
 class AssertCreate(TableRequirement):
-    """The table must not already exist; used for create transactions"""
+    """The table must not already exist; used for create transactions."""
 
     type: Literal["assert-create"]
 
 
 class AssertTableUUID(TableRequirement):
-    """The table UUID must match the requirement's `uuid`"""
+    """The table UUID must match the requirement's `uuid`."""
 
     type: Literal["assert-table-uuid"]
     uuid: str
 
 
 class AssertRefSnapshotId(TableRequirement):
-    """The table branch or tag identified by the requirement's `ref` must reference the requirement's `snapshot-id`
+    """The table branch or tag identified by the requirement's `ref` must reference the requirement's `snapshot-id`.
 
-    if `snapshot-id` is `null` or missing, the ref must not already exist
+    if `snapshot-id` is `null` or missing, the ref must not already exist.
     """
 
     type: Literal["assert-ref-snapshot-id"]
@@ -316,35 +316,35 @@ class AssertRefSnapshotId(TableRequirement):
 
 
 class AssertLastAssignedFieldId(TableRequirement):
-    """The table's last assigned column id must match the requirement's `last-assigned-field-id`"""
+    """The table's last assigned column id must match the requirement's `last-assigned-field-id`."""
 
     type: Literal["assert-last-assigned-field-id"]
     last_assigned_field_id: int = Field(..., alias="last-assigned-field-id")
 
 
 class AssertCurrentSchemaId(TableRequirement):
-    """The table's current schema id must match the requirement's `current-schema-id`"""
+    """The table's current schema id must match the requirement's `current-schema-id`."""
 
     type: Literal["assert-current-schema-id"]
     current_schema_id: int = Field(..., alias="current-schema-id")
 
 
 class AssertLastAssignedPartitionId(TableRequirement):
-    """The table's last assigned partition id must match the requirement's `last-assigned-partition-id`"""
+    """The table's last assigned partition id must match the requirement's `last-assigned-partition-id`."""
 
     type: Literal["assert-last-assigned-partition-id"]
     last_assigned_partition_id: int = Field(..., alias="last-assigned-partition-id")
 
 
 class AssertDefaultSpecId(TableRequirement):
-    """The table's default spec id must match the requirement's `default-spec-id`"""
+    """The table's default spec id must match the requirement's `default-spec-id`."""
 
     type: Literal["assert-default-spec-id"]
     default_spec_id: int = Field(..., alias="default-spec-id")
 
 
 class AssertDefaultSortOrderId(TableRequirement):
-    """The table's default sort order id must match the requirement's `default-sort-order-id`"""
+    """The table's default sort order id must match the requirement's `default-sort-order-id`."""
 
     type: Literal["assert-default-sort-order-id"]
     default_sort_order_id: int = Field(..., alias="default-sort-order-id")
@@ -439,7 +439,7 @@ class Table:
 
     @property
     def properties(self) -> Dict[str, str]:
-        """Properties of the table"""
+        """Properties of the table."""
         return self.metadata.properties
 
     def location(self) -> str:

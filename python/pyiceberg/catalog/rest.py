@@ -494,16 +494,16 @@ class RestCatalog(Catalog):
         return self.load_table(to_identifier)
 
     def _commit(self, *table_requests: CommitTableRequest) -> CommitTableResponse:
-        """Updates the table
+        """Updates the table.
 
         Args:
-            table_requests (Tuple[CommitTableRequest, ...]): The table requests to be carried out
+            table_requests (Tuple[CommitTableRequest, ...]): The table requests to be carried out.
 
         Returns:
-            CommitTableResponse: The updated metadata
+            CommitTableResponse: The updated metadata.
 
         Raises:
-            NoSuchTableError: If a table with the given identifier does not exist
+            NoSuchTableError: If a table with the given identifier does not exist.
         """
         if len(table_requests) > 1:
             raise ValueError("Multi table transactions not yet supported")

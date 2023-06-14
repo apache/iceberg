@@ -304,16 +304,16 @@ class HiveCatalog(Catalog):
         return self._convert_hive_into_iceberg(hive_table, io)
 
     def _commit(self, *table_requests: CommitTableRequest) -> CommitTableResponse:
-        """Updates the table
+        """Updates the table.
 
         Args:
-            table_requests (Tuple[CommitTableRequest, ...]): The table requests to be carried out
+            table_requests (Tuple[CommitTableRequest, ...]): The table requests to be carried out.
 
         Returns:
-            CommitTableResponse: The updated metadata
+            CommitTableResponse: The updated metadata.
 
         Raises:
-            NoSuchTableError: If a table with the given identifier does not exist
+            NoSuchTableError: If a table with the given identifier does not exist.
         """
         raise NotImplementedError
 
