@@ -378,7 +378,7 @@ class MapType(IcebergType):
     def __str__(self) -> str:
         return f"map<{self.key_type}, {self.value_type}>"
 
-    def __getnewargs__(self) -> Tuple[Optional[int], Optional[IcebergType], Optional[int], Optional[IcebergType], bool]:
+    def __getnewargs__(self) -> Tuple[int, IcebergType, int, IcebergType, bool]:
         return (self.key_id, self.key_type, self.value_id, self.value_type, self.value_required)
 
 
