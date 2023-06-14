@@ -59,7 +59,7 @@ from pyiceberg.utils.singleton import Singleton
 
 
 class Literal(Generic[L], ABC):
-    """Literal which has a value and can be converted between types"""
+    """Literal which has a value and can be converted between types."""
 
     _value: L
 
@@ -111,13 +111,13 @@ class Literal(Generic[L], ABC):
 
 def literal(value: L) -> Literal[L]:
     """
-    A generic Literal factory to construct an Iceberg Literal based on Python primitive data type
+    A generic Literal factory to construct an Iceberg Literal based on Python primitive data type.
 
     Args:
-        value (Python primitive type): the value to be associated with literal
+        value (Python primitive type): the value to be associated with literal.
 
     Example:
-        from pyiceberg.expressions.literals import literal
+        from pyiceberg.expressions.literals import literal.
         >>> literal(123)
         LongLiteral(123)
     """

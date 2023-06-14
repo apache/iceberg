@@ -57,7 +57,7 @@ DEFAULT_SCHEMA_ID = 0
 
 
 def check_schemas(values: Dict[str, Any]) -> Dict[str, Any]:
-    """Validator to check if the current-schema-id is actually present in schemas"""
+    """Validator to check if the current-schema-id is actually present in schemas."""
     current_schema_id = values[CURRENT_SCHEMA_ID]
 
     for schema in values[SCHEMAS]:
@@ -68,7 +68,7 @@ def check_schemas(values: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def check_partition_specs(values: Dict[str, Any]) -> Dict[str, Any]:
-    """Validator to check if the default-spec-id is present in partition-specs"""
+    """Validator to check if the default-spec-id is present in partition-specs."""
     default_spec_id = values["default_spec_id"]
 
     partition_specs: List[PartitionSpec] = values[PARTITION_SPECS]
@@ -80,7 +80,7 @@ def check_partition_specs(values: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def check_sort_orders(values: Dict[str, Any]) -> Dict[str, Any]:
-    """Validator to check if the default_sort_order_id is present in sort-orders"""
+    """Validator to check if the default_sort_order_id is present in sort-orders."""
     default_sort_order_id: int = values["default_sort_order_id"]
 
     if default_sort_order_id != UNSORTED_SORT_ORDER_ID:
@@ -94,8 +94,7 @@ def check_sort_orders(values: Dict[str, Any]) -> Dict[str, Any]:
 
 
 class TableMetadataCommonFields(IcebergBaseModel):
-    """Metadata for an Iceberg table as specified in the Apache Iceberg
-    spec (https://iceberg.apache.org/spec/#iceberg-table-spec)"""
+    """Metadata for an Iceberg table as specified in the Apache Iceberg spec (https://iceberg.apache.org/spec/#iceberg-table-spec)."""
 
     @root_validator(skip_on_failure=True)
     def cleanup_snapshot_id(cls, data: Dict[str, Any]) -> Dict[str, Any]:
@@ -197,7 +196,7 @@ class TableMetadataCommonFields(IcebergBaseModel):
 
 
 class TableMetadataV1(TableMetadataCommonFields, IcebergBaseModel):
-    """Represents version 1 of the Table Metadata
+    """Represents version 1 of the Table Metadata.
 
     More information about the specification:
     https://iceberg.apache.org/spec/#version-1-analytic-data-tables
@@ -212,13 +211,13 @@ class TableMetadataV1(TableMetadataCommonFields, IcebergBaseModel):
 
     @root_validator
     def set_v2_compatible_defaults(cls, data: Dict[str, Any]) -> Dict[str, Any]:
-        """Sets default values to be compatible with the format v2
+        """Sets default values to be compatible with the format v2.
 
         Args:
-            data: The raw arguments when initializing a V1 TableMetadata
+            data: The raw arguments when initializing a V1 TableMetadata.
 
         Returns:
-            The TableMetadata with the defaults applied
+            The TableMetadata with the defaults applied.
         """
         # When the schema doesn't have an ID
         if data.get("schema") and "schema_id" not in data["schema"]:
@@ -228,17 +227,17 @@ class TableMetadataV1(TableMetadataCommonFields, IcebergBaseModel):
 
     @root_validator(skip_on_failure=True)
     def construct_schemas(cls, data: Dict[str, Any]) -> Dict[str, Any]:
-        """Converts the schema into schemas
+        """Converts the schema into schemas.
 
         For V1 schemas is optional, and if they aren't set, we'll set them
         in this validator. This was we can always use the schemas when reading
         table metadata, and we don't have to worry if it is a v1 or v2 format.
 
         Args:
-            data: The raw data after validation, meaning that the aliases are applied
+            data: The raw data after validation, meaning that the aliases are applied.
 
         Returns:
-            The TableMetadata with the schemas set, if not provided
+            The TableMetadata with the schemas set, if not provided.
         """
         if not data.get("schemas"):
             schema = data["schema_"]
@@ -249,17 +248,17 @@ class TableMetadataV1(TableMetadataCommonFields, IcebergBaseModel):
 
     @root_validator(skip_on_failure=True)
     def construct_partition_specs(cls, data: Dict[str, Any]) -> Dict[str, Any]:
-        """Converts the partition_spec into partition_specs
+        """Converts the partition_spec into partition_specs.
 
         For V1 partition_specs is optional, and if they aren't set, we'll set them
         in this validator. This was we can always use the partition_specs when reading
         table metadata, and we don't have to worry if it is a v1 or v2 format.
 
         Args:
-            data: The raw data after validation, meaning that the aliases are applied
+            data: The raw data after validation, meaning that the aliases are applied.
 
         Returns:
-            The TableMetadata with the partition_specs set, if not provided
+            The TableMetadata with the partition_specs set, if not provided.
         """
         if not data.get(PARTITION_SPECS):
             fields = data[PARTITION_SPEC]
@@ -277,16 +276,16 @@ class TableMetadataV1(TableMetadataCommonFields, IcebergBaseModel):
 
     @root_validator(skip_on_failure=True)
     def set_sort_orders(cls, data: Dict[str, Any]) -> Dict[str, Any]:
-        """Sets the sort_orders if not provided
+        """Sets the sort_orders if not provided.
 
         For V1 sort_orders is optional, and if they aren't set, we'll set them
         in this validator.
 
         Args:
-            data: The raw data after validation, meaning that the aliases are applied
+            data: The raw data after validation, meaning that the aliases are applied.
 
         Returns:
-            The TableMetadata with the sort_orders set, if not provided
+            The TableMetadata with the sort_orders set, if not provided.
         """
         if not data.get(SORT_ORDERS):
             data[SORT_ORDERS] = [UNSORTED_SORT_ORDER]
@@ -306,18 +305,18 @@ class TableMetadataV1(TableMetadataCommonFields, IcebergBaseModel):
 
     schema_: Schema = Field(alias="schema")
     """The table’s current schema. (Deprecated: use schemas and
-    current-schema-id instead)"""
+    current-schema-id instead)."""
 
     partition_spec: List[Dict[str, Any]] = Field(alias="partition-spec")
     """The table’s current partition spec, stored as only fields.
     Note that this is used by writers to partition data, but is
     not used when reading because reads use the specs stored in
     manifest files. (Deprecated: use partition-specs and default-spec-id
-    instead)"""
+    instead)."""
 
 
 class TableMetadataV2(TableMetadataCommonFields, IcebergBaseModel):
-    """Represents version 2 of the Table Metadata
+    """Represents version 2 of the Table Metadata.
 
     This extends Version 1 with row-level deletes, and adds some additional
     information to the schema, such as all the historical schemas, partition-specs,
@@ -374,7 +373,7 @@ def new_table_metadata(
 
 
 class TableMetadataUtil:
-    """Helper class for parsing TableMetadata"""
+    """Helper class for parsing TableMetadata."""
 
     # Once this has been resolved, we can simplify this: https://github.com/samuelcolvin/pydantic/issues/3846
     # TableMetadata = Annotated[TableMetadata, Field(alias="format-version", discriminator="format-version")]

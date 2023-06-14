@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Data types used in describing Iceberg schemas
+"""Data types used in describing Iceberg schemas.
 
 This module implements the data types described in the Iceberg specification for Iceberg schemas. To
 describe an Iceberg table schema, these classes can be used in the construction of a StructType instance.
@@ -55,7 +55,7 @@ FIXED_PARSER = ParseNumberFromBrackets(FIXED)
 
 
 class IcebergType(IcebergBaseModel, Singleton):
-    """Base type for all Iceberg Types
+    """Base type for all Iceberg Types.
 
     Example:
         >>> str(IcebergType())
@@ -107,7 +107,7 @@ class IcebergType(IcebergBaseModel, Singleton):
 
 
 class PrimitiveType(IcebergType):
-    """Base class for all Iceberg Primitive Types"""
+    """Base class for all Iceberg Primitive Types."""
 
     __root__: str = Field()
 
@@ -252,7 +252,7 @@ class NestedField(IcebergType):
 
 
 class StructType(IcebergType):
-    """A struct type in Iceberg
+    """A struct type in Iceberg.
 
     Example:
         >>> str(StructType(
@@ -288,7 +288,7 @@ class StructType(IcebergType):
 
 
 class ListType(IcebergType):
-    """A list type in Iceberg
+    """A list type in Iceberg.
 
     Example:
         >>> ListType(element_id=3, element_type=StringType(), element_required=True)
@@ -323,7 +323,7 @@ class ListType(IcebergType):
 
 
 class MapType(IcebergType):
-    """A map type in Iceberg
+    """A map type in Iceberg.
 
     Example:
         >>> MapType(key_id=1, key_type=StringType(), value_id=2, value_type=IntegerType(), value_required=True)
@@ -382,8 +382,8 @@ class BooleanType(PrimitiveType):
 
 
 class IntegerType(PrimitiveType):
-    """An Integer data type in Iceberg can be represented using an instance of this class. Integers in Iceberg are
-    32-bit signed and can be promoted to Longs.
+    """An Integer data type in Iceberg can be represented using an instance of this class.
+    Integers in Iceberg are 32-bit signed and can be promoted to Longs.
 
     Example:
         >>> column_foo = IntegerType()
@@ -404,8 +404,8 @@ class IntegerType(PrimitiveType):
 
 
 class LongType(PrimitiveType):
-    """A Long data type in Iceberg can be represented using an instance of this class. Longs in Iceberg are
-    64-bit signed integers.
+    """A Long data type in Iceberg can be represented using an instance of this class.
+    Longs in Iceberg are 64-bit signed integers.
 
     Example:
         >>> column_foo = LongType()
@@ -430,8 +430,8 @@ class LongType(PrimitiveType):
 
 
 class FloatType(PrimitiveType):
-    """A Float data type in Iceberg can be represented using an instance of this class. Floats in Iceberg are
-    32-bit IEEE 754 floating points and can be promoted to Doubles.
+    """A Float data type in Iceberg can be represented using an instance of this class.
+    Floats in Iceberg are 32-bit IEEE 754 floating points and can be promoted to Doubles.
 
     Example:
         >>> column_foo = FloatType()
@@ -454,8 +454,8 @@ class FloatType(PrimitiveType):
 
 
 class DoubleType(PrimitiveType):
-    """A Double data type in Iceberg can be represented using an instance of this class. Doubles in Iceberg are
-    64-bit IEEE 754 floating points.
+    """A Double data type in Iceberg can be represented using an instance of this class.
+    Doubles in Iceberg are 64-bit IEEE 754 floating points.
 
     Example:
         >>> column_foo = DoubleType()
@@ -469,8 +469,8 @@ class DoubleType(PrimitiveType):
 
 
 class DateType(PrimitiveType):
-    """A Date data type in Iceberg can be represented using an instance of this class. Dates in Iceberg are
-    calendar dates without a timezone or time.
+    """A Date data type in Iceberg can be represented using an instance of this class.
+    Dates in Iceberg are calendar dates without a timezone or time.
 
     Example:
         >>> column_foo = DateType()
@@ -484,8 +484,8 @@ class DateType(PrimitiveType):
 
 
 class TimeType(PrimitiveType):
-    """A Time data type in Iceberg can be represented using an instance of this class. Times in Iceberg
-    have microsecond precision and are a time of day without a date or timezone.
+    """A Time data type in Iceberg can be represented using an instance of this class.
+    Times in Iceberg have microsecond precision and are a time of day without a date or timezone.
 
     Example:
         >>> column_foo = TimeType()
@@ -499,8 +499,8 @@ class TimeType(PrimitiveType):
 
 
 class TimestampType(PrimitiveType):
-    """A Timestamp data type in Iceberg can be represented using an instance of this class. Timestamps in
-    Iceberg have microsecond precision and include a date and a time of day without a timezone.
+    """A Timestamp data type in Iceberg can be represented using an instance of this class.
+    Timestamps in Iceberg have microsecond precision and include a date and a time of day without a timezone.
 
     Example:
         >>> column_foo = TimestampType()
@@ -514,8 +514,8 @@ class TimestampType(PrimitiveType):
 
 
 class TimestamptzType(PrimitiveType):
-    """A Timestamptz data type in Iceberg can be represented using an instance of this class. Timestamptzs in
-    Iceberg are stored as UTC and include a date and a time of day with a timezone.
+    """A Timestamptz data type in Iceberg can be represented using an instance of this class.
+    Timestamptzs in Iceberg are stored as UTC and include a date and a time of day with a timezone.
 
     Example:
         >>> column_foo = TimestamptzType()
@@ -529,8 +529,8 @@ class TimestamptzType(PrimitiveType):
 
 
 class StringType(PrimitiveType):
-    """A String data type in Iceberg can be represented using an instance of this class. Strings in
-    Iceberg are arbitrary-length character sequences and are encoded with UTF-8.
+    """A String data type in Iceberg can be represented using an instance of this class.
+    Strings in Iceberg are arbitrary-length character sequences and are encoded with UTF-8.
 
     Example:
         >>> column_foo = StringType()
@@ -544,8 +544,8 @@ class StringType(PrimitiveType):
 
 
 class UUIDType(PrimitiveType):
-    """A UUID data type in Iceberg can be represented using an instance of this class. UUIDs in
-    Iceberg are universally unique identifiers.
+    """A UUID data type in Iceberg can be represented using an instance of this class.
+    UUIDs in Iceberg are universally unique identifiers.
 
     Example:
         >>> column_foo = UUIDType()
@@ -559,8 +559,8 @@ class UUIDType(PrimitiveType):
 
 
 class BinaryType(PrimitiveType):
-    """A Binary data type in Iceberg can be represented using an instance of this class. Binaries in
-    Iceberg are arbitrary-length byte arrays.
+    """A Binary data type in Iceberg can be represented using an instance of this class.
+    Binaries in Iceberg are arbitrary-length byte arrays.
 
     Example:
         >>> column_foo = BinaryType()

@@ -33,7 +33,7 @@ OPERATION = "operation"
 
 
 class Operation(Enum):
-    """Describes the operation
+    """Describes the operation.
 
     Possible operation values are:
         - append: Only data files were added and no files were removed.
@@ -52,10 +52,7 @@ class Operation(Enum):
 
 
 class Summary(IcebergBaseModel):
-    """
-    The snapshot summary’s operation field is used by some operations,
-    like snapshot expiration, to skip processing certain snapshots.
-    """
+    """The snapshot summary’s operation field is used by some operations, like snapshot expiration, to skip processing certain snapshots."""
 
     __root__: Dict[str, Union[str, Operation]]
     _additional_properties: Dict[str, str] = PrivateAttr()

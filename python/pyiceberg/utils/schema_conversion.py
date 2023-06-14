@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Utility class for converting between Avro and Iceberg schemas"""
+"""Utility class for converting between Avro and Iceberg schemas."""
 from __future__ import annotations
 
 import logging
@@ -74,9 +74,9 @@ LOGICAL_FIELD_TYPE_MAPPING: dict[tuple[str, str], PrimitiveType] = {
 
 class AvroSchemaConversion:
     def avro_to_iceberg(self, avro_schema: dict[str, Any]) -> Schema:
-        """Converts an Apache Avro into an Apache Iceberg schema equivalent
+        """Converts an Apache Avro into an Apache Iceberg schema equivalent.
 
-        This expects to have field id's to be encoded in the Avro schema::
+        This expects to have field id's to be encoded in the Avro schema:
 
             {
                 "type": "record",
@@ -111,10 +111,10 @@ class AvroSchemaConversion:
             True
 
         Args:
-            avro_schema (Dict[str, Any]): The JSON decoded Avro schema
+            avro_schema (Dict[str, Any]): The JSON decoded Avro schema.
 
         Returns:
-            Equivalent Iceberg schema
+            Equivalent Iceberg schema.
         """
         return Schema(*[self._convert_field(field) for field in avro_schema["fields"]], schema_id=1)
 
@@ -122,7 +122,7 @@ class AvroSchemaConversion:
         self, type_union: Union[Dict[str, str], List[Union[str, Dict[str, str]]], str]
     ) -> Tuple[Union[str, Dict[str, Any]], bool]:
         """
-        Converts Unions into their type and resolves if the field is required
+        Converts Unions into their type and resolves if the field is required.
 
         Examples:
             >>> AvroSchemaConversion()._resolve_union('str')
@@ -135,13 +135,13 @@ class AvroSchemaConversion:
             ({'type': 'str'}, False)
 
         Args:
-            type_union: The field, can be a string 'str', list ['null', 'str'], or dict {"type": 'str'}
+            type_union: The field, can be a string 'str', list ['null', 'str'], or dict {"type": 'str'}.
 
         Returns:
-            A tuple containing the type and if required
+            A tuple containing the type and if required.
 
         Raises:
-            TypeError: In the case non-optional union types are encountered
+            TypeError: In the case non-optional union types are encountered.
         """
         avro_types: Union[Dict[str, str], List[Union[Dict[str, str], str]]]
         if isinstance(type_union, str):
@@ -171,13 +171,13 @@ class AvroSchemaConversion:
 
     def _convert_schema(self, avro_type: Union[str, Dict[str, Any]]) -> IcebergType:
         """
-        Resolves the Avro type
+        Resolves the Avro type.
 
         Args:
-            avro_type: The Avro type, can be simple or complex
+            avro_type: The Avro type, can be simple or complex.
 
         Returns:
-            The equivalent IcebergType
+            The equivalent IcebergType.
 
         Raises:
             ValueError: When there are unknown types
@@ -209,12 +209,12 @@ class AvroSchemaConversion:
 
     def _convert_field(self, field: dict[str, Any]) -> NestedField:
         """
-        Converts an Avro field into an Iceberg equivalent field
+        Converts an Avro field into an Iceberg equivalent field.
         Args:
-            field: The Avro field
+            field: The Avro field.
 
         Returns:
-            The Iceberg equivalent field
+            The Iceberg equivalent field.
         """
         if "field-id" not in field:
             raise ValueError(f"Cannot convert field, missing field-id: {field}")
@@ -231,7 +231,7 @@ class AvroSchemaConversion:
 
     def _convert_record_type(self, record_type: dict[str, Any]) -> StructType:
         """
-        Converts the fields from a record into an Iceberg struct
+        Converts the fields from a record into an Iceberg struct.
 
         Examples:
             >>> from pyiceberg.utils.schema_conversion import AvroSchemaConversion
@@ -274,9 +274,9 @@ class AvroSchemaConversion:
             True
 
         Args:
-            record_type: The record type itself
+            record_type: The record type itself.
 
-        Returns: A StructType
+        Returns: A StructType.
         """
         if record_type["type"] != "record":
             raise ValueError(f"Expected record type, got: {record_type}")
@@ -297,8 +297,10 @@ class AvroSchemaConversion:
 
     def _convert_map_type(self, map_type: dict[str, Any]) -> MapType:
         """
+        Converts dict to MapType.
+
         Args:
-            map_type: The dict that describes the Avro map type
+            map_type: The dict that describes the Avro map type.
 
         Examples:
             >>> from pyiceberg.utils.schema_conversion import AvroSchemaConversion
@@ -319,7 +321,7 @@ class AvroSchemaConversion:
             >>> actual == expected
             True
 
-        Returns: A MapType
+        Returns: A MapType.
         """
         value_type, value_required = self._resolve_union(map_type["values"])
         return MapType(
@@ -333,8 +335,8 @@ class AvroSchemaConversion:
 
     def _convert_logical_type(self, avro_logical_type: dict[str, Any]) -> IcebergType:
         """
-        Convert a schema with a logical type annotation. For the decimal and map
-        we need to fetch more keys from the dict, and for the simple ones we can just
+        Convert a schema with a logical type annotation.
+        For the decimal and map we need to fetch more keys from the dict, and for the simple ones we can just
         look it up in the mapping.
 
         Examples:
@@ -348,13 +350,13 @@ class AvroSchemaConversion:
             True
 
         Args:
-            avro_logical_type: The logical type
+            avro_logical_type: The logical type.
 
         Returns:
-            The converted logical type
+            The converted logical type.
 
         Raises:
-            ValueError: When the logical type is unknown
+            ValueError: When the logical type is unknown.
         """
         logical_type = avro_logical_type["logicalType"]
         physical_type = avro_logical_type["type"]
@@ -369,8 +371,10 @@ class AvroSchemaConversion:
 
     def _convert_logical_decimal_type(self, avro_type: dict[str, Any]) -> DecimalType:
         """
+        Converts Avro type to Iceberg DecimalType.
+
         Args:
-            avro_type: The Avro type
+            avro_type: The Avro type.
 
         Examples:
             >>> from pyiceberg.utils.schema_conversion import AvroSchemaConversion
@@ -389,17 +393,16 @@ class AvroSchemaConversion:
             True
 
         Returns:
-            A Iceberg DecimalType
+            A Iceberg DecimalType.
         """
         return DecimalType(precision=avro_type["precision"], scale=avro_type["scale"])
 
     def _convert_logical_map_type(self, avro_type: dict[str, Any]) -> MapType:
         """
-        In the case where a map hasn't a key as a type you can use a logical map to
-        still encode this in Avro
+        In the case where a map hasn't a key as a type you can use a logical map to still encode this in Avro.
 
         Args:
-            avro_type: The Avro Type
+            avro_type: The Avro Type.
 
         Examples:
             >>> from pyiceberg.utils.schema_conversion import AvroSchemaConversion
@@ -430,7 +433,7 @@ class AvroSchemaConversion:
             https://iceberg.apache.org/spec/#appendix-a-format-specific-requirements
 
         Returns:
-            The logical map
+            The logical map.
         """
         fields = avro_type["items"]["fields"]
         if len(fields) != 2:
@@ -447,10 +450,12 @@ class AvroSchemaConversion:
 
     def _convert_fixed_type(self, avro_type: dict[str, Any]) -> FixedType:
         """
-        https://avro.apache.org/docs/current/spec.html#Fixed
+        Converts Avro Type to the equivalent Iceberg fixed type.
+
+        - https://avro.apache.org/docs/current/spec.html#Fixed
 
         Args:
-            avro_type: The Avro Type
+            avro_type: The Avro type.
 
         Examples:
             >>> from pyiceberg.utils.schema_conversion import AvroSchemaConversion
@@ -463,6 +468,6 @@ class AvroSchemaConversion:
             True
 
         Returns:
-            An Iceberg equivalent fixed type
+            An Iceberg equivalent fixed type.
         """
         return FixedType(length=avro_type["size"])

@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=W0621
-"""Avro reader for reading Avro files"""
+"""Avro reader for reading Avro files."""
 from __future__ import annotations
 
 import json
@@ -76,7 +76,7 @@ class AvroFileHeader(Record):
         """Get the file's compression codec algorithm from the file's metadata.
 
         In the case of a null codec, we return a None indicating that we
-        don't need to compress/decompress
+        don't need to compress/decompress.
         """
         codec_name = self.meta.get(_CODEC_KEY, "null")
         if codec_name not in KNOWN_CODECS:
@@ -143,8 +143,7 @@ class AvroFile(Generic[D]):
 
     def __enter__(self) -> AvroFile[D]:
         """
-        Opens the file and reads the header and generates
-        a reader tree to start reading the payload
+        Opens the file and reads the header and generates a reader tree to start reading the payload.
 
         Returns:
             A generator returning the AvroStructs

@@ -112,7 +112,7 @@ OWNER = "owner"
 
 
 class _HiveClient:
-    """Helper class to nicely open and close the transport"""
+    """Helper class to nicely open and close the transport."""
 
     _transport: TTransport
     _client: Client
@@ -254,7 +254,7 @@ class HiveCatalog(Catalog):
         sort_order: SortOrder = UNSORTED_SORT_ORDER,
         properties: Properties = EMPTY_DICT,
     ) -> Table:
-        """Create a table
+        """Create a table.
 
         Args:
             identifier: Table identifier.
@@ -265,11 +265,11 @@ class HiveCatalog(Catalog):
             properties: Table properties that can be a string based dictionary.
 
         Returns:
-            Table: the created table instance
+            Table: the created table instance.
 
         Raises:
-            AlreadyExistsError: If a table with the name already exists
-            ValueError: If the identifier is invalid
+            AlreadyExistsError: If a table with the name already exists.
+            ValueError: If the identifier is invalid.
         """
         database_name, table_name = self.identifier_to_database_and_table(identifier)
         current_time_millis = int(time.time() * 1000)
@@ -305,17 +305,17 @@ class HiveCatalog(Catalog):
     def load_table(self, identifier: Union[str, Identifier]) -> Table:
         """Loads the table's metadata and returns the table instance.
 
-        You can also use this method to check for table existence using 'try catalog.table() except TableNotFoundError'
+        You can also use this method to check for table existence using 'try catalog.table() except TableNotFoundError'.
         Note: This method doesn't scan data stored in the table.
 
         Args:
             identifier: Table identifier.
 
         Returns:
-            Table: the table instance with its metadata
+            Table: the table instance with its metadata.
 
         Raises:
-            NoSuchTableError: If a table with the name does not exist, or the identifier is invalid
+            NoSuchTableError: If a table with the name does not exist, or the identifier is invalid.
         """
         database_name, table_name = self.identifier_to_database_and_table(identifier, NoSuchTableError)
         try:
@@ -334,7 +334,7 @@ class HiveCatalog(Catalog):
             identifier: Table identifier.
 
         Raises:
-            NoSuchTableError: If a table with the name does not exist, or the identifier is invalid
+            NoSuchTableError: If a table with the name does not exist, or the identifier is invalid.
         """
         database_name, table_name = self.identifier_to_database_and_table(identifier, NoSuchTableError)
         try:
@@ -349,19 +349,19 @@ class HiveCatalog(Catalog):
         raise NotImplementedError("Not yet implemented")
 
     def rename_table(self, from_identifier: Union[str, Identifier], to_identifier: Union[str, Identifier]) -> Table:
-        """Rename a fully classified table name
+        """Rename a fully classified table name.
 
         Args:
             from_identifier: Existing table identifier.
             to_identifier: New table identifier.
 
         Returns:
-            Table: the updated table instance with its metadata
+            Table: the updated table instance with its metadata.
 
         Raises:
-            ValueError: When from table identifier is invalid
-            NoSuchTableError: When a table with the name does not exist
-            NoSuchNamespaceError: When the destination namespace doesn't exist
+            ValueError: When from table identifier is invalid.
+            NoSuchTableError: When a table with the name does not exist.
+            NoSuchNamespaceError: When the destination namespace doesn't exist.
         """
         from_database_name, from_table_name = self.identifier_to_database_and_table(from_identifier, NoSuchTableError)
         to_database_name, to_table_name = self.identifier_to_database_and_table(to_identifier)
@@ -381,12 +381,12 @@ class HiveCatalog(Catalog):
         """Create a namespace in the catalog.
 
         Args:
-            namespace: Namespace identifier
-            properties: A string dictionary of properties for the given namespace
+            namespace: Namespace identifier.
+            properties: A string dictionary of properties for the given namespace.
 
         Raises:
-            ValueError: If the identifier is invalid
-            AlreadyExistsError: If a namespace with the given name already exists
+            ValueError: If the identifier is invalid.
+            AlreadyExistsError: If a namespace with the given name already exists.
         """
         database_name = self.identifier_to_database(namespace)
         hive_database = HiveDatabase(name=database_name, parameters=properties)
@@ -401,11 +401,11 @@ class HiveCatalog(Catalog):
         """Drop a namespace.
 
         Args:
-            namespace: Namespace identifier
+            namespace: Namespace identifier.
 
         Raises:
-            NoSuchNamespaceError: If a namespace with the given name does not exist, or the identifier is invalid
-            NamespaceNotEmptyError: If the namespace is not empty
+            NoSuchNamespaceError: If a namespace with the given name does not exist, or the identifier is invalid.
+            NamespaceNotEmptyError: If the namespace is not empty.
         """
         database_name = self.identifier_to_database(namespace, NoSuchNamespaceError)
         try:
@@ -417,9 +417,9 @@ class HiveCatalog(Catalog):
             raise NoSuchNamespaceError(f"Database does not exists: {database_name}") from e
 
     def list_tables(self, namespace: Union[str, Identifier]) -> List[Identifier]:
-        """List tables under the given namespace in the catalog (including non-Iceberg tables)
+        """List tables under the given namespace in the catalog (including non-Iceberg tables).
 
-        When the database doesn't exist, it will just return an empty list
+        When the database doesn't exist, it will just return an empty list.
 
         Args:
             namespace: Database to list.
@@ -428,7 +428,7 @@ class HiveCatalog(Catalog):
             List[Identifier]: list of table identifiers.
 
         Raises:
-            NoSuchNamespaceError: If a namespace with the given name does not exist, or the identifier is invalid
+            NoSuchNamespaceError: If a namespace with the given name does not exist, or the identifier is invalid.
         """
         database_name = self.identifier_to_database(namespace, NoSuchNamespaceError)
         with self._client as open_client:
@@ -438,7 +438,7 @@ class HiveCatalog(Catalog):
         """List namespaces from the given namespace. If not given, list top-level namespaces from the catalog.
 
         Returns:
-            List[Identifier]: a List of namespace identifiers
+            List[Identifier]: a List of namespace identifiers.
         """
         # Hierarchical namespace is not supported. Return an empty list
         if namespace:
@@ -451,13 +451,13 @@ class HiveCatalog(Catalog):
         """Get properties for a namespace.
 
         Args:
-            namespace: Namespace identifier
+            namespace: Namespace identifier.
 
         Returns:
-            Properties: Properties for the given namespace
+            Properties: Properties for the given namespace.
 
         Raises:
-            NoSuchNamespaceError: If a namespace with the given name does not exist, or identifier is invalid
+            NoSuchNamespaceError: If a namespace with the given name does not exist, or identifier is invalid.
         """
         database_name = self.identifier_to_database(namespace, NoSuchNamespaceError)
         try:
@@ -477,7 +477,7 @@ class HiveCatalog(Catalog):
         """Removes provided property keys and updates properties for a namespace.
 
         Args:
-            namespace: Namespace identifier
+            namespace: Namespace identifier.
             removals: Set of property keys that need to be removed. Optional Argument.
             updates: Properties to be updated for the given namespace.
 

@@ -76,7 +76,7 @@ L = TypeVar("L", str, bool, int, float, bytes, UUID, Decimal, covariant=True)
 
 @runtime_checkable
 class StructProtocol(Protocol):  # pragma: no cover
-    """A generic protocol used by accessors to get and set at positions of an object"""
+    """A generic protocol used by accessors to get and set at positions of an object."""
 
     @abstractmethod
     def __getitem__(self, pos: int) -> Any:
