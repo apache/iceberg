@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg;
 
+import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
@@ -29,6 +30,7 @@ import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.types.Types;
 import org.assertj.core.api.InstanceOfAssertFactories;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -98,7 +100,11 @@ public class TestUpdateRequirements {
   public void assignUUID() {
     List<UpdateRequirement> requirements =
         UpdateRequirements.forUpdateTable(
-            metadata, ImmutableList.of(new MetadataUpdate.AssignUUID(metadata.uuid())));
+            metadata,
+            ImmutableList.of(
+                new MetadataUpdate.AssignUUID(metadata.uuid()),
+                new MetadataUpdate.AssignUUID(UUID.randomUUID().toString()),
+                new MetadataUpdate.AssignUUID(UUID.randomUUID().toString())));
     requirements.forEach(req -> req.validate(metadata));
 
     assertThat(requirements)
@@ -143,7 +149,11 @@ public class TestUpdateRequirements {
     when(metadata.lastColumnId()).thenReturn(lastColumnId);
     List<UpdateRequirement> requirements =
         UpdateRequirements.forUpdateTable(
-            metadata, ImmutableList.of(new MetadataUpdate.AddSchema(new Schema(), lastColumnId)));
+            metadata,
+            ImmutableList.of(
+                new MetadataUpdate.AddSchema(new Schema(), lastColumnId),
+                new MetadataUpdate.AddSchema(new Schema(), lastColumnId + 1),
+                new MetadataUpdate.AddSchema(new Schema(), lastColumnId + 2)));
     requirements.forEach(req -> req.validate(metadata));
 
     assertThat(requirements)
@@ -186,7 +196,11 @@ public class TestUpdateRequirements {
     when(metadata.currentSchemaId()).thenReturn(schemaId);
     List<UpdateRequirement> requirements =
         UpdateRequirements.forUpdateTable(
-            metadata, ImmutableList.of(new MetadataUpdate.SetCurrentSchema(schemaId)));
+            metadata,
+            ImmutableList.of(
+                new MetadataUpdate.SetCurrentSchema(schemaId),
+                new MetadataUpdate.SetCurrentSchema(schemaId + 1),
+                new MetadataUpdate.SetCurrentSchema(schemaId + 2)));
     requirements.forEach(req -> req.validate(metadata));
 
     assertThat(requirements)
@@ -214,7 +228,8 @@ public class TestUpdateRequirements {
             metadata,
             ImmutableList.of(
                 new MetadataUpdate.SetCurrentSchema(schemaId),
-                new MetadataUpdate.SetCurrentSchema(schemaId + 1)));
+                new MetadataUpdate.SetCurrentSchema(schemaId + 1),
+                new MetadataUpdate.SetCurrentSchema(schemaId + 2)));
 
     assertThatThrownBy(() -> requirements.forEach(req -> req.validate(updated)))
         .isInstanceOf(CommitFailedException.class)
@@ -225,10 +240,21 @@ public class TestUpdateRequirements {
   public void addPartitionSpec() {
     int lastAssignedPartitionId = 3;
     when(metadata.lastAssignedPartitionId()).thenReturn(lastAssignedPartitionId);
+    Schema schema = new Schema(required(3, "id", Types.IntegerType.get()));
     List<UpdateRequirement> requirements =
         UpdateRequirements.forUpdateTable(
             metadata,
-            ImmutableList.of(new MetadataUpdate.AddPartitionSpec(PartitionSpec.unpartitioned())));
+            ImmutableList.of(
+                new MetadataUpdate.AddPartitionSpec(
+                    PartitionSpec.builderFor(schema).withSpecId(lastAssignedPartitionId).build()),
+                new MetadataUpdate.AddPartitionSpec(
+                    PartitionSpec.builderFor(schema)
+                        .withSpecId(lastAssignedPartitionId + 1)
+                        .build()),
+                new MetadataUpdate.AddPartitionSpec(
+                    PartitionSpec.builderFor(schema)
+                        .withSpecId(lastAssignedPartitionId + 2)
+                        .build())));
     requirements.forEach(req -> req.validate(metadata));
 
     assertThat(requirements)
@@ -264,10 +290,15 @@ public class TestUpdateRequirements {
 
   @Test
   public void setDefaultPartitionSpec() {
-    int specId = PartitionSpec.unpartitioned().specId();
+    int specId = 3;
+    when(metadata.defaultSpecId()).thenReturn(specId);
     List<UpdateRequirement> requirements =
         UpdateRequirements.forUpdateTable(
-            metadata, ImmutableList.of(new MetadataUpdate.SetDefaultPartitionSpec(specId)));
+            metadata,
+            ImmutableList.of(
+                new MetadataUpdate.SetDefaultPartitionSpec(specId),
+                new MetadataUpdate.SetDefaultPartitionSpec(specId + 1),
+                new MetadataUpdate.SetDefaultPartitionSpec(specId + 2)));
     requirements.forEach(req -> req.validate(metadata));
 
     assertThat(requirements)
@@ -294,7 +325,8 @@ public class TestUpdateRequirements {
             metadata,
             ImmutableList.of(
                 new MetadataUpdate.SetDefaultPartitionSpec(specId),
-                new MetadataUpdate.SetDefaultPartitionSpec(specId + 1)));
+                new MetadataUpdate.SetDefaultPartitionSpec(specId + 1),
+                new MetadataUpdate.SetDefaultPartitionSpec(specId + 2)));
 
     assertThatThrownBy(() -> requirements.forEach(req -> req.validate(updated)))
         .isInstanceOf(CommitFailedException.class)
@@ -317,10 +349,15 @@ public class TestUpdateRequirements {
 
   @Test
   public void setDefaultSortOrder() {
-    int sortOrderId = SortOrder.unsorted().orderId();
+    int sortOrderId = 3;
+    when(metadata.defaultSortOrderId()).thenReturn(sortOrderId);
     List<UpdateRequirement> requirements =
         UpdateRequirements.forUpdateTable(
-            metadata, ImmutableList.of(new MetadataUpdate.SetDefaultSortOrder(sortOrderId)));
+            metadata,
+            ImmutableList.of(
+                new MetadataUpdate.SetDefaultSortOrder(sortOrderId),
+                new MetadataUpdate.SetDefaultSortOrder(sortOrderId + 1),
+                new MetadataUpdate.SetDefaultSortOrder(sortOrderId + 2)));
     requirements.forEach(req -> req.validate(metadata));
 
     assertThat(requirements)
@@ -415,7 +452,11 @@ public class TestUpdateRequirements {
             metadata,
             ImmutableList.of(
                 new MetadataUpdate.SetSnapshotRef(
-                    refName, snapshotId, SnapshotRefType.BRANCH, 0, 0L, 0L)));
+                    refName, snapshotId, SnapshotRefType.BRANCH, 0, 0L, 0L),
+                new MetadataUpdate.SetSnapshotRef(
+                    refName, snapshotId + 1, SnapshotRefType.BRANCH, 0, 0L, 0L),
+                new MetadataUpdate.SetSnapshotRef(
+                    refName, snapshotId + 2, SnapshotRefType.BRANCH, 0, 0L, 0L)));
     requirements.forEach(req -> req.validate(metadata));
 
     assertThat(requirements)
