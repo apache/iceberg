@@ -186,7 +186,9 @@ public abstract class DeleteFilter<T> {
 
       StructLikeSet deleteSet =
           Deletes.toEqualitySet(
-              CloseableIterable.transform(CloseableIterable.concat(deleteRecords), wrapper::copyFor), deleteSchema.asStruct());
+              CloseableIterable.transform(
+                  CloseableIterable.concat(deleteRecords), wrapper::copyFor),
+              deleteSchema.asStruct());
 
       Predicate<T> isInDeleteSet =
           record -> deleteSet.contains(projectRow.wrap(asStructLike(record)));
@@ -271,10 +273,7 @@ public abstract class DeleteFilter<T> {
     InputFile input = getInputFile(deleteFile.path().toString());
     switch (deleteFile.format()) {
       case AVRO:
-        return Avro.read(input)
-            .project(deleteSchema)
-            .createReaderFunc(DataReader::create)
-            .build();
+        return Avro.read(input).project(deleteSchema).createReaderFunc(DataReader::create).build();
 
       case PARQUET:
         Parquet.ReadBuilder builder =
