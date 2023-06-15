@@ -22,8 +22,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import org.assertj.core.api.Assertions;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestInMemoryInputFile {
   @Test
@@ -31,7 +30,7 @@ public class TestInMemoryInputFile {
     InMemoryInputFile inputFile =
         new InMemoryInputFile("abc".getBytes(StandardCharsets.ISO_8859_1));
     InputStream inputStream = inputFile.newStream();
-    Assert.assertEquals('a', inputStream.read());
+    Assertions.assertThat(inputStream.read()).isEqualTo('a');
     inputStream.close();
     Assertions.assertThatThrownBy(inputStream::read).hasMessage("Stream is closed");
   }
