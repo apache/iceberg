@@ -2617,7 +2617,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
   private static void assertEmpty(String context, Catalog catalog, Namespace ns) {
     try {
-      Assertions.assertThat(catalog.listTables(ns).size()).as("context").isEqualTo(0);
+      Assertions.assertThat(catalog.listTables(ns)).as(context).isEmpty();
     } catch (NoSuchNamespaceException e) {
       // it is okay if the catalog throws NoSuchNamespaceException when it is empty
     }
