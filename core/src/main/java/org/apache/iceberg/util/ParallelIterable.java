@@ -22,10 +22,11 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
-import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
+import java.util.concurrent.LinkedBlockingQueue;
+import org.apache.iceberg.SystemConfigs;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.CloseableIterable;
@@ -34,6 +35,8 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 
 public class ParallelIterable<T> extends CloseableGroup implements CloseableIterable<T> {
+  public static final int ITERATOR_QUEUE_SIZE = SystemConfigs.ITERATOR_QUEUE_SIZE.value();
+
   private final Iterable<? extends Iterable<T>> iterables;
   private final ExecutorService workerPool;
 
@@ -53,7 +56,7 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
     private final Iterator<Runnable> tasks;
     private final ExecutorService workerPool;
     private final Future<?>[] taskFutures;
-    private final ConcurrentLinkedQueue<T> queue = new ConcurrentLinkedQueue<>();
+    private final LinkedBlockingQueue<T> queue = new LinkedBlockingQueue<>(ITERATOR_QUEUE_SIZE);
     private volatile boolean closed = false;
 
     private ParallelIterator(
@@ -67,10 +70,17 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
                             try (Closeable ignored =
                                 (iterable instanceof Closeable) ? (Closeable) iterable : () -> {}) {
                               for (T item : iterable) {
-                                queue.add(item);
+                                if (closed) {
+                                  queue.clear();
+                                  return;
+                                }
+                                queue.put(item);
                               }
                             } catch (IOException e) {
                               throw new RuntimeIOException(e, "Failed to close iterable");
+                            } catch (InterruptedException e) {
+                              throw new RuntimeException(
+                                  "Interrupted while put to parallel queue", e);
                             }
                           })
               .iterator();

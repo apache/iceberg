@@ -53,6 +53,17 @@ public class SystemConfigs {
           Math.max(2, Runtime.getRuntime().availableProcessors()),
           Integer::parseUnsignedInt);
 
+  /**
+   * The size of the queue in ParallelIterable. This queue limits the memory usage of manifest
+   * reader.
+   */
+  public static final ConfigEntry<Integer> ITERATOR_QUEUE_SIZE =
+      new ConfigEntry<>(
+          "iceberg.iterator.queue-size",
+          "ICEBERG_ITERATOR_QUEUE_SIZE",
+          Integer.MAX_VALUE,
+          Integer::parseUnsignedInt);
+
   /** Whether to use the shared worker pool when planning table scans. */
   public static final ConfigEntry<Boolean> SCAN_THREAD_POOL_ENABLED =
       new ConfigEntry<>(
