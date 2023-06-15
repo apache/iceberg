@@ -484,7 +484,7 @@ By default, the original table is retained with the name `table_BACKUP_`.
 | `table`           | ✔️        | string              | Name of the table to migrate                                                       |
 | `properties`      | ️         | map<string, string> | Properties for the new Iceberg table                                               |
 | `drop_backup`     | ️         | boolean             | When true, the original table will not be retained as backup (defaults to false)   |
-| `skip_on_error`   | ️         | boolean             | If true, skip files which cannot be imported into Iceberg (false by default)       |
+| `skip_on_error`   | ️         | boolean             | If true, skip files which cannot be imported into Iceberg (defaults to false)      |
 
 #### Output
 
@@ -523,7 +523,7 @@ will then treat these files as if they are part of the set of files  owned by Ic
 | `source_table`          | ✔️        | string              | Table where files should come from, paths are also possible in the form of \`file_format\`.\`path\` |
 | `partition_filter`      | ️         | map<string, string> | A map of partitions in the source table to import from                                              |
 | `check_duplicate_files` | ️         | boolean             | Whether to prevent files existing in the table from being added (defaults to true)                  |
-| `skip_on_error`         | ️         | boolean             | If true, skip files which cannot be imported into Iceberg (false by default)                        |
+| `skip_on_error`         | ️         | boolean             | If true, skip files which cannot be imported into Iceberg (defaults to false)                        |
 
 Warning : Schema is not validated, adding files with different schema to the Iceberg table will cause issues.
 
