@@ -21,8 +21,7 @@ package org.apache.iceberg.view;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.assertj.core.api.Assertions;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestSQLViewRepresentationParser {
   @Test
@@ -35,10 +34,9 @@ public class TestSQLViewRepresentationParser {
             .dialect("spark-sql")
             .build();
 
-    Assert.assertEquals(
-        "Should be able to parse valid SQL view representation",
-        viewRepresentation,
-        SQLViewRepresentationParser.fromJson(requiredFields));
+    Assertions.assertThat(SQLViewRepresentationParser.fromJson(requiredFields))
+        .as("Should be able to parse valid SQL view representation")
+        .isEqualTo(viewRepresentation);
 
     String requiredAndOptionalFields =
         "{\"type\":\"sql\", \"sql\": \"select * from foo\", \"dialect\": \"spark-sql\", "
@@ -56,10 +54,9 @@ public class TestSQLViewRepresentationParser {
             .fieldComments(ImmutableList.of("Comment col1", "Comment col2"))
             .defaultNamespace(Namespace.of("part1", "part2"))
             .build();
-    Assert.assertEquals(
-        "Should be able to parse valid SQL view representation",
-        viewWithOptionalFields,
-        SQLViewRepresentationParser.fromJson(requiredAndOptionalFields));
+    Assertions.assertThat(SQLViewRepresentationParser.fromJson(requiredAndOptionalFields))
+        .as("Should be able to parse valid SQL view representation")
+        .isEqualTo(viewWithOptionalFields);
   }
 
   @Test
@@ -84,10 +81,9 @@ public class TestSQLViewRepresentationParser {
             .sql("select * from foo")
             .dialect("spark-sql")
             .build();
-    Assert.assertEquals(
-        "Should be able to serialize valid SQL view representation",
-        requiredFields,
-        ViewRepresentationParser.toJson(viewRepresentation));
+    Assertions.assertThat(ViewRepresentationParser.toJson(viewRepresentation))
+        .as("Should be able to serialize valid SQL view representation")
+        .isEqualTo(requiredFields);
 
     String requiredAndOptionalFields =
         "{\"type\":\"sql\",\"sql\":\"select * from foo\",\"dialect\":\"spark-sql\","
@@ -106,10 +102,9 @@ public class TestSQLViewRepresentationParser {
             .defaultNamespace(Namespace.of("part1", "part2"))
             .build();
 
-    Assert.assertEquals(
-        "Should be able to serialize valid SQL view representation",
-        requiredAndOptionalFields,
-        ViewRepresentationParser.toJson(viewWithOptionalFields));
+    Assertions.assertThat(ViewRepresentationParser.toJson(viewWithOptionalFields))
+        .as("Should be able to serialize valid SQL view representation")
+        .isEqualTo(requiredAndOptionalFields);
   }
 
   @Test

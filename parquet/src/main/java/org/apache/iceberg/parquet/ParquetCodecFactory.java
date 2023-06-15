@@ -32,8 +32,12 @@ import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 
 /**
  * This class implements a codec factory that is used when reading from Parquet. It adds a
- * workaround for memory issues encountered when reading from zstd-compressed files.
+ * workaround for memory issues encountered when reading from zstd-compressed files. This is no
+ * longer used, as Parquet 1.13 includes this fix.
+ *
+ * @deprecated will be removed in 1.5.0
  */
+@Deprecated
 public class ParquetCodecFactory extends CodecFactory {
 
   public ParquetCodecFactory(Configuration configuration, int pageSize) {
