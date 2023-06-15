@@ -117,16 +117,17 @@ public class TestNessieCatalog extends CatalogTests<NessieCatalog> {
   private NessieCatalog initNessieCatalog(String ref) {
     NessieCatalog newCatalog = new NessieCatalog();
     newCatalog.setConf(hadoopConfig);
-    ImmutableMap.Builder<String, String> options =
-        ImmutableMap.<String, String>builder()
-            .put("ref", ref)
-            .put(CatalogProperties.URI, uri)
-            .put("auth-type", "NONE")
-            .put(CatalogProperties.WAREHOUSE_LOCATION, temp.toUri().toString());
-    if (apiVersion == NessieApiVersion.V2) {
-      options.put("client-api-version", "2");
-    }
-    newCatalog.initialize("nessie", options.buildOrThrow());
+    ImmutableMap<String, String> options =
+        ImmutableMap.of(
+            "ref",
+            ref,
+            CatalogProperties.URI,
+            uri,
+            CatalogProperties.WAREHOUSE_LOCATION,
+            temp.toUri().toString(),
+            "client-api-version",
+            apiVersion == NessieApiVersion.V2 ? "2" : "1");
+    newCatalog.initialize("nessie", options);
     return newCatalog;
   }
 
