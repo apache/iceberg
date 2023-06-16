@@ -41,7 +41,7 @@ public class CommitTransactionRequest implements RESTRequest {
     Preconditions.checkArgument(!tableChanges.isEmpty(), "Invalid table changes: empty");
     for (UpdateTableRequest tableChange : tableChanges) {
       Preconditions.checkArgument(
-          null != tableChange.identifier(), "Invalid table changes: table identifier required");
+          null != tableChange.identifier(), "Invalid table changes: table identifier is required");
     }
   }
 }

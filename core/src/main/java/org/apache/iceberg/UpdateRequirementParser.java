@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.rest.requests;
+package org.apache.iceberg;
 
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -25,14 +25,8 @@ import java.util.Locale;
 import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.rest.requests.UpdateTableRequest.UpdateRequirement;
 import org.apache.iceberg.util.JsonUtil;
 
-/**
- * @deprecated will be removed in 1.5.0, use {@link org.apache.iceberg.UpdateRequirementParser}
- *     instead.
- */
-@Deprecated
 public class UpdateRequirementParser {
 
   private UpdateRequirementParser() {}
@@ -71,8 +65,8 @@ public class UpdateRequirementParser {
   // AssertDefaultSortOrderID
   private static final String SORT_ORDER_ID = "default-sort-order-id";
 
-  private static final Map<Class<? extends UpdateTableRequest.UpdateRequirement>, String> TYPES =
-      ImmutableMap.<Class<? extends UpdateTableRequest.UpdateRequirement>, String>builder()
+  private static final Map<Class<? extends UpdateRequirement>, String> TYPES =
+      ImmutableMap.<Class<? extends UpdateRequirement>, String>builder()
           .put(UpdateRequirement.AssertTableUUID.class, ASSERT_TABLE_UUID)
           .put(UpdateRequirement.AssertTableDoesNotExist.class, ASSERT_TABLE_DOES_NOT_EXIST)
           .put(UpdateRequirement.AssertRefSnapshotID.class, ASSERT_REF_SNAPSHOT_ID)
