@@ -19,7 +19,6 @@
 package org.apache.iceberg.flink.sink.shuffle;
 
 import java.util.Map;
-import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.table.data.GenericRowData;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.StringData;
@@ -32,9 +31,6 @@ import org.junit.jupiter.api.Assertions;
 
 public class TestGlobalStatisticsAggregator {
   private final RowType rowType = RowType.of(new VarCharType());
-  private final TypeSerializer<RowData> rowSerializer = new RowDataSerializer(rowType);
-  private final TypeSerializer<DataStatistics<MapDataStatistics, Map<RowData, Long>>>
-      statisticsSerializer = MapDataStatisticsSerializer.fromKeySerializer(rowSerializer);
 
   @Test
   public void mergeDataStatisticTest() {
@@ -58,8 +54,12 @@ public class TestGlobalStatisticsAggregator {
     globalStatisticsAggregator.mergeDataStatistic(2, 1, mapDataStatistics2);
     globalStatisticsAggregator.mergeDataStatistic(1, 1, mapDataStatistics1);
     Assertions.assertEquals(
-        3L, (long) globalStatisticsAggregator.dataStatistics().statistics().get(binaryRowDataA));
+        mapDataStatistics1.statistics().get(binaryRowDataA)
+            + mapDataStatistics2.statistics().get(binaryRowDataA),
+        globalStatisticsAggregator.dataStatistics().statistics().get(binaryRowDataA));
     Assertions.assertEquals(
-        1L, (long) globalStatisticsAggregator.dataStatistics().statistics().get(binaryRowDataB));
+        mapDataStatistics1.statistics().get(binaryRowDataB)
+            + mapDataStatistics2.statistics().getOrDefault(binaryRowDataB, 0L),
+        globalStatisticsAggregator.dataStatistics().statistics().get(binaryRowDataB));
   }
 }

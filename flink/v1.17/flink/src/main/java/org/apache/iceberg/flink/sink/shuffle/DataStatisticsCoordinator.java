@@ -112,6 +112,7 @@ class DataStatisticsCoordinator<D extends DataStatistics<D, S>, S> implements Op
   }
 
   void callInCoordinatorThread(Callable<Void> callable, String errorMessage) {
+    ensureStarted();
     // Ensure the task is done by the coordinator executor.
     if (!coordinatorThreadFactory.isCurrentThreadCoordinatorThread()) {
       try {

@@ -71,6 +71,7 @@ class GlobalStatisticsAggregatorTracker<D extends DataStatistics<D, S>, S> imple
       inProgressAggregator = new GlobalStatisticsAggregator<>(checkpointId, statisticsSerializer);
     }
 
+    boolean completed = false;
     if (inProgressAggregator.checkpointId() < checkpointId) {
       if ((double) inProgressAggregator.aggregatedSubtasksCount() / parallelism * 100
           >= EXPECTED_DATA_STATISTICS_RECEIVED_PERCENTAGE) {
@@ -85,19 +86,16 @@ class GlobalStatisticsAggregatorTracker<D extends DataStatistics<D, S>, S> imple
             EXPECTED_DATA_STATISTICS_RECEIVED_PERCENTAGE,
             lastCompletedAggregator);
         inProgressAggregator = new GlobalStatisticsAggregator<>(checkpointId, statisticsSerializer);
-        inProgressAggregator.mergeDataStatistic(
-            subtask, event.checkpointId(), event.dataStatistics(statisticsSerializer));
-        return true;
+        completed = true;
       } else {
         LOG.info(
             "Received data statistics from {} operators out of total {} for checkpoint {}. "
                 + "It's less than the expected percentage {}. Dropping the incomplete aggregate "
-                + "data statistics {} and starting collecting data statistics from new checkpoint {}",
+                + "data statistics and starting collecting data statistics from new checkpoint {}",
             inProgressAggregator.aggregatedSubtasksCount(),
             parallelism,
             inProgressAggregator.checkpointId(),
             EXPECTED_DATA_STATISTICS_RECEIVED_PERCENTAGE,
-            inProgressAggregator,
             checkpointId);
         inProgressAggregator = new GlobalStatisticsAggregator<>(checkpointId, statisticsSerializer);
       }
@@ -120,9 +118,9 @@ class GlobalStatisticsAggregatorTracker<D extends DataStatistics<D, S>, S> imple
           inProgressAggregator.checkpointId(),
           lastCompletedAggregator.dataStatistics());
       inProgressAggregator = null;
-      return true;
+      completed = true;
     }
-    return false;
+    return completed;
   }
 
   @VisibleForTesting
@@ -162,7 +160,7 @@ class GlobalStatisticsAggregatorTracker<D extends DataStatistics<D, S>, S> imple
     in.readFully(statisticsBytes);
     DataInputDeserializer input =
         new DataInputDeserializer(statisticsBytes, 0, statisticsBytesLength);
-    final DataStatistics<D, S> dataStatistics = statisticsSerializer.deserialize(input);
+    DataStatistics<D, S> dataStatistics = statisticsSerializer.deserialize(input);
     Set<Integer> subtaskSet = (Set<Integer>) in.readObject();
 
     lastCompletedAggregator =
