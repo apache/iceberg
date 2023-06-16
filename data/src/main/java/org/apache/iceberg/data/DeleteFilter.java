@@ -273,7 +273,10 @@ public abstract class DeleteFilter<T> {
     InputFile input = getInputFile(deleteFile.path().toString());
     switch (deleteFile.format()) {
       case AVRO:
-        return Avro.read(input).project(deleteSchema).createReaderFunc(DataReader::create).build();
+        return Avro.read(input)
+            .project(deleteSchema)
+            .createReaderFunc(DataReader::create)
+            .build();
 
       case PARQUET:
         Parquet.ReadBuilder builder =
