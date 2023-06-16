@@ -1,24 +1,21 @@
 /*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
- *  * Licensed to the Apache Software Foundation (ASF) under one
- *  * or more contributor license agreements.  See the NOTICE file
- *  * distributed with this work for additional information
- *  * regarding copyright ownership.  The ASF licenses this file
- *  * to you under the Apache License, Version 2.0 (the
- *  * "License"); you may not use this file except in compliance
- *  * with the License.  You may obtain a copy of the License at
- *  *
- *  *   http://www.apache.org/licenses/LICENSE-2.0
- *  *
- *  * Unless required by applicable law or agreed to in writing,
- *  * software distributed under the License is distributed on an
- *  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- *  * KIND, either express or implied.  See the License for the
- *  * specific language governing permissions and limitations
- *  * under the License.
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
-
 package org.apache.iceberg.flink.source.assigner;
 
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -50,7 +47,8 @@ class InMemoryGlobalWatermarkTracker<T> implements GlobalWatermarkTracker<T> {
   private static final Logger log = LoggerFactory.getLogger(InMemoryGlobalWatermarkTracker.class);
 
   private final ConcurrentMap<T, PartitionWatermarkState> acc = new ConcurrentHashMap<>();
-  private final ConcurrentMap<T, List<WatermarkTracker.Listener>> listeners = new ConcurrentHashMap<>();
+  private final ConcurrentMap<T, List<WatermarkTracker.Listener>> listeners =
+      new ConcurrentHashMap<>();
   private final AtomicReference<Long> globalWatermark = new AtomicReference<>();
 
   public InMemoryGlobalWatermarkTracker() {
@@ -64,15 +62,13 @@ class InMemoryGlobalWatermarkTracker<T> implements GlobalWatermarkTracker<T> {
   private Long updateAndGet() {
     return globalWatermark.updateAndGet(
         oldValue -> {
-          return acc.values()
-              .stream()
+          return acc.values().stream()
               .filter(partitionWatermarkState -> !partitionWatermarkState.isComplete())
               .map(PartitionWatermarkState::getWatermark)
               .min(Comparator.naturalOrder())
               .orElseGet(
                   () ->
-                      acc.values()
-                          .stream()
+                      acc.values().stream()
                           .map(PartitionWatermarkState::getWatermark)
                           .max(Comparator.naturalOrder())
                           .orElse(null));
@@ -84,9 +80,7 @@ class InMemoryGlobalWatermarkTracker<T> implements GlobalWatermarkTracker<T> {
     Long v2 = updateAndGet();
 
     if (v1 == null || !v1.equals(v2)) {
-      listeners
-          .entrySet()
-          .stream()
+      listeners.entrySet().stream()
           .filter(entry -> !entry.getKey().equals(updatedPartition))
           .forEach(
               entry -> {

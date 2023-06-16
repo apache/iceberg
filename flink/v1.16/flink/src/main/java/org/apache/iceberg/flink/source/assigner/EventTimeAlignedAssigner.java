@@ -1,25 +1,24 @@
 /*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
- *  * Licensed to the Apache Software Foundation (ASF) under one
- *  * or more contributor license agreements.  See the NOTICE file
- *  * distributed with this work for additional information
- *  * regarding copyright ownership.  The ASF licenses this file
- *  * to you under the Apache License, Version 2.0 (the
- *  * "License"); you may not use this file except in compliance
- *  * with the License.  You may obtain a copy of the License at
- *  *
- *  *   http://www.apache.org/licenses/LICENSE-2.0
- *  *
- *  * Unless required by applicable law or agreed to in writing,
- *  * software distributed under the License is distributed on an
- *  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- *  * KIND, either express or implied.  See the License for the
- *  * specific language governing permissions and limitations
- *  * under the License.
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
-
 package org.apache.iceberg.flink.source.assigner;
+
+import static org.apache.flink.calcite.shaded.com.google.common.collect.Iterables.getFirst;
 
 import java.io.Serializable;
 import java.time.Duration;
@@ -38,8 +37,6 @@ import org.apache.iceberg.flink.source.split.IcebergSourceSplitState;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplitStatus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import static org.apache.flink.calcite.shaded.com.google.common.collect.Iterables.getFirst;
 
 public class EventTimeAlignedAssigner implements SplitAssigner, WatermarkTracker.Listener {
   private static final Logger log = LoggerFactory.getLogger(EventTimeAlignedAssigner.class);
@@ -154,12 +151,9 @@ public class EventTimeAlignedAssigner implements SplitAssigner, WatermarkTracker
 
   @Override
   public Collection<IcebergSourceSplitState> state() {
-    return
-        state
-            .getUnassignedSplits()
-            .stream()
-            .map(split -> new IcebergSourceSplitState(split, IcebergSourceSplitStatus.UNASSIGNED))
-            .collect(Collectors.toList());
+    return state.getUnassignedSplits().stream()
+        .map(split -> new IcebergSourceSplitState(split, IcebergSourceSplitStatus.UNASSIGNED))
+        .collect(Collectors.toList());
   }
 
   @Override
@@ -215,12 +209,9 @@ public class EventTimeAlignedAssigner implements SplitAssigner, WatermarkTracker
     }
   }
 
-  /**
-   * Keeps track of unassigned splits ordered by certain comparator.
-   */
+  /** Keeps track of unassigned splits ordered by certain comparator. */
   @NotThreadSafe
-  static
-  class State {
+  static class State {
     private static final Logger log = LoggerFactory.getLogger(State.class);
 
     private final WatermarkTracker tracker;
@@ -230,8 +221,7 @@ public class EventTimeAlignedAssigner implements SplitAssigner, WatermarkTracker
     private final TimestampAssigner<IcebergSourceSplit> timestampAssigner;
 
     public State(
-        WatermarkTracker tracker,
-        TimestampAssigner<IcebergSourceSplit> timestampAssigner) {
+        WatermarkTracker tracker, TimestampAssigner<IcebergSourceSplit> timestampAssigner) {
       this.tracker = tracker;
       this.timestampAssigner = timestampAssigner;
       Comparator<IcebergSourceSplit> comparator =
@@ -268,7 +258,8 @@ public class EventTimeAlignedAssigner implements SplitAssigner, WatermarkTracker
     public void onCompletedSplits(Collection<String> completedSplitIds) {
       Set<IcebergSourceSplit> completed =
           assignedSplits.stream()
-              .filter(icebergSourceSplit -> completedSplitIds.contains(icebergSourceSplit.splitId()))
+              .filter(
+                  icebergSourceSplit -> completedSplitIds.contains(icebergSourceSplit.splitId()))
               .collect(Collectors.toSet());
 
       assignedSplits.removeAll(completed);
@@ -285,10 +276,14 @@ public class EventTimeAlignedAssigner implements SplitAssigner, WatermarkTracker
 
     private void updateWatermark() {
       try {
-        long v1 = (!assignedSplits.isEmpty()) ?
-            timestampAssigner.extractTimestamp(assignedSplits.first(), -1) : Long.MAX_VALUE;
-        long v2 = (!unassignedSplits.isEmpty()) ?
-            timestampAssigner.extractTimestamp(unassignedSplits.first(), -1) : Long.MAX_VALUE;
+        long v1 =
+            (!assignedSplits.isEmpty())
+                ? timestampAssigner.extractTimestamp(assignedSplits.first(), -1)
+                : Long.MAX_VALUE;
+        long v2 =
+            (!unassignedSplits.isEmpty())
+                ? timestampAssigner.extractTimestamp(unassignedSplits.first(), -1)
+                : Long.MAX_VALUE;
         long v = Math.min(v1, v2);
         if (v != Long.MAX_VALUE) {
           tracker.updateWatermark(v);
