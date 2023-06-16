@@ -38,6 +38,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
+import org.apache.commons.io.FileUtils;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.DataFile;
@@ -450,7 +451,7 @@ public class TestHadoopCommits extends HadoopTableTestBase {
   public void testConcurrentFastAppends() throws Exception {
     assertTrue("Should create v1 metadata", version(1).exists() && version(1).isFile());
     File dir = temp.toFile();
-    dir.delete();
+    FileUtils.deleteDirectory(dir);
     int threadsCount = 5;
     int numberOfCommitedFilesPerThread = 10;
     Table tableWithHighRetries =
