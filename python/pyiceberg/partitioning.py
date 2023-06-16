@@ -68,6 +68,7 @@ class PartitionField(IcebergBaseModel):
         super().__init__(**data)
 
     def __str__(self) -> str:
+        """Returns the string representation of the PartitionField class."""
         return f"{self.field_id}: {self.name}: {self.transform}({self.source_id})"
 
 
@@ -117,6 +118,7 @@ class PartitionSpec(IcebergBaseModel):
         return result_str
 
     def __repr__(self) -> str:
+        """Returns the string representation of the PartitionSpec class."""
         fields = f"{', '.join(repr(column) for column in self.fields)}, " if self.fields else ""
         return f"PartitionSpec({fields}spec_id={self.spec_id})"
 
