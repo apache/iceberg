@@ -21,7 +21,7 @@
 
 package org.apache.iceberg.flink.source.assigner;
 
-import edu.umd.cs.findbugs.annotations.Nullable;
+import javax.annotation.Nullable;
 import java.io.Serializable;
 
 /**

@@ -45,6 +45,7 @@ class AscendingTimestampSplitComparator
     if (a.splitId().equals(b.splitId())) {
       return 0;
     }
+
     int t =
         Long.compare(
             timestampAssigner.extractTimestamp(a, -1), timestampAssigner.extractTimestamp(b, -1));
