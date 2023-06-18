@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg;
 
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -48,11 +49,9 @@ public class TestFormatVersions extends TableTestBase {
 
     Assert.assertEquals("Should report v2", 2, ops.current().formatVersion());
 
-    AssertHelpers.assertThrows(
-        "Should reject a version downgrade",
-        IllegalArgumentException.class,
-        "Cannot downgrade",
-        () -> ops.current().upgradeToFormatVersion(1));
+    Assertions.assertThatThrownBy(() -> ops.current().upgradeToFormatVersion(1))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot downgrade v2 table to v1");
 
     Assert.assertEquals("Should report v2", 2, ops.current().formatVersion());
   }
@@ -61,14 +60,14 @@ public class TestFormatVersions extends TableTestBase {
   public void testFormatVersionUpgradeNotSupported() {
     TableOperations ops = table.ops();
     TableMetadata base = ops.current();
-    AssertHelpers.assertThrows(
-        "Should reject an unsupported version upgrade",
-        IllegalArgumentException.class,
-        "Cannot upgrade table to unsupported format version",
-        () ->
-            ops.commit(
-                base,
-                base.upgradeToFormatVersion(TableMetadata.SUPPORTED_TABLE_FORMAT_VERSION + 1)));
+
+    Assertions.assertThatThrownBy(
+            () ->
+                ops.commit(
+                    base,
+                    base.upgradeToFormatVersion(TableMetadata.SUPPORTED_TABLE_FORMAT_VERSION + 1)))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot upgrade table to unsupported format version: v3 (supported: v2)");
 
     Assert.assertEquals("Should report v1", 1, ops.current().formatVersion());
   }

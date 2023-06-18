@@ -31,6 +31,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Assume;
 import org.junit.Test;
@@ -256,11 +257,9 @@ public class TestBaseIncrementalChangelogScan
 
     table.newRowDelta().addDeletes(FILE_A2_DELETES).commit();
 
-    AssertHelpers.assertThrows(
-        "Should complain about delete files",
-        UnsupportedOperationException.class,
-        "Delete files are currently not supported",
-        () -> plan(newScan()));
+    Assertions.assertThatThrownBy(() -> plan(newScan()))
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage("Delete files are currently not supported in changelog scans");
   }
 
   // plans tasks and reorders them to have deterministic order
