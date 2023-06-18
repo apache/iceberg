@@ -23,15 +23,15 @@ from pyiceberg.table.metadata import TableMetadata, TableMetadataUtil
 
 
 class FromByteStream:
-    """A collection of methods that deserialize dictionaries into Iceberg objects"""
+    """A collection of methods that deserialize dictionaries into Iceberg objects."""
 
     @staticmethod
     def table_metadata(byte_stream: InputStream, encoding: str = "utf-8") -> TableMetadata:
-        """Instantiate a TableMetadata object from a byte stream
+        """Instantiate a TableMetadata object from a byte stream.
 
         Args:
-            byte_stream: A file-like byte stream object
-            encoding (default "utf-8"): The byte encoder to use for the reader
+            byte_stream: A file-like byte stream object.
+            encoding (default "utf-8"): The byte encoder to use for the reader.
         """
         reader = codecs.getreader(encoding)
         metadata = json.load(reader(byte_stream))
@@ -39,18 +39,18 @@ class FromByteStream:
 
 
 class FromInputFile:
-    """A collection of methods that deserialize InputFiles into Iceberg objects"""
+    """A collection of methods that deserialize InputFiles into Iceberg objects."""
 
     @staticmethod
     def table_metadata(input_file: InputFile, encoding: str = "utf-8") -> TableMetadata:
-        """Create a TableMetadata instance from an input file
+        """Create a TableMetadata instance from an input file.
 
         Args:
-            input_file (InputFile): A custom implementation of the iceberg.io.file.InputFile abstract base class
-            encoding (str): Encoding to use when loading bytestream
+            input_file (InputFile): A custom implementation of the iceberg.io.file.InputFile abstract base class.
+            encoding (str): Encoding to use when loading bytestream.
 
         Returns:
-            TableMetadata: A table metadata instance
+            TableMetadata: A table metadata instance.
 
         """
         with input_file.open() as input_stream:
@@ -58,14 +58,14 @@ class FromInputFile:
 
 
 class ToOutputFile:
-    """A collection of methods that serialize Iceberg objects into files given an OutputFile instance"""
+    """A collection of methods that serialize Iceberg objects into files given an OutputFile instance."""
 
     @staticmethod
     def table_metadata(metadata: TableMetadata, output_file: OutputFile, overwrite: bool = False) -> None:
-        """Write a TableMetadata instance to an output file
+        """Write a TableMetadata instance to an output file.
 
         Args:
-            output_file (OutputFile): A custom implementation of the iceberg.io.file.OutputFile abstract base class
+            output_file (OutputFile): A custom implementation of the iceberg.io.file.OutputFile abstract base class.
             overwrite (bool): Where to overwrite the file if it already exists. Defaults to `False`.
         """
         with output_file.create(overwrite=overwrite) as output_stream:

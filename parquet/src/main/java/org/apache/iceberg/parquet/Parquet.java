@@ -1101,12 +1101,8 @@ public class Parquet {
             conf.unset(property);
           }
           optionsBuilder = HadoopReadOptions.builder(conf);
-          // page size not used by decompressors
-          optionsBuilder.withCodecFactory(new ParquetCodecFactory(conf, 0));
         } else {
           optionsBuilder = ParquetReadOptions.builder();
-          // page size not used by decompressors
-          optionsBuilder.withCodecFactory(new ParquetCodecFactory(new Configuration(), 0));
         }
 
         for (Map.Entry<String, String> entry : properties.entrySet()) {

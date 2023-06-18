@@ -33,7 +33,7 @@ OPERATION = "operation"
 
 
 class Operation(Enum):
-    """Describes the operation
+    """Describes the operation.
 
     Possible operation values are:
         - append: Only data files were added and no files were removed.
@@ -52,7 +52,8 @@ class Operation(Enum):
 
 
 class Summary(IcebergBaseModel):
-    """
+    """A class that stores the summary information for a Snapshot.
+
     The snapshot summary’s operation field is used by some operations,
     like snapshot expiration, to skip processing certain snapshots.
     """

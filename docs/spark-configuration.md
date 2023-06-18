@@ -194,3 +194,18 @@ df.write
 | check-ordering       | true        | Checks if input schema and table schema are same  |
 | isolation-level | null | Desired isolation level for Dataframe overwrite operations.  `null` => no checks (for idempotent writes), `serializable` => check for concurrent inserts or deletes in destination partitions, `snapshot` => checks for concurrent deletes in destination partitions. |
 | validate-from-snapshot-id | null | If isolation level is set, id of base snapshot from which to check concurrent write conflicts into a table. Should be the snapshot before any reads from the table. Can be obtained via [Table API](../../api#table-metadata) or [Snapshots table](../spark-queries#snapshots). If null, the table's oldest known snapshot is used. |
+
+CommitMetadata provides an interface to add custom metadata to a snapshot summary during a SQL execution, which can be beneficial for purposes such as auditing or change tracking. Here is an example:
+
+```java
+import org.apache.iceberg.spark.CommitMetadata;
+
+Map<String, String> properties = Maps.newHashMap();
+properties.put("property_key", "property_value");
+CommitMetadata.withCommitProperties(properties,
+        () -> {
+            spark.sql("DELETE FROM " + tableName + " where id = 1");
+            return 0;
+        },
+        RuntimeException.class);
+```
