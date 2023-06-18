@@ -51,7 +51,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.transforms.Transforms;
 import org.assertj.core.api.Assertions;
-import org.junit.jupiter.api.Test;
+import org.junit.Test;
 
 public class TestHadoopCatalog extends HadoopTableTestBase {
   private static ImmutableMap<String, String> meta = ImmutableMap.of();
@@ -303,7 +303,7 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
 
   @Test
   public void testCreateNamespace() throws Exception {
-    String warehouseLocation = temp.toFile().getAbsolutePath();
+    String warehouseLocation = temp.newFolder().getAbsolutePath();
     HadoopCatalog catalog = new HadoopCatalog();
     catalog.setConf(new Configuration());
     catalog.initialize(
@@ -419,7 +419,7 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
 
   @Test
   public void testDropNamespace() throws IOException {
-    String warehouseLocation = temp.toFile().getAbsolutePath();
+    String warehouseLocation = temp.newFolder().getAbsolutePath();
     HadoopCatalog catalog = new HadoopCatalog();
     catalog.setConf(new Configuration());
     catalog.initialize(

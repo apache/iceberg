@@ -42,9 +42,9 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.FakeTicker;
 import org.assertj.core.api.Assertions;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
 
 public class TestCachingCatalog extends HadoopTableTestBase {
 
@@ -53,12 +53,12 @@ public class TestCachingCatalog extends HadoopTableTestBase {
 
   private FakeTicker ticker;
 
-  @BeforeEach
+  @Before
   public void beforeEach() {
     this.ticker = new FakeTicker();
   }
 
-  @AfterEach
+  @After
   public void afterEach() {
     this.ticker = null;
   }
