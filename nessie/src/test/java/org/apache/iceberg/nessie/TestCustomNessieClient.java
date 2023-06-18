@@ -48,7 +48,9 @@ public class TestCustomNessieClient extends BaseTestIceberg {
             CatalogProperties.WAREHOUSE_LOCATION,
             temp.toUri().toString(),
             CatalogProperties.URI,
-            uri));
+            uri,
+            "client-api-version",
+            apiVersion));
   }
 
   @Test
@@ -62,7 +64,9 @@ public class TestCustomNessieClient extends BaseTestIceberg {
             CatalogProperties.URI,
             uri,
             NessieConfigConstants.CONF_NESSIE_CLIENT_BUILDER_IMPL,
-            HttpClientBuilder.class.getName()));
+            HttpClientBuilder.class.getName(),
+            "client-api-version",
+            apiVersion));
   }
 
   @Test

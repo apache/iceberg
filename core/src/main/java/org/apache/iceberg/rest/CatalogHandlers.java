@@ -40,6 +40,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.Transaction;
+import org.apache.iceberg.UpdateRequirement;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
@@ -286,16 +287,12 @@ public class CatalogHandlers {
   private static boolean isCreate(UpdateTableRequest request) {
     boolean isCreate =
         request.requirements().stream()
-            .anyMatch(
-                UpdateTableRequest.UpdateRequirement.AssertTableDoesNotExist.class::isInstance);
+            .anyMatch(UpdateRequirement.AssertTableDoesNotExist.class::isInstance);
 
     if (isCreate) {
-      List<UpdateTableRequest.UpdateRequirement> invalidRequirements =
+      List<UpdateRequirement> invalidRequirements =
           request.requirements().stream()
-              .filter(
-                  req ->
-                      !(req
-                          instanceof UpdateTableRequest.UpdateRequirement.AssertTableDoesNotExist))
+              .filter(req -> !(req instanceof UpdateRequirement.AssertTableDoesNotExist))
               .collect(Collectors.toList());
       Preconditions.checkArgument(
           invalidRequirements.isEmpty(), "Invalid create requirements: %s", invalidRequirements);

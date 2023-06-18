@@ -119,17 +119,17 @@ AVAILABLE_CATALOGS: dict[CatalogType, Callable[[str, Properties], Catalog]] = {
 
 
 def infer_catalog_type(name: str, catalog_properties: RecursiveDict) -> Optional[CatalogType]:
-    """Tries to infer the type based on the dict
+    """Tries to infer the type based on the dict.
 
     Args:
-        name: Name of the catalog
-        catalog_properties: Catalog properties
+        name: Name of the catalog.
+        catalog_properties: Catalog properties.
 
     Returns:
-        The inferred type based on the provided properties
+        The inferred type based on the provided properties.
 
     Raises:
-        ValueError: Raises a ValueError in case properties are missing, or the wrong type
+        ValueError: Raises a ValueError in case properties are missing, or the wrong type.
     """
     if uri := catalog_properties.get("uri"):
         if isinstance(uri, str):
@@ -147,20 +147,20 @@ def infer_catalog_type(name: str, catalog_properties: RecursiveDict) -> Optional
 
 
 def load_catalog(name: Optional[str], **properties: Optional[str]) -> Catalog:
-    """Load the catalog based on the properties
+    """Load the catalog based on the properties.
 
-    Will look up the properties from the config, based on the name
+    Will look up the properties from the config, based on the name.
 
     Args:
-        name: The name of the catalog
-        properties: The properties that are used next to the configuration
+        name: The name of the catalog.
+        properties: The properties that are used next to the configuration.
 
     Returns:
-        An initialized Catalog
+        An initialized Catalog.
 
     Raises:
         ValueError: Raises a ValueError in case properties are missing or malformed,
-            or if it could not determine the catalog based on the properties
+            or if it could not determine the catalog based on the properties.
     """
     if name is None:
         name = _ENV_CONFIG.get_default_catalog_name()
@@ -186,12 +186,12 @@ def load_catalog(name: Optional[str], **properties: Optional[str]) -> Catalog:
 def delete_files(io: FileIO, files_to_delete: Set[str], file_type: str) -> None:
     """Helper to delete files.
 
-    Log warnings if failing to delete any file
+    Log warnings if failing to delete any file.
 
     Args:
-        io: The FileIO used to delete the object
-        files_to_delete: A set of file paths to be deleted
-        file_type: The type of the file
+        io: The FileIO used to delete the object.
+        files_to_delete: A set of file paths to be deleted.
+        file_type: The type of the file.
     """
     for file in files_to_delete:
         try:
@@ -203,11 +203,11 @@ def delete_files(io: FileIO, files_to_delete: Set[str], file_type: str) -> None:
 def delete_data_files(io: FileIO, manifests_to_delete: List[ManifestFile]) -> None:
     """Helper to delete data files linked to given manifests.
 
-    Log warnings if failing to delete any file
+    Log warnings if failing to delete any file.
 
     Args:
-        io: The FileIO used to delete the object
-        manifests_to_delete: A list of manifest contains paths of data files to be deleted
+        io: The FileIO used to delete the object.
+        manifests_to_delete: A list of manifest contains paths of data files to be deleted.
     """
     deleted_files: dict[str, bool] = {}
     for manifest_file in manifests_to_delete:
@@ -238,8 +238,8 @@ class Catalog(ABC):
     or tuple of strings.
 
     Attributes:
-        name (str | None): Name of the catalog
-        properties (Properties): Catalog properties
+        name (str): Name of the catalog.
+        properties (Properties): Catalog properties.
     """
 
     name: str
@@ -262,7 +262,7 @@ class Catalog(ABC):
         sort_order: SortOrder = UNSORTED_SORT_ORDER,
         properties: Properties = EMPTY_DICT,
     ) -> Table:
-        """Create a table
+        """Create a table.
 
         Args:
             identifier (str | Identifier): Table identifier.
@@ -273,27 +273,27 @@ class Catalog(ABC):
             properties (Properties): Table properties that can be a string based dictionary.
 
         Returns:
-            Table: the created table instance
+            Table: the created table instance.
 
         Raises:
-            TableAlreadyExistsError: If a table with the name already exists
+            TableAlreadyExistsError: If a table with the name already exists.
         """
 
     @abstractmethod
     def load_table(self, identifier: Union[str, Identifier]) -> Table:
         """Loads the table's metadata and returns the table instance.
 
-        You can also use this method to check for table existence using 'try catalog.table() except NoSuchTableError'
+        You can also use this method to check for table existence using 'try catalog.table() except NoSuchTableError'.
         Note: This method doesn't scan data stored in the table.
 
         Args:
             identifier (str | Identifier): Table identifier.
 
         Returns:
-            Table: the table instance with its metadata
+            Table: the table instance with its metadata.
 
         Raises:
-            NoSuchTableError: If a table with the name does not exist
+            NoSuchTableError: If a table with the name does not exist.
         """
 
     @abstractmethod
@@ -304,22 +304,22 @@ class Catalog(ABC):
             identifier (str | Identifier): Table identifier.
 
         Raises:
-            NoSuchTableError: If a table with the name does not exist
+            NoSuchTableError: If a table with the name does not exist.
         """
 
     @abstractmethod
     def rename_table(self, from_identifier: Union[str, Identifier], to_identifier: Union[str, Identifier]) -> Table:
-        """Rename a fully classified table name
+        """Rename a fully classified table name.
 
         Args:
             from_identifier (str | Identifier): Existing table identifier.
             to_identifier (str | Identifier): New table identifier.
 
         Returns:
-            Table: the updated table instance with its metadata
+            Table: the updated table instance with its metadata.
 
         Raises:
-            NoSuchTableError: If a table with the name does not exist
+            NoSuchTableError: If a table with the name does not exist.
         """
 
     @abstractmethod
@@ -327,11 +327,11 @@ class Catalog(ABC):
         """Create a namespace in the catalog.
 
         Args:
-            namespace (str | Identifier): Namespace identifier
-            properties (Properties): A string dictionary of properties for the given namespace
+            namespace (str | Identifier): Namespace identifier.
+            properties (Properties): A string dictionary of properties for the given namespace.
 
         Raises:
-            NamespaceAlreadyExistsError: If a namespace with the given name already exists
+            NamespaceAlreadyExistsError: If a namespace with the given name already exists.
         """
 
     @abstractmethod
@@ -339,11 +339,11 @@ class Catalog(ABC):
         """Drop a namespace.
 
         Args:
-            namespace (str | Identifier): Namespace identifier
+            namespace (str | Identifier): Namespace identifier.
 
         Raises:
-            NoSuchNamespaceError: If a namespace with the given name does not exist
-            NamespaceNotEmptyError: If the namespace is not empty
+            NoSuchNamespaceError: If a namespace with the given name does not exist.
+            NamespaceNotEmptyError: If the namespace is not empty.
         """
 
     @abstractmethod
@@ -359,7 +359,7 @@ class Catalog(ABC):
             List[Identifier]: list of table identifiers.
 
         Raises:
-            NoSuchNamespaceError: If a namespace with the given name does not exist
+            NoSuchNamespaceError: If a namespace with the given name does not exist.
         """
 
     @abstractmethod
@@ -370,10 +370,10 @@ class Catalog(ABC):
             namespace (str | Identifier): Namespace identifier to search.
 
         Returns:
-            List[Identifier]: a List of namespace identifiers
+            List[Identifier]: a List of namespace identifiers.
 
         Raises:
-            NoSuchNamespaceError: If a namespace with the given name does not exist
+            NoSuchNamespaceError: If a namespace with the given name does not exist.
         """
 
     @abstractmethod
@@ -381,13 +381,13 @@ class Catalog(ABC):
         """Get properties for a namespace.
 
         Args:
-            namespace (str | Identifier): Namespace identifier
+            namespace (str | Identifier): Namespace identifier.
 
         Returns:
-            Properties: Properties for the given namespace
+            Properties: Properties for the given namespace.
 
         Raises:
-            NoSuchNamespaceError: If a namespace with the given name does not exist
+            NoSuchNamespaceError: If a namespace with the given name does not exist.
         """
 
     @abstractmethod
@@ -397,12 +397,12 @@ class Catalog(ABC):
         """Removes provided property keys and updates properties for a namespace.
 
         Args:
-            namespace (str | Identifier): Namespace identifier
+            namespace (str | Identifier): Namespace identifier.
             removals (Set[str]): Set of property keys that need to be removed. Optional Argument.
             updates (Properties): Properties to be updated for the given namespace.
 
         Raises:
-            NoSuchNamespaceError: If a namespace with the given name does not exist
+            NoSuchNamespaceError: If a namespace with the given name does not exist.
             ValueError: If removals and updates have overlapping keys.
         """
 
@@ -413,34 +413,34 @@ class Catalog(ABC):
         If the identifier is a string, it is split into a tuple on '.'. If it is a tuple, it is used as-is.
 
         Args:
-            identifier (str | Identifier: an identifier, either a string or tuple of strings
+            identifier (str | Identifier: an identifier, either a string or tuple of strings.
 
         Returns:
-            Identifier: a tuple of strings
+            Identifier: a tuple of strings.
         """
         return identifier if isinstance(identifier, tuple) else tuple(str.split(identifier, "."))
 
     @staticmethod
     def table_name_from(identifier: Union[str, Identifier]) -> str:
-        """Extracts table name from a table identifier
+        """Extracts table name from a table identifier.
 
         Args:
-            identifier (str | Identifier: a table identifier
+            identifier (str | Identifier: a table identifier.
 
         Returns:
-            str: Table name
+            str: Table name.
         """
         return Catalog.identifier_to_tuple(identifier)[-1]
 
     @staticmethod
     def namespace_from(identifier: Union[str, Identifier]) -> Identifier:
-        """Extracts table namespace from a table identifier
+        """Extracts table namespace from a table identifier.
 
         Args:
-            identifier (str | Identifier: a table identifier
+            identifier (Union[str, Identifier]): a table identifier.
 
         Returns:
-            Identifier: Namespace identifier
+            Identifier: Namespace identifier.
         """
         return Catalog.identifier_to_tuple(identifier)[:-1]
 
@@ -492,13 +492,13 @@ class Catalog(ABC):
     def purge_table(self, identifier: Union[str, Identifier]) -> None:
         """Drop a table and purge all data and metadata files.
 
-        Note: This method only logs warning rather than raise exception when encountering file deletion failure
+        Note: This method only logs warning rather than raise exception when encountering file deletion failure.
 
         Args:
             identifier (str | Identifier): Table identifier.
 
         Raises:
-            NoSuchTableError: If a table with the name does not exist, or the identifier is invalid
+            NoSuchTableError: If a table with the name does not exist, or the identifier is invalid.
         """
         table = self.load_table(identifier)
         self.drop_table(identifier)

@@ -23,9 +23,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import org.apache.iceberg.MetadataUpdate;
+import org.apache.iceberg.UpdateRequirement;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.rest.requests.UpdateTableRequest.UpdateRequirement;
 import org.junit.jupiter.api.Test;
 
 public class TestCommitTransactionRequestParser {
@@ -34,11 +34,11 @@ public class TestCommitTransactionRequestParser {
   public void nullAndEmptyCheck() {
     assertThatThrownBy(() -> CommitTransactionRequestParser.toJson(null))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid commit tx request: null");
+        .hasMessage("Invalid commit transaction request: null");
 
     assertThatThrownBy(() -> CommitTransactionRequestParser.fromJson((JsonNode) null))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse commit tx request from null object");
+        .hasMessage("Cannot parse commit transaction request from null object");
 
     assertThatThrownBy(() -> CommitTransactionRequestParser.fromJson("{}"))
         .isInstanceOf(IllegalArgumentException.class)
@@ -46,7 +46,7 @@ public class TestCommitTransactionRequestParser {
 
     assertThatThrownBy(() -> CommitTransactionRequestParser.fromJson("{\"table-changes\":{}}"))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse commit tx request from non-array: {}");
+        .hasMessage("Cannot parse commit transaction request from non-array: {}");
 
     assertThatThrownBy(() -> CommitTransactionRequestParser.fromJson("{\"table-changes\":[]}"))
         .isInstanceOf(IllegalArgumentException.class)
@@ -60,7 +60,7 @@ public class TestCommitTransactionRequestParser {
                 CommitTransactionRequestParser.fromJson(
                     "{\"table-changes\":[{\"ns1.table1\" : \"ns1.table1\"}]}"))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid table changes: table identifier required");
+        .hasMessage("Invalid table changes: table identifier is required");
 
     assertThatThrownBy(
             () ->

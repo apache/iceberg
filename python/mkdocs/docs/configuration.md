@@ -119,13 +119,27 @@ catalog:
 
 ## Glue Catalog
 
-If you want to use AWS Glue as the catalog, you can use the last two ways to configure the pyiceberg and refer
+Your AWS credentials can be passed directly through the Python API.
+Otherwise, please refer to
 [How to configure AWS credentials](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-configure.html) to set your AWS account credentials locally.
+If you did not set up a default AWS profile, you can configure the `profile_name`.
 
 ```yaml
 catalog:
   default:
     type: glue
+    aws_access_key_id: <ACCESS_KEY_ID>
+    aws_secret_access_key: <SECRET_ACCESS_KEY>
+    aws_session_token: <SESSION_TOKEN>
+    region_name: <REGION_NAME>
+```
+
+```yaml
+catalog:
+  default:
+    type: glue
+    profile_name: <PROFILE_NAME>
+    region_name: <REGION_NAME>
 ```
 
 ## DynamoDB Catalog

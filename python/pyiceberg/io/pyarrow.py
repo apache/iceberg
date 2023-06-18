@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=redefined-outer-name,arguments-renamed,fixme
-"""FileIO implementation for reading and writing table files that uses pyarrow.fs
+"""FileIO implementation for reading and writing table files that uses pyarrow.fs.
 
 This file contains a FileIO implementation that relies on the filesystem interface provided
 by PyArrow. It relies on PyArrow's `from_uri` method that infers the correct filesystem
@@ -135,13 +135,13 @@ T = TypeVar("T")
 
 
 class PyArrowFile(InputFile, OutputFile):
-    """A combined InputFile and OutputFile implementation that uses a pyarrow filesystem to generate pyarrow.lib.NativeFile instances
+    """A combined InputFile and OutputFile implementation that uses a pyarrow filesystem to generate pyarrow.lib.NativeFile instances.
 
     Args:
-        location (str): A URI or a path to a local file
+        location (str): A URI or a path to a local file.
 
     Attributes:
-        location(str): The URI or path to a local file for a PyArrowFile instance
+        location(str): The URI or path to a local file for a PyArrowFile instance.
 
     Examples:
         >>> from pyiceberg.io.pyarrow import PyArrowFile
@@ -167,11 +167,11 @@ class PyArrowFile(InputFile, OutputFile):
         super().__init__(location=location)
 
     def _file_info(self) -> FileInfo:
-        """Retrieves a pyarrow.fs.FileInfo object for the location
+        """Retrieves a pyarrow.fs.FileInfo object for the location.
 
         Raises:
             PermissionError: If the file at self.location cannot be accessed due to a permission error such as
-                an AWS error code 15
+                an AWS error code 15.
         """
         try:
             file_info = self._filesystem.get_file_info(self._path)
@@ -185,12 +185,12 @@ class PyArrowFile(InputFile, OutputFile):
         return file_info
 
     def __len__(self) -> int:
-        """Returns the total length of the file, in bytes"""
+        """Returns the total length of the file, in bytes."""
         file_info = self._file_info()
         return file_info.size
 
     def exists(self) -> bool:
-        """Checks whether the location exists"""
+        """Checks whether the location exists."""
         try:
             self._file_info()  # raises FileNotFoundError if it does not exist
             return True
@@ -198,18 +198,18 @@ class PyArrowFile(InputFile, OutputFile):
             return False
 
     def open(self, seekable: bool = True) -> InputStream:
-        """Opens the location using a PyArrow FileSystem inferred from the location
+        """Opens the location using a PyArrow FileSystem inferred from the location.
 
         Args:
-            seekable: If the stream should support seek, or if it is consumed sequential
+            seekable: If the stream should support seek, or if it is consumed sequential.
 
         Returns:
-            pyarrow.lib.NativeFile: A NativeFile instance for the file located at `self.location`
+            pyarrow.lib.NativeFile: A NativeFile instance for the file located at `self.location`.
 
         Raises:
-            FileNotFoundError: If the file at self.location does not exist
+            FileNotFoundError: If the file at self.location does not exist.
             PermissionError: If the file at self.location cannot be accessed due to a permission error such as
-                an AWS error code 15
+                an AWS error code 15.
         """
         try:
             if seekable:
@@ -229,16 +229,16 @@ class PyArrowFile(InputFile, OutputFile):
         return input_file
 
     def create(self, overwrite: bool = False) -> OutputStream:
-        """Creates a writable pyarrow.lib.NativeFile for this PyArrowFile's location
+        """Creates a writable pyarrow.lib.NativeFile for this PyArrowFile's location.
 
         Args:
-            overwrite (bool): Whether to overwrite the file if it already exists
+            overwrite (bool): Whether to overwrite the file if it already exists.
 
         Returns:
-            pyarrow.lib.NativeFile: A NativeFile instance for the file located at self.location
+            pyarrow.lib.NativeFile: A NativeFile instance for the file located at self.location.
 
         Raises:
-            FileExistsError: If the file already exists at `self.location` and `overwrite` is False
+            FileExistsError: If the file already exists at `self.location` and `overwrite` is False.
 
         Note:
             This retrieves a pyarrow NativeFile by opening an output stream. If overwrite is set to False,
@@ -260,7 +260,7 @@ class PyArrowFile(InputFile, OutputFile):
         return output_file
 
     def to_input_file(self) -> PyArrowFile:
-        """Returns a new PyArrowFile for the location of an existing PyArrowFile instance
+        """Returns a new PyArrowFile for the location of an existing PyArrowFile instance.
 
         This method is included to abide by the OutputFile abstract base class. Since this implementation uses a single
         PyArrowFile class (as opposed to separate InputFile and OutputFile implementations), this method effectively returns
@@ -276,7 +276,7 @@ class PyArrowFileIO(FileIO):
 
     @staticmethod
     def parse_location(location: str) -> Tuple[str, str]:
-        """Returns the path without the scheme"""
+        """Returns the path without the scheme."""
         uri = urlparse(location)
         return uri.scheme or "file", os.path.abspath(location) if not uri.scheme else f"{uri.netloc}{uri.path}"
 
@@ -296,42 +296,42 @@ class PyArrowFileIO(FileIO):
             raise ValueError(f"Unrecognized filesystem type in URI: {scheme}")
 
     def new_input(self, location: str) -> PyArrowFile:
-        """Get a PyArrowFile instance to read bytes from the file at the given location
+        """Get a PyArrowFile instance to read bytes from the file at the given location.
 
         Args:
-            location (str): A URI or a path to a local file
+            location (str): A URI or a path to a local file.
 
         Returns:
-            PyArrowFile: A PyArrowFile instance for the given location
+            PyArrowFile: A PyArrowFile instance for the given location.
         """
         scheme, path = self.parse_location(location)
         fs = self._get_fs(scheme)
         return PyArrowFile(fs=fs, location=location, path=path, buffer_size=int(self.properties.get(BUFFER_SIZE, ONE_MEGABYTE)))
 
     def new_output(self, location: str) -> PyArrowFile:
-        """Get a PyArrowFile instance to write bytes to the file at the given location
+        """Get a PyArrowFile instance to write bytes to the file at the given location.
 
         Args:
-            location (str): A URI or a path to a local file
+            location (str): A URI or a path to a local file.
 
         Returns:
-            PyArrowFile: A PyArrowFile instance for the given location
+            PyArrowFile: A PyArrowFile instance for the given location.
         """
         scheme, path = self.parse_location(location)
         fs = self._get_fs(scheme)
         return PyArrowFile(fs=fs, location=location, path=path, buffer_size=int(self.properties.get(BUFFER_SIZE, ONE_MEGABYTE)))
 
     def delete(self, location: Union[str, InputFile, OutputFile]) -> None:
-        """Delete the file at the given location
+        """Delete the file at the given location.
 
         Args:
             location (Union[str, InputFile, OutputFile]): The URI to the file--if an InputFile instance or an OutputFile instance is provided,
-                the location attribute for that instance is used as the location to delete
+                the location attribute for that instance is used as the location to delete.
 
         Raises:
-            FileNotFoundError: When the file at the provided location does not exist
+            FileNotFoundError: When the file at the provided location does not exist.
             PermissionError: If the file at the provided location cannot be accessed due to a permission error such as
-                an AWS error code 15
+                an AWS error code 15.
         """
         str_location = location.location if isinstance(location, (InputFile, OutputFile)) else location
         scheme, path = self.parse_location(str_location)
@@ -504,17 +504,17 @@ def pyarrow_to_schema(schema: pa.Schema) -> Schema:
 
 
 @singledispatch
-def visit_pyarrow(obj: pa.DataType | pa.Schema, visitor: PyArrowSchemaVisitor[T]) -> T:
-    """A generic function for applying a pyarrow schema visitor to any point within a schema
+def visit_pyarrow(obj: Union[pa.DataType, pa.Schema], visitor: PyArrowSchemaVisitor[T]) -> T:
+    """A generic function for applying a pyarrow schema visitor to any point within a schema.
 
-    The function traverses the schema in post-order fashion
+    The function traverses the schema in post-order fashion.
 
     Args:
-        obj(pa.DataType): An instance of a Schema or an IcebergType
-        visitor (PyArrowSchemaVisitor[T]): An instance of an implementation of the generic PyarrowSchemaVisitor base class
+        obj (Union[pa.DataType, pa.Schema]): An instance of a Schema or an IcebergType.
+        visitor (PyArrowSchemaVisitor[T]): An instance of an implementation of the generic PyarrowSchemaVisitor base class.
 
     Raises:
-        NotImplementedError: If attempting to visit an unrecognized object type
+        NotImplementedError: If attempting to visit an unrecognized object type.
     """
     raise NotImplementedError("Cannot visit non-type: %s" % obj)
 
@@ -578,23 +578,23 @@ class PyArrowSchemaVisitor(Generic[T], ABC):
 
     @abstractmethod
     def schema(self, schema: pa.Schema, field_results: List[Optional[T]]) -> Optional[T]:
-        """Visit a schema"""
+        """Visit a schema."""
 
     @abstractmethod
     def struct(self, struct: pa.StructType, field_results: List[Optional[T]]) -> Optional[T]:
-        """Visit a struct"""
+        """Visit a struct."""
 
     @abstractmethod
     def list(self, list_type: pa.ListType, element_result: Optional[T]) -> Optional[T]:
-        """Visit a list"""
+        """Visit a list."""
 
     @abstractmethod
     def map(self, map_type: pa.MapType, key_result: Optional[T], value_result: Optional[T]) -> Optional[T]:
-        """Visit a map"""
+        """Visit a map."""
 
     @abstractmethod
     def primitive(self, primitive: pa.DataType) -> Optional[T]:
-        """Visit a primitive type"""
+        """Visit a primitive type."""
 
 
 def _get_field_id(field: pa.Field) -> Optional[int]:
@@ -749,17 +749,17 @@ def project_table(
     case_sensitive: bool,
     limit: Optional[int] = None,
 ) -> pa.Table:
-    """Resolves the right columns based on the identifier
+    """Resolves the right columns based on the identifier.
 
     Args:
-        tasks (Iterable[FileScanTask]): A URI or a path to a local file
-        table (Table): The table that's being queried
-        row_filter (BooleanExpression): The expression for filtering rows
-        projected_schema (Schema): The output schema
-        case_sensitive (bool): Case sensitivity when looking up column names
+        tasks (Iterable[FileScanTask]): A URI or a path to a local file.
+        table (Table): The table that's being queried.
+        row_filter (BooleanExpression): The expression for filtering rows.
+        projected_schema (Schema): The output schema.
+        case_sensitive (bool): Case sensitivity when looking up column names.
 
     Raises:
-        ResolveError: When an incompatible query is done
+        ResolveError: When an incompatible query is done.
     """
     scheme, _ = PyArrowFileIO.parse_location(table.location())
     if isinstance(table.io, PyArrowFileIO):
