@@ -714,7 +714,6 @@ public abstract class TestReadProjection {
 
     Record projected = writeAndRead("nested_empty_req_proj", writeSchema, emptyStruct, record);
     assertEmptyAvroField(projected, "id");
-
     Record outerResult = (Record) projected.get("outer");
     Assert.assertEquals("Outer should be in the 0th position", outerResult, projected.get(0));
     Assert.assertNotNull("Should contain the outer record", outerResult);
