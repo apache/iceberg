@@ -16,22 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.flink.source.assigner;
+package org.apache.iceberg.view;
 
-import java.util.Collection;
-import org.apache.iceberg.flink.source.split.IcebergSourceSplitState;
+/** View properties that can be set during CREATE/REPLACE view or using updateProperties API. */
+public class ViewProperties {
+  public static final String VERSION_HISTORY_SIZE = "version.history.num-entries";
+  public static final int VERSION_HISTORY_SIZE_DEFAULT = 10;
 
-/** Create simple assigner that hands out splits without any guarantee in order or locality. */
-public class SimpleSplitAssignerFactory implements SplitAssignerFactory {
-  public SimpleSplitAssignerFactory() {}
-
-  @Override
-  public SplitAssigner createAssigner() {
-    return new DefaultSplitAssigner(null);
-  }
-
-  @Override
-  public SplitAssigner createAssigner(Collection<IcebergSourceSplitState> assignerState) {
-    return new DefaultSplitAssigner(null, assignerState);
-  }
+  private ViewProperties() {}
 }

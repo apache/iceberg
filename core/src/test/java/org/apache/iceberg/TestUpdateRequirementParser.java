@@ -16,11 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.rest.requests;
+package org.apache.iceberg;
 
 import java.util.List;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.rest.requests.UpdateTableRequest.UpdateRequirement;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 

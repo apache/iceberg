@@ -33,6 +33,7 @@ import org.apache.iceberg.ManifestEntry.Status;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -170,11 +171,9 @@ public class TestOverwrite extends TableTestBase {
             .newOverwrite()
             .overwriteByRowFilter(and(equal("date", "2018-06-09"), lessThan("id", 9)));
 
-    AssertHelpers.assertThrows(
-        "Should reject commit with file not matching delete expression",
-        ValidationException.class,
-        "Cannot delete file where some, but not all, rows match filter",
-        () -> commit(table, overwrite, branch));
+    Assertions.assertThatThrownBy(() -> commit(table, overwrite, branch))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageStartingWith("Cannot delete file where some, but not all, rows match filter");
 
     Assert.assertEquals(
         "Should not create a new snapshot", baseId, latestSnapshot(base, branch).snapshotId());
@@ -264,11 +263,9 @@ public class TestOverwrite extends TableTestBase {
             .addFile(FILE_10_TO_14) // in 2018-06-09, NOT in 2018-06-08
             .validateAddedFilesMatchOverwriteFilter();
 
-    AssertHelpers.assertThrows(
-        "Should reject commit with file not matching delete expression",
-        ValidationException.class,
-        "Cannot append file with rows that do not match filter",
-        () -> commit(table, overwrite, branch));
+    Assertions.assertThatThrownBy(() -> commit(table, overwrite, branch))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageStartingWith("Cannot append file with rows that do not match filter");
 
     Assert.assertEquals(
         "Should not create a new snapshot", baseId, latestSnapshot(table, branch).snapshotId());
@@ -287,11 +284,9 @@ public class TestOverwrite extends TableTestBase {
             .addFile(FILE_10_TO_14) // in 2018-06-09 matches, but IDs are outside range
             .validateAddedFilesMatchOverwriteFilter();
 
-    AssertHelpers.assertThrows(
-        "Should reject commit with file not matching delete expression",
-        ValidationException.class,
-        "Cannot append file with rows that do not match filter",
-        () -> commit(table, overwrite, branch));
+    Assertions.assertThatThrownBy(() -> commit(table, overwrite, branch))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageStartingWith("Cannot append file with rows that do not match filter");
 
     Assert.assertEquals(
         "Should not create a new snapshot", baseId, latestSnapshot(base, branch).snapshotId());
@@ -310,11 +305,9 @@ public class TestOverwrite extends TableTestBase {
             .addFile(FILE_10_TO_14) // in 2018-06-09 matches and IDs are inside range
             .validateAddedFilesMatchOverwriteFilter();
 
-    AssertHelpers.assertThrows(
-        "Should reject commit with file not matching delete expression",
-        ValidationException.class,
-        "Cannot append file with rows that do not match filter",
-        () -> commit(table, overwrite, branch));
+    Assertions.assertThatThrownBy(() -> commit(table, overwrite, branch))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageStartingWith("Cannot append file with rows that do not match filter");
 
     Assert.assertEquals(
         "Should not create a new snapshot", baseId, latestSnapshot(base, branch).snapshotId());
