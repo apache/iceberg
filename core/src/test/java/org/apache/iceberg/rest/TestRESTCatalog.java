@@ -20,6 +20,7 @@ package org.apache.iceberg.rest;
 
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.times;
@@ -38,6 +39,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.iceberg.BaseTransaction;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.FileScanTask;
@@ -46,9 +48,16 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.Transaction;
+import org.apache.iceberg.UpdatePartitionSpec;
+import org.apache.iceberg.UpdateSchema;
 import org.apache.iceberg.catalog.CatalogTests;
+import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SessionCatalog;
+import org.apache.iceberg.catalog.TableCommit;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.jdbc.JdbcCatalog;
 import org.apache.iceberg.metrics.MetricsReport;
@@ -1871,5 +1880,127 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             eq(ConfigResponse.class),
             eq(catalogHeaders),
             any());
+  }
+
+  @Test
+  public void diffAgainstSingleTable() {
+    Namespace namespace = Namespace.of("namespace");
+    TableIdentifier identifier = TableIdentifier.of(namespace, "multipleDiffsAgainstSingleTable");
+
+    Table table = catalog().buildTable(identifier, SCHEMA).create();
+    Transaction transaction = table.newTransaction();
+
+    UpdateSchema updateSchema =
+        transaction.updateSchema().addColumn("new_col", Types.LongType.get());
+    Schema expectedSchema = updateSchema.apply();
+    updateSchema.commit();
+
+    UpdatePartitionSpec updateSpec =
+        transaction.updateSpec().addField("shard", Expressions.bucket("id", 16));
+    PartitionSpec expectedSpec = updateSpec.apply();
+    updateSpec.commit();
+
+    TableCommit tableCommit =
+        TableCommit.create(
+            identifier,
+            ((BaseTransaction) transaction).startMetadata(),
+            ((BaseTransaction) transaction).currentMetadata());
+
+    restCatalog.commitTransaction(tableCommit);
+
+    Table loaded = catalog().loadTable(identifier);
+    assertThat(loaded.schema().asStruct()).isEqualTo(expectedSchema.asStruct());
+    assertThat(loaded.spec().fields()).isEqualTo(expectedSpec.fields());
+  }
+
+  @Test
+  public void multipleDiffsAgainstMultipleTables() {
+    Namespace namespace = Namespace.of("multiDiffNamespace");
+    TableIdentifier identifier1 = TableIdentifier.of(namespace, "multiDiffTable1");
+    TableIdentifier identifier2 = TableIdentifier.of(namespace, "multiDiffTable2");
+
+    Table table1 = catalog().buildTable(identifier1, SCHEMA).create();
+    Table table2 = catalog().buildTable(identifier2, SCHEMA).create();
+    Transaction t1Transaction = table1.newTransaction();
+    Transaction t2Transaction = table2.newTransaction();
+
+    UpdateSchema updateSchema =
+        t1Transaction.updateSchema().addColumn("new_col", Types.LongType.get());
+    Schema expectedSchema = updateSchema.apply();
+    updateSchema.commit();
+
+    UpdateSchema updateSchema2 =
+        t2Transaction.updateSchema().addColumn("new_col2", Types.LongType.get());
+    Schema expectedSchema2 = updateSchema2.apply();
+    updateSchema2.commit();
+
+    TableCommit tableCommit1 =
+        TableCommit.create(
+            identifier1,
+            ((BaseTransaction) t1Transaction).startMetadata(),
+            ((BaseTransaction) t1Transaction).currentMetadata());
+
+    TableCommit tableCommit2 =
+        TableCommit.create(
+            identifier2,
+            ((BaseTransaction) t2Transaction).startMetadata(),
+            ((BaseTransaction) t2Transaction).currentMetadata());
+
+    restCatalog.commitTransaction(tableCommit1, tableCommit2);
+
+    assertThat(catalog().loadTable(identifier1).schema().asStruct())
+        .isEqualTo(expectedSchema.asStruct());
+
+    assertThat(catalog().loadTable(identifier2).schema().asStruct())
+        .isEqualTo(expectedSchema2.asStruct());
+  }
+
+  @Test
+  public void multipleDiffsAgainstMultipleTablesLastFails() {
+    Namespace namespace = Namespace.of("multiDiffNamespace");
+    TableIdentifier identifier1 = TableIdentifier.of(namespace, "multiDiffTable1");
+    TableIdentifier identifier2 = TableIdentifier.of(namespace, "multiDiffTable2");
+
+    catalog().createTable(identifier1, SCHEMA);
+    catalog().createTable(identifier2, SCHEMA);
+
+    Table table1 = catalog().loadTable(identifier1);
+    Table table2 = catalog().loadTable(identifier2);
+    Schema originalSchemaOne = table1.schema();
+
+    Transaction t1Transaction = catalog().loadTable(identifier1).newTransaction();
+    t1Transaction.updateSchema().addColumn("new_col1", Types.LongType.get()).commit();
+
+    Transaction t2Transaction = catalog().loadTable(identifier2).newTransaction();
+    t2Transaction.updateSchema().renameColumn("data", "new-column").commit();
+
+    // delete the colum that is being renamed in the above TX to cause a conflict
+    table2.updateSchema().deleteColumn("data").commit();
+    Schema updatedSchemaTwo = table2.schema();
+
+    TableCommit tableCommit1 =
+        TableCommit.create(
+            identifier1,
+            ((BaseTransaction) t1Transaction).startMetadata(),
+            ((BaseTransaction) t1Transaction).currentMetadata());
+
+    TableCommit tableCommit2 =
+        TableCommit.create(
+            identifier2,
+            ((BaseTransaction) t2Transaction).startMetadata(),
+            ((BaseTransaction) t2Transaction).currentMetadata());
+
+    assertThatThrownBy(() -> restCatalog.commitTransaction(tableCommit1, tableCommit2))
+        .isInstanceOf(CommitFailedException.class)
+        .hasMessageContaining("Requirement failed: current schema changed: expected id 0 != 1");
+
+    Schema schema1 = catalog().loadTable(identifier1).schema();
+    assertThat(schema1.asStruct()).isEqualTo(originalSchemaOne.asStruct());
+
+    Schema schema2 = catalog().loadTable(identifier2).schema();
+    assertThat(schema2.asStruct()).isEqualTo(updatedSchemaTwo.asStruct());
+    assertThat(schema2.findField("data")).isNull();
+    assertThat(schema2.findField("new-column")).isNull();
+    assertThat(schema2.columns()).hasSize(1);
   }
 }

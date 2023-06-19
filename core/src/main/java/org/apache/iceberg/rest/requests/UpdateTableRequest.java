@@ -48,7 +48,7 @@ public class UpdateTableRequest implements RESTRequest {
     this.updates = updates;
   }
 
-  UpdateTableRequest(
+  public UpdateTableRequest(
       TableIdentifier identifier,
       List<org.apache.iceberg.UpdateRequirement> requirements,
       List<MetadataUpdate> updates) {
