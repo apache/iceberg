@@ -217,13 +217,12 @@ public class TestLocationProvider extends TableTestBase {
         .set(TableProperties.WRITE_LOCATION_PROVIDER_IMPL, invalidImpl)
         .commit();
 
-    AssertHelpers.assertThrows(
-        "Implementation with invalid arg types should fail on finding constructor",
-        IllegalArgumentException.class,
-        String.format(
-            "Unable to find a constructor for implementation %s of %s. ",
-            invalidImpl, LocationProvider.class),
-        () -> table.locationProvider());
+    Assertions.assertThatThrownBy(() -> table.locationProvider())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith(
+            String.format(
+                "Unable to find a constructor for implementation %s of %s. ",
+                invalidImpl, LocationProvider.class));
   }
 
   @Test
