@@ -28,7 +28,6 @@ import org.apache.avro.file.DataFileWriter;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericDatumWriter;
 import org.apache.avro.io.DatumWriter;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.mapping.MappedField;
@@ -41,6 +40,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Types;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -202,12 +202,11 @@ public class TestAvroNameMapping extends TestAvroReadProjection {
             new Schema(Types.NestedField.optional(18, "y", Types.IntegerType.get())));
 
     Schema readSchema = writeSchema;
-    AssertHelpers.assertThrows(
-        "Missing required field in nameMapping",
-        IllegalArgumentException.class,
-        "Missing required field: x",
-        // In this case, pruneColumns result is an empty record
-        () -> writeAndRead(writeSchema, readSchema, record, nameMapping));
+    Assertions.assertThatThrownBy(
+            // In this case, pruneColumns result is an empty record
+            () -> writeAndRead(writeSchema, readSchema, record, nameMapping))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Missing required field: x");
   }
 
   @Test
