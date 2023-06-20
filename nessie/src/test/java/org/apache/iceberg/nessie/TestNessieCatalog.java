@@ -54,7 +54,7 @@ import org.projectnessie.versioned.persist.tests.extension.NessieExternalDatabas
 @ExtendWith(DatabaseAdapterExtension.class)
 @NessieDbAdapterName(InmemoryDatabaseAdapterFactory.NAME)
 @NessieExternalDatabase(InmemoryTestConnectionProviderSource.class)
-@NessieApiVersions(versions = NessieApiVersion.V1)
+@NessieApiVersions // test all versions
 public class TestNessieCatalog extends CatalogTests<NessieCatalog> {
 
   @NessieDbAdapter static DatabaseAdapter databaseAdapter;
@@ -67,6 +67,7 @@ public class TestNessieCatalog extends CatalogTests<NessieCatalog> {
 
   private NessieCatalog catalog;
   private NessieApiV1 api;
+  private NessieApiVersion apiVersion;
   private Configuration hadoopConfig;
   private String initialHashOfDefaultBranch;
   private String uri;
@@ -75,6 +76,7 @@ public class TestNessieCatalog extends CatalogTests<NessieCatalog> {
   public void setUp(NessieClientFactory clientFactory, @NessieClientUri URI nessieUri)
       throws NessieNotFoundException {
     api = clientFactory.make();
+    apiVersion = clientFactory.apiVersion();
     initialHashOfDefaultBranch = api.getDefaultBranch().getHash();
     uri = nessieUri.toASCIIString();
     hadoopConfig = new Configuration();
@@ -115,17 +117,17 @@ public class TestNessieCatalog extends CatalogTests<NessieCatalog> {
   private NessieCatalog initNessieCatalog(String ref) {
     NessieCatalog newCatalog = new NessieCatalog();
     newCatalog.setConf(hadoopConfig);
-    newCatalog.initialize(
-        "nessie",
+    ImmutableMap<String, String> options =
         ImmutableMap.of(
             "ref",
             ref,
             CatalogProperties.URI,
             uri,
-            "auth-type",
-            "NONE",
             CatalogProperties.WAREHOUSE_LOCATION,
-            temp.toUri().toString()));
+            temp.toUri().toString(),
+            "client-api-version",
+            apiVersion == NessieApiVersion.V2 ? "2" : "1");
+    newCatalog.initialize("nessie", options);
     return newCatalog;
   }
 

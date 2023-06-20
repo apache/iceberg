@@ -22,6 +22,11 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
+import org.apache.iceberg.BaseTable;
+import org.apache.iceberg.BaseTransaction;
+import org.apache.iceberg.Table;
+import org.apache.iceberg.Transaction;
+import org.apache.iceberg.Transactions;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
@@ -40,6 +45,8 @@ import org.apache.iceberg.exceptions.UnprocessableEntityException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.rest.requests.CommitTransactionRequest;
 import org.apache.iceberg.rest.requests.CreateNamespaceRequest;
 import org.apache.iceberg.rest.requests.CreateTableRequest;
 import org.apache.iceberg.rest.requests.RenameTableRequest;
@@ -130,7 +137,9 @@ public class RESTCatalogAdapter implements RESTClient {
         HTTPMethod.POST,
         "v1/namespaces/{namespace}/tables/{table}/metrics",
         ReportMetricsRequest.class,
-        null);
+        null),
+    COMMIT_TRANSACTION(
+        HTTPMethod.POST, "v1/transactions/commit", CommitTransactionRequest.class, null);
 
     private final HTTPMethod method;
     private final int requiredLength;
@@ -357,10 +366,47 @@ public class RESTCatalogAdapter implements RESTClient {
           return null;
         }
 
+      case COMMIT_TRANSACTION:
+        {
+          CommitTransactionRequest request = castRequest(CommitTransactionRequest.class, body);
+          commitTransaction(catalog, request);
+          return null;
+        }
+
       default:
     }
 
     return null;
+  }
+
+  /**
+   * This is a very simplistic approach that only validates the requirements for each table and does
+   * not do any other conflict detection. Therefore, it does not guarantee true transactional
+   * atomicity, which is left to the implementation details of a REST server.
+   */
+  private static void commitTransaction(Catalog catalog, CommitTransactionRequest request) {
+    List<Transaction> transactions = Lists.newArrayList();
+
+    for (UpdateTableRequest tableChange : request.tableChanges()) {
+      Table table = catalog.loadTable(tableChange.identifier());
+      if (table instanceof BaseTable) {
+        Transaction transaction =
+            Transactions.newTransaction(
+                tableChange.identifier().toString(), ((BaseTable) table).operations());
+        transactions.add(transaction);
+
+        BaseTransaction.TransactionTable txTable =
+            (BaseTransaction.TransactionTable) transaction.table();
+
+        // this performs validations and makes temporary commits that are in-memory
+        CatalogHandlers.commit(txTable.operations(), tableChange);
+      } else {
+        throw new IllegalStateException("Cannot wrap catalog that does not produce BaseTable");
+      }
+    }
+
+    // only commit if validations passed previously
+    transactions.forEach(Transaction::commitTransaction);
   }
 
   public <T extends RESTResponse> T execute(

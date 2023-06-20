@@ -216,11 +216,9 @@ public class TestTransaction extends TableTestBase {
         "Base metadata should not change when commit is created", base, readMetadata());
     Assert.assertEquals("Table should be on version 0 after txn create", 0, (int) version());
 
-    AssertHelpers.assertThrows(
-        "Should reject commit when last operation has not committed",
-        IllegalStateException.class,
-        "Cannot create new DeleteFiles: last operation has not committed",
-        txn::newDelete);
+    Assertions.assertThatThrownBy(txn::newDelete)
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("Cannot create new DeleteFiles: last operation has not committed");
   }
 
   @Test
@@ -241,11 +239,9 @@ public class TestTransaction extends TableTestBase {
         "Base metadata should not change when commit is created", base, readMetadata());
     Assert.assertEquals("Table should be on version 0 after txn create", 0, (int) version());
 
-    AssertHelpers.assertThrows(
-        "Should reject commit when last operation has not committed",
-        IllegalStateException.class,
-        "Cannot commit transaction: last operation has not committed",
-        txn::commitTransaction);
+    Assertions.assertThatThrownBy(txn::commitTransaction)
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("Cannot commit transaction: last operation has not committed");
   }
 
   @Test
@@ -272,11 +268,9 @@ public class TestTransaction extends TableTestBase {
     // cause the transaction commit to fail
     table.ops().failCommits(1);
 
-    AssertHelpers.assertThrows(
-        "Transaction commit should fail",
-        CommitFailedException.class,
-        "Injected failure",
-        txn::commitTransaction);
+    Assertions.assertThatThrownBy(txn::commitTransaction)
+        .isInstanceOf(CommitFailedException.class)
+        .hasMessage("Injected failure");
   }
 
   @Test
@@ -445,11 +439,9 @@ public class TestTransaction extends TableTestBase {
         schemaId);
 
     // commit the transaction for adding "new-column"
-    AssertHelpers.assertThrows(
-        "Should fail due to conflicting transaction even after retry",
-        CommitFailedException.class,
-        "Table metadata refresh is required",
-        txn::commitTransaction);
+    Assertions.assertThatThrownBy(txn::commitTransaction)
+        .isInstanceOf(CommitFailedException.class)
+        .hasMessage("Table metadata refresh is required");
   }
 
   @Test
@@ -664,17 +656,16 @@ public class TestTransaction extends TableTestBase {
 
   @Test
   public void testTransactionNoCustomDeleteFunc() {
-    AssertHelpers.assertThrows(
-        "Should fail setting a custom delete function with a transaction",
-        IllegalArgumentException.class,
-        "Cannot set delete callback more than once",
-        () ->
-            table
-                .newTransaction()
-                .newAppend()
-                .appendFile(FILE_A)
-                .appendFile(FILE_B)
-                .deleteWith(file -> {}));
+    Assertions.assertThatThrownBy(
+            () ->
+                table
+                    .newTransaction()
+                    .newAppend()
+                    .appendFile(FILE_A)
+                    .appendFile(FILE_B)
+                    .deleteWith(file -> {}))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot set delete callback more than once");
   }
 
   @Test
@@ -758,11 +749,9 @@ public class TestTransaction extends TableTestBase {
     Transaction transaction = table.newTransaction();
     transaction.newAppend().appendFile(FILE_A).commit();
 
-    AssertHelpers.assertThrows(
-        "Transaction commit should fail with CommitStateUnknownException",
-        CommitStateUnknownException.class,
-        "datacenter on fire",
-        () -> transaction.commitTransaction());
+    Assertions.assertThatThrownBy(transaction::commitTransaction)
+        .isInstanceOf(CommitStateUnknownException.class)
+        .hasMessageStartingWith("datacenter on fire");
 
     // Make sure metadata files still exist
     Snapshot current = table.currentSnapshot();

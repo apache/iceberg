@@ -367,8 +367,8 @@ class DynamoDbCatalog(Catalog):
         return table_identifiers
 
     def list_namespaces(self, namespace: Union[str, Identifier] = ()) -> List[Identifier]:
-        """
-        List top-level namespaces from the catalog.
+        """List top-level namespaces from the catalog.
+
         We do not support hierarchical namespace.
 
         Returns:
@@ -715,8 +715,7 @@ def _get_namespace_properties(namespace_dict: Dict[str, str]) -> Properties:
 
 
 def _convert_dynamo_item_to_regular_dict(dynamo_json: Dict[str, Any]) -> Dict[str, str]:
-    """
-    Converts a dynamo json to a regular json.
+    """Converts a dynamo json to a regular json.
 
     Example of a dynamo json:
     {

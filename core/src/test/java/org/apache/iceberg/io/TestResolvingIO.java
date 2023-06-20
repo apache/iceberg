@@ -18,11 +18,12 @@
  */
 package org.apache.iceberg.io;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.io.IOException;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestResolvingIO {
 
@@ -34,8 +35,7 @@ public class TestResolvingIO {
     testResolvingFileIO.initialize(ImmutableMap.of("k1", "v1"));
     FileIO roundTripSerializedFileIO =
         TestHelpers.KryoHelpers.roundTripSerialize(testResolvingFileIO);
-
-    Assert.assertEquals(testResolvingFileIO.properties(), roundTripSerializedFileIO.properties());
+    assertThat(roundTripSerializedFileIO.properties()).isEqualTo(testResolvingFileIO.properties());
   }
 
   @Test
@@ -45,7 +45,6 @@ public class TestResolvingIO {
     // resolving fileIO should be serializable when properties are passed as immutable map
     testResolvingFileIO.initialize(ImmutableMap.of("k1", "v1"));
     FileIO roundTripSerializedFileIO = TestHelpers.roundTripSerialize(testResolvingFileIO);
-
-    Assert.assertEquals(testResolvingFileIO.properties(), roundTripSerializedFileIO.properties());
+    assertThat(roundTripSerializedFileIO.properties()).isEqualTo(testResolvingFileIO.properties());
   }
 }

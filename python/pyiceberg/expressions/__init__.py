@@ -24,6 +24,7 @@ from typing import (
     Generic,
     Iterable,
     Set,
+    Tuple,
     Type,
     TypeVar,
     Union,
@@ -220,6 +221,9 @@ class And(BooleanExpression):
         # De Morgan's law: not (A and B) = (not A) or (not B)
         return Or(~self.left, ~self.right)
 
+    def __getnewargs__(self) -> Tuple[BooleanExpression, BooleanExpression]:
+        return (self.left, self.right)
+
 
 class Or(BooleanExpression):
     """OR operation expression - logical disjunction."""
@@ -252,6 +256,9 @@ class Or(BooleanExpression):
         # De Morgan's law: not (A or B) = (not A) and (not B)
         return And(~self.left, ~self.right)
 
+    def __getnewargs__(self) -> Tuple[BooleanExpression, BooleanExpression]:
+        return (self.left, self.right)
+
 
 class Not(BooleanExpression):
     """NOT operation expression - logical negation."""
@@ -277,6 +284,9 @@ class Not(BooleanExpression):
 
     def __invert__(self) -> BooleanExpression:
         return self.child
+
+    def __getnewargs__(self) -> Tuple[BooleanExpression]:
+        return (self.child,)
 
 
 class AlwaysTrue(BooleanExpression, Singleton):
@@ -363,6 +373,9 @@ class BoundUnaryPredicate(BoundPredicate[L], ABC):
     @abstractmethod
     def as_unbound(self) -> Type[UnaryPredicate]:
         ...
+
+    def __getnewargs__(self) -> Tuple[BoundTerm[L]]:
+        return (self.term,)
 
 
 class BoundIsNull(BoundUnaryPredicate[L]):
@@ -481,6 +494,9 @@ class SetPredicate(UnboundPredicate[L], ABC):
     def __eq__(self, other: Any) -> bool:
         return self.term == other.term and self.literals == other.literals if isinstance(other, SetPredicate) else False
 
+    def __getnewargs__(self) -> Tuple[UnboundTerm[L], Set[Literal[L]]]:
+        return (self.term, self.literals)
+
     @property
     @abstractmethod
     def as_bound(self) -> Type[BoundSetPredicate[L]]:
@@ -509,6 +525,9 @@ class BoundSetPredicate(BoundPredicate[L], ABC):
 
     def __eq__(self, other: Any) -> bool:
         return self.term == other.term and self.literals == other.literals if isinstance(other, BoundSetPredicate) else False
+
+    def __getnewargs__(self) -> Tuple[BoundTerm[L], Set[Literal[L]]]:
+        return (self.term, self.literals)
 
     @property
     @abstractmethod

@@ -28,6 +28,8 @@ import org.apache.iceberg.MetadataUpdate;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.UpdateRequirement;
+import org.apache.iceberg.UpdateRequirements;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
@@ -101,30 +103,38 @@ class RESTTableOperations implements TableOperations {
 
   @Override
   public void commit(TableMetadata base, TableMetadata metadata) {
-    UpdateTableRequest.Builder requestBuilder;
-    List<MetadataUpdate> baseChanges;
     Consumer<ErrorResponse> errorHandler;
+    List<UpdateRequirement> requirements;
+    List<MetadataUpdate> updates;
     switch (updateType) {
       case CREATE:
         Preconditions.checkState(
             base == null, "Invalid base metadata for create transaction, expected null: %s", base);
-        requestBuilder = UpdateTableRequest.builderForCreate();
-        baseChanges = createChanges;
+        updates =
+            ImmutableList.<MetadataUpdate>builder()
+                .addAll(createChanges)
+                .addAll(metadata.changes())
+                .build();
+        requirements = UpdateRequirements.forCreateTable(updates);
         errorHandler = ErrorHandlers.tableErrorHandler(); // throws NoSuchTableException
         break;
 
       case REPLACE:
         Preconditions.checkState(base != null, "Invalid base metadata: null");
+        updates =
+            ImmutableList.<MetadataUpdate>builder()
+                .addAll(createChanges)
+                .addAll(metadata.changes())
+                .build();
         // use the original replace base metadata because the transaction will refresh
-        requestBuilder = UpdateTableRequest.builderForReplace(replaceBase);
-        baseChanges = createChanges;
+        requirements = UpdateRequirements.forReplaceTable(replaceBase, updates);
         errorHandler = ErrorHandlers.tableCommitHandler();
         break;
 
       case SIMPLE:
         Preconditions.checkState(base != null, "Invalid base metadata: null");
-        requestBuilder = UpdateTableRequest.builderFor(base);
-        baseChanges = ImmutableList.of();
+        updates = metadata.changes();
+        requirements = UpdateRequirements.forUpdateTable(base, updates);
         errorHandler = ErrorHandlers.tableCommitHandler();
         break;
 
@@ -133,9 +143,7 @@ class RESTTableOperations implements TableOperations {
             String.format("Update type %s is not supported", updateType));
     }
 
-    baseChanges.forEach(requestBuilder::update);
-    metadata.changes().forEach(requestBuilder::update);
-    UpdateTableRequest request = requestBuilder.build();
+    UpdateTableRequest request = new UpdateTableRequest(requirements, updates);
 
     // the error handler will throw necessary exceptions like CommitFailedException and
     // UnknownCommitStateException
