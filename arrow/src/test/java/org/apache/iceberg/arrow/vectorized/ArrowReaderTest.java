@@ -19,8 +19,7 @@
 package org.apache.iceberg.arrow.vectorized;
 
 import static org.apache.iceberg.Files.localInput;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
 import java.io.IOException;
@@ -225,7 +224,7 @@ public class ArrowReaderTest {
         numRoots++;
       }
     }
-    assertEquals(0, numRoots);
+    assertThat(numRoots).isEqualTo(0);
   }
 
   /**
@@ -322,14 +321,14 @@ public class ArrowReaderTest {
       for (ColumnarBatch batch : itr) {
         List<GenericRecord> expectedRows = rowsWritten.subList(rowIndex, rowIndex + numRowsPerRoot);
         VectorSchemaRoot root = batch.createVectorSchemaRootFromVectors();
-        assertEquals(createExpectedArrowSchema(columnSet), root.getSchema());
+        assertThat(root.getSchema()).isEqualTo(createExpectedArrowSchema(columnSet));
         checkAllVectorTypes(root, columnSet);
         checkAllVectorValues(numRowsPerRoot, expectedRows, root, columnSet);
         rowIndex += numRowsPerRoot;
         totalRows += root.getRowCount();
       }
     }
-    assertEquals(expectedTotalRows, totalRows);
+    assertThat(totalRows).isEqualTo(expectedTotalRows);
   }
 
   private void readAndCheckHasNextIsIdempotent(
@@ -349,12 +348,12 @@ public class ArrowReaderTest {
         // Call hasNext() a few extra times.
         // This should not affect the total number of rows read.
         for (int i = 0; i < numExtraCallsToHasNext; i++) {
-          assertTrue(iterator.hasNext());
+          assertThat(iterator.hasNext()).isTrue();
         }
 
         ColumnarBatch batch = iterator.next();
         VectorSchemaRoot root = batch.createVectorSchemaRootFromVectors();
-        assertEquals(createExpectedArrowSchema(columnSet), root.getSchema());
+        assertThat(root.getSchema()).isEqualTo(createExpectedArrowSchema(columnSet));
         checkAllVectorTypes(root, columnSet);
         List<GenericRecord> expectedRows = rowsWritten.subList(rowIndex, rowIndex + numRowsPerRoot);
         checkAllVectorValues(numRowsPerRoot, expectedRows, root, columnSet);
@@ -362,7 +361,7 @@ public class ArrowReaderTest {
         totalRows += root.getRowCount();
       }
     }
-    assertEquals(expectedTotalRows, totalRows);
+    assertThat(totalRows).isEqualTo(expectedTotalRows);
   }
 
   @SuppressWarnings("MethodLength")
@@ -378,8 +377,8 @@ public class ArrowReaderTest {
     }
     Set<String> columnSet = columnNameToIndex.keySet();
 
-    assertEquals(expectedNumRows, batch.numRows());
-    assertEquals(columns.size(), batch.numCols());
+    assertThat(batch.numRows()).isEqualTo(expectedNumRows);
+    assertThat(batch.numCols()).isEqualTo(columns.size());
 
     checkColumnarArrayValues(
         expectedNumRows,
@@ -872,7 +871,7 @@ public class ArrowReaderTest {
   private DataFile writeParquetFile(Table table, List<GenericRecord> records) throws IOException {
     rowsWritten.addAll(records);
     File parquetFile = temp.newFile();
-    assertTrue(parquetFile.delete());
+    assertThat(parquetFile.delete()).isTrue();
     FileAppender<GenericRecord> appender =
         Parquet.write(Files.localOutput(parquetFile))
             .schema(table.schema())
@@ -949,7 +948,7 @@ public class ArrowReaderTest {
   private void assertEqualsForField(
       VectorSchemaRoot root, Set<String> columnSet, String columnName, Class<?> expected) {
     if (columnSet.contains(columnName)) {
-      assertEquals(expected, root.getVector(columnName).getClass());
+      assertThat(root.getVector(columnName).getClass()).isEqualTo(expected);
     }
   }
 
@@ -959,7 +958,7 @@ public class ArrowReaderTest {
       List<GenericRecord> expectedRows,
       VectorSchemaRoot root,
       Set<String> columnSet) {
-    assertEquals(expectedNumRows, root.getRowCount());
+    assertThat(root.getRowCount()).isEqualTo(expectedNumRows);
 
     checkVectorValues(
         expectedNumRows,
@@ -1196,7 +1195,7 @@ public class ArrowReaderTest {
       BiFunction<FieldVector, Integer, Object> vectorValueExtractor) {
     if (columnSet.contains(columnName)) {
       FieldVector vector = root.getVector(columnName);
-      assertEquals(expectedNumRows, vector.getValueCount());
+      assertThat(vector.getValueCount()).isEqualTo(expectedNumRows);
       for (int i = 0; i < expectedNumRows; i++) {
         Object expectedValue = expectedValueExtractor.apply(expectedRows, i);
         Object actualValue = vectorValueExtractor.apply(vector, i);
