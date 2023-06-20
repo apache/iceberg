@@ -19,14 +19,24 @@
 package org.apache.iceberg.spark;
 
 import java.io.IOException;
+import java.io.Serializable;
+import java.sql.Timestamp;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeoutException;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.spark.extensions.SparkExtensionsTestBase;
+import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
+import org.apache.spark.sql.execution.streaming.MemoryStream;
+import org.apache.spark.sql.streaming.StreamingQueryException;
+import org.apache.spark.sql.streaming.Trigger;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
+import scala.collection.JavaConverters;
 
 public class SmokeTest extends SparkExtensionsTestBase {
 
@@ -167,6 +177,53 @@ public class SmokeTest extends SparkExtensionsTestBase {
         tableName("third"));
     Table third = getTable("third");
     Assert.assertEquals("Should be partitioned on 3 columns", 3, third.spec().fields().size());
+  }
+
+  public static class TimestampRow implements Serializable {
+    Timestamp ts;
+
+    public TimestampRow() {}
+
+    public TimestampRow(Timestamp ts) {
+      this.ts = ts;
+    }
+
+    public void setTs(Timestamp ts) {
+      this.ts = ts;
+    }
+
+    public Timestamp getTs() {
+      return this.ts;
+    }
+  }
+
+  @Test
+  public void testStructuredStreaming() throws TimeoutException, StreamingQueryException {
+    sql("DROP TABLE IF EXISTS %s PURGE", tableName("structured_streaming"));
+
+    sql(
+        "create table %s(ts timestamp) using iceberg partitioned by (days(ts))",
+        tableName("structured_streaming"));
+
+    List<TimestampRow> nums = new ArrayList<TimestampRow>();
+    nums.add(new TimestampRow(Timestamp.valueOf("2021-01-01 00:00:00")));
+    nums.add(new TimestampRow(Timestamp.valueOf("2021-01-02 00:00:00")));
+    nums.add(new TimestampRow(Timestamp.valueOf("2021-01-03 00:00:00")));
+
+    MemoryStream<TimestampRow> ms =
+        new MemoryStream<>(100, spark.sqlContext(), null, Encoders.bean(TimestampRow.class));
+
+    ms.addData(JavaConverters.asScalaIteratorConverter(nums.iterator()).asScala().toSeq());
+
+    ms.toDF()
+        .writeStream()
+        .format("iceberg")
+        .outputMode("append")
+        .option("checkpointLocation", "/tmp/spark-checkpoint")
+        .option("fanout-enabled", true)
+        .trigger(Trigger.Once())
+        .toTable(tableName("structured_streaming"))
+        .awaitTermination();
   }
 
   private Table getTable(String name) {
