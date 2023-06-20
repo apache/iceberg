@@ -72,7 +72,6 @@ public abstract class ScanTestBase<
             () -> newScan().select(Arrays.asList("id")).project(SCHEMA.select("data")))
         .isInstanceOf(IllegalStateException.class)
         .hasMessage("Cannot set projection schema when columns are selected");
-
     Assertions.assertThatThrownBy(
             () -> newScan().project(SCHEMA.select("data")).select(Arrays.asList("id")))
         .isInstanceOf(IllegalStateException.class)
