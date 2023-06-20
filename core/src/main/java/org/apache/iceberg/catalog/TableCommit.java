@@ -26,6 +26,12 @@ import org.apache.iceberg.UpdateRequirements;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.immutables.value.Value;
 
+/**
+ * This represents a commit to be applied for a single table with {@link UpdateRequirement}s to be
+ * validated and {@link MetadataUpdate}s that have been applied. The {@link UpdateRequirement}s and
+ * {@link MetadataUpdate}s can be derived from table's base and updated {@link TableMetadata} when
+ * using {@link TableCommit#create(TableIdentifier, TableMetadata, TableMetadata)}.
+ */
 @Value.Immutable
 public interface TableCommit {
   TableIdentifier identifier();
@@ -34,6 +40,17 @@ public interface TableCommit {
 
   List<MetadataUpdate> updates();
 
+  /**
+   * This creates a {@link TableCommit} instance to be applied for a single table with {@link
+   * UpdateRequirement}s to be validated and {@link MetadataUpdate}s that have been applied.
+   *
+   * @param identifier The {@link TableIdentifier} to create the {@link TableCommit} for.
+   * @param base The base {@link TableMetadata} where {@link UpdateRequirement}s are derived from
+   *     and used for validation.
+   * @param updated The updated {@link TableMetadata} where {@link MetadataUpdate}s that have been
+   *     applied are derived from.
+   * @return A {@link TableCommit} instance to be applied for a single table
+   */
   static TableCommit create(TableIdentifier identifier, TableMetadata base, TableMetadata updated) {
     Preconditions.checkArgument(null != identifier, "Invalid table identifier: null");
     Preconditions.checkArgument(null != base && null != updated, "Invalid table metadata: null");
