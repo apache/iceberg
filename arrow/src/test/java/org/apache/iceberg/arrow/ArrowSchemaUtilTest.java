@@ -34,8 +34,8 @@ import org.apache.iceberg.types.Types.MapType;
 import org.apache.iceberg.types.Types.StringType;
 import org.apache.iceberg.types.Types.TimeType;
 import org.apache.iceberg.types.Types.TimestampType;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Test;
 
 public class ArrowSchemaUtilTest {
 
@@ -97,86 +97,86 @@ public class ArrowSchemaUtilTest {
                 MapType.ofOptional(
                     4, 5, StringType.get(), ListType.ofOptional(6, TimestampType.withoutZone()))));
     org.apache.arrow.vector.types.pojo.Schema arrow = ArrowSchemaUtil.convert(iceberg);
-    Assert.assertEquals(iceberg.columns().size(), arrow.getFields().size());
+    Assertions.assertEquals(iceberg.columns().size(), arrow.getFields().size());
   }
 
   private void validate(Schema iceberg, org.apache.arrow.vector.types.pojo.Schema arrow) {
-    Assert.assertEquals(iceberg.columns().size(), arrow.getFields().size());
+    Assertions.assertEquals(iceberg.columns().size(), arrow.getFields().size());
 
     for (Types.NestedField nf : iceberg.columns()) {
       Field field = arrow.findField(nf.name());
-      Assert.assertNotNull("Missing filed: " + nf, field);
+      Assertions.assertNotNull(field, "Missing filed: " + nf);
       validate(nf.type(), field, nf.isOptional());
     }
   }
 
   private void validate(Type iceberg, Field field, boolean optional) {
     ArrowType arrowType = field.getType();
-    Assert.assertEquals(optional, field.isNullable());
+    Assertions.assertEquals(optional, field.isNullable());
     switch (iceberg.typeId()) {
       case BOOLEAN:
-        Assert.assertEquals(BOOLEAN_FIELD, field.getName());
-        Assert.assertEquals(ArrowType.ArrowTypeID.Bool, arrowType.getTypeID());
+        Assertions.assertEquals(BOOLEAN_FIELD, field.getName());
+        Assertions.assertEquals(ArrowType.ArrowTypeID.Bool, arrowType.getTypeID());
         break;
       case INTEGER:
-        Assert.assertEquals(INTEGER_FIELD, field.getName());
-        Assert.assertEquals(ArrowType.ArrowTypeID.Int, arrowType.getTypeID());
+        Assertions.assertEquals(INTEGER_FIELD, field.getName());
+        Assertions.assertEquals(ArrowType.ArrowTypeID.Int, arrowType.getTypeID());
         break;
       case LONG:
-        Assert.assertEquals(LONG_FIELD, field.getName());
-        Assert.assertEquals(ArrowType.ArrowTypeID.Int, arrowType.getTypeID());
+        Assertions.assertEquals(LONG_FIELD, field.getName());
+        Assertions.assertEquals(ArrowType.ArrowTypeID.Int, arrowType.getTypeID());
         break;
       case FLOAT:
-        Assert.assertEquals(FLOAT_FIELD, field.getName());
-        Assert.assertEquals(ArrowType.ArrowTypeID.FloatingPoint, arrowType.getTypeID());
+        Assertions.assertEquals(FLOAT_FIELD, field.getName());
+        Assertions.assertEquals(ArrowType.ArrowTypeID.FloatingPoint, arrowType.getTypeID());
         break;
       case DOUBLE:
-        Assert.assertEquals(DOUBLE_FIELD, field.getName());
-        Assert.assertEquals(ArrowType.ArrowTypeID.FloatingPoint, arrowType.getTypeID());
+        Assertions.assertEquals(DOUBLE_FIELD, field.getName());
+        Assertions.assertEquals(ArrowType.ArrowTypeID.FloatingPoint, arrowType.getTypeID());
         break;
       case DATE:
-        Assert.assertEquals(DATE_FIELD, field.getName());
-        Assert.assertEquals(ArrowType.ArrowTypeID.Date, arrowType.getTypeID());
+        Assertions.assertEquals(DATE_FIELD, field.getName());
+        Assertions.assertEquals(ArrowType.ArrowTypeID.Date, arrowType.getTypeID());
         break;
       case TIME:
-        Assert.assertEquals(TIME_FIELD, field.getName());
-        Assert.assertEquals(ArrowType.ArrowTypeID.Time, arrowType.getTypeID());
+        Assertions.assertEquals(TIME_FIELD, field.getName());
+        Assertions.assertEquals(ArrowType.ArrowTypeID.Time, arrowType.getTypeID());
         break;
       case TIMESTAMP:
-        Assert.assertEquals(TIMESTAMP_FIELD, field.getName());
-        Assert.assertEquals(ArrowType.ArrowTypeID.Timestamp, arrowType.getTypeID());
+        Assertions.assertEquals(TIMESTAMP_FIELD, field.getName());
+        Assertions.assertEquals(ArrowType.ArrowTypeID.Timestamp, arrowType.getTypeID());
         break;
       case STRING:
-        Assert.assertEquals(STRING_FIELD, field.getName());
-        Assert.assertEquals(ArrowType.ArrowTypeID.Utf8, arrowType.getTypeID());
+        Assertions.assertEquals(STRING_FIELD, field.getName());
+        Assertions.assertEquals(ArrowType.ArrowTypeID.Utf8, arrowType.getTypeID());
         break;
       case FIXED:
-        Assert.assertEquals(FIXED_WIDTH_BINARY_FIELD, field.getName());
-        Assert.assertEquals(ArrowType.FixedSizeBinary.TYPE_TYPE, arrowType.getTypeID());
+        Assertions.assertEquals(FIXED_WIDTH_BINARY_FIELD, field.getName());
+        Assertions.assertEquals(ArrowType.FixedSizeBinary.TYPE_TYPE, arrowType.getTypeID());
         break;
       case BINARY:
-        Assert.assertEquals(BINARY_FIELD, field.getName());
-        Assert.assertEquals(ArrowType.Binary.TYPE_TYPE, arrowType.getTypeID());
+        Assertions.assertEquals(BINARY_FIELD, field.getName());
+        Assertions.assertEquals(ArrowType.Binary.TYPE_TYPE, arrowType.getTypeID());
         break;
       case DECIMAL:
-        Assert.assertEquals(DECIMAL_FIELD, field.getName());
-        Assert.assertEquals(ArrowType.Decimal.TYPE_TYPE, arrowType.getTypeID());
+        Assertions.assertEquals(DECIMAL_FIELD, field.getName());
+        Assertions.assertEquals(ArrowType.Decimal.TYPE_TYPE, arrowType.getTypeID());
         break;
       case STRUCT:
-        Assert.assertEquals(STRUCT_FIELD, field.getName());
-        Assert.assertEquals(ArrowType.Struct.TYPE_TYPE, arrowType.getTypeID());
+        Assertions.assertEquals(STRUCT_FIELD, field.getName());
+        Assertions.assertEquals(ArrowType.Struct.TYPE_TYPE, arrowType.getTypeID());
         break;
       case LIST:
-        Assert.assertEquals(LIST_FIELD, field.getName());
-        Assert.assertEquals(ArrowType.List.TYPE_TYPE, arrowType.getTypeID());
+        Assertions.assertEquals(LIST_FIELD, field.getName());
+        Assertions.assertEquals(ArrowType.List.TYPE_TYPE, arrowType.getTypeID());
         break;
       case MAP:
-        Assert.assertEquals(MAP_FIELD, field.getName());
-        Assert.assertEquals(ArrowType.ArrowTypeID.Map, arrowType.getTypeID());
+        Assertions.assertEquals(MAP_FIELD, field.getName());
+        Assertions.assertEquals(ArrowType.ArrowTypeID.Map, arrowType.getTypeID());
         break;
       case UUID:
-        Assert.assertEquals(UUID_FIELD, field.getName());
-        Assert.assertEquals(ArrowType.FixedSizeBinary.TYPE_TYPE, arrowType.getTypeID());
+        Assertions.assertEquals(UUID_FIELD, field.getName());
+        Assertions.assertEquals(ArrowType.FixedSizeBinary.TYPE_TYPE, arrowType.getTypeID());
         break;
       default:
         throw new UnsupportedOperationException("Check not implemented for type: " + iceberg);

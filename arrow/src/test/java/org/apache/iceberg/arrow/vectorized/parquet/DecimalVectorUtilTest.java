@@ -22,7 +22,7 @@ import static org.junit.Assert.assertEquals;
 
 import java.math.BigInteger;
 import org.assertj.core.api.Assertions;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class DecimalVectorUtilTest {
 
@@ -32,9 +32,9 @@ public class DecimalVectorUtilTest {
     byte[] bytes = bigInt.toByteArray();
     byte[] paddedBytes = DecimalVectorUtil.padBigEndianBytes(bytes, 16);
 
-    assertEquals(16, paddedBytes.length);
+    org.junit.jupiter.api.Assertions.assertEquals(16, paddedBytes.length);
     BigInteger result = new BigInteger(paddedBytes);
-    assertEquals(bigInt, result);
+    org.junit.jupiter.api.Assertions.assertEquals(bigInt, result);
   }
 
   @Test
@@ -43,9 +43,9 @@ public class DecimalVectorUtilTest {
     byte[] bytes = bigInt.toByteArray();
     byte[] paddedBytes = DecimalVectorUtil.padBigEndianBytes(bytes, 16);
 
-    assertEquals(16, paddedBytes.length);
+    org.junit.jupiter.api.Assertions.assertEquals(16, paddedBytes.length);
     BigInteger result = new BigInteger(paddedBytes);
-    assertEquals(bigInt, result);
+    org.junit.jupiter.api.Assertions.assertEquals(bigInt, result);
   }
 
   @Test
@@ -53,16 +53,16 @@ public class DecimalVectorUtilTest {
     byte[] bytes = BigInteger.ZERO.toByteArray();
     byte[] paddedBytes = DecimalVectorUtil.padBigEndianBytes(bytes, 16);
 
-    assertEquals(16, paddedBytes.length);
+    org.junit.jupiter.api.Assertions.assertEquals(16, paddedBytes.length);
     BigInteger result = new BigInteger(paddedBytes);
-    assertEquals(BigInteger.ZERO, result);
+    org.junit.jupiter.api.Assertions.assertEquals(BigInteger.ZERO, result);
 
     bytes = new byte[0];
     paddedBytes = DecimalVectorUtil.padBigEndianBytes(bytes, 16);
 
-    assertEquals(16, paddedBytes.length);
+    org.junit.jupiter.api.Assertions.assertEquals(16, paddedBytes.length);
     result = new BigInteger(paddedBytes);
-    assertEquals(BigInteger.ZERO, result);
+    org.junit.jupiter.api.Assertions.assertEquals(BigInteger.ZERO, result);
   }
 
   @Test
