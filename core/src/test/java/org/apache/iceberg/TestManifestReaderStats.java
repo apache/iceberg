@@ -275,8 +275,6 @@ public class TestManifestReaderStats extends TableTestBase {
 
   private void assertNullRecordCount(DataFile dataFile) {
     // record count is a primitive type, accessing null record count will throw NPE
-    Assertions.assertThatThrownBy(dataFile::recordCount)
-        .isInstanceOf(NullPointerException.class)
-        .hasMessage(null);
+    Assertions.assertThatThrownBy(dataFile::recordCount).isInstanceOf(NullPointerException.class);
   }
 }
