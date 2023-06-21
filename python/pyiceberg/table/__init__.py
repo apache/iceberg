@@ -26,29 +26,39 @@ from typing import (
     Any,
     Callable,
     Dict,
-    Iterator,
+    Iterable,
     List,
     Optional,
+    Set,
     Tuple,
     TypeVar,
     Union,
 )
 
 from pydantic import Field
+from sortedcontainers import SortedList
 
 from pyiceberg.expressions import (
     AlwaysTrue,
     And,
     BooleanExpression,
+    EqualTo,
     parser,
     visitors,
 )
 from pyiceberg.expressions.visitors import _InclusiveMetricsEvaluator, inclusive_projection
 from pyiceberg.io import FileIO, load_file_io
-from pyiceberg.manifest import DataFile, ManifestContent, ManifestFile
+from pyiceberg.manifest import (
+    POSITIONAL_DELETE_SCHEMA,
+    DataFile,
+    DataFileContent,
+    ManifestContent,
+    ManifestEntry,
+    ManifestFile,
+)
 from pyiceberg.partitioning import PartitionSpec
 from pyiceberg.schema import Schema
-from pyiceberg.table.metadata import TableMetadata
+from pyiceberg.table.metadata import INITIAL_SEQUENCE_NUMBER, TableMetadata
 from pyiceberg.table.snapshots import Snapshot, SnapshotLogEntry
 from pyiceberg.table.sorting import SortOrder
 from pyiceberg.typedef import (
@@ -63,7 +73,6 @@ if TYPE_CHECKING:
     import pyarrow as pa
     import ray
     from duckdb import DuckDBPyConnection
-
 
 ALWAYS_TRUE = AlwaysTrue()
 
@@ -254,7 +263,7 @@ class TableScan(ABC):
         return snapshot_schema.select(*self.selected_fields, case_sensitive=self.case_sensitive)
 
     @abstractmethod
-    def plan_files(self) -> Iterator[ScanTask]:
+    def plan_files(self) -> Iterable[ScanTask]:
         ...
 
     @abstractmethod
@@ -296,23 +305,21 @@ class ScanTask(ABC):
 @dataclass(init=False)
 class FileScanTask(ScanTask):
     file: DataFile
+    delete_files: Set[DataFile]
     start: int
     length: int
 
-    def __init__(self, data_file: DataFile, start: Optional[int] = None, length: Optional[int] = None):
+    def __init__(
+        self,
+        data_file: DataFile,
+        delete_files: Optional[Set[DataFile]] = None,
+        start: Optional[int] = None,
+        length: Optional[int] = None,
+    ) -> None:
         self.file = data_file
+        self.delete_files = delete_files or set()
         self.start = start or 0
         self.length = length or data_file.file_size_in_bytes
-
-
-def _check_content(file: DataFile) -> DataFile:
-    try:
-        if file.content == ManifestContent.DELETES:
-            raise ValueError("PyIceberg does not support deletes: https://github.com/apache/iceberg/issues/6568")
-        return file
-    except AttributeError:
-        # If the attribute is not there, it is a V1 record
-        return file
 
 
 def _open_manifest(
@@ -320,11 +327,49 @@ def _open_manifest(
     manifest: ManifestFile,
     partition_filter: Callable[[DataFile], bool],
     metrics_evaluator: Callable[[DataFile], bool],
-) -> List[FileScanTask]:
-    all_files = (entry.data_file for entry in manifest.fetch_manifest_entry(io, discard_deleted=True))
-    matching_partition_files = filter(partition_filter, all_files)
-    matching_partition_data_files = map(_check_content, matching_partition_files)
-    return [FileScanTask(file) for file in matching_partition_data_files if metrics_evaluator(file)]
+) -> List[ManifestEntry]:
+    return [
+        manifest_entry
+        for manifest_entry in manifest.fetch_manifest_entry(io, discard_deleted=True)
+        if partition_filter(manifest_entry.data_file) and metrics_evaluator(manifest_entry.data_file)
+    ]
+
+
+def _min_data_file_sequence_number(manifests: List[ManifestFile]) -> int:
+    try:
+        return min(
+            manifest.min_sequence_number or INITIAL_SEQUENCE_NUMBER
+            for manifest in manifests
+            if manifest.content == ManifestContent.DATA
+        )
+    except ValueError:
+        # In case of an empty iterator
+        return INITIAL_SEQUENCE_NUMBER
+
+
+def _match_deletes_to_datafile(data_entry: ManifestEntry, positional_delete_entries: SortedList[ManifestEntry]) -> Set[DataFile]:
+    """This method will check if the delete file is relevant for the data file.
+
+    Using the column metrics to see if the filename is in the lower and upper bound.
+
+    Args:
+        data_entry (ManifestEntry): The manifest entry path of the datafile.
+        positional_delete_entries (List[ManifestEntry]): All the candidate positional deletes manifest entries.
+
+    Returns:
+        A set of files that are relevant for the data file.
+    """
+    relevant_entries = positional_delete_entries[positional_delete_entries.bisect_right(data_entry) :]
+
+    if len(relevant_entries) > 0:
+        evaluator = _InclusiveMetricsEvaluator(POSITIONAL_DELETE_SCHEMA, EqualTo("file_path", data_entry.data_file.file_path))
+        return {
+            positional_delete_entry.data_file
+            for positional_delete_entry in relevant_entries
+            if evaluator.eval(positional_delete_entry.data_file)
+        }
+    else:
+        return set()
 
 
 class DataScan(TableScan):
@@ -361,7 +406,28 @@ class DataScan(TableScan):
         evaluator = visitors.expression_evaluator(partition_schema, partition_expr, self.case_sensitive)
         return lambda data_file: evaluator(data_file.partition)
 
-    def plan_files(self) -> Iterator[FileScanTask]:
+    def _check_sequence_number(self, min_data_sequence_number: int, manifest: ManifestFile) -> bool:
+        """A helper function to make sure that no manifests are loaded that contain deletes that are older than the data.
+
+        Args:
+            min_data_sequence_number (int): The minimal sequence number.
+            manifest (ManifestFile): A ManifestFile that can be either data or deletes.
+
+        Returns:
+            Boolean indicating if it is either a data file, or a relevant delete file.
+        """
+        return manifest.content == ManifestContent.DATA or (
+            # Not interested in deletes that are older than the data
+            manifest.content == ManifestContent.DELETES
+            and (manifest.sequence_number or INITIAL_SEQUENCE_NUMBER) >= min_data_sequence_number
+        )
+
+    def plan_files(self) -> Iterable[FileScanTask]:
+        """Plans the relevant files by filtering on the PartitionSpecs.
+
+        Returns:
+            List of FileScanTasks that contain both data and delete files.
+        """
         snapshot = self.snapshot()
         if not snapshot:
             return iter([])
@@ -384,8 +450,14 @@ class DataScan(TableScan):
 
         partition_evaluators: Dict[int, Callable[[DataFile], bool]] = KeyDefaultDict(self._build_partition_evaluator)
         metrics_evaluator = _InclusiveMetricsEvaluator(self.table.schema(), self.row_filter, self.case_sensitive).eval
+
+        min_data_sequence_number = _min_data_file_sequence_number(manifests)
+
+        data_entries: List[ManifestEntry] = []
+        positional_delete_entries = SortedList(key=lambda entry: entry.data_sequence_number or INITIAL_SEQUENCE_NUMBER)
+
         with ThreadPool() as pool:
-            return chain(
+            for manifest_entry in chain(
                 *pool.starmap(
                     func=_open_manifest,
                     iterable=[
@@ -396,9 +468,32 @@ class DataScan(TableScan):
                             metrics_evaluator,
                         )
                         for manifest in manifests
+                        if self._check_sequence_number(min_data_sequence_number, manifest)
                     ],
                 )
+            ):
+                data_file = manifest_entry.data_file
+                if data_file.content == DataFileContent.DATA:
+                    data_entries.append(manifest_entry)
+                elif data_file.content == DataFileContent.POSITION_DELETES:
+                    positional_delete_entries.add(manifest_entry)
+                elif data_file.content == DataFileContent.EQUALITY_DELETES:
+                    raise ValueError(
+                        "PyIceberg does not yet support equality deletes: https://github.com/apache/iceberg/issues/6568"
+                    )
+                else:
+                    raise ValueError(f"Unknown DataFileContent ({data_file.content}): {manifest_entry}")
+
+        return [
+            FileScanTask(
+                data_entry.data_file,
+                delete_files=_match_deletes_to_datafile(
+                    data_entry,
+                    positional_delete_entries,
+                ),
             )
+            for data_entry in data_entries
+        ]
 
     def to_arrow(self) -> pa.Table:
         from pyiceberg.io.pyarrow import project_table
