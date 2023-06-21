@@ -25,8 +25,9 @@ import org.apache.flink.table.api.Schema;
 import org.apache.flink.table.api.Table;
 import org.apache.flink.table.api.TableDescriptor;
 import org.apache.flink.table.api.TableEnvironment;
+import org.apache.flink.table.api.TableException;
 import org.apache.flink.table.api.ValidationException;
-import org.junit.Assert;
+import org.assertj.core.api.Assertions;
 import org.junit.Test;
 
 public class TestFlinkAnonymousTable extends FlinkTestBase {
@@ -52,12 +53,11 @@ public class TestFlinkAnonymousTable extends FlinkTestBase {
             .option("warehouse", warehouseDir.getAbsolutePath())
             .build();
 
-    Exception exception =
-        Assert.assertThrows(
-            ValidationException.class, () -> table.insertInto(descriptor).execute());
-    Assert.assertNotEquals(
-        "This ObjectIdentifier instance refers to an anonymous object, "
-            + "hence it cannot be converted to ObjectPath and cannot be serialized.",
-        exception.getCause().getMessage());
+    Assertions.assertThatThrownBy(() -> table.insertInto(descriptor).execute())
+        .isInstanceOf(ValidationException.class)
+        .hasCause(
+            new TableException(
+                "This ObjectIdentifier instance refers to an anonymous object, "
+                    + "hence it cannot be converted to ObjectPath and cannot be serialized."));
   }
 }
