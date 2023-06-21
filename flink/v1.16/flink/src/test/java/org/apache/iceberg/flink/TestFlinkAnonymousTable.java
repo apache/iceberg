@@ -55,9 +55,10 @@ public class TestFlinkAnonymousTable extends FlinkTestBase {
 
     Assertions.assertThatThrownBy(() -> table.insertInto(descriptor).execute())
         .isInstanceOf(ValidationException.class)
-        .hasCause(
-            new TableException(
-                "This ObjectIdentifier instance refers to an anonymous object, "
-                    + "hence it cannot be converted to ObjectPath and cannot be serialized."));
+        .cause()
+        .isInstanceOf(TableException.class)
+        .hasMessage(
+            "This ObjectIdentifier instance refers to an anonymous object, "
+                + "hence it cannot be converted to ObjectPath and cannot be serialized.");
   }
 }
