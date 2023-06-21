@@ -347,7 +347,7 @@ class SchemaResolver(PrimitiveWithPartnerVisitor[IcebergType, Reader]):
     def visit_timestamp(self, timestamp_type: TimestampType, partner: Optional[IcebergType]) -> Reader:
         return TimestampReader()
 
-    def visit_timestampz(self, timestamptz_type: TimestamptzType, partner: Optional[IcebergType]) -> Reader:
+    def visit_timestamptz(self, timestamptz_type: TimestamptzType, partner: Optional[IcebergType]) -> Reader:
         return TimestamptzReader()
 
     def visit_string(self, string_type: StringType, partner: Optional[IcebergType]) -> Reader:
