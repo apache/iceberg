@@ -1232,14 +1232,14 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
         Types.StructType.of(
             required(
                 9,
-                "last_updated",
+                "last_updated_ms",
                 Types.TimestampType.withZone(),
                 "Partition last updated timestamp"),
             required(
                 10,
                 "last_updated_snapshot_id",
                 Types.LongType.get(),
-                "Partition last updated snapshot id"),
+                "Id of snapshot that last updated this partition"),
             required(2, "record_count", Types.LongType.get(), "Count of records in data files"),
             required(3, "file_count", Types.IntegerType.get(), "Count of data files"),
             required(
@@ -1274,7 +1274,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
         new GenericRecordBuilder(AvroSchemaUtil.convert(partitionsTable.schema(), "partitions"));
     GenericData.Record expectedRow =
         builder
-            .set("last_updated", table.currentSnapshot().timestampMillis() * 1000)
+            .set("last_updated_ms", table.currentSnapshot().timestampMillis() * 1000)
             .set("last_updated_snapshot_id", table.currentSnapshot().snapshotId())
             .set("record_count", 1L)
             .set("file_count", 1)
@@ -1349,7 +1349,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
             .set("equality_delete_record_count", 0L)
             .set("equality_delete_file_count", 0)
             .set("spec_id", 0)
-            .set("last_updated", table.snapshot(firstCommitId).timestampMillis() * 1000)
+            .set("last_updated_ms", table.snapshot(firstCommitId).timestampMillis() * 1000)
             .set("last_updated_snapshot_id", firstCommitId)
             .build());
     expected.add(
@@ -1362,7 +1362,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
             .set("equality_delete_record_count", 0L)
             .set("equality_delete_file_count", 0)
             .set("spec_id", 0)
-            .set("last_updated", table.snapshot(secondCommitId).timestampMillis() * 1000)
+            .set("last_updated_ms", table.snapshot(secondCommitId).timestampMillis() * 1000)
             .set("last_updated_snapshot_id", secondCommitId)
             .build());
 

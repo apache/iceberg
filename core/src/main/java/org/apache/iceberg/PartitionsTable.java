@@ -51,14 +51,14 @@ public class PartitionsTable extends BaseMetadataTable {
             Types.NestedField.required(4, "spec_id", Types.IntegerType.get()),
             Types.NestedField.required(
                 9,
-                "last_updated",
+                "last_updated_ms",
                 Types.TimestampType.withZone(),
                 "Partition last updated timestamp"),
             Types.NestedField.required(
                 10,
                 "last_updated_snapshot_id",
                 Types.LongType.get(),
-                "Partition last updated snapshot id"),
+                "Id of snapshot that last updated this partition"),
             Types.NestedField.required(
                 2, "record_count", Types.LongType.get(), "Count of records in data files"),
             Types.NestedField.required(
@@ -95,7 +95,7 @@ public class PartitionsTable extends BaseMetadataTable {
   public Schema schema() {
     if (unpartitionedTable) {
       return schema.select(
-          "last_updated",
+          "last_updated_ms",
           "last_updated_snapshot_id",
           "record_count",
           "file_count",
