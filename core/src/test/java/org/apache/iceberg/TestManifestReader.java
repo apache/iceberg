@@ -27,6 +27,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.types.Types;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Assume;
 import org.junit.Test;
@@ -76,11 +77,9 @@ public class TestManifestReader extends TableTestBase {
   @Test
   public void testInvalidUsage() throws IOException {
     ManifestFile manifest = writeManifest(FILE_A, FILE_B);
-    AssertHelpers.assertThrows(
-        "Should not be possible to read manifest without explicit snapshot ids and inheritable metadata",
-        IllegalArgumentException.class,
-        "Cannot read from ManifestFile with null (unassigned) snapshot ID",
-        () -> ManifestFiles.read(manifest, FILE_IO));
+    Assertions.assertThatThrownBy(() -> ManifestFiles.read(manifest, FILE_IO))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot read from ManifestFile with null (unassigned) snapshot ID");
   }
 
   @Test
