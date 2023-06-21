@@ -52,7 +52,7 @@ public class TestCatalogUtilDropTable extends HadoopTableTestBase {
     Assertions.assertThat(manifestListLocations.size())
         .as("should have 2 manifest lists")
         .isEqualTo(2);
-    Assertions.assertThat(metadataLocations.size())
+    Assertions.assertThat(metadataLocations).hasSize(3)
         .as("should have 3 metadata locations")
         .isEqualTo(3);
 
