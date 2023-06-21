@@ -16,8 +16,14 @@
 # under the License.
 # pylint:disable=protected-access
 
+import io
+import struct
+from typing import Dict, List
+
 import pytest
 
+from pyiceberg.avro.encoder import BinaryEncoder
+from pyiceberg.avro.resolver import construct_writer
 from pyiceberg.avro.writer import (
     BinaryWriter,
     BooleanWriter,
@@ -28,13 +34,11 @@ from pyiceberg.avro.writer import (
     FloatWriter,
     IntegerWriter,
     StringWriter,
-    TimeWriter,
-    TimestampWriter,
     TimestamptzWriter,
+    TimestampWriter,
+    TimeWriter,
     UUIDWriter,
 )
-from pyiceberg.avro.resolver import construct_writer
-from pyiceberg.avro.encoder import BinaryEncoder
 from pyiceberg.typedef import Record
 from pyiceberg.types import (
     BinaryType,
@@ -57,18 +61,16 @@ from pyiceberg.types import (
     TimeType,
     UUIDType,
 )
-import io
-import struct
-from typing import Dict, List
 
-def zigzag_encode(datum):
+
+def zigzag_encode(datum: int) -> bytes:
     result = []
     datum = (datum << 1) ^ (datum >> 63)
     while (datum & ~0x7F) != 0:
         result.append(struct.pack("B", (datum & 0x7F) | 0x80))
         datum >>= 7
     result.append(struct.pack("B", datum))
-    return b''.join(result)
+    return b"".join(result)
 
 
 def test_fixed_writer() -> None:
@@ -138,13 +140,11 @@ def test_uuid_writer() -> None:
 
 
 def test_write_simple_struct() -> None:
-
     output = io.BytesIO()
     encoder = BinaryEncoder(output)
 
     schema = StructType(
-        NestedField(1, "id", IntegerType(), required=True),
-        NestedField(2, "property", StringType(), required=True)
+        NestedField(1, "id", IntegerType(), required=True), NestedField(2, "property", StringType(), required=True)
     )
 
     class MyStruct(Record):
@@ -153,66 +153,68 @@ def test_write_simple_struct() -> None:
 
     my_struct = MyStruct(id=12, property="awesome")
 
-    enc_str = "awesome".encode()
+    enc_str = b"awesome"
 
     construct_writer(schema).write(encoder, my_struct)
 
-    assert output.getbuffer() == b''.join([b'\x18', zigzag_encode(len(enc_str)), enc_str])
+    assert output.getbuffer() == b"".join([b"\x18", zigzag_encode(len(enc_str)), enc_str])
 
 
 def test_write_struct_with_dict() -> None:
-
     output = io.BytesIO()
     encoder = BinaryEncoder(output)
 
     schema = StructType(
         NestedField(1, "id", IntegerType(), required=True),
-        NestedField(2, "properties", MapType(3, IntegerType(), 4, IntegerType()), required=True)
+        NestedField(2, "properties", MapType(3, IntegerType(), 4, IntegerType()), required=True),
     )
 
     class MyStruct(Record):
         id: int
-        properties: Dict[int,int]
+        properties: Dict[int, int]
 
-    my_struct = MyStruct(id=12, properties={1:2, 3:4})
+    my_struct = MyStruct(id=12, properties={1: 2, 3: 4})
 
     construct_writer(schema).write(encoder, my_struct)
 
-    assert output.getbuffer() == b''.join([
-        b'\x18', 
-        zigzag_encode(len(my_struct.properties)),
-        zigzag_encode(1),
-        zigzag_encode(2),
-        zigzag_encode(3),
-        zigzag_encode(4),
-        b'\x00'
-    ])
+    assert output.getbuffer() == b"".join(
+        [
+            b"\x18",
+            zigzag_encode(len(my_struct.properties)),
+            zigzag_encode(1),
+            zigzag_encode(2),
+            zigzag_encode(3),
+            zigzag_encode(4),
+            b"\x00",
+        ]
+    )
 
 
 def test_write_struct_with_list() -> None:
-
     output = io.BytesIO()
     encoder = BinaryEncoder(output)
 
     schema = StructType(
         NestedField(1, "id", IntegerType(), required=True),
-        NestedField(2, "properties", ListType(3, IntegerType()), required=True)
+        NestedField(2, "properties", ListType(3, IntegerType()), required=True),
     )
 
     class MyStruct(Record):
         id: int
         properties: List[int]
 
-    my_struct = MyStruct(id=12, properties=[1,2,3,4])
+    my_struct = MyStruct(id=12, properties=[1, 2, 3, 4])
 
     construct_writer(schema).write(encoder, my_struct)
 
-    assert output.getbuffer() == b''.join([
-        b'\x18', 
-        zigzag_encode(len(my_struct.properties)),
-        zigzag_encode(1),
-        zigzag_encode(2),
-        zigzag_encode(3),
-        zigzag_encode(4),
-        b'\x00'
-    ])
+    assert output.getbuffer() == b"".join(
+        [
+            b"\x18",
+            zigzag_encode(len(my_struct.properties)),
+            zigzag_encode(1),
+            zigzag_encode(2),
+            zigzag_encode(3),
+            zigzag_encode(4),
+            b"\x00",
+        ]
+    )

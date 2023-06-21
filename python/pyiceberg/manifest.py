@@ -172,7 +172,7 @@ class DataFile(Record):
     nan_value_counts: Dict[int, int]
     lower_bounds: Dict[int, bytes]
     upper_bounds: Dict[int, bytes]
-    key_metadata: Optional[bytes]   
+    key_metadata: Optional[bytes]
     split_offsets: Optional[List[int]]
     equality_ids: Optional[List[int]]
     sort_order_id: Optional[int]

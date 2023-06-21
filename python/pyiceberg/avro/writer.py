@@ -163,7 +163,7 @@ class StructWriter(Writer):
     field_writers: Tuple[Writer, ...] = dataclassfield()
 
     def write(self, encoder: BinaryEncoder, val: StructType) -> None:
-        for writer, value in zip(self.field_writers, val.fields()):
+        for writer, value in zip(self.field_writers, val.record_fields()):
             writer.write(encoder, value)
 
     def __eq__(self, other: Any) -> bool:

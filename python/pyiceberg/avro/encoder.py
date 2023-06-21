@@ -22,11 +22,10 @@ from pyiceberg.avro import STRUCT_DOUBLE, STRUCT_FLOAT
 from pyiceberg.io import OutputStream
 from pyiceberg.utils.datetime import date_to_days, datetime_to_micros
 
-def _time_object_to_micros(t: time):
-    return int(t.hour * 60 * 60 * 1e6 +\
-               t.minute    * 60 * 1e6 +\
-               t.second         * 1e6 +\
-               t.microsecond)
+
+def _time_object_to_micros(t: time) -> int:
+    return int(t.hour * 60 * 60 * 1e6 + t.minute * 60 * 1e6 + t.second * 1e6 + t.microsecond)
+
 
 class BinaryEncoder:
     """Write leaf values."""
@@ -66,7 +65,7 @@ class BinaryEncoder:
     def write_decimal_bytes(self, datum: decimal.Decimal) -> None:
         """
         Decimal in bytes are encoded as long.
-         
+
         Since size of packed value in bytes for signed long is 8, 8 bytes are written.
         """
         sign, digits, _ = datum.as_tuple()
@@ -174,7 +173,7 @@ class BinaryEncoder:
     def write_timestamp_micros_long(self, dt: datetime) -> None:
         """
         Encode python datetime object as long.
-        
+
         It stores the number of microseconds from midnight of unix epoch, 1 January 1970.
         """
         self.write_int(datetime_to_micros(dt))

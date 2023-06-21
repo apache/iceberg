@@ -18,7 +18,9 @@
 """Avro reader for reading Avro files."""
 from __future__ import annotations
 
-import json, os, io
+import io
+import json
+import os
 from dataclasses import dataclass
 from enum import Enum
 from types import TracebackType
@@ -36,9 +38,14 @@ from pyiceberg.avro.codecs import KNOWN_CODECS, Codec
 from pyiceberg.avro.decoder import BinaryDecoder
 from pyiceberg.avro.encoder import BinaryEncoder
 from pyiceberg.avro.reader import Reader
+from pyiceberg.avro.resolver import construct_reader, construct_writer, resolve
 from pyiceberg.avro.writer import Writer
-from pyiceberg.avro.resolver import construct_reader, resolve, construct_writer
-from pyiceberg.io import InputFile, InputStream, OutputStream, OutputFile
+from pyiceberg.io import (
+    InputFile,
+    InputStream,
+    OutputFile,
+    OutputStream,
+)
 from pyiceberg.io.memory import MemoryInputStream
 from pyiceberg.schema import Schema
 from pyiceberg.typedef import EMPTY_DICT, Record, StructProtocol
@@ -213,26 +220,21 @@ class AvroOutputFile(Generic[D]):
     sync_bytes: bytes
     writer: Writer
 
-    def __init__(
-        self,
-        output_file: OutputFile,
-        schema: Schema,
-        schema_name: str
-    ) -> None:
+    def __init__(self, output_file: OutputFile, schema: Schema, schema_name: str) -> None:
         self.output_file = output_file
-        self.schema      = schema
+        self.schema = schema
         self.schema_name = schema_name
-        self.sync_bytes  = os.urandom(SYNC_SIZE)
-        self.writer      = construct_writer(self.schema)
+        self.sync_bytes = os.urandom(SYNC_SIZE)
+        self.writer = construct_writer(self.schema)
 
-    def __enter__(self) -> AvroFile[D]:
+    def __enter__(self) -> AvroOutputFile[D]:
         """
         Opens the file and writes the header.
 
         Returns:
             The file object to write records to
         """
-        self.output_stream = self.output_file.create(overwrite = True)
+        self.output_stream = self.output_file.create(overwrite=True)
         self.encoder = BinaryEncoder(self.output_stream)
 
         self._write_header()
@@ -245,25 +247,14 @@ class AvroOutputFile(Generic[D]):
     ) -> None:
         self.output_stream.close()
 
-    def _write_header(self):
-        json_schema = json.dumps(AvroSchemaConversion().iceberg_to_avro(
-            self.schema,
-            schema_name=self.schema_name
-        ))
-        header = AvroFileHeader(
-            magic = MAGIC,
-            meta = {
-                _SCHEMA_KEY: json_schema,
-                _CODEC_KEY: "null"
-            },
-            sync = self.sync_bytes
-        )
+    def _write_header(self) -> None:
+        json_schema = json.dumps(AvroSchemaConversion().iceberg_to_avro(self.schema, schema_name=self.schema_name))
+        header = AvroFileHeader(magic=MAGIC, meta={_SCHEMA_KEY: json_schema, _CODEC_KEY: "null"}, sync=self.sync_bytes)
         construct_writer(META_SCHEMA).write(self.encoder, header)
 
     def write_block(self, objects: List[D]) -> None:
-
         in_memory = io.BytesIO()
-        block_content_encoder = BinaryEncoder(output_stream = in_memory)
+        block_content_encoder = BinaryEncoder(output_stream=in_memory)
         for obj in objects:
             self.writer.write(block_content_encoder, obj)
         block_content = in_memory.getvalue()
@@ -272,6 +263,3 @@ class AvroOutputFile(Generic[D]):
         self.encoder.write_int(len(block_content))
         self.encoder.write(block_content)
         self.encoder.write_bytes_fixed(self.sync_bytes)
-
-
-
