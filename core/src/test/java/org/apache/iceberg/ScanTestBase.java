@@ -31,6 +31,7 @@ import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.types.Types;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Assume;
 import org.junit.Test;
@@ -67,14 +68,14 @@ public abstract class ScanTestBase<
 
   @Test
   public void testTableBothProjectAndSelect() {
-    AssertHelpers.assertThrows(
-        "Cannot set projection schema when columns are selected",
-        IllegalStateException.class,
-        () -> newScan().select(Arrays.asList("id")).project(SCHEMA.select("data")));
-    AssertHelpers.assertThrows(
-        "Cannot select columns when projection schema is set",
-        IllegalStateException.class,
-        () -> newScan().project(SCHEMA.select("data")).select(Arrays.asList("id")));
+    Assertions.assertThatThrownBy(
+            () -> newScan().select(Arrays.asList("id")).project(SCHEMA.select("data")))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("Cannot set projection schema when columns are selected");
+    Assertions.assertThatThrownBy(
+            () -> newScan().project(SCHEMA.select("data")).select(Arrays.asList("id")))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("Cannot select columns when projection schema is set");
   }
 
   @Test

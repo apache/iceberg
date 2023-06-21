@@ -56,11 +56,9 @@ public class TestMetadataUpdateParser {
         ImmutableList.of("{\"action\":null,\"format-version\":2}", "{\"format-version\":2}");
 
     for (String json : invalidJson) {
-      AssertHelpers.assertThrows(
-          "MetadataUpdate without a recognized action should fail to deserialize",
-          IllegalArgumentException.class,
-          "Cannot parse metadata update. Missing field: action",
-          () -> MetadataUpdateParser.fromJson(json));
+      Assertions.assertThatThrownBy(() -> MetadataUpdateParser.fromJson(json))
+          .isInstanceOf(IllegalArgumentException.class)
+          .hasMessage("Cannot parse metadata update. Missing field: action");
     }
   }
 
@@ -702,11 +700,9 @@ public class TestMetadataUpdateParser {
     props.put("prop2", null);
     String propsMap = "{\"prop1\":\"val1\",\"prop2\":null}";
     String json = String.format("{\"action\":\"%s\",\"updated\":%s}", action, propsMap);
-    AssertHelpers.assertThrows(
-        "Parsing updates from SetProperties with a property set to null should throw",
-        IllegalArgumentException.class,
-        "Cannot parse to a string value: prop2: null",
-        () -> MetadataUpdateParser.fromJson(json));
+    Assertions.assertThatThrownBy(() -> MetadataUpdateParser.fromJson(json))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot parse to a string value: prop2: null");
   }
 
   @Test
